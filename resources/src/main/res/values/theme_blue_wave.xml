@@ -21,20 +21,20 @@
   <!--  Base theme -->
   <!--========================================================-->
 
-  <color name="_blue_wave_light_colorPrimary">#ff485d92</color>
-  <color name="_blue_wave_light_colorPrimaryContainer">#ffdae2ff</color>
-  <color name="_blue_wave_light_colorPrimaryDark">#ff485d92</color>
-  <color name="_blue_wave_light_colorPrimaryInverse">#ffb1c5ff</color>
+  <color name="_blue_wave_light_colorPrimary">#ff555555</color>
+  <color name="_blue_wave_light_colorPrimaryContainer">#ffe0e0e0</color>
+  <color name="_blue_wave_light_colorPrimaryDark">#ff555555</color>
+  <color name="_blue_wave_light_colorPrimaryInverse">#ffaaaaaa</color>
   <color name="_blue_wave_light_colorOnPrimary">#ffffffff</color>
-  <color name="_blue_wave_light_colorOnPrimaryContainer">#ff001847</color>
-  <color name="_blue_wave_light_colorSecondary">#ff585e71</color>
-  <color name="_blue_wave_light_colorSecondaryContainer">#ffdce2f9</color>
+  <color name="_blue_wave_light_colorOnPrimaryContainer">#ff1a1a1a</color>
+  <color name="_blue_wave_light_colorSecondary">#ff666666</color>
+  <color name="_blue_wave_light_colorSecondaryContainer">#ffe8e8e8</color>
   <color name="_blue_wave_light_colorOnSecondary">#ffffffff</color>
-  <color name="_blue_wave_light_colorOnSecondaryContainer">#ff151b2c</color>
-  <color name="_blue_wave_light_colorTertiary">#ff735472</color>
-  <color name="_blue_wave_light_colorTertiaryContainer">#fffed7f9</color>
+  <color name="_blue_wave_light_colorOnSecondaryContainer">#ff1a1a1a</color>
+  <color name="_blue_wave_light_colorTertiary">#ff666666</color>
+  <color name="_blue_wave_light_colorTertiaryContainer">#ffe8e8e8</color>
   <color name="_blue_wave_light_colorOnTertiary">#ffffffff</color>
-  <color name="_blue_wave_light_colorOnTertiaryContainer">#ff2b122c</color>
+  <color name="_blue_wave_light_colorOnTertiaryContainer">#ff1a1a1a</color>
   <color name="_blue_wave_light_colorError">#ffb3261e</color>
   <color name="_blue_wave_light_colorErrorContainer">#fff9dedc</color>
   <color name="_blue_wave_light_colorOnError">#ffffffff</color>
@@ -93,20 +93,20 @@
   <!--  Dark variant-->
   <!--========================================================-->
 
-  <color name="_blue_wave_dark_colorPrimary">#ffb1c5ff</color>
-  <color name="_blue_wave_dark_colorPrimaryContainer">#ff304578</color>
-  <color name="_blue_wave_dark_colorPrimaryDark">#ffb1c5ff</color>
-  <color name="_blue_wave_dark_colorPrimaryInverse">#ff485d92</color>
-  <color name="_blue_wave_dark_colorOnPrimary">#ff172e60</color>
-  <color name="_blue_wave_dark_colorOnPrimaryContainer">#ffdae2ff</color>
-  <color name="_blue_wave_dark_colorSecondary">#ffc0c6dd</color>
-  <color name="_blue_wave_dark_colorSecondaryContainer">#ff404659</color>
-  <color name="_blue_wave_dark_colorOnSecondary">#ff2a3042</color>
-  <color name="_blue_wave_dark_colorOnSecondaryContainer">#ffdce2f9</color>
-  <color name="_blue_wave_dark_colorTertiary">#ffe1bbdd</color>
-  <color name="_blue_wave_dark_colorTertiaryContainer">#ff5a3d59</color>
-  <color name="_blue_wave_dark_colorOnTertiary">#ff412742</color>
-  <color name="_blue_wave_dark_colorOnTertiaryContainer">#fffed7f9</color>
+  <color name="_blue_wave_dark_colorPrimary">#ffaaaaaa</color>
+  <color name="_blue_wave_dark_colorPrimaryContainer">#ff404040</color>
+  <color name="_blue_wave_dark_colorPrimaryDark">#ffaaaaaa</color>
+  <color name="_blue_wave_dark_colorPrimaryInverse">#ff555555</color>
+  <color name="_blue_wave_dark_colorOnPrimary">#ff1a1a1a</color>
+  <color name="_blue_wave_dark_colorOnPrimaryContainer">#ffe8e8e8</color>
+  <color name="_blue_wave_dark_colorSecondary">#ff999999</color>
+  <color name="_blue_wave_dark_colorSecondaryContainer">#ff4a4a4a</color>
+  <color name="_blue_wave_dark_colorOnSecondary">#ff1a1a1a</color>
+  <color name="_blue_wave_dark_colorOnSecondaryContainer">#ffe8e8e8</color>
+  <color name="_blue_wave_dark_colorTertiary">#ffaaaaaa</color>
+  <color name="_blue_wave_dark_colorTertiaryContainer">#ff333333</color>
+  <color name="_blue_wave_dark_colorOnTertiary">#ff1a1a1a</color>
+  <color name="_blue_wave_dark_colorOnTertiaryContainer">#ffe8e8e8</color>
   <color name="_blue_wave_dark_colorError">#fff2b8b5</color>
   <color name="_blue_wave_dark_colorErrorContainer">#ff8c1d18</color>
   <color name="_blue_wave_dark_colorOnError">#ff601410</color>

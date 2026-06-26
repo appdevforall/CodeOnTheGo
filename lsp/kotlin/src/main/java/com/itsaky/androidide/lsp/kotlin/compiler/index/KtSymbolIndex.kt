@@ -202,6 +202,13 @@ internal class KtSymbolIndex(
 
 		scanningJob?.cancelAndJoin()
 		indexingJob?.join()
+
+		// Cancel AND JOIN the index's own scope. Beyond the main worker loop drained above, the
+		// debounced modifiedFileIndexer and queueOnFileChangedAsync coroutines also run
+		// project.read { PsiManager … }. Joining guarantees none survive into the caller's
+		// Disposer.dispose(...), which would otherwise crash with "Project is already disposed"
+		// (APPDEVFORALL-17R). This index owns `scope`.
+		scope.coroutineContext[Job]?.cancelAndJoin()
 	}
 }
 

@@ -24,6 +24,7 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
+import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
@@ -32,6 +33,8 @@ import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.doOnNextLayout
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.ImageUtils
 import com.google.android.material.tabs.TabLayout
@@ -63,6 +66,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.activities.PluginManagerActivity
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
+import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
@@ -73,6 +77,7 @@ import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -90,6 +95,7 @@ import com.itsaky.androidide.utils.EditorSidebarActions
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.forEachViewRecursively
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -98,6 +104,7 @@ import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
+import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
@@ -125,6 +132,22 @@ open class EditorHandlerActivity :
 
 	private val pluginTabIndices = mutableMapOf<String, Int>()
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
+	private var lastAppliedPluginFontScale = EditorPreferences.editorFontScale
+	private val pluginTextBaseSizes = WeakHashMap<TextView, Float>()
+
+	private val pluginFontScalingListener = object : FragmentManager.FragmentLifecycleCallbacks() {
+		override fun onFragmentViewCreated(
+			mFragmentManager: FragmentManager,
+			mFragment: Fragment,
+			view: View,
+			savedInstanceState: Bundle?
+		) {
+			val scale = EditorPreferences.editorFontScale
+			if (scale != 1f && isPluginFragment(mFragment)) {
+				applyPluginFontScale(view, scale)
+			}
+		}
+	}
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
 	private var pluginEditorProvider: EditorProviderImpl? = null
@@ -193,6 +216,8 @@ open class EditorHandlerActivity :
 		setupPluginFragmentFactory()
 		mBuildEventListener.setActivity(this)
 		super.onCreate(savedInstanceState)
+
+		supportFragmentManager.registerFragmentLifecycleCallbacks(pluginFontScalingListener, true)
 
 		editorViewModel._displayedFile.observe(
 			this,
@@ -392,25 +417,38 @@ open class EditorHandlerActivity :
 		}
 
 		restoreOpenedPluginTabs()
+		syncPluginUiFontSize()
 	}
 
+	/**
+	 * Restores the plugin tabs cached from the previous session, running the
+	 * SharedPreferences IO and Gson decode off the main thread to avoid a startup UI stall.
+	 */
 	private fun restoreOpenedPluginTabs() {
-		try {
-			val prefs = (application as BaseApplication).prefManager
-			val json = prefs.getString(PREF_KEY_OPEN_PLUGIN_TABS, null) ?: return
+		lifecycleScope.launch {
+			try {
+				val prefs = (application as BaseApplication).prefManager
+				val json = withContext(Dispatchers.IO) {
+					prefs.getString(PREF_KEY_OPEN_PLUGIN_TABS, null)
+				} ?: return@launch
 
-			val tabIds = Gson().fromJson(json, Array<String>::class.java)?.toList() ?: return
-			Log.d("EditorHandlerActivity", "Restoring plugin tabs: $tabIds")
+				// Decoding the cached JSON off the main thread avoids a UI stall on startup.
+				val tabIds = withContext(Dispatchers.Default) {
+					Gson().fromJson(json, Array<String>::class.java)?.toList()
+				} ?: return@launch
+				Log.d("EditorHandlerActivity", "Restoring plugin tabs: $tabIds")
 
-			tabIds.forEach { tabId ->
-				if (!pluginTabIndices.containsKey(tabId)) {
-					selectPluginTabById(tabId)
+				// Tab selection touches UI state, so keep it on the main thread.
+				tabIds.forEach { tabId ->
+					if (!pluginTabIndices.containsKey(tabId)) {
+						selectPluginTabById(tabId)
+					}
 				}
-			}
 
-			prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, null)
-		} catch (e: Exception) {
-			Log.e("EditorHandlerActivity", "Failed to restore plugin tabs", e)
+				withContext(Dispatchers.IO) { prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, null) }
+			} catch (e: Exception) {
+				Log.e("EditorHandlerActivity", "Failed to restore plugin tabs", e)
+			}
 		}
 	}
 
@@ -1111,6 +1149,49 @@ open class EditorHandlerActivity :
 			tearDownDisabledPluginContributions(event.pluginId)
 		}
 		showPluginCrashDialog(event)
+	}
+
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPreferenceChanged(event: PreferenceChangeEvent) {
+		if (event.key == EditorPreferences.FONT_SIZE) {
+			syncPluginUiFontSize()
+		}
+	}
+
+	private fun syncPluginUiFontSize() {
+		val scale = EditorPreferences.editorFontScale
+		if (scale == lastAppliedPluginFontScale) {
+			return
+		}
+		lastAppliedPluginFontScale = scale
+
+		val pluginFragments = mutableListOf<Fragment>()
+		collectPluginFragments(supportFragmentManager, pluginFragments)
+		pluginFragments.forEach { fragment ->
+			fragment.view?.let { applyPluginFontScale(it, scale) }
+		}
+	}
+
+	private fun isPluginFragment(fragment: Fragment): Boolean =
+		fragment.javaClass.classLoader !== javaClass.classLoader
+
+	private fun applyPluginFontScale(root: View, scale: Float) {
+		root.forEachViewRecursively { view ->
+			if (view is TextView) {
+				val baseSize = pluginTextBaseSizes.getOrPut(view) { view.textSize }
+				view.setTextSize(TypedValue.COMPLEX_UNIT_PX, baseSize * scale)
+			}
+		}
+	}
+
+	private fun collectPluginFragments(manager: FragmentManager, into: MutableList<Fragment>) {
+		manager.fragments.forEach { fragment ->
+			if (isPluginFragment(fragment)) {
+				into.add(fragment)
+			} else {
+				collectPluginFragments(fragment.childFragmentManager, into)
+			}
+		}
 	}
 
 	private fun showPluginCrashDialog(event: PluginCrashedEvent) {

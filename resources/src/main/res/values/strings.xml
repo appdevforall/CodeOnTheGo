@@ -12,14 +12,14 @@
 	<string name="about_footer">Code on the Go %1$s for %2$s</string>
 	<string name="about_subtitle">No computer? No Internet? No problem. Code apps anywhere.</string>
 	<string name="msg_get_package_failed">Failed to extract package name.</string>
-	<string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android apps, you can join the Telegram Group and ask for help there.\n\nYou can also send suggestions on our email.</string>
+	<string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android apps, you can join our Discussions forum and ask for help there.\n\nYou can also send suggestions on our email.</string>
 	<string name="download_codeonthego_message">Download Code on the Go from the official website to get the latest features and updates.</string>
 	<string name="download_codeonthego_url">https://appdevforall.org/codeonthego</string>
 	<string name="msg_invalid_url">Invalid URL provided.</string>
 	<string name="msg_no_browser_found">No browser found to handle the request.</string>
 	<string name="need_help">Need Help?</string>
 	<string name="ide_preferences">IDE preferences</string>
-	<string name="discussions_on_telegram">Discussions on Telegram</string>
+	<string name="discussions_on_telegram">Support and discussions forum</string>
 	<string name="official_tg_channel">Official Telegram channel</string>
 	<string name="msg_empty_view">No data</string>
 	<string name="title_terminal">Terminal</string>
@@ -613,6 +613,10 @@
 	<string name="title_reload_color_schemes">Reload color schemes</string>
 	<string name="msg_dir_picker_failed">Failed to start directory picker : %1$s</string>
 	<string name="msg_tooling_server_unavailable">Tooling API server is unavailable. Check build output and IDE logs for errors.</string>
+	<!-- Shown when one or more dependency JARs were corrupt/unreadable during classpath indexing. %1$s is a comma-separated list of dependency names (may end with an overflow clause). -->
+	<string name="msg_unreadable_classpath_jars">Some dependencies couldn\'t be read and were skipped, so code completion may be incomplete: %1$s. Sync the project to re-download dependencies.</string>
+	<!-- Appended to the dependency list when more than three dependencies were skipped. %1$s is the first listed dependency names; %2$d is the count of additional ones. -->
+	<string name="msg_unreadable_classpath_jars_overflow">%1$s and %2$d more</string>
 	<string name="idepref_deleteEmptyLines_title">Delete empty lines on backspace</string>
 	<string name="idepref_deleteEmptyLines_summary">If a line contains no visible text characters, pressing backspace removes the entire line.</string>
 	<string name="idepref_deleteTabs_title">Smart backspace indent</string>
@@ -722,6 +726,9 @@
 	<string name="permission_desc_overlay_window">Allow Code on the Go to display floating debugger controls to inspect your code while it runs.</string>
 	<string name="permission_overlay_unsupported_hint">Floating debugger is not available on this device.</string>
 	<string name="permission_overlay_restricted_settings_hint">If you can\'t enable this permission, display App info for Code on the Go, tap the three-dot menu, and enable restricted settings.</string>
+	<string name="permission_overlay_restricted_dialog_title">Enable restricted settings</string>
+	<string name="permission_overlay_restricted_dialog_message">Android turned off the “Display over other apps” switch because Code on the Go was installed from outside an app store. To turn it on:</string>
+	<string name="permission_overlay_open_app_info">Open App info</string>
 	<string name="permission_title_notifications">Notifications</string>
 	<string name="permission_desc_notifications">Allow Code on the Go to display notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
@@ -957,6 +964,7 @@
 
 	<string name="info_icon_content_description">Info icon</string>
 	<string name="feedback_button_description">Send feedback about this tooltip</string>
+	<string name="sponsor_button_description">Support us on GitHub Sponsors</string>
 	<string name="cd_more_options">More options</string>
 	<string name="cd_expand_collapse">Expand or collapse</string>
 	<string name="cd_file_icon">File icon</string>
@@ -1135,6 +1143,11 @@
 	To use the debugger, you must enable developer options. When you’re ready to pair with the debugger:]]></string>
 
 	<!-- Steps shown to the user in an ordered list in the ADB pairing dialog -->
+	<string-array name="overlay_restricted_settings_steps">
+		<item><![CDATA[On the <b>App info</b> screen, tap the three-dot menu (⋮) in the top corner.]]></item>
+		<item><![CDATA[Tap <b>Allow restricted settings</b>.]]></item>
+		<item><![CDATA[Open <b>Display over other apps</b> and turn it on for Code on the Go.]]></item>
+	</string-array>
 	<string-array name="debugger_setup_pairing_steps">
 		<item><![CDATA[Tap <b>Start pairing</b>. Developer options are displayed.]]></item>
 		<item><![CDATA[Enable <b>Wireless debugging</b>.]]></item>
@@ -1151,7 +1164,7 @@
 	<string name="title_alert">Send feedback</string>
 
 	<!-- Strings from BaseApplication.java -->
-	<string name="telegram_group_url">https://t.me/CodeOnTheGoDiscussions</string>
+	<string name="telegram_group_url">https://github.com/appdevforall/CodeOnTheGo/discussions</string>
 	<string name="telegram_channel_url">https://t.me/CodeOnTheGoOfficial</string>
 	<string name="sponsor_url">https://m.androidide.com/donate</string>
 	<string name="support_our_work">Support our work</string>
@@ -1296,6 +1309,8 @@
     <string name="no_save_before_git_action">Proceed without saving</string>
     <string name="save_before_git_action">Save before proceeding</string>
     <string name="mark_as_resolved">Mark resolved</string>
+    <string name="check_all">Check All</string>
+    <string name="uncheck_all">Uncheck All</string>
 
 	<!-- Templates -->
 	<string name="template_exec_info_basepath">Starting project creation for %1$s</string>

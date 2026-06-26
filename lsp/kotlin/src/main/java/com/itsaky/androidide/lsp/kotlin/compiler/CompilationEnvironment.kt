@@ -22,8 +22,12 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
@@ -307,6 +311,16 @@ internal class CompilationEnvironment(
 
 	override fun close() {
 		ktProject.removeListener(this)
+
+		// fileAnalyzer reads the project (collectDiagnosticsFor). Cancel AND join it before
+		// super.close() disposes the project, so an in-flight read can't touch a disposed project
+		// (APPDEVFORALL-17R / ADFA-4384). Bounded so a slow read can't block shutdown indefinitely.
+		runBlocking {
+			withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT) {
+				coroutineScope.coroutineContext[Job]?.cancelAndJoin()
+			}
+		}
+
 		super.close()
 	}
 
