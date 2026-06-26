@@ -43,6 +43,8 @@ dependencies {
 	implementation(libs.monitor)
 
 	testImplementation(projects.testing.common)
+	testImplementation(libs.tests.kotlinx.coroutines)
+	testImplementation(libs.tests.google.truth)
 	androidTestImplementation(projects.testing.android)
 
 	// brotli4j

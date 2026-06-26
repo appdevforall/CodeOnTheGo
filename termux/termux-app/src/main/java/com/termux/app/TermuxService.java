@@ -122,7 +122,10 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         // load and TermuxActivity handles reloads
         mProperties = TermuxAppSharedProperties.getProperties();
 
-        mShellManager = TermuxShellManager.getShellManager();
+        // Use init() instead of getShellManager() so the singleton is lazily created if the
+        // OS auto-restarted the service after process death (TermuxApplication.onCreate did not
+        // run, leaving the static singleton null and causing an NPE in buildNotification()).
+        mShellManager = TermuxShellManager.init(getApplicationContext());
 
         runStartForeground();
 

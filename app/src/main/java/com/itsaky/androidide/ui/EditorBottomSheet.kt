@@ -452,7 +452,7 @@ constructor(
 		suppressedGradleWarnings.any { msg.contains(it) }
 
 	fun clearBuildOutput() {
-		pagerAdapter.buildOutputFragment?.clearOutput()
+		pagerAdapter.buildOutputFragment?.takeIf { it.isAdded }?.clearOutput()
 	}
 
 	fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
