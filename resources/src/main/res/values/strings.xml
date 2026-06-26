@@ -152,6 +152,9 @@
     <string name="sort_by_name">Name</string>
     <string name="sort_by_created">Created</string>
     <string name="sort_by_modified">Edited</string>
+    <string name="filters_active">Filters active</string>
+    <string name="filter_chip_remove_sort">Remove sort</string>
+    <string name="filter_chip_remove_search">Remove search filter</string>
     <string-array name="sort_options">
         <item>@string/sort_by_name</item>
         <item>@string/sort_by_created</item>
