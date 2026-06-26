@@ -307,7 +307,7 @@ internal class CompilationEnvironment(
 		// super.close() disposes the project, so an in-flight read can't touch a disposed project
 		// (APPDEVFORALL-17R / ADFA-4384). Bounded so a slow read can't block shutdown indefinitely.
 		runBlocking {
-			withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT_MS) {
+			withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT) {
 				coroutineScope.coroutineContext[Job]?.cancelAndJoin()
 			}
 		}
