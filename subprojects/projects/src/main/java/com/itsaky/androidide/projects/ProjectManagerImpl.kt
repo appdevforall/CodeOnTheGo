@@ -20,6 +20,7 @@ package com.itsaky.androidide.projects
 import androidx.annotation.RestrictTo
 import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.eventbus.events.EventReceiver
 import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
@@ -98,8 +99,13 @@ class ProjectManagerImpl :
 	override var androidBuildVariants: Map<String, BuildVariantInfo> = emptyMap()
 		private set
 
+	/**
+	 * The project directory path, or an empty string when [projectPath] has not yet been
+	 * initialized (e.g. the OS recreated EditorActivity after process death without routing
+	 * through MainActivity). Guarding the lateinit access avoids crashing the caller.
+	 */
 	override val projectDirPath: String
-		get() = projectPath
+		get() = if (this::projectPath.isInitialized) projectPath else ""
 
 	override val projectSyncIssues: List<GradleModels.SyncIssue>
 		get() = gradleBuild?.syncIssueList ?: emptyList()
@@ -178,6 +184,36 @@ class ProjectManagerImpl :
 			// wait for the indexing to finish
 			jobs.toList().awaitAll()
 		}
+
+		reportUnreadableClasspathJars(workspace)
+	}
+
+	/**
+	 * Surface any classpath JARs that were corrupt/unreadable during indexing (e.g. a truncated
+	 * download or incomplete offline provisioning) to the user — naming the offending dependency and
+	 * offering a recovery path (re-sync) — instead of silently dropping its code-completion symbols.
+	 */
+	private fun reportUnreadableClasspathJars(workspace: Workspace) {
+		val names = workspace.subProjects
+			.filterIsInstance<ModuleProject>()
+			.flatMap { it.unreadableClasspathJars }
+			.map { it.name }
+			.distinct()
+		if (names.isEmpty()) {
+			return
+		}
+
+		log.warn("Skipped {} unreadable classpath JAR(s) during indexing: {}", names.size, names)
+
+		val context = BaseApplication.baseInstance
+		val shown = names.take(3).joinToString(", ")
+		val list =
+			if (names.size > 3) {
+				context.getString(R.string.msg_unreadable_classpath_jars_overflow, shown, names.size - 3)
+			} else {
+				shown
+			}
+		flashError(context.getString(R.string.msg_unreadable_classpath_jars, list))
 	}
 
 	override fun getAndroidModules(): List<AndroidModule> {

@@ -31,6 +31,7 @@ import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeedbackManager
+import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.toCssHex
 import com.itsaky.androidide.resources.R as ResR
@@ -431,6 +432,16 @@ object TooltipManager {
             setColorFilter(iconTintColor)
         }
 
+        val sponsorButton = popupView.findViewById<ImageButton>(R.id.sponsor_button)
+        sponsorButton.apply {
+            visibility = if (level >= 1) View.VISIBLE else View.GONE
+            setColorFilter(iconTintColor)
+            setOnClickListener {
+                val sponsorUrl = context.getString(ResR.string.github_sponsors_url)
+                UrlManager.openUrl(sponsorUrl, null, context)
+            }
+        }
+
         val hoverGuard: (MotionEvent) -> Unit = label@{ event ->
             if (!event.isFromSource(InputDevice.SOURCE_MOUSE)) return@label
             when (event.actionMasked) {
@@ -452,6 +463,7 @@ object TooltipManager {
             seeMore = seeMore,
             infoButton = infoButton,
             feedbackButton = feedbackButton,
+            sponsorButton = sponsorButton,
         )
 
         cancelScheduledDismiss()
@@ -579,12 +591,14 @@ object TooltipManager {
         seeMore: View,
         infoButton: View,
         feedbackButton: View,
+        sponsorButton: View,
     ) {
         popupView.setOnHoverListener(hoverListener)
         webView.setOnHoverListener(hoverListener)
         seeMore.setOnHoverListener(hoverListener)
         infoButton.setOnHoverListener(hoverListener)
         feedbackButton.setOnHoverListener(hoverListener)
+        sponsorButton.setOnHoverListener(hoverListener)
     }
 
 }
