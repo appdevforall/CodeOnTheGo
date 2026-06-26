@@ -20,6 +20,7 @@ package com.itsaky.androidide.projects
 import androidx.annotation.RestrictTo
 import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.eventbus.events.EventReceiver
 import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
@@ -197,13 +198,17 @@ class ProjectManagerImpl :
 			return
 		}
 
-		val shown = names.take(3).joinToString(", ")
-		val more = if (names.size > 3) " and ${names.size - 3} more" else ""
 		log.warn("Skipped {} unreadable classpath JAR(s) during indexing: {}", names.size, names)
-		flashError(
-			"Some dependencies couldn't be read and were skipped, so code completion may be " +
-				"incomplete: $shown$more. Sync the project to re-download dependencies.",
-		)
+
+		val context = BaseApplication.baseInstance
+		val shown = names.take(3).joinToString(", ")
+		val list =
+			if (names.size > 3) {
+				context.getString(R.string.msg_unreadable_classpath_jars_overflow, shown, names.size - 3)
+			} else {
+				shown
+			}
+		flashError(context.getString(R.string.msg_unreadable_classpath_jars, list))
 	}
 
 	override fun getAndroidModules(): List<AndroidModule> {
