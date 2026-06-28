@@ -97,10 +97,21 @@ object IDEApiFacade {
 
             activity.addOneTimeBuildResultListener(listener)
 
-            (ActionsRegistry.getInstance() as? DefaultActionsRegistry)?.executeAction(
-                action,
-                actionData
-            ) ?: continuation.resume(ToolResult.failure("Failed to get action registry instance."))
+            val registry = ActionsRegistry.getInstance() as? DefaultActionsRegistry
+            if (registry == null) {
+                continuation.resume(ToolResult.failure("Failed to get action registry instance."))
+                return@suspendCancellableCoroutine
+            }
+
+            try {
+                registry.executeAction(action, actionData)
+            } catch (t: Throwable) {
+                if (continuation.isActive) {
+                    continuation.resume(
+                        ToolResult.failure("Failed to launch the app: ${t.message}", t.stackTraceToString())
+                    )
+                }
+            }
         }
     }
 

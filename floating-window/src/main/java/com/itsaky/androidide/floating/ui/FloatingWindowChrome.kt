@@ -2,6 +2,7 @@
 
 package com.itsaky.androidide.floating.ui
 
+import android.view.View
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -24,10 +25,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,9 +53,12 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.itsaky.androidide.floating.model.ChromeControl
 import com.itsaky.androidide.floating.model.DockAction
 import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -75,6 +81,8 @@ fun FloatingWindowChrome(
 	onClose: () -> Unit,
 	actions: List<DockAction>,
 	modifier: Modifier = Modifier,
+	onControlLongPress: ((ChromeControl, View) -> Unit)? = null,
+	busy: StateFlow<Boolean>? = null,
 	content: @Composable () -> Unit,
 ) {
 	val scheme = MaterialTheme.colorScheme
@@ -100,7 +108,13 @@ fun FloatingWindowChrome(
 					onToggleMaximize = onToggleMaximize,
 					onDock = onDock,
 					onClose = onClose,
+					onControlLongPress = onControlLongPress,
 				)
+				val busyFallback = remember { MutableStateFlow(false) }
+				val isBusy by (busy ?: busyFallback).collectAsState()
+				if (isBusy) {
+					LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+				}
 				Box(
 					Modifier
 						.fillMaxWidth()
@@ -175,6 +189,7 @@ private fun TitleBar(
 	onToggleMaximize: () -> Unit,
 	onDock: () -> Unit,
 	onClose: () -> Unit,
+	onControlLongPress: ((ChromeControl, View) -> Unit)?,
 ) {
 	val scheme = MaterialTheme.colorScheme
 	Row(
@@ -204,32 +219,54 @@ private fun TitleBar(
 			overflow = TextOverflow.Ellipsis,
 			modifier = Modifier.weight(1f),
 		)
+		val longPress: (ChromeControl) -> ((View) -> Unit)? = { control ->
+			onControlLongPress?.let { handler -> { view -> handler(control, view) } }
+		}
 		actions.forEach { action -> ActionButton(action) }
-		ChromeButton(onClick = onMinimize, description = stringResource(R.string.floating_window_action_minimize)) { drawMinimize(it) }
+		ChromeButton(
+			onClick = onMinimize,
+			description = stringResource(R.string.floating_window_action_minimize),
+			onLongPress = longPress(ChromeControl.MINIMIZE),
+		) { drawMinimize(it) }
 		ChromeButton(
 			onClick = onToggleMaximize,
 			description = stringResource(
 				if (maximized) R.string.floating_window_action_restore
 				else R.string.floating_window_action_maximize
 			),
+			onLongPress = longPress(ChromeControl.MAXIMIZE),
 		) { if (maximized) drawRestore(it) else drawMaximize(it) }
-		ChromeButton(onClick = onDock, description = stringResource(R.string.floating_window_action_dock)) { drawDock(it) }
-		ChromeButton(onClick = onClose, description = stringResource(R.string.floating_window_action_close)) { drawClose(it) }
+		ChromeButton(
+			onClick = onDock,
+			description = stringResource(R.string.floating_window_action_dock),
+			onLongPress = longPress(ChromeControl.DOCK),
+		) { drawDock(it) }
+		ChromeButton(
+			onClick = onClose,
+			description = stringResource(R.string.floating_window_action_close),
+			onLongPress = longPress(ChromeControl.CLOSE),
+		) { drawClose(it) }
 	}
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChromeButton(
 	onClick: () -> Unit,
 	description: String,
+	onLongPress: ((View) -> Unit)? = null,
 	draw: DrawScope.(Color) -> Unit,
 ) {
 	val tint = MaterialTheme.colorScheme.onSurfaceVariant
+	val view = LocalView.current
 	Box(
 		modifier = Modifier
 			.size(36.dp)
 			.clip(RoundedCornerShape(8.dp))
-			.clickable(onClick = onClick)
+			.combinedClickable(
+				onClick = onClick,
+				onLongClick = onLongPress?.let { handler -> { handler(view) } },
+			)
 			.semantics { contentDescription = description },
 		contentAlignment = Alignment.Center,
 	) {
@@ -244,6 +281,8 @@ private fun ActionButton(action: DockAction) {
 	var confirmed by remember { mutableStateOf(false) }
 	val scheme = MaterialTheme.colorScheme
 	val view = LocalView.current
+	val activeFallback = remember { MutableStateFlow(false) }
+	val active by (action.active ?: activeFallback).collectAsState()
 	Box(
 		modifier = Modifier
 			.size(36.dp)
@@ -264,7 +303,16 @@ private fun ActionButton(action: DockAction) {
 			.semantics { contentDescription = action.label },
 		contentAlignment = Alignment.Center,
 	) {
-		val iconRes = if (confirmed) action.confirmIconRes ?: action.iconRes else action.iconRes
+		val iconRes = when {
+			active -> action.activeIconRes ?: action.iconRes
+			confirmed -> action.confirmIconRes ?: action.iconRes
+			else -> action.iconRes
+		}
+		val tint = when {
+			active -> scheme.error
+			confirmed -> scheme.primary
+			else -> scheme.onSurfaceVariant
+		}
 		Crossfade(
 			targetState = iconRes,
 			animationSpec = tween(180),
@@ -273,7 +321,7 @@ private fun ActionButton(action: DockAction) {
 			Icon(
 				painter = painterResource(res),
 				contentDescription = null,
-				tint = if (confirmed) scheme.primary else scheme.onSurfaceVariant,
+				tint = tint,
 				modifier = Modifier.size(20.dp),
 			)
 		}

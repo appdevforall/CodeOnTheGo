@@ -8,6 +8,7 @@ import android.view.View
 import android.widget.TextView
 import androidx.fragment.app.FragmentFactory
 import com.itsaky.androidide.floating.fragment.OverlayFragmentHost
+import com.itsaky.androidide.floating.model.ChromeControl
 import com.itsaky.androidide.floating.model.DockableContent
 import com.itsaky.androidide.floating.window.FloatingWindowHost
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
@@ -24,6 +25,9 @@ class PluginTabDockableContent(
 	override val title: String,
 ) : DockableContent {
 	override val id: String = "plugin:$tabId"
+
+	override val onChromeControlLongPress: (ChromeControl, View) -> Unit =
+		ChromeControlTooltips.handler
 
 	private var fragmentHost: OverlayFragmentHost? = null
 

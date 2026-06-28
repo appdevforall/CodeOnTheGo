@@ -298,7 +298,6 @@ open class EditorHandlerActivity :
 				fileTimestamps[file.absolutePath] = file.lastModified()
 			}
 		}
-		ActionContextProvider.clearActivity()
 		if (!isOpenedFilesSaved.get()) {
 			saveOpenedFiles()
 			saveOpenedPluginTabs()
@@ -315,6 +314,11 @@ open class EditorHandlerActivity :
 		val json = Gson().toJson(openPluginTabIds)
 		prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, json)
 		Log.d("EditorHandlerActivity", "Saved open plugin tabs: $openPluginTabIds")
+	}
+
+	override fun onDestroy() {
+		super.onDestroy()
+		ActionContextProvider.clearActivity(this)
 	}
 
 	override fun onResume() {
@@ -1595,6 +1599,15 @@ open class EditorHandlerActivity :
 				).root
 		undockItem.apply {
 			text = getString(string.undock)
+			setOnLongClickListener {
+				TooltipManager.showIdeCategoryTooltip(
+					context = this@EditorHandlerActivity,
+					anchorView = anchorView,
+					tag = TooltipTag.WINDOW_UNDOCK,
+				)
+				popupWindow.dismiss()
+				true
+			}
 			setOnClickListener {
 				val pos = tab.position
 				val tabId = getPluginTabId(pos)

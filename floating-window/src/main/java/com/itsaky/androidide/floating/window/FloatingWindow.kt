@@ -324,6 +324,8 @@ class FloatingWindow(
 						onDock = { animateExit { DockingManager.dock(id) } },
 						onClose = { animateExit { DockingManager.close(id) } },
 						actions = tab.content.actions,
+						onControlLongPress = tab.content.onChromeControlLongPress,
+						busy = tab.content.busy,
 						content = { EditorContent() },
 					)
 				}

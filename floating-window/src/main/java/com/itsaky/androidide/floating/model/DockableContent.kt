@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import android.view.View
 import com.itsaky.androidide.floating.window.FloatingWindowHost
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The contract a tab must satisfy to be hosted in a floating overlay window.
@@ -35,6 +36,22 @@ interface DockableContent {
 	 */
 	val actions: List<DockAction>
 		get() = emptyList()
+
+	/**
+	 * Optional long-press handler for the built-in window [ChromeControl]s (minimize, maximize,
+	 * dock, close), given the anchor [View], e.g. to show a tooltip. Lets the app attach contextual
+	 * help to the universal window controls while keeping this module free of any tooltip system.
+	 */
+	val onChromeControlLongPress: ((ChromeControl, View) -> Unit)?
+		get() = null
+
+	/**
+	 * Optional observable busy state (e.g. a build/run in progress). While `true`, the window
+	 * chrome shows an indeterminate progress indicator. Generic so this module stays free of any
+	 * build-system knowledge.
+	 */
+	val busy: StateFlow<Boolean>?
+		get() = null
 
 	/** Build the content view for the window, against the supplied window-scoped themed context. */
 	fun onCreateView(

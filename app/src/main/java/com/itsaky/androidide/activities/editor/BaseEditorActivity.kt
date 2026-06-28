@@ -1050,6 +1050,7 @@ abstract class BaseEditorActivity :
 					FileTabMenuItem(
 						id = "ide.floating.undock",
 						title = getString(R.string.undock),
+						tooltipTag = TooltipTag.WINDOW_UNDOCK,
 					) { self.undockFileTab(fileIndex) },
 				) + pluginItems
 			} else {

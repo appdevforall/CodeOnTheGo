@@ -23,5 +23,6 @@ data class FileTabMenuItem(
     val isEnabled: Boolean = true,
     val isVisible: Boolean = true,
     val order: Int = 0,
+    val tooltipTag: String? = null,
     val action: () -> Unit
 )
