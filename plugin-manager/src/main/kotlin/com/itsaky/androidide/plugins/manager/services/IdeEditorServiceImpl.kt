@@ -26,7 +26,20 @@ class IdeEditorServiceImpl(
         fun getAllowedPaths(): List<String>
     }
 
-    interface EditorProvider {
+    /**
+     * Remote-collaborator presence: draw, move and clear named peer cursors in open editors.
+     * Split out of [EditorProvider] so peer presence is a focused, separately-named contract
+     * rather than three more methods on the broad editor-access surface (interface segregation).
+     * The host bridge implements both through one object. Visual overlay only — never mutates
+     * file content. Each method defaults to a no-op so an implementer can opt in.
+     */
+    interface PeerPresenceProvider {
+        fun showPeerCursor(file: File, line: Int, column: Int, peerId: String, peerName: String, peerColor: Int): Boolean = false
+        fun hidePeerCursor(file: File, peerId: String): Boolean = false
+        fun clearPeerCursors(file: File) {}
+    }
+
+    interface EditorProvider : PeerPresenceProvider {
         fun getCurrentFile(): File?
         fun getOpenFiles(): List<File>
         fun isFileOpen(file: File): Boolean
@@ -54,9 +67,6 @@ class IdeEditorServiceImpl(
         fun insertLineBefore(file: File, line: Int, text: String): Boolean = false
         fun deleteLine(file: File, line: Int): Boolean = false
         fun replaceRange(file: File, range: SelectionRange, newText: String): Boolean = false
-        fun showPeerCursor(file: File, line: Int, column: Int, peerId: String, peerName: String, peerColor: Int): Boolean = false
-        fun hidePeerCursor(file: File, peerId: String): Boolean = false
-        fun clearPeerCursors(file: File) {}
         fun addFileChangeCallback(callback: (File?) -> Unit) {}
         fun removeFileChangeCallback(callback: (File?) -> Unit) {}
     }

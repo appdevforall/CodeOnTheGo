@@ -18,7 +18,7 @@ import java.io.File
  *
  * All methods must be called on the main thread (the editor view is touched directly).
  */
-class EditorDecorationManager(
+class PeerPresenceOverlayManager(
     private val editorForFile: (File) -> CodeEditor?,
 ) {
 
