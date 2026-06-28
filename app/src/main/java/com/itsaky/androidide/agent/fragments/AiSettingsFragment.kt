@@ -16,10 +16,12 @@ import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.itsaky.androidide.R
+import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.Util.getCurrentBackend
 import com.itsaky.androidide.agent.viewmodel.AiSettingsViewModel
@@ -28,6 +30,7 @@ import com.itsaky.androidide.agent.viewmodel.ModelLoadingState
 import com.itsaky.androidide.databinding.FragmentAiSettingsBinding
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.getFileName
+import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -50,6 +53,13 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                 val uriString = it.toString()
                 viewModel.loadModelFromUri(uriString, requireContext())
                 flashInfo("Attempting to load selected model...")
+
+                view?.postDelayed({
+                    (activity as? BaseEditorActivity)?.bottomSheetViewModel?.setSheetState(
+                        sheetState = BottomSheetBehavior.STATE_EXPANDED,
+                        currentTab = BottomSheetViewModel.TAB_AGENT
+                    )
+                }, 100)
             }
         }
 
@@ -111,7 +121,7 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         val browseButton = view.findViewById<Button>(R.id.btn_browse_model)
         val loadSavedButton = view.findViewById<Button>(R.id.loadSavedButton)
         val modelStatusTextView = view.findViewById<TextView>(R.id.model_status_text_view)
-        val engineStatusTextView = view.findViewById<TextView>(R.id.engine_status_text) // <-- NEW: Get reference to the new TextView
+        val engineStatusTextView = view.findViewById<TextView>(R.id.engine_status_text)
         val simplePromptSwitch = view.findViewById<MaterialSwitch>(R.id.switch_simple_local_prompt)
         val shaInput = view.findViewById<TextInputEditText>(R.id.local_model_sha_input)
 
@@ -204,6 +214,13 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
             }
             if (hasPermission) {
                 viewModel.loadModelFromUri(savedUri, requireContext())
+
+                view?.postDelayed({
+                    (activity as? BaseEditorActivity)?.bottomSheetViewModel?.setSheetState(
+                        sheetState = BottomSheetBehavior.STATE_EXPANDED,
+                        currentTab = BottomSheetViewModel.TAB_AGENT
+                    )
+                }, 100)
             } else {
                 requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
                     remove(SAVED_MODEL_URI_KEY)
