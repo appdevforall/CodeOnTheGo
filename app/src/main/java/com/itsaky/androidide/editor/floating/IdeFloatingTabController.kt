@@ -2,6 +2,7 @@
 package com.itsaky.androidide.editor.floating
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
@@ -10,6 +11,7 @@ import com.itsaky.androidide.floating.model.DockingManager
 import com.itsaky.androidide.floating.permission.OverlayPermission
 import com.itsaky.androidide.floating.service.FloatingTabService
 import com.itsaky.androidide.floating.window.InitialBounds
+import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.launch
 
 /**
@@ -42,7 +44,12 @@ class IdeFloatingTabController(
 		val file = panel.file ?: return
 
 		activity.lifecycleScope.launch {
-			panel.save()
+			val wasModified = panel.isModified
+			val saved = panel.save()
+			if (wasModified && !saved) {
+				Toast.makeText(activity, activity.getString(R.string.msg_undock_save_failed, file.name), Toast.LENGTH_LONG).show()
+				return@launch
+			}
 			panel.markAsSaved()
 			activity.closeFile(fileIndex) {}
 			DockingManager.undock(

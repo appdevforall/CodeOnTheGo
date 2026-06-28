@@ -1348,6 +1348,10 @@ open class EditorHandlerActivity :
 		singleBuildListeners.add(listener)
 	}
 
+	fun removeOneTimeBuildResultListener(listener: Consumer<BuildResult>) {
+		singleBuildListeners.remove(listener)
+	}
+
 	/**
 	 * Called by [EditorBuildEventListener] to notify all registered listeners of the build result.
 	 */

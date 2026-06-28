@@ -95,7 +95,7 @@ object IDEApiFacade {
                 }
             }
 
-            activity.addOneTimeBuildResultListener(listener)
+            continuation.invokeOnCancellation { activity.removeOneTimeBuildResultListener(listener) }
 
             val registry = ActionsRegistry.getInstance() as? DefaultActionsRegistry
             if (registry == null) {
@@ -103,9 +103,12 @@ object IDEApiFacade {
                 return@suspendCancellableCoroutine
             }
 
+            activity.addOneTimeBuildResultListener(listener)
+
             try {
                 registry.executeAction(action, actionData)
             } catch (t: Throwable) {
+                activity.removeOneTimeBuildResultListener(listener)
                 if (continuation.isActive) {
                     continuation.resume(
                         ToolResult.failure("Failed to launch the app: ${t.message}", t.stackTraceToString())

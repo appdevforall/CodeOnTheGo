@@ -60,6 +60,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
+
+private val log = LoggerFactory.getLogger("FloatingWindowChrome")
 
 /**
  * The chrome for a normal (non-minimized) floating editor window: a slim draggable title bar with
@@ -123,11 +126,13 @@ fun FloatingWindowChrome(
 					content()
 				}
 			}
-			ResizeHandle(
-				onResize = onResize,
-				onResizeStopped = onResizeStopped,
-				modifier = Modifier.align(Alignment.BottomEnd),
-			)
+			if (!maximized) {
+				ResizeHandle(
+					onResize = onResize,
+					onResizeStopped = onResizeStopped,
+					modifier = Modifier.align(Alignment.BottomEnd),
+				)
+			}
 		}
 	}
 }
@@ -291,7 +296,9 @@ private fun ActionButton(action: DockAction) {
 				onLongClick = { action.onLongPress?.invoke(view) },
 				onClick = {
 					scope.launch {
-						val confirm = runCatching { action.onInvoke() }.getOrDefault(false)
+						val confirm = runCatching { action.onInvoke() }
+							.onFailure { log.error("Dock action '{}' failed", action.id, it) }
+							.getOrDefault(false)
 						if (confirm && action.confirmIconRes != null) {
 							confirmed = true
 							delay(ACTION_CONFIRM_MS)

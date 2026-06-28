@@ -271,6 +271,7 @@ class FloatingWindow(
 		val inEditor = rawX >= location[0] && rawX <= location[0] + contentView.width &&
 			rawY >= location[1] && rawY <= location[1] + contentView.height
 		if (!inEditor) return false
+		if (modeState.value == WindowMode.MAXIMIZED) return true
 
 		// Exclude the resize-handle corner (bottom-right of the window): it overlays the editor, so
 		// without this, grabbing it to resize registers as a tap on the editor and pops the keyboard.

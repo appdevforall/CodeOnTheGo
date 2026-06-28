@@ -23,8 +23,8 @@ object InitialBounds {
 		val baseX = (metrics.widthPixels - width) / 2
 		val baseY = (metrics.heightPixels - height) / 2
 		return WindowBounds(
-			x = (baseX + step).coerceAtLeast(0),
-			y = (baseY + step).coerceAtLeast(0),
+			x = (baseX + step).coerceIn(0, (metrics.widthPixels - width).coerceAtLeast(0)),
+			y = (baseY + step).coerceIn(0, (metrics.heightPixels - height).coerceAtLeast(0)),
 			width = width,
 			height = height,
 		)

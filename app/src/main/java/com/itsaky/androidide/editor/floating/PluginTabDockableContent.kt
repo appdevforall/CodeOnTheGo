@@ -39,8 +39,15 @@ class PluginTabDockableContent(
 			val overlayHost = OverlayFragmentHost(context, host, PluginFragmentFactory(FragmentFactory()))
 			fragmentHost = overlayHost
 			overlayHost.start()
-			PluginEditorTabManager.getInstance().newTabFragment(tabId)?.let(overlayHost::setFragment)
-			overlayHost.view
+			val fragment = PluginEditorTabManager.getInstance().newTabFragment(tabId)
+			if (fragment == null) {
+				overlayHost.destroy()
+				fragmentHost = null
+				errorView(context)
+			} else {
+				overlayHost.setFragment(fragment)
+				overlayHost.view
+			}
 		} catch (t: Throwable) {
 			Log.e(TAG, "Plugin tab '$tabId' failed to load in a floating window", t)
 			runCatching { fragmentHost?.destroy() }
