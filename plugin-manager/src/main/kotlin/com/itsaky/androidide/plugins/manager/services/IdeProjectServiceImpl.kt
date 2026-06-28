@@ -5,6 +5,7 @@ package com.itsaky.androidide.plugins.manager.services
 import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.extensions.IProject
 import com.itsaky.androidide.plugins.services.IdeProjectService
+import com.itsaky.androidide.plugins.services.ModuleContext
 import java.io.File
 
 /**
@@ -76,6 +77,19 @@ class IdeProjectServiceImpl(
             projectProvider.getProjectByPath(path)
         } catch (e: Exception) {
             // Log error but don't expose internal details
+            null
+        }
+    }
+
+    override fun getModuleContext(filePath: String): ModuleContext? {
+        if (!hasRequiredPermissions()) {
+            throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
+        }
+
+        return try {
+            ModuleContextResolver.resolve(filePath)
+        } catch (e: Exception) {
+
             null
         }
     }
