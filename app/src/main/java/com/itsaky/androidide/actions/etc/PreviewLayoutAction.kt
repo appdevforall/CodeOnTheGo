@@ -29,13 +29,11 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
-import com.itsaky.androidide.compose.preview.ComposePreviewActivity
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.layouteditor.activities.EditorActivity
 import org.appdevforall.codeonthego.layouteditor.editor.convert.ConvertImportedXml
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
-import com.itsaky.androidide.projects.IProjectManager
 import org.appdevforall.codeonthego.layouteditor.tools.ValidationResult
 import org.appdevforall.codeonthego.layouteditor.tools.XmlLayoutParser
 import org.slf4j.LoggerFactory
@@ -45,28 +43,20 @@ import java.io.File
 class PreviewLayoutAction(context: Context, override val order: Int) : EditorRelatedAction() {
 
   override val id: String = ID
-  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = when (previewType) {
-    PreviewType.COMPOSE -> TooltipTag.EDITOR_TOOLBAR_PREVIEW_COMPOSE
-    else -> TooltipTag.EDITOR_TOOLBAR_PREVIEW_LAYOUT
-  }
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
+    TooltipTag.EDITOR_TOOLBAR_PREVIEW_LAYOUT
   override var requiresUIThread: Boolean = false
 
   private var previewType: PreviewType = PreviewType.NONE
 
   private enum class PreviewType {
     NONE,
-    XML_LAYOUT,
-    COMPOSE
+    XML_LAYOUT
   }
 
   companion object {
     const val ID = "ide.editor.previewLayout"
     private val LOG = LoggerFactory.getLogger(PreviewLayoutAction::class.java)
-
-      private val COMPOSABLE_PREVIEW_PATTERN = Regex(
-          """@Preview\s*(?:\(([^)]*)\))?\s*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*(?:(?:private|internal|protected|public|open|override|suspend|inline|external|abstract|final|actual|expect)\s+)*fun\s+(\w+)""",
-          setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
-      )
   }
 
   init {
@@ -88,41 +78,23 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
     val editor = data.getEditor()
     val file = editor?.file
 
-    if (file != null && !viewModel.isInitializing) {
-      when {
-        file.name.endsWith(".xml") -> {
-          val type = try {
-            extractPathData(file).type
-          } catch (err: Throwable) {
-            markInvisible()
-            return
-          }
-
-          if (type == LAYOUT) {
-            previewType = PreviewType.XML_LAYOUT
-            visible = true
-            enabled = true
-          } else {
-            markInvisible()
-          }
-        }
-        file.name.endsWith(".kt") && moduleUsesCompose(file, editor.text.toString()) -> {
-          previewType = PreviewType.COMPOSE
-          visible = true
-          enabled = true
-        }
-        else -> {
-          markInvisible()
-        }
+    if (file != null && !viewModel.isInitializing && file.name.endsWith(".xml")) {
+      val type = try {
+        extractPathData(file).type
+      } catch (err: Throwable) {
+        markInvisible()
+        return
       }
-    } else {
-      if (file != null && file.name.endsWith(".kt") && moduleUsesCompose(file)) {
-        previewType = PreviewType.COMPOSE
+
+      if (type == LAYOUT) {
+        previewType = PreviewType.XML_LAYOUT
         visible = true
-        enabled = false
+        enabled = true
       } else {
         markInvisible()
       }
+    } else {
+      markInvisible()
     }
   }
 
@@ -168,11 +140,6 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
           showXmlValidationError(activity, activity.getString(R.string.xml_error_generic, e.message ?: ""))
         }
       }
-      PreviewType.COMPOSE -> {
-        val editor = data.getEditor() ?: return
-        val file = editor.file ?: return
-        activity.showComposePreviewSheet(file, editor.text.toString())
-      }
       PreviewType.NONE -> {}
     }
   }
@@ -182,10 +149,6 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
     intent.putExtra(Constants.EXTRA_KEY_FILE_PATH, file.absolutePath.substringBefore("layout"))
     intent.putExtra(Constants.EXTRA_KEY_LAYOUT_FILE_NAME, file.name.substringBefore("."))
     uiDesignerResultLauncher?.launch(intent)
-  }
-
-  private fun EditorHandlerActivity.showComposePreviewSheet(file: File, sourceCode: String) {
-    ComposePreviewActivity.start(this, sourceCode, file.absolutePath)
   }
 
   private fun showXmlValidationError(activity: Context, message: String?) {
@@ -199,15 +162,5 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
         .setPositiveButton(android.R.string.ok, null)
         .show()
     }
-  }
-
-  private fun moduleUsesCompose(file: File): Boolean {
-    val module = IProjectManager.getInstance().findModuleForFile(file) ?: return false
-    return module.hasExternalDependency("androidx.compose.runtime", "runtime")
-  }
-
-  private fun moduleUsesCompose(file: File, editorContent: String): Boolean {
-    val module = IProjectManager.getInstance().findModuleForFile(file) ?: return false
-    return module.hasExternalDependency("androidx.compose.runtime", "runtime") && COMPOSABLE_PREVIEW_PATTERN.findAll(editorContent).any()
   }
 }

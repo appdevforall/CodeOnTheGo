@@ -47,6 +47,20 @@ interface UIExtension : IPlugin {
      * @return List of FAB actions for different screens
      */
     fun getFabActions(): List<FabAction> = emptyList()
+
+    /**
+     * Provide the ids of editor-toolbar actions that should be hidden right now.
+     * Queried each time the toolbar is rebuilt (on file switch, edit, save, etc.), so
+     * the result may vary per file — e.g. return the built-in XML preview action's id
+     * only while a Compose file is open. Determine the current file through your own
+     * editor service, the same way [ToolbarAction.isVisibleProvider] does. The host
+     * hides exactly the ids returned; there is no allow-list. Action ids are available
+     * as constants on [ToolbarActionIds]. Returning an id that is not currently on the
+     * toolbar is a no-op.
+     *
+     * @return Set of toolbar action ids to hide.
+     */
+    fun getHiddenToolbarActionIds(): Set<String> = emptySet()
 }
 
 data class MenuItem @JvmOverloads constructor(
@@ -124,7 +138,21 @@ data class ToolbarAction(
     val isVisible: Boolean = true,
     val order: Int = 0,
     val action: () -> Unit
-)
+) {
+    /**
+     * Optional callback to compute the enabled state dynamically at render time.
+     * When null, the static [isEnabled] is used. Mirrors the [MenuItem] providers.
+     */
+    var isEnabledProvider: (() -> Boolean)? = null
+
+    /**
+     * Optional callback to compute the visible state dynamically at render time.
+     * When null, the static [isVisible] is used. Unlike system toolbar actions
+     * (which only grey out when disabled), a plugin toolbar action is fully removed
+     * from the toolbar when this resolves to false.
+     */
+    var isVisibleProvider: (() -> Boolean)? = null
+}
 
 enum class ShowAsAction {
     ALWAYS,
