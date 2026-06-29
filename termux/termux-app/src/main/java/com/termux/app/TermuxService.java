@@ -651,7 +651,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
     /** Callback received when a {@link TermuxSession} finishes. */
     @Override
-    public void onTermuxSessionExited(final TermuxSession termuxSession) {
+    public synchronized void onTermuxSessionExited(final TermuxSession termuxSession) {
         if (termuxSession != null) {
             ExecutionCommand executionCommand = termuxSession.getExecutionCommand();
 

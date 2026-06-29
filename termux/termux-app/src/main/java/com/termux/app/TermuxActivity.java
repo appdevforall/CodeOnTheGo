@@ -469,7 +469,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         } else {
 
             final Optional<TermuxSession> existingSession = workingDir == null ? Optional.empty() :
-                mTermuxService.getTermuxSessions().stream().filter(session -> Objects.equals(
+                mTermuxService.getTermuxSessionsListSnapshot().stream().filter(session -> Objects.equals(
                     session.getTerminalSession().getCwd(), workingDir)).findFirst();
 
             setupTermuxSessionOnServiceConnected(
