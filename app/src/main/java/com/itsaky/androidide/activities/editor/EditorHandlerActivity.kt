@@ -604,7 +604,7 @@ open class EditorHandlerActivity :
 	/** Undock the plugin tab [tabId] (at [position]) into a floating window over other apps. */
 	fun undockPluginTab(tabId: String, position: Int) {
 		val title =
-			com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+			PluginEditorTabManager
 				.getInstance()
 				.getPluginTab(tabId)
 				?.title ?: tabId

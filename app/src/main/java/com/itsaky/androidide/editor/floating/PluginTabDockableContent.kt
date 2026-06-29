@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.View
 import android.widget.TextView
 import androidx.fragment.app.FragmentFactory
+import com.itsaky.androidide.R
 import com.itsaky.androidide.floating.fragment.OverlayFragmentHost
 import com.itsaky.androidide.floating.model.ChromeControl
 import com.itsaky.androidide.floating.model.DockableContent
@@ -62,7 +63,7 @@ class PluginTabDockableContent(
 
 	private fun errorView(context: Context): View =
 		TextView(context).apply {
-			text = "Couldn't open “$title” in a floating window."
+			text = context.getString(R.string.msg_floating_window_open_failed, title)
 			val pad = (16 * context.resources.displayMetrics.density).toInt()
 			setPadding(pad, pad, pad, pad)
 		}
