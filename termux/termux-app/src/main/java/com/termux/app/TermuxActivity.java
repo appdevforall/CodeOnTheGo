@@ -9,6 +9,7 @@ import android.content.ServiceConnection;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Looper;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.Gravity;
@@ -973,7 +974,12 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
 
     public void termuxSessionListNotifyUpdated() {
-        TermuxExecutor.executeOnMain(() -> mTermuxSessionListViewController.notifyDataSetChanged());
+        if (mTermuxSessionListViewController == null) return;
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            mTermuxSessionListViewController.notifyDataSetChanged();
+        } else {
+            TermuxExecutor.executeOnMain(mTermuxSessionListViewController::notifyDataSetChanged);
+        }
     }
 
     public boolean isVisible() {
