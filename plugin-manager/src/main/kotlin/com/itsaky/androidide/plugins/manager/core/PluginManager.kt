@@ -62,6 +62,7 @@ import com.itsaky.androidide.plugins.extensions.BuildActionExtension
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.actions.SidebarSlotExceededException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -278,6 +279,8 @@ class PluginManager private constructor(
                 logger.debug("Loading plugin: ${pluginFile.name}")
                 val result = try {
                     loadPlugin(pluginFile)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Result.failure(e)
                 }

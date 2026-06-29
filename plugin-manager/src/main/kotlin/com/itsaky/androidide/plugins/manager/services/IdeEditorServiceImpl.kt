@@ -282,13 +282,11 @@ class IdeEditorServiceImpl(
 
     override fun hidePeerCursor(file: File, peerId: String): Boolean {
         requireRead()
-        ensureFileAccessible(file)
         return editorProvider.hidePeerCursor(file, peerId)
     }
 
     override fun clearPeerCursors(file: File) {
         requireRead()
-        ensureFileAccessible(file)
         editorProvider.clearPeerCursors(file)
     }
 

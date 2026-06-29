@@ -87,52 +87,57 @@ class IdeProjectServiceImpl(
     }
 
     override fun openProject(projectDir: File): Boolean {
-        Log.d(TAG, "[HOST] openProject requested: ${projectDir.absolutePath}")
-
         if (!hasRequiredPermissions()) {
-            Log.w(TAG, "[HOST] openProject denied: missing permissions ${getRequiredPermissionsString()}")
+            Log.w(TAG, "openProject denied: missing permissions ${getRequiredPermissionsString()}")
             throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
         }
 
-        if (!isUnderProjectsDir(projectDir)) {
-            Log.w(TAG, "[HOST] openProject denied: ${projectDir.absolutePath} is not under projects dir ${Environment.PROJECTS_DIR?.absolutePath}")
+        // Validate against the canonical, containment-checked target and reuse it everywhere below,
+        // so a symlink/relative path can't pass the check as one path yet be switched to as another.
+        val resolvedProjectDir = resolveProjectDirUnderProjectsDir(projectDir)
+        if (resolvedProjectDir == null) {
+            Log.w(TAG, "openProject denied: ${projectDir.absolutePath} is not under projects dir ${Environment.PROJECTS_DIR?.absolutePath}")
             throw SecurityException("Plugin $pluginId may only open projects under ${Environment.PROJECTS_DIR?.absolutePath}")
         }
 
-        if (!projectDir.exists() || !projectDir.isDirectory) {
-            Log.w(TAG, "[HOST] openProject aborted: not a directory (exists=${projectDir.exists()}, isDir=${projectDir.isDirectory})")
+        // Apply the same path-access policy used by getProjectByPath.
+        if (!isPathAllowed(resolvedProjectDir)) {
+            throw SecurityException("Plugin $pluginId does not have access to path: ${resolvedProjectDir.absolutePath}")
+        }
+
+        if (!resolvedProjectDir.exists() || !resolvedProjectDir.isDirectory) {
+            Log.w(TAG, "openProject aborted: not a directory (exists=${resolvedProjectDir.exists()}, isDir=${resolvedProjectDir.isDirectory})")
             return false
         }
 
         val activity = activityProvider?.getCurrentActivity()
         if (activity == null) {
-            Log.w(TAG, "[HOST] openProject aborted: no foreground activity available")
+            Log.w(TAG, "openProject aborted: no foreground activity available")
             return false
         }
 
         return try {
-            ProjectManagerImpl.getInstance().projectPath = projectDir.absolutePath
-            GeneralPreferences.lastOpenedProject = projectDir.absolutePath
+            ProjectManagerImpl.getInstance().projectPath = resolvedProjectDir.absolutePath
+            GeneralPreferences.lastOpenedProject = resolvedProjectDir.absolutePath
 
             // The editor activity is launchMode=singleTask, so re-launching it only delivers
             // onNewIntent (no reload). Recreating it re-runs onCreate, which loads the project
             // from the projectPath we just set — the same effect as the IDE's own project switch.
             activity.runOnUiThread { activity.recreate() }
-            Log.d(TAG, "[HOST] openProject: set projectPath and recreated ${activity.javaClass.simpleName} for ${projectDir.absolutePath}")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "[HOST] openProject: failed ${e.javaClass.simpleName}: ${e.message}", e)
+            Log.e(TAG, "openProject failed: ${e.javaClass.simpleName}: ${e.message}", e)
             false
         }
     }
 
-    private fun isUnderProjectsDir(path: File): Boolean {
-        val projectsDir = runCatching { Environment.PROJECTS_DIR }.getOrNull() ?: return false
+    private fun resolveProjectDirUnderProjectsDir(path: File): File? {
+        val projectsDir = runCatching { Environment.PROJECTS_DIR }.getOrNull() ?: return null
         return runCatching {
             val base = projectsDir.canonicalFile
             val target = path.canonicalFile
-            target.path == base.path || target.path.startsWith(base.path + File.separator)
-        }.getOrDefault(false)
+            target.takeIf { it.path == base.path || it.path.startsWith(base.path + File.separator) }
+        }.getOrNull()
     }
 
     private fun hasRequiredPermissions(): Boolean {
