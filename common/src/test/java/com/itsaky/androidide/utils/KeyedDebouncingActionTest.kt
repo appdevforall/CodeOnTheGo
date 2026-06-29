@@ -54,21 +54,20 @@ class KeyedDebouncingActionTest {
     }
 
     @Test
-    fun `last value wins when multiple sends arrive before debounce window`() = runBlocking {
-        val received = CopyOnWriteArrayList<String>()
+    fun `late reschedule of same key extends debounce window and fires exactly once`() = runBlocking {
+        val count = AtomicInteger(0)
         val debouncer = KeyedDebouncingAction<String>(
             scope = makeScope(),
-            debounceDuration = 100.milliseconds,
-            action = { key, _ -> received.add(key) }
+            debounceDuration = 150.milliseconds,
+            action = { _, _ -> count.incrementAndGet() }
         )
 
-        debouncer.schedule("first")
-        debouncer.schedule("second")
-        debouncer.schedule("third")
-        delay(400)
+        debouncer.schedule("k")
+        delay(80)              // before debounce fires
+        debouncer.schedule("k") // resets the debounce window
+        delay(500)
 
-        // Since the channel is CONFLATED, only the most-recently sent value survives
-        assertThat(received).hasSize(1)
+        assertThat(count.get()).isEqualTo(1)
         debouncer.cancelAll()
     }
 
