@@ -86,6 +86,11 @@ class IdeProjectServiceImpl(
             throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
         }
 
+        val path = File(filePath)
+        if (!isPathAllowed(path)) {
+            throw SecurityException("Plugin $pluginId does not have access to path: ${path.absolutePath}")
+        }
+
         return try {
             ModuleContextResolver.resolve(filePath)
         } catch (e: Exception) {

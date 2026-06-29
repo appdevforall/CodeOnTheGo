@@ -139,6 +139,13 @@ data class ToolbarAction(
     val order: Int = 0,
     val action: () -> Unit
 ) {
+    // NOTE: the provider callbacks below are intentionally body `var` properties rather than
+    // primary-constructor parameters. Adding constructor params would change the synthesized
+    // <init>/copy()/componentN signatures and break ABI for plugins already compiled against the
+    // shipped plugin-api — the exact pattern [MenuItem] uses for the same reason. The trade-off
+    // (copy()/equals() ignore these providers) is acceptable: plugins build ToolbarAction directly
+    // and the host never copies it. Do NOT move these into the constructor.
+
     /**
      * Optional callback to compute the enabled state dynamically at render time.
      * When null, the static [isEnabled] is used. Mirrors the [MenuItem] providers.

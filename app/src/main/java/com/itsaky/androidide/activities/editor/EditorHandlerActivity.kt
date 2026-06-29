@@ -92,6 +92,7 @@ import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
+import com.itsaky.androidide.utils.EditorActivityActions
 import com.itsaky.androidide.utils.EditorSidebarActions
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
@@ -1268,6 +1269,8 @@ open class EditorHandlerActivity :
 			EditorSidebarActions.registerActions(this)
 			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
 				?.let { EditorSidebarActions.setup(it) }
+
+			EditorActivityActions.register(this)
 
 			invalidateOptionsMenu()
 

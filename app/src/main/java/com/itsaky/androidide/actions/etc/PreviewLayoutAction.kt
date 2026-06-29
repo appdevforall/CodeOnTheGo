@@ -81,7 +81,8 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
     if (file != null && !viewModel.isInitializing && file.name.endsWith(".xml")) {
       val type = try {
         extractPathData(file).type
-      } catch (err: Throwable) {
+      } catch (err: Exception) {
+         LOG.warn("Failed to parse resource path for '{}'; hiding preview action", file.name, err)
         markInvisible()
         return
       }
@@ -146,7 +147,7 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
 
   private fun EditorHandlerActivity.previewXmlLayout(file: File) {
     val intent = Intent(this, EditorActivity::class.java)
-    intent.putExtra(Constants.EXTRA_KEY_FILE_PATH, file.absolutePath.substringBefore("layout"))
+    intent.putExtra(Constants.EXTRA_KEY_FILE_PATH, file.absolutePath.substringBeforeLast("layout${File.separator}"))
     intent.putExtra(Constants.EXTRA_KEY_LAYOUT_FILE_NAME, file.name.substringBefore("."))
     uiDesignerResultLauncher?.launch(intent)
   }
