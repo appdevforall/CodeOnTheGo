@@ -192,7 +192,7 @@ class KeyedDebouncingActionTest {
             scope = makeScope(),
             debounceDuration = 50.milliseconds,
             action = { _, checker ->
-                checkerWasActive = !checker.isCancelled
+                checkerWasActive = !checker.isCancelled()
             }
         )
 

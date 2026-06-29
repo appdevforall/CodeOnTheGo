@@ -113,6 +113,7 @@ include(
 	":annotation-processors-ksp",
 	":annotations",
 	":actions",
+	":agent",
 	":app",
 	":build-info",
 	":common",

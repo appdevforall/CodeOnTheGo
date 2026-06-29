@@ -12,6 +12,7 @@ import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
 import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
 import org.appdevforall.codeonthego.indexing.util.IndexingEvent
+import org.appdevforall.codeonthego.indexing.util.IndexingProgressListener
 import org.junit.After
 import org.junit.Before
 import org.junit.Test

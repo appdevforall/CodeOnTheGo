@@ -1,4 +1,5 @@
 import com.itsaky.androidide.build.config.BuildConfig
+import java.util.zip.ZipInputStream
 
 plugins {
     alias(libs.plugins.kotlin.android)
@@ -31,7 +32,7 @@ android {
     }
     sourceSets {
         getByName("androidTest") {
-            assets.srcDirs("src/androidTest/assets", "$buildDir/generated/androidTest/assets")
+            assets.srcDirs("src/androidTest/assets", layout.buildDirectory.dir("generated/androidTest/assets").get().asFile)
         }
     }
 }
@@ -43,7 +44,7 @@ val extractLlamaAarForTests by tasks.registering {
 
     val v8AssetsZip = file("../app/build/outputs/assets/assets-arm64-v8a.zip")
     val v7AssetsZip = file("../app/build/outputs/assets/assets-armeabi-v7a.zip")
-    val outputDir = file("$buildDir/generated/androidTest/assets/dynamic_libs")
+    val outputDir = layout.buildDirectory.dir("generated/androidTest/assets/dynamic_libs").get().asFile
 
     inputs.files(v8AssetsZip, v7AssetsZip).optional()
     outputs.dir(outputDir)
@@ -63,7 +64,7 @@ val extractLlamaAarForTests by tasks.registering {
             }
 
             var extracted = false
-            java.util.zip.ZipInputStream(assetsZip.inputStream().buffered()).use { zipIn ->
+            ZipInputStream(assetsZip.inputStream().buffered()).use { zipIn ->
                 val buffer = ByteArray(8 * 1024)
                 var entry = zipIn.nextEntry
                 while (entry != null) {

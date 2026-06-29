@@ -58,7 +58,7 @@ class GitRepositoryUrlsTest {
     }
 
     @Test
-    fun `HTTPS URL without .git suffix is accepted`() {
+    fun `HTTPS URL without git suffix is accepted`() {
         val result = parseGitRepositoryUrl("https://github.com/user/repo")
         assertThat(result).isNotNull()
         assertThat(result).contains("github.com")

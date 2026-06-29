@@ -217,7 +217,7 @@ class DiagnosticsFormatterTest {
     fun `summary files count only files with items`() {
         val diagnostics = mapOf(
             file("A.kt") to listOf(makeItem("e", DiagnosticSeverity.ERROR)),
-            file("B.kt") to emptyList()
+            file("B.kt") to emptyList<DiagnosticItem>()
         )
         val result = DiagnosticsFormatter.format(diagnostics)
         assertThat(result).contains("Files: 1")
@@ -228,7 +228,7 @@ class DiagnosticsFormatterTest {
     @Test
     fun `files with empty diagnostic list are not included in body`() {
         val diagnostics = mapOf(
-            file("Empty.kt") to emptyList()
+            file("Empty.kt") to emptyList<DiagnosticItem>()
         )
         val result = DiagnosticsFormatter.format(diagnostics)
         assertThat(result).doesNotContain("Empty.kt")
