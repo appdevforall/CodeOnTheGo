@@ -157,6 +157,16 @@ abstract class ModuleProject(
 		indexClasspaths()
 	}
 
+	/**
+	 * Classpath JARs skipped during the most recent [indexClasspaths] because they were
+	 * corrupt/unreadable (e.g. a truncated download / incomplete offline provisioning). Aggregated by
+	 * the project setup after indexing so the user can be told which dependency failed and offered a
+	 * recovery path (re-sync). Empty when everything indexed cleanly.
+	 */
+	@Volatile
+	var unreadableClasspathJars: List<File> = emptyList()
+		private set
+
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 	fun indexClasspaths() {
 		this.compileClasspathClasses.clear()
@@ -170,8 +180,10 @@ abstract class ModuleProject(
 			CacheFSInfoSingleton.cache(CacheFSInfoSingleton.getCanonicalFile(path.toPath()))
 		}
 
-		val topLevelClasses = JarFsClasspathReader().listClasses(paths).filter { it.isTopLevel }
+		val reader = JarFsClasspathReader()
+		val topLevelClasses = reader.listClasses(paths).filter { it.isTopLevel }
 		topLevelClasses.forEach { this.compileClasspathClasses.append(it.name) }
+		unreadableClasspathJars = reader.unreadableJars.toList()
 
 		watch.log()
 		log.debug("Found {} classpaths.", topLevelClasses.size)
