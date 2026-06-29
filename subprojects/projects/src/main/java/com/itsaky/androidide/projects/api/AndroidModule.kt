@@ -275,28 +275,29 @@ open class AndroidModule(
 			}
 
 			val lib = libraryMap[library.key] ?: continue
-			if (lib.type == AndroidModels.LibraryType.Project) {
-				val module = root.findByPath(lib.projectInfo!!.projectPath) ?: continue
-				if (module !is ModuleProject) {
-					continue
+			when {
+				lib.type == AndroidModels.LibraryType.Project -> {
+					val module = root.findByPath(lib.projectInfo!!.projectPath) ?: continue
+					if (module !is ModuleProject) {
+						continue
+					}
+
+					// Cross-module recursion threads moduleVisited so a cyclic PROJECT graph terminates.
+					result.addAll(module.getCompileClasspaths(excludeSourceGeneratedClassPath, moduleVisited))
 				}
 
-				// Cross-module recursion threads moduleVisited so a cyclic PROJECT graph terminates.
-				result.addAll(module.getCompileClasspaths(excludeSourceGeneratedClassPath, moduleVisited))
-			} else if (lib.type == AndroidModels.LibraryType.ExternalAndroidLibrary && lib.hasAndroidLibraryData()) {
-				result.addAll(lib.androidLibraryData.compileJarFiles)
-			} else if (lib.type == AndroidModels.LibraryType.ExternalJavaLibrary && lib.hasArtifactPath()) {
-				result.add(lib.artifact)
+				lib.type == AndroidModels.LibraryType.ExternalAndroidLibrary && lib.hasAndroidLibraryData() ->
+					result.addAll(lib.androidLibraryData.compileJarFiles)
+
+				lib.type == AndroidModels.LibraryType.ExternalJavaLibrary && lib.hasArtifactPath() ->
+					result.add(lib.artifact)
 			}
 
-			// Note: the recursive call intentionally keeps the original behavior of not propagating
-			// `excludeSourceGeneratedClassPath` (it defaults to false here); only the visited-set
-			// cycle guard is added.
 			collectLibraries(
 				root = root,
 				libraries = library.dependencyList,
 				result = result,
-				excludeSourceGeneratedClassPath = false,
+				excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
 				visited = visited,
 				moduleVisited = moduleVisited,
 			)

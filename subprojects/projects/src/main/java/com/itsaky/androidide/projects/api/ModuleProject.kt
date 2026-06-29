@@ -126,7 +126,7 @@ abstract class ModuleProject(
 	 * user-facing cycle report is emitted once by [getCompileModuleProjects]; this method only breaks
 	 * the cycle.
 	 */
-	abstract fun getCompileClasspaths(
+	internal abstract fun getCompileClasspaths(
 		excludeSourceGeneratedClassPath: Boolean,
 		visited: MutableSet<String>,
 	): Set<File>
@@ -171,7 +171,7 @@ abstract class ModuleProject(
 	 * ancestor on this path) from a harmless diamond/shared dependency (a module merely seen before
 	 * but not an ancestor), so only real cycles are reported via [reportDependencyCycle].
 	 */
-	abstract fun getCompileModuleProjects(
+	internal abstract fun getCompileModuleProjects(
 		visited: MutableSet<String>,
 		recursionPath: ArrayDeque<String>,
 	): List<ModuleProject>
