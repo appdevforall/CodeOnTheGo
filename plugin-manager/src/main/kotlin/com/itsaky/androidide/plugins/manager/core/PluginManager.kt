@@ -62,6 +62,7 @@ import com.itsaky.androidide.plugins.extensions.BuildActionExtension
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.actions.SidebarSlotExceededException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -151,6 +152,19 @@ class PluginManager private constructor(
             range: com.itsaky.androidide.plugins.services.SelectionRange,
             newText: String,
         ): Boolean = current()?.replaceRange(file, range, newText) ?: false
+        override fun showPeerCursor(
+            file: File,
+            line: Int,
+            column: Int,
+            peerId: String,
+            peerName: String,
+            peerColor: Int,
+        ): Boolean = current()?.showPeerCursor(file, line, column, peerId, peerName, peerColor) ?: false
+        override fun hidePeerCursor(file: File, peerId: String): Boolean =
+            current()?.hidePeerCursor(file, peerId) ?: false
+        override fun clearPeerCursors(file: File) {
+            current()?.clearPeerCursors(file)
+        }
         override fun addFileChangeCallback(callback: (File?) -> Unit) {
             pendingFileChangeCallbacks.add(callback)
             current()?.addFileChangeCallback(callback)
@@ -184,6 +198,7 @@ class PluginManager private constructor(
     
     private val loadedPlugins = ConcurrentHashMap<String, LoadedPlugin>()
     private val pluginStates = ConcurrentHashMap<String, Boolean>()
+    private val loadFailures = ConcurrentHashMap<String, String>()
     private val pluginRegistry = PluginRegistry(context)
     private val securityManager = PluginSecurityManager()
     private val serviceRegistry = ServiceRegistryImpl()
@@ -256,15 +271,20 @@ class PluginManager private constructor(
 
         logger.info("Found ${pluginFiles.size} plugin files")
 
+        loadFailures.clear()
+
         // Load plugins in parallel
         val loadJobs = pluginFiles.map { pluginFile ->
             async {
-                try {
-                    logger.debug("Loading plugin: ${pluginFile.name}")
+                logger.debug("Loading plugin: ${pluginFile.name}")
+                val result = try {
                     loadPlugin(pluginFile)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
-                    logger.error("Failed to load plugin from ${pluginFile.name}", e)
+                    Result.failure(e)
                 }
+                result.onFailure { error -> recordLoadFailure(pluginFile, error) }
             }
         }
 
@@ -754,6 +774,14 @@ class PluginManager private constructor(
     fun getPlugin(pluginId: String): IPlugin? {
         return loadedPlugins[pluginId]?.plugin
     }
+
+    fun getLoadError(pluginId: String): String? = loadFailures[pluginId]
+
+    private fun recordLoadFailure(pluginFile: File, error: Throwable) {
+        logger.error("Failed to load plugin from ${pluginFile.name}", error)
+        val id = loadAndValidate(pluginFile).getOrNull()?.first?.id ?: pluginFile.nameWithoutExtension
+        loadFailures[id] = error.message ?: error.toString()
+    }
     
     fun getAllPlugins(): List<PluginInfo> {
         return loadedPlugins.values.map { loadedPlugin ->
@@ -1117,7 +1145,8 @@ class PluginManager private constructor(
                         override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
                         override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
                     }
-                }
+                },
+                activityProvider = activityProvider
             )
         }
 
@@ -1335,7 +1364,8 @@ class PluginManager private constructor(
                         override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
                         override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
                     }
-                }
+                },
+                activityProvider = activityProvider
             )
         }
 

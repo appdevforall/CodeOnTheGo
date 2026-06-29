@@ -145,6 +145,16 @@ class PluginRepositoryImpl(
             }
 
             manager.loadPlugins()
+
+            if (manager.getPlugin(pluginId) == null) {
+                // The new package replaced the previous one but failed to load. Remove the broken
+                // artifact so subsequent loadPlugins() calls don't keep retrying it.
+                finalFile.delete()
+                throw IllegalStateException(
+                    manager.getLoadError(pluginId)
+                        ?: "Plugin \"$pluginId\" was installed but failed to load."
+                )
+            }
         }.onFailure { exception ->
             Log.e(TAG, "Failed to install plugin from file: ${pluginFile.absolutePath}", exception)
         }
