@@ -150,7 +150,6 @@ include(
 	":lsp:jvm-symbol-models",
 	":lsp:kotlin",
 	":lsp:xml",
-	":profiler",
 	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",
 	":subprojects:builder-model-impl",
