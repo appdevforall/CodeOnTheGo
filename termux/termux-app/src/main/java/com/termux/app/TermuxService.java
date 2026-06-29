@@ -896,6 +896,16 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         return mShellManager.mTermuxSessions;
     }
 
+    /**
+     * Returns a consistent copy of the current {@link TermuxSession} list. Unlike
+     * {@link #getTermuxSessions()}, this does not expose the live backing list, so it is safe to
+     * iterate from any thread (e.g. to feed a UI adapter). The copy is taken under the same monitor
+     * that guards all session mutations, so it can never observe a half-applied add/remove.
+     */
+    public synchronized List<TermuxSession> getTermuxSessionsListSnapshot() {
+        return new ArrayList<>(mShellManager.mTermuxSessions);
+    }
+
     @Nullable
     public synchronized TermuxSession getTermuxSession(int index) {
         if (index >= 0 && index < mShellManager.mTermuxSessions.size())

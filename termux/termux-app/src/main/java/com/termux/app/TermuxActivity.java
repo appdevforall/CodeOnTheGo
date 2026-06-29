@@ -628,7 +628,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
     private void setTermuxSessionsListView() {
         ListView termuxSessionsListView = findViewById(R.id.terminal_sessions_list);
-        mTermuxSessionListViewController = new TermuxSessionsListViewController(this, mTermuxService.getTermuxSessions());
+        mTermuxSessionListViewController = new TermuxSessionsListViewController(this, mTermuxService.getTermuxSessionsListSnapshot());
         termuxSessionsListView.setAdapter(mTermuxSessionListViewController);
         termuxSessionsListView.setOnItemClickListener(mTermuxSessionListViewController);
         termuxSessionsListView.setOnItemLongClickListener(mTermuxSessionListViewController);
@@ -974,12 +974,20 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
 
     public void termuxSessionListNotifyUpdated() {
-        if (mTermuxSessionListViewController == null) return;
+        // The session list may be mutated on a background thread (e.g. onCreateNewSession() runs
+        // createTermuxSession() on a background executor). Re-snapshotting the service's list into
+        // the adapter must therefore happen on the UI thread, so the adapter's own list is only
+        // ever read/written by the UI thread and the ListView can never observe a concurrent change.
         if (Looper.myLooper() == Looper.getMainLooper()) {
-            mTermuxSessionListViewController.notifyDataSetChanged();
+            refreshSessionsListView();
         } else {
-            TermuxExecutor.executeOnMain(mTermuxSessionListViewController::notifyDataSetChanged);
+            TermuxExecutor.executeOnMain(this::refreshSessionsListView);
         }
+    }
+
+    private void refreshSessionsListView() {
+        if (mTermuxSessionListViewController == null || mTermuxService == null) return;
+        mTermuxSessionListViewController.updateSessions(mTermuxService.getTermuxSessionsListSnapshot());
     }
 
     public boolean isVisible() {
