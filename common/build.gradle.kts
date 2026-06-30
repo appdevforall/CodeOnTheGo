@@ -34,6 +34,7 @@ dependencies {
 	api(projects.eventbusAndroid)
 	api(projects.eventbusEvents)
 	api(projects.lexers)
+	api(projects.pluginApi)
 	api(projects.resources)
 
 	api(projects.shared)
@@ -43,6 +44,8 @@ dependencies {
 	implementation(libs.monitor)
 
 	testImplementation(projects.testing.common)
+	testImplementation(libs.tests.kotlinx.coroutines)
+	testImplementation(libs.tests.google.truth)
 	androidTestImplementation(projects.testing.android)
 
 	// brotli4j
