@@ -323,7 +323,6 @@ dependencies {
 
 	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
-	implementation(projects.composePreview)
 	implementation(projects.floatingWindow)
 	implementation(projects.gitCore)
 
