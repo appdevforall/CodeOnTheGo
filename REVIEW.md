@@ -169,7 +169,7 @@ Features that aren't fully stabilized ship behind the **experimental feature fla
 
 ## 13. Consider impact on plugins
 
-Plugins might conflict with each other. New core features might cause plugins to break even if they don't change the plugin API. The review process must consider the impact of the current chance on plugins in the wild.
+Plugins might conflict with each other. New core features might cause plugins to break even if they don't change the plugin API. The review process must consider the impact of the current change on plugins in the wild.
 
 ## 14. PR hygiene
 
