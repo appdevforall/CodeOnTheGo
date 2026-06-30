@@ -167,7 +167,11 @@ Features that aren't fully stabilized ship behind the **experimental feature fla
 - **Gate not-yet-stable work behind the flag, off by default.** A user who hasn't opted in never sees in-progress behavior.
 - **It's an early-access opt-in, not a kill switch.** The flag is for users who want features early — not a lever for us to disable things in the field.
 
-## 13. PR hygiene
+## 13. Consider impact on plugins
+
+Plugins might conflict with each other. New core features might cause plugins to break even if they don't change the plugin API. The review process must consider the impact of the current chance on plugins in the wild.
+
+## 14. PR hygiene
 
 - Focused and reviewable: aim for the **~500 LOC / 10-file** ceiling; split larger work into stacked PRs.
 - Title/branch follow `ADFA-####`; description says *what changed, why, how it was verified*, and flags anything intentionally out of scope (e.g. "UI-only, no unit test").
