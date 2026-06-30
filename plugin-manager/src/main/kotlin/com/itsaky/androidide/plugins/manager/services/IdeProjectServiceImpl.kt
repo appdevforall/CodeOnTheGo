@@ -130,16 +130,21 @@ class IdeProjectServiceImpl(
         }
         
         return allowedPaths.any { allowedPath ->
-            canonicalPath.startsWith(allowedPath)
+            canonicalPath == allowedPath || canonicalPath.startsWith(allowedPath + File.separator)
         }
     }
 
     private fun getDefaultAllowedPaths(): List<String> {
-        return listOf(
-            "/storage/emulated/0/AndroidIDEProjects",
-            "/sdcard/AndroidIDEProjects",
-            System.getProperty("user.home", "/") + "/AndroidIDEProjects",
-            "/tmp/AndroidIDEProject" // Allow temporary project for demo purposes
-        )
+        // Derive allowed roots from the official project API (IdeProjectService /
+        // ProjectProvider) rather than hardcoding a projects-directory name. CodeOnTheGo
+        // stores projects under CodeOnTheGoProjects and a project
+        // can live anywhere the user opened it, so the open project's rootDir is the source
+        // of truth for what this plugin may read.
+        val roots = mutableListOf<File>()
+        runCatching {
+            projectProvider.getCurrentProject()?.rootDir?.let { roots.add(it) }
+            projectProvider.getAllProjects().forEach { roots.add(it.rootDir) }
+        }
+        return roots.mapNotNull { root -> runCatching { root.canonicalPath }.getOrNull() }
     }
 }
