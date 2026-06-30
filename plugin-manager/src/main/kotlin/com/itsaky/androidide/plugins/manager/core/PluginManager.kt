@@ -10,9 +10,11 @@ import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.services.IdeProjectServiceLegacy
 import com.itsaky.androidide.plugins.services.IdeUIService
 import com.itsaky.androidide.plugins.services.IdeBuildService
+import com.itsaky.androidide.plugins.services.IdeProjectManipulationService
 import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeProjectManipulationServiceImpl
 import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
@@ -1138,6 +1140,15 @@ class PluginManager private constructor(
             IdeBuildServiceImpl.getInstance()
         }
 
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeProjectManipulationService::class.java,
+            pluginId,
+            "project_manipulation"
+        ) {
+            IdeProjectManipulationServiceImpl.getInstance()
+        }
+
         // Tooltip service for showing help documentation
         // Use main app context for tooltip service to access app's tooltip layouts
         registerServiceWithErrorHandling(
@@ -1386,6 +1397,15 @@ class PluginManager private constructor(
             "build"
         ) {
             IdeBuildServiceImpl.getInstance()
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeProjectManipulationService::class.java,
+            pluginId,
+            "project_manipulation"
+        ) {
+            IdeProjectManipulationServiceImpl.getInstance()
         }
 
         registerServiceWithErrorHandling(

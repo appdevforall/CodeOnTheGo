@@ -203,6 +203,48 @@ interface IdeBuildService {
      * @param callback The callback to unregister
      */
     fun removeBuildStatusListener(callback: BuildStatusListener)
+
+    /**
+     * Builds and runs the app on the connected device.
+     * @param callback The callback to be invoked when the operation completes
+     */
+    fun runApp(callback: BuildAndLaunchCallback)
+
+    /**
+     * Triggers a Gradle sync operation.
+     * @param callback The callback to be invoked when the sync completes
+     */
+    fun triggerGradleSync(callback: GradleSyncCallback)
+
+    /**
+     * Gets the latest build output logs.
+     * @return The build output as a string, or null if no build output is available
+     */
+    fun getBuildOutput(): String?
+}
+
+/**
+ * Callback interface for build and launch operations.
+ */
+fun interface BuildAndLaunchCallback {
+    /**
+     * Called when the build and launch operation completes.
+     * @param success true if the operation succeeded, false otherwise
+     * @param message A message describing the result
+     */
+    fun onComplete(success: Boolean, message: String)
+}
+
+/**
+ * Callback interface for Gradle sync operations.
+ */
+fun interface GradleSyncCallback {
+    /**
+     * Called when the Gradle sync operation completes.
+     * @param success true if the sync succeeded, false otherwise
+     * @param output The sync output
+     */
+    fun onComplete(success: Boolean, output: String)
 }
 
 /**
@@ -306,4 +348,34 @@ interface BuildStatusListener {
      * @param error The error message, or null if cancelled
      */
     fun onBuildFailed(error: String?)
+}
+
+/**
+ * Service interface that provides project manipulation capabilities for plugins.
+ * This service should be registered by Code On the Go and made available to plugins
+ * that need to modify project files (build files, resources, etc.).
+ */
+interface IdeProjectManipulationService {
+    /**
+     * Adds a dependency to a Gradle build file.
+     * @param dependencyString The dependency line including configuration, e.g., 'implementation("io.coil-kt:coil:2.6.0")'
+     * @param buildFilePath Relative path to build file, e.g., 'app/build.gradle.kts'
+     * @return true if the dependency was added successfully, false otherwise
+     */
+    fun addDependency(dependencyString: String, buildFilePath: String): Boolean
+
+    /**
+     * Adds a string resource to the strings.xml file.
+     * @param name The resource name, e.g., 'welcome_message'
+     * @param value The string content, e.g., 'Hello, World!'
+     * @return true if the string resource was added successfully, false otherwise
+     */
+    fun addStringResource(name: String, value: String): Boolean
+
+    /**
+     * Deletes a file from the project.
+     * @param path The path to the file to delete
+     * @return true if the file was deleted successfully, false otherwise
+     */
+    fun deleteFile(path: String): Boolean
 }

@@ -9,6 +9,7 @@ import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
@@ -346,7 +347,100 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 	private fun setupPluginServices() {
 		pluginManager?.let { manager ->
 			manager.setActivityProvider { application.foregroundActivity }
+			setupBuildServiceProviders()
+			setupProjectManipulationProviders()
 			logger.info("Plugin services configured successfully")
+		}
+	}
+
+	@OptIn(DelicateCoroutinesApi::class)
+	private fun setupBuildServiceProviders() {
+		val buildServiceImpl = com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl.getInstance()
+
+		// Provide runApp functionality
+		buildServiceImpl.setRunAppProvider { callback ->
+			logger.info("runApp provider called - attempting to get BuildService from Lookup")
+			GlobalScope.launch(Dispatchers.IO) {
+				try {
+					val buildService = Lookup.getDefault().lookup(com.itsaky.androidide.projects.builder.BuildService.KEY_BUILD_SERVICE)
+					logger.info("BuildService lookup result: {}", if (buildService == null) "NULL" else "FOUND")
+					if (buildService == null) {
+						callback.onComplete(false, "Build service not available - may need to open a project first")
+						return@launch
+					}
+
+					val projectManager = com.itsaky.androidide.projects.IProjectManager.getInstance()
+					val appModules = projectManager.getAndroidAppModules()
+
+					if (appModules.isEmpty()) {
+						callback.onComplete(false, "No Android app modules found in project")
+						return@launch
+					}
+
+					val module = appModules.firstOrNull()
+					val variant = module?.getSelectedVariant()
+
+					if (module == null || variant == null) {
+						callback.onComplete(false, "No app module or variant selected")
+						return@launch
+					}
+
+					val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
+					val result = buildService.executeTasks(tasks = listOf(taskName)).get()
+
+					if (result == null || !result.isSuccessful) {
+						callback.onComplete(false, "Build failed: ${result?.failure}")
+						return@launch
+					}
+
+					// TODO: Install and launch APK
+					callback.onComplete(true, "Build successful (installation not yet implemented)")
+				} catch (e: Exception) {
+					logger.error("Failed to run app", e)
+					callback.onComplete(false, "Error: ${e.message}")
+				}
+			}
+		}
+
+		// Provide gradle sync functionality
+		buildServiceImpl.setGradleSyncProvider { callback ->
+			GlobalScope.launch(Dispatchers.IO) {
+				try {
+					// TODO: Implement gradle sync - needs activity context for ProjectHandlerActivity.initializeProject()
+					callback.onComplete(false, "Gradle sync not yet implemented")
+				} catch (e: Exception) {
+					logger.error("Failed to sync gradle", e)
+					callback.onComplete(false, "Error: ${e.message}")
+				}
+			}
+		}
+
+		// Provide build output
+		buildServiceImpl.setBuildOutputProvider {
+			// TODO: Get actual build output from build service
+			null
+		}
+	}
+
+	private fun setupProjectManipulationProviders() {
+		val manipulationServiceImpl = com.itsaky.androidide.plugins.manager.services.IdeProjectManipulationServiceImpl.getInstance()
+
+		// Provide dependency addition
+		manipulationServiceImpl.setAddDependencyProvider { dependencyString, buildFilePath ->
+			// TODO: Implement dependency addition
+			false
+		}
+
+		// Provide string resource addition
+		manipulationServiceImpl.setAddStringResourceProvider { name, value ->
+			// TODO: Implement string resource addition
+			false
+		}
+
+		// Provide file deletion
+		manipulationServiceImpl.setDeleteFileProvider { path ->
+			// TODO: Implement file deletion
+			false
 		}
 	}
 
