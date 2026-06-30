@@ -253,14 +253,5 @@
                 android:name="autoStoreLocales"
                 android:value="true" />
         </service>
-
-        <!-- Test broadcast receiver for easy adb-based testing of AI assistant -->
-        <receiver
-            android:name=".broadcast.TestBroadcastReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.itsaky.androidide.TEST_AI_PROMPT" />
-            </intent-filter>
-        </receiver>
     </application>
 </manifest>

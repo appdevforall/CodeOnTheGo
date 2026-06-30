@@ -122,9 +122,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		// Handle test broadcast from adb
-		handleTestBroadcast(intent)
-
 		MainScreenActions.register(this)
 
 		// Start WebServer after installation is complete
@@ -457,43 +454,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
-		handleTestBroadcast(intent)
-	}
-
-	/**
-	 * Handle test broadcast intents from adb for easy testing.
-	 * Extracts prompt and auto-approve flag, then sends to agent chat.
-	 */
-	private fun handleTestBroadcast(intent: Intent?) {
-		if (intent == null) return
-
-		val action = intent.action
-		if (action == "com.itsaky.androidide.TEST_AI_PROMPT") {
-			val prompt = intent.getStringExtra("prompt")
-			val autoApprove = intent.getBooleanExtra("autoApprove", false)
-
-			if (!prompt.isNullOrBlank()) {
-				Log.d("MainActivity", "Test prompt received: '$prompt' (autoApprove: $autoApprove)")
-
-				// Inject test prompt into ChatFragment via its companion object
-				try {
-					val chatFragmentClass = Class.forName("com.itsaky.androidide.plugins.aiassistant.fragments.ChatFragment")
-					val injectMethod = chatFragmentClass.getMethod("injectTestPrompt", String::class.java)
-					injectMethod.invoke(null, prompt)
-					Log.d("MainActivity", "Test prompt injected into ChatFragment")
-				} catch (e: Exception) {
-					Log.e("MainActivity", "Failed to inject test prompt: ${e.message}")
-				}
-
-				// Show feedback to user
-				lifecycleScope.launch {
-					flashInfo("📝 Test prompt injected: $prompt")
-				}
-
-				// TODO: Navigate to agent tab (requires fragment manager access from editor)
-				// The agent tab should auto-open when the plugin fragment system displays tabs
-			}
-		}
 	}
 
 	override fun onDestroy() {
