@@ -279,6 +279,82 @@ public interface LlmInferenceService {
     @NonNull CompletableFuture<float[]> getEmbeddings(@NonNull String text, @NonNull String backendId);
 
     /**
+     * Tool definition for structured function calling.
+     * Defines a tool that the LLM can invoke.
+     */
+    class ToolDefinition {
+        public String name;
+        public String description;
+        public Map<String, Object> parametersSchema;
+
+        public ToolDefinition(String name, String description, Map<String, Object> parametersSchema) {
+            this.name = name;
+            this.description = description;
+            this.parametersSchema = parametersSchema;
+        }
+    }
+
+    /**
+     * A tool call request made by the LLM.
+     * Represents the LLM's request to invoke a tool with specific arguments.
+     */
+    class ToolCallRequest {
+        public String callId;
+        public String name;
+        public Map<String, Object> args;
+
+        public ToolCallRequest(String callId, String name, Map<String, Object> args) {
+            this.callId = callId;
+            this.name = name;
+            this.args = args;
+        }
+    }
+
+    /**
+     * Callback for streaming responses with tool calling support.
+     * Handles tokens, tool calls, completion, and errors.
+     */
+    interface ToolStreamCallback {
+        /**
+         * Called when a text token is received.
+         */
+        void onToken(String token);
+
+        /**
+         * Called when the LLM makes a tool call.
+         */
+        void onToolCall(ToolCallRequest request);
+
+        /**
+         * Called when generation is complete.
+         */
+        void onComplete(LlmResponse response);
+
+        /**
+         * Called on error.
+         */
+        void onError(String error);
+    }
+
+    /**
+     * Generate streaming response with tool calling support.
+     * The LLM can call tools, and the caller responds with tool results.
+     *
+     * @param prompt the user prompt
+     * @param history the conversation history (can be empty)
+     * @param config the generation configuration
+     * @param tools the available tools the LLM can call
+     * @param callback the callback for handling tokens, tool calls, completion, and errors
+     */
+    void generateStreamingWithTools(
+        @NonNull String prompt,
+        @NonNull List<ChatMessage> history,
+        @NonNull LlmConfig config,
+        @NonNull List<ToolDefinition> tools,
+        @NonNull ToolStreamCallback callback
+    );
+
+    /**
      * Checks if a backend is available.
      *
      * @param backendId the backend identifier (must not be null)

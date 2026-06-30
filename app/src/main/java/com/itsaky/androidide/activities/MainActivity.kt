@@ -20,6 +20,7 @@ package com.itsaky.androidide.activities
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import androidx.activity.OnBackPressedCallback
@@ -120,6 +121,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		// Handle test broadcast from adb
+		handleTestBroadcast(intent)
+
 		MainScreenActions.register(this)
 
 		// Start WebServer after installation is complete
@@ -446,6 +451,34 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				log.error("Failed to start WebServer", e)
 			} finally {
 				webServer = null
+			}
+		}
+	}
+
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		handleTestBroadcast(intent)
+	}
+
+	/**
+	 * Handle test broadcast intents from adb for easy testing.
+	 * Extracts prompt and auto-approve flag, then sends to agent chat if available.
+	 */
+	private fun handleTestBroadcast(intent: Intent?) {
+		if (intent == null) return
+
+		val action = intent.action
+		if (action == "com.itsaky.androidide.TEST_AI_PROMPT") {
+			val prompt = intent.getStringExtra("prompt")
+			val autoApprove = intent.getBooleanExtra("autoApprove", false)
+
+			if (!prompt.isNullOrBlank()) {
+				Log.d("MainActivity", "Test prompt received: '$prompt' (autoApprove: $autoApprove)")
+				// TODO: Navigate to agent chat and inject test prompt
+				// For now, just log it
+				lifecycleScope.launch {
+					flashInfo("Test prompt: $prompt")
+				}
 			}
 		}
 	}
