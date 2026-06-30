@@ -356,7 +356,9 @@ tasks.named("sonarqube") {
 }
 
 tasks.register<JacocoReport>("jacocoAggregateReport") {
-    val excludedProjects = emptySet<String>()
+    // agent: main sources broken (dependencies extracted to plugin-examples repo)
+    // tooling-api-impl: pre-existing compile error (missing buildId parameter)
+    val excludedProjects = setOf("agent", "tooling-api-impl")
 
     // Depend only on testV8DebugUnitTest tasks in subprojects
     dependsOn(
@@ -395,10 +397,10 @@ tasks.register<JacocoReport>("jacocoAggregateReport") {
             )
         }
 
-    // Collect source directories
+    // Collect source directories (both java and kotlin source roots)
     val sourceDirs = subprojects
         .filterNot { it.name in excludedProjects }
-        .map { it.file("src/main/java") }
+        .flatMap { listOf(it.file("src/main/java"), it.file("src/main/kotlin")) }
 
     // Collect execution data (.exec files)
     val execFiles = subprojects
@@ -412,6 +414,55 @@ tasks.register<JacocoReport>("jacocoAggregateReport") {
     classDirectories.setFrom(classDirs)
     sourceDirectories.setFrom(sourceDirs)
     executionData.setFrom(execFiles)
+}
+
+// Focused coverage report for the four modules that have unit tests.
+// Depends ONLY on those four test tasks so no extraneous compilation
+// happens between test execution and report generation (which would cause
+// JaCoCo class-fingerprint mismatches and incorrect 0% readings).
+tasks.register<JacocoReport>("jacocoUnitTestCoverageReport") {
+    group = "verification"
+    description = "JaCoCo HTML+XML coverage report for the modules with written unit tests"
+
+    val coveredModulePaths = setOf(":git-core", ":common", ":app", ":lsp:indexing")
+    val coveredSubprojects = subprojects.filter { it.path in coveredModulePaths }
+
+    dependsOn(coveredSubprojects.mapNotNull { it.tasks.findByName("testV8DebugUnitTest") })
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        html.outputLocation.set(layout.buildDirectory.dir("reports/jacoco/unitTestCoverage/html"))
+        xml.outputLocation.set(layout.buildDirectory.file("reports/jacoco/unitTestCoverage/coverage.xml"))
+    }
+
+    val fileFilter = listOf(
+        "**/R.class", "**/R\$*.class", "**/BuildConfig.*",
+        "**/Manifest*.*", "**/*Test*.*"
+    )
+
+    classDirectories.setFrom(
+        coveredSubprojects.flatMap { subproj ->
+            listOf(
+                fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8Debug")) { exclude(fileFilter) },
+                fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8DebugUnitTest")) { exclude(fileFilter) },
+                fileTree(subproj.layout.buildDirectory.dir("classes/java/v8Debug")) { exclude(fileFilter) },
+                fileTree(subproj.layout.buildDirectory.dir("intermediates/javac/v8DebugUnitTest/classes")) { exclude(fileFilter) },
+            )
+        }
+    )
+
+    sourceDirectories.setFrom(
+        coveredSubprojects.flatMap { listOf(it.file("src/main/java"), it.file("src/main/kotlin")) }
+    )
+
+    executionData.setFrom(
+        coveredSubprojects.map { subproj ->
+            subproj.layout.buildDirectory.file(
+                "outputs/unit_test_code_coverage/v8DebugUnitTest/testV8DebugUnitTest.exec"
+            )
+        }
+    )
 }
 
 val mavenCacheDirProvider = providers.gradleProperty("mavenCacheDir").orElse("build/maven-cache")

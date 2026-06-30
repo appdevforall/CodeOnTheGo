@@ -113,6 +113,8 @@ android {
 
 	buildTypes {
 		debug {
+            enableUnitTestCoverage = true
+            enableAndroidTestCoverage = true
 			signingConfig = signingConfigs.getByName("debug")
 			manifestPlaceholders["sentryDsn"] =
 				props.getProperty("sentryDsnDebug") ?: propOrEnv("SENTRY_DSN_DEBUG")
