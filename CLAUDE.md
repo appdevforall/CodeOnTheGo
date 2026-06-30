@@ -36,6 +36,7 @@ See **[ARCHITECTURE.md](ARCHITECTURE.md)** — the single source of truth for th
 - **Protect the two Android system bars** in any UI work: the top status bar (clock, notifications, status icons) and the bottom navigation bar (home, back, recents). Don't draw over or intercept them.
 - **Plan and size before building.** Estimated >500 LOC or >10 files → split into 2+ PRs.
 - `.androidide_root` is a sentinel file tests use to locate the project root — don't delete it.
+- Avoid http or https links which go off-device. When such links are unavoidable, warn the user beforehand and offer to cancel the action.
 
 ## Code style
 
