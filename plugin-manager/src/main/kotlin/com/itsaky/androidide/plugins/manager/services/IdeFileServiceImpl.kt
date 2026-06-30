@@ -1,7 +1,7 @@
 package com.itsaky.androidide.plugins.manager.services
 
 import com.itsaky.androidide.plugins.PluginPermission
-import com.itsaky.androidide.plugins.services.IdeFileServiceLegacy
+import com.itsaky.androidide.plugins.services.IdeFileService
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -11,7 +11,7 @@ class IdeFileServiceImpl(
     private val pluginId: String,
     private val permissions: Set<PluginPermission>,
     private val pathValidator: PathValidator? = null
-) : IdeFileServiceLegacy {
+) : IdeFileService {
 
     interface PathValidator {
         fun isPathAllowed(path: File): Boolean

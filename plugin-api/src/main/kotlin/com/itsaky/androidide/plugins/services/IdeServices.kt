@@ -11,11 +11,8 @@ import java.util.concurrent.CompletableFuture
  * Service interface that provides access to Code On the Go project information.
  * This service should be registered by AndroidIDE and made available to plugins
  * that have the FILESYSTEM_READ permission.
- *
- * @deprecated Use the new Java-based IdeProjectService interface instead
  */
-@Deprecated("Use the new Java-based IdeProjectService interface", replaceWith = ReplaceWith("IdeProjectService"))
-interface IdeProjectServiceLegacy {
+interface IdeProjectService {
     /**
      * Gets the currently active/open project.
      * @return The current project, or null if no project is open
@@ -280,11 +277,8 @@ fun interface GradleSyncCallback {
  * Service interface that provides file editing capabilities for plugins.
  * This service should be registered by Code On the Go and made available to plugins
  * that have the FILESYSTEM_WRITE permission.
- *
- * @deprecated Use the new Java-based IdeFileService interface instead
  */
-@Deprecated("Use the new Java-based IdeFileService interface", replaceWith = ReplaceWith("IdeFileService"))
-interface IdeFileServiceLegacy {
+interface IdeFileService {
     /**
      * Reads the entire content of a file.
      * @param file The file to read

@@ -1,7 +1,6 @@
 package com.itsaky.androidide.plugins.manager
 
 import com.itsaky.androidide.plugins.services.IdeFileService
-import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeResourceService
 import com.itsaky.androidide.plugins.manager.context.ServiceRegistryImpl
 import com.itsaky.androidide.plugins.manager.services.FileServiceImpl
