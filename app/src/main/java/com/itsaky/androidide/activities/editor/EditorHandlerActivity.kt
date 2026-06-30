@@ -214,12 +214,17 @@ open class EditorHandlerActivity :
 		pluginEditorProvider = null
 	}
 
+	private val floatingTabController by lazy {
+		com.itsaky.androidide.editor.floating.IdeFloatingTabController(this)
+	}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		setupPluginFragmentFactory()
 		mBuildEventListener.setActivity(this)
 		super.onCreate(savedInstanceState)
 
 		supportFragmentManager.registerFragmentLifecycleCallbacks(pluginFontScalingListener, true)
+		floatingTabController.start()
 
 		editorViewModel._displayedFile.observe(
 			this,
@@ -295,7 +300,6 @@ open class EditorHandlerActivity :
 				fileTimestamps[file.absolutePath] = file.lastModified()
 			}
 		}
-		ActionContextProvider.clearActivity()
 		if (!isOpenedFilesSaved.get()) {
 			saveOpenedFiles()
 			saveOpenedPluginTabs()
@@ -312,6 +316,11 @@ open class EditorHandlerActivity :
 		val json = Gson().toJson(openPluginTabIds)
 		prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, json)
 		Log.d("EditorHandlerActivity", "Saved open plugin tabs: $openPluginTabIds")
+	}
+
+	override fun onDestroy() {
+		super.onDestroy()
+		ActionContextProvider.clearActivity(this)
 	}
 
 	override fun onResume() {
@@ -595,6 +604,21 @@ open class EditorHandlerActivity :
 		if (tabPosition < 0) return null
 		val child = _binding?.content?.editorContainer?.getChildAt(tabPosition) ?: return null
 		return if (child is CodeEditorView) child else null
+	}
+
+	/** Undock the file tab at [fileIndex] into a floating window over other apps. */
+	fun undockFileTab(fileIndex: Int) {
+		floatingTabController.undock(fileIndex)
+	}
+
+	/** Undock the plugin tab [tabId] (at [position]) into a floating window over other apps. */
+	fun undockPluginTab(tabId: String, position: Int) {
+		val title =
+			PluginEditorTabManager
+				.getInstance()
+				.getPluginTab(tabId)
+				?.title ?: tabId
+		floatingTabController.floatPluginTab(tabId, title) { closePluginTab(position) }
 	}
 
 	override fun openFileAndSelect(
@@ -1336,6 +1360,10 @@ open class EditorHandlerActivity :
 		singleBuildListeners.add(listener)
 	}
 
+	fun removeOneTimeBuildResultListener(listener: Consumer<BuildResult>) {
+		singleBuildListeners.remove(listener)
+	}
+
 	/**
 	 * Called by [EditorBuildEventListener] to notify all registered listeners of the build result.
 	 */
@@ -1577,6 +1605,36 @@ open class EditorHandlerActivity :
 		}
 
 		binding.root.addView(closeItem)
+
+		val undockItem =
+			FileActionPopupWindowItemBinding
+				.inflate(
+					android.view.LayoutInflater.from(this),
+					null,
+					false,
+				).root
+		undockItem.apply {
+			text = getString(string.undock)
+			setOnLongClickListener {
+				TooltipManager.showIdeCategoryTooltip(
+					context = this@EditorHandlerActivity,
+					anchorView = anchorView,
+					tag = TooltipTag.WINDOW_UNDOCK,
+				)
+				popupWindow.dismiss()
+				true
+			}
+			setOnClickListener {
+				val pos = tab.position
+				val tabId = getPluginTabId(pos)
+				if (tabId != null) {
+					undockPluginTab(tabId, pos)
+				}
+				popupWindow.dismiss()
+			}
+		}
+		binding.root.addView(undockItem)
+
 		popupWindow.showAsDropDown(anchorView, 0, 0)
 	}
 
