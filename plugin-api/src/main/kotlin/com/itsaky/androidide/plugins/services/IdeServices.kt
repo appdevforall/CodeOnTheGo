@@ -10,10 +10,7 @@ import java.io.InputStream
  * Service interface that provides access to Code On the Go project information.
  * This service should be registered by AndroidIDE and made available to plugins
  * that have the FILESYSTEM_READ permission.
- *
- * @deprecated Use the new Java-based IdeProjectService interface instead
  */
-@Deprecated("Use the new Java-based IdeProjectService interface", replaceWith = ReplaceWith("IdeProjectService"))
 interface IdeProjectServiceLegacy {
     /**
      * Gets the currently active/open project.
@@ -251,10 +248,7 @@ fun interface GradleSyncCallback {
  * Service interface that provides file editing capabilities for plugins.
  * This service should be registered by Code On the Go and made available to plugins
  * that have the FILESYSTEM_WRITE permission.
- *
- * @deprecated Use the new Java-based IdeFileService interface instead
  */
-@Deprecated("Use the new Java-based IdeFileService interface", replaceWith = ReplaceWith("IdeFileService"))
 interface IdeFileServiceLegacy {
     /**
      * Reads the entire content of a file.
@@ -327,6 +321,14 @@ interface IdeFileServiceLegacy {
      * @return true if the deletion was successful, false otherwise
      */
     fun delete(file: File): Boolean
+
+    /**
+     * Lists files in a directory.
+     * @param dir The directory to list (or null for project root)
+     * @param recursive Whether to list recursively
+     * @return List of files, or empty list if the directory cannot be read
+     */
+    fun listFiles(dir: File?, recursive: Boolean = false): List<File>
 }
 
 /**

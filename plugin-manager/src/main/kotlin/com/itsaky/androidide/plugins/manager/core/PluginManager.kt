@@ -11,10 +11,11 @@ import com.itsaky.androidide.plugins.services.IdeProjectServiceLegacy
 import com.itsaky.androidide.plugins.services.IdeUIService
 import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.plugins.services.IdeProjectManipulationService
-import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeProjectManipulationServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
 import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
@@ -47,17 +48,10 @@ import com.itsaky.androidide.plugins.services.IdeSidebarService
 import com.itsaky.androidide.plugins.services.IdeEditorService
 import com.itsaky.androidide.plugins.services.IdeEnvironmentService
 import com.itsaky.androidide.plugins.services.IdeArchiveService
-import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEnvironmentServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeArchiveServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
-import com.itsaky.androidide.plugins.manager.services.FileServiceImpl
-import com.itsaky.androidide.plugins.manager.services.ProjectServiceImpl
-import com.itsaky.androidide.plugins.manager.services.ResourceServiceImpl
-import com.itsaky.androidide.plugins.services.IdeFileService
-import com.itsaky.androidide.plugins.services.IdeProjectService
-import com.itsaky.androidide.plugins.services.IdeResourceService
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.services.IdeThemeService
@@ -1303,38 +1297,12 @@ class PluginManager private constructor(
             )
         }
 
-        // Register new Phase 2 services
-        val projectRoot = projectProvider.getCurrentProject()?.rootDir
-        if (projectRoot != null) {
-            registerServiceWithErrorHandling(
-                pluginServiceRegistry,
-                IdeFileService::class.java,
-                pluginId,
-                "file (new)"
-            ) {
-                FileServiceImpl(projectRoot)
-            }
-
-            registerServiceWithErrorHandling(
-                pluginServiceRegistry,
-                IdeProjectService::class.java,
-                pluginId,
-                "project (new)"
-            ) {
-                ProjectServiceImpl(projectRoot)
-            }
-
-            registerServiceWithErrorHandling(
-                pluginServiceRegistry,
-                IdeResourceService::class.java,
-                pluginId,
-                "resource"
-            ) {
-                ResourceServiceImpl(projectRoot)
-            }
-        } else {
-            logger.warn("Project root not available for plugin $pluginId, new services not registered")
-        }
+        // Note: Phase 2 services (IdeFileService, IdeProjectService, IdeResourceService)
+        // have been removed. Use existing services instead:
+        // - IdeFileServiceLegacy for file operations (now includes listFiles)
+        // - IdeProjectManipulationService for dependency management
+        // - IdeBuildService for build operations
+        // This maintains binary compatibility with existing plugins.
 
         // Create PluginContext with resource context
         return PluginContextImpl(
