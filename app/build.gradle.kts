@@ -323,7 +323,6 @@ dependencies {
 
 	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
-	implementation(projects.composePreview)
 	implementation(projects.gitCore)
 
 	// This is to build the tooling-api-impl project before the app is built

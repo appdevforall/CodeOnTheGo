@@ -57,6 +57,7 @@ import com.itsaky.androidide.actions.filetree.RenameAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
 import com.itsaky.androidide.actions.PluginActionItem
+import com.itsaky.androidide.actions.PluginToolbarActionItem
 import com.itsaky.androidide.actions.build.PluginBuildActionItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
@@ -185,6 +186,11 @@ class EditorActivityActions {
                     plugin.getMainMenuItems().forEach { menuItem ->
                         val action = PluginActionItem(context, menuItem, order++, pluginId)
                         registry.registerAction(action)
+                    }
+                    // Toolbar actions carry their own order so a plugin can position its icon
+                    // among the built-in toolbar actions; do not consume the sequential counter.
+                    plugin.getToolbarActions().forEach { toolbarAction ->
+                        registry.registerAction(PluginToolbarActionItem(context, toolbarAction, pluginId))
                     }
                 } catch (e: Exception) {
                     Log.w("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName}", e)

@@ -80,6 +80,7 @@ import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+import com.itsaky.androidide.plugins.manager.ui.PluginUiActionManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
@@ -91,6 +92,7 @@ import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
+import com.itsaky.androidide.utils.EditorActivityActions
 import com.itsaky.androidide.utils.EditorSidebarActions
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
@@ -485,15 +487,23 @@ open class EditorHandlerActivity :
 		val data = createToolbarActionData()
 		content.projectActionsToolbar.clearMenu()
 
-		val actions = getInstance().getActions(EDITOR_TOOLBAR)
-		val hiddenIds = PluginBuildActionManager.getInstance().getHiddenActionIds()
-		actions.onEachIndexed { index, entry ->
-			val action = entry.value
+		// Sort by (order, id) so a plugin's ToolbarAction.order positions its icon among the
+		// built-in actions. The 13 built-ins are registered with contiguous order 0..12, so
+		// this is a visual no-op for them.
+		val actions = getInstance().getActions(EDITOR_TOOLBAR).values
+			.sortedWith(compareBy({ it.order }, { it.id }))
+		val hiddenIds = PluginBuildActionManager.getInstance().getHiddenActionIds() +
+			PluginUiActionManager.getHiddenActionIds()
+		actions.forEachIndexed { index, action ->
 			val isLast = index == actions.size - 1
 
 			action.prepare(data)
 
-			if (action.id in hiddenIds) return@onEachIndexed
+			if (action.id in hiddenIds) return@forEachIndexed
+
+			// Plugin toolbar actions opt into real visibility handling: remove them entirely
+			// when not applicable, instead of the legacy grey-out used by built-in actions.
+			if (action.honorVisibility && !action.visible) return@forEachIndexed
 
 			action.icon?.apply {
 				colorFilter = action.createColorFilter(data)
@@ -1259,6 +1269,8 @@ open class EditorHandlerActivity :
 			EditorSidebarActions.registerActions(this)
 			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
 				?.let { EditorSidebarActions.setup(it) }
+
+			EditorActivityActions.register(this)
 
 			invalidateOptionsMenu()
 

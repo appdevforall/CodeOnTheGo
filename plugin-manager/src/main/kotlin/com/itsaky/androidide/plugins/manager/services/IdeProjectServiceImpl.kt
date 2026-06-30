@@ -5,6 +5,7 @@ package com.itsaky.androidide.plugins.manager.services
 import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.extensions.IProject
 import com.itsaky.androidide.plugins.services.IdeProjectService
+import com.itsaky.androidide.plugins.services.ModuleContext
 import java.io.File
 
 /**
@@ -80,6 +81,24 @@ class IdeProjectServiceImpl(
         }
     }
 
+    override fun getModuleContext(filePath: String): ModuleContext? {
+        if (!hasRequiredPermissions()) {
+            throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
+        }
+
+        val path = File(filePath)
+        if (!isPathAllowed(path)) {
+            throw SecurityException("Plugin $pluginId does not have access to path: ${path.absolutePath}")
+        }
+
+        return try {
+            ModuleContextResolver.resolve(filePath)
+        } catch (e: Exception) {
+
+            null
+        }
+    }
+
     private fun hasRequiredPermissions(): Boolean {
         return requiredPermissions.all { permission ->
             permissions.contains(permission)
@@ -111,16 +130,21 @@ class IdeProjectServiceImpl(
         }
         
         return allowedPaths.any { allowedPath ->
-            canonicalPath.startsWith(allowedPath)
+            canonicalPath == allowedPath || canonicalPath.startsWith(allowedPath + File.separator)
         }
     }
 
     private fun getDefaultAllowedPaths(): List<String> {
-        return listOf(
-            "/storage/emulated/0/AndroidIDEProjects",
-            "/sdcard/AndroidIDEProjects",
-            System.getProperty("user.home", "/") + "/AndroidIDEProjects",
-            "/tmp/AndroidIDEProject" // Allow temporary project for demo purposes
-        )
+        // Derive allowed roots from the official project API (IdeProjectService /
+        // ProjectProvider) rather than hardcoding a projects-directory name. CodeOnTheGo
+        // stores projects under CodeOnTheGoProjects and a project
+        // can live anywhere the user opened it, so the open project's rootDir is the source
+        // of truth for what this plugin may read.
+        val roots = mutableListOf<File>()
+        runCatching {
+            projectProvider.getCurrentProject()?.rootDir?.let { roots.add(it) }
+            projectProvider.getAllProjects().forEach { roots.add(it.rootDir) }
+        }
+        return roots.mapNotNull { root -> runCatching { root.canonicalPath }.getOrNull() }
     }
 }

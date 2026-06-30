@@ -190,8 +190,7 @@ include(
 	":llama-api",
 	":llama-impl",
 	":llama-api",
-	":llama-impl",
-	":compose-preview"
+	":llama-impl"
 )
 
 object FDroidConfig {
