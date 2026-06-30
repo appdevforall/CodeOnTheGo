@@ -471,7 +471,9 @@ tasks.register("recompressApk") {
 		val buildName: String = extensions.extraProperties["buildName"].toString()
 		val noCompressExtensions =
 			if (extensions.extraProperties.has("noCompressExtensions")) {
-				extensions.extraProperties["noCompressExtensions"] as? Set<String> ?: emptySet()
+				@Suppress("UNCHECKED_CAST")
+				val result = extensions.extraProperties["noCompressExtensions"] as? Set<String>
+				result ?: emptySet()
 			} else {
 				emptySet()
 			}
@@ -845,6 +847,7 @@ fun assetsBatch(
 		val tmpDir = File(projectDir, ".tmp/assets")
 		tmpDir.mkdirs()
 		project.logger.lifecycle("Downloading $variant assets → ${tmpDir.absolutePath}")
+		@Suppress("DEPRECATION")
 		project.exec {
 			commandLine(
 				"scp",
