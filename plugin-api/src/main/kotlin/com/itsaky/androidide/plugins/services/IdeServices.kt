@@ -205,19 +205,23 @@ interface IdeBuildService {
      * Builds and runs the app on the connected device.
      * @param callback The callback to be invoked when the operation completes
      */
-    fun runApp(callback: BuildAndLaunchCallback)
+    fun runApp(callback: BuildAndLaunchCallback) {
+        callback.onComplete(false, "Not implemented")
+    }
 
     /**
      * Triggers a Gradle sync operation.
      * @param callback The callback to be invoked when the sync completes
      */
-    fun triggerGradleSync(callback: GradleSyncCallback)
+    fun triggerGradleSync(callback: GradleSyncCallback) {
+        callback.onComplete(false, "")
+    }
 
     /**
      * Gets the latest build output logs.
      * @return The build output as a string, or null if no build output is available
      */
-    fun getBuildOutput(): String?
+    fun getBuildOutput(): String? = null
 }
 
 /**
@@ -364,7 +368,7 @@ interface IdeProjectManipulationService {
      * @param buildFilePath Relative path to build file, e.g., 'app/build.gradle.kts'
      * @return true if the dependency was added successfully, false otherwise
      */
-    fun addDependency(dependencyString: String, buildFilePath: String): Boolean
+    fun addDependency(dependencyString: String, buildFilePath: String): Boolean = false
 
     /**
      * Adds a string resource to the strings.xml file.
@@ -372,14 +376,14 @@ interface IdeProjectManipulationService {
      * @param value The string content, e.g., 'Hello, World!'
      * @return true if the string resource was added successfully, false otherwise
      */
-    fun addStringResource(name: String, value: String): Boolean
+    fun addStringResource(name: String, value: String): Boolean = false
 
     /**
      * Deletes a file from the project.
      * @param path The path to the file to delete
      * @return true if the file was deleted successfully, false otherwise
      */
-    fun deleteFile(path: String): Boolean
+    fun deleteFile(path: String): Boolean = false
 }
 
 /**
