@@ -22,6 +22,7 @@ import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.shared.theme.NightMode;
 import com.termux.shared.theme.ThemeUtils;
 import com.termux.terminal.TerminalSession;
+import java.util.ArrayList;
 import java.util.List;
 
 public class TermuxSessionsListViewController extends ArrayAdapter<TermuxSession> implements AdapterView.OnItemClickListener, AdapterView.OnItemLongClickListener {
@@ -32,8 +33,22 @@ public class TermuxSessionsListViewController extends ArrayAdapter<TermuxSession
     final StyleSpan italicSpan = new StyleSpan(Typeface.ITALIC);
 
     public TermuxSessionsListViewController(TermuxActivity activity, List<TermuxSession> sessionList) {
-        super(activity.getApplicationContext(), R.layout.item_terminal_sessions_list, sessionList);
+        // Defensively copy so the adapter owns its data instead of sharing the service's live list.
+        // The backing list is then only ever touched on the UI thread (here and in updateSessions),
+        // so a background session add/remove can never mutate it while the ListView is laying out.
+        super(activity.getApplicationContext(), R.layout.item_terminal_sessions_list, new ArrayList<>(sessionList));
         this.mActivity = activity;
+    }
+
+    /**
+     * Replace the adapter's session snapshot with a copy of {@code sessions} and refresh the
+     * ListView in a single notification. Must be called on the UI thread.
+     */
+    public void updateSessions(@NonNull List<TermuxSession> sessions) {
+        setNotifyOnChange(false);
+        clear();
+        addAll(sessions);
+        notifyDataSetChanged();
     }
 
     @SuppressLint("SetTextI18n")
