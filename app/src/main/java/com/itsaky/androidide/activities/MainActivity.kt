@@ -20,6 +20,7 @@ package com.itsaky.androidide.activities
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import androidx.activity.OnBackPressedCallback
@@ -120,6 +121,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
 		MainScreenActions.register(this)
 
 		// Start WebServer after installation is complete
@@ -448,6 +450,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				webServer = null
 			}
 		}
+	}
+
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
 	}
 
 	override fun onDestroy() {

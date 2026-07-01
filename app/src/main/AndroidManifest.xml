@@ -90,7 +90,7 @@
         <activity
             android:name=".activities.MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
-            android:exported="false"
+            android:exported="true"
             android:theme="@style/Theme.AndroidIDE" />
         <activity
             android:name=".activities.editor.EditorActivityKt"
