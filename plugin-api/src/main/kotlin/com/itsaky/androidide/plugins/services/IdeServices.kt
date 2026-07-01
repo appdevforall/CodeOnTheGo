@@ -381,3 +381,20 @@ interface IdeProjectManipulationService {
      */
     fun deleteFile(path: String): Boolean
 }
+
+/**
+ * Module context data returned by [IdeProjectService.getModuleContext]. All paths are absolute host paths.
+ *
+ * This is additive API: it carries the project-model data an on-device compiler/renderer
+ * needs (classpaths, runtime dex, selected variant, resource APK) without exposing any
+ * host-internal project types to the plugin.
+ */
+data class ModuleContext(
+    val modulePath: String?,
+    val variantName: String,
+    val compileClasspaths: List<File>,
+    val intermediateClasspaths: List<File>,
+    val runtimeDexFiles: List<File>,
+    val resourceApk: File?,
+    val needsBuild: Boolean
+)
