@@ -141,8 +141,18 @@ open class AndroidModule(
 			addAll(getSelectedVariant()?.mainArtifact?.classJars ?: emptyList())
 		}
 
-	override fun getCompileClasspaths(excludeSourceGeneratedClassPath: Boolean): Set<File> {
+	override fun getCompileClasspaths(
+		excludeSourceGeneratedClassPath: Boolean,
+		visited: MutableSet<String>,
+	): Set<File> {
 		val project = IProjectManager.getInstance().workspace ?: return emptySet()
+
+		// Guard against cyclic project-dependency graphs: contribute each module's classpaths at most
+		// once so a cycle (:a -> :b -> :a) terminates instead of recursing until the stack overflows.
+		if (!visited.add(path)) {
+			return emptySet()
+		}
+
 		val result = mutableSetOf<File>()
 		if (excludeSourceGeneratedClassPath) {
 			// TODO: The mainArtifact.classJars are technically generated from source files
@@ -159,6 +169,8 @@ open class AndroidModule(
 			libraries = variantDependencies.mainArtifact?.compileDependencyList ?: emptyList(),
 			result = result,
 			excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
+			visited = HashSet(),
+			moduleVisited = visited,
 		)
 		return result
 	}
@@ -234,14 +246,34 @@ open class AndroidModule(
 		return result
 	}
 
+	/**
+	 * Recursively collect the compile classpath entries contributed by the given dependency-graph
+	 * [libraries] into [result], guarding against cycles.
+	 *
+	 * @param root The workspace used to resolve project dependencies by path.
+	 * @param libraries The dependency-graph nodes to expand at this level.
+	 * @param result The accumulating set of classpath files.
+	 * @param excludeSourceGeneratedClassPath Whether to exclude source-generated classpath entries.
+	 * @param visited Keys of dependency-graph nodes already expanded within this module; each node is
+	 * expanded at most once so a cyclic graph terminates.
+	 * @param moduleVisited Module paths already expanded across modules; threaded into cross-module
+	 * recursion so a cyclic PROJECT graph terminates.
+	 */
 	private fun collectLibraries(
 		root: Workspace,
 		libraries: List<AndroidModels.GraphItem>,
 		result: MutableSet<File>,
-		excludeSourceGeneratedClassPath: Boolean = false,
+		excludeSourceGeneratedClassPath: Boolean,
+		visited: MutableSet<String>,
+		moduleVisited: MutableSet<String>,
 	) {
 		val libraryMap = variantDependencies.librariesMap
 		for (library in libraries) {
+			// Guard against cyclic dependency graphs within this module: expand each graph node once.
+			if (!visited.add(library.key)) {
+				continue
+			}
+
 			val lib = libraryMap[library.key] ?: continue
 			if (lib.type == AndroidModels.LibraryType.Project) {
 				val module = root.findByPath(lib.projectInfo!!.projectPath) ?: continue
@@ -249,39 +281,71 @@ open class AndroidModule(
 					continue
 				}
 
-				result.addAll(module.getCompileClasspaths(excludeSourceGeneratedClassPath))
+				// Cross-module recursion threads moduleVisited so a cyclic PROJECT graph terminates.
+				result.addAll(module.getCompileClasspaths(excludeSourceGeneratedClassPath, moduleVisited))
 			} else if (lib.type == AndroidModels.LibraryType.ExternalAndroidLibrary && lib.hasAndroidLibraryData()) {
 				result.addAll(lib.androidLibraryData.compileJarFiles)
 			} else if (lib.type == AndroidModels.LibraryType.ExternalJavaLibrary && lib.hasArtifactPath()) {
 				result.add(lib.artifact)
 			}
 
-			collectLibraries(root, library.dependencyList, result)
+			// Note: the recursive call intentionally keeps the original behavior of not propagating
+			// `excludeSourceGeneratedClassPath` (it defaults to false here); only the visited-set
+			// cycle guard is added.
+			collectLibraries(
+				root = root,
+				libraries = library.dependencyList,
+				result = result,
+				excludeSourceGeneratedClassPath = false,
+				visited = visited,
+				moduleVisited = moduleVisited,
+			)
 		}
 	}
 
-	override fun getCompileModuleProjects(): List<ModuleProject> {
+	override fun getCompileModuleProjects(
+		visited: MutableSet<String>,
+		recursionPath: ArrayDeque<String>,
+	): List<ModuleProject> {
 		val root = IProjectManager.getInstance().workspace ?: return emptyList()
-		val result = mutableListOf<ModuleProject>()
 
-		val libraries = variantDependencies.mainArtifact.compileDependencyList
-		val libraryMap = variantDependencies.librariesMap
-		for (library in libraries) {
-			val lib = libraryMap[library.key] ?: continue
-			if (lib.type != AndroidModels.LibraryType.Project) {
-				continue
-			}
-
-			val module = root.findByPath(lib.projectInfo!!.projectPath) ?: continue
-			if (module !is ModuleProject) {
-				continue
-			}
-
-			result.add(module)
-			result.addAll(module.getCompileModuleProjects())
+		// True cycle: this module is already an ancestor on the current recursion path
+		// (e.g. :a -> :b -> :a). Report it and break the cycle.
+		if (recursionPath.contains(path)) {
+			reportDependencyCycle(recursionPath, path)
+			return emptyList()
 		}
 
-		return result
+		// Already fully expanded elsewhere (a diamond / shared dependency, not a cycle): dedup.
+		if (!visited.add(path)) {
+			return emptyList()
+		}
+
+		recursionPath.addLast(path)
+		try {
+			val result = mutableListOf<ModuleProject>()
+
+			val libraries = variantDependencies.mainArtifact.compileDependencyList
+			val libraryMap = variantDependencies.librariesMap
+			for (library in libraries) {
+				val lib = libraryMap[library.key] ?: continue
+				if (lib.type != AndroidModels.LibraryType.Project) {
+					continue
+				}
+
+				val module = root.findByPath(lib.projectInfo!!.projectPath) ?: continue
+				if (module !is ModuleProject) {
+					continue
+				}
+
+				result.add(module)
+				result.addAll(module.getCompileModuleProjects(visited, recursionPath))
+			}
+
+			return result
+		} finally {
+			recursionPath.removeLast()
+		}
 	}
 
 	override fun hasExternalDependency(
