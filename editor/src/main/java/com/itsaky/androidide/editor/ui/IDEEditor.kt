@@ -142,6 +142,13 @@ constructor(
     private var fileVersion = 0
     internal var isModified = false
 
+    // Length and content hash of the content the last time the file was loaded or saved.
+    // Used to detect when edits (e.g. undoing every change) return the content to its
+    // saved state, so the modified indicator can be cleared. The length is compared first
+    // as an O(1) guard so the content hash is only computed when the lengths match.
+    private var savedContentLength = 0
+    private var savedContentHash = 0L
+
     private val selectionChangeHandler = Handler(Looper.getMainLooper())
     private var selectionChangeRunner: Runnable? =
         Runnable {
@@ -661,9 +668,13 @@ constructor(
 
     /**
      * Mark this editor as NOT modified.
+     *
+     * Snapshots the current content so that later edits which return the content to this
+     * state (for example, undoing every change) can clear the modified flag again.
      */
     open fun markUnmodified() {
         this.isModified = false
+        snapshotSavedContent()
     }
 
     /**
@@ -671,6 +682,33 @@ constructor(
      */
     open fun markModified() {
         this.isModified = true
+    }
+
+    /**
+     * Recomputes [isModified] by comparing the current content against the snapshot captured
+     * the last time the file was loaded or saved. The content length is
+     * checked first as a cheap guard so the full content hash is only computed when the lengths
+     * match - i.e. when the edits may have restored the saved state.
+     */
+    private fun refreshModifiedState() {
+        val content = text
+        isModified = content.length != savedContentLength ||
+                computeContentHash(content) != savedContentHash
+    }
+
+    private fun snapshotSavedContent() {
+        val content = text
+        savedContentLength = content.length
+        savedContentHash = computeContentHash(content)
+    }
+
+    private fun computeContentHash(content: CharSequence): Long {
+        var hash = -3750763034362895579L // FNV_offset_basis
+        for (i in 0 until content.length) {
+            hash = hash xor content[i].code.toLong()
+            hash *= 1099511628211L // FNV_prime
+        }
+        return hash
     }
 
     /**
@@ -890,7 +928,7 @@ constructor(
                 return@subscribeEvent
             }
 
-            markModified()
+            refreshModifiedState()
             file ?: return@subscribeEvent
 
             editorScope.launch {
