@@ -135,6 +135,17 @@ object ActionMenuUtils {
                         }
                         popupWindow.dismiss()
                     }
+                    item.tooltipTag?.let { tag ->
+                        setOnLongClickListener {
+                            TooltipManager.showIdeCategoryTooltip(
+                                context = context,
+                                anchorView = anchorView,
+                                tag = tag
+                            )
+                            popupWindow.dismiss()
+                            true
+                        }
+                    }
                 }
                 binding.root.addView(itemView)
             }
