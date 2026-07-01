@@ -11,7 +11,7 @@ import java.io.InputStream
  * This service should be registered by AndroidIDE and made available to plugins
  * that have the FILESYSTEM_READ permission.
  */
-interface IdeProjectServiceLegacy {
+interface IdeProjectService {
     /**
      * Gets the currently active/open project.
      * @return The current project, or null if no project is open
@@ -253,7 +253,7 @@ fun interface GradleSyncCallback {
  * This service should be registered by Code On the Go and made available to plugins
  * that have the FILESYSTEM_WRITE permission.
  */
-interface IdeFileServiceLegacy {
+interface IdeFileService {
     /**
      * Reads the entire content of a file.
      * @param file The file to read
@@ -359,7 +359,7 @@ interface BuildStatusListener {
 /**
  * Service interface that provides project modification capabilities for plugins.
  *
- * This service is separate from [IdeProjectServiceLegacy] (which provides read-only project
+ * This service is separate from [IdeProjectService] (which provides read-only project
  * information) to distinguish between project introspection and project modification.
  * Plugins that need to add dependencies, create resources, or delete files should use this service.
  *

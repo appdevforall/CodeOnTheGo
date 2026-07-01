@@ -4,7 +4,7 @@ package com.itsaky.androidide.plugins.manager.services
 
 import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.extensions.IProject
-import com.itsaky.androidide.plugins.services.IdeProjectServiceLegacy
+import com.itsaky.androidide.plugins.services.IdeProjectService
 import java.io.File
 
 /**
@@ -17,7 +17,7 @@ class IdeProjectServiceImpl(
     private val projectProvider: ProjectProvider,
     private val requiredPermissions: Set<PluginPermission> = setOf(PluginPermission.FILESYSTEM_READ),
     private val pathValidator: PathValidator? = null
-) : IdeProjectServiceLegacy {
+) : IdeProjectService {
 
     /**
      * Interface for validating project path access
