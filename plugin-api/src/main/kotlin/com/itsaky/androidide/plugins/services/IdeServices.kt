@@ -357,9 +357,15 @@ interface BuildStatusListener {
 }
 
 /**
- * Service interface that provides project manipulation capabilities for plugins.
+ * Service interface that provides project modification capabilities for plugins.
+ *
+ * This service is separate from [IdeProjectServiceLegacy] (which provides read-only project
+ * information) to distinguish between project introspection and project modification.
+ * Plugins that need to add dependencies, create resources, or delete files should use this service.
+ *
  * This service should be registered by Code On the Go and made available to plugins
- * that need to modify project files (build files, resources, etc.).
+ * that have the PROJECT_STRUCTURE permission and need to modify project files
+ * (build files, resources, etc.).
  */
 interface IdeProjectManipulationService {
     /**
