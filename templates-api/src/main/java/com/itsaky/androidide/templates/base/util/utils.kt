@@ -21,13 +21,6 @@ import com.itsaky.androidide.templates.BaseTemplateData
 import com.itsaky.androidide.templates.ProjectTemplateData
 import java.io.File
 
-/**
- * Get the asset path for base template.
- */
-internal fun baseAsset(type: String, path: String): String {
-  return "templates/base/${type}/${path}"
-}
-
 internal fun BaseTemplateData.optonallyKts(file: String): String {
   return if (useKts) "${file}.kts" else file
 }
