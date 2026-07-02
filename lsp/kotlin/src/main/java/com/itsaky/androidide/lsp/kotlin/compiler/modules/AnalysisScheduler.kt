@@ -12,11 +12,20 @@ import kotlin.concurrent.withLock
  *
  * Order: [INDEXING] < [DIAGNOSTICS] < [COMPLETION] — interactive completion beats background
  * diagnostics, which beats bulk indexing.
+ *
+ * [supersedesSamePriority] additionally lets a *newer* request preempt an in-flight request of the
+ * **same** priority. This is enabled only for [COMPLETION]: when the user types fast, several
+ * completion requests fire in a row and the in-flight one is computing results for a now-stale cursor
+ * position, so the newer request cancels it and the fresh position is analysed immediately. A
+ * superseded completion is simply *discarded* — nothing reschedules it (see
+ * `KotlinCompletions.codeComplete`). It is intentionally off for [DIAGNOSTICS] and [INDEXING], whose
+ * preempted work is re-queued rather than dropped; same-priority preemption there would livelock, as
+ * two contenders would endlessly re-queue and re-preempt each other.
  */
-internal enum class AnalysisPriority {
-	INDEXING,
-	DIAGNOSTICS,
-	COMPLETION,
+internal enum class AnalysisPriority(val supersedesSamePriority: Boolean) {
+	INDEXING(supersedesSamePriority = false),
+	DIAGNOSTICS(supersedesSamePriority = false),
+	COMPLETION(supersedesSamePriority = true),
 }
 
 /**
@@ -72,6 +81,9 @@ internal class ScheduledCancelChecker(
  * - only one analysis runs at a time (the Analysis API is not safe to drive concurrently);
  * - a higher-priority requester **preempts** a strictly lower-priority holder by invoking its
  *   `onPreempt` callback once (cooperative — the holder bails at its next `abortIfCancelled()`);
+ * - a newer requester of the **same** priority likewise preempts the holder when that priority is
+ *   [AnalysisPriority.supersedesSamePriority] (completion only — its superseded work is discarded, not
+ *   rescheduled);
  * - when the lock frees, the highest-priority waiter acquires it next;
  * - it is **reentrant**: a nested analysis on the same thread re-enters without deadlocking.
  *
@@ -93,8 +105,9 @@ internal object AnalysisScheduler {
 
 	/**
 	 * Acquire the analysis lock at the given [priority]. Blocks until the current thread may run. If a
-	 * strictly lower-priority analysis is in progress, [onPreempt] of *that* holder is invoked so it
-	 * yields; [onPreempt] passed here is stored and used if this acquisition is later preempted.
+	 * preemptable analysis is in progress — strictly lower priority, or the same priority when that
+	 * priority is [AnalysisPriority.supersedesSamePriority] — [onPreempt] of *that* holder is invoked so
+	 * it yields; [onPreempt] passed here is stored and used if this acquisition is later preempted.
 	 */
 	fun acquire(priority: AnalysisPriority, onPreempt: () -> Unit) {
 		mutex.withLock {
@@ -109,10 +122,12 @@ internal object AnalysisScheduler {
 			try {
 				while (true) {
 					val hp = holderPriority
-					if (holderThread != null && hp != null &&
-						hp.ordinal < priority.ordinal && !holderPreempted
+					if (holderThread != null && hp != null && !holderPreempted &&
+						(hp.ordinal < priority.ordinal ||
+							(hp == priority && priority.supersedesSamePriority))
 					) {
-						// Signal the lower-priority holder to bail (once).
+						// Signal the holder to bail (once): either it is strictly lower priority, or a
+						// newer same-priority request supersedes it (completion only).
 						holderPreempted = true
 						holderPreempt?.invoke()
 					}

@@ -254,4 +254,79 @@ class AnalysisSerializationTest : KtLspTest() {
 		assertThat(enteredWhileHeld).isFalse()
 		assertThat(lowerEntered.get()).isTrue()
 	}
+
+	@Test(timeout = 10_000)
+	fun `same priority completion supersedes an in-flight completion`() {
+		val holderChecker = ScheduledCancelChecker(ICancelChecker.NOOP)
+		val holding = CountDownLatch(1)
+		val preempted = AtomicBoolean(false)
+		val newerRan = AtomicBoolean(false)
+
+		// An in-flight completion runs a long, cooperatively-cancellable analysis.
+		val older = Thread {
+			try {
+				withAnalysisLock(AnalysisPriority.COMPLETION, holderChecker) {
+					holding.countDown()
+					repeat(2_000) {
+						holderChecker.abortIfCancelled()
+						Thread.sleep(5)
+					}
+				}
+			} catch (e: AnalysisPreemptedException) {
+				preempted.set(true)
+			}
+		}
+		older.start()
+		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
+
+		// A newer completion request (user typed on) must supersede the in-flight one.
+		val newer = Thread {
+			withAnalysisLock(AnalysisPriority.COMPLETION, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+				newerRan.set(true)
+			}
+		}
+		newer.start()
+		newer.join(5_000)
+		older.join(5_000)
+
+		assertThat(preempted.get()).isTrue()
+		assertThat(newerRan.get()).isTrue()
+	}
+
+	@Test(timeout = 10_000)
+	fun `same priority diagnostics does not preempt an in-flight diagnostics`() {
+		val holding = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val secondEntered = AtomicBoolean(false)
+
+		// A diagnostics holder holds the lock until released.
+		val first = Thread {
+			withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+				holding.countDown()
+				release.await()
+			}
+		}
+		first.start()
+		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
+
+		// A second diagnostics request is the same priority but must NOT supersede the holder
+		// (only completion supersedes same-priority work); it waits until the holder releases.
+		val second = Thread {
+			withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+				secondEntered.set(true)
+			}
+		}
+		second.start()
+
+		// Give the second request time to (incorrectly) barge in.
+		Thread.sleep(300)
+		val enteredWhileHeld = secondEntered.get()
+
+		release.countDown()
+		first.join(5_000)
+		second.join(5_000)
+
+		assertThat(enteredWhileHeld).isFalse()
+		assertThat(secondEntered.get()).isTrue()
+	}
 }

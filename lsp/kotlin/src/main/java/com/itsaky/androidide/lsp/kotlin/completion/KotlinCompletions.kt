@@ -146,8 +146,10 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 
 	abortIfCancelled()
 
-	// Completion is the highest-priority analysis: it preempts in-progress diagnostics/indexing and
-	// is never itself preempted. The cancel checker is the editor's request-scoped one (from Lookup).
+	// Completion is the highest-priority analysis: it preempts in-progress diagnostics/indexing and is
+	// never preempted by lower-priority analysis. It can, however, be superseded by a *newer* completion
+	// request (the user typing on) — that in-flight completion is then cancelled and simply discarded.
+	// The cancel checker is the editor's request-scoped one (from Lookup).
 	val cancelChecker = ScheduledCancelChecker(
 		Lookup.getDefault().lookup(ICancelChecker::class.java) ?: ICancelChecker.NOOP
 	)
