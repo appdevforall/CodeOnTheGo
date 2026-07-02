@@ -87,10 +87,9 @@ private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResu
 					)
 				}
 
-			// This should be canceled as well
-			// The analysis API uses a no-op implementation of
-			// Intellij's ProgressManager for cancellations, so the following
-			// isn't really cancellable at the moment
+			// analyzeMaybeDangling installs a CancelCheckerProgressIndicator, so this analysis is
+			// cancellable mid-`analyze`: it aborts at the compiler's internal checkCanceled() once
+			// `checker` reports preemption/cancellation (in addition to the abortIfCancelled() below).
 			analyzeMaybeDangling(ktFile, AnalysisPriority.DIAGNOSTICS, checker) {
 				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
 					.forEach { diagnostic ->

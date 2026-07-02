@@ -30,9 +30,10 @@ internal class AnalysisPreemptedException :
 
 /**
  * An [ICancelChecker] that adds a cooperative *preemption* signal on top of an existing [delegate]
- * checker. The Analysis API cannot be interrupted mid-`analyze` (it runs with a no-op
- * `ProgressManager`), so [AnalysisScheduler] flags preemption here and the running analysis notices it
- * at its next [abortIfCancelled] checkpoint.
+ * checker. [AnalysisScheduler] flags preemption here; the running analysis observes it both at its
+ * LSP-level [abortIfCancelled] checkpoints and, because [withAnalysisLock] installs a
+ * [CancelCheckerProgressIndicator] bridging [isCancelled] to the compiler's `ProgressManager`,
+ * mid-`analyze` at the compiler's own internal cancellation checks.
  *
  * Preemption is distinct from ordinary cancellation: [abortIfCancelled] throws
  * [AnalysisPreemptedException] (so the source can re-schedule the work) while still honouring the

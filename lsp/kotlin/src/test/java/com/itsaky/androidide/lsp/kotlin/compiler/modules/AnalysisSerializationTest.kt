@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.progress.ICancelChecker
+import org.jetbrains.kotlin.com.intellij.openapi.progress.ProgressManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -173,6 +174,49 @@ class AnalysisSerializationTest : KtLspTest() {
 
 		assertThat(preempted.get()).isTrue()
 		assertThat(higherRan.get()).isTrue()
+	}
+
+	@Test(timeout = 10_000)
+	fun `analysis is interrupted mid-analyze at the compiler's ProgressManager checkpoint`() {
+		// The Kotlin Analysis API calls ProgressManager.checkCanceled() densely during FIR
+		// resolution, but never the LSP-level ICancelChecker.abortIfCancelled(). This body mimics
+		// that: it only polls ProgressManager.checkCanceled(). Before withAnalysisLock installed a
+		// CancelCheckerProgressIndicator, that call was inert (no indicator => the manager's
+		// check-cancelled behaviour stayed disabled) and the work ran to completion regardless of
+		// preemption. It must now be interruptible.
+		val holderChecker = ScheduledCancelChecker(ICancelChecker.NOOP)
+		val holding = CountDownLatch(1)
+		val preempted = AtomicBoolean(false)
+		val ranToCompletion = AtomicBoolean(false)
+
+		val lower = Thread {
+			try {
+				withAnalysisLock(AnalysisPriority.INDEXING, holderChecker) {
+					holding.countDown()
+					repeat(2_000) {
+						// Compiler-level checkpoint only — no abortIfCancelled() here.
+						ProgressManager.checkCanceled()
+						Thread.sleep(5)
+					}
+					ranToCompletion.set(true)
+				}
+			} catch (e: AnalysisPreemptedException) {
+				preempted.set(true)
+			}
+		}
+		lower.start()
+		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
+
+		// A completion request preempts the in-progress (indexing) analysis.
+		val higher = Thread {
+			withAnalysisLock(AnalysisPriority.COMPLETION, ScheduledCancelChecker(ICancelChecker.NOOP)) {}
+		}
+		higher.start()
+		higher.join(5_000)
+		lower.join(5_000)
+
+		assertThat(preempted.get()).isTrue()
+		assertThat(ranToCompletion.get()).isFalse()
 	}
 
 	@Test(timeout = 10_000)
