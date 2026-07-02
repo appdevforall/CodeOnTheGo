@@ -1,9 +1,0 @@
-<set xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-
-  <translate android:duration="500" android:fromYDelta="100%" android:toYDelta="0%" />
-
-  <alpha android:duration="500" android:fromAlpha="0.0" android:toAlpha="1.0" />
-
-  <scale android:duration="500" android:fromXScale="0.5" android:fromYScale="0.5" android:pivotX="50%" android:pivotY="50%" android:toXScale="1" android:toYScale="1" />
-
-</set>
