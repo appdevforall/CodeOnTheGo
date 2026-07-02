@@ -351,7 +351,7 @@ public final class TermuxConstants {
 
 
     /** CoGo APK release */
-    public static final String APK_RELEASE_COGO = "AndroidIDE"; // Default: "AndroidIDE"
+    public static final String APK_RELEASE_COGO = "Code On the Go"; // Default: "AndroidIDE"
 
     /** CoGo APK release signing certificate SHA-256 digest */
     public static final String APK_RELEASE_COGO_SIGNING_CERTIFICATE_SHA256_DIGEST = "F23D6104C41D37E85E5690041A0A3F64A6DBB57DF6BBBCE2A2D51870E0D81B6B";
