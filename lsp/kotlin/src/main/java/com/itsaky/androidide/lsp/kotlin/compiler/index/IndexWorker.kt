@@ -160,16 +160,17 @@ internal class IndexWorker(
  * Apply [first] plus any consecutive, immediately-available [IndexCommand.RemoveFromIndex]
  * commands as a single batched removal.
  *
- * Symbol removals are collapsed into one [JvmSymbolIndex.removeBySources] call — a single
- * SQLite transaction — instead of issuing one `DELETE FROM jvm_symbols` (one transaction)
- * per file, which is the N+1 this fix targets (Sentry APPDEVFORALL-SE).
+ * The symbol removals and the per-file metadata removals are each collapsed into one
+ * batched call — [JvmSymbolIndex.removeBySources] and [KtFileMetadataIndex.removeAll], a
+ * single SQLite transaction apiece — instead of issuing one `DELETE` per file (one
+ * transaction each), which is the N+1 this fix targets (Sentry APPDEVFORALL-SE).
  *
  * [pollNext] returns the next already-queued index command without blocking, or `null`
  * when none is ready. A polled command that is *not* a removal is handed to [pushBack] so
  * it is processed (in order) on the next loop iteration rather than dropped.
  *
  * @param first      The removal command that triggered this batch.
- * @param fileIndex  Per-file metadata index (has no batch API; removed one by one).
+ * @param fileIndex  Per-file metadata index; removed via the batched [KtFileMetadataIndex.removeAll].
  * @param sourceIndex Symbol index; removed via the batched [JvmSymbolIndex.removeBySources].
  * @param pollNext   Non-blocking poll of the next queued index command.
  * @param pushBack   Returns a non-removal command to the front of the queue.
@@ -195,10 +196,8 @@ internal suspend fun applyRemovals(
 		}
 	}
 
-	// Per-file metadata index has no batch API; remove individually.
-	for (path in paths) {
-		fileIndex.remove(path)
-	}
+	// Collapse all per-file metadata removals into a single transaction.
+	fileIndex.removeAll(paths)
 
 	// Collapse all symbol removals into a single transaction.
 	sourceIndex.removeBySources(paths)

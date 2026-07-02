@@ -23,9 +23,10 @@ import java.time.Instant
 
 /**
  * Verifies the ADFA-4332 wiring: a run of consecutive [IndexCommand.RemoveFromIndex]
- * commands must collapse the symbol-index deletes into ONE batched
- * [JvmSymbolIndex.removeBySources] call (a single SQLite transaction) instead of
- * N separate [Index.removeBySource] calls (N transactions — the Sentry N+1).
+ * commands must collapse BOTH the symbol-index deletes AND the per-file metadata deletes
+ * into ONE batched call each ([JvmSymbolIndex.removeBySources] /
+ * [KtFileMetadataIndex.removeAll], a single SQLite transaction apiece) instead of N separate
+ * [Index.removeBySource] calls (N transactions — the Sentry N+1).
  */
 @RunWith(JUnit4::class)
 class IndexWorkerBatchRemovalTest {
@@ -90,8 +91,10 @@ class IndexWorkerBatchRemovalTest {
         return counting to index
     }
 
-    private fun makeFileIndex() =
-        KtFileMetadataIndex(InMemoryIndex(KtFileMetadataDescriptor))
+    private fun makeFileIndex(): Pair<CountingIndex<KtFileMetadata>, KtFileMetadataIndex> {
+        val counting = CountingIndex(InMemoryIndex(KtFileMetadataDescriptor))
+        return counting to KtFileMetadataIndex(counting)
+    }
 
     private fun removeCmd(path: String) =
         IndexCommand.RemoveFromIndex(Paths.get(path))
@@ -101,7 +104,7 @@ class IndexWorkerBatchRemovalTest {
     fun `N consecutive removals collapse into ONE batched removeBySources`() = runTest {
         val paths = (1..5).map { "/proj/File$it.kt" }
         val (counting, symbolIndex) = makeSymbolIndex()
-        val fileIndex = makeFileIndex()
+        val (fileCounting, fileIndex) = makeFileIndex()
 
         // Seed: one symbol + one metadata record per file.
         symbolIndex.insertAll(paths.asSequence().map { symbol(it) })
@@ -119,10 +122,13 @@ class IndexWorkerBatchRemovalTest {
             pushBack = { pushedBack.add(it) },
         )
 
-        // The fix: exactly one batched transaction, zero per-source deletes.
+        // The fix: exactly one batched transaction, zero per-source deletes — for BOTH indexes.
         assertThat(counting.removeBySourcesBatches).isEqualTo(1)
         assertThat(counting.removeBySourceCalls).isEqualTo(0)
         assertThat(counting.removedInLargestBatch).containsExactlyElementsIn(paths)
+        assertThat(fileCounting.removeBySourcesBatches).isEqualTo(1)
+        assertThat(fileCounting.removeBySourceCalls).isEqualTo(0)
+        assertThat(fileCounting.removedInLargestBatch).containsExactlyElementsIn(paths)
         assertThat(pushedBack).isEmpty()
 
         // Correctness: every symbol and metadata record is gone.
@@ -138,7 +144,7 @@ class IndexWorkerBatchRemovalTest {
     fun `a non-removal command stops the batch and is pushed back unconsumed`() = runTest {
         val rmPaths = listOf("/proj/A.kt", "/proj/B.kt")
         val (counting, symbolIndex) = makeSymbolIndex()
-        val fileIndex = makeFileIndex()
+        val (fileCounting, fileIndex) = makeFileIndex()
         symbolIndex.insertAll(rmPaths.asSequence().map { symbol(it) })
         for (p in rmPaths) fileIndex.upsert(fileMeta(p))
 
@@ -156,10 +162,13 @@ class IndexWorkerBatchRemovalTest {
             pushBack = { pushedBack.add(it) },
         )
 
-        // Both removals batched together; the non-removal command preserved.
+        // Both removals batched together (symbol + metadata); the non-removal command preserved.
         assertThat(counting.removeBySourcesBatches).isEqualTo(1)
         assertThat(counting.removeBySourceCalls).isEqualTo(0)
         assertThat(counting.removedInLargestBatch).containsExactlyElementsIn(rmPaths)
+        assertThat(fileCounting.removeBySourcesBatches).isEqualTo(1)
+        assertThat(fileCounting.removeBySourceCalls).isEqualTo(0)
+        assertThat(fileCounting.removedInLargestBatch).containsExactlyElementsIn(rmPaths)
         assertThat(pushedBack).containsExactly(interloper)
     }
 
