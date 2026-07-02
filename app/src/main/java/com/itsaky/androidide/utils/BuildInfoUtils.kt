@@ -76,7 +76,6 @@ object BuildInfoUtils {
 
 		val signer = TermuxUtils.getAPKRelease(sha256DigestForPackage)
 
-		return TermuxConstants.APK_RELEASE_ANDROIDIDE == signer ||
-			TermuxConstants.APK_RELEASE_FDROID == signer
+		return TermuxConstants.APK_RELEASE_COGO == signer
 	}
 }
