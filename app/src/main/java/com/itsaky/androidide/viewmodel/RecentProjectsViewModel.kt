@@ -14,7 +14,7 @@ import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
-import org.appdevforall.codeonthego.layouteditor.ProjectFile
+import com.itsaky.androidide.models.ProjectFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -80,9 +80,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     fun loadProjects(): Job {
         return viewModelScope.launch(Dispatchers.IO) {
             val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
-            val context = getApplication<Application>().applicationContext
-
-            allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified, context) }
+            allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified) }
             applyFilters()
         }
     }
