@@ -82,6 +82,11 @@ class PluginFragmentFactory(
         }
 
         Log.d(TAG, "Using default factory for fragment: $className")
-        return defaultFactory.instantiate(classLoader, className)
+        return try {
+            defaultFactory.instantiate(classLoader, className)
+        } catch (e: ClassNotFoundException) {
+            Log.w(TAG, "No classloader available for '$className'; substituting placeholder", e)
+            Fragment()
+        }
     }
 }

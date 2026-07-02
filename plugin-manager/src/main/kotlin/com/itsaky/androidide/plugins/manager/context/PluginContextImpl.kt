@@ -18,31 +18,26 @@ class PluginContextImpl(
     override val eventBus: Any,
     override val logger: PluginLogger,
     override val resources: ResourceManager,
-    override val pluginId: String
+    override val pluginId: String,
+    private val sharedServices: ServiceRegistry? = null,
+    private val pluginInfoProvider: ((String) -> PluginInfo?)? = null
 ) : PluginContext {
 
-    // Phase 1 stub implementations - to be fully implemented in Phase 2
-    override fun <T> getPluginService(pluginId: String, serviceClass: Class<T>): T? {
-        // TODO: Implement plugin-to-plugin service discovery in Phase 2
-        return null
-    }
+    override fun <T> getPluginService(pluginId: String, serviceClass: Class<T>): T? =
+        sharedServices?.get(serviceClass)
 
-    override fun isPluginActive(pluginId: String): Boolean {
-        // TODO: Implement plugin state checking in Phase 2
-        return false
-    }
+    override fun isPluginActive(pluginId: String): Boolean =
+        pluginInfoProvider?.invoke(pluginId)?.let { it.isLoaded && it.isEnabled } ?: false
 
-    override fun getPluginVersion(pluginId: String): String? {
-        // TODO: Implement plugin version lookup in Phase 2
-        return null
-    }
+    override fun getPluginVersion(pluginId: String): String? =
+        pluginInfoProvider?.invoke(pluginId)?.metadata?.version
 
     override fun <T> registerService(serviceClass: Class<T>, serviceImpl: T) {
-        // TODO: Implement plugin service registration in Phase 2
+        sharedServices?.register(serviceClass, serviceImpl)
     }
 
     override fun <T> unregisterService(serviceClass: Class<T>) {
-        // TODO: Implement plugin service unregistration in Phase 2
+        sharedServices?.unregister(serviceClass)
     }
 
     override fun getProvidedServices(): List<String> {

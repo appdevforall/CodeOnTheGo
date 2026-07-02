@@ -23,6 +23,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -940,6 +941,9 @@ constructor(
             }
 
             refreshModifiedState()
+            // A pending inline suggestion is anchored to the pre-edit cursor position; any edit
+            // invalidates it. The plugin re-issues one after its debounce.
+            dismissInlineSuggestion()
             file ?: return@subscribeEvent
 
             editorScope.launch {
@@ -954,6 +958,9 @@ constructor(
                 return@subscribeEvent
             }
 
+            // Moving the cursor away from the anchor makes ghost text meaningless.
+            dismissInlineSuggestion()
+
             if (_diagnosticWindow?.isShowing == true) {
                 _diagnosticWindow?.dismiss()
             }
@@ -965,6 +972,48 @@ constructor(
         }
 
         EventBus.getDefault().register(this)
+    }
+
+    // --- Inline suggestions (ghost text) ------------------------------------
+
+    override fun onCreateRenderer(): EditorRenderer = GhostTextRenderer(this)
+
+    private val ghostRenderer: GhostTextRenderer?
+        get() = renderer as? GhostTextRenderer
+
+    /**
+     * Shows [text] as dimmed inline ghost text anchored at the current cursor position. Called by
+     * the host editor provider when a plugin returns an inline completion. No-op if the editor is
+     * released or has no cursor.
+     */
+    fun showInlineSuggestion(text: String) {
+        if (isReleased || text.isEmpty()) return
+        val renderer = ghostRenderer ?: return
+        val cursor = cursor ?: return
+        renderer.setSuggestion(text, cursor.leftLine, cursor.leftColumn)
+        invalidate()
+    }
+
+    /** Removes any showing ghost text. */
+    fun dismissInlineSuggestion() {
+        val renderer = ghostRenderer ?: return
+        if (renderer.hasSuggestion) {
+            renderer.clearSuggestion()
+            invalidate()
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        // Accept a showing suggestion on Tab: commit it at the cursor and consume the key.
+        if (keyCode == KeyEvent.KEYCODE_TAB && ghostRenderer?.hasSuggestion == true) {
+            val suggestion = ghostRenderer?.takeSuggestion()
+            invalidate()
+            if (!suggestion.isNullOrEmpty()) {
+                commitText(suggestion)
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     private fun handleCustomTextReplacement(event: ContentChangeEvent) {

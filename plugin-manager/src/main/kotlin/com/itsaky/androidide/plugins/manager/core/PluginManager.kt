@@ -113,6 +113,8 @@ class PluginManager private constructor(
      * silently drop on the floor during the early-boot window.
      */
     private val pendingFileChangeCallbacks = java.util.concurrent.CopyOnWriteArraySet<(File?) -> Unit>()
+    private val pendingContentChangeCallbacks =
+        java.util.concurrent.CopyOnWriteArraySet<(String, Int, Int, String) -> Unit>()
 
     private val delegatingEditorProvider = object : IdeEditorServiceImpl.EditorProvider {
         private fun current(): IdeEditorServiceImpl.EditorProvider? = editorProvider
@@ -161,6 +163,16 @@ class PluginManager private constructor(
             pendingFileChangeCallbacks.remove(callback)
             current()?.removeFileChangeCallback(callback)
         }
+        override fun addContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {
+            pendingContentChangeCallbacks.add(callback)
+            current()?.addContentChangeCallback(callback)
+        }
+        override fun removeContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {
+            pendingContentChangeCallbacks.remove(callback)
+            current()?.removeContentChangeCallback(callback)
+        }
+        override fun showInlineSuggestion(text: String) { current()?.showInlineSuggestion(text) }
+        override fun dismissInlineSuggestion() { current()?.dismissInlineSuggestion() }
     }
 
     // Configurable permissions for different services
@@ -998,11 +1010,17 @@ class PluginManager private constructor(
             pendingFileChangeCallbacks.forEach { cb ->
                 runCatching { previous.removeFileChangeCallback(cb) }
             }
+            pendingContentChangeCallbacks.forEach { cb ->
+                runCatching { previous.removeContentChangeCallback(cb) }
+            }
         }
         this.editorProvider = provider
         if (provider != null) {
             pendingFileChangeCallbacks.forEach { cb ->
                 runCatching { provider.addFileChangeCallback(cb) }
+            }
+            pendingContentChangeCallbacks.forEach { cb ->
+                runCatching { provider.addContentChangeCallback(cb) }
             }
         }
     }
@@ -1327,7 +1345,13 @@ class PluginManager private constructor(
                 classLoader = classLoader,
                 assetManager = resourceContext.assets
             ),
-            pluginId = pluginId
+            pluginId = pluginId,
+            sharedServices = serviceRegistry,
+            pluginInfoProvider = { id ->
+                loadedPlugins[id]?.let {
+                    PluginInfo(it.toPluginMetadata(), it.isEnabled, isLoaded = true)
+                }
+            }
         )
     }
 
@@ -1509,7 +1533,13 @@ class PluginManager private constructor(
             eventBus = eventBus,
             logger = PluginLoggerImpl(pluginId, logger),
             resources = ResourceManagerImpl(pluginId, pluginsDir, classLoader),
-            pluginId = pluginId
+            pluginId = pluginId,
+            sharedServices = serviceRegistry,
+            pluginInfoProvider = { id ->
+                loadedPlugins[id]?.let {
+                    PluginInfo(it.toPluginMetadata(), it.isEnabled, isLoaded = true)
+                }
+            }
         )
     }
 

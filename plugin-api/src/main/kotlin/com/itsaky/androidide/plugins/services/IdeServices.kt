@@ -71,6 +71,21 @@ fun interface FileChangeListener {
 }
 
 /**
+ * Listener for editor content changes. Notified when the user types or programmatically
+ * modifies editor content. Used for features like inline code suggestions.
+ */
+fun interface EditorContentChangeListener {
+    /**
+     * Called when editor content changes.
+     * @param fileContent The full file content after the change
+     * @param cursorLine The 0-based line number of the cursor
+     * @param cursorColumn The 0-based column number of the cursor
+     * @param language The language ID of the file (e.g., "kotlin", "java", "xml")
+     */
+    fun onContentChanged(fileContent: String, cursorLine: Int, cursorColumn: Int, language: String)
+}
+
+/**
  * Service interface that provides access to Code On the Go editor state and open files.
  * Read methods require FILESYSTEM_READ. Methods that mutate editor state (open/save) require
  * FILESYSTEM_WRITE.
@@ -146,6 +161,30 @@ interface IdeEditorService {
     fun addFileChangeListener(listener: FileChangeListener)
 
     fun removeFileChangeListener(listener: FileChangeListener)
+
+    /**
+     * Registers a listener to be notified when editor content changes.
+     * @param listener The listener to register
+     */
+    fun addContentChangeListener(listener: EditorContentChangeListener) {}
+
+    /**
+     * Unregisters an editor content change listener.
+     * @param listener The listener to unregister
+     */
+    fun removeContentChangeListener(listener: EditorContentChangeListener) {}
+
+    /**
+     * Shows an inline suggestion (ghost text) at the cursor position.
+     * The suggestion is displayed semi-transparently and can be dismissed.
+     * @param text The suggestion text to display
+     */
+    fun showInlineSuggestion(text: String) {}
+
+    /**
+     * Dismisses any currently displayed inline suggestion.
+     */
+    fun dismissInlineSuggestion() {}
 }
 
 /**
