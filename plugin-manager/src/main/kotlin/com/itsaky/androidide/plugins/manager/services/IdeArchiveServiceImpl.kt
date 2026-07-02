@@ -278,7 +278,7 @@ class IdeArchiveServiceImpl(
         logger.debug("Starting Termux tar extraction: ${archiveFile.absolutePath}")
 
         val logFile = File.createTempFile("tarxz-extract", ".log", outputDir)
-        return runCatching {
+        val result = runCatching {
             var exitCode = -1
 
             val elapsed = measureTimeMillis {
@@ -290,8 +290,26 @@ class IdeArchiveServiceImpl(
                     .apply { environment()["PATH"] = TERMUX_BIN_PATH }
                     .start()
 
-                val completed = process.waitFor(2, TimeUnit.MINUTES)
-                if (!completed) process.destroyForcibly()
+                val completed = try {
+                    process.waitFor(2, TimeUnit.MINUTES)
+                } catch (e: InterruptedException) {
+                    // Interrupted mid-wait: kill the child so it can't outlive us, restore the
+                    // interrupt flag, and rethrow — surfaced as cancellation by getOrElse below.
+                    process.destroyForcibly()
+                    Thread.currentThread().interrupt()
+                    throw e
+                }
+                if (!completed) {
+                    // Timed out. destroyForcibly() is asynchronous, so wait (bounded) for the kill
+                    // to actually land before we read the exit code and the log — otherwise the tar
+                    // process (and its redirected output pipe) can outlive this method.
+                    process.destroyForcibly()
+                    try {
+                        process.waitFor(10, TimeUnit.SECONDS)
+                    } catch (e: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                    }
+                }
                 exitCode = if (completed) process.exitValue() else -1
             }
 
@@ -306,11 +324,20 @@ class IdeArchiveServiceImpl(
                     false
                 }
             }
-        }.getOrElse { e ->
+        }
+
+        // Always clean up the temp log, regardless of how the block above resolved. `result` is a
+        // Result (runCatching never throws), so this runs before we unwrap it below.
+        if (!logFile.delete()) {
+            logger.warn("Failed to delete temp extraction log: ${logFile.absolutePath}")
+        }
+
+        return result.getOrElse { e ->
+            // Let an interruption unwind the stack as cancellation instead of masquerading as a
+            // plain extraction failure; the interrupt flag was already restored at the throw site.
+            if (e is InterruptedException) throw e
             logger.error("Termux process error: ${e.message}")
             false
-        }.also {
-            logFile.delete()
         }
     }
 
