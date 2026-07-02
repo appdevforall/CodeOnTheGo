@@ -82,7 +82,17 @@ internal suspend fun indexSourceFile(
 	// IndexWorker catches to re-queue the file.
 	val checker = cancelChecker as? ScheduledCancelChecker ?: ScheduledCancelChecker(cancelChecker)
 
-	val newFile = ktFile.toMetadata(project, isIndexed = true)
+	// Defensive backstop: this runs on the debounced/async index scope, so a disposal path that
+	// didn't first drain & join the workers could otherwise touch PSI on a disposed project and
+	// throw "Project is already disposed" (APPDEVFORALL-17R). Cheap fast-path before the reads below.
+	if (project.isDisposed) return
+
+	// Re-check disposal *inside* the read lock so it is atomic with toMetadata()'s PSI access:
+	// the fast-path check above can race a concurrent disposal before toMetadata enters its read.
+	val newFile = project.read {
+		if (project.isDisposed) return@read null
+		ktFile.toMetadata(project, isIndexed = true)
+	} ?: return
 	val existingFile = fileIndex.get(newFile.filePath)
 	checker.abortIfCancelled()
 
@@ -97,6 +107,9 @@ internal suspend fun indexSourceFile(
 	}
 
 	val symbols = project.read {
+		// Atomic w.r.t. the read lock: bail if the project was disposed before we acquired it.
+		if (project.isDisposed) return@read emptyList()
+
 		val list = mutableListOf<JvmSymbol>()
 		analyzeMaybeDangling(ktFile, AnalysisPriority.INDEXING, checker) {
 			val session = this

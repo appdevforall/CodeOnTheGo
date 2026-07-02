@@ -18,11 +18,17 @@ import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.KeyedDebouncingAction
 import io.sentry.Sentry
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
@@ -67,7 +73,14 @@ internal class CompilationEnvironment(
 	languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
 	enableParserEventSystem: Boolean = true,
 	val coroutineScope: CoroutineScope = CoroutineScope(
-		SupervisorJob() + CoroutineName("CompilationEnv[$name]")
+		SupervisorJob() + CoroutineName("CompilationEnv[$name]") +
+			CoroutineExceptionHandler { _, t ->
+				// Defense in depth: swallow (but log) non-cancellation failures from the
+				// debounce worker so a ClosedReceiveChannelException can never crash the app.
+				if (t !is CancellationException) {
+					logger.warn("Uncaught exception in compilation environment coroutine", t)
+				}
+			}
 	),
 ) : AbstractCompilationEnvironment(
 	name = name,
@@ -308,6 +321,16 @@ internal class CompilationEnvironment(
 
 	override fun close() {
 		ktProject.removeListener(this)
+
+		// fileAnalyzer reads the project (collectDiagnosticsFor). Cancel AND join it before
+		// super.close() disposes the project, so an in-flight read can't touch a disposed project
+		// (APPDEVFORALL-17R / ADFA-4384). Bounded so a slow read can't block shutdown indefinitely.
+		runBlocking {
+			withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT) {
+				coroutineScope.coroutineContext[Job]?.cancelAndJoin()
+			}
+		}
+
 		super.close()
 	}
 

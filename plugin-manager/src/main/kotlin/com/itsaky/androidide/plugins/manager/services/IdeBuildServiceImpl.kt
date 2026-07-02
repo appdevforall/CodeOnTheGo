@@ -3,6 +3,9 @@ package com.itsaky.androidide.plugins.manager.services
 
 import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.plugins.services.BuildStatusListener
+import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.projects.builder.BuildService
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
@@ -43,6 +46,19 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 
     override fun removeBuildStatusListener(callback: BuildStatusListener) {
         buildStatusListeners.remove(callback)
+    }
+
+    override fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> {
+        val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+            ?: return CompletableFuture.completedFuture(false)
+
+        return try {
+            buildService.executeTasks(*tasks)
+                .thenApply { result -> result?.isSuccessful == true }
+                .exceptionally { false }
+        } catch (e: Exception) {
+            CompletableFuture.completedFuture(false)
+        }
     }
 
     /**

@@ -67,6 +67,11 @@ internal class IndexWorker(
 		}
 
 		while (isActive) {
+			// Defensive guard: if the project was disposed out from under us (e.g. a disposal
+			// path that didn't first drain this worker), stop instead of calling PsiManager on a
+			// disposed project, which throws "Project is already disposed" (APPDEVFORALL-17R).
+			if (project.isDisposed) break
+
 			when (val cmd = queue.take()) {
 				is IndexCommand.RemoveFromIndex -> {
 					val filePath = cmd.path.pathString
@@ -79,6 +84,8 @@ internal class IndexWorker(
 						logger.warn("Unknown source file protocol: {}", cmd.vf.path)
 						continue
 					}
+
+					if (project.isDisposed) break
 
 					val ktFile = project.read {
 						PsiManager.getInstance(project)
@@ -127,6 +134,8 @@ internal class IndexWorker(
 				}
 
 				is IndexCommand.ScanSourceFile -> {
+					if (project.isDisposed) break
+
 					val ktFile = project.read {
 						PsiManager.getInstance(project).findFile(cmd.vf) as? KtFile
 					}
