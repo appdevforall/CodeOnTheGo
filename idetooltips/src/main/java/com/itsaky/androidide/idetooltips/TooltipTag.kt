@@ -100,6 +100,12 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_COMPUTER_VISION = "project.layout.vision"
     const val EDITOR_TOOLBAR_LOG_SENDER = "editor.disconnect.logsenders"
 
+    // Floating window chrome
+    const val WINDOW_MINIMIZE = "window-min"
+    const val WINDOW_MAXIMIZE = "window-max"
+    const val WINDOW_DOCK = "window-dock"
+    const val WINDOW_UNDOCK = "window-undock"
+
     // Delete project
     const val DELETE_PROJECT = "project.delete"
     const val DELETE_PROJECT_SELECT = "project.delete.select"
