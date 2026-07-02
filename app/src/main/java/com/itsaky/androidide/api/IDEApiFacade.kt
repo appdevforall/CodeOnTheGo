@@ -95,12 +95,26 @@ object IDEApiFacade {
                 }
             }
 
+            continuation.invokeOnCancellation { activity.removeOneTimeBuildResultListener(listener) }
+
+            val registry = ActionsRegistry.getInstance() as? DefaultActionsRegistry
+            if (registry == null) {
+                continuation.resume(ToolResult.failure("Failed to get action registry instance."))
+                return@suspendCancellableCoroutine
+            }
+
             activity.addOneTimeBuildResultListener(listener)
 
-            (ActionsRegistry.getInstance() as? DefaultActionsRegistry)?.executeAction(
-                action,
-                actionData
-            ) ?: continuation.resume(ToolResult.failure("Failed to get action registry instance."))
+            try {
+                registry.executeAction(action, actionData)
+            } catch (t: Throwable) {
+                activity.removeOneTimeBuildResultListener(listener)
+                if (continuation.isActive) {
+                    continuation.resume(
+                        ToolResult.failure("Failed to launch the app: ${t.message}", t.stackTraceToString())
+                    )
+                }
+            }
         }
     }
 

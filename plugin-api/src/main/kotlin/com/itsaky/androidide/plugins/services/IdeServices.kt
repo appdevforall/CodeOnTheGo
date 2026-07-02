@@ -5,6 +5,25 @@ import android.app.Activity
 import com.itsaky.androidide.plugins.extensions.IProject
 import java.io.File
 import java.io.InputStream
+import java.util.concurrent.CompletableFuture
+
+/**
+ * Flattened, read-only snapshot of a module's build context for a given source file,
+ * returned by [IdeProjectService.getModuleContext]. All paths are absolute host paths.
+ *
+ * This is additive API: it carries the project-model data an on-device compiler/renderer
+ * needs (classpaths, runtime dex, selected variant, resource APK) without exposing any
+ * host-internal project types to the plugin.
+ */
+data class ModuleContext(
+    val modulePath: String?,
+    val variantName: String,
+    val compileClasspaths: List<File>,
+    val intermediateClasspaths: List<File>,
+    val runtimeDexFiles: List<File>,
+    val resourceApk: File?,
+    val needsBuild: Boolean
+)
 
 /**
  * Service interface that provides access to Code On the Go project information.
@@ -48,6 +67,17 @@ interface IdeProjectService {
      *   has no foreground activity available to host the editor
      */
     fun openProject(projectDir: File): Boolean = false
+
+    /**
+     * Resolves the build context (compile/intermediate classpaths, runtime dex files,
+     * selected variant, resource APK, and whether a build is needed) for the module that
+     * owns [filePath]. Returns null when no module can be resolved.
+     *
+     * Default returns null so this addition is binary-compatible: hosts that predate the
+     * method, and any implementor that does not override it, simply report "unavailable"
+     * (mirrors the default on [IdeUIService.openPluginScreen]).
+     */
+    fun getModuleContext(filePath: String): ModuleContext? = null
 }
 
 /**
@@ -243,6 +273,16 @@ interface IdeBuildService {
      * @param callback The callback to unregister
      */
     fun removeBuildStatusListener(callback: BuildStatusListener)
+
+    /**
+     * Executes the given Gradle task paths (e.g. ":app:assembleDebug") and completes with
+     * true on success, false on failure/cancellation.
+     *
+     * Default completes with false so this addition is binary-compatible: hosts that predate
+     * the method, and any implementor that does not override it, report "not executed".
+     */
+    fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> =
+        CompletableFuture.completedFuture(false)
 }
 
 /**

@@ -23,4 +23,5 @@
     <string name="msg_strings_injection_file_not_found">Could not find the project string resources file.</string>
     <string name="msg_strings_injection_parser_unsupported">This device does not support the XML parser configuration required to update generated string resources.</string>
     <string name="msg_strings_injection_invalid_xml">Generated string resources are not valid XML.</string>
+    <string name="msg_floating_window_open_failed">Couldn\'t open “%1$s” in a floating window.</string>
 </resources>

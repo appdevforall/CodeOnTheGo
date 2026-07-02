@@ -114,6 +114,15 @@ interface ActionItem {
     get() = id.hashCode()
 
   /**
+   * Whether the editor toolbar should fully remove this action when [visible] is false,
+   * instead of the legacy behaviour of keeping it and only greying out when disabled.
+   * Built-in actions keep the legacy behaviour (default false); plugin-contributed
+   * toolbar actions opt in by overriding this to true.
+   */
+  val honorVisibility: Boolean
+    get() = false
+
+  /**
    * Prepare the action. Subclasses can modify the visual properties of this action here.
    *
    * @param data The data containing various information about the event.
