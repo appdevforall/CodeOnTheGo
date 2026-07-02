@@ -8,6 +8,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.agent.fragments.EncryptedPrefs
+import com.itsaky.androidide.agent.model.ModelLoadResult
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.LlmInferenceEngine
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
@@ -38,18 +39,15 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     private val llmInferenceEngine: LlmInferenceEngine = LlmInferenceEngineProvider.instance
     private var pendingModelUri: String? = null
 
-    // --- State LiveData ---
     private val _savedModelPath = MutableLiveData<String?>(null)
     val savedModelPath: LiveData<String?> get() = _savedModelPath
 
     private val _modelLoadingState = MutableLiveData<ModelLoadingState>()
     val modelLoadingState: LiveData<ModelLoadingState> get() = _modelLoadingState
 
-    // NEW: LiveData to track if the engine library is ready
     private val _engineState = MutableLiveData<EngineState>(EngineState.Uninitialized)
     val engineState: LiveData<EngineState> get() = _engineState
 
-    // --- Initialization ---
     init {
         initializeLlmEngine()
         checkInitialSavedModel()
@@ -106,13 +104,26 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             _modelLoadingState.value = ModelLoadingState.Loading
             val expectedHash = getLocalModelSha256()
-            val success = llmInferenceEngine.initModelFromFile(context, path, expectedHash)
-            if (success && llmInferenceEngine.loadedModelName != null) {
-                _modelLoadingState.value = ModelLoadingState.Loaded(llmInferenceEngine.loadedModelName!!)
-                // Also save the path on successful load
-                saveLocalModelPath(path)
-            } else {
-                _modelLoadingState.value = ModelLoadingState.Error("Failed to load model file.")
+            when (
+                val result = llmInferenceEngine.initModelFromFile(
+                    context,
+                    path,
+                    expectedHash
+                )
+            ) {
+                is ModelLoadResult.Loaded -> {
+                    _modelLoadingState.value = ModelLoadingState.Loaded(result.modelName)
+                    saveLocalModelPath(path)
+                }
+
+                is ModelLoadResult.Rejected -> {
+                    _modelLoadingState.value = ModelLoadingState.Error(result.message)
+                }
+
+                is ModelLoadResult.Failed -> {
+                    _modelLoadingState.value = ModelLoadingState.Error(result.message)
+                    Log.e("ModelLoad", result.message, result.cause)
+                }
             }
         }
     }
@@ -128,8 +139,6 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         }
         _savedModelPath.value = getLocalModelPath()
     }
-
-    // --- Preference and Key Management (No changes needed here) ---
 
     fun getAvailableBackends(): List<AiBackend> = AiBackend.entries
 

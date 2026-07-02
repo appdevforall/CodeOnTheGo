@@ -22,6 +22,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
@@ -110,11 +111,13 @@ import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.resources.R as ResR
 import com.itsaky.androidide.services.debug.DebuggerService
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.ui.CodeEditorView
@@ -1038,10 +1041,19 @@ abstract class BaseEditorActivity :
 		}
 
 		val pluginMenuItems = if (this is EditorHandlerActivity) {
+			val self = this
 			val fileIndex = getFileIndexForTabPosition(position)
 			if (fileIndex >= 0) {
 				val file = editorViewModel.getOpenedFile(fileIndex)
-				IDEApplication.getPluginManager()?.getFileTabMenuItems(file) ?: emptyList()
+				val pluginItems =
+					IDEApplication.getPluginManager()?.getFileTabMenuItems(file) ?: emptyList()
+				listOf(
+					FileTabMenuItem(
+						id = "ide.floating.undock",
+						title = getString(R.string.undock),
+						tooltipTag = TooltipTag.WINDOW_UNDOCK,
+					) { self.undockFileTab(fileIndex) },
+				) + pluginItems
 			} else {
 				emptyList()
 			}
@@ -1652,7 +1664,9 @@ abstract class BaseEditorActivity :
 						}
 
 						// Filter out diagonal flings so only an intentional right swipe opens the drawer.
-						if (isDrawerOpenFling) {
+						// A horizontal fling that started on the bottom-sheet tab strip is the user
+						// scrolling tabs, not asking for the drawer.
+						if (isDrawerOpenFling && !isTouchOnBottomSheetTabs(e1)) {
 							binding.editorDrawerLayout.openDrawer(GravityCompat.START)
 							return true
 						}
@@ -1670,6 +1684,13 @@ abstract class BaseEditorActivity :
 		}
 		// Then, let the default dispatching happen
 		return super.dispatchTouchEvent(ev)
+	}
+
+	private fun isTouchOnBottomSheetTabs(ev: MotionEvent): Boolean {
+		val tabs = contentOrNull?.bottomSheet?.binding?.tabs ?: return false
+		val rect = Rect()
+		if (!tabs.getGlobalVisibleRect(rect)) return false
+		return rect.contains(ev.rawX.toInt(), ev.rawY.toInt())
 	}
 
 	private fun showTooltip(tag: String) {
