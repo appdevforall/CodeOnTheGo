@@ -34,15 +34,6 @@ class PluginContextImpl(
         return File(androidContext.filesDir, "plugins/$pluginId").apply { mkdirs() }
     }
 
-    override fun getAppSharedPreferences(prefsName: String): SharedPreferences? {
-        return try {
-            androidContext.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
-        } catch (e: Exception) {
-            logger.error("Failed to access app SharedPreferences: $prefsName", e)
-            null
-        }
-    }
-
     override fun getPluginSharedPreferences(prefsName: String): SharedPreferences {
         return androidContext.getSharedPreferences("plugin_${pluginId}_${prefsName}", Context.MODE_PRIVATE)
     }

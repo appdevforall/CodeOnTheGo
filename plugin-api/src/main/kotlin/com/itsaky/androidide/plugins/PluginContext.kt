@@ -41,17 +41,8 @@ interface PluginContext {
     fun getPluginFilesDir(): File
 
     /**
-     * Get SharedPreferences from the main application for reading migration data
-     * Used to read settings from built-in Agent preferences
-     *
-     * @param prefsName Name of the preferences file (e.g., "AgentPrefs")
-     * @return SharedPreferences instance or null if not found
-     */
-    fun getAppSharedPreferences(prefsName: String): android.content.SharedPreferences?
-
-    /**
      * Get SharedPreferences for the plugin for writing migrated data
-     * Used to write settings to plugin storage during migration
+     * Plugins should only manage their own preferences for data isolation
      *
      * @param prefsName Name of the preferences file (e.g., "AgentSettings")
      * @return SharedPreferences instance
