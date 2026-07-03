@@ -11,10 +11,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import java.util.Collections
+import java.util.concurrent.CancellationException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.max
 
 /**
@@ -217,6 +219,113 @@ class AnalysisSerializationTest : KtLspTest() {
 
 		assertThat(preempted.get()).isTrue()
 		assertThat(ranToCompletion.get()).isFalse()
+	}
+
+	@Test(timeout = 10_000)
+	fun `ordinary cancellation aborts an in-flight analysis mid-analyze`() {
+		// Regression for ADFA-4174. Unlike preemption (a competing higher/same-priority request), an
+		// *ordinary* cancellation — the editor cancelling because the user typed on / moved the cursor
+		// / dismissed the popup — flips the request's ICancelChecker. Via ScheduledCancelChecker's
+		// invokeOnCancel push, cancelling the delegate must abort the compiler's mid-`analyze` FIR
+		// resolution promptly, rather than letting it run to completion (observed on-device as ~900ms
+		// stalls and piled-up completion threads).
+		val delegate = ICancelChecker.Default()
+		val file = createSourceFile("OrdinaryCancel.kt", "class C { fun f(): Int = 1 }")
+		val holding = CountDownLatch(1)
+		val ranToCompletion = AtomicBoolean(false)
+		val caught = AtomicReference<Throwable?>(null)
+
+		// Run inside a real analyze under the read lock: this also guards against a read/write-lock
+		// upgrade deadlock regression (withAnalysisLock runs under the shared read lock).
+		val worker = Thread {
+			try {
+				env.project.read {
+					analyzeMaybeDangling(
+						file,
+						AnalysisPriority.COMPLETION,
+						ScheduledCancelChecker(delegate),
+					) {
+						holding.countDown()
+						repeat(2_000) {
+							// Compiler-level checkpoint only — mirrors FIR resolution, which never calls
+							// the LSP-level abortIfCancelled().
+							ProgressManager.checkCanceled()
+							Thread.sleep(5)
+						}
+						ranToCompletion.set(true)
+					}
+				}
+			} catch (t: Throwable) {
+				caught.set(t)
+			}
+		}
+		worker.start()
+		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
+
+		val startNs = System.nanoTime()
+		// Simulates EditorCompletionWindow.cancelCompletion() -> ProgressManager.cancel(thread) ->
+		// CompletionCancelChecker.cancel().
+		delegate.cancel()
+		worker.join(2_000)
+		val elapsedMs = (System.nanoTime() - startNs) / 1_000_000
+
+		assertThat(worker.isAlive).isFalse()
+		assertThat(ranToCompletion.get()).isFalse()
+		// Ordinary cancellation, not preemption: the delegate's CancellationException, not
+		// AnalysisPreemptedException.
+		assertThat(caught.get()).isInstanceOf(CancellationException::class.java)
+		assertThat(caught.get()).isNotInstanceOf(AnalysisPreemptedException::class.java)
+		assertThat(elapsedMs).isLessThan(500)
+	}
+
+	@Test(timeout = 10_000)
+	fun `a waiting requester bails when cancelled instead of waiting for the lock`() {
+		// Regression for ADFA-4174: a superseded completion that is queued behind another analysis must
+		// abort as soon as it is cancelled, rather than parking (holding heavy state) until the lock
+		// frees. On-device, parked-until-release completions piled up and saturated the heap.
+		val holding = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val waiterDelegate = ICancelChecker.Default()
+		val waiterThrew = AtomicReference<Throwable?>(null)
+		val waiterEntered = AtomicBoolean(false)
+
+		// A completion holder keeps the lock until released.
+		val holder = Thread {
+			withAnalysisLock(AnalysisPriority.COMPLETION, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+				holding.countDown()
+				release.await()
+			}
+		}
+		holder.start()
+		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
+
+		// A lower-priority (diagnostics) requester must wait behind the completion holder (it does not
+		// preempt). It is cancelled while waiting and must bail from acquire() promptly.
+		val waiter = Thread {
+			try {
+				withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(waiterDelegate)) {
+					waiterEntered.set(true)
+				}
+			} catch (t: Throwable) {
+				waiterThrew.set(t)
+			}
+		}
+		waiter.start()
+
+		// Let it enter the wait loop, then cancel it.
+		Thread.sleep(200)
+		waiterDelegate.cancel()
+
+		// The waiter must finish (bail) while the holder still holds the lock.
+		waiter.join(2_000)
+		val bailedWhileHeld = !waiter.isAlive
+
+		release.countDown()
+		holder.join(5_000)
+
+		assertThat(bailedWhileHeld).isTrue()
+		assertThat(waiterEntered.get()).isFalse()
+		assertThat(waiterThrew.get()).isInstanceOf(CancellationException::class.java)
 	}
 
 	@Test(timeout = 10_000)

@@ -6,6 +6,7 @@ import org.jetbrains.kotlin.analysis.api.analyzeCopy
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaDanglingFileResolutionMode
 import org.jetbrains.kotlin.analysis.api.projectStructure.copyOrigin
 import org.jetbrains.kotlin.analysis.api.projectStructure.isDangling
+import kotlinx.coroutines.Job
 import org.jetbrains.kotlin.com.intellij.openapi.progress.ProcessCanceledException
 import org.jetbrains.kotlin.com.intellij.openapi.progress.ProgressManager
 import org.jetbrains.kotlin.com.intellij.openapi.util.Key
@@ -38,14 +39,16 @@ private val logger = LoggerFactory.getLogger("KtFileExts")
  * **All** Analysis API access must go through this helper (or [analyzeMaybeDangling], which already
  * does); never call `analyze` / `analyzeCopy` directly, or the serialization guarantee is lost.
  *
- * **Cancellation.** The [action] runs under a [CancelCheckerProgressIndicator] installed as the
- * thread's IntelliJ progress indicator, so the compiler's own `ProgressManager.checkCanceled()`
- * calls (dense throughout FIR resolution) abort the analysis *mid*-`analyze` once [cancelChecker]
- * reports preemption or cancellation — not just at the coarse LSP [ScheduledCancelChecker.abortIfCancelled]
- * checkpoints between work units. The compiler signals this by throwing [ProcessCanceledException];
- * we translate it back into the typed exception the callers already handle
- * ([AnalysisPreemptedException] when preempted, else the delegate's `CancellationException`) so
- * preempted work is rescheduled rather than silently dropped.
+ * **Cancellation.** The [action] runs with a [kotlinx.coroutines.Job] installed in the thread's
+ * IntelliJ coroutine context. The compiler's own `ProgressManager.checkCanceled()` calls (dense
+ * throughout FIR resolution) route through `Cancellation.checkCancelled()`, which throws as soon as
+ * that Job is cancelled — aborting the analysis *mid*-`analyze`, not just at the coarse LSP
+ * [ScheduledCancelChecker.abortIfCancelled] checkpoints between work units. (A
+ * [CancelCheckerProgressIndicator] is also installed as a fallback, but its poll-driven arming does
+ * not run in this embeddable environment; see the body.) The compiler signals cancellation by
+ * throwing [ProcessCanceledException]; we translate it back into the typed exception the callers
+ * already handle ([AnalysisPreemptedException] when preempted, else the delegate's
+ * `CancellationException`) so preempted work is rescheduled rather than silently dropped.
  *
  * **Footgun:** analysis runs under the *read* (shared) side of the global
  * [com.itsaky.androidide.lsp.kotlin.compiler.read] lock, and that `ReentrantReadWriteLock` is
@@ -59,19 +62,39 @@ internal inline fun <R> withAnalysisLock(
 	crossinline action: () -> R,
 ): R {
 	val indicator = CancelCheckerProgressIndicator(cancelChecker)
-	// When this analysis is preempted, also cancel the indicator so the compiler's in-`analyze`
-	// cancellation checks fire immediately instead of waiting for the manager's background poll.
-	AnalysisScheduler.acquire(priority) {
+
+	// Cancelling [job] is what actually aborts the running analysis *mid*-`analyze`: the embeddable
+	// `CoreProgressManager.checkCanceled()` (called densely throughout FIR resolution) invokes
+	// `Cancellation.checkCancelled()` *unconditionally* — before any indicator/`CheckCanceledBehavior`
+	// gating — and that throws a `CeProcessCanceledException` (a `ProcessCanceledException`) the moment
+	// the [Job] installed in this thread's context is cancelled.
+	//
+	// The [indicator] is kept only as a fallback for environments whose `CoreProgressManager` runs its
+	// ~10ms non-standard-indicator poll; that poll does not run in this (Android, embeddable) one.
+	val job = Job()
+
+	AnalysisScheduler.acquire(priority, cancelChecker) {
+		// Preemption is signalled by flipping the checker; the invokeOnCancel listener below turns that
+		// (and ordinary editor cancellation) into the actual mid-`analyze` abort.
 		cancelChecker.preempt()
+	}
+	// Single push path for *both* preemption and ordinary editor cancellation: [ScheduledCancelChecker]
+	// fires this on preempt() and on its delegate's cancel(), so the running analyze aborts immediately
+	// — no polling, and unaffected by GC pauses that would stall a poll thread.
+	cancelChecker.invokeOnCancel {
 		indicator.cancel()
+		job.cancel()
 	}
 	try {
 		val holder = arrayOfNulls<Any?>(1)
 		try {
-			ProgressManager.getInstance()
-				.executeProcessUnderProgress({ holder[0] = action() }, indicator)
+			// Install the Job for the duration of the analysis and restore the previous context after.
+			AnalysisThreadContext.installJob(job).use {
+				ProgressManager.getInstance()
+					.executeProcessUnderProgress({ holder[0] = action() }, indicator)
+			}
 		} catch (e: ProcessCanceledException) {
-            logger.debug("process cancelled: prio={}", priority)
+			logger.debug("process cancelled: prio={}", priority)
 			// Re-derive the semantically-correct exception callers expect (re-throws
 			// AnalysisPreemptedException when preempted, or the delegate's CancellationException).
 			cancelChecker.abortIfCancelled()

@@ -2,6 +2,8 @@ package com.itsaky.androidide.lsp.kotlin.compiler.modules
 
 import com.itsaky.androidide.progress.ICancelChecker
 import java.util.concurrent.CancellationException
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -55,9 +57,14 @@ internal class ScheduledCancelChecker(
 	@Volatile
 	private var preempted = false
 
+	private val onCancelListeners = CopyOnWriteArrayList<() -> Unit>()
+
 	/** Marks this analysis as preempted; the next [abortIfCancelled] will throw. */
 	fun preempt() {
 		preempted = true
+		// Push: preemption is a cancellation too, so notify [invokeOnCancel] listeners immediately.
+		onCancelListeners.forEach { it() }
+		onCancelListeners.clear()
 	}
 
 	override fun cancel() {
@@ -71,6 +78,18 @@ internal class ScheduledCancelChecker(
 			throw AnalysisPreemptedException()
 		}
 		delegate.abortIfCancelled()
+	}
+
+	override fun invokeOnCancel(listener: () -> Unit) {
+		// Fire on either scheduler preemption (stored locally, run by preempt()) or the delegate's own
+		// cancellation (forwarded so the editor's CompletionCancelChecker.cancel() pushes it). The
+		// listener body is idempotent, so firing via both paths is harmless.
+		onCancelListeners.add(listener)
+		delegate.invokeOnCancel(listener)
+		// Guard the race where preempt() ran between add and now.
+		if (preempted && onCancelListeners.remove(listener)) {
+			listener()
+		}
 	}
 }
 
@@ -91,6 +110,9 @@ internal class ScheduledCancelChecker(
  */
 internal object AnalysisScheduler {
 
+	/** Upper bound on how long a queued requester waits before re-checking its cancellation. */
+	private const val WAIT_POLL_MILLIS = 25L
+
 	private val mutex = ReentrantLock()
 	private val available = mutex.newCondition()
 
@@ -108,8 +130,14 @@ internal object AnalysisScheduler {
 	 * preemptable analysis is in progress — strictly lower priority, or the same priority when that
 	 * priority is [AnalysisPriority.supersedesSamePriority] — [onPreempt] of *that* holder is invoked so
 	 * it yields; [onPreempt] passed here is stored and used if this acquisition is later preempted.
+	 *
+	 * [cancelChecker] is *this* requester's checker: while waiting for the lock, the wait is re-checked on
+	 * a short timer, and if the requester has been cancelled — e.g. the editor superseded
+	 * this completion — [acquire] throws instead of parking until the lock frees. This is what stops
+	 * superseded completions from piling up holding heavy state (KtFile copies, symbol lists) while they
+	 * wait, which on-device saturated the heap and triggered multi-second GC stalls.
 	 */
-	fun acquire(priority: AnalysisPriority, onPreempt: () -> Unit) {
+	fun acquire(priority: AnalysisPriority, cancelChecker: ICancelChecker, onPreempt: () -> Unit) {
 		mutex.withLock {
 			val me = Thread.currentThread()
 			if (holderThread === me) {
@@ -121,6 +149,9 @@ internal object AnalysisScheduler {
 			waiting[priority.ordinal]++
 			try {
 				while (true) {
+					// Bail out (rather than keep waiting) if this requester was cancelled while queued.
+					cancelChecker.abortIfCancelled()
+
 					val hp = holderPriority
 					if (holderThread != null && hp != null && !holderPreempted &&
 						(hp.ordinal < priority.ordinal ||
@@ -135,7 +166,9 @@ internal object AnalysisScheduler {
 					if (holderThread == null && !higherPriorityWaiting(priority)) {
 						break
 					}
-					available.await()
+					// Timed wait so a cancellation that arrives without a lock-state change (no signal) is
+					// still observed within WAIT_POLL_MILLIS, bounding how long a superseded waiter parks.
+					available.await(WAIT_POLL_MILLIS, TimeUnit.MILLISECONDS)
 				}
 			} finally {
 				waiting[priority.ordinal]--
