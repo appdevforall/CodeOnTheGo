@@ -40,21 +40,42 @@ class ProgressManager private constructor() {
 		}
 	}
 
-	fun cancel(thread: Thread) {
-		var checker = threads[thread]
-		if (checker == null) {
-			checker = Default()
+	/**
+	 * Associate an existing [checker] with [thread]. A subsequent [cancel] of [thread] then flips
+	 * *this* checker (rather than a throwaway [Default]), so a caller that also polls [checker]
+	 * observes the cancellation. Used by the editor to make a completion's cancel checker cancellable
+	 * via the thread it runs on. Pair with [unregister].
+	 */
+	fun register(thread: Thread, checker: ICancelChecker) {
+		synchronized(threads) {
+			threads[thread] = checker
 		}
-		checker.cancel()
-		threads[thread] = checker
+	}
+
+	/** Remove any checker previously associated with [thread] via [register]. */
+	fun unregister(thread: Thread) {
+		synchronized(threads) {
+			threads.remove(thread)
+		}
+	}
+
+	fun cancel(thread: Thread) {
+		synchronized(threads) {
+			var checker = threads[thread]
+			if (checker == null) {
+				checker = Default()
+				threads[thread] = checker
+			}
+			checker.cancel()
+		}
 	}
 
 	@JvmName("internalAbortIfCancelled")
 	private fun abortIfCancelled() {
 		val thisThread = Thread.currentThread()
-		val checker = threads[thisThread]
+		val checker = synchronized(threads) { threads[thisThread] }
 		if (checker != null && checker.isCancelled()) {
-			threads.remove(thisThread)
+			synchronized(threads) { threads.remove(thisThread) }
 			throw CancellationException()
 		}
 	}

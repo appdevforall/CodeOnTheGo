@@ -18,6 +18,7 @@
 package com.itsaky.androidide.progress
 
 import java.util.concurrent.CancellationException
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -45,12 +46,31 @@ interface ICancelChecker {
   @Throws(CancellationException::class)
   fun abortIfCancelled()
 
+  /**
+   * Register [listener] to run when this process is cancelled — a *push* notification, so a consumer
+   * can react to cancellation immediately instead of polling [isCancelled]. If already cancelled,
+   * [listener] runs synchronously now. [listener] runs at most once.
+   *
+   * The default implementation only fires when already cancelled; an implementation that can transition
+   * to cancelled after registration (e.g. [Default]) overrides this to fire on the transition.
+   */
+  fun invokeOnCancel(listener: () -> Unit) {
+    if (isCancelled()) {
+      listener()
+    }
+  }
+
   open class Default(cancelled: Boolean = false) : ICancelChecker {
 
     private val cancelled = AtomicBoolean(cancelled)
+    private val onCancelListeners = CopyOnWriteArrayList<() -> Unit>()
 
     override fun cancel() {
-      cancelled.set(true)
+      // Fire listeners once, on the false -> true transition only.
+      if (cancelled.compareAndSet(false, true)) {
+        onCancelListeners.forEach { it() }
+        onCancelListeners.clear()
+      }
     }
 
     override fun isCancelled(): Boolean {
@@ -62,6 +82,19 @@ interface ICancelChecker {
         throw CancellationException()
       }
     }
+
+    override fun invokeOnCancel(listener: () -> Unit) {
+      if (isCancelled()) {
+        listener()
+        return
+      }
+      onCancelListeners.add(listener)
+      // Guard the race where cancel() ran between the check above and the add: if we now observe
+      // cancellation, run the listener ourselves (removing it so cancel() can't also run it).
+      if (isCancelled() && onCancelListeners.remove(listener)) {
+        listener()
+      }
+    }
   }
 
   companion object {
@@ -70,7 +103,10 @@ interface ICancelChecker {
      * A no-op cancel checker. The task is never cancelled.
      */
     @JvmField
-    val NOOP = Default(false)
+    val NOOP = object : Default(false) {
+      // Never transitions to cancelled, so retaining listeners would only leak them.
+      override fun invokeOnCancel(listener: () -> Unit) = Unit
+    }
 
     /**
      * An already cancelled cancel checker.
