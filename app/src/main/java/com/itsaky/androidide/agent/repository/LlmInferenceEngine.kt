@@ -2,7 +2,9 @@ package com.itsaky.androidide.agent.repository
 
 import android.content.Context
 import androidx.core.net.toUri
+import com.itsaky.androidide.agent.model.ModelLoadResult
 import com.itsaky.androidide.llamacpp.api.ILlamaController
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DynamicLibraryLoader
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +16,7 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * A wrapper class for the LLamaAndroid library, loaded dynamically.
@@ -63,6 +66,29 @@ class LlmInferenceEngine(
         private const val CONTEXT_SIZE_MID_MEM = 2048
         private const val CONTEXT_SIZE_HIGH_MEM = 3072
         private const val CONTEXT_SIZE_MAX = 4096
+
+        private const val EXT_ONNX = ".onnx"
+        private const val EXT_PT = ".pt"
+        private const val EXT_PTH = ".pth"
+        private const val EXT_BIN = ".bin"
+        private const val EXT_SAFETENSORS = ".safetensors"
+        private const val EXT_PB = ".pb"
+        private const val EXT_TFLITE = ".tflite"
+        private const val EXT_GGML = ".ggml"
+        private const val EXT_GGUF = ".gguf"
+
+        private const val KEYWORD_TENSORFLOW = "tensorflow"
+        private const val KEYWORD_ALL_MINI = "all-mini"
+        private const val KEYWORD_ALL_MPNET = "all-mpnet"
+        private const val KEYWORD_E5 = "e5-"
+        private const val KEYWORD_EMBED = "embed"
+        private const val KEYWORD_LLAMA = "llama"
+        private const val KEYWORD_H2O = "h2o"
+        private const val KEYWORD_DANUBE = "danube"
+        private const val KEYWORD_QWEN = "qwen"
+        private const val KEYWORD_GEMMA3 = "gemma3"
+        private const val KEYWORD_GEMMA_3 = "gemma-3"
+        private const val KEYWORD_GEMMA = "gemma"
     }
 
     /**
@@ -267,10 +293,16 @@ class LlmInferenceEngine(
         context: Context,
         modelUriString: String,
         expectedSha256: String? = null
-    ): Boolean {
+    ): ModelLoadResult {
         return modelLoadMutex.withLock {
-            if (!ensureInitialized(context)) return@withLock false
+            if (!ensureInitialized(context)) {
+                return@withLock ModelLoadResult.Failed(
+                    message = context.getString(R.string.model_error_engine_init)
+                )
+            }
+
             if (isModelLoaded) unloadModel()
+
             withContext(ioDispatcher) {
                 loadModelFromUri(context, modelUriString, expectedSha256)
             }
@@ -290,33 +322,71 @@ class LlmInferenceEngine(
         context: Context,
         modelUriString: String,
         expectedSha256: String?
-    ): Boolean {
+    ): ModelLoadResult {
+        val modelUri = modelUriString.toUri()
+        val displayName = resolveModelDisplayName(context, modelUri)
+
         return try {
-            val modelUri = modelUriString.toUri()
-            val displayName = resolveModelDisplayName(context, modelUri)
+            validateModelFormat(context, displayName)
+
             val destinationFile = File(context.cacheDir, "local_model.gguf")
 
             if (!copyModelToCache(context, modelUri, destinationFile)) {
-                return false
+                return ModelLoadResult.Failed(
+                    message = context.getString(R.string.model_error_copy_failed)
+                )
             }
-            log.info("Model copied to cache at {}", destinationFile.path)
 
             if (!verifyModelHash(destinationFile, expectedSha256)) {
-                return false
+                return ModelLoadResult.Failed(
+                    message = context.getString(R.string.model_error_verification_failed)
+                )
             }
 
             llamaController?.load(destinationFile.path)
+
             isModelLoaded = true
             loadedModelPath = destinationFile.path
             loadedModelSourceUri = modelUriString
             loadedModelName = displayName
             currentModelFamily = detectModelFamily(displayName)
-            log.info("Successfully loaded local model: {}", loadedModelName)
-            true
+
+            ModelLoadResult.Loaded(displayName)
+        } catch (e: CancellationException) {
+            resetLoadedModelState()
+            throw e
+        } catch (e: IllegalStateException) {
+            resetLoadedModelState()
+
+            if (e.message?.contains("embedding model", ignoreCase = true) == true) {
+                log.error("Cannot use embedding model for chat: {}", displayName, e)
+
+                ModelLoadResult.Rejected(
+                    context.getString(R.string.model_error_embedding, displayName)
+                )
+            } else {
+                log.error("Failed to load model: {}", displayName, e)
+
+                ModelLoadResult.Failed(
+                    message = context.getString(R.string.model_error_load_failed, displayName),
+                    cause = e
+                )
+            }
+        } catch (e: IllegalArgumentException) {
+            log.error("Model validation failed: {}", displayName, e)
+            resetLoadedModelState()
+
+            ModelLoadResult.Rejected(
+                e.message ?: context.getString(R.string.model_error_format_unsupported)
+            )
         } catch (e: Exception) {
             log.error("Failed to initialize or load model from file", e)
             resetLoadedModelState()
-            false
+
+            ModelLoadResult.Failed(
+                message = context.getString(R.string.model_error_load_failed, displayName),
+                cause = e
+            )
         }
     }
 
@@ -458,14 +528,58 @@ class LlmInferenceEngine(
         }
     }
 
+    /**
+     * Validates that the model file format is supported.
+     * This app uses llama.cpp which only supports GGUF format.
+     *
+     * @throws IllegalArgumentException if the model format is not supported
+     */
+    private fun validateModelFormat(context: Context, filename: String) {
+        val lowerName = filename.lowercase()
+
+        when {
+            lowerName.endsWith(EXT_ONNX) -> {
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_onnx))
+            }
+            lowerName.endsWith(EXT_PT) || lowerName.endsWith(EXT_PTH) || lowerName.endsWith(EXT_BIN) -> {
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_pytorch))
+            }
+            lowerName.endsWith(EXT_SAFETENSORS) -> {
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_safetensors))
+            }
+            lowerName.endsWith(EXT_PB) || lowerName.contains(KEYWORD_TENSORFLOW) -> {
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_tensorflow))
+            }
+            lowerName.endsWith(EXT_TFLITE) -> {
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_tflite))
+            }
+            lowerName.endsWith(EXT_GGML) -> {
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_ggml))
+            }
+            !lowerName.endsWith(EXT_GGUF) -> {
+                log.warn("Model file '{}' doesn't have $EXT_GGUF extension. May fail to load.", filename)
+            }
+        }
+
+        if (lowerName.contains(KEYWORD_ALL_MINI) ||
+            lowerName.contains(KEYWORD_ALL_MPNET) ||
+            lowerName.contains(KEYWORD_E5) ||
+            (lowerName.contains(KEYWORD_EMBED) && !lowerName.contains(KEYWORD_LLAMA))) {
+            log.error("Rejecting embedding model based on filename: {}", filename)
+            throw IllegalArgumentException(
+                context.getString(R.string.model_error_embedding, filename)
+            )
+        }
+    }
+
     private fun detectModelFamily(path: String): ModelFamily {
         val lowerPath = path.lowercase()
         return when {
-            lowerPath.contains("h2o") || lowerPath.contains("danube") -> ModelFamily.H2O
-            lowerPath.contains("qwen") -> ModelFamily.QWEN
-            lowerPath.contains("gemma-3") || lowerPath.contains("gemma3") -> ModelFamily.GEMMA3
-            lowerPath.contains("gemma") -> ModelFamily.GEMMA2
-            lowerPath.contains("llama") -> ModelFamily.LLAMA3
+            lowerPath.contains(KEYWORD_H2O) || lowerPath.contains(KEYWORD_DANUBE) -> ModelFamily.H2O
+            lowerPath.contains(KEYWORD_QWEN) -> ModelFamily.QWEN
+            lowerPath.contains(KEYWORD_GEMMA_3) || lowerPath.contains(KEYWORD_GEMMA3) -> ModelFamily.GEMMA3
+            lowerPath.contains(KEYWORD_GEMMA) -> ModelFamily.GEMMA2
+            lowerPath.contains(KEYWORD_LLAMA) -> ModelFamily.LLAMA3
             else -> ModelFamily.UNKNOWN
         }
     }

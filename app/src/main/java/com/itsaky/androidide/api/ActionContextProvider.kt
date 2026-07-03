@@ -19,6 +19,12 @@ object ActionContextProvider {
         this.activityRef = null
     }
 
+    fun clearActivity(activity: EditorHandlerActivity) {
+        if (this.activityRef?.get() === activity) {
+            clearActivity()
+        }
+    }
+
     fun getActivity(): EditorHandlerActivity? {
         return activityRef?.get()
     }

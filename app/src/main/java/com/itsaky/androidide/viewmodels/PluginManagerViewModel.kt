@@ -13,6 +13,7 @@ import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.ui.models.PluginManagerUiState
 import com.itsaky.androidide.ui.models.PluginOperation
+import com.itsaky.androidide.utils.EditorDecorationBridge
 import com.itsaky.androidide.utils.UriFileImporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -121,6 +122,9 @@ class PluginManagerViewModel(
                         )
                     )
                 }
+
+            // Keep the editor decoration providers in sync with the enabled plugin set.
+            EditorDecorationBridge.refresh()
 
             _currentOperation.value = PluginOperation.None
         }

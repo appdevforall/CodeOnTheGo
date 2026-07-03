@@ -152,6 +152,9 @@
     <string name="sort_by_name">Name</string>
     <string name="sort_by_created">Created</string>
     <string name="sort_by_modified">Edited</string>
+    <string name="filters_active">Filters active</string>
+    <string name="filter_chip_remove_sort">Remove sort</string>
+    <string name="filter_chip_remove_search">Remove search filter</string>
     <string-array name="sort_options">
         <item>@string/sort_by_name</item>
         <item>@string/sort_by_created</item>
@@ -712,6 +715,7 @@
 	<string name="msg_project_cache_read_failure">Failed to read project cache</string>
 	<string name="msg_font_copy_failed">Could not save the font file. Please try again.</string>
 	<string name="msg_files_being_saved">A file save operation is already in progress!</string>
+	<string name="msg_undock_save_failed">Couldn\'t save “%1$s”. Undock cancelled.</string>
 	<string name="title_install_tools">Install Development Tools</string>
 	<string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of the screen\n</string>
 	<string name="msg_install_tools"> </string>
@@ -1181,6 +1185,21 @@
 	<string name="ai_setting_loading_model_please_wait">🔄 Loading model, please wait…</string>
 	<string name="ai_setting_model_loaded">✅ Model loaded: %1$s</string>
 	<string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
+
+	<!-- Model load errors -->
+	<string name="model_error_engine_init">Inference engine could not be initialized.</string>
+	<string name="model_error_copy_failed">Could not copy the model file.</string>
+	<string name="model_error_verification_failed">Model file verification failed.</string>
+	<string name="model_error_load_failed">Failed to load model \'%1$s\'.</string>
+	<string name="model_error_format_unsupported">This model format is not supported.</string>
+	<string name="model_error_embedding">The selected model \'%1$s\' is an embedding model designed for semantic search and similarity tasks. It cannot be used for chat or text generation.\n\nPlease select a chat/instruct model instead (e.g., models with \'chat\', \'instruct\', \'conversational\' in their name).</string>
+	<string name="model_error_format_onnx">ONNX models (.onnx) are not supported.\n\nThis app uses llama.cpp which only supports GGUF format (.gguf).\n\nTo use this model:\n1. Convert it to GGUF format using llama.cpp conversion tools\n2. Or download a pre-converted GGUF version from Hugging Face</string>
+	<string name="model_error_format_pytorch">PyTorch models (.pt, .pth, .bin) are not supported.\n\nThis app uses llama.cpp which only supports GGUF format (.gguf).\n\nTo use this model:\n1. Convert it to GGUF format using convert_hf_to_gguf.py\n2. Or download a pre-converted GGUF version from Hugging Face</string>
+	<string name="model_error_format_safetensors">SafeTensors models (.safetensors) are not directly supported.\n\nThis app uses llama.cpp which only supports GGUF format (.gguf).\n\nTo use this model:\n1. Convert it to GGUF format using convert_hf_to_gguf.py\n2. Or download a pre-converted GGUF version from Hugging Face</string>
+	<string name="model_error_format_tensorflow">TensorFlow models (.pb) are not supported.\n\nThis app uses llama.cpp which only supports GGUF format (.gguf).\n\nTo use this model:\n1. Convert it to GGUF format using appropriate conversion tools\n2. Or download a pre-converted GGUF version from Hugging Face</string>
+	<string name="model_error_format_tflite">TensorFlow Lite models (.tflite) are not supported.\n\nThis app uses llama.cpp which only supports GGUF format (.gguf).\n\nPlease select a GGUF format model.</string>
+	<string name="model_error_format_ggml">GGML models (.ggml) are deprecated.\n\nThis app uses the newer GGUF format (.gguf).\n\nTo use this model:\n1. Convert it to GGUF using convert_llama_ggml_to_gguf.py\n2. Or download a GGUF version from Hugging Face</string>
+
 	<string name="ai_disclaimer">Disclaimer</string>
 	<string name="ai_disclaimer_message">This AI agent is experimental and may give incorrect or harmful answers. Always back up your work before you try it, and always double-check its suggestions before using them. We are not responsible for any errors, bugs, or damage caused by its output. Use at your own risk.</string>
     <string name="ai_api_key_not_found">❌ No Gemini API Key found.\nIf you recently updated or reinstalled the app, your API key may have been reset.\nPlease add your Gemini key again in AI Settings.</string>
@@ -1342,5 +1361,13 @@
 	<string name="template_read_error_template_load">Failed to load template at %1$s  error: %2$s</string>
 	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
     <string name="navigate_up">Navigate up</string>
+    <string name="undock">Undock</string>
+
+	<!-- Floating window chrome button accessibility labels (announced by screen readers) -->
+	<string name="floating_window_action_minimize">Minimize</string>
+	<string name="floating_window_action_restore">Restore</string>
+	<string name="floating_window_action_maximize">Maximize</string>
+	<string name="floating_window_action_dock">Dock to editor</string>
+	<string name="floating_window_action_close">Close</string>
 
 </resources>

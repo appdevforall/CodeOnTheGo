@@ -34,6 +34,7 @@ dependencies {
 	api(projects.eventbusAndroid)
 	api(projects.eventbusEvents)
 	api(projects.lexers)
+	api(projects.pluginApi)
 	api(projects.resources)
 
 	api(projects.shared)

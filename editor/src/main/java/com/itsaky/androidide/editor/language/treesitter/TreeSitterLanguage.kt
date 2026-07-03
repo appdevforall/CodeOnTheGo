@@ -25,7 +25,6 @@ import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.LanguageScheme
 import com.itsaky.androidide.editor.schemes.LanguageSpecProvider.getLanguageSpec
 import com.itsaky.androidide.editor.schemes.LocalCaptureSpecProvider.newLocalCaptureSpec
-import com.itsaky.androidide.editor.utils.isNonBlankLine
 import com.itsaky.androidide.treesitter.TSLanguage
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.utils.IntPair
@@ -145,31 +144,23 @@ abstract class TreeSitterLanguage(
 				return DEF_IDENT_ADV
 			}
 
-			var linesToReq = LongArray(1)
-			linesToReq[0] = IntPair.pack(line, column)
-
-			if (content.reference.isNonBlankLine(line + 1)) {
-				// consider the indentation of the next line only if it is non-blank
-				linesToReq += IntPair.pack(line + 1, 0)
-			}
+			// Request both lines so the advance is a relative delta, cancelling any mismatch between the editor's indent size and the file's actual indentation width.
+			val linesToReq = longArrayOf(
+				IntPair.pack(line, column),
+				IntPair.pack(line + 1, 0)
+			)
 
 			val indents = this.indentProvider.getIndentsForLines(
 				content = content.reference,
 				positions = linesToReq,
 			)
 
-			if (indents.size == 1) {
-				val indent = indents[0]
-				if (indent == TreeSitterIndentProvider.INDENTATION_ERR) {
-					return DEF_IDENT_ADV
-				}
-
-				return indent - (spaceCountOnLine + (tabCountOnLine * getTabSize()))
-			}
-
 			val (indentLine, indentNxtLine) = indents
+			// A sentinel indent (e.g. INDENT_AUTO == Int.MAX_VALUE) would overflow the advance into a huge whitespace string (OOM), so fall back to the default advance.
 			if (indentLine == TreeSitterIndentProvider.INDENTATION_ERR
 				|| indentNxtLine == TreeSitterIndentProvider.INDENTATION_ERR
+				|| indentLine == TreeSitterIndentProvider.INDENT_AUTO
+				|| indentNxtLine == TreeSitterIndentProvider.INDENT_AUTO
 			) {
 				log.debug(
 					"expectedIndent[{}]={}, expectedIndentNextLine[{}]={}, returning default indent advance",
