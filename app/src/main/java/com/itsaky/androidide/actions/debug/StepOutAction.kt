@@ -17,6 +17,6 @@ class StepOutAction(
     override var tooltipTag = TooltipTag.DEBUGGER_ACTION_STEP_OUT
 
     override suspend fun execAction(data: ActionData) {
-        debugClient.stepOut()
+        debugClient?.stepOut()
     }
 }
