@@ -528,14 +528,9 @@ public class TermuxUtils {
         if (signingCertificateSHA256Digest == null) return "null";
 
         if (signingCertificateSHA256Digest
-            .equalsIgnoreCase(TermuxConstants.APK_RELEASE_ANDROIDIDE_SIGNING_CERTIFICATE_SHA256_DIGEST)
+            .equalsIgnoreCase(TermuxConstants.APK_RELEASE_COGO_SIGNING_CERTIFICATE_SHA256_DIGEST)
         ) {
-            return TermuxConstants.APK_RELEASE_ANDROIDIDE;
-        }
-        if (signingCertificateSHA256Digest
-            .equalsIgnoreCase(TermuxConstants.APK_RELEASE_FDROID_SIGNING_CERTIFICATE_SHA256_DIGEST)
-        ) {
-            return TermuxConstants.APK_RELEASE_FDROID;
+            return TermuxConstants.APK_RELEASE_COGO;
         }
         return "Unknown";
     }

@@ -13,6 +13,7 @@ import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
+import com.itsaky.androidide.handlers.SentryDiagnosticsContext
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
@@ -73,6 +74,9 @@ internal object DeviceProtectedApplicationLoader :
 			options.sessionReplay.quality = SentryReplayQuality.LOW
 			options.environment =
 				if (BuildConfig.DEBUG) IDEApplication.SENTRY_ENV_DEV else IDEApplication.SENTRY_ENV_PROD
+
+			// Enrich every Sentry event with app-specific diagnostic context.
+			SentryDiagnosticsContext.install(options)
 		}
 
 		ShizukuSettings.initialize()
