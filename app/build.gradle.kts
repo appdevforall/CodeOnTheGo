@@ -321,7 +321,6 @@ dependencies {
 	implementation(projects.pluginApi)
 	implementation(projects.pluginManager)
 
-	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
 	implementation(projects.floatingWindow)
 	implementation(projects.gitCore)
