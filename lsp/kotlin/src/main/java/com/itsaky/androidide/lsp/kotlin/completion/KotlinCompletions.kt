@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.kotlin.completion
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.describeSnippet
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.ContextKeywords
@@ -30,8 +31,6 @@ import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.KaSession
-import org.jetbrains.kotlin.analysis.api.analyzeCopy
-import org.jetbrains.kotlin.analysis.api.projectStructure.KaDanglingFileResolutionMode
 import org.jetbrains.kotlin.analysis.api.renderer.types.KaTypeRenderer
 import org.jetbrains.kotlin.analysis.api.renderer.types.impl.KaTypeRendererForSource
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
@@ -149,10 +148,7 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 		env.project.read {
 			abortIfCancelled()
 
-			analyzeCopy(
-				useSiteElement = completionKtFile,
-				resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
-			) {
+			analyzeMaybeDangling(completionKtFile) {
 				val ctx =
 					resolveAnalysisContext(
 						env = env,
@@ -168,7 +164,7 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 						completionOffset,
 						params.file
 					)
-					return@analyzeCopy CompletionResult.EMPTY
+					return@analyzeMaybeDangling CompletionResult.EMPTY
 				}
 
 				abortIfCancelled()
