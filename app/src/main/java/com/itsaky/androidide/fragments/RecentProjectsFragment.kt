@@ -44,7 +44,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import org.appdevforall.codeonthego.layouteditor.ProjectFile
+import com.itsaky.androidide.models.ProjectFile
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.isProjectCandidateDir

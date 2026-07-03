@@ -38,7 +38,6 @@ import com.itsaky.androidide.actions.etc.FindAction
 import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
 import com.itsaky.androidide.actions.etc.LaunchAppAction
-import com.itsaky.androidide.actions.etc.PreviewLayoutAction
 import com.itsaky.androidide.actions.file.CloseAllFilesAction
 import com.itsaky.androidide.actions.file.CloseFileAction
 import com.itsaky.androidide.actions.file.CloseOtherFilesAction
@@ -94,7 +93,6 @@ class EditorActivityActions {
             registry.registerAction(UndoAction(context, order++))
             registry.registerAction(RedoAction(context, order++))
             registry.registerAction(SaveFileAction(context, order++))
-            registry.registerAction(PreviewLayoutAction(context, order++))
             registry.registerAction(FindAction(context, order++))
             registry.registerAction(FindInFileAction(context, order++))
             registry.registerAction(FindInProjectAction(context, order++))
