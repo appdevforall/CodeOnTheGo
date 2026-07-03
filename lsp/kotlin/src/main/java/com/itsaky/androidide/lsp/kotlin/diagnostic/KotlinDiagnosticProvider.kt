@@ -13,6 +13,7 @@ import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaDiagnosticWithPsi
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaSeverity
+import org.jetbrains.kotlin.analysis.api.fir.diagnostics.KaFirDiagnostic
 import org.jetbrains.kotlin.com.intellij.openapi.util.TextRange
 import org.jetbrains.kotlin.com.intellij.psi.PsiErrorElement
 import org.jetbrains.kotlin.com.intellij.psi.PsiFile
@@ -23,7 +24,14 @@ import java.nio.file.Path
 private val logger = LoggerFactory.getLogger("KotlinDiagnosticProvider")
 
 internal data class KotlinDiagnosticExtra(
-	val diagnostic: KaDiagnosticWithPsi<*>,
+	/**
+	 * The unresolved-reference name extracted from an [KaFirDiagnostic.UnresolvedReference]
+	 * diagnostic, or `null` for any other diagnostic. This is plain data extracted *inside* the
+	 * `analyze` block on purpose: storing the [KaDiagnosticWithPsi] (a `KaLifetimeOwner`) here and
+	 * reading its members later from a code action would access it outside an `analyze` context and
+	 * crash with `KaInaccessibleLifetimeOwnerAccessException`.
+	 */
+	val unresolvedReference: String?,
 	val compilationEnv: CompilationEnvironment,
 )
 
@@ -79,8 +87,12 @@ private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResu
 				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
 					.forEach { diagnostic ->
 						cancelChecker.abortIfCancelled()
+						// Extract plain data while still inside the analyze context; never let
+						// the KaLifetimeOwner diagnostic escape (see KotlinDiagnosticExtra).
+						val unresolvedReference =
+							(diagnostic as? KaFirDiagnostic.UnresolvedReference)?.reference
 						add(diagnostic.toDiagnosticItem().apply {
-							extra = KotlinDiagnosticExtra(diagnostic, env)
+							extra = KotlinDiagnosticExtra(unresolvedReference, env)
 						})
 					}
 			}
