@@ -15,7 +15,7 @@ import com.itsaky.androidide.utils.loadProjectDetails
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.termux.shared.interact.ShareUtils.copyTextToClipboard
 import kotlinx.coroutines.launch
-import org.appdevforall.codeonthego.layouteditor.ProjectFile
+import com.itsaky.androidide.models.ProjectFile
 
 class ProjectInfoBottomSheet : BottomSheetDialogFragment() {
     companion object {
