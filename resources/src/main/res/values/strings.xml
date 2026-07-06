@@ -1364,6 +1364,7 @@
 
 	<!-- Profiler -->
 	<string name="profiler_title">Profiler</string>
+    <string name="profiler_action_label">Profile</string>
     <string name="profiler_dump_heap">Dump heap</string>
     <string name="profiler_cpu_hotspots">CPU hotspots</string>
     <string name="profiler_empty">No profile data yet. Run a heap dump or CPU sample.</string>

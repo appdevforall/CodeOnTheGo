@@ -22,7 +22,7 @@ class ProfilerAction(
 	override val order: Int,
 ) : AbstractRunAction(
 		context = context,
-		labelRes = R.string.quick_run_debug,
+		labelRes = R.string.profiler_action_label,
 		iconRes = R.drawable.ic_profiler,
 	) {
 	override val id: String = ID
