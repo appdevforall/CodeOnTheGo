@@ -374,6 +374,7 @@ jobs:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           NEXT_RELEASE_VERSION: ${{ vars.NEXT_RELEASE_VERSION }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Try to get Jira ticket from extract_jira step output first (handles branch name and commit message)
           JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"

@@ -21,7 +21,7 @@ jobs:
           script: |
             const branch = context.payload.pull_request.head.ref;
 
-            if (!/adfa-/i.test(branch)) {
+            if (branch.startsWith('community/') || !/adfa-\d+/i.test(branch)) {
               core.info(`Branch name "${branch}" is valid for an external contribution.`);
               return;
             }
