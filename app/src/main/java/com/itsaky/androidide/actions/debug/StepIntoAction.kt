@@ -17,6 +17,6 @@ class StepIntoAction(
     override var tooltipTag = TooltipTag.DEBUGGER_ACTION_STEP_INTO
 
     override suspend fun execAction(data: ActionData) {
-        debugClient.stepInto()
+        debugClient?.stepInto()
     }
 }
