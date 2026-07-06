@@ -18,7 +18,6 @@ import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
-import org.jetbrains.kotlin.analysis.api.fir.diagnostics.KaFirDiagnostic
 import org.slf4j.LoggerFactory
 
 class AddImportAction : BaseKotlinCodeAction() {
@@ -46,14 +45,13 @@ class AddImportAction : BaseKotlinCodeAction() {
 			return
 		}
 
-		val diagnostic = extra.diagnostic as? KaFirDiagnostic.UnresolvedReference?
-		if (diagnostic == null) {
+		val reference = extra.unresolvedReference
+		if (reference == null) {
 			markInvisible()
 			return
 		}
 
 		val env = extra.compilationEnv
-		val reference = diagnostic.reference
 		val hasImportableSymbols = env.ktSymbolIndex
 			.findSymbolBySimpleName(reference, limit = 0)
 			.any { it.kind.isClassifier }
@@ -65,10 +63,10 @@ class AddImportAction : BaseKotlinCodeAction() {
 	}
 
 	override suspend fun execAction(data: ActionData): Map<JvmSymbol, List<TextEdit>> {
-		val (diagnostic, env) = data.require<DiagnosticItem>().extra as? KotlinDiagnosticExtra
+		val (reference, env) = data.require<DiagnosticItem>().extra as? KotlinDiagnosticExtra
 			?: return emptyMap()
 
-		diagnostic as KaFirDiagnostic.UnresolvedReference
+		if (reference == null) return emptyMap()
 
 		val file = data.requireFile()
 		val nioPath = file.toPath()
@@ -77,7 +75,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 			?: return emptyMap()
 
 		return env.ktSymbolIndex
-			.findSymbolBySimpleName(diagnostic.reference, limit = 0)
+			.findSymbolBySimpleName(reference, limit = 0)
 			.filter { it.kind.isClassifier }
 			.associateWith { symbol -> insertImport(ktFile, symbol.fqName) }
 	}
