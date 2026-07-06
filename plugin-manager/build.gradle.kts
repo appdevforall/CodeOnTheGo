@@ -13,6 +13,12 @@ android {
 	}
 }
 
+kotlin {
+	compilerOptions {
+		optIn.add("com.itsaky.androidide.plugins.base.InternalPluginApi")
+	}
+}
+
 dependencies {
 	api(projects.pluginApi)
 

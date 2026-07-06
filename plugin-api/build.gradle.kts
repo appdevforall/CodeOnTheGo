@@ -30,6 +30,7 @@ kotlin {
 
 apiValidation {
 	ignoredClasses.add("com.itsaky.androidide.plugins.api.BuildConfig")
+	nonPublicMarkers.add("com.itsaky.androidide.plugins.base.InternalPluginApi")
 }
 
 dependencies {

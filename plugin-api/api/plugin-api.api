@@ -108,21 +108,18 @@ public abstract interface class com/itsaky/androidide/plugins/ServiceRegistry {
 	public abstract fun unregister (Ljava/lang/Class;)V
 }
 
+public abstract interface annotation class com/itsaky/androidide/plugins/base/InternalPluginApi : java/lang/annotation/Annotation {
+}
+
 public final class com/itsaky/androidide/plugins/base/PluginFragmentHelper {
 	public static final field INSTANCE Lcom/itsaky/androidide/plugins/base/PluginFragmentHelper;
-	public static final fun clearAllContexts ()V
 	public static final fun getCurrentActivityContext (Ljava/lang/String;)Landroid/content/Context;
 	public static final fun getCurrentActivityTheme (Ljava/lang/String;)Landroid/content/res/Resources$Theme;
 	public static final fun getOnPluginInflationError ()Lkotlin/jvm/functions/Function2;
 	public static final fun getPluginContext (Ljava/lang/String;)Landroid/content/Context;
 	public static final fun getPluginInflater (Ljava/lang/String;Landroid/view/LayoutInflater;)Landroid/view/LayoutInflater;
 	public static final fun getServiceRegistry (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/ServiceRegistry;
-	public static final fun registerPluginContext (Ljava/lang/String;Landroid/content/Context;)V
-	public static final fun registerPluginContext (Ljava/lang/String;Landroid/content/Context;Z)V
-	public static synthetic fun registerPluginContext$default (Ljava/lang/String;Landroid/content/Context;ZILjava/lang/Object;)V
-	public static final fun registerServiceRegistry (Ljava/lang/String;Lcom/itsaky/androidide/plugins/ServiceRegistry;)V
 	public static final fun setOnPluginInflationError (Lkotlin/jvm/functions/Function2;)V
-	public static final fun unregisterPluginContext (Ljava/lang/String;)V
 }
 
 public final class com/itsaky/androidide/plugins/base/SafePluginLayoutInflater : android/view/LayoutInflater {
