@@ -85,6 +85,11 @@ jobs:
           echo "Branch name: $BRANCH_NAME"
 
           JIRA_TICKET=""
+          # Push events carry no pull_request payload, so author_association is
+          # not available here; the community/ prefix routes Jira behavior for
+          # in-repo branches, which only write-access users can push. External
+          # contributors are identified by author_association where a PR context
+          # exists: lint-branch-name.yml and the fix version merge check below.
           if [[ "$BRANCH_NAME" == community/* ]]; then
             BRANCH_TYPE="community"
             echo "Community contribution branch detected, Jira steps will be skipped"
