@@ -8,6 +8,8 @@ abstract class AbstractStepAction(
     @DrawableRes iconRes: Int
 ): AbstractDebuggerAction(iconRes) {
 
-    override fun checkEnabled(data: ActionData): Boolean =
-        debugClient.connectionState >= DebuggerConnectionState.AWAITING_BREAKPOINT
+    override fun checkEnabled(data: ActionData): Boolean {
+        val client = debugClient ?: return false
+        return client.connectionState >= DebuggerConnectionState.AWAITING_BREAKPOINT
+    }
 }
