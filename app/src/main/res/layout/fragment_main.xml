@@ -31,6 +31,17 @@
 <!--      app:shapeAppearance="@style/AppTheme.ShapeAppearance.MainFragment.Logo" />-->
 
     <TextView
+      android:id="@+id/versionLabel"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="8dp"
+      android:gravity="center"
+      android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+      android:textColor="?attr/colorOnSurfaceVariant"
+      android:visibility="gone"
+      tools:text="25.47 (C-r-1118-0930)" />
+
+    <TextView
       android:id="@+id/getStarted"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
