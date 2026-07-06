@@ -28,8 +28,8 @@ import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
-import org.appdevforall.codeonthego.layouteditor.ProjectFile
-import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
+import com.itsaky.androidide.databinding.RenameProjectTextinputBinding
+import com.itsaky.androidide.models.ProjectFile
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -219,7 +219,7 @@ class RecentProjectsAdapter(
         val oldName = project.name
         val builder = MaterialAlertDialogBuilder(context).setTitle(R.string.rename_project)
 
-        val binding = TextinputlayoutBinding.inflate(LayoutInflater.from(context))
+        val binding = RenameProjectTextinputBinding.inflate(LayoutInflater.from(context))
         binding.textinputEdittext.setText(project.name)
         binding.textinputLayout.hint = context.getString(R.string.msg_new_project_name)
         val padding = (16 * context.resources.displayMetrics.density).toInt()

@@ -17,6 +17,7 @@ import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
+import com.itsaky.androidide.plugins.extensions.EditorDecorationProvider
 import com.itsaky.androidide.plugins.extensions.FileOpenExtension
 import com.itsaky.androidide.plugins.extensions.SnippetExtension
 import com.itsaky.androidide.plugins.manager.services.IdeSnippetServiceImpl
@@ -792,6 +793,16 @@ class PluginManager private constructor(
             .filter { it.isEnabled }
             .map { it.plugin }
             .filterIsInstance<FileOpenExtension>()
+    }
+
+    /**
+     * Get all enabled plugins that provide editor decorations (additive coloring of editor text).
+     */
+    fun getEnabledEditorDecorationProviders(): List<EditorDecorationProvider> {
+        return loadedPlugins.values
+            .filter { it.isEnabled }
+            .map { it.plugin }
+            .filterIsInstance<EditorDecorationProvider>()
     }
 
     fun notifyFileOpened(file: File) {

@@ -8,6 +8,7 @@ import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
+import com.itsaky.androidide.agent.model.ModelLoadResult
 import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,16 +71,28 @@ class LocalLlmRepositoryImpl(
 
     suspend fun loadModel(modelUriString: String): Boolean {
         onStateUpdate?.invoke(AgentState.Processing("Loading local model..."))
-        val success = engine.initModelFromFile(context, modelUriString)
-        val status =
-            if (success) {
-                context.getString(R.string.agent_local_model_loaded_success)
-            } else {
-                context.getString(R.string.agent_local_model_loaded_failure)
+
+        return when (val result = engine.initModelFromFile(context, modelUriString)) {
+            is ModelLoadResult.Loaded -> {
+                onStateUpdate?.invoke(
+                    AgentState.Processing(context.getString(R.string.agent_local_model_loaded_success))
+                )
+                onStateUpdate?.invoke(AgentState.Idle)
+                true
             }
-        onStateUpdate?.invoke(AgentState.Processing(status))
-        onStateUpdate?.invoke(AgentState.Idle)
-        return success
+
+            is ModelLoadResult.Rejected -> {
+                log.warn("Model rejected: {}", result.message)
+                onStateUpdate?.invoke(AgentState.Error(result.message))
+                false
+            }
+
+            is ModelLoadResult.Failed -> {
+                log.error(result.message, result.cause)
+                onStateUpdate?.invoke(AgentState.Error(result.message))
+                false
+            }
+        }
     }
 
     private val tools: Map<String, Tool> = listOf(

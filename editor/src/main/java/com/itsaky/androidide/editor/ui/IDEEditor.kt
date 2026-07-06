@@ -88,6 +88,7 @@ import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.lang.Language
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.widget.EditorRenderer
 import io.github.rosemoe.sora.widget.EditorSearcher
 import io.github.rosemoe.sora.widget.IDEEditorSearcher
 import io.github.rosemoe.sora.widget.component.EditorAutoCompletion
@@ -521,6 +522,12 @@ constructor(
     // not overridable
     final override fun <T : EditorBuiltinComponent?> getComponent(clazz: Class<T>): T & Any =
         super.getComponent(clazz)
+
+    /** Uses [TracingEditorRenderer], which guards block-line drawing against the
+     * styles.blocks data race that otherwise crashes onDraw. */
+    override fun onCreateRenderer(): EditorRenderer {
+        return TracingEditorRenderer(editor = this)
+    }
 
     override fun release() {
         ensureWindowsDismissed()

@@ -321,9 +321,8 @@ dependencies {
 	implementation(projects.pluginApi)
 	implementation(projects.pluginManager)
 
-	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
-	implementation(projects.composePreview)
+	implementation(projects.floatingWindow)
 	implementation(projects.gitCore)
 
 	// This is to build the tooling-api-impl project before the app is built

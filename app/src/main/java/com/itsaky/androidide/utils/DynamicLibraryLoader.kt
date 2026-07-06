@@ -10,7 +10,7 @@ import java.util.zip.ZipInputStream
 
 object DynamicLibraryLoader {
 
-    private const val LLAMA_LIB_VERSION = 5 // Increment this if you update the AAR
+    private const val LLAMA_LIB_VERSION = 8 // Increment this if you update the AAR
     private const val PREFS_NAME = "dynamic_libs"
     private const val PREFS_KEY = "llama_lib_version"
 

@@ -123,11 +123,11 @@ include(
 	":eventbus",
 	":eventbus-android",
 	":eventbus-events",
+	":floating-window",
 	":git-core",
 	":gradle-plugin",
 	":gradle-plugin-config",
 	":idetooltips",
-	":layouteditor",
 	":lexers",
 	":logger",
 	":logsender",
@@ -140,7 +140,6 @@ include(
 	":templates-impl",
 	":treeview",
 	":uidesigner",
-	":vectormaster",
 	":xml-inflater",
 	":lsp:api",
 	":lsp:models",
@@ -190,8 +189,7 @@ include(
 	":llama-api",
 	":llama-impl",
 	":llama-api",
-	":llama-impl",
-	":compose-preview"
+	":llama-impl"
 )
 
 object FDroidConfig {
