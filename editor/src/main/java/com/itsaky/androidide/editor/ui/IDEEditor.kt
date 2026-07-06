@@ -225,7 +225,8 @@ constructor(
         private const val TAG = "TrackpadScrollDebug"
         private const val SELECTION_CHANGE_DELAY = 500L
         private const val LARGE_FILE_LINE_THRESHOLD = 10000
-
+        private const val FNV_OFFSET_BASIS = -3750763034362895579L
+        private const val FNV_PRIME = 1099511628211L
         internal val log = LoggerFactory.getLogger(IDEEditor::class.java)
 
         /**
@@ -702,11 +703,14 @@ constructor(
         savedContentHash = computeContentHash(content)
     }
 
+    /**
+     * Computes a 64-bit FNV-1a hash of the given content.
+     * Suitable for fast change detection.
+     */
     private fun computeContentHash(content: CharSequence): Long {
-        var hash = -3750763034362895579L // FNV_offset_basis
-        for (i in 0 until content.length) {
-            hash = hash xor content[i].code.toLong()
-            hash *= 1099511628211L // FNV_prime
+        var hash = FNV_OFFSET_BASIS
+        for (i in content.indices) {
+            hash = (hash xor content[i].code.toLong()) * FNV_PRIME
         }
         return hash
     }
