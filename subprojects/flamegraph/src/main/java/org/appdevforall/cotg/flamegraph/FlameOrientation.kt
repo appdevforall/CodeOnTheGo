@@ -8,6 +8,6 @@ package org.appdevforall.cotg.flamegraph
  * - [BottomUp] (classic flame): the root sits at the bottom and the stack grows upward.
  */
 enum class FlameOrientation {
-    TopDown,
-    BottomUp,
+	TopDown,
+	BottomUp,
 }

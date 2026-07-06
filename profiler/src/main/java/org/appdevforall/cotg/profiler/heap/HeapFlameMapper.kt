@@ -5,11 +5,11 @@ import org.appdevforall.cotg.flamegraph.model.FlameNode
 
 /** Which retained quantity drives a heap frame's width. Shallow size is always the heat (self) metric. */
 enum class HeapMetric {
-    /** Frame width = retained bytes (memory freed if the object were collected). */
-    RetainedBytes,
+	/** Frame width = retained bytes (memory freed if the object were collected). */
+	RetainedBytes,
 
-    /** Frame width = number of objects in the retained set. */
-    InstanceCount,
+	/** Frame width = number of objects in the retained set. */
+	InstanceCount,
 }
 
 /**
@@ -22,17 +22,18 @@ enum class HeapMetric {
  * It heat-colors frames by shallow (self) size; the layout honors a node's own color over the palette.
  */
 fun HeapObjectNode.toFlameNode(
-    metric: HeapMetric,
-    id: String = "0",
-    colorOf: (HeapObjectNode) -> Color? = { null },
+	metric: HeapMetric,
+	id: String = "0",
+	colorOf: (HeapObjectNode) -> Color? = { null },
 ): FlameNode<Nothing> =
-    FlameNode(
-        id = id,
-        label = label,
-        value = when (metric) {
-            HeapMetric.RetainedBytes -> retainedBytes.toDouble()
-            HeapMetric.InstanceCount -> retainedCount.toDouble()
-        },
-        color = colorOf(this),
-        children = children.mapIndexed { index, child -> child.toFlameNode(metric, "$id/$index", colorOf) },
-    )
+	FlameNode(
+		id = id,
+		label = label,
+		value =
+			when (metric) {
+				HeapMetric.RetainedBytes -> retainedBytes.toDouble()
+				HeapMetric.InstanceCount -> retainedCount.toDouble()
+			},
+		color = colorOf(this),
+		children = children.mapIndexed { index, child -> child.toFlameNode(metric, "$id/$index", colorOf) },
+	)

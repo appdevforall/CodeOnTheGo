@@ -19,9 +19,13 @@ private val Hot = Color(0xFFD83A2E)
  * single peak. Used by both the CPU flamegraph (self = exclusive time) and the heap flamegraph
  * (self = shallow size).
  */
-fun heatColor(self: Long, max: Long, dark: Boolean): Color {
-    val cold = if (dark) ColdDark else ColdLight
-    if (max <= 0L || self <= 0L) return cold
-    val t = sqrt((self.toFloat() / max.toFloat()).coerceIn(0f, 1f))
-    return if (t <= 0.5f) lerp(cold, Warm, t / 0.5f) else lerp(Warm, Hot, (t - 0.5f) / 0.5f)
+fun heatColor(
+	self: Long,
+	max: Long,
+	dark: Boolean,
+): Color {
+	val cold = if (dark) ColdDark else ColdLight
+	if (max <= 0L || self <= 0L) return cold
+	val t = sqrt((self.toFloat() / max.toFloat()).coerceIn(0f, 1f))
+	return if (t <= 0.5f) lerp(cold, Warm, t / 0.5f) else lerp(Warm, Hot, (t - 0.5f) / 0.5f)
 }

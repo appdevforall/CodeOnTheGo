@@ -32,124 +32,131 @@ import org.appdevforall.cotg.profiler.ui.theme.ProfilerTheme
 
 @Composable
 fun ProcessPicker(
-    processes: List<ProcessInfo>,
-    onSelect: (ProcessInfo) -> Unit,
-    modifier: Modifier = Modifier,
-    emptyMessage: String = "",
+	processes: List<ProcessInfo>,
+	onSelect: (ProcessInfo) -> Unit,
+	modifier: Modifier = Modifier,
+	emptyMessage: String = "",
 ) {
-    val colors = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(Dimens.cornerSm)
+	val colors = MaterialTheme.colorScheme
+	val shape = RoundedCornerShape(Dimens.cornerSm)
 
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .border(Dimens.borderHairline, colors.outlineVariant, shape)
-            .background(colors.surface),
-    ) {
-        if (processes.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(Dimens.paddingLg),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = emptyMessage,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        } else {
-            LazyColumn {
-                itemsIndexed(processes, key = { _, process -> process.pid }) { index, process ->
-                    ProcessRow(process = process, onClick = { onSelect(process) })
-                    if (index < processes.lastIndex) {
-                        HorizontalDivider(
-                            thickness = Dimens.borderHairline,
-                            color = colors.outlineVariant.copy(alpha = 0.4f),
-                        )
-                    }
-                }
-            }
-        }
-    }
+	Column(
+		modifier =
+			modifier
+				.clip(shape)
+				.border(Dimens.borderHairline, colors.outlineVariant, shape)
+				.background(colors.surface),
+	) {
+		if (processes.isEmpty()) {
+			Box(
+				modifier =
+					Modifier
+						.fillMaxSize()
+						.padding(Dimens.paddingLg),
+				contentAlignment = Alignment.Center,
+			) {
+				Text(
+					text = emptyMessage,
+					style = MaterialTheme.typography.bodyMedium,
+					color = colors.onSurfaceVariant,
+					textAlign = TextAlign.Center,
+				)
+			}
+		} else {
+			LazyColumn {
+				itemsIndexed(processes, key = { _, process -> process.pid }) { index, process ->
+					ProcessRow(process = process, onClick = { onSelect(process) })
+					if (index < processes.lastIndex) {
+						HorizontalDivider(
+							thickness = Dimens.borderHairline,
+							color = colors.outlineVariant.copy(alpha = 0.4f),
+						)
+					}
+				}
+			}
+		}
+	}
 }
 
 @Composable
 private fun ProcessRow(
-    process: ProcessInfo,
-    onClick: () -> Unit,
+	process: ProcessInfo,
+	onClick: () -> Unit,
 ) {
-    val colors = MaterialTheme.colorScheme
+	val colors = MaterialTheme.colorScheme
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = Dimens.paddingMd, vertical = Dimens.paddingXs),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimens.paddingXxs),
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = process.label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = stringResource(
-                    R.string.profiler_process_picker_pid,
-                    process.packageName,
-                    process.pid
-                ),
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                color = colors.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(Dimens.paddingXxs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (process.debuggable) CapabilityBadge(text = stringResource(R.string.profiler_process_picker_debuggable))
-            if (process.profileable) CapabilityBadge(text = stringResource(R.string.profiler_process_picker_profileable))
-        }
-    }
+	Row(
+		modifier =
+			Modifier
+				.fillMaxWidth()
+				.clickable(onClick = onClick)
+				.padding(horizontal = Dimens.paddingMd, vertical = Dimens.paddingXs),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(Dimens.paddingXxs),
+	) {
+		Column(modifier = Modifier.weight(1f)) {
+			Text(
+				text = process.label,
+				style = MaterialTheme.typography.bodyMedium,
+				color = colors.onSurface,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+			)
+			Text(
+				text =
+					stringResource(
+						R.string.profiler_process_picker_pid,
+						process.packageName,
+						process.pid,
+					),
+				style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+				color = colors.onSurfaceVariant,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+			)
+		}
+		Row(
+			horizontalArrangement = Arrangement.spacedBy(Dimens.paddingXxs),
+			verticalAlignment = Alignment.CenterVertically,
+		) {
+			if (process.debuggable) CapabilityBadge(text = stringResource(R.string.profiler_process_picker_debuggable))
+			if (process.profileable) CapabilityBadge(text = stringResource(R.string.profiler_process_picker_profileable))
+		}
+	}
 }
 
 @Composable
 private fun CapabilityBadge(text: String) {
-    val colors = MaterialTheme.colorScheme
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelSmall,
-        color = colors.onSurfaceVariant,
-        modifier = Modifier
-            .clip(RoundedCornerShape(percent = 50))
-            .background(colors.surfaceVariant)
-            .padding(horizontal = Dimens.paddingXs, vertical = Dimens.paddingXxs),
-    )
+	val colors = MaterialTheme.colorScheme
+	Text(
+		text = text,
+		style = MaterialTheme.typography.labelSmall,
+		color = colors.onSurfaceVariant,
+		modifier =
+			Modifier
+				.clip(RoundedCornerShape(percent = 50))
+				.background(colors.surfaceVariant)
+				.padding(horizontal = Dimens.paddingXs, vertical = Dimens.paddingXxs),
+	)
 }
 
 @Preview
 @Composable
 private fun ProcessPickerPreview() {
-    ProfilerTheme {
-        ProcessPicker(
-            processes = listOf(
-                ProcessInfo(1287, "com.example.app", "Example App", debuggable = true, profileable = true),
-                ProcessInfo(1422, "com.example.app:service", "Example App (service)", debuggable = true, profileable = false),
-                ProcessInfo(2051, "org.appdevforall.cotg", "Code on the Go", debuggable = false, profileable = true),
-                ProcessInfo(3310, "com.example.game", "Example Game", debuggable = false, profileable = true),
-            ),
-            onSelect = {},
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(Dimens.paddingMd),
-        )
-    }
+	ProfilerTheme {
+		ProcessPicker(
+			processes =
+				listOf(
+					ProcessInfo(1287, "com.example.app", "Example App", debuggable = true, profileable = true),
+					ProcessInfo(1422, "com.example.app:service", "Example App (service)", debuggable = true, profileable = false),
+					ProcessInfo(2051, "org.appdevforall.cotg", "Code on the Go", debuggable = false, profileable = true),
+					ProcessInfo(3310, "com.example.game", "Example Game", debuggable = false, profileable = true),
+				),
+			onSelect = {},
+			modifier =
+				Modifier
+					.fillMaxSize()
+					.padding(Dimens.paddingMd),
+		)
+	}
 }

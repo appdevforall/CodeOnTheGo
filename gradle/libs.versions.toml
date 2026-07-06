@@ -66,6 +66,8 @@ libsu-core = "6.0.0"
 ## put it in app/src/main/jniLibs
 brotli4j = "1.18.0"
 spotless = "7.2.1"
+# compose-rules ktlint ruleset; 0.4.23 targets ktlint 1.5.0 (spotless 7.2.1's bundled ktlint)
+composeRulesKtlint = "0.4.23"
 fragmentKtx = "1.8.8"
 
 protobuf = "4.32.1"
@@ -83,6 +85,9 @@ pebble = "4.1.1"
 
 
 [libraries]
+
+# ktlint ruleset for Jetpack Compose (used by spotless via customRuleSets)
+compose-rules-ktlint = { module = "io.nlopez.compose.rules:ktlint", version.ref = "composeRulesKtlint" }
 
 # Dependencies in composite build
 androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref = "activityKtx" }

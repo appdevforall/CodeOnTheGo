@@ -30,10 +30,10 @@ class DebugAction(
 	context: Context,
 	override val order: Int,
 ) : AbstractRunAction(
-	context = context,
-	labelRes = R.string.action_start_debugger,
-	iconRes = R.drawable.ic_db_startdebugger,
-) {
+		context = context,
+		labelRes = R.string.action_start_debugger,
+		iconRes = R.drawable.ic_db_startdebugger,
+	) {
 	override val id = ID
 
 	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_DEBUG
@@ -66,8 +66,9 @@ class DebugAction(
 			return false
 		}
 
-		val javaLsp = ILanguageServerRegistry.default
-			.getServer(JavaLanguageServer.SERVER_ID)
+		val javaLsp =
+			ILanguageServerRegistry.default
+				.getServer(JavaLanguageServer.SERVER_ID)
 		if (javaLsp?.debugAdapter?.isReady != true
 		) {
 			withContext(Dispatchers.Main.immediate) {
@@ -79,28 +80,30 @@ class DebugAction(
 		if (!canShowPairingNotification(activity)) {
 			withContext(Dispatchers.Main.immediate) {
 				showNotificationPermissionDialog(activity, onError = {
-                    log.error("Failed to open notification settings", it) })
+					log.error("Failed to open notification settings", it)
+				})
 			}
 			return false
 		}
 
-        val overlayState = withContext(Dispatchers.Main.immediate) {
-            PermissionsHelper.getOverlayPermissionState(activity)
-        }
+		val overlayState =
+			withContext(Dispatchers.Main.immediate) {
+				PermissionsHelper.getOverlayPermissionState(activity)
+			}
 
-        if (overlayState != PermissionsHelper.OverlayPermissionState.GRANTED) {
-            handleMissingOverlayPermission(activity, overlayState, onError = {
-                log.error("Failed to launch overlay settings", it)
-            })
-            return false
-        }
+		if (overlayState != PermissionsHelper.OverlayPermissionState.GRANTED) {
+			handleMissingOverlayPermission(activity, overlayState, onError = {
+				log.error("Failed to launch overlay settings", it)
+			})
+			return false
+		}
 
 		if (!Shizuku.pingBinder()) {
 			log.error("Shizuku service is not running")
 			withContext(Dispatchers.Main.immediate) {
 				showPairingDialog(activity, log = log, onError = {
-                    log.error("Failed to open developer options", it)
-                })
+					log.error("Failed to open developer options", it)
+				})
 			}
 			return false
 		}

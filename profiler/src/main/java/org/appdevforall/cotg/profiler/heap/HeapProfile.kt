@@ -16,11 +16,11 @@ import org.appdevforall.cotg.profiler.ui.components.ProfilerTableRow
  */
 @Immutable
 data class HeapObjectNode(
-    val label: String,
-    val shallowBytes: Long,
-    val retainedBytes: Long,
-    val retainedCount: Long,
-    val children: List<HeapObjectNode>,
+	val label: String,
+	val shallowBytes: Long,
+	val retainedBytes: Long,
+	val retainedCount: Long,
+	val children: List<HeapObjectNode>,
 )
 
 /**
@@ -30,8 +30,8 @@ data class HeapObjectNode(
  */
 @Immutable
 data class HeapProfile(
-    val root: HeapObjectNode,
-    val totalRetainedBytes: Long,
-    val totalObjects: Long,
-    val rows: List<ProfilerTableRow>,
+	val root: HeapObjectNode,
+	val totalRetainedBytes: Long,
+	val totalObjects: Long,
+	val rows: List<ProfilerTableRow>,
 )

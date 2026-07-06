@@ -13,13 +13,13 @@ import org.appdevforall.cotg.flamegraph.model.FlameNode
  * color over the palette.
  */
 fun CpuCallNode.toFlameNode(
-    id: String = "0",
-    colorOf: (CpuCallNode) -> Color? = { null },
+	id: String = "0",
+	colorOf: (CpuCallNode) -> Color? = { null },
 ): FlameNode<Nothing> =
-    FlameNode(
-        id = id,
-        label = name,
-        value = totalMicros.toDouble(),
-        color = colorOf(this),
-        children = children.mapIndexed { index, child -> child.toFlameNode("$id/$index", colorOf) },
-    )
+	FlameNode(
+		id = id,
+		label = name,
+		value = totalMicros.toDouble(),
+		color = colorOf(this),
+		children = children.mapIndexed { index, child -> child.toFlameNode("$id/$index", colorOf) },
+	)

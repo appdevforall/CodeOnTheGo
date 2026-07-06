@@ -10,11 +10,15 @@ import org.appdevforall.cotg.profiler.heap.HeapProfile
  */
 @Immutable
 sealed interface ProfilerReport {
-    /** Heap dump result: the object dominator tree (flamegraph) + per-class histogram (table). */
-    @Immutable
-    data class HeapDump(val profile: HeapProfile) : ProfilerReport
+	/** Heap dump result: the object dominator tree (flamegraph) + per-class histogram (table). */
+	@Immutable
+	data class HeapDump(
+		val profile: HeapProfile,
+	) : ProfilerReport
 
-    /** CPU sampling result: the aggregated call tree + per-method table (flamegraph-ready). */
-    @Immutable
-    data class CpuSampling(val profile: CpuProfile) : ProfilerReport
+	/** CPU sampling result: the aggregated call tree + per-method table (flamegraph-ready). */
+	@Immutable
+	data class CpuSampling(
+		val profile: CpuProfile,
+	) : ProfilerReport
 }

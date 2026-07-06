@@ -187,7 +187,10 @@ spotless {
 	}
 
 	kotlin {
-		ktlint()
+		// compose-rules ruleset validates @Composable naming/conventions so we can enable
+		// PascalCase Composables (see ktlint_function_naming_ignore_when_annotated_with in .editorconfig)
+		val composeRulesKtlint = libs.compose.rules.ktlint.get()
+		ktlint().customRuleSets(listOf("${composeRulesKtlint.module}:${composeRulesKtlint.version}"))
 		leadingSpacesToTabs()
 		trimTrailingWhitespace()
 		endWithNewline()

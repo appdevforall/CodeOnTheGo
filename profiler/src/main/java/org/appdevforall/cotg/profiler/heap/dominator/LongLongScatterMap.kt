@@ -21,362 +21,363 @@ package org.appdevforall.cotg.profiler.heap.dominator
 
 import java.util.Locale
 
-internal class LongLongScatterMap constructor(expectedElements: Int = 4) {
+internal class LongLongScatterMap constructor(
+	expectedElements: Int = 4,
+) {
+	fun interface ForEachCallback {
+		fun onEntry(
+			key: Long,
+			value: Long,
+		)
+	}
 
-  fun interface ForEachCallback {
-    fun onEntry(key: Long, value: Long)
-  }
+	/**
+	 * The array holding keys.
+	 */
+	private var keys: LongArray = longArrayOf()
 
-  /**
-   * The array holding keys.
-   */
-  private var keys: LongArray = longArrayOf()
+	/**
+	 * The array holding values.
+	 */
+	private var values: LongArray = longArrayOf()
 
-  /**
-   * The array holding values.
-   */
-  private var values: LongArray = longArrayOf()
+	/**
+	 * The number of stored keys (assigned key slots), excluding the special
+	 * "empty" key, if any (use [.size] instead).
+	 *
+	 * @see .size
+	 */
+	private var assigned: Int = 0
 
-  /**
-   * The number of stored keys (assigned key slots), excluding the special
-   * "empty" key, if any (use [.size] instead).
-   *
-   * @see .size
-   */
-  private var assigned: Int = 0
+	/**
+	 * Mask for slot scans in [.keys].
+	 */
+	private var mask: Int = 0
 
-  /**
-   * Mask for slot scans in [.keys].
-   */
-  private var mask: Int = 0
+	/**
+	 * Expand (rehash) [.keys] when [.assigned] hits this value.
+	 */
+	private var resizeAt: Int = 0
 
-  /**
-   * Expand (rehash) [.keys] when [.assigned] hits this value.
-   */
-  private var resizeAt: Int = 0
+	/**
+	 * Special treatment for the "empty slot" key marker.
+	 */
+	private var hasEmptyKey: Boolean = false
 
-  /**
-   * Special treatment for the "empty slot" key marker.
-   */
-  private var hasEmptyKey: Boolean = false
+	/**
+	 * The load factor for [.keys].
+	 */
+	private var loadFactor: Double = 0.75
 
-  /**
-   * The load factor for [.keys].
-   */
-  private var loadFactor: Double = 0.75
+	val isEmpty: Boolean
+		get() = size == 0
 
-  val isEmpty: Boolean
-    get() = size == 0
+	init {
+		ensureCapacity(expectedElements)
+	}
 
-  init {
-    ensureCapacity(expectedElements)
-  }
+	operator fun set(
+		key: Long,
+		value: Long,
+	): Long {
+		val mask = this.mask
+		if (key == 0L) {
+			hasEmptyKey = true
+			val previousValue = values[mask + 1]
+			values[mask + 1] = value
+			return previousValue
+		} else {
+			val keys = this.keys
+			var slot = hashKey(key) and mask
 
-  operator fun set(
-    key: Long,
-    value: Long
-  ): Long {
-    val mask = this.mask
-    if (key == 0L) {
-      hasEmptyKey = true
-      val previousValue = values[mask + 1]
-      values[mask + 1] = value
-      return previousValue
-    } else {
-      val keys = this.keys
-      var slot = hashKey(key) and mask
+			var existing = keys[slot]
+			while (existing != 0L) {
+				if (existing == key) {
+					val previousValue = values[slot]
+					values[slot] = value
+					return previousValue
+				}
+				slot = slot + 1 and mask
+				existing = keys[slot]
+			}
 
-      var existing = keys[slot]
-      while (existing != 0L) {
-        if (existing == key) {
-          val previousValue = values[slot]
-          values[slot] = value
-          return previousValue
-        }
-        slot = slot + 1 and mask
-        existing = keys[slot]
-      }
+			if (assigned == resizeAt) {
+				allocateThenInsertThenRehash(slot, key, value)
+			} else {
+				keys[slot] = key
+				values[slot] = value
+			}
 
-      if (assigned == resizeAt) {
-        allocateThenInsertThenRehash(slot, key, value)
-      } else {
-        keys[slot] = key
-        values[slot] = value
-      }
+			assigned++
+			return 0L
+		}
+	}
 
-      assigned++
-      return 0L
-    }
-  }
+	fun remove(key: Long): Long {
+		val mask = this.mask
+		if (key == 0L) {
+			hasEmptyKey = false
+			val previousValue = values[mask + 1]
+			values[mask + 1] = 0L
+			return previousValue
+		} else {
+			val keys = this.keys
+			var slot = hashKey(key) and mask
 
-  fun remove(key: Long): Long {
-    val mask = this.mask
-    if (key == 0L) {
-      hasEmptyKey = false
-      val previousValue = values[mask + 1]
-      values[mask + 1] = 0L
-      return previousValue
-    } else {
-      val keys = this.keys
-      var slot = hashKey(key) and mask
+			var existing = keys[slot]
+			while (existing != 0L) {
+				if (existing == key) {
+					val previousValue = values[slot]
+					shiftConflictingKeys(slot)
+					return previousValue
+				}
+				slot = slot + 1 and mask
+				existing = keys[slot]
+			}
 
-      var existing = keys[slot]
-      while (existing != 0L) {
-        if (existing == key) {
-          val previousValue = values[slot]
-          shiftConflictingKeys(slot)
-          return previousValue
-        }
-        slot = slot + 1 and mask
-        existing = keys[slot]
-      }
+			return 0L
+		}
+	}
 
-      return 0L
-    }
-  }
+	/**
+	 * Being given a key looks it up in the map and returns the slot where element sits, so it later
+	 * can be retrieved with [getSlotValue]; return '-1' if element not found.
+	 * Why so complicated and not just make [get] return null if value not found? The reason is performance:
+	 * this approach prevents unnecessary boxing of the primitive long that would happen with nullable Long?
+	 */
+	fun getSlot(key: Long): Int {
+		if (key == 0L) {
+			return if (hasEmptyKey) mask + 1 else -1
+		} else {
+			val keys = this.keys
+			val mask = this.mask
+			var slot = hashKey(key) and mask
 
-  /**
-   * Being given a key looks it up in the map and returns the slot where element sits, so it later
-   * can be retrieved with [getSlotValue]; return '-1' if element not found.
-   * Why so complicated and not just make [get] return null if value not found? The reason is performance:
-   * this approach prevents unnecessary boxing of the primitive long that would happen with nullable Long?
-   */
-  fun getSlot(key: Long): Int {
-    if (key == 0L) {
-      return if (hasEmptyKey) mask + 1 else -1
-    } else {
-      val keys = this.keys
-      val mask = this.mask
-      var slot = hashKey(key) and mask
+			var existing = keys[slot]
+			while (existing != 0L) {
+				if (existing == key) {
+					return slot
+				}
+				slot = slot + 1 and mask
+				existing = keys[slot]
+			}
 
-      var existing = keys[slot]
-      while (existing != 0L) {
-        if (existing == key) {
-          return slot
-        }
-        slot = slot + 1 and mask
-        existing = keys[slot]
-      }
+			return -1
+		}
+	}
 
-      return -1
-    }
-  }
+	/**
+	 * Being given a slot of element retrieves it from the collection
+	 */
+	fun getSlotValue(slot: Int): Long = values[slot]
 
-  /**
-   * Being given a slot of element retrieves it from the collection
-   */
-  fun getSlotValue(slot: Int): Long = values[slot]
+	/**
+	 * Returns an element matching a provided [key]; throws [IllegalArgumentException] if element not found
+	 */
+	operator fun get(key: Long): Long {
+		val slot = getSlot(key)
+		require(slot != -1) { "Unknown key $key" }
 
-  /**
-   * Returns an element matching a provided [key]; throws [IllegalArgumentException] if element not found
-   */
-  operator fun get(key: Long): Long {
-    val slot = getSlot(key)
-    require(slot != -1) { "Unknown key $key" }
+		return getSlotValue(slot)
+	}
 
-    return getSlotValue(slot)
-  }
+	fun forEach(forEachCallback: ForEachCallback) {
+		val max = mask + 1
+		var slot = -1
 
-  fun forEach(forEachCallback: ForEachCallback) {
-    val max = mask + 1
-    var slot = -1
+		exitWhile@ while (true) {
+			if (slot < max) {
+				var existing: Long
+				slot++
+				while (slot < max) {
+					existing = keys[slot]
+					if (existing != 0L) {
+						forEachCallback.onEntry(existing, values[slot])
+						continue@exitWhile
+					}
+					slot++
+				}
+			}
 
-    exitWhile@ while (true) {
-      if (slot < max) {
-        var existing: Long
-        slot++
-        while (slot < max) {
-          existing = keys[slot]
-          if (existing != 0L) {
-            forEachCallback.onEntry(existing, values[slot])
-            continue@exitWhile
-          }
-          slot++
-        }
-      }
+			if (slot == max && hasEmptyKey) {
+				slot++
+				forEachCallback.onEntry(0L, values[max])
+				continue@exitWhile
+			}
+			break@exitWhile
+		}
+	}
 
-      if (slot == max && hasEmptyKey) {
-        slot++
-        forEachCallback.onEntry(0L, values[max])
-        continue@exitWhile
-      }
-      break@exitWhile
-    }
-  }
+	fun containsKey(key: Long): Boolean {
+		if (key == 0L) {
+			return hasEmptyKey
+		} else {
+			val keys = this.keys
+			val mask = this.mask
+			var slot = hashKey(key) and mask
 
-  fun containsKey(key: Long): Boolean {
-    if (key == 0L) {
-      return hasEmptyKey
-    } else {
-      val keys = this.keys
-      val mask = this.mask
-      var slot = hashKey(key) and mask
+			var existing = keys[slot]
+			while (existing != 0L) {
+				if (existing == key) {
+					return true
+				}
+				slot = slot + 1 and mask
+				existing = keys[slot]
+			}
 
-      var existing = keys[slot]
-      while (existing != 0L) {
-        if (existing == key) {
-          return true
-        }
-        slot = slot + 1 and mask
-        existing = keys[slot]
-      }
+			return false
+		}
+	}
 
-      return false
-    }
-  }
+	fun release() {
+		assigned = 0
+		hasEmptyKey = false
 
-  fun release() {
-    assigned = 0
-    hasEmptyKey = false
+		allocateBuffers(HPPC.minBufferSize(4, loadFactor))
+	}
 
-    allocateBuffers(HPPC.minBufferSize(4, loadFactor))
-  }
+	val size: Int
+		get() {
+			return assigned + if (hasEmptyKey) 1 else 0
+		}
 
-  val size: Int
-    get() {
-      return assigned + if (hasEmptyKey) 1 else 0
-    }
+	fun ensureCapacity(expectedElements: Int) {
+		if (expectedElements > resizeAt) {
+			val prevKeys = this.keys
+			val prevValues = this.values
+			allocateBuffers(HPPC.minBufferSize(expectedElements, loadFactor))
+			if (!isEmpty) {
+				rehash(prevKeys, prevValues)
+			}
+		}
+	}
 
-  fun ensureCapacity(expectedElements: Int) {
-    if (expectedElements > resizeAt) {
-      val prevKeys = this.keys
-      val prevValues = this.values
-      allocateBuffers(HPPC.minBufferSize(expectedElements, loadFactor))
-      if (!isEmpty) {
-        rehash(prevKeys, prevValues)
-      }
-    }
-  }
+	private fun hashKey(key: Long): Int = HPPC.mixPhi(key)
 
-  private fun hashKey(key: Long): Int {
-    return HPPC.mixPhi(key)
-  }
+	/**
+	 * Rehash from old buffers to new buffers.
+	 */
+	private fun rehash(
+		fromKeys: LongArray,
+		fromValues: LongArray,
+	) {
+		// Rehash all stored key/value pairs into the new buffers.
+		val keys = this.keys
+		val values = this.values
+		val mask = this.mask
+		var existing: Long
 
-  /**
-   * Rehash from old buffers to new buffers.
-   */
-  private fun rehash(
-    fromKeys: LongArray,
-    fromValues: LongArray
-  ) {
-    // Rehash all stored key/value pairs into the new buffers.
-    val keys = this.keys
-    val values = this.values
-    val mask = this.mask
-    var existing: Long
+		// Copy the zero element's slot, then rehash everything else.
+		var from = fromKeys.size - 1
+		keys[keys.size - 1] = fromKeys[from]
+		values[values.size - 1] = fromValues[from]
+		while (--from >= 0) {
+			existing = fromKeys[from]
+			if (existing != 0L) {
+				var slot = hashKey(existing) and mask
+				while (keys[slot] != 0L) {
+					slot = slot + 1 and mask
+				}
+				keys[slot] = existing
+				values[slot] = fromValues[from]
+			}
+		}
+	}
 
-    // Copy the zero element's slot, then rehash everything else.
-    var from = fromKeys.size - 1
-    keys[keys.size - 1] = fromKeys[from]
-    values[values.size - 1] = fromValues[from]
-    while (--from >= 0) {
-      existing = fromKeys[from]
-      if (existing != 0L) {
-        var slot = hashKey(existing) and mask
-        while (keys[slot] != 0L) {
-          slot = slot + 1 and mask
-        }
-        keys[slot] = existing
-        values[slot] = fromValues[from]
-      }
-    }
-  }
+	/**
+	 * Allocate new internal buffers. This method attempts to allocate
+	 * and assign internal buffers atomically (either allocations succeed or not).
+	 */
+	private fun allocateBuffers(arraySize: Int) {
+		// Ensure no change is done if we hit an OOM.
+		val prevKeys = this.keys
+		val prevValues = this.values
+		try {
+			val emptyElementSlot = 1
+			this.keys = LongArray(arraySize + emptyElementSlot)
+			this.values = LongArray(arraySize + emptyElementSlot)
+		} catch (e: OutOfMemoryError) {
+			this.keys = prevKeys
+			this.values = prevValues
+			throw RuntimeException(
+				String.format(
+					Locale.ROOT,
+					"Not enough memory to allocate buffers for rehashing: %d -> %d",
+					this.mask + 1,
+					arraySize,
+				),
+				e,
+			)
+		}
 
-  /**
-   * Allocate new internal buffers. This method attempts to allocate
-   * and assign internal buffers atomically (either allocations succeed or not).
-   */
-  private fun allocateBuffers(arraySize: Int) {
+		this.resizeAt = HPPC.expandAtCount(arraySize, loadFactor)
+		this.mask = arraySize - 1
+	}
 
-    // Ensure no change is done if we hit an OOM.
-    val prevKeys = this.keys
-    val prevValues = this.values
-    try {
-      val emptyElementSlot = 1
-      this.keys = LongArray(arraySize + emptyElementSlot)
-      this.values = LongArray(arraySize + emptyElementSlot)
-    } catch (e: OutOfMemoryError) {
-      this.keys = prevKeys
-      this.values = prevValues
-      throw RuntimeException(
-        String.format(
-          Locale.ROOT,
-          "Not enough memory to allocate buffers for rehashing: %d -> %d",
-          this.mask + 1,
-          arraySize
-        ), e
-      )
-    }
+	/**
+	 * This method is invoked when there is a new key/ value pair to be inserted into
+	 * the buffers but there is not enough empty slots to do so.
+	 *
+	 * New buffers are allocated. If this succeeds, we know we can proceed
+	 * with rehashing so we assign the pending element to the previous buffer
+	 * (possibly violating the invariant of having at least one empty slot)
+	 * and rehash all keys, substituting new buffers at the end.
+	 */
+	private fun allocateThenInsertThenRehash(
+		slot: Int,
+		pendingKey: Long,
+		pendingValue: Long,
+	) {
+		// Try to allocate new buffers first. If we OOM, we leave in a consistent state.
+		val prevKeys = this.keys
+		val prevValues = this.values
+		allocateBuffers(HPPC.nextBufferSize(mask + 1, size, loadFactor))
 
-    this.resizeAt = HPPC.expandAtCount(arraySize, loadFactor)
-    this.mask = arraySize - 1
-  }
+		// We have succeeded at allocating new data so insert the pending key/value at
+		// the free slot in the old arrays before rehashing.
+		prevKeys[slot] = pendingKey
+		prevValues[slot] = pendingValue
 
-  /**
-   * This method is invoked when there is a new key/ value pair to be inserted into
-   * the buffers but there is not enough empty slots to do so.
-   *
-   * New buffers are allocated. If this succeeds, we know we can proceed
-   * with rehashing so we assign the pending element to the previous buffer
-   * (possibly violating the invariant of having at least one empty slot)
-   * and rehash all keys, substituting new buffers at the end.
-   */
-  private fun allocateThenInsertThenRehash(
-    slot: Int,
-    pendingKey: Long,
-    pendingValue: Long
-  ) {
+		// Rehash old keys, including the pending key.
+		rehash(prevKeys, prevValues)
+	}
 
-    // Try to allocate new buffers first. If we OOM, we leave in a consistent state.
-    val prevKeys = this.keys
-    val prevValues = this.values
-    allocateBuffers(HPPC.nextBufferSize(mask + 1, size, loadFactor))
+	/**
+	 * Shift all the slot-conflicting keys and values allocated to
+	 * (and including) `slot`.
+	 */
+	private fun shiftConflictingKeys(gapSlotArg: Int) {
+		var gapSlot = gapSlotArg
+		val keys = this.keys
+		val values = this.values
+		val mask = this.mask
 
-    // We have succeeded at allocating new data so insert the pending key/value at
-    // the free slot in the old arrays before rehashing.
-    prevKeys[slot] = pendingKey
-    prevValues[slot] = pendingValue
+		// Perform shifts of conflicting keys to fill in the gap.
+		var distance = 0
+		while (true) {
+			val slot = gapSlot + ++distance and mask
+			val existing = keys[slot]
+			if (existing == 0L) {
+				break
+			}
 
-    // Rehash old keys, including the pending key.
-    rehash(prevKeys, prevValues)
-  }
+			val idealSlot = hashKey(existing)
+			val shift = slot - idealSlot and mask
+			if (shift >= distance) {
+				// Entry at this position was originally at or before the gap slot.
+				// Move the conflict-shifted entry to the gap's position and repeat the procedure
+				// for any entries to the right of the current position, treating it
+				// as the new gap.
+				keys[gapSlot] = existing
+				values[gapSlot] = values[slot]
+				gapSlot = slot
+				distance = 0
+			}
+		}
 
-  /**
-   * Shift all the slot-conflicting keys and values allocated to
-   * (and including) `slot`.
-   */
-  private fun shiftConflictingKeys(gapSlotArg: Int) {
-    var gapSlot = gapSlotArg
-    val keys = this.keys
-    val values = this.values
-    val mask = this.mask
-
-    // Perform shifts of conflicting keys to fill in the gap.
-    var distance = 0
-    while (true) {
-      val slot = gapSlot + ++distance and mask
-      val existing = keys[slot]
-      if (existing == 0L) {
-        break
-      }
-
-      val idealSlot = hashKey(existing)
-      val shift = slot - idealSlot and mask
-      if (shift >= distance) {
-        // Entry at this position was originally at or before the gap slot.
-        // Move the conflict-shifted entry to the gap's position and repeat the procedure
-        // for any entries to the right of the current position, treating it
-        // as the new gap.
-        keys[gapSlot] = existing
-        values[gapSlot] = values[slot]
-        gapSlot = slot
-        distance = 0
-      }
-    }
-
-    // Mark the last found gap slot without a conflict as empty.
-    keys[gapSlot] = 0L
-    values[gapSlot] = 0L
-    assigned--
-  }
+		// Mark the last found gap slot without a conflict as empty.
+		keys[gapSlot] = 0L
+		values[gapSlot] = 0L
+		assigned--
+	}
 }

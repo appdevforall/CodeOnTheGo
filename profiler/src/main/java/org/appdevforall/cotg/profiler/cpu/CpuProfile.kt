@@ -5,8 +5,8 @@ import androidx.compose.runtime.Immutable
 /** A single live CPU-usage data point streamed while recording. */
 @Immutable
 data class CpuSample(
-    val elapsedMillis: Long,
-    val cpuPercent: Float,
+	val elapsedMillis: Long,
+	val cpuPercent: Float,
 )
 
 /**
@@ -16,20 +16,20 @@ data class CpuSample(
  */
 @Immutable
 data class CpuCallNode(
-    val name: String,
-    val selfMicros: Long,
-    val totalMicros: Long,
-    val children: List<CpuCallNode>,
+	val name: String,
+	val selfMicros: Long,
+	val totalMicros: Long,
+	val children: List<CpuCallNode>,
 )
 
 /** One row of the per-method table (aggregated across the whole profile). */
 @Immutable
 data class CpuMethodRow(
-    val name: String,
-    val totalMicros: Long,
-    val totalPercent: Float,
-    val childrenMicros: Long,
-    val childrenPercent: Float,
+	val name: String,
+	val totalMicros: Long,
+	val totalPercent: Float,
+	val childrenMicros: Long,
+	val childrenPercent: Float,
 )
 
 /**
@@ -38,7 +38,7 @@ data class CpuMethodRow(
  */
 @Immutable
 data class CpuProfile(
-    val root: CpuCallNode,
-    val totalMicros: Long,
-    val methods: List<CpuMethodRow>,
+	val root: CpuCallNode,
+	val totalMicros: Long,
+	val methods: List<CpuMethodRow>,
 )

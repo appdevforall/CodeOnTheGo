@@ -17,14 +17,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 
-
-class ProfilerAction(context: Context, override val order: Int) :
-	AbstractRunAction(
+class ProfilerAction(
+	context: Context,
+	override val order: Int,
+) : AbstractRunAction(
 		context = context,
 		labelRes = R.string.quick_run_debug,
-		iconRes = R.drawable.ic_profiler
+		iconRes = R.drawable.ic_profiler,
 	) {
-
 	override val id: String = ID
 
 	// Build a profileable APK: the Gradle plugin reads this property and applies
@@ -35,45 +35,44 @@ class ProfilerAction(context: Context, override val order: Int) :
 		const val ID = "ide.editor.build.profiler"
 	}
 
-	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
-		"" // todo: get a documentation tooltip!
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = "" // todo: get a documentation tooltip!
 
-    override fun prepare(data: ActionData) {
-        super.prepare(data)
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-        if (IProjectManager.getInstance().isPluginProject()) {
-            visible = false
-            return
-        }
+		if (IProjectManager.getInstance().isPluginProject()) {
+			visible = false
+			return
+		}
 
-        val buildIsInProgress = data.getActivity().isBuildInProgress()
+		val buildIsInProgress = data.getActivity().isBuildInProgress()
 
-        enabled = !(Shizuku.pingBinder()) || (!buildIsInProgress)
-    }
+		enabled = !(Shizuku.pingBinder()) || (!buildIsInProgress)
+	}
 
-    @RequiresApi(Build.VERSION_CODES.R)
-    override suspend fun preExec(data: ActionData): Boolean {
-        val activity = data.requireActivity()
+	@RequiresApi(Build.VERSION_CODES.R)
+	override suspend fun preExec(data: ActionData): Boolean {
+		val activity = data.requireActivity()
 
-        if (!canShowPairingNotification(activity)) {
-            withContext(Dispatchers.Main.immediate) {
-                showNotificationPermissionDialog(activity, onError = {
-                    log.error("Failed to open notification settings", it)
-                })
-            }
-            return false
-        }
+		if (!canShowPairingNotification(activity)) {
+			withContext(Dispatchers.Main.immediate) {
+				showNotificationPermissionDialog(activity, onError = {
+					log.error("Failed to open notification settings", it)
+				})
+			}
+			return false
+		}
 
-        if (!Shizuku.pingBinder()) {
-            log.error("Shizuku service is not running")
-            withContext(Dispatchers.Main.immediate) {
-                showPairingDialog(activity, log = log, onError = {
-                    log.error("Failed to open developer options", it)
-                })
-            }
-            return false
-        }
+		if (!Shizuku.pingBinder()) {
+			log.error("Shizuku service is not running")
+			withContext(Dispatchers.Main.immediate) {
+				showPairingDialog(activity, log = log, onError = {
+					log.error("Failed to open developer options", it)
+				})
+			}
+			return false
+		}
 
-        return Shizuku.pingBinder()
-    }
+		return Shizuku.pingBinder()
+	}
 }

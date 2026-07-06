@@ -46,9 +46,11 @@ class CpuProfilingSession(
 
 	private var recordProcess: Process? = null
 	private var recordPid: Int = -1
+
 	/** The report-sample process, tracked (volatile) so [cancel] can kill it from another thread. */
 	@Volatile
 	private var reportProcess: Process? = null
+
 	@Volatile
 	private var sampler: ScheduledExecutorService? = null
 	private var startNanos = 0L
@@ -76,14 +78,19 @@ class CpuProfilingSession(
 			buildList {
 				add(SIMPLEPERF)
 				add("record")
-				add("-e"); add("cpu-clock")
-				add("-f"); add("4000")
+				add("-e")
+				add("cpu-clock")
+				add("-f")
+				add("4000")
 				add("-g")
 				if (!packageName.isNullOrBlank()) {
-					add("--app"); add(packageName)
+					add("--app")
+					add(packageName)
 				}
-				add("-p"); add(pid.toString())
-				add("-o"); add(perfDataPath)
+				add("-p")
+				add(pid.toString())
+				add("-o")
+				add(perfDataPath)
 			}
 		recordProcess =
 			try {
@@ -137,11 +144,14 @@ class CpuProfilingSession(
 				runCatching {
 					val reportCmd =
 						listOf(
-							SIMPLEPERF, "report-sample",
+							SIMPLEPERF,
+							"report-sample",
 							"--protobuf",
 							"--show-callchain",
-							"-i", perfDataPath,
-							"-o", reportPath,
+							"-i",
+							perfDataPath,
+							"-o",
+							reportPath,
 						)
 					val report = ProcessBuilder(reportCmd).redirectErrorStream(true).start()
 					reportProcess = report
@@ -257,7 +267,9 @@ class CpuProfilingSession(
 	private fun osPidOf(process: Process): Int =
 		runCatching { (Process::class.java.getMethod("pid").invoke(process) as Long).toInt() }
 			.recoverCatching {
-				process.javaClass.getDeclaredField("pid").apply { isAccessible = true }.getInt(process)
-			}
-			.getOrDefault(-1)
+				process.javaClass
+					.getDeclaredField("pid")
+					.apply { isAccessible = true }
+					.getInt(process)
+			}.getOrDefault(-1)
 }

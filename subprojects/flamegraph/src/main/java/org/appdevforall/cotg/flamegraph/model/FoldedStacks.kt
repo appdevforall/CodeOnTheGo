@@ -12,19 +12,19 @@ package org.appdevforall.cotg.flamegraph.model
  * This is pure Kotlin (no Android/Compose runtime) and is the primary unit-tested entry point.
  */
 fun buildFlameTree(
-    stacks: List<Pair<List<String>, Double>>,
-    rootLabel: String = "root",
+	stacks: List<Pair<List<String>, Double>>,
+	rootLabel: String = "root",
 ): FlameNode<Nothing> {
-    val root = MutableFlameNode(rootLabel)
-    for ((frames, value) in stacks) {
-        root.value += value
-        var node = root
-        for (frame in frames) {
-            node = node.children.getOrPut(frame) { MutableFlameNode(frame) }
-            node.value += value
-        }
-    }
-    return root.toImmutable(id = "0")
+	val root = MutableFlameNode(rootLabel)
+	for ((frames, value) in stacks) {
+		root.value += value
+		var node = root
+		for (frame in frames) {
+			node = node.children.getOrPut(frame) { MutableFlameNode(frame) }
+			node.value += value
+		}
+	}
+	return root.toImmutable(id = "0")
 }
 
 /**
@@ -38,32 +38,39 @@ fun buildFlameTree(
  * @throws IllegalArgumentException if a non-blank line has no numeric weight.
  */
 fun parseFoldedStacks(
-    text: String,
-    separator: Char = ';',
-    rootLabel: String = "root",
+	text: String,
+	separator: Char = ';',
+	rootLabel: String = "root",
 ): FlameNode<Nothing> {
-    val stacks = ArrayList<Pair<List<String>, Double>>()
-    for (rawLine in text.lineSequence()) {
-        val line = rawLine.trim()
-        if (line.isEmpty()) continue
-        val cut = line.lastIndexOf(' ')
-        val value = line.substring(cut + 1).toDoubleOrNull()
-        require(cut > 0 && value != null) { "Malformed folded-stack line: \"$rawLine\"" }
-        val frames = line.substring(0, cut).split(separator).map { it.trim() }.filter { it.isNotEmpty() }
-        stacks.add(frames to value)
-    }
-    return buildFlameTree(stacks, rootLabel)
+	val stacks = ArrayList<Pair<List<String>, Double>>()
+	for (rawLine in text.lineSequence()) {
+		val line = rawLine.trim()
+		if (line.isEmpty()) continue
+		val cut = line.lastIndexOf(' ')
+		val value = line.substring(cut + 1).toDoubleOrNull()
+		require(cut > 0 && value != null) { "Malformed folded-stack line: \"$rawLine\"" }
+		val frames =
+			line
+				.substring(0, cut)
+				.split(separator)
+				.map { it.trim() }
+				.filter { it.isNotEmpty() }
+		stacks.add(frames to value)
+	}
+	return buildFlameTree(stacks, rootLabel)
 }
 
-private class MutableFlameNode(val label: String) {
-    var value: Double = 0.0
-    val children = LinkedHashMap<String, MutableFlameNode>()
+private class MutableFlameNode(
+	val label: String,
+) {
+	var value: Double = 0.0
+	val children = LinkedHashMap<String, MutableFlameNode>()
 
-    fun toImmutable(id: String): FlameNode<Nothing> {
-        val kids = ArrayList<FlameNode<Nothing>>(children.size)
-        for ((index, child) in children.values.withIndex()) {
-            kids.add(child.toImmutable("$id/$index"))
-        }
-        return FlameNode(id = id, label = label, value = value, children = kids)
-    }
+	fun toImmutable(id: String): FlameNode<Nothing> {
+		val kids = ArrayList<FlameNode<Nothing>>(children.size)
+		for ((index, child) in children.values.withIndex()) {
+			kids.add(child.toImmutable("$id/$index"))
+		}
+		return FlameNode(id = id, label = label, value = value, children = kids)
+	}
 }

@@ -9,23 +9,24 @@ import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
 fun ProfilerButton(
-    modifier: Modifier = Modifier,
-    label: String,
-    labelStyle: TextStyle = TextStyle.Default,
-    onClick: () -> Unit,
+	label: String,
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+	labelStyle: TextStyle = TextStyle.Default,
 ) {
-    Button(
-        onClick = { onClick() },
-        modifier = modifier,
-    ) {
-        Text(text = label, style = labelStyle)
-    }
+	Button(
+		onClick = { onClick() },
+		modifier = modifier,
+	) {
+		Text(text = label, style = labelStyle)
+	}
 }
 
 @Preview
 @Composable
-fun PreviewProfilerButton(){
-    ProfilerButton(
-        label = "My Btn",
-    ) { }
+private fun PreviewProfilerButton() {
+	ProfilerButton(
+		label = "My Btn",
+		onClick = { },
+	)
 }

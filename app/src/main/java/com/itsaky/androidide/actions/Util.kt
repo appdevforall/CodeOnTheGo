@@ -34,159 +34,171 @@ import org.slf4j.Logger
 
 @RequiresApi(Build.VERSION_CODES.R)
 fun canShowPairingNotification(context: Context): Boolean {
-    val nm = context.getSystemService(NotificationManager::class.java)
-    val channel = nm.getNotificationChannel(AdbPairingService.NOTIFICATION_CHANNEL)
-    return nm.areNotificationsEnabled() &&
-            (channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
+	val nm = context.getSystemService(NotificationManager::class.java)
+	val channel = nm.getNotificationChannel(AdbPairingService.NOTIFICATION_CHANNEL)
+	return nm.areNotificationsEnabled() &&
+		(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
 }
 
 fun showNotificationPermissionDialog(
-    context: Context,
-    onError: (ex: Exception) -> Unit
+	context: Context,
+	onError: (ex: Exception) -> Unit,
 ): AlertDialog? =
-    DialogUtils
-        .newMaterialDialogBuilder(context)
-        .setTitle(R.string.adb_pairing_action_enable_notifications)
-        .setMessage(
-            context.getString(
-                R.string.adb_pairing_tutorial_content_notification,
-                context.getString(R.string.notification_channel_adb_pairing),
-            ),
-        ).setPositiveButton(R.string.title_grant) { dialog, _ ->
-            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-            intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-            try {
-                context.startActivity(intent)
-            } catch (e: ActivityNotFoundException) {
-                onError(e)
-            }
+	DialogUtils
+		.newMaterialDialogBuilder(context)
+		.setTitle(R.string.adb_pairing_action_enable_notifications)
+		.setMessage(
+			context.getString(
+				R.string.adb_pairing_tutorial_content_notification,
+				context.getString(R.string.notification_channel_adb_pairing),
+			),
+		).setPositiveButton(R.string.title_grant) { dialog, _ ->
+			val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+			intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+			try {
+				context.startActivity(intent)
+			} catch (e: ActivityNotFoundException) {
+				onError(e)
+			}
 
-            dialog.dismiss()
-        }.setNegativeButton(android.R.string.cancel) { dialog, _ ->
-            dialog.dismiss()
-        }.show()
+			dialog.dismiss()
+		}.setNegativeButton(android.R.string.cancel) { dialog, _ ->
+			dialog.dismiss()
+		}.show()
 
 fun showDebuggerNotReadyMessage(context: Context): AlertDialog? =
-    DialogUtils
-        .newMaterialDialogBuilder(context)
-        .setMessage(
-            context.getString(R.string.debugger_not_ready) + System.lineSeparator()
-                .repeat(2) + context.getString(R.string.debugger_error_suggestion_network_restriction)
-        )
-        .setPositiveButton(android.R.string.ok, null)
-        .show()
+	DialogUtils
+		.newMaterialDialogBuilder(context)
+		.setMessage(
+			context.getString(R.string.debugger_not_ready) +
+				System
+					.lineSeparator()
+					.repeat(2) + context.getString(R.string.debugger_error_suggestion_network_restriction),
+		).setPositiveButton(android.R.string.ok, null)
+		.show()
 
- suspend fun handleMissingOverlayPermission(
-    activity: EditorHandlerActivity,
-    state: PermissionsHelper.OverlayPermissionState,
-    onError: (ex: Exception) -> Unit
+suspend fun handleMissingOverlayPermission(
+	activity: EditorHandlerActivity,
+	state: PermissionsHelper.OverlayPermissionState,
+	onError: (ex: Exception) -> Unit,
 ) {
-    withContext(Dispatchers.Main.immediate) {
-        when (state) {
-            PermissionsHelper.OverlayPermissionState.UNSUPPORTED -> {
-                activity.flashError(activity.getString(R.string.permission_overlay_unsupported_hint))
-            }
-            PermissionsHelper.OverlayPermissionState.REQUESTABLE -> {
-                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                    putExtra(Settings.EXTRA_APP_PACKAGE, activity.packageName)
-                    setData(Uri.fromParts("package", activity.packageName, null))
-                }
-                try {
-                    activity.startActivity(intent)
-                } catch (e: Exception) {
-                    onError(e)
-                    activity.flashError(activity.getString(R.string.err_no_activity_to_handle_action, Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
-                }
-            }
-            else -> {}
-        }
-    }
+	withContext(Dispatchers.Main.immediate) {
+		when (state) {
+			PermissionsHelper.OverlayPermissionState.UNSUPPORTED -> {
+				activity.flashError(activity.getString(R.string.permission_overlay_unsupported_hint))
+			}
+			PermissionsHelper.OverlayPermissionState.REQUESTABLE -> {
+				val intent =
+					Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+						putExtra(Settings.EXTRA_APP_PACKAGE, activity.packageName)
+						setData(Uri.fromParts("package", activity.packageName, null))
+					}
+				try {
+					activity.startActivity(intent)
+				} catch (e: Exception) {
+					onError(e)
+					activity.flashError(
+						activity.getString(R.string.err_no_activity_to_handle_action, Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
+					)
+				}
+			}
+			else -> {}
+		}
+	}
 }
 
 @RequiresApi(Build.VERSION_CODES.R)
- fun showPairingDialog(context: Context, log: Logger, onError: (ex: Exception) -> Unit): AlertDialog? {
-    val launchHelp = { url: String ->
-        context.startActivity(
-            Intent(context, HelpActivity::class.java).apply {
-                putExtra(CONTENT_KEY, url)
-            },
-        )
-    }
+fun showPairingDialog(
+	context: Context,
+	log: Logger,
+	onError: (ex: Exception) -> Unit,
+): AlertDialog? {
+	val launchHelp = { url: String ->
+		context.startActivity(
+			Intent(context, HelpActivity::class.java).apply {
+				putExtra(CONTENT_KEY, url)
+			},
+		)
+	}
 
-    val ssb = SpannableStringBuilder()
-    ssb.appendHtmlWithLinks(
-        context.getString(R.string.debugger_setup_description_header),
-        launchHelp,
-    )
+	val ssb = SpannableStringBuilder()
+	ssb.appendHtmlWithLinks(
+		context.getString(R.string.debugger_setup_description_header),
+		launchHelp,
+	)
 
-    ssb.append(System.lineSeparator())
-    ssb.append(System.lineSeparator())
+	ssb.append(System.lineSeparator())
+	ssb.append(System.lineSeparator())
 
-    ssb.appendOrderedList(*context.resources.getStringArray(R.array.debugger_setup_pairing_steps))
-    ssb.append(System.lineSeparator())
+	ssb.appendOrderedList(*context.resources.getStringArray(R.array.debugger_setup_pairing_steps))
+	ssb.append(System.lineSeparator())
 
-    ssb.appendHtmlWithLinks(
-        context.getString(R.string.debugger_setup_description_footer),
-        launchHelp,
-    )
+	ssb.appendHtmlWithLinks(
+		context.getString(R.string.debugger_setup_description_footer),
+		launchHelp,
+	)
 
-    val text = MaterialTextView(context)
-    text.setPadding(context.resources.getDimensionPixelSize(R.dimen.content_padding_double))
-    text.movementMethod = LinkMovementMethod.getInstance()
-    text.highlightColor = Color.TRANSPARENT
-    text.text = ssb
-    text.setLineSpacing(text.lineSpacingExtra, 1.1f)
+	val text = MaterialTextView(context)
+	text.setPadding(context.resources.getDimensionPixelSize(R.dimen.content_padding_double))
+	text.movementMethod = LinkMovementMethod.getInstance()
+	text.highlightColor = Color.TRANSPARENT
+	text.text = ssb
+	text.setLineSpacing(text.lineSpacingExtra, 1.1f)
 
-    return DialogUtils
-        .newMaterialDialogBuilder(context)
-        .setTitle(R.string.debugger_setup_title)
-        .setView(text)
-        .setPositiveButton(R.string.adb_pairing_action_start) { dialog, _ ->
-            dialog.dismiss()
+	return DialogUtils
+		.newMaterialDialogBuilder(context)
+		.setTitle(R.string.debugger_setup_title)
+		.setView(text)
+		.setPositiveButton(R.string.adb_pairing_action_start) { dialog, _ ->
+			dialog.dismiss()
 
-            val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            intent.putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
-            try {
-                if (startPairingService(context, onError = {
-                        log.error("Failed to start pairing service", it)
-                })) {
-                    context.startActivity(intent)
-                }
-            } catch (e: ActivityNotFoundException) {
-                onError(e)
-            }
-        }.setNegativeButton(android.R.string.cancel, null)
-        .show()
+			val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+			intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+			intent.putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
+			try {
+				if (startPairingService(context, onError = {
+						log.error("Failed to start pairing service", it)
+					})
+				) {
+					context.startActivity(intent)
+				}
+			} catch (e: ActivityNotFoundException) {
+				onError(e)
+			}
+		}.setNegativeButton(android.R.string.cancel, null)
+		.show()
 }
 
 @RequiresApi(Build.VERSION_CODES.R)
- fun startPairingService(context: Context, onError: (err: Throwable) -> Unit): Boolean {
-    val intent = AdbPairingService.startIntent(context)
-    return try {
-        startForegroundService(context, intent)
-        true
-    } catch (e: Throwable) {
-        onError(e)
-        if (isAtLeastS() && e is ForegroundServiceStartNotAllowedException) {
-            val mode =
-                context
-                    .getSystemService(AppOpsManager::class.java)
-                    .noteOpNoThrow(
-                        "android:start_foreground",
-                        android.os.Process.myUid(),
-                        context.packageName,
-                        null,
-                        null,
-                    )
-            if (mode == AppOpsManager.MODE_ERRORED) {
-                flashError(context.getString(R.string.err_foreground_service_denial))
-            }
+fun startPairingService(
+	context: Context,
+	onError: (err: Throwable) -> Unit,
+): Boolean {
+	val intent = AdbPairingService.startIntent(context)
+	return try {
+		startForegroundService(context, intent)
+		true
+	} catch (e: Throwable) {
+		onError(e)
+		if (isAtLeastS() && e is ForegroundServiceStartNotAllowedException) {
+			val mode =
+				context
+					.getSystemService(AppOpsManager::class.java)
+					.noteOpNoThrow(
+						"android:start_foreground",
+						android.os.Process.myUid(),
+						context.packageName,
+						null,
+						null,
+					)
+			if (mode == AppOpsManager.MODE_ERRORED) {
+				flashError(context.getString(R.string.err_foreground_service_denial))
+			}
 
-            context.startService(intent)
-            true
-        } else {
-            false
-        }
-    }
+			context.startService(intent)
+			true
+		} else {
+			false
+		}
+	}
 }

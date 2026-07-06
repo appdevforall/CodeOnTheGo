@@ -19,10 +19,10 @@ import androidx.compose.ui.graphics.Color
  */
 @Immutable
 data class FlameNode<out T>(
-    val id: String,
-    val label: String,
-    val value: Double,
-    val children: List<FlameNode<T>> = emptyList(),
-    val color: Color? = null,
-    val payload: T? = null,
+	val id: String,
+	val label: String,
+	val value: Double,
+	val children: List<FlameNode<T>> = emptyList(),
+	val color: Color? = null,
+	val payload: T? = null,
 )
