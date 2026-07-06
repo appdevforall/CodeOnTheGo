@@ -4,6 +4,7 @@ permissions:
   id-token: write
   contents: read
   actions: write
+  pull-requests: read
 
 on:
   push:
@@ -70,11 +71,73 @@ jobs:
             echo "must_build=true" >> $GITHUB_OUTPUT
           fi
 
+  validate_branch:
+    name: Validate branch and Jira ticket
+    runs-on: self-hosted
+    outputs:
+      branch_type: ${{ steps.classify.outputs.branch_type }}
+      jira_ticket: ${{ steps.classify.outputs.jira_ticket }}
+    steps:
+      - name: Classify branch
+        id: classify
+        run: |
+          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          echo "Branch name: $BRANCH_NAME"
+
+          JIRA_TICKET=""
+          if [[ "$BRANCH_NAME" == community/* ]]; then
+            BRANCH_TYPE="community"
+            echo "Community contribution branch detected, Jira steps will be skipped"
+          else
+            JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
+
+            if [ -n "$JIRA_TICKET" ]; then
+              BRANCH_TYPE="jira"
+              echo "Jira branch detected with ticket $JIRA_TICKET"
+            else
+              BRANCH_TYPE="internal"
+              echo "Internal branch detected, proceeding with current automation"
+            fi
+          fi
+
+          echo "branch_type=$BRANCH_TYPE" >> $GITHUB_OUTPUT
+          echo "jira_ticket=$JIRA_TICKET" >> $GITHUB_OUTPUT
+
+      - name: Fail fast on nonexistent Jira ticket
+        if: steps.classify.outputs.branch_type == 'jira'
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_TICKET: ${{ steps.classify.outputs.jira_ticket }}
+        run: |
+          if [ -z "$JIRA_EMAIL" ] || [ -z "$JIRA_API_TOKEN" ]; then
+            echo "::warning::Jira credentials are not configured; skipping validation of $JIRA_TICKET"
+            exit 0
+          fi
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+            -H "Accept: application/json" \
+            "https://appdevforall.atlassian.net/rest/api/3/issue/${JIRA_TICKET}?fields=summary") || HTTP_STATUS="000"
+
+          if [ "$HTTP_STATUS" -eq 404 ]; then
+            echo "::error::Jira ticket $JIRA_TICKET does not exist. Rename the branch to reference a real ticket, or use the community/ prefix for contributions without Jira access."
+            exit 1
+          fi
+
+          # Only a definitive 404 blocks the build; outages or auth issues must not
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::warning::Could not validate Jira ticket $JIRA_TICKET (HTTP $HTTP_STATUS); proceeding"
+            exit 0
+          fi
+
+          echo "Jira ticket $JIRA_TICKET exists"
+
   build_apk:
     name: Build Universal APK
     runs-on: self-hosted
     timeout-minutes: 60
-    needs: check_changes
+    needs: [ check_changes, validate_branch ]
     if: needs.check_changes.outputs.must_build == 'true'
     env:
       INCLUDE_LLAMA_ASSETS: "false"
@@ -149,6 +212,8 @@ jobs:
           
           if [[ "${BRANCH_NAME,,}" == "stage" ]]; then
             BUILD_TYPE="STAGE"
+          elif [[ "$BRANCH_NAME" == community/* ]]; then
+            BUILD_TYPE="COMMUNITY ($BRANCH_NAME)"
           else
             BUILD_TYPE="BRANCH ($BRANCH_NAME)"
           fi
@@ -181,12 +246,18 @@ jobs:
         id: extract_jira
         env:
           COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
+          BRANCH_TYPE: ${{ needs.validate_branch.outputs.branch_type }}
         run: |
-          JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
+          if [[ "$BRANCH_TYPE" == "community" ]]; then
+            echo "Community branch, skipping Jira ticket extraction"
+            JIRA_TICKET=""
+          else
+            JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
 
-          # If no Jira ticket found in branch name, check the commit message
-          if [ -z "$JIRA_TICKET" ]; then
-            JIRA_TICKET=$(echo "$COMMIT_MSG" | grep -o 'ADFA-[0-9]\+' | head -1)
+            # If no Jira ticket found in branch name, check the commit message
+            if [ -z "$JIRA_TICKET" ]; then
+              JIRA_TICKET=$(echo "$COMMIT_MSG" | grep -o 'ADFA-[0-9]\+' | head -1)
+            fi
           fi
 
           if [ -n "$JIRA_TICKET" ]; then
@@ -314,6 +385,23 @@ jobs:
           fi
           
           if [ -z "$JIRA_TICKET" ] || [ "$JIRA_TICKET" == "N/A" ]; then
+            # The branch here is always stage, so identify the merged PR that
+            # introduced this commit to tell community merges from internal ones
+            PR_JSON=$(curl -s \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls") || PR_JSON="[]"
+
+            MERGED_PR=$(echo "$PR_JSON" | jq -c 'if type == "array" then [.[] | select(.merged_at != null)][0] // {} else {} end')
+            HEAD_REF=$(echo "$MERGED_PR" | jq -r '.head.ref // ""')
+            HEAD_REPO=$(echo "$MERGED_PR" | jq -r '.head.repo.full_name // ""')
+            echo "Merged PR head: ${HEAD_REPO}:${HEAD_REF}"
+
+            if [[ "$HEAD_REF" == community/* ]] || { [ -n "$HEAD_REPO" ] && [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; }; then
+              echo "::warning::Community contribution merged without a Jira ticket; skipping fix version update"
+              exit 0
+            fi
+
             echo "ERROR: No Jira ticket found in branch name, commit message, or merge commit"
             echo "Branch name or commit message must contain a Jira ticket in format ADFA-XXXX"
             exit 1
