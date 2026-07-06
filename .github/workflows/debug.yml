@@ -396,12 +396,30 @@ jobs:
             MERGED_PR=$(echo "$PR_JSON" | jq -c 'if type == "array" then [.[] | select(.merged_at != null)][0] // {} else {} end')
             HEAD_REF=$(echo "$MERGED_PR" | jq -r '.head.ref // ""')
             HEAD_REPO=$(echo "$MERGED_PR" | jq -r '.head.repo.full_name // ""')
-            echo "Merged PR head: ${HEAD_REPO}:${HEAD_REF}"
+            AUTHOR_ASSOCIATION=$(echo "$MERGED_PR" | jq -r '.author_association // ""')
+            echo "Merged PR head: ${HEAD_REPO}:${HEAD_REF} (author association: ${AUTHOR_ASSOCIATION:-unknown})"
 
-            if [[ "$HEAD_REF" == community/* ]] || { [ -n "$HEAD_REPO" ] && [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; }; then
-              echo "::warning::Community contribution merged without a Jira ticket; skipping fix version update"
+            if [[ "$HEAD_REF" == community/* ]]; then
+              echo "::warning::Community branch merged without a Jira ticket; skipping fix version update"
               exit 0
             fi
+
+            # Author association is the primary community signal; the fork check
+            # only decides when no association is available
+            case "$AUTHOR_ASSOCIATION" in
+              MEMBER|OWNER|COLLABORATOR)
+                ;;
+              "")
+                if [ -n "$HEAD_REPO" ] && [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+                  echo "::warning::Fork contribution merged without a Jira ticket; skipping fix version update"
+                  exit 0
+                fi
+                ;;
+              *)
+                echo "::warning::External contribution merged without a Jira ticket; skipping fix version update"
+                exit 0
+                ;;
+            esac
 
             echo "ERROR: No Jira ticket found in branch name, commit message, or merge commit"
             echo "Branch name or commit message must contain a Jira ticket in format ADFA-XXXX"

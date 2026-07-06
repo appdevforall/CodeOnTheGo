@@ -20,6 +20,12 @@ jobs:
         with:
           script: |
             const branch = context.payload.pull_request.head.ref;
+            const association = context.payload.pull_request.author_association;
+
+            if (['MEMBER', 'OWNER', 'COLLABORATOR'].includes(association)) {
+              core.info(`PR author association is ${association}; internal branch conventions apply.`);
+              return;
+            }
 
             if (branch.startsWith('community/') || !/adfa-\d+/i.test(branch)) {
               core.info(`Branch name "${branch}" is valid for an external contribution.`);
