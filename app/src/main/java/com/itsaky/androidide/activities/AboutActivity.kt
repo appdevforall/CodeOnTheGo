@@ -65,7 +65,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
     private val ACTION_WEBSITE = id++
     private val ACTION_EMAIL = id++
     private val ACTION_TG_CHANNEL = id++
-    private val ACTION_TG_GROUP = id++
+    private val ACTION_GH_FORUM = id++
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -117,7 +117,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
     when (action.id) {
       ACTION_WEBSITE -> UrlManager.openUrl(BuildInfo.PROJECT_SITE, null, this)
       ACTION_EMAIL -> UrlManager.openUrl(getString(R.string.mail_to_adfa), null, this)
-      ACTION_TG_GROUP -> UrlManager.openUrl(getString(R.string.telegram_group_url), "org.telegram.messenger", this)
+      ACTION_GH_FORUM -> UrlManager.openUrl(getString(R.string.github_discussions_url), context = this)
       ACTION_TG_CHANNEL -> UrlManager.openUrl(getString(R.string.telegram_channel_url), "org.telegram.messenger", this)
     }
   }
@@ -145,10 +145,10 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       add(
         createSimpleIconTextItem(
           this@AboutActivity,
-          ACTION_TG_GROUP,
+          ACTION_GH_FORUM,
           R.drawable.ic_github,
           R.string.discussions_on_telegram,
-          getString(R.string.telegram_group_url)
+          getString(R.string.github_discussions_url)
         )
       )
       add(
