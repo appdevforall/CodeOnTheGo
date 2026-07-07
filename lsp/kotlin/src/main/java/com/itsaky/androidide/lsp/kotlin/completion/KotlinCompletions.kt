@@ -9,6 +9,7 @@ import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.ContextKeywords
 import com.itsaky.androidide.lsp.kotlin.utils.ModifierFilter
 import com.itsaky.androidide.lsp.kotlin.utils.containingTopLevelClassDeclaration
+import com.itsaky.androidide.lsp.kotlin.utils.renderName
 import com.itsaky.androidide.lsp.kotlin.utils.resolveAnalysisContext
 import com.itsaky.androidide.lsp.models.ClassCompletionData
 import com.itsaky.androidide.lsp.models.Command
@@ -27,11 +28,9 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.JvmTypeAliasInfo
-import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.KaSession
-import org.jetbrains.kotlin.analysis.api.renderer.types.KaTypeRenderer
 import org.jetbrains.kotlin.analysis.api.renderer.types.impl.KaTypeRendererForSource
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
@@ -67,7 +66,6 @@ import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
 import org.jetbrains.kotlin.psi.KtWhenExpression
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.startOffset
-import org.jetbrains.kotlin.types.Variance
 import org.slf4j.LoggerFactory
 import kotlin.io.path.name
 
@@ -738,17 +736,6 @@ private fun KaSession.kindOf(symbol: JvmSymbol): CompletionItemKind =
 		JvmSymbolKind.FIELD -> CompletionItemKind.FIELD
 		JvmSymbolKind.TYPE_ALIAS -> CompletionItemKind.CLASS
 	}
-
-@OptIn(KaExperimentalApi::class, KaContextParameterApi::class)
-private fun KaSession.renderName(
-	type: KaType,
-	renderer: KaTypeRenderer = KaTypeRendererForSource.WITH_SHORT_NAMES,
-	position: Variance = Variance.INVARIANT
-): String {
-	return type.run {
-		render(renderer, position)
-	}
-}
 
 private fun partialIdentifier(prefix: String): String {
 	return prefix.takeLastWhile { char -> Character.isJavaIdentifierPart(char) }
