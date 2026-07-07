@@ -52,4 +52,13 @@ class ActiveParameterResolverTest : KtLspTest() {
     val idx = env.project.read { analyzeMaybeDanglingForTest(call) { rc -> computeActiveParameter(call, rc, cursor) } }
     assertThat(idx).isEqualTo(0)
   }
+
+  @Test
+  fun `second vararg argument maps to the vararg parameter index`() {
+    // cursor on the second `xs` argument (positionally index 2), declared vararg parameter is index 1
+    val (call, offset) = callAt("E.kt",
+      "fun f(a: Int, vararg xs: Int) {}\nfun g() { f(1, 22, 33) }", "33")
+    val idx = env.project.read { analyzeMaybeDanglingForTest(call) { rc -> computeActiveParameter(call, rc, offset) } }
+    assertThat(idx).isEqualTo(1)
+  }
 }

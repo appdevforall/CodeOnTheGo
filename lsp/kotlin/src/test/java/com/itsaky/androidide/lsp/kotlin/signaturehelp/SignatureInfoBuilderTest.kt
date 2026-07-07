@@ -18,6 +18,7 @@ class SignatureInfoBuilderTest : KtLspTest() {
     assertThat(info.label).isEqualTo("greet(name: String, times: Int)")
     assertThat(info.parameters.map { it.label })
       .containsExactly("name: String", "times: Int").inOrder()
+    assertThat(info.documentation.value).isEmpty()
   }
 
   @Test

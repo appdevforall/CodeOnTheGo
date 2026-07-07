@@ -60,4 +60,12 @@ class KotlinSignatureHelpTest : KtLspTest() {
     val help = helpAt("E.kt", text, "p()", delta = 1)
     assertThat(help).isEqualTo(SignatureHelp.empty())
   }
+
+  @Test
+  fun `named argument remaps active parameter via buildSignatureHelp`() {
+    val help = helpAt("F.kt", "fun f(a: Int, b: Int) {}\nfun g() { f(b = 1, a = 5) }", "a = 5")
+    // 'a' is declared parameter 0 though written second
+    assertThat(help.activeParameter).isEqualTo(0)
+    assertThat(help.signatures).isNotEmpty()
+  }
 }
