@@ -7,9 +7,13 @@ public abstract interface class com/itsaky/androidide/plugins/IPlugin {
 
 public abstract interface class com/itsaky/androidide/plugins/PluginContext {
 	public abstract fun getAndroidContext ()Landroid/content/Context;
+	public abstract fun getAppFilesDir ()Ljava/io/File;
 	public abstract fun getEventBus ()Ljava/lang/Object;
 	public abstract fun getLogger ()Lcom/itsaky/androidide/plugins/PluginLogger;
+	public abstract fun getPluginDataDir ()Ljava/io/File;
+	public abstract fun getPluginFilesDir ()Ljava/io/File;
 	public abstract fun getPluginId ()Ljava/lang/String;
+	public abstract fun getPluginSharedPreferences (Ljava/lang/String;)Landroid/content/SharedPreferences;
 	public abstract fun getResources ()Lcom/itsaky/androidide/plugins/ResourceManager;
 	public abstract fun getServices ()Lcom/itsaky/androidide/plugins/ServiceRegistry;
 }
@@ -1115,6 +1119,10 @@ public final class com/itsaky/androidide/plugins/services/ArchiveFormat : java/l
 	public static fun values ()[Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/BuildAndLaunchCallback {
+	public abstract fun onComplete (ZLjava/lang/String;)V
+}
+
 public abstract interface class com/itsaky/androidide/plugins/services/BuildStatusListener {
 	public abstract fun onBuildFailed (Ljava/lang/String;)V
 	public abstract fun onBuildFinished ()V
@@ -1174,6 +1182,10 @@ public abstract interface class com/itsaky/androidide/plugins/services/FileChang
 	public abstract fun onFileChanged (Ljava/io/File;)V
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/GradleSyncCallback {
+	public abstract fun onComplete (ZLjava/lang/String;)V
+}
+
 public abstract interface class com/itsaky/androidide/plugins/services/IdeArchiveService {
 	public abstract fun extract (Ljava/io/InputStream;Lcom/itsaky/androidide/plugins/services/ArchiveFormat;Ljava/io/File;Lkotlin/jvm/functions/Function2;)Lcom/itsaky/androidide/plugins/services/ExtractResult;
 }
@@ -1184,14 +1196,18 @@ public final class com/itsaky/androidide/plugins/services/IdeArchiveService$Defa
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeBuildService {
 	public abstract fun addBuildStatusListener (Lcom/itsaky/androidide/plugins/services/BuildStatusListener;)V
-	public abstract fun executeTasks ([Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun getBuildOutput ()Ljava/lang/String;
 	public abstract fun isBuildInProgress ()Z
 	public abstract fun isToolingServerStarted ()Z
 	public abstract fun removeBuildStatusListener (Lcom/itsaky/androidide/plugins/services/BuildStatusListener;)V
+	public abstract fun runApp (Lcom/itsaky/androidide/plugins/services/BuildAndLaunchCallback;)V
+	public abstract fun triggerGradleSync (Lcom/itsaky/androidide/plugins/services/GradleSyncCallback;)V
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeBuildService$DefaultImpls {
-	public static fun executeTasks (Lcom/itsaky/androidide/plugins/services/IdeBuildService;[Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public static fun getBuildOutput (Lcom/itsaky/androidide/plugins/services/IdeBuildService;)Ljava/lang/String;
+	public static fun runApp (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Lcom/itsaky/androidide/plugins/services/BuildAndLaunchCallback;)V
+	public static fun triggerGradleSync (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Lcom/itsaky/androidide/plugins/services/GradleSyncCallback;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeCommandService {
@@ -1260,6 +1276,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeFileSe
 	public abstract fun appendToFile (Ljava/io/File;Ljava/lang/String;)Z
 	public abstract fun delete (Ljava/io/File;)Z
 	public abstract fun insertAfterPattern (Ljava/io/File;Ljava/lang/String;Ljava/lang/String;)Z
+	public abstract fun listFiles (Ljava/io/File;Z)Ljava/util/List;
 	public abstract fun readFile (Ljava/io/File;)Ljava/lang/String;
 	public abstract fun replaceInFile (Ljava/io/File;Ljava/lang/String;Ljava/lang/String;)Z
 	public abstract fun writeBinary (Ljava/io/File;[B)Z
@@ -1267,15 +1284,26 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeFileSe
 	public abstract fun writeStream (Ljava/io/File;Ljava/io/InputStream;)J
 }
 
+public final class com/itsaky/androidide/plugins/services/IdeFileService$DefaultImpls {
+	public static synthetic fun listFiles$default (Lcom/itsaky/androidide/plugins/services/IdeFileService;Ljava/io/File;ZILjava/lang/Object;)Ljava/util/List;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeProjectManipulationService {
+	public abstract fun addDependency (Ljava/lang/String;Ljava/lang/String;)Z
+	public abstract fun addStringResource (Ljava/lang/String;Ljava/lang/String;)Z
+	public abstract fun deleteFile (Ljava/lang/String;)Z
+}
+
+public final class com/itsaky/androidide/plugins/services/IdeProjectManipulationService$DefaultImpls {
+	public static fun addDependency (Lcom/itsaky/androidide/plugins/services/IdeProjectManipulationService;Ljava/lang/String;Ljava/lang/String;)Z
+	public static fun addStringResource (Lcom/itsaky/androidide/plugins/services/IdeProjectManipulationService;Ljava/lang/String;Ljava/lang/String;)Z
+	public static fun deleteFile (Lcom/itsaky/androidide/plugins/services/IdeProjectManipulationService;Ljava/lang/String;)Z
+}
+
 public abstract interface class com/itsaky/androidide/plugins/services/IdeProjectService {
 	public abstract fun getAllProjects ()Ljava/util/List;
 	public abstract fun getCurrentProject ()Lcom/itsaky/androidide/plugins/extensions/IProject;
-	public abstract fun getModuleContext (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/ModuleContext;
 	public abstract fun getProjectByPath (Ljava/io/File;)Lcom/itsaky/androidide/plugins/extensions/IProject;
-}
-
-public final class com/itsaky/androidide/plugins/services/IdeProjectService$DefaultImpls {
-	public static fun getModuleContext (Lcom/itsaky/androidide/plugins/services/IdeProjectService;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/ModuleContext;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeSidebarService {
@@ -1331,6 +1359,92 @@ public final class com/itsaky/androidide/plugins/services/IdeUIService$Companion
 public final class com/itsaky/androidide/plugins/services/IdeUIService$DefaultImpls {
 	public static fun openPluginScreen (Lcom/itsaky/androidide/plugins/services/IdeUIService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
 	public static synthetic fun openPluginScreen$default (Lcom/itsaky/androidide/plugins/services/IdeUIService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Z
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService {
+	public abstract fun cancelGeneration ()V
+	public abstract fun generateCompletion (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun generateStreaming (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback;)V
+	public abstract fun generateStreamingWithTools (Ljava/lang/String;Ljava/util/List;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Ljava/util/List;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ToolStreamCallback;)V
+	public abstract fun generateWithHistory (Ljava/util/List;Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun getAvailableBackends ()Ljava/util/List;
+	public abstract fun getBackend (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend;
+	public abstract fun getEmbeddings (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun isBackendAvailable (Ljava/lang/String;)Z
+	public abstract fun registerBackend (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend;)V
+	public abstract fun unregisterBackend (Ljava/lang/String;)V
+}
+
+public class com/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage {
+	public final field content Ljava/lang/String;
+	public final field role Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+	public fun <init> (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;Ljava/lang/String;)V
+}
+
+public final class com/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role : java/lang/Enum {
+	public static final field ASSISTANT Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+	public static final field SYSTEM Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+	public static final field USER Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun generate (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun generateStreaming (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback;)V
+	public abstract fun generateWithHistory (Ljava/util/List;Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun getId ()Ljava/lang/String;
+	public abstract fun getName ()Ljava/lang/String;
+	public abstract fun isAvailable ()Z
+}
+
+public class com/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig {
+	public field backendId Ljava/lang/String;
+	public field extraParams Ljava/util/Map;
+	public field maxTokens I
+	public field modelName Ljava/lang/String;
+	public field stopSequences Ljava/util/List;
+	public field systemPrompt Ljava/lang/String;
+	public field temperature F
+	public fun <init> (Ljava/lang/String;)V
+}
+
+public class com/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse {
+	public final field error Ljava/lang/String;
+	public final field success Z
+	public final field text Ljava/lang/String;
+	public final field timeMs J
+	public final field tokensGenerated I
+	public fun <init> (ZLjava/lang/String;Ljava/lang/String;IJ)V
+	public static fun failure (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;
+	public static fun success (Ljava/lang/String;IJ)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback {
+	public abstract fun onComplete (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;)V
+	public abstract fun onError (Ljava/lang/String;)V
+	public abstract fun onToken (Ljava/lang/String;)V
+}
+
+public class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallRequest {
+	public field args Ljava/util/Map;
+	public field callId Ljava/lang/String;
+	public field name Ljava/lang/String;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
+}
+
+public class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolDefinition {
+	public field description Ljava/lang/String;
+	public field name Ljava/lang/String;
+	public field parametersSchema Ljava/util/Map;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolStreamCallback {
+	public abstract fun onComplete (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;)V
+	public abstract fun onError (Ljava/lang/String;)V
+	public abstract fun onToken (Ljava/lang/String;)V
+	public abstract fun onToolCall (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallRequest;)V
 }
 
 public final class com/itsaky/androidide/plugins/services/ModuleContext {
