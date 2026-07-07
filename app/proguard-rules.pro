@@ -150,3 +150,8 @@
 #-keep class com.sun.tools.jdi.** { *; }
 #-keep class com.sun.jdi.** { *; }
 
+## R8 Kotlin metadata workaround for Kotlin 2.3.0 compatibility
+## Suppresses D8 errors when parsing kotlin metadata for StopWatch inline functions
+-keep class com.itsaky.androidide.utils.StopWatch { *; }
+-keepclassmembers class com.itsaky.androidide.utils.StopWatch** { *; }
+
