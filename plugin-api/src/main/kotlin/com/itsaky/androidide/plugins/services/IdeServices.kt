@@ -5,6 +5,7 @@ import android.app.Activity
 import com.itsaky.androidide.plugins.extensions.IProject
 import java.io.File
 import java.io.InputStream
+import java.util.concurrent.CompletableFuture
 
 /**
  * Service interface that provides access to Code On the Go project information.
@@ -30,6 +31,20 @@ interface IdeProjectService {
      * @return The project at the given path, or null if not found
      */
     fun getProjectByPath(path: File): IProject?
+
+    /**
+     * Resolves the build context (compile/intermediate classpaths, runtime dex files,
+     * selected variant, resource APK, and whether a build is needed) for the module that
+     * owns the given file.
+     *
+     * Defaults to returning null so the method is binary-compatible: hosts that predate it,
+     * and implementors that do not override it, report "unavailable" (mirrors the default on
+     * [IdeUIService.openPluginScreen]).
+     *
+     * @param filePath The absolute path of a source file owned by the module
+     * @return The module context, or null if no module can be resolved
+     */
+    fun getModuleContext(filePath: String): ModuleContext? = null
 }
 
 /**
@@ -200,6 +215,16 @@ interface IdeBuildService {
      * @param callback The callback to unregister
      */
     fun removeBuildStatusListener(callback: BuildStatusListener)
+
+    /**
+     * Executes the given Gradle task paths (e.g. ":app:assembleDebug") and completes with
+     * true on success, false on failure/cancellation.
+     *
+     * Default completes with false so this addition is binary-compatible: hosts that predate
+     * the method, and any implementor that does not override it, report "not executed".
+     */
+    fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> =
+        CompletableFuture.completedFuture(false)
 
     /**
      * Builds and runs the app on the connected device.
