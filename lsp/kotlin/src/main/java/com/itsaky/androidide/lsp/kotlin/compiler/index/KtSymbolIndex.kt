@@ -32,6 +32,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.pathString
 
 val KT_SOURCE_FILE_INDEX_KEY = IndexKey<JvmSymbolIndex>("kt-source-file-index")
@@ -60,6 +61,7 @@ internal class KtSymbolIndex(
 	companion object {
 		private val logger = LoggerFactory.getLogger(KtSymbolIndex::class.java)
 		const val DEFAULT_CACHE_SIZE = 100L
+		private const val CLOSE_DRAIN_TIMEOUT_SECONDS = 5L
 	}
 
 	private val workerQueue = WorkerQueue<IndexCommand>()
@@ -215,6 +217,13 @@ internal class KtSymbolIndex(
 
 	/** Parses the live document for [path], registers it as the in-memory file, returns the stamped file. */
 	private fun refreshToCurrent(path: Path, version: Int, old: KtFile?): VersionedKtFile {
+		// [version] is the version observed when this refresh was launched (inside compute()); the
+		// content below is read live, possibly later (this runs on refreshExecutor, after any prior
+		// refresh's prior.get()). ActiveDocument's version/content are separate mutable fields with no
+		// atomic snapshot, so a concurrent edit landing in that window can make [version] under-state
+		// the content actually parsed. This is bounded and safe: callers never see stale content (what
+		// we serve is at-least-as-fresh as requested); the only effect is a spurious cache miss and one
+		// redundant re-parse on the next request for the newer version.
 		val content = FileManager.getDocumentContents(path)
 		val newKtFile = project.read { parser.createFile(path.pathString, content) }
 		newKtFile.backingFilePath = path
@@ -280,6 +289,12 @@ internal class KtSymbolIndex(
 		// Disposer.dispose(...), which would otherwise crash with "Project is already disposed"
 		// (APPDEVFORALL-17R). This index owns `scope`.
 		scope.coroutineContext[Job]?.cancelAndJoin()
+
+		// Drain the current-file refresh pool: refreshToCurrent runs project.read/write on it, so no
+		// in-flight refresh may survive into the caller's project disposal (same rationale as the
+		// scope join above). Bounded so a slow parse can't block shutdown indefinitely.
+		refreshExecutor.shutdownNow()
+		refreshExecutor.awaitTermination(CLOSE_DRAIN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
 	}
 }
 
