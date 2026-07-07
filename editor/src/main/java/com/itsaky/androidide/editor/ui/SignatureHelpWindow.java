@@ -28,6 +28,8 @@ import com.itsaky.androidide.lsp.models.SignatureInformation;
 import com.itsaky.androidide.utils.ContextUtilsKt;
 import io.github.rosemoe.sora.event.SelectionChangeEvent;
 import io.github.rosemoe.sora.widget.base.EditorPopupWindow;
+import java.util.ArrayList;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -94,20 +96,12 @@ public class SignatureHelpWindow extends BaseEditorWindow {
       return null;
     }
 
-    // remove all with non-applicable signatures
-    signatures.removeIf(
-        info -> {
-          final var remove = activeParameter >= info.getParameters().size();
-          if (remove) {
-            LOG.debug("Removing {} params={} active={}", info, info.getParameters().size(),
-                activeParameter);
-          }
-          return remove;
-        });
+    // keep only applicable signatures (does not mutate the input list)
+    final var applicable = applicableSignatures(signatures, activeParameter);
 
-    count = signatures.size();
+    count = applicable.size();
     for (var i = 0; i < count; i++) {
-      final var info = signatures.get(i);
+      final var info = applicable.get(i);
       formatSignature(info, activeParameter, sb);
       if (i != count - 1) {
         sb.append('\n');
@@ -115,6 +109,26 @@ public class SignatureHelpWindow extends BaseEditorWindow {
     }
 
     return sb;
+  }
+
+  /** Returns the function name portion of a signature label (text before the first '('), or the
+   *  whole label if it contains no '('. */
+  static String signatureName(String label) {
+    final int paren = label.indexOf('(');
+    return paren < 0 ? label : label.substring(0, paren);
+  }
+
+  /** Returns a new list containing only the signatures that have enough parameters for the given
+   *  active parameter index. Never mutates the input list. */
+  static List<SignatureInformation> applicableSignatures(
+      List<SignatureInformation> signatures, int activeParameter) {
+    final List<SignatureInformation> result = new ArrayList<>(signatures.size());
+    for (final SignatureInformation info : signatures) {
+      if (activeParameter < info.getParameters().size()) {
+        result.add(info);
+      }
+    }
+    return result;
   }
 
   /**
@@ -129,8 +143,7 @@ public class SignatureHelpWindow extends BaseEditorWindow {
       int paramIndex,
       SpannableStringBuilder result) {
 
-    String name = signature.getLabel();
-    name = name.substring(0, name.indexOf("("));
+    final String name = signatureName(signature.getLabel());
 
     final var foreground = ContextUtilsKt.resolveAttr(getEditor().getContext(),
         attr.colorOnSecondaryContainer);
