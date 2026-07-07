@@ -4,6 +4,9 @@ import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaFunctionCall
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
 import org.jetbrains.kotlin.psi.KtCallElement
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger("ActiveParameterResolver")
 
 /**
  * Computes the index of the active value parameter for the call at [offset].
@@ -31,9 +34,15 @@ internal fun KaSession.computeActiveParameter(
       val declaredIndex = resolvedCall.symbol.valueParameters
         .indexOfFirst { it.name == paramSignature.name }
       if (declaredIndex >= 0) {
+        logger.debug(
+          "computeActiveParameter: resolved named-argument index {} at offset {}",
+          declaredIndex,
+          offset
+        )
         return declaredIndex
       }
     }
   }
+  logger.debug("computeActiveParameter: using positional index {} at offset {}", positional, offset)
   return positional
 }

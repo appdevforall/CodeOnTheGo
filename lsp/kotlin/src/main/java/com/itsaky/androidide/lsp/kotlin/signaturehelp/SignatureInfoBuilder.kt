@@ -10,6 +10,9 @@ import org.jetbrains.kotlin.analysis.api.symbols.KaConstructorSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaFunctionSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaNamedFunctionSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaValueParameterSymbol
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger("SignatureInfoBuilder")
 
 @OptIn(KaExperimentalApi::class)
 internal fun KaSession.buildSignatureInformation(symbol: KaFunctionSymbol): SignatureInformation {
@@ -17,6 +20,7 @@ internal fun KaSession.buildSignatureInformation(symbol: KaFunctionSymbol): Sign
 	val paramLabels = symbol.valueParameters.map { paramLabel(it) }
 	val label = paramLabels.joinToString(prefix = "$name(", separator = ", ", postfix = ")")
 	val parameters = paramLabels.map { ParameterInformation(it, MarkupContent()) }
+	logger.debug("buildSignatureInformation produced label '{}'", label)
 	return SignatureInformation(label, MarkupContent(), parameters)
 }
 
