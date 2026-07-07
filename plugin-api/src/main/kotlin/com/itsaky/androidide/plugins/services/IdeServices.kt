@@ -30,6 +30,20 @@ interface IdeProjectService {
      * @return The project at the given path, or null if not found
      */
     fun getProjectByPath(path: File): IProject?
+
+    /**
+     * Resolves the build context (compile/intermediate classpaths, runtime dex files,
+     * selected variant, resource APK, and whether a build is needed) for the module that
+     * owns the given file.
+     *
+     * Defaults to returning null so the method is binary-compatible: hosts that predate it,
+     * and implementors that do not override it, report "unavailable" (mirrors the default on
+     * [IdeUIService.openPluginScreen]).
+     *
+     * @param filePath The absolute path of a source file owned by the module
+     * @return The module context, or null if no module can be resolved
+     */
+    fun getModuleContext(filePath: String): ModuleContext? = null
 }
 
 /**
