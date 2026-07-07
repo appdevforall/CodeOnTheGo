@@ -357,7 +357,7 @@ dependencies {
 	// Sentry Android SDK (core + replay for quality configuration)
 	implementation(libs.sentry.core)
 	implementation(libs.sentry.android.core)
-	implementation(libs.sentry.android.replay)
+	implementation(libs.sentry.logback)
 
 	// Firebase Analytics
 	implementation(platform(libs.firebase.bom))
