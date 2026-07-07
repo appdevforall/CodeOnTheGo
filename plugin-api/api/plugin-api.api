@@ -1196,6 +1196,7 @@ public final class com/itsaky/androidide/plugins/services/IdeArchiveService$Defa
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeBuildService {
 	public abstract fun addBuildStatusListener (Lcom/itsaky/androidide/plugins/services/BuildStatusListener;)V
+	public abstract fun executeTasks ([Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public abstract fun getBuildOutput ()Ljava/lang/String;
 	public abstract fun isBuildInProgress ()Z
 	public abstract fun isToolingServerStarted ()Z
@@ -1205,6 +1206,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeBuildS
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeBuildService$DefaultImpls {
+	public static fun executeTasks (Lcom/itsaky/androidide/plugins/services/IdeBuildService;[Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public static fun getBuildOutput (Lcom/itsaky/androidide/plugins/services/IdeBuildService;)Ljava/lang/String;
 	public static fun runApp (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Lcom/itsaky/androidide/plugins/services/BuildAndLaunchCallback;)V
 	public static fun triggerGradleSync (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Lcom/itsaky/androidide/plugins/services/GradleSyncCallback;)V

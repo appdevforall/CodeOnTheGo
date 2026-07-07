@@ -5,6 +5,7 @@ import android.app.Activity
 import com.itsaky.androidide.plugins.extensions.IProject
 import java.io.File
 import java.io.InputStream
+import java.util.concurrent.CompletableFuture
 
 /**
  * Service interface that provides access to Code On the Go project information.
@@ -214,6 +215,16 @@ interface IdeBuildService {
      * @param callback The callback to unregister
      */
     fun removeBuildStatusListener(callback: BuildStatusListener)
+
+    /**
+     * Executes the given Gradle task paths (e.g. ":app:assembleDebug") and completes with
+     * true on success, false on failure/cancellation.
+     *
+     * Default completes with false so this addition is binary-compatible: hosts that predate
+     * the method, and any implementor that does not override it, report "not executed".
+     */
+    fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> =
+        CompletableFuture.completedFuture(false)
 
     /**
      * Builds and runs the app on the connected device.
