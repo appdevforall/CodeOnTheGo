@@ -71,6 +71,10 @@ public class SignatureHelpWindow extends BaseEditorWindow {
     final var signatureText = createSignatureText(signature);
 
     if (signatureText == null) {
+      if (isShowing()) {
+        dismiss();
+      }
+
       return;
     }
 
@@ -98,6 +102,10 @@ public class SignatureHelpWindow extends BaseEditorWindow {
 
     // keep only applicable signatures (does not mutate the input list)
     final var applicable = applicableSignatures(signatures, activeParameter);
+
+    if (applicable.isEmpty()) {
+      return null;
+    }
 
     count = applicable.size();
     for (var i = 0; i < count; i++) {
