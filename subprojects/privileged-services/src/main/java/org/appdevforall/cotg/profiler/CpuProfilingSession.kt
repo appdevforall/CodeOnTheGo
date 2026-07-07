@@ -139,7 +139,12 @@ class CpuProfilingSession(
 		}
 
 		try {
-			if (cancelled.get()) return // cancelled while stopping the recorder: skip report generation
+			if (cancelled.get()) {
+				// Cancelled while stopping the recorder: skip report generation, but still release the
+				// caller-supplied fd (the AutoCloseOutputStream below never gets a chance to close it).
+				runCatching { reportOut.close() }
+				return
+			}
 			ParcelFileDescriptor.AutoCloseOutputStream(reportOut).use { output ->
 				runCatching {
 					val reportCmd =
