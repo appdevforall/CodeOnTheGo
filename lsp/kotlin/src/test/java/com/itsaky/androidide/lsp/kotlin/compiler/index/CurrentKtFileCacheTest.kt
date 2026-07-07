@@ -10,6 +10,7 @@ import com.itsaky.androidide.projects.FileManager
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
 import java.nio.file.Path
@@ -90,12 +91,66 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 		changeDocument(path, "fun e(): Int = 1\nfun f(): Int = e()", 2)
 		val v2 = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
 
-		// The new top-level `f` calling `e` must resolve without UNRESOLVED_REFERENCE.
-		val diagnostics = env.analyze(v2) {
+		// The new top-level `f` calling `e` must resolve without UNRESOLVED_REFERENCE. The
+		// `.defaultMessage` access must stay inside `env.analyze {}`: outside the analysis
+		// session, reading a diagnostic's message would throw
+		// KaInaccessibleLifetimeOwnerAccessException instead of producing a clean assertion
+		// diff on a real regression.
+		val diagnosticMessages = env.analyze(v2) {
 			v2.collectDiagnostics(
 				org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS
-			).toList()
+			).map { it.defaultMessage }
 		}
-		assertEquals(emptyList<Any>(), diagnostics.map { it.defaultMessage })
+		assertEquals(emptyList<String>(), diagnosticMessages)
+	}
+
+	@Test
+	fun `invalidateCurrent then getCurrentKtFile reparses`() {
+		createSourceFile("G.kt", "fun g() {}")
+		val path = sourcePath("G.kt")
+		openDocument(path, "fun g() {}")
+		val first = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
+
+		env.ktSymbolIndex.invalidateCurrent(path)
+		val second = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
+
+		assertNotSame(first, second)
+	}
+
+	@Test
+	fun `getCurrentKtFileIfPresent returns the same instance after a completed refresh`() {
+		createSourceFile("H.kt", "fun h() {}")
+		val path = sourcePath("H.kt")
+		openDocument(path, "fun h() {}")
+		val current = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
+
+		val peeked = env.ktSymbolIndex.getCurrentKtFileIfPresent(path)
+
+		assertSame(current, peeked)
+	}
+
+	@Test
+	fun `getKtFile returns the current cached instance for an active document instead of reloading from disk`() {
+		createSourceFile("I.kt", "fun i() {}")
+		val path = sourcePath("I.kt")
+		openDocument(path, "fun i() {}")
+		val current = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
+
+		val viaGetKtFile = env.ktSymbolIndex.getKtFile(path)
+
+		assertSame(current, viaGetKtFile)
+	}
+
+	@Test
+	fun `getCurrentKtFileIfPresent returns null for an active document whose refresh has not been triggered`() {
+		createSourceFile("J.kt", "fun j() {}")
+		val path = sourcePath("J.kt")
+		openDocument(path, "fun j() {}")
+		// Note: getCurrentKtFile(path) is deliberately never called here, so no refresh has
+		// been launched for this path yet.
+
+		val peeked = env.ktSymbolIndex.getCurrentKtFileIfPresent(path)
+
+		assertNull(peeked)
 	}
 }
