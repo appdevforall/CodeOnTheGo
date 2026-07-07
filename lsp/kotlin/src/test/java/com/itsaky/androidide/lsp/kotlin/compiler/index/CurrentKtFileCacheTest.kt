@@ -79,4 +79,23 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 
 		results.forEach { assertSame(results.first(), it) }
 	}
+
+	@Test
+	fun `refreshed file resolves against new content via analysis`() {
+		createSourceFile("E.kt", "fun e(): Int = 1")
+		val path = sourcePath("E.kt")
+		openDocument(path, "fun e(): Int = 1")
+		env.ktSymbolIndex.getCurrentKtFile(path).get()
+
+		changeDocument(path, "fun e(): Int = 1\nfun f(): Int = e()", 2)
+		val v2 = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
+
+		// The new top-level `f` calling `e` must resolve without UNRESOLVED_REFERENCE.
+		val diagnostics = env.analyze(v2) {
+			v2.collectDiagnostics(
+				org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS
+			).toList()
+		}
+		assertEquals(emptyList<Any>(), diagnostics.map { it.defaultMessage })
+	}
 }

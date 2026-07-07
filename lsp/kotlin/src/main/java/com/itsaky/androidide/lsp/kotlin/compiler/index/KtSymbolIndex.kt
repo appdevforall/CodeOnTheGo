@@ -6,6 +6,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
+import com.itsaky.androidide.lsp.kotlin.compiler.write
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.utils.DocumentUtils
@@ -21,6 +22,9 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.checkerframework.checker.index.qual.NonNegative
+import org.jetbrains.kotlin.analysis.api.platform.modification.KaElementModificationType
+import org.jetbrains.kotlin.analysis.api.platform.modification.KaSourceModificationService
+import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
@@ -233,7 +237,19 @@ internal class KtSymbolIndex(
 		// the two are the same object.
 		ProjectStructureProvider.getInstance(project)
 			.registerInMemoryFile(path.pathString, newKtFile.viewProvider.virtualFile)
-		// Task 2 adds the FIR-session invalidation + reindex enqueue here (needs `old`).
+		// Mirrors CompilationEnvironment.onFileContentChanged: invalidate the FIR session's view of
+		// the (old) element under the write lock so it can't race a concurrent `analyze` (which only
+		// holds the read lock), then re-index the new instance.
+		project.write {
+			// handleElementModification publishes an out-of-block modification event, which the
+			// platform's ThreadingAssertions require to run inside a write action (independent of our
+			// own read/write lock above, which only serializes with `analyze`).
+			ApplicationManager.getApplication().runWriteAction {
+				KaSourceModificationService.getInstance(project)
+					.handleElementModification(old ?: newKtFile, KaElementModificationType.Unknown)
+			}
+			queueOnFileChangedAsync(newKtFile)
+		}
 		return VersionedKtFile(version, newKtFile)
 	}
 
