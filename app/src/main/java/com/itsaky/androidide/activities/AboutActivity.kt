@@ -146,7 +146,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
         createSimpleIconTextItem(
           this@AboutActivity,
           ACTION_TG_GROUP,
-          R.drawable.ic_telegram,
+          R.drawable.ic_github,
           R.string.discussions_on_telegram,
           getString(R.string.telegram_group_url)
         )
