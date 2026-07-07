@@ -29,8 +29,15 @@ abstract class KtLspTest {
 	internal val env: KtLspTestEnvironment
 		get() = lspTestRule.env
 
-	protected fun createSourceFile(relativePath: String, content: String): KtFile =
-		env.createSourceFile(relativePath, content)
+	protected fun createSourceFile(relativePath: String, content: String): KtFile {
+		val file = env.createSourceFile(relativePath, content)
+		// See the comment in `analyzeMaybeDanglingForTest` below: freshly-created files are invisible to
+		// unqualified name resolution until they're registered with the symbol index's file metadata,
+		// which in production happens via the background indexer. Do that synchronously here so every
+		// file returned by this helper is resolvable.
+		runBlocking { env.ktSymbolIndex.fileIndex.upsert(file.toMetadata(env.project, isIndexed = false)) }
+		return file
+	}
 
 	protected fun <R> analyze(file: KtFile, action: KaSession.() -> R): R =
 		env.analyze(file, action)
