@@ -689,6 +689,7 @@
 	<string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
 	<string name="title_choose_application">Choose application</string>
 	<string name="err_selected_variant_not_found">Selected build variant not found</string>
+	<string name="err_no_release_variant">No release build variant found for module \'%1$s\'. Profiling requires a release variant.</string>
 	<string name="title_disconnect_log_senders">Disconnect log senders</string>
 	<string name="title_begin_long_select">Begin long select</string>
 	<string name="idepref_editor_stickScroll_title">Sticky scroll</string>

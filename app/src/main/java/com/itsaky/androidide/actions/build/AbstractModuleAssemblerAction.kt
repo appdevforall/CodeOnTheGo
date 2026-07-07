@@ -31,6 +31,18 @@ abstract class AbstractModuleAssemblerAction(
 	protected open val gradleArgs: List<String>
 		get() = emptyList()
 
+	/**
+	 * Resolves the variant that should actually be built for this action, given the user's
+	 * [selectedVariant]. The default returns [selectedVariant] unchanged. Subclasses may override
+	 * to build a different variant (e.g. the profiler builds the release counterpart). Returning
+	 * `null` aborts the build; an overriding implementation must surface its own error first.
+	 */
+	protected open fun resolveBuildVariant(
+		data: ActionData,
+		module: AndroidModule,
+		selectedVariant: AndroidModels.AndroidVariant,
+	): AndroidModels.AndroidVariant? = selectedVariant
+
 	override fun doExec(data: ActionData): Boolean {
 		val projectManager = IProjectManager.getInstance()
 
@@ -69,13 +81,14 @@ abstract class AbstractModuleAssemblerAction(
 		variant: AndroidModels.AndroidVariant,
 	) {
 		val activity = data.requireActivity()
+		val resolvedVariant = resolveBuildVariant(data, module, variant) ?: return
 		val buildViewModel: BuildViewModel by activity.viewModels()
 		actionScope.launch {
 			activity.saveAllResult()
 		}
 		buildViewModel.runQuickBuild(
 			module,
-			variant,
+			resolvedVariant,
 			launchInDebugMode = id == DebugAction.ID,
 			launchProfilerAfterInstall = id == ProfilerAction.ID,
 			gradleArgs = gradleArgs,

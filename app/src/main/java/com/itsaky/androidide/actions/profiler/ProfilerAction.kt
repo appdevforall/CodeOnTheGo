@@ -9,10 +9,13 @@ import com.itsaky.androidide.actions.build.AbstractRunAction
 import com.itsaky.androidide.actions.canShowPairingNotification
 import com.itsaky.androidide.actions.showNotificationPermissionDialog
 import com.itsaky.androidide.actions.showPairingDialog
+import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED
+import com.itsaky.androidide.utils.flashError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
@@ -30,6 +33,27 @@ class ProfilerAction(
 	// Build a profileable APK: the Gradle plugin reads this property and applies
 	// ProfilerPlugin to inject <profileable android:shell="true"/> into the merged manifest.
 	override val gradleArgs: List<String> = listOf("-P$PROPERTY_PROFILEABLE_ENABLED=true")
+
+	override fun resolveBuildVariant(
+		data: ActionData,
+		module: AndroidModule,
+		selectedVariant: AndroidModels.AndroidVariant,
+	): AndroidModels.AndroidVariant? {
+		val allVariants =
+			IProjectManager.getInstance().androidBuildVariants[module.path]?.buildVariants
+				?: emptyList()
+
+		val releaseName = releaseVariantName(selectedVariant.name, allVariants)
+		val releaseVariant = releaseName?.let { module.getVariant(it) }
+
+		if (releaseVariant == null) {
+			val activity = data.requireActivity()
+			activity.flashError(activity.getString(R.string.err_no_release_variant, module.path))
+			return null
+		}
+
+		return releaseVariant
+	}
 
 	companion object {
 		const val ID = "ide.editor.build.profiler"
