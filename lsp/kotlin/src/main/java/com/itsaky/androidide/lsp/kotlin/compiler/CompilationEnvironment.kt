@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -100,6 +101,8 @@ internal class CompilationEnvironment(
 	private var _languageClient: ILanguageClient? = null
 
 	val fileAnalyzer: KeyedDebouncingAction<Path>
+
+	val refreshScheduler: KeyedDebouncingAction<Path>
 
 	val libraryIndex: JvmSymbolIndex?
 		get() = ktProject.libraryIndex
@@ -184,6 +187,15 @@ internal class CompilationEnvironment(
 				languageClient?.publishDiagnostics(result)
 			}
 		}
+
+		refreshScheduler = KeyedDebouncingAction(
+			scope = coroutineScope,
+			debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
+		) { path, _ ->
+			// Pull through the cache so a refresh (and its reindex) happens after every edit,
+			// independent of whether diagnostics run.
+			ktSymbolIndex.getCurrentKtFile(path).await()
+		}
 	}
 
 	fun refreshSources() {
@@ -199,12 +211,11 @@ internal class CompilationEnvironment(
 	}
 
 	fun openFileIfNeeded(path: Path) {
-		ktSymbolIndex.getOpenedKtFile(path) ?: onFileOpen(path)
+		fileAnalyzer.schedule(path)
 	}
 
 	fun onFileOpen(path: Path) {
-		val ktFile = loadKtFile(path) ?: return
-		ktSymbolIndex.openKtFile(path, ktFile)
+		// "Open" is now owned by FileManager; the first request/analysis parses lazily via the cache.
 		fileAnalyzer.schedule(path)
 	}
 
@@ -214,8 +225,8 @@ internal class CompilationEnvironment(
 
 	fun onFileClosed(path: Path) {
 		fileAnalyzer.cancelPending(path)
-		ktSymbolIndex.closeKtFile(path)
-		ProjectStructureProvider.getInstance(project).unregisterInMemoryFile(path.pathString)
+		refreshScheduler.cancelPending(path)
+		ktSymbolIndex.invalidateCurrent(path)
 	}
 
 	@OptIn(KaImplementationDetail::class)
@@ -281,35 +292,18 @@ internal class CompilationEnvironment(
 	}
 
 	suspend fun onFileMoved(fromPath: Path, toPath: Path) {
-		val isFileOpen = ktSymbolIndex.getOpenedKtFile(fromPath) != null
+		val isFileOpen = FileManager.isActive(fromPath)
 		onFileRemoved(fromPath)
 		onFileCreated(toPath)
 		if (isFileOpen) {
-			ktSymbolIndex.closeKtFile(fromPath)
+			ktSymbolIndex.invalidateCurrent(fromPath)
 			onFileOpen(toPath)
 		}
 	}
 
 	fun onFileContentChanged(path: Path) {
-		val oldKtFile = ktSymbolIndex.getOpenedKtFile(path)
-		val newContent = FileManager.getDocumentContents(path)
-		val newKtFile = project.read {
-			parser.createFile(path.pathString, newContent)
-		}
-
-		newKtFile.backingFilePath = path
-
-		val provider = ProjectStructureProvider.getInstance(project)
-		provider.registerInMemoryFile(path.pathString, newKtFile.virtualFile)
-
-		project.write {
-			val toInvalidate = oldKtFile ?: newKtFile
-			KaSourceModificationService.getInstance(project)
-				.handleElementModification(toInvalidate, KaElementModificationType.Unknown)
-			ktSymbolIndex.openKtFile(path, newKtFile)
-			ktSymbolIndex.queueOnFileChangedAsync(newKtFile)
-			fileAnalyzer.schedule(path)
-		}
+		refreshScheduler.schedule(path)
+		fileAnalyzer.schedule(path)
 	}
 
 	private fun loadKtFile(path: Path): KtFile? {
