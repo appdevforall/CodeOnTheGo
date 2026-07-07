@@ -92,11 +92,6 @@ internal class KtSymbolIndex(
 		.maximumSize(cacheSize)
 		.build<Path, KtFile>()
 
-	private val openedFiles = ConcurrentHashMap<Path, KtFile>()
-
-	val openedKtFiles: Sequence<Map.Entry<Path, KtFile>>
-		get() = openedFiles.asSequence()
-
 	/** Set by AbstractCompilationEnvironment.initialize once the env's KtPsiFactory exists. */
 	lateinit var parser: KtPsiFactory
 
@@ -180,16 +175,6 @@ internal class KtSymbolIndex(
 	suspend fun queueOnFileChanged(ktFile: KtFile) {
 		indexWorker.submitCommand(IndexCommand.IndexModifiedFile(ktFile))
 	}
-
-	fun openKtFile(path: Path, ktFile: KtFile): KtFile? {
-		return openedFiles.put(path, ktFile)
-	}
-
-	fun closeKtFile(path: Path) {
-		openedFiles.remove(path)
-	}
-
-	fun getOpenedKtFile(path: Path) = openedFiles[path]
 
 	/**
 	 * Returns the canonical [KtFile] for [path] at the current document version, parsing (once) on a
@@ -283,10 +268,6 @@ internal class KtSymbolIndex(
 			// writer -> deadlock). A peek miss falls back to the disk instance below; the file's
 			// own refresh is already scheduled on edit and will be served on the next request.
 			getCurrentKtFileIfPresent(path)?.let { return it }
-		}
-
-		openedFiles[path]?.also {
-			return it
 		}
 
 		ktFileCache.getIfPresent(path)?.also {

@@ -46,7 +46,6 @@ import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironment
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironmentMode
 import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
@@ -234,9 +233,8 @@ internal class CompilationEnvironment(
 		path: Path,
 		crossinline typeProvider: (KtFile) -> KaElementModificationType,
 	) {
-		// Resolve PSI/module structure under the read lock, mirroring loadKtFile(); driving
-		// psiManager.findFile / structureProvider concurrently with an `analyze` read section
-		// otherwise races.
+		// Resolve PSI/module structure under the read lock; driving psiManager.findFile /
+		// structureProvider concurrently with an `analyze` read section otherwise races.
 		val (ktFile, module) = project.read {
 			val structureProvider = ProjectStructureProvider.getInstance(project)
 			val ktFile = path.toVirtualFileOrNull()?.let {
@@ -304,12 +302,6 @@ internal class CompilationEnvironment(
 	fun onFileContentChanged(path: Path) {
 		refreshScheduler.schedule(path)
 		fileAnalyzer.schedule(path)
-	}
-
-	private fun loadKtFile(path: Path): KtFile? {
-		val virtualFile =
-			project.read { VirtualFileManager.getInstance().findFileByNioPath(path) } ?: return null
-		return project.read { psiManager.findFile(virtualFile) as? KtFile }
 	}
 
 	override fun close() {
