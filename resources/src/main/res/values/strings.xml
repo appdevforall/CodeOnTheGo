@@ -1139,6 +1139,9 @@
 	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
 	<string name="err_debugger_requires_a11">The debugger requires Android 11 or higher to work.</string>
+	<!-- Error message displayed when the profiler feature is accessed on a device running an Android version older than
+		11, as it's a requirement. -->
+	<string name="err_profiler_requires_a11">The profiler requires Android 11 or higher to work.</string>
 
 	<!-- Title of the dialog shown to ask the user to complete the pairing process -->
 	<string name="debugger_setup_title">Wireless debugging pairing</string>

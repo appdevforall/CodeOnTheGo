@@ -2,8 +2,6 @@
 package com.itsaky.androidide.actions.profiler
 
 import android.content.Context
-import android.os.Build
-import androidx.annotation.RequiresApi
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.build.AbstractRunAction
 import com.itsaky.androidide.actions.canShowPairingNotification
@@ -16,6 +14,7 @@ import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.isAtLeastR
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
@@ -74,9 +73,15 @@ class ProfilerAction(
 		enabled = !(Shizuku.pingBinder()) || (!buildIsInProgress)
 	}
 
-	@RequiresApi(Build.VERSION_CODES.R)
 	override suspend fun preExec(data: ActionData): Boolean {
 		val activity = data.requireActivity()
+
+		// The profiler relies on R-only platform APIs; @RequiresApi is lint-only, so guard at runtime
+		// since the action is registered whenever experiments are enabled (mirrors DebugAction).
+		if (!isAtLeastR()) {
+			activity.flashError(R.string.err_profiler_requires_a11)
+			return false
+		}
 
 		if (!canShowPairingNotification(activity)) {
 			withContext(Dispatchers.Main.immediate) {
