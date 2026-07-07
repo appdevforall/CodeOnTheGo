@@ -38,7 +38,7 @@ class ShizukuManagerProvider : ShizukuProvider() {
 				// The provider can occasionally be called while app startup is still wiring Shizuku up,
 				// so poll briefly for the binder instead of failing immediately.
 				if (!awaitShizukuBinder()) {
-					logger.error("Shizuku binder unavailable; cannot attach user service $token")
+					logger.error("Shizuku binder unavailable; cannot attach user service")
 					return null
 				}
 
