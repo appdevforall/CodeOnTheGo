@@ -64,9 +64,8 @@ internal fun doSignatureHelp(params: SignatureHelpParams): SignatureHelp {
     return SignatureHelp.empty()
   }
 
-  val offset = params.position.requireIndex()
-
   return try {
+    val offset = params.position.requireIndex()
     env.project.read {
       val call = findEnclosingCall(ktFile, offset) ?: return@read SignatureHelp.empty()
       analyzeMaybeDangling(ktFile) {
