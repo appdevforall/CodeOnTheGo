@@ -23,7 +23,7 @@ internal abstract class AdvancedKotlinEditHandler(
 		column: Int,
 		index: Int
 	) {
-		val managedFile = analysisContext.env.ktSymbolIndex.getCurrentKtFile(analysisContext.file).get()
+		val managedFile = analysisContext.env.ktSymbolIndex.getCurrentKtFileIfPresent(analysisContext.file)
 		if (managedFile == null) {
 			logger.error("Unable to perform edit. File not open.")
 			return
