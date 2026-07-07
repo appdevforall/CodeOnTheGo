@@ -36,6 +36,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_INDEX_KEY
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_META_INDEX_KEY
 import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
+import com.itsaky.androidide.lsp.kotlin.signaturehelp.doSignatureHelp
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.DefinitionParams
@@ -249,7 +250,10 @@ class KotlinLanguageServer : ILanguageServer {
 			return SignatureHelp.empty()
 		}
 
-		return SignatureHelp.empty()
+		logger.debug("signatureHelp(position={}, file={})", params.position, params.file)
+		return compiler?.compilationEnvironmentFor(params.file)
+			?.let { context(it) { doSignatureHelp(params) } }
+			?: SignatureHelp.empty()
 	}
 
 	override suspend fun analyze(file: Path): DiagnosticResult {
