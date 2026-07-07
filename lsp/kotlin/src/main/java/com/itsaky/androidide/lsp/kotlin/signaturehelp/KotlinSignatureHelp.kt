@@ -6,13 +6,16 @@ import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
 import com.itsaky.androidide.lsp.models.SignatureInformation
+import com.itsaky.androidide.projects.FileManager
 import kotlinx.coroutines.CancellationException
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaFunctionCall
 import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
+import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.psi.KtCallElement
 import org.slf4j.LoggerFactory
+import kotlin.io.path.name
 
 /**
  * Builds a [SignatureHelp] for the function [call] with the cursor at [offset].
@@ -88,8 +91,19 @@ internal fun doSignatureHelp(params: SignatureHelpParams): SignatureHelp {
   return try {
     val offset = params.position.requireIndex()
     val result = env.project.read {
-      val call = findEnclosingCall(ktFile, offset) ?: return@read SignatureHelp.empty()
-      analyzeMaybeDangling(ktFile) {
+      // Resolve against the live document contents rather than the opened KtFile. The cursor
+      // [offset] is computed by the editor against its in-memory buffer, but the opened KtFile is
+      // refreshed asynchronously (KotlinLanguageServer.onDocumentChange is an ASYNC event
+      // subscriber), so it can lag one or more keystrokes behind. Feeding a live-buffer offset into
+      // a stale KtFile makes it land on the wrong element (or none) and signature help silently
+      // fails. Completion avoids this the same way; see KotlinCompletions.doComplete.
+      val liveText = FileManager.getDocumentContents(params.file)
+      val signatureKtFile = env.parser.createFile(fileName = params.file.name, text = liveText).apply {
+        originalFile = ktFile
+        originalKtFile = ktFile
+      }
+      val call = findEnclosingCall(signatureKtFile, offset) ?: return@read SignatureHelp.empty()
+      analyzeMaybeDangling(signatureKtFile) {
         buildSignatureHelp(call, offset)
       }
     }
