@@ -21,7 +21,6 @@ import com.itsaky.androidide.lsp.models.InsertTextFormat
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.progress.ProgressManager
-import com.itsaky.androidide.projects.FileManager
 import kotlinx.coroutines.CancellationException
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
@@ -107,15 +106,15 @@ internal fun codeComplete(params: CompletionParams): CompletionResult {
 
 context(env: CompilationEnvironment)
 internal fun doComplete(params: CompletionParams): CompletionResult {
-	val ktFile = env.ktSymbolIndex.getOpenedKtFile(params.file)
+	val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).get()
 	if (ktFile == null) {
 		logger.warn("File {} is not open", params.file)
 		return CompletionResult.EMPTY
 	}
 
-	// Need to use the original document contents here, instead of
-	// managedFile.inMemoryKtFile.text
-	val originalText = FileManager.getDocumentContents(params.file)
+	// Completion still parses its own placeholder variant (text differs), anchored to the
+	// current file.
+	val originalText = ktFile.text
 	val requestPosition = params.position
 	val completionOffset = requestPosition.requireIndex()
 	val prefix = params.requirePrefix()

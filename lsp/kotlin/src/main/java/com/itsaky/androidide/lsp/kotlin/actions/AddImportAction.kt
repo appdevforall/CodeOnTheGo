@@ -71,7 +71,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 		val file = data.requireFile()
 		val nioPath = file.toPath()
 		val ktFile = env.ktSymbolIndex
-			.getOpenedKtFile(nioPath)
+			.getCurrentKtFile(nioPath).get()
 			?: return emptyMap()
 
 		return env.ktSymbolIndex

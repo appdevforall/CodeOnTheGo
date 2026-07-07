@@ -260,11 +260,30 @@ internal class KtSymbolIndex(
 		ProjectStructureProvider.getInstance(project).unregisterInMemoryFile(path.pathString)
 	}
 
+	/**
+	 * Non-blocking: the current cached instance for [path] if a refresh has already completed,
+	 * else `null`. Safe to call while holding `project.read` (unlike [getCurrentKtFile], which may
+	 * trigger a blocking refresh that needs `project.write`).
+	 */
+	fun getCurrentKtFileIfPresent(path: Path): KtFile? =
+		currentFiles[path]?.getNow(null)?.ktFile
+
 	fun getKtFile(vf: VirtualFile): KtFile? =
 		getKtFile(vf.toNioPath(), vf)
 
 	fun getKtFile(path: Path, virtualFile: VirtualFile? = null): KtFile? {
 		if (!DocumentUtils.isKotlinFile(path)) return null
+
+		if (FileManager.isActive(path)) {
+			// Active document: peek the current-file cache without blocking. Calling
+			// getCurrentKtFile(path).get() here would deadlock: getKtFile is invoked by
+			// Analysis-API services (DeclarationsProvider, AnnotationsResolver,
+			// DirectInheritorsProvider) while FIR resolution holds project.read, and a blocking
+			// refresh needs project.write on the executor thread (reader-holds-lock waits on
+			// writer -> deadlock). A peek miss falls back to the disk instance below; the file's
+			// own refresh is already scheduled on edit and will be served on the next request.
+			getCurrentKtFileIfPresent(path)?.let { return it }
+		}
 
 		openedFiles[path]?.also {
 			return it

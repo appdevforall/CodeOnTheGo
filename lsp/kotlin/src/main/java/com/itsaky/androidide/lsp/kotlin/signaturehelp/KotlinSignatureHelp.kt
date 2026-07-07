@@ -6,16 +6,14 @@ import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
 import com.itsaky.androidide.lsp.models.SignatureInformation
-import com.itsaky.androidide.projects.FileManager
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.future.await
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaFunctionCall
 import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
-import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.psi.KtCallElement
 import org.slf4j.LoggerFactory
-import kotlin.io.path.name
 
 /**
  * Builds a [SignatureHelp] for the function [call] with the cursor at [offset].
@@ -74,7 +72,7 @@ private val logger = LoggerFactory.getLogger("KotlinSignatureHelp")
  * [CompilationEnvironment] to resolve the enclosing call and analyze it.
  */
 context(env: CompilationEnvironment)
-internal fun doSignatureHelp(params: SignatureHelpParams): SignatureHelp {
+internal suspend fun doSignatureHelp(params: SignatureHelpParams): SignatureHelp {
   logger.debug("doSignatureHelp requested for file={} position={}", params.file, params.position)
 
   if (params.cancelChecker.isCancelled()) {
@@ -82,7 +80,11 @@ internal fun doSignatureHelp(params: SignatureHelpParams): SignatureHelp {
     return SignatureHelp.empty()
   }
 
-  val ktFile = env.ktSymbolIndex.getOpenedKtFile(params.file)
+  // Resolves to the current document version, parsing and registering it if a refresh hasn't
+  // already landed. This is called outside any project.read/write block, so awaiting a blocking
+  // refresh here is safe (unlike KtSymbolIndex.getKtFile, which is called by Analysis-API
+  // services while a read lock is held).
+  val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).await()
   if (ktFile == null) {
     logger.warn("File {} is not open", params.file)
     return SignatureHelp.empty()
@@ -91,19 +93,8 @@ internal fun doSignatureHelp(params: SignatureHelpParams): SignatureHelp {
   return try {
     val offset = params.position.requireIndex()
     val result = env.project.read {
-      // Resolve against the live document contents rather than the opened KtFile. The cursor
-      // [offset] is computed by the editor against its in-memory buffer, but the opened KtFile is
-      // refreshed asynchronously (KotlinLanguageServer.onDocumentChange is an ASYNC event
-      // subscriber), so it can lag one or more keystrokes behind. Feeding a live-buffer offset into
-      // a stale KtFile makes it land on the wrong element (or none) and signature help silently
-      // fails. Completion avoids this the same way; see KotlinCompletions.doComplete.
-      val liveText = FileManager.getDocumentContents(params.file)
-      val signatureKtFile = env.parser.createFile(fileName = params.file.name, text = liveText).apply {
-        originalFile = ktFile
-        originalKtFile = ktFile
-      }
-      val call = findEnclosingCall(signatureKtFile, offset) ?: return@read SignatureHelp.empty()
-      analyzeMaybeDangling(signatureKtFile) {
+      val call = findEnclosingCall(ktFile, offset) ?: return@read SignatureHelp.empty()
+      analyzeMaybeDangling(ktFile) {
         buildSignatureHelp(call, offset)
       }
     }

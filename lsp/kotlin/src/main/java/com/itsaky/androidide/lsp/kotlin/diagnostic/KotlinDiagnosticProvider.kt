@@ -53,12 +53,7 @@ internal fun collectDiagnosticsFor(file: Path, cancelChecker: ICancelChecker): D
 @OptIn(KaExperimentalApi::class)
 context(env: CompilationEnvironment)
 private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResult {
-	var ktFile = env.ktSymbolIndex.getOpenedKtFile(file)
-	if (ktFile == null) {
-		env.onFileOpen(file)
-		ktFile = env.ktSymbolIndex.getOpenedKtFile(file)
-	}
-
+	val ktFile = env.ktSymbolIndex.getCurrentKtFile(file).get()
 	if (ktFile == null) {
 		logger.warn("File {} is not accessible", file)
 		return DiagnosticResult.NO_UPDATE
