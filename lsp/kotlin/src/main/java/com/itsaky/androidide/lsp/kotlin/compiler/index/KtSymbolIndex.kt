@@ -3,8 +3,11 @@ package com.itsaky.androidide.lsp.kotlin.compiler.index
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationKind
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
+import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.utils.DocumentUtils
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
@@ -22,9 +25,14 @@ import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import kotlin.io.path.pathString
 
 val KT_SOURCE_FILE_INDEX_KEY = IndexKey<JvmSymbolIndex>("kt-source-file-index")
 val KT_SOURCE_FILE_META_INDEX_KEY = IndexKey<KtFileMetadataIndex>("kt-source-file-meta-index")
@@ -82,6 +90,19 @@ internal class KtSymbolIndex(
 
 	val openedKtFiles: Sequence<Map.Entry<Path, KtFile>>
 		get() = openedFiles.asSequence()
+
+	/** Set by AbstractCompilationEnvironment.initialize once the env's KtPsiFactory exists. */
+	lateinit var parser: KtPsiFactory
+
+	private data class VersionedKtFile(val version: Int, val ktFile: KtFile)
+
+	private val refreshExecutor: ExecutorService =
+		Executors.newFixedThreadPool(2) { r -> Thread(r, "KtCurrentFileRefresh").apply { isDaemon = true } }
+
+	/** path -> in-flight/last-launched refresh. Guarded by currentFiles.asMap().compute per key. */
+	private val currentFiles = ConcurrentHashMap<Path, CompletableFuture<VersionedKtFile>>()
+	/** path -> version most recently launched. Read/written only inside the compute() critical section. */
+	private val currentVersions = ConcurrentHashMap<Path, Int>()
 
 	fun syncIndexInBackground() {
 		indexingJob?.cancel()
@@ -163,6 +184,56 @@ internal class KtSymbolIndex(
 	}
 
 	fun getOpenedKtFile(path: Path) = openedFiles[path]
+
+	/**
+	 * Returns the canonical [KtFile] for [path] at the current document version, parsing (once) on a
+	 * version miss. For non-open paths (no active document) falls back to the disk [getKtFile].
+	 * Single-flight: concurrent callers at the same version share one parse.
+	 */
+	fun getCurrentKtFile(path: Path): CompletableFuture<KtFile?> {
+		if (!DocumentUtils.isKotlinFile(path)) return CompletableFuture.completedFuture(null)
+
+		val doc = FileManager.getActiveDocument(path)
+			?: return CompletableFuture.completedFuture(getKtFile(path))  // not open -> disk path
+
+		val version = doc.version
+		val future = currentFiles.compute(path) { p, existing ->
+			if (existing != null && !existing.isCompletedExceptionally && currentVersions[p] == version) {
+				existing
+			} else {
+				currentVersions[p] = version
+				val prior = existing
+				CompletableFuture.supplyAsync({
+					// Serialize with any prior refresh for this path so old->new succession is linear.
+					val old = try { prior?.get()?.ktFile } catch (_: Throwable) { null }
+					refreshToCurrent(p, version, old)
+				}, refreshExecutor)
+			}
+		}!!
+		return future.thenApply { it.ktFile }
+	}
+
+	/** Parses the live document for [path], registers it as the in-memory file, returns the stamped file. */
+	private fun refreshToCurrent(path: Path, version: Int, old: KtFile?): VersionedKtFile {
+		val content = FileManager.getDocumentContents(path)
+		val newKtFile = project.read { parser.createFile(path.pathString, content) }
+		newKtFile.backingFilePath = path
+		// Use the view provider's virtual file rather than KtFile.virtualFile: the latter is null for
+		// non-physical PSI files (parser event system disabled, e.g. the unit-test environment), while
+		// the view provider always exposes the backing light virtual file. For physical files (prod)
+		// the two are the same object.
+		ProjectStructureProvider.getInstance(project)
+			.registerInMemoryFile(path.pathString, newKtFile.viewProvider.virtualFile)
+		// Task 2 adds the FIR-session invalidation + reindex enqueue here (needs `old`).
+		return VersionedKtFile(version, newKtFile)
+	}
+
+	/** Drops the cached current file for [path] (e.g. on close). */
+	fun invalidateCurrent(path: Path) {
+		currentFiles.remove(path)
+		currentVersions.remove(path)
+		ProjectStructureProvider.getInstance(project).unregisterInMemoryFile(path.pathString)
+	}
 
 	fun getKtFile(vf: VirtualFile): KtFile? =
 		getKtFile(vf.toNioPath(), vf)

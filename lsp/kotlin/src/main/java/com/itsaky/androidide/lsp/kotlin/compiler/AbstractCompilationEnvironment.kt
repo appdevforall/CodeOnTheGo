@@ -320,6 +320,7 @@ internal abstract class AbstractCompilationEnvironment(
 		setupServices(libraryRoots)
 
 		parser = KtPsiFactory(project, eventSystemEnabled = enableParserEventSystem)
+		ktSymbolIndex.parser = parser
 
 		postInit(libraryRoots)
 	}
