@@ -134,7 +134,7 @@ private fun CpuUsageGraphContent(
 		val currentSamples by rememberUpdatedState(samples)
 		val currentOnSelect by rememberUpdatedState(onSelectIndex)
 
-		Box(modifier = Modifier.fillMaxSize().onSizeChanged { plotSize = it }) {
+		Box(modifier = Modifier.weight(1f).fillMaxWidth().onSizeChanged { plotSize = it }) {
 			Canvas(
 				modifier =
 					Modifier
