@@ -10,9 +10,12 @@ import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeUIService
 import com.itsaky.androidide.plugins.services.IdeBuildService
-import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
+import com.itsaky.androidide.plugins.services.IdeProjectManipulationService
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeProjectManipulationServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
 import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
@@ -46,7 +49,6 @@ import com.itsaky.androidide.plugins.services.IdeSidebarService
 import com.itsaky.androidide.plugins.services.IdeEditorService
 import com.itsaky.androidide.plugins.services.IdeEnvironmentService
 import com.itsaky.androidide.plugins.services.IdeArchiveService
-import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEnvironmentServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeArchiveServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
@@ -261,7 +263,10 @@ class PluginManager private constructor(
             async {
                 try {
                     logger.debug("Loading plugin: ${pluginFile.name}")
-                    loadPlugin(pluginFile)
+                    val result = loadPlugin(pluginFile)
+                    result.onFailure { error ->
+                        logger.error("Failed to load plugin from ${pluginFile.name}: ${error.message}", error)
+                    }
                 } catch (e: Exception) {
                     logger.error("Failed to load plugin from ${pluginFile.name}", e)
                 }
@@ -1140,6 +1145,15 @@ class PluginManager private constructor(
             IdeBuildServiceImpl.getInstance()
         }
 
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeProjectManipulationService::class.java,
+            pluginId,
+            "project_manipulation"
+        ) {
+            IdeProjectManipulationServiceImpl.getInstance()
+        }
+
         // Tooltip service for showing help documentation
         // Use main app context for tooltip service to access app's tooltip layouts
         registerServiceWithErrorHandling(
@@ -1294,6 +1308,13 @@ class PluginManager private constructor(
             )
         }
 
+        // Note: Phase 2 services (IdeFileService, IdeProjectService, IdeResourceService)
+        // have been removed. Use existing services instead:
+        // - IdeFileService for file operations (now includes listFiles)
+        // - IdeProjectManipulationService for dependency management
+        // - IdeBuildService for build operations
+        // This maintains binary compatibility with existing plugins.
+
         // Create PluginContext with resource context
         return PluginContextImpl(
             androidContext = resourceContext, // Use the resource context instead of app context
@@ -1355,6 +1376,15 @@ class PluginManager private constructor(
             "build"
         ) {
             IdeBuildServiceImpl.getInstance()
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeProjectManipulationService::class.java,
+            pluginId,
+            "project_manipulation"
+        ) {
+            IdeProjectManipulationServiceImpl.getInstance()
         }
 
         registerServiceWithErrorHandling(

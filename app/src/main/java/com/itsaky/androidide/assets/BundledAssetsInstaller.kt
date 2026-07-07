@@ -134,51 +134,6 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 						}
 					}
 				}
-                AssetsInstallationHelper.LLAMA_AAR -> {
-                    val sourceAssetName = when (cpuArch) {
-                        CpuArch.AARCH64 -> "llama-v8.aar"
-                        CpuArch.ARM -> "llama-v7.aar"
-                        else -> {
-                            logger.warn("Unsupported CPU arch for Llama AAR: $cpuArch. Skipping.")
-                            return@withContext
-                        }
-                    }
-                    val candidates = listOf(
-                        "dynamic_libs/${sourceAssetName}.br", // preferred (compressed)
-                        "dynamic_libs/${sourceAssetName}",    // fallback (uncompressed)
-                    )
-
-                    val destDir = context.getDir("dynamic_libs", Context.MODE_PRIVATE)
-                    destDir.mkdirs()
-                    val destFile = File(destDir, "llama.aar")
-
-                    val opened = candidates.firstNotNullOfOrNull { path ->
-                        try {
-                            path to assets.open(path)
-                        } catch (_: FileNotFoundException) {
-                            null
-                        }
-                    } ?: run {
-                        logger.warn(
-                            "Llama AAR asset not found for arch {}. Tried {}",
-                            cpuArch,
-                            candidates
-                        )
-                        return@withContext
-                    }
-
-                    val (assetPath, stream) = opened
-                    logger.debug("Extracting '{}' to {}", assetPath, destFile.absolutePath)
-
-                    val inputStream =
-                        if (assetPath.endsWith(".br")) BrotliInputStream(stream) else stream
-
-                    inputStream.use { input ->
-                        destFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                }
                 AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> {
                     logger.debug("Extracting plugin artifacts from '{}'", entryName)
                     val pluginDir = Environment.PLUGIN_API_JAR.parentFile

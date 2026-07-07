@@ -130,6 +130,16 @@ jobs:
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
           echo "google-services.json created successfully"
 
+      - name: Verify plugin-api binary compatibility
+        run: |
+          flox activate -d flox/base -- ./gradlew :plugin-api:apiCheck --no-daemon
+
+      - name: Clean build cache before assembly
+        run: |
+          echo "Cleaning stale build artifacts..."
+          rm -rf app/build/
+          echo "Build cache cleaned successfully"
+
       - name: Assemble Universal APK
         run: |
           echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
