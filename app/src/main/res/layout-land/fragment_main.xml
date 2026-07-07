@@ -18,7 +18,7 @@
   <LinearLayout
     android:id="@+id/greeting"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:layout_marginStart="24dp"
     android:layout_marginEnd="32dp"
     android:minWidth="200dp"
@@ -33,16 +33,6 @@
       android:layout_marginBottom="8dp"
       android:importantForAccessibility="no"
       android:src="@drawable/cogo_brand_mark" />
-
-    <TextView
-      android:id="@+id/versionLabel"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:gravity="center"
-      android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-      android:textColor="?attr/colorOnSurfaceVariant"
-      android:visibility="gone"
-      tools:text="25.47 (C-r-1118-0930)" />
 
     <TextView
       android:id="@+id/getStarted"
@@ -61,6 +51,22 @@
       android:focusable="true"
       android:text="@string/msg_create_new_project_greeting"
       android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
+
+    <Space
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1" />
+
+    <TextView
+      android:id="@+id/versionLabel"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginBottom="16dp"
+      android:gravity="center"
+      android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+      android:textColor="?attr/colorOnSurfaceVariant"
+      android:visibility="gone"
+      tools:text="25.47 (C-r-1118-0930)" />
 
   </LinearLayout>
 
