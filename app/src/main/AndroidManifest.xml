@@ -26,6 +26,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Required so voice/speech plugins (e.g. speech-to-text) can record audio. Plugins run
+         under this app's UID, so the runtime permission must be declared here — a plugin
+         manifest's uses-permission is not merged into the host APK. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission

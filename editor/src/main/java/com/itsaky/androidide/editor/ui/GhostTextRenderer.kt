@@ -27,11 +27,15 @@ import io.github.rosemoe.sora.widget.EditorRenderer
  * at a fixed anchor position, after the editor's normal content. This backs the host side of the
  * inline-suggestion plugin pipeline (`IdeEditorService.showInlineSuggestion`).
  *
+ * Extends [TracingEditorRenderer] so it inherits the block-line data-race guards (ADFA-2468) while
+ * layering ghost text on top of the normal draw pass — the editor only supports a single renderer,
+ * so the two behaviours have to share one class.
+ *
  * State is mutated from the main thread (via [IDEEditor]); [draw] reads it defensively and must
  * never throw — a bad suggestion or transient layout state can never take the editor's draw pass
  * down with it.
  */
-class GhostTextRenderer(private val editor: CodeEditor) : EditorRenderer(editor) {
+class GhostTextRenderer(private val editor: CodeEditor) : TracingEditorRenderer(editor = editor) {
 
   @Volatile
   private var suggestion: String? = null

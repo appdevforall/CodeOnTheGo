@@ -524,12 +524,6 @@ constructor(
     final override fun <T : EditorBuiltinComponent?> getComponent(clazz: Class<T>): T & Any =
         super.getComponent(clazz)
 
-    /** Uses [TracingEditorRenderer], which guards block-line drawing against the
-     * styles.blocks data race that otherwise crashes onDraw. */
-    override fun onCreateRenderer(): EditorRenderer {
-        return TracingEditorRenderer(editor = this)
-    }
-
     override fun release() {
         ensureWindowsDismissed()
 
@@ -976,6 +970,8 @@ constructor(
 
     // --- Inline suggestions (ghost text) ------------------------------------
 
+    /** [GhostTextRenderer] extends [TracingEditorRenderer], so this keeps the block-line
+     * data-race guards while also drawing inline ghost text. */
     override fun onCreateRenderer(): EditorRenderer = GhostTextRenderer(this)
 
     private val ghostRenderer: GhostTextRenderer?

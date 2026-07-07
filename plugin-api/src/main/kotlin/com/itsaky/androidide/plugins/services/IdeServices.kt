@@ -217,6 +217,20 @@ interface IdeUIService {
         title: String? = null
     ): Boolean = false
 
+    /**
+     * Asks the IDE to rebuild the editor toolbar, re-evaluating each plugin
+     * [com.itsaky.androidide.plugins.extensions.ToolbarAction]'s dynamic providers
+     * ([com.itsaky.androidide.plugins.extensions.ToolbarAction.iconProvider],
+     * `isEnabledProvider`, `isVisibleProvider`). Call this after changing plugin state
+     * that those providers depend on — e.g. to swap a toolbar icon between
+     * idle/active/processing states.
+     *
+     * Safe to call from any thread; the rebuild is marshalled to the UI thread. A no-op
+     * when no editor is in the foreground. Default implementation does nothing so older
+     * hosts remain source/binary compatible.
+     */
+    fun refreshToolbarActions() {}
+
     companion object {
         const val ACTION_OPEN_PLUGIN_SCREEN = "com.itsaky.androidide.plugins.OPEN_PLUGIN_SCREEN"
         const val EXTRA_PLUGIN_ID = "com.itsaky.androidide.plugins.extra.PLUGIN_ID"
