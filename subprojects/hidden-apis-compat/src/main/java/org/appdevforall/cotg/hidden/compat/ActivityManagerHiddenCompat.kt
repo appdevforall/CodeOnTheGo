@@ -116,8 +116,10 @@ object ActivityManagerHiddenCompat {
 		val finishCallback = RemoteCallback({ latch.countDown() }, null)
 		val started =
 			activityManager.dumpHeap(process, userId, managed, mallocInfo, runGc, path, fd, finishCallback)
-		latch.await(DUMP_HEAP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-		return started
+		// If the dump hasn't signalled completion within the timeout the caller must NOT close fd on a
+		// still-running dump (that truncates the file); report failure so it surfaces to the client.
+		val finished = latch.await(DUMP_HEAP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+		return started && finished
 	}
 
 	/**
@@ -139,7 +141,9 @@ object ActivityManagerHiddenCompat {
 		val finishCallback = RemoteCallback({ latch.countDown() }, null)
 		val started =
 			activityManager.dumpHeap(process, userId, managed, mallocInfo, runGc, dumpBitmaps, path, fd, finishCallback)
-		latch.await(DUMP_HEAP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-		return started
+		// If the dump hasn't signalled completion within the timeout the caller must NOT close fd on a
+		// still-running dump (that truncates the file); report failure so it surfaces to the client.
+		val finished = latch.await(DUMP_HEAP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+		return started && finished
 	}
 }
