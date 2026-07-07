@@ -40,6 +40,9 @@ dependencies {
 	compileOnly("com.google.android.material:material:1.11.0")
 
 	api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+
+	// Test dependencies
+	testImplementation("junit:junit:4.13.2")
 }
 
 tasks.register<Copy>("createPluginApiJar") {
