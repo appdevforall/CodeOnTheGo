@@ -1,4 +1,3 @@
-
 package com.itsaky.androidide.actions.profiler
 
 import android.content.Context
@@ -7,6 +6,7 @@ import com.itsaky.androidide.actions.build.AbstractRunAction
 import com.itsaky.androidide.actions.canShowPairingNotification
 import com.itsaky.androidide.actions.showNotificationPermissionDialog
 import com.itsaky.androidide.actions.showPairingDialog
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
@@ -58,7 +58,7 @@ class ProfilerAction(
 		const val ID = "ide.editor.build.profiler"
 	}
 
-	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = "" // todo: get a documentation tooltip!
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_PROFILE
 
 	override fun prepare(data: ActionData) {
 		super.prepare(data)

@@ -9,12 +9,16 @@ package com.itsaky.androidide.actions.profiler
  *
  * The computed name is only returned if it is present in [allVariants]; otherwise `null`.
  */
-internal fun releaseVariantName(selectedVariant: String, allVariants: List<String>): String? {
-    val candidate = when {
-        selectedVariant == "release" || selectedVariant.endsWith("Release") -> selectedVariant
-        selectedVariant == "debug" -> "release"
-        selectedVariant.endsWith("Debug") -> selectedVariant.removeSuffix("Debug") + "Release"
-        else -> return null
-    }
-    return candidate.takeIf { it in allVariants }
+internal fun releaseVariantName(
+	selectedVariant: String,
+	allVariants: List<String>,
+): String? {
+	val candidate =
+		when {
+			selectedVariant == "release" || selectedVariant.endsWith("Release") -> selectedVariant
+			selectedVariant == "debug" -> "release"
+			selectedVariant.endsWith("Debug") -> selectedVariant.removeSuffix("Debug") + "Release"
+			else -> return null
+		}
+	return candidate.takeIf { it in allVariants }
 }
