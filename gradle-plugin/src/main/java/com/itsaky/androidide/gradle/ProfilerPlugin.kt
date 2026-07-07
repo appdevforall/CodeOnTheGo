@@ -1,6 +1,7 @@
 package com.itsaky.androidide.gradle
 
 import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
@@ -35,6 +36,21 @@ class ProfilerPlugin : Plugin<Project> {
 				}
 
 				logger.info("Applying {} to project '${target.path}'", ProfilerPlugin::class.simpleName)
+
+				// Make the release APK installable for profiling: if the release build type has
+				// no signing config, fall back to the debug signing config that AGP always
+				// creates for application modules. A project with its own release keystore is
+				// left untouched.
+				extensions.getByType(ApplicationExtension::class.java).apply {
+					buildTypes.findByName("release")?.let { release ->
+						if (release.signingConfig == null) {
+							logger.lifecycle(
+								"Configuring release build type to use debug signing config",
+							)
+							release.signingConfig = signingConfigs.getByName("debug")
+						}
+					}
+				}
 
 				extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
 					onVariants { variant ->
