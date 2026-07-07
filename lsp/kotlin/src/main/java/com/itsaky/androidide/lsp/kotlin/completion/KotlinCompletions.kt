@@ -17,6 +17,7 @@ import com.itsaky.androidide.lsp.models.CompletionItemKind
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.InsertTextFormat
+import com.itsaky.androidide.lsp.models.MatchLevel
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.progress.ProgressManager
@@ -241,11 +242,11 @@ private fun KaSession.collectMembersFromType(
 	val typeScope = receiverType.scope
 	if (typeScope != null) {
 		val callables =
-			typeScope.getCallableSignatures { name -> matchesPrefix(name) }
+			typeScope.getCallableSignatures { name -> matchesFilter(name) }
 				.map { it.symbol }
 
 		val classifiers =
-			typeScope.getClassifierSymbols { name -> matchesPrefix(name) }
+			typeScope.getClassifierSymbols { name -> matchesFilter(name) }
 
 		to += toCompletionItems(callables)
 		to += toCompletionItems(classifiers)
@@ -257,8 +258,8 @@ private fun KaSession.collectMembersFromType(
 	val classSymbol = classType.symbol as? KaClassSymbol ?: return
 	val memberScope = classSymbol.memberScope
 
-	val callables = memberScope.callables { name -> matchesPrefix(name) }
-	val classifiers = memberScope.classifiers { name -> matchesPrefix(name) }
+	val callables = memberScope.callables { name -> matchesFilter(name) }
+	val classifiers = memberScope.classifiers { name -> matchesFilter(name) }
 
 	to += toCompletionItems(callables)
 	to += toCompletionItems(classifiers)
@@ -270,7 +271,7 @@ private fun KaSession.collectExtensionFunctions(
 	to: MutableList<CompletionItem>
 ) {
 	val extensionSymbols =
-		ctx.scope.callables { name -> matchesPrefix(name) }
+		ctx.scope.callables { name -> matchesFilter(name) }
 			.filter { symbol ->
 				if (!symbol.isExtension) return@filter false
 
@@ -303,7 +304,7 @@ private fun KaSession.collectScopeCompletions(
 	)
 
 	val callables =
-		scope.callables { name -> matchesPrefix(name) }
+		scope.callables { name -> matchesFilter(name) }
 			.filter { symbol ->
 
 				abortIfCancelled()
@@ -318,7 +319,7 @@ private fun KaSession.collectScopeCompletions(
 				}
 			}
 
-	val classifiers = scope.classifiers { name -> matchesPrefix(name) }
+	val classifiers = scope.classifiers { name -> matchesFilter(name) }
 
 	to += toCompletionItems(callables)
 	to += toCompletionItems(classifiers)
@@ -685,7 +686,7 @@ private fun KaSession.ktCompletionItem(
 	val item = KotlinCompletionItem()
 	item.ideLabel = name
 	item.completionKind = kind
-	item.matchLevel = CompletionItem.matchLevel(item.ideLabel, ctx.partial)
+	item.matchLevel = matchLevelFor(name)
 
 	return item
 }
@@ -754,11 +755,28 @@ private fun partialIdentifier(prefix: String): String {
 	return prefix.takeLastWhile { char -> Character.isJavaIdentifierPart(char) }
 }
 
+/**
+ * Returns the [MatchLevel] of [name] against [partial], memoized in [cache].
+ *
+ * Match level depends only on (name, partial), so memoizing by name is safe even
+ * when multiple symbols share a name. This is the single place match level is
+ * computed for a completion request; both the inclusion predicate and item
+ * creation route through it so [CompletionItem.matchLevel] runs at most once per
+ * distinct candidate name.
+ */
+internal fun memoizedMatchLevel(
+	cache: MutableMap<String, MatchLevel>,
+	name: String,
+	partial: String,
+): MatchLevel = cache.getOrPut(name) { CompletionItem.matchLevel(name, partial) }
+
 context(ctx: AnalysisContext)
-private fun matchesPrefix(name: Name): Boolean {
-	if (ctx.partial.isEmpty()) return true
-	return name.asString().startsWith(ctx.partial, ignoreCase = true)
-}
+private fun matchLevelFor(name: String): MatchLevel =
+	memoizedMatchLevel(ctx.matchLevelCache, name, ctx.partial)
+
+context(ctx: AnalysisContext)
+private fun matchesFilter(name: Name): Boolean =
+	matchLevelFor(name.asString()) != MatchLevel.NO_MATCH
 
 private fun determineCompletionContext(element: PsiElement): CompletionContext {
 	// Walk up to find a qualified expression where we're the selector
