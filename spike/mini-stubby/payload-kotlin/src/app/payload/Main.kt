@@ -13,7 +13,7 @@ import android.widget.TextView
  * service recompiles just this class and hot-reloads.
  */
 object Main {
-    private const val HEADLINE = "v11"
+    private const val HEADLINE = "tiers"
 
     @JvmStatic
     fun render(host: Activity): View {

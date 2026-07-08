@@ -46,6 +46,7 @@ public class KotlinCompileService {
             libDexDir, genDir, resourcesApk, outApk;
     static String androidJar, stdlibJar, d8Jar, aapt2;
     static boolean deploy = true;
+    static boolean tier1Enabled = "true".equals(System.getProperty("tier1"));
     static volatile long lastDeployAt = 0;
     static volatile int gen = 0;
 
@@ -126,9 +127,72 @@ public class KotlinCompileService {
         gen++;
         lastDeployAt = now();
         long total = now() - t0;
-        log((warmup ? "warmup" : "save→deployed")
+        log((warmup ? "warmup" : "TIER2 code (full compile+reload)")
                 + " total=" + total + "ms (kotlinc=" + kMs + " d8=" + dMs
                 + " pack=" + pMs + " deploy=" + (deploy ? depMs + "ms" : "skipped") + ")");
+    }
+
+    /**
+     * TIER 0 — resource/UI edit: NO compiler. Re-link resources (aapt2), reuse the
+     * cached app + stdlib dex, repackage, deploy. The overwhelming-majority case
+     * during UI work (layout/string/color/dimen tweaks) and the cheapest path.
+     */
+    static void resourceOnlyChange() throws Exception {
+        long t0 = now();
+        long a0 = now();
+        linkResources();                 // aapt2 compile+link only
+        long aMs = now() - a0;
+        long p0 = now();
+        Files.copy(resourcesApk, outApk, StandardCopyOption.REPLACE_EXISTING);
+        zipInto(outApk, appDexDir.resolve("classes.dex"), "classes.dex");   // cached
+        zipInto(outApk, libDexDir.resolve("classes.dex"), "classes2.dex");  // cached
+        long pMs = now() - p0;
+        long dep0 = now();
+        if (deploy) deploy(outApk);
+        long depMs = now() - dep0;
+        gen++;
+        lastDeployAt = now();
+        log("TIER0 resource (NO compiler) total=" + (now() - t0) + "ms (aapt2=" + aMs
+                + " pack=" + pMs + " deploy=" + (deploy ? depMs + "ms" : "skipped") + ")");
+    }
+
+    /**
+     * Code-edit dispatch. Attempts TIER 1 (compile the changed class → dex →
+     * ART class redefinition in the running shell, no reload, state preserved);
+     * on unavailability or a structural change (add/remove method/field/class,
+     * signature change) that ART can't redefine, falls through to TIER 2.
+     */
+    static void codeChange() throws Exception {
+        if (tier1Enabled && tryTier1Redefine()) return;
+        buildAndDeploy(false); // TIER 2
+    }
+
+    static boolean tryTier1Redefine() throws Exception {
+        long t0 = now();
+        // Compile just the app class(es) and dex only those → redefine.dex.
+        List<Path> kt = new ArrayList<>();
+        collect(srcDir, ".kt", kt);
+        String cp = androidJar + File.pathSeparator + classesDir + File.pathSeparator + stdlibJar;
+        deleteClassFilesUnder(classesDir);
+        long k0 = now();
+        ExitCode code = kotlinCompile(kt, cp, classesDir);
+        long kMs = now() - k0;
+        if (code != ExitCode.OK) {
+            log("kotlinc FAILED (" + code + ") — service alive");
+            return true; // handled (nothing to deploy); don't fall to Tier 2
+        }
+        runD8(classesDir, appDexDir); // classes.dex containing only the app class(es)
+        // Hand the dex to the on-device redefine agent via a watched drop file;
+        // the shell's JVMTI agent picks it up, finds the loaded class, and calls
+        // RedefineClasses. A non-zero result file means "structural — fall back".
+        Boolean ok = pushRedefine(appDexDir.resolve("classes.dex"));
+        if (ok == null) { log("TIER1 agent unavailable — falling back to TIER2"); return false; }
+        if (!ok) { log("TIER1 rejected (structural change) — falling back to TIER2"); return false; }
+        gen++;
+        lastDeployAt = now();
+        log("TIER1 hot-swap (redefine, NO reload) total=" + (now() - t0)
+                + "ms (kotlinc=" + kMs + ")");
+        return true;
     }
 
     static ExitCode kotlinCompile(List<Path> sources, String classpath, Path out) {
@@ -200,24 +264,44 @@ public class KotlinCompileService {
 
     static void watchLoop() throws Exception {
         WatchService ws = FileSystems.getDefault().newWatchService();
-        // WatchService is NOT recursive — register srcDir AND every subdirectory
-        // (payload sources live in package dirs like src/app/payload/).
-        try (var walk = Files.walk(srcDir)) {
+        // WatchService is NOT recursive — register src AND res (and subdirs).
+        registerRecursive(ws, srcDir);
+        registerRecursive(ws, resDir);
+        log("watching src + res (recursive) — edit a .kt (→ code path) or res (→ TIER0)");
+        while (true) {
+            WatchKey key = ws.take();
+            Thread.sleep(80); // debounce
+            // Drain all queued keys so a burst of writes classifies as one save.
+            boolean srcChanged = false, resChanged = false;
+            List<WatchKey> keys = new ArrayList<>();
+            keys.add(key);
+            WatchKey k2;
+            while ((k2 = ws.poll()) != null) keys.add(k2);
+            for (WatchKey kk : keys) {
+                Path dir = (Path) kk.watchable();
+                if (dir.startsWith(srcDir)) srcChanged = true;
+                if (dir.startsWith(resDir)) resChanged = true;
+                kk.pollEvents();
+                kk.reset();
+            }
+            // TIER DISPATCH: a code change takes the code path (Tier 1 attempt →
+            // Tier 2 fallback); a resource-only change takes Tier 0 (no compiler).
+            try {
+                if (srcChanged) codeChange();
+                else if (resChanged) resourceOnlyChange();
+            } catch (Throwable t) { log("build error (service alive): " + t); }
+        }
+    }
+
+    static void registerRecursive(WatchService ws, Path root) throws Exception {
+        if (!Files.exists(root)) return;
+        try (var walk = Files.walk(root)) {
             walk.filter(Files::isDirectory).forEach(d -> {
                 try {
                     d.register(ws, StandardWatchEventKinds.ENTRY_MODIFY,
                             StandardWatchEventKinds.ENTRY_CREATE);
                 } catch (Exception e) { log("watch register failed: " + d); }
             });
-        }
-        log("watching " + srcDir + " (recursive) — edit a .kt and save");
-        while (true) {
-            WatchKey key = ws.take();
-            Thread.sleep(80); // debounce
-            key.pollEvents();
-            key.reset();
-            try { buildAndDeploy(false); }
-            catch (Throwable t) { log("build error (service alive): " + t); }
         }
     }
 
@@ -237,6 +321,41 @@ public class KotlinCompileService {
 
     static void deploy(Path apk) throws Exception {
         run("sh", spikeRoot.resolve("tools/deploy_payload.sh").toString(), apk.toString());
+    }
+
+    /**
+     * Hand a redefine dex to the on-device JVMTI agent and read its verdict.
+     * Protocol (see hotswap-agent/): push the dex into the shell's private
+     * files/hotswap/redefine.dex, then a trigger file; the agent redefines the
+     * loaded class(es) and writes files/hotswap/result (0=ok, 1=structural).
+     * Returns null if the agent isn't installed/attached (→ Tier 2 fallback).
+     */
+    static Boolean pushRedefine(Path dex) throws Exception {
+        String pkg = "com.adfa.ministubby.host";
+        // agent present? (its result dir exists once attached)
+        String probe = sh("adb shell run-as " + pkg
+                + " sh -c 'test -d files/hotswap && echo yes || echo no'").trim();
+        if (!probe.endsWith("yes")) return null;
+        sh("adb push " + dex + " /data/local/tmp/redefine.dex");
+        sh("adb shell run-as " + pkg + " sh -c '"
+                + "cp /data/local/tmp/redefine.dex files/hotswap/redefine.dex && "
+                + "echo app.payload.Main > files/hotswap/trigger'");
+        // poll the result (agent writes it within a few ms)
+        for (int i = 0; i < 40; i++) {
+            String r = sh("adb shell run-as " + pkg
+                    + " sh -c 'cat files/hotswap/result 2>/dev/null'").trim();
+            if (r.endsWith("0")) return true;
+            if (r.endsWith("1")) return false;
+            Thread.sleep(15);
+        }
+        return null; // timed out → be safe, fall back
+    }
+
+    static String sh(String cmd) throws Exception {
+        Process p = new ProcessBuilder("sh", "-c", cmd).redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        p.waitFor();
+        return out;
     }
 
     // ---------- small helpers ----------
