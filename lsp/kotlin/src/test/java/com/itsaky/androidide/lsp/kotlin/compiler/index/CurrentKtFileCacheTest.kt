@@ -91,11 +91,9 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 		changeDocument(path, "fun e(): Int = 1\nfun f(): Int = e()", 2)
 		val v2 = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
 
-		// The new top-level `f` calling `e` must resolve without UNRESOLVED_REFERENCE. The
-		// `.defaultMessage` access must stay inside `env.analyze {}`: outside the analysis
-		// session, reading a diagnostic's message would throw
-		// KaInaccessibleLifetimeOwnerAccessException instead of producing a clean assertion
-		// diff on a real regression.
+		// `f` calling `e` must resolve (no UNRESOLVED_REFERENCE). Keep `.defaultMessage` inside
+		// `env.analyze {}`: reading a diagnostic outside its analysis session throws
+		// KaInaccessibleLifetimeOwnerAccessException instead of a clean assertion diff.
 		val diagnosticMessages = env.analyze(v2) {
 			v2.collectDiagnostics(
 				org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS
@@ -146,8 +144,7 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 		createSourceFile("J.kt", "fun j() {}")
 		val path = sourcePath("J.kt")
 		openDocument(path, "fun j() {}")
-		// Note: getCurrentKtFile(path) is deliberately never called here, so no refresh has
-		// been launched for this path yet.
+		// getCurrentKtFile is deliberately never called, so no refresh has been launched for this path.
 
 		val peeked = env.ktSymbolIndex.getCurrentKtFileIfPresent(path)
 

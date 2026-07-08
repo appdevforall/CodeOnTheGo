@@ -249,7 +249,7 @@ internal class CompilationEnvironment(
 
 		project.write {
 			// Must run under the write lock so the session mutation can't race a concurrent
-			// `analyze` (which only holds the read lock); see onFileContentChanged.
+			// `analyze` (which only holds the read lock); see KtSymbolIndex.refreshToCurrent.
 			if (ktFile != null) {
 				KaSourceModificationService.getInstance(project)
 					.handleElementModification(ktFile, typeProvider(ktFile))

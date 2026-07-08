@@ -100,9 +100,9 @@ internal class KtSymbolIndex(
 	private val refreshExecutor: ExecutorService =
 		Executors.newFixedThreadPool(2) { r -> Thread(r, "KtCurrentFileRefresh").apply { isDaemon = true } }
 
-	/** path -> in-flight/last-launched refresh. Guarded by currentFiles.asMap().compute per key. */
+	/** path -> in-flight/last-launched refresh; mutated only inside the per-key `compute` below. */
 	private val currentFiles = ConcurrentHashMap<Path, CompletableFuture<VersionedKtFile>>()
-	/** path -> version most recently launched. Read/written only inside the compute() critical section. */
+	/** path -> last-launched version; read/written only inside that same `compute` section. */
 	private val currentVersions = ConcurrentHashMap<Path, Int>()
 
 	fun syncIndexInBackground() {
@@ -204,34 +204,26 @@ internal class KtSymbolIndex(
 		return future.thenApply { it.ktFile }
 	}
 
-	/** Parses the live document for [path], registers it as the in-memory file, returns the stamped file. */
+	/**
+	 * Parses [path]'s live document into a fresh [KtFile], registers it as the in-memory file, and
+	 * transitions the module's FIR session (invalidate + reindex) so later analysis sees the content.
+	 *
+	 * The result is stamped with [version] (captured when the refresh was launched) even though the
+	 * content is read later, here. FileManager writes version-before-content unsynchronized, so the
+	 * stamp may lag the content but never lead it: callers never get older-than-requested content, and
+	 * a lagging stamp only costs one redundant re-parse on the next request.
+	 */
 	private fun refreshToCurrent(path: Path, version: Int, old: KtFile?): VersionedKtFile {
-		// [version] is the version observed (by getCurrentKtFile, reading ActiveDocument.version)
-		// when this refresh was launched inside compute(); the content below is read live, possibly
-		// later (this runs on refreshExecutor, after any prior refresh's prior.get()).
-		// FileManager.onDocumentContentChange writes `version` before `content`, and neither field is
-		// volatile/synchronized (a pre-existing race, not introduced here) — so a reader can observe a
-		// `version` that is older than the `content` it later reads, never the reverse. Combined with
-		// content advancing monotonically, this means what we parse here is always at-least-as-fresh
-		// as the stamped [version]: callers never see stale (older-than-requested) content. The only
-		// effect of the skew is a spurious cache miss and one redundant re-parse on the next request
-		// for the newer version.
 		val content = FileManager.getDocumentContents(path)
 		val newKtFile = project.read { parser.createFile(path.pathString, content) }
 		newKtFile.backingFilePath = path
-		// Use the view provider's virtual file rather than KtFile.virtualFile: the latter is null for
-		// non-physical PSI files (parser event system disabled, e.g. the unit-test environment), while
-		// the view provider always exposes the backing light virtual file. For physical files (prod)
-		// the two are the same object.
+		// KtFile.virtualFile is null for non-physical PSI (unit-test env); the view provider's is
+		// always present, and identical to it in production.
 		ProjectStructureProvider.getInstance(project)
 			.registerInMemoryFile(path.pathString, newKtFile.viewProvider.virtualFile)
-		// Mirrors CompilationEnvironment.onFileContentChanged: invalidate the FIR session's view of
-		// the (old) element under the write lock so it can't race a concurrent `analyze` (which only
-		// holds the read lock), then re-index the new instance.
+		// project.write serializes the mutation against a concurrent `analyze` (read lock); runWriteAction
+		// supplies the platform write access handleElementModification asserts, which our RW lock does not.
 		project.write {
-			// handleElementModification publishes an out-of-block modification event, which the
-			// platform's ThreadingAssertions require to run inside a write action (independent of our
-			// own read/write lock above, which only serializes with `analyze`).
 			ApplicationManager.getApplication().runWriteAction {
 				KaSourceModificationService.getInstance(project)
 					.handleElementModification(old ?: newKtFile, KaElementModificationType.Unknown)
@@ -263,13 +255,9 @@ internal class KtSymbolIndex(
 		if (!DocumentUtils.isKotlinFile(path)) return null
 
 		if (FileManager.isActive(path)) {
-			// Active document: peek the current-file cache without blocking. Calling
-			// getCurrentKtFile(path).get() here would deadlock: getKtFile is invoked by
-			// Analysis-API services (DeclarationsProvider, AnnotationsResolver,
-			// DirectInheritorsProvider) while FIR resolution holds project.read, and a blocking
-			// refresh needs project.write on the executor thread (reader-holds-lock waits on
-			// writer -> deadlock). A peek miss falls back to the disk instance below; the file's
-			// own refresh is already scheduled on edit and will be served on the next request.
+			// Peek, never block: getKtFile runs under project.read inside Analysis-API services, so a
+			// blocking getCurrentKtFile().get() (its refresh needs project.write) would deadlock. A miss
+			// falls through to the disk instance; the edit already scheduled a refresh for next time.
 			getCurrentKtFileIfPresent(path)?.let { return it }
 		}
 
@@ -309,9 +297,8 @@ internal class KtSymbolIndex(
 		// (APPDEVFORALL-17R). This index owns `scope`.
 		scope.coroutineContext[Job]?.cancelAndJoin()
 
-		// Drain the current-file refresh pool: refreshToCurrent runs project.read/write on it, so no
-		// in-flight refresh may survive into the caller's project disposal (same rationale as the
-		// scope join above). Bounded so a slow parse can't block shutdown indefinitely.
+		// Drain the refresh pool before disposal: refreshToCurrent runs project.read/write on it (same
+		// rationale as the scope join above). Bounded so a slow parse can't stall shutdown.
 		refreshExecutor.shutdownNow()
 		refreshExecutor.awaitTermination(CLOSE_DRAIN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
 	}

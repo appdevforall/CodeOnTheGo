@@ -80,10 +80,8 @@ internal suspend fun doSignatureHelp(params: SignatureHelpParams): SignatureHelp
     return SignatureHelp.empty()
   }
 
-  // Resolves to the current document version, parsing and registering it if a refresh hasn't
-  // already landed. This is called outside any project.read/write block, so awaiting a blocking
-  // refresh here is safe (unlike KtSymbolIndex.getKtFile, which is called by Analysis-API
-  // services while a read lock is held).
+  // Safe to await a (possibly blocking) refresh here: this runs outside any project.read/write
+  // block, so it can't deadlock against the refresh's project.write (unlike KtSymbolIndex.getKtFile).
   val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).await()
   if (ktFile == null) {
     logger.warn("File {} is not open", params.file)
