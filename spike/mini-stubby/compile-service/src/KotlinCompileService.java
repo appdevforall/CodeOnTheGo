@@ -181,11 +181,20 @@ public class KotlinCompileService {
             log("kotlinc FAILED (" + code + ") — service alive");
             return true; // handled (nothing to deploy); don't fall to Tier 2
         }
-        runD8(classesDir, appDexDir); // classes.dex containing only the app class(es)
-        // Hand the dex to the on-device redefine agent via a watched drop file;
-        // the shell's JVMTI agent picks it up, finds the loaded class, and calls
-        // RedefineClasses. A non-zero result file means "structural — fall back".
-        Boolean ok = pushRedefine(appDexDir.resolve("classes.dex"));
+        // Dex ONLY the Main class (+ its d8-desugared synthetics), not R etc. —
+        // ART's RedefineClasses wants the dex to contain exactly the redefined
+        // classes. redefineDexDir/classes.dex holds just Main + Main$$…
+        List<Path> mainClasses = new ArrayList<>();
+        try (var walk = Files.walk(classesDir)) {
+            walk.filter(p -> p.getFileName().toString().equals("Main.class"))
+                .forEach(mainClasses::add);   // ONLY Main.class → single-class dex
+        }
+        Path redefineDexDir = workDir.resolve("redefinedex");
+        d8(mainClasses, redefineDexDir);
+        // Hand the Main-only dex to the on-device redefine agent; it finds the
+        // loaded Main (+ synthetics) and calls RedefineClasses. A "1" result means
+        // structural (added/removed method/field, signature change) → fall back.
+        Boolean ok = pushRedefine(redefineDexDir.resolve("classes.dex"));
         if (ok == null) { log("TIER1 agent unavailable — falling back to TIER2"); return false; }
         if (!ok) { log("TIER1 rejected (structural change) — falling back to TIER2"); return false; }
         gen++;
@@ -202,6 +211,11 @@ public class KotlinCompileService {
         a.add("-classpath"); a.add(classpath);
         a.add("-d"); a.add(out.toString());
         a.add("-jvm-target"); a.add("17");
+        // -Xlambdas=class: emit lambdas as separate named .class files (not
+        // invokedynamic). This lets Tier 1 produce a single-class Main dex (d8
+        // of just Main.class won't pull a desugared synthetic INTO Main's dex),
+        // which ART's RedefineClasses requires.
+        a.add("-Xlambdas=class");
         a.add("-no-stdlib"); a.add("-no-reflect"); a.add("-nowarn");
         PrintStream nul = new PrintStream(new ByteArrayOutputStream());
         return compiler.exec(nul, a.toArray(new String[0]));
@@ -332,23 +346,25 @@ public class KotlinCompileService {
      */
     static Boolean pushRedefine(Path dex) throws Exception {
         String pkg = "com.adfa.ministubby.host";
-        // agent present? (its result dir exists once attached)
-        String probe = sh("adb shell run-as " + pkg
-                + " sh -c 'test -d files/hotswap && echo yes || echo no'").trim();
-        if (!probe.endsWith("yes")) return null;
+        // Separate SINGLE run-as commands (no sh -c / compound / redirection —
+        // those mangle through Java→sh→adb→run-as→sh). run-as cp reads
+        // /data/local/tmp and writes the app's private files (same pattern
+        // deploy_payload.sh uses). Trigger is a pushed file, not a shell redirect.
+        Path trg = Files.createTempFile("redef", ".trigger");
+        Files.writeString(trg, "app.payload.Main"); // agent redefines Main + its synthetics from the dex
         sh("adb push " + dex + " /data/local/tmp/redefine.dex");
-        sh("adb shell run-as " + pkg + " sh -c '"
-                + "cp /data/local/tmp/redefine.dex files/hotswap/redefine.dex && "
-                + "echo app.payload.Main > files/hotswap/trigger'");
-        // poll the result (agent writes it within a few ms)
-        for (int i = 0; i < 40; i++) {
-            String r = sh("adb shell run-as " + pkg
-                    + " sh -c 'cat files/hotswap/result 2>/dev/null'").trim();
-            if (r.endsWith("0")) return true;
-            if (r.endsWith("1")) return false;
+        sh("adb push " + trg + " /data/local/tmp/redefine.trigger");
+        sh("adb shell run-as " + pkg + " rm -f files/hotswap/result");
+        sh("adb shell run-as " + pkg + " cp /data/local/tmp/redefine.dex files/hotswap/redefine.dex");
+        // trigger LAST so the dex is fully staged when the agent wakes
+        sh("adb shell run-as " + pkg + " cp /data/local/tmp/redefine.trigger files/hotswap/trigger");
+        for (int i = 0; i < 60; i++) {
+            String r = sh("adb shell run-as " + pkg + " cat files/hotswap/result").trim();
+            if (r.endsWith("0")) return true;   // redefined
+            if (r.endsWith("1")) return false;  // structural / no match → fallback
             Thread.sleep(15);
         }
-        return null; // timed out → be safe, fall back
+        return null; // no agent attached / timed out → fallback
     }
 
     static String sh(String cmd) throws Exception {

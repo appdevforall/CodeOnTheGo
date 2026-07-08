@@ -20,6 +20,7 @@
     <application
         android:label="Mini-Stubby Shell"
         android:debuggable="true"
+        android:extractNativeLibs="true"
         android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.DeviceDefault.DayNight">
         <activity

@@ -28,6 +28,17 @@ d8 --lib "$PLATFORM" --min-api 30 --output "$OUT/dex" @"$OUT/classes.txt"
 
 echo "== package + sign =="
 cd "$OUT/dex" && zip -q -j "$OUT/host-unsigned.apk" classes.dex && cd - >/dev/null
+
+# Bundle the Tier 1 JVMTI hot-swap agent under lib/arm64-v8a/ so it lands in the
+# app's nativeLibraryDir (executable-allowed; loading a .so from files/ hits
+# SELinux W^X). Attached at runtime via `am attach-agent`. Only if built.
+AGENT="$SPIKE_DIR/hotswap-agent/libhotswap.so"
+if [ -f "$AGENT" ]; then
+  STAGE="$OUT/lib/arm64-v8a"; mkdir -p "$STAGE"; cp "$AGENT" "$STAGE/"
+  ( cd "$OUT" && zip -q -r "$OUT/host-unsigned.apk" lib )
+  echo "== bundled libhotswap.so (Tier 1 agent) =="
+fi
+
 zipalign -f 4 "$OUT/host-unsigned.apk" "$OUT/host-aligned.apk"
 apksigner sign \
   --ks "$HOME/.android/debug.keystore" --ks-pass pass:android \

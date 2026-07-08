@@ -19,6 +19,6 @@ javac -classpath "$KCP" -d "$OUT" "$SPIKE_DIR/compile-service/src/KotlinCompileS
 
 echo "== running service (Ctrl-C to stop) =="
 exec java -Xmx1g -classpath "$OUT:$KCP" \
-  -Daapt2="$AAPT2" ${DEPLOY:+-Ddeploy=$DEPLOY} \
+  -Daapt2="$AAPT2" ${DEPLOY:+-Ddeploy=$DEPLOY} ${TIER1:+-Dtier1=$TIER1} \
   KotlinCompileService \
   "$SPIKE_DIR" "$SPIKE_DIR/payload-kotlin" "$ANDROID_JAR" "$STDLIB" "$D8JAR"
