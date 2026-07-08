@@ -51,10 +51,27 @@ CoGo-hosted daemon projects to **~350 ms save→rendered** for code edits.
 
 ## Real limits found
 
-1. **Custom XML attributes (`declare-styleable`) cannot work.** A payload-defined `attr`
-   compiles into the payload's `0x80` attr namespace; styled-attribute resolution runs
-   against the host Activity's theme (`0x7f`/`0x01`). Same wall as CoGo plugin theming.
-   Style custom views from code. (Payload `<style>`s containing only `android:` items DO work.)
+1. **Custom XML attributes: direct use WORKS; `?attr/` theme lookup does not.**
+   (Corrected 2026-07-08 by direct on-device test — an earlier note here claimed, by false
+   analogy to CoGo's plugin system, that custom attrs couldn't work at all. They can.)
+   - **Works:** `<declare-styleable>` + `app:fsLineColor="#FFCC00CC"` in a payload layout,
+     read by the payload's own View via `obtainStyledAttributes(attrs, R.styleable.X)`.
+     Verified: `indexCount=2 fsLineColor=#ffcc00cc fsLineWidth=16.875`. It works because
+     the view class, its `R.styleable` int array, and the compiled layout **all come from
+     the payload** at package id `0x80` — self-consistent. CoGo *plugins* fail here for a
+     different reason: their Material widget classes load **parent-first from the host apk**
+     and resolve attrs against the host's `0x7f` ids, never seeing the plugin's table.
+   - **Fails:** referencing a payload-defined attr through the **theme** (`?attr/fsLineColor`).
+     `UnsupportedOperationException: Failed to resolve attribute at index 5:
+     TypedValue{t=0x2/d=0x80010000}, theme={... android:style/Theme.DeviceDefault.DayNight ...}`
+     — the Activity's theme chain is built from host + framework resources and contains no
+     `0x80` attrs. Consequence: a payload cannot ship a theme whose attrs its own layouts
+     reference. This is the real, and much narrower, limitation.
+   - Implication for real apps: **Material3/AppCompat widgets reference `?attr/colorPrimary`
+     etc. through the theme.** If those library classes load from the payload's own dex (with
+     library resources merged into the payload table) the ids are self-consistent and this
+     may work — but the Activity must then also be themed `Theme.Material3.*`, which the
+     shell's `Theme.DeviceDefault` is not. **Untested. This is the #1 thing to test next.**
 2. **`saveState()` Bundle must hold framework types only.** A payload-defined class in the
    Bundle carries the old generation's classloader into the new one → `ClassCastException`.
 3. **Fragments are unsupported** as-is — the shell is a plain Activity. Real support needs a
@@ -82,3 +99,37 @@ name as you type."* Claude (headless `claude -p`, cwd = payload sources) edited 
 app, the daemon rebuilt each save, and the shell hot-reloaded — final feature works, including a
 "no matches" empty state and query preservation across reload (Claude wired it into `saveState()`
 on its own). Two intermediate reloads at 487 ms and 609 ms while Claude was still editing.
+
+## Coverage honesty: what phase 3 did NOT test
+
+FieldSurvey is a *framework-only, Java* app. Real CoGo user apps are not. From
+`assets/core.cgt` (the emitted templates): every template but `NoAndroidX` pulls in
+**androidx.appcompat + com.google.android.material**, extends **`AppCompatActivity`**,
+and is themed **`Theme.Material3.DayNight`**. `ComposeActivity` pulls the **Compose BOM**.
+Five of six template Activities are **Kotlin**.
+
+Untested, ranked by how likely they are to bite:
+
+1. **androidx / Material3 payloads.** Needs the Activity themed `Theme.Material3.*` (shell is
+   `Theme.DeviceDefault`) — Material widgets throw `IllegalArgumentException: The style on this
+   component requires your app theme to be Theme.MaterialComponents (or a descendant)`. The
+   shell must adopt the payload's theme, which the manifest can't supply. Likely solvable by
+   applying the payload's theme programmatically (`setTheme`) before inflation.
+2. **Kotlin payloads.** The devloop only runs `javac`. Real per-save compile needs `kotlinc`
+   (much heavier than javac — the <1 s figure is a Java figure, not yet a Kotlin one) plus
+   bundling `kotlin-stdlib` into the payload dex.
+3. **Jetpack Compose payloads.** No XML inflation at all; a `ComposeView` needs a
+   `LifecycleOwner`/`SavedStateRegistryOwner` on the host Activity. Different animal entirely.
+4. **AppCompatActivity semantics** — the payload gets a plain `Activity`; anything expecting
+   `AppCompatActivity`, a `Lifecycle`, or a `ViewModelStoreOwner` fails.
+5. **Fragments** (known), **multiple Activities / `startActivity`**, Services, BroadcastReceivers,
+   ContentProviders — all manifest-bound, hence proxy-component territory.
+6. **Native `.so` payloads** (the ticket's step 4), **runtime permissions**, **notifications**,
+   **launcher icon / deep links** — all shell-owned, not payload-owned.
+7. **kapt/KSP processors** (Room, Moshi) — separately known to be unrunnable on-device.
+8. **Multi-module Gradle projects**, release/signed output for sharing the finished app.
+9. **Debugging ergonomics**: stack traces from payload dex map to source; step-debugging does not.
+
+The phase-3 result is therefore: *the loading mechanism is sound and fast for a framework-only
+app.* Whether it holds for the apps CoGo actually emits (androidx + Material3 + Kotlin, often
+Compose) is the next and much larger question.
