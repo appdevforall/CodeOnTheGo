@@ -1,4 +1,4 @@
-package org.appdevforall.localwebserver
+package com.itsaky.androidide.localWebServer
 
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase

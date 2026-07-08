@@ -2,7 +2,6 @@ package com.itsaky.androidide.utils
 
 import androidx.annotation.StringRes
 import com.itsaky.androidide.R
-import com.itsaky.androidide.api.commands.AddStringArrayResourceCommand
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -26,31 +25,11 @@ object StringsXmlInjector {
 
     suspend fun inject(layoutFilePath: String, newStringsXml: String): Result<Unit> =
         withContext(Dispatchers.IO) {
-            try {
-                val stringsFile = findProjectStringsFile()
-                    ?: return@withContext Result.failure(FileNotFoundException(
-                        "Cannot resolve strings.xml path for layout: $layoutFilePath")
-                    )
-
-                parseStringArrays(newStringsXml).forEach { (arrayName, items) ->
-                    val result = AddStringArrayResourceCommand(
-                        stringsFilePath = stringsFile.path,
-                        name = arrayName,
-                        items = items
-                    ).execute()
-
-                    if (!result.success) {
-                        return@withContext Result.failure(
-                            IllegalStateException(result.error_details ?: result.message)
-                        )
-                    }
-                }
-
-                Result.success(Unit)
-            } catch (e: Exception) {
-                log.error("String-array injection failed", e)
-                Result.failure(e.toUserFacingError())
-            }
+            // Agent functionality removed - string injection no longer supported
+            log.warn("String injection requested but agent functionality has been removed")
+            Result.failure(
+                IllegalStateException("String injection is no longer supported")
+            )
         }
 
     private suspend fun findProjectStringsFile(): File? {

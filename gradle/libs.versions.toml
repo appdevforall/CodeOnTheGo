@@ -74,6 +74,8 @@ protoc-gen-kotlin-ext = "1.1.0"
 
 sonarqube = "7.0.0.6105"
 
+binary-compatibility-validator = "0.18.1"
+
 compose-bom = "2024.02.00"
 compose-compiler = "2.1.21"
 
@@ -332,3 +334,5 @@ rikka-materialthemebuilder = { id = "dev.rikka.tools.materialthemebuilder", vers
 rikka-refine = { id = "dev.rikka.tools.refine", version.ref = "rikka-refine" }
 
 sonarqube = { id = "org.sonarqube", version.ref = "sonarqube" }
+
+binary-compatibility-validator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "binary-compatibility-validator" }
