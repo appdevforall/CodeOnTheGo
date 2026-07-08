@@ -1,0 +1,12 @@
+{
+  "survey": "Community Water Point Survey",
+  "version": 3,
+  "questions": [
+    { "id": "q_access",  "category": "Access",   "text": "Water point is reachable within 30 minutes on foot" },
+    { "id": "q_flow",    "category": "Function", "text": "Water flows at usable pressure" },
+    { "id": "q_quality", "category": "Quality",  "text": "Water is clear and free of odor" },
+    { "id": "q_queue",   "category": "Access",   "text": "Queue time is under 15 minutes" },
+    { "id": "q_maint",   "category": "Function", "text": "Pump shows no visible damage or leaks" },
+    { "id": "q_safety",  "category": "Safety",   "text": "Area around the water point is safe at all hours" }
+  ]
+}

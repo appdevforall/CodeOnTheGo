@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Home screen. THE key stressor lives here: <app.payload.ui.SparklineView> is a
+  payload class referenced BY NAME in layout XML — the inflater the shell hands
+  the payload must resolve it against the payload's DexClassLoader.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/fs_bg"
+    android:padding="@dimen/fs_pad"
+    android:focusable="true"
+    android:focusableInTouchMode="true">
+
+    <TextView
+        style="@style/FS.Title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/fs_app_title" />
+
+    <TextView
+        style="@style/FS.Subtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="@string/fs_app_subtitle" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/fs_pad"
+        android:orientation="vertical"
+        android:background="@drawable/bg_card"
+        android:padding="@dimen/fs_pad">
+
+        <TextView
+            android:id="@+id/home_trend_caption"
+            style="@style/FS.Caption"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/fs_trend_label" />
+
+        <app.payload.ui.SparklineView
+            android:id="@+id/home_sparkline"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/fs_sparkline_height"
+            android:layout_marginTop="@dimen/fs_pad_small" />
+
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/home_new_button"
+        style="@style/FS.Button.Primary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/fs_pad"
+        android:text="@string/fs_new_survey" />
+
+    <!-- Incremental filter over the visit list; matches on site name only. -->
+    <EditText
+        android:id="@+id/home_search"
+        style="@style/FS.Body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/fs_pad"
+        android:background="@drawable/bg_card"
+        android:paddingLeft="@dimen/fs_pad"
+        android:paddingRight="@dimen/fs_pad"
+        android:paddingTop="@dimen/fs_chip_pad_h"
+        android:paddingBottom="@dimen/fs_chip_pad_h"
+        android:hint="@string/fs_search_hint"
+        android:textColorHint="@color/fs_muted"
+        android:inputType="text"
+        android:imeOptions="actionSearch"
+        android:singleLine="true" />
+
+    <TextView
+        android:id="@+id/home_empty"
+        style="@style/FS.Body"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/fs_pad"
+        android:text="@string/fs_empty"
+        android:textColor="@color/fs_muted"
+        android:visibility="gone" />
+
+    <ListView
+        android:id="@+id/home_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="@dimen/fs_pad_small"
+        android:divider="@android:color/transparent"
+        android:dividerHeight="@dimen/fs_pad_small"
+        android:scrollbars="none" />
+
+</LinearLayout>

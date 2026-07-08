@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Visit detail screen: metadata + per-question answers + delete flow. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/fs_bg"
+    android:padding="@dimen/fs_pad">
+
+    <Button
+        android:id="@+id/detail_back"
+        style="@style/FS.Button.Ghost"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/fs_back" />
+
+    <TextView
+        android:id="@+id/detail_site"
+        style="@style/FS.Title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/fs_pad_small" />
+
+    <TextView
+        android:id="@+id/detail_date"
+        style="@style/FS.Subtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp" />
+
+    <TextView
+        android:id="@+id/detail_score"
+        style="@style/FS.Chip"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/fs_pad_small" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="@dimen/fs_pad"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/detail_answers"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+    </ScrollView>
+
+    <Button
+        android:id="@+id/detail_delete"
+        style="@style/FS.Button.Danger"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/fs_pad_small"
+        android:text="@string/fs_delete" />
+
+</LinearLayout>

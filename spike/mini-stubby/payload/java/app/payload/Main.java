@@ -1,79 +1,59 @@
 package app.payload;
 
 import android.app.Activity;
-import android.graphics.Typeface;
-import android.view.LayoutInflater;
+import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.TextView;
 
 /**
- * Stand-in for the user's app: a tiny "My Notes" starter. Rendered by the
- * Mini-Stubby shell via reflection: Main.render(hostActivity). Uses its OWN
- * resources (R.* linked at a shell-assigned package id) through the host
- * activity's Resources, which the shell augmented with a ResourcesLoader over
- * this same apk.
+ * FieldSurvey — Mini-Stubby phase-3 stress payload (ADFA-4128, component D).
  *
- * Notes live in memory only (inside the rendered view) — a hot reload rebuilds
- * the screen from scratch, which is fine for this demo.
+ * A plausible offline field-data-collection app: survey questions come from
+ * assets/questions.json, visits are recorded per site, scores trend on a
+ * custom sparkline, and everything persists in SharedPreferences.
+ *
+ * Shell entry contract (CONTRACTS-v3.md):
+ *   1. {@code public static View render(Activity host, Bundle savedState)} — preferred
+ *   2. {@code public static View render(Activity host)}                    — fallback
+ *   3. {@code public static Bundle saveState()} — called on the OLD generation
+ *      right before teardown; the Bundle is handed to the NEW generation's
+ *      render(host, savedState).
+ *
+ * IMPORTANT — the saveState Bundle must contain ONLY framework types
+ * (String/long/int[]/…). The Bundle object crosses payload generations
+ * in-process without parceling, so any payload-defined class inside it would
+ * carry the OLD DexClassLoader's class into the new generation and blow up
+ * with a ClassCastException on first cast.
  */
 public final class Main {
 
+    private static final String TAG = "FieldSurvey";
+
+    /** The live controller of the CURRENT generation, so saveState() can reach it. */
+    private static App current;
+
     private Main() {}
 
+    /** Phase-1/2 fallback entry point. */
     public static View render(Activity host) {
-        View root = LayoutInflater.from(host).inflate(R.layout.payload_main, null);
-
-        EditText input = root.findViewById(R.id.note_input);
-        Button addButton = root.findViewById(R.id.add_button);
-        Button clearButton = root.findViewById(R.id.clear_button);
-        TextView emptyHint = root.findViewById(R.id.empty_hint);
-        LinearLayout notesList = root.findViewById(R.id.notes_list);
-
-        clearButton.setVisibility(View.GONE);
-
-        addButton.setOnClickListener(v -> {
-            String text = input.getText().toString().trim();
-            if (text.isEmpty()) {
-                return;
-            }
-            notesList.addView(makeNoteRow(host, text), 0);
-            input.setText("");
-            emptyHint.setVisibility(View.GONE);
-            clearButton.setVisibility(View.VISIBLE);
-        });
-
-        clearButton.setOnClickListener(v -> {
-            notesList.removeAllViews();
-            emptyHint.setVisibility(View.VISIBLE);
-            clearButton.setVisibility(View.GONE);
-        });
-
-        return root;
+        return render(host, null);
     }
 
-    /** Builds one note row: a small card-like TextView appended to the list. */
-    private static View makeNoteRow(Activity host, String text) {
-        TextView note = new TextView(host);
-        note.setText("• " + text);
-        note.setTextSize(16);
-        note.setTextColor(host.getColor(R.color.payload_fg));
-        note.setBackgroundColor(host.getColor(R.color.payload_card));
-        note.setTypeface(Typeface.SANS_SERIF);
-        int pad = dp(host, 14);
-        note.setPadding(pad, pad, pad, pad);
-
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = dp(host, 8);
-        note.setLayoutParams(lp);
-        return note;
+    /** Preferred entry point: rebuilds the app, restoring saved UI state if given. */
+    public static View render(Activity host, Bundle savedState) {
+        App app = new App(host);
+        current = app;
+        return app.start(savedState);
     }
 
-    private static int dp(Activity host, int dp) {
-        return Math.round(dp * host.getResources().getDisplayMetrics().density);
+    /** Never throws — the shell calls this best-effort before tearing us down. */
+    public static Bundle saveState() {
+        try {
+            App app = current;
+            return app == null ? new Bundle() : app.captureState();
+        } catch (Throwable t) {
+            Log.w(TAG, "saveState failed; returning empty state", t);
+            return new Bundle();
+        }
     }
 }

@@ -1,7 +1,11 @@
 #!/bin/sh
-# Run the mini-stubby devloop daemon (component A, ADFA-4128 phase 2).
-# Usage: run_devloop.sh [--dry-run]
-#   --dry-run  build on change but skip tools/deploy_payload.sh (no device access)
+# Run the mini-stubby devloop daemon (component A, ADFA-4128 phase 2; multidex + F in phase 3).
+# Usage: run_devloop.sh [--dry-run] [--payload <dir>]
+#   --dry-run        build on change but skip tools/deploy_payload.sh (no device access)
+#   --payload <dir>  watch/build an alternate payload tree (same layout: java/ res/
+#                    assets/ AndroidManifest.xml). Relative dirs resolve against the
+#                    spike root. Used by stress/gen_stress.py's scratch copy at
+#                    build/stress-payload.
 set -e
 
 DEVLOOP_DIR="$(cd "$(dirname "$0")" && pwd)"

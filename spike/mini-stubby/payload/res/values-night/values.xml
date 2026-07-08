@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Night-mode color overrides. Config matching is done by the merged
+     AssetManager against the HOST activity's uiMode, so dark mode follows the
+     device setting with no payload code involved. -->
+<resources>
+    <color name="fs_bg">#FF10151B</color>
+    <color name="fs_surface">#FF1B222B</color>
+    <color name="fs_fg">#FFE8ECF1</color>
+    <color name="fs_muted">#FF93A0AE</color>
+    <color name="fs_divider">#FF2A333E</color>
+    <color name="fs_accent">#FF4DB6A4</color>
+    <color name="fs_accent_dark">#FF37907F</color>
+    <color name="fs_accent_fill">#334DB6A4</color>
+    <color name="fs_on_accent">#FF07231E</color>
+    <color name="fs_danger">#FFE57368</color>
+    <color name="fs_danger_dark">#FFB85046</color>
+    <color name="fs_on_danger">#FF2B0B08</color>
+    <color name="fs_ghost_pressed">#FF2A333E</color>
+</resources>

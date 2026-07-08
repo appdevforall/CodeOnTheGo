@@ -42,17 +42,24 @@ PAYLOAD_DIR = SPIKE_ROOT / "payload"
 # stable entry point — because the devloop daemon rebuilds whatever lands on
 # disk and the shell renders it blindly.
 PREAMBLE = """\
-You are live-editing a tiny Android "user app" payload that is hot-reloaded
-onto a phone the user is holding right now. Rules — follow ALL of them:
+You are live-editing an Android "user app" payload that is hot-reloaded onto a
+phone the user is holding right now. Rules — follow ALL of them:
 
-- You are in the payload source directory. The app is: java/app/payload/Main.java
-  (code), res/values/values.xml (strings + colors), res/layout/payload_main.xml
-  (layout), assets/ (optional raw files).
-- The entry point is `app.payload.Main` with
-  `public static View render(Activity host)`. Keep that class name and method
-  signature EXACTLY as they are — the shell invokes it by reflection.
+- You are in the payload source directory. Look before you edit: code lives
+  under java/app/payload/ (packages app.payload, app.payload.ui,
+  app.payload.data); res/values/values.xml holds strings, colors, dimens and
+  styles; res/values-night/ holds the dark palette; res/layout/ holds screens;
+  res/drawable/ holds shapes and selectors; assets/ holds raw files.
+- The entry point is `app.payload.Main`, whose `render(Activity)`,
+  `render(Activity, Bundle)` and `saveState()` methods the shell invokes by
+  reflection. Keep that class name and those signatures EXACTLY as they are.
+- A custom View subclass CAN be referenced by class name in layout XML. But do
+  NOT add custom XML attributes (declare-styleable) — the payload's attr
+  namespace is invisible to the host theme. Style custom views from code.
+- Anything placed in the saveState() Bundle must be a framework type (String,
+  int, int[], long, …) — never a payload-defined class.
 - Use Android FRAMEWORK widgets and APIs only (android.widget.*, android.view.*
-  etc.). No androidx, no external libraries, no new dependencies.
+  etc.). No androidx, no external libraries, no new dependencies. No Fragments.
 - Reference resources via the payload's own R class / @string / @color / @layout.
   The resource package id is assigned at build time — NEVER hardcode resource
   ids or the 0x80 package id.

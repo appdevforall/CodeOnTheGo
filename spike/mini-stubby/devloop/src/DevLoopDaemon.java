@@ -43,14 +43,22 @@ import java.util.stream.Stream;
  *   - watches payload/java, payload/res, payload/assets recursively (80 ms debounce)
  *   - javac in-process (warm JVM), d8 in-process via reflection on d8.jar
  *   - aapt2 compile+link as a subprocess ONLY when res/assets changed (cached otherwise)
- *   - packages resource apk + classes.dex, deploys via tools/deploy_payload.sh
+ *   - packages resource apk + ALL dex files d8 emitted (classes.dex, classes2.dex, ...
+ *     — d8 runs with min-api 30, so it spills to native multidex past 64k method refs),
+ *     deploys via tools/deploy_payload.sh
  *   - HTTP on 127.0.0.1:8378: POST /reloaded (end-to-end timing), POST /rebuild (force full)
  *
- * Usage: DevLoopDaemon &lt;spike-root&gt; [--dry-run]
+ * Usage: DevLoopDaemon &lt;spike-root&gt; [--dry-run] [--payload &lt;dir&gt;]
  * System properties (set by run_devloop.sh from tools/env.sh): platform.jar, aapt2.bin
  *
  * With --dry-run the deploy step is skipped (deploy=skipped) so the full
  * watch-&gt;build cycle can be verified without touching the device.
+ *
+ * With --payload &lt;dir&gt; the daemon watches/builds an alternate payload tree with
+ * the same layout (java/, res/, assets/, AndroidManifest.xml) — used by the
+ * phase-3 stress harness to build the scratch copy at build/stress-payload
+ * without ever touching payload/ itself. A relative dir is resolved against the
+ * spike root.
  */
 public class DevLoopDaemon {
 
@@ -90,21 +98,26 @@ public class DevLoopDaemon {
 
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
-            System.err.println("usage: DevLoopDaemon <spike-root> [--dry-run]");
+            System.err.println("usage: DevLoopDaemon <spike-root> [--dry-run] [--payload <dir>]");
             System.exit(2);
         }
         boolean dryRun = false;
+        String payloadArg = null;
         for (int i = 1; i < args.length; i++) {
             if ("--dry-run".equals(args[i])) dryRun = true;
+            else if ("--payload".equals(args[i]) && i + 1 < args.length) payloadArg = args[++i];
             else { System.err.println("unknown arg: " + args[i]); System.exit(2); }
         }
-        new DevLoopDaemon(Paths.get(args[0]).toAbsolutePath().normalize(), dryRun).run();
+        Path spikeRoot = Paths.get(args[0]).toAbsolutePath().normalize();
+        Path payloadDir = payloadArg == null
+                ? spikeRoot.resolve("payload")
+                : spikeRoot.resolve(payloadArg).toAbsolutePath().normalize();
+        new DevLoopDaemon(spikeRoot, payloadDir, dryRun).run();
     }
 
-    private DevLoopDaemon(Path spikeRoot, boolean dryRun) {
+    private DevLoopDaemon(Path spikeRoot, Path payload, boolean dryRun) {
         this.spikeRoot = spikeRoot;
         this.dryRun = dryRun;
-        Path payload = spikeRoot.resolve("payload");
         this.javaRoot = payload.resolve("java");
         this.resRoot = payload.resolve("res");
         this.assetsRoot = payload.resolve("assets");
@@ -133,7 +146,8 @@ public class DevLoopDaemon {
 
     private void run() throws Exception {
         Files.createDirectories(cacheDir);
-        System.out.println("DEVLOOP daemon starting (spike=" + spikeRoot + ", dryRun=" + dryRun + ")");
+        System.out.println("DEVLOOP daemon starting (spike=" + spikeRoot
+                + ", payload=" + javaRoot.getParent() + ", dryRun=" + dryRun + ")");
 
         startHttpServer();
         startWatcher();
@@ -280,11 +294,20 @@ public class DevLoopDaemon {
         runD8();
         long d8Ms = msSince(d0);
 
-        // 4. package: cached resource apk + fresh classes.dex.
+        // 4. package: cached resource apk + ALL dex files d8 emitted (classes.dex,
+        // classes2.dex, ... — multidex appears naturally past 64k method refs).
         long p0 = System.nanoTime();
         Files.copy(resourcesApk, outApk, StandardCopyOption.REPLACE_EXISTING);
-        runOrThrow(List.of("zip", "-q", "-j", outApk.toString(), "classes.dex"), dexDir, "zip");
+        List<Path> dexFiles = new ArrayList<>();
+        collectFiles(dexDir, ".dex", dexFiles);
+        if (dexFiles.isEmpty()) {
+            throw new Exception("d8 emitted no .dex files in " + dexDir);
+        }
+        List<String> zipCmd = new ArrayList<>(List.of("zip", "-q", "-j", outApk.toString()));
+        for (Path dex : dexFiles) zipCmd.add(dex.getFileName().toString());
+        runOrThrow(zipCmd, dexDir, "zip");
         long packMs = msSince(p0);
+        long apkBytes = Files.size(outApk);
 
         // 5. deploy (skipped in --dry-run).
         String deployStr;
@@ -305,7 +328,8 @@ public class DevLoopDaemon {
                 + " d8=" + d8Ms + "ms"
                 + " aapt2=" + (aapt2Ms < 0 ? "cached" : aapt2Ms + "ms")
                 + " pack=" + packMs + "ms"
-                + " deploy=" + deployStr + ")");
+                + " deploy=" + deployStr + ")"
+                + " apk=" + apkBytes + "B dex=" + dexFiles.size());
     }
 
     private void runAapt2() throws Exception {

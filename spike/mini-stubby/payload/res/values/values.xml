@@ -1,19 +1,124 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  FieldSurvey payload resources (day/default config).
+  All ids live in the payload's own resource table (linked at a shell-assigned
+  package id, 0x80). Styles carry ONLY android: framework attrs — payload-defined
+  custom attrs are deliberately avoided (attr-namespace hazard, see report).
+  Night overrides live in values-night/.
+-->
 <resources>
-    <!-- Strings -->
-    <string name="payload_title">My Notes ⚡ devloop</string>
-    <string name="payload_subtitle">A tiny notes app, hot-reloaded live</string>
-    <string name="payload_input_hint">Write a note…</string>
-    <string name="payload_add_button">Add</string>
-    <string name="payload_empty_list">No notes yet — add one above.</string>
-    <string name="payload_clear_button">Clear All</string>
 
-    <!-- Colors (dark mode) -->
-    <color name="payload_bg">#FF121212</color>
-    <color name="payload_fg">#FFECECEC</color>
-    <color name="payload_muted">#FF9AA0A6</color>
-    <color name="payload_accent">#FF4DB6A4</color>
-    <color name="payload_on_accent">#FF07231E</color>
-    <color name="payload_card">#FF1E1E1E</color>
-    <color name="payload_surface">#FF2A2A2A</color>
+    <!-- ============================== strings ============================= -->
+    <string name="fs_app_title">FieldSurvey</string>
+    <string name="fs_app_subtitle">Water-point visits · resource hot-swap ✓</string>
+    <string name="fs_trend_label">Score trend across visits</string>
+    <string name="fs_new_survey">New survey visit</string>
+    <string name="fs_empty">No visits recorded yet — start your first survey.</string>
+    <string name="fs_search_hint">Filter visits by site name</string>
+    <string name="fs_no_matches">No visits match that site name.</string>
+    <string name="fs_new_survey_title">New survey visit</string>
+    <string name="fs_site_hint">Site name (e.g. Borehole 12)</string>
+    <string name="fs_site_required">Enter a site name first</string>
+    <string name="fs_start">Start</string>
+    <string name="fs_cancel">Cancel</string>
+    <string name="fs_save">Save visit</string>
+    <string name="fs_saved">Visit saved</string>
+    <string name="fs_loading">Loading questions…</string>
+    <string name="fs_load_error">Couldn\'t load questions: </string>
+    <string name="fs_rate_all">Please rate every question</string>
+    <string name="fs_survey_hint">Rate each item from 1 (worst) to 5 (best)</string>
+    <string name="fs_back">← Back</string>
+    <string name="fs_delete">Delete visit</string>
+    <string name="fs_delete_title">Delete this visit?</string>
+    <string name="fs_delete_msg">This removes the visit permanently.</string>
+    <string name="fs_deleted">Visit deleted</string>
+    <string name="fs_gone">This visit no longer exists.</string>
+
+    <!-- ============================== colors ============================== -->
+    <color name="fs_bg">#FFF6F7F9</color>
+    <color name="fs_surface">#FFFFFFFF</color>
+    <color name="fs_fg">#FF1B2430</color>
+    <color name="fs_muted">#FF66707C</color>
+    <color name="fs_divider">#FFE1E5EA</color>
+    <color name="fs_accent">#FF2E7D6B</color>
+    <color name="fs_accent_dark">#FF1F5A4C</color>
+    <color name="fs_accent_fill">#2E2E7D6B</color>
+    <color name="fs_on_accent">#FFFFFFFF</color>
+    <color name="fs_danger">#FFC0392B</color>
+    <color name="fs_danger_dark">#FF922B21</color>
+    <color name="fs_on_danger">#FFFFFFFF</color>
+    <color name="fs_ghost_pressed">#FFDDE3E9</color>
+
+    <!-- ============================== dimens ============================== -->
+    <dimen name="fs_pad">16dp</dimen>
+    <dimen name="fs_pad_small">8dp</dimen>
+    <dimen name="fs_corner">12dp</dimen>
+    <dimen name="fs_sparkline_height">96dp</dimen>
+    <dimen name="fs_btn_min_height">48dp</dimen>
+    <dimen name="fs_chip_pad_h">14dp</dimen>
+    <dimen name="fs_chip_pad_v">6dp</dimen>
+    <dimen name="fs_text_title">24sp</dimen>
+    <dimen name="fs_text_subtitle">14sp</dimen>
+    <dimen name="fs_text_body">15sp</dimen>
+    <dimen name="fs_text_caption">12sp</dimen>
+
+    <!-- ============================== styles ============================== -->
+    <!-- Base style so the dotted names below can resolve their implied parent. -->
+    <style name="FS"/>
+
+    <style name="FS.Title">
+        <item name="android:textSize">@dimen/fs_text_title</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/fs_fg</item>
+    </style>
+
+    <style name="FS.Subtitle">
+        <item name="android:textSize">@dimen/fs_text_subtitle</item>
+        <item name="android:textColor">@color/fs_muted</item>
+    </style>
+
+    <style name="FS.Body">
+        <item name="android:textSize">@dimen/fs_text_body</item>
+        <item name="android:textColor">@color/fs_fg</item>
+    </style>
+
+    <style name="FS.Caption">
+        <item name="android:textSize">@dimen/fs_text_caption</item>
+        <item name="android:textColor">@color/fs_muted</item>
+    </style>
+
+    <style name="FS.Button">
+        <item name="android:textSize">@dimen/fs_text_body</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">@dimen/fs_btn_min_height</item>
+        <item name="android:paddingLeft">@dimen/fs_pad</item>
+        <item name="android:paddingRight">@dimen/fs_pad</item>
+    </style>
+
+    <style name="FS.Button.Primary">
+        <item name="android:background">@drawable/btn_primary</item>
+        <item name="android:textColor">@color/fs_on_accent</item>
+    </style>
+
+    <style name="FS.Button.Danger">
+        <item name="android:background">@drawable/btn_danger</item>
+        <item name="android:textColor">@color/fs_on_danger</item>
+    </style>
+
+    <style name="FS.Button.Ghost">
+        <item name="android:background">@drawable/btn_ghost</item>
+        <item name="android:textColor">@color/fs_fg</item>
+    </style>
+
+    <style name="FS.Chip">
+        <item name="android:background">@drawable/bg_chip</item>
+        <item name="android:textColor">@color/fs_on_accent</item>
+        <item name="android:textSize">@dimen/fs_text_body</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:paddingLeft">@dimen/fs_chip_pad_h</item>
+        <item name="android:paddingRight">@dimen/fs_chip_pad_h</item>
+        <item name="android:paddingTop">@dimen/fs_chip_pad_v</item>
+        <item name="android:paddingBottom">@dimen/fs_chip_pad_v</item>
+    </style>
+
 </resources>

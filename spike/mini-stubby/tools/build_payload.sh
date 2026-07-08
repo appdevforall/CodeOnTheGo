@@ -28,7 +28,8 @@ find "$PAYLOAD/java" "$OUT/gen" -name '*.java' > "$OUT/sources.txt"
 javac -classpath "$PLATFORM" -d "$OUT/classes" @"$OUT/sources.txt" -Xlint:-options
 find "$OUT/classes" -name '*.class' > "$OUT/classes.txt"
 d8 --lib "$PLATFORM" --min-api 30 --output "$OUT/dex" @"$OUT/classes.txt"
-cd "$OUT/dex" && zip -q -j "$OUT/payload-unsigned.apk" classes.dex && cd - >/dev/null
+# classes*.dex: package ALL dex files (multidex-safe, matches devloop packaging)
+cd "$OUT/dex" && zip -q -j "$OUT/payload-unsigned.apk" classes*.dex && cd - >/dev/null
 
 T1=$(python3 -c 'import time; print(int(time.time()*1000))')
 
