@@ -72,28 +72,32 @@ internal object DeviceProtectedApplicationLoader :
 			),
 		)
 
-		SentryAndroid.init(app) { options ->
-			options.environment =
-				if (BuildConfig.DEBUG) IDEApplication.SENTRY_ENV_DEV else IDEApplication.SENTRY_ENV_PROD
-		}
-
-		val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
-		val sentryLogAppender =
-			SentryAppender().apply {
-				context = loggerContext
-				setMinimumEventLevel(Level.OFF)
-				setMinimumBreadcrumbLevel(Level.INFO)
-				setMinimumLevel(Level.WARN)
-				start()
+		runCatching {
+			SentryAndroid.init(app) { options ->
+				options.environment =
+					if (BuildConfig.DEBUG) IDEApplication.SENTRY_ENV_DEV else IDEApplication.SENTRY_ENV_PROD
 			}
-		loggerContext.getLogger(Logger.ROOT_LOGGER_NAME).addAppender(sentryLogAppender)
 
-		Sentry.setUser(
-			User().apply {
-				id = Settings.Secure.getString(app.contentResolver, Settings.Secure.ANDROID_ID)
-				username = "${Build.MANUFACTURER} ${Build.MODEL}"
-			},
-		)
+			val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
+			val sentryLogAppender =
+				SentryAppender().apply {
+					context = loggerContext
+					setMinimumEventLevel(Level.OFF)
+					setMinimumBreadcrumbLevel(Level.INFO)
+					setMinimumLevel(Level.WARN)
+					start()
+				}
+			loggerContext.getLogger(Logger.ROOT_LOGGER_NAME).addAppender(sentryLogAppender)
+
+			Sentry.setUser(
+				User().apply {
+					id = Settings.Secure.getString(app.contentResolver, Settings.Secure.ANDROID_ID)
+					username = "${Build.MANUFACTURER} ${Build.MODEL}"
+				},
+			)
+		}.onFailure {
+			logger.error("Failed to initialize crash and log reporting", it)
+		}
 
 		ShizukuSettings.initialize()
 
