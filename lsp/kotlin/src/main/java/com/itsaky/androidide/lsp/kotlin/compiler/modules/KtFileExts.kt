@@ -73,19 +73,22 @@ internal inline fun <R> withAnalysisLock(
 	// ~10ms non-standard-indicator poll; that poll does not run in this (Android, embeddable) one.
 	val job = Job()
 
-	AnalysisScheduler.acquire(priority, cancelChecker) {
-		// Preemption is signalled by flipping the checker; the invokeOnCancel listener below turns that
-		// (and ordinary editor cancellation) into the actual mid-`analyze` abort.
-		cancelChecker.preempt()
-	}
-	// Single push path for *both* preemption and ordinary editor cancellation: [ScheduledCancelChecker]
-	// fires this on preempt() and on its delegate's cancel(), so the running analyze aborts immediately
-	// — no polling, and unaffected by GC pauses that would stall a poll thread.
-	cancelChecker.invokeOnCancel {
-		indicator.cancel()
-		job.cancel()
-	}
-	try {
+	return AnalysisScheduler.withLock(
+		priority,
+		cancelChecker,
+		onPreempt = {
+			// Preemption is signalled by flipping the checker; the invokeOnCancel listener below turns
+			// that (and ordinary editor cancellation) into the actual mid-`analyze` abort.
+			cancelChecker.preempt()
+		},
+	) {
+		// Single push path for *both* preemption and ordinary editor cancellation: [ScheduledCancelChecker]
+		// fires this on preempt() and on its delegate's cancel(), so the running analyze aborts immediately
+		// — no polling, and unaffected by GC pauses that would stall a poll thread.
+		cancelChecker.invokeOnCancel {
+			indicator.cancel()
+			job.cancel()
+		}
 		val holder = arrayOfNulls<Any?>(1)
 		try {
 			// Install the Job for the duration of the analysis and restore the previous context after.
@@ -101,9 +104,7 @@ internal inline fun <R> withAnalysisLock(
 			throw e
 		}
 		@Suppress("UNCHECKED_CAST")
-		return holder[0] as R
-	} finally {
-		AnalysisScheduler.release()
+		holder[0] as R
 	}
 }
 

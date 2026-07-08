@@ -182,6 +182,26 @@ internal object AnalysisScheduler {
 		}
 	}
 
+	/**
+	 * Run [action] while holding the analysis lock at the given [priority], guaranteeing the hold taken
+	 * by [acquire] is always released — even if [action] throws. Mirrors [kotlin.concurrent.withLock]:
+	 * prefer this over calling [acquire]/[release] directly, so a lock can never leak and permanently
+	 * deadlock all subsequent analysis. See [acquire] for the meaning of [cancelChecker] and [onPreempt].
+	 */
+	inline fun <R> withLock(
+		priority: AnalysisPriority,
+		cancelChecker: ICancelChecker,
+		noinline onPreempt: () -> Unit,
+		action: () -> R,
+	): R {
+		acquire(priority, cancelChecker, onPreempt)
+		try {
+			return action()
+		} finally {
+			release()
+		}
+	}
+
 	/** Release a hold acquired via [acquire]. Wakes waiters when the outermost hold is released. */
 	fun release() {
 		mutex.withLock {

@@ -73,10 +73,14 @@ class ProgressManager private constructor() {
 	@JvmName("internalAbortIfCancelled")
 	private fun abortIfCancelled() {
 		val thisThread = Thread.currentThread()
-		val checker = synchronized(threads) { threads[thisThread] }
-		if (checker != null && checker.isCancelled()) {
-			synchronized(threads) { threads.remove(thisThread) }
-			throw CancellationException()
+		// Check and remove atomically: a separate check-then-remove could race a concurrent register()
+		// reusing this thread and delete the new, unrelated registration instead of the stale one.
+		synchronized(threads) {
+			val checker = threads[thisThread]
+			if (checker != null && checker.isCancelled()) {
+				threads.remove(thisThread)
+				throw CancellationException()
+			}
 		}
 	}
 }
