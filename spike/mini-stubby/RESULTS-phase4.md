@@ -82,3 +82,54 @@ correctly). The clean fix was **Kotlin 2.0.21 + the first-party
 Kotlin exactly. Implication for CoGo: an on-device Compose build path must pin a
 coherent Kotlin/compose-compiler/BOM triple — this is a real toolchain-bringup cost,
 separate from the (working) runtime hosting.
+
+## Native .so, Fragments, and the manifest walls
+
+| Case | Result | Mechanism |
+|---|---|---|
+| **Native `.so` (JNI)** | **WORKS** (shell fix) | shell `extractNativeLibs()` unpacks `lib/<abi>/*.so` to a private per-gen dir, passes it as the DexClassLoader library path. Verified: `System.loadLibrary` + two JNI calls (`add(20,22)=42`). Ticket step 4. |
+| **androidx Fragments** | **WORKS** (payload fix) | payload supplies its own `FragmentController` + `FragmentHostCallback` backed by payload-created Lifecycle/ViewModelStore/SavedStateRegistry/OnBackPressedDispatcher owners; drives to RESUMED; `commitNow`. Verified interactive (Fragment button taps: 3). |
+| **Multiple Activities** | **BLOCKED** | `startActivity(payload.SecondActivity)` → `ActivityNotFoundException: Unable to find explicit activity class {…/app.payload.SecondActivity}`. The manifest is fixed at shell-install time and can't register payload Activities. |
+| **Runtime permissions** | **BLOCKED** | a permission the shell manifest doesn't declare (`CAMERA`) reports `checkSelfPermission=-1` and `requestPermissions` shows no prompt. Permissions are frozen in the shell manifest. |
+
+**One subtle Fragment gotcha worth recording:** the `FragmentHostCallback.onGetLayoutInflater()`
+must return `LayoutInflater.from(activity).cloneInContext(activity)`, **not** the Activity's
+own inflater. The shell already called `setFactory2` on the Activity inflater (for payload
+custom views), and Fragment insists on setting its own factory — the raw inflater throws
+`IllegalStateException: A factory has already been set`. `cloneInContext` resets the
+factory-set flag while inheriting the shell's Factory2, so both coexist.
+
+## The manifest wall — the one real architectural blocker
+
+Everything that lives in the app's **AndroidManifest** is frozen at shell-install time and
+cannot come from the hot-loaded payload: **additional Activities, declared permissions, the
+app icon/label, exported components, intent filters, custom `Application` class**. Three of
+these have known shell-side fixes with real cost:
+
+- **Multiple Activities** → pre-declare a small pool of generic **proxy Activities** in the
+  shell and route the payload's `startActivity` through them (Tencent Shadow's pattern). The
+  payload's "Activity" becomes a delegate the proxy hosts. Non-trivial: `Intent` rewriting,
+  lifecycle forwarding, `onActivityResult`, task/back-stack semantics.
+- **Permissions** → the shell manifest declares a **superset** of the permissions user apps
+  might plausibly need; the payload just requests at runtime. Coarse but workable for a
+  fixed catalog (camera, location, storage, mic, …).
+- **Custom Application / providers / exported components** → generally not supported; a real
+  design would document these as out of scope for hot-reload and require a full build.
+
+So the honest architectural boundary is: **anything the OS reads from the manifest before
+your code runs is the shell's, not the payload's.** Single-Activity apps (the overwhelming
+majority of what CoGo's audience builds — and every CoGo template is single-Activity) are
+fully covered. Multi-Activity and custom-permission apps need the proxy/superset scaffolding
+above.
+
+## Phase-4 bottom line
+
+Of the phase-3 "untested" list, the four highest-value cases — **androidx+Material3, Kotlin,
+Jetpack Compose, native .so** — all now work on-device, three of them after a targeted fix
+(theme adoption, decor-view owners, native-lib extraction) and one payload-side pattern
+(Fragment host). The remaining blockers are all the **manifest wall**, which is a known,
+bounded problem with a known (if non-trivial) proxy-Activity + permission-superset solution.
+The load-and-reload core is far more capable than phase 3 could show. The two genuinely open
+questions are now: (1) **Kotlin/Compose on-device compile latency** (needs a warm non-Gradle
+compile service to approach 1–1.5 s), and (2) the **proxy-Activity scaffolding** for
+multi-screen apps.
