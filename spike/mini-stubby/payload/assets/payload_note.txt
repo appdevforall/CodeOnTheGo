@@ -1,1 +1,4 @@
-asset v2 — swapped without any install
+Example bundled asset. The My Notes starter UI does not read this file, but it
+keeps the payload's assets/ pipeline exercised (aapt2 -A) — read it from
+Main.render via host.getAssets().open("payload_note.txt") if you want asset
+content on screen.

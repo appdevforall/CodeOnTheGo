@@ -2,9 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.adfa.ministubby.host">
 
+    <!-- Loopback HTTP to the Mac orchestrator (via adb reverse tcp:8377). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:label="Mini-Stubby Shell"
         android:debuggable="true"
+        android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.DeviceDefault.DayNight">
         <activity
             android:name=".MainActivity"

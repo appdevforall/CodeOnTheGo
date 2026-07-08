@@ -1,8 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="payload_title">User App v2 — hot reloaded</string>
-    <string name="payload_subtitle">loaded from payload.apk — no install, no signing</string>
-    <string name="payload_button">taps ×10: %1$d</string>
-    <color name="payload_bg">#FF002B36</color>
-    <color name="payload_fg">#FF93A1A1</color>
+    <!-- Strings -->
+    <string name="payload_title">My Notes ⚡ devloop</string>
+    <string name="payload_subtitle">A tiny notes app, hot-reloaded live</string>
+    <string name="payload_input_hint">Write a note…</string>
+    <string name="payload_add_button">Add</string>
+    <string name="payload_empty_list">No notes yet — add one above.</string>
+    <string name="payload_clear_button">Clear All</string>
+
+    <!-- Colors (dark mode) -->
+    <color name="payload_bg">#FF121212</color>
+    <color name="payload_fg">#FFECECEC</color>
+    <color name="payload_muted">#FF9AA0A6</color>
+    <color name="payload_accent">#FF4DB6A4</color>
+    <color name="payload_on_accent">#FF07231E</color>
+    <color name="payload_card">#FF1E1E1E</color>
+    <color name="payload_surface">#FF2A2A2A</color>
 </resources>

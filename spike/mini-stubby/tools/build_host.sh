@@ -34,6 +34,10 @@ apksigner sign \
   --ks-key-alias androiddebugkey --key-pass pass:android \
   --out "$BUILD_DIR/ministubby-host.apk" "$OUT/host-aligned.apk"
 
-echo "== install =="
-"$ADB" install -r "$BUILD_DIR/ministubby-host.apk"
-echo "OK: shell installed (this is the only install the user ever sees)"
+if [ -n "$SKIP_INSTALL" ]; then
+  echo "OK: built $BUILD_DIR/ministubby-host.apk (SKIP_INSTALL set — not touching device)"
+else
+  echo "== install =="
+  "$ADB" install -r "$BUILD_DIR/ministubby-host.apk"
+  echo "OK: shell installed (this is the only install the user ever sees)"
+fi
