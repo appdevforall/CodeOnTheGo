@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="payload_title">User App v2 — hot reloaded</string>
+    <string name="payload_subtitle">loaded from payload.apk — no install, no signing</string>
+    <string name="payload_button">taps ×10: %1$d</string>
+    <color name="payload_bg">#FF002B36</color>
+    <color name="payload_fg">#FF93A1A1</color>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Host owns a real 0x7f resource table so the payload's 0x80 table is a
+         genuine collision test, not a vacuous one. -->
+    <string name="host_marker">mini-stubby host resources (0x7f)</string>
+</resources>

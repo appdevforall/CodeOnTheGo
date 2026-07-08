@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@color/payload_bg"
+    android:padding="32dp">
+
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/payload_title"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="@color/payload_fg" />
+
+    <TextView
+        android:id="@+id/subtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/payload_subtitle"
+        android:textSize="16sp"
+        android:textColor="@color/payload_fg" />
+
+    <TextView
+        android:id="@+id/asset_note"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:textSize="14sp"
+        android:textColor="@color/payload_fg" />
+
+    <Button
+        android:id="@+id/counter_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/payload_button" />
+
+</LinearLayout>
