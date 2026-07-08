@@ -17,6 +17,6 @@ class KillVmAction(
     override var tooltipTag = TooltipTag.DEBUGGER_ACTION_KILL
 
     override suspend fun execAction(data: ActionData) {
-        debugClient.killVm()
+        debugClient?.killVm()
     }
 }
