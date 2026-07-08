@@ -66,3 +66,24 @@ Residual: **Compose** adds the compose-compiler plugin on top of kotlinc (not me
 on-device here — needs the plugin wired into a headless invocation). Expect Compose
 single-file compile to be somewhat higher than plain Kotlin, but the same warm-service
 architecture applies.
+
+## Compose compile latency (2026-07-08) — data-based, not a guess
+
+Assembling a matched Kotlin-2.0.21 compiler + compose-plugin + compose-runtime toolchain
+ON the device is itself the "on-device Compose build path" engineering item, so instead:
+measured warm Compose single-file compile on the **Mac via Gradle** (same method as the
+plain-Kotlin Mac measurement), then compared.
+
+Warm incremental `:app:compileDebugKotlin` for the Compose payload (Kotlin 2.0.21 +
+`org.jetbrains.kotlin.plugin.compose`): first 1482 ms, then **551 ms, 471 ms**.
+
+Key result: this is **the same ballpark as plain Kotlin** through the same Mac-Gradle path
+(plain Kotlin was 620–900 ms). The compose-compiler plugin adds little for a small
+incremental file — it is NOT a latency blowup. Applying the plain-Kotlin Mac-Gradle→device
+relationship (device bare warm ≈ 0.5–0.7× the Mac-Gradle number, since device strips Gradle
+overhead), on-device warm Compose single-file compile projects to roughly **~400–700 ms** —
+same envelope as Kotlin, well within a warm-service budget.
+
+Conclusion: **Kotlin and Compose have effectively the same per-save compile cost** for the
+incremental single-file edits hot-reload cares about. The latency story is one number, not
+two: ~0.5–0.8 s on-device save→rendered given a persistent compile service.

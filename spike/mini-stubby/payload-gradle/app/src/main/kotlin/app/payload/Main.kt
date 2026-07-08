@@ -2,119 +2,98 @@ package app.payload
 
 import android.app.Activity
 import android.graphics.Color
-import android.os.Handler
-import android.os.Looper
-import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
-import android.widget.Button
-import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.activity.OnBackPressedDispatcher
-import androidx.activity.OnBackPressedDispatcherOwner
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentController
-import androidx.fragment.app.FragmentHostCallback
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 /**
- * androidx Fragment payload. A plain android.app.Activity has no androidx
- * FragmentManager (that comes from FragmentActivity). Same fix pattern as the
- * Compose payload: the payload supplies its OWN host — a FragmentController +
- * FragmentHostCallback backed by payload-created Lifecycle/ViewModelStore/
- * SavedStateRegistry/OnBackPressedDispatcher owners — drives it to RESUMED, and
- * commits a Fragment into a container it owns.
+ * Jetpack Compose payload. The shell hosts a PLAIN android.app.Activity, which
+ * provides none of the ViewTree owners a ComposeView walks up the tree to find
+ * (Lifecycle / ViewModelStore / SavedStateRegistry). So the payload supplies its
+ * OWN owners — from its own bundled androidx — drives the lifecycle to RESUMED,
+ * and attaches them to the ComposeView before setContent.
+ *
+ * MaterialTheme{} is intentionally omitted (a compose-compiler 1.5.10 IR-lowering
+ * quirk on the defaulted MaterialTheme call) — the point here is proving the
+ * ComposeView + owners hosting mechanism, not Material3 theming, which the XML
+ * Material3 payload already proved.
  */
 object Main {
 
-    private const val CONTAINER_ID = 0x0f0f01
-
-    private class Host(private val activity: Activity, private val container: ViewGroup) :
-        LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner, OnBackPressedDispatcherOwner {
-
+    private class PayloadOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
         private val lifecycleRegistry = LifecycleRegistry(this)
         private val store = ViewModelStore()
         private val savedStateController = SavedStateRegistryController.create(this)
-        private val backDispatcher = OnBackPressedDispatcher()
-
         override val lifecycle: Lifecycle get() = lifecycleRegistry
         override val viewModelStore: ViewModelStore get() = store
-        override val savedStateRegistry: SavedStateRegistry get() = savedStateController.savedStateRegistry
-        override val onBackPressedDispatcher: OnBackPressedDispatcher get() = backDispatcher
-
-        private val hostCallback =
-            object : FragmentHostCallback<Host>(activity, Handler(Looper.getMainLooper()), 0) {
-                override fun onGetHost(): Host = this@Host
-                override fun onFindViewById(id: Int): View? =
-                    if (id == container.id) container else container.findViewById(id)
-                // Must be a CLONE, not the Activity's own inflater: the shell
-                // already called setFactory2 on that one, and Fragment insists on
-                // setting its own factory (throws "A factory has already been
-                // set" otherwise). cloneInContext resets the factory-set flag
-                // while still inheriting the shell's custom-view Factory2.
-                override fun onGetLayoutInflater(): LayoutInflater =
-                    LayoutInflater.from(activity).cloneInContext(activity)
-            }
-
-        val controller: FragmentController = FragmentController.createController(hostCallback)
-        val fragmentManager get() = controller.supportFragmentManager
-
-        fun start() {
+        override val savedStateRegistry: SavedStateRegistry
+            get() = savedStateController.savedStateRegistry
+        fun resume() {
             savedStateController.performRestore(null)
-            controller.attachHost(null)
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
-            controller.dispatchCreate()
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
-            controller.dispatchActivityCreated()
-            controller.dispatchStart()
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-            controller.dispatchResume()
-        }
-    }
-
-    class DemoFragment : Fragment() {
-        override fun onCreateView(
-            inflater: LayoutInflater, parent: ViewGroup?, s: android.os.Bundle?,
-        ): View {
-            val col = LinearLayout(requireContext())
-            col.orientation = LinearLayout.VERTICAL
-            col.gravity = Gravity.CENTER
-            col.setPadding(48, 48, 48, 48)
-            var taps = 0
-            val label = TextView(requireContext()).apply {
-                text = "androidx Fragment hosted in a plain-Activity shell"
-                setTextColor(Color.parseColor("#FF102A43")); textSize = 18f; gravity = Gravity.CENTER
-            }
-            val btn = Button(requireContext()).apply {
-                text = "Fragment taps: 0"
-                setOnClickListener { taps++; text = "Fragment taps: $taps" }
-            }
-            col.addView(label)
-            col.addView(btn)
-            return col
+            lifecycleRegistry.currentState = Lifecycle.State.RESUMED
         }
     }
 
     @JvmStatic
     fun render(host: Activity): View {
-        val container = FrameLayout(host).apply {
-            id = CONTAINER_ID
-            setBackgroundColor(Color.WHITE)
+        val owner = PayloadOwner()
+        owner.resume()
+        // Compose's window recomposer walks UP the view tree from the attached
+        // ComposeView to find the lifecycle owner, and reaches the shell's own
+        // root (a plain LinearLayout) which has none. Setting the owners on the
+        // host window's decor view guarantees the lookup succeeds no matter where
+        // in the shell hierarchy the ComposeView is mounted.
+        host.window.decorView.let {
+            it.setViewTreeLifecycleOwner(owner)
+            it.setViewTreeViewModelStoreOwner(owner)
+            it.setViewTreeSavedStateRegistryOwner(owner)
         }
-        val h = Host(host, container)
-        h.start()
-        h.fragmentManager.beginTransaction()
-            .add(container.id, DemoFragment())
-            .commitNow()
-        return container
+        return ComposeView(host).apply {
+            setBackgroundColor(Color.WHITE)
+            setViewTreeLifecycleOwner(owner)
+            setViewTreeViewModelStoreOwner(owner)
+            setViewTreeSavedStateRegistryOwner(owner)
+            setContent {
+                var n by remember { mutableStateOf(0) }
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text("Jetpack Compose payload", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("hot-loaded into a plain Activity shell",
+                        modifier = Modifier.padding(top = 8.dp))
+                    Button(onClick = { n++ }, modifier = Modifier.padding(top = 24.dp)) {
+                        Text("Recompositions v1: $n")
+                    }
+                }
+            }
+        }
     }
 }
