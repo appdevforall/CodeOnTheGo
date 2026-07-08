@@ -133,3 +133,59 @@ The load-and-reload core is far more capable than phase 3 could show. The two ge
 questions are now: (1) **Kotlin/Compose on-device compile latency** (needs a warm non-Gradle
 compile service to approach 1–1.5 s), and (2) the **proxy-Activity scaffolding** for
 multi-screen apps.
+
+## Closing the two "open questions" (2026-07-08, later)
+
+### Multi-Activity — CLOSED via proxy scaffolding
+
+Shell now pre-declares one generic `ProxyActivity` (`host/AndroidManifest.xml`). Shared
+payload runtime (classloader + ResourcesLoader + theme) is lifted into a process-wide
+`PayloadRuntime` singleton that `MainActivity` updates on each reload and `ProxyActivity`
+reads. A payload opens a real second screen with:
+
+```java
+host.startActivity(new Intent()
+    .setClassName(host, "com.adfa.ministubby.host.ProxyActivity")
+    .putExtra("payload_screen", "app.payload.DetailScreen")
+    .putExtra("item", "Widget #42"));
+```
+
+`ProxyActivity` loads that class from the live payload classloader, applies the merged
+ResourcesLoader + payload theme + custom-view Factory2, and calls its `render(Activity)`.
+
+Verified on A56 (`payload-multiscreen/`): HOME → tap → **real second Activity**
+(`topResumedActivity=…/.ProxyActivity`, in the back stack), passed extras arrive
+("Widget #42", "from HOME"), and **system Back returns to MainActivity**
+(`topResumedActivity=…/.MainActivity`). Real window, real back-stack, real transition.
+
+Remaining gap (documented, not blocking): payload screens use a `render()` contract +
+explicit proxy Intent rather than real `android.app.Activity` subclasses + transparent
+`startActivity`. The fully-transparent version needs an `Instrumentation` hook
+(VirtualAPK/Shadow), plus `onActivityResult` forwarding. The proxy proves the capability;
+transparency is a production refinement.
+
+### Runtime permissions — CLOSED via a manifest superset
+
+Shell manifest now declares a superset (CAMERA, FINE/COARSE_LOCATION, RECORD_AUDIO,
+POST_NOTIFICATIONS, READ_MEDIA_IMAGES). Verified on A56: a payload's
+`requestPermissions(CAMERA)` now shows the **real system prompt** ("Allow Mini-Stubby
+Shell to take pictures and record video?"), and the grant holds (`CAMERA: granted=true`).
+A production shell declares the full catalog CoGo supports; the payload just requests at
+runtime.
+
+### On-device Kotlin latency — CLOSED (see bench/RESULTS.md)
+
+Warm in-process Kotlin compile on the A56 is **~350–550 ms** (cold 6.6 s once). With warm
+d8 + local-write deploy, on-device single-file Kotlin save→rendered projects to **~0.5–0.8 s**
+— within/near <1 s — given a *persistent* compile service. Revises the earlier Mac-based
+"1–1.5 s" (which was Gradle-overhead-inflated).
+
+## No remaining open questions in the payload-capability dimension
+
+Every common app shape CoGo emits now has a verified on-device answer: androidx, Material3,
+Kotlin, Compose, Fragments, native .so, multi-Activity, permissions. The load/reload engine
++ shell fixes cover them. The two things that are now *engineering scope*, not open
+questions, are: (a) a persistent on-device Kotlin/Compose compile service (latency is known
+and viable), and (b) transparent (hook-based) Activity interception if `render()`-contract
+screens aren't acceptable. The Compose-compiler on-device compile time is the one number
+still unmeasured (expected higher than plain Kotlin; same warm-service architecture applies).

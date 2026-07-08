@@ -220,7 +220,7 @@ public class MainActivity extends Activity {
             }
         }
 
-        final ClassLoader previousLoader = payloadFactory.getPayloadClassLoader();
+        final ClassLoader previousLoader = PayloadRuntime.getClassLoader();
         final ResourcesLoader previousResLoader = currentLoader;
         try {
             generation++;
@@ -247,6 +247,9 @@ public class MainActivity extends Activity {
             }
             getResources().addLoaders(loader);
             currentLoader = loader;
+            // Publish to the shared runtime so a later ProxyActivity attaches the
+            // SAME 0x80 table to its own Resources.
+            PayloadRuntime.setResourcesLoader(loader);
 
             // ---- theme ----
             // Material3/AppCompat widgets call ThemeEnforcement.checkTheme() and
@@ -272,10 +275,12 @@ public class MainActivity extends Activity {
             // the zip (API 21+ DexPathList), so one DexClassLoader covers all.
             ClassLoader cl = new DexClassLoader(
                     copy.getAbsolutePath(), null, nativeLibPath, getClassLoader());
-            // Retarget the inflater factory at the NEW generation before render()
-            // inflates anything (this also clears the constructor cache — old-gen
-            // Constructor objects must never leak across classloaders).
-            payloadFactory.setPayloadClassLoader(cl);
+            // Retarget the shared runtime at the NEW generation before render()
+            // inflates anything. This bumps PayloadRuntime's generation, so every
+            // PayloadViewFactory (this Activity's and any ProxyActivity's) drops
+            // its old-gen constructor cache — old-gen Constructor objects must
+            // never leak across classloaders.
+            PayloadRuntime.setClassLoader(cl);
             Class<?> entry = cl.loadClass(PAYLOAD_CLASS);
 
             // Entry contract v3: prefer render(Activity, Bundle); fall back to
@@ -319,7 +324,7 @@ public class MainActivity extends Activity {
             // screen; point the factory back at the loader that built it, so a
             // lazy inflate by the old payload (e.g. a ListView row) resolves
             // classes from its OWN generation instead of the half-loaded one.
-            payloadFactory.setPayloadClassLoader(previousLoader);
+            PayloadRuntime.setClassLoader(previousLoader);
             // Roll the RESOURCES back too: if the failure happened after the
             // loader swap (e.g. the new payload's render() threw), the old view
             // tree would otherwise keep resolving its 0x80 ids against the NEW
@@ -337,6 +342,7 @@ public class MainActivity extends Activity {
                     Log.w(TAG, "resource rollback after failed load also failed", rollback);
                 }
                 currentLoader = previousResLoader;
+                PayloadRuntime.setResourcesLoader(previousResLoader);
             }
         }
 
@@ -359,17 +365,12 @@ public class MainActivity extends Activity {
                     android.content.pm.PackageManager.GET_META_DATA);
             int themeRes = (pi != null && pi.applicationInfo != null)
                     ? pi.applicationInfo.theme : 0;
-            if (themeRes == 0) {
-                Log.i(TAG, "payload declares no theme; keeping shell theme");
-                return;
-            }
-            // Rebuild from the base each time: getTheme().applyStyle accumulates,
-            // so start from a clean Activity theme, then layer the payload theme.
-            getTheme().setTo(getResources().newTheme());  // clean slate
-            getTheme().applyStyle(
-                    android.R.style.Theme_DeviceDefault_DayNight, true);  // shell base
-            getTheme().applyStyle(themeRes, true);                        // payload theme
-            Log.i(TAG, "applied payload theme 0x" + Integer.toHexString(themeRes));
+            // Publish the payload theme to the shared runtime (so a ProxyActivity
+            // adopts the SAME theme) and apply it to this Activity. The actual
+            // fresh-base + applyStyle logic lives in PayloadRuntime.applyThemeTo,
+            // which both activities share; themeRes == 0 keeps the shell theme.
+            PayloadRuntime.setThemeRes(themeRes);
+            PayloadRuntime.applyThemeTo(this);
         } catch (Throwable t) {
             Log.w(TAG, "applyPayloadTheme failed (continuing with shell theme)", t);
         }
@@ -618,88 +619,11 @@ public class MainActivity extends Activity {
     }
 
     // ------------------------------------------- payload-aware view inflation
-
-    /**
-     * LayoutInflater.Factory2 that resolves custom-View class names in payload
-     * layout XML against the CURRENT payload DexClassLoader.
-     *
-     * Design constraints it satisfies:
-     *  - setFactory2 can be called only once per inflater, but the payload's
-     *    classloader changes every hot reload → this object is installed once
-     *    and never replaced; {@link #setPayloadClassLoader} swaps the volatile
-     *    target (and clears the constructor cache) on each reload. Inflater
-     *    clones (dialogs) copy the factory REFERENCE, so they stay current too.
-     *  - Framework widgets must keep inflating through the default path →
-     *    return null for anything this factory doesn't own: unqualified names
-     *    ("TextView"), classes the payload loader can't find, non-Views, and —
-     *    crucially — classes whose DEFINING loader is not the payload loader
-     *    (parent-first delegation means the payload loader "finds"
-     *    android.widget.* too; deferring those to the inflater keeps the
-     *    shell's behavior for host/framework classes byte-identical).
-     *  - Constructor lookups are cached per generation (ConcurrentHashMap:
-     *    inflation is main-thread, but cloned inflaters make no such promise).
-     */
-    private static final class PayloadViewFactory implements LayoutInflater.Factory2 {
-
-        private volatile ClassLoader payloadClassLoader;
-        private final Map<String, Constructor<? extends View>> ctorCache =
-                new ConcurrentHashMap<>();
-
-        ClassLoader getPayloadClassLoader() {
-            return payloadClassLoader;
-        }
-
-        void setPayloadClassLoader(ClassLoader cl) {
-            payloadClassLoader = cl;
-            ctorCache.clear(); // old-gen constructors must not outlive their loader
-        }
-
-        @Override
-        public View onCreateView(View parent, String name, Context context, AttributeSet attrs) {
-            // Unqualified names are framework widgets ("TextView") — the default
-            // path prepends android.widget./android.view. etc. Not ours.
-            if (name.indexOf('.') < 0) return null;
-            ClassLoader cl = payloadClassLoader;
-            if (cl == null) return null;
-
-            Constructor<? extends View> ctor = ctorCache.get(name);
-            if (ctor == null) {
-                Class<?> clazz;
-                try {
-                    clazz = cl.loadClass(name);
-                } catch (ClassNotFoundException notPayload) {
-                    return null; // let the default path try (and produce its own error)
-                }
-                // Parent-first delegation resolves framework/host classes too;
-                // only intercept classes the payload dex actually DEFINES.
-                if (clazz.getClassLoader() != cl || !View.class.isAssignableFrom(clazz)) {
-                    return null;
-                }
-                try {
-                    ctor = clazz.asSubclass(View.class)
-                            .getConstructor(Context.class, AttributeSet.class);
-                } catch (NoSuchMethodException e) {
-                    // A payload View without the XML (Context, AttributeSet)
-                    // constructor is a payload bug — surface it clearly instead
-                    // of the default path's misleading ClassNotFoundException.
-                    throw new RuntimeException("payload view " + name
-                            + " lacks the (Context, AttributeSet) constructor required"
-                            + " for XML inflation", e);
-                }
-                ctorCache.put(name, ctor);
-            }
-            try {
-                return ctor.newInstance(context, attrs);
-            } catch (ReflectiveOperationException e) {
-                throw new RuntimeException("payload view " + name + " failed to instantiate", e);
-            }
-        }
-
-        @Override
-        public View onCreateView(String name, Context context, AttributeSet attrs) {
-            return onCreateView(null, name, context, attrs);
-        }
-    }
+    //
+    // The payload-classloader-aware LayoutInflater.Factory2 now lives in its own
+    // top-level PayloadViewFactory (shared with ProxyActivity); it reads the
+    // current payload classloader + generation from PayloadRuntime. MainActivity
+    // installs its own instance in onCreate (`payloadFactory`).
 
     // ---------------------------------------------------------------- misc
 

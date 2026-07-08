@@ -5,6 +5,18 @@
     <!-- Loopback HTTP to the Mac orchestrator (via adb reverse tcp:8377). -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Permission SUPERSET: the payload can't add <uses-permission> to this fixed
+         manifest, so the shell pre-declares the common runtime permissions a user
+         app might request. The payload calls requestPermissions() at runtime and
+         the OS shows a real prompt (only declared permissions can be granted).
+         A production shell would declare the full catalog CoGo supports. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
     <application
         android:label="Mini-Stubby Shell"
         android:debuggable="true"
@@ -18,5 +30,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Generic, pre-declared host for a payload's 2nd/3rd/… screen. The
+             payload cannot register its own <activity> in this fixed manifest, so
+             it opens a real second screen by starting THIS activity with an
+             explicit Intent carrying extra "payload_screen" = the fully-qualified
+             payload screen class. See ProxyActivity for the contract. Same theme
+             as MainActivity (both re-adopt the payload theme at runtime). Not
+             exported: only the shell/payload-in-shell starts it. -->
+        <activity
+            android:name=".ProxyActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
     </application>
 </manifest>
