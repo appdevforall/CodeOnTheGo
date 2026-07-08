@@ -178,14 +178,14 @@ class AnalysisSerializationTest : KtLspTest() {
 		assertThat(higherRan.get()).isTrue()
 	}
 
+	/**
+	 * FIR resolution polls [ProgressManager.checkCanceled] densely but never the LSP-level
+	 * [ICancelChecker.abortIfCancelled], so this body only polls the former. Preemption must still
+	 * interrupt it: [withAnalysisLock] installs a `CancelCheckerProgressIndicator` so that
+	 * otherwise-inert checkpoint aborts.
+	 */
 	@Test(timeout = 10_000)
 	fun `analysis is interrupted mid-analyze at the compiler's ProgressManager checkpoint`() {
-		// The Kotlin Analysis API calls ProgressManager.checkCanceled() densely during FIR
-		// resolution, but never the LSP-level ICancelChecker.abortIfCancelled(). This body mimics
-		// that: it only polls ProgressManager.checkCanceled(). Before withAnalysisLock installed a
-		// CancelCheckerProgressIndicator, that call was inert (no indicator => the manager's
-		// check-cancelled behaviour stayed disabled) and the work ran to completion regardless of
-		// preemption. It must now be interruptible.
 		val holderChecker = ScheduledCancelChecker(ICancelChecker.NOOP)
 		val holding = CountDownLatch(1)
 		val preempted = AtomicBoolean(false)
@@ -221,14 +221,14 @@ class AnalysisSerializationTest : KtLspTest() {
 		assertThat(ranToCompletion.get()).isFalse()
 	}
 
+	/**
+	 * Regression for ADFA-4174: an *ordinary* cancellation (the editor cancelling on a keystroke,
+	 * cursor move or popup dismissal), distinct from preemption, must abort the compiler's
+	 * mid-`analyze` FIR resolution promptly via [ScheduledCancelChecker]'s `invokeOnCancel` push —
+	 * on-device this showed up as ~900ms stalls and piled-up completion threads.
+	 */
 	@Test(timeout = 10_000)
 	fun `ordinary cancellation aborts an in-flight analysis mid-analyze`() {
-		// Regression for ADFA-4174. Unlike preemption (a competing higher/same-priority request), an
-		// *ordinary* cancellation — the editor cancelling because the user typed on / moved the cursor
-		// / dismissed the popup — flips the request's ICancelChecker. Via ScheduledCancelChecker's
-		// invokeOnCancel push, cancelling the delegate must abort the compiler's mid-`analyze` FIR
-		// resolution promptly, rather than letting it run to completion (observed on-device as ~900ms
-		// stalls and piled-up completion threads).
 		val delegate = ICancelChecker.Default()
 		val file = createSourceFile("OrdinaryCancel.kt", "class C { fun f(): Int = 1 }")
 		val holding = CountDownLatch(1)
@@ -278,11 +278,13 @@ class AnalysisSerializationTest : KtLspTest() {
 		assertThat(elapsedMs).isLessThan(500)
 	}
 
+	/**
+	 * Regression for ADFA-4174: a cancelled requester queued behind another analysis must bail
+	 * immediately instead of parking (holding heavy state) until the lock frees — on-device these
+	 * parked completions piled up and saturated the heap.
+	 */
 	@Test(timeout = 10_000)
 	fun `a waiting requester bails when cancelled instead of waiting for the lock`() {
-		// Regression for ADFA-4174: a superseded completion that is queued behind another analysis must
-		// abort as soon as it is cancelled, rather than parking (holding heavy state) until the lock
-		// frees. On-device, parked-until-release completions piled up and saturated the heap.
 		val holding = CountDownLatch(1)
 		val release = CountDownLatch(1)
 		val waiterDelegate = ICancelChecker.Default()

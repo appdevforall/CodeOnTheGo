@@ -24,10 +24,9 @@ class ProgressManagerTest {
 
   @Test
   fun `cancel flips a registered checker`() {
-    // Regression for ADFA-4174: cancel(thread) must act on the *registered* checker so a caller that
-    // polls that same checker (the completion cancel checker driving mid-analyze abort) observes the
-    // cancellation — before, cancel() always stored a throwaway Default and the registered checker
-    // never became cancelled.
+    // Regression for ADFA-4174: cancel(thread) must flip the *registered* checker so a caller polling
+    // it observes the cancellation. Previously cancel() stored a throwaway Default and the registered
+    // checker never became cancelled.
     val checker = ICancelChecker.Default()
     val thread = Thread.currentThread()
 

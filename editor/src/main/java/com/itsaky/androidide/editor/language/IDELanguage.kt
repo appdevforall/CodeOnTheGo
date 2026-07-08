@@ -72,10 +72,9 @@ abstract class IDELanguage : Language {
 		try {
 			val cancelChecker = CompletionCancelChecker(publisher)
 			Lookup.getDefault().update(ICancelChecker::class.java, cancelChecker)
-			// Bind the checker to this completion thread. EditorCompletionWindow.cancelCompletion()
-			// cancels the (old) thread via ProgressManager.cancel(thread); routing that to *this*
-			// checker's cancel() lets the LSP's invokeOnCancel listener abort the running analysis
-			// mid-`analyze` immediately, instead of only at coarse checkpoints.
+			// Bind the checker to this thread so cancelCompletion()'s ProgressManager.cancel(thread)
+			// routes here, letting the LSP's invokeOnCancel abort the running analysis mid-`analyze`
+			// immediately rather than only at coarse checkpoints.
 			ProgressManager.instance.register(completionThread, cancelChecker)
 			doComplete(content, position, publisher, cancelChecker, extraArguments)
 		} finally {

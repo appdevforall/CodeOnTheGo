@@ -22,8 +22,8 @@ import org.junit.Test
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Tests for the push-based [ICancelChecker.invokeOnCancel] added for ADFA-4174, which lets the Kotlin
- * LSP abort an in-flight `analyze` the moment cancellation happens instead of polling.
+ * Tests for the push-based [ICancelChecker.invokeOnCancel] (ADFA-4174), which lets the Kotlin LSP
+ * abort an in-flight `analyze` the moment cancellation happens instead of polling.
  */
 class ICancelCheckerTest {
 
@@ -79,9 +79,9 @@ class ICancelCheckerTest {
   fun `NOOP invokeOnCancel is a no-op`() {
     val fired = AtomicInteger(0)
 
-    // NOOP is a shared singleton that is never cancelled; registering must be a no-op so listeners
-    // (which may capture large objects) do not accumulate on it forever. We deliberately do NOT call
-    // NOOP.cancel() — flipping the shared singleton would corrupt every other user of it.
+    // NOOP is a shared singleton that never cancels: registering must be a no-op so captured listeners
+    // don't accumulate forever. We deliberately don't call NOOP.cancel() — flipping the shared
+    // singleton would corrupt every other user of it.
     ICancelChecker.NOOP.invokeOnCancel { fired.incrementAndGet() }
 
     assertThat(fired.get()).isEqualTo(0)

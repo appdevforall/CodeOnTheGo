@@ -47,12 +47,11 @@ interface ICancelChecker {
   fun abortIfCancelled()
 
   /**
-   * Register [listener] to run when this process is cancelled — a *push* notification, so a consumer
-   * can react to cancellation immediately instead of polling [isCancelled]. If already cancelled,
-   * [listener] runs synchronously now. [listener] runs at most once.
+   * Register [listener] to fire when this process is cancelled, so a consumer can react immediately
+   * instead of polling [isCancelled]. Fires synchronously now if already cancelled, and at most once.
    *
-   * The default implementation only fires when already cancelled; an implementation that can transition
-   * to cancelled after registration (e.g. [Default]) overrides this to fire on the transition.
+   * This default only fires when already cancelled; an implementation that can transition to cancelled
+   * after registration (e.g. [Default]) must override to fire on the transition.
    */
   fun invokeOnCancel(listener: () -> Unit) {
     if (isCancelled()) {
@@ -66,7 +65,6 @@ interface ICancelChecker {
     private val onCancelListeners = CopyOnWriteArrayList<() -> Unit>()
 
     override fun cancel() {
-      // Fire listeners once, on the false -> true transition only.
       if (cancelled.compareAndSet(false, true)) {
         onCancelListeners.forEach { it() }
         onCancelListeners.clear()

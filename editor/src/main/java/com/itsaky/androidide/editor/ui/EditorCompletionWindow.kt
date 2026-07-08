@@ -51,11 +51,7 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
 
         private val log = LoggerFactory.getLogger(EditorCompletionWindow::class.java)
 
-        /**
-         * Quiet period used to coalesce a burst of keystrokes into a single completion request. Rapid
-         * typing (re)schedules the start; only after the user pauses this long does one analysis run,
-         * for the latest cursor position. Keeps at most one completion in flight.
-         */
+        /** Quiet period for coalescing a keystroke burst: analysis runs only after typing pauses this long. */
         private const val COMPLETION_DEBOUNCE_MS = 80L
     }
 
@@ -141,10 +137,7 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
         super.cancelCompletion()
     }
 
-    /**
-     * Whether a completion may be shown for the current editor state. Hides the window (matching the
-     * prior inline behaviour) when the cursor is selected or completion is otherwise not applicable.
-     */
+    /** Whether completion may run now; hides the window when the cursor is selected or otherwise not applicable. */
     private fun canStartCompletion(): Boolean {
         if (cancelShowUp || !isEnabled || !editor.isAttachedToWindow) {
             return false
@@ -156,17 +149,17 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
         return true
     }
 
+    /**
+     * Coalesces a keystroke burst into one completion for the latest cursor position, keeping at most one
+     * analysis in flight. This prevents the CompletionThread/allocation pile-up that saturated the heap and
+     * froze the editor during fast typing.
+     */
     override fun requireCompletion() {
         if (!canStartCompletion()) {
             return
         }
 
-        // Coalesce a burst of keystrokes into a single completion. Cancel the in-flight completion and
-        // any pending (not-yet-started) one, then (re)schedule one start after a short quiet period.
-        // This guarantees at most one completion analysis in flight and that only the latest cursor
-        // position is computed — preventing the CompletionThread/allocation pile-up that saturated the
-        // heap and froze the editor during fast typing. cancelCompletion() clears any pending request,
-        // so we always schedule exactly one.
+        // cancelCompletion() clears any in-flight and pending request, so we then schedule exactly one.
         cancelCompletion()
 
         val request = Runnable { startCompletion() }
@@ -174,11 +167,11 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
         editor.handler.postDelayed(request, COMPLETION_DEBOUNCE_MS)
     }
 
-    /** Starts a single completion for the current cursor position. Runs on the UI thread. */
+    /** Runs on the UI thread. */
     private fun startCompletion() {
         pendingCompletion = null
 
-        // The editor state may have changed during the debounce delay; re-check the guards.
+        // Editor state may have changed during the debounce delay; re-check the guards.
         if (!canStartCompletion()) {
             return
         }

@@ -84,12 +84,9 @@ private val logger = LoggerFactory.getLogger("KotlinCompletions")
 private const val UNIMPORTED_SYMBOL_LIMIT = 100
 
 /**
- * The [ScheduledCancelChecker] for the completion request running on this thread, set for the
- * duration of [doComplete]. The LSP-level [abortIfCancelled] checkpoints consult it so they observe
- * scheduler *preemption* (a newer completion superseding this one, or this one yielding to a
- * higher-priority request) — not just the editor's own request cancellation. Without this, those
- * checkpoints only saw the raw delegate from [Lookup] and every preemption was misreported as an
- * ordinary cancellation.
+ * The [ScheduledCancelChecker] for the completion running on this thread, set for the duration of
+ * [doComplete]. The [abortIfCancelled] checkpoints consult it so they observe scheduler *preemption*
+ * (a newer completion superseding this one), not just the editor's own request cancellation.
  */
 private val currentCancelChecker = ThreadLocal<ScheduledCancelChecker?>()
 
@@ -106,16 +103,11 @@ private fun abortIfCancelled() {
 }
 
 /**
- * A cancelled completion surfaces as one of several exception types depending on *where* it was
- * observed, and none of them is an error:
- * - [CancellationException]/[AnalysisPreemptedException] — a coarse [abortIfCancelled] checkpoint;
- * - [ProcessCanceledException] — the compiler's mid-`analyze` cancellation (our `job` was cancelled);
- * - [CompletionCancelledException] — the editor's sora publisher was cancelled (surfaced via the
- *   [com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker] delegate);
- * - [InterruptedException] — the sora `CompletionThread` was interrupted mid-resolution.
- *
- * All of them mean "this completion was superseded/cancelled"; treat them uniformly so mid-`analyze`
- * cancellations are reported cleanly instead of logged as spurious errors with a stack trace.
+ * A cancelled completion surfaces as different exception types depending on where it was observed
+ * ([CancellationException]/[AnalysisPreemptedException] at a checkpoint, [ProcessCanceledException]
+ * mid-`analyze`, [CompletionCancelledException] from the sora publisher, [InterruptedException] on
+ * the sora completion thread). All mean "superseded/cancelled"; treat them uniformly so none is
+ * logged as a spurious error.
  */
 private fun Throwable.isCancellation(): Boolean =
 	this is CancellationException ||
@@ -149,6 +141,11 @@ internal fun codeComplete(params: CompletionParams): CompletionResult {
 	}
 }
 
+/**
+ * Runs at the highest [AnalysisPriority.COMPLETION]: preempts in-progress diagnostics/indexing and
+ * is never preempted by lower-priority work, but is superseded (cancelled and discarded) by a newer
+ * completion request as the user keeps typing.
+ */
 context(env: CompilationEnvironment)
 internal fun doComplete(params: CompletionParams): CompletionResult {
 	val ktFile = env.ktSymbolIndex.getOpenedKtFile(params.file)
@@ -186,15 +183,9 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 
 	abortIfCancelled()
 
-	// Completion is the highest-priority analysis: it preempts in-progress diagnostics/indexing and is
-	// never preempted by lower-priority analysis. It can, however, be superseded by a *newer* completion
-	// request (the user typing on) — that in-flight completion is then cancelled and simply discarded.
-	//
-	// Use the request-scoped checker carried on [params] rather than the global Lookup: Lookup holds a
-	// single ICancelChecker updated per request, so with concurrent completion threads an older request
-	// could read a newer request's checker and never observe its own cancellation. [params.cancelChecker]
-	// is the editor's own CompletionCancelChecker for *this* request. Fall back to Lookup only if a
-	// caller supplied the NOOP checker (e.g. tests that don't set one).
+	// Use the request-scoped checker on params, not the global Lookup: Lookup holds one ICancelChecker
+	// updated per request, so with concurrent completions an older request could read a newer request's
+	// checker and never observe its own cancellation. Fall back to Lookup only for a NOOP checker (tests).
 	val delegate = params.cancelChecker.takeUnless { it === ICancelChecker.NOOP }
 		?: Lookup.getDefault().lookup(ICancelChecker::class.java)
 		?: ICancelChecker.NOOP
@@ -241,9 +232,7 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 			}
 		}
 	} catch (e: Throwable) {
-		// Let cancellation (incl. mid-`analyze` ProcessCanceledException / sora
-		// CompletionCancelledException / InterruptedException) propagate to codeComplete's uniform
-		// handler rather than logging it as an error.
+		// Let cancellation propagate to codeComplete's uniform handler instead of logging it as an error.
 		if (e.isCancellation()) {
 			throw e
 		}
@@ -414,9 +403,8 @@ private fun KaSession.collectUnimportedSymbols(
 		buildUnimportedSymbolItem(symbol)?.let { to += it }
 	}
 
-	// Bounded: limit = 0 means "unlimited", which pulled every matching symbol from all three
-	// indexes on every keystroke — a major allocation/GC source. A capped result set is more than
-	// enough for a completion popup and keeps the per-request footprint small.
+	// Bounded: limit = 0 ("unlimited") pulled every matching symbol from all three indexes on every
+	// keystroke — a major allocation/GC source, and a capped set is plenty for a completion popup.
 	env.libraryIndex?.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_LIMIT)
 		?.forEach(::addCompletionItem)
 

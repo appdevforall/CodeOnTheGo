@@ -76,10 +76,9 @@ internal suspend fun indexSourceFile(
 	symbolsIndex: JvmSymbolIndex,
 	cancelChecker: ICancelChecker,
 ) {
-	// Indexing runs at the lowest (INDEXING) priority: it yields to both completion and diagnostics.
-	// Wrapping the checker lets the scheduler preempt an in-progress index pass; the preemption
-	// surfaces as AnalysisPreemptedException at the abortIfCancelled() checkpoints below, which the
-	// IndexWorker catches to re-queue the file.
+	// Indexing runs at the lowest priority, yielding to completion and diagnostics. Wrapping the checker
+	// lets the scheduler preempt an in-progress pass; the preemption surfaces as AnalysisPreemptedException
+	// at the abortIfCancelled() checkpoints below, which IndexWorker catches to re-queue the file.
 	val checker = cancelChecker as? ScheduledCancelChecker ?: ScheduledCancelChecker(cancelChecker)
 
 	// Defensive backstop: this runs on the debounced/async index scope, so a disposal path that

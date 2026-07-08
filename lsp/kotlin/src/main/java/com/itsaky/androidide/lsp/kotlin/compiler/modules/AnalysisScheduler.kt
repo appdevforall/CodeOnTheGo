@@ -15,14 +15,11 @@ import kotlin.concurrent.withLock
  * Order: [INDEXING] < [DIAGNOSTICS] < [COMPLETION] — interactive completion beats background
  * diagnostics, which beats bulk indexing.
  *
- * [supersedesSamePriority] additionally lets a *newer* request preempt an in-flight request of the
- * **same** priority. This is enabled only for [COMPLETION]: when the user types fast, several
- * completion requests fire in a row and the in-flight one is computing results for a now-stale cursor
- * position, so the newer request cancels it and the fresh position is analysed immediately. A
- * superseded completion is simply *discarded* — nothing reschedules it (see
- * `KotlinCompletions.codeComplete`). It is intentionally off for [DIAGNOSTICS] and [INDEXING], whose
- * preempted work is re-queued rather than dropped; same-priority preemption there would livelock, as
- * two contenders would endlessly re-queue and re-preempt each other.
+ * [supersedesSamePriority] additionally lets a *newer* request preempt an in-flight one of the
+ * **same** priority. On for [COMPLETION] only: rapid typing makes the in-flight completion stale, so
+ * the newer one cancels it and the superseded work is *discarded* (nothing reschedules it). Off for
+ * [DIAGNOSTICS]/[INDEXING], whose preempted work is re-queued — there same-priority preemption would
+ * livelock, two contenders endlessly re-queuing and re-preempting each other.
  */
 internal enum class AnalysisPriority(val supersedesSamePriority: Boolean) {
 	INDEXING(supersedesSamePriority = false),
@@ -62,7 +59,7 @@ internal class ScheduledCancelChecker(
 	/** Marks this analysis as preempted; the next [abortIfCancelled] will throw. */
 	fun preempt() {
 		preempted = true
-		// Push: preemption is a cancellation too, so notify [invokeOnCancel] listeners immediately.
+		// Preemption is a cancellation too: fire invokeOnCancel listeners now, don't wait for a poll.
 		onCancelListeners.forEach { it() }
 		onCancelListeners.clear()
 	}
@@ -131,11 +128,10 @@ internal object AnalysisScheduler {
 	 * priority is [AnalysisPriority.supersedesSamePriority] — [onPreempt] of *that* holder is invoked so
 	 * it yields; [onPreempt] passed here is stored and used if this acquisition is later preempted.
 	 *
-	 * [cancelChecker] is *this* requester's checker: while waiting for the lock, the wait is re-checked on
-	 * a short timer, and if the requester has been cancelled — e.g. the editor superseded
-	 * this completion — [acquire] throws instead of parking until the lock frees. This is what stops
-	 * superseded completions from piling up holding heavy state (KtFile copies, symbol lists) while they
-	 * wait, which on-device saturated the heap and triggered multi-second GC stalls.
+	 * [cancelChecker] is *this* requester's checker: a queued requester re-checks it on a short timer and
+	 * [acquire] throws (rather than park until the lock frees) once cancelled — e.g. the editor superseded
+	 * this completion. This stops superseded completions from piling up holding heavy state (KtFile copies,
+	 * symbol lists), which on-device saturated the heap and triggered multi-second GC stalls.
 	 */
 	fun acquire(priority: AnalysisPriority, cancelChecker: ICancelChecker, onPreempt: () -> Unit) {
 		mutex.withLock {

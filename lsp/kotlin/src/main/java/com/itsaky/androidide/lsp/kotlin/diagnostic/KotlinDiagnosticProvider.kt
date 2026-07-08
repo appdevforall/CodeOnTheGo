@@ -66,10 +66,9 @@ private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResu
 		return DiagnosticResult.NO_UPDATE
 	}
 
-	// Diagnostics run at DIAGNOSTICS priority: they yield to completion but preempt indexing. The
-	// wrapped checker turns a scheduler preemption into an AnalysisPreemptedException, which
-	// CompilationEnvironment's fileAnalyzer catches to re-schedule this run after the higher-priority
-	// work finishes.
+	// Diagnostics yield to completion but preempt indexing. The wrapped checker turns a scheduler
+	// preemption into an AnalysisPreemptedException, which CompilationEnvironment's fileAnalyzer catches
+	// to re-schedule this run once the higher-priority work finishes.
 	val checker = ScheduledCancelChecker(cancelChecker)
 
 	val diagnostics = env.project.read {
@@ -87,9 +86,9 @@ private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResu
 					)
 				}
 
-			// analyzeMaybeDangling installs a CancelCheckerProgressIndicator, so this analysis is
-			// cancellable mid-`analyze`: it aborts at the compiler's internal checkCanceled() once
-			// `checker` reports preemption/cancellation (in addition to the abortIfCancelled() below).
+			// analyzeMaybeDangling installs a CancelCheckerProgressIndicator, so this is cancellable
+			// mid-`analyze`: it aborts at the compiler's internal checkCanceled() once `checker` reports
+			// preemption/cancellation. (Previously this analysis was not cancellable at all.)
 			analyzeMaybeDangling(ktFile, AnalysisPriority.DIAGNOSTICS, checker) {
 				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
 					.forEach { diagnostic ->

@@ -186,8 +186,7 @@ internal class CompilationEnvironment(
 					languageClient?.publishDiagnostics(result)
 				}
 			} catch (e: AnalysisPreemptedException) {
-				// A higher-priority analysis (completion) preempted this diagnostics run.
-				// Re-schedule so diagnostics still run once the higher-priority work finishes.
+				// Preempted by completion; re-schedule so diagnostics still run once it finishes.
 				logger.debug("diagnostics for {} preempted; rescheduling", path)
 				fileAnalyzer.schedule(path)
 			}

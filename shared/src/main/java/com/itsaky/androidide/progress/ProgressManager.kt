@@ -41,10 +41,9 @@ class ProgressManager private constructor() {
 	}
 
 	/**
-	 * Associate an existing [checker] with [thread]. A subsequent [cancel] of [thread] then flips
-	 * *this* checker (rather than a throwaway [Default]), so a caller that also polls [checker]
-	 * observes the cancellation. Used by the editor to make a completion's cancel checker cancellable
-	 * via the thread it runs on. Pair with [unregister].
+	 * Associate an existing [checker] with [thread] so a later [cancel] of [thread] flips *this*
+	 * checker (not a throwaway [Default]), letting a caller that polls [checker] observe the
+	 * cancellation. Pair with [unregister].
 	 */
 	fun register(thread: Thread, checker: ICancelChecker) {
 		synchronized(threads) {

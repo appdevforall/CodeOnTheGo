@@ -6,17 +6,11 @@ import org.jetbrains.kotlin.com.intellij.concurrency.ThreadContext;
 import org.jetbrains.kotlin.com.intellij.openapi.application.AccessToken;
 
 /**
- * Bridge to the embeddable IntelliJ {@link ThreadContext} coroutine-context API.
+ * Java bridge to the embeddable IntelliJ {@link ThreadContext} coroutine-context API.
  *
- * <p>{@code currentThreadContext}/{@code installThreadContext} live in a Kotlin file facade whose
- * metadata the Kotlin compiler cannot resolve against from this module (they surface as
- * "unresolved reference" from Kotlin). At the bytecode level, though, they are plain
- * {@code public static} methods, so Java can call them directly.
- *
- * <p>This is used by {@code withAnalysisLock} to install a cancellable {@link Job} into the analysis
- * thread's context: the embeddable {@code CoreProgressManager.checkCanceled()} routes through
- * {@code Cancellation.checkCancelled()}, which throws as soon as that Job is cancelled, aborting the
- * running analysis mid-{@code analyze}.
+ * <p>Exists in Java because {@code currentThreadContext}/{@code installThreadContext} live in a
+ * Kotlin file-facade whose metadata this module's Kotlin compiler cannot resolve ("unresolved
+ * reference"), yet at the bytecode level they are plain {@code public static} methods Java can call.
  */
 public final class AnalysisThreadContext {
 
@@ -25,10 +19,12 @@ public final class AnalysisThreadContext {
 
   /**
    * Installs {@code job} into the current thread's IntelliJ coroutine context (preserving any
-   * context already present) and returns a token that restores the previous context when closed.
+   * existing context) and returns a token that restores the previous context when closed. Cancelling
+   * {@code job} then aborts the running analysis mid-{@code analyze}, since the embeddable
+   * {@code CoreProgressManager.checkCanceled()} throws once the installed Job is cancelled.
    *
-   * <p>Public because it is referenced from the {@code internal inline} {@code withAnalysisLock};
-   * an inline function may only reference declarations at least as accessible as itself.
+   * <p>Public (not package-private) because the {@code internal inline} {@code withAnalysisLock}
+   * references it: an inline function may only reference declarations at least as accessible as itself.
    */
   public static AccessToken installJob(Job job) {
     CoroutineContext context = ThreadContext.currentThreadContext().plus(job);
