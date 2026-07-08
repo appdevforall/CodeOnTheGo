@@ -54,3 +54,31 @@ save→rendered lands around **1–1.5 s, not sub-second**, and only with a *per
 daemon (per-save Gradle would be worse). Deployment stays flat (~40–110 ms). The sub-second
 promise holds for Java; for Kotlin the target is "1–1.5 s", and hitting even that needs a
 warm on-device Kotlin compile service — the single biggest open latency question.
+
+## Jetpack Compose — WORKS (the hardest case)
+
+CoGo ships a `ComposeActivity` template. A `ComposeView` walks up the view tree at
+window-attach looking for **ViewTreeLifecycleOwner / ViewTreeViewModelStoreOwner /
+ViewTreeSavedStateRegistryOwner** — none of which a plain `android.app.Activity`
+provides. Reproduced exactly: `IllegalStateException: ViewTreeLifecycleOwner not
+found from android.widget.LinearLayout` (the shell's own root).
+
+**Fix (payload-side, no shell change):** the payload creates its own owner object
+implementing all three interfaces (from its bundled androidx.lifecycle/savedstate),
+drives a `LifecycleRegistry` to `RESUMED`, and sets the owners on the **host window's
+decor view** (not just the ComposeView — Compose's window recomposer resolves the
+owner from the top of the hierarchy). Then `ComposeView.setContent { … }`.
+
+Verified on the A56: `Column` + `Text` + Material3 `Button` render, and tapping the
+button increments a `remember { mutableStateOf }` counter — **"Recompositions: 3"** —
+so recomposition on state change works, not just a static first frame. 27 MB / 4 dex
+payload, reload 390 ms.
+
+**Build-side caveat (real):** Compose is version-locked to the Kotlin compiler. AGP
+8.11 + Kotlin 1.9.22 + legacy `composeOptions.kotlinCompilerExtensionVersion` failed
+with `Couldn't inline remember` IR errors (the compose-compiler plugin wasn't applied
+correctly). The clean fix was **Kotlin 2.0.21 + the first-party
+`org.jetbrains.kotlin.plugin.compose` plugin**, where the compiler version tracks
+Kotlin exactly. Implication for CoGo: an on-device Compose build path must pin a
+coherent Kotlin/compose-compiler/BOM triple — this is a real toolchain-bringup cost,
+separate from the (working) runtime hosting.
