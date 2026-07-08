@@ -248,6 +248,17 @@ public class MainActivity extends Activity {
             getResources().addLoaders(loader);
             currentLoader = loader;
 
+            // ---- theme ----
+            // Material3/AppCompat widgets call ThemeEnforcement.checkTheme() and
+            // throw unless the Activity theme descends from Theme.MaterialComponents.
+            // The shell's own theme is Theme.DeviceDefault, so adopt the payload's
+            // declared theme. We read it from the payload apk's manifest
+            // (applicationInfo.theme) — works for any app that declares
+            // android:theme, no special payload method required — and merge it into
+            // the Activity theme. The style id is a 0x80 id, resolvable now that the
+            // payload table is merged via ResourcesLoader above.
+            applyPayloadTheme(copy);
+
             // ---- code ----
             // A multidex payload apk (classes.dex + classes2.dex + …) needs no
             // special handling: ART's DexFile opens EVERY classesN.dex entry in
@@ -325,6 +336,36 @@ public class MainActivity extends Activity {
         // Old generations pile up in codeCache during a session; a real
         // implementation would prune and would also recycle classloaders.
         trimOldGenerations();
+    }
+
+    /**
+     * Adopt the payload's declared application theme so Material3/AppCompat
+     * widgets pass ThemeEnforcement. Reads {@code applicationInfo.theme} from the
+     * payload apk's manifest (a 0x80 style id) and applies it onto a FRESH copy of
+     * the Activity's base theme, so successive reloads of different payloads don't
+     * accumulate each other's theme attributes.
+     */
+    private void applyPayloadTheme(File payloadApk) {
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager().getPackageArchiveInfo(
+                    payloadApk.getAbsolutePath(),
+                    android.content.pm.PackageManager.GET_META_DATA);
+            int themeRes = (pi != null && pi.applicationInfo != null)
+                    ? pi.applicationInfo.theme : 0;
+            if (themeRes == 0) {
+                Log.i(TAG, "payload declares no theme; keeping shell theme");
+                return;
+            }
+            // Rebuild from the base each time: getTheme().applyStyle accumulates,
+            // so start from a clean Activity theme, then layer the payload theme.
+            getTheme().setTo(getResources().newTheme());  // clean slate
+            getTheme().applyStyle(
+                    android.R.style.Theme_DeviceDefault_DayNight, true);  // shell base
+            getTheme().applyStyle(themeRes, true);                        // payload theme
+            Log.i(TAG, "applied payload theme 0x" + Integer.toHexString(themeRes));
+        } catch (Throwable t) {
+            Log.w(TAG, "applyPayloadTheme failed (continuing with shell theme)", t);
+        }
     }
 
     private void trimOldGenerations() {

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#FF6750A4</color>
+    <string name="title">Material3 payload</string>
+    <string name="tap">Tap me</string>
+</resources>
