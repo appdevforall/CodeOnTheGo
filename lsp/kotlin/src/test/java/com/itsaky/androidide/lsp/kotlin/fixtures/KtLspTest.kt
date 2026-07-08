@@ -21,7 +21,6 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 abstract class KtLspTest {
-
 	@get:Rule
 	@PublishedApi
 	internal val lspTestRule = KtLspTestRule()
@@ -29,7 +28,10 @@ abstract class KtLspTest {
 	internal val env: KtLspTestEnvironment
 		get() = lspTestRule.env
 
-	protected fun createSourceFile(relativePath: String, content: String): KtFile {
+	protected fun createSourceFile(
+		relativePath: String,
+		content: String,
+	): KtFile {
 		val file = env.createSourceFile(relativePath, content)
 		// See the comment in `analyzeMaybeDanglingForTest` below: freshly-created files are invisible to
 		// unqualified name resolution until they're registered with the symbol index's file metadata,
@@ -39,13 +41,15 @@ abstract class KtLspTest {
 		return file
 	}
 
-	protected fun <R> analyze(file: KtFile, action: KaSession.() -> R): R =
-		env.analyze(file, action)
+	protected fun <R> analyze(
+		file: KtFile,
+		action: KaSession.() -> R,
+	): R = env.analyze(file, action)
 
 	/** Resolves [call] to a function call and runs [action] inside the analyze block. */
 	protected fun <R> analyzeMaybeDanglingForTest(
 		call: KtCallElement,
-		action: KaSession.(KaFunctionCall<*>?) -> R
+		action: KaSession.(KaFunctionCall<*>?) -> R,
 	): R {
 		// `createSourceFile` writes the file and refreshes the VFS/module search scope, but unqualified
 		// name resolution (e.g. resolving a call's callee) goes through `KtSymbolIndex.fileIndex`

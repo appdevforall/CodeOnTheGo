@@ -12,9 +12,8 @@ import org.jetbrains.kotlin.types.Variance
 internal fun KaSession.renderName(
 	type: KaType,
 	renderer: KaTypeRenderer = KaTypeRendererForSource.WITH_SHORT_NAMES,
-	position: Variance = Variance.INVARIANT
-): String {
-	return type.run {
+	position: Variance = Variance.INVARIANT,
+): String =
+	type.run {
 		render(renderer, position)
 	}
-}

@@ -98,7 +98,6 @@ internal abstract class AbstractCompilationEnvironment(
 	val applicationEnvironmentMode: KotlinCoreApplicationEnvironmentMode,
 	val enableParserEventSystem: Boolean = true,
 ) : AutoCloseable {
-
 	companion object {
 		/** Max time close() will block the (main) thread draining background workers before disposal. */
 		val CLOSE_DRAIN_TIMEOUT = 2.seconds
@@ -159,16 +158,19 @@ internal abstract class AbstractCompilationEnvironment(
 	protected open fun postInit(libraryRoots: List<JavaRoot>) {}
 
 	/** The [MessageCollector] used by the [CompilerConfiguration]. Defaults to no-op. */
-	protected open fun createMessageCollector(): MessageCollector = object : MessageCollector {
-		override fun clear() {}
-		override fun hasErrors() = false
-		override fun report(
-			severity: CompilerMessageSeverity,
-			message: String,
-			location: CompilerMessageSourceLocation?,
-		) {
+	protected open fun createMessageCollector(): MessageCollector =
+		object : MessageCollector {
+			override fun clear() {}
+
+			override fun hasErrors() = false
+
+			override fun report(
+				severity: CompilerMessageSeverity,
+				message: String,
+				location: CompilerMessageSourceLocation?,
+			) {
+			}
 		}
-	}
 
 	@Suppress("UnstableApiUsage")
 	protected open fun initialize(
@@ -182,11 +184,12 @@ internal abstract class AbstractCompilationEnvironment(
 		) -> KtSymbolIndex,
 	) {
 		val configuration = createCompilerConfiguration()
-		projectEnv = StandaloneProjectFactory.createProjectEnvironment(
-			projectDisposable = disposable,
-			applicationEnvironmentMode = applicationEnvironmentMode,
-			compilerConfiguration = configuration,
-		)
+		projectEnv =
+			StandaloneProjectFactory.createProjectEnvironment(
+				projectDisposable = disposable,
+				applicationEnvironmentMode = applicationEnvironmentMode,
+				compilerConfiguration = configuration,
+			)
 
 		if (applicationEnvironmentMode == KotlinCoreApplicationEnvironmentMode.Production) {
 			KotlinApplicationEnvironmentPin.ensure(configuration)
@@ -232,14 +235,13 @@ internal abstract class AbstractCompilationEnvironment(
 		serviceRegistrars.registerProjectServices(project, data = Unit)
 		serviceRegistrars.registerProjectModelServices(project, disposable, data = Unit)
 
-
-		libraryRoots = modules
-			.asFlatSequence()
-			.filterNot { it.isSourceModule }
-			.flatMap { lib ->
-				lib.computeFiles(extended = false).map { JavaRoot(it, JavaRoot.RootType.BINARY) }
-			}
-			.toList()
+		libraryRoots =
+			modules
+				.asFlatSequence()
+				.filterNot { it.isSourceModule }
+				.flatMap { lib ->
+					lib.computeFiles(extended = false).map { JavaRoot(it, JavaRoot.RootType.BINARY) }
+				}.toList()
 
 		ktSymbolIndex = buildKtSymbolIndex(modules, libraryRoots)
 
@@ -258,25 +260,27 @@ internal abstract class AbstractCompilationEnvironment(
 				addRoots(libraryRoots, MessageCollector.NONE)
 			}
 
-		val (javaSourceRoots, singleJavaFileRoots) = modules
-			.asFlatSequence()
-			.filter { it.isSourceModule }
-			.flatMap { it.contentRoots }
-			.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(it) }
-			.partition { it.isDirectory || it.extension != JavaFileType.DEFAULT_EXTENSION }
+		val (javaSourceRoots, singleJavaFileRoots) =
+			modules
+				.asFlatSequence()
+				.filter { it.isSourceModule }
+				.flatMap { it.contentRoots }
+				.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(it) }
+				.partition { it.isDirectory || it.extension != JavaFileType.DEFAULT_EXTENSION }
 
 		val rootsIndex =
 			JvmDependenciesDynamicCompoundIndex(shouldOnlyFindFirstClass = true).apply {
 				addIndex(
 					JvmDependenciesIndexImpl(
-						libraryRoots + javaSourceRoots.map {
-							JavaRoot(
-								it,
-								JavaRoot.RootType.SOURCE
-							)
-						},
+						libraryRoots +
+							javaSourceRoots.map {
+								JavaRoot(
+									it,
+									JavaRoot.RootType.SOURCE,
+								)
+							},
 						shouldOnlyFindFirstClass = true,
-					)
+					),
 				)
 				indexedRoots.forEach { javaRoot ->
 					if (javaRoot.file.isDirectory) {
@@ -293,9 +297,10 @@ internal abstract class AbstractCompilationEnvironment(
 		javaFileManager.initialize(
 			index = rootsIndex,
 			packagePartProviders = listOf(packagePartProvider),
-			singleJavaFileRootsIndex = SingleJavaFileRootsIndex(
-				singleJavaFileRoots.map { JavaRoot(it, JavaRoot.RootType.SOURCE) }
-			),
+			singleJavaFileRootsIndex =
+				SingleJavaFileRootsIndex(
+					singleJavaFileRoots.map { JavaRoot(it, JavaRoot.RootType.SOURCE) },
+				),
 			usePsiClassFilesReading = true,
 			perfManager = null,
 		)
@@ -313,7 +318,7 @@ internal abstract class AbstractCompilationEnvironment(
 			registerService(VirtualFileFinderFactory::class.java, fileFinderFactory)
 			registerService(
 				MetadataFinderFactory::class.java,
-				CliMetadataFinderFactory(fileFinderFactory)
+				CliMetadataFinderFactory(fileFinderFactory),
 			)
 		}
 
@@ -331,12 +336,13 @@ internal abstract class AbstractCompilationEnvironment(
 			this.useFir = true
 			this.intellijPluginRoot =
 				this@AbstractCompilationEnvironment.intellijPluginRoot.pathString
-			this.languageVersionSettings = LanguageVersionSettingsImpl(
-				languageVersion = this@AbstractCompilationEnvironment.languageVersion,
-				apiVersion = ApiVersion.createByLanguageVersion(this@AbstractCompilationEnvironment.languageVersion),
-				analysisFlags = emptyMap(),
-				specificFeatures = LanguageFeature.entries.associateWith { LanguageFeature.State.ENABLED },
-			)
+			this.languageVersionSettings =
+				LanguageVersionSettingsImpl(
+					languageVersion = this@AbstractCompilationEnvironment.languageVersion,
+					apiVersion = ApiVersion.createByLanguageVersion(this@AbstractCompilationEnvironment.languageVersion),
+					analysisFlags = emptyMap(),
+					specificFeatures = LanguageFeature.entries.associateWith { LanguageFeature.State.ENABLED },
+				)
 			this.jdkHome = this@AbstractCompilationEnvironment.jdkHome.toFile()
 			this.jdkRelease = this@AbstractCompilationEnvironment.jdkRelease
 			this.messageCollector = createMessageCollector()

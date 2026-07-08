@@ -24,11 +24,12 @@ internal fun KaSession.buildSignatureInformation(symbol: KaFunctionSymbol): Sign
 	return SignatureInformation(label, MarkupContent(), parameters)
 }
 
-private fun functionDisplayName(symbol: KaFunctionSymbol): String = when (symbol) {
-	is KaNamedFunctionSymbol -> symbol.name.asString()
-	is KaConstructorSymbol -> symbol.containingClassId?.shortClassName?.asString() ?: "<init>"
-	else -> "<anonymous>"
-}
+private fun functionDisplayName(symbol: KaFunctionSymbol): String =
+	when (symbol) {
+		is KaNamedFunctionSymbol -> symbol.name.asString()
+		is KaConstructorSymbol -> symbol.containingClassId?.shortClassName?.asString() ?: "<init>"
+		else -> "<anonymous>"
+	}
 
 @OptIn(KaExperimentalApi::class)
 private fun KaSession.paramLabel(param: KaValueParameterSymbol): String {

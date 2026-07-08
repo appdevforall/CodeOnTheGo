@@ -773,4 +773,3 @@ private fun isInSelectorPosition(
 	val elementOffset = element.startOffset
 	return elementOffset >= selector.startOffset
 }
-

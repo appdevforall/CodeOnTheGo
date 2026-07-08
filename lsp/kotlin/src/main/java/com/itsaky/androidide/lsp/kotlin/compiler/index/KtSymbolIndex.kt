@@ -56,11 +56,13 @@ internal class KtSymbolIndex(
 	val sourceIndex: JvmSymbolIndex,
 	val libraryIndex: JvmSymbolIndex,
 	cacheSize: @NonNegative Long = DEFAULT_CACHE_SIZE,
-	private val scope: CoroutineScope = CoroutineScope(
-		Dispatchers.Default + SupervisorJob() + CoroutineName(
-			"KtSymbolIndex"
-		)
-	)
+	private val scope: CoroutineScope =
+		CoroutineScope(
+			Dispatchers.Default + SupervisorJob() +
+				CoroutineName(
+					"KtSymbolIndex",
+				),
+		),
 ) {
 	companion object {
 		private val logger = LoggerFactory.getLogger(KtSymbolIndex::class.java)
@@ -69,39 +71,46 @@ internal class KtSymbolIndex(
 	}
 
 	private val workerQueue = WorkerQueue<IndexCommand>()
-	private val indexWorker = IndexWorker(
-		project = project,
-		queue = workerQueue,
-		fileIndex = fileIndex,
-		sourceIndex = sourceIndex,
-		scope = scope,
-	)
+	private val indexWorker =
+		IndexWorker(
+			project = project,
+			queue = workerQueue,
+			fileIndex = fileIndex,
+			sourceIndex = sourceIndex,
+			scope = scope,
+		)
 
-	private val scanningWorker = ScanningWorker(
-		kind = kind,
-		sourceIndex = sourceIndex,
-		indexWorker = indexWorker,
-		modules = modules,
-	)
+	private val scanningWorker =
+		ScanningWorker(
+			kind = kind,
+			sourceIndex = sourceIndex,
+			indexWorker = indexWorker,
+			modules = modules,
+		)
 
 	private var scanningJob: Job? = null
 	private var indexingJob: Job? = null
 
-	private val ktFileCache = Caffeine
-		.newBuilder()
-		.maximumSize(cacheSize)
-		.build<Path, KtFile>()
+	private val ktFileCache =
+		Caffeine
+			.newBuilder()
+			.maximumSize(cacheSize)
+			.build<Path, KtFile>()
 
 	/** Set by AbstractCompilationEnvironment.initialize once the env's KtPsiFactory exists. */
 	lateinit var parser: KtPsiFactory
 
-	private data class VersionedKtFile(val version: Int, val ktFile: KtFile)
+	private data class VersionedKtFile(
+		val version: Int,
+		val ktFile: KtFile,
+	)
 
 	private val refreshExecutor: ExecutorService =
 		Executors.newFixedThreadPool(2) { r -> Thread(r, "KtCurrentFileRefresh").apply { isDaemon = true } }
 
 	/** path -> in-flight/last-launched refresh; mutated only inside the per-key `compute` below. */
 	private val currentFiles = ConcurrentHashMap<Path, CompletableFuture<VersionedKtFile>>()
+
 	/** path -> last-launched version; read/written only inside that same `compute` section. */
 	private val currentVersions = ConcurrentHashMap<Path, Int>()
 
@@ -114,29 +123,31 @@ internal class KtSymbolIndex(
 	}
 
 	private fun startIndexing() {
-		val job = scope.launch {
-			try {
-				indexWorker.start()
-			} finally {
-				if (indexingJob === coroutineContext[Job]) {
-					indexingJob = null
+		val job =
+			scope.launch {
+				try {
+					indexWorker.start()
+				} finally {
+					if (indexingJob === coroutineContext[Job]) {
+						indexingJob = null
+					}
 				}
 			}
-		}
 
 		indexingJob = job
 	}
 
 	private fun startScanning() {
-		scanningJob = scope.launch {
-			try {
-				scanningWorker.scan()
-			} finally {
-				if (scanningJob === coroutineContext[Job]) {
-					scanningJob = null
+		scanningJob =
+			scope.launch {
+				try {
+					scanningWorker.scan()
+				} finally {
+					if (scanningJob === coroutineContext[Job]) {
+						scanningJob = null
+					}
 				}
 			}
-		}
 	}
 
 	fun refreshSources() {
@@ -147,12 +158,11 @@ internal class KtSymbolIndex(
 		startScanning()
 	}
 
-	private fun getVirtualFileOrWarn(path: Path): VirtualFile? {
-		return path.toVirtualFileOrNull() ?: run {
+	private fun getVirtualFileOrWarn(path: Path): VirtualFile? =
+		path.toVirtualFileOrNull() ?: run {
 			logger.warn("unable to find virtual file for path {}", path)
 			null
 		}
-	}
 
 	suspend fun submitForIndexing(path: Path) {
 		val vf = getVirtualFileOrWarn(path) ?: return
@@ -184,23 +194,30 @@ internal class KtSymbolIndex(
 	fun getCurrentKtFile(path: Path): CompletableFuture<KtFile?> {
 		if (!DocumentUtils.isKotlinFile(path)) return CompletableFuture.completedFuture(null)
 
-		val doc = FileManager.getActiveDocument(path)
-			?: return CompletableFuture.completedFuture(getKtFile(path))  // not open -> disk path
+		val doc =
+			FileManager.getActiveDocument(path)
+				?: return CompletableFuture.completedFuture(getKtFile(path)) // not open -> disk path
 
 		val version = doc.version
-		val future = currentFiles.compute(path) { p, existing ->
-			if (existing != null && !existing.isCompletedExceptionally && currentVersions[p] == version) {
-				existing
-			} else {
-				currentVersions[p] = version
-				val prior = existing
-				CompletableFuture.supplyAsync({
-					// Serialize with any prior refresh for this path so old->new succession is linear.
-					val old = try { prior?.get()?.ktFile } catch (_: Throwable) { null }
-					refreshToCurrent(p, version, old)
-				}, refreshExecutor)
-			}
-		}!!
+		val future =
+			currentFiles.compute(path) { p, existing ->
+				if (existing != null && !existing.isCompletedExceptionally && currentVersions[p] == version) {
+					existing
+				} else {
+					currentVersions[p] = version
+					val prior = existing
+					CompletableFuture.supplyAsync({
+						// Serialize with any prior refresh for this path so old->new succession is linear.
+						val old =
+							try {
+								prior?.get()?.ktFile
+							} catch (_: Throwable) {
+								null
+							}
+						refreshToCurrent(p, version, old)
+					}, refreshExecutor)
+				}
+			}!!
 		return future.thenApply { it.ktFile }
 	}
 
@@ -213,19 +230,25 @@ internal class KtSymbolIndex(
 	 * stamp may lag the content but never lead it: callers never get older-than-requested content, and
 	 * a lagging stamp only costs one redundant re-parse on the next request.
 	 */
-	private fun refreshToCurrent(path: Path, version: Int, old: KtFile?): VersionedKtFile {
+	private fun refreshToCurrent(
+		path: Path,
+		version: Int,
+		old: KtFile?,
+	): VersionedKtFile {
 		val content = FileManager.getDocumentContents(path)
 		val newKtFile = project.read { parser.createFile(path.pathString, content) }
 		newKtFile.backingFilePath = path
 		// KtFile.virtualFile is null for non-physical PSI (unit-test env); the view provider's is
 		// always present, and identical to it in production.
-		ProjectStructureProvider.getInstance(project)
+		ProjectStructureProvider
+			.getInstance(project)
 			.registerInMemoryFile(path.pathString, newKtFile.viewProvider.virtualFile)
 		// project.write serializes the mutation against a concurrent `analyze` (read lock); runWriteAction
 		// supplies the platform write access handleElementModification asserts, which our RW lock does not.
 		project.write {
 			ApplicationManager.getApplication().runWriteAction {
-				KaSourceModificationService.getInstance(project)
+				KaSourceModificationService
+					.getInstance(project)
 					.handleElementModification(old ?: newKtFile, KaElementModificationType.Unknown)
 			}
 			queueOnFileChangedAsync(newKtFile)
@@ -245,13 +268,14 @@ internal class KtSymbolIndex(
 	 * else `null`. Safe to call while holding `project.read` (unlike [getCurrentKtFile], which may
 	 * trigger a blocking refresh that needs `project.write`).
 	 */
-	fun getCurrentKtFileIfPresent(path: Path): KtFile? =
-		currentFiles[path]?.getNow(null)?.ktFile
+	fun getCurrentKtFileIfPresent(path: Path): KtFile? = currentFiles[path]?.getNow(null)?.ktFile
 
-	fun getKtFile(vf: VirtualFile): KtFile? =
-		getKtFile(vf.toNioPath(), vf)
+	fun getKtFile(vf: VirtualFile): KtFile? = getKtFile(vf.toNioPath(), vf)
 
-	fun getKtFile(path: Path, virtualFile: VirtualFile? = null): KtFile? {
+	fun getKtFile(
+		path: Path,
+		virtualFile: VirtualFile? = null,
+	): KtFile? {
 		if (!DocumentUtils.isKotlinFile(path)) return null
 
 		if (FileManager.isActive(path)) {
@@ -279,10 +303,12 @@ internal class KtSymbolIndex(
 		return ktFile
 	}
 
-	private fun loadKtFile(vf: VirtualFile): KtFile = project.read {
-		PsiManager.getInstance(project)
-			.findFile(vf) as KtFile
-	}
+	private fun loadKtFile(vf: VirtualFile): KtFile =
+		project.read {
+			PsiManager
+				.getInstance(project)
+				.findFile(vf) as KtFile
+		}
 
 	suspend fun close() {
 		indexWorker.submitCommand(IndexCommand.Stop)
@@ -304,15 +330,14 @@ internal class KtSymbolIndex(
 	}
 }
 
-internal fun KtSymbolIndex.packageExistsInSource(packageFqn: String) =
-	fileIndex.packageExists(packageFqn)
+internal fun KtSymbolIndex.packageExistsInSource(packageFqn: String) = fileIndex.packageExists(packageFqn)
 
-internal fun KtSymbolIndex.filesForPackage(packageFqn: String) =
-	fileIndex.getFilesForPackage(packageFqn)
+internal fun KtSymbolIndex.filesForPackage(packageFqn: String) = fileIndex.getFilesForPackage(packageFqn)
 
-internal fun KtSymbolIndex.subpackageNames(packageFqn: String) =
-	fileIndex.getSubpackageNames(packageFqn)
+internal fun KtSymbolIndex.subpackageNames(packageFqn: String) = fileIndex.getSubpackageNames(packageFqn)
 
-internal fun KtSymbolIndex.findSymbolBySimpleName(name: String, limit: Int) =
-	(sourceIndex.findBySimpleName(name, 0) + libraryIndex.findBySimpleName(name, 0))
-		.take(limit)
+internal fun KtSymbolIndex.findSymbolBySimpleName(
+	name: String,
+	limit: Int,
+) = (sourceIndex.findBySimpleName(name, 0) + libraryIndex.findBySimpleName(name, 0))
+	.take(limit)

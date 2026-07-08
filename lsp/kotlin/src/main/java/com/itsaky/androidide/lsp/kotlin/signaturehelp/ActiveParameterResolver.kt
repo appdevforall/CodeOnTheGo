@@ -17,32 +17,33 @@ private val logger = LoggerFactory.getLogger("ActiveParameterResolver")
  * resolved against the active overload only.
  */
 internal fun KaSession.computeActiveParameter(
-  call: KtCallElement,
-  resolvedCall: KaFunctionCall<*>?,
-  offset: Int
+	call: KtCallElement,
+	resolvedCall: KaFunctionCall<*>?,
+	offset: Int,
 ): Int {
-  val arguments = call.valueArgumentList?.arguments.orEmpty()
+	val arguments = call.valueArgumentList?.arguments.orEmpty()
 
-  // The argument the cursor is at/inside: the first whose end is at or after the cursor.
-  val current = arguments.firstOrNull { offset <= it.textRange.endOffset }
-  val positional = if (current != null) arguments.indexOf(current) else arguments.size
+	// The argument the cursor is at/inside: the first whose end is at or after the cursor.
+	val current = arguments.firstOrNull { offset <= it.textRange.endOffset }
+	val positional = if (current != null) arguments.indexOf(current) else arguments.size
 
-  if (current != null && resolvedCall != null) {
-    val argExpr = current.getArgumentExpression()
-    val paramSignature = argExpr?.let { resolvedCall.argumentMapping[it] }
-    if (paramSignature != null) {
-      val declaredIndex = resolvedCall.symbol.valueParameters
-        .indexOfFirst { it.name == paramSignature.name }
-      if (declaredIndex >= 0) {
-        logger.debug(
-          "computeActiveParameter: resolved named-argument index {} at offset {}",
-          declaredIndex,
-          offset
-        )
-        return declaredIndex
-      }
-    }
-  }
-  logger.debug("computeActiveParameter: using positional index {} at offset {}", positional, offset)
-  return positional
+	if (current != null && resolvedCall != null) {
+		val argExpr = current.getArgumentExpression()
+		val paramSignature = argExpr?.let { resolvedCall.argumentMapping[it] }
+		if (paramSignature != null) {
+			val declaredIndex =
+				resolvedCall.symbol.valueParameters
+					.indexOfFirst { it.name == paramSignature.name }
+			if (declaredIndex >= 0) {
+				logger.debug(
+					"computeActiveParameter: resolved named-argument index {} at offset {}",
+					declaredIndex,
+					offset,
+				)
+				return declaredIndex
+			}
+		}
+	}
+	logger.debug("computeActiveParameter: using positional index {} at offset {}", positional, offset)
+	return positional
 }

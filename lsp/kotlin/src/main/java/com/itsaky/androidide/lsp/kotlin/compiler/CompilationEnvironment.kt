@@ -5,7 +5,6 @@ import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AbstractKtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.AnalysisApiServiceProviders
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.LspAnalysisApiServiceRegistrar
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
@@ -71,27 +70,28 @@ internal class CompilationEnvironment(
 	jdkRelease: Int,
 	languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
 	enableParserEventSystem: Boolean = true,
-	val coroutineScope: CoroutineScope = CoroutineScope(
-		SupervisorJob() + CoroutineName("CompilationEnv[$name]") +
-			CoroutineExceptionHandler { _, t ->
-				// Defense in depth: swallow (but log) non-cancellation failures from the
-				// debounce worker so a ClosedReceiveChannelException can never crash the app.
-				if (t !is CancellationException) {
-					logger.warn("Uncaught exception in compilation environment coroutine", t)
-				}
-			}
-	),
+	val coroutineScope: CoroutineScope =
+		CoroutineScope(
+			SupervisorJob() + CoroutineName("CompilationEnv[$name]") +
+				CoroutineExceptionHandler { _, t ->
+					// Defense in depth: swallow (but log) non-cancellation failures from the
+					// debounce worker so a ClosedReceiveChannelException can never crash the app.
+					if (t !is CancellationException) {
+						logger.warn("Uncaught exception in compilation environment coroutine", t)
+					}
+				},
+		),
 ) : AbstractCompilationEnvironment(
-	name = name,
-	kind = kind,
-	intellijPluginRoot = intellijPluginRoot,
-	jdkHome = jdkHome,
-	jdkRelease = jdkRelease,
-	languageVersion = languageVersion,
-	applicationEnvironmentMode = KotlinCoreApplicationEnvironmentMode.Production,
-	enableParserEventSystem = enableParserEventSystem,
-), KotlinProjectModel.ProjectModelListener {
-
+		name = name,
+		kind = kind,
+		intellijPluginRoot = intellijPluginRoot,
+		jdkHome = jdkHome,
+		jdkRelease = jdkRelease,
+		languageVersion = languageVersion,
+		applicationEnvironmentMode = KotlinCoreApplicationEnvironmentMode.Production,
+		enableParserEventSystem = enableParserEventSystem,
+	),
+	KotlinProjectModel.ProjectModelListener {
 	companion object {
 		val DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION = 400.milliseconds
 		private val logger = LoggerFactory.getLogger(CompilationEnvironment::class.java)
@@ -143,66 +143,72 @@ internal class CompilationEnvironment(
 	private fun buildKtSymbolIndex(
 		modules: List<KtModule>,
 		libraryRoots: List<JavaRoot>,
-	): KtSymbolIndex = KtSymbolIndex(
-		kind = kind,
-		project = project,
-		modules = modules,
-		fileIndex = requireFileIndex,
-		sourceIndex = requireSourceIndex,
-		libraryIndex = requireLibraryIndex,
-	)
+	): KtSymbolIndex =
+		KtSymbolIndex(
+			kind = kind,
+			project = project,
+			modules = modules,
+			fileIndex = requireFileIndex,
+			sourceIndex = requireSourceIndex,
+			libraryIndex = requireLibraryIndex,
+		)
 
 	private fun buildModules(
 		project: MockProject,
 		applicationEnv: KotlinCoreApplicationEnvironment,
 	): List<KtModule> = workspace.collectKtModules(project, applicationEnv)
 
-	override fun createServiceRegistrars() =
-		listOf(LspAnalysisApiServiceRegistrar(AnalysisApiServiceProviders.Production))
+	override fun createServiceRegistrars() = listOf(LspAnalysisApiServiceRegistrar(AnalysisApiServiceProviders.Production))
 
-	override fun createMessageCollector(): MessageCollector = object : MessageCollector {
-		override fun clear() {}
-		override fun hasErrors() = false
-		override fun report(
-			severity: CompilerMessageSeverity,
-			message: String,
-			location: CompilerMessageSourceLocation?,
-		) {
-			logger.info("[{}] {} ({})", severity.name, message, location)
+	override fun createMessageCollector(): MessageCollector =
+		object : MessageCollector {
+			override fun clear() {}
+
+			override fun hasErrors() = false
+
+			override fun report(
+				severity: CompilerMessageSeverity,
+				message: String,
+				location: CompilerMessageSourceLocation?,
+			) {
+				logger.info("[{}] {} ({})", severity.name, message, location)
+			}
 		}
-	}
 
 	override fun postInit(libraryRoots: List<JavaRoot>) {
 		ktSymbolIndex.syncIndexInBackground()
 	}
 
 	init {
-		fileAnalyzer = KeyedDebouncingAction(
-			scope = coroutineScope,
-			debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
-		) { path, cancelChecker ->
-			val result = collectDiagnosticsFor(path, cancelChecker)
-			withContext(Dispatchers.Main.immediate) {
-				languageClient?.publishDiagnostics(result)
+		fileAnalyzer =
+			KeyedDebouncingAction(
+				scope = coroutineScope,
+				debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
+			) { path, cancelChecker ->
+				val result = collectDiagnosticsFor(path, cancelChecker)
+				withContext(Dispatchers.Main.immediate) {
+					languageClient?.publishDiagnostics(result)
+				}
 			}
-		}
 
-		refreshScheduler = KeyedDebouncingAction(
-			scope = coroutineScope,
-			debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
-		) { path, _ ->
-			// Pull through the cache so a refresh (and its reindex) happens after every edit,
-			// independent of whether diagnostics run.
-			ktSymbolIndex.getCurrentKtFile(path).await()
-		}
+		refreshScheduler =
+			KeyedDebouncingAction(
+				scope = coroutineScope,
+				debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
+			) { path, _ ->
+				// Pull through the cache so a refresh (and its reindex) happens after every edit,
+				// independent of whether diagnostics run.
+				ktSymbolIndex.getCurrentKtFile(path).await()
+			}
 	}
 
 	fun refreshSources() {
-		Sentry.addBreadcrumb("refreshSources (env=${name}, modules=${modules.size})")
+		Sentry.addBreadcrumb("refreshSources (env=$name, modules=${modules.size})")
 		project.write {
-			Sentry.addBreadcrumb("refreshSources(env=${name}): in-progress")
+			Sentry.addBreadcrumb("refreshSources(env=$name): in-progress")
 			ResolutionScopeProvider.getInstance(project).invalidateAll()
-			modules.asFlatSequence()
+			modules
+				.asFlatSequence()
 				.filterIsInstance<AbstractKtModule>()
 				.forEach { it.invalidateSearchScope() }
 		}
@@ -235,23 +241,29 @@ internal class CompilationEnvironment(
 	) {
 		// Resolve PSI/module structure under the read lock; driving psiManager.findFile /
 		// structureProvider concurrently with an `analyze` read section otherwise races.
-		val (ktFile, module) = project.read {
-			val structureProvider = ProjectStructureProvider.getInstance(project)
-			val ktFile = path.toVirtualFileOrNull()?.let {
-				psiManager.findFile(it) as? KtFile
+		val (ktFile, module) =
+			project.read {
+				val structureProvider = ProjectStructureProvider.getInstance(project)
+				val ktFile =
+					path.toVirtualFileOrNull()?.let {
+						psiManager.findFile(it) as? KtFile
+					}
+
+				val module =
+					(
+						ktFile?.let { structureProvider.getModule(it, null) }
+							?: structureProvider.findModuleForSourceId(path.pathString)
+					) as? AbstractKtModule
+
+				ktFile to module
 			}
-
-			val module = (ktFile?.let { structureProvider.getModule(it, null) }
-				?: structureProvider.findModuleForSourceId(path.pathString)) as? AbstractKtModule
-
-			ktFile to module
-		}
 
 		project.write {
 			// Must run under the write lock so the session mutation can't race a concurrent
 			// `analyze` (which only holds the read lock); see KtSymbolIndex.refreshToCurrent.
 			if (ktFile != null) {
-				KaSourceModificationService.getInstance(project)
+				KaSourceModificationService
+					.getInstance(project)
 					.handleElementModification(ktFile, typeProvider(ktFile))
 			}
 
@@ -261,7 +273,7 @@ internal class CompilationEnvironment(
 					KotlinModuleStateModificationEvent(
 						module,
 						KotlinModuleStateModificationKind.UPDATE,
-					)
+					),
 				)
 				project.analysisMessageBus
 					.syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
@@ -289,7 +301,10 @@ internal class CompilationEnvironment(
 		ktSymbolIndex.removeFromIndex(path)
 	}
 
-	suspend fun onFileMoved(fromPath: Path, toPath: Path) {
+	suspend fun onFileMoved(
+		fromPath: Path,
+		toPath: Path,
+	) {
 		val isFileOpen = FileManager.isActive(fromPath)
 		onFileRemoved(fromPath)
 		onFileCreated(toPath)

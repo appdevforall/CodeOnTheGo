@@ -16,7 +16,6 @@ import org.junit.Test
 import java.nio.file.Path
 
 internal class CurrentKtFileCacheTest : KtLspTest() {
-
 	private val openedPaths = mutableListOf<Path>()
 
 	@After
@@ -28,18 +27,24 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 	private fun docCloseEvent(path: Path) = DocumentCloseEvent(path)
 
 	/** The [Path] under the first source root that [createSourceFile] wrote [relativePath] to. */
-	private fun sourcePath(relativePath: String): Path =
-		env.sourceRoots.first().resolve(relativePath)
+	private fun sourcePath(relativePath: String): Path = env.sourceRoots.first().resolve(relativePath)
 
 	/** Registers [path] as an active document at version 1 with [content]. */
-	private fun openDocument(path: Path, content: String) {
+	private fun openDocument(
+		path: Path,
+		content: String,
+	) {
 		FileManager.onDocumentOpen(DocumentOpenEvent(path, content, 1))
 		openedPaths.add(path)
 	}
 
-	private fun changeDocument(path: Path, content: String, version: Int) {
+	private fun changeDocument(
+		path: Path,
+		content: String,
+		version: Int,
+	) {
 		FileManager.onDocumentContentChange(
-			DocumentChangeEvent(path, content, content, version, ChangeType.NEW_TEXT, 0, Range.NONE)
+			DocumentChangeEvent(path, content, content, version, ChangeType.NEW_TEXT, 0, Range.NONE),
 		)
 	}
 
@@ -94,11 +99,13 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 		// `f` calling `e` must resolve (no UNRESOLVED_REFERENCE). Keep `.defaultMessage` inside
 		// `env.analyze {}`: reading a diagnostic outside its analysis session throws
 		// KaInaccessibleLifetimeOwnerAccessException instead of a clean assertion diff.
-		val diagnosticMessages = env.analyze(v2) {
-			v2.collectDiagnostics(
-				org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS
-			).map { it.defaultMessage }
-		}
+		val diagnosticMessages =
+			env.analyze(v2) {
+				v2
+					.collectDiagnostics(
+						org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS,
+					).map { it.defaultMessage }
+			}
 		assertEquals(emptyList<String>(), diagnosticMessages)
 	}
 

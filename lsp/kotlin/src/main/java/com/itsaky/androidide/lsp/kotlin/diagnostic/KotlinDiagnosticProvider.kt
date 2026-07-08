@@ -132,4 +132,3 @@ private fun KaSeverity.toDiagnosticSeverity(): DiagnosticSeverity {
 		KaSeverity.INFO -> DiagnosticSeverity.INFO
 	}
 }
-

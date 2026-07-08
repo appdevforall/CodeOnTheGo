@@ -40,151 +40,157 @@ import org.slf4j.LoggerFactory;
  */
 public class SignatureHelpWindow extends BaseEditorWindow {
 
-  private static final Logger LOG = LoggerFactory.getLogger(SignatureHelpWindow.class);
+	private static final Logger LOG = LoggerFactory.getLogger(SignatureHelpWindow.class);
 
-  /**
-   * Create a signature help popup window for editor
-   *
-   * @param editor The editor.
-   */
-  public SignatureHelpWindow(@NonNull IDEEditor editor) {
-    super(editor);
+	/**
+	 * Returns a new list containing only the signatures that have enough parameters for the given active parameter index. Never mutates the input list.
+	 */
+	static List<SignatureInformation> applicableSignatures(
+			List<SignatureInformation> signatures, int activeParameter) {
+		final List<SignatureInformation> result = new ArrayList<>(signatures.size());
+		for (final SignatureInformation info : signatures) {
+			if (activeParameter < info.getParameters().size()) {
+				result.add(info);
+			}
+		}
+		return result;
+	}
 
-    editor.subscribeEvent(
-        SelectionChangeEvent.class,
-        (event, unsubscribe) -> {
-          if (isShowing()) {
-            dismiss();
-          }
-        });
-  }
+	/**
+	 * Returns the function name portion of a signature label (text before the first '('), or the whole label if it contains no '('.
+	 */
+	static String signatureName(String label) {
+		final int paren = label.indexOf('(');
+		return paren < 0 ? label : label.substring(0, paren);
+	}
 
-  public void setupAndDisplay(SignatureHelp signature) {
-    if (signature == null || signature.getSignatures().isEmpty()) {
-      if (isShowing()) {
-        dismiss();
-      }
+	/**
+	 * Create a signature help popup window for editor
+	 *
+	 * @param editor
+	 *            The editor.
+	 */
+	public SignatureHelpWindow(@NonNull IDEEditor editor) {
+		super(editor);
 
-      return;
-    }
+		editor.subscribeEvent(
+				SelectionChangeEvent.class,
+				(event, unsubscribe) -> {
+					if (isShowing()) {
+						dismiss();
+					}
+				});
+	}
 
-    final var signatureText = createSignatureText(signature);
+	public void setupAndDisplay(SignatureHelp signature) {
+		if (signature == null || signature.getSignatures().isEmpty()) {
+			if (isShowing()) {
+				dismiss();
+			}
 
-    if (signatureText == null) {
-      if (isShowing()) {
-        dismiss();
-      }
+			return;
+		}
 
-      return;
-    }
+		final var signatureText = createSignatureText(signature);
 
-    this.text.setText(signatureText);
-    displayWindow();
-  }
+		if (signatureText == null) {
+			if (isShowing()) {
+				dismiss();
+			}
 
-  @Nullable
-  private CharSequence createSignatureText(@NonNull SignatureHelp signature) {
-    final var signatures = signature.getSignatures();
-    final var activeSignature = signature.getActiveSignature();
-    final var activeParameter = signature.getActiveParameter();
-    final SpannableStringBuilder sb = new SpannableStringBuilder();
+			return;
+		}
 
-    if (activeSignature < 0 || activeParameter < 0) {
-      LOG.debug("activeSignature: {}, activeParameter: {}", activeSignature, activeParameter);
-      return null;
-    }
+		this.text.setText(signatureText);
+		displayWindow();
+	}
 
-    var count = signatures.size();
-    if (activeSignature >= count) {
-      LOG.debug("Active signature is invalid. Size is {}", count);
-      return null;
-    }
+	@Nullable
+	private CharSequence createSignatureText(@NonNull SignatureHelp signature) {
+		final var signatures = signature.getSignatures();
+		final var activeSignature = signature.getActiveSignature();
+		final var activeParameter = signature.getActiveParameter();
+		final SpannableStringBuilder sb = new SpannableStringBuilder();
 
-    // keep only applicable signatures (does not mutate the input list)
-    final var applicable = applicableSignatures(signatures, activeParameter);
+		if (activeSignature < 0 || activeParameter < 0) {
+			LOG.debug("activeSignature: {}, activeParameter: {}", activeSignature, activeParameter);
+			return null;
+		}
 
-    if (applicable.isEmpty()) {
-      return null;
-    }
+		var count = signatures.size();
+		if (activeSignature >= count) {
+			LOG.debug("Active signature is invalid. Size is {}", count);
+			return null;
+		}
 
-    count = applicable.size();
-    for (var i = 0; i < count; i++) {
-      final var info = applicable.get(i);
-      formatSignature(info, activeParameter, sb);
-      if (i != count - 1) {
-        sb.append('\n');
-      }
-    }
+		// keep only applicable signatures (does not mutate the input list)
+		final var applicable = applicableSignatures(signatures, activeParameter);
 
-    return sb;
-  }
+		if (applicable.isEmpty()) {
+			return null;
+		}
 
-  /** Returns the function name portion of a signature label (text before the first '('), or the
-   *  whole label if it contains no '('. */
-  static String signatureName(String label) {
-    final int paren = label.indexOf('(');
-    return paren < 0 ? label : label.substring(0, paren);
-  }
+		count = applicable.size();
+		for (var i = 0; i < count; i++) {
+			final var info = applicable.get(i);
+			formatSignature(info, activeParameter, sb);
+			if (i != count - 1) {
+				sb.append('\n');
+			}
+		}
 
-  /** Returns a new list containing only the signatures that have enough parameters for the given
-   *  active parameter index. Never mutates the input list. */
-  static List<SignatureInformation> applicableSignatures(
-      List<SignatureInformation> signatures, int activeParameter) {
-    final List<SignatureInformation> result = new ArrayList<>(signatures.size());
-    for (final SignatureInformation info : signatures) {
-      if (activeParameter < info.getParameters().size()) {
-        result.add(info);
-      }
-    }
-    return result;
-  }
+		return sb;
+	}
 
-  /**
-   * Formats (highlights) a method signature
-   *
-   * @param signature  Signature information
-   * @param paramIndex Currently active parameter index
-   * @param result     The builder to append spanned text to.
-   */
-  private void formatSignature(
-      @NonNull SignatureInformation signature,
-      int paramIndex,
-      SpannableStringBuilder result) {
+	/**
+	 * Formats (highlights) a method signature
+	 *
+	 * @param signature
+	 *            Signature information
+	 * @param paramIndex
+	 *            Currently active parameter index
+	 * @param result
+	 *            The builder to append spanned text to.
+	 */
+	private void formatSignature(
+			@NonNull SignatureInformation signature,
+			int paramIndex,
+			SpannableStringBuilder result) {
 
-    final String name = signatureName(signature.getLabel());
+		final String name = signatureName(signature.getLabel());
 
-    final var foreground = ContextUtilsKt.resolveAttr(getEditor().getContext(),
-        attr.colorOnSecondaryContainer);
-    final var paramSelected = 0xffff6060;
-    final var operators = 0xff4fc3f7;
+		final var foreground = ContextUtilsKt.resolveAttr(getEditor().getContext(),
+				attr.colorOnSecondaryContainer);
+		final var paramSelected = 0xffff6060;
+		final var operators = 0xff4fc3f7;
 
-    result.append(
-        name, new ForegroundColorSpan(foreground), SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
-    result.append(
-        "(", new ForegroundColorSpan(operators), SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
+		result.append(
+				name, new ForegroundColorSpan(foreground), SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
+		result.append(
+				"(", new ForegroundColorSpan(operators), SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
 
-    var params = signature.getParameters();
-    for (int i = 0; i < params.size(); i++) {
-      int color = i == paramIndex ? paramSelected : foreground;
-      final var info = params.get(i);
-      if (i == params.size() - 1) {
-        result.append(
-            info.getLabel(),
-            new ForegroundColorSpan(color),
-            SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
-      } else {
-        result.append(
-            info.getLabel(),
-            new ForegroundColorSpan(color),
-            SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
-        result.append(
-            ",",
-            new ForegroundColorSpan(operators),
-            SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
-        result.append(" ");
-      }
-    }
-    result.append(
-        ")", new ForegroundColorSpan(0xff4fc3f7), SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
-  }
+		var params = signature.getParameters();
+		for (int i = 0; i < params.size(); i++) {
+			int color = i == paramIndex ? paramSelected : foreground;
+			final var info = params.get(i);
+			if (i == params.size() - 1) {
+				result.append(
+						info.getLabel(),
+						new ForegroundColorSpan(color),
+						SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
+			} else {
+				result.append(
+						info.getLabel(),
+						new ForegroundColorSpan(color),
+						SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
+				result.append(
+						",",
+						new ForegroundColorSpan(operators),
+						SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
+				result.append(" ");
+			}
+		}
+		result.append(
+				")", new ForegroundColorSpan(0xff4fc3f7), SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
+	}
 }
