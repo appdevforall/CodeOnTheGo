@@ -260,11 +260,18 @@ public class MainActivity extends Activity {
             applyPayloadTheme(copy);
 
             // ---- code ----
+            // Native libs: /sdcard and the read-only apk are non-exec / not a
+            // valid nativeLibraryDir, so extract this generation's
+            // lib/<abi>/*.so into a private per-gen dir and hand that to the
+            // DexClassLoader as its library search path (System.loadLibrary
+            // then resolves them). Covers ticket step 4.
+            String nativeLibPath = extractNativeLibs(copy, generation);
+
             // A multidex payload apk (classes.dex + classes2.dex + …) needs no
             // special handling: ART's DexFile opens EVERY classesN.dex entry in
             // the zip (API 21+ DexPathList), so one DexClassLoader covers all.
             ClassLoader cl = new DexClassLoader(
-                    copy.getAbsolutePath(), null, null, getClassLoader());
+                    copy.getAbsolutePath(), null, nativeLibPath, getClassLoader());
             // Retarget the inflater factory at the NEW generation before render()
             // inflates anything (this also clears the constructor cache — old-gen
             // Constructor objects must never leak across classloaders).
@@ -365,6 +372,49 @@ public class MainActivity extends Activity {
             Log.i(TAG, "applied payload theme 0x" + Integer.toHexString(themeRes));
         } catch (Throwable t) {
             Log.w(TAG, "applyPayloadTheme failed (continuing with shell theme)", t);
+        }
+    }
+
+    /**
+     * Extract native libs for the device's primary ABI from the payload apk into
+     * a private per-generation directory, returning its path (or null if none).
+     * The apk itself can't be a nativeLibraryDir (it's a read-only zip), and
+     * /sdcard is mounted noexec, so a private-dir copy is the only loadable route.
+     */
+    private String extractNativeLibs(File payloadApk, int gen) {
+        try {
+            String abi = android.os.Build.SUPPORTED_ABIS.length > 0
+                    ? android.os.Build.SUPPORTED_ABIS[0] : "arm64-v8a";
+            File outDir = new File(getCodeCacheDir(), "nativelib-gen" + gen);
+            //noinspection ResultOfMethodCallIgnored
+            outDir.mkdirs();
+            int count = 0;
+            try (ZipFile zip = new ZipFile(payloadApk)) {
+                String prefix = "lib/" + abi + "/";
+                Enumeration<? extends ZipEntry> entries = zip.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry e = entries.nextElement();
+                    String name = e.getName();
+                    if (e.isDirectory() || !name.startsWith(prefix)
+                            || !name.endsWith(".so")) {
+                        continue;
+                    }
+                    File out = new File(outDir, name.substring(prefix.length()));
+                    try (InputStream in = zip.getInputStream(e);
+                         OutputStream os = new FileOutputStream(out)) {
+                        byte[] buf = new byte[1 << 16];
+                        int n;
+                        while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+                    }
+                    count++;
+                }
+            }
+            if (count == 0) return null;
+            Log.i(TAG, "extracted " + count + " native lib(s) for " + abi);
+            return outDir.getAbsolutePath();
+        } catch (Throwable t) {
+            Log.w(TAG, "extractNativeLibs failed", t);
+            return null;
         }
     }
 
