@@ -59,8 +59,8 @@ class IdeEditorServiceImpl(
         fun removeFileChangeCallback(callback: (File?) -> Unit) {}
         fun addContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {}
         fun removeContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {}
-        fun showInlineSuggestion(text: String) {}
-        fun dismissInlineSuggestion() {}
+        fun showInlineSuggestion(pluginId: String, text: String) {}
+        fun dismissInlineSuggestion(pluginId: String) {}
     }
 
     private val fileChangeListeners = CopyOnWriteArrayList<FileChangeListener>()
@@ -290,11 +290,13 @@ class IdeEditorServiceImpl(
     }
 
     override fun showInlineSuggestion(text: String) {
-        editorProvider.showInlineSuggestion(text)
+        // Tag the suggestion with this plugin's id so concurrent plugins don't clobber or dismiss
+        // each other's ghost text. The public IdeEditorService signature is unchanged.
+        editorProvider.showInlineSuggestion(pluginId, text)
     }
 
     override fun dismissInlineSuggestion() {
-        editorProvider.dismissInlineSuggestion()
+        editorProvider.dismissInlineSuggestion(pluginId)
     }
 
     private fun requireRead() {

@@ -978,19 +978,31 @@ constructor(
         get() = renderer as? GhostTextRenderer
 
     /**
-     * Shows [text] as dimmed inline ghost text anchored at the current cursor position. Called by
-     * the host editor provider when a plugin returns an inline completion. No-op if the editor is
-     * released or has no cursor.
+     * Shows [text] as dimmed inline ghost text anchored at the current cursor position, owned by
+     * [pluginId]. Called by the host editor provider when a plugin returns an inline suggestion.
+     * The suggestion is tagged with its owner so a later [dismissInlineSuggestion] from a different
+     * plugin can't clear it. No-op if the editor is released or has no cursor.
      */
-    fun showInlineSuggestion(text: String) {
+    fun showInlineSuggestion(pluginId: String, text: String) {
         if (isReleased || text.isEmpty()) return
         val renderer = ghostRenderer ?: return
         val cursor = cursor ?: return
-        renderer.setSuggestion(text, cursor.leftLine, cursor.leftColumn)
+        renderer.setSuggestion(text, cursor.leftLine, cursor.leftColumn, pluginId)
         invalidate()
     }
 
-    /** Removes any showing ghost text. */
+    /** Removes the showing ghost text only if it is owned by [pluginId]. */
+    fun dismissInlineSuggestion(pluginId: String) {
+        val renderer = ghostRenderer ?: return
+        if (renderer.clearSuggestionFor(pluginId)) {
+            invalidate()
+        }
+    }
+
+    /**
+     * Unconditionally removes any showing ghost text, regardless of owner. Used for IDE-internal
+     * invalidation (an edit or cursor move makes the anchored suggestion meaningless).
+     */
     fun dismissInlineSuggestion() {
         val renderer = ghostRenderer ?: return
         if (renderer.hasSuggestion) {

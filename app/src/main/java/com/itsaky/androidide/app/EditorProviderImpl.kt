@@ -81,6 +81,8 @@ class EditorProviderImpl(
     fun onDocumentChange(event: DocumentChangeEvent) {
         if (contentCallbacks.isEmpty()) return
         val file = event.file.toFile()
+        // Only fan out changes for the focused file; ghost text can only target the visible editor.
+        if (file.absolutePath != getCurrentFile()?.absolutePath) return
         val editor = activity()?.getEditorForFile(file)?.editor
         val content = event.newText ?: editor?.text?.toString() ?: return
         // Prefer the live cursor; fall back to the change's end position (also 0-indexed).
@@ -332,15 +334,15 @@ class EditorProviderImpl(
 
     // --- Inline suggestions -------------------------------------------------
 
-    override fun showInlineSuggestion(text: String) {
+    override fun showInlineSuggestion(pluginId: String, text: String) {
         mainHandler.post {
-            (inspectableEditor() as? IDEEditor)?.showInlineSuggestion(text)
+            (inspectableEditor() as? IDEEditor)?.showInlineSuggestion(pluginId, text)
         }
     }
 
-    override fun dismissInlineSuggestion() {
+    override fun dismissInlineSuggestion(pluginId: String) {
         mainHandler.post {
-            (inspectableEditor() as? IDEEditor)?.dismissInlineSuggestion()
+            (inspectableEditor() as? IDEEditor)?.dismissInlineSuggestion(pluginId)
         }
     }
 

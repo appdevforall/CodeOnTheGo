@@ -46,11 +46,13 @@ class PluginContextTest {
         }
 
         override fun <T> registerService(serviceClass: Class<T>, serviceImpl: T) {
-            // Service registration logic
+            // Delegate to the backing registry, mirroring how production PluginContextImpl
+            // routes registerService() to its shared ServiceRegistry.
+            serviceRegistry.register(serviceClass, serviceImpl)
         }
 
         override fun <T> unregisterService(serviceClass: Class<T>) {
-            // Service unregistration logic
+            serviceRegistry.unregister(serviceClass)
         }
 
         override fun getProvidedServices(): List<String> {
@@ -194,7 +196,7 @@ class PluginContextTest {
     fun testRegisterServiceAddsServiceToRegistry() {
         val context = TestPluginContext()
         val testService = "test-service"
-        context.services.register(String::class.java, testService)
+        context.registerService(String::class.java, testService)
 
         val retrieved = context.services.get(String::class.java)
         assertNotNull("Service should be retrievable after registration", retrieved)
@@ -205,9 +207,9 @@ class PluginContextTest {
     fun testUnregisterServiceRemovesServiceFromRegistry() {
         val context = TestPluginContext()
         val testService = "test-service"
-        context.services.register(String::class.java, testService)
+        context.registerService(String::class.java, testService)
 
-        context.services.unregister(String::class.java)
+        context.unregisterService(String::class.java)
         val retrieved = context.services.get(String::class.java)
         assertNull("Service should be null after unregistration", retrieved)
     }

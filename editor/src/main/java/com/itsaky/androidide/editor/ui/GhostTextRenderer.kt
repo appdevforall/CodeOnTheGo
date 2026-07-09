@@ -23,9 +23,10 @@ import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.EditorRenderer
 
 /**
- * An [EditorRenderer] that draws a single-line inline "ghost text" suggestion (dimmed grey text)
- * at a fixed anchor position, after the editor's normal content. This backs the host side of the
- * inline-suggestion plugin pipeline (`IdeEditorService.showInlineSuggestion`).
+ * An [EditorRenderer] that draws an inline "ghost text" suggestion (dimmed grey text) at a fixed
+ * anchor position, after the editor's normal content. Multi-line suggestions are previewed in full,
+ * one row per line, so what is drawn matches what [IDEEditor] commits on accept. This backs the host
+ * side of the inline-suggestion plugin pipeline (`IdeEditorService.showInlineSuggestion`).
  *
  * Extends [TracingEditorRenderer] so it inherits the block-line data-race guards (ADFA-2468) while
  * layering ghost text on top of the normal draw pass — the editor only supports a single renderer,
@@ -46,16 +47,24 @@ class GhostTextRenderer(private val editor: CodeEditor) : TracingEditorRenderer(
   @Volatile
   private var anchorColumn: Int = -1
 
+  /** Id of the plugin that owns the current suggestion, so dismissals can be scoped to it. */
+  @Volatile
+  private var ownerPluginId: String? = null
+
   private val ghostPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
   val hasSuggestion: Boolean
     get() = suggestion != null
 
-  /** Sets the pending suggestion anchored at the given 0-indexed [line]/[column]. */
-  fun setSuggestion(text: String, line: Int, column: Int) {
+  /**
+   * Sets the pending suggestion anchored at the given 0-indexed [line]/[column], owned by
+   * [pluginId]. A newer suggestion replaces any existing one (last writer wins) and takes ownership.
+   */
+  fun setSuggestion(text: String, line: Int, column: Int, pluginId: String) {
     suggestion = text.takeIf { it.isNotEmpty() }
     anchorLine = line
     anchorColumn = column
+    ownerPluginId = pluginId
   }
 
   /** Clears any pending suggestion and returns the text that was showing (or null). */
@@ -65,10 +74,21 @@ class GhostTextRenderer(private val editor: CodeEditor) : TracingEditorRenderer(
     return current
   }
 
+  /**
+   * Clears the suggestion only if it is owned by [pluginId], so one plugin can't dismiss another's
+   * ghost text. Returns true if a suggestion was actually cleared.
+   */
+  fun clearSuggestionFor(pluginId: String): Boolean {
+    if (suggestion == null || ownerPluginId != pluginId) return false
+    clearSuggestion()
+    return true
+  }
+
   fun clearSuggestion() {
     suggestion = null
     anchorLine = -1
     anchorColumn = -1
+    ownerPluginId = null
   }
 
   override fun draw(canvas: Canvas) {
@@ -88,11 +108,26 @@ class GhostTextRenderer(private val editor: CodeEditor) : TracingEditorRenderer(
       // Mid-grey at ~50% alpha reads as "ghost" on both light and dark themes.
       ghostPaint.color = GHOST_COLOR
 
-      val x = editor.getCharOffsetX(line, column) + editor.offsetX
-      // getRowBaseline is the exact baseline sora draws its own text at (content space).
-      val baseline = editor.getRowBaseline(line).toFloat()
-      // Ghost text is single-line: only draw up to the first newline.
-      canvas.drawText(text.substringBefore('\n'), x, baseline, ghostPaint)
+      // First line continues from the anchor column; continuation lines start at the content's
+      // left edge (column 0 of the anchor line). offsetX applies the current horizontal scroll.
+      val firstX = editor.getCharOffsetX(line, column) + editor.offsetX
+      val leftX = editor.getCharOffsetX(line, 0) + editor.offsetX
+      // getRowBaseline is the exact baseline sora draws its own text at (content space). Rows past
+      // the last existing line have no baseline of their own, so extrapolate by row height.
+      val anchorBaseline = editor.getRowBaseline(line).toFloat()
+      val rowHeight = editor.rowHeight
+
+      // Continuation lines overlay the rows below the anchor (the preview does not push content
+      // down); drawing every line guarantees the preview matches the committed text exactly.
+      text.split('\n').forEachIndexed { i, lineText ->
+        val targetLine = line + i
+        val baseline = if (targetLine < content.lineCount) {
+          editor.getRowBaseline(targetLine).toFloat()
+        } else {
+          anchorBaseline + i * rowHeight
+        }
+        canvas.drawText(lineText, if (i == 0) firstX else leftX, baseline, ghostPaint)
+      }
     } catch (_: Throwable) {
       // Never let suggestion rendering crash the editor.
     }
