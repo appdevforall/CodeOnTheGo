@@ -1,7 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.utils
 
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
-import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -18,7 +17,7 @@ class OrganizeImportsEndToEndTest : KtLspTest() {
 			class Unused
 			""".trimIndent(),
 		)
-		val ktFile = createSourceFile(
+		createSourceFile(
 			"Main.kt",
 			"""
 			package p
@@ -27,11 +26,12 @@ class OrganizeImportsEndToEndTest : KtLspTest() {
 			fun f(x: Used) {}
 			""".trimIndent(),
 		)
+		val mainPath = env.sourceRoots.first().resolve("Main.kt")
 
-		val block = env.project.read {
-			val usage = analyzeMaybeDangling(ktFile) { collectImportUsage(ktFile) }
-			organizedImportBlock(ktFile, usage)
-		}
-		assertEquals("import lib.Used", block)
+		// Drive the action's real plumbing: fetch-before-read ordering + full guard chain.
+		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath)
+
+		assertEquals(1, edits.size)
+		assertEquals("import lib.Used", edits.single().newText)
 	}
 }

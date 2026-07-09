@@ -4,6 +4,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.get
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
+import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.collectImportUsage
@@ -17,6 +18,7 @@ import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.resources.R
 import org.slf4j.LoggerFactory
+import java.nio.file.Path
 
 class OrganizeImportsAction : BaseKotlinCodeAction() {
 	override var titleTextRes: Int = R.string.action_organize_imports
@@ -29,15 +31,20 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 
 	override suspend fun execAction(data: ActionData): List<TextEdit> {
 		val server = data.get<KotlinLanguageServer>() ?: return emptyList()
-		val file = data.requireFile()
-		val nioPath = file.toPath()
-
+		val nioPath = data.requireFile().toPath()
 		val env = server.compilationEnvironmentFor(nioPath) ?: return emptyList()
+		return computeOrganizeEdit(env, nioPath)
+	}
 
-		// Fetch the current KtFile BEFORE entering project.read (deadlock rule).
+	/**
+	 * Computes the text edits that organize the imports of the file at [nioPath] within [env].
+	 * The current [org.jetbrains.kotlin.psi.KtFile] is fetched BEFORE entering [read] (deadlock
+	 * rule: never block on `getCurrentKtFile(...).get()` inside `project.read`). Returns an empty
+	 * list when there is nothing to do (no imports, already organized, or no usable range).
+	 */
+	internal fun computeOrganizeEdit(env: AbstractCompilationEnvironment, nioPath: Path): List<TextEdit> {
 		val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return emptyList()
 		if (ktFile.importDirectives.isEmpty()) return emptyList()
-
 		return env.project.read {
 			val usage = analyzeMaybeDangling(ktFile) { collectImportUsage(ktFile) }
 			val newText = organizedImportBlock(ktFile, usage) ?: return@read emptyList()
