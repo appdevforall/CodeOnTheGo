@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.kotlin.utils
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.completion.DeclarationContext
 import com.itsaky.androidide.lsp.kotlin.completion.DeclarationKind
+import com.itsaky.androidide.lsp.models.MatchLevel
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.components.KaScopeContext
 import org.jetbrains.kotlin.analysis.api.scopes.KaScope
@@ -45,7 +46,10 @@ internal data class AnalysisContext(
 	val existingModifiers: Set<KtModifierKeywordToken>,
 	val isInsideModifierList: Boolean,
 	val partial: String,
-)
+) {
+	/** Per-request memo of match level by candidate name. Not part of data-class identity. */
+	val matchLevelCache: MutableMap<String, MatchLevel> = HashMap()
+}
 
 /**
  * Resolves [AnalysisContext] at the given offset in the given [KtFile].
