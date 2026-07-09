@@ -73,6 +73,10 @@ final class PayloadRuntime {
         sThemeRes = themeRes;
     }
 
+    static int getThemeRes() {
+        return sThemeRes;
+    }
+
     /**
      * Adopt the current payload's declared theme onto {@code activity}'s theme —
      * the same treatment {@code MainActivity} applies to itself, so a screen shown

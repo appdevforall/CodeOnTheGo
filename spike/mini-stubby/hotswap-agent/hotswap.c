@@ -28,8 +28,9 @@ static char g_dir[512];
 static char *read_file(const char *path, long *out_len) {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
-    fseek(f, 0, SEEK_END);
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return NULL; }
     long n = ftell(f);
+    if (n < 0) { fclose(f); return NULL; }       // guard: ftell error → no malloc(0)+fread(-1)
     fseek(f, 0, SEEK_SET);
     char *buf = (char *) malloc(n + 1);          // +1 for NUL
     if (buf && fread(buf, 1, n, f) != (size_t) n) { free(buf); buf = NULL; }
@@ -39,11 +40,13 @@ static char *read_file(const char *path, long *out_len) {
     return buf;
 }
 
-static void write_result(int code) {
+// Result carries the request NONCE so the service can't mistake a stale result
+// (from a failed trigger delete) for the current one (finding #7).
+static void write_result(const char *nonce, int code) {
     char p[600];
     snprintf(p, sizeof(p), "%s/result", g_dir);
     FILE *f = fopen(p, "w");
-    if (f) { fprintf(f, "%d\n", code); fclose(f); }
+    if (f) { fprintf(f, "%s %d\n", nonce, code); fclose(f); }
 }
 
 // Redefine, in ONE call, every loaded class whose signature starts with
@@ -52,11 +55,19 @@ static void write_result(int code) {
 // single class out of a multi-class dex fails ILLEGAL_ARGUMENT — we hand it the
 // whole set the way Apply Changes does. Only ONE class actually changed body;
 // the rest (R, the lambda) redefine to identical bytes (harmless no-op).
-static int do_redefine(const char *prefix_sig, unsigned char *dex, long dex_len) {
+static int do_redefine(JNIEnv *env, const char *prefix_sig, unsigned char *dex, long dex_len) {
     jint count = 0;
     jclass *classes = NULL;
     if ((*g_jvmti)->GetLoadedClasses(g_jvmti, &count, &classes) != JVMTI_ERROR_NONE) {
         LOG("GetLoadedClasses failed");
+        return 1;
+    }
+    // GetLoadedClasses hands back tens of thousands of local refs on a long-lived
+    // watch thread that never returns to Java; without a frame they accumulate
+    // until ART aborts ("local reference table overflow"). Scope them (finding #6).
+    if ((*env)->PushLocalFrame(env, count + 16) != 0) {
+        (*g_jvmti)->Deallocate(g_jvmti, (unsigned char *) classes);
+        LOG("PushLocalFrame failed");
         return 1;
     }
     // Redefine each matching loaded class INDIVIDUALLY. Multiple generations of
@@ -89,23 +100,32 @@ static int do_redefine(const char *prefix_sig, unsigned char *dex, long dex_len)
         if (sig) (*g_jvmti)->Deallocate(g_jvmti, (unsigned char *) sig);
     }
     (*g_jvmti)->Deallocate(g_jvmti, (unsigned char *) classes);
+    (*env)->PopLocalFrame(env, NULL);
     LOG("redefine %s: %d/%d succeeded (dex len=%ld)", prefix_sig, ok, matched, dex_len);
-    return ok > 0 ? 0 : 1; // any success (the live gen) → OK; else fall back
+    // ok>0 is safe because the service's Tier-1 GATE (#4) only sends body-only
+    // changes, so the CURRENT (visible) gen's schema always matches the dex and it
+    // is always among the matches that succeed; a stale gen's failure is harmless.
+    return ok > 0 ? 0 : 1;
 }
 
-static void handle_trigger() {
-    char trg[600], dexp[600], namep[600];
+static void handle_trigger(JNIEnv *env) {
+    char trg[600], dexp[600];
     snprintf(trg, sizeof(trg), "%s/trigger", g_dir);
     snprintf(dexp, sizeof(dexp), "%s/redefine.dex", g_dir);
 
-    long nlen = 0;
-    char *name = read_file(trg, &nlen);           // trigger holds the class name (NUL-terminated)
-    if (!name) return;
-    for (int i = 0; name[i]; i++)                  // trim any trailing whitespace
-        if (name[i] == '\n' || name[i] == '\r' || name[i] == ' ' || name[i] == '\t') { name[i] = 0; break; }
+    // trigger content: "<fully.qualified.ClassName> <nonce>"
+    char *content = read_file(trg, NULL);          // NUL-terminated
+    if (!content) return;
+    char *name = content;
+    char *nonce = (char *) "0";
+    for (int i = 0; content[i]; i++) {
+        if (content[i] == ' ' || content[i] == '\t') { content[i] = 0; nonce = content + i + 1; break; }
+        if (content[i] == '\n' || content[i] == '\r') { content[i] = 0; break; }
+    }
+    for (int i = 0; nonce[i]; i++)                  // trim nonce
+        if (nonce[i] == '\n' || nonce[i] == '\r' || nonce[i] == ' ') { nonce[i] = 0; break; }
 
     // build an EXACT JVMTI signature: "app.payload.Main" -> "Lapp/payload/Main;"
-    // (the redefine dex is single-class, so match exactly one loaded class).
     char sig[600];
     sig[0] = 'L';
     int j = 1;
@@ -115,13 +135,13 @@ static void handle_trigger() {
 
     long dlen = 0;
     unsigned char *dex = (unsigned char *) read_file(dexp, &dlen);
-    if (!dex) { write_result(1); remove(trg); free(name); return; }
+    if (!dex) { write_result(nonce, 1); remove(trg); free(content); return; }
 
-    int code = do_redefine(sig, dex, dlen);
-    write_result(code);
+    int code = do_redefine(env, sig, dex, dlen);
+    write_result(nonce, code);
     remove(trg);
     free(dex);
-    free(name);
+    free(content);
 }
 
 static void *watch_thread(void *arg) {
@@ -132,7 +152,7 @@ static void *watch_thread(void *arg) {
     snprintf(trg, sizeof(trg), "%s/trigger", g_dir);
     LOG("watch thread up, polling %s", trg);
     for (;;) {
-        if (access(trg, F_OK) == 0) handle_trigger();
+        if (access(trg, F_OK) == 0) handle_trigger(env);
         usleep(10 * 1000); // 10 ms poll
     }
     return NULL;
@@ -175,8 +195,19 @@ JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *vm, char *options, void *reserved)
         if (e != JVMTI_ERROR_NONE) { LOG("AddCapabilities(redefine) failed: %d", e); return JNI_ERR; }
     }
     LOG("capabilities acquired");
-    pthread_t t;
-    pthread_create(&t, NULL, watch_thread, NULL);
+    // Spawn the watch thread ONCE per process (belt-and-suspenders with the shell's
+    // own once-per-process guard): a second attach must not start a second poller
+    // that would race the first on the trigger/result files (finding #5).
+    static int g_started = 0;
+    if (!g_started) {
+        g_started = 1;
+        pthread_t t;
+        if (pthread_create(&t, NULL, watch_thread, NULL) != 0) {
+            LOG("pthread_create failed");
+            g_started = 0;
+            return JNI_ERR;
+        }
+    }
     return JNI_OK;
 }
 

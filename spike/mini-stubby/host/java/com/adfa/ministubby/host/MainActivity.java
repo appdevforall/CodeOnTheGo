@@ -266,6 +266,7 @@ public class MainActivity extends Activity {
 
         final ClassLoader previousLoader = PayloadRuntime.getClassLoader();
         final ResourcesLoader previousResLoader = currentLoader;
+        final int previousThemeRes = PayloadRuntime.getThemeRes();
         try {
             generation++;
             // Read-only private copy: API 34+ blocks loading writable dex, and we
@@ -388,6 +389,16 @@ public class MainActivity extends Activity {
                 currentLoader = previousResLoader;
                 PayloadRuntime.setResourcesLoader(previousResLoader);
             }
+            // Roll the THEME back too (finding #10): applyPayloadTheme already
+            // published the NEW gen's style id and rebuilt the Activity theme
+            // before render() threw; leaving it means a later ProxyActivity applies
+            // a 0x80 id from the new table against the rolled-back old table.
+            try {
+                PayloadRuntime.setThemeRes(previousThemeRes);
+                PayloadRuntime.applyThemeTo(this);
+            } catch (Throwable themeRollback) {
+                Log.w(TAG, "theme rollback after failed load also failed", themeRollback);
+            }
         }
 
         // Old generations pile up in codeCache during a session; a real
@@ -433,6 +444,7 @@ public class MainActivity extends Activity {
             File outDir = new File(getCodeCacheDir(), "nativelib-gen" + gen);
             //noinspection ResultOfMethodCallIgnored
             outDir.mkdirs();
+            String canonicalOut = outDir.getCanonicalPath() + File.separator;
             int count = 0;
             try (ZipFile zip = new ZipFile(payloadApk)) {
                 String prefix = "lib/" + abi + "/";
@@ -445,13 +457,24 @@ public class MainActivity extends Activity {
                         continue;
                     }
                     File out = new File(outDir, name.substring(prefix.length()));
+                    // Zip-slip guard (#12): reject entries that escape outDir, and
+                    // skip one bad entry rather than aborting the WHOLE extraction
+                    // (which would drop every .so → UnsatisfiedLinkError).
+                    if (!out.getCanonicalPath().startsWith(canonicalOut)) {
+                        Log.w(TAG, "skipping unsafe native entry: " + name);
+                        continue;
+                    }
+                    //noinspection ResultOfMethodCallIgnored
+                    out.getParentFile().mkdirs();
                     try (InputStream in = zip.getInputStream(e);
                          OutputStream os = new FileOutputStream(out)) {
                         byte[] buf = new byte[1 << 16];
                         int n;
                         while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+                        count++;
+                    } catch (Throwable one) {
+                        Log.w(TAG, "failed to extract native entry " + name + " (continuing)", one);
                     }
-                    count++;
                 }
             }
             if (count == 0) return null;
@@ -466,16 +489,31 @@ public class MainActivity extends Activity {
     private void trimOldGenerations() {
         File[] files = getCodeCacheDir().listFiles();
         if (files == null) return;
+        // Keep current + previous gen's apk (its loader may still back live
+        // Resources). Also trim the per-gen native-lib dirs (finding #14): they
+        // were never cleaned, growing codeCache unbounded over a long session.
+        String keepApk = "payload-gen" + generation + ".apk";
+        String keepApkPrev = "payload-gen" + (generation - 1) + ".apk";
+        String keepLib = "nativelib-gen" + generation;
+        String keepLibPrev = "nativelib-gen" + (generation - 1);
         for (File f : files) {
             String n = f.getName();
             if (n.startsWith("payload-gen") && n.endsWith(".apk")
-                    && !n.equals("payload-gen" + generation + ".apk")
-                    // keep the previous gen: its loader may still back live Resources
-                    && !n.equals("payload-gen" + (generation - 1) + ".apk")) {
+                    && !n.equals(keepApk) && !n.equals(keepApkPrev)) {
                 //noinspection ResultOfMethodCallIgnored
                 f.delete();
+            } else if (n.startsWith("nativelib-gen")
+                    && !n.equals(keepLib) && !n.equals(keepLibPrev)) {
+                deleteDir(f);
             }
         }
+    }
+
+    private static void deleteDir(File dir) {
+        File[] kids = dir.listFiles();
+        if (kids != null) for (File k : kids) { if (k.isDirectory()) deleteDir(k); else k.delete(); }
+        //noinspection ResultOfMethodCallIgnored
+        dir.delete();
     }
 
     // ---------------------------------------------------------------- status

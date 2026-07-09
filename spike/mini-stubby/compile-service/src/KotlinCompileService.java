@@ -49,6 +49,8 @@ public class KotlinCompileService {
     static boolean tier1Enabled = "true".equals(System.getProperty("tier1"));
     static volatile long lastDeployAt = 0;
     static volatile int gen = 0;
+    /** Payload's own class digests at the last deploy — the Tier-1 gate baseline. */
+    static java.util.Map<String, String> lastAppDigests = null;
 
     public static void main(String[] args) throws Exception {
         spikeRoot = Path.of(args[0]);
@@ -103,9 +105,10 @@ public class KotlinCompileService {
         ExitCode code = kotlinCompile(kt, cp, classesDir);
         long kMs = now() - k0;
         if (code != ExitCode.OK) {
-            log("kotlinc FAILED (" + code + ") — skipping d8/deploy, service alive");
+            log("kotlinc FAILED (" + code + "):\n" + lastDiag.trim());
             return;
         }
+        lastAppDigests = appClassDigests(); // Tier-1 gate baseline stays in sync with the deploy
 
         // 2. warm in-process d8 of ONLY the app classes → classes.dex.
         long d0 = now();
@@ -162,14 +165,13 @@ public class KotlinCompileService {
      * on unavailability or a structural change (add/remove method/field/class,
      * signature change) that ART can't redefine, falls through to TIER 2.
      */
-    static void codeChange() throws Exception {
-        if (tier1Enabled && tryTier1Redefine()) return;
+    static void codeChange(boolean forceTier2) throws Exception {
+        if (tier1Enabled && !forceTier2 && tryTier1Redefine()) return;
         buildAndDeploy(false); // TIER 2
     }
 
     static boolean tryTier1Redefine() throws Exception {
         long t0 = now();
-        // Compile just the app class(es) and dex only those → redefine.dex.
         List<Path> kt = new ArrayList<>();
         collect(srcDir, ".kt", kt);
         String cp = androidJar + File.pathSeparator + classesDir + File.pathSeparator + stdlibJar;
@@ -178,31 +180,56 @@ public class KotlinCompileService {
         ExitCode code = kotlinCompile(kt, cp, classesDir);
         long kMs = now() - k0;
         if (code != ExitCode.OK) {
-            log("kotlinc FAILED (" + code + ") — service alive");
-            return true; // handled (nothing to deploy); don't fall to Tier 2
+            log("kotlinc FAILED (" + code + "):\n" + lastDiag.trim());
+            return true; // handled (compile error); don't fall to Tier 2
         }
-        // Dex ONLY the Main class (+ its d8-desugared synthetics), not R etc. —
-        // ART's RedefineClasses wants the dex to contain exactly the redefined
-        // classes. redefineDexDir/classes.dex holds just Main + Main$$…
+
+        // GATE (#4): Tier 1 is only valid when the ONLY change is Main.class's body.
+        // A new lambda/SAM sibling, an edited helper class, or add/remove of any
+        // class → Tier 2, else the redefine is a no-op (invisible edit) or the
+        // process references a class in no loaded dex (NoClassDefFoundError crash).
+        java.util.Map<String, String> digests = appClassDigests();
+        if (!onlyMainChanged(lastAppDigests, digests)) {
+            log("TIER1 skipped (not a Main-body-only change) — TIER2");
+            return false;
+        }
+
+        // Dex ONLY Main.class → a true single-class dex (ART wants the dex's class
+        // set to match the redefine target). Lambdas/SAMs are separate named
+        // classes (-Xsam-conversions=class) and unchanged, so they aren't dexed.
         List<Path> mainClasses = new ArrayList<>();
         try (var walk = Files.walk(classesDir)) {
             walk.filter(p -> p.getFileName().toString().equals("Main.class"))
-                .forEach(mainClasses::add);   // ONLY Main.class → single-class dex
+                .forEach(mainClasses::add);
         }
         Path redefineDexDir = workDir.resolve("redefinedex");
         d8(mainClasses, redefineDexDir);
-        // Hand the Main-only dex to the on-device redefine agent; it finds the
-        // loaded Main (+ synthetics) and calls RedefineClasses. A "1" result means
-        // structural (added/removed method/field, signature change) → fall back.
         Boolean ok = pushRedefine(redefineDexDir.resolve("classes.dex"));
         if (ok == null) { log("TIER1 agent unavailable — falling back to TIER2"); return false; }
         if (!ok) { log("TIER1 rejected (structural change) — falling back to TIER2"); return false; }
+
+        // CONVERGE (#1): the redefine changed the RUNNING process, but the deployed
+        // artifacts still hold pre-edit code. Refresh the Mac-side caches (full dex
+        // + repackaged apk) so a later TIER 0 (which reuses appDexDir) doesn't ship
+        // stale code and silently revert the hot-swap. (On-device payload.apk is
+        // NOT re-pushed — that would trigger a redundant reload; a shell RESTART
+        // therefore reloads the last full deploy, a documented spike limitation.)
+        runD8(classesDir, appDexDir);
+        Files.copy(resourcesApk, outApk, StandardCopyOption.REPLACE_EXISTING);
+        zipInto(outApk, appDexDir.resolve("classes.dex"), "classes.dex");
+        zipInto(outApk, libDexDir.resolve("classes.dex"), "classes2.dex");
+        lastAppDigests = digests;
+
         gen++;
         lastDeployAt = now();
         log("TIER1 hot-swap (redefine, NO reload) total=" + (now() - t0)
                 + "ms (kotlinc=" + kMs + ")");
         return true;
     }
+
+    /** Last kotlinc diagnostics — captured so a COMPILATION_ERROR reports file/line,
+     *  not just an opaque exit code (this is the main feedback channel in the loop). */
+    static volatile String lastDiag = "";
 
     static ExitCode kotlinCompile(List<Path> sources, String classpath, Path out) {
         K2JVMCompiler compiler = new K2JVMCompiler(); // fresh per request; JVM stays warm
@@ -221,8 +248,45 @@ public class KotlinCompileService {
         a.add("-Xlambdas=class");
         a.add("-Xsam-conversions=class");
         a.add("-no-stdlib"); a.add("-no-reflect"); a.add("-nowarn");
-        PrintStream nul = new PrintStream(new ByteArrayOutputStream());
-        return compiler.exec(nul, a.toArray(new String[0]));
+        ByteArrayOutputStream diag = new ByteArrayOutputStream();
+        ExitCode code = compiler.exec(new PrintStream(diag), a.toArray(new String[0]));
+        lastDiag = diag.toString(StandardCharsets.UTF_8);
+        return code;
+    }
+
+    // ---------- Tier-1 class-set gate (finding #4) ----------
+
+    /** SHA-256 of the payload's OWN compiled classes (Main.class, Main$render$1,
+     *  …) keyed by relative name; R* excluded (stable, javac'd once at startup). */
+    static java.util.Map<String, String> appClassDigests() throws Exception {
+        java.util.Map<String, String> m = new java.util.TreeMap<>();
+        List<Path> cls = new ArrayList<>();
+        collect(classesDir, ".class", cls);
+        java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+        for (Path p : cls) {
+            String rel = classesDir.relativize(p).toString();
+            if (rel.matches(".*\\bR(\\$[^/]*)?\\.class$")) continue; // skip generated R
+            md.reset();
+            m.put(rel, java.util.HexFormat.of().formatHex(md.digest(Files.readAllBytes(p))));
+        }
+        return m;
+    }
+
+    /** Tier 1 is safe iff the ONLY thing that changed vs the last build is the body
+     *  of app/payload/Main.class: no class added/removed, and no OTHER class's bytes
+     *  changed. Anything else (new lambda sibling, edited helper class, signature
+     *  change) must take Tier 2 — otherwise the redefine is a no-op or the process
+     *  references a class that exists in no loaded dex (NoClassDefFoundError). */
+    static boolean onlyMainChanged(java.util.Map<String, String> before,
+                                   java.util.Map<String, String> after) {
+        if (before == null) return false;
+        if (!before.keySet().equals(after.keySet())) return false; // add/remove
+        String main = "app/payload/Main.class".replace('/', File.separatorChar);
+        for (java.util.Map.Entry<String, String> e : after.entrySet()) {
+            boolean same = e.getValue().equals(before.get(e.getKey()));
+            if (!same && !e.getKey().equals(main)) return false;    // some OTHER class changed
+        }
+        return !after.getOrDefault(main, "").equals(before.getOrDefault(main, "")); // Main did change
     }
 
     // ---------- one-time setup ----------
@@ -302,11 +366,18 @@ public class KotlinCompileService {
                 kk.pollEvents();
                 kk.reset();
             }
-            // TIER DISPATCH: a code change takes the code path (Tier 1 attempt →
-            // Tier 2 fallback); a resource-only change takes Tier 0 (no compiler).
+            // TIER DISPATCH: a code change takes the code path; a resource-only
+            // change takes Tier 0 (no compiler). A MIXED save (both changed, a
+            // common IDE save shape) must relink resources AND force Tier 2 —
+            // Tier 1 can't carry a resource change, and using the cached
+            // resources.apk would ship stale resources (finding #3).
             try {
-                if (srcChanged) codeChange();
-                else if (resChanged) resourceOnlyChange();
+                if (srcChanged) {
+                    if (resChanged) linkResources();
+                    codeChange(resChanged /* forceTier2 */);
+                } else if (resChanged) {
+                    resourceOnlyChange();
+                }
             } catch (Throwable t) { log("build error (service alive): " + t); }
         }
     }
@@ -354,28 +425,48 @@ public class KotlinCompileService {
         // those mangle through Java→sh→adb→run-as→sh). run-as cp reads
         // /data/local/tmp and writes the app's private files (same pattern
         // deploy_payload.sh uses). Trigger is a pushed file, not a shell redirect.
+        // NONCE (#7): the agent echoes it in the result so a STALE result (failed
+        // delete / adb hiccup) can't be mistaken for this request's outcome.
+        String nonce = "n" + (++redefineNonce) + "_" + now();
         Path trg = Files.createTempFile("redef", ".trigger");
-        Files.writeString(trg, "app.payload.Main"); // agent redefines Main + its synthetics from the dex
-        sh("adb push " + dex + " /data/local/tmp/redefine.dex");
-        sh("adb push " + trg + " /data/local/tmp/redefine.trigger");
-        sh("adb shell run-as " + pkg + " rm -f files/hotswap/result");
-        sh("adb shell run-as " + pkg + " cp /data/local/tmp/redefine.dex files/hotswap/redefine.dex");
-        // trigger LAST so the dex is fully staged when the agent wakes
-        sh("adb shell run-as " + pkg + " cp /data/local/tmp/redefine.trigger files/hotswap/trigger");
-        for (int i = 0; i < 60; i++) {
-            String r = sh("adb shell run-as " + pkg + " cat files/hotswap/result").trim();
-            if (r.endsWith("0")) return true;   // redefined
-            if (r.endsWith("1")) return false;  // structural / no match → fallback
-            Thread.sleep(15);
+        try {
+            Files.writeString(trg, "app.payload.Main " + nonce);
+            // Fail fast to Tier 2 if any staging command errors (exit-code checked).
+            if (!shOk("adb push " + dex + " /data/local/tmp/redefine.dex")) return null;
+            if (!shOk("adb push " + trg + " /data/local/tmp/redefine.trigger")) return null;
+            shOk("adb shell run-as " + pkg + " rm -f files/hotswap/result");
+            if (!shOk("adb shell run-as " + pkg
+                    + " cp /data/local/tmp/redefine.dex files/hotswap/redefine.dex")) return null;
+            // trigger LAST so the dex is fully staged when the agent wakes
+            if (!shOk("adb shell run-as " + pkg
+                    + " cp /data/local/tmp/redefine.trigger files/hotswap/trigger")) return null;
+            for (int i = 0; i < 60; i++) {
+                String r = sh("adb shell run-as " + pkg + " cat files/hotswap/result").trim();
+                if (r.startsWith(nonce + " ")) {     // ONLY accept OUR nonce's result
+                    return r.endsWith("0") ? Boolean.TRUE : Boolean.FALSE;
+                }
+                Thread.sleep(15);
+            }
+            return null; // no agent attached / timed out → fallback
+        } finally {
+            Files.deleteIfExists(trg); // #15: don't leak a temp file per attempt
         }
-        return null; // no agent attached / timed out → fallback
     }
+
+    static long redefineNonce = 0;
 
     static String sh(String cmd) throws Exception {
         Process p = new ProcessBuilder("sh", "-c", cmd).redirectErrorStream(true).start();
         String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         p.waitFor();
         return out;
+    }
+
+    /** Like sh() but returns whether the command exited 0 (finding #7). */
+    static boolean shOk(String cmd) throws Exception {
+        Process p = new ProcessBuilder("sh", "-c", cmd).redirectErrorStream(true).start();
+        p.getInputStream().readAllBytes();
+        return p.waitFor() == 0;
     }
 
     // ---------- small helpers ----------
@@ -406,8 +497,13 @@ public class KotlinCompileService {
     static void deleteClassFilesUnder(Path root) throws Exception {
         if (!Files.exists(root)) return;
         try (var walk = Files.walk(root)) {
-            walk.filter(p -> p.toString().endsWith(".class")
-                            && !p.getFileName().toString().startsWith("R"))
+            // Keep ONLY the generated R (R.class / R$id.class …), which is javac'd
+            // once at startup. Matching "starts with R" also kept user classes like
+            // RowView/Repo, which then lingered stale across renames (finding #11).
+            walk.filter(p -> {
+                        String n = p.getFileName().toString();
+                        return n.endsWith(".class") && !n.equals("R.class") && !n.matches("R\\$.*\\.class");
+                    })
                 .forEach(p -> { try { Files.deleteIfExists(p); } catch (Exception ignored) {} });
         }
     }
