@@ -1,0 +1,67 @@
+package com.itsaky.androidide.lsp.kotlin.utils
+
+import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
+import org.jetbrains.kotlin.analysis.api.resolution.symbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaClassLikeSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
+import org.jetbrains.kotlin.idea.references.mainReference
+import org.jetbrains.kotlin.psi.KtArrayAccessExpression
+import org.jetbrains.kotlin.psi.KtCallExpression
+import org.jetbrains.kotlin.psi.KtDestructuringDeclaration
+import org.jetbrains.kotlin.psi.KtElement
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtForExpression
+import org.jetbrains.kotlin.psi.KtImportList
+import org.jetbrains.kotlin.psi.KtNameReferenceExpression
+import org.jetbrains.kotlin.psi.KtOperationReferenceExpression
+import org.jetbrains.kotlin.psi.KtPropertyDelegate
+import org.jetbrains.kotlin.psi.psiUtil.collectDescendantsOfType
+import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
+
+/**
+ * Collects the importable fq-names (and their packages) referenced by [ktFile]'s body. MUST be
+ * called inside [analyzeMaybeDangling]. Returns only plain strings, so nothing escapes the analyze
+ * lifetime. Anything that fails to resolve simply doesn't join the used set (safe: leads to keeping
+ * an import, never removing a used one).
+ */
+internal fun KaSession.collectImportUsage(ktFile: KtFile): ImportUsage {
+	val usedFqNames = HashSet<String>()
+	val usedPackages = HashSet<String>()
+
+	fun record(symbol: KaSymbol?) {
+		val fq = symbol?.importableFqNameString() ?: return
+		usedFqNames += fq
+		val pkg = fq.substringBeforeLast('.', missingDelimiterValue = "")
+		if (pkg.isNotEmpty()) usedPackages += pkg
+	}
+
+	// 1) Plain name / type references (excluding the import list itself).
+	ktFile.collectDescendantsOfType<KtNameReferenceExpression>().forEach { ref ->
+		if (ref.getParentOfType<KtImportList>(strict = false) != null) return@forEach
+		runCatching { record(ref.mainReference.resolveToSymbol()) }
+	}
+
+	// 2) Convention / operator call sites (no textual name reference).
+	ktFile.collectDescendantsOfType<KtElement>().forEach { element ->
+		val isConvention = element is KtOperationReferenceExpression ||
+			element is KtArrayAccessExpression ||
+			element is KtCallExpression ||
+			element is KtForExpression ||
+			element is KtDestructuringDeclaration ||
+			element is KtPropertyDelegate
+		if (!isConvention) return@forEach
+		runCatching {
+			record(element.resolveToCall()?.successfulFunctionCallOrNull()?.symbol)
+		}
+	}
+
+	return ImportUsage(usedFqNames, usedPackages)
+}
+
+private fun KaSymbol.importableFqNameString(): String? = when (this) {
+	is KaClassLikeSymbol -> classId?.asSingleFqName()?.asString()
+	is KaCallableSymbol -> callableId?.asSingleFqName()?.asString()
+	else -> null
+}
