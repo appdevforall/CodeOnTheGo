@@ -74,8 +74,8 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.appdevforall.localwebserver.ServerConfig
-import org.appdevforall.localwebserver.WebServer
+import com.itsaky.androidide.localWebServer.ServerConfig
+import com.itsaky.androidide.localWebServer.WebServer
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
 import java.io.File
