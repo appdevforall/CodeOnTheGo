@@ -211,11 +211,15 @@ public class KotlinCompileService {
         a.add("-classpath"); a.add(classpath);
         a.add("-d"); a.add(out.toString());
         a.add("-jvm-target"); a.add("17");
-        // -Xlambdas=class: emit lambdas as separate named .class files (not
-        // invokedynamic). This lets Tier 1 produce a single-class Main dex (d8
-        // of just Main.class won't pull a desugared synthetic INTO Main's dex),
-        // which ART's RedefineClasses requires.
+        // Emit lambdas AND SAM conversions (setOnClickListener {…}) as separate
+        // NAMED .class files instead of invokedynamic. Without -Xsam-conversions,
+        // the OnClickListener SAM stays indy and d8 desugars it into
+        // Main$$ExternalSyntheticLambda0 INSIDE Main's dex — so d8 of just
+        // Main.class still yields a 2-class dex, and ART's RedefineClasses rejects
+        // a dex whose class set doesn't match the definitions (ILLEGAL_ARGUMENT).
+        // With both flags, d8 of Main.class alone is a TRUE single-class dex.
         a.add("-Xlambdas=class");
+        a.add("-Xsam-conversions=class");
         a.add("-no-stdlib"); a.add("-no-reflect"); a.add("-nowarn");
         PrintStream nul = new PrintStream(new ByteArrayOutputStream());
         return compiler.exec(nul, a.toArray(new String[0]));

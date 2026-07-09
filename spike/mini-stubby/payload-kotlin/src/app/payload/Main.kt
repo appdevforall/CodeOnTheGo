@@ -9,15 +9,18 @@ import android.widget.TextView
 /**
  * Framework-only Kotlin payload driven by the persistent warm-compile service.
  *
- * Structured for the Tier 1 (JVMTI hot-swap) demo: `count` and `btnRef` are
- * fields on the Main object (survive class redefinition — only method bodies are
- * swapped), and `onTap()` is invoked on every button press. Edit onTap's body and
- * the service redefines Main IN PLACE — the next tap runs the new code with the
- * tap count preserved, no reload.
+ * Tier 1 (JVMTI hot-swap) demo, structured so a method-body edit is a TRUE
+ * method-body-only change with a STABLE class schema:
+ *  - state (`count`, `btnRef`) is @JvmField (public field, no getter/setter)
+ *  - the click handler and onTap are public @JvmStatic methods
+ *  So the SAM click-listener class touches only PUBLIC members of Main → the
+ *  compiler/d8 generates NO synthetic accessor methods on Main, so d8 of just
+ *  Main.class produces the same Main schema as the full-app dex, and ART's
+ *  RedefineClasses sees only a changed method body (not SCHEMA_CHANGED).
  */
 object Main {
-    private var count = 0
-    private var btnRef: Button? = null
+    @JvmField var count = 0
+    @JvmField var btnRef: Button? = null
 
     @JvmStatic
     fun render(host: Activity): View {
@@ -29,13 +32,17 @@ object Main {
         root.findViewById<TextView>(R.id.body).text = "Why it's fast:\n$body"
 
         btnRef = root.findViewById<Button>(R.id.btn)
-        btnRef?.setOnClickListener { count++; onTap() }
+        btnRef!!.setOnClickListener { onClickBtn() }
         onTap()
         return root
     }
 
+    @JvmStatic
+    fun onClickBtn() { count++; onTap() }
+
     // ---- edit THIS body; the service hot-swaps it in place (Tier 1) ----
-    private fun onTap() {
-        btnRef?.text = "final n=$count"
+    @JvmStatic
+    fun onTap() {
+        btnRef?.text = "tap count = $count"
     }
 }

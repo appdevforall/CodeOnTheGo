@@ -62,36 +62,59 @@ resident for the edit, so on RAM-starved low-end devices it degrades gracefully 
 a monolithic full-compile loop can thrash. This makes tiering not just a latency
 optimization but, on the weakest hardware, a robustness one.
 
-## Tier 1 status — implemented, blocked by an ART limitation on this build (honest)
+## Tier 1 status — WORKING on-device (an earlier "ART limitation" was my bug)
 
-The full Tier 1 pipeline works end-to-end **except** the final redefine:
-- The JVMTI agent (`hotswap-agent/libhotswap.so`, bundled in the shell APK) attaches
-  via `am attach-agent`, acquires `can_redefine_classes`, spawns a watcher, finds the
-  exact loaded `app.payload.Main`, and calls `RedefineClasses` with a single-class,
-  method-body-only dex.
-- On Android 16 / One UI 8.5 (A56), `RedefineClasses` returns **`JVMTI_ERROR_ILLEGAL_ARGUMENT`
-  (103)**, and `can_redefine_any_class` is **not offered** in the potential
-  capabilities. Generic `am attach-agent` JVMTI redefinition of *app* classes is not
-  fully supported on this build.
-- This is exactly the ART-version fragility the multi-Activity research flagged for
-  on-device class redefinition. Android Studio's Apply Changes / Live Edit achieve it
-  via a **platform-internal ART deploy agent**, not a generic attached JVMTI agent —
-  that path (or a userdebug/rooted ART, or a future ART that exposes the capability)
-  is what a production Tier 1 would need.
-- **The tiered system is robust regardless:** Tier 1 rejection falls back cleanly to
-  Tier 2, so the loop always works. Tier 1 is gated behind `-Dtier1=true` (off by
-  default) so the wasted compile-then-fallback isn't paid in normal operation.
+Tier 1 is a genuine ART **class redefinition (hot-swap)** and it works on the A56
+(Android 16 / One UI 8.5). A JVMTI agent (`hotswap-agent/libhotswap.so`, bundled in
+the shell APK) attaches via `am attach-agent`, acquires `can_redefine_classes`,
+watches a drop dir, finds the loaded `app.payload.Main`, and calls `RedefineClasses`
+with a single-class method-body dex. **Verified end-to-end:** edit `onTap`'s body →
+the service redefines Main in place → the next tap runs the new code, the tap-count
+state is **preserved**, and the status bar stays on the same generation (**no reload,
+no re-render**). Screenshot: button shows the edited text with the count intact.
 
-Verdict on Tier 1: the *design* is sound and the *plumbing* is complete and proven;
-the *ART capability* to land it via a generic agent isn't present on this device.
-Treat Tier 1 as "ready pending an ART redefinition path," not as a dead end — its
-value (skip reload + preserve state) is real, and the interpreter path
-(FASTER-ON-SLOW-DEVICES.md §2) is the alternative that removes the compile entirely
-for the slowest hardware.
+My first pass concluded "blocked by an ART limitation" from the error code alone. That
+was wrong — the code was `ILLEGAL_ARGUMENT` (103), not the structural-change codes, and
+that pointed at *the dex I was handing ART*, not the platform. Getting it robust took
+three real fixes:
+
+1. **`ILLEGAL_ARGUMENT` (103) → a true single-class dex.** d8 was desugaring the
+   `setOnClickListener {}` **SAM conversion** into a synthetic class *inside Main's
+   dex*, so "Main only" was actually a 2-class dex and ART rejected it (its class set
+   didn't match the definitions). Fix: compile with **`-Xlambdas=class`
+   `-Xsam-conversions=class`** so lambdas/SAMs become separate named classes; then d8
+   of `Main.class` alone is genuinely one class.
+2. **`SCHEMA_CHANGED` (64) → a synthetic-accessor-free, schema-stable payload.** When
+   the SAM class touched Main's *private* members, the compiler added synthetic
+   accessor methods to Main that differed between the single-class and full dex — a
+   schema mismatch on a method-body edit. Fix: structure the payload so the hot path
+   uses only **public** members (`@JvmField` state + public `@JvmStatic` methods), so
+   Main has no synthetics and d8-of-Main-alone matches the loaded Main exactly.
+3. **Robust to multiple loaded generations.** The shell can hold the previous gen's
+   classloader, so two `Main` classes may be loaded with different schemas. The agent
+   redefines **each matching generation individually** and reports success if the live
+   one succeeds; a stale gen's failure doesn't block the visible gen.
+
+Genuine structural changes (adding a method/field, signature change) correctly return
+`SCHEMA_CHANGED` and **fall back to Tier 2** — that's the right behavior, not a failure.
+
+**Latency note (honest):** Tier 1 still *compiles* the changed class (kotlinc ~330 ms
+warm here), so its raw save→effect latency (~800 ms over adb) is compile-dominated,
+similar to Tier 2 on this tiny payload. Tier 1's win is **not** primarily ms on a small
+app — it's **skipping the repackage + reload + re-render and preserving running state**,
+which on a *complex* app (a deep screen you'd otherwise lose and have to re-navigate to)
+is the real payoff, and grows on slow hardware where re-inflating a complex UI is
+expensive. Pairing Tier 1 with method-level incremental compilation (or the interpreter
+hot path, FASTER-ON-SLOW-DEVICES.md §2) is what would also cut the compile half.
+
+Tier 1 stays gated behind `-Dtier1=true` (off by default) pending hardening (it needs
+the agent auto-attached at shell startup and the single-generation invariant enforced),
+but it is a **working** on-device hot-swap, not a dead end.
 
 ## Recommendation
 
-Ship **Tier 0 + Tier 2** now — that alone keeps visual edits ~sub-second on slow
-devices and confines the compile cost to structural code changes. Pursue Tier 1 via
-the ART deploy-agent path (not generic JVMTI) or evaluate the interpreter hot path
-for the lowest-end target, per the slow-device analysis.
+Ship **Tier 0 + Tier 2** for the baseline win (visual edits ~sub-second on slow devices;
+compile cost confined to structural code changes). **Tier 1 hot-swap now works** and is
+worth productionizing for the state-preserving, no-re-render path — auto-attach the agent
+at shell startup, enforce one live generation, keep the schema-stable compile flags, and
+pair it with incremental compilation to also shrink the compile half.

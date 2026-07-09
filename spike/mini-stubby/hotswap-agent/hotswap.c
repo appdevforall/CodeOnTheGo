@@ -59,30 +59,38 @@ static int do_redefine(const char *prefix_sig, unsigned char *dex, long dex_len)
         LOG("GetLoadedClasses failed");
         return 1;
     }
-    jvmtiClassDefinition defs[64];
-    int n = 0;
+    // Redefine each matching loaded class INDIVIDUALLY. Multiple generations of
+    // the payload's Main can be loaded (the shell keeps the previous gen's
+    // classloader); a stale gen may have a different schema. Redefining one at a
+    // time means a stale-gen failure doesn't block the CURRENT gen's success —
+    // and the current (visible) Main is what the user sees change.
     size_t plen = strlen(prefix_sig);
-    for (jint i = 0; i < count && n < 64; i++) {
+    int matched = 0, ok = 0;
+    for (jint i = 0; i < count; i++) {
         char *sig = NULL;
         if ((*g_jvmti)->GetClassSignature(g_jvmti, classes[i], &sig, NULL) != JVMTI_ERROR_NONE)
             continue;
-        // match the class + its synthetics (prefix "Lapp/payload/Main" catches
-        // "Lapp/payload/Main;" and "Lapp/payload/Main$$…;"), which is exactly the
-        // set the Main-only redefine dex contains.
         if (sig && strncmp(sig, prefix_sig, plen) == 0) {
-            defs[n].klass = classes[i];
-            defs[n].class_byte_count = (jint) dex_len;
-            defs[n].class_bytes = dex;
-            n++;
+            matched++;
+            jvmtiClassDefinition def;
+            def.klass = classes[i];
+            def.class_byte_count = (jint) dex_len;
+            def.class_bytes = dex;
+            jvmtiError e = (*g_jvmti)->RedefineClasses(g_jvmti, 1, &def);
+            if (e == JVMTI_ERROR_NONE) {
+                ok++;
+            } else {
+                char *en = NULL;
+                (*g_jvmti)->GetErrorName(g_jvmti, e, &en);
+                LOG("RedefineClasses(%s) -> error %d (%s)", sig, e, en ? en : "?");
+                if (en) (*g_jvmti)->Deallocate(g_jvmti, (unsigned char *) en);
+            }
         }
         if (sig) (*g_jvmti)->Deallocate(g_jvmti, (unsigned char *) sig);
     }
     (*g_jvmti)->Deallocate(g_jvmti, (unsigned char *) classes);
-    if (n == 0) { LOG("no loaded classes matched %s", prefix_sig); return 1; }
-    jvmtiError e = (*g_jvmti)->RedefineClasses(g_jvmti, n, defs);
-    if (e == JVMTI_ERROR_NONE) { LOG("redefined %d classes under %s", n, prefix_sig); return 0; }
-    LOG("RedefineClasses(%d classes) -> jvmti error %d", n, e);
-    return 1; // structural / unsupported → caller falls back to full reload
+    LOG("redefine %s: %d/%d succeeded (dex len=%ld)", prefix_sig, ok, matched, dex_len);
+    return ok > 0 ? 0 : 1; // any success (the live gen) → OK; else fall back
 }
 
 static void handle_trigger() {
