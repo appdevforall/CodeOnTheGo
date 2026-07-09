@@ -198,8 +198,52 @@ public class MainActivity extends Activity {
         };
         observer.startWatching();
 
+        attachHotSwapAgent();
+
         if (payload.isFile()) {
             loadPayload(payload, SystemClock.uptimeMillis());
+        }
+    }
+
+    /**
+     * Tier 1 hardening: the shell attaches its OWN JVMTI hot-swap agent at startup
+     * via {@link android.os.Debug#attachJvmtiAgent} (API 28+, debuggable app),
+     * instead of relying on an external {@code am attach-agent} + symlink dance.
+     * Self-attach passes the path and options as SEPARATE args, sidestepping the
+     * {@code =}-in-path problem the CLI hit, and survives reinstalls (the agent is
+     * bundled in the app's nativeLibraryDir). Harmless no-op if the agent isn't
+     * present; Tier 1 just stays unavailable and the service falls back to Tier 2.
+     */
+    /** Process-wide guard: a JVMTI agent attaches once per PROCESS, not per
+     *  Activity. Without this, an Activity recreation (rotation, config change)
+     *  would attach a second agent → two watch threads racing on the trigger. */
+    private static boolean sAgentAttached = false;
+
+    private void attachHotSwapAgent() {
+        if (sAgentAttached) return;
+        try {
+            File real = new File(getApplicationInfo().nativeLibraryDir, "libhotswap.so");
+            if (!real.isFile()) {
+                Log.i(TAG, "hot-swap agent not bundled; Tier 1 unavailable");
+                return;
+            }
+            File dir = new File(getFilesDir(), "hotswap");
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            // Debug.attachJvmtiAgent REJECTS '=' in the agent path, and the
+            // nativeLibraryDir path contains '==' (base64 padding). Attach via a
+            // '='-free symlink in files/ whose target is the real .so in the
+            // exec-allowed lib dir (avoids the W^X restriction on loading from files/).
+            File link = new File(dir, "agent.so");
+            //noinspection ResultOfMethodCallIgnored
+            link.delete();
+            android.system.Os.symlink(real.getAbsolutePath(), link.getAbsolutePath());
+            android.os.Debug.attachJvmtiAgent(
+                    link.getAbsolutePath(), dir.getAbsolutePath(), getClassLoader());
+            sAgentAttached = true;
+            Log.i(TAG, "hot-swap agent attached (Tier 1 available)");
+        } catch (Throwable t) {
+            Log.w(TAG, "hot-swap agent attach failed; Tier 1 unavailable", t);
         }
     }
 
