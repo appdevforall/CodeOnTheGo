@@ -1,0 +1,96 @@
+name: Build benchmark (measure only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "Which APK(s) to build"
+        type: choice
+        options: [v8-debug, v7v8-release]
+        default: v8-debug
+      no_daemon:
+        description: "Pass --no-daemon"
+        type: boolean
+        default: true
+      gradle_daemon_heap:
+        description: "Gradle daemon -Xmx (e.g. 4g / 4096M)"
+        default: "8192M"
+      kotlin_daemon_heap:
+        description: "Kotlin daemon -Xmx"
+        default: "8192M"
+      aapt2_heap:
+        description: "android.aapt2.daemonHeapSize"
+        default: "8192M"
+      workers_max:
+        description: "org.gradle.workers.max"
+        default: "30"
+      parallel:
+        description: "org.gradle.parallel"
+        type: boolean
+        default: true
+      clean_first:
+        description: "Run ./gradlew clean before the timed build"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Build & measure
+    runs-on: self-hosted
+    timeout-minutes: 90
+    env:
+      INCLUDE_LLAMA_ASSETS: "false"
+      # Neutralize Sentry so no upload/network step perturbs timings.
+      SENTRY_DSN_DEBUG: ""
+      SENTRY_DSN_RELEASE: ""
+      SENTRY_AUTO_UPLOAD: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if Nix is installed
+        id: check_nix
+        run: |
+          if command -v nix >/dev/null 2>&1; then
+            echo "nix_installed=true" >> $GITHUB_ENV
+          else
+            echo "nix_installed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install Flox
+        if: env.nix_installed == 'false'
+        uses: flox/install-flox-action@v2
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+
+      - name: Run build benchmark
+        env:
+          VARIANT: ${{ inputs.variant }}
+          NO_DAEMON: ${{ inputs.no_daemon }}
+          GRADLE_DAEMON_HEAP: ${{ inputs.gradle_daemon_heap }}
+          KOTLIN_DAEMON_HEAP: ${{ inputs.kotlin_daemon_heap }}
+          AAPT2_HEAP: ${{ inputs.aapt2_heap }}
+          WORKERS_MAX: ${{ inputs.workers_max }}
+          PARALLEL: ${{ inputs.parallel }}
+          CLEAN_FIRST: ${{ inputs.clean_first }}
+        run: bash scripts/benchmark/run-build-benchmark.sh
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-${{ inputs.variant }}-${{ github.run_id }}
+          path: benchmark-results/
+
+      - name: Cleanup google-services.json
+        if: always()
+        run: rm -f app/google-services.json
