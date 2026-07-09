@@ -30,6 +30,7 @@ import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
+import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
 import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_INDEX_KEY
@@ -117,6 +118,10 @@ class KotlinLanguageServer : ILanguageServer {
 		this._client = client
 		this.compiler?.updateLanguageClient(client)
 	}
+
+	/** Returns the [CompilationEnvironment] responsible for [file], or null if the compiler is not ready. */
+	internal fun compilationEnvironmentFor(file: Path): CompilationEnvironment? =
+		compiler?.compilationEnvironmentFor(file)
 
 	override fun applySettings(settings: IServerSettings?) {
 		this._settings = settings
