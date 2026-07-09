@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# Build-and-measure harness. Runs one parameterized Gradle APK build and records
+# wall-clock + memory metrics so daemon/heap/parallelism configs can be compared.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+VARIANT="${VARIANT:-v8-debug}"
+NO_DAEMON="${NO_DAEMON:-true}"
+GRADLE_DAEMON_HEAP="${GRADLE_DAEMON_HEAP:-8192M}"
+KOTLIN_DAEMON_HEAP="${KOTLIN_DAEMON_HEAP:-8192M}"
+AAPT2_HEAP="${AAPT2_HEAP:-8192M}"
+WORKERS_MAX="${WORKERS_MAX:-30}"
+PARALLEL="${PARALLEL:-true}"
+CLEAN_FIRST="${CLEAN_FIRST:-false}"
+SAMPLE_INTERVAL="${SAMPLE_INTERVAL:-2}"
+RESULTS_DIR="${RESULTS_DIR:-benchmark-results}"
+LABEL="${LABEL:-$(printf '%s_nd-%s_gh-%s_kh-%s_ah-%s_w-%s_par-%s_clean-%s' \
+  "$VARIANT" "$NO_DAEMON" "$GRADLE_DAEMON_HEAP" "$KOTLIN_DAEMON_HEAP" \
+  "$AAPT2_HEAP" "$WORKERS_MAX" "$PARALLEL" "$CLEAN_FIRST")}"
+
+# Overridable so tests can inject a stub instead of the real (slow) build.
+BENCH_GRADLE_CMD="${BENCH_GRADLE_CMD:-flox activate -d flox/base -- ./gradlew}"
+
+mkdir -p "$RESULTS_DIR"
+LOG_FILE="$RESULTS_DIR/${LABEL}.log"
+SAMPLE_FILE="$RESULTS_DIR/${LABEL}.samples.tsv"
+SUMMARY_FILE="$RESULTS_DIR/${LABEL}.summary.md"
+: > "$SAMPLE_FILE"
+
+# add-opens mirrors gradle.properties so overriding org.gradle.jvmargs stays valid.
+ADD_OPENS="--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED"
+
+declare -a GRADLE_ARGS
+case "$VARIANT" in
+  v8-debug)     GRADLE_ARGS=(":app:assembleV8Debug") ;;
+  v7v8-release) GRADLE_ARGS=(":app:assembleV7Release" ":app:assembleV8Release") ;;
+  *) echo "Unknown VARIANT: $VARIANT (want v8-debug|v7v8-release)" >&2; exit 2 ;;
+esac
+
+GRADLE_ARGS+=(
+  "-Dorg.gradle.jvmargs=-Xmx${GRADLE_DAEMON_HEAP} -XX:+HeapDumpOnOutOfMemoryError ${ADD_OPENS}"
+  "-Dkotlin.daemon.jvm.options=-Xmx${KOTLIN_DAEMON_HEAP}"
+  "-Dandroid.aapt2.daemonHeapSize=${AAPT2_HEAP}"
+  "-Dorg.gradle.workers.max=${WORKERS_MAX}"
+  "-Dorg.gradle.parallel=${PARALLEL}"
+)
+[ "$NO_DAEMON" = "true" ] && GRADLE_ARGS+=("--no-daemon")
+
+if [ "$CLEAN_FIRST" = "true" ]; then
+  echo "Cleaning before timed build..."
+  # shellcheck disable=SC2086
+  $BENCH_GRADLE_CMD clean --no-daemon >/dev/null 2>&1 || true
+fi
+
+sample_memory() {
+  while :; do
+    local ts avail line pid main used
+    ts="$(date +%s)"
+    avail="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
+    line="${ts}\t${avail}"
+    if command -v jps >/dev/null 2>&1 && command -v jcmd >/dev/null 2>&1; then
+      while read -r pid main; do
+        case "$main" in
+          *GradleDaemon*|*KotlinCompileDaemon*|*GradleWorkerMain*)
+            used="$(jcmd "$pid" GC.heap_info 2>/dev/null \
+              | awk -F'used ' 'NR==1 {split($2,a," "); gsub(/K/,"",a[1]); print a[1]+0}')"
+            [ -n "$used" ] && [ "$used" != "0" ] && line="${line}\t${main##*.}:${pid}=${used}"
+            ;;
+        esac
+      done < <(jps -l 2>/dev/null)
+    fi
+    printf '%b\n' "$line" >> "$SAMPLE_FILE"
+    sleep "$SAMPLE_INTERVAL"
+  done
+}
+sample_memory &
+SAMPLER_PID=$!
+trap 'kill "$SAMPLER_PID" 2>/dev/null || true' EXIT
+
+START="$(date +%s)"
+# shellcheck disable=SC2086
+$BENCH_GRADLE_CMD "${GRADLE_ARGS[@]}" > "$LOG_FILE" 2>&1
+EXIT_CODE=$?
+END="$(date +%s)"
+DURATION=$((END - START))
+
+kill "$SAMPLER_PID" 2>/dev/null || true
+
+# Derive memory metrics (unit-tested in Task 1).
+MIN_AVAIL_MB=0
+PEAK_HEAP="n/a"
+eval "$(bash "$SCRIPT_DIR/summarize-samples.sh" "$SAMPLE_FILE")"
+
+OOM="no"
+if [ "$EXIT_CODE" -ne 0 ] && grep -qiE "OutOfMemoryError|Java heap space|GC overhead limit|Killed" "$LOG_FILE"; then
+  OOM="yes"
+fi
+
+{
+  echo "### Benchmark: \`${LABEL}\`"
+  echo ""
+  echo "| metric | value |"
+  echo "|---|---|"
+  echo "| variant | ${VARIANT} |"
+  echo "| no_daemon | ${NO_DAEMON} |"
+  echo "| gradle_daemon_heap | ${GRADLE_DAEMON_HEAP} |"
+  echo "| kotlin_daemon_heap | ${KOTLIN_DAEMON_HEAP} |"
+  echo "| aapt2_heap | ${AAPT2_HEAP} |"
+  echo "| workers_max | ${WORKERS_MAX} |"
+  echo "| parallel | ${PARALLEL} |"
+  echo "| clean_first | ${CLEAN_FIRST} |"
+  echo "| wall_clock_s | ${DURATION} |"
+  echo "| exit_code | ${EXIT_CODE} |"
+  echo "| oom_detected | ${OOM} |"
+  echo "| min_mem_available_mb | ${MIN_AVAIL_MB} |"
+  echo "| peak_heap_used | ${PEAK_HEAP} |"
+} > "$SUMMARY_FILE"
+
+cat "$SUMMARY_FILE"
+[ -n "${GITHUB_STEP_SUMMARY:-}" ] && cat "$SUMMARY_FILE" >> "$GITHUB_STEP_SUMMARY"
+
+exit "$EXIT_CODE"
