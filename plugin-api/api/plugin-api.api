@@ -1528,6 +1528,14 @@ public final class com/itsaky/androidide/plugins/services/SelectionRange {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/itsaky/androidide/plugins/services/SharedServices {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/services/SharedServices;
+	public final fun clear ()V
+	public final fun get (Ljava/lang/Class;)Ljava/lang/Object;
+	public final fun register (Ljava/lang/Class;Ljava/lang/Object;)V
+	public final fun unregister (Ljava/lang/Class;)V
+}
+
 public abstract interface class com/itsaky/androidide/plugins/services/ThemeChangeListener {
 	public abstract fun onThemeChanged (Z)V
 }
