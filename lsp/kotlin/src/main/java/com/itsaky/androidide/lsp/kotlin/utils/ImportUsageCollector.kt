@@ -10,6 +10,7 @@ import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.psi.KtArrayAccessExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtDestructuringDeclaration
+import org.jetbrains.kotlin.psi.KtDestructuringDeclarationEntry
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtForExpression
@@ -37,10 +38,34 @@ internal fun KaSession.collectImportUsage(ktFile: KtFile): ImportUsage {
 		if (pkg.isNotEmpty()) usedPackages += pkg
 	}
 
+	fun recordAll(symbols: Collection<KaSymbol>?) {
+		symbols?.forEach(::record)
+	}
+
 	// 1) Plain name / type references (excluding the import list itself).
 	ktFile.collectDescendantsOfType<KtNameReferenceExpression>().forEach { ref ->
 		if (ref.getParentOfType<KtImportList>(strict = false) != null) return@forEach
 		runCatching { record(ref.mainReference.resolveToSymbol()) }
+	}
+
+	// 1b) Implicit-convention references that carry more than one resolution target and so don't
+	// resolve through `resolveToSymbol()` (singular; returns null when ambiguous) but do resolve
+	// through `resolveToSymbols()` (plural). Confirmed empirically:
+	//  - KtForExpression: resolves to [iterator(), hasNext(), next()] -- iterator is the
+	//    user-importable one for a `for (x in foo)` loop.
+	//  - KtDestructuringDeclarationEntry (one per destructured variable): resolves to that
+	//    variable's own componentN() symbol.
+	//  - KtPropertyDelegate: resolves to the delegate's getValue()/setValue() symbol(s).
+	// Recording every returned symbol is safe: extra (e.g. stdlib Iterator.next) symbols only ever
+	// keep an import, never drop a used one.
+	ktFile.collectDescendantsOfType<KtForExpression>().forEach { forExpr ->
+		runCatching { recordAll(forExpr.mainReference?.resolveToSymbols()) }
+	}
+	ktFile.collectDescendantsOfType<KtDestructuringDeclarationEntry>().forEach { entry ->
+		runCatching { recordAll(entry.mainReference?.resolveToSymbols()) }
+	}
+	ktFile.collectDescendantsOfType<KtPropertyDelegate>().forEach { delegate ->
+		runCatching { recordAll(delegate.mainReference?.resolveToSymbols()) }
 	}
 
 	// 2) Convention / operator call sites (no textual name reference).

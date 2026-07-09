@@ -92,4 +92,123 @@ class ImportUsageCollectorTest : KtLspTest() {
 		val usage = usageOf(ktFile)
 		assertFalse("lib.Extra" in usage.usedFqNames)
 	}
+
+	@Test
+	fun `array-access get operator used via subscript is recorded`() {
+		createSourceFile(
+			"lib/Ops.kt",
+			"""
+			package lib
+			class Foo
+			operator fun Foo.get(i: Int): Int = i
+			""".trimIndent(),
+		)
+		val ktFile = createSourceFile(
+			"UseGet.kt",
+			"""
+			package p
+			import lib.Foo
+			import lib.get
+			fun f(foo: Foo) { val x = foo[0] }
+			""".trimIndent(),
+		)
+		val usage = usageOf(ktFile)
+		assertTrue("lib.get" in usage.usedFqNames)
+	}
+
+	@Test
+	fun `array-access set operator used via subscript assignment is recorded`() {
+		createSourceFile(
+			"lib/Ops.kt",
+			"""
+			package lib
+			class Foo
+			operator fun Foo.set(i: Int, v: Int) {}
+			""".trimIndent(),
+		)
+		val ktFile = createSourceFile(
+			"UseSet.kt",
+			"""
+			package p
+			import lib.Foo
+			import lib.set
+			fun f(foo: Foo) { foo[0] = 1 }
+			""".trimIndent(),
+		)
+		val usage = usageOf(ktFile)
+		assertTrue("lib.set" in usage.usedFqNames)
+	}
+
+	@Test
+	fun `iterator operator used via for loop is recorded`() {
+		createSourceFile(
+			"lib/Ops.kt",
+			"""
+			package lib
+			class Foo
+			operator fun Foo.iterator(): Iterator<Int> = listOf(1, 2, 3).iterator()
+			""".trimIndent(),
+		)
+		val ktFile = createSourceFile(
+			"UseIterator.kt",
+			"""
+			package p
+			import lib.Foo
+			import lib.iterator
+			fun f(foo: Foo) { for (x in foo) {} }
+			""".trimIndent(),
+		)
+		val usage = usageOf(ktFile)
+		assertTrue("lib.iterator" in usage.usedFqNames)
+	}
+
+	@Test
+	fun `componentN operators used via destructuring are recorded`() {
+		createSourceFile(
+			"lib/Ops.kt",
+			"""
+			package lib
+			class Foo
+			operator fun Foo.component1(): Int = 1
+			operator fun Foo.component2(): Int = 2
+			""".trimIndent(),
+		)
+		val ktFile = createSourceFile(
+			"UseDestructure.kt",
+			"""
+			package p
+			import lib.Foo
+			import lib.component1
+			import lib.component2
+			fun f(foo: Foo) { val (a, b) = foo }
+			""".trimIndent(),
+		)
+		val usage = usageOf(ktFile)
+		assertTrue("lib.component1" in usage.usedFqNames)
+		assertTrue("lib.component2" in usage.usedFqNames)
+	}
+
+	@Test
+	fun `getValue operator used via property delegation is recorded`() {
+		createSourceFile(
+			"lib/Ops.kt",
+			"""
+			package lib
+			import kotlin.reflect.KProperty
+			class Foo
+			operator fun Foo.getValue(thisRef: Any?, property: KProperty<*>): Int = 1
+			""".trimIndent(),
+		)
+		val ktFile = createSourceFile(
+			"UseDelegate.kt",
+			"""
+			package p
+			import lib.Foo
+			import lib.getValue
+			fun f(foo: Foo) { val x: Int by foo }
+			""".trimIndent(),
+		)
+		val usage = usageOf(ktFile)
+		assertTrue("lib.getValue" in usage.usedFqNames)
+	}
 }

@@ -40,19 +40,27 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 	 * Computes the text edits that organize the imports of the file at [nioPath] within [env].
 	 * The current [org.jetbrains.kotlin.psi.KtFile] is fetched BEFORE entering [read] (deadlock
 	 * rule: never block on `getCurrentKtFile(...).get()` inside `project.read`). Returns an empty
-	 * list when there is nothing to do (no imports, already organized, or no usable range).
+	 * list when there is nothing to do (no imports, already organized, or no usable range) *and*
+	 * whenever anything in this pipeline (the `.get()`, analysis, or PSI access) throws: the action
+	 * framework only catches [IllegalArgumentException] and this runs on a coroutine scope with no
+	 * exception handler, so an uncaught throw here would crash the app. Degrading to zero edits is
+	 * always safe -- it just leaves the imports as-is, never produces a partial/incorrect rewrite.
 	 */
-	internal fun computeOrganizeEdit(env: AbstractCompilationEnvironment, nioPath: Path): List<TextEdit> {
-		val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return emptyList()
-		if (ktFile.importDirectives.isEmpty()) return emptyList()
-		return env.project.read {
-			val usage = analyzeMaybeDangling(ktFile) { collectImportUsage(ktFile) }
-			val newText = organizedImportBlock(ktFile, usage) ?: return@read emptyList()
-			val range = ktFile.importList?.textRange?.toRange(ktFile) ?: return@read emptyList()
-			if (range == Range.NONE) return@read emptyList()
-			listOf(TextEdit(range, newText))
+	internal fun computeOrganizeEdit(env: AbstractCompilationEnvironment, nioPath: Path): List<TextEdit> =
+		runCatching {
+			val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return emptyList()
+			if (ktFile.importDirectives.isEmpty()) return emptyList()
+			env.project.read {
+				val usage = analyzeMaybeDangling(ktFile) { collectImportUsage(ktFile) }
+				val newText = organizedImportBlock(ktFile, usage) ?: return@read emptyList()
+				val range = ktFile.importList?.textRange?.toRange(ktFile) ?: return@read emptyList()
+				if (range == Range.NONE) return@read emptyList()
+				listOf(TextEdit(range, newText))
+			}
+		}.getOrElse { e ->
+			logger.warn("Failed to organize imports", e)
+			emptyList()
 		}
-	}
 
 	override fun postExec(data: ActionData, result: Any) {
 		super.postExec(data, result)
