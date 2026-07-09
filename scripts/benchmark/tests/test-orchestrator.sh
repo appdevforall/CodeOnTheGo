@@ -33,4 +33,18 @@ if RESULTS_DIR="$workdir/results" LABEL="bad" VARIANT="nope" \
      BENCH_GRADLE_CMD="bash $stub" bash "$SUT"; then
   echo "FAIL: unknown variant should have exited non-zero"; exit 1
 fi
+
+# Regression (Fix 1): PEAK_HEAP with spaces (multi-daemon) must survive parsing.
+multi="$(mktemp)"
+printf '1\t9000000\tGradleDaemon:1=1048576\tKotlinCompileDaemon:2=2097152\n' > "$multi"
+PEAK_HEAP="n/a"; MIN_AVAIL_MB=0
+while IFS= read -r kv; do
+  case "$kv" in
+    MIN_AVAIL_MB=*) MIN_AVAIL_MB="${kv#MIN_AVAIL_MB=}" ;;
+    PEAK_HEAP=*)    PEAK_HEAP="${kv#PEAK_HEAP=}" ;;
+  esac
+done < <(bash "$HERE/../summarize-samples.sh" "$multi")
+[[ "$PEAK_HEAP" == *"GradleDaemon:1=1024MB"* && "$PEAK_HEAP" == *"KotlinCompileDaemon:2=2048MB"* ]] \
+  || { echo "FAIL: multi-daemon PEAK_HEAP parse"; exit 1; }
+
 echo "PASS"

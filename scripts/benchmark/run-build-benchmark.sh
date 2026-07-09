@@ -53,6 +53,11 @@ if [ "$CLEAN_FIRST" = "true" ]; then
   $BENCH_GRADLE_CMD clean --no-daemon >/dev/null 2>&1 || true
 fi
 
+# NOTE: JVMs are matched by main-class name, not by process-tree ancestry, on
+# purpose: a warm Gradle daemon is NOT a child of this gradlew invocation, so a
+# parent-PID filter would make exactly the warm-daemon case we want to measure
+# invisible. On the single-machine, builds-queue-one-at-a-time runner this is
+# safe; on a shared dev box an unrelated IDE daemon could contaminate samples.
 sample_memory() {
   while :; do
     local ts avail line pid main used
@@ -86,11 +91,17 @@ END="$(date +%s)"
 DURATION=$((END - START))
 
 kill "$SAMPLER_PID" 2>/dev/null || true
+wait "$SAMPLER_PID" 2>/dev/null || true
 
 # Derive memory metrics (unit-tested in Task 1).
 MIN_AVAIL_MB=0
 PEAK_HEAP="n/a"
-eval "$(bash "$SCRIPT_DIR/summarize-samples.sh" "$SAMPLE_FILE")"
+while IFS= read -r kv; do
+  case "$kv" in
+    MIN_AVAIL_MB=*) MIN_AVAIL_MB="${kv#MIN_AVAIL_MB=}" ;;
+    PEAK_HEAP=*)    PEAK_HEAP="${kv#PEAK_HEAP=}" ;;
+  esac
+done < <(bash "$SCRIPT_DIR/summarize-samples.sh" "$SAMPLE_FILE")
 
 OOM="no"
 if [ "$EXIT_CODE" -ne 0 ] && grep -qiE "OutOfMemoryError|Java heap space|GC overhead limit|Killed" "$LOG_FILE"; then
