@@ -199,9 +199,26 @@ public class MainActivity extends Activity {
         observer.startWatching();
 
         attachHotSwapAgent();
+        startDevJump();
 
         if (payload.isFile()) {
             loadPayload(payload, SystemClock.uptimeMillis());
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        startDevJump(); // self-heal: re-add the overlay if its service was killed
+    }
+
+    /** Show the floating App⇄CoGo quick-jump overlay (dev speed). No-op without the
+     *  overlay grant; startService re-runs the service's onCreate only if it died. */
+    private void startDevJump() {
+        try {
+            startService(new Intent(this, DevJumpService.class));
+        } catch (Throwable t) {
+            Log.w(TAG, "dev-jump overlay not started", t);
         }
     }
 

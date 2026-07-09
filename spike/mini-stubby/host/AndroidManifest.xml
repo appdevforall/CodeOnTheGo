@@ -17,6 +17,16 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
+    <!-- Dev quick-jump: a floating overlay pill to toggle between the running app
+         and the CoGo editor, visible over both. Special grant (Settings.canDrawOverlays);
+         on the dev device: adb shell appops set <pkg> SYSTEM_ALERT_WINDOW allow -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- See CoGo's launch component so getLaunchIntentForPackage resolves it under
+         Android 11+ package visibility. -->
+    <queries>
+        <package android:name="com.itsaky.androidide" />
+    </queries>
+
     <application
         android:label="Mini-Stubby Shell"
         android:debuggable="true"
@@ -43,5 +53,8 @@
             android:name=".ProxyActivity"
             android:exported="false"
             android:theme="@android:style/Theme.DeviceDefault.DayNight" />
+
+        <!-- Floating dev quick-jump overlay (App ⇄ CoGo). -->
+        <service android:name=".DevJumpService" android:exported="false" />
     </application>
 </manifest>
