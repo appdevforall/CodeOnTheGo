@@ -55,13 +55,13 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.Insets
-import androidx.core.hardware.display.DisplayManagerCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -117,7 +117,6 @@ import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.resources.R as ResR
 import com.itsaky.androidide.services.debug.DebuggerService
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.ui.CodeEditorView
@@ -792,6 +791,8 @@ abstract class BaseEditorActivity :
 						closeKeyboard()
 						// Dismiss autocomplete and other editor windows
 						provideCurrentEditor()?.editor?.ensureWindowsDismissed()
+						// Reflect files changed while the drawer was closed (e.g. by a plugin).
+						getFileTreeFragment()?.refreshExpandedNodes()
 					}
 				}
 
@@ -1137,12 +1138,21 @@ abstract class BaseEditorActivity :
 
 	open fun getFileTreeFragment(): FileTreeFragment? {
 		if (filesTreeFragment == null) {
-			filesTreeFragment =
-				supportFragmentManager.findFragmentByTag(
-					FileTreeFragment.TAG,
-				) as FileTreeFragment?
+			// File tree is a nav destination in the sidebar's NavHostFragment, so it
+			// lives in a nested child FragmentManager — search recursively.
+			filesTreeFragment = findFileTreeFragment(supportFragmentManager)
 		}
 		return filesTreeFragment
+	}
+
+	private fun findFileTreeFragment(manager: FragmentManager): FileTreeFragment? {
+		for (fragment in manager.fragments) {
+			if (fragment is FileTreeFragment) {
+				return fragment
+			}
+			findFileTreeFragment(fragment.childFragmentManager)?.let { return it }
+		}
+		return null
 	}
 
 	fun doSetStatus(
