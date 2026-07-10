@@ -28,30 +28,72 @@ Mac, D8 (`com.android.tools.r8.D8`) under JBR-21, best-of-3, `--release --min-ap
   `--intermediate` (per-class DEX), to be merged into the app's existing dex set — the same
   shape as incremental compile.
 
+## ON-DEVICE ladder (Samsung A56) — the numbers that decide "how to DEX"
+
+Ran the same class sets through an **in-process D8** harness on the A56 (warm — one JVM, `D8.run()`
+called repeatedly, exactly like the compile service), via CoGo's bundled JDK 21. Two axes plus a
+cross-check. Harness: `scratchpad/dexbench/OnDeviceDexBench.java`.
+
+**Warm-up cost:** cold first dex = **1,440 ms**, warm (settled) 1-class dex = **36 ms** → ~1.4 s of
+JVM/D8 startup, paid **once per session**. Every per-edit number below is warm.
+
+**Axis A — whole-app dex grows with app size** (best-of-3):
+
+| App size | Classes | ~Methods | Whole-app dex (A56) |
+|---|---|---|---|
+| 600 LoC | 20 | 100 | 266 ms |
+| 3,000 LoC | 50 | 500 | 358 ms |
+| 15,000 LoC | 100 | 2,500 | 857 ms |
+| 30,000 LoC | 200 | 5,000 | **917 ms** |
+
+**Axis B — incremental dex tracks *change size* (methods dexed), not app size** (in the 30k app, best-of-3):
+
+| Classes changed | ~Methods | Dex (A56) |
+|---|---|---|
+| 1 | 25 | **36 ms** |
+| 5 | 125 | 81 ms |
+| 20 | 500 | 130 ms |
+| 50 | 1,250 | 293 ms |
+| 100 | 2,500 | 470 ms |
+| 200 (= whole app) | 5,000 | 567 ms |
+
+**Cross-check — the decisive one:** dexing **5 classes** costs **44 ms in the 3k-LoC app vs 48 ms in
+the 30k-LoC app** — essentially identical. **Incremental dex is independent of total app size**; it
+depends only on how many methods you re-dex.
+
+So on real hardware: a typical **1-file edit dexes in ~36 ms warm regardless of app size**, while
+re-dexing the *whole* 30k app is ~0.9 s (and climbs with method density on a real app). Dex is not
+the bottleneck *if* you dex incrementally; it becomes one if you don't.
+
 ## Design implication: the loop needs incremental *dex*, not just incremental *compile*
 
 `INCREMENTAL-RESULTS.md` showed incremental **kotlinc** keeps the compile step flat regardless of
 app size. This ladder shows the **dex** step has the identical problem and the identical fix:
 
-| Reload strategy | Compile | Dex | Stays <1s at 30k LoC? |
+| Reload strategy | Compile (A56) | Dex (A56) | Stays <1s at 30k LoC? |
 |---|---|---|---|
-| Naive (whole app) | grows (~9.6 s on A56) | grows (~1.1 s Mac → ~3–5 s A56) | ❌ |
-| Incremental compile + **whole-app** dex | flat (~0.5 s) | grows | 🟠 dex dominates at scale |
-| Incremental compile + **incremental** dex | flat (~0.5 s) | flat (<0.1 s warm) | ✅ |
+| Naive (whole app) | grows (~9.6 s) | grows (~0.9 s, higher on dense apps) | ❌ |
+| Incremental compile + **whole-app** dex | flat (~0.5 s) | grows (~0.9 s) | 🟠 dex dominates at scale |
+| Incremental compile + **incremental** dex | flat (~0.5 s) | flat (**~36 ms warm**) | ✅ |
 
 So the fast loop's dex step must dex **only the changed classes** and merge, mirroring the
 compile step. ART's per-class DEX + the D8 merge path (or replacing the changed `.dex` in a
-multidex payload) both support this.
+multidex payload) both support this. On the A56 that makes the *whole* reload
+(incremental compile ~0.5 s + incremental dex ~0.04 s + package/deploy ~0.4 s + load ~0.04 s)
+land near **~1 s even for a 30k-LoC app** — the number that keeps the loop honest at scale.
 
 ## Caveats / what's not yet measured
 
-- **Mac numbers, not on-device.** The existing on-device point (the ~600-LoC lemonade game on the
-  A56) dexed in ~200–400 ms warm; expect the same ~3–5× device multiplier seen for `kotlinc`, so
-  a *whole-app* dex of a 30k-LoC app on the A56 would be ~3–5 s (🔴), and *incremental* dex would
-  stay in the ~100–300 ms band (🟢). An on-device dex ladder is the natural follow-up.
 - **Synthetic class density is low** (1 class/file → 20–200 classes for 600–30k LoC). Real Kotlin
-  emits more classes per KLoC (data classes, lambdas, `$` synthetics), so whole-app dex on a real
-  30k app would be *higher* than 1.1 s — which only strengthens the "incremental dex required"
-  conclusion. The scaling *shape* is what transfers.
+  emits more classes per KLoC (data classes, lambdas, `$` synthetics), so *whole-app* dex on a
+  real 30k app would be *higher* than the measured ~0.9 s — which only strengthens the
+  "incremental dex required" conclusion. Incremental dex tracks *methods changed*, so it's far less
+  sensitive to this. The scaling *shape* is what transfers.
+- **Change size = methods, not files.** Axis B is indexed by classes for convenience; the real
+  driver is method/instruction count in the changed classes (see the ~Methods column). A one-line
+  body edit re-dexes one class (~36 ms); a change touching many classes costs proportionally more,
+  but a single-file edit — the common case — stays at the bottom of the ladder.
 
-Harness: `compile-service/incremental/` (IncBench compile output) + `scratchpad/dexbench/timeit.py`.
+Harness: Mac — `compile-service/incremental/dex/timeit.py`; on-device — `compile-service/incremental/dex/OnDeviceDexBench.java`
+(in-process warm D8), run under CoGo's bundled JDK on the A56 (`/data/local/tmp/mstc`). Class inputs
+come from `IncBench`'s compiled output at each size.
