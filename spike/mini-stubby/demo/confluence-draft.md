@@ -1,12 +1,10 @@
 # ADFA-4128 Faster edit→build→run Loop Discussion Doc
 
-The ticket description was very tech heavy, and light on product requirements.  Given how good/cheap LLMs are, I figured the cheapest way to ask the right questions was to dive in and do some prototyping.  Then go ask the right questions based on data gathered :)
+The ticket description was fairly technical solution heavy, and light on product requirements.  Given how good & cheap LLMs are, I figured the best way to ask the right questions was to dive in and do some prototyping.  Then go ask the right questions based on data gathered :)
 
 So here's a doc with more questions.  Plus already a minimally working prototype flow (see video below) from the spike.
 
-INFO BOX
-
-Please feel free to edit this doc!  Or write your notes in the discussion section with a prefix with your username (if you please, or stay anonymous).
+> INFO BOXPlease feel free to edit this doc!  Or write your notes in the "**Discussion**" sections.(Add your initials if you want, or remain anonymous...either way!)
 
 # A. Proposed Product Goals - Please Edit!!
 
@@ -14,15 +12,15 @@ This is in the ticket, but vague about magnitude and impact.  Can we edit this u
 
 **Goal**: Today's edit→build→run loop takes tens of seconds or more, with manual prompts.  It builds an APK using a full Gradle incremental build, installs the APK, and fights Google Play Protect.
 
-There's also a faster live compose loop for UX tweaks
+CoGo's existing Jetpack Compose preview pipeline works well for rapidly iterating on an individual component, but not on the full application. 
 
-For CoGo's audience (learners on low-end, often offline devices) this kills the feedback loop that makes learning to program work well.
+So this means that there's no quick feedback loop for the app as a whole.
 
 ## Not a Goal
 
-- Initial build time for an app is not a goal -- here, we're focusing on the edit loopIn fact, we may even allow things that make initial build slightly slower to speed up the edit loop (but don't necessarily need to)
+Optimizing initial build time for an app is not a goal.  We're focusing only on the edit loop.
 
-## How Fast?
+## Question 1: How Fast?
 
 Can we make the loop a lot faster.  From HCI research, these are good targets to aim for (from [Nielsen, 1993](https://www.nngroup.com/articles/response-times-3-important-limits/))
 
@@ -31,30 +29,33 @@ Can we make the loop a lot faster.  From HCI research, these are good targets to
 
 If you go much higher than that, the user goes off to do another task (or makes a coffee) - added by Bryan :)
 
-**Discussion: **Does this seem like a good target?  Aim for < 1s on all important edits (below) on 
+### Discussion: 
 
-## What Types of Changes Are Important To Support?
+Does this seem like a good way to define how fast?
+
+## Question 2: What Types of Changes Are Important To Support?
 
 What types of changes do we want to handle quickly?
 
 Proposed Priority (please edit or discuss):
 
-**MUST** happen quickly
+### High Priority
 
 - Resource changes
 - Styling changes
 - Change method code, no signature change
-
-**SHOULD **happen quickly, if we can make it happen
-
 - Change code that does affect class signature
 
-**MAY **happen quickly (**low priority)**These operations happen less frequently during normal development (and for learners) and it's okay if they're slower:
+### Low Priority
+
+These operations happen less frequently during normal development (and for learners) and it's okay if they're slower:
 
 - Dependency change (requires doing dependency resolution)
 - Manifest changes
 
-**Discussion: **Agree or disagree with priority? Any other types of operations we should support and test?
+### Discussion: 
+
+Agree or disagree with priority? Any other types of operations we should support and test?
 
 ### Aside: Changing code that affects class signature and keeping state without restarting test app
 
@@ -62,65 +63,73 @@ Ideally, we also can handle class signature changes and preserve state when chan
 
 Android Studio used to try to support hot reload, but found this introduced too many issues (TODO: insert brief list of top issues and link).  Now they only support hot reload via JVTMI on changes that don't affect the class signature.
 
-## What Phone Spec?
+## Question 3: What Phone Spec?
 
 TBD?
+
+### Discussion:
 
 Do we have an analysis of what the spec distribution looks like for our current active users?Or what we want to target?
 
-## What Types of Apps?
+## Question 4: What Types of Apps?
 
 TBD?
 
-Do we have a sense for what types of apps people want to build?
+### Discussion:
 
-## Debugging?
+Do we have a sense for what types of apps people want to build?Do we have a corpus of test apps that we can point an LLM at to test against?
 
-Ideally, debugging MUST continue working!
+## Question 5: What's the Priority of Supporting Debugging?
 
-**Discussion: **How important is this?  Is this necessary?
+???
 
-## Proposed Specific Criteria
+### Discussion: 
+
+How important is it to support debugging?
+
+## DRAFT: Proposed Criteria
 
 The more specific you can make criteria that's testable, the easier it is to get an LLM to go optimize for it without much human effort.
 
-Priorities, in descending order:
+How do we express what we want the priorities to be?Some examples: 
 
-1. On > 80% of phones that active users use, all change types that MUST happen quickly work in under 10s
-2. Same thing, but under 1s
-3. TBD: Prioritize other edge cases to deal with
+1. On > 80% of phones that active users use, all high priority changes (see above) MUST work in under 10sFast enough so most users don't feel annoyed and go do something else while they wait
+2. Same as #1, but under 1sFast enough so users can stay in flow state
+3. TBD: Prioritize other edge cases to deal withe.g. we want to go after lower spec phones, or some other type of edit
 
-And if we get to #1 (or #2) quickly, that's a big enough improvement to release.
-
-**Discussion:**
+**Discussion:**Are these the right goals?  or would you propose something else?  Please suggest alternatives too!What's a good enough improvement to release? If we get to #1? #2? Something else?
 
 ## Workflow Options?
 
-What's the most convenient workflow to support?
+What workflows do we want to support?
 
-1. From IDE
+1. Starting from IDE
   1. Editing interface + live reload trigger
     1. Option A: Live reload after every keystroke, debounced to 1s
     2. Option B: Live reload when user saves a file
     3. Option C: Live reload when user triggers using a live reload button
     4. Option D: ??
-  2. How does a user switch between IDE and app to see changes quickly?
-    1. Option A: User does it manually using app switcher
-    2. Option B: Have buttons in Test App and in IDE to switch between
+  2. How does a user switch between IDE and Test App to see changes quickly?
+    1. Option A: User triggers live reload (somehow -- see above) and then manually switches to Test App
+    2. Option B: Have a button in IDE that triggers the live reload and also switches to Test App
     3. Option C: Split screen?
     4. Option D: ??
-2. From Test App
+2. Starting while in the Test App
   1. User can make edits from the test app and live reload
     1. Option 1: Can edit style or code snippets directly from the app being tested
     2. Option 2: Can ask an LLM to make edits in the background
 
-TODO: Market research of what other app builders support
+### Discussion
+
+What seems worth going after first?(Assume all of these are probably not that hard with LLM support)
+
+TODO: Brief market research of what other app development environments support might be helpful here?
 
 # B. Summary of Investigation Spike So Far to Prototype "Son of Stubby"
 
 We tried to get a sub-1s edit→build→run loop going on a Samsung A56 (moderately high spec) for a variety of app types and change types.  To see what product questions came up.  And what technical blockers we might need to deal with.
 
-This has taken about 1hr of hands-on time, a few hours of agent time over 2 wall-clock days (July 8-10, 2026).  Fable 5 orchestrator, and various model levels doing the tasks.
+This has taken just under 2 hr of hands-on time and about 12.5 hr of agent time, over ~2.5 wall-clock days (July 7–10, 2026).  Fable 5 orchestrator, and various model levels doing the tasks.
 
 ## Spike Results
 
