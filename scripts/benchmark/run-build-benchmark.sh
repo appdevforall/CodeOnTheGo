@@ -56,10 +56,16 @@ GRADLE_ARGS+=(
 
 if [ "$CLEAN_FIRST" = "true" ]; then
   echo "Cleaning before timed build..."
+  # Clean mirrors the timed build's daemon mode (ENABLE_DAEMON). Forcing
+  # --no-daemon here regardless would spawn a throwaway JVM instead of warming
+  # the daemon the build reuses, and — with org.gradle.vfs.watch enabled — could
+  # leave a reused warm daemon's file-watch cache stale vs. the deleted build/.
   # Stream output live; --console=plain + </dev/null so Gradle never waits on a
   # TTY or stdin. Don't hide it behind /dev/null — a hang here must be visible.
+  clean_args=(clean --console=plain)
+  [ "$ENABLE_DAEMON" = "true" ] || clean_args+=(--no-daemon)
   # shellcheck disable=SC2086
-  $BENCH_GRADLE_CMD clean --no-daemon --console=plain </dev/null || true
+  $BENCH_GRADLE_CMD "${clean_args[@]}" </dev/null || true
 fi
 
 # NOTE: JVMs are matched by main-class name, not by process-tree ancestry, on
