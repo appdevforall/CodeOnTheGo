@@ -51,6 +51,21 @@ android {
     }
 }
 
+val bcprovOriginal: Configuration by configurations.creating {
+    isCanBeResolved = true
+    isCanBeConsumed = false
+}
+
+val stripBcprovPqc by tasks.registering(Jar::class) {
+    archiveFileName.set("bcprov-nopqc.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("libs"))
+    from({ bcprovOriginal.map { zipTree(it) } }) {
+        exclude("org/bouncycastle/pqc/**")
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
+}
+
 dependencies {
     compileOnly(project(":plugin-api"))
 
@@ -60,9 +75,12 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.1.21")
     implementation("androidx.fragment:fragment:1.8.8")
 
-    // BouncyCastle for keystore generation
-    implementation("org.bouncycastle:bcprov-jdk18on:1.78")
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.78")
+    // BouncyCastle for keystore generation (PQC classes stripped via stripBcprovPqc task)
+    bcprovOriginal("org.bouncycastle:bcprov-jdk18on:1.78")
+    implementation(files(stripBcprovPqc.flatMap { it.archiveFile }))
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.78") {
+        exclude(group = "org.bouncycastle", module = "bcprov-jdk18on")
+    }
 }
 
 tasks.wrapper {
