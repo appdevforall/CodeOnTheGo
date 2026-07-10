@@ -28,12 +28,8 @@ import io.pebbletemplates.pebble.template.PebbleTemplate
 import android.os.Environment.getExternalStorageDirectory
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import com.google.gson.TypeAdapter
-import com.google.gson.TypeAdapterFactory
+import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
-import com.google.gson.stream.JsonReader
-import com.google.gson.stream.JsonToken
-import com.google.gson.stream.JsonWriter
 import okio.ByteString.Companion.toByteString
 
 
@@ -76,22 +72,8 @@ class WebServer(private val config: ServerConfig) {
     private          val brotliCompression  : String  = "br"
     private          val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
     private          val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
-    private          val gson: Gson = GsonBuilder()
-        .registerTypeAdapterFactory(object : TypeAdapterFactory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T> create(gson: Gson, type: TypeToken<T>): TypeAdapter<T>? {
-                if (type.rawType != Any::class.java) return null
-                val delegate = gson.getDelegateAdapter(this, type)
-                return object : TypeAdapter<T>() {
-                    override fun write(out: JsonWriter, value: T?) = delegate.write(out, value)
-                    override fun read(inp: JsonReader): T? {
-                        if (inp.peek() != JsonToken.NUMBER) return delegate.read(inp)
-                        val s = inp.nextString()
-                        return (if ('.' in s) s.toDouble() else s.toLong()) as T
-                    }
-                }
-            }
-        })
+    private val gson: Gson = GsonBuilder()
+        .setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
         .create()
     private          val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
     private          var bookshelfTemplateId : Int = -1;
