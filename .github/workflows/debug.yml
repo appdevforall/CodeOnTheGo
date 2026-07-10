@@ -9,6 +9,9 @@ on:
   push:
     branches-ignore:
       - main
+      # Benchmarking branch: suppress the full APK build + Firebase deploy while
+      # tuning build performance. Remove this entry before opening the PR.
+      - worktree-build-optimization
 
   workflow_dispatch: { }
 
