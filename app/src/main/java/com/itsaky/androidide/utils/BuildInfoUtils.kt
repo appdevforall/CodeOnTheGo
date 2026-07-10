@@ -38,7 +38,7 @@ object BuildInfoUtils {
 	private val BUILD_INFO_HEADER by lazy {
 		val map =
 			mapOf(
-				"Version" to "v${BuildInfo.VERSION_NAME_SIMPLE} (${AppUtils.getAppVersionCode()})",
+				"Version" to "v${BasicBuildInfo.formatVersion()} (${AppUtils.getAppVersionCode()})",
 				"CI Build" to BuildInfo.CI_BUILD,
 				"Branch" to BuildInfo.CI_GIT_BRANCH,
 				"Commit" to BuildInfo.CI_GIT_COMMIT_HASH,

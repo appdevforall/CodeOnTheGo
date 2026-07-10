@@ -193,6 +193,10 @@ jobs:
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
           echo "google-services.json created successfully"
 
+      - name: Verify plugin-api binary compatibility
+        run: |
+          flox activate -d flox/base -- ./gradlew :plugin-api:apiCheck --no-daemon
+
       - name: Assemble Universal APK
         run: |
           echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
@@ -480,11 +484,14 @@ jobs:
             exit 1
           fi
 
-      - name: Clean up build folder after upload
+      - name: Clean up APK output after upload
         run: |
-          echo "Cleaning up build folder after Firebase upload..."
-          rm -rf app/build/
-          echo "Build folder cleanup completed"
+          echo "Removing built APK(s) after Firebase upload..."
+          # Only remove the packaged APKs (prevents 'Find APK file' from picking a
+          # stale APK on the next run). Compiled intermediates are preserved so the
+          # next build compiles :app incrementally instead of from scratch.
+          rm -rf app/build/outputs/apk/
+          echo "APK output cleanup completed"
 
       - name: Send Rich Slack Notification
         env:
