@@ -15,10 +15,10 @@ on:
         type: choice
         options: [v8-debug, v7v8-release]
         default: v8-debug
-      no_daemon:
-        description: "Pass --no-daemon"
+      enable_daemon:
+        description: "Reuse the Gradle daemon (false = --no-daemon)"
         type: boolean
-        default: true
+        default: false
       gradle_daemon_heap:
         description: "Gradle daemon -Xmx (e.g. 4g / 4096M)"
         default: "8192M"
@@ -85,7 +85,7 @@ jobs:
             echo "Using workflow_dispatch inputs."
             {
               echo "VARIANT=${{ inputs.variant }}"
-              echo "NO_DAEMON=${{ inputs.no_daemon }}"
+              echo "ENABLE_DAEMON=${{ inputs.enable_daemon }}"
               echo "GRADLE_DAEMON_HEAP=${{ inputs.gradle_daemon_heap }}"
               echo "KOTLIN_DAEMON_HEAP=${{ inputs.kotlin_daemon_heap }}"
               echo "AAPT2_HEAP=${{ inputs.aapt2_heap }}"

@@ -6,7 +6,9 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 VARIANT="${VARIANT:-v8-debug}"
-NO_DAEMON="${NO_DAEMON:-true}"
+# ENABLE_DAEMON=true reuses the Gradle daemon; anything else appends --no-daemon.
+# Default false to reproduce the current production (--no-daemon) baseline.
+ENABLE_DAEMON="${ENABLE_DAEMON:-false}"
 GRADLE_DAEMON_HEAP="${GRADLE_DAEMON_HEAP:-8192M}"
 KOTLIN_DAEMON_HEAP="${KOTLIN_DAEMON_HEAP:-8192M}"
 AAPT2_HEAP="${AAPT2_HEAP:-8192M}"
@@ -15,8 +17,8 @@ PARALLEL="${PARALLEL:-true}"
 CLEAN_FIRST="${CLEAN_FIRST:-false}"
 SAMPLE_INTERVAL="${SAMPLE_INTERVAL:-2}"
 RESULTS_DIR="${RESULTS_DIR:-benchmark-results}"
-LABEL="${LABEL:-$(printf '%s_nd-%s_gh-%s_kh-%s_ah-%s_w-%s_par-%s_clean-%s' \
-  "$VARIANT" "$NO_DAEMON" "$GRADLE_DAEMON_HEAP" "$KOTLIN_DAEMON_HEAP" \
+LABEL="${LABEL:-$(printf '%s_daemon-%s_gh-%s_kh-%s_ah-%s_w-%s_par-%s_clean-%s' \
+  "$VARIANT" "$ENABLE_DAEMON" "$GRADLE_DAEMON_HEAP" "$KOTLIN_DAEMON_HEAP" \
   "$AAPT2_HEAP" "$WORKERS_MAX" "$PARALLEL" "$CLEAN_FIRST")}"
 
 # Overridable so tests can inject a stub instead of the real (slow) build.
@@ -45,7 +47,7 @@ GRADLE_ARGS+=(
   "-Dorg.gradle.workers.max=${WORKERS_MAX}"
   "-Dorg.gradle.parallel=${PARALLEL}"
 )
-[ "$NO_DAEMON" = "true" ] && GRADLE_ARGS+=("--no-daemon")
+[ "$ENABLE_DAEMON" = "true" ] || GRADLE_ARGS+=("--no-daemon")
 
 if [ "$CLEAN_FIRST" = "true" ]; then
   echo "Cleaning before timed build..."
@@ -114,7 +116,7 @@ fi
   echo "| metric | value |"
   echo "|---|---|"
   echo "| variant | ${VARIANT} |"
-  echo "| no_daemon | ${NO_DAEMON} |"
+  echo "| enable_daemon | ${ENABLE_DAEMON} |"
   echo "| gradle_daemon_heap | ${GRADLE_DAEMON_HEAP} |"
   echo "| kotlin_daemon_heap | ${KOTLIN_DAEMON_HEAP} |"
   echo "| aapt2_heap | ${AAPT2_HEAP} |"
