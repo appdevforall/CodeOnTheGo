@@ -27,7 +27,13 @@ import java.util.concurrent.ConcurrentHashMap
 import io.pebbletemplates.pebble.template.PebbleTemplate
 import android.os.Environment.getExternalStorageDirectory
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.TypeAdapter
+import com.google.gson.TypeAdapterFactory
 import com.google.gson.reflect.TypeToken
+import com.google.gson.stream.JsonReader
+import com.google.gson.stream.JsonToken
+import com.google.gson.stream.JsonWriter
 import okio.ByteString.Companion.toByteString
 
 
@@ -70,7 +76,23 @@ class WebServer(private val config: ServerConfig) {
     private          val brotliCompression  : String  = "br"
     private          val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
     private          val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
-    private          val gson = Gson()
+    private          val gson: Gson = GsonBuilder()
+        .registerTypeAdapterFactory(object : TypeAdapterFactory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T> create(gson: Gson, type: TypeToken<T>): TypeAdapter<T>? {
+                if (type.rawType != Any::class.java) return null
+                val delegate = gson.getDelegateAdapter(this, type)
+                return object : TypeAdapter<T>() {
+                    override fun write(out: JsonWriter, value: T?) = delegate.write(out, value)
+                    override fun read(inp: JsonReader): T? {
+                        if (inp.peek() != JsonToken.NUMBER) return delegate.read(inp)
+                        val s = inp.nextString()
+                        return (if ('.' in s) s.toDouble() else s.toLong()) as T
+                    }
+                }
+            }
+        })
+        .create()
     private          val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
     private          var bookshelfTemplateId : Int = -1;
     private          val HTTP_INTERNAL_SERVER_ERROR = 500
@@ -453,7 +475,10 @@ class WebServer(private val config: ServerConfig) {
         }
 
         // Load JSON data into a template context Map<> for instantiation
-        val context: Map<String, Any> = gson.fromJson(dbContent.toString(Charsets.UTF_8), dbContextType)
+        val dbContentStr = dbContent.toString(Charsets.UTF_8)
+        if (dbContentStr.isBlank() || dbContentStr.trim() == "null")
+            throw Exception("Template ID $templateId has empty or null JSON context")
+        val context: Map<String, Any> = gson.fromJson(dbContentStr, dbContextType)
 
         // Evaluate template with loaded data and return the output
         val sw = StringWriter()
