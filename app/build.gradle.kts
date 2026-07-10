@@ -35,7 +35,6 @@ plugins {
 	id("com.itsaky.androidide.desugaring")
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
-	kotlin("plugin.serialization")
 }
 
 fun propOrEnv(name: String): String =
@@ -318,7 +317,6 @@ dependencies {
 	implementation(libs.common.markwon.linkify)
 	implementation(libs.commons.text.v1140)
 
-	implementation(libs.kotlinx.serialization.json)
 	// Koin for Dependency Injection
 	implementation(libs.koin.android)
 	implementation(libs.androidx.security.crypto)
@@ -340,9 +338,6 @@ dependencies {
 
     // Pebble template engine
     implementation("io.pebbletemplates:pebble:4.1.1")
-
-    // Jackson JSON parsing dependency
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
 }
 
 tasks.register("downloadDocDb") {
