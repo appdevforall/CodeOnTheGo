@@ -3,6 +3,11 @@
 # wall-clock + memory metrics so daemon/heap/parallelism configs can be compared.
 set -uo pipefail
 
+# Verbose command tracing for CI diagnosis. On by default; set BENCH_TRACE=0 to quiet.
+# The background sampler disables it locally so the 2s loop doesn't flood the log.
+BENCH_TRACE="${BENCH_TRACE:-1}"
+[ "$BENCH_TRACE" = "1" ] && set -x
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 VARIANT="${VARIANT:-v8-debug}"
@@ -51,8 +56,10 @@ GRADLE_ARGS+=(
 
 if [ "$CLEAN_FIRST" = "true" ]; then
   echo "Cleaning before timed build..."
+  # Stream output live; --console=plain + </dev/null so Gradle never waits on a
+  # TTY or stdin. Don't hide it behind /dev/null — a hang here must be visible.
   # shellcheck disable=SC2086
-  $BENCH_GRADLE_CMD clean --no-daemon >/dev/null 2>&1 || true
+  $BENCH_GRADLE_CMD clean --no-daemon --console=plain </dev/null || true
 fi
 
 # NOTE: JVMs are matched by main-class name, not by process-tree ancestry, on
@@ -61,6 +68,7 @@ fi
 # invisible. On the single-machine, builds-queue-one-at-a-time runner this is
 # safe; on a shared dev box an unrelated IDE daemon could contaminate samples.
 sample_memory() {
+  { set +x; } 2>/dev/null  # keep the 2s sampling loop out of the xtrace stream
   while :; do
     local ts avail line pid main used
     ts="$(date +%s)"
@@ -86,9 +94,11 @@ SAMPLER_PID=$!
 trap 'kill "$SAMPLER_PID" 2>/dev/null || true' EXIT
 
 START="$(date +%s)"
+# Stream to the CI log AND capture to LOG_FILE (LOG_FILE feeds OOM detection).
+# --console=plain + </dev/null prevent any wait on an interactive console/stdin.
 # shellcheck disable=SC2086
-$BENCH_GRADLE_CMD "${GRADLE_ARGS[@]}" > "$LOG_FILE" 2>&1
-EXIT_CODE=$?
+$BENCH_GRADLE_CMD "${GRADLE_ARGS[@]}" --console=plain </dev/null 2>&1 | tee "$LOG_FILE"
+EXIT_CODE=${PIPESTATUS[0]}
 END="$(date +%s)"
 DURATION=$((END - START))
 
