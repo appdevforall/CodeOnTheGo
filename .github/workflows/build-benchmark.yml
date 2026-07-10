@@ -1,6 +1,13 @@
 name: Build benchmark (measure only)
 
 on:
+  # Push to the benchmarking branch triggers a run using the committed
+  # scripts/benchmark/bench.env config (push events cannot carry inputs).
+  # This is how the workflow runs before it exists on the default branch,
+  # where workflow_dispatch would otherwise be undispatchable.
+  push:
+    branches:
+      - worktree-build-optimization
   workflow_dispatch:
     inputs:
       variant:
@@ -72,23 +79,40 @@ jobs:
         run: |
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
 
+      - name: Resolve benchmark parameters
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Using workflow_dispatch inputs."
+            {
+              echo "VARIANT=${{ inputs.variant }}"
+              echo "NO_DAEMON=${{ inputs.no_daemon }}"
+              echo "GRADLE_DAEMON_HEAP=${{ inputs.gradle_daemon_heap }}"
+              echo "KOTLIN_DAEMON_HEAP=${{ inputs.kotlin_daemon_heap }}"
+              echo "AAPT2_HEAP=${{ inputs.aapt2_heap }}"
+              echo "WORKERS_MAX=${{ inputs.workers_max }}"
+              echo "PARALLEL=${{ inputs.parallel }}"
+              echo "CLEAN_FIRST=${{ inputs.clean_first }}"
+            } >> "$GITHUB_ENV"
+          else
+            cfg="scripts/benchmark/bench.env"
+            if [ ! -f "$cfg" ]; then
+              echo "::error::$cfg not found — cannot resolve benchmark parameters for a push run"
+              exit 1
+            fi
+            echo "Loading benchmark parameters from $cfg:"
+            # Only simple KEY=VALUE lines; ignores comments/blanks and blocks
+            # any multi-line $GITHUB_ENV injection.
+            grep -E '^[A-Z_][A-Z0-9_]*=[^[:space:]]*$' "$cfg" | tee -a "$GITHUB_ENV"
+          fi
+
       - name: Run build benchmark
-        env:
-          VARIANT: ${{ inputs.variant }}
-          NO_DAEMON: ${{ inputs.no_daemon }}
-          GRADLE_DAEMON_HEAP: ${{ inputs.gradle_daemon_heap }}
-          KOTLIN_DAEMON_HEAP: ${{ inputs.kotlin_daemon_heap }}
-          AAPT2_HEAP: ${{ inputs.aapt2_heap }}
-          WORKERS_MAX: ${{ inputs.workers_max }}
-          PARALLEL: ${{ inputs.parallel }}
-          CLEAN_FIRST: ${{ inputs.clean_first }}
         run: bash scripts/benchmark/run-build-benchmark.sh
 
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-${{ inputs.variant }}-${{ github.run_id }}
+          name: benchmark-${{ env.VARIANT }}-${{ github.run_id }}
           path: benchmark-results/
 
       - name: Cleanup google-services.json
