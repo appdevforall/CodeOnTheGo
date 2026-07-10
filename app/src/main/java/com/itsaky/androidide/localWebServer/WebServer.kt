@@ -70,6 +70,8 @@ class WebServer(private val config: ServerConfig) {
     private          val brotliCompression  : String  = "br"
     private          val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
     private          val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
+    private          val gson = Gson()
+    private          val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
     private          var bookshelfTemplateId : Int = -1;
     private          val HTTP_INTERNAL_SERVER_ERROR = 500
     private          val HTTP_NOT_FOUND = 404
@@ -451,7 +453,7 @@ class WebServer(private val config: ServerConfig) {
         }
 
         // Load JSON data into a template context Map<> for instantiation
-        val context: Map<String, Any> = Gson().fromJson(dbContent.toString(Charsets.UTF_8), object : TypeToken<Map<String, Any>>() {}.type)
+        val context: Map<String, Any> = gson.fromJson(dbContent.toString(Charsets.UTF_8), dbContextType)
 
         // Evaluate template with loaded data and return the output
         val sw = StringWriter()
