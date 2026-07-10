@@ -25,10 +25,9 @@ import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
 import java.util.concurrent.ConcurrentHashMap
 import io.pebbletemplates.pebble.template.PebbleTemplate
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import android.os.Environment.getExternalStorageDirectory
-import kotlinx.serialization.builtins.UByteArraySerializer
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import okio.ByteString.Companion.toByteString
 
 
@@ -452,8 +451,7 @@ class WebServer(private val config: ServerConfig) {
         }
 
         // Load JSON data into a template context Map<> for instantiation
-        val mapper = ObjectMapper()
-        val context: Map<String, Any> = mapper.readValue(dbContent.toString(Charsets.UTF_8), object : TypeReference<Map<String, Any>>() {})
+        val context: Map<String, Any> = Gson().fromJson(dbContent.toString(Charsets.UTF_8), object : TypeToken<Map<String, Any>>() {}.type)
 
         // Evaluate template with loaded data and return the output
         val sw = StringWriter()
