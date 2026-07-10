@@ -20,7 +20,6 @@ import androidx.core.graphics.createBitmap
 import androidx.core.net.toUri
 import androidx.core.text.HtmlCompat
 import androidx.lifecycle.lifecycleScope
-import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.eventbus.events.editor.ReportCaughtExceptionEvent
 import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
@@ -100,7 +99,7 @@ object FeedbackManager {
             append(
                 context.getString(
                     R.string.feedback_device_info,
-                    BuildInfo.VERSION_NAME_SIMPLE,
+                    BasicBuildInfo.formatVersion(),
                     Build.VERSION.RELEASE,
                     "${Build.MANUFACTURER} ${Build.MODEL}",
                 )
@@ -316,7 +315,7 @@ object FeedbackManager {
                     append(
                         activity.getString(
                             R.string.feedback_device_info,
-                            BuildInfo.VERSION_NAME_SIMPLE,
+                            BasicBuildInfo.formatVersion(),
                             Build.VERSION.RELEASE,
                             "${Build.MANUFACTURER} ${Build.MODEL}",
                         ),

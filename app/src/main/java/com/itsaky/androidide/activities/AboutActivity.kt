@@ -38,6 +38,7 @@ import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.ActivityAboutBinding
 import com.itsaky.androidide.models.IconTitleDescriptionItem
 import com.itsaky.androidide.models.SimpleIconTitleDescriptionItem
+import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.BuildInfoUtils
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.flashSuccess
@@ -189,7 +190,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
   private fun createVersionText(): CharSequence {
     val builder = SpannableStringBuilder()
     builder.append("v")
-    builder.append(BuildInfo.VERSION_NAME_SIMPLE)
+    builder.append(BasicBuildInfo.formatVersion())
     builder.append("-")
     builder.append(IDEBuildConfigProvider.getInstance().cpuAbiName)
     builder.append(" ")
