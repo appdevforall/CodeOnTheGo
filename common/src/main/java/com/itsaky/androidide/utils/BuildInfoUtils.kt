@@ -21,4 +21,12 @@ object BasicBuildInfo {
 		releaseVersion: String = BuildInfo.RELEASE_VERSION,
 		simpleVersion: String = BuildInfo.VERSION_NAME_SIMPLE,
 	): String = if (releaseVersion.isNotBlank()) "$releaseVersion ($simpleVersion)" else simpleVersion
+
+	@JvmStatic
+	@JvmOverloads
+	fun shareableBuildInfo(
+		internalName: String = BuildInfo.INTERNAL_NAME,
+		releaseVersion: String = BuildInfo.RELEASE_VERSION,
+		simpleVersion: String = BuildInfo.VERSION_NAME_SIMPLE,
+	): String = "$internalName ${formatVersion(releaseVersion, simpleVersion)}"
 }
