@@ -9,7 +9,6 @@ import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.FileInputStream
-import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URI
@@ -26,39 +25,6 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.reflect.jvm.javaMethod
-
-val isWindows = System.getProperty("os.name").lowercase().contains("windows")
-
-fun TaskContainer.registerD8Task(
-	taskName: String,
-	inputJar: File,
-	outputDex: File,
-): org.gradle.api.tasks.TaskProvider<Exec> {
-	val androidSdkDir = android.sdkDirectory.absolutePath
-	val buildToolsVersion = android.buildToolsVersion // Gets the version from your project
-	val d8Executable =
-		File(
-			"$androidSdkDir/build-tools/$buildToolsVersion/" +
-				if (isWindows) "d8.bat" else "d8",
-		)
-
-	if (!d8Executable.exists()) {
-		throw FileNotFoundException("D8 executable not found at: ${d8Executable.absolutePath}")
-	}
-
-	return register<Exec>(taskName) {
-		inputs.file(inputJar)
-		outputs.file(outputDex)
-
-		commandLine(
-			d8Executable.absolutePath,
-			"--release", // Enables optimizations
-			"--output",
-			outputDex.parent, // D8 outputs to a directory
-			inputJar.absolutePath,
-		)
-	}
-}
 
 plugins {
 	id("com.android.application")

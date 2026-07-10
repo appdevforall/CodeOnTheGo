@@ -5,7 +5,9 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import com.itsaky.androidide.R
+import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.adapters.MainActionsListAdapter
 import com.itsaky.androidide.actions.ActionData
@@ -64,6 +66,11 @@ class MainFragment : BaseFragment() {
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
+
+		binding!!.versionLabel.apply {
+			text = BasicBuildInfo.formatVersion()
+			isVisible = BasicBuildInfo.hasReleaseVersion
+		}
 
 		binding!!.headerContainer?.setOnClickListener { ifAttached { openQuickstartPageAction() } }
 		binding!!.headerContainer?.setOnLongClickListener {
