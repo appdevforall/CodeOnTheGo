@@ -133,7 +133,7 @@ This has taken just under 2 hr of hands-on time and about 12.5 hr of agent time,
 
 ## Spike Results
 
-**▶ Demo video (2 min):** *[attach **`2026-07-09_lemonade-live-reload.mp4`** on publish]* — starting from a blank app connected to the live-reload loop, four natural-language prompts (typed into an on-device "Ask Claude" dialog) build a playable Lemonade Stand game, restyle it mid-play, and add a dashboard and a leaderboard. Each change compiles and hot-reloads in ~1–3 s with **no build dialog, no install, no Play Protect prompt — and game state (day, cash) survives every reload.**
+**▶ Demo video (2 min):** *[attach **`2026-07-09_lemonade-live-reload.mp4`** on publish]* — starting from a blank app connected to the live-reload loop, four natural-language prompts (typed into an on-device "Ask Claude" dialog) build a playable Lemonade Stand game, restyle it mid-play, and add a dashboard and a leaderboard. Each change compiles and hot-reloads in ~1–3 s with **no build dialog, no install, no Play Protect prompt — and game state (day, cash) survives every reload — though to be clear that's the demo app persisting its state to storage and restoring it on load, not the reload preserving in-memory state (a full class/DEX reload can't; see B1 "State: persist + rebuild").**
 
 What the spike tested out:
 
@@ -204,6 +204,8 @@ Raw data, code, and detailed write-ups: spike branch `spike/mini-stubby/` (`DESI
 | **On-device warm compile service**                           | full ladder in §2; runs under ~460 MB free RAM.              |
 | **Incremental compile via Kotlin Build Tools API**           | **flat ~0.4–0.7 s** from 600 → 30k LoC (vs 9.6 s full); output verified **byte-identical to clean builds** at every size; under a 160 MB heap squeeze full compile ~2×-balloons while incremental holds ~1 s. |
 | **Dependencies: consume Gradle/Tooling-API's resolved classpath** (never reimplement resolution) | CoGo's `tooling-api-impl` already resolves per-module classpaths (LSP needs them); PoC compiled real androidx against CoGo's offline repo (266 artifacts) at **0.65 s/edit** on-device with zero CoGo changes. |
+
+# Followup Work
 
 ### B2. Genuinely open — options + evidence + lean
 
