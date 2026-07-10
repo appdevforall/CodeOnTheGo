@@ -179,6 +179,10 @@ configurations.matching { it.name.contains("AndroidTest") }.configureEach {
 
 configurations.configureEach {
 	exclude(group = "org.jetbrains.kotlin", module = "kotlin-android-extensions-runtime")
+	// auto-value is an annotation processor fat jar (shaded with ASM, JavaPoet, Guava, etc.)
+	// and must not appear on the runtime classpath. Each module runs it via annotationProcessor/kapt
+	// during its own compilation; the app module doesn't need it at runtime.
+	exclude(group = "com.google.auto.value", module = "auto-value")
 }
 
 dependencies {
