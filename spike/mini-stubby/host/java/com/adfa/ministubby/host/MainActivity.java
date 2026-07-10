@@ -7,9 +7,11 @@ import android.content.Intent;
 import android.content.res.loader.ResourcesLoader;
 import android.content.res.loader.ResourcesProvider;
 import android.graphics.Color;
+import android.graphics.PixelFormat;
 import android.os.Bundle;
 import android.os.FileObserver;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
@@ -21,6 +23,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -66,8 +69,12 @@ import dalvik.system.DexClassLoader;
  * Assets  -> served through the same loader apk (getAssets()).
  *
  * Phase 2 additions (ADFA-4128 component B):
- *  - Floating "Ask Claude" button overlaying the payload container. Tap opens a
- *    dialog (multiline EditText + Mic + Send/Cancel). Mic uses RecognizerIntent.
+ *  - The payload OWNS the Activity content (loadPayload -> setContentView), so it
+ *    behaves like a normal app and may call setContentView itself. The shell's
+ *    "Ask Claude" button + reload-status strip live in WindowManager SUB-WINDOWS
+ *    layered over the Activity (addChrome), so the payload can never wipe them.
+ *  - The Ask button opens a dialog (multiline EditText + Mic + Send/Cancel). Mic
+ *    uses RecognizerIntent.
  *  - Send POSTs {"prompt":...} to the Mac orchestrator at
  *    http://127.0.0.1:8377/ask (reachable via `adb reverse`). While in flight
  *    the status bar prepends "Claude is building… ".
@@ -114,10 +121,22 @@ public class MainActivity extends Activity {
     private static final String ORCHESTRATOR = "http://127.0.0.1:8377";
     private static final int REQ_SPEECH = 42;
 
-    private FrameLayout container;
     private TextView status;
     private Button askButton;
     private EditText askInput;   // non-null while the Ask dialog is open
+    /**
+     * Shell chrome (the reload-info status strip + the Ask-Claude button) lives in
+     * TWO WindowManager SUB-WINDOWS layered over the Activity, NOT inside the
+     * Activity's content view. That is what lets the payload be a NORMAL app that
+     * owns its own content (it may call {@code host.setContentView(...)}, host its
+     * own Activities, etc.) without ever wiping the shell's controls. The
+     * sub-windows attach to this Activity's window token, so they cost no
+     * permission (unlike {@code DevJumpService}'s system overlay) and are torn down
+     * with the Activity.
+     */
+    private View statusChrome;
+    private View buttonChrome;
+    private boolean chromeAdded = false;
     private FileObserver observer;
     private ResourcesLoader currentLoader;
     private int generation = 0;
@@ -146,40 +165,31 @@ public class MainActivity extends Activity {
         // factory's classloader field instead of reinstalling.
         getLayoutInflater().setFactory2(payloadFactory);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
+        // The payload OWNS the Activity content view. The shell puts the payload's
+        // View there (see loadPayload -> setContentView) and never wraps it, so the
+        // payload behaves like a normal app — it can even call setContentView on its
+        // own. Start with an empty placeholder until the first payload loads.
+        setContentView(new FrameLayout(this));
 
+        // Build the shell chrome (status strip + Ask button) as standalone views;
+        // they get hosted in sub-windows over the Activity (see addChrome), NOT in
+        // the content view, so the payload can never wipe them.
         status = new TextView(this);
         status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
-        status.setBackgroundColor(0xFF263238);
+        status.setBackgroundColor(0xF0263238);
         status.setTextColor(Color.WHITE);
         status.setGravity(Gravity.CENTER_VERTICAL);
         status.setPadding(24, 16, 24, 16);
-        root.addView(status, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         renderStatus();
-
-        // Overlay area: payload container fills it; the Ask-Claude button floats
-        // bottom-right ON TOP of (not inside) the payload UI.
-        FrameLayout overlay = new FrameLayout(this);
-        root.addView(overlay, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-
-        container = new FrameLayout(this);
-        overlay.addView(container, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
         askButton = new Button(this);
         askButton.setText("Ask Claude");
         askButton.setAllCaps(false);
         askButton.setOnClickListener(v -> showAskDialog());
-        FrameLayout.LayoutParams fabLp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM | Gravity.END);
-        fabLp.setMargins(0, 0, 32, 32);
-        overlay.addView(askButton, fabLp);
 
-        setContentView(root);
+        // Attach the chrome once the Activity window has a token (needed for the
+        // sub-window). Retried from onResume as a safety net.
+        getWindow().getDecorView().post(this::addChrome);
 
         File payloadDir = new File(getFilesDir(), "payload");
         //noinspection ResultOfMethodCallIgnored
@@ -209,7 +219,78 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        addChrome();    // safety net: attach the chrome sub-windows if not yet up
         startDevJump(); // self-heal: re-add the overlay if its service was killed
+    }
+
+    /**
+     * Attach the shell chrome (status strip + Ask button) as two sub-windows layered
+     * over the Activity. Sub-windows use this Activity's window token, so they need
+     * no permission and float above WHATEVER the payload draws — including after the
+     * payload calls {@code setContentView} itself. Idempotent; a no-op until the
+     * window has a token and once the chrome is already attached.
+     */
+    private void addChrome() {
+        if (chromeAdded) return;
+        IBinder token = getWindow().getDecorView().getWindowToken();
+        if (token == null) {
+            getWindow().getDecorView().post(this::addChrome);   // token not ready yet
+            return;
+        }
+        try {
+            WindowManager wm = getWindowManager();
+
+            // Status strip: top, full width, display-only (lets touches pass through).
+            WindowManager.LayoutParams sp = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_PANEL,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                    PixelFormat.TRANSLUCENT);
+            sp.token = token;
+            sp.gravity = Gravity.TOP | Gravity.START;
+            wm.addView(status, sp);
+            statusChrome = status;
+
+            // Ask button: bottom-end, tappable (not FLAG_NOT_TOUCHABLE). The rest of
+            // the screen isn't covered by this WRAP_CONTENT window, and
+            // FLAG_NOT_TOUCH_MODAL sends any touch outside it to the payload behind.
+            WindowManager.LayoutParams bp = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_PANEL,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                    PixelFormat.TRANSLUCENT);
+            bp.token = token;
+            bp.gravity = Gravity.BOTTOM | Gravity.END;
+            bp.x = 32;
+            bp.y = 48;
+            wm.addView(askButton, bp);
+            buttonChrome = askButton;
+
+            chromeAdded = true;
+            Log.i(TAG, "shell chrome attached (status + Ask button sub-windows)");
+        } catch (Throwable t) {
+            Log.w(TAG, "addChrome failed", t);
+        }
+    }
+
+    /** Tear the chrome sub-windows down (onDestroy). Safe to call if not attached. */
+    private void removeChrome() {
+        if (!chromeAdded) return;
+        WindowManager wm = getWindowManager();
+        if (statusChrome != null) {
+            try { wm.removeView(statusChrome); } catch (Throwable ignored) {}
+            statusChrome = null;
+        }
+        if (buttonChrome != null) {
+            try { wm.removeView(buttonChrome); } catch (Throwable ignored) {}
+            buttonChrome = null;
+        }
+        chromeAdded = false;
     }
 
     /** Show the floating App⇄CoGo quick-jump overlay (dev speed). No-op without the
@@ -361,9 +442,11 @@ public class MainActivity extends Activity {
             }
             currentEntry = entry;
 
-            container.removeAllViews();
-            container.addView(view, new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            // The payload's View IS the Activity content. Set it only after a
+            // successful render() (if render threw we're in catch and the OLD
+            // content stays up — see the rollback below). The shell chrome lives in
+            // sub-windows, so it survives this setContentView untouched.
+            setContentView(view);
 
             final int gen = generation;
             final long apkBytes = copy.length();
@@ -535,11 +618,29 @@ public class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- status
 
-    /** Re-renders the status bar from idleStatus + the in-flight flag. Main thread only. */
+    /**
+     * Re-renders the status strip from idleStatus + the in-flight flag, then makes
+     * it briefly visible. The strip floats over the payload's top edge, so it
+     * AUTO-HIDES ~3.5 s after the last update to get out of the app's way — except
+     * while a build is in flight, when it stays up as a progress indicator. Main
+     * thread only.
+     */
     private void renderStatus() {
         String prefix = askInFlight ? "Claude is building… " : "";
         status.setText("mini-stubby: " + prefix + idleStatus);
+        status.setVisibility(View.VISIBLE);
+        main.removeCallbacks(hideStatus);
+        if (!askInFlight) {
+            main.postDelayed(hideStatus, 3500);
+        }
     }
+
+    /** Hides the status strip so it stops covering the payload's top edge. */
+    private final Runnable hideStatus = () -> {
+        if (!askInFlight && status != null) {
+            status.setVisibility(View.GONE);
+        }
+    };
 
     // ------------------------------------------------------------ ask dialog
 
@@ -639,8 +740,10 @@ public class MainActivity extends Activity {
             try {
                 JSONObject body = new JSONObject();
                 body.put("prompt", prompt);
-                // Claude runs 30–120 s; be generous on the read timeout.
-                String resp = postJson("/ask", body.toString(), 180_000);
+                // Claude runs 30–180 s (an initial full-app build can be long); keep
+                // the read timeout well above that so the in-app result toast still
+                // lands even on a slow build. The reload itself happens regardless.
+                String resp = postJson("/ask", body.toString(), 300_000);
                 JSONObject json = new JSONObject(resp);
                 ok = "ok".equals(json.optString("status"));
                 message = json.optString("message", ok ? "done" : "unknown error");
@@ -759,6 +862,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        removeChrome();
         if (observer != null) observer.stopWatching();
     }
 }

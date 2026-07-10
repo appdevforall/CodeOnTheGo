@@ -2,5 +2,12 @@
 <resources>
     <color name="bg">#FF0B3D2E</color>
     <color name="fg">#FFE8F5E9</color>
-    <string name="app">Kotlin warm-compile service</string>
+    <color name="card_bg">#FF12503C</color>
+    <color name="accent">#FFF6C445</color>
+    <color name="accent_dark">#FFD9A62A</color>
+    <color name="muted">#FFAFCFC0</color>
+    <color name="positive">#FF6FCF8F</color>
+    <color name="negative">#FFEF7A7A</color>
+    <color name="field_bg">#FF0E3A2C</color>
+    <string name="app">Lemonade Stand</string>
 </resources>

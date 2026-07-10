@@ -52,6 +52,17 @@ public class KotlinCompileService {
     /** Payload's own class digests at the last deploy — the Tier-1 gate baseline. */
     static java.util.Map<String, String> lastAppDigests = null;
 
+    // ---- incremental compile (Build Tools API) ----
+    /** ON by default; -Dinc=false falls back to the whole-app K2JVMCompiler path. */
+    static boolean incEnabled = !"false".equals(System.getProperty("inc"));
+    /** R.class output — a SEPARATE, stable classpath entry (the IC engine snapshots it;
+     *  it must not be the kotlinc output dir, which the engine manages itself). */
+    static Path rDir;
+    static IncrementalCompiler incCompiler;
+    static volatile boolean incSeeded = false;  // true after the first (cold) incremental compile
+    /** .kt files changed since the last compile, collected by the watch loop (single consumer). */
+    static final java.util.Set<Path> changedSrc = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     public static void main(String[] args) throws Exception {
         spikeRoot = Path.of(args[0]);
         payloadDir = Path.of(args[1]);
@@ -70,20 +81,30 @@ public class KotlinCompileService {
         genDir = workDir.resolve("gen");
         resourcesApk = workDir.resolve("resources.apk");
         outApk = workDir.resolve("payload-kotlin.apk");
+        rDir = workDir.resolve("rclasses");
         Files.createDirectories(classesDir);
+        Files.createDirectories(rDir);
 
-        log("service starting (deploy=" + deploy + ")");
+        log("service starting (deploy=" + deploy + ", inc=" + incEnabled + ")");
 
         // ---- one-time warm setup ----
         long s0 = now();
         linkResources();                 // aapt2 → resources.apk + R.java
         compileRClass();                 // javac R.java → R.class (kotlin classpath needs it)
         dexStdlibOnce();                 // d8 kotlin-stdlib → cached classes2.dex
-        log("one-time setup " + (now() - s0) + " ms (aapt2 + R + stdlib-dex)");
+        if (incEnabled) {
+            // Snapshot the fixed classpath (android.jar + R + stdlib) ONCE; the IC engine
+            // then tracks source changes across saves.
+            incCompiler = new IncrementalCompiler(
+                    List.of(androidJar, rDir.toString(), stdlibJar), workDir.resolve("inc"));
+            log("incremental compile ENABLED (Kotlin Build Tools API)");
+        }
+        log("one-time setup " + (now() - s0) + " ms (aapt2 + R + stdlib-dex"
+                + (incEnabled ? " + cp-snapshot" : "") + ")");
 
         // Warm-up compile: pays the ~6.6 s cold Kotlin cost ONCE so real edits are warm.
         long w0 = now();
-        buildAndDeploy(true);
+        buildAndDeploy(true, false);
         log("warm-up (cold compiler) " + (now() - w0) + " ms — subsequent saves are warm");
 
         startHttp();                     // receives /reloaded from the shell for end-to-end timing
@@ -92,27 +113,50 @@ public class KotlinCompileService {
 
     // ---------- the warm per-save path ----------
 
-    static void buildAndDeploy(boolean warmup) throws Exception {
+    static void buildAndDeploy(boolean warmup, boolean resChanged) throws Exception {
         long t0 = now();
-        // 1. Kotlin compile (warm JVM, fresh compiler). classpath = android.jar +
-        //    R.class dir + stdlib (compile-time refs); -no-stdlib so stdlib isn't
-        //    re-emitted (it's already dexed as classes2.dex).
+        // 1. Kotlin compile (warm JVM). classpath = android.jar + R.class dir + stdlib.
+        //    R lives in rDir (a STABLE classpath entry the IC engine snapshots), NOT in the
+        //    kotlinc output dir (classesDir), which the IC engine manages itself.
         List<Path> kt = new ArrayList<>();
         collect(srcDir, ".kt", kt);
-        String cp = androidJar + File.pathSeparator + classesDir + File.pathSeparator + stdlibJar;
-        deleteClassFilesUnder(classesDir); // keep R.class (in genClasses), clear app classes
+        String cp = androidJar + File.pathSeparator + rDir + File.pathSeparator + stdlibJar;
         long k0 = now();
-        ExitCode code = kotlinCompile(kt, cp, classesDir);
-        long kMs = now() - k0;
-        if (code != ExitCode.OK) {
-            log("kotlinc FAILED (" + code + "):\n" + lastDiag.trim());
-            return;
+        boolean incremental = false;
+        if (incEnabled) {
+            // A resource change regenerated R.java → recompile R and re-seed incremental
+            // state so the new R ABI is on the snapshotted classpath.
+            if (resChanged) { compileRClass(); reseedIncremental(); }
+            List<File> allSrc = new ArrayList<>();
+            for (Path p : kt) allSrc.add(p.toFile());
+            List<File> changed;
+            if (warmup || !incSeeded || resChanged) {
+                changed = allSrc;                          // cold / re-seed → recompile all
+            } else {
+                java.util.Set<Path> drained = new java.util.HashSet<>(changedSrc);
+                changedSrc.clear();
+                drained.retainAll(new java.util.HashSet<>(kt)); // drop deletes/stale
+                changed = new ArrayList<>();
+                for (Path p : drained) changed.add(p.toFile());
+                if (changed.isEmpty()) changed = allSrc;   // unknown change → full (safe)
+                else incremental = true;
+            }
+            boolean ok = incCompiler.compile(allSrc, changed, cp, classesDir,
+                    List.of("-Xlambdas=class", "-Xsam-conversions=class"));
+            lastDiag = incCompiler.diagnostics();
+            if (ok) incSeeded = true;
+            else { log("kotlinc FAILED (incremental):\n" + lastDiag.trim()); return; }
+        } else {
+            deleteClassFilesUnder(classesDir);             // whole-app path clears app classes
+            ExitCode code = kotlinCompile(kt, cp, classesDir);
+            if (code != ExitCode.OK) { log("kotlinc FAILED (" + code + "):\n" + lastDiag.trim()); return; }
         }
+        long kMs = now() - k0;
         lastAppDigests = appClassDigests(); // Tier-1 gate baseline stays in sync with the deploy
 
-        // 2. warm in-process d8 of ONLY the app classes → classes.dex.
+        // 2. warm in-process d8 of the app classes + R → classes.dex.
         long d0 = now();
-        runD8(classesDir, appDexDir);
+        runD8Multi(List.of(classesDir, rDir), appDexDir);
         long dMs = now() - d0;
 
         // 3. package: resources.apk + app classes.dex + cached stdlib classes2.dex.
@@ -130,8 +174,9 @@ public class KotlinCompileService {
         gen++;
         lastDeployAt = now();
         long total = now() - t0;
-        log((warmup ? "warmup" : "TIER2 code (full compile+reload)")
-                + " total=" + total + "ms (kotlinc=" + kMs + " d8=" + dMs
+        String mode = warmup ? "warmup" : (incremental ? "TIER2 code (INCREMENTAL compile+reload)"
+                : "TIER2 code (full compile+reload)");
+        log(mode + " total=" + total + "ms (kotlinc=" + kMs + " d8=" + dMs
                 + " pack=" + pMs + " deploy=" + (deploy ? depMs + "ms" : "skipped") + ")");
     }
 
@@ -167,14 +212,31 @@ public class KotlinCompileService {
      */
     static void codeChange(boolean forceTier2) throws Exception {
         if (tier1Enabled && !forceTier2 && tryTier1Redefine()) return;
-        buildAndDeploy(false); // TIER 2
+        buildAndDeploy(false, forceTier2 /* resChanged */); // TIER 2
+    }
+
+    /** Dex a set of class-dirs together (app classesDir + R rDir) into one classes.dex. */
+    static void runD8Multi(List<Path> roots, Path outDir) throws Exception {
+        List<Path> classFiles = new ArrayList<>();
+        for (Path r : roots) collect(r, ".class", classFiles);
+        d8(classFiles, outDir);
+    }
+
+    /** Rebuild the incremental compiler from a clean state (used when R changed, so the new
+     *  R ABI is re-snapshotted). Resource changes are rare vs code edits, so the cold re-seed
+     *  on the next compile is an acceptable cost. */
+    static void reseedIncremental() throws Exception {
+        deleteRecursively(workDir.resolve("inc"));
+        incCompiler = new IncrementalCompiler(
+                List.of(androidJar, rDir.toString(), stdlibJar), workDir.resolve("inc"));
+        incSeeded = false;
     }
 
     static boolean tryTier1Redefine() throws Exception {
         long t0 = now();
         List<Path> kt = new ArrayList<>();
         collect(srcDir, ".kt", kt);
-        String cp = androidJar + File.pathSeparator + classesDir + File.pathSeparator + stdlibJar;
+        String cp = androidJar + File.pathSeparator + rDir + File.pathSeparator + stdlibJar;
         deleteClassFilesUnder(classesDir);
         long k0 = now();
         ExitCode code = kotlinCompile(kt, cp, classesDir);
@@ -214,7 +276,7 @@ public class KotlinCompileService {
         // stale code and silently revert the hot-swap. (On-device payload.apk is
         // NOT re-pushed — that would trigger a redundant reload; a shell RESTART
         // therefore reloads the last full deploy, a documented spike limitation.)
-        runD8(classesDir, appDexDir);
+        runD8Multi(List.of(classesDir, rDir), appDexDir);
         Files.copy(resourcesApk, outApk, StandardCopyOption.REPLACE_EXISTING);
         zipInto(outApk, appDexDir.resolve("classes.dex"), "classes.dex");
         zipInto(outApk, libDexDir.resolve("classes.dex"), "classes2.dex");
@@ -304,7 +366,7 @@ public class KotlinCompileService {
     static void compileRClass() throws Exception {
         List<Path> rJava = new ArrayList<>();
         collect(genDir, ".java", rJava);
-        List<String> a = new ArrayList<>(List.of("-classpath", androidJar, "-d", classesDir.toString()));
+        List<String> a = new ArrayList<>(List.of("-classpath", androidJar, "-d", rDir.toString()));
         for (Path p : rJava) a.add(p.toString());
         javax.tools.JavaCompiler jc = javax.tools.ToolProvider.getSystemJavaCompiler();
         if (jc.run(null, null, null, a.toArray(new String[0])) != 0)
@@ -361,9 +423,17 @@ public class KotlinCompileService {
             while ((k2 = ws.poll()) != null) keys.add(k2);
             for (WatchKey kk : keys) {
                 Path dir = (Path) kk.watchable();
-                if (dir.startsWith(srcDir)) srcChanged = true;
-                if (dir.startsWith(resDir)) resChanged = true;
-                kk.pollEvents();
+                boolean inSrc = dir.startsWith(srcDir), inRes = dir.startsWith(resDir);
+                for (WatchEvent<?> ev : kk.pollEvents()) {
+                    Object ctx = ev.context();
+                    Path name = (ctx instanceof Path) ? (Path) ctx : null;
+                    if (inSrc) {
+                        srcChanged = true;
+                        // Record the specific .kt so the incremental compiler recompiles just it.
+                        if (name != null && name.toString().endsWith(".kt")) changedSrc.add(dir.resolve(name));
+                    }
+                    if (inRes) resChanged = true;
+                }
                 kk.reset();
             }
             // TIER DISPATCH: a code change takes the code path; a resource-only

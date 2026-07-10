@@ -1,0 +1,10 @@
+annotations
+kotlin-build-tools-api
+kotlin-build-tools-impl
+kotlin-compiler-embeddable
+kotlin-daemon-embeddable
+kotlin-reflect
+kotlin-script-runtime
+kotlin-stdlib
+kotlinx-coroutines-core-jvm
+trove4j

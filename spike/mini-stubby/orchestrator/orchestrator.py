@@ -35,40 +35,71 @@ CLAUDE_BIN = "/Users/bryanchan/.local/bin/claude"
 CLAUDE_TIMEOUT_S = 240
 
 SPIKE_ROOT = Path(__file__).resolve().parent.parent
-PAYLOAD_DIR = SPIKE_ROOT / "payload"
+PAYLOAD_DIR = SPIKE_ROOT / "payload-kotlin"
+# The warm compile service appends its build results here. We tail it after each
+# Claude edit to detect a COMPILATION_ERROR and auto-feed it back for a fix.
+COMPILE_LOG = SPIKE_ROOT / "build" / "logs" / "compile-service.log"
+BUILD_FIX_RETRIES = 2
 
-# System-ish preamble for the in-app "what should I build next" agent. It must
-# keep Claude inside the payload contract — edit-only, framework widgets,
-# stable entry point — because the devloop daemon rebuilds whatever lands on
-# disk and the shell renders it blindly.
+# System-ish preamble for the in-app "build/tweak this app" agent. It keeps
+# Claude inside the KOTLIN payload contract that the warm compile service +
+# shell render blindly.
 PREAMBLE = """\
-You are live-editing an Android "user app" payload that is hot-reloaded onto a
-phone the user is holding right now. Rules — follow ALL of them:
+You are live-editing a KOTLIN Android app that hot-reloads onto a phone the user
+is holding right now. Rules — follow ALL of them:
 
-- You are in the payload source directory. Look before you edit: code lives
-  under java/app/payload/ (packages app.payload, app.payload.ui,
-  app.payload.data); res/values/values.xml holds strings, colors, dimens and
-  styles; res/values-night/ holds the dark palette; res/layout/ holds screens;
-  res/drawable/ holds shapes and selectors; assets/ holds raw files.
-- The entry point is `app.payload.Main`, whose `render(Activity)`,
-  `render(Activity, Bundle)` and `saveState()` methods the shell invokes by
-  reflection. Keep that class name and those signatures EXACTLY as they are.
-- A custom View subclass CAN be referenced by class name in layout XML. But do
-  NOT add custom XML attributes (declare-styleable) — the payload's attr
-  namespace is invisible to the host theme. Style custom views from code.
-- Anything placed in the saveState() Bundle must be a framework type (String,
-  int, int[], long, …) — never a payload-defined class.
-- Use Android FRAMEWORK widgets and APIs only (android.widget.*, android.view.*
-  etc.). No androidx, no external libraries, no new dependencies. No Fragments.
-- Reference resources via the payload's own R class / @string / @color / @layout.
-  The resource package id is assigned at build time — NEVER hardcode resource
-  ids or the 0x80 package id.
-- ONLY edit files. Do NOT run any build, gradle, adb, or shell commands — a
-  file watcher rebuilds and hot-reloads automatically the moment you save.
-- Keep the change minimal and self-contained; the app must stay compilable
-  plain Java 17 against the Android SDK.
-- When you are done, reply with exactly ONE short sentence describing what you
-  changed — it is shown on the phone's screen.
+- Source layout (look before you edit):
+  * src/app/payload/*.kt   — Kotlin code (package app.payload)
+  * res/values/values.xml  — strings and colors
+  * res/layout/*.xml       — layouts (optional; you may also build views in code)
+- ENTRY POINT: `object Main` with `@JvmStatic fun render(host: Activity): View`.
+  The shell calls Main.render(activity) by reflection and sets the returned View as
+  the Activity content. Keep that object name and method signature EXACTLY. render()
+  must return the root View to display. (You MAY call host.setContentView / start
+  Activities if you want — the shell's controls float in their own windows and are
+  never affected — but the simplest pattern is: build a root ViewGroup once and
+  update the UI by rebuilding its children in place, e.g.
+  `fun rebuild(root: LinearLayout, host: Activity) { root.removeAllViews(); … }`,
+  which render() also calls.)
+- LEAVE ROOM AT THE TOP: the shell briefly shows a thin status strip across the very
+  top on each reload. Give your root a little top padding (~48px) so your title/first
+  row isn't covered while it's visible.
+- FRAMEWORK WIDGETS ONLY: android.widget.*, android.view.*, android.graphics.*,
+  android.app.*, kotlin stdlib. NO androidx, NO Compose, NO Fragments, NO
+  external libraries, NO new dependencies, NO Gradle.
+- PERSIST ALL APP STATE across reloads. On every state change, write to
+  host.getSharedPreferences("game", 0). At the START of render(), READ that state
+  back and rebuild the UI from it. This is critical: a hot-reload rebuilds the UI,
+  and the user must NOT lose game progress when you tweak the app. Use only
+  primitive/String prefs (putInt/putString/putBoolean; encode lists as a joined
+  String or JSON via org.json which IS available).
+- THE USER IS MID-GAME RIGHT NOW. When a request adds or changes a feature, you
+  MUST preserve the in-progress game: only ADD new keys to the saved state — never
+  reset, rename, clear, or change the meaning of an existing key, and never wipe
+  SharedPreferences. New keys must default gracefully (e.g. missing history = empty)
+  so an existing save keeps its exact day number and cash on hand after the reload.
+  A purely visual restyle must not touch game logic or state at all.
+- Build the UI programmatically in Kotlin (LinearLayout, TextView, Button,
+  EditText, ScrollView) with setOnClickListener handlers.
+- *** COLORS: NEVER use R.color.* — it will NOT compile. *** The resource table is
+  FIXED; res/values/values.xml already defines a `bg`/`fg`/`app` set and nothing
+  else, and you cannot rely on adding more. ALWAYS use direct ints via
+  android.graphics.Color, e.g. `Color.parseColor("#FFF5C518")` or hard-coded hex
+  constants in Kotlin. Do NOT write `R.color.anything`, `host.getColor(R.color.…)`,
+  or a getColor-with-fallback helper — even inside a try/catch, the `R.color.NAME`
+  symbol itself fails to RESOLVE AT COMPILE TIME and the whole build breaks, so
+  nothing reloads. Same for `@color/…` in any XML you touch.
+- Other resources: `R.string.app` exists and is fine. Do not invent new
+  R.string/R.layout/R.id/R.drawable references unless you ALSO define them in the
+  matching res/ file in the same change. When in doubt, inline the value in Kotlin.
+- Keep it in as few .kt files as practical; ensure it COMPILES as plain Kotlin
+  against the Android SDK (no unresolved refs, no androidx imports). Every helper
+  or symbol you reference must be defined — the build fails HARD on any unresolved
+  reference and then the app does not update at all.
+- ONLY edit files. Do NOT run build, gradle, adb, or shell commands — a watcher
+  rebuilds and hot-reloads automatically the moment you save.
+- When done, reply with exactly ONE short sentence describing what you changed —
+  it is shown on the phone's screen.
 
 The user's request:
 """
@@ -89,6 +120,13 @@ def run_claude(prompt: str) -> tuple[bool, str]:
         PREAMBLE + prompt,
         "--permission-mode",
         "acceptEdits",
+        # Sonnet at medium effort: the payload is small, framework-only Kotlin, so
+        # a lighter/faster model keeps the edit→reload loop snappy (the headless
+        # agent's generation time dominates the loop, not the ~2 s compile).
+        "--model",
+        "sonnet",
+        "--effort",
+        "medium",
     ]
     log(f"claude -p starting (cwd={PAYLOAD_DIR})")
     t0 = time.monotonic()
@@ -114,6 +152,110 @@ def run_claude(prompt: str) -> tuple[bool, str]:
     lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
     message = lines[-1] if lines else "done (no output)"
     log(f"claude ok in {elapsed:.1f}s: {message}")
+    return True, message
+
+
+def _compile_log_size() -> int:
+    try:
+        return COMPILE_LOG.stat().st_size
+    except OSError:
+        return 0
+
+
+def check_build(start_size: int, settle_s: float = 2.5, timeout_s: float = 40.0):
+    """
+    After Claude has edited the payload, the warm compile service rebuilds
+    asynchronously. Wait for its log to settle, then classify the LAST build result
+    that appeared after `start_size`. Returns (built_ok, diagnostic).
+
+    A build that COMPILATION_ERRORs logs `kotlinc FAILED (COMPILATION_ERROR):` +
+    the kotlinc diagnostic; a good build logs `TIER2 code (full compile+reload)`.
+    Transient mid-write failures are fine — only the LAST result matters.
+    """
+    deadline = time.monotonic() + timeout_s
+    last_size = -1
+    stable_since = None
+    saw_result = False
+    while time.monotonic() < deadline:
+        size = _compile_log_size()
+        # peek at whether a build result has appeared yet
+        if size > start_size and not saw_result:
+            try:
+                with open(COMPILE_LOG, "rb") as f:
+                    f.seek(start_size)
+                    chunk = f.read().decode("utf-8", "replace")
+                if "TIER2 code (full compile+reload)" in chunk or "kotlinc FAILED" in chunk:
+                    saw_result = True
+            except OSError:
+                pass
+        if size != last_size:
+            last_size = size
+            stable_since = time.monotonic()
+        elif saw_result and stable_since and (time.monotonic() - stable_since) >= settle_s:
+            break
+        time.sleep(0.5)
+
+    try:
+        with open(COMPILE_LOG, "rb") as f:
+            f.seek(start_size)
+            new = f.read().decode("utf-8", "replace")
+    except OSError:
+        return True, ""   # can't read — don't block the loop
+
+    ok_idx = new.rfind("TIER2 code (full compile+reload)")
+    fail_idx = new.rfind("kotlinc FAILED")
+    if fail_idx > ok_idx:
+        # Grab the diagnostic: lines from the FAILED marker up to the next KCS line.
+        tail = new[fail_idx:]
+        diag_lines = []
+        for ln in tail.splitlines()[1:]:      # skip the "KCS kotlinc FAILED…" line
+            if ln.startswith("KCS "):
+                break
+            if ln.strip():
+                diag_lines.append(ln.rstrip())
+        diag = "\n".join(diag_lines[:40])     # cap size
+        return False, diag
+    return True, ""
+
+
+def run_claude_with_build_retry(prompt: str) -> tuple[bool, str]:
+    """
+    Run Claude, then verify the payload actually COMPILED. If the warm compiler
+    reports a COMPILATION_ERROR, feed the exact kotlinc diagnostic back to Claude to
+    fix it — up to BUILD_FIX_RETRIES times. This is what makes the live-reload loop
+    robust to the occasional generation slip (wrong helper arity, a typo): the user
+    just sees a slightly longer build, then the working app.
+    """
+    start = _compile_log_size()
+    ok, message = run_claude(prompt)
+    if not ok:
+        return ok, message
+
+    built, diag = check_build(start)
+    attempt = 0
+    while not built and attempt < BUILD_FIX_RETRIES:
+        attempt += 1
+        log(f"build failed (attempt {attempt}/{BUILD_FIX_RETRIES}); feeding kotlinc "
+            f"error back to Claude:\n{diag}")
+        fix_prompt = (
+            "The change you just made does NOT compile. Fix the Kotlin compile "
+            "error(s) below so the app builds. Keep all existing behavior and state; "
+            "change only what's needed to compile. Do not introduce R.color.* — use "
+            "android.graphics.Color directly.\n\n"
+            "kotlinc error output:\n" + diag
+        )
+        start = _compile_log_size()
+        ok, message = run_claude(fix_prompt)
+        if not ok:
+            return ok, message
+        built, diag = check_build(start)
+
+    if not built:
+        log(f"build STILL failing after {BUILD_FIX_RETRIES} fix attempts")
+        return False, "build failed (compile error persisted after auto-fix)"
+    if attempt:
+        log(f"build recovered after {attempt} auto-fix attempt(s)")
+        message = message + f" (auto-fixed {attempt} compile error(s))"
     return True, message
 
 
@@ -194,7 +336,7 @@ class Handler(BaseHTTPRequestHandler):
             if Handler.mock_claude:
                 ok, message = run_mock_claude(prompt)
             else:
-                ok, message = run_claude(prompt)
+                ok, message = run_claude_with_build_retry(prompt)
             self._reply_json(200 if ok else 500,
                              {"status": "ok" if ok else "error", "message": message})
         finally:
