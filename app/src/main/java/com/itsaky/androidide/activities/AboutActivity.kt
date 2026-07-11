@@ -78,7 +78,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       supportActionBar!!.setDisplayHomeAsUpEnabled(true)
       supportActionBar!!.setTitle(R.string.about)
       toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
-        feedbackButtonManager = FeedbackButtonManager(this@AboutActivity, fabFeedback?.root)
+        feedbackButtonManager = FeedbackButtonManager(this@AboutActivity, fabFeedback.root)
         feedbackButtonManager?.setupDraggableFab()
 
       aboutHeader.apply {
