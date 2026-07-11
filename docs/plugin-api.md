@@ -2,7 +2,7 @@
 
 Guidance for **maintainers changing the Code on the Go plugin API**. It defines what counts as the plugin contract, the current compatibility policy, and how to change the API without breaking plugins already in the field by accident.
 
-This is *not* a plugin-authoring how-to. For that — project layout, manifest contract, building a `.cgp` — see the **Plugin Development wiki** (<https://appdevforall.atlassian.net/wiki/x/BQANIQ>), the authoritative API reference, and the in-tree example plugins.
+This is *not* a plugin-authoring how-to. For that — project layout, manifest contract, building a `.cgp` — see **[PLUGIN_AUTHORING.md](PLUGIN_AUTHORING.md)** (the in-repo author guide), the **Plugin Development wiki** (<https://appdevforall.atlassian.net/wiki/x/BQANIQ>, the authoritative API reference), and the in-tree example plugins.
 
 ## What counts as the plugin API (the contract)
 
@@ -57,5 +57,6 @@ These look source-compatible but break already-built `.cgp` plugins:
 
 ## Related
 
+- [PLUGIN_AUTHORING.md](PLUGIN_AUTHORING.md) — the author-facing how-to (layout, manifest, icons, building/installing).
 - [REVIEW.md](../REVIEW.md) §13 — reviewing a change's impact on plugins.
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — where `:plugin-api` / `:plugin-manager` sit in the module map.
