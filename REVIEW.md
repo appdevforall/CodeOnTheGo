@@ -180,7 +180,7 @@ Hold the change to the patterns in [ARCHITECTURE.md](ARCHITECTURE.md). The key r
 - [ ] **Module boundaries:** the change respects the dependency direction (UI → ViewModel → Repository → data source; features depend on `common`/`utils`, not the reverse). No new cross-feature or upward dependency.
 - [ ] **UI safety:** never place our UI over the two Android system bars — the top status bar and the bottom navigation bar (`CLAUDE.md`).
 
-> Follow-up: a dedicated **architecture-review skill** (subagents read ARCHITECTURE.md + the ADRs and check the diff against them) would go deeper than this inline list — worth building once the harness is validated on real PRs.
+> For a deeper pass, run the **`architecture-review` skill** — it *reads* ARCHITECTURE.md and the ADRs and checks the diff against them, tracing each finding to its ADR/section. Use it when a change is architecturally significant; this inline list is the quick check, the skill is the thorough one (it guarantees the authoritative docs are actually read, which prose links can't).
 
 ## 11. Offline-first
 
