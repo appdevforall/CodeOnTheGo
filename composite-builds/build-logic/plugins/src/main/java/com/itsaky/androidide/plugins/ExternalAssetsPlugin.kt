@@ -20,6 +20,9 @@ import org.gradle.api.provider.Provider
 import org.gradle.kotlin.dsl.dependencies
 import org.gradle.kotlin.dsl.newInstance
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -85,7 +88,7 @@ abstract class ExternalAssetsExtension @Inject constructor(
             config.jarName
         } else {
             val original = cacheDir.resolve(config.jarName)
-            val stripped = cacheDir.resolve(config.jarName.replace(".jar", "-stripped.jar"))
+            val stripped = cacheDir.resolve("${config.jarName.removeSuffix(".jar")}-stripped.jar")
             stripJar(original, stripped, config.excludeEntryPrefixes, project.logger)
             stripped.name
         }
@@ -101,24 +104,42 @@ abstract class ExternalAssetsExtension @Inject constructor(
 }
 
 private fun stripJar(source: File, dest: File, excludePrefixes: List<String>, logger: Logger) {
-    if (dest.exists() && dest.lastModified() >= source.lastModified()) {
+    val prefixesFile = File(dest.parentFile, "${dest.name}.prefixes")
+    val currentPrefixContent = excludePrefixes.sorted().joinToString("\n")
+    val upToDate = dest.exists()
+        && dest.lastModified() >= source.lastModified()
+        && prefixesFile.exists()
+        && prefixesFile.readText() == currentPrefixContent
+    if (upToDate) {
         logger.lifecycle("Skipping strip of ${source.name}: stripped copy is up-to-date")
         return
     }
     logger.lifecycle("Stripping ${excludePrefixes.size} prefix(es) from ${source.name}…")
-    ZipInputStream(source.inputStream().buffered()).use { zin ->
-        ZipOutputStream(dest.outputStream().buffered()).use { zout ->
-            var entry: ZipEntry? = zin.nextEntry
-            while (entry != null) {
-                if (excludePrefixes.none { entry!!.name.startsWith(it) }) {
-                    zout.putNextEntry(ZipEntry(entry.name))
-                    zin.copyTo(zout)
-                    zout.closeEntry()
+    val tmp = File(dest.parentFile, "${dest.name}.tmp")
+    try {
+        ZipInputStream(source.inputStream().buffered()).use { zin ->
+            ZipOutputStream(tmp.outputStream().buffered()).use { zout ->
+                var entry: ZipEntry? = zin.nextEntry
+                while (entry != null) {
+                    if (excludePrefixes.none { entry!!.name.startsWith(it) }) {
+                        zout.putNextEntry(ZipEntry(entry.name))
+                        zin.copyTo(zout)
+                        zout.closeEntry()
+                    }
+                    zin.closeEntry()
+                    entry = zin.nextEntry
                 }
-                zin.closeEntry()
-                entry = zin.nextEntry
             }
         }
+        try {
+            Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        } catch (_: AtomicMoveNotSupportedException) {
+            Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+        prefixesFile.writeText(currentPrefixContent)
+    } catch (e: Exception) {
+        tmp.delete()
+        throw e
     }
     val savedKb = (source.length() - dest.length()) / 1024
     logger.lifecycle("Stripped ${source.name}: saved ${savedKb} KB (${source.length()} → ${dest.length()} bytes)")
