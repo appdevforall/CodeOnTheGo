@@ -678,7 +678,14 @@ open class IDEEditor
 		private val isTouchExplorationEnabled: Boolean
 			get() = accessibilityManager?.isTouchExplorationEnabled == true
 
-		override fun getAccessibilityClassName(): CharSequence = EditText::class.java.name
+		override fun getAccessibilityClassName(): CharSequence =
+			// Only advertise EditText semantics in the same states createAccessibilityNodeInfo()
+			// does, so a read-only or released editor is not announced as an "Edit box".
+			if (!isReleased && isEnabled && isEditable) {
+				EditText::class.java.name
+			} else {
+				super.getAccessibilityClassName()
+			}
 
 		override fun createAccessibilityNodeInfo(): AccessibilityNodeInfo? {
 			val info = super.createAccessibilityNodeInfo() ?: return null
@@ -740,7 +747,10 @@ open class IDEEditor
 				if (line < 0 || column < 0) return false
 				setSelection(line, column)
 				true
-			} catch (e: Exception) {
+			} catch (e: IndexOutOfBoundsException) {
+				log.error("Error placing cursor from accessibility click", e)
+				false
+			} catch (e: IllegalArgumentException) {
 				log.error("Error placing cursor from accessibility click", e)
 				false
 			}
@@ -823,7 +833,10 @@ open class IDEEditor
 					setSelectionRegion(startPos.line, startPos.column, endPos.line, endPos.column)
 				}
 				true
-			} catch (e: Exception) {
+			} catch (e: IndexOutOfBoundsException) {
+				log.error("Error applying accessibility selection [$start, $end]", e)
+				false
+			} catch (e: IllegalArgumentException) {
 				log.error("Error applying accessibility selection [$start, $end]", e)
 				false
 			}

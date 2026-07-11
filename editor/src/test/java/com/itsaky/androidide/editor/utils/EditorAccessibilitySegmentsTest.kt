@@ -83,6 +83,17 @@ class EditorAccessibilitySegmentsTest {
     }
 
     @Test
+    fun `word following from inside a word snaps to the whole enclosing word`() {
+        // Offset 2 is inside "hello"; the whole word must be traversed, not a truncated tail.
+        assertThat(following("hello", word, 2)).isEqualTo(listOf(0, 5))
+    }
+
+    @Test
+    fun `word preceding from inside a word snaps to the whole enclosing word`() {
+        assertThat(preceding("hello", word, 2)).isEqualTo(listOf(0, 5))
+    }
+
+    @Test
     fun `word preceding returns previous word`() {
         val text = "foo bar"
         assertThat(preceding(text, word, 7)).isEqualTo(listOf(4, 7)) // bar

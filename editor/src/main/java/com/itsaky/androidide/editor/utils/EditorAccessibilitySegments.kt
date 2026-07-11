@@ -123,6 +123,11 @@ object EditorAccessibilitySegments {
         if (length <= 0 || offset >= length) return null
         val iterator = BreakIterator.getWordInstance().apply { setText(text.toString()) }
         var start = if (offset < 0) 0 else offset
+        // If the offset lands inside a word, snap back to that word's start so the whole
+        // enclosing word is traversed instead of a truncated tail (e.g. "hello"@2 -> [0,5]).
+        if (isLetterOrDigit(text, start)) {
+            while (start > 0 && isLetterOrDigit(text, start - 1)) start--
+        }
         // Skip past any non-word characters (whitespace, punctuation) to the start of a word.
         while (!isLetterOrDigit(text, start) && !isWordStart(text, start)) {
             start = iterator.following(start)
@@ -138,6 +143,11 @@ object EditorAccessibilitySegments {
         if (length <= 0 || offset <= 0) return null
         val iterator = BreakIterator.getWordInstance().apply { setText(text.toString()) }
         var end = if (offset > length) length else offset
+        // If the offset lands inside a word, snap forward to that word's end so the whole
+        // enclosing word is traversed instead of a truncated head (e.g. "hello"@2 -> [0,5]).
+        if (isLetterOrDigit(text, end - 1) && isLetterOrDigit(text, end)) {
+            while (end < length && isLetterOrDigit(text, end)) end++
+        }
         while (!isLetterOrDigit(text, end - 1) && !isWordEnd(text, end)) {
             end = iterator.preceding(end)
             if (end == DONE) return null
