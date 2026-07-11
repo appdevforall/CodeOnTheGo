@@ -1,6 +1,6 @@
 # Code Review Guide
 
-How to give a good review on Code On The Go. This is a coaching doc, not a gate — use judgment, explain the *why*, and prefer a concrete suggestion (or a diff) over "this is wrong." It complements, and does not replace, [ARCHITECTURE.md](ARCHITECTURE.md) (the source of truth for patterns) and the operational rules in `AGENTS.md` / `CLAUDE.md`.
+How to give a good review on Code On The Go. This is a coaching doc, not a gate — use judgment, explain the *why*, and prefer a concrete suggestion (or a diff) over "this is wrong." It complements, and does not replace, [ARCHITECTURE.md](ARCHITECTURE.md) (the source of truth for patterns) and the operational rules in [CLAUDE.md](CLAUDE.md).
 
 ## How to use this
 
@@ -21,7 +21,7 @@ How to give a good review on Code On The Go. This is a coaching doc, not a gate 
 - [ ] **Accessibility:** every actionable view has a `contentDescription` (XML *or* programmatic); decorative views are marked `importantForAccessibility="no"`.
 - [ ] **Contextual help:** new interactive elements (and any new screen/panel) have long-press help wired to the 3-tier tooltip system.
 - [ ] **Analytics:** meaningful user/build actions emit an event (see below).
-- [ ] **Scope/size:** PR is focused and within the ~500 LOC / 10-file guideline (`AGENTS.md`).
+- [ ] **Scope/size:** PR is focused and within the ~500 LOC / 10-file guideline (`CLAUDE.md`).
 
 ---
 
@@ -114,7 +114,7 @@ Keep event names/params stable and low-cardinality; **no PII, file paths with us
 - **Docstrings.** Public classes, functions, and non-obvious logic get KDoc/Javadoc. Document the *contract and the why* (threading expectations, nullability, side effects, units), not a restatement of the signature.
 - **Keep docs in sync with the code.** If a change alters a module's public API, commands, or behavior that's described in its `README.md` (or `ARCHITECTURE.md` / an ADR), update that doc in the *same* PR. A doc that documents a non-existent API is worse than no doc. If the doc-fix is genuinely out of scope, leave a tracked note (a ticket) rather than silently letting it drift.
 - **Strings in `strings.xml`.** User-facing text must be a string resource, never an inline literal — lint flags `HardcodedText`, and externalized strings feed our Crowdin translation flow. Use plurals/`getQuantityString` and positional args for formatting. Log messages and analytics keys are *not* user-facing and stay in code.
-- **Dependencies:** don't add one without checking `gradle/libs.versions.toml` first — we probably already have it (`AGENTS.md`).
+- **Dependencies:** don't add one without checking `gradle/libs.versions.toml` first — we probably already have it (`CLAUDE.md`).
 
 ## 8. Accessibility — every actionable view speaks
 
@@ -150,7 +150,7 @@ Hold the change to the patterns in [ARCHITECTURE.md](ARCHITECTURE.md):
 - New screens follow **UDF**: `ViewModel` + `StateFlow<UiState>`, sealed `UiEvent`/`UiEffect`, repository for data. Composables collect state via `collectAsState()`; keep I/O and business logic out of composables/Activities.
 - DI via **Koin** (constructor injection); register new singletons/viewModels in the module.
 - **Persistence:** prefer **Room** for relational data, filesystem/preferences for settings; raw SQLite only for justified exceptions (prebuilt read-only DBs, performance-critical indexing, cross-boundary schemas — see [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md)).
-- **UI safety:** never place our UI over the two Android system bars — the top status bar and the bottom navigation bar (`AGENTS.md`).
+- **UI safety:** never place our UI over the two Android system bars — the top status bar and the bottom navigation bar (`CLAUDE.md`).
 
 ## 11. Offline-first
 

@@ -92,7 +92,7 @@ A chunk of Sonar **blocker** findings are reliability bugs, not vulnerabilities:
 ## Before you push
 
 - **Self-review against §1–9** for the surfaces your change touches (input handling, crypto, network, WebView, manifest, new deps).
-- If you have the SonarQube MCP / `sonar` CLI handy, scan your branch locally and confirm **no new** blocker/high on changed files. Remember: official analysis runs in CI — local is verification only (`AGENTS.md`).
+- If you have the SonarQube MCP / `sonar` CLI handy, scan your branch locally and confirm **no new** blocker/high on changed files. Remember: official analysis runs in CI — local is verification only (`CLAUDE.md`).
 - If a finding is genuinely a false positive, document the reasoning and get reviewer sign-off **before** suppressing — and never suppress on code we own without that.
 
 ## Reporting a vulnerability
