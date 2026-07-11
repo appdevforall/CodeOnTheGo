@@ -1,6 +1,6 @@
 # 0002. On-device builds run real Gradle out-of-process via the Tooling API
 
-- **Status:** Accepted
+- **Status:** Proposed
 - **Date:** 2026-06-18
 - **Deciders:** Code On The Go team
 

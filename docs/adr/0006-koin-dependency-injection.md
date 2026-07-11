@@ -1,6 +1,6 @@
 # 0006. Use Koin for dependency injection, not Hilt/Dagger
 
-- **Status:** Accepted
+- **Status:** Proposed
 - **Date:** 2026-06-18
 - **Deciders:** Code On The Go team
 

@@ -1,6 +1,6 @@
 # 0009. Build new UI in Jetpack Compose, not XML Views
 
-- **Status:** Accepted
+- **Status:** Proposed
 - **Date:** 2026-06-19
 - **Deciders:** Code On The Go team
 

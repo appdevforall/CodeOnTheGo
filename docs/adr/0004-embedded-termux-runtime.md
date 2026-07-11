@@ -1,6 +1,6 @@
 # 0004. Embed Termux as the shell & toolchain runtime
 
-- **Status:** Accepted
+- **Status:** Proposed
 - **Date:** 2026-06-18
 - **Deciders:** Code On The Go team
 

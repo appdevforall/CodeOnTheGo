@@ -1,6 +1,6 @@
 # 0001. Prefer Room for persistence; raw SQLite only for justified exceptions
 
-- **Status:** Accepted
+- **Status:** Proposed
 - **Date:** 2026-06-18
 - **Deciders:** Code On The Go team
 

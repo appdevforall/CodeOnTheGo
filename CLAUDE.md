@@ -37,7 +37,7 @@ See **[ARCHITECTURE.md](ARCHITECTURE.md)** — the single source of truth for th
 - **Avoid new dependencies** — the build almost certainly already has what's needed. Check `gradle/libs.versions.toml` and `build.gradle.kts` first.
 - **Persistence:** prefer **Room** for relational data and the filesystem/preferences for settings; raw SQLite only for justified exceptions — see [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md).
 - **Protect the two Android system bars** in any UI work: the top status bar (clock, notifications, status icons) and the bottom navigation bar (home, back, recents). Don't draw over or intercept them.
-- **Plan and size before building.** Estimated >500 LOC or >10 files → split into 2+ PRs.
+- **Plan and size before building.** Prefer **one PR per ticket/use case** — don't force-split a coherent change (splitting has its own overhead when later edits span the pieces). When a change is large, break it into **reviewable commits** — mechanical/refactor commits separate from behavioral ones — and offer review-by-commit. Treat ~500 LOC / ~10 files as a signal to reach for that commit structure, not a hard cap; the ceiling rises as LLM-assisted review matures.
 - **Keep docs in step with code.** When you change code, update the docs that describe it in the same change — a module's `README.md`, `ARCHITECTURE.md`, or an ADR — so a doc never outlives the API it documents (see REVIEW.md, Code quality). If the doc fix is out of scope, file a ticket rather than let it drift.
 - `.androidide_root` is a sentinel file tests use to locate the project root — don't delete it.
 - Avoid http or https links which go off-device. When such links are unavoidable, warn the user beforehand and offer to cancel the action.

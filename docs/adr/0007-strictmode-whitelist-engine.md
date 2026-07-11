@@ -1,6 +1,6 @@
 # 0007. Enforce StrictMode via a custom whitelist engine
 
-- **Status:** Accepted
+- **Status:** Proposed
 - **Date:** 2026-06-18
 - **Deciders:** Code On The Go team
 

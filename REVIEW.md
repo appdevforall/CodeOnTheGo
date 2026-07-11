@@ -21,7 +21,7 @@ How to give a good review on Code On The Go. This is a coaching doc, not a gate 
 - [ ] **Accessibility:** every actionable view has a `contentDescription` (XML *or* programmatic); decorative views are marked `importantForAccessibility="no"`.
 - [ ] **Contextual help:** new interactive elements (and any new screen/panel) have long-press help wired to the 3-tier tooltip system.
 - [ ] **Analytics:** meaningful user/build actions emit an event (see below).
-- [ ] **Scope/size:** PR is focused and within the ~500 LOC / 10-file guideline (`CLAUDE.md`).
+- [ ] **Scope/size:** PR is focused on one ticket/use case; if large, it's split into **reviewable commits** (mechanical separate from behavioral) rather than force-split into multiple PRs (`CLAUDE.md`).
 
 ---
 
@@ -79,7 +79,7 @@ This app extracts archives, runs a local web server, stores git credentials and 
 
 - Test the *behavior*: drive `onEvent(...)` / methods against a fake or MockK'd repository and assert the emitted `UiState` sequence (and effects via the effect `SharedFlow`). See ARCHITECTURE.md → Testing.
 - Tools: **JUnit (Jupiter)**, **Truth** assertions, **MockK** (new) / Mockito-Kotlin (legacy), **Robolectric** for framework-dependent JVM tests. Live in the module or the shared `testing:*` harnesses.
-- Cover the **error and edge paths**, not just the happy path — those are exactly what the crash wrapper would otherwise catch in production.
+- Cover the **error and edge paths**, not just the happy path — those are the error paths the crash wrapper would otherwise catch in production.
 - Pure-UI changes (layout, view wiring) may legitimately have no unit test; say so in the PR description so the reviewer isn't guessing.
 
 ### When coverage is unavoidably low, add logging
@@ -173,6 +173,6 @@ Plugins might conflict with each other. New core features might cause plugins to
 
 ## 14. PR hygiene
 
-- Focused and reviewable: aim for the **~500 LOC / 10-file** ceiling; split larger work into stacked PRs.
+- Focused and reviewable: **one PR per ticket/use case**. When it's large, break it into **reviewable commits** (mechanical/refactor separate from behavioral) and offer review-by-commit rather than forcing a split. ~500 LOC / 10 files is a soft signal to add that structure, not a hard ceiling.
 - Title/branch follow `ADFA-####`; description says *what changed, why, how it was verified*, and flags anything intentionally out of scope (e.g. "UI-only, no unit test").
 - No stray debug logs, commented-out code, `dummy.apk`-style artifacts, or unrelated reformatting that buries the real diff.

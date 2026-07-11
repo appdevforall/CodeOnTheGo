@@ -1,6 +1,6 @@
 # 0008. Retain the `com.itsaky.androidide` namespace after rebrand
 
-- **Status:** Accepted
+- **Status:** Proposed
 - **Date:** 2026-06-18
 - **Deciders:** Code On The Go team
 

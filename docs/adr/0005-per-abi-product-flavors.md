@@ -1,12 +1,12 @@
 # 0005. Ship per-ABI product flavors (v7/v8), not a universal APK
 
-- **Status:** Accepted
+- **Status:** Proposed
 - **Date:** 2026-06-18
 - **Deciders:** Code On The Go team
 
 ## Context
 
-The app bundles large native components per ABI — llama.cpp, plus the on-device toolchain/Termux binaries. A universal APK carrying both `armeabi-v7a` and `arm64-v8a` copies of everything would be very large. Code On The Go is distributed primarily as a **direct APK download** from the App Dev for All website, not exclusively through Google Play, so we can't rely on Play's automatic per-ABI splitting to slim downloads.
+The app bundles large native components per ABI — llama.cpp, plus the on-device toolchain/Termux binaries. A universal APK carrying both `armeabi-v7a` and `arm64-v8a` copies of everything would be prohibitively large. Code On The Go is distributed primarily as a **direct APK download** from the App Dev for All website, not exclusively through Google Play, so we can't rely on Play's automatic per-ABI splitting to slim downloads.
 
 ## Decision
 

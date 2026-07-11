@@ -1,6 +1,6 @@
 # 0003. Vendor & fork build/runtime dependencies via composite-build substitution
 
-- **Status:** Accepted
+- **Status:** Proposed
 - **Date:** 2026-06-18
 - **Deciders:** Code On The Go team
 
