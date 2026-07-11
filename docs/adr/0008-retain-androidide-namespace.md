@@ -10,6 +10,8 @@ Code On The Go is the rebranded successor to **AndroidIDE**. The product name, b
 
 Changing an Android **application id** breaks the update path for installed users (a different app id is a different app) and disrupts signing/identity continuity. A rename of this size also ripples through the vendored `com.itsaky.androidide.build:*` substitutions ([ADR 0003](0003-vendored-forked-desktop-toolchain.md)).
 
+The decisive constraint, though, is the **terminal bootstrap packages** (built separately in `appdevforall/terminal-packages`): the package name is baked into them, so the app and the terminal packages must agree on it. It **cannot be changed incrementally** — you can't rename one side first and the other later. Any change has to be a single **atomic, big-bang** change spanning the terminal packages *and* this app, which rebuilds the terminal packages under the new name. That coupling is what makes a rename genuinely expensive, not just tedious.
+
 ## Decision
 
 **Keep** the `com.itsaky.androidide` application id / namespace and the internal Gradle project names. Rebranding (`INTERNAL_NAME = "CodeOnTheGo"`, the app label, icons, and user-facing assets) is applied at the **presentation layer only**, not the package identity.
@@ -26,7 +28,7 @@ Changing an Android **application id** breaks the update path for installed user
 
 ## Alternatives considered
 
-- **Full rename to `org.appdevforall.*`** — rejected: breaks updates for existing users, requires enormous error-prone churn, and risks destabilizing the vendored substitutions for little gain.
+- **Full rename to `org.appdevforall.*`** — rejected: breaks updates for existing users, requires enormous error-prone churn, forces an atomic big-bang rebuild of the terminal bootstrap packages in lockstep, and risks destabilizing the vendored substitutions for little gain.
 - **Partial rename** (some modules) — rejected: produces an inconsistent namespace with the same risks and no clean payoff.
 
 ## Related

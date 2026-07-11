@@ -26,7 +26,7 @@ Every module carries `v7` (`armeabi-v7a`) and `v8` (`arm64-v8a`) flavors, so bui
 
 ### Emulator / device
 
-At least one Android emulator or device is available. Find it with `adb devices -l | grep -v offline`, then target it with the `ANDROID_SERIAL` env var.
+At least one Android emulator or device is available. Find it with `adb devices -l | grep -v offline`, then target it with the `ANDROID_SERIAL` env var. Note the app is **arm-only** (`v7`/`v8` flavors, no x86) — an x86_64 emulator can't run it (not always even via a translation layer), so testing often needs a **physical arm device** or an arm-translation emulator.
 
 ## Architecture
 
@@ -44,7 +44,7 @@ See **[ARCHITECTURE.md](ARCHITECTURE.md)** — the single source of truth for th
 
 ## Code style
 
-2-space indents everywhere. Java: Google style (`google-java-format`); Kotlin: `ktfmt` Google-internal style; XML: Android Studio formatter. Branch names must match `.../ADFA-#####` (3–5 digits) — see CONTRIBUTING.md; a pre-commit hook enforces it (`sh ./scripts/install-git-hooks.sh`).
+**Tabs** for indentation, **LF** line endings — enforced by **Spotless** (`ratchetFrom = origin/stage`, so only changed lines are reformatted). Java uses the **Eclipse** formatter (`spotless.eclipse-java.xml`, with member sorting + import ordering); Kotlin and `*.gradle.kts` use **ktlint**; XML uses the **Eclipse WTP** formatter. Run `./gradlew spotlessApply` to fix formatting before pushing. Branch names must match `.../ADFA-#####` (3–5 digits) — see CONTRIBUTING.md; a pre-commit hook enforces it (`sh ./scripts/install-git-hooks.sh`).
 
 Keep docs, tickets, commit messages, and PR descriptions crisp — say it once, lead with the point, cut hedging and restated context. Brevity is the soul of wit; a reader's attention is the scarce resource.
 

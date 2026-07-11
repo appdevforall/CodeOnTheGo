@@ -94,6 +94,7 @@ These structural facts shape every module. Day-to-day build *commands* live in `
 | Networking | Offline-first; no general REST layer. External I/O is **Google GenAI SDK** (Gemini), **on-device llama.cpp**, and **JGit** (git). Retrofit is in the catalog but effectively unused in app code. |
 | Database / Persistence | **Room** is the default for relational/queryable data; **filesystem + preferences (DataStore)** for non-relational settings. **Raw SQLite** (`SQLiteDatabase` / `SupportSQLiteOpenHelper`) only for justified exceptions (see policy below). |
 | Serialization | `kotlinx.serialization` and Gson. |
+| Parceling | Kotlin **`@Parcelize`** (`kotlin-parcelize` plugin) for `Parcelable` data classes — never hand-implement `Parcelable`. Do it manually only if `@Parcelize` genuinely can't express it (custom serialization logic, unsupported member types). |
 | AI agent | Google GenAI (cloud) + llama (local), behind `GeminiRepository` / `SwitchableGeminiRepository`, with planner/critic/executor agents in `agent/repository`. |
 
 > **Persistence policy (authoritative):** new relational/queryable persistence uses **Room** (`@Entity` + DAO + `RoomDatabase` with explicit migrations, provided via Koin). Non-relational settings use the **filesystem/preferences (DataStore)**. **Raw SQLite is the exception, not the default** — see [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md).
@@ -104,13 +105,28 @@ These structural facts shape every module. Day-to-day build *commands* live in `
 
 ## State Management
 
-- **UI state is a single immutable `data class`** exposed as a `StateFlow<…UiState>`; the ViewModel mutates a private `MutableStateFlow` via `update { it.copy(...) }`. Derived booleans live as computed properties on the state class (so the UI stays dumb).
+- **Make illegal states unrepresentable.** When a screen's states are **mutually exclusive** (loading / content / success / error / installing …), model them as a **sealed interface/class** — *not* a `data class` carrying several `Boolean`s that can contradict each other ("boolean hell", state explosion). A single immutable `data class` is right only when the fields are genuinely **independent**.
+- **Either shape** is exposed as a `StateFlow<…UiState>`; the ViewModel mutates a private `MutableStateFlow` — `update { it.copy(...) }` for a data class, or emit the next subtype for a sealed state. Derived flags live as computed properties (data class) or are implied by the subtype (sealed), so the UI stays dumb.
 - **One-shot effects** (errors, navigation, dialogs, restart prompts) are modeled as a **sealed `…UiEffect`** emitted through a separate `SharedFlow` — never folded into the persistent state, so they don't replay on rotation.
 - **Inbound intents** are a sealed `…UiEvent` (or direct ViewModel method calls on older screens).
 - **Process/long-task state** uses dedicated sealed hierarchies — e.g. `BuildState`, `TaskState`, `InstallationState`, `ApkInstallationViewModel.SessionState`, `agent/AgentState`.
 - **Legacy screens** still expose `LiveData` (~8 ViewModels) instead of `StateFlow` (~20). When touching one substantially, prefer migrating it to `StateFlow`.
 
-Real example from `ui/models/PluginManagerUiState.kt` — copy this pattern for new screens:
+Two shapes, chosen by whether the states are mutually exclusive.
+
+**Mutually-exclusive states → sealed** (real example, `git-core/.../CloneRepoUiState.kt`) — the default when a screen moves through phases:
+
+```kotlin
+sealed interface CloneRepoUiState {
+    data class Idle(val url: String = "", val localPath: String = "", val isCloneButtonEnabled: Boolean = false) : CloneRepoUiState
+    data class Cloning(val url: String, val localPath: String, val cloneProgress: String = "", val clonePercentage: Int = 0) : CloneRepoUiState
+    data class Success(val localPath: String) : CloneRepoUiState
+    data class Error(val url: String, val errorMessage: String? = null, val canRetry: Boolean = false) : CloneRepoUiState
+}
+// The UI `when`s over the state — Idle/Cloning/Success/Error can never be true at once.
+```
+
+**Independent fields → a single immutable `data class`** (example, `ui/models/PluginManagerUiState.kt`). ⚠️ The booleans below (`isLoading`/`isInstalling`/`isEmpty`) only work because they're *independent*; the moment states become exclusive, switch to a sealed type rather than adding more flags:
 
 ```kotlin
 // Persistent, immutable UI state — exposed as StateFlow<PluginManagerUiState>

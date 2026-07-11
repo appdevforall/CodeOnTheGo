@@ -5,7 +5,7 @@ How to give a good review on Code On The Go. This is a coaching doc, not a gate 
 ## How to use this
 
 - **Author:** self-review against this list *before* requesting review. Most of it you can check in five minutes.
-- **Reviewer:** you own correctness, leaks, security, and tests. Don't rubber-stamp; don't bikeshed style the formatter already enforces (`ktfmt` / `google-java-format`, 2-space indents).
+- **Reviewer:** you own correctness, leaks, security, and tests. Don't rubber-stamp; don't bikeshed style Spotless already enforces (ktlint for Kotlin, the Eclipse formatter for Java/XML, tabs).
 - Tie every blocking comment to a concrete risk (a crash, a leak, a CVE class, an untested branch). Tag non-blocking polish as **nit:** so the author can triage.
 
 ## The 60-second checklist
@@ -17,7 +17,7 @@ How to give a good review on Code On The Go. This is a coaching doc, not a gate 
 - [ ] **Tests:** non-UI logic has unit coverage. Where coverage is thin, there's logging to diagnose it in the field.
 - [ ] **No duplication:** the change reuses existing helpers instead of copy-pasting.
 - [ ] **Docs:** public classes/functions have KDoc/Javadoc explaining *why*, not *what*; any module `README`/`ARCHITECTURE.md`/ADR the change affects is updated in the same PR.
-- [ ] **Strings** are in `strings.xml`, not inline literals.
+- [ ] **Strings** are in the **`:resources`** module's `strings.xml` (not per-module, not inline literals) — keeps localization centralized.
 - [ ] **Accessibility:** every actionable view has a `contentDescription` (XML *or* programmatic); decorative views are marked `importantForAccessibility="no"`.
 - [ ] **Contextual help:** new interactive elements (and any new screen/panel) have long-press help wired to the 3-tier tooltip system.
 - [ ] **Analytics:** meaningful user/build actions emit an event (see below).
