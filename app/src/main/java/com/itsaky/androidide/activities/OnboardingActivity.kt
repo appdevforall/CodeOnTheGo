@@ -171,24 +171,24 @@ class OnboardingActivity : AppIntro2() {
 
                 val appIntroContainer: ConstraintLayout? = findViewById(R.id.background)
                 if (appIntroContainer != null) {
-                    feedbackButton = FloatingActionButton(this@OnboardingActivity).apply {
-                        id = R.id.fab_feedback
-                        setImageResource(R.drawable.baseline_feedback_64)
-                        contentDescription = getString(string.send_feedback)
-                        val layoutParams = ConstraintLayout.LayoutParams(
+                    // Reuse the shared feedback FAB definition (size, icon, elevation) so this
+                    // matches every other screen (ADFA-2686); only positioning is set here.
+                    feedbackButton = (layoutInflater.inflate(
+                        R.layout.feedback_fab, appIntroContainer, false
+                    ) as FloatingActionButton).apply {
+                        layoutParams = ConstraintLayout.LayoutParams(
                             ConstraintLayout.LayoutParams.WRAP_CONTENT,
                             ConstraintLayout.LayoutParams.WRAP_CONTENT
-                        )
-
-                        layoutParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                        layoutParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-                        val marginInPx = TypedValue.applyDimension(
-                            TypedValue.COMPLEX_UNIT_DIP,
-                            16f,
-                            resources.displayMetrics
-                        ).toInt()
-                        layoutParams.setMargins(marginInPx, marginInPx, marginInPx, marginInPx)
-                        this.layoutParams = layoutParams
+                        ).apply {
+                            startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                            bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                            val marginInPx = TypedValue.applyDimension(
+                                TypedValue.COMPLEX_UNIT_DIP,
+                                16f,
+                                resources.displayMetrics
+                            ).toInt()
+                            setMargins(marginInPx, marginInPx, marginInPx, marginInPx)
+                        }
                     }
 
                     appIntroContainer.addView(feedbackButton)
