@@ -149,7 +149,7 @@ Hold the change to the patterns in [ARCHITECTURE.md](ARCHITECTURE.md):
 - **New UI is Jetpack Compose** ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)) — a new XML layout / `Fragment`-rendered screen for the IDE's own UI should be sent back. Compose changes only the view layer; the rest of this list still applies. (Existing XML screens are fine until reworked.)
 - New screens follow **UDF**: `ViewModel` + `StateFlow<UiState>`, sealed `UiEvent`/`UiEffect`, repository for data. Composables collect state via `collectAsState()`; keep I/O and business logic out of composables/Activities.
 - DI via **Koin** (constructor injection); register new singletons/viewModels in the module.
-- **Persistence:** raw SQLite or filesystem — **not Room** (Recent Projects is the lone legacy exception).
+- **Persistence:** prefer **Room** for relational data, filesystem/preferences for settings; raw SQLite only for justified exceptions (prebuilt read-only DBs, performance-critical indexing, cross-boundary schemas — see [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md)).
 - **UI safety:** never place our UI over the two Android system bars — the top status bar and the bottom navigation bar (`AGENTS.md`).
 
 ## 11. Offline-first

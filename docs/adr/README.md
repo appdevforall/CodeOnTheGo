@@ -14,7 +14,7 @@ Format is lightweight **MADR / Nygard**: Context → Decision → Consequences �
 
 | # | Decision | Status |
 |---|---|---|
-| [0001](0001-persistence-without-room.md) | Persistence uses SQLite/filesystem, not Room | Accepted |
+| [0001](0001-prefer-room-for-persistence.md) | Prefer Room for persistence; raw SQLite only for justified exceptions | Accepted |
 | [0002](0002-on-device-builds-via-gradle-tooling-api.md) | On-device builds run real Gradle out-of-process via the Tooling API | Accepted |
 | [0003](0003-vendored-forked-desktop-toolchain.md) | Vendor & fork the desktop toolchain via composite-build substitution | Accepted |
 | [0004](0004-embedded-termux-runtime.md) | Embed Termux as the shell & toolchain runtime | Accepted |

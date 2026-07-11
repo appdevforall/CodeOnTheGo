@@ -2,7 +2,7 @@ Code On The Go is an Android IDE — it lets users edit, build, and deploy their
 
 There is at least one Android emulator available. Find it with `adb devices -l | grep -v offline`, then use the `ANDROID_SERIAL` env var.
 
-For new persistence, use SQLite or the filesystem — never add Room. (See ARCHITECTURE.md for the full model and the one legacy exception.)
+For new persistence, prefer Room for relational data and the filesystem/preferences for settings; use raw SQLite only for the justified exceptions (prebuilt read-only DBs, performance-critical indexing, cross-boundary schemas). See ARCHITECTURE.md and [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md).
 
 Avoid adding dependencies — we almost certainly already have what you need. Check `build.gradle.kts`.
 

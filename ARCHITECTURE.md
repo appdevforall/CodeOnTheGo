@@ -92,15 +92,15 @@ These structural facts shape every module. Day-to-day build *commands* live in `
 | Dependency Injection | **Koin** (`org.koin`) — `coreModule`/`pluginModule`, `startKoin` in `IDEApplication`, plus a `ServiceLocator : KoinComponent` for lazy post-startup access. No Hilt/Dagger. |
 | Asynchronous work | **Kotlin Coroutines + Flow** (`StateFlow`/`SharedFlow`, `viewModelScope`, app-scoped `CoroutineScope(SupervisorJob() + Dispatchers.IO)`); **GreenRobot EventBus** for cross-subsystem events. |
 | Networking | Offline-first; no general REST layer. External I/O is **Google GenAI SDK** (Gemini), **on-device llama.cpp**, and **JGit** (git). Retrofit is in the catalog but effectively unused in app code. |
-| Database / Persistence | **Raw SQLite** (`SQLiteOpenHelper` / `SQLiteDatabase`) and **filesystem + preferences** for almost everything. **Room** survives in exactly one place — the Recent Projects feature (see policy below). |
+| Database / Persistence | **Room** is the default for relational/queryable data; **filesystem + preferences (DataStore)** for non-relational settings. **Raw SQLite** (`SQLiteDatabase` / `SupportSQLiteOpenHelper`) only for justified exceptions (see policy below). |
 | Serialization | `kotlinx.serialization` and Gson. |
 | AI agent | Google GenAI (cloud) + llama (local), behind `GeminiRepository` / `SwitchableGeminiRepository`, with planner/critic/executor agents in `agent/repository`. |
 
-> **Persistence policy (authoritative):** new persistence must use **raw SQLite or the filesystem/preferences — not Room.** Do not add Room entities or extend it to new tables.
+> **Persistence policy (authoritative):** new relational/queryable persistence uses **Room** (`@Entity` + DAO + `RoomDatabase` with explicit migrations, provided via Koin). Non-relational settings use the **filesystem/preferences (DataStore)**. **Raw SQLite is the exception, not the default** — see [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md).
 >
-> Room is used in exactly **one** place: the **Recent Projects** feature in the `app` module — `app/src/main/java/com/itsaky/androidide/roomData/recentproject/` (`RecentProjectRoomDatabase`, `@Database version = 4` with migrations 1→4; `RecentProjectDao`; the `RecentProject` `@Entity` → table `recent_project_table`). It's provided via Koin in `di/AppModule.kt` and consumed by `MainViewModel`, `RecentProjectsViewModel`, `MainActivity`, `ProjectInfoBottomSheet`, and `ProjectCreationManager`.
+> **Recent Projects** is the reference example of the default: `app/src/main/java/com/itsaky/androidide/roomData/recentproject/` (`RecentProjectRoomDatabase`, `@Database version = 4` with migrations 1→4; `RecentProjectDao`; the `RecentProject` `@Entity` → table `recent_project_table`). It's provided via Koin in `di/AppModule.kt` and consumed by `MainViewModel`, `RecentProjectsViewModel`, `MainActivity`, `ProjectInfoBottomSheet`, and `ProjectCreationManager`.
 >
-> Two things look like Room but aren't: `idetooltips` declares the Room Gradle deps but doesn't use them (its tooltip store is raw `SQLiteDatabase` in `ToolTipManager`), and the Room coordinates in `editor`'s `GroovyAutoComplete` are autocomplete suggestions for the *user's* code, not CoGo's own usage.
+> **Raw SQLite is allowed only when** the database is prebuilt and opened read-only, the data is performance/allocation-critical and needs granular schema control, or the schema is shared across a process/component boundary. Current exceptions: symbol indexing (`lsp/indexing/SQLiteIndex.kt`), tooltips (`idetooltips/ToolTipManager.kt`), in-app/plugin help (`plugin-manager/.../documentation/PluginDocumentationManager.kt`), and the local web server (`app/.../localWebServer/WebServer.kt`). `idetooltips` also declares unused Room Gradle deps (remove them), and the `androidx.room:*` strings in `editor`'s `GroovyAutoComplete` are autocomplete suggestions for the *user's* code, not CoGo persistence.
 
 ## State Management
 
