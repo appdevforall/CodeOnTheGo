@@ -48,6 +48,14 @@ See **[ARCHITECTURE.md](ARCHITECTURE.md)** — the single source of truth for th
 
 Keep docs, tickets, commit messages, and PR descriptions crisp — say it once, lead with the point, cut hedging and restated context. Brevity is the soul of wit; a reader's attention is the scarce resource.
 
+## Branch model
+
+- **`main`** — release branch. It only ever receives merges **from `stage`**; nothing else targets `main` directly.
+- **`stage`** — the protected default/integration branch (`origin/HEAD`) and the base for the Spotless ratchet. All feature work lands here first.
+- **Feature branches** — always branched **from `stage`** and opened as PRs back **into `stage`**. Name internal branches `.../ADFA-#####` (see CONTRIBUTING.md; external community contributors use the `community/` prefix instead).
+
+Flow: branch off `stage` → PR into `stage` → `stage` merges to `main` for release. Never branch a feature off `main`, and never target `main` with a feature PR.
+
 ## Operational rules
 
 ### Official/public actions run in CI, not locally
