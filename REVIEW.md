@@ -69,7 +69,7 @@ This app extracts archives, runs a local web server, stores git credentials and 
 - **Secrets & credential storage:** git tokens, keystore/signing passwords → `EncryptedSharedPreferences` / the Android Keystore, never plaintext files, never committed, **never logged or sent to analytics/Sentry**. Scrub secrets from breadcrumbs and exception messages.
 - **Local web server (`WebServer`):** bind to loopback, scope what it serves, and don't reflect unsanitized input into responses. Treat every request as untrusted.
 - **Network:** HTTPS only; no disabled TLS/hostname verification; verify git remotes.
-- **Untrusted code/plugins:** respect the `plugin.json` permission model; don't widen plugin capabilities or load classes from untrusted sources without the manager's checks.
+- **Untrusted code/plugins:** respect the plugin manifest permission model (`plugin.permissions` in `AndroidManifest.xml`); don't widen plugin capabilities or load classes from untrusted sources without the manager's checks.
 - **Deserialization & intents:** validate parsed JSON (Gson/kotlinx) and incoming `Intent`/deep-link extras; don't trust their shape.
 - **Logging leaks:** PII, file contents, tokens, and full request bodies don't belong in logs.
 
@@ -169,7 +169,12 @@ Features that aren't fully stabilized ship behind the **experimental feature fla
 
 ## 13. Consider impact on plugins
 
-Plugins might conflict with each other. New core features might cause plugins to break even if they don't change the plugin API. The review process must consider the impact of the current change on plugins in the wild.
+The plugin API is **not frozen** and we don't yet guarantee backward/binary compatibility (see [plugin-api.md](docs/plugin-api.md)). So the bar isn't "never break plugins" — it's **don't break them by accident**.
+
+- **Does the change touch the plugin API surface?** Anything in `:plugin-api` (package `com.itsaky.androidide.plugins`), a manifest `plugin.*` meta-data key, a permission key string, a service interface reached via `ServiceRegistry`, or a format contract (`.cgp`/`.cgt`, the `plugin_documentation.db` schema, `scripts.json`, the `localhost:6174` help URLs). If so, treat it as a contract change.
+- **If it breaks compatibility, is that deliberate and documented?** The PR should say what breaks, who's affected, and why it's worth it. Watch the Kotlin traps that look source-compatible but aren't — data-class constructor params, enum constants, methods added to plugin-implemented interfaces (plugin-api.md lists them).
+- **Do a mechanical impact check:** build/load the in-tree example plugins (`apk-viewer-plugin`, `markdown-preview-plugin`, `keystore-generator-plugin`) — and, for significant changes, the external `plugin-examples` repo — against the change.
+- **Even without an API change,** new core features can break plugins (shared UI, toolbar action IDs, service behavior) and plugins can conflict with each other. Keep that in view.
 
 ## 14. PR hygiene
 

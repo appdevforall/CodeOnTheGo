@@ -62,7 +62,7 @@ Strategy: **layer-and-subsystem based**, not feature-by-feature. The Gradle buil
 | Language tooling | `lsp:{api,java,kotlin,xml,indexing,…}`, `lexers`, `editor*`, `editor-treesitter` | Language servers, indexing, the Sora-based editor and highlighting. |
 | UI design tooling | `layouteditor`, `uidesigner`, `xml-inflater`, `vectormaster`, `compose-preview` | Visual/XML design surfaces for the *user's* app. |
 | Shell | `termux:{termux-app,termux-shared,termux-view,termux-emulator}` | Embedded Termux shell and terminal. |
-| Plugin system | `plugin-api`, `plugin-api:plugin-builder`, `plugin-manager` | In-app plugin SDK + manager (`plugin.json` manifest, permissions, extensions). |
+| Plugin system | `plugin-api`, `plugin-api:plugin-builder`, `plugin-manager` | In-app plugin SDK + manager — `AndroidManifest.xml` `<meta-data>` contract, permissions, extensions. See [plugin-api.md](docs/plugin-api.md) for the API surface & compatibility policy. |
 | On-device AI | `llama-api`, `llama-impl` | llama.cpp integration, shipped as a per-flavor native AAR. |
 | Cross-cutting | `eventbus`, `eventbus-android`, `eventbus-events`, `common`, `common-ui`, `logger`, `resources`, `preferences`, `shared` | Shared infra and the event bus. |
 | Testing | `testing:{android,unit,lsp,tooling,common}` | Shared test harnesses, split by what's under test. |
