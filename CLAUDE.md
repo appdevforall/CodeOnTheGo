@@ -54,9 +54,11 @@ Keep docs, tickets, commit messages, and PR descriptions crisp — say it once, 
 
 Anything official or public-facing runs only through version-controlled GitHub Actions (`.github/workflows/*.yml`), never locally — SonarQube/SonarCloud uploads, releases, artifact publishing, deploys, pushes to external services. Tokens like `SONAR_TOKEN` are GitHub secrets scoped to those workflows; don't hunt for them locally. Asked to run e.g. the sonar task locally, treat it as verification only (build/test to confirm a fix) and let the official analysis happen in CI.
 
-### Reading Jira tickets
+### Jira tickets — read, and keep updated
 
 Read tickets with the local authenticated `jira` CLI (e.g. `jira issue view ADFA-1234`), configured via `JIRA_API_TOKEN`, `JIRA_HOST`, and `JIRA_USER`. Don't start the Atlassian MCP OAuth flow for reads — it's unnecessary when the CLI works.
+
+**Post progress as you go.** The team wants visibility into in-progress work, not just a final drop. When you start a ticket, hit a notable blocker or decision, or finish a meaningful chunk, add a short comment (`jira issue comment add ADFA-#### "…"`). Keep it crisp — status, what changed, what's next.
 
 ### SonarQube MCP server
 

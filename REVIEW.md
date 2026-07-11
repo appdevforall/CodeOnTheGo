@@ -4,12 +4,33 @@ How to give a good review on Code On The Go. This is a coaching doc, not a gate 
 
 ## How to use this
 
+- **Start from the ticket.** Read the linked Jira issue first (`jira issue view ADFA-####`). A review's first job is to confirm the change **does what the ticket asks** — every stated requirement is implemented, and the tests exercise the intended flow. Call out missing requirements or untested acceptance criteria as blocking.
 - **Author:** self-review against this list *before* requesting review. Most of it you can check in five minutes.
 - **Reviewer:** you own correctness, leaks, security, and tests. Don't rubber-stamp; don't bikeshed style Spotless already enforces (ktlint for Kotlin, the Eclipse formatter for Java/XML, tabs).
 - Tie every blocking comment to a concrete risk (a crash, a leak, a CVE class, an untested branch). Tag non-blocking polish as **nit:** so the author can triage.
 
+### Prove the review — evidence ledger
+
+A review isn't done because it *looks* fine; it's done when you can **show what you checked**. An automated or Claude-driven review must emit an evidence line per area — what was inspected and the result — not a bare "LGTM". Skip an area only by saying why it doesn't apply (e.g. "UI-only, no persistence"). Template:
+
+| Area | Evidence to show |
+|---|---|
+| Ticket / feature completeness | Requirements list from ADFA-####, each mapped to code + test (or flagged missing) |
+| §1 Exceptions | Where new failure paths are caught; nothing new can reach the Sentry wrapper |
+| §2 Leaks | LeakCanary result for the touched flows (clean, or the leak addressed) |
+| §3 Threading/StrictMode | No new main-thread I/O or long compute; StrictMode run clean, no app-code whitelist |
+| §4 Security | Which untrusted inputs were validated; secrets checked |
+| §5 Tests & coverage | JaCoCo numbers for new non-UI code (line & branch) |
+| §7 Code quality | Duplication/cohesion pass done; no reimplementation of existing helpers |
+| §8–§9 A11y & help | contentDescription + long-press help on new interactive elements |
+| §10 Architecture | Checklist below, each item pass/fail |
+| §13 Plugins | API-surface touched? impact check result |
+
+Keep it proportional — a two-line change needs a two-line ledger.
+
 ## The 60-second checklist
 
+- [ ] **Feature complete:** does what the linked ticket asks — requirements implemented, intended flow covered by tests.
 - [ ] **Exceptions** are handled locally — nothing unexpected reaches the global Sentry crash handler.
 - [ ] **No leaks** LeakCanary would catch later: every register/open/subscribe has a matching unregister/close in the right lifecycle callback.
 - [ ] **No main-thread disk/network I/O** — no new StrictMode violations, and no whitelisting of *our own* code.
@@ -51,12 +72,14 @@ LeakCanary runs in debug builds (`debugImplementation`), so leaks *will* surface
 - **Closeables:** files, cursors, streams, the `tooling-api` connection — use `use {}` or close in `finally`.
 - **Coroutines:** launch in `viewModelScope` / `lifecycleScope`, never `GlobalScope`. A scope tied to a destroyed component must be cancelled.
 - **Bitmaps/large buffers** (APK viewer, image-to-XML, previews): release them; don't cache unbounded.
+- **Verify, don't just eyeball.** After exercising the touched screens in a debug/instrumented run, confirm LeakCanary surfaced **no new leak** (logcat tag `LeakCanary`, or the heap-dump notification). A clean run for those flows is the evidence to record in the ledger.
 
 ## 3. Threading & StrictMode — don't whitelist our own sins
 
 The app runs a real StrictMode policy via `StrictModeManager` with a **whitelist engine**. Project rule (see learnings/memory): **the whitelist is only for vendor/framework code we can't change — never for app-owned violations.** If your code trips StrictMode, fix the code.
 
 - Move disk and network I/O off the main thread (`Dispatchers.IO`, `withContext`). No DB reads, file reads, or `SharedPreferences` first-access on the UI thread.
+- **Long-running CPU work also belongs off the main thread**, not just I/O — decoding/parsing a large file, JSON (de)serialization of big payloads, crypto, image/APK processing. (A recent field crash came from JSON decoding on the main thread.) Use `Dispatchers.Default` for CPU-bound work, `Dispatchers.IO` for I/O.
 - Don't reach for `allowThreadDiskReads()` / `permitAll()` to silence a violation in our code.
 - Touch UI only on the main thread; post results back via `StateFlow`/`withContext(Dispatchers.Main)`.
 
@@ -76,6 +99,8 @@ This app extracts archives, runs a local web server, stores git credentials and 
 ## 5. Tests & coverage
 
 **If the code is not purely UI, expect unit tests in the same PR.** ViewModels, repositories, parsers, builder/tooling logic, and security-sensitive helpers are all testable off-device.
+
+- **Coverage target (verifiable):** new/changed **non-UI** code should reach **≥ 50% line & branch** coverage — a deliberate starting bar we'll raise over time as the suite matures. **Prove it, don't assert it:** run `flox activate -d flox/local -- ./gradlew jacocoAggregateReport` and cite the numbers from `jacoco-report/` (the same report feeds SonarQube). UI code (Composables/Activities/Fragments) is exempt — but logic extracted *out* of them is not, which is a reason to keep that logic thin.
 
 - Test the *behavior*: drive `onEvent(...)` / methods against a fake or MockK'd repository and assert the emitted `UiState` sequence (and effects via the effect `SharedFlow`). See ARCHITECTURE.md → Testing.
 - Tools: **JUnit (Jupiter)**, **Truth** assertions, **MockK** (new) / Mockito-Kotlin (legacy), **Robolectric** for framework-dependent JVM tests. Live in the module or the shared `testing:*` harnesses.
@@ -110,7 +135,7 @@ Keep event names/params stable and low-cardinality; **no PII, file paths with us
 
 ## 7. Code quality
 
-- **No duplication.** If you copy-pasted a block, extract a function/extension into the right `common`/`utils` module. Before adding a helper, grep — we likely already have it. Repeated literals/magic numbers → named constants.
+- **No duplication — and look wider than copy-paste.** If you copy-pasted a block, extract a function/extension into the right `common`/`utils` module. Before adding a helper, grep — we likely already have it. Repeated literals/magic numbers → named constants. Also watch for the subtler kinds: the *same logic reimplemented* in a new place (a parser, a path check, a formatter we already own), and behaviour duplicated across a feature that was built in chunks — especially when work was split across agents/subtasks, where each chunk can reinvent what another already did. Prefer loose coupling and high cohesion: one owner per concern.
 - **Docstrings.** Public classes, functions, and non-obvious logic get KDoc/Javadoc. Document the *contract and the why* (threading expectations, nullability, side effects, units), not a restatement of the signature.
 - **Keep docs in sync with the code.** If a change alters a module's public API, commands, or behavior that's described in its `README.md` (or `ARCHITECTURE.md` / an ADR), update that doc in the *same* PR. A doc that documents a non-existent API is worse than no doc. If the doc-fix is genuinely out of scope, leave a tracked note (a ticket) rather than silently letting it drift.
 - **Strings in `strings.xml`.** User-facing text must be a string resource, never an inline literal — lint flags `HardcodedText`, and externalized strings feed our Crowdin translation flow. Use plurals/`getQuantityString` and positional args for formatting. Log messages and analytics keys are *not* user-facing and stay in code.
@@ -145,12 +170,17 @@ Help in CoGo is reached by **long-press**, anywhere: a progressive three-tier ex
 
 ## 10. Architecture alignment
 
-Hold the change to the patterns in [ARCHITECTURE.md](ARCHITECTURE.md):
-- **New UI is Jetpack Compose** ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)) — a new XML layout / `Fragment`-rendered screen for the IDE's own UI should be sent back. Compose changes only the view layer; the rest of this list still applies. (Existing XML screens are fine until reworked.)
-- New screens follow **UDF**: `ViewModel` + `StateFlow<UiState>`, sealed `UiEvent`/`UiEffect`, repository for data. Composables collect state via `collectAsState()`; keep I/O and business logic out of composables/Activities.
-- DI via **Koin** (constructor injection); register new singletons/viewModels in the module.
-- **Persistence:** prefer **Room** for relational data, filesystem/preferences for settings; raw SQLite only for justified exceptions (prebuilt read-only DBs, performance-critical indexing, cross-boundary schemas — see [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md)).
-- **UI safety:** never place our UI over the two Android system bars — the top status bar and the bottom navigation bar (`CLAUDE.md`).
+Hold the change to the patterns in [ARCHITECTURE.md](ARCHITECTURE.md). The key rules are inlined here as a checklist so you can review without chasing links (the linked docs are the authoritative detail):
+
+- [ ] **New UI is Jetpack Compose** ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)) — a new XML layout / `Fragment`-rendered screen for the IDE's own UI should be sent back. Compose changes only the view layer; the rest of this list still applies. (Existing XML screens are fine until reworked.)
+- [ ] **UDF:** new screens use `ViewModel` + `StateFlow<UiState>`, sealed `UiEvent`/`UiEffect`, repository for data. Composables collect state via `collectAsState()`; keep I/O and business logic out of composables/Activities.
+- [ ] **State shape:** mutually-exclusive states (loading/content/error/…) are a **sealed** type, not a `data class` of independent `Boolean`s that can contradict each other. See [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md)'s sibling guidance in ARCHITECTURE.md → State Management.
+- [ ] **DI via Koin** (constructor injection); register new singletons/viewModels in the module — no hand-rolled singletons or service locators.
+- [ ] **Persistence:** prefer **Room** for relational data, filesystem/preferences for settings; raw SQLite only for justified exceptions (prebuilt read-only DBs, performance-critical indexing, cross-boundary schemas — see [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md)).
+- [ ] **Module boundaries:** the change respects the dependency direction (UI → ViewModel → Repository → data source; features depend on `common`/`utils`, not the reverse). No new cross-feature or upward dependency.
+- [ ] **UI safety:** never place our UI over the two Android system bars — the top status bar and the bottom navigation bar (`CLAUDE.md`).
+
+> Follow-up: a dedicated **architecture-review skill** (subagents read ARCHITECTURE.md + the ADRs and check the diff against them) would go deeper than this inline list — worth building once the harness is validated on real PRs.
 
 ## 11. Offline-first
 
@@ -159,6 +189,7 @@ CoGo is meant to work **without a network** — editing, building, and running a
 - **Degrade gracefully offline.** A feature that needs the network must still launch, explain itself, and leave the rest of the app usable when there's no connection — never block a core flow (edit/build/run) on a request.
 - **Network calls are non-blocking and failure-tolerant.** Analytics, Sentry, and Gemini calls run off the main thread and must tolerate timeouts/failures silently (no crash, no hang, no lost user action). A dropped analytics event is acceptable; a dropped keystroke is not.
 - **No network on the critical path.** Don't introduce a connectivity dependency into startup, the editor, or the build pipeline.
+- **Verify it offline.** For a change to a network-touching flow, actually exercise it with the network off — `adb shell svc wifi disable && adb shell svc data disable` (re-enable after), or airplane mode — and confirm the core edit/build/run flow still works. Add an explicit offline test case for the path rather than trusting it by inspection.
 
 ## 12. Experimental features — gate behind the early-access flag
 

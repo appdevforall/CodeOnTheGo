@@ -26,6 +26,14 @@ All three overlap heavily on code-level vulnerabilities; each has a distinct str
 
 If you only remember one distinction: **Snyk is mostly about the libraries you pull in; Sonar and Semgrep are mostly about the code you write.**
 
+### Relationship to Claude's `/security-review`
+
+Claude Code ships a built-in **`/security-review`** command — a general, reasoning-based security pass over your diff (injection, authz, secrets, unsafe deserialization, etc.). It **complements, not replaces**, the three scanners above:
+
+- The **three scanners own the enforced gate** — the frozen blocker baseline (Sonar/Semgrep) and dependency CVEs (Snyk). CI runs them; they decide merge-ability.
+- **`/security-review` catches design- and logic-level issues** that pattern/taint scanners miss, and it's fast to run locally on a security-sensitive change. It has no baseline concept and doesn't gate the build — treat its output as reviewer input, not a pass/fail.
+- Use both: run `/security-review` before pushing security-relevant work; rely on the scanners for the enforced "no new blocker" bar. Over time we expect `/security-review` to carry more of the qualitative load — but it doesn't remove the scanner baseline obligations below.
+
 ---
 
 ## The vulnerability classes to avoid
@@ -92,6 +100,7 @@ A chunk of Sonar **blocker** findings are reliability bugs, not vulnerabilities:
 ## Before you push
 
 - **Self-review against §1–9** for the surfaces your change touches (input handling, crypto, network, WebView, manifest, new deps).
+- **Run `/security-review`** on security-sensitive changes for a reasoning-based pass over the diff (complements the scanners — see above).
 - If you have the SonarQube MCP / `sonar` CLI handy, scan your branch locally and confirm **no new** blocker/high on changed files. Remember: official analysis runs in CI — local is verification only (`CLAUDE.md`).
 - If a finding is genuinely a false positive, document the reasoning and get reviewer sign-off **before** suppressing — and never suppress on code we own without that.
 
