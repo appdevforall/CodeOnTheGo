@@ -123,4 +123,11 @@ abstract class ExternalJarDependencyConfiguration @Inject constructor(
      * The name of the JAR file to be added to the dependencies.
      */
     var jarName: String = "${name}.jar"
+
+    /**
+     * Entry name prefixes to strip from the JAR before adding it as a dependency.
+     * Any ZIP entry whose name starts with one of these prefixes is excluded from the
+     * stripped copy (e.g. "org/jetbrains/kotlin/js/").
+     */
+    var excludeEntryPrefixes: List<String> = emptyList()
 }

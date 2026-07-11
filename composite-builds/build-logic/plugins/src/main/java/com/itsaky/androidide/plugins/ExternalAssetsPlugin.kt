@@ -14,10 +14,15 @@ import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.Directory
+import org.gradle.api.logging.Logger
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.Provider
 import org.gradle.kotlin.dsl.dependencies
 import org.gradle.kotlin.dsl.newInstance
+import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 
 private fun Project.externalAssetsCacheDir(): Provider<Directory> =
@@ -76,14 +81,47 @@ abstract class ExternalAssetsExtension @Inject constructor(
             logger = project.logger
         )
 
+        val jarFileName = if (config.excludeEntryPrefixes.isEmpty()) {
+            config.jarName
+        } else {
+            val original = cacheDir.resolve(config.jarName)
+            val stripped = cacheDir.resolve(config.jarName.replace(".jar", "-stripped.jar"))
+            stripJar(original, stripped, config.excludeEntryPrefixes, project.logger)
+            stripped.name
+        }
+
         val dep = project.dependencies.create(project.fileTree(cacheDir) {
-            include(config.jarName)
+            include(jarFileName)
         })
 
         project.dependencies {
             add(config.configuration, dep)
         }
     }
+}
+
+private fun stripJar(source: File, dest: File, excludePrefixes: List<String>, logger: Logger) {
+    if (dest.exists() && dest.lastModified() >= source.lastModified()) {
+        logger.lifecycle("Skipping strip of ${source.name}: stripped copy is up-to-date")
+        return
+    }
+    logger.lifecycle("Stripping ${excludePrefixes.size} prefix(es) from ${source.name}…")
+    ZipInputStream(source.inputStream().buffered()).use { zin ->
+        ZipOutputStream(dest.outputStream().buffered()).use { zout ->
+            var entry: ZipEntry? = zin.nextEntry
+            while (entry != null) {
+                if (excludePrefixes.none { entry!!.name.startsWith(it) }) {
+                    zout.putNextEntry(ZipEntry(entry.name))
+                    zin.copyTo(zout)
+                    zout.closeEntry()
+                }
+                zin.closeEntry()
+                entry = zin.nextEntry
+            }
+        }
+    }
+    val savedKb = (source.length() - dest.length()) / 1024
+    logger.lifecycle("Stripped ${source.name}: saved ${savedKb} KB (${source.length()} → ${dest.length()} bytes)")
 }
 
 /**
