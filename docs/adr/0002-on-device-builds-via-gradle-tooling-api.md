@@ -18,7 +18,7 @@ Run builds with the **Gradle Tooling API in a separate JVM process**, and have t
 - `:subprojects:tooling-api-impl` — the forked process (`tooling.impl.Main`) that hosts the Tooling API connection and runs the build.
 - `:subprojects:tooling-api-events` / `:subprojects:tooling-api-model` — the serializable event/model types exchanged across the process boundary.
 
-The app streams progress/events back from this process and renders them (e.g. `BuildState`, build output). This depends on the vendored Gradle/toolchain from [ADR 0003](0003-vendored-forked-desktop-toolchain.md).
+The app streams progress/events back from this process and renders them (e.g. `BuildState`, build output). The process runs on a **full out-of-process JDK** — the `java` binary from our terminal bootstrap packages (`appdevforall/terminal-packages`), launched by `ToolingServerRunner` — **not** the composite-build toolchains from [ADR 0003](0003-vendored-forked-desktop-toolchain.md), which are a separate, in-IDE-runtime concern.
 
 ## Consequences
 
@@ -40,5 +40,5 @@ The app streams progress/events back from this process and renders them (e.g. `B
 
 ## Related
 
-- [ADR 0003](0003-vendored-forked-desktop-toolchain.md) — the forked toolchain the build process runs.
+- [ADR 0003](0003-vendored-forked-desktop-toolchain.md) — the forked **in-IDE-runtime** toolchain (Java LSP, etc.); a *separate* concern, not what runs Gradle here.
 - [ARCHITECTURE.md](../../ARCHITECTURE.md) — build engine module group.
