@@ -17,6 +17,6 @@ class StepOverAction(
     override var tooltipTag = TooltipTag.DEBUGGER_ACTION_STEP_OVER
 
     override suspend fun execAction(data: ActionData) {
-        debugClient.stepOver()
+        debugClient?.stepOver()
     }
 }

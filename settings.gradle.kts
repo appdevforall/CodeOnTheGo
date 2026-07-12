@@ -127,7 +127,6 @@ include(
 	":gradle-plugin",
 	":gradle-plugin-config",
 	":idetooltips",
-	":layouteditor",
 	":lexers",
 	":logger",
 	":logsender",
@@ -140,7 +139,6 @@ include(
 	":templates-impl",
 	":treeview",
 	":uidesigner",
-	":vectormaster",
 	":xml-inflater",
 	":lsp:api",
 	":lsp:models",
@@ -187,11 +185,8 @@ include(
 	":plugin-api",
 	":plugin-api:plugin-builder",
 	":plugin-manager",
-	":llama-api",
-	":llama-impl",
-	":llama-api",
-	":llama-impl",
-	":compose-preview"
+	":compose-preview",
+	":floating-window"
 )
 
 object FDroidConfig {

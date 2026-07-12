@@ -176,6 +176,26 @@ class PluginEditorTabManager {
         }
     }
 
+    /**
+     * Create a fresh, uncached fragment for a plugin tab, registering its classloader so it can be
+     * recreated. Unlike [getOrCreateTabFragment], the result is not cached, so it is safe to host in
+     * a separate FragmentManager (e.g. a floating window) without colliding with the docked tab.
+     */
+    fun newTabFragment(tabId: String): Fragment? {
+        return synchronized(this) {
+            val tabInfo = pluginTabs[tabId] ?: return null
+            val fragment = try {
+                tabInfo.tabItem.fragmentFactory()
+            } catch (e: Throwable) {
+                val pluginId = resolvePluginId(tabInfo.extension)
+                if (pluginId != null) handlePluginCrash(pluginId, "fragmentFactory()", e)
+                return null
+            }
+            registerFragmentClassLoader(tabInfo.extension, fragment)
+            fragment
+        }
+    }
+
     private fun registerFragmentClassLoader(extension: EditorTabExtension, fragment: Fragment) {
         val pluginManager = pluginManagerRef ?: run {
             logger.warn("PluginManager not available, cannot register fragment classloader")

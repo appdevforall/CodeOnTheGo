@@ -80,6 +80,7 @@ import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+import com.itsaky.androidide.plugins.manager.ui.PluginUiActionManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
@@ -91,6 +92,7 @@ import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
+import com.itsaky.androidide.utils.EditorActivityActions
 import com.itsaky.androidide.utils.EditorSidebarActions
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
@@ -212,12 +214,17 @@ open class EditorHandlerActivity :
 		pluginEditorProvider = null
 	}
 
+	private val floatingTabController by lazy {
+		com.itsaky.androidide.editor.floating.IdeFloatingTabController(this)
+	}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		setupPluginFragmentFactory()
 		mBuildEventListener.setActivity(this)
 		super.onCreate(savedInstanceState)
 
 		supportFragmentManager.registerFragmentLifecycleCallbacks(pluginFontScalingListener, true)
+		floatingTabController.start()
 
 		editorViewModel._displayedFile.observe(
 			this,
@@ -293,7 +300,6 @@ open class EditorHandlerActivity :
 				fileTimestamps[file.absolutePath] = file.lastModified()
 			}
 		}
-		ActionContextProvider.clearActivity()
 		if (!isOpenedFilesSaved.get()) {
 			saveOpenedFiles()
 			saveOpenedPluginTabs()
@@ -310,6 +316,11 @@ open class EditorHandlerActivity :
 		val json = Gson().toJson(openPluginTabIds)
 		prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, json)
 		Log.d("EditorHandlerActivity", "Saved open plugin tabs: $openPluginTabIds")
+	}
+
+	override fun onDestroy() {
+		super.onDestroy()
+		ActionContextProvider.clearActivity(this)
 	}
 
 	override fun onResume() {
@@ -485,15 +496,23 @@ open class EditorHandlerActivity :
 		val data = createToolbarActionData()
 		content.projectActionsToolbar.clearMenu()
 
-		val actions = getInstance().getActions(EDITOR_TOOLBAR)
-		val hiddenIds = PluginBuildActionManager.getInstance().getHiddenActionIds()
-		actions.onEachIndexed { index, entry ->
-			val action = entry.value
+		// Sort by (order, id) so a plugin's ToolbarAction.order positions its icon among the
+		// built-in actions. The 13 built-ins are registered with contiguous order 0..12, so
+		// this is a visual no-op for them.
+		val actions = getInstance().getActions(EDITOR_TOOLBAR).values
+			.sortedWith(compareBy({ it.order }, { it.id }))
+		val hiddenIds = PluginBuildActionManager.getInstance().getHiddenActionIds() +
+			PluginUiActionManager.getHiddenActionIds()
+		actions.forEachIndexed { index, action ->
 			val isLast = index == actions.size - 1
 
 			action.prepare(data)
 
-			if (action.id in hiddenIds) return@onEachIndexed
+			if (action.id in hiddenIds) return@forEachIndexed
+
+			// Plugin toolbar actions opt into real visibility handling: remove them entirely
+			// when not applicable, instead of the legacy grey-out used by built-in actions.
+			if (action.honorVisibility && !action.visible) return@forEachIndexed
 
 			action.icon?.apply {
 				colorFilter = action.createColorFilter(data)
@@ -585,6 +604,21 @@ open class EditorHandlerActivity :
 		if (tabPosition < 0) return null
 		val child = _binding?.content?.editorContainer?.getChildAt(tabPosition) ?: return null
 		return if (child is CodeEditorView) child else null
+	}
+
+	/** Undock the file tab at [fileIndex] into a floating window over other apps. */
+	fun undockFileTab(fileIndex: Int) {
+		floatingTabController.undock(fileIndex)
+	}
+
+	/** Undock the plugin tab [tabId] (at [position]) into a floating window over other apps. */
+	fun undockPluginTab(tabId: String, position: Int) {
+		val title =
+			PluginEditorTabManager
+				.getInstance()
+				.getPluginTab(tabId)
+				?.title ?: tabId
+		floatingTabController.floatPluginTab(tabId, title) { closePluginTab(position) }
 	}
 
 	override fun openFileAndSelect(
@@ -1129,18 +1163,24 @@ open class EditorHandlerActivity :
 	@Subscribe(threadMode = ThreadMode.MAIN)
 	fun onDocumentChange(event: DocumentChangeEvent) {
 		if (contentOrNull == null) return
-		editorViewModel.areFilesModified = true
 
 		val fileIndex = findIndexOfEditorByFile(event.file.toFile())
 		if (fileIndex == -1) return
+
+		// The editor recomputes its modified flag on every content change, so a change may
+		// have returned the file to its saved state (e.g. the user undid all their edits).
+		val isModified = getEditorAtIndex(fileIndex)?.isModified ?: false
+		editorViewModel.areFilesModified = hasUnsavedFiles()
 
 		val tabPosition = getTabPositionForFileIndex(fileIndex)
 		if (tabPosition < 0) return
 
 		val tab = content.tabs.getTabAt(tabPosition) ?: return
-		if (tab.text?.startsWith('*') == true) return
+		val hasIndicator = tab.text?.startsWith('*') == true
+		if (isModified == hasIndicator) return
 
-		tab.text = "*${tab.text}"
+		val baseName = tab.text?.removePrefix("*") ?: return
+		tab.text = if (isModified) "*$baseName" else baseName
 	}
 
 	@Subscribe(threadMode = ThreadMode.MAIN)
@@ -1260,6 +1300,8 @@ open class EditorHandlerActivity :
 			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
 				?.let { EditorSidebarActions.setup(it) }
 
+			EditorActivityActions.register(this)
+
 			invalidateOptionsMenu()
 
 			Log.i("EditorHandlerActivity", "Tore down contributions for disabled plugin: $pluginId")
@@ -1322,6 +1364,10 @@ open class EditorHandlerActivity :
 	 */
 	fun addOneTimeBuildResultListener(listener: Consumer<BuildResult>) {
 		singleBuildListeners.add(listener)
+	}
+
+	fun removeOneTimeBuildResultListener(listener: Consumer<BuildResult>) {
+		singleBuildListeners.remove(listener)
 	}
 
 	/**
@@ -1565,6 +1611,36 @@ open class EditorHandlerActivity :
 		}
 
 		binding.root.addView(closeItem)
+
+		val undockItem =
+			FileActionPopupWindowItemBinding
+				.inflate(
+					android.view.LayoutInflater.from(this),
+					null,
+					false,
+				).root
+		undockItem.apply {
+			text = getString(string.undock)
+			setOnLongClickListener {
+				TooltipManager.showIdeCategoryTooltip(
+					context = this@EditorHandlerActivity,
+					anchorView = anchorView,
+					tag = TooltipTag.WINDOW_UNDOCK,
+				)
+				popupWindow.dismiss()
+				true
+			}
+			setOnClickListener {
+				val pos = tab.position
+				val tabId = getPluginTabId(pos)
+				if (tabId != null) {
+					undockPluginTab(tabId, pos)
+				}
+				popupWindow.dismiss()
+			}
+		}
+		binding.root.addView(undockItem)
+
 		popupWindow.showAsDropDown(anchorView, 0, 0)
 	}
 
