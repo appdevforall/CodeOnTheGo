@@ -864,12 +864,11 @@ fun assetsFileDownload(
 		conn.setRequestProperty("Connection", "keep-alive")
 		conn.instanceFollowRedirects = true
 		conn.connectTimeout = 10_000
-		conn.readTimeout = 10_000
+		conn.readTimeout = 60_000
 
 		try {
 			val status = conn.responseCode
 			if (status == HttpURLConnection.HTTP_OK) {
-				// Stream the response body into the target file
 				conn.inputStream.use { input ->
 					target.outputStream().use { output ->
 						input.copyTo(output)
@@ -877,8 +876,7 @@ fun assetsFileDownload(
 				}
 				project.logger.lifecycle("Downloaded ${asset.url} → ${target.absolutePath}")
 			} else {
-				project.logger.warn("Failed to download ${asset.url} (HTTP $status: ${conn.responseMessage})")
-				project.logger.warn("Build will continue without this asset - some functionality may be unavailable")
+				throw GradleException("Failed to download ${asset.url} (HTTP $status: ${conn.responseMessage})")
 			}
 		} finally {
 			conn.disconnect()
@@ -886,104 +884,77 @@ fun assetsFileDownload(
 	}
 }
 
-fun assetsFileChecksum(asset: Asset): String? {
-	return if (isCiCd) {
-		val stagedChecksum = stagedChecksumFor(asset, rootProject.projectDir)
-		if (stagedChecksum.exists()) {
-			stagedChecksum.readText().trim()
-		} else {
-			throw GradleException("Failed to find checksum in ${stagedChecksum.absolutePath}")
-		}
-	} else {
-		val checksumUrl = asset.url + ".md5"
-		val conn = URL(checksumUrl).openConnection() as HttpURLConnection
-		conn.requestMethod = "GET"
-		conn.setRequestProperty("User-Agent", "Mozilla/5.0")
-		conn.instanceFollowRedirects = true
-		conn.connectTimeout = 10_000
-		conn.readTimeout = 10_000
-
-		return try {
-			val status = conn.responseCode
-
-			if (status == HttpURLConnection.HTTP_OK) {
-				val checksum = conn.inputStream.bufferedReader().use { it.readText().trim() }
-				// Validate MD5 format (32 hex characters) to detect HTML responses from Cloudflare
-				if (checksum.matches(Regex("^[a-fA-F0-9]{32}$"))) {
-					checksum
-				} else {
-					project.logger.warn("Invalid checksum format from $checksumUrl (got: ${checksum.take(50)}...)")
-					project.logger.warn("Server likely returning HTML instead of checksum - skipping")
-					null
-				}
-			} else {
-				// Workaround for HTTP 415 errors from asset server
-				project.logger.warn("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
-				null
-			}
-		} finally {
-			conn.disconnect()
+fun fileMd5(file: File): String {
+	val digest = MessageDigest.getInstance("MD5")
+	file.inputStream().use { input ->
+		val buffer = ByteArray(8192)
+		var read: Int
+		while (input.read(buffer).also { read = it } > 0) {
+			digest.update(buffer, 0, read)
 		}
 	}
+	return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+fun assetsFileChecksum(asset: Asset): String {
+	val checksum =
+		if (isCiCd) {
+			val stagedChecksum = stagedChecksumFor(asset, rootProject.projectDir)
+			if (!stagedChecksum.exists()) {
+				throw GradleException("Failed to find checksum in ${stagedChecksum.absolutePath}")
+			}
+			stagedChecksum.readText().trim()
+		} else {
+			val checksumUrl = asset.url + ".md5"
+			val conn = URL(checksumUrl).openConnection() as HttpURLConnection
+			conn.requestMethod = "GET"
+			conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+			conn.instanceFollowRedirects = true
+			conn.connectTimeout = 10_000
+			conn.readTimeout = 10_000
+
+			try {
+				val status = conn.responseCode
+				if (status != HttpURLConnection.HTTP_OK) {
+					throw GradleException("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
+				}
+				conn.inputStream.bufferedReader().use { it.readText().trim() }
+			} finally {
+				conn.disconnect()
+			}
+		}
+
+	if (!checksum.matches(Regex("^[a-fA-F0-9]{32}$"))) {
+		throw GradleException(
+			"Invalid MD5 checksum for ${asset.remotePath} (got: '${checksum.take(50)}') - the server may be returning an error page instead of the checksum",
+		)
+	}
+	return checksum
 }
 
 fun assetsDownload(
 	assets: List<Asset>,
 	projectDir: File,
 ) {
-	val checksumDir = File(projectDir, ".checksum")
-	checksumDir.mkdirs()
-
 	assets.forEach { asset ->
 		val target = File(projectDir, asset.localPath)
 		target.parentFile.mkdirs()
 
-		// Path for checksum file
-		val canonicalName = asset.localPath.replace("/", "_")
-		val checksumFile = File(checksumDir, "${asset.variant}-$canonicalName.md5")
-
-		// Load previous checksum (empty string if missing)
-		val previousChecksum: String =
-			if (checksumFile.exists()) {
-				checksumFile.readText()
-			} else {
-				""
-			}
-
 		val remoteChecksum = assetsFileChecksum(asset)
 
-		val needsDownload = (previousChecksum != remoteChecksum) || previousChecksum.isEmpty()
-
-		if (needsDownload) {
-			project.logger.lifecycle("Downloading ${asset.url} → ${asset.localPath}")
-
-			assetsFileDownload(asset, File(rootProject.projectDir, asset.localPath))
-
-			// Only verify checksum if download succeeded
-			if (target.exists()) {
-				// Recompute checksum after download
-				val digest = MessageDigest.getInstance("MD5")
-				target.inputStream().use { input ->
-					val buffer = ByteArray(8192)
-					var read: Int
-					while (input.read(buffer).also { read = it } > 0) {
-						digest.update(buffer, 0, read)
-					}
-				}
-				val newChecksum = digest.digest().joinToString("") { "%02x".format(it) }
-				if (!remoteChecksum.isNullOrEmpty() && newChecksum != remoteChecksum) {
-					project.logger.warn("Checksum mismatch for ${asset.localPath} (expected $remoteChecksum, got $newChecksum)")
-					project.logger.warn("This may indicate asset server issues - build will continue with downloaded file")
-				}
-
-				checksumFile.writeText(newChecksum)
-				project.logger.lifecycle("Updated checksum stored: ${checksumFile.absolutePath}")
-			} else {
-				project.logger.warn("Download failed for ${asset.localPath} - skipping checksum verification")
-				project.logger.warn("Build will continue - some functionality may be unavailable")
-			}
-		} else {
+		if (target.exists() && fileMd5(target) == remoteChecksum) {
 			project.logger.lifecycle("File ${asset.localPath} is up-to-date (checksum matches).")
+			return@forEach
+		}
+
+		project.logger.lifecycle("Downloading ${asset.url} → ${asset.localPath}")
+		assetsFileDownload(asset, target)
+
+		val newChecksum = fileMd5(target)
+		if (newChecksum != remoteChecksum) {
+			throw GradleException(
+				"Checksum mismatch for ${asset.localPath} (expected $remoteChecksum, got $newChecksum)",
+			)
 		}
 	}
 }
