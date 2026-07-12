@@ -12,7 +12,7 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:contentDescription="@string/send_feedback"
-    android:elevation="16dp"
-    android:src="@drawable/baseline_feedback_64"
+    app:elevation="16dp"
+    app:srcCompat="@drawable/baseline_feedback_64"
     app:fabCustomSize="@dimen/feedback_fab_size"
     app:maxImageSize="@dimen/feedback_fab_icon_size" />

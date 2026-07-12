@@ -19,7 +19,6 @@ package com.itsaky.androidide.activities
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.TypedValue
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.animation.Animation
@@ -182,11 +181,8 @@ class OnboardingActivity : AppIntro2() {
                         ).apply {
                             startToStart = ConstraintLayout.LayoutParams.PARENT_ID
                             bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-                            val marginInPx = TypedValue.applyDimension(
-                                TypedValue.COMPLEX_UNIT_DIP,
-                                16f,
-                                resources.displayMetrics
-                            ).toInt()
+                            val marginInPx =
+                                resources.getDimensionPixelSize(R.dimen.feedback_fab_margin)
                             setMargins(marginInPx, marginInPx, marginInPx, marginInPx)
                         }
                     }
