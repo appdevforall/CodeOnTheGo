@@ -7,6 +7,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedExcept
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.ContextKeywords
@@ -26,7 +27,6 @@ import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.progress.ProgressManager
 import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
-import kotlinx.coroutines.CancellationException
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
@@ -56,7 +56,6 @@ import org.jetbrains.kotlin.analysis.api.symbols.receiverType
 import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaType
 import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
-import org.jetbrains.kotlin.com.intellij.openapi.progress.ProcessCanceledException
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
@@ -101,17 +100,13 @@ private fun abortIfCancelled() {
 }
 
 /**
- * A cancelled completion surfaces as different exception types depending on where it was observed
- * ([CancellationException]/[AnalysisPreemptedException] at a checkpoint, [ProcessCanceledException]
- * mid-`analyze`, [CompletionCancelledException] from the sora publisher, [InterruptedException] on
- * the sora completion thread). All mean "superseded/cancelled"; treat them uniformly so none is
- * logged as a spurious error.
+ * A cancelled completion surfaces as different exception types. [isAnalysisCancellation] covers the
+ * analysis-level ones (cancellation, preemption, process-cancellation, interruption); the
+ * sora-publisher-specific [CompletionCancelledException] is layered on here. All mean
+ * "superseded/cancelled"; treat them uniformly so none is logged as a spurious error.
  */
 private fun Throwable.isCancellation(): Boolean =
-	this is CancellationException ||
-		this is InterruptedException ||
-		this is ProcessCanceledException ||
-		this is CompletionCancelledException
+	isAnalysisCancellation() || this is CompletionCancelledException
 
 /**
  * Provide code completion for the given completion parameters.
