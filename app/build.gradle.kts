@@ -48,6 +48,8 @@ val props =
 		if (file.exists()) load(file.inputStream())
 	}
 
+val glitchtipDsn = props.getProperty("glitchtipDsn") ?: propOrEnv("GLITCHTIP_DSN")
+
 apply {
 	plugin(AndroidIDEAssetsPlugin::class.java)
 }
@@ -79,12 +81,10 @@ android {
 	buildTypes {
 		debug {
 			signingConfig = signingConfigs.getByName("debug")
-			manifestPlaceholders["sentryDsn"] =
-				props.getProperty("sentryDsnDebug") ?: propOrEnv("SENTRY_DSN_DEBUG")
+			manifestPlaceholders["sentryDsn"] = glitchtipDsn
 		}
 		release {
-			manifestPlaceholders["sentryDsn"] =
-				props.getProperty("sentryDsnRelease") ?: propOrEnv("SENTRY_DSN_RELEASE")
+			manifestPlaceholders["sentryDsn"] = glitchtipDsn
 		}
 	}
 
@@ -324,7 +324,7 @@ dependencies {
 	// Sentry Android SDK (core + replay for quality configuration)
 	implementation(libs.sentry.core)
 	implementation(libs.sentry.android.core)
-	implementation(libs.sentry.android.replay)
+	implementation(libs.sentry.logback)
 
 	// Firebase Analytics
 	implementation(platform(libs.firebase.bom))
