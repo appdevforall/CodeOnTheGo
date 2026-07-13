@@ -168,7 +168,7 @@ spotless {
 		importOrder()
 
 		removeUnusedImports()
-		removeWildcardImports()
+		forbidWildcardImports()
 
 		// custom rule to fix lambda formatting
 		custom(

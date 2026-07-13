@@ -64,7 +64,7 @@ libsu-core = "6.0.0"
 ## When updating this value, please manually compile libbrotli.so from Brotli4j for Android and
 ## put it in app/src/main/jniLibs
 brotli4j = "1.18.0"
-spotless = "7.2.1"
+spotless = "8.8.0"
 fragmentKtx = "1.8.8"
 
 protobuf = "4.32.1"
