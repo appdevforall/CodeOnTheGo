@@ -21,7 +21,7 @@
   android:layout_height="@dimen/editor_mem_usage_view_height">
 
   <!--  Need to wrap this in a layout so that we can apply margins at runtime-->
-  <com.github.mikephil.charting.charts.LineChart
+  <com.itsaky.androidide.ui.SafeLineChart
     android:id="@+id/chart"
     android:layout_width="0dp"
     android:layout_height="0dp"

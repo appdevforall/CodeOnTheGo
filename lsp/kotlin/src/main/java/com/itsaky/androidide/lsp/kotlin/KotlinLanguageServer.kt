@@ -36,6 +36,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_INDEX_KEY
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_META_INDEX_KEY
 import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
+import com.itsaky.androidide.lsp.kotlin.signaturehelp.doSignatureHelp
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.DefinitionParams
@@ -75,7 +76,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 
 class KotlinLanguageServer : ILanguageServer {
-
 	private var _client: ILanguageClient? = null
 	private var _settings: IServerSettings? = null
 	private var initialized = false
@@ -94,7 +94,6 @@ class KotlinLanguageServer : ILanguageServer {
 		get() = _settings ?: KotlinServerSettings.getInstance().also { _settings = it }
 
 	companion object {
-
 		const val SERVER_ID = "ide.lsp.kotlin"
 		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
 	}
@@ -129,25 +128,29 @@ class KotlinLanguageServer : ILanguageServer {
 		LSPEditorActions.ensureActionsMenuRegistered(KotlinCodeActionsMenu)
 
 		val context = BaseApplication.baseInstance
-		val indexingServiceManager = ProjectManagerImpl.getInstance()
-			.indexingServiceManager
+		val indexingServiceManager =
+			ProjectManagerImpl
+				.getInstance()
+				.indexingServiceManager
 
 		val indexingRegistry = indexingServiceManager.registry
 		indexingRegistry.register(
 			key = KT_SOURCE_FILE_INDEX_KEY,
-			index = JvmSymbolIndex.createSqliteIndex(
-				context = context,
-				dbName = KT_SOURCE_FILE_INDEX_KEY.name,
-				indexName = KT_SOURCE_FILE_INDEX_KEY.name,
-			)
+			index =
+				JvmSymbolIndex.createSqliteIndex(
+					context = context,
+					dbName = KT_SOURCE_FILE_INDEX_KEY.name,
+					indexName = KT_SOURCE_FILE_INDEX_KEY.name,
+				),
 		)
 
 		indexingRegistry.register(
 			key = KT_SOURCE_FILE_META_INDEX_KEY,
-			index = KtFileMetadataIndex.sqliteBacked(
-				context = context,
-				dbName = KT_SOURCE_FILE_META_INDEX_KEY.name
-			)
+			index =
+				KtFileMetadataIndex.sqliteBacked(
+					context = context,
+					dbName = KT_SOURCE_FILE_META_INDEX_KEY.name,
+				),
 		)
 
 		val jvmLibraryIndexingService =
@@ -159,8 +162,9 @@ class KotlinLanguageServer : ILanguageServer {
 		val jdkRelease = IJdkDistributionProvider.DEFAULT_JAVA_RELEASE
 		val intellijPluginRoot = Paths.get(context.applicationInfo.sourceDir)
 
-		val jvmTarget = JvmTarget.fromString(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
-			?: JvmTarget.JVM_21
+		val jvmTarget =
+			JvmTarget.fromString(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
+				?: JvmTarget.JVM_21
 
 		val jvmPlatform = JvmPlatforms.jvmPlatformByTargetVersion(jvmTarget)
 
@@ -171,14 +175,15 @@ class KotlinLanguageServer : ILanguageServer {
 			model.update(workspace, jvmPlatform)
 			this.projectModel = model
 
-			val compiler = Compiler(
-				workspace = workspace,
-				projectModel = model,
-				intellijPluginRoot = intellijPluginRoot,
-				jdkHome = jdkHome,
-				jdkRelease = jdkRelease,
-				languageVersion = LanguageVersion.LATEST_STABLE,
-			)
+			val compiler =
+				Compiler(
+					workspace = workspace,
+					projectModel = model,
+					intellijPluginRoot = intellijPluginRoot,
+					jdkHome = jdkHome,
+					jdkRelease = jdkRelease,
+					languageVersion = LanguageVersion.LATEST_STABLE,
+				)
 
 			compiler.updateLanguageClient(client)
 			this.compiler = compiler
@@ -191,7 +196,8 @@ class KotlinLanguageServer : ILanguageServer {
 		// we won't get an event for these
 		FileManager.activeDocuments.ifNotEmpty {
 			forEach { document ->
-				compiler?.compilationEnvironmentFor(document.file)
+				compiler
+					?.compilationEnvironmentFor(document.file)
 					?.openFileIfNeeded(document.file)
 			}
 		}
@@ -207,7 +213,8 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		logger.debug("complete(position={}, file={})", params.position, params.file)
-		return compiler?.compilationEnvironmentFor(params.file)
+		return compiler
+			?.compilationEnvironmentFor(params.file)
 			?.let { context(it) { codeComplete(params) } }
 			?: CompletionResult.EMPTY
 	}
@@ -236,9 +243,7 @@ class KotlinLanguageServer : ILanguageServer {
 		return DefinitionResult.empty()
 	}
 
-	override suspend fun expandSelection(params: ExpandSelectionParams): Range {
-		return params.selection
-	}
+	override suspend fun expandSelection(params: ExpandSelectionParams): Range = params.selection
 
 	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
 		if (!settings.signatureHelpEnabled()) {
@@ -249,7 +254,11 @@ class KotlinLanguageServer : ILanguageServer {
 			return SignatureHelp.empty()
 		}
 
-		return SignatureHelp.empty()
+		logger.debug("signatureHelp(position={}, file={})", params.position, params.file)
+		return compiler
+			?.compilationEnvironmentFor(params.file)
+			?.let { context(it) { doSignatureHelp(params) } }
+			?: SignatureHelp.empty()
 	}
 
 	override suspend fun analyze(file: Path): DiagnosticResult {
@@ -258,7 +267,8 @@ class KotlinLanguageServer : ILanguageServer {
 		if (!settings.diagnosticsEnabled() || !settings.codeAnalysisEnabled()) {
 			logger.debug(
 				"analyze() skipped: diagnosticsEnabled={}, codeAnalysisEnabled={}",
-				settings.diagnosticsEnabled(), settings.codeAnalysisEnabled()
+				settings.diagnosticsEnabled(),
+				settings.codeAnalysisEnabled(),
 			)
 			return DiagnosticResult.NO_UPDATE
 		}
@@ -268,7 +278,8 @@ class KotlinLanguageServer : ILanguageServer {
 			return DiagnosticResult.NO_UPDATE
 		}
 
-		return compiler?.compilationEnvironmentFor(file)
+		return compiler
+			?.compilationEnvironmentFor(file)
 			?.let { context(it) { collectDiagnosticsFor(file, createJobCancelChecker()) } }
 			?: DiagnosticResult.NO_UPDATE
 	}
@@ -280,7 +291,8 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		compiler?.compilationEnvironmentFor(event.openedFile)
+		compiler
+			?.compilationEnvironmentFor(event.openedFile)
 			?.onFileOpen(event.openedFile)
 	}
 
@@ -291,9 +303,9 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		compiler?.compilationEnvironmentFor(event.changedFile)
+		compiler
+			?.compilationEnvironmentFor(event.changedFile)
 			?.onFileContentChanged(event.changedFile)
-
 	}
 
 	@Subscribe(threadMode = ThreadMode.ASYNC)
@@ -303,9 +315,9 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		compiler?.compilationEnvironmentFor(event.closedFile)
+		compiler
+			?.compilationEnvironmentFor(event.closedFile)
 			?.onFileClosed(event.closedFile)
-
 	}
 
 	@Subscribe(threadMode = ThreadMode.ASYNC)
@@ -315,7 +327,8 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		compiler?.compilationEnvironmentFor(event.savedFile)
+		compiler
+			?.compilationEnvironmentFor(event.savedFile)
 			?.onFileSaved(event.savedFile)
 	}
 
@@ -369,7 +382,8 @@ class KotlinLanguageServer : ILanguageServer {
 			if (!oldIsKotlinFile && newIsKotlinFile) {
 				// only the new file is a Kotlin file
 				// so just submit it for indexing
-				compiler?.compilationEnvironmentFor(toPath)
+				compiler
+					?.compilationEnvironmentFor(toPath)
 					?.onFileCreated(toPath)
 				return@launch
 			}
@@ -377,7 +391,8 @@ class KotlinLanguageServer : ILanguageServer {
 			if (oldIsKotlinFile && !newIsKotlinFile) {
 				// only the old file was a Kotlin file
 				// so just remove it from the index
-				compiler?.compilationEnvironmentFor(fromPath)
+				compiler
+					?.compilationEnvironmentFor(fromPath)
 					?.onFileRemoved(fromPath)
 				return@launch
 			}

@@ -33,9 +33,9 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.LayoutCrashReportBinding
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.resolveAttr
 
 class CrashReportFragment : Fragment() {
@@ -144,7 +144,7 @@ class CrashReportFragment : Fragment() {
         val body = Uri.encode(
             context.getString(
                 R.string.crash_email_body,
-                BuildInfo.VERSION_NAME_SIMPLE
+                BasicBuildInfo.formatVersion()
             )
         )
 

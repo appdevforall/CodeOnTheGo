@@ -29,7 +29,6 @@ import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.build.RunTasksAction
 import com.itsaky.androidide.actions.editor.CopyAction
 import com.itsaky.androidide.actions.editor.CutAction
-import com.itsaky.androidide.actions.agent.ExplainSelectionAction
 import com.itsaky.androidide.actions.editor.ExpandSelectionAction
 import com.itsaky.androidide.actions.editor.LongSelectAction
 import com.itsaky.androidide.actions.editor.PasteAction
@@ -39,7 +38,6 @@ import com.itsaky.androidide.actions.etc.FindAction
 import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
 import com.itsaky.androidide.actions.etc.LaunchAppAction
-import com.itsaky.androidide.actions.etc.PreviewLayoutAction
 import com.itsaky.androidide.actions.file.CloseAllFilesAction
 import com.itsaky.androidide.actions.file.CloseFileAction
 import com.itsaky.androidide.actions.file.CloseOtherFilesAction
@@ -95,7 +93,6 @@ class EditorActivityActions {
             registry.registerAction(UndoAction(context, order++))
             registry.registerAction(RedoAction(context, order++))
             registry.registerAction(SaveFileAction(context, order++))
-            registry.registerAction(PreviewLayoutAction(context, order++))
             registry.registerAction(FindAction(context, order++))
             registry.registerAction(FindInFileAction(context, order++))
             registry.registerAction(FindInProjectAction(context, order++))
@@ -112,7 +109,6 @@ class EditorActivityActions {
             registry.registerAction(LongSelectAction(context, order++))
             registry.registerAction(CutAction(context, order++))
             registry.registerAction(CopyAction(context, order++))
-            registry.registerAction(ExplainSelectionAction(context, order++))
             registry.registerAction(PasteAction(context, order++))
             registry.registerAction(FormatCodeAction(context, order++))
             registry.registerAction(ShowTooltipAction(context, order++))

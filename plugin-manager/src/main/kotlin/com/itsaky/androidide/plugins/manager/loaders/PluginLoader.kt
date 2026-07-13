@@ -244,10 +244,10 @@ class PluginLoader(
             val pluginMaxIdeVersion = metaData.getString("plugin.max_ide_version")
 
             // Parse permissions
-            val permissions = metaData.getString("plugin.permissions")?.split(",")?.map { it.trim() } ?: emptyList()
+            val permissions = metaData.getString("plugin.permissions")?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
 
             // Parse dependencies
-            val dependencies = metaData.getString("plugin.dependencies")?.split(",")?.map { it.trim() } ?: emptyList()
+            val dependencies = metaData.getString("plugin.dependencies")?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
 
             // Parse sidebar items count
             val sidebarItems = metaData.getInt("plugin.sidebar_items", 0)

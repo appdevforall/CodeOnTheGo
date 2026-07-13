@@ -483,12 +483,29 @@ jobs:
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
           echo "google-services.json created successfully"
 
+      - name: Validate release version
+        env:
+          NEXT_RELEASE_VERSION: ${{ vars.NEXT_RELEASE_VERSION }}
+        run: |
+          if [ -z "$NEXT_RELEASE_VERSION" ]; then
+            echo "ERROR: NEXT_RELEASE_VERSION variable is not set"
+            exit 1
+          fi
+          if [[ ! "$NEXT_RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}$ ]]; then
+            echo "ERROR: NEXT_RELEASE_VERSION format is invalid: $NEXT_RELEASE_VERSION"
+            echo "Expected format: YY.ww (two digits, dot, two digits, e.g., 25.50)"
+            exit 1
+          fi
+          echo "Validated NEXT_RELEASE_VERSION: $NEXT_RELEASE_VERSION"
+
       - name: Assemble Release APK
         env:
           INCLUDE_LLAMA_ASSETS: "true"
+          NEXT_RELEASE_VERSION: ${{ vars.NEXT_RELEASE_VERSION }}
         run: |
           variant_upper=$(echo "${{ matrix.variant }}" | tr '[:lower:]' '[:upper:]')
           flox activate -d flox/base -- ./gradlew :app:assemble${variant_upper}Release --no-daemon \
+            -Pnext_release_version="$NEXT_RELEASE_VERSION" \
             -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
             -Dandroid.aapt2.daemonHeapSize=4096M \
             -Dorg.gradle.workers.max=1 \

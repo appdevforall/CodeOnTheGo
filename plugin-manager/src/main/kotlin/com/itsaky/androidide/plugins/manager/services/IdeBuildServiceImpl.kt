@@ -3,9 +3,8 @@ package com.itsaky.androidide.plugins.manager.services
 
 import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.plugins.services.BuildStatusListener
-import com.itsaky.androidide.lookup.Lookup
-import com.itsaky.androidide.projects.builder.BuildService
-import java.util.concurrent.CompletableFuture
+import com.itsaky.androidide.plugins.services.BuildAndLaunchCallback
+import com.itsaky.androidide.plugins.services.GradleSyncCallback
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
@@ -20,6 +19,11 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
     private val buildStatusListeners = CopyOnWriteArraySet<BuildStatusListener>()
     private var buildInProgress = false
     private var toolingServerStarted = false
+
+    // Providers set by the app module
+    private var runAppProvider: ((BuildAndLaunchCallback) -> Unit)? = null
+    private var gradleSyncProvider: ((GradleSyncCallback) -> Unit)? = null
+    private var buildOutputProvider: (() -> String?)? = null
 
     companion object {
         @Volatile
@@ -46,19 +50,6 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 
     override fun removeBuildStatusListener(callback: BuildStatusListener) {
         buildStatusListeners.remove(callback)
-    }
-
-    override fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> {
-        val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
-            ?: return CompletableFuture.completedFuture(false)
-
-        return try {
-            buildService.executeTasks(*tasks)
-                .thenApply { result -> result?.isSuccessful == true }
-                .exceptionally { false }
-        } catch (e: Exception) {
-            CompletableFuture.completedFuture(false)
-        }
     }
 
     /**
@@ -116,5 +107,40 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
                 // Ignore listener exceptions to prevent one bad listener from affecting others
             }
         }
+    }
+
+    override fun runApp(callback: BuildAndLaunchCallback) {
+        runAppProvider?.invoke(callback)
+            ?: callback.onComplete(false, "Run app functionality not initialized")
+    }
+
+    override fun triggerGradleSync(callback: GradleSyncCallback) {
+        gradleSyncProvider?.invoke(callback)
+            ?: callback.onComplete(false, "Gradle sync functionality not initialized")
+    }
+
+    override fun getBuildOutput(): String? {
+        return buildOutputProvider?.invoke()
+    }
+
+    /**
+     * Set the run app provider (should be called by Code On the Go's app module during initialization)
+     */
+    fun setRunAppProvider(provider: (BuildAndLaunchCallback) -> Unit) {
+        this.runAppProvider = provider
+    }
+
+    /**
+     * Set the gradle sync provider (should be called by Code On the Go's app module during initialization)
+     */
+    fun setGradleSyncProvider(provider: (GradleSyncCallback) -> Unit) {
+        this.gradleSyncProvider = provider
+    }
+
+    /**
+     * Set the build output provider (should be called by Code On the Go's app module during initialization)
+     */
+    fun setBuildOutputProvider(provider: () -> String?) {
+        this.buildOutputProvider = provider
     }
 }
