@@ -12,11 +12,11 @@ import kotlin.concurrent.withLock
  * lower-priority analysis that is currently running, and is served before any lower-priority request
  * that is merely waiting.
  *
- * Order: [INDEXING] < [DIAGNOSTICS] < [COMPLETION] — interactive completion beats background
- * diagnostics, which beats bulk indexing.
+ * Order: [INDEXING] < [DIAGNOSTICS] < [INTERACTIVE] — interactive requests (completion, signature
+ * help) beat background diagnostics, which beats bulk indexing.
  *
  * [supersedesSamePriority] additionally lets a *newer* request preempt an in-flight one of the
- * **same** priority. On for [COMPLETION] only: rapid typing makes the in-flight completion stale, so
+ * **same** priority. On for [INTERACTIVE] only: rapid typing makes the in-flight request stale, so
  * the newer one cancels it and the superseded work is *discarded* (nothing reschedules it). Off for
  * [DIAGNOSTICS]/[INDEXING], whose preempted work is re-queued — there same-priority preemption would
  * livelock, two contenders endlessly re-queuing and re-preempting each other.
@@ -24,7 +24,7 @@ import kotlin.concurrent.withLock
 internal enum class AnalysisPriority(val supersedesSamePriority: Boolean) {
 	INDEXING(supersedesSamePriority = false),
 	DIAGNOSTICS(supersedesSamePriority = false),
-	COMPLETION(supersedesSamePriority = true),
+	INTERACTIVE(supersedesSamePriority = true),
 }
 
 /**

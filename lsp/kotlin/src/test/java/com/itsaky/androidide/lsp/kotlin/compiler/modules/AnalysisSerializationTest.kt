@@ -133,7 +133,7 @@ class AnalysisSerializationTest : KtLspTest() {
 	fun `reentrant withAnalysisLock on the same thread does not deadlock`() {
 		var innerRan = false
 		withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(ICancelChecker.NOOP)) {
-			withAnalysisLock(AnalysisPriority.COMPLETION, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+			withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
 				innerRan = true
 			}
 		}
@@ -166,7 +166,7 @@ class AnalysisSerializationTest : KtLspTest() {
 
 		// A completion request must preempt the in-progress indexing.
 		val higher = Thread {
-			withAnalysisLock(AnalysisPriority.COMPLETION, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+			withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
 				higherRan.set(true)
 			}
 		}
@@ -211,7 +211,7 @@ class AnalysisSerializationTest : KtLspTest() {
 
 		// A completion request preempts the in-progress (indexing) analysis.
 		val higher = Thread {
-			withAnalysisLock(AnalysisPriority.COMPLETION, ScheduledCancelChecker(ICancelChecker.NOOP)) {}
+			withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {}
 		}
 		higher.start()
 		higher.join(5_000)
@@ -242,7 +242,7 @@ class AnalysisSerializationTest : KtLspTest() {
 				env.project.read {
 					analyzeMaybeDangling(
 						file,
-						AnalysisPriority.COMPLETION,
+						AnalysisPriority.INTERACTIVE,
 						ScheduledCancelChecker(delegate),
 					) {
 						holding.countDown()
@@ -293,7 +293,7 @@ class AnalysisSerializationTest : KtLspTest() {
 
 		// A completion holder keeps the lock until released.
 		val holder = Thread {
-			withAnalysisLock(AnalysisPriority.COMPLETION, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+			withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
 				holding.countDown()
 				release.await()
 			}
@@ -338,7 +338,7 @@ class AnalysisSerializationTest : KtLspTest() {
 
 		// High-priority (completion) holder holds the lock until released.
 		val higher = Thread {
-			withAnalysisLock(AnalysisPriority.COMPLETION, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+			withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
 				holding.countDown()
 				release.await()
 			}
@@ -376,7 +376,7 @@ class AnalysisSerializationTest : KtLspTest() {
 		// An in-flight completion runs a long, cooperatively-cancellable analysis.
 		val older = Thread {
 			try {
-				withAnalysisLock(AnalysisPriority.COMPLETION, holderChecker) {
+				withAnalysisLock(AnalysisPriority.INTERACTIVE, holderChecker) {
 					holding.countDown()
 					repeat(2_000) {
 						holderChecker.abortIfCancelled()
@@ -392,7 +392,7 @@ class AnalysisSerializationTest : KtLspTest() {
 
 		// A newer completion request (user typed on) must supersede the in-flight one.
 		val newer = Thread {
-			withAnalysisLock(AnalysisPriority.COMPLETION, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+			withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
 				newerRan.set(true)
 			}
 		}

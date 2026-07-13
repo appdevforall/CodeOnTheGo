@@ -140,7 +140,7 @@ internal fun codeComplete(params: CompletionParams): CompletionResult {
 }
 
 /**
- * Runs at the highest [AnalysisPriority.COMPLETION]: preempts in-progress diagnostics/indexing and
+ * Runs at the highest [AnalysisPriority.INTERACTIVE]: preempts in-progress diagnostics/indexing and
  * is never preempted by lower-priority work, but is superseded (cancelled and discarded) by a newer
  * completion request as the user keeps typing.
  */
@@ -194,7 +194,7 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 		env.project.read {
 			abortIfCancelled()
 
-			analyzeMaybeDangling(completionKtFile, AnalysisPriority.COMPLETION, cancelChecker) {
+			analyzeMaybeDangling(completionKtFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
 				val ctx =
 					resolveAnalysisContext(
 						env = env,
