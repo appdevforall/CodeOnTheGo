@@ -66,9 +66,13 @@ internal class IndexWorker(
 
 			when (val cmd = queue.take()) {
 				is IndexCommand.RemoveFromIndex -> {
-					val filePath = cmd.path.pathString
-					fileIndex.remove(filePath)
-					sourceIndex.removeBySource(filePath)
+					applyRemovals(
+						first = cmd,
+						fileIndex = fileIndex,
+						sourceIndex = sourceIndex,
+						pollNext = { queue.pollIndexQueue() },
+						pushBack = { queue.pushBackIndexQueue(it) },
+					)
 				}
 
 				is IndexCommand.IndexSourceFile -> {
@@ -159,4 +163,51 @@ internal class IndexWorker(
 			}
 		}
 	}
+}
+
+/**
+ * Apply [first] plus any consecutive, immediately-available [IndexCommand.RemoveFromIndex]
+ * commands as a single batched removal.
+ *
+ * The symbol removals and the per-file metadata removals are each collapsed into one
+ * batched call — [JvmSymbolIndex.removeBySources] and [KtFileMetadataIndex.removeAll], a
+ * single SQLite transaction apiece — instead of issuing one `DELETE` per file (one
+ * transaction each), which is the N+1 this fix targets (Sentry APPDEVFORALL-SE).
+ *
+ * [pollNext] returns the next already-queued index command without blocking, or `null`
+ * when none is ready. A polled command that is *not* a removal is handed to [pushBack] so
+ * it is processed (in order) on the next loop iteration rather than dropped.
+ *
+ * @param first      The removal command that triggered this batch.
+ * @param fileIndex  Per-file metadata index; removed via the batched [KtFileMetadataIndex.removeAll].
+ * @param sourceIndex Symbol index; removed via the batched [JvmSymbolIndex.removeBySources].
+ * @param pollNext   Non-blocking poll of the next queued index command.
+ * @param pushBack   Returns a non-removal command to the front of the queue.
+ */
+internal suspend fun applyRemovals(
+	first: IndexCommand.RemoveFromIndex,
+	fileIndex: KtFileMetadataIndex,
+	sourceIndex: JvmSymbolIndex,
+	pollNext: () -> IndexCommand?,
+	pushBack: (IndexCommand) -> Unit,
+) {
+	val paths = ArrayList<String>()
+	paths.add(first.path.pathString)
+
+	while (true) {
+		val next = pollNext() ?: break
+		if (next is IndexCommand.RemoveFromIndex) {
+			paths.add(next.path.pathString)
+		} else {
+			// Not batchable — return it so the main loop handles it next, in order.
+			pushBack(next)
+			break
+		}
+	}
+
+	// Collapse all per-file metadata removals into a single transaction.
+	fileIndex.removeAll(paths)
+
+	// Collapse all symbol removals into a single transaction.
+	sourceIndex.removeBySources(paths)
 }
