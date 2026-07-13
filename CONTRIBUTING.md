@@ -10,7 +10,10 @@ agree to abide the terms specified in the [CODE OF CONDUCT](./CODE_OF_CONDUCT.md
 
 ## Git Pre-Commit Hook: Branch Name Enforcement
 
-This project enforces a strict branch naming policy using a Git pre-commit hook.
+This project enforces a strict branch naming policy using a Git pre-commit hook. These formats
+are for core-team contributions that reference an internal ticket. If you are a community
+contributor without access to that ticket system, use the `community/` prefix instead — see
+[Community contributions](#community-contributions).
 
 ### Allowed Branch Formats:
 - `ADFA-123` (3 to 5 digit number)
@@ -57,6 +60,22 @@ To contribute to this project,
 - Open the project.
 - Make your changes.
 - Create a pull request that includes a meaningful title and description.
+
+## Community contributions
+
+External contributors don't have access to our internal ticket system, so the `ADFA-` branch
+naming and ticket validation used by the core team don't apply to you.
+
+- After forking (see [Propose a change](#propose-a-change)), name your branch with the
+  `community/` prefix followed by a short, descriptive summary — for example
+  `community/fix-editor-crash`.
+- Do **not** use the `ADFA-` prefix. It is reserved for internal branches linked to a ticket.
+  When a pull request from a fork uses an `ADFA-` branch name, the **Lint Branch Name** check
+  comments on the pull request and fails until you rename the branch to start with `community/`.
+
+The branch-name pre-commit hook above enforces the `ADFA-` format, so it is meant for the core
+team — community contributors don't need to install it. On `community/` branches, our build
+pipeline automatically skips the ticket-specific steps and runs the rest of the checks as usual.
 
 ## Report issues 
 

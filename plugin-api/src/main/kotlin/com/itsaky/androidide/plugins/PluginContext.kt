@@ -3,6 +3,7 @@
 package com.itsaky.androidide.plugins
 
 import android.content.Context
+import android.content.SharedPreferences
 // Note: EventBus and ILogger are referenced but not directly imported to avoid Android dependencies
 import java.io.File
 import java.io.InputStream
@@ -14,6 +15,40 @@ interface PluginContext {
     val logger: PluginLogger
     val resources: ResourceManager
     val pluginId: String
+
+    /**
+     * Get the plugin's private data directory
+     * Files stored here are isolated from other plugins
+     *
+     * @return Plugin data directory
+     */
+    fun getPluginDataDir(): File
+
+    /**
+     * Get the main application's files directory for data migration
+     * Used to access data from the built-in Agent before migration to plugin
+     *
+     * @return Application files directory
+     */
+    fun getAppFilesDir(): File
+
+    /**
+     * Get the plugin's own files directory for storing migrated data
+     * Used during data migration to copy chat history and settings
+     *
+     * @return Plugin files directory
+     */
+    fun getPluginFilesDir(): File
+
+    /**
+     * Get SharedPreferences for the plugin for writing migrated data
+     * Plugins should only manage their own preferences for data isolation
+     *
+     * @param prefsName Name of the preferences file (e.g., "AgentSettings")
+     * @return SharedPreferences instance
+     */
+    fun getPluginSharedPreferences(prefsName: String): android.content.SharedPreferences
+
 }
 
 interface ServiceRegistry {

@@ -56,9 +56,14 @@ import io.github.rosemoe.sora.lang.styling.Span
 import io.github.rosemoe.sora.lang.styling.SpanFactory
 import io.github.rosemoe.sora.lang.styling.Spans
 import io.github.rosemoe.sora.lang.styling.TextStyle
+import io.github.rosemoe.sora.lang.styling.span.SpanConstColorResolver
+import io.github.rosemoe.sora.lang.styling.span.SpanExtAttrs
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
+import com.itsaky.androidide.plugins.extensions.DecorationSpan
+import com.itsaky.androidide.syntax.decoration.EditorDecorationRegistry
+import java.util.TreeMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -205,7 +210,88 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
     if (list.isEmpty()) {
       list.add(emptySpan(0))
     }
-    return list
+    return applyDecorations(list, startIndex, endIndex)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plugin editor decorations
+  //
+  // After the base (tree-sitter) spans for a region are built, every registered
+  // EditorDecorationProvider is given the region and returns additive, foreground-only color
+  // spans, which are merged in here. The IDE is feature-agnostic — it knows nothing about what a
+  // provider decorates (brackets, indent guides, markers, ...). Providers run on this analyze
+  // thread and receive the full document content so they can use context outside the region.
+  // ---------------------------------------------------------------------------
+
+  private fun applyDecorations(list: MutableList<Span>, startIndex: Int,
+    endIndex: Int): MutableList<Span> {
+    val providers = EditorDecorationRegistry.providers()
+    if (providers.isEmpty() || endIndex <= startIndex) return list
+
+    val isDark = EditorDecorationRegistry.isDark
+    var decorations: ArrayList<DecorationSpan>? = null
+    for (provider in providers) {
+      val spans = try {
+        provider.decorate(content, startIndex, endIndex, isDark)
+      } catch (t: Throwable) {
+        Log.e(TAG, "Editor decoration provider failed", t)
+        continue
+      }
+      if (spans.isEmpty()) continue
+      (decorations ?: ArrayList<DecorationSpan>().also { decorations = it }).addAll(spans)
+    }
+
+    val decos = decorations ?: return list
+    return mergeDecorations(list, startIndex, endIndex, decos)
+  }
+
+  /**
+   * Merges additive, foreground-only decoration spans into [list]: overrides only the foreground
+   * color of the covered characters while preserving every base style underneath, and keeps the
+   * strictly-ascending, non-overlapping span ordering the renderer requires. Decoration offsets are
+   * absolute; they are clipped to the region and converted to line-relative columns.
+   */
+  private fun mergeDecorations(list: MutableList<Span>, startIndex: Int, endIndex: Int,
+    decorations: List<DecorationSpan>): MutableList<Span> {
+    val lineLen = endIndex - startIndex
+
+    // Snapshot of the base styles, used to restore the original style after each decorated range.
+    val base = TreeMap<Int, Long>()
+    for (s in list) base.putIfAbsent(s.column, s.style)
+    val defaultStyle = TextStyle.makeStyle(EditorColorScheme.TEXT_NORMAL)
+    fun baseStyleAt(col: Int): Long = base.floorEntry(col)?.value ?: defaultStyle
+
+    val result = TreeMap<Int, Span>()
+    for (s in list) result.putIfAbsent(s.column, s)
+
+    for (d in decorations) {
+      val s = (d.start - startIndex).coerceAtLeast(0)
+      val e = (d.end - startIndex).coerceAtMost(lineLen)
+      if (e <= s) continue
+
+      // Override the foreground at the range start and at every span boundary inside it, so the
+      // color survives base-style changes within the range. Base style (bold/etc.) is preserved.
+      var coveredStart = false
+      for (col in result.subMap(s, true, e, false).keys.toList()) {
+        result[col] = coloredSpan(col, result[col]!!.style, d.argb)
+        if (col == s) coveredStart = true
+      }
+      if (!coveredStart) {
+        result[s] = coloredSpan(s, baseStyleAt(s), d.argb)
+      }
+      // Resume the underlying style right after the range, unless a span already begins there.
+      if (e < lineLen && !result.containsKey(e)) {
+        result[e] = SpanFactory.obtain(e, baseStyleAt(e))
+      }
+    }
+
+    return ArrayList(result.values)
+  }
+
+  private fun coloredSpan(column: Int, style: Long, argb: Int): Span {
+    val span = SpanFactory.obtain(column, style)
+    span.setSpanExt(SpanExtAttrs.EXT_COLOR_RESOLVER, SpanConstColorResolver(argb, 0))
+    return span
   }
 
   private fun createSpans(capture: TSQueryCapture, startColumn: Int, endColumn: Int,

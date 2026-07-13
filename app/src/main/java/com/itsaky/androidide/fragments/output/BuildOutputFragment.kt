@@ -23,7 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipTag
-import com.itsaky.androidide.utils.BuildInfoUtils
+import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -90,14 +90,22 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		super.onDestroyView()
 	}
 
+	/** Clears the build output, guarding against access while the fragment is detached. */
 	override fun clearOutput() {
+		// Avoid forcing the activityViewModels lazy init (which calls requireActivity())
+		// when the fragment is detached, otherwise an IllegalStateException is thrown.
+		if (!isAdded || activity == null) return
 		buildOutputViewModel.clear()
 		super.clearOutput()
 	}
 
+	/** Returns the shareable build output, or an empty string when the fragment is detached. */
 	override fun getShareableContent(): String {
+		// Same guard as clearOutput(): touching buildOutputViewModel while detached
+		// triggers requireActivity() via activityViewModels and crashes.
+		if (!isAdded || activity == null) return ""
 		val snapshot = buildOutputViewModel.getCachedContentSnapshot()
-		return if (snapshot.isEmpty()) "" else BuildInfoUtils.BASIC_INFO + System.lineSeparator() + snapshot
+		return if (snapshot.isEmpty()) "" else BasicBuildInfo.shareableBuildInfo() + System.lineSeparator() + snapshot
 	}
 
 	fun appendOutput(output: String?) {

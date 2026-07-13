@@ -6,7 +6,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.DeleteProjectsItemBinding
 import com.itsaky.androidide.models.Checkable
-import org.appdevforall.codeonthego.layouteditor.ProjectFile
+import com.itsaky.androidide.models.ProjectFile
 
 class DeleteProjectListAdapter(
     private var projects: List<Checkable<ProjectFile>>,

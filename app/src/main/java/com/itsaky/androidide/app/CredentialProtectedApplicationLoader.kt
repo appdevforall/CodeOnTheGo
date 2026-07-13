@@ -9,6 +9,7 @@ import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
@@ -18,6 +19,7 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
+import com.itsaky.androidide.utils.EditorDecorationBridge
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.FileUtil
@@ -329,6 +331,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			GlobalScope.launch {
 				try {
 					pluginManager?.loadPlugins()
+					EditorDecorationBridge.init()
 					logger.info("Plugin system initialized successfully")
 				} catch (e: Exception) {
 					logger.error("Failed to load plugins", e)
@@ -346,7 +349,181 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 	private fun setupPluginServices() {
 		pluginManager?.let { manager ->
 			manager.setActivityProvider { application.foregroundActivity }
+			setupBuildServiceProviders()
+			setupProjectManipulationProviders()
 			logger.info("Plugin services configured successfully")
+		}
+	}
+
+	@OptIn(DelicateCoroutinesApi::class)
+	private fun setupBuildServiceProviders() {
+		val buildServiceImpl = com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl.getInstance()
+
+		// Provide runApp functionality
+		buildServiceImpl.setRunAppProvider { callback ->
+			logger.info("runApp provider called - attempting to get BuildService from Lookup")
+			GlobalScope.launch(Dispatchers.IO) {
+				try {
+					val buildService = Lookup.getDefault().lookup(com.itsaky.androidide.projects.builder.BuildService.KEY_BUILD_SERVICE)
+					logger.info("BuildService lookup result: {}", if (buildService == null) "NULL" else "FOUND")
+					if (buildService == null) {
+						callback.onComplete(false, "Build service not available - may need to open a project first")
+						return@launch
+					}
+
+					val projectManager = com.itsaky.androidide.projects.IProjectManager.getInstance()
+					val appModules = projectManager.getAndroidAppModules()
+
+					if (appModules.isEmpty()) {
+						callback.onComplete(false, "No Android app modules found in project")
+						return@launch
+					}
+
+					val module = appModules.firstOrNull()
+					val variant = module?.getSelectedVariant()
+
+					if (module == null || variant == null) {
+						callback.onComplete(false, "No app module or variant selected")
+						return@launch
+					}
+
+					val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
+					val result = buildService.executeTasks(tasks = listOf(taskName)).get()
+
+					if (result == null || !result.isSuccessful) {
+						callback.onComplete(false, "Build failed: ${result?.failure}")
+						return@launch
+					}
+
+					// TODO: Install and launch APK
+					callback.onComplete(true, "Build successful (installation not yet implemented)")
+				} catch (e: Exception) {
+					logger.error("Failed to run app", e)
+					callback.onComplete(false, "Error: ${e.message}")
+				}
+			}
+		}
+
+		// Provide gradle sync functionality
+		buildServiceImpl.setGradleSyncProvider { callback ->
+			GlobalScope.launch(Dispatchers.IO) {
+				try {
+					val buildService = Lookup.getDefault().lookup(com.itsaky.androidide.projects.builder.BuildService.KEY_BUILD_SERVICE)
+					if (buildService == null) {
+						callback.onComplete(false, "Build service not available")
+						return@launch
+					}
+
+					logger.info("Triggering Gradle sync via generateDebugSources task")
+					val result = buildService.executeTasks(listOf("generateDebugSources")).get()
+
+					if (result == null || !result.isSuccessful) {
+						val errorMsg = result?.failure?.toString() ?: "Unknown error"
+						logger.error("Gradle sync failed: {}", errorMsg)
+						callback.onComplete(false, "Gradle sync failed: $errorMsg")
+					} else {
+						logger.info("Gradle sync completed successfully")
+						callback.onComplete(true, "Gradle sync completed")
+					}
+				} catch (e: Exception) {
+					logger.error("Failed to sync gradle", e)
+					callback.onComplete(false, "Error: ${e.message}")
+				}
+			}
+		}
+
+		// Provide build output
+		buildServiceImpl.setBuildOutputProvider {
+			try {
+				val buildService = Lookup.getDefault().lookup(com.itsaky.androidide.projects.builder.BuildService.KEY_BUILD_SERVICE)
+				if (buildService != null) {
+					// Try to get build output from the service
+					// Note: BuildService doesn't directly expose output, so we return last build status
+					"Build service is available. Run build_app or gradle_sync to see output."
+				} else {
+					"Build service not available"
+				}
+			} catch (e: Exception) {
+				"Error getting build output: ${e.message}"
+			}
+		}
+	}
+
+	private fun setupProjectManipulationProviders() {
+		val manipulationServiceImpl = com.itsaky.androidide.plugins.manager.services.IdeProjectManipulationServiceImpl.getInstance()
+
+		// Provide dependency addition
+		manipulationServiceImpl.setAddDependencyProvider { dependencyString, buildFilePath ->
+			try {
+				val buildFile = java.io.File(buildFilePath)
+				if (!buildFile.exists() || !buildFile.isFile) {
+					logger.warn("Build file not found: {}", buildFilePath)
+					return@setAddDependencyProvider false
+				}
+
+				// Read the current file
+				val content = buildFile.readText()
+
+				// Check if dependency already exists
+				if (content.contains(dependencyString, ignoreCase = false)) {
+					logger.info("Dependency already present: {}", dependencyString)
+					return@setAddDependencyProvider true
+				}
+
+				// Find the dependencies block and add the new dependency
+				// Format: implementation("...") or api("...") etc.
+				val lines = content.split("\n").toMutableList()
+				var dependenciesBlockIndex = -1
+				var insertIndex = -1
+
+				// Find the dependencies { block
+				for (i in lines.indices) {
+					if (lines[i].contains("dependencies")) {
+						dependenciesBlockIndex = i
+						// Find the closing brace
+						for (j in i + 1 until lines.size) {
+							if (lines[j].trim().startsWith("}") && !lines[j].trim().startsWith("}")) {
+								continue
+							}
+							if (lines[j].trim() == "}" || lines[j].trim().startsWith("}")) {
+								insertIndex = j
+								break
+							}
+						}
+						break
+					}
+				}
+
+				if (dependenciesBlockIndex >= 0 && insertIndex > dependenciesBlockIndex) {
+					// Insert the new dependency before the closing brace
+					val indentation = "    "
+					val depLine = "${indentation}implementation(\"$dependencyString\")"
+					lines.add(insertIndex, depLine)
+
+					// Write back
+					buildFile.writeText(lines.joinToString("\n"))
+					logger.info("Successfully added dependency: {}", dependencyString)
+					return@setAddDependencyProvider true
+				} else {
+					logger.warn("Could not find dependencies block in build file")
+					return@setAddDependencyProvider false
+				}
+			} catch (e: Exception) {
+				logger.error("Error adding dependency", e)
+				false
+			}
+		}
+
+		// Provide string resource addition
+		manipulationServiceImpl.setAddStringResourceProvider { name, value ->
+			// TODO: Implement string resource addition
+			false
+		}
+
+		// Provide file deletion
+		manipulationServiceImpl.setDeleteFileProvider { path ->
+			// TODO: Implement file deletion
+			false
 		}
 	}
 
@@ -380,6 +557,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			}
 		} else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
 			AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+			EditorDecorationBridge.refresh()
 		} else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
 			// Use empty locale list if the locale has been reset to 'System Default'
 			val selectedLocale = GeneralPreferences.selectedLocale

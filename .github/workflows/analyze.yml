@@ -79,7 +79,7 @@ jobs:
           # Firebase config).  Scoped to this step so SonarCloud and other
           # third-party actions never see them.
           FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
-          SENTRY_DSN_DEBUG: ${{ secrets.SENTRY_DSN_DEBUG }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
         run: |
           echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
@@ -104,7 +104,7 @@ jobs:
           # The Gradle build also drives Sentry/Firebase configuration during
           # the unit-test compile path.
           FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
-          SENTRY_DSN_DEBUG: ${{ secrets.SENTRY_DSN_DEBUG }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
         run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonarqube --info --no-build-cache -x lint --continue
 
       - name: Upload JaCoCo report
