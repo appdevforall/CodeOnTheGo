@@ -3,6 +3,7 @@ package com.itsaky.androidide.app
 import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.lifecycleScope
+import com.itsaky.androidide.activities.editor.PeerPresenceOverlayManager
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
@@ -36,6 +37,9 @@ class EditorProviderImpl(
     private val activityRef = WeakReference(activity)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val fileCallbacks = java.util.concurrent.CopyOnWriteArrayList<(File?) -> Unit>()
+    private val peerPresenceOverlay = PeerPresenceOverlayManager { file ->
+        activity()?.getEditorForFile(file)?.editor
+    }
 
     private val internalListener: (File?) -> Unit = { file ->
         fileCallbacks.forEach { cb ->
@@ -57,6 +61,7 @@ class EditorProviderImpl(
     fun dispose() {
         EditorEvents.removeFileChangeListener(internalListener)
         fileCallbacks.clear()
+        onMain { peerPresenceOverlay.clearAll(); true }
         activityRef.clear()
     }
 
@@ -255,6 +260,25 @@ class EditorProviderImpl(
             replace(range.startLine, range.startColumn, range.endLine, range.endColumn, newText)
         }
         true
+    }
+
+    override fun showPeerCursor(
+        file: File,
+        line: Int,
+        column: Int,
+        peerId: String,
+        peerName: String,
+        peerColor: Int,
+    ): Boolean = onMain {
+        peerPresenceOverlay.addMarker(file, line, column, peerId, peerName, peerColor)
+    }
+
+    override fun hidePeerCursor(file: File, peerId: String): Boolean = onMain {
+        peerPresenceOverlay.removeMarker(file, peerId)
+    }
+
+    override fun clearPeerCursors(file: File) {
+        onMain { peerPresenceOverlay.clear(file); true }
     }
 
     /**

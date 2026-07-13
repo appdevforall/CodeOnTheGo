@@ -1226,6 +1226,7 @@ public final class com/itsaky/androidide/plugins/services/IdeCommandService$Defa
 public abstract interface class com/itsaky/androidide/plugins/services/IdeEditorService {
 	public abstract fun addFileChangeListener (Lcom/itsaky/androidide/plugins/services/FileChangeListener;)V
 	public abstract fun appendToLine (Ljava/io/File;ILjava/lang/String;)Z
+	public abstract fun clearPeerCursors (Ljava/io/File;)V
 	public abstract fun deleteLine (Ljava/io/File;I)Z
 	public abstract fun getCurrentCursorPosition ()Lcom/itsaky/androidide/plugins/services/CursorPosition;
 	public abstract fun getCurrentFile ()Ljava/io/File;
@@ -1241,6 +1242,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeEditor
 	public abstract fun getModifiedFiles ()Ljava/util/List;
 	public abstract fun getOpenFiles ()Ljava/util/List;
 	public abstract fun getWordAtCursor ()Ljava/lang/String;
+	public abstract fun hidePeerCursor (Ljava/io/File;Ljava/lang/String;)Z
 	public abstract fun insertLineBefore (Ljava/io/File;ILjava/lang/String;)Z
 	public abstract fun insertTextAtCursor (Ljava/lang/String;)Z
 	public abstract fun isFileModified (Ljava/io/File;)Z
@@ -1253,6 +1255,13 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeEditor
 	public abstract fun replaceRange (Ljava/io/File;Lcom/itsaky/androidide/plugins/services/SelectionRange;Ljava/lang/String;)Z
 	public abstract fun replaceSelection (Ljava/lang/String;)Z
 	public abstract fun saveCurrentFile ()Z
+	public abstract fun showPeerCursor (Ljava/io/File;IILjava/lang/String;Ljava/lang/String;I)Z
+}
+
+public final class com/itsaky/androidide/plugins/services/IdeEditorService$DefaultImpls {
+	public static fun clearPeerCursors (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;)V
+	public static fun hidePeerCursor (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;Ljava/lang/String;)Z
+	public static fun showPeerCursor (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;IILjava/lang/String;Ljava/lang/String;I)Z
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeEditorTabService {
@@ -1307,10 +1316,12 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeProjec
 	public abstract fun getCurrentProject ()Lcom/itsaky/androidide/plugins/extensions/IProject;
 	public abstract fun getModuleContext (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/ModuleContext;
 	public abstract fun getProjectByPath (Ljava/io/File;)Lcom/itsaky/androidide/plugins/extensions/IProject;
+	public abstract fun openProject (Ljava/io/File;)Z
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeProjectService$DefaultImpls {
 	public static fun getModuleContext (Lcom/itsaky/androidide/plugins/services/IdeProjectService;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/ModuleContext;
+	public static fun openProject (Lcom/itsaky/androidide/plugins/services/IdeProjectService;Ljava/io/File;)Z
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeSidebarService {

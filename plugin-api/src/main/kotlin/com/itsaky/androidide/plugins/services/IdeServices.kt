@@ -33,6 +33,24 @@ interface IdeProjectService {
     fun getProjectByPath(path: File): IProject?
 
     /**
+     * Requests the IDE to open the project rooted at [projectDir], replacing the project
+     * that is currently open. Dispatches asynchronously: a `true` return means the open was
+     * requested and the editor is being launched, not that the project has finished loading.
+     * Poll [getCurrentProject] to observe completion.
+     *
+     * Requires the FILESYSTEM_READ permission.
+     *
+     * Default-implemented (no-op, returns false) so adding it is a backward-compatible
+     * interface extension: existing implementers and any prebuilt plugin-api lib keep
+     * compiling; the host overrides it.
+     *
+     * @param projectDir The root directory of the project to open
+     * @return true if the open request was dispatched, false if it was rejected or the IDE
+     *   has no foreground activity available to host the editor
+     */
+    fun openProject(projectDir: File): Boolean = false
+
+    /**
      * Resolves the build context (compile/intermediate classpaths, runtime dex files,
      * selected variant, resource APK, and whether a build is needed) for the module that
      * owns the given file.
@@ -142,6 +160,31 @@ interface IdeEditorService {
     fun deleteLine(file: File, line: Int): Boolean
 
     fun replaceRange(file: File, range: SelectionRange, newText: String): Boolean
+
+    /**
+     * Draws (or moves) a remote peer's cursor — a small colored, named caret badge —
+     * inside the editor for [file] at the 0-based [line]/[column]. Cursors are keyed by
+     * [peerId]: calling again for the same (file, peerId) repositions the existing cursor.
+     * [peerColor] is an ARGB int. No-op (returns false) if the file isn't open in an editor.
+     * Visual overlay only — never mutates file content. Requires FILESYSTEM_READ.
+     *
+     * Default-implemented (no-op) so adding it is a backward-compatible interface extension:
+     * existing implementers and any prebuilt plugin-api lib keep compiling; the host overrides it.
+     */
+    fun showPeerCursor(
+        file: File,
+        line: Int,
+        column: Int,
+        peerId: String,
+        peerName: String,
+        peerColor: Int,
+    ): Boolean = false
+
+    /** Hides the cursor for [peerId] in [file], if present. Default-implemented no-op. */
+    fun hidePeerCursor(file: File, peerId: String): Boolean = false
+
+    /** Removes all remote peer cursors in [file]. Default-implemented no-op. */
+    fun clearPeerCursors(file: File) {}
 
     fun addFileChangeListener(listener: FileChangeListener)
 
