@@ -364,32 +364,60 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
      * files appear without a manual refresh.
      */
     fun refreshExpandedNodes() {
-        if (binding == null || context == null) {
-            return
-        }
-        val root = treeRoot ?: return
-        refreshChangedDirs(root)
+        if (binding == null || context == null) return
+
+        treeRoot?.let(::refreshChangedDirectories)
     }
 
-    private fun refreshChangedDirs(node: TreeNode) {
+    private fun refreshChangedDirectories(node: TreeNode) {
         node.children.forEach { child ->
             val file = child.value ?: return@forEach
+
             if (!file.isDirectory || !child.isExpanded) {
                 return@forEach
             }
 
-            refreshChangedDirs(child)
+            if (!hasDirectoryContentsChanged(child)) {
+                refreshChangedDirectories(child)
+                return@forEach
+            }
 
-            if (childrenDifferFromDisk(child)) {
-                listNode(child) { expandNode(child, false) }
+            val expandedPaths = hashSetOf<String>()
+            collectExpandedPaths(child, expandedPaths)
+            relistPreservingExpansion(child, expandedPaths)
+        }
+    }
+
+    private fun collectExpandedPaths(node: TreeNode, into: MutableSet<String>) {
+        for (child in node.children) {
+            val file = child.value ?: continue
+            if (file.isDirectory && child.isExpanded) {
+                into.add(file.absolutePath)
+                collectExpandedPaths(child, into)
             }
         }
     }
 
-    private fun childrenDifferFromDisk(node: TreeNode): Boolean {
-        val onDisk = node.value.listFiles()?.map { it.name }?.toHashSet() ?: hashSetOf()
+    private fun relistPreservingExpansion(node: TreeNode, expandedPaths: Set<String>) {
+        listNode(node) {
+            expandNode(node, false)
+            for (child in node.children) {
+                val file = child.value ?: continue
+                if (file.isDirectory && file.absolutePath in expandedPaths) {
+                    relistPreservingExpansion(child, expandedPaths)
+                }
+            }
+        }
+    }
+
+    private fun hasDirectoryContentsChanged(node: TreeNode): Boolean {
         val displayed = node.children.mapNotNull { it.value?.name }.toHashSet()
-        return onDisk != displayed
+        val files = node.value.listFiles() ?: return displayed.isNotEmpty()
+        if (files.size != displayed.size) {
+            return true
+        }
+
+        return files.any { it.name !in displayed }
     }
 
     private fun createTreeView(node: TreeNode): AndroidTreeView? {

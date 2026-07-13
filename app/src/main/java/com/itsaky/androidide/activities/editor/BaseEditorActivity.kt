@@ -1137,9 +1137,7 @@ abstract class BaseEditorActivity :
 	}
 
 	open fun getFileTreeFragment(): FileTreeFragment? {
-		if (filesTreeFragment == null) {
-			// File tree is a nav destination in the sidebar's NavHostFragment, so it
-			// lives in a nested child FragmentManager — search recursively.
+		if (filesTreeFragment?.isAdded != true) {
 			filesTreeFragment = findFileTreeFragment(supportFragmentManager)
 		}
 		return filesTreeFragment
