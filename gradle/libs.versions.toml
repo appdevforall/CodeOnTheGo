@@ -24,7 +24,6 @@ koinAndroid = "4.1.1"
 kotlin = "2.3.0"
 kotlin-coroutines = "1.9.0"
 kotlinxCoroutinesCore = "1.10.2"
-kotlinxSerializationJson = "1.9.0"
 lifecycleViewmodelKtx = "2.7.0"
 paletteKtx = "1.0.0"
 playServicesOssLicenses = "17.1.0"
@@ -128,7 +127,6 @@ google-genai = { module = "com.google.genai:google-genai", version.ref = "google
 gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koinAndroid" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
-kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 
@@ -149,7 +147,7 @@ firebase-analytics = { module = "com.google.firebase:firebase-analytics-ktx" }
 # Sentry
 sentry-core = { module = "io.sentry:sentry", version.ref = "sentry" }
 sentry-android-core = { module = "io.sentry:sentry-android-core", version.ref = "sentry" }
-sentry-android-replay = { module = "io.sentry:sentry-android-replay", version.ref = "sentry" }
+sentry-logback = { module = "io.sentry:sentry-logback", version.ref = "sentry" }
 
 # AndroidIDE
 androidide-ts = { module = "com.itsaky.androidide.treesitter:android-tree-sitter", version.ref = "tree-sitter" }
@@ -307,7 +305,6 @@ tooling-slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.12" }
 # Classpaths
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
-kotlin-serialization-plugin = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlin" }
 nav-safe-args-gradle-plugin = { module = "androidx.navigation:navigation-safe-args-gradle-plugin", version.ref = "androidx-navigation" }
 maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish-plugin" }
 androidx-monitor = { group = "androidx.test", name = "monitor", version.ref = "monitor" }
