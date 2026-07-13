@@ -8,14 +8,14 @@
 
 Historically the IDE's own UI is **View-based** — XML layouts, `Fragment`s, and `RecyclerView` with Material Components (see [ADR 0006](0006-koin-dependency-injection.md) context and ARCHITECTURE.md). Newer surfaces already moved to a Unidirectional Data Flow (UDF) architecture — `ViewModel` + `StateFlow`, sealed UI-state/effect types, repositories, Koin DI — but still render through XML and `findViewById`/binding.
 
-That split has a cost: two ways to build a screen, manual view-state wiring, boilerplate binding code, and UI logic that's awkward to unit-test. Jetpack Compose collapses the view layer into Kotlin, binds naturally to `StateFlow` via `collectAsState()`, and fits the UDF pattern the team already follows. Unlike most ADRs here, this one is **forward-looking** — it sets direction for new work rather than documenting an existing decision.
+That split has a cost: two ways to build a screen, manual view-state wiring, boilerplate binding code, and UI logic that's awkward to unit-test. Jetpack Compose collapses the view layer into Kotlin, binds naturally to `StateFlow` via `collectAsStateWithLifecycle()`, and fits the UDF pattern the team already follows. Unlike most ADRs here, this one is **forward-looking** — it sets direction for new work rather than documenting an existing decision.
 
 ## Decision
 
 **All new UI for the IDE is built in Jetpack Compose. New XML View-based screens are not permitted.**
 
 - New screens, panels, dialogs, and reusable UI components are composables. Reviewers should reject a new XML layout / `Fragment`-rendered screen for the IDE's own UI.
-- **The rest of the stack is unchanged.** Compose replaces only the view layer. UDF still holds: `ViewModel` + `StateFlow<UiState>`, sealed `UiEvent`/`UiEffect`, and repositories for data. Composables collect state with `collectAsState()` and send events up to the ViewModel.
+- **The rest of the stack is unchanged.** Compose replaces only the view layer. UDF still holds: `ViewModel` + `StateFlow<UiState>`, sealed `UiEvent`/`UiEffect`, and repositories for data. Composables collect state with `collectAsStateWithLifecycle()` (lifecycle-aware, Android's strongly-recommended default — needs `androidx.lifecycle:lifecycle-runtime-compose`; plain `collectAsState()` is only for platform-agnostic/KMP code, which this app doesn't have) and send events up to the ViewModel.
 - **DI is still Koin** ([ADR 0006](0006-koin-dependency-injection.md)) — ViewModels are resolved through Koin, not a new mechanism.
 - **Existing XML/View screens stay as-is.** This is not a migration mandate; legacy surfaces are rewritten in Compose only when they're being substantially reworked anyway.
 - This does **not** apply to the *user's* app or the visual design tooling (`layouteditor`, `uidesigner`, `xml-inflater`), which manipulate XML by definition.

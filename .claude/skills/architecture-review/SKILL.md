@@ -45,7 +45,7 @@ For each changed first-party file, check the applicable rules. Each rule cites i
 
 | # | Rule | Source |
 |---|---|---|
-| 1 | **UDF:** new screens use `ViewModel` + `StateFlow<UiState>`, sealed `UiEvent`/`UiEffect`, a repository for data; composables collect via `collectAsState()`; no I/O or business logic in composables/Activities/Fragments. | ARCHITECTURE.md → State Management |
+| 1 | **UDF:** new screens use `ViewModel` + `StateFlow<UiState>`, sealed `UiEvent`/`UiEffect`, a repository for data; composables collect via `collectAsStateWithLifecycle()` (lifecycle-aware, Android's strongly-recommended default; `collectAsState()` is only for platform-agnostic/KMP code, which we don't have); no I/O or business logic in composables/Activities/Fragments. | ARCHITECTURE.md → State Management |
 | 2 | **Sealed state for mutually-exclusive states** (loading/content/error/…): not a `data class` of independent `Boolean`s that can contradict each other ("boolean hell"). | ARCHITECTURE.md → State Management |
 | 3 | **Koin DI**, constructor injection; register new singletons/ViewModels in the module. No hand-rolled singletons/service locators (the documented `ServiceLocator` aside). | ADR 0006 |
 | 4 | **Persistence:** Room is the default for relational data; raw SQLite only for a justified exception (prebuilt read-only DB, perf/allocation-critical indexing, cross-boundary schema) — and the PR must say which. Non-relational → filesystem/preferences (DataStore). | ADR 0001 |
