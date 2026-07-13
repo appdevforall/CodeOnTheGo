@@ -25,12 +25,14 @@ Consequences for the build:
 **Negative / costs**
 - No flavorless variant; every build/test/release task is doubled into V7/V8.
 - Larger build matrix and more release artifacts to produce and track.
+- Co-published per-ABI APKs need distinct `versionCode`s (e.g. an ABI-prefixed code) so an arm64 device won't treat the v7 APK as a downgrade.
 - A recurring onboarding gotcha: contributors must use `assembleV8Debug` (etc.), not `assembleDebug`.
 
 ## Alternatives considered
 
 - **Universal (fat) APK** — rejected: size, given the large per-ABI native payload.
 - **Android App Bundle ABI splits** — rejected: our primary distribution is direct APK download, so we can't depend on Play-side splitting; flavors give us split artifacts on every channel.
+- **Gradle ABI splits (`splits { abi { } }`).** The standard way to get per-ABI APKs, and it avoids doubling the build/test matrix that a flavor dimension creates. Rejected because splits only slice one build's native libraries by ABI; they cannot bind a *different artifact* per ABI. We need exactly that: the llama native AAR and prebuilt assets differ per ABI (`bundleLlamaV8Assets`, `assets/release/v7|v8/`), which requires the per-flavor source sets/dependencies only product flavors provide.
 
 ## Related
 
