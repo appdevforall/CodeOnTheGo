@@ -32,6 +32,7 @@ import androidx.annotation.GravityInt
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
@@ -52,6 +53,7 @@ import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
+import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter.Companion.TAB_DIAGNOSTICS
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
@@ -124,6 +126,13 @@ constructor(
 	private lateinit var mediator: TabLayoutMediator
 	private var shareJob: Job? = null
 
+    // BottomSheetBehavior repositions the sheet after layout without triggering onSlide,
+    // so refresh the FABs afterward
+	private val fabLayoutChangeListener =
+		OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+			post { updateFabVisibility(viewModel.sheetState.value) }
+		}
+
 	companion object {
 		private val log = LoggerFactory.getLogger(EditorBottomSheet::class.java)
 
@@ -147,8 +156,15 @@ constructor(
 
 		context.lifecycleScope.launch {
 			context.repeatOnLifecycle(Lifecycle.State.STARTED) {
-				apkViewModel.sessionState.collectLatest { state ->
-					onApkInstallationSessionChanged(state)
+				launch {
+					apkViewModel.sessionState.collectLatest { state ->
+						onApkInstallationSessionChanged(state)
+					}
+				}
+				launch {
+					viewModel.sheetState.collectLatest { state ->
+						updateFabVisibility(state)
+					}
 				}
 			}
 		}
@@ -177,23 +193,8 @@ constructor(
 			object : OnTabSelectedListener {
 				override fun onTabSelected(tab: Tab) {
 					// update view model in case the tab was selected
-					// by user input
+					// by user input; the sheetState collector refreshes the FABs.
 					viewModel.setSheetState(currentTab = tab.position)
-
-					val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(tab.position)
-					if (fragment is ShareableOutputFragment) {
-						binding.clearFab.show()
-						binding.shareOutputFab.show()
-					} else {
-						binding.clearFab.hide()
-						binding.shareOutputFab.hide()
-					}
-
-					if (tab.position == EditorBottomSheetTabAdapter.TAB_DIAGNOSTICS) {
-						binding.copyDiagnosticsFab.show()
-					} else {
-						binding.copyDiagnosticsFab.hide()
-					}
 				}
 
 				override fun onTabUnselected(tab: Tab) {}
@@ -260,6 +261,8 @@ constructor(
 				insets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())
 			insets
 		}
+
+		addOnLayoutChangeListener(fabLayoutChangeListener)
 	}
 
   override fun onDetachedFromWindow() {
@@ -276,6 +279,7 @@ constructor(
     binding.clearFab.setOnLongClickListener(null)
     binding.copyDiagnosticsFab.setOnClickListener(null)
     binding.headerContainer.setOnClickListener(null)
+    removeOnLayoutChangeListener(fabLayoutChangeListener)
     ViewCompat.setOnApplyWindowInsetsListener(this, null)
 
     binding.pager.adapter = null
@@ -412,6 +416,8 @@ constructor(
 				bottom = padding.roundToInt(),
 			)
 		}
+
+		updateFabTranslation()
 	}
 
 	fun showChild(index: Int) {
@@ -582,4 +588,34 @@ constructor(
 			.onSuccess { flashSuccess(context.getString(string.msg_diagnostics_copied)) }
 			.onFailure { flashError(context.getString(string.msg_clipboard_copy_failed)) }
 	}
+
+    private fun updateFabVisibility(state: BottomSheetViewModel.SheetState) {
+        when (state.sheetState) {
+            BottomSheetBehavior.STATE_DRAGGING, BottomSheetBehavior.STATE_SETTLING -> return
+        }
+
+        updateFabTranslation()
+        val currentFragment = pagerAdapter.getFragmentAtIndex<Fragment>(state.currentTab)
+
+        val isExpanded = state.sheetState == BottomSheetBehavior.STATE_EXPANDED ||
+                state.sheetState == BottomSheetBehavior.STATE_HALF_EXPANDED
+
+        val showShareAndClear = isExpanded && currentFragment is ShareableOutputFragment
+        val showCopy = isExpanded && state.currentTab == TAB_DIAGNOSTICS
+
+        binding.clearFab.isVisible = showShareAndClear
+        binding.shareOutputFab.isVisible = showShareAndClear
+        binding.copyDiagnosticsFab.isVisible = showCopy
+    }
+
+    // The bottom-anchored FABs go off-screen when the bottom sheet is collapsed.
+    // Shift them up by the offset from the expanded position (zero when fully expanded).
+    private fun updateFabTranslation() {
+        val translationY = -(top - anchorOffset).coerceAtLeast(0).toFloat()
+        binding.apply {
+            clearFab.translationY = translationY
+            shareOutputFab.translationY = translationY
+            copyDiagnosticsFab.translationY = translationY
+        }
+    }
 }
