@@ -9,6 +9,7 @@ import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.ContextKeywords
 import com.itsaky.androidide.lsp.kotlin.utils.ModifierFilter
 import com.itsaky.androidide.lsp.kotlin.utils.containingTopLevelClassDeclaration
+import com.itsaky.androidide.lsp.kotlin.utils.renderName
 import com.itsaky.androidide.lsp.kotlin.utils.resolveAnalysisContext
 import com.itsaky.androidide.lsp.models.ClassCompletionData
 import com.itsaky.androidide.lsp.models.Command
@@ -21,18 +22,15 @@ import com.itsaky.androidide.lsp.models.MatchLevel
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.progress.ProgressManager
-import com.itsaky.androidide.projects.FileManager
 import kotlinx.coroutines.CancellationException
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.JvmTypeAliasInfo
-import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.KaSession
-import org.jetbrains.kotlin.analysis.api.renderer.types.KaTypeRenderer
 import org.jetbrains.kotlin.analysis.api.renderer.types.impl.KaTypeRendererForSource
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
@@ -68,7 +66,6 @@ import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
 import org.jetbrains.kotlin.psi.KtWhenExpression
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.startOffset
-import org.jetbrains.kotlin.types.Variance
 import org.slf4j.LoggerFactory
 import kotlin.io.path.name
 
@@ -110,15 +107,15 @@ internal fun codeComplete(params: CompletionParams): CompletionResult {
 
 context(env: CompilationEnvironment)
 internal fun doComplete(params: CompletionParams): CompletionResult {
-	val ktFile = env.ktSymbolIndex.getOpenedKtFile(params.file)
+	val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).get()
 	if (ktFile == null) {
 		logger.warn("File {} is not open", params.file)
 		return CompletionResult.EMPTY
 	}
 
-	// Need to use the original document contents here, instead of
-	// managedFile.inMemoryKtFile.text
-	val originalText = FileManager.getDocumentContents(params.file)
+	// Completion still parses its own placeholder variant (text differs), anchored to the
+	// current file.
+	val originalText = ktFile.text
 	val requestPosition = params.position
 	val completionOffset = requestPosition.requireIndex()
 	val prefix = params.requirePrefix()
@@ -740,17 +737,6 @@ private fun KaSession.kindOf(symbol: JvmSymbol): CompletionItemKind =
 		JvmSymbolKind.TYPE_ALIAS -> CompletionItemKind.CLASS
 	}
 
-@OptIn(KaExperimentalApi::class, KaContextParameterApi::class)
-private fun KaSession.renderName(
-	type: KaType,
-	renderer: KaTypeRenderer = KaTypeRendererForSource.WITH_SHORT_NAMES,
-	position: Variance = Variance.INVARIANT
-): String {
-	return type.run {
-		render(renderer, position)
-	}
-}
-
 private fun partialIdentifier(prefix: String): String {
 	return prefix.takeLastWhile { char -> Character.isJavaIdentifierPart(char) }
 }
@@ -805,4 +791,3 @@ private fun isInSelectorPosition(
 	val elementOffset = element.startOffset
 	return elementOffset >= selector.startOffset
 }
-
