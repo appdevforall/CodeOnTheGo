@@ -190,6 +190,20 @@ class EditorAccessibilitySegmentsTest {
         assertThat(preceding(text, paragraph, 7)).isEqualTo(listOf(4, 7)) // def
     }
 
+    @Test
+    fun `paragraph following from a mid-paragraph offset advances to the next paragraph`() {
+        val text = "abc\ndef\nghi"
+        // offset 5 is inside "def"; next paragraph is "ghi".
+        assertThat(following(text, paragraph, 5)).isEqualTo(listOf(8, 11))
+    }
+
+    @Test
+    fun `paragraph preceding from a mid-paragraph offset returns the whole enclosing paragraph`() {
+        val text = "abc\ndef\nghi"
+        // offset 5 is inside "def"; the whole line must be returned, not a truncated head.
+        assertThat(preceding(text, paragraph, 5)).isEqualTo(listOf(4, 7))
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Guards
     // ---------------------------------------------------------------------------------------------
