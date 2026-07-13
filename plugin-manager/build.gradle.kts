@@ -13,6 +13,12 @@ android {
 	}
 }
 
+kotlin {
+	compilerOptions {
+		optIn.add("com.itsaky.androidide.plugins.base.InternalPluginApi")
+	}
+}
+
 dependencies {
 	api(projects.pluginApi)
 
@@ -31,4 +37,7 @@ dependencies {
 	implementation(libs.brotli4j)
 	implementation(libs.commons.compress)
 	implementation(libs.tukaani.xz)
+
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.google.truth)
 }
