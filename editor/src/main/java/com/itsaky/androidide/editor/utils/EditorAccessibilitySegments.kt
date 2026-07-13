@@ -211,11 +211,15 @@ object EditorAccessibilitySegments {
         val length = text.length
         if (length <= 0 || offset >= length) return null
         var start = if (offset < 0) 0 else offset
+        // Mirror lineFollowing: when not already at a line start, advance to the next line.
+        if (start > 0 && text[start - 1] != '\n') {
+            while (start < length && text[start] != '\n') start++
+            if (start < length) start++ // step over the newline onto the next line
+            if (start >= length) return null
+        }
         // Skip blank lines so navigation lands on the next non-empty line.
         while (start < length && text[start] == '\n') start++
         if (start >= length) return null
-        // Snap to the start of the enclosing line.
-        while (start > 0 && text[start - 1] != '\n') start--
         var end = start
         while (end < length && text[end] != '\n') end++
         return intArrayOf(start, end)
@@ -225,11 +229,15 @@ object EditorAccessibilitySegments {
         val length = text.length
         if (length <= 0 || offset <= 0) return null
         var end = if (offset > length) length else offset
-        // Skip blank lines (trailing newlines) so we land on the previous non-empty line's end.
+        // Skip blank lines (trailing newlines) so we land on the previous non-empty line.
         while (end > 0 && text[end - 1] == '\n') end--
         if (end <= 0) return null
         var start = end
         while (start > 0 && text[start - 1] != '\n') start--
-        return intArrayOf(start, end)
+        // Mirror linePreceding: scan forward to the line end so a mid-paragraph offset returns
+        // the whole line instead of a truncated head.
+        var lineEnd = start
+        while (lineEnd < length && text[lineEnd] != '\n') lineEnd++
+        return intArrayOf(start, lineEnd)
     }
 }
