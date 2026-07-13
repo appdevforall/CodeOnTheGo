@@ -29,7 +29,6 @@ import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.build.RunTasksAction
 import com.itsaky.androidide.actions.editor.CopyAction
 import com.itsaky.androidide.actions.editor.CutAction
-import com.itsaky.androidide.actions.agent.ExplainSelectionAction
 import com.itsaky.androidide.actions.editor.ExpandSelectionAction
 import com.itsaky.androidide.actions.editor.LongSelectAction
 import com.itsaky.androidide.actions.editor.PasteAction
@@ -39,7 +38,6 @@ import com.itsaky.androidide.actions.etc.FindAction
 import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
 import com.itsaky.androidide.actions.etc.LaunchAppAction
-import com.itsaky.androidide.actions.etc.PreviewLayoutAction
 import com.itsaky.androidide.actions.file.CloseAllFilesAction
 import com.itsaky.androidide.actions.file.CloseFileAction
 import com.itsaky.androidide.actions.file.CloseOtherFilesAction
@@ -57,6 +55,7 @@ import com.itsaky.androidide.actions.filetree.RenameAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
 import com.itsaky.androidide.actions.PluginActionItem
+import com.itsaky.androidide.actions.PluginToolbarActionItem
 import com.itsaky.androidide.actions.build.PluginBuildActionItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
@@ -94,7 +93,6 @@ class EditorActivityActions {
             registry.registerAction(UndoAction(context, order++))
             registry.registerAction(RedoAction(context, order++))
             registry.registerAction(SaveFileAction(context, order++))
-            registry.registerAction(PreviewLayoutAction(context, order++))
             registry.registerAction(FindAction(context, order++))
             registry.registerAction(FindInFileAction(context, order++))
             registry.registerAction(FindInProjectAction(context, order++))
@@ -111,7 +109,6 @@ class EditorActivityActions {
             registry.registerAction(LongSelectAction(context, order++))
             registry.registerAction(CutAction(context, order++))
             registry.registerAction(CopyAction(context, order++))
-            registry.registerAction(ExplainSelectionAction(context, order++))
             registry.registerAction(PasteAction(context, order++))
             registry.registerAction(FormatCodeAction(context, order++))
             registry.registerAction(ShowTooltipAction(context, order++))
@@ -185,6 +182,11 @@ class EditorActivityActions {
                     plugin.getMainMenuItems().forEach { menuItem ->
                         val action = PluginActionItem(context, menuItem, order++, pluginId)
                         registry.registerAction(action)
+                    }
+                    // Toolbar actions carry their own order so a plugin can position its icon
+                    // among the built-in toolbar actions; do not consume the sequential counter.
+                    plugin.getToolbarActions().forEach { toolbarAction ->
+                        registry.registerAction(PluginToolbarActionItem(context, toolbarAction, pluginId))
                     }
                 } catch (e: Exception) {
                     Log.w("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName}", e)

@@ -72,7 +72,11 @@ class ViewInfoSheet : BottomSheetDialogFragment() {
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
 
-    findNavControllerFromFragment().addOnDestinationChangedListener { _, destination, _ ->
+    // Set navigation graph programmatically
+    val navController = findNavControllerFromFragment()
+    navController.setGraph(R.navigation.nav_viewinfo)
+
+    navController.addOnDestinationChangedListener { _, destination, _ ->
       viewInfoBackPressedCallback.isEnabled = destination.id != R.id.viewInfoFragment
 
       // not disabling the undo manager when going into 'edit mode' will result in a lot
