@@ -929,7 +929,7 @@ fun assetsFileChecksum(asset: Asset): String {
 			"Invalid MD5 checksum for ${asset.remotePath} (got: '${checksum.take(50)}') - the server may be returning an error page instead of the checksum",
 		)
 	}
-	return checksum
+	return checksum.lowercase()
 }
 
 fun assetsDownload(
