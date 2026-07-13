@@ -1,8 +1,11 @@
 package com.itsaky.androidide.lsp.kotlin.fixtures
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.toMetadata
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.progress.ICancelChecker
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaFunctionCall
@@ -63,7 +66,7 @@ abstract class KtLspTest {
 		val ktFile = call.containingKtFile
 		runBlocking { env.ktSymbolIndex.fileIndex.upsert(ktFile.toMetadata(env.project, isIndexed = false)) }
 		return env.project.read {
-			analyzeMaybeDangling(ktFile) {
+			analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
 				val resolved = call.resolveToCall()?.successfulFunctionCallOrNull()
 				action(resolved)
 			}
