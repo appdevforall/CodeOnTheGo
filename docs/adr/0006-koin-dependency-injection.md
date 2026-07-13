@@ -6,7 +6,7 @@
 
 ## Context
 
-The app needs dependency injection to wire ViewModels, repositories, and managers across many modules. On a build this large (~80 modules), annotation-processing DI (Dagger/Hilt via `kapt`/KSP) adds noticeable compile time and couples DI to the Android Gradle plugin and the build graph. The team values fast iteration and simple, testable wiring.
+The app needs dependency injection to wire ViewModels, repositories, and managers across many modules. Two things shape the choice. First, the build is large (~80 modules) and **many modules are pure JVM/Kotlin, not Android** (tooling, LSP, builder-model, shared infra); Hilt is built around Android components (`Application`/`Activity`/`ViewModel`) and the Android Gradle plugin, so it fits that surface poorly. Second, annotation-processing DI (Dagger/Hilt) adds compile time across the whole graph. The team also values fast iteration and simple, testable wiring.
 
 ## Decision
 
@@ -28,7 +28,7 @@ Use **Koin** for dependency injection.
 
 ## Alternatives considered
 
-- **Hilt / Dagger** — rejected: compile-time safety is real, but the `kapt`/KSP build cost and AGP coupling are significant at this module scale, and the team prioritized iteration speed.
+- **Hilt / Dagger.** Hilt is Google's *recommended* DI for Android, and compile-time graph validation is a real advantage; modern Hilt/Dagger also run on **KSP**, which narrows (though doesn't erase) the annotation-processing cost. Rejected anyway: Hilt is coupled to Android components and the Android Gradle plugin, a poor fit for our large non-Android (pure JVM/Kotlin) module surface, and any processing cost still applies across ~80 modules. We accept runtime-resolved DI (covered by tests) in exchange for zero processing and one DI model usable in Android and non-Android modules alike.
 - **Manual DI / by-hand wiring** — rejected: boilerplate and poor ergonomics across this many modules.
 
 ## Related
