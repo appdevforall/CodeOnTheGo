@@ -48,6 +48,11 @@ See **[ARCHITECTURE.md](ARCHITECTURE.md)** — the single source of truth for th
 
 Keep docs, tickets, commit messages, and PR descriptions crisp — say it once, lead with the point, cut hedging and restated context. Brevity is the soul of wit; a reader's attention is the scarce resource.
 
+**Code comments** follow the same discipline:
+- Short and to-the-point: comment the non-obvious *why* (a workaround, a constraint, a subtle invariant), not what the code already states. Cut restated context.
+- **No separator or decorative comments.** No banner bars, `// ====` rules, or ASCII-art dividers; let structure, naming, and small functions carry organization.
+- **Prefer ASCII.** Don't use a non-ASCII character when an ASCII equivalent reads the same: `->` not the arrow glyph, `-` for a dash, straight quotes not curly. Scope: code and code comments. Exempt: Markdown prose, and diagrams/ASCII-art where a non-ASCII glyph does real visual work (e.g. the box-drawing in ARCHITECTURE.md's data-flow diagram) — keep those.
+
 ## Branch model
 
 - **`main`** — release branch. It only ever receives merges **from `stage`**; nothing else targets `main` directly.
