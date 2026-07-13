@@ -737,6 +737,74 @@ constructor(
         event.text.add(text.toString())
         sendAccessibilityEventUnchecked(event)
     }
+
+    /**
+     * Emits a [AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED] event so the screen reader
+     * tracks the caret/selection as it moves — required for reliable movement-by-granularity
+     * navigation (lines/paragraphs in particular) and to mirror standard [EditText] behaviour.
+     * Called on every selection change; cheap no-op when no accessibility service is running.
+     */
+    @Suppress("DEPRECATION")
+    fun sendSelectionChangedAccessibilityEvent() {
+        val manager = accessibilityManager ?: return
+        if (!manager.isEnabled) return
+        val cur = cursor ?: return
+        val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED)
+        onInitializeAccessibilityEvent(event)
+        event.className = EditText::class.java.name
+        val content = text.toString()
+        event.fromIndex = cur.left
+        event.toIndex = cur.right
+        event.itemCount = content.length
+        event.text.add(content)
+        sendAccessibilityEventUnchecked(event)
+    }
+
+    /**
+     * Emits a [AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED] event so the screen reader announces
+     * inserted and deleted characters, like a standard [EditText]. TalkBack reconstructs the
+     * change from [AccessibilityEvent.getFromIndex], added/removed counts, the current text and
+     * [AccessibilityEvent.getBeforeText]. Cheap no-op when no accessibility service is running.
+     */
+    @Suppress("DEPRECATION")
+    fun sendTextChangedAccessibilityEvent(changeEvent: ContentChangeEvent) {
+        val manager = accessibilityManager ?: return
+        if (!manager.isEnabled) return
+        val current = text.toString()
+        val length = current.length
+        val fromIndex = changeEvent.changeStart.index.coerceIn(0, length)
+        val changed = changeEvent.changedText
+        val changedLen = changed.length
+
+        val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)
+        onInitializeAccessibilityEvent(event)
+        event.className = EditText::class.java.name
+        event.fromIndex = fromIndex
+        when (changeEvent.action) {
+            ContentChangeEvent.ACTION_INSERT -> {
+                event.addedCount = changedLen
+                event.removedCount = 0
+                // beforeText = current text with the just-inserted range removed.
+                val insertEnd = (fromIndex + changedLen).coerceIn(0, length)
+                event.beforeText = current.substring(0, fromIndex) + current.substring(insertEnd)
+            }
+
+            ContentChangeEvent.ACTION_DELETE -> {
+                event.addedCount = 0
+                event.removedCount = changedLen
+                // beforeText = current text with the just-deleted text put back.
+                event.beforeText = current.substring(0, fromIndex) + changed + current.substring(fromIndex)
+            }
+
+            else -> { // ACTION_SET_NEW_TEXT and any other wholesale replacement
+                event.addedCount = length
+                event.removedCount = 0
+                event.beforeText = ""
+            }
+        }
+        event.text.add(current)
+        sendAccessibilityEventUnchecked(event)
+    }
     // endregion Accessibility
 
     override fun copyTextToClipboard(
@@ -1017,6 +1085,9 @@ constructor(
                 return@subscribeEvent
             }
 
+            // Announce inserted/deleted characters to screen readers, like a standard EditText.
+            sendTextChangedAccessibilityEvent(event)
+
             markModified()
             file ?: return@subscribeEvent
 
@@ -1031,6 +1102,9 @@ constructor(
             if (isReleased) {
                 return@subscribeEvent
             }
+
+            // Keep the screen reader's caret in sync as the selection moves, like an EditText.
+            sendSelectionChangedAccessibilityEvent()
 
             if (_diagnosticWindow?.isShowing == true) {
                 _diagnosticWindow?.dismiss()

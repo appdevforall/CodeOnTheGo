@@ -33,6 +33,7 @@ class EditorAccessibilitySegmentsTest {
     private val char = AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER
     private val word = AccessibilityNodeInfo.MOVEMENT_GRANULARITY_WORD
     private val line = AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE
+    private val paragraph = AccessibilityNodeInfo.MOVEMENT_GRANULARITY_PARAGRAPH
 
     private fun following(text: String, granularity: Int, offset: Int) =
         EditorAccessibilitySegments.following(text, granularity, offset)?.toList()
@@ -160,6 +161,36 @@ class EditorAccessibilitySegmentsTest {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Paragraph
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun `paragraph following returns the current non-empty line`() {
+        val text = "abc\ndef\nghi"
+        assertThat(following(text, paragraph, 0)).isEqualTo(listOf(0, 3)) // abc
+    }
+
+    @Test
+    fun `paragraph following skips blank lines`() {
+        val text = "abc\n\ndef"
+        // From end of "abc" (index 3), the next paragraph is "def" — the blank line is skipped.
+        assertThat(following(text, paragraph, 3)).isEqualTo(listOf(5, 8))
+    }
+
+    @Test
+    fun `paragraph preceding skips blank lines`() {
+        val text = "abc\n\ndef"
+        // From the start of "def" (index 5), the previous paragraph is "abc".
+        assertThat(preceding(text, paragraph, 5)).isEqualTo(listOf(0, 3))
+    }
+
+    @Test
+    fun `paragraph preceding returns the line the caret sits at the end of`() {
+        val text = "abc\ndef"
+        assertThat(preceding(text, paragraph, 7)).isEqualTo(listOf(4, 7)) // def
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Guards
     // ---------------------------------------------------------------------------------------------
 
@@ -182,5 +213,6 @@ class EditorAccessibilitySegmentsTest {
         assertThat(mask and char).isEqualTo(char)
         assertThat(mask and word).isEqualTo(word)
         assertThat(mask and line).isEqualTo(line)
+        assertThat(mask and paragraph).isEqualTo(paragraph)
     }
 }

@@ -48,7 +48,8 @@ object EditorAccessibilitySegments {
     const val SUPPORTED_GRANULARITIES =
         AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER or
             AccessibilityNodeInfo.MOVEMENT_GRANULARITY_WORD or
-            AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE
+            AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE or
+            AccessibilityNodeInfo.MOVEMENT_GRANULARITY_PARAGRAPH
 
     /**
      * Returns the `[start, end]` range (end-exclusive) of the segment that follows
@@ -63,6 +64,7 @@ object EditorAccessibilitySegments {
             AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER -> characterFollowing(text, offset)
             AccessibilityNodeInfo.MOVEMENT_GRANULARITY_WORD -> wordFollowing(text, offset)
             AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE -> lineFollowing(text, offset)
+            AccessibilityNodeInfo.MOVEMENT_GRANULARITY_PARAGRAPH -> paragraphFollowing(text, offset)
             else -> null
         }
 
@@ -79,6 +81,7 @@ object EditorAccessibilitySegments {
             AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER -> characterPreceding(text, offset)
             AccessibilityNodeInfo.MOVEMENT_GRANULARITY_WORD -> wordPreceding(text, offset)
             AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE -> linePreceding(text, offset)
+            AccessibilityNodeInfo.MOVEMENT_GRANULARITY_PARAGRAPH -> paragraphPreceding(text, offset)
             else -> null
         }
 
@@ -198,5 +201,35 @@ object EditorAccessibilitySegments {
         var lineEnd = start
         while (lineEnd < length && text[lineEnd] != '\n') lineEnd++
         return intArrayOf(start, lineEnd)
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Paragraph (non-empty '\n'-separated lines; blank lines are skipped, as EditText does)
+    // ---------------------------------------------------------------------------------------------
+
+    private fun paragraphFollowing(text: CharSequence, offset: Int): IntArray? {
+        val length = text.length
+        if (length <= 0 || offset >= length) return null
+        var start = if (offset < 0) 0 else offset
+        // Skip blank lines so navigation lands on the next non-empty line.
+        while (start < length && text[start] == '\n') start++
+        if (start >= length) return null
+        // Snap to the start of the enclosing line.
+        while (start > 0 && text[start - 1] != '\n') start--
+        var end = start
+        while (end < length && text[end] != '\n') end++
+        return intArrayOf(start, end)
+    }
+
+    private fun paragraphPreceding(text: CharSequence, offset: Int): IntArray? {
+        val length = text.length
+        if (length <= 0 || offset <= 0) return null
+        var end = if (offset > length) length else offset
+        // Skip blank lines (trailing newlines) so we land on the previous non-empty line's end.
+        while (end > 0 && text[end - 1] == '\n') end--
+        if (end <= 0) return null
+        var start = end
+        while (start > 0 && text[start - 1] != '\n') start--
+        return intArrayOf(start, end)
     }
 }
