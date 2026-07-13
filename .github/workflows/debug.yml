@@ -197,18 +197,19 @@ jobs:
         run: |
           flox activate -d flox/base -- ./gradlew :plugin-api:apiCheck --no-daemon
 
-      - name: Assemble Universal APK
-        run: |
-          echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
-          flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
-          echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
-
       - name: Run spotlessCheck
         run: |
           flox activate -d flox/base -- ./gradlew spotlessCheck --no-daemon || {
             echo "::error::Spotless found formatting violations in this branch. Run './gradlew spotlessApply' locally, then commit and push the formatted files."
             exit 1
           }
+
+      - name: Assemble Universal APK
+        run: |
+          echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
+          flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
+          echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
+
 
       - name: Find APK file
         id: find_apk
