@@ -4,12 +4,14 @@ import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isSourceModule
-import com.itsaky.androidide.lsp.kotlin.compiler.registrar.AnalysisApiServiceProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAccessibilityChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAnnotationsProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.KtLspService
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
 import com.itsaky.androidide.lsp.kotlin.compiler.services.latestLanguageVersionSettings
+import com.itsaky.androidide.lsp.kotlin.compiler.util.SLF4JLogger
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDeclarationProviderFactory
@@ -51,6 +53,7 @@ import org.jetbrains.kotlin.com.intellij.core.CorePackageIndex
 import org.jetbrains.kotlin.com.intellij.ide.highlighter.JavaFileType
 import org.jetbrains.kotlin.com.intellij.mock.MockApplication
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
+import org.jetbrains.kotlin.com.intellij.openapi.diagnostic.Logger
 import org.jetbrains.kotlin.com.intellij.openapi.editor.impl.DocumentWriteAccessGuard
 import org.jetbrains.kotlin.com.intellij.openapi.roots.PackageIndex
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
@@ -77,6 +80,7 @@ import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import java.nio.file.Path
 import kotlin.io.path.pathString
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Base class shared by [CompilationEnvironment] (production) and the test-only
@@ -94,11 +98,15 @@ internal abstract class AbstractCompilationEnvironment(
 	val applicationEnvironmentMode: KotlinCoreApplicationEnvironmentMode,
 	val enableParserEventSystem: Boolean = true,
 ) : AutoCloseable {
-
 	companion object {
+		/** Max time close() will block the (main) thread draining background workers before disposal. */
+		val CLOSE_DRAIN_TIMEOUT = 2.seconds
+
 		init {
 			System.setProperty("java.awt.headless", "true")
 			setupIdeaStandaloneExecution()
+
+			Logger.setFactory { name -> SLF4JLogger(name) }
 		}
 	}
 
@@ -150,16 +158,19 @@ internal abstract class AbstractCompilationEnvironment(
 	protected open fun postInit(libraryRoots: List<JavaRoot>) {}
 
 	/** The [MessageCollector] used by the [CompilerConfiguration]. Defaults to no-op. */
-	protected open fun createMessageCollector(): MessageCollector = object : MessageCollector {
-		override fun clear() {}
-		override fun hasErrors() = false
-		override fun report(
-			severity: CompilerMessageSeverity,
-			message: String,
-			location: CompilerMessageSourceLocation?,
-		) {
+	protected open fun createMessageCollector(): MessageCollector =
+		object : MessageCollector {
+			override fun clear() {}
+
+			override fun hasErrors() = false
+
+			override fun report(
+				severity: CompilerMessageSeverity,
+				message: String,
+				location: CompilerMessageSourceLocation?,
+			) {
+			}
 		}
-	}
 
 	@Suppress("UnstableApiUsage")
 	protected open fun initialize(
@@ -173,11 +184,12 @@ internal abstract class AbstractCompilationEnvironment(
 		) -> KtSymbolIndex,
 	) {
 		val configuration = createCompilerConfiguration()
-		projectEnv = StandaloneProjectFactory.createProjectEnvironment(
-			projectDisposable = disposable,
-			applicationEnvironmentMode = applicationEnvironmentMode,
-			compilerConfiguration = configuration,
-		)
+		projectEnv =
+			StandaloneProjectFactory.createProjectEnvironment(
+				projectDisposable = disposable,
+				applicationEnvironmentMode = applicationEnvironmentMode,
+				compilerConfiguration = configuration,
+			)
 
 		if (applicationEnvironmentMode == KotlinCoreApplicationEnvironmentMode.Production) {
 			KotlinApplicationEnvironmentPin.ensure(configuration)
@@ -223,14 +235,13 @@ internal abstract class AbstractCompilationEnvironment(
 		serviceRegistrars.registerProjectServices(project, data = Unit)
 		serviceRegistrars.registerProjectModelServices(project, disposable, data = Unit)
 
-
-		libraryRoots = modules
-			.asFlatSequence()
-			.filterNot { it.isSourceModule }
-			.flatMap { lib ->
-				lib.computeFiles(extended = false).map { JavaRoot(it, JavaRoot.RootType.BINARY) }
-			}
-			.toList()
+		libraryRoots =
+			modules
+				.asFlatSequence()
+				.filterNot { it.isSourceModule }
+				.flatMap { lib ->
+					lib.computeFiles(extended = false).map { JavaRoot(it, JavaRoot.RootType.BINARY) }
+				}.toList()
 
 		ktSymbolIndex = buildKtSymbolIndex(modules, libraryRoots)
 
@@ -249,25 +260,27 @@ internal abstract class AbstractCompilationEnvironment(
 				addRoots(libraryRoots, MessageCollector.NONE)
 			}
 
-		val (javaSourceRoots, singleJavaFileRoots) = modules
-			.asFlatSequence()
-			.filter { it.isSourceModule }
-			.flatMap { it.contentRoots }
-			.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(it) }
-			.partition { it.isDirectory || it.extension != JavaFileType.DEFAULT_EXTENSION }
+		val (javaSourceRoots, singleJavaFileRoots) =
+			modules
+				.asFlatSequence()
+				.filter { it.isSourceModule }
+				.flatMap { it.contentRoots }
+				.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(it) }
+				.partition { it.isDirectory || it.extension != JavaFileType.DEFAULT_EXTENSION }
 
 		val rootsIndex =
 			JvmDependenciesDynamicCompoundIndex(shouldOnlyFindFirstClass = true).apply {
 				addIndex(
 					JvmDependenciesIndexImpl(
-						libraryRoots + javaSourceRoots.map {
-							JavaRoot(
-								it,
-								JavaRoot.RootType.SOURCE
-							)
-						},
+						libraryRoots +
+							javaSourceRoots.map {
+								JavaRoot(
+									it,
+									JavaRoot.RootType.SOURCE,
+								)
+							},
 						shouldOnlyFindFirstClass = true,
-					)
+					),
 				)
 				indexedRoots.forEach { javaRoot ->
 					if (javaRoot.file.isDirectory) {
@@ -284,9 +297,10 @@ internal abstract class AbstractCompilationEnvironment(
 		javaFileManager.initialize(
 			index = rootsIndex,
 			packagePartProviders = listOf(packagePartProvider),
-			singleJavaFileRootsIndex = SingleJavaFileRootsIndex(
-				singleJavaFileRoots.map { JavaRoot(it, JavaRoot.RootType.SOURCE) }
-			),
+			singleJavaFileRootsIndex =
+				SingleJavaFileRootsIndex(
+					singleJavaFileRoots.map { JavaRoot(it, JavaRoot.RootType.SOURCE) },
+				),
 			usePsiClassFilesReading = true,
 			perfManager = null,
 		)
@@ -304,13 +318,14 @@ internal abstract class AbstractCompilationEnvironment(
 			registerService(VirtualFileFinderFactory::class.java, fileFinderFactory)
 			registerService(
 				MetadataFinderFactory::class.java,
-				CliMetadataFinderFactory(fileFinderFactory)
+				CliMetadataFinderFactory(fileFinderFactory),
 			)
 		}
 
 		setupServices(libraryRoots)
 
 		parser = KtPsiFactory(project, eventSystemEnabled = enableParserEventSystem)
+		ktSymbolIndex.parser = parser
 
 		postInit(libraryRoots)
 	}
@@ -321,18 +336,29 @@ internal abstract class AbstractCompilationEnvironment(
 			this.useFir = true
 			this.intellijPluginRoot =
 				this@AbstractCompilationEnvironment.intellijPluginRoot.pathString
-			this.languageVersionSettings = LanguageVersionSettingsImpl(
-				languageVersion = this@AbstractCompilationEnvironment.languageVersion,
-				apiVersion = ApiVersion.createByLanguageVersion(this@AbstractCompilationEnvironment.languageVersion),
-				analysisFlags = emptyMap(),
-				specificFeatures = LanguageFeature.entries.associateWith { LanguageFeature.State.ENABLED },
-			)
+			this.languageVersionSettings =
+				LanguageVersionSettingsImpl(
+					languageVersion = this@AbstractCompilationEnvironment.languageVersion,
+					apiVersion = ApiVersion.createByLanguageVersion(this@AbstractCompilationEnvironment.languageVersion),
+					analysisFlags = emptyMap(),
+					specificFeatures = LanguageFeature.entries.associateWith { LanguageFeature.State.ENABLED },
+				)
 			this.jdkHome = this@AbstractCompilationEnvironment.jdkHome.toFile()
 			this.jdkRelease = this@AbstractCompilationEnvironment.jdkRelease
 			this.messageCollector = createMessageCollector()
 		}
 
 	override fun close() {
+		// Stop and join the background index workers *before* the project is disposed.
+		// Otherwise IndexWorker's coroutine keeps calling PsiManager.findFile(project) on a
+		// disposed project and crashes with "AssertionError: Project is already disposed"
+		// (Sentry APPDEVFORALL-17R / ADFA-4384). close() runs on the main thread during editor
+		// teardown, so the join is bounded by a timeout to avoid an ANR if a read is slow; the
+		// project.isDisposed guards cover the rare case where the timeout fires before draining.
+		if (::ktSymbolIndex.isInitialized) {
+			runBlocking { withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT) { ktSymbolIndex.close() } }
+		}
+
 		Disposer.dispose(disposable)
 	}
 }

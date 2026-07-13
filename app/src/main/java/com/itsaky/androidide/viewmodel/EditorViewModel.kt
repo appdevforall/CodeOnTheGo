@@ -344,8 +344,16 @@ class EditorViewModel : ViewModel() {
         return file
     }
 
+    /**
+     * Returns the open project's directory name, or an empty string when no project path is
+     * available (the process-death recreation state where the project path is uninitialized).
+     */
     fun getProjectName(): String {
         val manager = ProjectManagerImpl.getInstance()
+        val path = manager.projectDirPath
+        if (path.isBlank()) {
+            return ""
+        }
         return manager.projectDir.name
     }
 }

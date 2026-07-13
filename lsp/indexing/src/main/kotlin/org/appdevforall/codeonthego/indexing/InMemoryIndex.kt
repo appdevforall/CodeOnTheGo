@@ -81,7 +81,28 @@ class InMemoryIndex<T : Indexable>(
     override suspend fun insert(entry: T) = lock.write { insertSingleLocked(entry) }
 
     override suspend fun removeBySource(sourceId: String) = lock.write {
-        val keys = sourceMap.remove(sourceId) ?: return@write
+        removeBySourceLocked(sourceId)
+    }
+
+    /**
+     * Remove every entry belonging to any of [sourceIds].
+     *
+     * Acquires the write lock once and removes each source under it, so the whole
+     * batch is atomic with respect to concurrent readers and writers — there is no
+     * intermediate state in which only some of the sources have been removed.
+     */
+    override suspend fun removeBySources(sourceIds: Collection<String>) = lock.write {
+        for (sourceId in sourceIds) {
+            removeBySourceLocked(sourceId)
+        }
+    }
+
+    /**
+     * Remove all entries for [sourceId] from the primary, source, and secondary
+     * indexes. Caller MUST already hold the write lock; this method does not lock.
+     */
+    private fun removeBySourceLocked(sourceId: String) {
+        val keys = sourceMap.remove(sourceId) ?: return
         for (key in keys) {
             val entry = primaryMap.remove(key) ?: continue
             removeFromSecondaryIndexes(entry)

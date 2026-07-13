@@ -21,6 +21,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
@@ -29,6 +31,7 @@ import androidx.core.view.WindowCompat
 import org.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.app.BaseIDEActivity
+import com.itsaky.androidide.common.R as CommonR
 import com.itsaky.androidide.common.databinding.ActivityHelpBinding
 import com.itsaky.androidide.utils.DeviceFormFactorUtils
 import com.itsaky.androidide.utils.isSystemInDarkMode
@@ -102,6 +105,12 @@ class HelpActivity : BaseIDEActivity() {
 
                 override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    invalidateOptionsMenu()
+                }
+
+                override fun doUpdateVisitedHistory(view: android.webkit.WebView?, url: String?, isReload: Boolean) {
+                    super.doUpdateVisitedHistory(view, url, isReload)
+                    invalidateOptionsMenu()
                 }
 
                 override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
@@ -162,6 +171,27 @@ class HelpActivity : BaseIDEActivity() {
                 true
             }
             else -> false
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(CommonR.menu.menu_help, menu)
+        return true
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        menu.findItem(CommonR.id.action_close_help)?.isVisible =
+            _binding != null && binding.webView.canGoBack()
+        return super.onPrepareOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            CommonR.id.action_close_help -> {
+                finish()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
         }
     }
 

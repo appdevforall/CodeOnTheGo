@@ -146,6 +146,24 @@ class IdeFileServiceImpl(
         }
     }
 
+    override fun listFiles(dir: File?, recursive: Boolean): List<File> {
+        ensureWritePermission()
+        val targetDir = dir ?: File(".")
+        ensurePathAllowed(targetDir)
+
+        return try {
+            if (!targetDir.exists() || !targetDir.isDirectory) {
+                emptyList()
+            } else if (recursive) {
+                targetDir.walk().filter { it != targetDir }.toList()
+            } else {
+                targetDir.listFiles()?.toList() ?: emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     private fun copyInterruptible(input: InputStream, output: FileOutputStream): Long {
         val buffer = ByteArray(COPY_BUFFER_SIZE)
         var total = 0L

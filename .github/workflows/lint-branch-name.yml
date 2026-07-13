@@ -1,0 +1,65 @@
+name: Lint Branch Name
+
+# Runs on pull_request_target so it can comment on pull requests from forks.
+# It must never check out or execute code from the pull request.
+on:
+  pull_request_target:
+    types: [ opened, reopened, synchronize ]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  lint_branch_name:
+    name: Check external PR branch name
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    steps:
+      - name: Ask external contributors to use the community/ prefix
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = context.payload.pull_request.head.ref;
+            const association = context.payload.pull_request.author_association;
+
+            if (['MEMBER', 'OWNER', 'COLLABORATOR'].includes(association)) {
+              core.info(`PR author association is ${association}; internal branch conventions apply.`);
+              return;
+            }
+
+            if (branch.startsWith('community/') || !/adfa-\d+/i.test(branch)) {
+              core.info(`Branch name "${branch}" is valid for an external contribution.`);
+              return;
+            }
+
+            const marker = '<!-- lint-branch-name -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+
+            const alreadyCommented = comments.some(
+              comment => comment.body && comment.body.includes(marker)
+            );
+
+            if (!alreadyCommented) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: [
+                  marker,
+                  'Thanks for contributing to CodeOnTheGo!',
+                  '',
+                  `Your branch \`${branch}\` uses the \`ADFA-\` prefix, which is reserved for internal branches linked to our Jira board. External pull requests cannot be linked to Jira tickets, so our automation expects community branches to use the \`community/\` prefix instead.`,
+                  '',
+                  'Please rename your branch to start with `community/` (for example `community/fix-editor-crash`) and update this pull request.',
+                ].join('\n'),
+              });
+            }
+
+            core.setFailed(
+              `External contribution branch "${branch}" must not use the ADFA- prefix. Rename it to start with community/.`
+            );

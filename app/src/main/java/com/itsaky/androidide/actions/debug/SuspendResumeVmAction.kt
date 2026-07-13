@@ -22,7 +22,7 @@ class SuspendResumeVmAction(
     override fun prepare(data: ActionData) {
         super.prepare(data)
         val context = data.requireContext()
-        val isSuspended = debugClient.isVmSuspended()
+        val isSuspended = debugClient?.isVmSuspended() == true
         if (isSuspended) {
             label = context.getString(R.string.debugger_resume)
             icon = ContextCompat.getDrawable(context, R.drawable.ic_run)
@@ -33,10 +33,11 @@ class SuspendResumeVmAction(
     }
 
     override suspend fun execAction(data: ActionData) {
-        if (debugClient.isVmSuspended()) {
-            debugClient.resumeVm()
+        val client = debugClient ?: return
+        if (client.isVmSuspended()) {
+            client.resumeVm()
         } else {
-            debugClient.suspendVm()
+            client.suspendVm()
         }
     }
 }

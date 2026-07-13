@@ -24,6 +24,7 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
+import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
@@ -32,6 +33,8 @@ import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.doOnNextLayout
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.ImageUtils
 import com.google.android.material.tabs.TabLayout
@@ -63,6 +66,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.activities.PluginManagerActivity
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
+import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
@@ -73,8 +77,10 @@ import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+import com.itsaky.androidide.plugins.manager.ui.PluginUiActionManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
@@ -86,10 +92,12 @@ import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
+import com.itsaky.androidide.utils.EditorActivityActions
 import com.itsaky.androidide.utils.EditorSidebarActions
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.forEachViewRecursively
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -98,6 +106,7 @@ import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
+import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
@@ -125,6 +134,22 @@ open class EditorHandlerActivity :
 
 	private val pluginTabIndices = mutableMapOf<String, Int>()
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
+	private var lastAppliedPluginFontScale = EditorPreferences.editorFontScale
+	private val pluginTextBaseSizes = WeakHashMap<TextView, Float>()
+
+	private val pluginFontScalingListener = object : FragmentManager.FragmentLifecycleCallbacks() {
+		override fun onFragmentViewCreated(
+			mFragmentManager: FragmentManager,
+			mFragment: Fragment,
+			view: View,
+			savedInstanceState: Bundle?
+		) {
+			val scale = EditorPreferences.editorFontScale
+			if (scale != 1f && isPluginFragment(mFragment)) {
+				applyPluginFontScale(view, scale)
+			}
+		}
+	}
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
 	private var pluginEditorProvider: EditorProviderImpl? = null
@@ -189,10 +214,17 @@ open class EditorHandlerActivity :
 		pluginEditorProvider = null
 	}
 
+	private val floatingTabController by lazy {
+		com.itsaky.androidide.editor.floating.IdeFloatingTabController(this)
+	}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		setupPluginFragmentFactory()
 		mBuildEventListener.setActivity(this)
 		super.onCreate(savedInstanceState)
+
+		supportFragmentManager.registerFragmentLifecycleCallbacks(pluginFontScalingListener, true)
+		floatingTabController.start()
 
 		editorViewModel._displayedFile.observe(
 			this,
@@ -268,7 +300,6 @@ open class EditorHandlerActivity :
 				fileTimestamps[file.absolutePath] = file.lastModified()
 			}
 		}
-		ActionContextProvider.clearActivity()
 		if (!isOpenedFilesSaved.get()) {
 			saveOpenedFiles()
 			saveOpenedPluginTabs()
@@ -285,6 +316,11 @@ open class EditorHandlerActivity :
 		val json = Gson().toJson(openPluginTabIds)
 		prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, json)
 		Log.d("EditorHandlerActivity", "Saved open plugin tabs: $openPluginTabIds")
+	}
+
+	override fun onDestroy() {
+		super.onDestroy()
+		ActionContextProvider.clearActivity(this)
 	}
 
 	override fun onResume() {
@@ -392,25 +428,38 @@ open class EditorHandlerActivity :
 		}
 
 		restoreOpenedPluginTabs()
+		syncPluginUiFontSize()
 	}
 
+	/**
+	 * Restores the plugin tabs cached from the previous session, running the
+	 * SharedPreferences IO and Gson decode off the main thread to avoid a startup UI stall.
+	 */
 	private fun restoreOpenedPluginTabs() {
-		try {
-			val prefs = (application as BaseApplication).prefManager
-			val json = prefs.getString(PREF_KEY_OPEN_PLUGIN_TABS, null) ?: return
+		lifecycleScope.launch {
+			try {
+				val prefs = (application as BaseApplication).prefManager
+				val json = withContext(Dispatchers.IO) {
+					prefs.getString(PREF_KEY_OPEN_PLUGIN_TABS, null)
+				} ?: return@launch
 
-			val tabIds = Gson().fromJson(json, Array<String>::class.java)?.toList() ?: return
-			Log.d("EditorHandlerActivity", "Restoring plugin tabs: $tabIds")
+				// Decoding the cached JSON off the main thread avoids a UI stall on startup.
+				val tabIds = withContext(Dispatchers.Default) {
+					Gson().fromJson(json, Array<String>::class.java)?.toList()
+				} ?: return@launch
+				Log.d("EditorHandlerActivity", "Restoring plugin tabs: $tabIds")
 
-			tabIds.forEach { tabId ->
-				if (!pluginTabIndices.containsKey(tabId)) {
-					selectPluginTabById(tabId)
+				// Tab selection touches UI state, so keep it on the main thread.
+				tabIds.forEach { tabId ->
+					if (!pluginTabIndices.containsKey(tabId)) {
+						selectPluginTabById(tabId)
+					}
 				}
-			}
 
-			prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, null)
-		} catch (e: Exception) {
-			Log.e("EditorHandlerActivity", "Failed to restore plugin tabs", e)
+				withContext(Dispatchers.IO) { prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, null) }
+			} catch (e: Exception) {
+				Log.e("EditorHandlerActivity", "Failed to restore plugin tabs", e)
+			}
 		}
 	}
 
@@ -447,15 +496,23 @@ open class EditorHandlerActivity :
 		val data = createToolbarActionData()
 		content.projectActionsToolbar.clearMenu()
 
-		val actions = getInstance().getActions(EDITOR_TOOLBAR)
-		val hiddenIds = PluginBuildActionManager.getInstance().getHiddenActionIds()
-		actions.onEachIndexed { index, entry ->
-			val action = entry.value
+		// Sort by (order, id) so a plugin's ToolbarAction.order positions its icon among the
+		// built-in actions. The 13 built-ins are registered with contiguous order 0..12, so
+		// this is a visual no-op for them.
+		val actions = getInstance().getActions(EDITOR_TOOLBAR).values
+			.sortedWith(compareBy({ it.order }, { it.id }))
+		val hiddenIds = PluginBuildActionManager.getInstance().getHiddenActionIds() +
+			PluginUiActionManager.getHiddenActionIds()
+		actions.forEachIndexed { index, action ->
 			val isLast = index == actions.size - 1
 
 			action.prepare(data)
 
-			if (action.id in hiddenIds) return@onEachIndexed
+			if (action.id in hiddenIds) return@forEachIndexed
+
+			// Plugin toolbar actions opt into real visibility handling: remove them entirely
+			// when not applicable, instead of the legacy grey-out used by built-in actions.
+			if (action.honorVisibility && !action.visible) return@forEachIndexed
 
 			action.icon?.apply {
 				colorFilter = action.createColorFilter(data)
@@ -547,6 +604,21 @@ open class EditorHandlerActivity :
 		if (tabPosition < 0) return null
 		val child = _binding?.content?.editorContainer?.getChildAt(tabPosition) ?: return null
 		return if (child is CodeEditorView) child else null
+	}
+
+	/** Undock the file tab at [fileIndex] into a floating window over other apps. */
+	fun undockFileTab(fileIndex: Int) {
+		floatingTabController.undock(fileIndex)
+	}
+
+	/** Undock the plugin tab [tabId] (at [position]) into a floating window over other apps. */
+	fun undockPluginTab(tabId: String, position: Int) {
+		val title =
+			PluginEditorTabManager
+				.getInstance()
+				.getPluginTab(tabId)
+				?.title ?: tabId
+		floatingTabController.floatPluginTab(tabId, title) { closePluginTab(position) }
 	}
 
 	override fun openFileAndSelect(
@@ -1091,18 +1163,24 @@ open class EditorHandlerActivity :
 	@Subscribe(threadMode = ThreadMode.MAIN)
 	fun onDocumentChange(event: DocumentChangeEvent) {
 		if (contentOrNull == null) return
-		editorViewModel.areFilesModified = true
 
 		val fileIndex = findIndexOfEditorByFile(event.file.toFile())
 		if (fileIndex == -1) return
+
+		// The editor recomputes its modified flag on every content change, so a change may
+		// have returned the file to its saved state (e.g. the user undid all their edits).
+		val isModified = getEditorAtIndex(fileIndex)?.isModified ?: false
+		editorViewModel.areFilesModified = hasUnsavedFiles()
 
 		val tabPosition = getTabPositionForFileIndex(fileIndex)
 		if (tabPosition < 0) return
 
 		val tab = content.tabs.getTabAt(tabPosition) ?: return
-		if (tab.text?.startsWith('*') == true) return
+		val hasIndicator = tab.text?.startsWith('*') == true
+		if (isModified == hasIndicator) return
 
-		tab.text = "*${tab.text}"
+		val baseName = tab.text?.removePrefix("*") ?: return
+		tab.text = if (isModified) "*$baseName" else baseName
 	}
 
 	@Subscribe(threadMode = ThreadMode.MAIN)
@@ -1111,6 +1189,49 @@ open class EditorHandlerActivity :
 			tearDownDisabledPluginContributions(event.pluginId)
 		}
 		showPluginCrashDialog(event)
+	}
+
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPreferenceChanged(event: PreferenceChangeEvent) {
+		if (event.key == EditorPreferences.FONT_SIZE) {
+			syncPluginUiFontSize()
+		}
+	}
+
+	private fun syncPluginUiFontSize() {
+		val scale = EditorPreferences.editorFontScale
+		if (scale == lastAppliedPluginFontScale) {
+			return
+		}
+		lastAppliedPluginFontScale = scale
+
+		val pluginFragments = mutableListOf<Fragment>()
+		collectPluginFragments(supportFragmentManager, pluginFragments)
+		pluginFragments.forEach { fragment ->
+			fragment.view?.let { applyPluginFontScale(it, scale) }
+		}
+	}
+
+	private fun isPluginFragment(fragment: Fragment): Boolean =
+		fragment.javaClass.classLoader !== javaClass.classLoader
+
+	private fun applyPluginFontScale(root: View, scale: Float) {
+		root.forEachViewRecursively { view ->
+			if (view is TextView) {
+				val baseSize = pluginTextBaseSizes.getOrPut(view) { view.textSize }
+				view.setTextSize(TypedValue.COMPLEX_UNIT_PX, baseSize * scale)
+			}
+		}
+	}
+
+	private fun collectPluginFragments(manager: FragmentManager, into: MutableList<Fragment>) {
+		manager.fragments.forEach { fragment ->
+			if (isPluginFragment(fragment)) {
+				into.add(fragment)
+			} else {
+				collectPluginFragments(fragment.childFragmentManager, into)
+			}
+		}
 	}
 
 	private fun showPluginCrashDialog(event: PluginCrashedEvent) {
@@ -1179,6 +1300,8 @@ open class EditorHandlerActivity :
 			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
 				?.let { EditorSidebarActions.setup(it) }
 
+			EditorActivityActions.register(this)
+
 			invalidateOptionsMenu()
 
 			Log.i("EditorHandlerActivity", "Tore down contributions for disabled plugin: $pluginId")
@@ -1241,6 +1364,10 @@ open class EditorHandlerActivity :
 	 */
 	fun addOneTimeBuildResultListener(listener: Consumer<BuildResult>) {
 		singleBuildListeners.add(listener)
+	}
+
+	fun removeOneTimeBuildResultListener(listener: Consumer<BuildResult>) {
+		singleBuildListeners.remove(listener)
 	}
 
 	/**
@@ -1484,6 +1611,36 @@ open class EditorHandlerActivity :
 		}
 
 		binding.root.addView(closeItem)
+
+		val undockItem =
+			FileActionPopupWindowItemBinding
+				.inflate(
+					android.view.LayoutInflater.from(this),
+					null,
+					false,
+				).root
+		undockItem.apply {
+			text = getString(string.undock)
+			setOnLongClickListener {
+				TooltipManager.showIdeCategoryTooltip(
+					context = this@EditorHandlerActivity,
+					anchorView = anchorView,
+					tag = TooltipTag.WINDOW_UNDOCK,
+				)
+				popupWindow.dismiss()
+				true
+			}
+			setOnClickListener {
+				val pos = tab.position
+				val tabId = getPluginTabId(pos)
+				if (tabId != null) {
+					undockPluginTab(tabId, pos)
+				}
+				popupWindow.dismiss()
+			}
+		}
+		binding.root.addView(undockItem)
+
 		popupWindow.showAsDropDown(anchorView, 0, 0)
 	}
 
