@@ -9,7 +9,6 @@ import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.FileInputStream
-import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URI
@@ -27,39 +26,6 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.reflect.jvm.javaMethod
 
-val isWindows = System.getProperty("os.name").lowercase().contains("windows")
-
-fun TaskContainer.registerD8Task(
-	taskName: String,
-	inputJar: File,
-	outputDex: File,
-): org.gradle.api.tasks.TaskProvider<Exec> {
-	val androidSdkDir = android.sdkDirectory.absolutePath
-	val buildToolsVersion = android.buildToolsVersion // Gets the version from your project
-	val d8Executable =
-		File(
-			"$androidSdkDir/build-tools/$buildToolsVersion/" +
-				if (isWindows) "d8.bat" else "d8",
-		)
-
-	if (!d8Executable.exists()) {
-		throw FileNotFoundException("D8 executable not found at: ${d8Executable.absolutePath}")
-	}
-
-	return register<Exec>(taskName) {
-		inputs.file(inputJar)
-		outputs.file(outputDex)
-
-		commandLine(
-			d8Executable.absolutePath,
-			"--release", // Enables optimizations
-			"--output",
-			outputDex.parent, // D8 outputs to a directory
-			inputJar.absolutePath,
-		)
-	}
-}
-
 plugins {
 	id("com.android.application")
 	id("kotlin-android")
@@ -69,7 +35,6 @@ plugins {
 	id("com.itsaky.androidide.desugaring")
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
-	kotlin("plugin.serialization")
 }
 
 fun propOrEnv(name: String): String =
@@ -82,6 +47,8 @@ val props =
 		val file = rootProject.file("local.properties")
 		if (file.exists()) load(file.inputStream())
 	}
+
+val glitchtipDsn = props.getProperty("glitchtipDsn") ?: propOrEnv("GLITCHTIP_DSN")
 
 apply {
 	plugin(AndroidIDEAssetsPlugin::class.java)
@@ -114,12 +81,10 @@ android {
 	buildTypes {
 		debug {
 			signingConfig = signingConfigs.getByName("debug")
-			manifestPlaceholders["sentryDsn"] =
-				props.getProperty("sentryDsnDebug") ?: propOrEnv("SENTRY_DSN_DEBUG")
+			manifestPlaceholders["sentryDsn"] = glitchtipDsn
 		}
 		release {
-			manifestPlaceholders["sentryDsn"] =
-				props.getProperty("sentryDsnRelease") ?: propOrEnv("SENTRY_DSN_RELEASE")
+			manifestPlaceholders["sentryDsn"] = glitchtipDsn
 		}
 	}
 
@@ -213,6 +178,10 @@ configurations.matching { it.name.contains("AndroidTest") }.configureEach {
 
 configurations.configureEach {
 	exclude(group = "org.jetbrains.kotlin", module = "kotlin-android-extensions-runtime")
+	// auto-value is an annotation processor fat jar (shaded with ASM, JavaPoet, Guava, etc.)
+	// and must not appear on the runtime classpath. Each module runs it via annotationProcessor/kapt
+	// during its own compilation; the app module doesn't need it at runtime.
+	exclude(group = "com.google.auto.value", module = "auto-value")
 }
 
 dependencies {
@@ -348,7 +317,6 @@ dependencies {
 	implementation(libs.common.markwon.linkify)
 	implementation(libs.commons.text.v1140)
 
-	implementation(libs.kotlinx.serialization.json)
 	// Koin for Dependency Injection
 	implementation(libs.koin.android)
 	implementation(libs.androidx.security.crypto)
@@ -356,7 +324,7 @@ dependencies {
 	// Sentry Android SDK (core + replay for quality configuration)
 	implementation(libs.sentry.core)
 	implementation(libs.sentry.android.core)
-	implementation(libs.sentry.android.replay)
+	implementation(libs.sentry.logback)
 
 	// Firebase Analytics
 	implementation(platform(libs.firebase.bom))
@@ -370,9 +338,6 @@ dependencies {
 
     // Pebble template engine
     implementation("io.pebbletemplates:pebble:4.1.1")
-
-    // Jackson JSON parsing dependency
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
 }
 
 tasks.register("downloadDocDb") {

@@ -12,6 +12,7 @@ import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.ContextKeywords
 import com.itsaky.androidide.lsp.kotlin.utils.ModifierFilter
 import com.itsaky.androidide.lsp.kotlin.utils.containingTopLevelClassDeclaration
+import com.itsaky.androidide.lsp.kotlin.utils.renderName
 import com.itsaky.androidide.lsp.kotlin.utils.resolveAnalysisContext
 import com.itsaky.androidide.lsp.models.ClassCompletionData
 import com.itsaky.androidide.lsp.models.Command
@@ -20,23 +21,20 @@ import com.itsaky.androidide.lsp.models.CompletionItemKind
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.InsertTextFormat
+import com.itsaky.androidide.lsp.models.MatchLevel
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.progress.ProgressManager
-import com.itsaky.androidide.projects.FileManager
 import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
 import kotlinx.coroutines.CancellationException
-import org.jetbrains.kotlin.com.intellij.openapi.progress.ProcessCanceledException
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.JvmTypeAliasInfo
-import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.KaSession
-import org.jetbrains.kotlin.analysis.api.renderer.types.KaTypeRenderer
 import org.jetbrains.kotlin.analysis.api.renderer.types.impl.KaTypeRendererForSource
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
@@ -58,6 +56,7 @@ import org.jetbrains.kotlin.analysis.api.symbols.receiverType
 import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaType
 import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
+import org.jetbrains.kotlin.com.intellij.openapi.progress.ProcessCanceledException
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
@@ -72,7 +71,6 @@ import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
 import org.jetbrains.kotlin.psi.KtWhenExpression
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.startOffset
-import org.jetbrains.kotlin.types.Variance
 import org.slf4j.LoggerFactory
 import kotlin.io.path.name
 
@@ -148,15 +146,15 @@ internal fun codeComplete(params: CompletionParams): CompletionResult {
  */
 context(env: CompilationEnvironment)
 internal fun doComplete(params: CompletionParams): CompletionResult {
-	val ktFile = env.ktSymbolIndex.getOpenedKtFile(params.file)
+	val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).get()
 	if (ktFile == null) {
 		logger.warn("File {} is not open", params.file)
 		return CompletionResult.EMPTY
 	}
 
-	// Need to use the original document contents here, instead of
-	// managedFile.inMemoryKtFile.text
-	val originalText = FileManager.getDocumentContents(params.file)
+	// Completion still parses its own placeholder variant (text differs), anchored to the
+	// current file.
+	val originalText = ktFile.text
 	val requestPosition = params.position
 	val completionOffset = requestPosition.requireIndex()
 	val prefix = params.requirePrefix()
@@ -232,7 +230,6 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 			}
 		}
 	} catch (e: Throwable) {
-		// Let cancellation propagate to codeComplete's uniform handler instead of logging it as an error.
 		if (e.isCancellation()) {
 			throw e
 		}
@@ -292,11 +289,11 @@ private fun KaSession.collectMembersFromType(
 	val typeScope = receiverType.scope
 	if (typeScope != null) {
 		val callables =
-			typeScope.getCallableSignatures { name -> matchesPrefix(name) }
+			typeScope.getCallableSignatures { name -> matchesFilter(name) }
 				.map { it.symbol }
 
 		val classifiers =
-			typeScope.getClassifierSymbols { name -> matchesPrefix(name) }
+			typeScope.getClassifierSymbols { name -> matchesFilter(name) }
 
 		to += toCompletionItems(callables)
 		to += toCompletionItems(classifiers)
@@ -308,8 +305,8 @@ private fun KaSession.collectMembersFromType(
 	val classSymbol = classType.symbol as? KaClassSymbol ?: return
 	val memberScope = classSymbol.memberScope
 
-	val callables = memberScope.callables { name -> matchesPrefix(name) }
-	val classifiers = memberScope.classifiers { name -> matchesPrefix(name) }
+	val callables = memberScope.callables { name -> matchesFilter(name) }
+	val classifiers = memberScope.classifiers { name -> matchesFilter(name) }
 
 	to += toCompletionItems(callables)
 	to += toCompletionItems(classifiers)
@@ -321,7 +318,7 @@ private fun KaSession.collectExtensionFunctions(
 	to: MutableList<CompletionItem>
 ) {
 	val extensionSymbols =
-		ctx.scope.callables { name -> matchesPrefix(name) }
+		ctx.scope.callables { name -> matchesFilter(name) }
 			.filter { symbol ->
 				if (!symbol.isExtension) return@filter false
 
@@ -354,7 +351,7 @@ private fun KaSession.collectScopeCompletions(
 	)
 
 	val callables =
-		scope.callables { name -> matchesPrefix(name) }
+		scope.callables { name -> matchesFilter(name) }
 			.filter { symbol ->
 
 				abortIfCancelled()
@@ -369,7 +366,7 @@ private fun KaSession.collectScopeCompletions(
 				}
 			}
 
-	val classifiers = scope.classifiers { name -> matchesPrefix(name) }
+	val classifiers = scope.classifiers { name -> matchesFilter(name) }
 
 	to += toCompletionItems(callables)
 	to += toCompletionItems(classifiers)
@@ -403,8 +400,6 @@ private fun KaSession.collectUnimportedSymbols(
 		buildUnimportedSymbolItem(symbol)?.let { to += it }
 	}
 
-	// Bounded: limit = 0 ("unlimited") pulled every matching symbol from all three indexes on every
-	// keystroke — a major allocation/GC source, and a capped set is plenty for a completion popup.
 	env.libraryIndex?.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_LIMIT)
 		?.forEach(::addCompletionItem)
 
@@ -738,7 +733,7 @@ private fun KaSession.ktCompletionItem(
 	val item = KotlinCompletionItem()
 	item.ideLabel = name
 	item.completionKind = kind
-	item.matchLevel = CompletionItem.matchLevel(item.ideLabel, ctx.partial)
+	item.matchLevel = matchLevelFor(name)
 
 	return item
 }
@@ -792,26 +787,32 @@ private fun KaSession.kindOf(symbol: JvmSymbol): CompletionItemKind =
 		JvmSymbolKind.TYPE_ALIAS -> CompletionItemKind.CLASS
 	}
 
-@OptIn(KaExperimentalApi::class, KaContextParameterApi::class)
-private fun KaSession.renderName(
-	type: KaType,
-	renderer: KaTypeRenderer = KaTypeRendererForSource.WITH_SHORT_NAMES,
-	position: Variance = Variance.INVARIANT
-): String {
-	return type.run {
-		render(renderer, position)
-	}
-}
-
 private fun partialIdentifier(prefix: String): String {
 	return prefix.takeLastWhile { char -> Character.isJavaIdentifierPart(char) }
 }
 
+/**
+ * Returns the [MatchLevel] of [name] against [partial], memoized in [cache].
+ *
+ * Match level depends only on (name, partial), so memoizing by name is safe even
+ * when multiple symbols share a name. This is the single place match level is
+ * computed for a completion request; both the inclusion predicate and item
+ * creation route through it so [CompletionItem.matchLevel] runs at most once per
+ * distinct candidate name.
+ */
+internal fun memoizedMatchLevel(
+	cache: MutableMap<String, MatchLevel>,
+	name: String,
+	partial: String,
+): MatchLevel = cache.getOrPut(name) { CompletionItem.matchLevel(name, partial) }
+
 context(ctx: AnalysisContext)
-private fun matchesPrefix(name: Name): Boolean {
-	if (ctx.partial.isEmpty()) return true
-	return name.asString().startsWith(ctx.partial, ignoreCase = true)
-}
+private fun matchLevelFor(name: String): MatchLevel =
+	memoizedMatchLevel(ctx.matchLevelCache, name, ctx.partial)
+
+context(ctx: AnalysisContext)
+private fun matchesFilter(name: Name): Boolean =
+	matchLevelFor(name.asString()) != MatchLevel.NO_MATCH
 
 private fun determineCompletionContext(element: PsiElement): CompletionContext {
 	// Walk up to find a qualified expression where we're the selector
@@ -840,4 +841,3 @@ private fun isInSelectorPosition(
 	val elementOffset = element.startOffset
 	return elementOffset >= selector.startOffset
 }
-
