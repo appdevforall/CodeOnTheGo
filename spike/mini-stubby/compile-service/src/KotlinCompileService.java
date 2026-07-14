@@ -76,6 +76,11 @@ public class KotlinCompileService {
     static volatile String serveDigest = null;   // SHA-256 hex of serveApk (Step-4 handshake)
     static volatile long lastBuildMs = 0;         // compile+dex+pack of the last build
     static volatile long serveBuildMs = 0;        // lastBuildMs snapshot for the served payload
+    // True from the moment a /build is received (files already written on-device) until the
+    // compile+dex+deploy completes. The shell polls /status for this so it can show a
+    // distinct "edits done — compiling on device" phase instead of implying Claude is still
+    // writing during the on-device build.
+    static volatile boolean building = false;
     static final Object serveLock = new Object();
     /** Payload's own class digests at the last deploy — the Tier-1 gate baseline. */
     static java.util.Map<String, String> lastAppDigests = null;
@@ -554,6 +559,7 @@ public class KotlinCompileService {
         // after flushing the editor. ?kind=code (compile+dex) | res (aapt2 relink only).
         http.createContext("/build", ex -> {
             String result;
+            building = true;   // files are already on-device; the on-device compile starts now
             try {
                 String kind = intParamRaw(ex.getRequestURI().getRawQuery(), "kind", "code");
                 // Optional body: newline-separated absolute paths of the changed .kt files,
@@ -575,8 +581,20 @@ public class KotlinCompileService {
             } catch (Throwable t) {
                 result = "error " + t;
                 log("POST /build error: " + t);
+            } finally {
+                building = false;
             }
             byte[] r = result.getBytes(StandardCharsets.UTF_8);
+            try { ex.sendResponseHeaders(200, r.length); ex.getResponseBody().write(r); }
+            catch (Exception ignore) {}
+            finally { ex.close(); }
+        });
+        // Lightweight phase probe: the shell polls this to show "edits done — compiling"
+        // while a build is in flight (files written, compile running), distinct from the
+        // long "Claude is writing" wait. Text: "building=<0|1> gen=<serveGen>".
+        http.createContext("/status", ex -> {
+            byte[] r = ("building=" + (building ? 1 : 0) + " gen=" + serveGen)
+                    .getBytes(StandardCharsets.UTF_8);
             try { ex.sendResponseHeaders(200, r.length); ex.getResponseBody().write(r); }
             catch (Exception ignore) {}
             finally { ex.close(); }

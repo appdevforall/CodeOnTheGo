@@ -148,6 +148,10 @@ public class MainActivity extends Activity {
     private volatile int pulledGen = 0;
     private volatile boolean pulling = false;
     private Thread pullThread;
+    /** Build-phase poller: watches the daemon /status `building` flag so the banner can
+     *  show a distinct "edits done — compiling on device" phase during the on-device build. */
+    private Thread statusThread;
+    private volatile boolean lastBuilding = false;
     /** Daemon-reported build time (compile+dex+pack) behind the last pulled payload,
      *  from the /payload X-Build-Ms header. Surfaced on the banner so the demo is
      *  HONEST about total edit→render cost — not just the fast detect→render reload. */
@@ -165,11 +169,13 @@ public class MainActivity extends Activity {
     /**
      * Visible demo state, surfaced BY THE APP on the status banner so a viewer
      * always knows which phase we're in — the whole point of the live-reload demo:
-     *   WORKING  — Claude is generating the code change (the long amber wait).
-     *   RELOADED — the new payload just hot-loaded and rendered (green flash).
-     *   IDLE     — nothing in flight; the thin dark strip auto-hides.
+     *   WORKING    — Claude is generating the code change (the long amber wait).
+     *   EDITS_DONE — Claude finished writing; the files are on-device and the build is
+     *                compiling now (short blue phase, from the daemon /status flag).
+     *   RELOADED   — the new payload just hot-loaded and rendered (green flash).
+     *   IDLE       — nothing in flight; the thin dark strip auto-hides.
      */
-    private enum Phase { IDLE, WORKING, RELOADED }
+    private enum Phase { IDLE, WORKING, EDITS_DONE, RELOADED }
     private volatile Phase phase = Phase.IDLE;
 
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -231,6 +237,7 @@ public class MainActivity extends Activity {
         };
         observer.startWatching();
         startPayloadPull(payload);   // on-device deploy channel (Mac push mode: harmless)
+        startStatusPoll();           // build-phase probe for the "edits done — compiling" banner
 
         attachHotSwapAgent();
         startDevJump();
@@ -682,6 +689,13 @@ public class MainActivity extends Activity {
                 bg = 0xF0E65100;   // deep amber
                 sizeSp = 17f;
                 break;
+            case EDITS_DONE:
+                // ✅ = check — Claude's edits are written; the on-device build is running.
+                text = askInFlight ? "✅  Claude's edits done — compiling on device…"
+                                   : "🔨  Compiling your edit on device…";
+                bg = 0xF01565C0;   // blue — distinct from the amber "writing" and green "live"
+                sizeSp = 16f;
+                break;
             case RELOADED:
                 // ✅ = check mark
                 text = "✅  Live-reloaded!   " + idleStatus;
@@ -1029,5 +1043,43 @@ public class MainActivity extends Activity {
         if (observer != null) observer.stopWatching();
         pulling = false;
         if (pullThread != null) pullThread.interrupt();
+        if (statusThread != null) statusThread.interrupt();
+    }
+
+    /**
+     * Poll the daemon's /status every ~350 ms and, when a build begins (files already
+     * written on-device, compile running), flip the banner to the blue EDITS_DONE phase.
+     * The rising edge false→true is the "Claude edits done" moment; the payload-pull thread
+     * later flips it to the green RELOADED flash when the new gen renders. Cheap GET; the
+     * response is a few bytes.
+     */
+    private void startStatusPoll() {
+        if (statusThread != null) return;
+        statusThread = new Thread(() -> {
+            while (pulling) {
+                boolean nowBuilding = false;
+                try {
+                    HttpURLConnection c = (HttpURLConnection) new URL(
+                            COMPILE_SERVICE + "/status").openConnection();
+                    c.setConnectTimeout(1_000);
+                    c.setReadTimeout(1_000);
+                    if (c.getResponseCode() == 200) {
+                        byte[] b; try (InputStream in = c.getInputStream()) { b = in.readAllBytes(); }
+                        nowBuilding = new String(b).contains("building=1");
+                    }
+                    c.disconnect();
+                } catch (Throwable ignored) { /* daemon not up / between requests */ }
+                if (nowBuilding && !lastBuilding
+                        && phase != Phase.EDITS_DONE && phase != Phase.RELOADED) {
+                    // Rising edge: Claude's edits landed; the on-device compile has begun.
+                    phase = Phase.EDITS_DONE;
+                    main.post(this::renderStatus);
+                }
+                lastBuilding = nowBuilding;
+                try { Thread.sleep(350); } catch (InterruptedException ie) { return; }
+            }
+        }, "ministubby-status-poll");
+        statusThread.setDaemon(true);
+        statusThread.start();
     }
 }
