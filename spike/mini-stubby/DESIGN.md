@@ -338,6 +338,52 @@ or every build silently falls back to non-incremental (`CLASSPATH_SNAPSHOT_NOT_F
 compiling correctly. Runtime deps beyond the compiler: `kotlinx-coroutines-core-jvm` + `trove4j`.
 **Still to do:** wire this into the on-device `KotlinCompileService` + re-benchmark on the A56.
 
+### D8-compare — vs CoGo's existing Compose live-preview compiler  (prior art)
+
+CoGo already ships an on-device compile→render loop for **Jetpack Compose `@Preview`** — worth
+comparing head-to-head, because it made different choices at every axis. It began as the in-repo
+`:compose-preview` module and was **moved into a plugin** by `6d1ce6032` (ADFA-3598, #1461); the
+plugin (`org.appdevforall.composepreview`, in plugin-examples) is the **same mechanism, just
+repackaged** — verified this session (still `CompilerDaemon` + `CompilerWrapper` + `K2JVMCompiler` +
+`D8Command` + `-Xplugin`, no BTA). How it works:
+
+- **A warm, OUT-OF-PROCESS compiler daemon** (`CompilerDaemon.kt`). Spawns a child JVM
+  (`java -Xmx512m -cp <bootstrap> CompilerWrapper`) and talks to it over a `\0`-delimited
+  **stdin/stdout** line protocol. `CompilerWrapper` is a ~40-line Java main CoGo compiles on-device
+  that reflectively loads `K2JVMCompiler` **once**, prints `READY`, then loops: `COMPILE\0<args>` →
+  `K2JVMCompiler.exec(...)`; `DEX\0<args>` → `com.android.tools.r8.D8` — **both in-process inside the
+  daemon JVM**. The daemon stays alive across previews (JIT-warm), has a **120 s idle timeout**, and
+  a `startEagerly()` pre-warm.
+- **Compiler = the project's own** Kotlin compiler from the on-device local Maven repo (not a bundled
+  one — "build any project first" seeds it), with **`-Xplugin=<compose-compiler-plugin>`** for the
+  `@Composable` IR transform. Args: `-jvm-target 1.8 -no-stdlib -Xskip-metadata-version-check`.
+- **Dex** via the same daemon (`ComposeDexCompiler`) + a **`DexCache`** (skip re-dexing unchanged deps).
+- **Render**: `ComposeClassLoader` loads the dex, `PreviewSourceParser`/`ComposableInvoker` find and
+  invoke the `@Preview`, `ComposableRenderer` draws it into a `BoundedComposeView` — **no app is
+  launched** (composition errors caught, ADFA-2959).
+
+| Axis | CoGo Compose preview | Son-of-Stubby (this spike) |
+|---|---|---|
+| Compiler engine | `K2JVMCompiler.exec` (CLI) | BTA `CompilationService` |
+| Process model | **separate warm daemon JVM**, stdin/stdout IPC | **in-process** in the shell/IDE JVM |
+| Incrementality | **full compile per `exec`** (no per-file IC) | true per-file incremental (ClasspathSnapshot) |
+| Compose plugin | `-Xplugin` (required) | n/a |
+| Dex | D8 in daemon + `DexCache` | in-process d8 + cached stdlib dex |
+| Deploy | classload dex → invoke `@Preview` (no running app) | hot-reload / ART-redefine the running app |
+| Compiler source | project's local-Maven Kotlin compiler | bundled toolchain jars |
+
+**Takeaways for this spike:**
+1. It **validates the "keep the compiler warm" lever** — CoGo already does it, just out-of-process.
+   Out-of-process buys **crash/OOM isolation** (a compiler blow-up can't take down the IDE) at the
+   cost of IPC + a second ~512 MB heap; our in-process choice is lower-overhead but shares the IDE's
+   heap + failure domain.
+2. Compose preview uses **`K2JVMCompiler.exec` = full compile every edit** (the exact path
+   `FixedBench`/`MainProbe` measured: ~0.5–0.9 s init floor, no IC). Its speed is *purely* daemon
+   warmth + the dex cache. **Adopting this spike's in-process BTA incremental path is an unclaimed
+   speedup for Compose preview** — most impactful on large preview files, marginal on tiny `@Preview`
+   snippets. Conversely, its **out-of-process isolation** is something Son-of-Stubby could borrow if
+   an in-process compiler crash ever proves to be a stability problem.
+
 ---
 
 ## 5. Debugging
