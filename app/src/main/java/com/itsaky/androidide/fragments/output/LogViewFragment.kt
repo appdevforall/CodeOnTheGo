@@ -31,7 +31,7 @@ import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.models.LogLine
-import com.itsaky.androidide.utils.BuildInfoUtils
+import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.jetbrainsMono
 import com.itsaky.androidide.utils.viewLifecycleScope
@@ -85,7 +85,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 				?.editor
 				?.text
 				?.toString() ?: ""
-		return "${BuildInfoUtils.BASIC_INFO}${System.lineSeparator()}$editorText"
+		return "${BasicBuildInfo.shareableBuildInfo()}${System.lineSeparator()}$editorText"
 	}
 
 	override fun clearOutput() {
