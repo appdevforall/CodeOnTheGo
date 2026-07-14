@@ -42,14 +42,39 @@ Harness: `compile-service/incremental/LangBench.java` · runner: `tools/ondevice
    observed 0.7–2.2 s kotlinc times. Keeping edited files small, or splitting hot files, directly cuts the
    loop time. Java payloads would reload markedly faster, but the plugin/app ecosystem is Kotlin.
 
-## Which "compile" number is which (reconciling the three figures)
+## Why the real Main.kt takes ~1.7–2.2 s (not ~1.1 s) — probe attribution
 
-There are **three different compile numbers** in this spike; they are not interchangeable:
+`compile-service/incremental/MainProbe.java` — 3-way controlled full compile on the A56, warm:
+
+| Condition (~617–692 LoC, warm) | median | min |
+|---|---:|---:|
+| **A** synthetic 692 LoC, stdlib-only (= benchmark) | 1282 ms | 943 ms |
+| **B** same synthetic file **+ android.jar on classpath** | 885 ms | 798 ms |
+| **C** the **real Main.kt** (Android framework + org.json) + android.jar | 1742 ms | 1439 ms |
+
+- **A ≈ B → the big android.jar (27.7 MB) on the classpath is essentially free.** K2 resolves lazily;
+  a file that references no Android types pays ~nothing for it. So it's *not* "the classpath is huge."
+- **B → C = +857 ms → it's the CODE, not the size.** Real Android UI code (Activity/View/LinearLayout/
+  Button member resolution, overload resolution on framework methods, `SharedPreferences`, `org.json`,
+  string templates, lambdas, `when`) type-checks ~2× harder than an equal-length file of synthetic
+  arithmetic. Same LoC, double the frontend work.
+- **Plus a ~0.5–0.9 s fixed K2 init floor** baked into every *full* `K2JVMCompiler.exec` invocation.
+
+So the 617-line Main.kt sits at ~1.4–1.7 s **warm full compile**; a cold first-compile or thermal spike
+pushes it to the 2.2 s we saw this session. Note the daemon's real fast loop uses the **incremental** BTA
+path (persistent compiler, amortizes the init floor) — the same Main.kt landed at **~0.66 s** warm-incremental
+in the daemon log. Levers to cut it: keep the daemon warm on the incremental path, and **split Main.kt into
+smaller files** so a per-file incremental recompile only touches the edited one.
+
+## Which "compile" number is which (reconciling the figures)
+
+There are **four different compile numbers** in this spike; they are not interchangeable:
 
 | Path | What it measures | On-device (A56) |
 |---|---|---|
 | **Full compile, Java** (this doc) | javac a whole file from scratch | ~0.12–0.19 s, flat |
-| **Full compile, Kotlin** (this doc) | K2JVMCompiler a whole file from scratch | ~0.6–1.3 s, grows w/ size |
+| **Full compile, Kotlin — synthetic** (this doc) | K2JVMCompiler, arithmetic, stdlib-only | ~0.6–1.3 s, grows w/ size |
+| **Full compile, Kotlin — real Main.kt** (probe) | K2JVMCompiler, Android framework code | ~1.4–1.7 s warm (2.2 s cold) |
 | **Incremental, Kotlin** (`INCREMENTAL-RESULTS.md`) | BTA `CompilationService`, 1-file edit, caches warm | ~0.4–0.7 s, **~flat** 600→30k LoC |
 
 The **0.53 s** figure Bryan flagged as "not representative" was the *incremental* edit on a **30k-LoC** app
