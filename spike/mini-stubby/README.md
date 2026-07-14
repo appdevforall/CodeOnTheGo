@@ -7,6 +7,47 @@ no signing, no zipalign, no Play Protect / install-confirmation prompts. The des
 write-up for the team lives in [`demo/confluence-draft.md`](demo/confluence-draft.md)
 (also published under the SD-space "Improving User Productivity" page).
 
+## Directory map
+
+```
+mini-stubby/
+├── README.md                    ← you are here (architecture, bring-up, results)
+├── DESIGN.md                    — design notes, alternatives, Compose-preview prior art
+├── CAPABILITY-MATRIX.md         — which app shapes hot-load (all verified on-device)
+├── TIERED-IMPLEMENTATION.md     — Tier 0/1/2 reload ladder + slow-device impact
+├── CONTRACTS.md, CONTRACTS-v3.md — shell↔payload contract, v1 and current
+├── FASTER-ON-SLOW-DEVICES.md    — how the loop stays <1 s on low-end hardware
+├── MULTI-ACTIVITY-OPTIONS.md    — multi-screen: ProxyActivity vs Instrumentation hooks
+├── RESULTS-phase3.md, RESULTS-phase4.md, REVIEW-RESPONSE.md — phase write-ups + review replies
+│
+├── host/            — the shell app (com.adfa.ministubby.host): installed once,
+│                      long-polls /payload, digest-verifies, hot-reloads (~40 ms)
+├── compile-service/ — the warm compile daemon (KotlinCompileService): incremental
+│                      kotlinc via Build Tools API + d8 + aapt2, tier dispatch
+│   └── incremental/ — Kotlin toolchain jars + IncBench/OnDeviceDexBench harnesses
+├── hotswap-agent/   — Tier-1 JVMTI RedefineClasses agent (bundled, off by default)
+├── orchestrator/    — Mac-side Ask-Claude HTTP bridge (Flow 1's Claude edits)
+├── devloop/         — superseded phase-2 Java daemon (historical)
+│
+├── payload/           — Java stand-in user app (survey demo)
+├── payload-kotlin/    — the Kotlin payload the Mac-harness daemon watches
+├── payload-gradle/    — real androidx/Material3 app (the dependency story)
+├── payload-native/    — JNI .so payload        ┐
+├── payload-multiscreen/ — multi-Activity payload ├ capability-matrix probes
+├── payload-manifest/  — manifest-boundary probe ┘
+├── stress/          — synthetic N-classes/M-resources payload generator + results
+├── bench/           — Java-vs-Kotlin compile-time benchmarks, plots, raw data
+│
+├── demo/            — demo projects, walkthrough docs, benchmark write-ups
+│   ├── livereload-project/ — the on-device demo project (Lemonade Stand)
+│   ├── recordings/  — demo videos (gitignored — shipped via Confluence)
+│   ├── blank-start/, known-good/, rehearsal/ — demo reset states
+│   └── *.md         — ONDEVICE-LOOP-BENCHMARK, DEX/INCREMENTAL results, flows review…
+└── tools/           — build + deploy scripts (tools/env.sh pins the toolchain)
+    ├── ondevice/    — stage_ondevice.sh (daemon bring-up) + on-device bench runners
+    └── demo/        — Flow-1 demo drivers (record, reset, inject-ask)
+```
+
 ## Architecture
 
 **The loop now runs entirely on-device, inside CoGo** (ADFA-4128 on-device milestone).
@@ -85,16 +126,62 @@ bundled but off by default — method-body-only, and the normal incremental path
 hits ~1 s, so it was measured out (see [`TIERED-IMPLEMENTATION.md`](TIERED-IMPLEMENTATION.md)).
 An earlier phase-2 Java daemon (`devloop/`) is superseded by `compile-service/`.*
 
-### Where to build / run
+### Bring-up: on-device live reload (step-by-step)
 
-**On-device (the product path).** 1) Install a debuggable CoGo (`assembleV8Debug`) — needed
-so the daemon can run as CoGo's process using its bundled JDK. 2) Launch it once to finish
-first-run setup (extracts JDK, downloads SDK). 3) `tools/ondevice/stage_ondevice.sh` stages
-the daemon into `files/mstc`. 4) `tools/build_host.sh` installs the shell (with the `/payload`
-pull thread). 5) Open a `.livereload`-marked project in CoGo, edit, and press **Run** — first
-Run does a full Gradle build; later edits hot-reload via the on-device daemon. (For headless
-testing, `adb forward tcp:18378 tcp:8378` then `curl -X POST --data <changed.kt path>
-localhost:18378/build?kind=code`.)
+Prereqs: a device with USB debugging, adb on the Mac, this branch checked out.
+Everything below is one-time; after it, the loop itself needs **no Mac at all**
+(works in airplane mode).
+
+1. **Install a debuggable CoGo from THIS branch** — the live-reload wiring
+   (`app/.../livereload/LiveReloadManager.kt`) is not in stock CoGo, and the daemon
+   must run as CoGo's own process (SELinux: nothing else — not even `run-as` — may
+   spawn it):
+   ```sh
+   flox activate -d flox/local -- ./gradlew :app:assembleV8Debug
+   adb install -r app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-*.apk
+   ```
+2. **Launch CoGo once and let first-run setup finish** (it extracts the bundled
+   JDK 21 to `files/usr` and the SDK to `files/home/android-sdk` — the daemon's
+   toolchain).
+3. **Stage the compile daemon** into CoGo's private dir (compiles it on the Mac,
+   pushes classes + Kotlin jars, auto-discovers the on-device JDK/aapt2/d8, writes
+   `files/mstc/run_daemon.sh`):
+   ```sh
+   spike/mini-stubby/tools/ondevice/stage_ondevice.sh
+   ```
+4. **Build + install the shell app** (the once-installed host that hot-reloads):
+   ```sh
+   spike/mini-stubby/tools/build_host.sh
+   ```
+5. **Opt a project in and run it.** Copy `demo/livereload-project/` into
+   `/storage/emulated/0/CodeOnTheGoProjects/<Name>/` (or use any project whose payload
+   keeps the contract `object Main { @JvmStatic fun render(host: Activity): View }`),
+   then `touch <project>/.livereload`. Open it in CoGo and press **Run** — the first
+   Run does a normal full Gradle build + install; it also launches the warm daemon.
+   From then on **every editor save hot-reloads the shell in ~1–3 s** (green
+   "Live-reloaded" banner shows build + reload ms).
+
+**Two watch modes** (who notices the save):
+- *Staged default* (`run_daemon.sh` has `-Dwatch=false`): CoGo's `LiveReloadManager`
+  FileObserver watches the project and POSTs `/build` — the intended product shape.
+- *Daemon self-watch* (`tools/ondevice/run_daemon_watch.sh`, `-Dwatch=true`): the
+  daemon's own `WatchService` watches the project (FUSE inotify — verified working on
+  the A56 / Android 16). This is the configuration the Flow-2 demo recording used, and
+  works even when nothing in CoGo triggers builds. Swap it in with
+  `adb push … /data/local/tmp/ && adb shell run-as com.itsaky.androidide cp /data/local/tmp/run_daemon_watch.sh files/mstc/run_daemon.sh`,
+  then restart CoGo. (Running both modes double-builds each save — harmless but wasteful.)
+
+**Verify / debug:**
+```sh
+adb logcat -s MiniStubby MiniStubbyLR MiniStubbyKCS   # shell reloads · CoGo trigger · daemon
+adb forward tcp:18378 tcp:8378
+curl localhost:18378/status                            # building=0 gen=N
+curl -X POST --data <abs path to changed .kt> "localhost:18378/build?kind=code"
+```
+Known rough edge: the shell's "🔨 Compiling…" banner only clears on a *successful
+render* — a compile error, or a payload that throws inside `render()` (e.g.
+`Color.parseColor("#A00")` — 3-digit colors are invalid on Android), leaves the banner
+stuck with stale content. Check `adb logcat -s MiniStubby` for `payload load failed`.
 
 **Mac harness (the lab, below).**
 
@@ -125,7 +212,8 @@ under `compile-service/incremental/lib`.
   - `ProxyActivity` (133) — hosts additional payload Activities (multi-Activity).
   - `PayloadViewFactory` (94) — `Factory2` that inflates payload-declared custom Views.
   - `DevJumpService` (133) — floating dev control to jump back to the editor.
-- **`compile-service/`** — the persistent warm compile service (Mac-side JVM today):
+- **`compile-service/`** — the persistent warm compile service (runs on-device as CoGo's
+  subprocess; the same classes also run Mac-side in the lab harness):
   - `KotlinCompileService` (590) — watches `payload-kotlin/{src,res}` and dispatches
     the cheapest tier: **Tier 0** resource-only (aapt2 relink, reuse cached dex, no
     compiler), **Tier 2** code (warm Kotlin compile → d8 → package → deploy), **Tier 1**
