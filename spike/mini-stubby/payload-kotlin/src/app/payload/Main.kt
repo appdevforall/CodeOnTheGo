@@ -1,617 +1,486 @@
 package app.payload
 
 import android.app.Activity
-import android.content.SharedPreferences
+import android.app.AlertDialog
+import android.content.Context
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import kotlin.math.max
-import kotlin.math.roundToInt
 import kotlin.random.Random
-import org.json.JSONArray
-import org.json.JSONObject
 
 /**
- * Lemonade Stand.
- *
- * Entry point contract the shell relies on (keep EXACTLY):
- *   object Main { @JvmStatic fun render(host: Activity): View }
- * All game state lives in host.getSharedPreferences("game", 0) and is re-read
- * at the top of render()/rebuild(), so a hot-reload never loses progress.
+ * Classic Lemonade Stand: each day shows weather, lets the player set glasses made,
+ * price per glass, and ad signs bought, then resolves the day's sales and shows
+ * profit + running cash. All state persists in SharedPreferences so a hot-reload
+ * never loses an in-progress game.
  */
 object Main {
+    private const val PREFS = "game"
 
-    private const val BG = 0xFFEAF7EF.toInt()
-    private const val FG = 0xFF1F4037.toInt()
-    private const val CARD_BG = 0xFFFFFFFF.toInt()
-    private const val ACCENT = 0xFF2FB86B.toInt()
-    private const val ACCENT_DARK = 0xFF1E9D57.toInt()
-    private const val MUTED = 0xFF7A8F86.toInt()
-    private const val POSITIVE = 0xFF2E9E6B.toInt()
-    private const val NEGATIVE = 0xFFE0684F.toInt()
-    private const val FIELD_BG = 0xFFF1F7F0.toInt()
+    // View-only toggle (not persisted game state) — which screen to show.
+    private var showLeaderboard = false
 
-    private val WEATHERS = listOf("Sunny", "Hot", "Scorcher", "Cloudy", "Rainy")
+    // Colors — mint green & cream
+    private const val COL_BG = 0xFFFAF6EC.toInt()
+    private const val COL_CARD = 0xFFFFFFFB.toInt()
+    private const val COL_PRIMARY = 0xFF3EB489.toInt()
+    private const val COL_PRIMARY_DARK = 0xFF1F7A5C.toInt()
+    private const val COL_ACCENT_GREEN = 0xFF2E7D32.toInt()
+    private const val COL_ACCENT_RED = 0xFFC62828.toInt()
+    private const val COL_TEXT = 0xFF2F3E36.toInt()
+    private const val COL_TEXT_MUTED = 0xFF6B7C72.toInt()
+    private const val COL_BORDER = 0xFFCDEEDD.toInt()
 
-    private fun weatherMultiplier(weather: String): Double = when (weather) {
-        "Sunny" -> 1.0
-        "Hot" -> 1.4
-        "Scorcher" -> 1.8
-        "Cloudy" -> 0.7
-        "Rainy" -> 0.35
-        else -> 1.0
+    private data class Weather(val name: String, val emoji: String, val demandMult: Double, val blurb: String)
+
+    private val WEATHERS = listOf(
+        Weather("Sunny", "☀️", 1.4, "Perfect lemonade weather!"),
+        Weather("Hot", "🥵", 1.8, "Scorching hot — everyone's thirsty!"),
+        Weather("Cloudy", "☁️", 0.9, "Mild day, so-so demand."),
+        Weather("Rainy", "🌧️", 0.4, "Rain keeps customers away."),
+        Weather("Windy", "💨", 0.7, "Blustery — stand's a bit shaky."),
+    )
+
+    // ---- Persistence ----
+
+    private fun prefs(host: Activity) = host.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    private class State(
+        val day: Int,
+        val cash: Double,
+        val signs: Int,
+        val weatherIdx: Int,
+        val lastResult: String?,
+        val history: List<String>,
+        val bestCash: Double,
+        val leaderboard: List<Double>,
+    )
+
+    private fun loadState(host: Activity): State {
+        val p = prefs(host)
+        val day = if (p.contains("day")) p.getInt("day", 1) else 1
+        val cash = if (p.contains("cash")) p.getFloat("cash", 20f).toDouble() else 20.0
+        val signs = p.getInt("signs", 0)
+        val weatherIdx = if (p.contains("weatherIdx")) p.getInt("weatherIdx", 0)
+        else Random.nextInt(WEATHERS.size)
+        val lastResult = if (p.contains("lastResult")) p.getString("lastResult", null) else null
+        val historyRaw = p.getString("history", "") ?: ""
+        val history = if (historyRaw.isBlank()) emptyList() else historyRaw.split("||")
+        val bestCash = if (p.contains("bestCash")) p.getFloat("bestCash", cash.toFloat()).toDouble() else cash
+        val leaderboardRaw = p.getString("leaderboard", "") ?: ""
+        val leaderboard = if (leaderboardRaw.isBlank()) emptyList()
+        else leaderboardRaw.split(",").mapNotNull { it.toDoubleOrNull() }
+        return State(day, cash, signs, weatherIdx, lastResult, history, bestCash, leaderboard)
     }
 
-    private fun weatherDesc(weather: String): String = when (weather) {
-        "Sunny" -> "Sunny ☀️ - good day for lemonade"
-        "Hot" -> "Hot 🔥 - thirsty crowds"
-        "Scorcher" -> "Scorcher 🥵 - everyone wants a drink!"
-        "Cloudy" -> "Cloudy ☁️ - fewer customers"
-        "Rainy" -> "Rainy 🌧️ - nobody's out"
-        else -> weather
+    private fun saveState(host: Activity, s: State) {
+        prefs(host).edit()
+            .putInt("day", s.day)
+            .putFloat("cash", s.cash.toFloat())
+            .putInt("signs", s.signs)
+            .putInt("weatherIdx", s.weatherIdx)
+            .apply { if (s.lastResult != null) putString("lastResult", s.lastResult) else remove("lastResult") }
+            .putString("history", s.history.joinToString("||"))
+            .putFloat("bestCash", s.bestCash.toFloat())
+            .putString("leaderboard", s.leaderboard.joinToString(",") { it.toString() })
+            .apply()
     }
+
+    // ---- UI helpers ----
+
+    private fun money(v: Double): String = "$" + String.format("%.2f", v)
+
+    /** Pulls the trailing signed profit amount out of a "Day N: sold X/Y, +$Z.ZZ" history entry. */
+    private fun parseProfitFromHistory(entry: String): Double? {
+        val idx = entry.lastIndexOf('$')
+        if (idx == -1) return null
+        return entry.substring(idx + 1).toDoubleOrNull()
+    }
+
+    private fun card(host: Activity): LinearLayout {
+        val bg = GradientDrawable().apply {
+            setColor(COL_CARD)
+            cornerRadius = 24f
+            setStroke(2, COL_BORDER)
+        }
+        return LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            background = bg
+            setPadding(36, 32, 36, 32)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, 0, 0, 28) }
+        }
+    }
+
+    private fun label(host: Activity, text: String, size: Float = 16f, color: Int = COL_TEXT, bold: Boolean = false): TextView =
+        TextView(host).apply {
+            this.text = text
+            textSize = size
+            setTextColor(color)
+            if (bold) setTypeface(typeface, Typeface.BOLD)
+        }
+
+    private fun primaryButton(host: Activity, text: String): Button =
+        Button(host).apply {
+            this.text = text
+            setTextColor(Color.WHITE)
+            val bg = GradientDrawable().apply {
+                setColor(COL_PRIMARY)
+                cornerRadius = 18f
+            }
+            background = bg
+            setPadding(24, 20, 24, 20)
+            isAllCaps = false
+            textSize = 17f
+        }
+
+    private fun numberField(host: Activity, hint: String, initial: String = ""): EditText =
+        EditText(host).apply {
+            this.hint = hint
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setText(initial)
+            setTextColor(COL_TEXT)
+            setHintTextColor(COL_TEXT_MUTED)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+    // ---- Main entry ----
 
     @JvmStatic
     fun render(host: Activity): View {
-        val prefs = host.getSharedPreferences("game", 0)
-
-        val content = LinearLayout(host).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-
         val scroll = ScrollView(host).apply {
-            setBackgroundColor(BG)
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-            setPadding(40, 96, 40, 64)
-            addView(content)
+            setBackgroundColor(COL_BG)
         }
-
-        rebuild(content, host, prefs)
+        val root = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 96, 40, 48)
+        }
+        scroll.addView(
+            root,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        )
+        rebuild(root, host)
         return scroll
     }
 
-    private fun loadLeaderboard(prefs: SharedPreferences): List<Pair<Int, Int>> {
-        val raw = prefs.getString("leaderboard_json", "") ?: ""
-        if (raw.isEmpty()) return emptyList()
-        return try {
-            val arr = JSONArray(raw)
-            (0 until arr.length()).map { i ->
-                val obj = arr.getJSONObject(i)
-                obj.getInt("day") to obj.getInt("cash")
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    private fun recordLeaderboardScore(prefs: SharedPreferences, day: Int, cashCents: Int) {
-        val entries = loadLeaderboard(prefs).toMutableList()
-        entries.add(day to cashCents)
-        val top = entries.sortedByDescending { it.second }.take(10)
-        val arr = JSONArray()
-        for ((d, c) in top) {
-            arr.put(JSONObject().apply {
-                put("day", d)
-                put("cash", c)
-            })
-        }
-        prefs.edit().putString("leaderboard_json", arr.toString()).apply()
-    }
-
-    private fun rebuild(root: LinearLayout, host: Activity, prefs: SharedPreferences) {
+    private fun rebuild(root: LinearLayout, host: Activity) {
         root.removeAllViews()
+        val s = loadState(host)
 
-        // --- read/init persisted state ---
-        val day = prefs.getInt("day", 1)
-        val cashCents = prefs.getInt("cash_cents", 2000)
-        var weather = prefs.getString("weather", "") ?: ""
-        val phase = prefs.getString("phase", "input") ?: "input"
-        val viewingLeaderboard = prefs.getBoolean("viewing_leaderboard", false)
-
-        if (weather.isEmpty()) {
-            weather = WEATHERS[Random.nextInt(WEATHERS.size)]
-            prefs.edit().putString("weather", weather).apply()
-        }
-
-        if (viewingLeaderboard) {
-            root.addView(leaderboardCard(host, loadLeaderboard(prefs)))
-            root.addView(backButton(host) {
-                prefs.edit().putBoolean("viewing_leaderboard", false).apply()
-                rebuild(root, host, prefs)
-            })
+        if (showLeaderboard) {
+            rebuildLeaderboard(root, host, s)
             return
         }
 
-        val glassesDefault = prefs.getString("glasses_input", "20") ?: "20"
-        val priceDefault = prefs.getString("price_input", "25") ?: "25"
-        val signsDefault = prefs.getString("signs_input", "0") ?: "0"
+        val weather = WEATHERS[s.weatherIdx]
 
-        // --- header (always shown) ---
-        val profitHistory = (prefs.getString("profit_history", "") ?: "")
-            .split(",")
-            .mapNotNull { it.toIntOrNull() }
-        root.addView(dashboardCard(host, day, cashCents, profitHistory))
-        root.addView(headerCard(host, day, cashCents, weather))
-        root.addView(leaderboardButton(host) {
-            prefs.edit().putBoolean("viewing_leaderboard", true).apply()
-            rebuild(root, host, prefs)
-        })
-
-        if (phase == "result") {
-            root.addView(resultCard(host, prefs))
-            root.addView(nextDayButton(host, prefs) {
-                rebuild(root, host, prefs)
-            })
-        } else {
-            val glassesInput = EditText(host)
-            val priceInput = EditText(host)
-            val signsInput = EditText(host)
-
-            root.addView(inputsCard(host, glassesInput, priceInput, signsInput, glassesDefault, priceDefault, signsDefault))
-            root.addView(sellButton(host, prefs, glassesInput, priceInput, signsInput, weather, cashCents) {
-                rebuild(root, host, prefs)
-            })
-        }
-    }
-
-    private fun sectionCard(host: Activity): LinearLayout {
-        return LinearLayout(host).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(CARD_BG)
-            setPadding(32, 28, 32, 28)
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 24
-            }
-        }
-    }
-
-    private fun dashboardCard(host: Activity, day: Int, cashCents: Int, profitHistory: List<Int>): View {
-        val card = sectionCard(host)
-
-        card.addView(TextView(host).apply {
-            text = "📊 Dashboard"
-            textSize = 15f
-            setTextColor(MUTED)
-        })
-
-        val statsRow = LinearLayout(host).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 12
-            }
-        }
-        statsRow.addView(dashboardStat(host, "Day", "$day"))
-        statsRow.addView(dashboardStat(host, "Cash", "$${"%.2f".format(cashCents / 100.0)}"))
-        val yesterdayProfitCents = profitHistory.lastOrNull()
-        statsRow.addView(
-            dashboardStat(
-                host,
-                "Yesterday",
-                if (yesterdayProfitCents == null) {
-                    "—"
-                } else {
-                    (if (yesterdayProfitCents < 0) "-$" else "+$") + "%.2f".format(kotlin.math.abs(yesterdayProfitCents) / 100.0)
-                },
-                if (yesterdayProfitCents == null) MUTED else if (yesterdayProfitCents >= 0) POSITIVE else NEGATIVE,
-            )
-        )
-        card.addView(statsRow)
-
-        if (profitHistory.isNotEmpty()) {
-            card.addView(TextView(host).apply {
-                text = "Trend (last ${profitHistory.size} day${if (profitHistory.size == 1) "" else "s"})"
-                textSize = 12f
-                setTextColor(MUTED)
-                layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                    topMargin = 18
-                }
-            })
-            card.addView(trendRow(host, profitHistory))
-        }
-
-        return card
-    }
-
-    private fun dashboardStat(host: Activity, label: String, value: String, valueColor: Int = FG): LinearLayout {
-        val col = LinearLayout(host).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-        }
-        col.addView(TextView(host).apply {
-            text = label
-            textSize = 12f
-            setTextColor(MUTED)
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-        col.addView(TextView(host).apply {
-            text = value
-            textSize = 17f
-            setTextColor(valueColor)
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-        return col
-    }
-
-    private fun trendRow(host: Activity, profitHistory: List<Int>): LinearLayout {
-        val row = LinearLayout(host).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.BOTTOM
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 100).apply {
-                topMargin = 8
-            }
-        }
-        val maxAbs = max(1, profitHistory.maxOf { kotlin.math.abs(it) })
-        for (profitCents in profitHistory) {
-            val barHeight = max(6, (kotlin.math.abs(profitCents).toDouble() / maxAbs * 90).roundToInt())
-            val bar = View(host).apply {
-                setBackgroundColor(if (profitCents >= 0) POSITIVE else NEGATIVE)
-                layoutParams = LinearLayout.LayoutParams(0, barHeight, 1f).apply {
-                    leftMargin = 4
-                    rightMargin = 4
-                }
-            }
-            row.addView(bar)
-        }
-        return row
-    }
-
-    private fun leaderboardButton(host: Activity, onClick: () -> Unit): View {
-        return Button(host).apply {
-            text = "🏆 Leaderboard"
-            textSize = 15f
-            setTextColor(BG)
-            setBackgroundColor(MUTED)
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 16
-            }
-            setOnClickListener { onClick() }
-        }
-    }
-
-    private fun backButton(host: Activity, onClick: () -> Unit): View {
-        return Button(host).apply {
-            text = "◀ BACK"
-            textSize = 16f
-            setTextColor(BG)
-            setBackgroundColor(ACCENT_DARK)
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 24
-            }
-            setOnClickListener { onClick() }
-        }
-    }
-
-    private fun leaderboardCard(host: Activity, entries: List<Pair<Int, Int>>): View {
-        val card = sectionCard(host)
-
-        card.addView(TextView(host).apply {
-            text = "🏆 Leaderboard — Best Cash Ever"
-            textSize = 18f
-            setTextColor(ACCENT)
-        })
-
-        if (entries.isEmpty()) {
-            card.addView(TextView(host).apply {
-                text = "No scores yet — finish a day to get on the board!"
-                textSize = 14f
-                setTextColor(MUTED)
-                layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                    topMargin = 16
-                }
-            })
-        } else {
-            entries.forEachIndexed { index, (entryDay, entryCashCents) ->
-                val row = LinearLayout(host).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                        topMargin = 14
-                    }
-                }
-                row.addView(TextView(host).apply {
-                    text = "#${index + 1}"
-                    textSize = 15f
-                    setTextColor(if (index == 0) ACCENT else MUTED)
-                    layoutParams = LinearLayout.LayoutParams(80, WRAP_CONTENT)
-                })
-                row.addView(TextView(host).apply {
-                    text = "Day $entryDay"
-                    textSize = 15f
-                    setTextColor(FG)
-                    layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-                })
-                row.addView(TextView(host).apply {
-                    text = "$${"%.2f".format(entryCashCents / 100.0)}"
-                    textSize = 15f
-                    setTextColor(POSITIVE)
-                    gravity = Gravity.END
-                    layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-                })
-                card.addView(row)
-            }
-        }
-
-        return card
-    }
-
-    private fun headerCard(host: Activity, day: Int, cashCents: Int, weather: String): View {
-        val card = sectionCard(host)
-
-        card.addView(TextView(host).apply {
-            text = "Phase 3 Works ✅"
-            textSize = 30f
-            setTextColor(Color.parseColor("#FF2196F3"))
+        // Title
+        root.addView(label(host, "🍋 Lemonade Stand", 30f, COL_PRIMARY_DARK, bold = true).apply {
             gravity = Gravity.CENTER
         })
+        root.addView(label(host, "Day $${'$'}s.day".replace("$${'$'}s.day", "Day ${s.day}"), 15f, COL_TEXT_MUTED).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, 4, 0, 28)
+        })
 
-        val row = LinearLayout(host).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 16
+        val leaderboardButton = Button(host).apply {
+            text = "🏆 Leaderboard"
+            setTextColor(COL_PRIMARY_DARK)
+            val bg = GradientDrawable().apply {
+                setColor(COL_CARD)
+                cornerRadius = 18f
+                setStroke(2, COL_BORDER)
+            }
+            background = bg
+            isAllCaps = false
+            textSize = 15f
+            setPadding(20, 16, 20, 16)
+            setOnClickListener {
+                showLeaderboard = true
+                rebuild(root, host)
             }
         }
-        row.addView(TextView(host).apply {
-            text = "Day $day"
-            textSize = 16f
-            setTextColor(FG)
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-        })
-        row.addView(TextView(host).apply {
-            text = "$${"%.2f".format(cashCents / 100.0)}"
-            textSize = 16f
-            setTextColor(POSITIVE)
-            gravity = Gravity.END
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-        })
-        card.addView(row)
-
-        card.addView(TextView(host).apply {
-            text = "Weather: ${weatherDesc(weather)}"
-            textSize = 14f
-            setTextColor(MUTED)
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 8
+        root.addView(leaderboardButton.apply {
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 0, 0, 20)
             }
         })
 
-        return card
-    }
+        // Daily dashboard: day, cash, yesterday's profit, short trend
+        val dashCard = card(host)
+        val dashRow = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
 
-    private fun labeledInputRow(host: Activity, label: String, input: EditText, default: String): LinearLayout {
-        val row = LinearLayout(host).apply {
+        val dayCol = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        dayCol.addView(label(host, "Day", 12f, COL_TEXT_MUTED))
+        dayCol.addView(label(host, "${s.day}", 22f, COL_TEXT, bold = true))
+        dashRow.addView(dayCol)
+
+        val cashCol = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        cashCol.addView(label(host, "Cash", 12f, COL_TEXT_MUTED))
+        cashCol.addView(label(host, money(s.cash), 22f, COL_ACCENT_GREEN, bold = true))
+        dashRow.addView(cashCol)
+
+        val yesterdayProfit = s.history.lastOrNull()?.let { parseProfitFromHistory(it) }
+        val profitCol = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        profitCol.addView(label(host, "Yesterday", 12f, COL_TEXT_MUTED))
+        profitCol.addView(
+            if (yesterdayProfit == null) {
+                label(host, "—", 22f, COL_TEXT_MUTED, bold = true)
+            } else {
+                label(
+                    host,
+                    (if (yesterdayProfit >= 0) "+" else "") + money(yesterdayProfit),
+                    22f,
+                    if (yesterdayProfit >= 0) COL_ACCENT_GREEN else COL_ACCENT_RED,
+                    bold = true
+                )
+            }
+        )
+        dashRow.addView(profitCol)
+
+        dashCard.addView(dashRow)
+
+        val trendProfits = s.history.takeLast(6).mapNotNull { parseProfitFromHistory(it) }
+        if (trendProfits.isNotEmpty()) {
+            val trendDivider = View(host).apply {
+                setBackgroundColor(COL_BORDER)
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 2).apply {
+                    setMargins(0, 16, 0, 12)
+                }
+            }
+            dashCard.addView(trendDivider)
+            dashCard.addView(label(host, "Profit trend", 12f, COL_TEXT_MUTED).apply { setPadding(0, 0, 0, 6) })
+            val trendText = trendProfits.joinToString("  ") { p ->
+                (if (p >= 0) "▲" else "▼") + money(kotlin.math.abs(p))
+            }
+            val trendColor = if (trendProfits.last() >= 0) COL_ACCENT_GREEN else COL_ACCENT_RED
+            dashCard.addView(label(host, trendText, 14f, trendColor))
+        }
+        root.addView(dashCard)
+
+        // Status card: weather + cash
+        val statusCard = card(host)
+        val weatherRow = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 16
+        }
+        weatherRow.addView(label(host, weather.emoji, 40f))
+        val weatherText = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(20, 0, 0, 0)
+        }
+        weatherText.addView(label(host, weather.name, 20f, COL_TEXT, bold = true))
+        weatherText.addView(label(host, weather.blurb, 14f, COL_TEXT_MUTED))
+        weatherRow.addView(weatherText)
+        statusCard.addView(weatherRow)
+
+        val divider = View(host).apply {
+            setBackgroundColor(COL_BORDER)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 2).apply {
+                setMargins(0, 20, 0, 20)
             }
         }
-        row.addView(TextView(host).apply {
-            text = label
-            textSize = 15f
-            setTextColor(FG)
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
+        statusCard.addView(divider)
+
+        val cashRow = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
+        cashRow.addView(label(host, "💰 Cash on hand", 16f, COL_TEXT_MUTED).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         })
-        input.apply {
-            setText(default)
-            inputType = InputType.TYPE_CLASS_NUMBER
-            setTextColor(FG)
-            setHintTextColor(MUTED)
-            setBackgroundColor(FIELD_BG)
-            setPadding(20, 12, 20, 12)
-            gravity = Gravity.END
-            layoutParams = LinearLayout.LayoutParams(220, WRAP_CONTENT)
+        cashRow.addView(label(host, money(s.cash), 20f, COL_ACCENT_GREEN, bold = true))
+        statusCard.addView(cashRow)
+
+        val signsRow = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
+        signsRow.addView(label(host, "📋 Ad signs owned", 14f, COL_TEXT_MUTED).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        signsRow.addView(label(host, "${s.signs}", 14f, COL_TEXT_MUTED))
+        statusCard.addView(signsRow.apply { setPadding(0, 8, 0, 0) })
+
+        root.addView(statusCard)
+
+        // Last result card (if any)
+        if (s.lastResult != null) {
+            val resultCard = card(host)
+            resultCard.addView(label(host, "Yesterday's Results", 16f, COL_TEXT, bold = true).apply {
+                setPadding(0, 0, 0, 12)
+            })
+            resultCard.addView(label(host, s.lastResult, 14f, COL_TEXT))
+            root.addView(resultCard)
         }
-        row.addView(input)
-        return row
+
+        // Decision card
+        val decisionCard = card(host)
+        decisionCard.addView(label(host, "Today's Plan", 18f, COL_TEXT, bold = true).apply {
+            setPadding(0, 0, 0, 16)
+        })
+
+        decisionCard.addView(label(host, "Cups of lemonade to make", 13f, COL_TEXT_MUTED))
+        val glassesInput = numberField(host, "e.g. 20").apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) }
+        decisionCard.addView(glassesInput.apply { setPadding(0, 0, 0, 16) })
+
+        decisionCard.addView(label(host, "Price per cup ($)", 13f, COL_TEXT_MUTED))
+        val priceInput = numberField(host, "e.g. 0.25").apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) }
+        decisionCard.addView(priceInput.apply { setPadding(0, 0, 0, 16) })
+
+        decisionCard.addView(label(host, "Ad signs to buy today ($1.00 each)", 13f, COL_TEXT_MUTED))
+        val signsInput = numberField(host, "e.g. 1").apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) }
+        decisionCard.addView(signsInput.apply { setPadding(0, 0, 0, 20) })
+
+        val costHint = label(host, "Ingredients cost ~$0.05/cup. Sell what you can!", 12f, COL_TEXT_MUTED)
+        decisionCard.addView(costHint.apply { setPadding(0, 0, 0, 16) })
+
+        val sellButton = primaryButton(host, "☀️ Open the stand!")
+        sellButton.setOnClickListener {
+            val glasses = glassesInput.text.toString().toIntOrNull() ?: 0
+            val price = priceInput.text.toString().toDoubleOrNull() ?: 0.0
+            val newSigns = signsInput.text.toString().toIntOrNull() ?: 0
+
+            if (glasses <= 0 || price <= 0.0) {
+                AlertDialog.Builder(host)
+                    .setTitle("Hold on")
+                    .setMessage("Enter at least 1 cup and a price above $0.")
+                    .setPositiveButton("OK", null)
+                    .show()
+                return@setOnClickListener
+            }
+
+            val signCost = newSigns * 1.0
+            val ingredientCost = glasses * 0.05
+            val totalCost = signCost + ingredientCost
+
+            if (totalCost > s.cash) {
+                AlertDialog.Builder(host)
+                    .setTitle("Not enough cash")
+                    .setMessage("Making $glasses cups + $newSigns signs costs ${money(totalCost)}, but you only have ${money(s.cash)}.")
+                    .setPositiveButton("OK", null)
+                    .show()
+                return@setOnClickListener
+            }
+
+            // Demand model: base interest scaled by weather, price sensitivity, and ad signs.
+            val totalSigns = s.signs + newSigns
+            val priceFactor = (0.55 / price).coerceIn(0.15, 3.0)
+            val adBoost = 1.0 + (totalSigns * 0.12)
+            val baseDemand = 20.0 * weather.demandMult * priceFactor * adBoost
+            val noisyDemand = (baseDemand * (0.85 + Random.nextDouble() * 0.3)).toInt()
+            val cupsSold = minOf(glasses, maxOf(0, noisyDemand))
+
+            val revenue = cupsSold * price
+            val profit = revenue - totalCost
+            val newCash = s.cash - totalCost + revenue
+
+            val resultText = buildString {
+                append("Made $glasses cups at ${money(price)} each, sold $cupsSold.\n")
+                append("Revenue: ${money(revenue)}  •  Costs: ${money(totalCost)}\n")
+                append(if (profit >= 0) "Profit: ${money(profit)} 🎉" else "Loss: ${money(-profit)} 😬")
+            }
+
+            val historyEntry = "Day ${s.day}: sold $cupsSold/$glasses, ${if (profit >= 0) "+" else ""}${money(profit)}"
+            val newHistory = (s.history + historyEntry).takeLast(30)
+
+            val newBestCash = maxOf(s.bestCash, newCash)
+            val newLeaderboard = (s.leaderboard + newCash).sortedDescending().take(10)
+
+            val newState = State(
+                day = s.day + 1,
+                cash = newCash,
+                signs = totalSigns,
+                weatherIdx = Random.nextInt(WEATHERS.size),
+                lastResult = resultText,
+                history = newHistory,
+                bestCash = newBestCash,
+                leaderboard = newLeaderboard,
+            )
+            saveState(host, newState)
+
+            if (newCash <= 0) {
+                AlertDialog.Builder(host)
+                    .setTitle("Game Over")
+                    .setMessage("You're out of cash! Final day: ${s.day}.")
+                    .setPositiveButton("New Game") { _, _ ->
+                        prefs(host).edit().clear().apply()
+                        rebuild(root, host)
+                    }
+                    .setCancelable(false)
+                    .show()
+            } else {
+                rebuild(root, host)
+            }
+        }
+        decisionCard.addView(sellButton)
+        root.addView(decisionCard)
+
+        // History card
+        if (s.history.isNotEmpty()) {
+            val historyCard = card(host)
+            historyCard.addView(label(host, "History", 16f, COL_TEXT, bold = true).apply {
+                setPadding(0, 0, 0, 12)
+            })
+            s.history.asReversed().take(10).forEach { entry ->
+                historyCard.addView(label(host, entry, 13f, COL_TEXT_MUTED).apply {
+                    setPadding(0, 0, 0, 6)
+                })
+            }
+            root.addView(historyCard)
+        }
     }
 
-    private fun inputsCard(
-        host: Activity,
-        glassesInput: EditText,
-        priceInput: EditText,
-        signsInput: EditText,
-        glassesDefault: String,
-        priceDefault: String,
-        signsDefault: String,
-    ): View {
-        val card = sectionCard(host)
-
-        card.addView(TextView(host).apply {
-            text = "Today's Plan"
-            textSize = 17f
-            setTextColor(ACCENT)
+    private fun rebuildLeaderboard(root: LinearLayout, host: Activity, s: State) {
+        root.addView(label(host, "🏆 Leaderboard", 30f, COL_PRIMARY_DARK, bold = true).apply {
+            gravity = Gravity.CENTER
+        })
+        root.addView(label(host, "Best cash ever reached", 15f, COL_TEXT_MUTED).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, 4, 0, 28)
         })
 
-        card.addView(labeledInputRow(host, "Glasses to make", glassesInput, glassesDefault))
-        card.addView(labeledInputRow(host, "Price per glass (¢)", priceInput, priceDefault))
-        card.addView(labeledInputRow(host, "Ad signs to buy", signsInput, signsDefault))
+        val bestCard = card(host)
+        bestCard.addView(label(host, "Personal Best", 13f, COL_TEXT_MUTED))
+        bestCard.addView(label(host, money(s.bestCash), 28f, COL_ACCENT_GREEN, bold = true))
+        root.addView(bestCard)
 
-        return card
-    }
-
-    private fun sellButton(
-        host: Activity,
-        prefs: SharedPreferences,
-        glassesInput: EditText,
-        priceInput: EditText,
-        signsInput: EditText,
-        weather: String,
-        cashCents: Int,
-        onDone: () -> Unit,
-    ): View {
-        return Button(host).apply {
-            text = "SELL"
-            textSize = 18f
-            setTextColor(BG)
-            setBackgroundColor(ACCENT)
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 28
-            }
-            setOnClickListener {
-                val glasses = glassesInput.text.toString().toIntOrNull()?.coerceAtLeast(0) ?: 0
-                val priceCents = priceInput.text.toString().toIntOrNull()?.coerceAtLeast(0) ?: 0
-                val signs = signsInput.text.toString().toIntOrNull()?.coerceAtLeast(0) ?: 0
-
-                // save the player's chosen inputs so they persist across reloads
-                prefs.edit()
-                    .putString("glasses_input", glasses.toString())
-                    .putString("price_input", priceCents.toString())
-                    .putString("signs_input", signs.toString())
-                    .apply()
-
-                val weatherMult = weatherMultiplier(weather)
-                val priceFactor = max(0.15, 1.5 - priceCents / 40.0)
-                val signBoost = (1.0 + signs * 0.12).coerceAtMost(3.0)
-                val randomFactor = 0.85 + Random.nextDouble() * 0.3
-                val demand = (40.0 * weatherMult * priceFactor * signBoost * randomFactor)
-                val sold = minOf(glasses, demand.roundToInt().coerceAtLeast(0))
-
-                val revenueCents = sold * priceCents
-                val ingredientCostCents = glasses * 5
-                val signCostCents = signs * 15
-                val costsCents = ingredientCostCents + signCostCents
-                val profitCents = revenueCents - costsCents
-                val newCashCents = cashCents + profitCents
-
-                prefs.edit()
-                    .putString("res_weather", weather)
-                    .putInt("res_made", glasses)
-                    .putInt("res_sold", sold)
-                    .putInt("res_price_cents", priceCents)
-                    .putInt("res_signs", signs)
-                    .putInt("res_revenue_cents", revenueCents)
-                    .putInt("res_costs_cents", costsCents)
-                    .putInt("res_profit_cents", profitCents)
-                    .putInt("res_new_cash_cents", newCashCents)
-                    .putString("phase", "result")
-                    .apply()
-
-                onDone()
+        val listCard = card(host)
+        listCard.addView(label(host, "Top 10", 16f, COL_TEXT, bold = true).apply {
+            setPadding(0, 0, 0, 12)
+        })
+        if (s.leaderboard.isEmpty()) {
+            listCard.addView(label(host, "No days finished yet — open the stand!", 14f, COL_TEXT_MUTED))
+        } else {
+            s.leaderboard.take(10).forEachIndexed { i, cashValue ->
+                val row = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
+                row.addView(label(host, "#${i + 1}", 15f, COL_TEXT_MUTED, bold = true).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                row.addView(label(host, money(cashValue), 15f, COL_TEXT, bold = true))
+                listCard.addView(row.apply { setPadding(0, 0, 0, 10) })
             }
         }
-    }
+        root.addView(listCard)
 
-    private fun moneyLine(host: Activity, label: String, cents: Int, colorOverride: Int? = null): LinearLayout {
-        val row = LinearLayout(host).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 10
-            }
+        val backButton = primaryButton(host, "⬅ Back")
+        backButton.setOnClickListener {
+            showLeaderboard = false
+            rebuild(root, host)
         }
-        row.addView(TextView(host).apply {
-            text = label
-            textSize = 15f
-            setTextColor(FG)
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-        })
-        val amount = cents / 100.0
-        row.addView(TextView(host).apply {
-            text = (if (amount < 0) "-$" else "$") + "%.2f".format(kotlin.math.abs(amount))
-            textSize = 15f
-            setTextColor(colorOverride ?: FG)
-            gravity = Gravity.END
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-        })
-        return row
-    }
-
-    private fun resultCard(host: Activity, prefs: SharedPreferences): View {
-        val card = sectionCard(host)
-
-        val weather = prefs.getString("res_weather", "") ?: ""
-        val made = prefs.getInt("res_made", 0)
-        val sold = prefs.getInt("res_sold", 0)
-        val revenueCents = prefs.getInt("res_revenue_cents", 0)
-        val costsCents = prefs.getInt("res_costs_cents", 0)
-        val profitCents = prefs.getInt("res_profit_cents", 0)
-        val newCashCents = prefs.getInt("res_new_cash_cents", 0)
-
-        card.addView(TextView(host).apply {
-            text = "End of Day Report"
-            textSize = 17f
-            setTextColor(ACCENT)
-        })
-
-        card.addView(TextView(host).apply {
-            text = "Weather was: ${weatherDesc(weather)}"
-            textSize = 14f
-            setTextColor(MUTED)
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 12
-            }
-        })
-
-        val statsRow = LinearLayout(host).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 8
-            }
-        }
-        statsRow.addView(TextView(host).apply {
-            text = "Made: $made"
-            textSize = 15f
-            setTextColor(FG)
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-        })
-        statsRow.addView(TextView(host).apply {
-            text = "Sold: $sold"
-            textSize = 15f
-            setTextColor(FG)
-            gravity = Gravity.END
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-        })
-        card.addView(statsRow)
-
-        card.addView(moneyLine(host, "Revenue", revenueCents, POSITIVE))
-        card.addView(moneyLine(host, "Costs", -costsCents, NEGATIVE))
-        card.addView(moneyLine(host, "Profit", profitCents, if (profitCents >= 0) POSITIVE else NEGATIVE))
-        card.addView(moneyLine(host, "New cash", newCashCents, ACCENT))
-
-        return card
-    }
-
-    private fun nextDayButton(host: Activity, prefs: SharedPreferences, onDone: () -> Unit): View {
-        return Button(host).apply {
-            text = "NEXT DAY"
-            textSize = 18f
-            setTextColor(BG)
-            setBackgroundColor(ACCENT_DARK)
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-                topMargin = 24
-            }
-            setOnClickListener {
-                val day = prefs.getInt("day", 1)
-                val newCashCents = prefs.getInt("res_new_cash_cents", prefs.getInt("cash_cents", 2000))
-                val completedDayProfitCents = prefs.getInt("res_profit_cents", 0)
-
-                val history = (prefs.getString("profit_history", "") ?: "")
-                    .split(",")
-                    .mapNotNull { it.toIntOrNull() }
-                    .toMutableList()
-                history.add(completedDayProfitCents)
-                while (history.size > 7) history.removeAt(0)
-
-                recordLeaderboardScore(prefs, day, newCashCents)
-
-                prefs.edit()
-                    .putInt("day", day + 1)
-                    .putInt("cash_cents", newCashCents)
-                    .putString("weather", "")
-                    .putString("phase", "input")
-                    .putString("profit_history", history.joinToString(","))
-                    .apply()
-
-                onDone()
-            }
-        }
+        root.addView(backButton)
     }
 }
