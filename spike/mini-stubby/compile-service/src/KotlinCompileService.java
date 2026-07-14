@@ -4,13 +4,19 @@ import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipOutputStream;
 import java.lang.reflect.Method;
 
 /**
@@ -42,13 +48,33 @@ import java.lang.reflect.Method;
  */
 public class KotlinCompileService {
 
-    static Path spikeRoot, payloadDir, srcDir, resDir, workDir, classesDir, appDexDir,
+    static Path spikeRoot, payloadDir, srcDir, resDir, manifestPath, workDir, classesDir, appDexDir,
             libDexDir, genDir, resourcesApk, outApk;
     static String androidJar, stdlibJar, d8Jar, aapt2;
     static boolean deploy = true;
     static boolean tier1Enabled = "true".equals(System.getProperty("tier1"));
     static volatile long lastDeployAt = 0;
     static volatile int gen = 0;
+
+    // ---- on-device operation (ADFA-4128 on-device loop) ----
+    /** Debounce window: wait this long after the first change so a burst of editor
+     *  writes (a "save all") classifies as ONE build. Bryan asked for 0.1 s. */
+    static final int DEBOUNCE_MS = 100;
+    /** On-device deploy: instead of `adb push`, publish the apk over HTTP (the shell
+     *  long-polls GET /payload) AND/OR atomic-write it to a local drop path (-Ddrop=).
+     *  serveMode is implied on-device; the Mac path (adb push) is unchanged. */
+    static String dropPath = System.getProperty("drop");
+    static boolean serveMode = "true".equals(System.getProperty("serve")) || dropPath != null;
+    /** When false (-Dwatch=false), the daemon does NOT run its own file watcher —
+     *  CoGo owns the watching + 0.1 s debounce and triggers builds via POST /build. */
+    static boolean watchEnabled = !"false".equals(System.getProperty("watch"));
+    /** Serialize builds so a POST /build and a watcher event can't overlap. */
+    static final Object buildLock = new Object();
+    // Serve channel: the shell pulls the latest payload apk from GET /payload?have=N.
+    static volatile int serveGen = 0;
+    static volatile byte[] serveApk = null;
+    static volatile String serveDigest = null;   // SHA-256 hex of serveApk (Step-4 handshake)
+    static final Object serveLock = new Object();
     /** Payload's own class digests at the last deploy — the Tier-1 gate baseline. */
     static java.util.Map<String, String> lastAppDigests = null;
 
@@ -72,9 +98,14 @@ public class KotlinCompileService {
         aapt2 = System.getProperty("aapt2", "aapt2");
         deploy = !"false".equals(System.getProperty("deploy"));
 
-        srcDir = payloadDir.resolve("src");
-        resDir = payloadDir.resolve("res");
-        workDir = spikeRoot.resolve("build/compile-service");
+        // src/res/manifest default to the mini-stubby payload layout, but are overridable
+        // (-Dsrc= / -Dres= / -Dmanifest=) so CoGo can point them at a real project's
+        // app/src/main/{java,res,AndroidManifest.xml} without changing the args contract.
+        srcDir = Path.of(System.getProperty("src", payloadDir.resolve("src").toString()));
+        resDir = Path.of(System.getProperty("res", payloadDir.resolve("res").toString()));
+        manifestPath = Path.of(System.getProperty("manifest",
+                payloadDir.resolve("AndroidManifest.xml").toString()));
+        workDir = Path.of(System.getProperty("work", spikeRoot.resolve("build/compile-service").toString()));
         classesDir = workDir.resolve("classes");
         appDexDir = workDir.resolve("appdex");
         libDexDir = workDir.resolve("libdex");
@@ -85,7 +116,9 @@ public class KotlinCompileService {
         Files.createDirectories(classesDir);
         Files.createDirectories(rDir);
 
-        log("service starting (deploy=" + deploy + ", inc=" + incEnabled + ")");
+        log("service starting (deploy=" + deploy + ", inc=" + incEnabled
+                + ", serve=" + serveMode + ", watch=" + watchEnabled
+                + (dropPath != null ? ", drop=" + dropPath : "") + ")");
 
         // ---- one-time warm setup ----
         long s0 = now();
@@ -107,8 +140,13 @@ public class KotlinCompileService {
         buildAndDeploy(true, false);
         log("warm-up (cold compiler) " + (now() - w0) + " ms — subsequent saves are warm");
 
-        startHttp();                     // receives /reloaded from the shell for end-to-end timing
-        watchLoop();                     // block forever, rebuild on save
+        startHttp();                     // /reloaded timing, /payload pull channel, /build trigger
+        if (watchEnabled) {
+            watchLoop();                 // block forever, rebuild on save
+        } else {
+            log("file watcher disabled — CoGo drives builds via POST /build");
+            new java.util.concurrent.CountDownLatch(1).await();   // park; HTTP threads keep serving
+        }
     }
 
     // ---------- the warm per-save path ----------
@@ -357,7 +395,7 @@ public class KotlinCompileService {
         Files.createDirectories(genDir);
         Path resZip = workDir.resolve("res.zip");
         run(aapt2, "compile", "--dir", resDir.toString(), "-o", resZip.toString());
-        run(aapt2, "link", "--manifest", payloadDir.resolve("AndroidManifest.xml").toString(),
+        run(aapt2, "link", "--manifest", manifestPath.toString(),
                 "-I", androidJar, "--package-id", "0x80", "--allow-reserved-package-id",
                 "--min-sdk-version", "30", "--target-sdk-version", "34",
                 "--java", genDir.toString(), "-o", resourcesApk.toString(), resZip.toString());
@@ -414,7 +452,7 @@ public class KotlinCompileService {
         log("watching src + res (recursive) — edit a .kt (→ code path) or res (→ TIER0)");
         while (true) {
             WatchKey key = ws.take();
-            Thread.sleep(80); // debounce
+            Thread.sleep(DEBOUNCE_MS); // debounce — coalesce a burst of writes into one build
             // Drain all queued keys so a burst of writes classifies as one save.
             boolean srcChanged = false, resChanged = false;
             List<WatchKey> keys = new ArrayList<>();
@@ -442,11 +480,13 @@ public class KotlinCompileService {
             // Tier 1 can't carry a resource change, and using the cached
             // resources.apk would ship stale resources (finding #3).
             try {
-                if (srcChanged) {
-                    if (resChanged) linkResources();
-                    codeChange(resChanged /* forceTier2 */);
-                } else if (resChanged) {
-                    resourceOnlyChange();
+                synchronized (buildLock) {   // don't race a POST /build from CoGo
+                    if (srcChanged) {
+                        if (resChanged) linkResources();
+                        codeChange(resChanged /* forceTier2 */);
+                    } else if (resChanged) {
+                        resourceOnlyChange();
+                    }
                 }
             } catch (Throwable t) { log("build error (service alive): " + t); }
         }
@@ -473,13 +513,128 @@ public class KotlinCompileService {
             log("save→RENDERED end-to-end " + e2e + "ms  (device: " + s.trim() + ")");
             ex.sendResponseHeaders(200, 0); ex.close();
         });
-        http.setExecutor(null);
+        // On-device deploy channel: the shell long-polls this for the latest payload apk.
+        // Returns 200 + apk bytes (+ X-Gen header) once serveGen advances past ?have=N,
+        // else 204 after a ~25 s hold. No adb, no shared storage, no run-as.
+        http.createContext("/payload", ex -> {
+            try {
+                int have = intParam(ex.getRequestURI().getRawQuery(), "have", 0);
+                byte[] body; int g; String digest;
+                synchronized (serveLock) {
+                    long deadline = System.currentTimeMillis() + 25_000;
+                    while (serveGen <= have) {
+                        long wait = deadline - System.currentTimeMillis();
+                        if (wait <= 0) break;
+                        serveLock.wait(wait);
+                    }
+                    g = serveGen; body = serveApk; digest = serveDigest;
+                }
+                if (g > have && body != null) {
+                    ex.getResponseHeaders().add("X-Gen", Integer.toString(g));
+                    if (digest != null) ex.getResponseHeaders().add("X-Digest", digest);
+                    ex.sendResponseHeaders(200, body.length);
+                    ex.getResponseBody().write(body);
+                } else {
+                    ex.sendResponseHeaders(204, -1);
+                }
+            } catch (Exception e) {
+                try { ex.sendResponseHeaders(500, -1); } catch (Exception ignore) {}
+            } finally { ex.close(); }
+        });
+        // CoGo build trigger: CoGo owns the file watching + 0.1 s debounce and POSTs here
+        // after flushing the editor. ?kind=code (compile+dex) | res (aapt2 relink only).
+        http.createContext("/build", ex -> {
+            String result;
+            try {
+                String kind = intParamRaw(ex.getRequestURI().getRawQuery(), "kind", "code");
+                // Optional body: newline-separated absolute paths of the changed .kt files,
+                // so the incremental compiler recompiles JUST those (not the whole app).
+                // CoGo's watcher knows exactly what changed and sends them here — this is
+                // what keeps a CoGo-triggered build incremental with watch=false.
+                byte[] body = ex.getRequestBody().readAllBytes();
+                if (body.length > 0) {
+                    for (String line : new String(body, StandardCharsets.UTF_8).split("\\R")) {
+                        String p = line.trim();
+                        if (p.endsWith(".kt")) changedSrc.add(Path.of(p));
+                    }
+                }
+                synchronized (buildLock) {
+                    if ("res".equals(kind)) resourceOnlyChange();
+                    else codeChange(false);
+                }
+                result = "ok gen=" + gen;
+            } catch (Throwable t) {
+                result = "error " + t;
+                log("POST /build error: " + t);
+            }
+            byte[] r = result.getBytes(StandardCharsets.UTF_8);
+            try { ex.sendResponseHeaders(200, r.length); ex.getResponseBody().write(r); }
+            catch (Exception ignore) {}
+            finally { ex.close(); }
+        });
+        // Long-polls hold a thread each — a single-thread executor would starve /reloaded
+        // and /build. Use a cached pool.
+        http.setExecutor(Executors.newCachedThreadPool());
         http.start();
-        log("listening on 127.0.0.1:8378 for /reloaded");
+        log("listening on 127.0.0.1:8378 (/reloaded, /payload"
+                + (serveMode ? " [serve ON]" : "") + ", /build)");
+    }
+
+    /** Parse an int query param from a raw query string (e.g. "have=3&x=1"). */
+    static int intParam(String rawQuery, String key, int dflt) {
+        String v = intParamRaw(rawQuery, key, null);
+        if (v == null) return dflt;
+        try { return Integer.parseInt(v.trim()); } catch (Exception e) { return dflt; }
+    }
+    static String intParamRaw(String rawQuery, String key, String dflt) {
+        if (rawQuery == null) return dflt;
+        for (String kv : rawQuery.split("&")) {
+            int eq = kv.indexOf('=');
+            if (eq > 0 && kv.substring(0, eq).equals(key)) return kv.substring(eq + 1);
+        }
+        return dflt;
     }
 
     static void deploy(Path apk) throws Exception {
+        if (serveMode) {
+            // On-device: no adb, no run-as, no shared-storage FUSE inotify. Publish the
+            // apk bytes so the shell's long-poll GET /payload picks them up (the shell
+            // writes them into its OWN private watched dir → existing reload plumbing).
+            publishServe(apk);
+            if (dropPath != null) writeDrop(apk);   // optional file drop for inspection/tests
+            return;
+        }
+        // Mac harness path (unchanged): adb push + run-as atomic rename into the shell.
         run("sh", spikeRoot.resolve("tools/deploy_payload.sh").toString(), apk.toString());
+    }
+
+    /** Publish the latest payload apk for the shell's GET /payload long-poll, with its
+     *  SHA-256 for the Step-4 digest handshake (the shell loads code only if the bytes
+     *  it received hash to this — mitigates D7 "shell runs whatever lands in its dir"). */
+    static void publishServe(Path apk) throws Exception {
+        byte[] bytes = Files.readAllBytes(apk);
+        java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+        String digest = java.util.HexFormat.of().formatHex(md.digest(bytes));
+        synchronized (serveLock) {
+            serveApk = bytes;
+            serveDigest = digest;
+            serveGen++;
+            serveLock.notifyAll();
+        }
+    }
+
+    /** Atomic local file drop (-Ddrop=). Same temp-then-rename trick deploy_payload.sh
+     *  uses, so a watcher on the drop sees one complete apk, never a partial write. */
+    static void writeDrop(Path apk) throws Exception {
+        Path dst = Path.of(dropPath);
+        if (dst.getParent() != null) Files.createDirectories(dst.getParent());
+        Path tmp = dst.resolveSibling(".incoming.tmp");
+        Files.copy(apk, tmp, StandardCopyOption.REPLACE_EXISTING);
+        try {
+            Files.move(tmp, dst, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(tmp, dst, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     /**
@@ -542,12 +697,36 @@ public class KotlinCompileService {
     // ---------- small helpers ----------
 
     static void zipInto(Path apk, Path file, String entryName) throws Exception {
-        // Use the `zip` CLI to add/replace a single entry (fast, no rewrite of the apk).
-        Path staged = apk.getParent().resolve(entryName);
-        Files.copy(file, staged, StandardCopyOption.REPLACE_EXISTING);
-        run("sh", "-c", "cd " + apk.getParent() + " && zip -q -j " + apk.getFileName()
-                + " " + entryName);
-        Files.deleteIfExists(staged);
+        // Add/replace a single entry, in pure Java — no `zip` CLI (so the daemon needs no
+        // Termux binary on-device). The apk is tiny (resources.apk + 2 dex), so a full
+        // rewrite is sub-millisecond. Existing entries are copied byte-for-byte with their
+        // ORIGINAL method preserved — critical for aapt2's STORED resources.arsc, which
+        // AssetManager/ResourcesLoader mmap and must stay uncompressed.
+        Path tmp = apk.resolveSibling(apk.getFileName() + ".ztmp");
+        try (ZipFile zf = new ZipFile(apk.toFile());
+             ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(tmp))) {
+            Enumeration<? extends ZipEntry> en = zf.entries();
+            while (en.hasMoreElements()) {
+                ZipEntry e = en.nextElement();
+                if (e.getName().equals(entryName)) continue;   // replaced below
+                ZipEntry ne = new ZipEntry(e.getName());
+                ne.setMethod(e.getMethod());
+                ne.setTime(e.getTime());
+                if (e.getMethod() == ZipEntry.STORED) {
+                    ne.setSize(e.getSize());
+                    ne.setCompressedSize(e.getSize());
+                    ne.setCrc(e.getCrc());
+                }
+                zos.putNextEntry(ne);
+                try (InputStream is = zf.getInputStream(e)) { is.transferTo(zos); }
+                zos.closeEntry();
+            }
+            ZipEntry ne = new ZipEntry(entryName);   // add the new/updated entry (deflated)
+            zos.putNextEntry(ne);
+            Files.copy(file, zos);
+            zos.closeEntry();
+        }
+        Files.move(tmp, apk, StandardCopyOption.REPLACE_EXISTING);
     }
 
     static void run(String... cmd) throws Exception {

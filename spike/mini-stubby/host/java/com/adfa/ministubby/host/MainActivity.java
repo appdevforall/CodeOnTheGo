@@ -119,6 +119,9 @@ public class MainActivity extends Activity {
     private static final String TAG = "MiniStubby";
     private static final String PAYLOAD_CLASS = "app.payload.Main";
     private static final String ORCHESTRATOR = "http://127.0.0.1:8377";
+    /** On-device compile daemon (also the Mac harness via adb reverse) — the /payload
+     *  long-poll deploy channel. See {@link #startPayloadPull}. */
+    private static final String COMPILE_SERVICE = "http://127.0.0.1:8378";
     private static final int REQ_SPEECH = 42;
 
     private TextView status;
@@ -141,6 +144,11 @@ public class MainActivity extends Activity {
     private ResourcesLoader currentLoader;
     private int generation = 0;
 
+    /** Payload-pull channel state (on-device deploy). */
+    private volatile int pulledGen = 0;
+    private volatile boolean pulling = false;
+    private Thread pullThread;
+
     /** Stable Factory2; installed once per Activity, retargeted every reload. */
     private final PayloadViewFactory payloadFactory = new PayloadViewFactory();
     /** Entry class of the CURRENTLY rendered payload (for saveState() on reload). */
@@ -149,6 +157,16 @@ public class MainActivity extends Activity {
     /** Last idle status-bar text (reload info); re-rendered with the busy prefix. */
     private String idleStatus = "waiting for payload…";
     private volatile boolean askInFlight = false;
+
+    /**
+     * Visible demo state, surfaced BY THE APP on the status banner so a viewer
+     * always knows which phase we're in — the whole point of the live-reload demo:
+     *   WORKING  — Claude is generating the code change (the long amber wait).
+     *   RELOADED — the new payload just hot-loaded and rendered (green flash).
+     *   IDLE     — nothing in flight; the thin dark strip auto-hides.
+     */
+    private enum Phase { IDLE, WORKING, RELOADED }
+    private volatile Phase phase = Phase.IDLE;
 
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -178,8 +196,9 @@ public class MainActivity extends Activity {
         status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         status.setBackgroundColor(0xF0263238);
         status.setTextColor(Color.WHITE);
-        status.setGravity(Gravity.CENTER_VERTICAL);
-        status.setPadding(24, 16, 24, 16);
+        status.setGravity(Gravity.CENTER);
+        // Taller strip so the phase banner reads clearly on-camera.
+        status.setPadding(24, 28, 24, 28);
         renderStatus();
 
         askButton = new Button(this);
@@ -207,6 +226,7 @@ public class MainActivity extends Activity {
             }
         };
         observer.startWatching();
+        startPayloadPull(payload);   // on-device deploy channel (Mac push mode: harmless)
 
         attachHotSwapAgent();
         startDevJump();
@@ -456,6 +476,20 @@ public class MainActivity extends Activity {
                 String msg = "gen " + gen + " · reload " + elapsed + " ms · "
                         + formatBytes(apkBytes) + " · " + dexCount + " dex (detect→rendered)";
                 idleStatus = msg;
+                // EVERY reload — whether from an in-flight Ask or from a plain
+                // source edit picked up by the warm compile service — flashes the
+                // green "Live-reloaded!" banner the instant the new UI appears. That
+                // green pop, with the "reload NN ms" metric, is the whole point of
+                // the demo: a file save shows up in the running app in ~1 s.
+                phase = Phase.RELOADED;
+                // For a direct edit (no Ask in flight) there is no /ask reply to
+                // settle the banner, so auto-settle it back to the thin "live reload
+                // enabled" strip after a beat. During an Ask, sendAsk's reply owns
+                // the settle, so we leave it pinned.
+                if (!askInFlight) {
+                    main.removeCallbacks(settleToIdle);
+                    main.postDelayed(settleToIdle, 2500);
+                }
                 renderStatus();
                 Log.i(TAG, "RELOADED " + msg);
                 notifyReloaded(gen, elapsed, apkBytes, dexCount);
@@ -619,25 +653,65 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------- status
 
     /**
-     * Re-renders the status strip from idleStatus + the in-flight flag, then makes
-     * it briefly visible. The strip floats over the payload's top edge, so it
-     * AUTO-HIDES ~3.5 s after the last update to get out of the app's way — except
-     * while a build is in flight, when it stays up as a progress indicator. Main
-     * thread only.
+     * Re-renders the status banner from the current {@link Phase}. The banner is
+     * deliberately PROMINENT (full width, large text, colour-coded per phase) so a
+     * viewer of the live-reload demo can always tell what's happening WITHOUT any
+     * post-hoc captions:
+     *   WORKING  — big amber "Claude is writing your code…" (the long generate wait)
+     *   RELOADED — green "Live-reloaded!" flash the instant the new UI appears
+     *   IDLE     — thin dark strip with reload stats; auto-hides after 3.5 s.
+     * Main thread only.
      */
     private void renderStatus() {
-        String prefix = askInFlight ? "Claude is building… " : "";
-        status.setText("mini-stubby: " + prefix + idleStatus);
+        final String text;
+        final int bg;
+        final float sizeSp;
+        switch (phase) {
+            case WORKING:
+                // ⏳ = hourglass
+                text = "⏳  Claude is writing your code…";
+                bg = 0xF0E65100;   // deep amber
+                sizeSp = 17f;
+                break;
+            case RELOADED:
+                // ✅ = check mark
+                text = "✅  Live-reloaded!   " + idleStatus;
+                bg = 0xF01B5E20;   // deep green
+                sizeSp = 15f;
+                break;
+            default:
+                // 🟢 = green circle — resting proof that live reload is armed.
+                text = "🟢  Live reload enabled · " + idleStatus;
+                bg = 0xF0263238;   // dark slate
+                sizeSp = 12f;
+        }
+        status.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp);
+        status.setText(text);
+        status.setBackgroundColor(bg);
+        status.setGravity(Gravity.CENTER);
         status.setVisibility(View.VISIBLE);
         main.removeCallbacks(hideStatus);
-        if (!askInFlight) {
+        // Only the idle strip gets out of the way; WORKING/RELOADED stay pinned so
+        // the demo phase is unmistakable on camera.
+        if (phase == Phase.IDLE) {
             main.postDelayed(hideStatus, 3500);
         }
     }
 
+    /**
+     * Settles the green RELOADED flash back to the thin "live reload enabled" idle
+     * strip after a direct edit (no Ask in flight to own the transition).
+     */
+    private final Runnable settleToIdle = () -> {
+        if (!askInFlight) {
+            phase = Phase.IDLE;
+            renderStatus();
+        }
+    };
+
     /** Hides the status strip so it stops covering the payload's top edge. */
     private final Runnable hideStatus = () -> {
-        if (!askInFlight && status != null) {
+        if (phase == Phase.IDLE && status != null) {
             status.setVisibility(View.GONE);
         }
     };
@@ -730,6 +804,7 @@ public class MainActivity extends Activity {
 
     private void sendAsk(String prompt) {
         askInFlight = true;
+        phase = Phase.WORKING;
         askButton.setEnabled(false);
         renderStatus();
         Log.i(TAG, "ASK sent: " + prompt);
@@ -756,6 +831,7 @@ public class MainActivity extends Activity {
             final String fMsg = message;
             main.post(() -> {
                 askInFlight = false;
+                phase = Phase.IDLE;
                 askButton.setEnabled(true);
                 idleStatus = (fOk ? "claude: " : "claude ERROR: ") + fMsg;
                 renderStatus();
@@ -783,6 +859,73 @@ public class MainActivity extends Activity {
                 Log.w(TAG, "POST /reloaded failed (orchestrator down?): " + t);
             }
         }, "ministubby-reloaded").start();
+    }
+
+    /**
+     * On-device deploy channel — the doc's Step 4, Option C (app-private dir + digest
+     * handshake). A background thread long-polls the compile daemon's {@code GET
+     * /payload?have=<gen>}; when a newer build exists the daemon returns the apk bytes
+     * plus {@code X-Gen} and {@code X-Digest} (SHA-256). We verify the bytes against the
+     * digest — refusing anything that doesn't match, so the shell never loads code it
+     * can't attribute to the daemon (mitigates risk D7) — then drop the apk into our OWN
+     * private {@code files/payload/payload.apk} (temp + rename). The existing FileObserver
+     * fires the normal reload path; nothing else changes.
+     *
+     * Unified with the Mac harness: there the shell reaches the Mac daemon via
+     * {@code adb reverse tcp:8378}. In Mac push mode the daemon doesn't serve /payload
+     * (serveGen stays 0), so this just long-polls 204 forever and adb-push drives reloads.
+     */
+    private void startPayloadPull(File payload) {
+        if (pulling) return;
+        pulling = true;
+        pullThread = new Thread(() -> {
+            while (pulling) {
+                HttpURLConnection conn = null;
+                try {
+                    conn = (HttpURLConnection) new URL(
+                            COMPILE_SERVICE + "/payload?have=" + pulledGen).openConnection();
+                    conn.setConnectTimeout(3_000);
+                    conn.setReadTimeout(30_000);   // > the server's 25 s long-poll hold
+                    int code = conn.getResponseCode();
+                    if (code != 200) { conn.disconnect(); continue; }   // 204 no-change → re-poll
+
+                    String genHdr = conn.getHeaderField("X-Gen");
+                    String digest = conn.getHeaderField("X-Digest");
+                    byte[] bytes;
+                    try (InputStream in = conn.getInputStream()) { bytes = in.readAllBytes(); }
+                    int gen = genHdr != null ? Integer.parseInt(genHdr.trim()) : pulledGen + 1;
+
+                    if (digest != null && !sha256Hex(bytes).equalsIgnoreCase(digest.trim())) {
+                        Log.w(TAG, "payload digest MISMATCH — refusing gen " + gen);
+                        pulledGen = gen;   // don't re-pull the same bad gen in a tight loop
+                        continue;
+                    }
+
+                    // Atomic drop into our own watched dir → FileObserver fires loadPayload.
+                    File tmp = new File(payload.getParentFile(), ".incoming.tmp");
+                    try (OutputStream out = new FileOutputStream(tmp)) { out.write(bytes); }
+                    if (!tmp.renameTo(payload)) { copyFile(tmp, payload); tmp.delete(); }
+                    pulledGen = gen;
+                    Log.i(TAG, "pulled payload gen " + gen + " (" + bytes.length + " B)");
+                } catch (Throwable t) {
+                    // Daemon unreachable (not up yet / no reverse) → back off and retry.
+                    if (conn != null) conn.disconnect();
+                    try { Thread.sleep(1_000); } catch (InterruptedException ie) { return; }
+                }
+            }
+        }, "ministubby-payload-pull");
+        pullThread.setDaemon(true);
+        pullThread.start();
+    }
+
+    private static String sha256Hex(byte[] b) throws Exception {
+        byte[] d = java.security.MessageDigest.getInstance("SHA-256").digest(b);
+        StringBuilder sb = new StringBuilder(d.length * 2);
+        for (byte x : d) {
+            sb.append(Character.forDigit((x >> 4) & 0xF, 16));
+            sb.append(Character.forDigit(x & 0xF, 16));
+        }
+        return sb.toString();
     }
 
     /** Blocking JSON POST to the orchestrator. Call from a background thread. */
@@ -864,5 +1007,7 @@ public class MainActivity extends Activity {
         super.onDestroy();
         removeChrome();
         if (observer != null) observer.stopWatching();
+        pulling = false;
+        if (pullThread != null) pullThread.interrupt();
     }
 }
