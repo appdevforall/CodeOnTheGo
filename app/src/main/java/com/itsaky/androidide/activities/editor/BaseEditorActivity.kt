@@ -732,7 +732,7 @@ abstract class BaseEditorActivity :
 		feedbackButtonManager =
 			FeedbackButtonManager(
 				activity = this,
-				feedbackFab = binding.fabFeedback,
+				feedbackFab = binding.fabFeedback.root,
 				getLogContent = ::getLogContent,
 			)
 		feedbackButtonManager?.setupDraggableFab()
