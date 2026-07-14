@@ -281,10 +281,42 @@ def run_mock_claude(prompt: str) -> tuple[bool, str]:
     return True, f"Mock edit: set the title to 'My Notes (mock {stamp})'."
 
 
+ONDEVICE_BUILD_URL = "http://127.0.0.1:18378/build"   # via `adb forward tcp:18378 tcp:8378`
+
+
+def deploy_ondevice(project: str) -> tuple[bool, str]:
+    """On-device Claude flow: push Claude's edits (the Mac PAYLOAD_DIR) into the on-device
+    CoGo project, then trigger the on-device daemon's incremental build. The shell then
+    long-polls /payload and hot-reloads. Requires `adb forward tcp:18378 tcp:8378`."""
+    src_dst = f"{project}/app/src/main/java"
+    res_dst = f"{project}/app/src/main/res"
+    try:
+        subprocess.run(["adb", "push", f"{PAYLOAD_DIR}/src/.", src_dst],
+                       check=True, capture_output=True, timeout=30)
+        if (PAYLOAD_DIR / "res").is_dir():
+            subprocess.run(["adb", "push", f"{PAYLOAD_DIR}/res/.", res_dst],
+                           check=True, capture_output=True, timeout=30)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
+        return False, f"adb push failed: {e}"
+    # Send every payload .kt as a changed path so the daemon recompiles incrementally.
+    kt_paths = [f"{project}/app/src/main/java/{p.relative_to(PAYLOAD_DIR / 'src').as_posix()}"
+                for p in (PAYLOAD_DIR / "src").rglob("*.kt")]
+    req = urllib.request.Request(ONDEVICE_BUILD_URL + "?kind=code",
+                                 data="\n".join(kt_paths).encode("utf-8"), method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            r = resp.read().decode("utf-8").strip()
+            log(f"on-device /build -> {resp.status} {r}")
+            return (("error" not in r), f"on-device build: {r}")
+    except (urllib.error.URLError, OSError) as e:
+        return False, f"on-device /build failed: {e}"
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "MiniStubbyOrchestrator/1.0"
     # Set by main():
     mock_claude = False
+    ondevice_project = None   # when set, deploy Claude's edits to this on-device project
     ask_lock = threading.Lock()
 
     def log_message(self, fmt, *args):  # route http.server logs through log()
@@ -333,7 +365,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             log(f"/ask: {prompt!r}")
-            if Handler.mock_claude:
+            if Handler.ondevice_project:
+                # On-device: run Claude (no Mac build-log check), then push + build on-device.
+                ok, message = (run_mock_claude(prompt) if Handler.mock_claude
+                               else run_claude(prompt))
+                if ok:
+                    ok, dmsg = deploy_ondevice(Handler.ondevice_project)
+                    message = f"{message} | {dmsg}"
+            elif Handler.mock_claude:
                 ok, message = run_mock_claude(prompt)
             else:
                 ok, message = run_claude_with_build_retry(prompt)
@@ -385,6 +424,9 @@ def main() -> None:
                         help="canned 2s edit instead of invoking the claude binary")
     parser.add_argument("--no-adb", action="store_true",
                         help="skip adb reverse (verification without a device)")
+    parser.add_argument("--ondevice-project", metavar="PATH",
+                        help="on-device Claude flow: push edits to this project + trigger the "
+                             "on-device daemon (e.g. /storage/emulated/0/CodeOnTheGoProjects/LiveReloadDemo)")
     args = parser.parse_args()
 
     if not PAYLOAD_DIR.is_dir():
@@ -392,10 +434,16 @@ def main() -> None:
         sys.exit(1)
 
     Handler.mock_claude = args.mock_claude
+    Handler.ondevice_project = args.ondevice_project
     if args.no_adb:
         log("--no-adb: skipping adb reverse")
     else:
         setup_adb_reverse()
+        if args.ondevice_project:
+            # orchestrator -> on-device daemon (8378) for /build
+            subprocess.run(["adb", "forward", "tcp:18378", "tcp:8378"],
+                           capture_output=True, text=True, timeout=15)
+            log(f"on-device mode: deploying Claude edits to {args.ondevice_project}")
 
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
     log(f"listening on http://{LISTEN_HOST}:{LISTEN_PORT}"

@@ -115,6 +115,10 @@ public class KotlinCompileService {
         rDir = workDir.resolve("rclasses");
         Files.createDirectories(classesDir);
         Files.createDirectories(rDir);
+        // Resume the serve counter across daemon restarts so a shell that already pulled
+        // gen N keeps advancing (a fresh counter would sit below the shell's cursor -> stuck).
+        try { serveGen = Integer.parseInt(Files.readString(workDir.resolve("servegen")).trim()); }
+        catch (Exception ignore) { /* first run */ }
 
         log("service starting (deploy=" + deploy + ", inc=" + incEnabled
                 + ", serve=" + serveMode + ", watch=" + watchEnabled
@@ -621,6 +625,8 @@ public class KotlinCompileService {
             serveGen++;
             serveLock.notifyAll();
         }
+        try { Files.writeString(workDir.resolve("servegen"), Integer.toString(serveGen)); }
+        catch (Exception ignore) { /* best-effort persistence */ }
     }
 
     /** Atomic local file drop (-Ddrop=). Same temp-then-rename trick deploy_payload.sh

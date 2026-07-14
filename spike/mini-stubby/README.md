@@ -9,11 +9,31 @@ write-up for the team lives in [`demo/confluence-draft.md`](demo/confluence-draf
 
 ## Architecture
 
-The loop today runs as a **Mac-side dev harness driving an on-device shell over adb**.
-That split is a scaffolding convenience, not the target: every Mac-side box is meant to
-move *inside CoGo on the phone* (the compile/dex/aapt2 steps were separately benchmarked
-running on-device — see [`demo/DEX-RESULTS.md`](demo/DEX-RESULTS.md) /
-[`demo/ONDEVICE-BENCHMARK.md`](demo/ONDEVICE-BENCHMARK.md)).
+**The loop now runs entirely on-device, inside CoGo** (ADFA-4128 on-device milestone).
+CoGo's bundled JDK 21 + d8 + aapt2 do the incremental compile / dex / resource-link on the
+phone; the shell hot-reloads with no install. Measured end-to-end on the A56 — see
+[`demo/ONDEVICE-LOOP-BENCHMARK.md`](demo/ONDEVICE-LOOP-BENCHMARK.md) (**~2.4 s warm
+save→render**, kotlinc-dominated; ~65 ms in-place reload).
+
+How it fits together on the phone:
+- **CoGo** (`app/.../livereload/LiveReloadManager.kt` + the Run action) spawns a warm
+  compile daemon as its own process (its bundled JDK), watches the open project's source
+  with a 0.1 s-debounced `FileObserver`, and POSTs `/build`. The **Run button** does a full
+  Gradle build on first-run / manifest / Gradle change, else the fast loop
+  (flush editors → `/build` → launch the shell). Opt-in per project via a `.livereload` marker.
+- **The daemon** (`compile-service/KotlinCompileService`) runs incremental kotlinc + d8 (or
+  aapt2-relink for resource-only edits) and **serves the payload over `/payload`** — the shell
+  long-polls it and verifies an `X-Digest` **SHA-256 handshake** (the doc's Step-4 Option C:
+  app-private dir + digest) before loading. No adb, no run-as, no shared-storage FUSE inotify.
+- **The shell** pulls, verifies, writes its own private `payload.apk`, and hot-reloads.
+
+Bring-up: [`tools/ondevice/stage_ondevice.sh`](tools/ondevice/stage_ondevice.sh) stages the
+daemon into a debuggable CoGo (`files/mstc` + `run_daemon.sh`, auto-discovering the on-device
+JDK / aapt2 / android.jar / d8.jar).
+
+> The original **Mac-side harness** (below) still works and is retained for benchmarking /
+> fast iteration — there the shell reaches the Mac daemon via `adb reverse tcp:8378`, and the
+> Mac deploys via `adb push`. The on-device path is the product shape; the Mac path is the lab.
 
 Green = new prototype code (this spike). Grey = leveraged platform / tooling / Claude.
 
@@ -66,6 +86,17 @@ hits ~1 s, so it was measured out (see [`TIERED-IMPLEMENTATION.md`](TIERED-IMPLE
 An earlier phase-2 Java daemon (`devloop/`) is superseded by `compile-service/`.*
 
 ### Where to build / run
+
+**On-device (the product path).** 1) Install a debuggable CoGo (`assembleV8Debug`) — needed
+so the daemon can run as CoGo's process using its bundled JDK. 2) Launch it once to finish
+first-run setup (extracts JDK, downloads SDK). 3) `tools/ondevice/stage_ondevice.sh` stages
+the daemon into `files/mstc`. 4) `tools/build_host.sh` installs the shell (with the `/payload`
+pull thread). 5) Open a `.livereload`-marked project in CoGo, edit, and press **Run** — first
+Run does a full Gradle build; later edits hot-reload via the on-device daemon. (For headless
+testing, `adb forward tcp:18378 tcp:8378` then `curl -X POST --data <changed.kt path>
+localhost:18378/build?kind=code`.)
+
+**Mac harness (the lab, below).**
 
 | Step | Command | Builds / runs |
 |---|---|---|
