@@ -76,6 +76,33 @@ class ICancelCheckerTest {
   }
 
   @Test
+  fun `removeOnCancel drops the listener so it does not fire`() {
+    val checker = ICancelChecker.Default()
+    val fired = AtomicInteger(0)
+    val listener: () -> Unit = { fired.incrementAndGet() }
+
+    checker.invokeOnCancel(listener)
+    checker.removeOnCancel(listener)
+    checker.cancel()
+
+    assertThat(fired.get()).isEqualTo(0)
+  }
+
+  @Test
+  fun `removeOnCancel only drops the given listener`() {
+    val checker = ICancelChecker.Default()
+    val fired = AtomicInteger(0)
+    val removed: () -> Unit = { fired.incrementAndGet() }
+
+    checker.invokeOnCancel(removed)
+    checker.invokeOnCancel { fired.incrementAndGet() }
+    checker.removeOnCancel(removed)
+    checker.cancel()
+
+    assertThat(fired.get()).isEqualTo(1)
+  }
+
+  @Test
   fun `NOOP invokeOnCancel is a no-op`() {
     val fired = AtomicInteger(0)
 

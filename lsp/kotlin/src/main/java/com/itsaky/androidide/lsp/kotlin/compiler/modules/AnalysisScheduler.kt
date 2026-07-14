@@ -88,6 +88,12 @@ internal class ScheduledCancelChecker(
 			listener()
 		}
 	}
+
+	override fun removeOnCancel(listener: () -> Unit) {
+		// Mirror invokeOnCancel: drop from both the local (preemption) list and the delegate.
+		onCancelListeners.remove(listener)
+		delegate.removeOnCancel(listener)
+	}
 }
 
 /**

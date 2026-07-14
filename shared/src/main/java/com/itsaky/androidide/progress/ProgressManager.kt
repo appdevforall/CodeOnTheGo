@@ -44,6 +44,12 @@ class ProgressManager private constructor() {
 	 * Associate an existing [checker] with [thread] so a later [cancel] of [thread] flips *this*
 	 * checker (not a throwaway [Default]), letting a caller that polls [checker] observe the
 	 * cancellation. Pair with [unregister].
+	 *
+	 * **Contract:** at most one live registration per thread. A caller must [unregister] its checker
+	 * before registering another on the same thread. Any existing registration is overwritten and
+	 * discarded, *including a cancelled one*: a [cancel] that arrived while nothing was registered
+	 * targeted prior work on this thread, so it is not carried forward to the incoming [checker]. A
+	 * caller that needs a cancel-before-register signal to survive must not rely on this method.
 	 */
 	fun register(thread: Thread, checker: ICancelChecker) {
 		synchronized(threads) {

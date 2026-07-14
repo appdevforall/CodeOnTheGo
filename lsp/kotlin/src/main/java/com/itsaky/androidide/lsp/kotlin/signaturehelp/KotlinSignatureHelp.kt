@@ -120,7 +120,7 @@ internal suspend fun doSignatureHelp(params: SignatureHelpParams): SignatureHelp
             result.activeSignature,
             result.activeParameter
         )
-        result
+    result
     } catch (e: Throwable) {
         if (e.isAnalysisCancellation()) {
             logger.debug(

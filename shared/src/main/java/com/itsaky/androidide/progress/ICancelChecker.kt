@@ -59,6 +59,16 @@ interface ICancelChecker {
     }
   }
 
+  /**
+   * Unregister a [listener] previously passed to [invokeOnCancel]. Removal is by reference identity,
+   * so callers must pass the *same* lambda instance. No-op if the listener was never registered or
+   * has already fired (listeners fire at most once and are dropped on firing).
+   *
+   * The default retains no listeners, so this does nothing; an implementation that stores listeners
+   * (e.g. [Default]) must override to drop [listener].
+   */
+  fun removeOnCancel(listener: () -> Unit) {}
+
   open class Default(cancelled: Boolean = false) : ICancelChecker {
 
     private val cancelled = AtomicBoolean(cancelled)
@@ -92,6 +102,10 @@ interface ICancelChecker {
       if (isCancelled() && onCancelListeners.remove(listener)) {
         listener()
       }
+    }
+
+    override fun removeOnCancel(listener: () -> Unit) {
+      onCancelListeners.remove(listener)
     }
   }
 

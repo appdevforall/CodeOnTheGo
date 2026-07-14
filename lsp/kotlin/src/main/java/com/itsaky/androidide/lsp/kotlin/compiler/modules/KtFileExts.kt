@@ -65,11 +65,14 @@ internal inline fun <R> withAnalysisLock(
 		},
 	) {
 		// Single push path for both preemption and editor cancellation: fires immediately, no polling
-		// and so unaffected by GC pauses that would stall a poll thread.
-		cancelChecker.invokeOnCancel {
+		// and so unaffected by GC pauses that would stall a poll thread. Removed on the way out so a
+		// checker outliving this call (reuse across analyze calls, or a reentrant lock) doesn't retain
+		// a listener capturing this now-dead job/indicator.
+		val onCancel: () -> Unit = {
 			indicator.cancel()
 			job.cancel()
 		}
+		cancelChecker.invokeOnCancel(onCancel)
 		val holder = arrayOfNulls<Any?>(1)
 		try {
 			AnalysisThreadContext.installJob(job).use {
@@ -82,6 +85,8 @@ internal inline fun <R> withAnalysisLock(
 			// AnalysisPreemptedException when preempted, or the delegate's CancellationException).
 			cancelChecker.abortIfCancelled()
 			throw e
+		} finally {
+			cancelChecker.removeOnCancel(onCancel)
 		}
 		@Suppress("UNCHECKED_CAST")
 		holder[0] as R
