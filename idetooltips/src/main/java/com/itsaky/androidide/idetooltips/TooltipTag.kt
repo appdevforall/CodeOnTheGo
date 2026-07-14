@@ -70,6 +70,7 @@ object TooltipTag {
     const val EDITOR_CODE_ACTIONS_GEN_TO_STRING_DIALOG = "editor.codeactions.gentostring.dialog"
     const val EDITOR_CODE_ACTIONS_UNUSED_IMPORTS = "editor.codeactions.unusedimports"
     const val EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS = "editor.codeactions.organizeimports"
+    const val EDITOR_CODE_ACTIONS_SURROUND_TRY_CATCH = "editor.codeactions.surroundtrycatch"
 
     const val EXIT_TO_MAIN = "exit.to.main"
 

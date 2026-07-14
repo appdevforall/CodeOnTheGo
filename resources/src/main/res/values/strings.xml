@@ -511,6 +511,7 @@
 	<string name="action_generate_setters_getters">Generate setters/getters</string>
 	<string name="action_add_throws">Add \'throws\'</string>
 	<string name="action_comment_line">Comment line</string>
+	<string name="action_surround_with_try_catch">Surround with try/catch</string>
 	<string name="action_create_missing_method">Create missing method</string>
 	<string name="action_convert_to_block">Convert to block</string>
 	<string name="action_generate_constructor">Generate constructor</string>
