@@ -51,19 +51,24 @@ cur_gen() {
       | awk 'tolower($1)=="x-gen:"{print $2}' | tr -d '\r'
 }
 
-# Block until the shell reports a hot-reload past $1 (via logcat "RELOADED"), or $2 s.
-# Prints the RELOADED banner line if seen. Returns 1 on timeout.
+# Block until a REAL on-device build completes — i.e. the daemon's serveGen advances
+# past what it was when this call started — or $2 s elapse. serveGen only increments on
+# a finished compile+dex+deploy, which on the Ask path only happens AFTER Claude returns,
+# so this genuinely waits out the ~30-105 s generation (unlike a logcat RELOADED count,
+# which is polluted by stale reloads and returns instantly). $1 is ignored (kept for
+# call-site compatibility). Returns 1 on timeout.
 wait_reload_after() {
-    _base_ts=$($ADB shell "logcat -d 2>/dev/null | grep -c RELOADED" | tr -d '\r')
-    _deadline=$(( $(date +%s) + ${2:-240} ))
+    _base=$(cur_gen); [ -n "$_base" ] || _base=0
+    _deadline=$(( $(date +%s) + ${2:-260} ))
     while [ "$(date +%s)" -lt "$_deadline" ]; do
-        _now=$($ADB shell "logcat -d 2>/dev/null | grep -c RELOADED" | tr -d '\r')
-        if [ "${_now:-0}" -gt "${_base_ts:-0}" ]; then
-            $ADB shell "logcat -d 2>/dev/null | grep RELOADED | tail -1" | tr -d '\r'
+        _now=$(cur_gen)
+        if [ -n "$_now" ] && [ "$_now" -gt "$_base" ]; then
+            sleep 4   # let the shell long-poll, verify the digest, and render the new gen
+            log "reload: serveGen $_base -> $_now"
             return 0
         fi
-        sleep 2
+        sleep 3
     done
-    log "wait_reload_after: TIMEOUT after ${2:-240}s"
+    log "wait_reload_after: TIMEOUT after ${2:-260}s (serveGen stuck at $_base)"
     return 1
 }
