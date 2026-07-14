@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Centralized "Send feedback" FAB (ADFA-2686).
+  This defines the button's APPEARANCE only (size, icon, elevation, content description).
+  Host screens supply positioning on the <include> tag (or in code for OnboardingActivity),
+  so every feedback FAB renders as the same small, consistent circle.
+-->
+<com.google.android.material.floatingactionbutton.FloatingActionButton
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/fab_feedback"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:contentDescription="@string/send_feedback"
+    app:elevation="16dp"
+    app:srcCompat="@drawable/baseline_feedback_64"
+    app:fabCustomSize="@dimen/feedback_fab_size"
+    app:maxImageSize="@dimen/feedback_fab_icon_size" />
