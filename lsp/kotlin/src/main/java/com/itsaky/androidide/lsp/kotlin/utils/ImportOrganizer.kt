@@ -11,10 +11,13 @@ import org.jetbrains.kotlin.psi.KtImportDirective
  *
  * @property usedFqNames importable fully-qualified names referenced by the body.
  * @property usedPackages parent packages/objects of used symbols (for wildcard matching).
+ * @property unresolvedNames short names of body references that failed to resolve; an import
+ *   matching one of these is kept, since a resolution failure can't prove the import unused.
  */
 internal data class ImportUsage(
 	val usedFqNames: Set<String>,
 	val usedPackages: Set<String>,
+	val unresolvedNames: Set<String> = emptySet(),
 )
 
 /** JVM packages that Kotlin imports with a wildcard by default; explicit named imports from these are redundant. */
@@ -70,6 +73,9 @@ private fun keepImport(
 
 	// Conservative: keep anything referenced by short name/alias in a KDoc link.
 	if (shortName in kdocNames) return true
+
+	// Conservative: an unresolved body reference by this short name can't prove the import dead.
+	if (shortName in usage.unresolvedNames) return true
 
 	if (directive.isAllUnder) {
 		// Wildcard: keep iff some used symbol lives in this package/object.

@@ -24,12 +24,14 @@ import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 /**
  * Collects the importable fq-names (and their packages) referenced by [ktFile]'s body. MUST be
  * called inside [analyzeMaybeDangling]. Returns only plain strings, so nothing escapes the analyze
- * lifetime. Anything that fails to resolve simply doesn't join the used set (safe: leads to keeping
- * an import, never removing a used one).
+ * lifetime. A reference that fails to resolve doesn't join the used set; instead its short name is
+ * recorded in [ImportUsage.unresolvedNames] so its import is kept. Both paths are safe: they lead to
+ * keeping an import, never removing a used one.
  */
 internal fun KaSession.collectImportUsage(ktFile: KtFile): ImportUsage {
 	val usedFqNames = HashSet<String>()
 	val usedPackages = HashSet<String>()
+	val unresolvedNames = HashSet<String>()
 
 	fun record(symbol: KaSymbol?) {
 		val fq = symbol?.importableFqNameString() ?: return
@@ -42,10 +44,14 @@ internal fun KaSession.collectImportUsage(ktFile: KtFile): ImportUsage {
 		symbols?.forEach(::record)
 	}
 
-	// 1) Plain name / type references (excluding the import list itself).
+	// 1) Plain name / type references (excluding the import list itself). A null (or thrown)
+	// resolution is treated as unresolved and its short name kept, so a used-but-unresolvable
+	// reference never drops its import. A non-null, non-importable symbol (local, param) is a
+	// clean resolve: it records nothing and is not unresolved.
 	ktFile.collectDescendantsOfType<KtNameReferenceExpression>().forEach { ref ->
 		if (ref.getParentOfType<KtImportList>(strict = false) != null) return@forEach
-		runCatching { record(ref.mainReference.resolveToSymbol()) }
+		val symbol = runCatching { ref.mainReference.resolveToSymbol() }.getOrNull()
+		if (symbol != null) record(symbol) else unresolvedNames += ref.getReferencedName()
 	}
 
 	// 1b) Implicit-convention references that carry more than one resolution target and so don't
@@ -82,7 +88,7 @@ internal fun KaSession.collectImportUsage(ktFile: KtFile): ImportUsage {
 		}
 	}
 
-	return ImportUsage(usedFqNames, usedPackages)
+	return ImportUsage(usedFqNames, usedPackages, unresolvedNames)
 }
 
 private fun KaSymbol.importableFqNameString(): String? = when (this) {

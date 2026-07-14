@@ -114,6 +114,21 @@ class ImportOrganizerTest : KtLspTest() {
 	}
 
 	@Test
+	fun `keeps import matching an unresolved reference`() {
+		val result = organize(
+			"""
+			package p
+			import a.b.Mystery
+			import x.y.Unused
+			fun f(m: Mystery) {}
+			""".trimIndent(),
+			// Mystery didn't resolve, so it's absent from usedFqNames but present as unresolved.
+			ImportUsage(usedFqNames = emptySet(), usedPackages = emptySet(), unresolvedNames = setOf("Mystery")),
+		)
+		assertEquals("import a.b.Mystery", result)
+	}
+
+	@Test
 	fun `collapses exact duplicate imports`() {
 		val result = organize(
 			"""

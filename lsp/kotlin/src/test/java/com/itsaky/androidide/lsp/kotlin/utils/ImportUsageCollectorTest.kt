@@ -94,6 +94,21 @@ class ImportUsageCollectorTest : KtLspTest() {
 	}
 
 	@Test
+	fun `unresolved reference is recorded by short name, not as used`() {
+		val ktFile = createSourceFile(
+			"Unresolved.kt",
+			"""
+			package p
+			import a.b.Mystery
+			fun f(m: Mystery) {}
+			""".trimIndent(),
+		)
+		val usage = usageOf(ktFile)
+		assertFalse("a.b.Mystery" in usage.usedFqNames)
+		assertTrue("Mystery" in usage.unresolvedNames)
+	}
+
+	@Test
 	fun `array-access get operator used via subscript is recorded`() {
 		createSourceFile(
 			"lib/Ops.kt",
