@@ -1,0 +1,17 @@
+/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-prototype/spike/mini-stubby/compile-service/incremental/FixedBench.class: 1 file pushed, 0 skipped. 72.8 MB/s (6926 bytes in 0.000s)
+fixed src LoC: 617 /data/user/0/com.itsaky.androidide/files/mstc/RealMain.kt
+===== JVM heap / GC sweep (baseline kotlinc flags) =====
+xmx512m (current)          RESULT median=2108 min=1783 gc=G1YoungGeneration+G1ConcurrentGC+G1OldGeneration maxheap=512 extra=
+xmx1g                      RESULT median=1981 min=1608 gc=G1YoungGeneration+G1ConcurrentGC+G1OldGeneration maxheap=1024 extra=
+xmx2g                      RESULT median=2090 min=1520 gc=G1YoungGeneration+G1ConcurrentGC+G1OldGeneration maxheap=2048 extra=
+xmx2g +Parallel            RESULT median=1934 min=1576 gc=PSMarkSweep+PSScavenge maxheap=1820 extra=
+xmx2g +Serial              RESULT median=2183 min=1883 gc=Copy+MarkSweepCompact maxheap=1979 extra=
+xmx2g Xms2g                RESULT median=1890 min=1606 gc=G1YoungGeneration+G1ConcurrentGC+G1OldGeneration maxheap=2048 extra=
+xmx512m +Parallel          RESULT median=2081 min=1549 gc=PSMarkSweep+PSScavenge maxheap=455 extra=
+===== kotlinc flag sweep (xmx2g) =====
+baseline                   RESULT median=2090 min=1479 gc=G1YoungGeneration+G1ConcurrentGC+G1OldGeneration maxheap=2048 extra=
+no-assertions              RESULT median=1973 min=1511 gc=G1YoungGeneration+G1ConcurrentGC+G1OldGeneration maxheap=2048 extra=-Xno-param-assertions -Xno-call-assertions -Xno-receiver-assertions
+backend-threads=4          RESULT median=2429 min=1640 gc=G1YoungGeneration+G1ConcurrentGC+G1OldGeneration maxheap=2048 extra=-Xbackend-threads=4
+lang-version 1.9           RESULT median=2648 min=2188 gc=G1YoungGeneration+G1ConcurrentGC+G1OldGeneration maxheap=2048 extra=-language-version 1.9
+no-optim-callref           RESULT median=2035 min=1723 gc=G1YoungGeneration+G1ConcurrentGC+G1OldGeneration maxheap=2048 extra=-Xno-optimized-callable-references
+all-fast combo             RESULT median=2128 min=1367 gc=PSMarkSweep+PSScavenge maxheap=1820 extra=-Xno-param-assertions -Xno-call-assertions -Xno-receiver-assertions

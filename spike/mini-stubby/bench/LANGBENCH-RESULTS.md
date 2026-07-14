@@ -66,6 +66,58 @@ path (persistent compiler, amortizes the init floor) — the same Main.kt landed
 in the daemon log. Levers to cut it: keep the daemon warm on the incremental path, and **split Main.kt into
 smaller files** so a per-file incremental recompile only touches the edited one.
 
+## Can settings speed it up (file contents held fixed)? — no, ~5–10% at most
+
+Swept heap, GC, kotlinc flags, and compiler version against the **same 617-line Main.kt**, warm,
+on the A56 (`FixedBench.java` + `tools/ondevice/run_configbench.sh`; raw: `bench/configbench-ondevice.txt`).
+All numbers are median (min) of 5, in ms. Run-to-run noise is ~±300 ms — **bigger than almost every effect below.**
+
+**Heap / GC** (baseline flags):
+
+| Config | median | min |
+|---|---:|---:|
+| `-Xmx512m` (current daemon) | 2108 | 1783 |
+| `-Xmx1g` | 1981 | 1608 |
+| `-Xmx2g` | 2090 | 1520 |
+| `-Xmx2g -Xms2g` | **1890** | 1606 |
+| `-Xmx2g +UseParallelGC` | 1934 | 1576 |
+| `-Xmx2g +UseSerialGC` | 2183 | 1883 |
+
+→ **Heap isn't the constraint** (512 m isn't starved). Pre-sizing `-Xms2g` + ParallelGC shaves maybe ~10%, within noise.
+
+**kotlinc flags** (`-Xmx2g`):
+
+| Flag | median | min |
+|---|---:|---:|
+| baseline | 2090 | 1479 |
+| `-Xno-{param,call,receiver}-assertions` | 1973 | 1511 |
+| `-Xbackend-threads=4` | 2429 | 1640 | ← *worse* (thread setup, no parallelism in 1 file) |
+| `-language-version 1.9` | 2648 | 2188 | ← *worse* (~25%) |
+| `-Xno-optimized-callable-references` | 2035 | 1723 |
+
+→ Only assertion-elision helps, ~5%. No magic flag; `-Xbackend-threads` and older language levels *hurt*.
+
+**Compiler version** (fixed file, `-Xmx2g`):
+
+| Version | median | min |
+|---|---:|---:|
+| 2.0.21 (current) | ~2090 | ~1520 |
+| 2.2.0 | 2026–2091 | 1491–1768 |
+| 2.4.20-Beta1 | 2092–2311 | 1766–1884 |
+
+→ **No improvement.** Newer K2 optimized *incremental / multi-module*, not single-file full-compile frontend throughput.
+
+**Conclusion:** with the edit and file contents held constant, settings buy ~5–10% at best (≈2.1 s → ≈1.9 s),
+**all inside the noise band.** The ~2 s is intrinsic: K2 frontend type-checking 617 lines of Android-framework
+Kotlin + the ~0.5–0.9 s per-invocation compiler-init floor. The real levers are structural, not knobs:
+1. **Shrink the changed file** (split `Main.kt`) — less frontend work, and enables `-Xbackend-threads` to *help*.
+2. **Hit Tier 1** (body-only edit → ART redefine ~0.66 s, skips dex+package) instead of Tier 2.
+3. **Amortize the init floor** — the BTA `compileJvm` re-inits the compiler env per call; a persistent compiler
+   session (Kotlin daemon / more reuse across calls) is the one *compiler-side* lever, but it's an architecture
+   change, not a flag. (Note: `FixedBench` uses `K2JVMCompiler.exec`, which has a *higher* floor than the daemon's
+   BTA incremental path — so the daemon's real compile slice is a bit below these numbers; the *relative* "settings
+   don't matter" conclusion transfers.)
+
 ## Which "compile" number is which (reconciling the figures)
 
 There are **four different compile numbers** in this spike; they are not interchangeable:
