@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1960" height="840" viewBox="0 0 1960 840" font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <marker id="agray" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5f6368"/>
+    </marker>
+    <marker id="aorange" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#E67514"/>
+    </marker>
+    <marker id="agreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2E8B4F"/>
+    </marker>
+  </defs>
+
+  <rect width="1960" height="840" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="980" y="46" text-anchor="middle" font-size="30" font-weight="700" fill="#202124">On-device fast-reload loop — two ways to drive it</text>
+  <text x="980" y="80" text-anchor="middle" font-size="18" fill="#5f6368"><tspan fill="#3B7DD8" font-weight="700">Flow 1</tspan> — Ask Claude from the test app     ·     <tspan fill="#E67514" font-weight="700">Flow 2</tspan> — edit in the CoGo editor</text>
+
+  <!-- ============ Flow 2 box (CoGo editor) ============ -->
+  <rect x="1040" y="120" width="340" height="130" rx="16" fill="#FDF0E4" stroke="#E67514" stroke-width="2.5"/>
+  <text x="1210" y="172" text-anchor="middle" font-size="22" font-weight="700" fill="#202124">CoGo editor</text>
+  <text x="1210" y="202" text-anchor="middle" font-size="16" fill="#5f6368">on the A56</text>
+  <text x="1210" y="228" text-anchor="middle" font-size="16" fill="#5f6368">(edit → tap Run)</text>
+
+  <!-- Flow 2 arrow down into Project files -->
+  <line x1="1210" y1="252" x2="1210" y2="354" stroke="#E67514" stroke-width="2.5" marker-end="url(#aorange)"/>
+  <rect x="1232" y="278" width="70" height="26" rx="13" fill="#E67514"/>
+  <text x="1267" y="296" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Flow 2</text>
+  <text x="1232" y="332" font-size="15" fill="#5f6368">edit → Run · flush open editors</text>
+
+  <!-- ============ Spine boxes ============ -->
+  <!-- A: Test App -->
+  <rect x="40" y="360" width="340" height="150" rx="16" fill="#EAF1FB" stroke="#3B7DD8" stroke-width="2.5"/>
+  <text x="210" y="412" text-anchor="middle" font-size="24" font-weight="700" fill="#202124">Test App</text>
+  <text x="210" y="444" text-anchor="middle" font-size="16" fill="#5f6368">on the A56</text>
+  <text x="210" y="470" text-anchor="middle" font-size="16" fill="#5f6368">(“Ask Claude” dialog)</text>
+
+  <!-- B: Claude -->
+  <rect x="520" y="360" width="340" height="150" rx="16" fill="#F7EAFB" stroke="#9127B0" stroke-width="2.5"/>
+  <text x="690" y="428" text-anchor="middle" font-size="24" font-weight="700" fill="#202124">Claude</text>
+  <text x="690" y="460" text-anchor="middle" font-size="16" fill="#5f6368">on the Mac Mini</text>
+
+  <!-- C: Project files -->
+  <rect x="1040" y="360" width="340" height="150" rx="16" fill="#EFEFEF" stroke="#8A8A8A" stroke-width="2.5"/>
+  <text x="1210" y="428" text-anchor="middle" font-size="24" font-weight="700" fill="#202124">Project files</text>
+  <text x="1210" y="460" text-anchor="middle" font-size="16" fill="#5f6368">source on disk</text>
+
+  <!-- D: CoGo fast loop -->
+  <rect x="1560" y="360" width="360" height="150" rx="16" fill="#E8F5EC" stroke="#2E8B4F" stroke-width="2.5"/>
+  <text x="1740" y="410" text-anchor="middle" font-size="24" font-weight="700" fill="#202124">CoGo fast loop</text>
+  <text x="1740" y="442" text-anchor="middle" font-size="16" fill="#5f6368">on the A56</text>
+  <text x="1740" y="468" text-anchor="middle" font-size="16" fill="#5f6368">watch → compile → dex → deploy</text>
+
+  <!-- ============ Spine arrows (Flow 1) ============ -->
+  <!-- A -> B -->
+  <line x1="384" y1="435" x2="512" y2="435" stroke="#5f6368" stroke-width="2.5" marker-end="url(#agray)"/>
+  <rect x="405" y="395" width="70" height="26" rx="13" fill="#3B7DD8"/>
+  <text x="440" y="413" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Flow 1</text>
+  <text x="448" y="382" text-anchor="middle" font-size="15" fill="#5f6368">prompt</text>
+
+  <!-- B -> C -->
+  <line x1="864" y1="435" x2="1036" y2="435" stroke="#5f6368" stroke-width="2.5" marker-end="url(#agray)"/>
+  <text x="950" y="422" text-anchor="middle" font-size="15" fill="#5f6368">edits source</text>
+
+  <!-- C -> D -->
+  <line x1="1384" y1="435" x2="1556" y2="435" stroke="#5f6368" stroke-width="2.5" marker-end="url(#agray)"/>
+  <text x="1470" y="422" text-anchor="middle" font-size="15" fill="#5f6368">watch</text>
+
+  <!-- ============ Hot-reload return arc (shared) ============ -->
+  <path d="M 1740 512 C 1740 785, 210 785, 210 516" fill="none" stroke="#2E8B4F" stroke-width="3" marker-end="url(#agreen)"/>
+  <text x="975" y="700" text-anchor="middle" font-size="21" font-weight="700" fill="#2E8B4F">hot reload ~1–3 s (no install, no Play Protect)</text>
+</svg>
