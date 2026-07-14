@@ -29,11 +29,11 @@ import org.json.JSONObject
  */
 object Main {
 
-    private const val BG = 0xFFFFF8E7.toInt()
+    private const val BG = 0xFFEAF7EF.toInt()
     private const val FG = 0xFF1F4037.toInt()
     private const val CARD_BG = 0xFFFFFFFF.toInt()
-    private const val ACCENT = 0xFF2EC4A6.toInt()
-    private const val ACCENT_DARK = 0xFF1E9C82.toInt()
+    private const val ACCENT = 0xFF2FB86B.toInt()
+    private const val ACCENT_DARK = 0xFF1E9D57.toInt()
     private const val MUTED = 0xFF7A8F86.toInt()
     private const val POSITIVE = 0xFF2E9E6B.toInt()
     private const val NEGATIVE = 0xFFE0684F.toInt()
@@ -347,9 +347,9 @@ object Main {
         val card = sectionCard(host)
 
         card.addView(TextView(host).apply {
-            text = "🍋 Lemonade Stand"
-            textSize = 22f
-            setTextColor(ACCENT)
+            text = "Phase 3 Works ✅"
+            textSize = 30f
+            setTextColor(Color.parseColor("#FF2196F3"))
             gravity = Gravity.CENTER
         })
 

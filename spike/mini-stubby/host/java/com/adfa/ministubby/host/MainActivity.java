@@ -148,6 +148,10 @@ public class MainActivity extends Activity {
     private volatile int pulledGen = 0;
     private volatile boolean pulling = false;
     private Thread pullThread;
+    /** Daemon-reported build time (compile+dex+pack) behind the last pulled payload,
+     *  from the /payload X-Build-Ms header. Surfaced on the banner so the demo is
+     *  HONEST about total edit→render cost — not just the fast detect→render reload. */
+    private volatile long lastBuildMs = 0;
 
     /** Stable Factory2; installed once per Activity, retargeted every reload. */
     private final PayloadViewFactory payloadFactory = new PayloadViewFactory();
@@ -473,8 +477,13 @@ public class MainActivity extends Activity {
             final int dexCount = countDexEntries(copy);
             view.post(() -> {
                 long elapsed = SystemClock.uptimeMillis() - detectedAt;
-                String msg = "gen " + gen + " · reload " + elapsed + " ms · "
-                        + formatBytes(apkBytes) + " · " + dexCount + " dex (detect→rendered)";
+                long b = lastBuildMs;
+                // Honest total: the daemon's compile+dex+pack (b) PLUS the shell's
+                // detect→render (elapsed). "built X + reload Y" so a viewer sees the
+                // real cost, not just the flattering ~65 ms reload.
+                String buildPart = b > 0 ? "built " + fmtMs(b) + " + " : "";
+                String msg = "gen " + gen + " · " + buildPart + "reload " + elapsed + " ms · "
+                        + formatBytes(apkBytes) + " · " + dexCount + " dex";
                 idleStatus = msg;
                 // EVERY reload — whether from an in-flight Ask or from a plain
                 // source edit picked up by the warm compile service — flashes the
@@ -891,6 +900,11 @@ public class MainActivity extends Activity {
 
                     String genHdr = conn.getHeaderField("X-Gen");
                     String digest = conn.getHeaderField("X-Digest");
+                    String buildHdr = conn.getHeaderField("X-Build-Ms");
+                    if (buildHdr != null) {
+                        try { lastBuildMs = Long.parseLong(buildHdr.trim()); }
+                        catch (NumberFormatException ignore) {}
+                    }
                     byte[] bytes;
                     try (InputStream in = conn.getInputStream()) { bytes = in.readAllBytes(); }
                     int gen = genHdr != null ? Integer.parseInt(genHdr.trim()) : pulledGen + 1;
@@ -991,6 +1005,12 @@ public class MainActivity extends Activity {
             return String.format(java.util.Locale.US, "%.1f MB", bytes / 1_048_576.0);
         }
         return ((bytes + 512) >> 10) + " KB";
+    }
+
+    /** Human ms: "2.1 s" for ≥1 s, else "650 ms". Used on the honest banner. */
+    private static String fmtMs(long ms) {
+        if (ms >= 1000) return String.format(java.util.Locale.US, "%.1f s", ms / 1000.0);
+        return ms + " ms";
     }
 
     private static void copyFile(File from, File to) throws Exception {

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#FF0B3D2E</color>
-    <color name="fg">#FFE8F5E9</color>
+    <color name="bg">#FF0E7C86</color>
+    <color name="fg">#FFECEFF1</color>
     <color name="card_bg">#FF12503C</color>
     <color name="accent">#FFF6C445</color>
     <color name="accent_dark">#FFD9A62A</color>
@@ -9,5 +9,5 @@
     <color name="positive">#FF6FCF8F</color>
     <color name="negative">#FFEF7A7A</color>
     <color name="field_bg">#FF0E3A2C</color>
-    <string name="app">Lemonade Stand</string>
+    <string name="app">Live reload works!</string>
 </resources>

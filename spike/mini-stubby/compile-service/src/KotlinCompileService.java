@@ -74,6 +74,8 @@ public class KotlinCompileService {
     static volatile int serveGen = 0;
     static volatile byte[] serveApk = null;
     static volatile String serveDigest = null;   // SHA-256 hex of serveApk (Step-4 handshake)
+    static volatile long lastBuildMs = 0;         // compile+dex+pack of the last build
+    static volatile long serveBuildMs = 0;        // lastBuildMs snapshot for the served payload
     static final Object serveLock = new Object();
     /** Payload's own class digests at the last deploy — the Tier-1 gate baseline. */
     static java.util.Map<String, String> lastAppDigests = null;
@@ -207,6 +209,7 @@ public class KotlinCompileService {
         zipInto(outApk, appDexDir.resolve("classes.dex"), "classes.dex");
         zipInto(outApk, libDexDir.resolve("classes.dex"), "classes2.dex");
         long pMs = now() - p0;
+        lastBuildMs = now() - t0;   // compile+dex+pack — set BEFORE deploy so publishServe snapshots it
 
         // 4. deploy.
         long dep0 = now();
@@ -237,6 +240,7 @@ public class KotlinCompileService {
         zipInto(outApk, appDexDir.resolve("classes.dex"), "classes.dex");   // cached
         zipInto(outApk, libDexDir.resolve("classes.dex"), "classes2.dex");  // cached
         long pMs = now() - p0;
+        lastBuildMs = now() - t0;   // aapt2+pack — set BEFORE deploy so publishServe snapshots it
         long dep0 = now();
         if (deploy) deploy(outApk);
         long depMs = now() - dep0;
@@ -523,7 +527,7 @@ public class KotlinCompileService {
         http.createContext("/payload", ex -> {
             try {
                 int have = intParam(ex.getRequestURI().getRawQuery(), "have", 0);
-                byte[] body; int g; String digest;
+                byte[] body; int g; String digest; long buildMs;
                 synchronized (serveLock) {
                     long deadline = System.currentTimeMillis() + 25_000;
                     while (serveGen <= have) {
@@ -531,11 +535,12 @@ public class KotlinCompileService {
                         if (wait <= 0) break;
                         serveLock.wait(wait);
                     }
-                    g = serveGen; body = serveApk; digest = serveDigest;
+                    g = serveGen; body = serveApk; digest = serveDigest; buildMs = serveBuildMs;
                 }
                 if (g > have && body != null) {
                     ex.getResponseHeaders().add("X-Gen", Integer.toString(g));
                     if (digest != null) ex.getResponseHeaders().add("X-Digest", digest);
+                    ex.getResponseHeaders().add("X-Build-Ms", Long.toString(buildMs));
                     ex.sendResponseHeaders(200, body.length);
                     ex.getResponseBody().write(body);
                 } else {
@@ -622,6 +627,7 @@ public class KotlinCompileService {
         synchronized (serveLock) {
             serveApk = bytes;
             serveDigest = digest;
+            serveBuildMs = lastBuildMs;   // honest banner: the build time behind this payload
             serveGen++;
             serveLock.notifyAll();
         }
