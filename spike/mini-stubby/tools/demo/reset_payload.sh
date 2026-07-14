@@ -4,7 +4,7 @@
 # (payload-kotlin, which Claude edits) with demo/blank-start/Main.kt, pushes it into the
 # on-device project, and triggers one on-device build so the shell reloads to blank.
 HERE="$(cd "$(dirname "$0")" && pwd)"; . "$HERE/lib.sh"
-SPIKE="$(cd "$HERE/.." && pwd)"
+SPIKE="$(cd "$HERE/../.." && pwd)"   # tools/demo -> tools -> mini-stubby (spike root)
 PROJ="${1:-/storage/emulated/0/CodeOnTheGoProjects/LiveReloadDemo}"
 
 log "reset Mac payload-kotlin -> blank-start"

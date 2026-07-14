@@ -9,7 +9,7 @@
 # Prereqs (checked below): daemon running in serve mode on LiveReloadDemo, orchestrator
 # running with --ondevice-project, adb forward 18378->8378 + reverse 8377, shell installed.
 HERE="$(cd "$(dirname "$0")" && pwd)"; . "$HERE/lib.sh"
-SPIKE="$(cd "$HERE/.." && pwd)"
+SPIKE="$(cd "$HERE/../.." && pwd)"   # tools/demo -> tools -> mini-stubby (spike root)
 OUT="$SPIKE/demo/recordings"
 BASE="${BASE:-$(date +%Y-%m-%d)_ask-flow-lemonade}"
 PROJ="/storage/emulated/0/CodeOnTheGoProjects/LiveReloadDemo"
