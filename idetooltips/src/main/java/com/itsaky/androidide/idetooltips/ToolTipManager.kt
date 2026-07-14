@@ -83,27 +83,20 @@ object TooltipManager {
                 dbPath = debugDatabaseFile.absolutePath
             }
 
-            var lastChange = "n/a"
-            var rowId = -1
-            var tooltipId = -1
-            var summary = "n/a"
-            var detail = "n/a"
-            var buttons: ArrayList<Pair<String, String>> = ArrayList<Pair<String, String>>()
-
             try {
-                val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
-
-                db.use { database ->
-                    try {
-                        lastChange = DatabaseVersionResolver.resolveDatabaseVersion(database)
+                SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY).use { database ->
+                    val lastChange = try {
+                        DatabaseVersionResolver.resolveDatabaseVersion(database)
                     } catch (e: Exception) {
                         Log.e(TAG, "Version resolution failed: ${e.message}")
+                        "n/a"
                     }
-
-                    Log.d(TAG, "last change is '${lastChange}'.")
 
                     database.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category)).use { c ->
                         when (c.count) {
+                            // A missing tag is a normal outcome (e.g. a Gradle task with no
+                            // authored tooltip). Honor the nullable contract so the caller
+                            // shows nothing rather than an "n/a" popup.
                             0 -> throw NoTooltipFoundException(category, tag)
                             1 -> { /* Expected case, continue processing */
                             }
@@ -115,38 +108,36 @@ object TooltipManager {
                         }
 
                         c.moveToFirst()
+                        val rowId = c.getInt(0)
+                        val tooltipId = c.getInt(1)
+                        val summary = c.getString(2)
+                        val detail = c.getString(3)
 
-                        rowId = c.getInt(0)
-                        tooltipId = c.getInt(1)
-                        summary = c.getString(2)
-                        detail = c.getString(3)
-                    }
-
-                    database.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString())).use { c ->
-                        while (c.moveToNext()) {
-                            buttons.add(
-                                Pair(
-                                    c.getString(0),
-                                    "http://localhost:6174/" + c.getString(1)
+                        val buttons = ArrayList<Pair<String, String>>()
+                        database.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString())).use { bc ->
+                            while (bc.moveToNext()) {
+                                buttons.add(
+                                    Pair(
+                                        bc.getString(0),
+                                        "http://localhost:6174/" + bc.getString(1)
+                                    )
                                 )
-                            )
+                            }
                         }
+
+                        IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
                     }
-
-                    Log.d(
-                        TAG,
-                        "For tooltip ${tooltipId}, retrieved ${buttons.size} buttons. They are $buttons."
-                    )
                 }
-
+            } catch (e: NoTooltipFoundException) {
+                Log.d(TAG, "No tooltip found for category='$category', tag='$tag'")
+                null
             } catch (e: Exception) {
                 Log.e(
                     TAG,
                     "Error getting tooltip for category='$category', tag='$tag': ${e.message}"
                 )
+                null
             }
-
-            IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
         }
     }
 
