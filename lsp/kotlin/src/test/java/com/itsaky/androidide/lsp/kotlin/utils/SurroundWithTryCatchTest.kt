@@ -20,6 +20,8 @@ class SurroundWithTryCatchTest {
 		assertThat(edit.range).isEqualTo(
 			Range(Position(0, 0, 0), Position(0, 5, 5))
 		)
+		assertThat(edit.range.start.index).isEqualTo(0)
+		assertThat(edit.range.end.index).isEqualTo(5)
 	}
 
 	@Test
@@ -33,6 +35,8 @@ class SurroundWithTryCatchTest {
 		assertThat(edit.range).isEqualTo(
 			Range(Position(1, 0, 10), Position(2, 11, 37))
 		)
+		assertThat(edit.range.start.index).isEqualTo(10)
+		assertThat(edit.range.end.index).isEqualTo(37)
 	}
 
 	@Test
