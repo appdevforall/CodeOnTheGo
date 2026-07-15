@@ -80,6 +80,7 @@ import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+import com.itsaky.androidide.plugins.manager.ui.PluginToolbarHost
 import com.itsaky.androidide.plugins.manager.ui.PluginUiActionManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
@@ -120,7 +121,8 @@ import com.itsaky.androidide.utils.hasVisibleDialog
  */
 open class EditorHandlerActivity :
 	ProjectHandlerActivity(),
-	IEditorHandler {
+	IEditorHandler,
+	PluginToolbarHost {
 	private val singleBuildListeners = CopyOnWriteArrayList<Consumer<BuildResult>>()
 
 	companion object {
@@ -489,6 +491,15 @@ open class EditorHandlerActivity :
 				}
 			}
 		}
+	}
+
+	/**
+	 * [PluginToolbarHost] entry point. Lets plugin services (via IdeUIService) request a
+	 * toolbar rebuild so dynamic [com.itsaky.androidide.plugins.extensions.ToolbarAction]
+	 * providers (icon/enabled/visible) are re-evaluated. Marshalled to the UI thread.
+	 */
+	override fun refreshPluginToolbarActions() {
+		runOnUiThread { prepareOptionsMenu() }
 	}
 
 	fun prepareOptionsMenu() {
