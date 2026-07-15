@@ -52,9 +52,10 @@ class AddImportAction : BaseKotlinCodeAction() {
 		}
 
 		val env = extra.compilationEnv
-		val hasImportableSymbols = env.ktSymbolIndex
-			.findSymbolBySimpleName(reference, limit = 0)
-			.any { it.kind.isClassifier }
+		val hasImportableSymbols =
+			env.ktSymbolIndex
+				.findSymbolBySimpleName(reference, limit = 0)
+				.any { it.kind.isClassifier }
 
 		if (!hasImportableSymbols) {
 			markInvisible()
@@ -63,16 +64,19 @@ class AddImportAction : BaseKotlinCodeAction() {
 	}
 
 	override suspend fun execAction(data: ActionData): Map<JvmSymbol, List<TextEdit>> {
-		val (reference, env) = data.require<DiagnosticItem>().extra as? KotlinDiagnosticExtra
-			?: return emptyMap()
+		val (reference, env) =
+			data.require<DiagnosticItem>().extra as? KotlinDiagnosticExtra
+				?: return emptyMap()
 
 		if (reference == null) return emptyMap()
 
 		val file = data.requireFile()
 		val nioPath = file.toPath()
-		val ktFile = env.ktSymbolIndex
-			.getOpenedKtFile(nioPath)
-			?: return emptyMap()
+		val ktFile =
+			env.ktSymbolIndex
+				.getCurrentKtFile(nioPath)
+				.get()
+				?: return emptyMap()
 
 		return env.ktSymbolIndex
 			.findSymbolBySimpleName(reference, limit = 0)
@@ -80,7 +84,10 @@ class AddImportAction : BaseKotlinCodeAction() {
 			.associateWith { symbol -> insertImport(ktFile, symbol.fqName) }
 	}
 
-	override fun postExec(data: ActionData, result: Any) {
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
 		super.postExec(data, result)
 
 		if (result !is Map<*, *>) {
@@ -95,11 +102,12 @@ class AddImportAction : BaseKotlinCodeAction() {
 			return
 		}
 
-		val client = data.languageClient
-			?: run {
-				logger.warn("No language client set. Cannot complete action.")
-				return
-			}
+		val client =
+			data.languageClient
+				?: run {
+					logger.warn("No language client set. Cannot complete action.")
+					return
+				}
 
 		val file = data.requireFile()
 		val nioPath = file.toPath()
@@ -117,16 +125,16 @@ class AddImportAction : BaseKotlinCodeAction() {
 		when (actions.size) {
 			0 -> logger.error("No code actions found. Cannot completion action.")
 			1 -> client.performCodeAction(actions[0])
-			else -> newDialogBuilder(data)
-				.setTitle(label)
-				.setItems(actions.map { it.title }.toTypedArray()) { dialog, which ->
-					dialog.dismiss()
-					actions.getOrNull(which)?.also { client.performCodeAction(it) }
-						?: run {
-							logger.error("Index $which is out of bounds for actions of size ${actions.size}")
-						}
-				}
-				.show()
+			else ->
+				newDialogBuilder(data)
+					.setTitle(label)
+					.setItems(actions.map { it.title }.toTypedArray()) { dialog, which ->
+						dialog.dismiss()
+						actions.getOrNull(which)?.also { client.performCodeAction(it) }
+							?: run {
+								logger.error("Index $which is out of bounds for actions of size ${actions.size}")
+							}
+					}.show()
 		}
 	}
 }

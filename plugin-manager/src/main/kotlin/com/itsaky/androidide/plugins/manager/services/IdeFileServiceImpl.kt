@@ -1,7 +1,9 @@
 package com.itsaky.androidide.plugins.manager.services
 
+import com.itsaky.androidide.eventbus.events.filetree.PluginFilesChangedEvent
 import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.services.IdeFileService
+import org.greenrobot.eventbus.EventBus
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -40,6 +42,7 @@ class IdeFileServiceImpl(
         return try {
             file.parentFile?.mkdirs()
             file.writeText(content)
+            notifyFilesChanged(file)
             true
         } catch (e: Exception) {
             false
@@ -53,6 +56,7 @@ class IdeFileServiceImpl(
         return try {
             file.parentFile?.mkdirs()
             file.appendText(content)
+            notifyFilesChanged(file)
             true
         } catch (e: Exception) {
             false
@@ -107,6 +111,7 @@ class IdeFileServiceImpl(
         return try {
             file.parentFile?.mkdirs()
             file.writeBytes(data)
+            notifyFilesChanged(file)
             true
         } catch (e: Exception) {
             false
@@ -119,11 +124,13 @@ class IdeFileServiceImpl(
 
         return try {
             file.parentFile?.mkdirs()
-            BufferedInputStream(input).use { buffered ->
+            val written = BufferedInputStream(input).use { buffered ->
                 FileOutputStream(file).use { output ->
                     copyInterruptible(buffered, output)
                 }
             }
+            notifyFilesChanged(file)
+            written
         } catch (e: Exception) {
             FAILED_WRITE
         }
@@ -135,14 +142,37 @@ class IdeFileServiceImpl(
 
         return try {
             if (!file.exists()) {
-                true
-            } else if (file.isDirectory) {
+                return true
+            }
+            val deleted = if (file.isDirectory) {
                 file.deleteRecursively()
             } else {
                 file.delete()
             }
+            if (deleted) {
+                notifyFilesChanged(file)
+            }
+            deleted
         } catch (e: Exception) {
             false
+        }
+    }
+
+    override fun listFiles(dir: File?, recursive: Boolean): List<File> {
+        ensureWritePermission()
+        val targetDir = dir ?: File(".")
+        ensurePathAllowed(targetDir)
+
+        return try {
+            if (!targetDir.exists() || !targetDir.isDirectory) {
+                emptyList()
+            } else if (recursive) {
+                targetDir.walk().filter { it != targetDir }.toList()
+            } else {
+                targetDir.listFiles()?.toList() ?: emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 
@@ -160,6 +190,11 @@ class IdeFileServiceImpl(
         }
         output.flush()
         return total
+    }
+
+    private fun notifyFilesChanged(file: File) {
+        // Refresh the file tree; guarded so a missing EventBus can't break the write action      .
+        runCatching { EventBus.getDefault().post(PluginFilesChangedEvent(file)) }
     }
 
     private fun ensureWritePermission() {

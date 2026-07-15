@@ -80,6 +80,7 @@ import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+import com.itsaky.androidide.plugins.manager.ui.PluginToolbarHost
 import com.itsaky.androidide.plugins.manager.ui.PluginUiActionManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
@@ -120,7 +121,8 @@ import com.itsaky.androidide.utils.hasVisibleDialog
  */
 open class EditorHandlerActivity :
 	ProjectHandlerActivity(),
-	IEditorHandler {
+	IEditorHandler,
+	PluginToolbarHost {
 	private val singleBuildListeners = CopyOnWriteArrayList<Consumer<BuildResult>>()
 
 	companion object {
@@ -489,6 +491,15 @@ open class EditorHandlerActivity :
 				}
 			}
 		}
+	}
+
+	/**
+	 * [PluginToolbarHost] entry point. Lets plugin services (via IdeUIService) request a
+	 * toolbar rebuild so dynamic [com.itsaky.androidide.plugins.extensions.ToolbarAction]
+	 * providers (icon/enabled/visible) are re-evaluated. Marshalled to the UI thread.
+	 */
+	override fun refreshPluginToolbarActions() {
+		runOnUiThread { prepareOptionsMenu() }
 	}
 
 	fun prepareOptionsMenu() {
@@ -1163,18 +1174,24 @@ open class EditorHandlerActivity :
 	@Subscribe(threadMode = ThreadMode.MAIN)
 	fun onDocumentChange(event: DocumentChangeEvent) {
 		if (contentOrNull == null) return
-		editorViewModel.areFilesModified = true
 
 		val fileIndex = findIndexOfEditorByFile(event.file.toFile())
 		if (fileIndex == -1) return
+
+		// The editor recomputes its modified flag on every content change, so a change may
+		// have returned the file to its saved state (e.g. the user undid all their edits).
+		val isModified = getEditorAtIndex(fileIndex)?.isModified ?: false
+		editorViewModel.areFilesModified = hasUnsavedFiles()
 
 		val tabPosition = getTabPositionForFileIndex(fileIndex)
 		if (tabPosition < 0) return
 
 		val tab = content.tabs.getTabAt(tabPosition) ?: return
-		if (tab.text?.startsWith('*') == true) return
+		val hasIndicator = tab.text?.startsWith('*') == true
+		if (isModified == hasIndicator) return
 
-		tab.text = "*${tab.text}"
+		val baseName = tab.text?.removePrefix("*") ?: return
+		tab.text = if (isModified) "*$baseName" else baseName
 	}
 
 	@Subscribe(threadMode = ThreadMode.MAIN)

@@ -103,16 +103,15 @@ class EditorActivityActions {
 			order = registerPluginActions(context, registry, order)
 			order = registerPluginBuildActions(context, registry, order)
 
-			// editor text actions
-			registry.registerAction(ExpandSelectionAction(context, order++))
-			registry.registerAction(SelectAllAction(context, order++))
-			registry.registerAction(LongSelectAction(context, order++))
-			registry.registerAction(CutAction(context, order++))
-			registry.registerAction(CopyAction(context, order++))
-			registry.registerAction(ExplainSelectionAction(context, order++))
-			registry.registerAction(PasteAction(context, order++))
-			registry.registerAction(FormatCodeAction(context, order++))
-			registry.registerAction(ShowTooltipAction(context, order++))
+            // editor text actions
+            registry.registerAction(ExpandSelectionAction(context, order++))
+            registry.registerAction(SelectAllAction(context, order++))
+            registry.registerAction(LongSelectAction(context, order++))
+            registry.registerAction(CutAction(context, order++))
+            registry.registerAction(CopyAction(context, order++))
+            registry.registerAction(PasteAction(context, order++))
+            registry.registerAction(FormatCodeAction(context, order++))
+            registry.registerAction(ShowTooltipAction(context, order++))
 
 			// file tab actions
 			registry.registerAction(CloseFileAction(context, order++))

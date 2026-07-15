@@ -41,6 +41,7 @@ object PluginFragmentHelper {
      * Register a plugin's resource context.
      * Called by the plugin manager when loading APK-based plugins.
      */
+    @InternalPluginApi
     @JvmStatic
     @JvmOverloads
     fun registerPluginContext(pluginId: String, context: Context, isLegacy: Boolean = false) {
@@ -52,6 +53,7 @@ object PluginFragmentHelper {
      * Unregister a plugin's resource context.
      * Called when a plugin is unloaded.
      */
+    @InternalPluginApi
     @JvmStatic
     fun unregisterPluginContext(pluginId: String) {
         pluginContexts.remove(pluginId)
@@ -71,6 +73,7 @@ object PluginFragmentHelper {
      * Register a plugin's service registry.
      * Called by the plugin manager when creating plugin context.
      */
+    @InternalPluginApi
     @JvmStatic
     fun registerServiceRegistry(pluginId: String, registry: ServiceRegistry) {
         serviceRegistries[pluginId] = registry
@@ -87,6 +90,7 @@ object PluginFragmentHelper {
     /**
      * Clear all registered plugin contexts.
      */
+    @InternalPluginApi
     @JvmStatic
     fun clearAllContexts() {
         pluginContexts.clear()

@@ -23,6 +23,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -143,6 +144,13 @@ constructor(
     private var fileVersion = 0
     internal var isModified = false
 
+    // Length and content hash of the content the last time the file was loaded or saved.
+    // Used to detect when edits (e.g. undoing every change) return the content to its
+    // saved state, so the modified indicator can be cleared. The length is compared first
+    // as an O(1) guard so the content hash is only computed when the lengths match.
+    private var savedContentLength = 0
+    private var savedContentHash = 0L
+
     private val selectionChangeHandler = Handler(Looper.getMainLooper())
     private var selectionChangeRunner: Runnable? =
         Runnable {
@@ -219,7 +227,8 @@ constructor(
         private const val TAG = "TrackpadScrollDebug"
         private const val SELECTION_CHANGE_DELAY = 500L
         private const val LARGE_FILE_LINE_THRESHOLD = 10000
-
+        private const val FNV_OFFSET_BASIS = -3750763034362895579L
+        private const val FNV_PRIME = 1099511628211L
         internal val log = LoggerFactory.getLogger(IDEEditor::class.java)
 
         /**
@@ -515,12 +524,6 @@ constructor(
     final override fun <T : EditorBuiltinComponent?> getComponent(clazz: Class<T>): T & Any =
         super.getComponent(clazz)
 
-    /** Uses [TracingEditorRenderer], which guards block-line drawing against the
-     * styles.blocks data race that otherwise crashes onDraw. */
-    override fun onCreateRenderer(): EditorRenderer {
-        return TracingEditorRenderer(editor = this)
-    }
-
     override fun release() {
         ensureWindowsDismissed()
 
@@ -668,9 +671,13 @@ constructor(
 
     /**
      * Mark this editor as NOT modified.
+     *
+     * Snapshots the current content so that later edits which return the content to this
+     * state (for example, undoing every change) can clear the modified flag again.
      */
     open fun markUnmodified() {
         this.isModified = false
+        snapshotSavedContent()
     }
 
     /**
@@ -678,6 +685,36 @@ constructor(
      */
     open fun markModified() {
         this.isModified = true
+    }
+
+    /**
+     * Recomputes [isModified] by comparing the current content against the snapshot captured
+     * the last time the file was loaded or saved. The content length is
+     * checked first as a cheap guard so the full content hash is only computed when the lengths
+     * match - i.e. when the edits may have restored the saved state.
+     */
+    private fun refreshModifiedState() {
+        val content = text
+        isModified = content.length != savedContentLength ||
+                computeContentHash(content) != savedContentHash
+    }
+
+    private fun snapshotSavedContent() {
+        val content = text
+        savedContentLength = content.length
+        savedContentHash = computeContentHash(content)
+    }
+
+    /**
+     * Computes a 64-bit FNV-1a hash of the given content.
+     * Suitable for fast change detection.
+     */
+    private fun computeContentHash(content: CharSequence): Long {
+        var hash = FNV_OFFSET_BASIS
+        for (i in content.indices) {
+            hash = (hash xor content[i].code.toLong()) * FNV_PRIME
+        }
+        return hash
     }
 
     /**
@@ -897,7 +934,10 @@ constructor(
                 return@subscribeEvent
             }
 
-            markModified()
+            refreshModifiedState()
+            // A pending inline suggestion is anchored to the pre-edit cursor position; any edit
+            // invalidates it. The plugin re-issues one after its debounce.
+            dismissInlineSuggestion()
             file ?: return@subscribeEvent
 
             editorScope.launch {
@@ -912,6 +952,9 @@ constructor(
                 return@subscribeEvent
             }
 
+            // Moving the cursor away from the anchor makes ghost text meaningless.
+            dismissInlineSuggestion()
+
             if (_diagnosticWindow?.isShowing == true) {
                 _diagnosticWindow?.dismiss()
             }
@@ -923,6 +966,62 @@ constructor(
         }
 
         EventBus.getDefault().register(this)
+    }
+
+    // --- Inline suggestions (ghost text) ------------------------------------
+
+    /** [GhostTextRenderer] extends [TracingEditorRenderer], so this keeps the block-line
+     * data-race guards while also drawing inline ghost text. */
+    override fun onCreateRenderer(): EditorRenderer = GhostTextRenderer(this)
+
+    private val ghostRenderer: GhostTextRenderer?
+        get() = renderer as? GhostTextRenderer
+
+    /**
+     * Shows [text] as dimmed inline ghost text anchored at the current cursor position, owned by
+     * [pluginId]. Called by the host editor provider when a plugin returns an inline suggestion.
+     * The suggestion is tagged with its owner so a later [dismissInlineSuggestion] from a different
+     * plugin can't clear it. No-op if the editor is released or has no cursor.
+     */
+    fun showInlineSuggestion(pluginId: String, text: String) {
+        if (isReleased || text.isEmpty()) return
+        val renderer = ghostRenderer ?: return
+        val cursor = cursor ?: return
+        renderer.setSuggestion(text, cursor.leftLine, cursor.leftColumn, pluginId)
+        invalidate()
+    }
+
+    /** Removes the showing ghost text only if it is owned by [pluginId]. */
+    fun dismissInlineSuggestion(pluginId: String) {
+        val renderer = ghostRenderer ?: return
+        if (renderer.clearSuggestionFor(pluginId)) {
+            invalidate()
+        }
+    }
+
+    /**
+     * Unconditionally removes any showing ghost text, regardless of owner. Used for IDE-internal
+     * invalidation (an edit or cursor move makes the anchored suggestion meaningless).
+     */
+    fun dismissInlineSuggestion() {
+        val renderer = ghostRenderer ?: return
+        if (renderer.hasSuggestion) {
+            renderer.clearSuggestion()
+            invalidate()
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        // Accept a showing suggestion on Tab: commit it at the cursor and consume the key.
+        if (keyCode == KeyEvent.KEYCODE_TAB && ghostRenderer?.hasSuggestion == true) {
+            val suggestion = ghostRenderer?.takeSuggestion()
+            invalidate()
+            if (!suggestion.isNullOrEmpty()) {
+                commitText(suggestion)
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     private fun handleCustomTextReplacement(event: ContentChangeEvent) {

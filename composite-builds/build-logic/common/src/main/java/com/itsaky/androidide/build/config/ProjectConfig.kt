@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.build.config
 
+import org.gradle.api.GradleException
 import org.gradle.api.Project
 import java.util.Locale
 
@@ -86,6 +87,17 @@ val Project.simpleVersionName: String
 		return simpleVersion
 	}
 
+val Project.releaseVersion: String
+	get() {
+		val raw = providers.gradleProperty("next_release_version").orNull.orEmpty().trim()
+		if (raw.isNotEmpty() && !Regex("""^\d{2}\.\d{2}$""").matches(raw)) {
+			throw GradleException(
+				"Invalid next_release_version '$raw'; expected YY.ww (two digits, dot, two digits), e.g. 25.47",
+			)
+		}
+		return raw
+	}
+
 private var shouldPrintVersionCode = true
 val Project.projectVersionCode: Int
 	get() {
@@ -137,8 +149,6 @@ val Project.downloadVersion: String
 		return if (CI.isCiBuild || isFDroidBuild) {
 			publishingVersion
 		} else {
-			// sometimes, when working locally, Gradle fails to download the latest snapshot version
-			// this may cause issues while initializing the project in AndroidIDE
-			VersionUtils.getLatestSnapshotVersion("gradle-plugin")
+			VersionUtils.LATEST_INTEGRATION
 		}
 	}

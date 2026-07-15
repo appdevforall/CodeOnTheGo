@@ -20,6 +20,7 @@ package com.itsaky.androidide.activities
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import androidx.activity.OnBackPressedCallback
@@ -73,8 +74,8 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.appdevforall.localwebserver.ServerConfig
-import org.appdevforall.localwebserver.WebServer
+import com.itsaky.androidide.localWebServer.ServerConfig
+import com.itsaky.androidide.localWebServer.WebServer
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -120,6 +121,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
 		MainScreenActions.register(this)
 
 		// Start WebServer after installation is complete
@@ -134,7 +136,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		feedbackButtonManager =
 			FeedbackButtonManager(
 				activity = this,
-				feedbackFab = binding.fabFeedback,
+				feedbackFab = binding.fabFeedback.root,
 			)
 
 		feedbackButtonManager?.setupDraggableFab()
@@ -448,6 +450,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				webServer = null
 			}
 		}
+	}
+
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
 	}
 
 	override fun onDestroy() {

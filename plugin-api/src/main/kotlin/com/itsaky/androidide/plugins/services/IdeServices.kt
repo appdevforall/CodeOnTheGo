@@ -8,24 +8,6 @@ import java.io.InputStream
 import java.util.concurrent.CompletableFuture
 
 /**
- * Flattened, read-only snapshot of a module's build context for a given source file,
- * returned by [IdeProjectService.getModuleContext]. All paths are absolute host paths.
- *
- * This is additive API: it carries the project-model data an on-device compiler/renderer
- * needs (classpaths, runtime dex, selected variant, resource APK) without exposing any
- * host-internal project types to the plugin.
- */
-data class ModuleContext(
-    val modulePath: String?,
-    val variantName: String,
-    val compileClasspaths: List<File>,
-    val intermediateClasspaths: List<File>,
-    val runtimeDexFiles: List<File>,
-    val resourceApk: File?,
-    val needsBuild: Boolean
-)
-
-/**
  * Service interface that provides access to Code On the Go project information.
  * This service should be registered by AndroidIDE and made available to plugins
  * that have the FILESYSTEM_READ permission.
@@ -36,13 +18,13 @@ interface IdeProjectService {
      * @return The current project, or null if no project is open
      */
     fun getCurrentProject(): IProject?
-    
+
     /**
      * Gets all projects currently loaded in the IDE.
      * @return List of all loaded projects
      */
     fun getAllProjects(): List<IProject>
-    
+
     /**
      * Finds a project by its root directory path.
      * @param path The root directory path of the project
@@ -53,11 +35,14 @@ interface IdeProjectService {
     /**
      * Resolves the build context (compile/intermediate classpaths, runtime dex files,
      * selected variant, resource APK, and whether a build is needed) for the module that
-     * owns [filePath]. Returns null when no module can be resolved.
+     * owns the given file.
      *
-     * Default returns null so this addition is binary-compatible: hosts that predate the
-     * method, and any implementor that does not override it, simply report "unavailable"
-     * (mirrors the default on [IdeUIService.openPluginScreen]).
+     * Defaults to returning null so the method is binary-compatible: hosts that predate it,
+     * and implementors that do not override it, report "unavailable" (mirrors the default on
+     * [IdeUIService.openPluginScreen]).
+     *
+     * @param filePath The absolute path of a source file owned by the module
+     * @return The module context, or null if no module can be resolved
      */
     fun getModuleContext(filePath: String): ModuleContext? = null
 }
@@ -83,6 +68,21 @@ data class SelectionRange(
  */
 fun interface FileChangeListener {
     fun onFileChanged(file: File?)
+}
+
+/**
+ * Listener for editor content changes. Notified when the user types or programmatically
+ * modifies editor content. Used for features like inline code suggestions.
+ */
+fun interface EditorContentChangeListener {
+    /**
+     * Called when editor content changes.
+     * @param fileContent The full file content after the change
+     * @param cursorLine The 0-based line number of the cursor
+     * @param cursorColumn The 0-based column number of the cursor
+     * @param language The language ID of the file (e.g., "kotlin", "java", "xml")
+     */
+    fun onContentChanged(fileContent: String, cursorLine: Int, cursorColumn: Int, language: String)
 }
 
 /**
@@ -161,6 +161,30 @@ interface IdeEditorService {
     fun addFileChangeListener(listener: FileChangeListener)
 
     fun removeFileChangeListener(listener: FileChangeListener)
+
+    /**
+     * Registers a listener to be notified when editor content changes.
+     * @param listener The listener to register
+     */
+    fun addContentChangeListener(listener: EditorContentChangeListener) {}
+
+    /**
+     * Unregisters an editor content change listener.
+     * @param listener The listener to unregister
+     */
+    fun removeContentChangeListener(listener: EditorContentChangeListener) {}
+
+    /**
+     * Shows an inline suggestion (ghost text) at the cursor position.
+     * The suggestion is displayed semi-transparently and can be dismissed.
+     * @param text The suggestion text to display
+     */
+    fun showInlineSuggestion(text: String) {}
+
+    /**
+     * Dismisses any currently displayed inline suggestion.
+     */
+    fun dismissInlineSuggestion() {}
 }
 
 /**
@@ -192,6 +216,20 @@ interface IdeUIService {
         fragmentClassName: String,
         title: String? = null
     ): Boolean = false
+
+    /**
+     * Asks the IDE to rebuild the editor toolbar, re-evaluating each plugin
+     * [com.itsaky.androidide.plugins.extensions.ToolbarAction]'s dynamic providers
+     * ([com.itsaky.androidide.plugins.extensions.ToolbarAction.iconProvider],
+     * `isEnabledProvider`, `isVisibleProvider`). Call this after changing plugin state
+     * that those providers depend on — e.g. to swap a toolbar icon between
+     * idle/active/processing states.
+     *
+     * Safe to call from any thread; the rebuild is marshalled to the UI thread. A no-op
+     * when no editor is in the foreground. Default implementation does nothing so older
+     * hosts remain source/binary compatible.
+     */
+    fun refreshToolbarActions() {}
 
     companion object {
         const val ACTION_OPEN_PLUGIN_SCREEN = "com.itsaky.androidide.plugins.OPEN_PLUGIN_SCREEN"
@@ -240,6 +278,52 @@ interface IdeBuildService {
      */
     fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> =
         CompletableFuture.completedFuture(false)
+
+    /**
+     * Builds and runs the app on the connected device.
+     * @param callback The callback to be invoked when the operation completes
+     */
+    fun runApp(callback: BuildAndLaunchCallback) {
+        callback.onComplete(false, "Not implemented")
+    }
+
+    /**
+     * Triggers a Gradle sync operation.
+     * @param callback The callback to be invoked when the sync completes
+     */
+    fun triggerGradleSync(callback: GradleSyncCallback) {
+        callback.onComplete(false, "")
+    }
+
+    /**
+     * Gets the latest build output logs.
+     * @return The build output as a string, or null if no build output is available
+     */
+    fun getBuildOutput(): String? = null
+}
+
+/**
+ * Callback interface for build and launch operations.
+ */
+fun interface BuildAndLaunchCallback {
+    /**
+     * Called when the build and launch operation completes.
+     * @param success true if the operation succeeded, false otherwise
+     * @param message A message describing the result
+     */
+    fun onComplete(success: Boolean, message: String)
+}
+
+/**
+ * Callback interface for Gradle sync operations.
+ */
+fun interface GradleSyncCallback {
+    /**
+     * Called when the Gradle sync operation completes.
+     * @param success true if the sync succeeded, false otherwise
+     * @param output The sync output
+     */
+    fun onComplete(success: Boolean, output: String)
 }
 
 /**
@@ -319,6 +403,14 @@ interface IdeFileService {
      * @return true if the deletion was successful, false otherwise
      */
     fun delete(file: File): Boolean
+
+    /**
+     * Lists files in a directory.
+     * @param dir The directory to list (or null for project root)
+     * @param recursive Whether to list recursively
+     * @return List of files, or empty list if the directory cannot be read
+     */
+    fun listFiles(dir: File?, recursive: Boolean = false): List<File>
 }
 
 /**
@@ -341,3 +433,56 @@ interface BuildStatusListener {
      */
     fun onBuildFailed(error: String?)
 }
+
+/**
+ * Service interface that provides project modification capabilities for plugins.
+ *
+ * This service is separate from [IdeProjectService] (which provides read-only project
+ * information) to distinguish between project introspection and project modification.
+ * Plugins that need to add dependencies, create resources, or delete files should use this service.
+ *
+ * This service should be registered by Code On the Go and made available to plugins
+ * that have the PROJECT_STRUCTURE permission and need to modify project files
+ * (build files, resources, etc.).
+ */
+interface IdeProjectManipulationService {
+    /**
+     * Adds a dependency to a Gradle build file.
+     * @param dependencyString The dependency line including configuration, e.g., 'implementation("io.coil-kt:coil:2.6.0")'
+     * @param buildFilePath Relative path to build file, e.g., 'app/build.gradle.kts'
+     * @return true if the dependency was added successfully, false otherwise
+     */
+    fun addDependency(dependencyString: String, buildFilePath: String): Boolean = false
+
+    /**
+     * Adds a string resource to the strings.xml file.
+     * @param name The resource name, e.g., 'welcome_message'
+     * @param value The string content, e.g., 'Hello, World!'
+     * @return true if the string resource was added successfully, false otherwise
+     */
+    fun addStringResource(name: String, value: String): Boolean = false
+
+    /**
+     * Deletes a file from the project.
+     * @param path The path to the file to delete
+     * @return true if the file was deleted successfully, false otherwise
+     */
+    fun deleteFile(path: String): Boolean = false
+}
+
+/**
+ * Module context data returned by [IdeProjectService.getModuleContext]. All paths are absolute host paths.
+ *
+ * This is additive API: it carries the project-model data an on-device compiler/renderer
+ * needs (classpaths, runtime dex, selected variant, resource APK) without exposing any
+ * host-internal project types to the plugin.
+ */
+data class ModuleContext(
+    val modulePath: String?,
+    val variantName: String,
+    val compileClasspaths: List<File>,
+    val intermediateClasspaths: List<File>,
+    val runtimeDexFiles: List<File>,
+    val resourceApk: File?,
+    val needsBuild: Boolean
+)
