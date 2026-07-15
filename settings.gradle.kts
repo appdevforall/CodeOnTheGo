@@ -38,25 +38,25 @@ dependencyResolutionManagement {
 	val dependencySubstitutions =
 		mapOf(
 			"build-deps" to
-				arrayOf(
-					"appintro",
-					"fuzzysearch",
-					"google-java-format",
-					"java-compiler",
-					"javac",
-					"javapoet",
-					"jaxp",
-					"jdk-compiler",
-					"jdk-jdeps",
-					"jdt",
-					"layoutlib-api",
-					"treeview",
-				),
+					arrayOf(
+						"appintro",
+						"fuzzysearch",
+						"google-java-format",
+						"java-compiler",
+						"javac",
+						"javapoet",
+						"jaxp",
+						"jdk-compiler",
+						"jdk-jdeps",
+						"jdt",
+						"layoutlib-api",
+						"treeview",
+					),
 			"build-deps-common" to
-				arrayOf(
-					"constants",
-					"desugaring-core",
-				),
+					arrayOf(
+						"constants",
+						"desugaring-core",
+					),
 		)
 
 	for ((build, modules) in dependencySubstitutions) {
@@ -75,8 +75,6 @@ dependencyResolutionManagement {
 	repositories {
 		google()
 		mavenCentral()
-		maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }
-		maven { url = uri("https://s01.oss.sonatype.org/content/groups/public/") }
 		maven { url = uri("https://jitpack.io") }
 	}
 }
@@ -123,10 +121,10 @@ include(
 	":eventbus",
 	":eventbus-android",
 	":eventbus-events",
+	":git-core",
 	":gradle-plugin",
 	":gradle-plugin-config",
 	":idetooltips",
-	":layouteditor",
 	":lexers",
 	":logger",
 	":logsender",
@@ -139,11 +137,14 @@ include(
 	":templates-impl",
 	":treeview",
 	":uidesigner",
-	":vectormaster",
 	":xml-inflater",
 	":lsp:api",
 	":lsp:models",
+	":lsp:indexing",
 	":lsp:java",
+	":lsp:jvm-symbol-index",
+	":lsp:jvm-symbol-models",
+	":lsp:kotlin",
 	":lsp:xml",
 	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",
@@ -151,6 +152,7 @@ include(
 	":subprojects:flashbar",
 	":subprojects:framework-stubs",
 	":subprojects:javac-services",
+	":subprojects:kotlin-analysis-api",
 	":subprojects:libjdwp",
 	":subprojects:projects",
 	":subprojects:project-models",
@@ -181,11 +183,8 @@ include(
 	":plugin-api",
 	":plugin-api:plugin-builder",
 	":plugin-manager",
-    ":llama-api",
-    ":llama-impl",
-    ":cv-image-to-xml",
-    ":llama-api",
-    ":llama-impl"
+	":compose-preview",
+	":floating-window"
 )
 
 object FDroidConfig {

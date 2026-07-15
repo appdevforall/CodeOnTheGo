@@ -46,8 +46,10 @@ import com.itsaky.androidide.editor.adapters.IdeEditorAdapter
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import com.itsaky.androidide.editor.ui.EditorActionsMenu.ActionsListAdapter.VH
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
+import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.xml.XMLLanguageServer
 import com.itsaky.androidide.resources.R
@@ -287,7 +289,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
         registry.registerActionExecListener(this)
         onFillMenu(registry, data)
 
-        this.list.adapter = ActionsListAdapter(getMenu(),  editor = editor)
+        this.list.adapter = ActionsListAdapter(getMenu(),  editor = editor, location = onGetActionLocation())
 
     }
 
@@ -298,7 +300,9 @@ open class EditorActionsMenu(val editor: IDEEditor) :
     protected open fun onGetActionLocation() = location
 
     protected open fun onCreateActionData(): ActionData {
+		val languageServerRegistry = ILanguageServerRegistry.default
         val data = ActionData.create(editor.context)
+
         data.put(IDEEditor::class.java, this.editor)
         data.put(
             CodeEditor::class.java,
@@ -307,14 +311,18 @@ open class EditorActionsMenu(val editor: IDEEditor) :
         data.put(File::class.java, editor.file)
         data.put(DiagnosticItem::class.java, getDiagnosticAtCursor())
         data.put(com.itsaky.androidide.models.Range::class.java, editor.cursorLSPRange)
-        data.put(
+		data.put(
             JavaLanguageServer::class.java,
-            ILanguageServerRegistry.getDefault().getServer(JavaLanguageServer.SERVER_ID)
+            languageServerRegistry.getServer(JavaLanguageServer.SERVER_ID)
                     as? JavaLanguageServer?
         )
+		data.put(KotlinLanguageServer::class.java,
+			languageServerRegistry
+				.getServer(KotlinLanguageServer.SERVER_ID)
+					as? KotlinLanguageServer?)
         data.put(
             XMLLanguageServer::class.java,
-            ILanguageServerRegistry.getDefault().getServer(XMLLanguageServer.SERVER_ID)
+            languageServerRegistry.getServer(XMLLanguageServer.SERVER_ID)
                     as? XMLLanguageServer?
         )
         data.put(TextTarget::class.java, IdeEditorAdapter(this.editor))
@@ -368,7 +376,8 @@ open class EditorActionsMenu(val editor: IDEEditor) :
     private class ActionsListAdapter(
         val menu: Menu?,
         val forceShowTitle: Boolean = false,
-        val editor: IDEEditor
+        val editor: IDEEditor,
+        val location: ActionItem.Location
     ) : RecyclerView.Adapter<VH>() {
 
 
@@ -390,9 +399,15 @@ open class EditorActionsMenu(val editor: IDEEditor) :
 
     override fun onBindViewHolder(holder: VH, position: Int) {
       val item = getItem(position) ?: return
+
+      val action = getInstance().findAction(location, item.itemId)
+      val tooltipTag = action?.retrieveTooltipTag(false) ?: ""
+      val tag = tooltipTag.ifEmpty { item.contentDescription?.toString() ?: "" }
+
       val button = holder.binding.root
       button.text = if (forceShowTitle) item.title else ""
       button.tooltipText = item.title
+      button.contentDescription = item.contentDescription
 
             button.icon =
                 item.icon ?: run {
@@ -412,8 +427,6 @@ open class EditorActionsMenu(val editor: IDEEditor) :
             }
 
             button.setOnLongClickListener {
-                val tag = item.contentDescription?.toString() ?: ""
-
                 if (tag.isNotEmpty()) {
                     TooltipManager.showIdeCategoryTooltip(
                         context = editor.context,
@@ -443,7 +456,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
             TransitionManager.beginDelayedTransition(this.list, ChangeBounds())
             this.list.layoutManager = LinearLayoutManager(editor.context)
             this.list.adapter =
-                ActionsListAdapter(item.subMenu,  true, editor)
+                ActionsListAdapter(item.subMenu,  true, editor, location = onGetActionLocation())
 
             this.list.post {
                 measureActionsList()

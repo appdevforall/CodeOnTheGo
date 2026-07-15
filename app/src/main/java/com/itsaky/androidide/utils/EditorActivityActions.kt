@@ -38,10 +38,10 @@ import com.itsaky.androidide.actions.etc.FindAction
 import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
 import com.itsaky.androidide.actions.etc.LaunchAppAction
-import com.itsaky.androidide.actions.etc.PreviewLayoutAction
 import com.itsaky.androidide.actions.file.CloseAllFilesAction
 import com.itsaky.androidide.actions.file.CloseFileAction
 import com.itsaky.androidide.actions.file.CloseOtherFilesAction
+import com.itsaky.androidide.actions.file.InstallFileAction
 import com.itsaky.androidide.actions.file.FormatCodeAction
 import com.itsaky.androidide.actions.file.SaveFileAction
 import com.itsaky.androidide.actions.file.ShowTooltipAction
@@ -55,9 +55,12 @@ import com.itsaky.androidide.actions.filetree.RenameAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
 import com.itsaky.androidide.actions.PluginActionItem
-import com.itsaky.androidide.actions.etc.GenerateXMLAction
+import com.itsaky.androidide.actions.PluginToolbarActionItem
+import com.itsaky.androidide.actions.build.PluginBuildActionItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
+import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+
 
 /**
  * Takes care of registering actions to the actions registry for the editor activity.
@@ -90,16 +93,15 @@ class EditorActivityActions {
             registry.registerAction(UndoAction(context, order++))
             registry.registerAction(RedoAction(context, order++))
             registry.registerAction(SaveFileAction(context, order++))
-            registry.registerAction(PreviewLayoutAction(context, order++))
             registry.registerAction(FindAction(context, order++))
             registry.registerAction(FindInFileAction(context, order++))
             registry.registerAction(FindInProjectAction(context, order++))
             registry.registerAction(LaunchAppAction(context, order++))
             registry.registerAction(DisconnectLogSendersAction(context, order++))
-            registry.registerAction(action= GenerateXMLAction(context, order=order++))
 
             // Plugin contributions
             order = registerPluginActions(context, registry, order)
+            order = registerPluginBuildActions(context, registry, order)
 
             // editor text actions
             registry.registerAction(ExpandSelectionAction(context, order++))
@@ -115,6 +117,7 @@ class EditorActivityActions {
             registry.registerAction(CloseFileAction(context, order++))
             registry.registerAction(CloseOtherFilesAction(context, order++))
             registry.registerAction(CloseAllFilesAction(context, order++))
+            registry.registerAction(InstallFileAction(context, order++))
 
             // file tree actions
             registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
@@ -151,7 +154,8 @@ class EditorActivityActions {
             registry.clearActionsExceptWhere(EDITOR_TOOLBAR) { action ->
                 action.id == QuickRunAction.ID ||
                         action.id == RunTasksAction.ID ||
-                        action.id == ProjectSyncAction.ID
+                        action.id == ProjectSyncAction.ID ||
+                        action.id.startsWith("plugin.build.")
       }
     }
 
@@ -174,18 +178,39 @@ class EditorActivityActions {
             .forEach { plugin ->
                 try {
                     Log.d("plugin_debug", "Registering menu items for plugin: ${plugin.javaClass.simpleName}")
+                    val pluginId = pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin) ?: ""
                     plugin.getMainMenuItems().forEach { menuItem ->
-                        val action = PluginActionItem(context, menuItem, order++)
+                        val action = PluginActionItem(context, menuItem, order++, pluginId)
                         registry.registerAction(action)
                     }
+                    // Toolbar actions carry their own order so a plugin can position its icon
+                    // among the built-in toolbar actions; do not consume the sequential counter.
+                    plugin.getToolbarActions().forEach { toolbarAction ->
+                        registry.registerAction(PluginToolbarActionItem(context, toolbarAction, pluginId))
+                    }
                 } catch (e: Exception) {
-                    // Continue with other plugins if one fails
-                    System.err.println("")
-                    Log.d("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName} - ${e.message}")
+                    Log.w("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName}", e)
                 }
             }
 
         return order
     }
+
+    @JvmStatic
+    private fun registerPluginBuildActions(context: Context, registry: ActionsRegistry, startOrder: Int): Int {
+        var order = startOrder
+
+        PluginBuildActionManager.getInstance().getAllBuildActions().forEach { registered ->
+            runCatching {
+                registry.registerAction(PluginBuildActionItem(context, registered, order++))
+                Log.d("plugin_debug", "Registered build action: ${registered.action.id} from plugin: ${registered.pluginId}")
+            }.onFailure { e ->
+                Log.w("plugin_debug", "Failed to register build action: ${registered.action.id}", e)
+            }
+        }
+
+        return order
+    }
+
   }
 }

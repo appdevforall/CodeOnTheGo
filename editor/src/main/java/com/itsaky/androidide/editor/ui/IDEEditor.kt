@@ -23,11 +23,14 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
 import android.widget.EditText
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
@@ -47,6 +50,7 @@ import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguageProvider
 import com.itsaky.androidide.editor.processing.ProcessContext
 import com.itsaky.androidide.editor.processing.TextProcessorEngine
+import com.itsaky.androidide.editor.utils.getOperatorRangeAt
 import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.snippets.AbstractSnippetVariableResolver
@@ -86,11 +90,11 @@ import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.event.ContentChangeEvent
-import io.github.rosemoe.sora.event.LongPressEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.lang.Language
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.widget.EditorRenderer
 import io.github.rosemoe.sora.widget.EditorSearcher
 import io.github.rosemoe.sora.widget.IDEEditorSearcher
 import io.github.rosemoe.sora.widget.component.EditorAutoCompletion
@@ -103,12 +107,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
+import kotlin.coroutines.resume
 
 fun interface OnEditorLongPressListener {
     fun onLongPress(event: MotionEvent)
@@ -142,6 +148,13 @@ constructor(
     private var _diagnosticWindow: DiagnosticWindow? = null
     private var fileVersion = 0
     internal var isModified = false
+
+    // Length and content hash of the content the last time the file was loaded or saved.
+    // Used to detect when edits (e.g. undoing every change) return the content to its
+    // saved state, so the modified indicator can be cleared. The length is compared first
+    // as an O(1) guard so the content hash is only computed when the lengths match.
+    private var savedContentLength = 0
+    private var savedContentHash = 0L
 
     private val selectionChangeHandler = Handler(Looper.getMainLooper())
     private var selectionChangeRunner: Runnable? =
@@ -212,10 +225,15 @@ constructor(
             return _diagnosticWindow ?: DiagnosticWindow(this).also { _diagnosticWindow = it }
         }
 
+    val isReadyToAppend: Boolean
+        get() = !isReleased && isAttachedToWindow && isLaidOut && width > 0
+
     companion object {
         private const val TAG = "TrackpadScrollDebug"
         private const val SELECTION_CHANGE_DELAY = 500L
-
+        private const val LARGE_FILE_LINE_THRESHOLD = 10000
+        private const val FNV_OFFSET_BASIS = -3750763034362895579L
+        private const val FNV_PRIME = 1099511628211L
         internal val log = LoggerFactory.getLogger(IDEEditor::class.java)
 
         /**
@@ -269,6 +287,59 @@ constructor(
 
         file?.also {
             dispatchDocumentOpenEvent()
+        }
+    }
+
+    /**
+     * Suspends the current coroutine until the editor has valid dimensions (`width > 0`).
+     *
+     * This is a **reactive** alternative to busy-waiting or `postDelayed`. It ensures that
+     * no text insertion is attempted before the editor's internal layout engine is ready,
+     * preventing the `ArrayIndexOutOfBoundsException`.
+     *
+     * @param onForceVisible A callback invoked immediately if the view is not ready.
+     * Used to set the view to `VISIBLE` and trigger the layout pass.
+     */
+    suspend fun awaitLayout(onForceVisible: () -> Unit) {
+        if (isReadyToAppend) return
+
+        withContext(Dispatchers.Main) {
+            onForceVisible()
+        }
+
+        return suspendCancellableCoroutine { continuation ->
+            val listener = object : OnLayoutChangeListener {
+                override fun onLayoutChange(
+                    v: View?, left: Int, top: Int, right: Int, bottom: Int,
+                    oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int
+                ) {
+                    if ((v?.width ?: 0) > 0) {
+                        v?.removeOnLayoutChangeListener(this)
+                        if (continuation.isActive) {
+                            continuation.resume(Unit)
+                        }
+                    }
+                }
+            }
+
+            addOnLayoutChangeListener(listener)
+
+            continuation.invokeOnCancellation {
+                removeOnLayoutChangeListener(listener)
+            }
+        }
+    }
+
+    /**
+     * Appends a block of text to the editor safely.
+     *
+     * It performs a final check on [isReadyToAppend] and wraps the underlying append operation
+     * in [runCatching]. This prevents the app from crashing if the editor's internal layout
+     * calculation fails during the insertion.
+     */
+    fun appendBatch(text: String) {
+        if (isReadyToAppend) {
+            runCatching { append(text) }
         }
     }
 
@@ -432,6 +503,20 @@ constructor(
         }
     }
 
+     fun dismissPopupWindows() {
+        if (_diagnosticWindow?.isShowing == true) {
+            _diagnosticWindow?.dismiss()
+        }
+
+        if (_signatureHelpWindow?.isShowing == true) {
+            _signatureHelpWindow?.dismiss()
+        }
+
+        if (actionsMenu?.isShowing == true) {
+            actionsMenu?.dismiss()
+        }
+    }
+
     // not overridable!
     final override fun <T : EditorBuiltinComponent?> replaceComponent(
         clazz: Class<T>,
@@ -494,6 +579,20 @@ constructor(
     }
 
     override fun getSearcher(): EditorSearcher = this.searcher
+
+    /**
+     * Disables IME text extraction for large files (exceeding [LARGE_FILE_LINE_THRESHOLD] lines) to prevent massive
+     * IPC (Binder) payloads, fixing "oneway spamming" errors and UI lag during typing.
+     */
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
+        val connection = super.onCreateInputConnection(outAttrs)
+
+        if (this.lineCount > LARGE_FILE_LINE_THRESHOLD) {
+            outAttrs.imeOptions = outAttrs.imeOptions or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+        }
+
+        return connection
+    }
 
     override fun getExtraArguments(): Bundle =
         super.getExtraArguments().apply {
@@ -812,12 +911,14 @@ constructor(
         start: Int,
         end: Int,
     ) {
-        var targetText = text
         if (includeDebugInfoOnCopy) {
-            targetText = BasicBuildInfo.BASIC_INFO + System.lineSeparator() + text
+            // Extract selected text first, then prepend build info
+            val selectedText = text.subSequence(start, end)
+            val textWithBuildInfo = BasicBuildInfo.BASIC_INFO + System.lineSeparator() + selectedText
+            doCopy(textWithBuildInfo, 0, textWithBuildInfo.length)
+        } else {
+            doCopy(text, start, end)
         }
-
-        doCopy(targetText, start, end)
     }
 
     @VisibleForTesting
@@ -856,9 +957,13 @@ constructor(
 
     /**
      * Mark this editor as NOT modified.
+     *
+     * Snapshots the current content so that later edits which return the content to this
+     * state (for example, undoing every change) can clear the modified flag again.
      */
     open fun markUnmodified() {
         this.isModified = false
+        snapshotSavedContent()
     }
 
     /**
@@ -866,6 +971,36 @@ constructor(
      */
     open fun markModified() {
         this.isModified = true
+    }
+
+    /**
+     * Recomputes [isModified] by comparing the current content against the snapshot captured
+     * the last time the file was loaded or saved. The content length is
+     * checked first as a cheap guard so the full content hash is only computed when the lengths
+     * match - i.e. when the edits may have restored the saved state.
+     */
+    private fun refreshModifiedState() {
+        val content = text
+        isModified = content.length != savedContentLength ||
+                computeContentHash(content) != savedContentHash
+    }
+
+    private fun snapshotSavedContent() {
+        val content = text
+        savedContentLength = content.length
+        savedContentHash = computeContentHash(content)
+    }
+
+    /**
+     * Computes a 64-bit FNV-1a hash of the given content.
+     * Suitable for fast change detection.
+     */
+    private fun computeContentHash(content: CharSequence): Long {
+        var hash = FNV_OFFSET_BASIS
+        for (i in content.indices) {
+            hash = (hash xor content[i].code.toLong()) * FNV_PRIME
+        }
+        return hash
     }
 
     /**
@@ -1088,7 +1223,10 @@ constructor(
             // Announce inserted/deleted characters to screen readers, like a standard EditText.
             sendTextChangedAccessibilityEvent(event)
 
-            markModified()
+            refreshModifiedState()
+            // A pending inline suggestion is anchored to the pre-edit cursor position; any edit
+            // invalidates it. The plugin re-issues one after its debounce.
+            dismissInlineSuggestion()
             file ?: return@subscribeEvent
 
             editorScope.launch {
@@ -1106,6 +1244,9 @@ constructor(
             // Keep the screen reader's caret in sync as the selection moves, like an EditText.
             sendSelectionChangedAccessibilityEvent()
 
+            // Moving the cursor away from the anchor makes ghost text meaningless.
+            dismissInlineSuggestion()
+
             if (_diagnosticWindow?.isShowing == true) {
                 _diagnosticWindow?.dismiss()
             }
@@ -1117,12 +1258,62 @@ constructor(
         }
 
         EventBus.getDefault().register(this)
-        if (isReadOnlyContext) {
-            subscribeEvent(LongPressEvent::class.java) { event, _ ->
-                EventBus.getDefault().post(EditorLongPressEvent(event.causingEvent))
-                event.intercept()
+    }
+
+    // --- Inline suggestions (ghost text) ------------------------------------
+
+    /** [GhostTextRenderer] extends [TracingEditorRenderer], so this keeps the block-line
+     * data-race guards while also drawing inline ghost text. */
+    override fun onCreateRenderer(): EditorRenderer = GhostTextRenderer(this)
+
+    private val ghostRenderer: GhostTextRenderer?
+        get() = renderer as? GhostTextRenderer
+
+    /**
+     * Shows [text] as dimmed inline ghost text anchored at the current cursor position, owned by
+     * [pluginId]. Called by the host editor provider when a plugin returns an inline suggestion.
+     * The suggestion is tagged with its owner so a later [dismissInlineSuggestion] from a different
+     * plugin can't clear it. No-op if the editor is released or has no cursor.
+     */
+    fun showInlineSuggestion(pluginId: String, text: String) {
+        if (isReleased || text.isEmpty()) return
+        val renderer = ghostRenderer ?: return
+        val cursor = cursor ?: return
+        renderer.setSuggestion(text, cursor.leftLine, cursor.leftColumn, pluginId)
+        invalidate()
+    }
+
+    /** Removes the showing ghost text only if it is owned by [pluginId]. */
+    fun dismissInlineSuggestion(pluginId: String) {
+        val renderer = ghostRenderer ?: return
+        if (renderer.clearSuggestionFor(pluginId)) {
+            invalidate()
+        }
+    }
+
+    /**
+     * Unconditionally removes any showing ghost text, regardless of owner. Used for IDE-internal
+     * invalidation (an edit or cursor move makes the anchored suggestion meaningless).
+     */
+    fun dismissInlineSuggestion() {
+        val renderer = ghostRenderer ?: return
+        if (renderer.hasSuggestion) {
+            renderer.clearSuggestion()
+            invalidate()
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        // Accept a showing suggestion on Tab: commit it at the cursor and consume the key.
+        if (keyCode == KeyEvent.KEYCODE_TAB && ghostRenderer?.hasSuggestion == true) {
+            val suggestion = ghostRenderer?.takeSuggestion()
+            invalidate()
+            if (!suggestion.isNullOrEmpty()) {
+                commitText(suggestion)
+                return true
             }
         }
+        return super.onKeyDown(keyCode, event)
     }
 
     private fun handleCustomTextReplacement(event: ContentChangeEvent) {
@@ -1438,5 +1629,22 @@ constructor(
         } catch (e: Exception) {
             log.error("Error setting selection from point", e)
         }
+    }
+
+    /**
+     * Selects the word at the cursor, or if none (e.g. on an operator), selects
+     * the operator at the cursor so the code-action toolbar can be shown.
+     */
+    fun selectWordOrOperatorAtCursor() {
+        if (isReleased) return
+        selectCurrentWord()
+        if (cursor.isSelected) return
+        val line = cursor.leftLine
+        val column = cursor.leftColumn
+        val columnCount = text.getColumnCount(line)
+        if (column < 0 || column >= columnCount) return
+        val range = text.getOperatorRangeAt(line, column) ?: return
+        val (startCol, endCol) = range
+        setSelectionRegion(line, startCol, line, endCol)
     }
 }

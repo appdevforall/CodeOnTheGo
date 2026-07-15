@@ -98,9 +98,30 @@ abstract class ModuleProject(
 	 * Get the classpaths with compile scope. This must include classpaths of transitive project
 	 * dependencies as well. This includes classpaths for this module as well.
 	 *
+	 * @param excludeSourceGeneratedClassPath Whether to exclude classpath that's generated from
+	 * source files of this module or its dependencies. Defaults to `false`.
 	 * @return The source directories.
 	 */
-	abstract fun getCompileClasspaths(): Set<File>
+	abstract fun getCompileClasspaths(excludeSourceGeneratedClassPath: Boolean): Set<File>
+	fun getCompileClasspaths() = getCompileClasspaths(false)
+
+	/**
+	 * Get the intermediate build output classpaths for this module.
+	 * This includes compiled .class files from the build directory that aren't packaged into JARs yet.
+	 * Used for Compose Preview to reference composables from other files in the same module.
+	 *
+	 * @return The intermediate classpath directories/files.
+	 */
+	abstract fun getIntermediateClasspaths(): Set<File>
+
+	/**
+	 * Get the runtime DEX files for this module.
+	 * These are pre-compiled DEX files from the build directory that can be loaded at runtime.
+	 * Used for Compose Preview to load project classes like themes and shared components.
+	 *
+	 * @return The runtime DEX files.
+	 */
+	abstract fun getRuntimeDexFiles(): Set<File>
 
 	/**
 	 * Get the list of module projects with compile scope. This includes transitive module projects as
@@ -136,6 +157,16 @@ abstract class ModuleProject(
 		indexClasspaths()
 	}
 
+	/**
+	 * Classpath JARs skipped during the most recent [indexClasspaths] because they were
+	 * corrupt/unreadable (e.g. a truncated download / incomplete offline provisioning). Aggregated by
+	 * the project setup after indexing so the user can be told which dependency failed and offered a
+	 * recovery path (re-sync). Empty when everything indexed cleanly.
+	 */
+	@Volatile
+	var unreadableClasspathJars: List<File> = emptyList()
+		private set
+
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 	fun indexClasspaths() {
 		this.compileClasspathClasses.clear()
@@ -149,8 +180,10 @@ abstract class ModuleProject(
 			CacheFSInfoSingleton.cache(CacheFSInfoSingleton.getCanonicalFile(path.toPath()))
 		}
 
-		val topLevelClasses = JarFsClasspathReader().listClasses(paths).filter { it.isTopLevel }
+		val reader = JarFsClasspathReader()
+		val topLevelClasses = reader.listClasses(paths).filter { it.isTopLevel }
 		topLevelClasses.forEach { this.compileClasspathClasses.append(it.name) }
+		unreadableClasspathJars = reader.unreadableJars.toList()
 
 		watch.log()
 		log.debug("Found {} classpaths.", topLevelClasses.size)

@@ -14,11 +14,14 @@ import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
-import org.appdevforall.codeonthego.layouteditor.ProjectFile
+import com.itsaky.androidide.models.ProjectFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -29,6 +32,14 @@ enum class SortCriteria {
     NAME,
     DATE_CREATED,
     DATE_MODIFIED
+}
+
+data class FilterState(
+    val query: String = "",
+    val sort: SortCriteria? = null,
+    val ascending: Boolean = true
+) {
+    val hasAny: Boolean get() = sort != null || query.isNotEmpty()
 }
 
 class RecentProjectsViewModel(application: Application) : AndroidViewModel(application) {
@@ -47,13 +58,19 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     private var currentSort: SortCriteria? = null
     private var isAscending: Boolean = true
 
+    private val _filterState = MutableStateFlow(FilterState())
+    val filterState: StateFlow<FilterState> = _filterState.asStateFlow()
+
     val currentSortCriteria: SortCriteria? get() = currentSort
     val currentSortAscending: Boolean get() = isAscending
     val hasActiveFilters: Boolean
-        get() = currentSort != null || !isAscending || currentQuery.isNotEmpty()
+        get() = _filterState.value.hasAny
 
     private val _deletionStatus = MutableSharedFlow<Boolean>(replay = 1)
     val deletionStatus = _deletionStatus.asSharedFlow()
+
+    private val _renameStatus = MutableSharedFlow<Boolean>()
+    val renameStatus = _renameStatus.asSharedFlow()
 
     // Get the database and DAO instance
     private val recentProjectDatabase: RecentProjectRoomDatabase =
@@ -63,9 +80,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     fun loadProjects(): Job {
         return viewModelScope.launch(Dispatchers.IO) {
             val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
-            val context = getApplication<Application>().applicationContext
-
-            allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified, context) }
+            allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified) }
             applyFilters()
         }
     }
@@ -77,6 +92,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     }
 
     private suspend fun applyFilters() {
+        _filterState.value = FilterState(currentQuery, currentSort, isAscending)
         withContext(Dispatchers.Default) {
             var result = allProjects
 
@@ -84,12 +100,12 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
                 result = result.filter { it.name.contains(currentQuery, ignoreCase = true) }
             }
 
-            currentSort.let { criteria ->
+            val criteria = currentSort
+            if (criteria != null) {
                 result = when (criteria) {
                     SortCriteria.NAME -> result.sortedBy { it.name.lowercase() }
                     SortCriteria.DATE_CREATED -> result.sortedBy { it.createdAt }
                     SortCriteria.DATE_MODIFIED -> result.sortedBy { it.lastModified }
-                    else -> result
                 }
                 if (!isAscending) {
                     result = result.reversed()
@@ -121,8 +137,10 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         applyFilters()
     }
 
-    fun insertProject(project: RecentProject) = viewModelScope.launch(Dispatchers.IO) {
-        recentProjectDao.insert(project)
+    suspend fun clearSort() {
+        currentSort = null
+        isAscending = true
+        applyFilters()
     }
 
     suspend fun getProjectByName(name: String): RecentProject? {
@@ -130,6 +148,9 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
             recentProjectDao.getProjectByName(name)
         }
     }
+
+    fun projectNameExists(name: String): Boolean =
+        allProjects.any { it.name == name }
 
     fun insertProjectFromFolder(name: String, location: String) =
         viewModelScope.launch(Dispatchers.IO) {
@@ -194,21 +215,43 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     }
 
 	fun updateProject(renamedFile: RecentProjectsAdapter.RenamedFile) =
-		updateProject(renamedFile.oldName, renamedFile.newName, renamedFile.newPath)
+		updateProject(
+			renamedFile.oldName,
+			renamedFile.newName,
+			renamedFile.oldPath,
+			renamedFile.newPath
+		)
 
-    fun updateProject(oldName: String, newName: String, location: String) =
+    fun updateProject(
+        oldName: String,
+        newName: String,
+        oldLocation: String,
+        newLocation: String
+    ) =
         viewModelScope.launch(Dispatchers.IO) {
-            val modifiedAt = System.currentTimeMillis().toString()
-            recentProjectDao.updateNameAndLocation(
-                oldName = oldName,
-                newName = newName,
-                newLocation = location
-            )
-            recentProjectDao.updateLastModified(
-                projectName = newName,
-                lastModified = modifiedAt
-            )
-            loadProjects()
+            try {
+                val modifiedAt = System.currentTimeMillis().toString()
+                recentProjectDao.updateNameAndLocation(
+                    oldName = oldName,
+                    newName = newName,
+                    newLocation = newLocation
+                )
+                recentProjectDao.updateLastModified(
+                    projectName = newName,
+                    lastModified = modifiedAt
+                )
+                loadProjects()
+                _renameStatus.emit(true)
+            } catch (e: SQLException) {
+                logger.error("Failed to update project after rename ($oldName -> $newName)", e)
+                val rolledBack = File(newLocation).renameTo(File(oldLocation))
+                if (rolledBack) {
+                    logger.info("Rolled back filesystem rename: $newLocation -> $oldLocation")
+                } else {
+                    logger.error("Rollback failed; filesystem and DB are out of sync (disk=$newLocation, db=$oldLocation)")
+                }
+                _renameStatus.emit(false)
+            }
         }
 
 	fun updateProjectModifiedDate(name: String) =

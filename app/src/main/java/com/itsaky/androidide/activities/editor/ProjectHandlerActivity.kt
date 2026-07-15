@@ -19,6 +19,8 @@ package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
 import android.os.Bundle
+import android.system.ErrnoException
+import android.system.OsConstants
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.ViewGroup.MarginLayoutParams
@@ -53,6 +55,7 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
+import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
@@ -63,6 +66,8 @@ import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
+import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
@@ -91,14 +96,18 @@ import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
 import io.github.rosemoe.sora.text.ICUUtils
 import io.github.rosemoe.sora.util.IntPair
-import org.koin.android.ext.android.inject
 import io.sentry.Sentry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
+import org.koin.android.ext.android.inject
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
+import java.net.SocketException
+import java.nio.file.NoSuchFileException
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import java.util.stream.Collectors
@@ -115,6 +124,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	private val buildViewModel by viewModels<BuildViewModel>()
 	protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
+	private val Throwable?.isFileNotFound: Boolean
+		get() =
+			this is FileNotFoundException ||
+				this is NoSuchFileException ||
+				(this is ErrnoException && this.errno == OsConstants.ENOENT)
 
 	val findInProjectDialog: AlertDialog?
 		get() {
@@ -161,6 +175,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	private val buildServiceConnection = GradleBuildServiceConnnection()
 
 	companion object {
+		private val logger = LoggerFactory.getLogger(ProjectHandlerActivity::class.java)
+
 		const val STATE_KEY_FROM_SAVED_INSTANACE = "ide.editor.isFromSavedInstance"
 		const val STATE_KEY_SHOULD_INITIALIZE = "ide.editor.isInitializing"
 	}
@@ -199,6 +215,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		observeStates()
 		startServices()
+
+        if (intent.getBooleanExtra("HAS_TEMPLATE_ISSUES", false)) {
+            flashError(getString(string.msg_template_warnings))
+        }
+
 	}
 
 	private fun observeStates() {
@@ -280,7 +301,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				.onSuccess {
 					showRestartPrompt(this@ProjectHandlerActivity)
 				}.onFailure { error ->
-					flashError(getString(string.msg_plugin_install_failed, error.message ?: "Unknown error"))
+					flashError(
+						getString(
+							string.msg_plugin_install_failed,
+							error.message ?: "Unknown error",
+						),
+					)
 				}
 			setStatus("")
 			buildViewModel.pluginInstallationAttempted()
@@ -311,7 +337,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	override fun onResume() {
 		super.onResume()
 
-		val service = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
+		val service =
+			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 		editorViewModel.isBuildInProgress = service?.isBuildInProgress == true
 		editorViewModel.isInitializing = initializingFuture?.isDone == false
 
@@ -374,7 +401,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	fun appendBuildOutput(str: String) {
-        if (_binding == null || isDestroyed || isFinishing) return
+		if (_binding == null || isDestroyed || isFinishing) return
 		content.bottomSheet.appendBuildOut(str)
 	}
 
@@ -434,7 +461,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			log.error("Gradle build service doesn't exist or the IDE is not allowed to access it.")
 		}
 
-		initLspClient()
+		lifecycleScope.launch {
+			initLspClient()
+		}
 	}
 
 	fun initializeProject(forceSync: Boolean = false) {
@@ -459,7 +488,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			newSelections.putAll(buildVariantsViewModel.updatedBuildVariants)
 
 			val selectedVariants = newSelections.mapToSelectedVariants()
-			log.debug("Initializing project with new build variant selections: {}", selectedVariants)
+			log.debug(
+				"Initializing project with new build variant selections: {}",
+				selectedVariants,
+			)
 
 			initializeProject(buildVariants = selectedVariants, forceSync = forceSync)
 			return
@@ -494,7 +526,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	/**
 	 * Initialize (sync) the project.
 	 *
-	 * @param buildVariants A map of project paths to the selected build variants.
+	 * @param buildVariants A map of project paths to the selected build
+	 *    variants.
 	 */
 	fun initializeProject(
 		buildVariants: Map<String, String>,
@@ -517,6 +550,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						handleMissingProjectDirectory(projectDir.name)
 						return@launch
 					}
+
 					else -> throw e
 				}
 			}
@@ -525,7 +559,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			preProjectInit()
 		}
 
-		val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+		val buildService =
+			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 		if (buildService == null) {
 			log.error("No build service found. Cannot initialize project.")
 			return@launch
@@ -537,7 +572,16 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 
 		log.info("Sending init request to tooling server (needs sync: {})...", needsSync)
-		initializingFuture = buildService.initializeProject(params = createProjectInitParams(projectDir, buildVariants, needsSync))
+		initializingFuture =
+			buildService.initializeProject(
+				params =
+					createProjectInitParams(
+						projectDir = projectDir,
+						buildVariants = buildVariants,
+						needsGradleSync = needsSync,
+						buildId = buildService.nextBuildId(BuildRunType.ProjectSync),
+					),
+			)
 
 		initializingFuture!!.whenCompleteAsync { result, error ->
 			releaseServerListener()
@@ -561,12 +605,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		projectDir: File,
 		buildVariants: Map<String, String>,
 		needsGradleSync: Boolean,
+		buildId: BuildId,
 	): InitializeProjectParams =
 		InitializeProjectParams(
 			directory = projectDir.absolutePath,
 			gradleDistribution = gradleDistributionParams,
 			androidParams = createAndroidParams(buildVariants),
 			needsGradleSync = needsGradleSync,
+			buildId = buildId,
 		)
 
 	private fun createAndroidParams(buildVariants: Map<String, String>): AndroidInitializationParams {
@@ -600,6 +646,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		service.setEventListener(mBuildEventListener)
 
 		if (service.isToolingServerStarted()) {
+			if (service.isBuildInProgress) {
+				log.info("Skipping project initialization while build is in progress")
+				return
+			}
 			initializeProject()
 			return
 		}
@@ -636,7 +686,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			if (gradleBuildResult.isFailure) {
 				val error = gradleBuildResult.exceptionOrNull()
 				log.error("Failed to read project cache", error)
-				if (error != null) {
+
+				val isExpectedError = error.isFileNotFound
+
+				if (error != null && !isExpectedError) {
 					Sentry.captureException(error)
 				}
 
@@ -707,6 +760,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		initialSetup()
 		setStatus(getString(string.msg_project_initialized))
 		editorViewModel.isInitializing = false
+		invalidateOptionsMenu()
 
 		if (mFindInProjectDialog?.isShowing == true) {
 			mFindInProjectDialog!!.dismiss()
@@ -846,7 +900,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
 				SearchFieldToolbar(view).show()
 				true
-			} else if (view === binding.input || view === binding.filter || view.parent === binding.input || view.parent === binding.filter) {
+			} else if (view === binding.input ||
+				view === binding.filter ||
+				view.parent === binding.input ||
+				view.parent === binding.filter
+			) {
 				true
 			} else {
 				TooltipManager.showIdeCategoryTooltip(
@@ -877,9 +935,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		val newStart = IntPair.getFirst(range)
 		val newEnd = IntPair.getSecond(range)
 
-		val isValidRange = newStart >= 0 &&
-			newEnd <= content.length &&
-			newStart <= newEnd
+		val isValidRange =
+			newStart >= 0 &&
+				newEnd <= content.length &&
+				newStart <= newEnd
 
 		if (isValidRange && newStart != newEnd) {
 			setSelection(newStart, newEnd)
@@ -912,12 +971,67 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		startActivity(intent)
 	}
 
-	private fun initLspClient() {
+	private suspend fun initLspClient() {
 		if (!IDELanguageClientImpl.isInitialized()) {
 			IDELanguageClientImpl.initialize(this as EditorHandlerActivity)
 		}
+
 		connectClient(IDELanguageClientImpl.getInstance())
-		connectDebugClient(debuggerViewModel.debugClient)
+
+		val results = try {
+			connectDebugClient(debuggerViewModel.debugClient).values
+		} catch (e: Throwable) {
+			if (e is CancellationException) {
+				throw e
+			}
+
+			Sentry.captureException(e)
+			logger.error("Unable to connect LSP servers with debug client", e)
+			listOf(DebugClientConnectionResult.Failure(cause = e))
+		}
+
+		if (results.any { it is DebugClientConnectionResult.Failure }) {
+			// one or more debug adapters failed to initialize
+			val message = buildString {
+				results.filterIsInstance<DebugClientConnectionResult.Failure>().forEach { result ->
+					val msg = result.contextRes?.let(::getString)
+						?: result.context
+						?: (result.cause as? SocketException?).let { err ->
+							val msg = err?.message ?: ""
+							when {
+								msg.contains("EPERM") -> getString(string.debugger_error_errno_eperm)
+								msg.contains("ECONNREFUSED") -> getString(string.debugger_error_errno_econnrefused)
+								else -> null
+							}
+						}
+						?: (result.cause as? ErrnoException? ?: result.cause?.cause as? ErrnoException?)?.let { err ->
+							when (err.errno) {
+								OsConstants.EPERM -> getString(string.debugger_error_errno_eperm)
+								OsConstants.ECONNREFUSED -> getString(string.debugger_error_errno_econnrefused)
+								else -> getString(R.string.debugger_error_errno, err.errno)
+							}
+						}
+						?: getString(R.string.debugger_error_debugger_startup_failure)
+
+					append(msg)
+					append(System.lineSeparator())
+				}
+
+				if (isNotBlank()) {
+					append(System.lineSeparator())
+				}
+
+				append(getString(R.string.debugger_error_suggestion_network_restriction))
+			}
+
+			withContext(Dispatchers.Main) {
+				newMaterialDialogBuilder(this@ProjectHandlerActivity)
+					.setTitle(R.string.debugger_error_network_access_error)
+					.setMessage(message)
+					.setPositiveButton(android.R.string.ok, null)
+					.show()
+			}
+		}
 	}
 
 	open fun getProgressSheet(msg: Int): ProgressSheet? {

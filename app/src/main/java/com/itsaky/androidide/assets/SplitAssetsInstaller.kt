@@ -15,12 +15,15 @@ import org.adfa.constants.DOCUMENTATION_DB
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipFile
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.deleteRecursively
 import java.util.zip.ZipInputStream
 import kotlin.system.measureTimeMillis
 
@@ -34,12 +37,14 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 	): Unit =
 		withContext(Dispatchers.IO) {
 			if (!Environment.SPLIT_ASSETS_ZIP.exists()) {
-				throw FileNotFoundException("Assets zip file not found at path: ${Environment.SPLIT_ASSETS_ZIP.path}")
+				throw FileNotFoundException("Assets zip file not found at path: ${Environment.SPLIT_ASSETS_ZIP.path}." +
+                        " Please check Slack #qa-testing-builds channel for the latest version.")
 			}
 
 			zipFile = ZipFile(Environment.SPLIT_ASSETS_ZIP)
 		}
 
+	@OptIn(ExperimentalPathApi::class)
 	@WorkerThread
 	override suspend fun doInstall(
 		context: Context,
@@ -60,12 +65,23 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 							GRADLE_API_NAME_JAR_ZIP,
 							-> {
 								val destDir = destinationDirForArchiveEntry(entry.name).toPath()
+								if (Files.exists(destDir)) {
+									destDir.deleteRecursively()
+								}
+								Files.createDirectories(destDir)
 								logger.debug("Extracting '{}' to dir: {}", entry.name, destDir)
 								AssetsInstallationHelper.extractZipToDir(zipInput, destDir)
 								logger.debug("Completed extracting '{}' to dir: {}", entry.name, destDir)
 							}
 
-							AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
+                            TEMPLATE_CORE_ARCHIVE -> {
+                                val coreCgt = Environment.TEMPLATES_DIR.resolve(TEMPLATE_CORE_ARCHIVE)
+                                coreCgt.outputStream().use { output ->
+                                    zipInput.copyTo(output)
+                                }
+                            }
+
+                            AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
 								logger.debug("Extracting 'bootstrap.zip' to dir: {}", stagingDir)
 
 								val result = retryOnceOnNoSuchFile(
@@ -114,22 +130,15 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 								}
 								logger.debug("Completed extracting '{}' to {}", DOCUMENTATION_DB, Environment.DOC_DB)
 							}
-                            AssetsInstallationHelper.LLAMA_AAR -> {
-                                val destDir = context.getDir("dynamic_libs", Context.MODE_PRIVATE)
-                                destDir.mkdirs()
-                                val destFile = File(destDir, "llama.aar")
-
-                                logger.debug("Extracting '{}' to {}", entry.name, destFile.absolutePath)
-                                destFile.outputStream().use { output ->
-                                    zipInput.copyTo(output)
-                                }
-                            }
                             AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> {
                                 logger.debug("Extracting plugin artifacts from '{}'", entry.name)
                                 val pluginDir = Environment.PLUGIN_API_JAR.parentFile
                                     ?: throw IllegalStateException("Plugin API parent directory is null")
-                                pluginDir.mkdirs()
                                 val pluginDirPath = pluginDir.toPath().toAbsolutePath().normalize()
+                                if (Files.exists(pluginDirPath)) {
+                                    pluginDirPath.deleteRecursively()
+                                }
+                                Files.createDirectories(pluginDirPath)
 
                                 ZipInputStream(zipInput).use { pluginZip ->
                                     var pluginEntry = pluginZip.nextEntry
@@ -166,18 +175,25 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 		stagingDir: Path,
 	) {
 		withContext(Dispatchers.IO) {
-			zipFile.close()
+			if (::zipFile.isInitialized) {
+				try {
+					zipFile.close()
+				} catch (e: Exception) {
+					logger.warn("Failed to close assets zip file", e)
+				}
+			}
 		}
 		super.postInstall(context, stagingDir)
 	}
 
     override fun expectedSize(entryName: String): Long = when (entryName) {
         GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 137260932L
-        ANDROID_SDK_ZIP                  -> 85024182L
+        ANDROID_SDK_ZIP                  -> 286625871L
         DOCUMENTATION_DB                  -> 224296960L
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 215389106L
         AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 456462823L
         GRADLE_API_NAME_JAR_ZIP           -> 46758608L
+        TEMPLATE_CORE_ARCHIVE               -> 702001L
         else -> 0L
     }
 
@@ -187,6 +203,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 			ANDROID_SDK_ZIP -> Environment.ANDROID_HOME
 			LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> Environment.LOCAL_MAVEN_DIR
 			GRADLE_API_NAME_JAR_ZIP -> Environment.GRADLE_GEN_JARS
+            TEMPLATE_CORE_ARCHIVE -> Environment.TEMPLATES_DIR
 			else -> throw IllegalStateException("Entry '$entryName' is not expected to be an archive")
 		}
 

@@ -17,7 +17,6 @@
 package com.itsaky.androidide.activities
 
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
@@ -33,13 +32,13 @@ import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.SimpleIconTitleDescriptionAdapter
-import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.ActivityAboutBinding
 import com.itsaky.androidide.models.IconTitleDescriptionItem
 import com.itsaky.androidide.models.SimpleIconTitleDescriptionItem
+import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.BuildInfoUtils
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.flashSuccess
@@ -67,8 +66,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
     private val ACTION_WEBSITE = id++
     private val ACTION_EMAIL = id++
     private val ACTION_TG_CHANNEL = id++
-    private val ACTION_TG_GROUP = id++
-    private val ACTION_CONTRIBUTORS = id++
+    private val ACTION_GH_FORUM = id++
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,7 +78,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       supportActionBar!!.setDisplayHomeAsUpEnabled(true)
       supportActionBar!!.setTitle(R.string.about)
       toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
-        feedbackButtonManager = FeedbackButtonManager(this@AboutActivity, fabFeedback)
+        feedbackButtonManager = FeedbackButtonManager(this@AboutActivity, fabFeedback.root)
         feedbackButtonManager?.setupDraggableFab()
 
       aboutHeader.apply {
@@ -92,16 +90,15 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
           ClipboardUtils.copyText(BuildInfoUtils.getBuildInfoHeader())
           flashSuccess(R.string.copied)
         }
+
+        supportButton.setOnClickListener {
+          UrlManager.openUrl(getString(R.string.github_sponsors_url), null, this@AboutActivity)
+        }
       }
 
       socials.apply {
         sectionTitle.setText(R.string.title_socials)
         sectionItems.adapter = AboutSocialItemsAdapter(createSocialItems(), ::handleActionClick)
-      }
-
-      misc.apply {
-        sectionTitle.setText(R.string.title_misc)
-        sectionItems.adapter = AboutSocialItemsAdapter(createMiscItems(), ::handleActionClick)
       }
     }
   }
@@ -121,9 +118,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
     when (action.id) {
       ACTION_WEBSITE -> UrlManager.openUrl(BuildInfo.PROJECT_SITE, null, this)
       ACTION_EMAIL -> UrlManager.openUrl(getString(R.string.mail_to_adfa), null, this)
-      ACTION_TG_GROUP -> UrlManager.openUrl(getString(R.string.telegram_group_url), "org.telegram.messenger", this)
+      ACTION_GH_FORUM -> UrlManager.openUrl(getString(R.string.github_discussions_url), context = this)
       ACTION_TG_CHANNEL -> UrlManager.openUrl(getString(R.string.telegram_channel_url), "org.telegram.messenger", this)
-      ACTION_CONTRIBUTORS -> startActivity(Intent(this, ContributorsActivity::class.java))
     }
   }
 
@@ -150,10 +146,10 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       add(
         createSimpleIconTextItem(
           this@AboutActivity,
-          ACTION_TG_GROUP,
-          R.drawable.ic_telegram,
+          ACTION_GH_FORUM,
+          R.drawable.ic_github,
           R.string.discussions_on_telegram,
-          getString(R.string.telegram_group_url)
+          getString(R.string.github_discussions_url)
         )
       )
       add(
@@ -163,20 +159,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
           R.drawable.ic_telegram,
           R.string.official_tg_channel,
           getString(R.string.telegram_channel_url)
-        )
-      )
-    }
-  }
-
-  private fun createMiscItems(): List<IconTitleDescriptionItem> {
-    return mutableListOf<IconTitleDescriptionItem>().apply {
-      add(
-        SimpleIconTitleDescriptionItem.create(
-          this@AboutActivity,
-          ACTION_CONTRIBUTORS,
-          R.drawable.ic_heart_outline,
-          R.string.title_contributors,
-          R.string.summary_contributors
         )
       )
     }
@@ -208,7 +190,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
   private fun createVersionText(): CharSequence {
     val builder = SpannableStringBuilder()
     builder.append("v")
-    builder.append(BuildInfo.VERSION_NAME_SIMPLE)
+    builder.append(BasicBuildInfo.formatVersion())
     builder.append("-")
     builder.append(IDEBuildConfigProvider.getInstance().cpuAbiName)
     builder.append(" ")

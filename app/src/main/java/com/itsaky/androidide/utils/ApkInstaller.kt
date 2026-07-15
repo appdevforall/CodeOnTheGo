@@ -40,7 +40,10 @@ object ApkInstaller {
 		launchInDebugMode: Boolean = false,
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
 	): Boolean {
-		if (!apk.exists() || !apk.isFile || apk.extension != "apk") {
+		val isValidApk = withContext(Dispatchers.IO) {
+			apk.exists() && apk.isFile && apk.extension == "apk"
+		}
+		if (!isValidApk) {
 			log.error("File is not an APK: {}", apk)
 			return false
 		}
@@ -90,20 +93,26 @@ object ApkInstaller {
 	): Boolean {
 		val installer = context.packageManager.packageInstaller
 		val params = createSessionParams()
-		val sessionId = installer.createSession(params)
-		val session = installer.openSession(sessionId)
-		val callback = getCallbackIntent(context, intent, sessionId)
 
 		return runCatching {
 			withContext(Dispatchers.IO) {
-				addToSession(session, apk)
-			}
+				val sessionId = installer.createSession(params)
+				var session: PackageInstaller.Session? = null
 
-			session.commit(callback!!.intentSender)
-			session.close()
+				try {
+					session = installer.openSession(sessionId)
+					val callback = requireNotNull(getCallbackIntent(context, intent, sessionId)) {
+						"PackageInstaller callback intent is null"
+					}
+					addToSession(session, apk)
+					session.commit(callback.intentSender)
+				} catch (t: Throwable) {
+					runCatching { installer.abandonSession(sessionId) }
+					throw t
+				} finally { session?.close() }
+			}
 		}.onFailure { error ->
 			log.error("Package installation failed", error)
-			session.abandon()
 		}.isSuccess
 	}
 

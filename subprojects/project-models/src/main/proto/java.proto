@@ -71,4 +71,7 @@ message JavaProject {
 
   // The Java compiler settings for this project.
   JavaCompilerSettings javaCompilerSettings = 3;
+
+  // The Kotlin compiler settings.
+  optional KotlinCompilerSettings kotlinCompilerSettings = 4;
 }

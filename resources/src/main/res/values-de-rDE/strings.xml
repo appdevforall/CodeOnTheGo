@@ -281,7 +281,7 @@
   <string name="xml_formatting_options">XML-Formatierungsoptionen</string>
   <string name="xml_formatting_options_summary">XML-Formatierer konfigurieren</string>
   <string name="idepref_customFont_title">Eigene Schriftart verwenden</string>
-  <string name="idepref_customFont_summary">Wenn aktiviert, wird die Datei unter \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" als Editor Schriftart verwendet.</string>
+  <string name="idepref_customFont_summary">Wenn aktiviert, wird die Datei unter \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" als Editor Schriftart verwendet.</string>
   <string name="msg_installing_apk">Installiere APK...</string>
   <string name="msg_action_open_application">Möchtest du die Applikation öffnen?</string>
   <string name="title_gradle_service_notification_channel">Code on the Go Gradle-Build-Service</string>
@@ -398,7 +398,7 @@
   <string name="idepref_devOptions_summary">Experimentelle/Debugging Optionen für Code on the Go</string>
   <string name="idepref_group_debugging">Debugging</string>
   <string name="idepref_devOptions_dumpLogs_title">Protokolle ausgeben</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Code on the Go-Logs in $HOME/.androidide/logs ausgeben</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Code on the Go-Logs in $HOME/.cg/logs ausgeben</string>
   <string name="msg_emptyview_applogs">Run the debug variant of your application to view its logs here.</string>
   <string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
   <string name="msg_emptyview_idelogs">Protokolle der IDE werden hier angezeigt.</string>
@@ -465,11 +465,6 @@
   <string name="title_install_location_error">Installationsfehler</string>
   <string name="title_unsupported_user">Nicht unterstützter Nutzer</string>
   <string name="title_socials">Socials</string>
-  <string name="title_contributors">Contributors</string>
-  <string name="summary_contributors">Top community contributors.</string>
-  <string name="title_github_contributors">GitHub Contributors</string>
-  <string name="title_crowdin_translators">Crowdin Translators</string>
-  <string name="title_misc">Misc</string>
   <string name="title_contribute">Contribute</string>
   <string name="summary_contribute">It\'s not just an IDE, it\'s a community. Contribute code, ideas, and passion to Code on the Go.</string>
   <string name="msg_app_unavailable_for_intent">No application available to handle intent.</string>

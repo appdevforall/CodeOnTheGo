@@ -105,7 +105,7 @@ sentry.properties
 
 # Generated files for tooling API
 tests/test-home
-/tests/**/.androidide/init/model.jar
+/tests/**/.cg/init/model.jar
 
 /composite-builds/build-deps-common/constants/build/
 /composite-builds/build-deps/build/
@@ -152,10 +152,43 @@ gradle-plugin/bin/
 logger/bin/
 lookup/bin/
 shared/bin/
-llama-api/bin/
 subprojects/**/bin/
 testing/**/bin/
 
 # checksum files
 .checksum/
 
+# Compose preview downloaded JARs (generated during build)
+compose-preview/src/main/assets/compose/
+
+# Generated stdlib index (generated at build time by :lsp:kotlin-stdlib-generator)
+lsp/kotlin/src/main/resources/stdlib-index.json
+
+# Large asset files (bootstrap, SDK archives, databases, dependencies)
+assets/bootstrap-*.zip
+assets/android-sdk-*.zip
+assets/release/**/data/**/*.zip.br
+assets/release/**/dynamic_libs/
+assets/documentation.db
+assets/localMvnRepository.zip
+assets/gradle-*.zip
+app/src/release/assets/database/documentation.db
+app/src/main/assets/database/documentation
+app/src/main/assets/database/documentation.db
+
+# AI plugin development artifacts (moved to plugin-examples repo)
+*.cgp
+*-logs.txt
+logs*.txt
+screenshot*.png
+agent-tab*.png
+ai-assistant-plugin.md
+agent-to-plugin-migration.md
+BUILD_*.md
+EMBEDDING_*.md
+LLAMA_*.md
+MACOS_*.md
+NATIVE_*.md
+TEST_*.md
+assets-*.zip
+dynamic_libs/*.aar.br

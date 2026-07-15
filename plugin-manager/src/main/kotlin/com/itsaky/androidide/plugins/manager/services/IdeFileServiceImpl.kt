@@ -1,9 +1,13 @@
 package com.itsaky.androidide.plugins.manager.services
 
+import com.itsaky.androidide.eventbus.events.filetree.PluginFilesChangedEvent
 import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.services.IdeFileService
-import com.itsaky.androidide.utils.Environment
+import org.greenrobot.eventbus.EventBus
+import java.io.BufferedInputStream
 import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
 
 class IdeFileServiceImpl(
     private val pluginId: String,
@@ -16,16 +20,9 @@ class IdeFileServiceImpl(
         fun getAllowedPaths(): List<String>
     }
 
-    private val requiredPermissions = setOf(PluginPermission.FILESYSTEM_WRITE)
-
     override fun readFile(file: File): String? {
-        if (!hasRequiredPermissions()) {
-            throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
-        }
-
-        if (!isPathAllowed(file)) {
-            throw SecurityException("Plugin $pluginId does not have access to path: ${file.absolutePath}")
-        }
+        ensureWritePermission()
+        ensurePathAllowed(file)
 
         return try {
             if (file.exists() && file.isFile) {
@@ -39,17 +36,13 @@ class IdeFileServiceImpl(
     }
 
     override fun writeFile(file: File, content: String): Boolean {
-        if (!hasRequiredPermissions()) {
-            throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
-        }
-
-        if (!isPathAllowed(file)) {
-            throw SecurityException("Plugin $pluginId does not have access to path: ${file.absolutePath}")
-        }
+        ensureWritePermission()
+        ensurePathAllowed(file)
 
         return try {
             file.parentFile?.mkdirs()
             file.writeText(content)
+            notifyFilesChanged(file)
             true
         } catch (e: Exception) {
             false
@@ -57,17 +50,13 @@ class IdeFileServiceImpl(
     }
 
     override fun appendToFile(file: File, content: String): Boolean {
-        if (!hasRequiredPermissions()) {
-            throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
-        }
-
-        if (!isPathAllowed(file)) {
-            throw SecurityException("Plugin $pluginId does not have access to path: ${file.absolutePath}")
-        }
+        ensureWritePermission()
+        ensurePathAllowed(file)
 
         return try {
             file.parentFile?.mkdirs()
             file.appendText(content)
+            notifyFilesChanged(file)
             true
         } catch (e: Exception) {
             false
@@ -75,13 +64,8 @@ class IdeFileServiceImpl(
     }
 
     override fun insertAfterPattern(file: File, pattern: String, content: String): Boolean {
-        if (!hasRequiredPermissions()) {
-            throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
-        }
-
-        if (!isPathAllowed(file)) {
-            throw SecurityException("Plugin $pluginId does not have access to path: ${file.absolutePath}")
-        }
+        ensureWritePermission()
+        ensurePathAllowed(file)
 
         return try {
             val fileContent = file.readText()
@@ -102,13 +86,8 @@ class IdeFileServiceImpl(
     }
 
     override fun replaceInFile(file: File, oldText: String, newText: String): Boolean {
-        if (!hasRequiredPermissions()) {
-            throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
-        }
-
-        if (!isPathAllowed(file)) {
-            throw SecurityException("Plugin $pluginId does not have access to path: ${file.absolutePath}")
-        }
+        ensureWritePermission()
+        ensurePathAllowed(file)
 
         return try {
             val fileContent = file.readText()
@@ -125,44 +104,129 @@ class IdeFileServiceImpl(
         }
     }
 
-    private fun hasRequiredPermissions(): Boolean {
-        return requiredPermissions.all { permission ->
-            permissions.contains(permission)
+    override fun writeBinary(file: File, data: ByteArray): Boolean {
+        ensureWritePermission()
+        ensurePathAllowed(file)
+
+        return try {
+            file.parentFile?.mkdirs()
+            file.writeBytes(data)
+            notifyFilesChanged(file)
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 
-    private fun getRequiredPermissionsString(): String {
-        return requiredPermissions.joinToString(", ") { it.name }
+    override fun writeStream(file: File, input: InputStream): Long {
+        ensureWritePermission()
+        ensurePathAllowed(file)
+
+        return try {
+            file.parentFile?.mkdirs()
+            val written = BufferedInputStream(input).use { buffered ->
+                FileOutputStream(file).use { output ->
+                    copyInterruptible(buffered, output)
+                }
+            }
+            notifyFilesChanged(file)
+            written
+        } catch (e: Exception) {
+            FAILED_WRITE
+        }
     }
+
+    override fun delete(file: File): Boolean {
+        ensureWritePermission()
+        ensurePathAllowed(file)
+
+        return try {
+            if (!file.exists()) {
+                return true
+            }
+            val deleted = if (file.isDirectory) {
+                file.deleteRecursively()
+            } else {
+                file.delete()
+            }
+            if (deleted) {
+                notifyFilesChanged(file)
+            }
+            deleted
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    override fun listFiles(dir: File?, recursive: Boolean): List<File> {
+        ensureWritePermission()
+        val targetDir = dir ?: File(".")
+        ensurePathAllowed(targetDir)
+
+        return try {
+            if (!targetDir.exists() || !targetDir.isDirectory) {
+                emptyList()
+            } else if (recursive) {
+                targetDir.walk().filter { it != targetDir }.toList()
+            } else {
+                targetDir.listFiles()?.toList() ?: emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun copyInterruptible(input: InputStream, output: FileOutputStream): Long {
+        val buffer = ByteArray(COPY_BUFFER_SIZE)
+        var total = 0L
+        while (true) {
+            if (Thread.interrupted()) {
+                throw InterruptedException("Stream copy interrupted")
+            }
+            val read = input.read(buffer)
+            if (read <= 0) break
+            output.write(buffer, 0, read)
+            total += read
+        }
+        output.flush()
+        return total
+    }
+
+    private fun notifyFilesChanged(file: File) {
+        // Refresh the file tree; guarded so a missing EventBus can't break the write action      .
+        runCatching { EventBus.getDefault().post(PluginFilesChangedEvent(file)) }
+    }
+
+    private fun ensureWritePermission() {
+        if (!hasAnyWritePermission()) {
+            throw SecurityException(
+                "Plugin $pluginId does not have required permissions: ${writePermissions.joinToString(", ") { it.name }}"
+            )
+        }
+    }
+
+    private fun ensurePathAllowed(path: File) {
+        if (!isPathAllowed(path)) {
+            throw SecurityException("Plugin $pluginId does not have access to path: ${path.absolutePath}")
+        }
+    }
+
+    private fun hasAnyWritePermission(): Boolean =
+        writePermissions.any { it in permissions }
 
     private fun isPathAllowed(path: File): Boolean {
         pathValidator?.let { validator ->
             return validator.isPathAllowed(path)
         }
-
-        return isPathAllowedDefault(path)
+        return PluginPathAllowlist.isAllowed(path, permissions, pluginId)
     }
 
-    private fun isPathAllowedDefault(path: File): Boolean {
-        val allowedPaths = getDefaultAllowedPaths()
-
-        val canonicalPath = try {
-            path.canonicalPath
-        } catch (e: Exception) {
-            return false
-        }
-
-        return allowedPaths.any { allowedPath ->
-            canonicalPath.startsWith(allowedPath)
-        }
-    }
-
-    private fun getDefaultAllowedPaths(): List<String> {
-        return listOf(
-            "/storage/emulated/0/${Environment.PROJECTS_FOLDER}",
-            "/sdcard/${Environment.PROJECTS_FOLDER}",
-            System.getProperty("user.home", "/") + "/${Environment.PROJECTS_FOLDER}",
-            "/tmp/CodeOnTheGoProject"
+    private companion object {
+        const val COPY_BUFFER_SIZE = 64 * 1024
+        const val FAILED_WRITE = -1L
+        val writePermissions = setOf(
+            PluginPermission.FILESYSTEM_WRITE,
+            PluginPermission.IDE_ENVIRONMENT_WRITE
         )
     }
 }

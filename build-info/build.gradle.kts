@@ -23,6 +23,7 @@ import com.itsaky.androidide.build.config.ProjectConfig
 import com.itsaky.androidide.build.config.VersionUtils
 import com.itsaky.androidide.build.config.downloadVersion
 import com.itsaky.androidide.build.config.publishingVersion
+import com.itsaky.androidide.build.config.releaseVersion
 import com.itsaky.androidide.build.config.replaceContents
 import com.itsaky.androidide.build.config.simpleVersionName
 
@@ -57,14 +58,15 @@ tasks.create("generateBuildInfo") {
 					"MVN_GROUP_ID" to BuildConfig.PACKAGE_NAME,
 					"VERSION_NAME" to rootProject.version.toString(),
 					"VERSION_NAME_SIMPLE" to rootProject.simpleVersionName,
+					"RELEASE_VERSION" to rootProject.releaseVersion,
 					"VERSION_NAME_PUBLISHING" to rootProject.publishingVersion,
 					"VERSION_NAME_DOWNLOAD" to rootProject.downloadVersion,
 					"FDROID_BUILD" to FDroidConfig.isFDroidBuild.toString(),
 					"FDROID_BUILD_VERSION_NAME" to (FDroidConfig.fDroidVersionName ?: "null"),
 					"FDROID_BUILD_VERSION_CODE" to (FDroidConfig.fDroidVersionCode ?: -1).toString(),
 					"CI_BUILD" to CI.isCiBuild.toString(),
-					"CI_GIT_BRANCH" to CI.branchName,
-					"CI_COMMIT_HASH" to CI.commitHash,
+					"CI_GIT_BRANCH" to CI.branchName(project),
+					"CI_COMMIT_HASH" to CI.commitHash(project),
 					"REPO_HOST" to ProjectConfig.REPO_HOST,
 					"REPO_OWNER" to ProjectConfig.REPO_OWNER,
 					"REPO_NAME" to ProjectConfig.REPO_NAME,

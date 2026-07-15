@@ -19,6 +19,7 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import androidx.annotation.IdRes
 import androidx.core.view.forEach
@@ -51,6 +52,8 @@ import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.actions.PluginSidebarActionItem
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
+import org.greenrobot.eventbus.EventBus
 import java.lang.ref.WeakReference
 
 /**
@@ -65,6 +68,10 @@ object ContactDetails {
 }
 
 internal object EditorSidebarActions {
+
+    private var previousDestinationListener: NavController.OnDestinationChangedListener? = null
+    private var previousNavController: WeakReference<NavController>? = null
+
     @JvmStatic
     fun registerActions(context: Context) {
         val registry = ActionsRegistry.getInstance()
@@ -145,7 +152,7 @@ internal object EditorSidebarActions {
 
             if (view != null && action != null) {
                 val tag = action.retrieveTooltipTag(false)
-                sidebarFragment.setupTooltip(view, tag)
+                sidebarFragment.setupTooltip(view, tag, action.retrieveTooltipCategory())
             }
         }
 
@@ -174,27 +181,33 @@ internal object EditorSidebarActions {
             }
         }
 
+        previousDestinationListener?.let { stale ->
+            previousNavController?.get()?.removeOnDestinationChangedListener(stale)
+        }
+
         val railRef = WeakReference(rail)
-        controller.addOnDestinationChangedListener(
-            object : NavController.OnDestinationChangedListener {
-                override fun onDestinationChanged(
-                    controller: NavController,
-                    destination: NavDestination,
-                    arguments: Bundle?
-                ) {
-                    val railView = railRef.get()
-                    if (railView == null) {
-                        controller.removeOnDestinationChangedListener(this)
-                        return
-                    }
-                    railView.menu.forEach { item ->
-                        if (destination.matchDestination(item.itemId)) {
-                            item.isChecked = true
-                            titleRef.get()?.text = item.title
-                        }
+        val destinationListener = object : NavController.OnDestinationChangedListener {
+            override fun onDestinationChanged(
+                controller: NavController,
+                destination: NavDestination,
+                arguments: Bundle?
+            ) {
+                val railView = railRef.get()
+                if (railView == null) {
+                    controller.removeOnDestinationChangedListener(this)
+                    return
+                }
+                railView.menu.forEach { item ->
+                    if (destination.matchDestination(item.itemId)) {
+                        item.isChecked = true
+                        titleRef.get()?.text = item.title
                     }
                 }
-            })
+            }
+        }
+        controller.addOnDestinationChangedListener(destinationListener)
+        previousDestinationListener = destinationListener
+        previousNavController = WeakReference(controller)
 
         rail.menu.findItem(FileTreeSidebarAction.ID.hashCode())?.also {
             it.isChecked = true
@@ -241,21 +254,37 @@ internal object EditorSidebarActions {
             .filterIsInstance<UIExtension>()
             .forEach { plugin ->
                 val pluginId = pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin)
-                val declaredSlots = SidebarSlotManager.getDeclaredSlots(pluginId ?: "")
-                val sideMenuItems = plugin.getSideMenuItems()
+                    ?: return@forEach
 
-                if (sideMenuItems.isEmpty()) return@forEach
+                try {
+                    val declaredSlots = SidebarSlotManager.getDeclaredSlots(pluginId)
+                    val sideMenuItems = plugin.getSideMenuItems()
 
-                if (sideMenuItems.size > declaredSlots) {
-                    throw IllegalStateException(
-                        "Plugin '$pluginId' returned ${sideMenuItems.size} sidebar items " +
-                        "but only declared $declaredSlots in manifest"
+                    if (sideMenuItems.isEmpty()) return@forEach
+
+                    if (sideMenuItems.size > declaredSlots) {
+                        Log.w("EditorSidebarActions",
+                            "Plugin '$pluginId' returned ${sideMenuItems.size} sidebar items " +
+                            "but only declared $declaredSlots in manifest — skipping"
+                        )
+                        return@forEach
+                    }
+
+                    sideMenuItems.forEach { navItem ->
+                        val action = PluginSidebarActionItem(context, navItem, order++, pluginId)
+                        registry.registerAction(action)
+                    }
+                } catch (e: Exception) {
+                    Log.e("EditorSidebarActions", "Plugin '$pluginId' crashed in getSideMenuItems()", e)
+                    val result = pluginManager.recordPluginCrash(pluginId)
+                    val wasDisabled = result is PluginManager.CrashResult.Disabled
+                    val crashCount = when (result) {
+                        is PluginManager.CrashResult.Recorded -> result.crashCount
+                        is PluginManager.CrashResult.Disabled -> pluginManager.crashTracker.getCrashCount(pluginId)
+                    }
+                    EventBus.getDefault().post(
+                        PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, Log.getStackTraceString(e))
                     )
-                }
-
-                sideMenuItems.forEach { navItem ->
-                    val action = PluginSidebarActionItem(context, navItem, order++)
-                    registry.registerAction(action)
                 }
             }
     }

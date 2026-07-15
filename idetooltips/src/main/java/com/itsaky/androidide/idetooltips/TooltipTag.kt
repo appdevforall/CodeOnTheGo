@@ -11,12 +11,14 @@ object TooltipTag {
 	const val EDITOR_TOOLBAR_COPY = "editor.toolbar.copy"
 	const val EDITOR_TOOLBAR_OUTPUT_COPY = "output.selection.copy"
 	const val EDITOR_TOOLBAR_CUT = "editor.toolbar.cut"
-	const val EDITOR_TOOLBAR_EXPAND_SELECTION = "editor.toolbar.expandselection"
+	const val EDITOR_TOOLBAR_EXPAND_SELECTION = "editor.toolbar.expandselect"
 	const val EDITOR_TOOLBAR_LONG_SELECT = "editor.toolbar.longselect"
 	const val EDITOR_TOOLBAR_PASTE = "editor.toolbar.paste"
 	const val EDITOR_TOOLBAR_SELECT_ALL = "editor.toolbar.selectall"
 	const val EDITOR_TOOLBAR_OUTPUT_SELECT_ALL = "output.selection.selectall"
+  const val EDITOR_TOOLBAR_FORMAT_CODE = "editor.toolbar.formatcode"
 	const val EDITOR_TOOLBAR_HELP = "editor.toolbar.help"
+	const val EDITOR_TOOLBAR_AI = "editor.toolbar.ai"
 	const val PROJECT_APP_LOGS = "project.applogs"
 	const val PROJECT_IDE_LOGS = "project.idelogs"
 	const val PROJECT_SEARCH_RESULTS = "project.searchresults"
@@ -37,6 +39,7 @@ object TooltipTag {
     const val PREFS_TERMUX = "prefs.termux"
     const val PREFS_EDITOR_XML = "prefs.editor.xml"
     const val PREFS_DEVELOPER = "prefs.developer"
+    const val PLUGIN_MANAGER = "plugin.manager"
     const val TEMPLATE_TABBED_ACTIVITY = "template.tabbed.activity"
     const val TEMPLATE_LEGACY_PROJECT = "template.legacy.project"
     const val TEMPLATE_EMPTY_ACTIVITY = "template.empty.activity"
@@ -45,6 +48,7 @@ object TooltipTag {
     const val TEMPLATE_BASIC_ACTIVITY = "template.basic.activity"
     const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
     const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
+    const val TEMPLATE_NDK_ACTIVITY = "template.ndk.activity"
 
     // Editor screen
     const val EDITOR_PROJECT_OVERVIEW = "project.overview"
@@ -75,6 +79,9 @@ object TooltipTag {
     const val MAIN_PROJECT_DELETE = "main.project.delete"
     const val MAIN_HELP = "main.help"
     const val FEEDBACK = "feedback"
+    const val MAIN_PREFERENCES = "main.prefs"
+    const val MAIN_TERMINAL = "main.terminal"
+    const val MAIN_GIT = "main.git"
 
     // Editor toolbar
     const val EDITOR_TOOLBAR_NAV_ICON = "project.menu"
@@ -89,7 +96,15 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_REDO = "editor.redo"
     const val EDITOR_TOOLBAR_QUICK_SAVE = "project.save"
     const val EDITOR_TOOLBAR_PREVIEW_LAYOUT = "editor.layout.preview"
+    const val EDITOR_TOOLBAR_PREVIEW_COMPOSE = "editor.compose.preview"
     const val EDITOR_TOOLBAR_COMPUTER_VISION = "project.layout.vision"
+    const val EDITOR_TOOLBAR_LOG_SENDER = "editor.disconnect.logsenders"
+
+    // Floating window chrome
+    const val WINDOW_MINIMIZE = "window-min"
+    const val WINDOW_MAXIMIZE = "window-max"
+    const val WINDOW_DOCK = "window-dock"
+    const val WINDOW_UNDOCK = "window-undock"
 
     // Delete project
     const val DELETE_PROJECT = "project.delete"
@@ -149,4 +164,26 @@ object TooltipTag {
     const val DEBUGGER_ACTION_STEP_OUT = "debug.toolbar.stepout"
     const val DEBUGGER_ACTION_KILL = "debug.toolbar.kill"
     const val DEBUGGER_ACTION_RESTART = "debug.toolbar.restart"
+
+    const val PROJECT_PLUGIN_TAB = "project.plugin.tab"
+
+    // Git
+    const val GIT_DOWNLOAD_SCREEN = "git.download"
+    const val GIT_PREFS = "git.prefs"
+    const val PROJECT_GIT = "project.git"
+    const val PROJECT_GIT_SUMMARY = "project.git.summary"
+    const val PROJECT_GIT_DESCRIPTION = "project.git.description"
+    const val PROJECT_GIT_FILES = "project.git.files"
+    const val PROJECT_GIT_ID = "project.git.id"
+    const val PROJECT_GIT_COMMIT = "project.git.commit"
+    const val PROJECT_GIT_COMMIT_HISTORY = "project.git.commit.history"
+    const val PROJECT_GIT_ABORT = "project.git.abort"
+    const val GIT_COMMIT_HISTORY = "git.commit.history"
+    const val GIT_DIALOG_SAVE = "git.dialog.save"
+    const val GIT_DIALOG_MERGE_CONFLICTS = "git.dialog.mergeconflicts"
+    const val GIT_DIALOG_PULL_FAIL = "git.dialog.pullfail"
+    const val GIT_DIALOG_PUSH_FAIL = "git.dialog.pushfail"
+    const val GIT_DIALOG_ABORT_MERGE = "git.dialog.abortmerge"
+    const val GIT_PUSH = "git.action.push"
+    const val GIT_PULL = "git.action.pull"
 }

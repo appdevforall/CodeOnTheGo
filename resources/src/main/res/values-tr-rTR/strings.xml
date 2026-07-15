@@ -282,7 +282,7 @@
   <string name="xml_formatting_options">XML biçimlendirme seçenekleri</string>
   <string name="xml_formatting_options_summary">XML biçimlendiriciyi yapılandır</string>
   <string name="idepref_customFont_title">Kişisel yazı tipi kullan</string>
-  <string name="idepref_customFont_summary">Eğer etkinleştirilmişse \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" konumundaki dosya Düzenleyici yazı tipi olarak kullanılacak.</string>
+  <string name="idepref_customFont_summary">Eğer etkinleştirilmişse \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" konumundaki dosya Düzenleyici yazı tipi olarak kullanılacak.</string>
   <string name="msg_installing_apk">APK kuruluyor...</string>
   <string name="msg_action_open_application">Uygulamayı açmak ister misiniz?</string>
   <string name="title_gradle_service_notification_channel">Code on the Go Gradle inşa servisi</string>
@@ -399,7 +399,7 @@
   <string name="idepref_devOptions_summary">Code on the Go için deneysel/hata ayıklama seçenekleri</string>
   <string name="idepref_group_debugging">Hata ayıklama</string>
   <string name="idepref_devOptions_dumpLogs_title">Günlükleri kaydet</string>
-  <string name="idepref_devOptions_dumpLogs_summary">$HOME/.androidide/logs içine Code on the Go günlüklerini kaydet</string>
+  <string name="idepref_devOptions_dumpLogs_summary">$HOME/.cg/logs içine Code on the Go günlüklerini kaydet</string>
   <string name="msg_emptyview_applogs">Uygulamanızın günlüklerini burada görüntülemek için debug varyantını çalıştırın.</string>
   <string name="msg_logsender_disabled">LogSender devre dışı. Ayarlardan etkinleştirebilirsiniz.</string>
   <string name="msg_emptyview_idelogs">IDE\'den günlükler burada görünür.</string>
@@ -466,11 +466,6 @@
   <string name="title_install_location_error">Yükleme konumu hatası</string>
   <string name="title_unsupported_user">Desteklenmeyen kullanıcı</string>
   <string name="title_socials">Sosyal Medya</string>
-  <string name="title_contributors">Katkı sağlayanlar</string>
-  <string name="summary_contributors">En çok katkıda bulunan topluluk üyeleri.</string>
-  <string name="title_github_contributors">GitHub\'dan Katkıda Bulunanlar</string>
-  <string name="title_crowdin_translators">Crowdin Çevirmenleri</string>
-  <string name="title_misc">Diğerleri</string>
   <string name="title_contribute">Katkıda bulun</string>
   <string name="summary_contribute">Bu sadece bir IDE değil, aynı zamanda bir topluluktur. Android IDE\'ye kod, fikirler ve tutku ile katkıda bulunun.</string>
   <string name="msg_app_unavailable_for_intent">Bu çağrıyı işleyebilecek bir uygulama yok.</string>

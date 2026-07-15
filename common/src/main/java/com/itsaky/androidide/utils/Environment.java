@@ -25,9 +25,12 @@ import androidx.annotation.NonNull;
 import com.blankj.utilcode.util.FileUtils;
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.buildinfo.BuildInfo;
+import com.itsaky.androidide.javac.config.JavacConfigProvider;
+
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.adfa.constants.ConstantsKt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,11 +42,13 @@ public final class Environment {
 	public static final String DEFAULT_HOME = DEFAULT_ROOT + "/home";
 	private static final String DEFAULT_ANDROID_HOME = DEFAULT_HOME + "/android-sdk";
 	public static final String GRADLE_CACHE_DIR = DEFAULT_HOME + "/.gradle";
-	private static final String ANDROID_JAR_HOME = DEFAULT_ANDROID_HOME + "/platforms/android-33";
+	private static final String ANDROID_JAR_HOME = DEFAULT_ANDROID_HOME + "/platforms/android-" + ConstantsKt.getCOMPILE_SDK_VERSION().getApi();
 	public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
 	public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/lib/jvm/java-21-openjdk";
 	private static final String ANDROIDIDE_PROJECT_CACHE_DIR = SharedEnvironment.PROJECT_CACHE_DIR_NAME;
 	private static final String DATABASE_NAME = "documentation.db";
+
+	public static final String BUILD_TOOLS_VERSION = "35.0.0";
 
 	public static final String PLUGIN_API_JAR_RELATIVE_PATH = "libs/plugin-api.jar";
 
@@ -55,6 +60,7 @@ public final class Environment {
 	public static File HOME;
 	public static File ANDROIDIDE_HOME;
 	public static File ANDROIDIDE_UI;
+	public static File COMPOSE_HOME;
 	public static File JAVA_HOME;
 	public static File ANDROID_HOME;
 	public static File TMP_DIR;
@@ -81,6 +87,7 @@ public final class Environment {
 
 	public static File INIT_SCRIPT;
 	public static File GRADLE_USER_HOME;
+	public static File BUILD_TOOLS_DIR;
 	public static File AAPT2;
 	public static File JAVA;
 	public static File BASH_SHELL;
@@ -112,12 +119,20 @@ public final class Environment {
 			"PL", "PT", "RO", "SK", "SI", "ES", "SE"
 	};
 
+	public static final String NDK_TAR_XZ = "ndk-cmake.tar.xz";
+	public static File NDK_DIR;
+
+	public static File TEMPLATES_DIR;
+	public static File SNIPPETS_DIR;
+
 	public static String getArchitecture() {
 		return IDEBuildConfigProvider.getInstance().getCpuAbiName();
 	}
 
 	public static File getProjectCacheDir(File projectDir) {
-		return new File(projectDir, ANDROIDIDE_PROJECT_CACHE_DIR);
+		File current = new File(projectDir, ANDROIDIDE_PROJECT_CACHE_DIR);
+		File legacy = new File(projectDir, SharedEnvironment.LEGACY_PROJECT_CACHE_DIR_NAME);
+		return LegacyIdeDataDirMigration.migrateLegacyIdeDataDirIfNeeded(legacy, current);
 	}
 
 	public static void init(Context context) {
@@ -132,7 +147,11 @@ public final class Environment {
 		ROOT = mkdirIfNotExists(new File(DEFAULT_ROOT));
 		PREFIX = mkdirIfNotExists(new File(ROOT, "usr"));
 		HOME = mkdirIfNotExists(new File(ROOT, "home"));
-		ANDROIDIDE_HOME = mkdirIfNotExists(new File(HOME, ".androidide"));
+		File ideHomeCandidate = new File(HOME, SharedEnvironment.PROJECT_CACHE_DIR_NAME);
+		File legacyIdeHome = new File(HOME, SharedEnvironment.LEGACY_PROJECT_CACHE_DIR_NAME);
+		File ideHomeResolved =
+				LegacyIdeDataDirMigration.migrateLegacyIdeDataDirIfNeeded(legacyIdeHome, ideHomeCandidate);
+		ANDROIDIDE_HOME = mkdirIfNotExists(ideHomeResolved);
 		TMP_DIR = mkdirIfNotExists(new File(PREFIX, "tmp"));
 		BIN_DIR = mkdirIfNotExists(new File(PREFIX, "bin"));
 		OPT_DIR = mkdirIfNotExists(new File(PREFIX, "opt"));
@@ -149,6 +168,7 @@ public final class Environment {
 		PLUGIN_API_JAR = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "plugin-api")),
 				"plugin-api.jar");
 		ANDROIDIDE_UI = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "ui"));
+		COMPOSE_HOME = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "compose"));
 
 		INIT_SCRIPT = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "init")), "init.gradle");
 		GRADLE_USER_HOME = new File(HOME, ".gradle");
@@ -156,7 +176,8 @@ public final class Environment {
 		ANDROID_HOME = new File(DEFAULT_ANDROID_HOME);
 		JAVA_HOME = new File(DEFAULT_JAVA_HOME);
 
-		AAPT2 = new File(ANDROID_HOME, "build-tools/35.0.0/aapt2");
+		BUILD_TOOLS_DIR = new File(ANDROID_HOME, "build-tools/" + BUILD_TOOLS_VERSION);
+		AAPT2 = new File(BUILD_TOOLS_DIR, "aapt2");
 
 		JAVA = new File(JAVA_HOME, "bin/java");
 		BASH_SHELL = new File(BIN_DIR, "bash");
@@ -175,6 +196,14 @@ public final class Environment {
 		KEYSTORE_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "keystore"));
 		KEYSTORE_RELEASE = new File(KEYSTORE_DIR, KEYSTORE_RELEASE_NAME);
 		KEYSTORE_PROPERTIES = new File(KEYSTORE_DIR, KEYSTORE_PROPERTIES_NAME);
+
+		NDK_DIR = new File(ANDROID_HOME, "ndk");
+
+		TEMPLATES_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "templates"));
+		SNIPPETS_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "snippets"));
+
+		// required by Java and Kotlin LSP
+		System.setProperty(JavacConfigProvider.PROP_ANDROIDIDE_JAVA_HOME, JAVA_HOME.getAbsolutePath());
 
 		isInitialized.set(true);
 	}

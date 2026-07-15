@@ -1,17 +1,24 @@
 package com.itsaky.androidide.fragments
 
+import android.animation.ValueAnimator
 import android.os.Bundle
+import android.transition.AutoTransition
+import android.transition.TransitionManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
+import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.activityViewModels
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.chip.Chip
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
@@ -27,8 +34,8 @@ import com.itsaky.androidide.utils.Environment.PROJECTS_DIR
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
+import com.itsaky.androidide.viewmodel.FilterState
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
-import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.viewmodel.SortCriteria
 import com.itsaky.androidide.ui.ProjectInfoBottomSheet
 import io.sentry.Sentry
@@ -37,9 +44,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.appdevforall.codeonthego.layouteditor.ProjectFile
+import com.itsaky.androidide.models.ProjectFile
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.findValidProjects
+import com.itsaky.androidide.utils.isProjectCandidateDir
+import com.itsaky.androidide.utils.isValidProjectDirectory
+import com.itsaky.androidide.utils.isValidProjectOrContainerDirectory
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
@@ -48,11 +58,12 @@ class RecentProjectsFragment : BaseFragment() {
     private val binding get() = _binding!!
 
 	private val viewModel: RecentProjectsViewModel by activityViewModels()
-	private val mainViewModel: MainViewModel by activityViewModels()
+	private val mainViewModel: MainViewModel by activityViewModel()
 	private lateinit var adapter: RecentProjectsAdapter
 	private var selectedCriteria: SortCriteria? = null
 	private var selectedAsc = true
 	private val searchQuery = MutableStateFlow("")
+	private var filtersDialog: BottomSheetDialog? = null
 
 	data class SortToggleStyle(
 		val iconRes: Int,
@@ -77,8 +88,10 @@ class RecentProjectsFragment : BaseFragment() {
 		setupSearchBar()
 		setupObservers()
 		setupClickListeners()
+		setupFilterChips()
         bootstrapFromFixedFolderIfNeeded()
         observeDeletionStatus()
+        observeRenameStatus()
 	}
 
 	private fun setupRecyclerView() {
@@ -95,10 +108,8 @@ class RecentProjectsFragment : BaseFragment() {
 		dialog.setContentView(sheet)
 		setupFilters(sheet)
 
-		viewLifecycleScope.launch {
-			viewModel.filterEvents.collect { dialog.dismiss() }
-		}
-
+		dialog.setOnDismissListener { filtersDialog = null }
+		filtersDialog = dialog
 		dialog.show()
 	}
 
@@ -175,12 +186,7 @@ class RecentProjectsFragment : BaseFragment() {
 		sortDropdown: MaterialAutoCompleteTextView,
 		sortToggleBtn: MaterialButton
 	) {
-		val labelRes = when (selectedCriteria) {
-			SortCriteria.NAME -> R.string.sort_by_name
-			SortCriteria.DATE_CREATED -> R.string.sort_by_created
-			SortCriteria.DATE_MODIFIED -> R.string.sort_by_modified
-			null -> null
-		}
+		val labelRes = selectedCriteria?.labelRes()
 
 		if (labelRes != null) {
 			sortDropdown.setText(getString(labelRes), false)
@@ -218,8 +224,95 @@ class RecentProjectsFragment : BaseFragment() {
 		setupSortToggle(button, selectedAsc)
 	}
 
+	/**
+	 * Reflects the active sort/search as removable chips and toggles the filter button's
+	 * active dot. Driven by the view model so it stays in sync with the filters sheet,
+	 * the search bar, and clearing.
+	 */
+	private fun setupFilterChips() {
+		viewLifecycleScope.launch {
+			viewModel.filterState.collect { renderActiveFilters(it) }
+		}
+		viewLifecycleScope.launch {
+			viewModel.filterEvents.collect { filtersDialog?.dismiss() }
+		}
+	}
 
-    private fun File.isProjectCandidateDir(): Boolean = isDirectory && canRead() && !name.startsWith(".") && !isHidden
+	private fun renderActiveFilters(state: FilterState) {
+		val filters = _binding?.layoutFilters ?: return
+		val group = filters.activeFiltersGroup
+
+		beginFilterBarTransition(filters.root as? ViewGroup)
+
+		group.removeAllViews()
+
+		state.sort?.let { criteria ->
+			val arrow = if (state.ascending) "↑" else "↓"
+			group.addView(
+				buildFilterChip(
+					text = "${getString(criteria.labelRes())} $arrow",
+					removeDescRes = R.string.filter_chip_remove_sort,
+					onClick = { openFiltersSheet() },
+				) {
+					viewLifecycleScope.launch { viewModel.clearSort() }
+				},
+			)
+		}
+
+		if (state.query.isNotEmpty()) {
+			group.addView(
+				buildFilterChip(
+					text = "“${state.query}”",
+					removeDescRes = R.string.filter_chip_remove_search,
+					onClick = { focusSearchField() },
+				) {
+					filters.searchProjectEditText.text?.clear()
+				},
+			)
+		}
+
+		filters.activeFiltersScroll.isVisible = group.childCount > 0
+		filters.filtersActiveDot.isVisible = state.hasAny
+		filters.openFiltersBtn.contentDescription = if (state.hasAny) {
+			"${getString(R.string.sort_projects_label)}, ${getString(R.string.filters_active)}"
+		} else {
+			getString(R.string.sort_projects_label)
+		}
+	}
+
+	private fun focusSearchField() {
+		val editText = binding.layoutFilters.searchProjectEditText
+		editText.requestFocus()
+		ContextCompat.getSystemService(requireContext(), InputMethodManager::class.java)
+			?.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
+	}
+
+	private fun buildFilterChip(
+		text: String,
+		removeDescRes: Int,
+		onClick: () -> Unit,
+		onRemove: () -> Unit,
+	): Chip {
+		val chip = layoutInflater.inflate(
+			R.layout.chip_active_filter,
+			binding.layoutFilters.activeFiltersGroup,
+			false,
+		) as Chip
+		chip.text = text
+		chip.closeIconContentDescription = getString(removeDescRes)
+		chip.setOnCloseIconClickListener { onRemove() }
+		chip.setOnClickListener { onClick() }
+		return chip
+	}
+
+	private fun beginFilterBarTransition(scene: ViewGroup?) {
+		if (scene != null && ValueAnimator.areAnimatorsEnabled()) {
+			TransitionManager.beginDelayedTransition(scene, AutoTransition().setDuration(180))
+		}
+	}
+
+
+
 
     private fun bootstrapFromFixedFolderIfNeeded() {
         if (viewModel.didBootstrap) return
@@ -231,40 +324,10 @@ class RecentProjectsFragment : BaseFragment() {
                 if (validProjects.isEmpty()) return@launch
 
                 loadProjectsIntoViewModel(validProjects)
-
-                if (GeneralPreferences.autoOpenProjects) {
-                    val lastOpenedPath = GeneralPreferences.lastOpenedProject
-
-                    val projectToOpen = validProjects.find {
-                        it.absolutePath == lastOpenedPath
-                    }
-
-                    if (projectToOpen != null) {
-                        withContext(Dispatchers.Main) { openProject(projectToOpen) }
-                        return@launch
-                    }
-
-                    val lastCreated = validProjects.maxByOrNull { it.lastModified() }
-
-                    if (lastCreated != null) {
-                        withContext(Dispatchers.Main) { openProject(lastCreated) }
-                    }
-                }
             } catch (e: Throwable) {
                 Sentry.captureException(e)
             }
         }
-    }
-
-    private fun findValidProjects(projectsRoot: File): List<File> {
-        if (!projectsRoot.isProjectCandidateDir()) return emptyList()
-
-        val subdirs = projectsRoot.listFiles()
-            ?.filter { it.isProjectCandidateDir() }
-            .orEmpty()
-        if (subdirs.isEmpty()) return emptyList()
-
-        return subdirs.filter { dir -> isValidProjectDirectory(dir) }
     }
 
     private suspend fun loadProjectsIntoViewModel(projects: List<File>) {
@@ -310,11 +373,6 @@ class RecentProjectsFragment : BaseFragment() {
 			// Is the current folder a valid android project?
 			// Yes: Then open it.
 			if (isValidProjectDirectory(directory)) {
-				viewModel.insertProjectFromFolder(
-					name = directory.name,
-					location = directory.absolutePath
-				)
-
 				openProject(root = directory)
 				return
 			}
@@ -365,7 +423,8 @@ class RecentProjectsFragment : BaseFragment() {
 					onProjectClick = ::openProject,
           onRemoveProjectClick = viewModel::deleteProject,
 					onFileRenamed = viewModel::updateProject,
-					onInfoClick = { project -> openProjectInfo(project) }
+					onInfoClick = { project -> openProjectInfo(project) },
+					nameExists = viewModel::projectNameExists
 				)
 				binding.listProjects.adapter = adapter
 			} else {
@@ -394,43 +453,6 @@ class RecentProjectsFragment : BaseFragment() {
                 }
             }
         }
-    }
-
-	fun isValidProjectDirectory(selectedDir: File): Boolean {
-        if (isPluginProject(selectedDir)) {
-            return true
-        }
-
-        val appFolder = File(selectedDir, "app")
-        val buildGradleFile = File(appFolder, "build.gradle")
-        val buildGradleKtsFile = File(appFolder, "build.gradle.kts")
-        return appFolder.exists() && appFolder.isDirectory &&
-                (buildGradleFile.exists() || buildGradleKtsFile.exists())
-    }
-
-    private fun isPluginProject(dir: File): Boolean {
-        val pluginApiJar = File(dir, "libs/plugin-api.jar")
-        val buildGradle = File(dir, "build.gradle.kts")
-        return pluginApiJar.exists() && buildGradle.exists()
-    }
-
-    /**
-     * Determines if the selected directory is either:
-     *  1. A valid Android project itself, OR
-     *  2. A container that includes one or more valid Android projects.
-     */
-    fun isValidProjectOrContainerDirectory(selectedDir: File): Boolean {
-        if (!selectedDir.isProjectCandidateDir()) {
-            return false
-        }
-
-        if (isValidProjectDirectory(selectedDir)) {
-            return true
-        }
-
-        // Check if it contains valid Android projects as subdirectories
-        val subDirs = selectedDir.listFiles()?.filter { it.isProjectCandidateDir() } ?: return false
-        return subDirs.any { sub -> isValidProjectDirectory(sub) }
     }
 
 		private fun openProjectInfo(project: ProjectFile) {
@@ -497,4 +519,22 @@ class RecentProjectsFragment : BaseFragment() {
         }
     }
 
+    private fun observeRenameStatus() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.renameStatus.collect { status ->
+                if (!status) {
+                    flashError(R.string.rename_failed)
+                    viewModel.loadProjects()
+                }
+            }
+        }
+    }
+
+}
+
+@StringRes
+private fun SortCriteria.labelRes(): Int = when (this) {
+    SortCriteria.NAME -> R.string.sort_by_name
+    SortCriteria.DATE_CREATED -> R.string.sort_by_created
+    SortCriteria.DATE_MODIFIED -> R.string.sort_by_modified
 }

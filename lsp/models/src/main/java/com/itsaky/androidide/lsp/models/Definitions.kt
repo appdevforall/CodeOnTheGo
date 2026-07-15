@@ -30,4 +30,8 @@ data class DefinitionParams(
   override val cancelChecker: ICancelChecker
 ) : CancellableRequestParams
 
-data class DefinitionResult(var locations: List<Location>)
+data class DefinitionResult(var locations: List<Location>) {
+	companion object {
+		fun empty() = DefinitionResult(locations = emptyList())
+	}
+}

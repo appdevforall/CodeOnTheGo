@@ -34,6 +34,22 @@
         app:tint="?attr/colorOnSurface" />
 
     <ImageButton
+        android:id="@+id/sponsor_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/sponsor_button_description"
+        android:src="@drawable/ic_heart_outline"
+        android:alpha="1.0"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
+        android:scaleType="centerInside"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/feedback_button"
+        android:layout_margin="4dp"
+        android:visibility="gone" />
+
+    <ImageButton
         android:id="@+id/feedback_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -54,7 +70,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/tooltip_see_more_text"
-        android:textColor="#233490"
+        android:textColor="@color/tooltip_link_color"
         android:textStyle="bold"
         android:visibility="gone"
         android:layout_marginTop="12dp"

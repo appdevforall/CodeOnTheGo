@@ -26,6 +26,7 @@ import com.itsaky.androidide.templates.ParameterConstraint.NONEMPTY
 import com.itsaky.androidide.templates.ParameterConstraint.PACKAGE
 import com.itsaky.androidide.templates.R.string
 import org.adfa.constants.Sdk
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -86,7 +87,9 @@ abstract class Parameter<T>(
     @StringRes val name: Int,
     @StringRes val description: Int?, val default: T,
     val tooltipTag: String? = null,
-    var constraints: List<ParameterConstraint>
+    var constraints: List<ParameterConstraint>,
+    var id: Int? = null,
+    val nameStr: String? = null
 ) {
 
     private val observers = hashSetOf<Observer<T>>()
@@ -155,6 +158,7 @@ abstract class Parameter<T>(
 
         this.actionBeforeCreateView = null
         this.actionAfterCreateView = null
+        this.beforeCreateViewInvoked.set(false)
     }
 
     private fun clearObservers() {
@@ -183,10 +187,19 @@ abstract class Parameter<T>(
         this.actionBeforeCreateView = action
     }
 
+    private val beforeCreateViewInvoked = AtomicBoolean(false)
+
     /**
-     * Called before the layout for this widget is created.
+     * Called before the layout for this widget is created. The action registered via
+     * [doBeforeCreateView] is invoked at most once per parameter instance — callers
+     * may pre-invoke this off the UI thread (e.g. before binding a RecyclerView) so
+     * that the bind-time call is a no-op and avoids triggering disk reads on the
+     * main thread.
      */
     open fun beforeCreateView() {
+        if (!beforeCreateViewInvoked.compareAndSet(false, true)) {
+            return
+        }
         this.actionBeforeCreateView?.invoke(this)
     }
 
@@ -252,8 +265,12 @@ abstract class ParameterBuilder<T> {
 
     var constraints: List<ParameterConstraint> = emptyList()
 
+    var id: Int? = null
+    var nameStr: String? = null
+
     protected open fun validate() {
-        checkNotNull(name) { "Parameter must have a name" }
+        val nameAll: Any? = if (name != null) name else nameStr
+        checkNotNull(nameAll) { "Parameter must have a name" }
         checkNotNull(default) { "Parameter must have a default value" }
     }
 
@@ -262,13 +279,14 @@ abstract class ParameterBuilder<T> {
 
 class BooleanParameter(
     @StringRes name: Int, @StringRes description: Int?,
-    default: Boolean, tooltipTag: String?, constraints: List<ParameterConstraint>
-) : Parameter<Boolean>(name, description, default, tooltipTag, constraints)
+    default: Boolean, tooltipTag: String?, constraints: List<ParameterConstraint>,
+    id: Int? = null, nameStr: String? = null
+) : Parameter<Boolean>(name, description, default, tooltipTag, constraints, id, nameStr)
 
 class BooleanParameterBuilder : ParameterBuilder<Boolean>() {
 
     override fun build(): BooleanParameter {
-        return BooleanParameter(name!!, description, default!!, tooltipTag, constraints)
+        return BooleanParameter(name!!, description, default!!, tooltipTag, constraints, id, nameStr)
     }
 
 }
@@ -282,6 +300,8 @@ class BooleanParameterBuilder : ParameterBuilder<Boolean>() {
  *     is clicked. Click listener to the icon will be set on if this is non-null.
  * @property onEndIconClick Function which will be used when the end icon is
  *     clicked. Click listener to the icon will be set on if this is non-null.
+ * @property showClearIcon Whether a Material clear-text (X) end icon should be
+ *     shown, allowing the user to empty the field in one tap.
  */
 abstract class TextFieldParameter<T>(
     @StringRes name: Int,
@@ -292,8 +312,10 @@ abstract class TextFieldParameter<T>(
     val onEndIconClick: View.OnClickListener?,
     val inputType: Int?,
     @StyleableRes val imeOptions: Int?,
-    val maxLines: Int?, tooltipTag: String?, constraints: List<ParameterConstraint>
-) : Parameter<T>(name, description, default, tooltipTag, constraints)
+    val maxLines: Int?, tooltipTag: String?, constraints: List<ParameterConstraint>,
+    id: Int?, nameStr: String?,
+    val showClearIcon: Boolean = false
+) : Parameter<T>(name, description, default, tooltipTag, constraints, id, nameStr)
 
 abstract class TextFieldParameterBuilder<T>(
     var startIcon: ((TextFieldParameter<T>) -> Int)? = null,
@@ -302,7 +324,8 @@ abstract class TextFieldParameterBuilder<T>(
     var onEndIconClick: View.OnClickListener? = null,
     var inputType: Int? = null,
     var imeOptions: Int? = null,
-    var maxLines: Int? = null
+    var maxLines: Int? = null,
+    var showClearIcon: Boolean = false,
 ) : ParameterBuilder<T>()
 
 class StringParameter(
@@ -316,10 +339,14 @@ class StringParameter(
     @StyleableRes imeOptions: Int? = null,
     maxLines: Int? = null,
     tooltipTag: String?,
-    constraints: List<ParameterConstraint>
+    constraints: List<ParameterConstraint>,
+    id: Int?,
+    nameStr: String?,
+    showClearIcon: Boolean = false
 ) : TextFieldParameter<String>(
     name, description, default, startIcon, endIcon,
-    onStartIconClick, onEndIconClick, inputType, imeOptions, maxLines, tooltipTag, constraints
+    onStartIconClick, onEndIconClick, inputType, imeOptions, maxLines, tooltipTag, constraints,
+    id, nameStr, showClearIcon
 )
 
 class StringParameterBuilder : TextFieldParameterBuilder<String>() {
@@ -338,6 +365,9 @@ class StringParameterBuilder : TextFieldParameterBuilder<String>() {
             maxLines = maxLines,
             tooltipTag = tooltipTag,
             constraints = constraints,
+            id = id,
+            nameStr = nameStr,
+            showClearIcon = showClearIcon
         )
     }
 }
@@ -351,10 +381,12 @@ class EnumParameter<T : Enum<*>>(
     onEndIconClick: View.OnClickListener?,
     tooltipTag: String?, constraints: List<ParameterConstraint>,
     val displayName: ((T) -> String)? = null,
-    val filter: ((T) -> Boolean)? = null
+    val filter: ((T) -> Boolean)? = null,
+    id: Int? = null, nameStr: String? = null
 ) : TextFieldParameter<T>(
     name, description, default, startIcon, endIcon, onStartIconClick,
-    onEndIconClick, null, null, null, tooltipTag, constraints
+    onEndIconClick, null, null, null, tooltipTag, constraints,
+    id, nameStr
 ) {
 
     /**
@@ -412,6 +444,7 @@ inline fun projectNameParameter(
         name = string.project_app_name
         default = "My Application"
         startIcon = { R.drawable.ic_android }
+        showClearIcon = true
         constraints = listOf(NONEMPTY)
         inputType =
             android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS

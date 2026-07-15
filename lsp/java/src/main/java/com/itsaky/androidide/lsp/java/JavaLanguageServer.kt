@@ -17,6 +17,7 @@
 package com.itsaky.androidide.lsp.java
 
 import androidx.annotation.RestrictTo
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
@@ -27,6 +28,7 @@ import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.clea
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
+import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.internal.model.CachedCompletion
@@ -43,7 +45,7 @@ import com.itsaky.androidide.lsp.java.providers.JavaDiagnosticProvider
 import com.itsaky.androidide.lsp.java.providers.JavaSelectionProvider
 import com.itsaky.androidide.lsp.java.providers.ReferenceProvider
 import com.itsaky.androidide.lsp.java.providers.SignatureProvider
-import com.itsaky.androidide.lsp.java.providers.snippet.JavaSnippetRepository.init
+import com.itsaky.androidide.lsp.java.providers.snippet.JavaSnippetRepository
 import com.itsaky.androidide.lsp.java.utils.AnalyzeTimer
 import com.itsaky.androidide.lsp.java.utils.CancelChecker.Companion.isCancelled
 import com.itsaky.androidide.lsp.models.CodeFormatResult
@@ -73,6 +75,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.jvm.JvmGeneratedIndexingService
+import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -117,7 +121,15 @@ class JavaLanguageServer : ILanguageServer {
 			EventBus.getDefault().register(this)
 		}
 
-		init()
+		val projectManager = ProjectManagerImpl.getInstance()
+		projectManager.indexingServiceManager.register(
+			service = JvmLibraryIndexingService(context = BaseApplication.baseInstance)
+		)
+		projectManager.indexingServiceManager.register(
+			service = JvmGeneratedIndexingService(context = BaseApplication.baseInstance)
+		)
+
+		JavaSnippetRepository.init()
 	}
 
 	override fun shutdown() {
@@ -134,10 +146,14 @@ class JavaLanguageServer : ILanguageServer {
 		this.client = client
 	}
 
-	override fun connectDebugClient(client: IDebugClient) {
+	override suspend fun connectDebugClient(client: IDebugClient): DebugClientConnectionResult {
 		if (JdwpOptions.JDWP_ENABLED) {
-			this.debugAdapter.connectDebugClient(client)
+			log.info("Connecting to debug client: {}", client)
+			return this.debugAdapter.connectDebugClient(client)
 		}
+
+		log.info("Not connecting to debug client. JDWP disabled.")
+		return DebugClientConnectionResult.Success
 	}
 
 	override fun applySettings(settings: IServerSettings?) {
@@ -146,6 +162,11 @@ class JavaLanguageServer : ILanguageServer {
 
 	override fun setupWithProject(workspace: Workspace) {
 		LSPEditorActions.ensureActionsMenuRegistered(JavaCodeActionsMenu)
+
+		(ProjectManagerImpl.getInstance()
+			.indexingServiceManager
+			.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?)
+			?.refresh()
 
 		// Once we have project initialized
 		// Destory the NO_MODULE_COMPILER instance
@@ -244,7 +265,8 @@ class JavaLanguageServer : ILanguageServer {
 		}
 	}
 
-	override fun formatCode(params: FormatCodeParams?): CodeFormatResult = CodeFormatProvider(settings).format(params)
+	override fun formatCode(params: FormatCodeParams?): CodeFormatResult =
+		CodeFormatProvider(settings).format(params)
 
 	override fun handleFailure(failure: LSPFailure?): Boolean {
 		return when (failure!!.type) {

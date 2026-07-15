@@ -4,7 +4,7 @@
 
 <h2 align="center"><b>Code On The Go</b></h2>
 <p align="center">
- Code on the Go is an IDE that lets you build Android apps on Android phones, without needing a traditional computer or Internet access.</p>
+ Code on the Go is an IDE that lets you build Android apps on Android phones, without needing a traditional computer or Internet access. Code on the Go is a project of App Dev for All, a philanthropic venture focused on lowering the barriers to Android app development. </p>
 <p><br>
 
 <p align="center">
@@ -17,17 +17,14 @@
   <a href="https://t.me/CodeOnTheGoDiscussions">Telegram discussions</a>
 </p>
 
+## Code on the Go and AndroidIDE
+
+Code on the Go is the successor to [AndroidIDE](https://github.com/AndroidIDEOfficial/AndroidIDE), a popular mobile IDE that was archived in 2024. Code on the Go is actively maintained and updated weekly by App Dev for All. 
+
 ## Installation
 
- <a href="https://www.appdevforall.org/codeonthego">Download the Code On The Go APK from the App Dev for All website.</a>
+Download the [Code on the Go APK](https://www.appdevforall.org/code-on-the-go?utm_source=gh&utm_medium=readme) from the [App Dev for All](https://www.appdevforall.org/?utm_source=gh&utm_medium=readme) website.
 
-## Limitations
-
-<p>This is an early, experimental version of Code on the Go, our offline-first Android IDE. This release is intended for Android developers who are comfortable testing rough software and providing constructive feedback. Please note:
-<ul><li>Some features are incomplete or missing
-<li>Stability may vary across devices
-<li>UI and interactions are provisional
- </li></ul></p>
 
 ## Contributing
 
@@ -103,4 +100,5 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
 

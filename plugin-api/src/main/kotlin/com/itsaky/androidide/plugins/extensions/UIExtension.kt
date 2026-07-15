@@ -47,17 +47,43 @@ interface UIExtension : IPlugin {
      * @return List of FAB actions for different screens
      */
     fun getFabActions(): List<FabAction> = emptyList()
+
+    /**
+     * Provide the ids of editor-toolbar actions that should be hidden right now.
+     * Queried each time the toolbar is rebuilt (on file switch, edit, save, etc.), so
+     * the result may vary per file — e.g. return the built-in XML preview action's id
+     * only while a Compose file is open. Determine the current file through your own
+     * editor service, the same way [ToolbarAction.isVisibleProvider] does. The host
+     * hides exactly the ids returned; there is no allow-list. Action ids are available
+     * as constants on [ToolbarActionIds]. Returning an id that is not currently on the
+     * toolbar is a no-op.
+     *
+     * @return Set of toolbar action ids to hide.
+     */
+    fun getHiddenToolbarActionIds(): Set<String> = emptySet()
 }
 
-data class MenuItem(
+data class MenuItem @JvmOverloads constructor(
     val id: String,
     val title: String,
     val isEnabled: Boolean = true,
     val isVisible: Boolean = true,
     val shortcut: String? = null,
     val subItems: List<MenuItem> = emptyList(),
-    val action: () -> Unit
-)
+    val action: () -> Unit,
+    /**
+     * Optional tooltip tag to look up under the plugin's tooltip category
+     * (`plugin_<pluginId>`). When null, the IDE composes a tag using the
+     * convention `<pluginId>.<id>`. Supplying the same tooltipTag on a
+     * NavigationItem and a MenuItem lets a single PluginTooltipEntry serve
+     * both the sidebar and the toolbar surfaces.
+     */
+    val tooltipTag: String? = null,
+    val icon: Int? = null
+) {
+    var isEnabledProvider: (() -> Boolean)? = null
+    var isVisibleProvider: (() -> Boolean)? = null
+}
 
 data class ContextMenuContext(
     val file: java.io.File?,
@@ -72,7 +98,17 @@ data class TabItem(
     val fragmentFactory: () -> Fragment,
     val isEnabled: Boolean = true,
     val isVisible: Boolean = true,
-    val order: Int = 0
+    val order: Int = 0,
+    /**
+     * Optional tooltip tag to look up under the plugin's tooltip category
+     * (`plugin_<pluginId>`). When null, the IDE composes a tag using the
+     * convention `<pluginId>.<id>` so plugins do not need to manually
+     * namespace tags to avoid collisions across plugins. If the plugin's
+     * id can't be resolved at registration time, the IDE falls back to a
+     * generic placeholder tag under the IDE tooltip category. Mirrors the
+     * tooltipTag fallback already on NavigationItem and MenuItem.
+     */
+    val tooltipTag: String? = null
 )
 
 data class NavigationItem(
@@ -83,6 +119,13 @@ data class NavigationItem(
     val isVisible: Boolean = true,
     val group: String? = null,
     val order: Int = 0,
+    /**
+     * Optional tooltip tag to look up under the plugin's tooltip category
+     * (`plugin_<pluginId>`). When null, the IDE composes a tag using the
+     * convention `<pluginId>.<id>` so plugins do not need to manually
+     * namespace tags to avoid collisions across plugins.
+     */
+    val tooltipTag: String? = null,
     val action: () -> Unit
 )
 
@@ -95,7 +138,43 @@ data class ToolbarAction(
     val isVisible: Boolean = true,
     val order: Int = 0,
     val action: () -> Unit
-)
+) {
+    // NOTE: the provider callbacks below are intentionally body `var` properties rather than
+    // primary-constructor parameters. Adding constructor params would change the synthesized
+    // <init>/copy()/componentN signatures and break ABI for plugins already compiled against the
+    // shipped plugin-api — the exact pattern [MenuItem] uses for the same reason. The trade-off
+    // (copy()/equals() ignore these providers) is acceptable: plugins build ToolbarAction directly
+    // and the host never copies it. Do NOT move these into the constructor.
+
+    /**
+     * Optional callback to compute the enabled state dynamically at render time.
+     * When null, the static [isEnabled] is used. Mirrors the [MenuItem] providers.
+     */
+    var isEnabledProvider: (() -> Boolean)? = null
+
+    /**
+     * Optional callback to compute the visible state dynamically at render time.
+     * When null, the static [isVisible] is used. Unlike system toolbar actions
+     * (which only grey out when disabled), a plugin toolbar action is fully removed
+     * from the toolbar when this resolves to false.
+     */
+    var isVisibleProvider: (() -> Boolean)? = null
+
+    /**
+     * Optional callback to compute the icon dynamically at render time, returning a
+     * drawable resource id from the plugin's own resources (e.g. `R.drawable.ic_mic`).
+     * When null, the static [icon] is used — existing plugins keep their fixed icon.
+     *
+     * The host re-invokes this each time the toolbar is (re)built, so a plugin can
+     * change the icon in response to its own state. Ask the host to rebuild the
+     * toolbar after a state change via
+     * [com.itsaky.androidide.plugins.services.IdeUIService.refreshToolbarActions].
+     * If the returned resource is an animated drawable (e.g. `AnimatedVectorDrawable`),
+     * the host starts it automatically; author it to loop for a continuous animation.
+     * Returning null (or a failure) falls back to the static [icon].
+     */
+    var iconProvider: (() -> Int?)? = null
+}
 
 enum class ShowAsAction {
     ALWAYS,

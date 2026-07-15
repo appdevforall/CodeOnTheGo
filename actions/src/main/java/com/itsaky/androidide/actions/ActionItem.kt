@@ -24,6 +24,7 @@ import android.graphics.drawable.Drawable
 import android.view.Menu
 import android.view.View
 import androidx.annotation.CallSuper
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.utils.resolveAttr
 
 /**
@@ -91,6 +92,14 @@ interface ActionItem {
   fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = ""
 
   /**
+   * Retrieves the tooltip category for this [ActionItem]. The default is
+   * [TooltipCategory.CATEGORY_IDE]; plugin-contributed actions override this
+   * to point at their own `plugin_<pluginId>` category so the lookup hits
+   * tooltip rows the plugin installed via [DocumentationExtension].
+   */
+  fun retrieveTooltipCategory(): String = TooltipCategory.CATEGORY_IDE
+
+  /**
    * The order of this action item. This is used only at some locations and not everywhere.
    *
    * @see android.view.MenuItem.getOrder
@@ -103,6 +112,15 @@ interface ActionItem {
    */
   val itemId: Int
     get() = id.hashCode()
+
+  /**
+   * Whether the editor toolbar should fully remove this action when [visible] is false,
+   * instead of the legacy behaviour of keeping it and only greying out when disabled.
+   * Built-in actions keep the legacy behaviour (default false); plugin-contributed
+   * toolbar actions opt in by overriding this to true.
+   */
+  val honorVisibility: Boolean
+    get() = false
 
   /**
    * Prepare the action. Subclasses can modify the visual properties of this action here.
@@ -209,7 +227,10 @@ interface ActionItem {
     EDITOR_FILE_TREE("ide.editor.fileTree"),
 
     /** Location marker for action items shown in UI Designer activity's toolbar. */
-    UI_DESIGNER_TOOLBAR("ide.uidesigner.toolbar");
+    UI_DESIGNER_TOOLBAR("ide.uidesigner.toolbar"),
+
+    /** Location marker for action items shown on the main screen. */
+    MAIN_SCREEN("ide.main.screen");
 
     override fun toString(): String {
       return id

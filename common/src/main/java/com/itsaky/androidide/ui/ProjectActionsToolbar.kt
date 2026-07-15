@@ -4,7 +4,9 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.util.TypedValue
+import android.view.InputDevice
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.widget.ImageButton
 import android.widget.LinearLayout
@@ -17,6 +19,10 @@ class ProjectActionsToolbar @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     var onNavIconLongClick: (() -> Unit)? = null
 ) : MaterialToolbar(context, attrs) {
+
+    companion object {
+        private const val TOOLTIP_HOVER_SHOW_DELAY_MS = 600L
+    }
 
     init {
         // Navigation icon is no longer used in ProjectActionsToolbar
@@ -36,11 +42,19 @@ class ProjectActionsToolbar @JvmOverloads constructor(
         hint: String,
         onClick: () -> Unit,
         onLongClick: () -> Unit,
+        onHover: ((View) -> Unit)? = null,
+        onHoverExit: (() -> Unit)? = null,
         shouldAddMargin: Boolean
     ) {
         val item = ImageButton(context).apply {
-            tooltipText = hint
+            if (onHover == null) {
+                tooltipText = hint
+            }
+            contentDescription = hint
             setImageDrawable(icon)
+            // Start animation for animated drawables (e.g. AnimatedVectorDrawable used by a
+            // plugin's dynamic toolbar icon). No-op for ordinary static drawables.
+            (icon as? android.graphics.drawable.Animatable)?.start()
             addCircleRipple()
             // Set layout params for width and height
             layoutParams = LinearLayout.LayoutParams(
@@ -56,19 +70,23 @@ class ProjectActionsToolbar @JvmOverloads constructor(
                 onLongClick()
                 true
             }
-            // Prevent DrawerLayout from intercepting touch events on this button
-            setOnTouchListener { view, event ->
-                when (event.action) {
-                    android.view.MotionEvent.ACTION_DOWN -> {
-                        // Request that parent views (like DrawerLayout) don't intercept touch events
-                        parent?.requestDisallowInterceptTouchEvent(true)
+            var hoverRunnable: Runnable? = null
+            setOnHoverListener { view, event ->
+                if (!event.isFromSource(InputDevice.SOURCE_MOUSE)) return@setOnHoverListener false
+
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_HOVER_ENTER -> {
+                        hoverRunnable?.let { view.removeCallbacks(it) }
+                        hoverRunnable = Runnable { onHover?.invoke(view) }
+                        view.postDelayed(hoverRunnable, TOOLTIP_HOVER_SHOW_DELAY_MS)
                     }
-                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-                        // Allow parent to intercept again after the touch is done
-                        parent?.requestDisallowInterceptTouchEvent(false)
+                    MotionEvent.ACTION_HOVER_EXIT -> {
+                        hoverRunnable?.let { view.removeCallbacks(it) }
+                        onHoverExit?.invoke()
                     }
                 }
-                false // Don't consume the event, let the click/long-click listeners handle it
+
+                false
             }
         }
         binding.menuContainer.addView(item)
@@ -91,4 +109,3 @@ class ProjectActionsToolbar @JvmOverloads constructor(
         this.onNavIconLongClick = listener
     }
 }
-

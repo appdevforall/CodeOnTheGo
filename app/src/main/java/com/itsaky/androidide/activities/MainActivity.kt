@@ -18,12 +18,15 @@
 package com.itsaky.androidide.activities
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
-import android.text.TextUtils
+import android.util.Log
+import android.view.KeyEvent
 import android.view.View
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.viewModels
+import org.koin.androidx.viewmodel.ext.android.viewModel
 import androidx.core.graphics.Insets
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
@@ -32,6 +35,7 @@ import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.EditorActivityKt
+import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
@@ -46,8 +50,21 @@ import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
+import com.itsaky.androidide.utils.MainScreenActions
+import com.itsaky.androidide.fragments.MainFragment
+import com.itsaky.androidide.fragments.RecentProjectsFragment
+import com.itsaky.androidide.roomData.recentproject.RecentProject
+import com.itsaky.androidide.shortcuts.IdeShortcutActions
+import com.itsaky.androidide.shortcuts.ShortcutContext
+import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
+import com.itsaky.androidide.shortcuts.ShortcutManager
+import com.itsaky.androidide.utils.getCreatedTime
+import com.itsaky.androidide.utils.getLastModifiedTime
 import com.itsaky.androidide.viewmodel.MainViewModel
+import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_CLONE_REPO
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJECTS
@@ -56,21 +73,25 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_L
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.appdevforall.localwebserver.ServerConfig
-import org.appdevforall.localwebserver.WebServer
+import kotlinx.coroutines.withContext
+import com.itsaky.androidide.localWebServer.ServerConfig
+import com.itsaky.androidide.localWebServer.WebServer
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
 import java.io.File
+import com.itsaky.androidide.utils.hasVisibleDialog
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 	private val log = LoggerFactory.getLogger(MainActivity::class.java)
 
-	private val viewModel by viewModels<MainViewModel>()
+	private val viewModel by viewModel<MainViewModel>()
 
 	@Suppress("ktlint:standard:backing-property-naming")
 	private var _binding: ActivityMainBinding? = null
 	private val analyticsManager: IAnalyticsManager by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
+	private var webServer: WebServer? = null
+	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -98,13 +119,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private val binding: ActivityMainBinding
 		get() = checkNotNull(_binding)
 
-	override fun onCreate(savedInstanceState: Bundle?) {
+		override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		MainScreenActions.register(this)
 
 		// Start WebServer after installation is complete
 		startWebServer()
 
-		openLastProject()
+		if (savedInstanceState == null) { openLastProject() }
 
 		if (FeatureFlags.isExperimentsEnabled) {
 			binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
@@ -113,7 +136,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		feedbackButtonManager =
 			FeedbackButtonManager(
 				activity = this,
-				feedbackFab = binding.fabFeedback,
+				feedbackFab = binding.fabFeedback.root,
 			)
 
 		feedbackButtonManager?.setupDraggableFab()
@@ -138,15 +161,48 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 
-		// Show warning dialog if today's date is after April 26, 2026
+		// Show warning dialog if today's date is after October 28 2026
 		val targetDate =
 			java.util.Calendar.getInstance().apply {
-				set(2026, 3, 26) // Month is 0-indexed, so 3 = April
+				set(2026, 9, 28) // Month is 0-indexed, so 9 = October
 			}
 		val comparisonDate = java.util.Calendar.getInstance()
 		if (comparisonDate.after(targetDate)) {
 			showWarningDialog()
 		}
+	}
+
+	override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+		return shortcutManager.dispatch(
+			event = event,
+			context = ShortcutContext.MAIN,
+			focusView = currentFocus,
+			hasModal = supportFragmentManager.hasVisibleDialog(),
+			executionContext = mainShortcutExecutionContext,
+		) || super.dispatchKeyEvent(event)
+	}
+
+	private val mainShortcutExecutionContext by lazy {
+		ShortcutExecutionContext(
+			ideShortcutActions = IdeShortcutActions {
+				ActionData.create(this)
+			},
+		)
+	}
+
+	fun showCreateProject(): Boolean {
+		viewModel.setScreen(SCREEN_TEMPLATE_LIST)
+		return true
+	}
+
+	fun showOpenProject(): Boolean {
+		viewModel.setScreen(SCREEN_SAVED_PROJECTS)
+		return true
+	}
+
+	fun showCloneRepository(): Boolean {
+		viewModel.setScreen(SCREEN_CLONE_REPO)
+		return true
 	}
 
 	private fun showWarningDialog() {
@@ -166,22 +222,64 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.show()
 	}
 
+	override fun onConfigurationChanged(newConfig: Configuration) {
+		super.onConfigurationChanged(newConfig)
+		recreateVisibleFragmentView()
+	}
+
 	override fun onResume() {
 		super.onResume()
+		MainScreenActions.register(this)
 		feedbackButtonManager?.loadFabPosition()
+	}
+
+	override fun onPause() {
+		MainScreenActions.clear()
+		super.onPause()
+	}
+
+	/**
+	 * With configChanges="orientation|screenSize", the activity is not recreated on rotation,
+	 * so fragment views stay inflated with the initial layout. Replace the visible fragment
+	 * with a new instance so it re-inflates and picks up layout-land when in landscape.
+	 */
+	private fun recreateVisibleFragmentView() {
+		when (viewModel.currentScreen.value) {
+			SCREEN_MAIN ->
+				supportFragmentManager.beginTransaction()
+					.setReorderingAllowed(true)
+					.replace(R.id.main, MainFragment())
+					.commitNow()
+			SCREEN_SAVED_PROJECTS ->
+				supportFragmentManager.beginTransaction()
+					.setReorderingAllowed(true)
+					.replace(R.id.saved_projects_view, RecentProjectsFragment())
+					.commitNow()
+			else -> { }
+		}
+	}
+
+	override fun onApplyWindowInsets(insets: WindowInsetsCompat) {
+		super.onApplyWindowInsets(insets)
+		_binding?.root?.applyBottomWindowInsetsPadding(insets)
 	}
 
 	override fun onApplySystemBarInsets(insets: Insets) {
 		// onApplySystemBarInsets can be called before bindLayout() sets _binding
+		// Use 0 for bottom so fragment content stretches to the screen bottom (no white bar).
 		_binding?.fragmentContainersParent?.setPadding(
 			insets.left,
 			0,
 			insets.right,
-			insets.bottom,
+			0,
 		)
 	}
 
 	private fun onScreenChanged(screen: Int?) {
+		// When navigating to main (e.g. Exit from saved projects), replace the fragment so it
+		// inflates with the current configuration (landscape -> 3 columns, portrait -> 1 column).
+		if (screen == SCREEN_MAIN) recreateVisibleFragmentView()
+
 		val previous = viewModel.previousScreen
 		if (previous != -1) {
 			closeKeyboard()
@@ -220,6 +318,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				TOOLTIPS_WEB_VIEW -> binding.tooltipWebView
 				SCREEN_SAVED_PROJECTS -> binding.savedProjectsView
 				SCREEN_DELETE_PROJECTS -> binding.deleteProjectsView
+        SCREEN_CLONE_REPO -> binding.cloneRepositoryView
 				else -> throw IllegalArgumentException("Invalid screen id: '$screen'")
 			}
 
@@ -230,6 +329,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			binding.tooltipWebView,
 			binding.savedProjectsView,
 			binding.deleteProjectsView,
+            binding.cloneRepositoryView,
 		)) {
 			fragment.isVisible = fragment == currentFragment
 		}
@@ -259,32 +359,37 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	}
 
 	private fun tryOpenLastProject() {
-		if (!GeneralPreferences.autoOpenProjects) {
-			return
-		}
+		if (!GeneralPreferences.autoOpenProjects) return
 
-		val openedProject = GeneralPreferences.lastOpenedProject
-		if (GeneralPreferences.NO_OPENED_PROJECT == openedProject) {
-			return
-		}
+		lifecycleScope.launch(Dispatchers.IO) {
+			val validProjects = findValidProjects(Environment.PROJECTS_DIR)
+			val lastOpenedPath = GeneralPreferences.lastOpenedProject
 
-		if (TextUtils.isEmpty(openedProject)) {
-			flashInfo(string.msg_opened_project_does_not_exist)
-			return
-		}
+			val projectToOpen = validProjects.find { it.absolutePath == lastOpenedPath }
+				?: validProjects.maxByOrNull { it.lastModified() }
 
-		val project = File(openedProject)
-		if (!project.exists()) {
-			flashInfo(string.msg_opened_project_does_not_exist)
-			return
-		}
+			withContext(Dispatchers.Main) {
+				when {
+        	projectToOpen != null -> handleOpenProject(projectToOpen)
 
+        	lastOpenedPath.isNotBlank() && lastOpenedPath != GeneralPreferences.NO_OPENED_PROJECT -> {
+        		if (!File(lastOpenedPath).exists()) {
+        			flashInfo(string.msg_opened_project_does_not_exist)
+        		}
+        	}
+
+        	else -> Unit
+				}
+			}
+		}
+	}
+
+	private fun handleOpenProject(root: File) {
 		if (GeneralPreferences.confirmProjectOpen) {
-			askProjectOpenPermission(project)
+			askProjectOpenPermission(root)
 			return
 		}
-
-		openProject(project)
+		openProject(root)
 	}
 
 	private fun askProjectOpenPermission(root: File) {
@@ -297,12 +402,23 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.show()
 	}
 
-	internal fun openProject(root: File) {
+	internal fun openProject(root: File, project: RecentProject? = null, hasTemplateIssues: Boolean = false) {
 		ProjectManagerImpl.getInstance().projectPath = root.absolutePath
-		GeneralPreferences.lastOpenedProject = root.absolutePath
+        GeneralPreferences.lastOpenedProject = root.absolutePath
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            val location = root.absolutePath
+            val recentProject = project ?: RecentProject(
+                name = root.name,
+                location = location,
+                createdAt = getCreatedTime(location).toString(),
+                lastModified = getLastModifiedTime(location).toString()
+            )
+            viewModel.saveProjectToRecents(recentProject)
+        }
 
 		// Track project open in Firebase Analytics
-		analyticsManager.trackProjectOpened(root.absolutePath)
+        analyticsManager.trackProjectOpened(root.absolutePath)
 
 		if (isFinishing) {
 			return
@@ -311,6 +427,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		val intent =
 			Intent(this, EditorActivityKt::class.java).apply {
 				putExtra("PROJECT_PATH", root.absolutePath)
+                if (hasTemplateIssues) {
+                    putExtra("HAS_TEMPLATE_ISSUES", true)
+                }
 				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 			}
 
@@ -322,15 +441,23 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			try {
 				val dbFile = Environment.DOC_DB
 				log.info("Starting WebServer - using database file from: {}", dbFile.absolutePath)
-				val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
-				webServer.start()
+				val server = WebServer(ServerConfig(databasePath = dbFile.absolutePath, fileDirPath = applicationContext.filesDir.absolutePath))
+				webServer = server
+				server.start()
 			} catch (e: Exception) {
 				log.error("Failed to start WebServer", e)
+			} finally {
+				webServer = null
 			}
 		}
 	}
 
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+	}
+
 	override fun onDestroy() {
+		webServer?.stop()
 		ITemplateProvider.getInstance().release()
 		super.onDestroy()
 		_binding = null

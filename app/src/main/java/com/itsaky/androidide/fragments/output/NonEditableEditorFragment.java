@@ -26,7 +26,7 @@ import com.itsaky.androidide.databinding.FragmentNonEditableEditorBinding;
 import com.itsaky.androidide.editor.ui.IDEEditor;
 import com.itsaky.androidide.fragments.EmptyStateFragment;
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE;
-import com.itsaky.androidide.utils.BuildInfoUtils;
+import com.itsaky.androidide.utils.BasicBuildInfo;
 import com.itsaky.androidide.utils.TypefaceUtilsKt;
 import io.github.rosemoe.sora.lang.EmptyLanguage;
 
@@ -68,7 +68,7 @@ public abstract class NonEditableEditorFragment extends
 		}
 
 		final var editorText = editor.getText().toString();
-		return BuildInfoUtils.BASIC_INFO + System.lineSeparator() + editorText;
+		return BasicBuildInfo.shareableBuildInfo() + System.lineSeparator() + editorText;
 	}
 
 	@NonNull
@@ -85,7 +85,7 @@ public abstract class NonEditableEditorFragment extends
 		editor.setEditable(false);
 		editor.setDividerWidth(0);
 		editor.setEditorLanguage(new EmptyLanguage());
-		editor.setWordwrap(false);
+		editor.setWordwrap(true);
 		editor.setUndoEnabled(false);
 		editor.setTypefaceLineNumber(TypefaceUtilsKt.jetbrainsMono());
 		editor.setTypefaceText(TypefaceUtilsKt.jetbrainsMono());

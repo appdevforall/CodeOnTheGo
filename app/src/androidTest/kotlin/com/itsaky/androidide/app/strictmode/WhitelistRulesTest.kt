@@ -1,6 +1,7 @@
 package com.itsaky.androidide.app.strictmode
 
 import android.os.strictmode.DiskReadViolation
+import android.os.strictmode.DiskWriteViolation
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -73,6 +74,151 @@ class WhitelistRulesTest {
 			stackTraceElement("com.google.firebase.FirebaseApp", "isDataCollectionDefaultEnabled", "FirebaseApp.java", 371),
 			stackTraceElement("com.google.firebase.analytics.connector.AnalyticsConnectorImpl", "getInstance", "play-services-measurement-api@@22.1.2", 31),
 			stackTraceElement("com.google.firebase.FirebaseApp\$UserUnlockReceiver", "onReceive", "FirebaseApp.java", 672)
+			// @formatter:on
+		)
+	}
+
+	@Test
+	fun allow_DiskRead_on_ServiceLoader_JdkDistributionProvider() {
+		assertAllowed<DiskReadViolation>(
+			stackTraceElement("com.itsaky.androidide.utils.ServiceLoader", "parse"),
+			stackTraceElement(
+				"com.itsaky.androidide.app.configuration.IJdkDistributionProvider\$Companion",
+				"_instance_delegate\$lambda\$0"
+			),
+		)
+	}
+
+	@Test
+	fun allow_DiskRead_on_OnboardingActivity_ToolsCheck() {
+		assertAllowed<DiskReadViolation>(
+			stackTraceElement("java.io.File", "exists"),
+			stackTraceElement(
+				"com.itsaky.androidide.activities.OnboardingActivity",
+				"checkToolsIsInstalled"
+			),
+		)
+	}
+
+	@Test
+	fun allow_DiskRead_on_MiuiEpFrameworkFactoryIsEnterpriseJarExists() {
+		assertAllowed<DiskReadViolation>(
+			// @formatter:off
+			stackTraceElement("java.io.File", "exists"),
+			stackTraceElement("miui.enterprise.EpFrameworkFactory", "isEnterpriseJarExists"),
+			stackTraceElement("miui.enterprise.EpFrameworkFactory", "get"),
+			stackTraceElement("miui.enterprise.ApplicationHelperStub\$SingletonHolder", "<clinit>"),
+			stackTraceElement("miui.enterprise.ApplicationHelperStub", "getInstance"),
+			stackTraceElement("android.app.NotificationManager", "notifyAsUser"),
+			// @formatter:on
+		)
+	}
+
+	@Test
+	fun allow_DiskRead_on_MtkBoostFwkIsGameApp() {
+		assertAllowed<DiskReadViolation>(
+			// @formatter:off
+			stackTraceElement("java.io.File", "exists"),
+			stackTraceElement("com.mediatek.boostfwk.utils.Util", "isGameApp"),
+			stackTraceElement("com.mediatek.boostfwk.utils.TasksUtil", "isGameAPP"),
+			stackTraceElement("com.mediatek.boostfwk.identify.scroll.ScrollIdentify", "checkAppType"),
+			stackTraceElement("com.mediatek.boostfwk.identify.scroll.ScrollIdentify", "dispatchScenario"),
+			// @formatter:on
+		)
+	}
+
+	@Test
+	fun allow_DiskRead_on_MtkAsyncDrawableCachePutCacheList() {
+		assertAllowed<DiskReadViolation>(
+			// @formatter:off
+			stackTraceElement("java.io.File", "exists"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "writeToFile"),
+			stackTraceElement("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+			stackTraceElement("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+			stackTraceElement("android.content.res.ResourcesImpl", "cacheDrawable"),
+			// @formatter:on
+		)
+	}
+
+	@Test
+	fun allow_DiskRead_on_MtkAsyncDrawableCachePutCacheList_OsStatVariant() {
+		assertAllowed<DiskReadViolation>(
+			// @formatter:off
+			stackTraceElement("android.system.Os", "stat"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "writeToFile"),
+			stackTraceElement("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+			stackTraceElement("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+			stackTraceElement("android.content.res.ResourcesImpl", "cacheDrawable"),
+			// @formatter:on
+		)
+	}
+
+	@Test
+	fun allow_DiskWrite_on_MtkAsyncDrawableCachePutCacheList() {
+		assertAllowed<DiskWriteViolation>(
+			// @formatter:off
+			stackTraceElement("libcore.io.IoBridge", "open"),
+			stackTraceElement("java.io.FileOutputStream", "<init>"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "createFileOutputStream"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "writeToFile"),
+			stackTraceElement("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+			stackTraceElement("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+			// @formatter:on
+		)
+	}
+
+	@Test
+	fun allow_DiskWrite_on_MtkAsyncDrawableCache_FileOutputStreamWrite() {
+		assertAllowed<DiskWriteViolation>(
+			// @formatter:off
+			stackTraceElement("java.io.FileOutputStream", "write"),
+			stackTraceElement("com.android.internal.util.FastXmlSerializer", "flushBytes"),
+			stackTraceElement("com.android.internal.util.FastXmlSerializer", "flush"),
+			stackTraceElement("com.android.internal.util.FastXmlSerializer", "endDocument"),
+			stackTraceElement("com.android.internal.util.XmlSerializerWrapper", "endDocument"),
+			stackTraceElement("com.android.internal.util.XmlUtils", "writeMapXml"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "writeToFile"),
+			stackTraceElement("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+			stackTraceElement("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+			// @formatter:on
+		)
+	}
+
+	@Test
+	fun allow_DiskWrite_on_MtkAsyncDrawableCache_FileDelete() {
+		assertAllowed<DiskWriteViolation>(
+			// @formatter:off
+			stackTraceElement("java.io.UnixFileSystem", "delete"),
+			stackTraceElement("java.io.File", "delete"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "writeToFile"),
+			stackTraceElement("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+			stackTraceElement("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+			// @formatter:on
+		)
+	}
+
+	@Test
+	fun allow_DiskWrite_on_MtkAsyncDrawableCache_OsChmod() {
+		assertAllowed<DiskWriteViolation>(
+			// @formatter:off
+			stackTraceElement("android.system.Os", "chmod"),
+			stackTraceElement("android.os.FileUtils", "setPermissions"),
+			stackTraceElement("android.app.ContextImpl", "setFilePermissionsFromMode"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "writeToFile"),
+			stackTraceElement("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+			stackTraceElement("com.mediatek.res.ResOptExtImpl", "putCacheList"),
 			// @formatter:on
 		)
 	}

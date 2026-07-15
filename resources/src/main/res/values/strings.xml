@@ -12,14 +12,14 @@
 	<string name="about_footer">Code on the Go %1$s for %2$s</string>
 	<string name="about_subtitle">No computer? No Internet? No problem. Code apps anywhere.</string>
 	<string name="msg_get_package_failed">Failed to extract package name.</string>
-	<string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android apps, you can join the Telegram Group and ask for help there.\n\nYou can also send suggestions on our email.</string>
+	<string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android apps, you can join our Discussions forum and ask for help there.\n\nYou can also send suggestions on our email.</string>
 	<string name="download_codeonthego_message">Download Code on the Go from the official website to get the latest features and updates.</string>
 	<string name="download_codeonthego_url">https://appdevforall.org/codeonthego</string>
 	<string name="msg_invalid_url">Invalid URL provided.</string>
 	<string name="msg_no_browser_found">No browser found to handle the request.</string>
 	<string name="need_help">Need Help?</string>
 	<string name="ide_preferences">IDE preferences</string>
-	<string name="discussions_on_telegram">Discussions on Telegram</string>
+	<string name="discussions_on_telegram">Support and discussions forum</string>
 	<string name="official_tg_channel">Official Telegram channel</string>
 	<string name="msg_empty_view">No data</string>
 	<string name="title_terminal">Terminal</string>
@@ -27,7 +27,59 @@
 	<string name="app_logs">App Logs</string>
 	<string name="ide_logs">IDE Logs</string>
 	<string name="default_tooltip">General information about this feature.</string>
+	<string name="err_insufficient_storage_title">Insufficient Storage</string>
+    <string name="err_insufficient_storage_msg">%1$s requires at least %2$dGB of free space to run and extract the necessary tools.\n\nPlease free up space on your device and try again.</string>
+    <string name="action_close_app">Close %1$s</string>
+    <string name="action_free_up_space">Free Up Space</string>
 
+	<!-- Agent -->
+	<string name="agent_backend_selected">🤖 System: %1$s backend selected.</string>
+	<string name="agent_current_model">Current model: %1$s</string>
+	<string name="agent_no_model_selected_warning">⚠️ Warning: No model file selected.</string>
+	<string name="agent_local_model_not_loaded">Local model is not loaded. Open AI Settings, pick a model, and try again.</string>
+	<string name="agent_backend_not_ready">The AI backend is not ready. Please review your AI settings.</string>
+	<string name="agent_local_model_loaded_success">Local model loaded successfully!</string>
+	<string name="agent_local_model_loaded_failure">Error: Failed to load local model.</string>
+	<string name="agent_operation_cancelled_by_user">Operation cancelled by user.</string>
+	<string name="agent_planner_tool_fallback">The planner could not produce a valid tool invocation after multiple attempts. Provide a direct textual answer without calling any tools.</string>
+	<string name="agent_planner_reject_unexpected_tool">The previous plan was rejected because the model attempted to call a tool even though no tool calls were allowed at that time.</string>
+	<string name="agent_planner_reject_malformed_tool">The previous plan failed because the tool invocation was malformed.</string>
+	<string name="agent_planner_reject_invalid_tool">The previous plan was rejected due to an invalid tool invocation.</string>
+	<string name="agent_planner_tool_blocked_note"> Tool `%1$s` is now blocked until you can explain how to call it safely.</string>
+	<string name="agent_planner_retry_instruction">%1$s%2$s Before attempting another tool call, double-check the required parameters and confirm that calling a tool is necessary. If the request can be answered conceptually, respond with text instead of forcing a tool call.</string>
+	<string name="agent_planner_invalid_output_notice">Planner output was invalid. Asking it to correct the plan...</string>
+	<string name="agent_tool_call_missing_name">A function call without a name was emitted. Provide a valid tool name.</string>
+	<string name="agent_tool_call_unknown_tool">Unknown tool `%1$s` was requested. Use only the supported tools.</string>
+	<string name="agent_tool_call_blocked">Tool `%1$s` is temporarily blocked after a malformed invocation. Choose a different tool or respond with a textual answer.</string>
+	<string name="agent_tool_call_missing_args">Tool `%1$s` is missing required arguments: %2$s.</string>
+	<string name="agent_planner_invalid_tool_usage_header">The previous plan violated tool requirements:\n</string>
+	<string name="agent_planner_invalid_tool_usage_footer">Re-plan with valid tool arguments, or provide a textual response if tools are unnecessary.</string>
+	<string name="agent_planner_invalid_tool_usage_notice">Planner proposed invalid tool usage. Requesting a corrected plan...</string>
+	<string name="agent_approval_deny">Deny</string>
+	<string name="agent_approval_once">Approve Once</string>
+	<string name="agent_approval_session">Approve for Session</string>
+	<string name="agent_approval_title">Approve \'%1$s\'?</string>
+	<string name="agent_dialog_cancel">Cancel</string>
+	<string name="agent_dialog_run">Run</string>
+	<string name="agent_hint_boolean">true or false</string>
+	<string name="agent_hint_file_content">File content...</string>
+	<string name="agent_hint_limit">1000</string>
+	<string name="agent_hint_number">Enter a number</string>
+	<string name="agent_hint_offset">0</string>
+	<string name="agent_hint_param">Enter %1$s</string>
+	<string name="agent_hint_path_example">e.g., app/src/main/AndroidManifest.xml</string>
+	<string name="agent_hint_search_pattern">Search pattern...</string>
+	<string name="agent_images_selected">%1$d images selected.</string>
+	<string name="agent_required_fields_missing">Please fill in all required fields (marked with *).</string>
+	<string name="agent_select_tool_to_test">Select a tool to test</string>
+	<string name="agent_test_tool_title">Test Tool: %1$s</string>
+	<string name="agent_title_ellipsis_suffix">...</string>
+	<string name="agent_tokens_na">Tokens: N/A</string>
+	<string name="agent_tokens_percentage">Tokens: %1$d%%</string>
+	<string name="agent_tool_description_missing">No description</string>
+	<string name="agent_tool_no_params">Description: %1$s\n\nThis tool has no parameters.</string>
+	<string name="agent_tool_not_found">Tool not found: %1$s</string>
+	<string name="agent_run_tool_title">Run %1$s</string>
 
 	<!-- LSP, Diagnostics & Completions -->
 	<string name="get_started">Get started</string>
@@ -44,7 +96,9 @@
 	<string name="msg_no_references">No references found</string>
 	<string name="view_diags">Diagnostics</string>
 	<string name="title_installation_failed">Installation failed</string>
+	<string name="error_installation_failed">Failed to install assets</string>
 	<string name="err_asset_entry_not_found">Entry \'%1$s\' not found in assets zip file</string>
+	<string name="err_missing_or_corrupt_assets">Missing installation files. %1$s installation might be corrupt or incomplete.</string>
 	<string name="msg_picked_isnt_dir">The picked file is not a directory.</string>
 	<string name="please_wait">Please wait for a moment.</string>
 	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the internal storage partition. You currently have %2$.1fGB available.</string>
@@ -83,6 +137,7 @@
 	<string name="msg_create_new_project">Create new project</string>
 	<string name="msg_open_existing_project">Open a saved project</string>
 	<string name="msg_delete_existing_project">Delete a saved project</string>
+	<string name="clone_git_project">Clone a Git project</string>
 	<string name="msg_delete_existing_project_failed">Failed to delete existing project.</string>
 	<string name="title_confirm_project_close">Close project</string>
 	<string name="cancel_project_text">Cancel</string>
@@ -90,12 +145,16 @@
 	<string name="save_and_close">Save files and close project</string>
 	<string name="search_projects_hint">Search projects by name…</string>
     <string name="sort_projects_label">Sort projects</string>
+    <string name="toggle_sorting">Toggle sorting</string>
     <string name="reset_sorting">Reset</string>
     <string name="apply_sorting">Sort</string>
     <string name="sort_by_hint">Sort by</string>
     <string name="sort_by_name">Name</string>
     <string name="sort_by_created">Created</string>
     <string name="sort_by_modified">Edited</string>
+    <string name="filters_active">Filters active</string>
+    <string name="filter_chip_remove_sort">Remove sort</string>
+    <string name="filter_chip_remove_search">Remove search filter</string>
     <string-array name="sort_options">
         <item>@string/sort_by_name</item>
         <item>@string/sort_by_created</item>
@@ -114,6 +173,11 @@
 	<string name="project_info_gradle_v">Gradle version</string>
 	<string name="project_info_kotlin_v">Kotlin version</string>
 	<string name="project_info_java_v">Java version</string>
+	<string name="msg_file_tree_drag_failed">Failed to start dragging the file</string>
+    <string name="msg_file_tree_drag_error">Error preparing file for drag</string>
+    <string name="msg_file_tree_drag_file_not_found">File not found</string>
+    <string name="msg_file_tree_drag_not_a_file">Only files can be dragged</string>
+
 	<!-- Templates -->
 	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
 	<string name="template_basic">Basic Activity</string>
@@ -124,13 +188,14 @@
 	<string name="template_tabs">Tabbed Activity</string>
 	<string name="template_no_activity">No Activity</string>
 	<string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
-	<string name="template_plugin">Code on the Go Plugin</string>
+	<string name="template_plugin">Plugin</string>
+	<string name="template_ndk">NDK Activity</string>
 
 	<!-- Plugin Template Wizard -->
-	<string name="wizard_plugin_name">Plugin Name</string>
-	<string name="wizard_plugin_id">Plugin ID (Package Name)</string>
+	<string name="wizard_plugin_name">Plugin name</string>
+	<string name="wizard_plugin_id">Plugin ID (package name)</string>
 	<string name="wizard_plugin_description">Plugin description</string>
-	<string name="wizard_plugin_author">Author Name</string>
+	<string name="wizard_plugin_author">Author name</string>
 	<string name="wizard_include_sample_code">Include sample code</string>
 	<string name="wizard_plugin_permissions">Permissions</string>
 	<string name="wizard_plugin_extensions">Extensions</string>
@@ -167,6 +232,7 @@
 	<string name="view_search_results">Search Results</string>
 	<string name="project_created_successfully">Project created successfully!</string>
 	<string name="project_creation_failed">Failed to create project</string>
+	<string name="msg_scroll_to_create_project">Scroll to bottom to create the project</string>
 	<string name="msg_folder_creation_failed">Failed to create folder</string>
 	<string name="msg_file_creation_failed">Failed to create file</string>
 	<string name="msg_layout_file_creation_failed">Failed to create layout file</string>
@@ -188,16 +254,18 @@
 	<string name="new_folder">New folder</string>
 	<string name="title_confirm_delete">Confirm delete</string>
 	<string name="msg_confirm_delete">Are you sure you want to delete: \n%s?</string>
-	<string name="copied">Copied successfully!</string>
+	<string name="copied">Copied successfully</string>
 	<string name="msg_rename_file">Enter a new name for the file/folder.</string>
 	<string name="renamed">Renamed successfully</string>
 	<string name="rename_failed">Unable to rename file</string>
+    <string name="file_name_too_long">File name cannot exceed 40 characters</string>
 	<string name="deleted">Deleted successfully</string>
 	<string name="delete_failed">Unable to delete file</string>
 	<string name="copy_path">Copy path</string>
 	<string name="rename_file">Rename</string>
 	<string name="delete_file">Delete</string>
 	<string name="action_closeAll">Close all</string>
+	<string name="action_install">Install</string>
 	<string name="action_closeOthers">Close others</string>
 	<string name="action_closeThis">Close this</string>
 	<string name="all_saved">All files saved</string>
@@ -215,6 +283,24 @@
 	<string name="lang_kotlin">Kotlin</string>
 	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
+	<string name="msg_file_tree_drop_import_failed">Failed to import dropped files</string>
+	<string name="msg_file_tree_drop_no_files">No external files were dropped</string>
+	<string name="msg_file_tree_drop_destination_missing">Destination folder does not exist</string>
+	<string name="msg_file_tree_drop_destination_unresolved">Cannot resolve the destination folder</string>
+	<string name="msg_file_tree_drop_default_name">Dropped file</string>
+	<string name="msg_file_tree_drop_read_failed">Unable to read dropped file: %1$s</string>
+	<string name="msg_file_tree_drop_imported_single">Imported 1 file</string>
+	<string name="msg_file_tree_drop_imported_multiple">Imported %1$d files</string>
+
+	<!-- Shortcuts -->
+	<string name="shortcut_close_current_file">Close current file</string>
+	<string name="shortcut_create_project">Create project</string>
+    <string name="shortcut_open_project">Open project</string>
+    <string name="shortcut_clone_repository">Clone repository</string>
+    <string name="shortcut_close_file">Close file</string>
+    <string name="shortcut_open_preferences">Open preferences</string>
+    <string name="shortcut_find_in_project">Find in project</string>
+    <string name="shortcut_open_terminal">Open terminal</string>
 
 	<!-- Code Editor -->
 	<string name="open_with">Open with…</string>
@@ -258,11 +344,20 @@
 
 	<!-- Layout preview and designer -->
 	<string name="title_preview_layout">Preview Layout</string>
+	<string name="title_preview_compose">Preview Compose</string>
 	<string name="title_viewaction_delete">Delete</string>
 	<string name="msg_yesno_def_title">Please confirm</string>
 	<string name="msg_yesno_def_message">Are you sure?</string>
 	<string name="msg_empty_ui_layout">No views have been added. Click to add a view.</string>
 	<string name="msg_generate_xml_failed">Failed to generate XML code</string>
+    <string name="xml_validation_error_title">Layout XML error</string>
+    <string name="xml_validation_error_invalid_file">Selected file is not a valid Android XML layout.</string>
+    <string name="xml_error_parse">We could not read this layout XML. %1$s</string>
+    <string name="xml_error_io">We could not open this layout XML. %1$s</string>
+    <string name="xml_error_generic">We could not open this layout. %1$s</string>
+    <string name="xml_error_single_child_container">%1$s can have only one direct child. Wrap your views in a container like LinearLayout or ConstraintLayout.</string>
+    <string name="xml_error_add_child_failed">We could not place %1$s inside %2$s. Check the view hierarchy.</string>
+    <string name="xml_validation_error_generic">We could not open this layout. Fix the XML and try again.</string>
 	<string name="title_generating_xml">Generating XML code</string>
 	<string name="msg_swipe_up">Swipe up to display logs, diagnostics, debug info, and more</string>
 	<string name="preview_render_error_title">Preview Unavailable</string>
@@ -283,6 +378,9 @@
 
 	<string name="title_translations">Translations</string>
 	<string name="action_expand_selection">Expand selection</string>
+	<string name="action_explain_selection">Explain selection</string>
+	<string name="msg_ai_gemini_api_key_missing">Gemini API key is missing. Add it in AI Settings.</string>
+	<string name="msg_ai_local_model_not_loaded">Local model is not loaded. Load a model in AI Settings.</string>
 	<string name="idepref_java_matchLower_title">Match completions in lower case</string>
 	<string name="title_common">Common</string>
 	<string name="idepref_editor_category_common" translatable="false">@string/title_common</string>
@@ -327,7 +425,7 @@
 
 	<string name="build_status_idle">No builds in progress</string>
 	<string name="build_status_in_progress">Build in progress…</string>
-	<string name="build_status_failed">Build failed. See the build output panel for more details.</string>
+	<string name="build_status_failed">Build failed. See the Build Output panel for more details.</string>
 	<string name="build_status_sucess">Build successful</string>
 	<string name="msg_output_text_extraction_failed">Failed to get text from editor</string>
 	<string name="err_invalid_data_by_intent">Intent returned invalid data</string>
@@ -342,7 +440,7 @@
 	<string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
 	<string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
 	<string name="btn_donate">Donate</string>
-	<string name="btn_docs">Documentation</string>
+	<string name="btn_docs">Help</string>
 	<string name="btn_close">Close</string>
 	<string name="msg_ignore_case">Ignore case</string>
 	<string name="msg_use_regex">Use regex</string>
@@ -389,7 +487,7 @@
 	<string name="xml_formatting_options">XML formatting options</string>
 	<string name="xml_formatting_options_summary">Set formatting preferences for XML files.</string>
 	<string name="idepref_customFont_title">Use custom font</string>
-	<string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" will be used as Editor font.</string>
+	<string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" will be used as Editor font.</string>
 	<string name="msg_installing_apk">Installing APK…</string>
 	<string name="msg_action_open_application">Your app is installed. Do you want to launch the app?</string>
 	<string name="msg_action_open_title_application">App installed</string>
@@ -402,8 +500,8 @@
 	<string name="msg_linking">Linking %1$s to %2$s</string>
 	<string name="msg_extracting_hooks">Extracting hook libraries…</string>
 	<string name="msg_empty_package">Package name is empty</string>
-	<string name="msg_package_is_not_valid">Package name is not a valid</string>
-	<string name="msg_package_is_to_long">Package name is to long</string>
+	<string name="msg_package_is_not_valid">Package name is not valid</string>
+	<string name="msg_package_is_to_long">Package name is too long</string>
 	<string name="msg_package_not_valid_char_1">The character \'_\' cannot be the first character in a package segment</string>
 	<string name="msg_package_not_use_digit_first">A digit cannot be the first character in a package segment</string>
 	<string name="msg_package_not_valid_char_2">The character "%1$s" is not allowed in Android application package names.</string>
@@ -441,7 +539,7 @@
 	<string name="msg_toString_overridden">toString() is already overridden</string>
 	<string name="action_generate_missing_constructor">Generate missing constructor</string>
 	<string name="msg_cannot_generate_constructor">Unable to generate constructor</string>
-	<string name="msg_constructor_available">A constructor with same parameter types is already available</string>
+	<string name="msg_constructor_available">A constructor with the same parameter types is already available</string>
 
 	<string name="replace">Replace</string>
 	<string name="replaceAll">Replace all</string>
@@ -518,6 +616,10 @@
 	<string name="title_reload_color_schemes">Reload color schemes</string>
 	<string name="msg_dir_picker_failed">Failed to start directory picker : %1$s</string>
 	<string name="msg_tooling_server_unavailable">Tooling API server is unavailable. Check build output and IDE logs for errors.</string>
+	<!-- Shown when one or more dependency JARs were corrupt/unreadable during classpath indexing. %1$s is a comma-separated list of dependency names (may end with an overflow clause). -->
+	<string name="msg_unreadable_classpath_jars">Some dependencies couldn\'t be read and were skipped, so code completion may be incomplete: %1$s. Sync the project to re-download dependencies.</string>
+	<!-- Appended to the dependency list when more than three dependencies were skipped. %1$s is the first listed dependency names; %2$d is the count of additional ones. -->
+	<string name="msg_unreadable_classpath_jars_overflow">%1$s and %2$d more</string>
 	<string name="idepref_deleteEmptyLines_title">Delete empty lines on backspace</string>
 	<string name="idepref_deleteEmptyLines_summary">If a line contains no visible text characters, pressing backspace removes the entire line.</string>
 	<string name="idepref_deleteTabs_title">Smart backspace indent</string>
@@ -526,6 +628,7 @@
 	<!-- GitHub -->
 	<string name="title_warning">Warning</string>
 	<string name="title_github" translatable="false">GitHub</string>
+	<string name="checkout_conflict_message">Checkout conflict: Please commit or stash your local changes before pulling. Conflicting files:\n%1$s</string>
 	<string name="choose_different_location">Choose a different location</string>
 	<string name="new_directory_name">New directory name</string>
 	<string name="error">Error</string>
@@ -539,7 +642,7 @@
 	<string name="title_class_chooser">Which %1$s?</string>
 
 	<string name="permlab_bind_logger_service">bind to log service</string>
-	<string name="permdesc_bind_logger_service">Allows this app to bind to Code on the Go\'s logging service. This permission is required for Code on the Go to read this app\'s logs.</string>
+	<string name="permdesc_bind_logger_service">Allows this app to bind to Code on the Go\'s logging service. This permission is needed for Code on the Go to read this app\'s logs.</string>
 	<string name="wizard_module_name">Module name</string>
 	<string name="wizard_module_type">Module type</string>
 	<string name="msg_invalid_module_name">Invalid Gradle module name</string>
@@ -562,7 +665,7 @@
 	<string name="title_device">Device</string>
 	<string name="title_app_version">App version</string>
 	<string name="title_country">Country</string>
-	<string name="title_cpu_arch">CPU Arch</string>
+	<string name="title_cpu_arch">CPU arch</string>
 	<string name="title_preview_data">Preview data</string>
 	<string name="title_android_version">Android version</string>
 	<string name="btn_opt_in">Opt-in</string>
@@ -570,7 +673,7 @@
 	<string name="idepref_devOptions_summary">Experimental/debugging options for Code on the Go</string>
 	<string name="idepref_group_debugging">Debugging</string>
 	<string name="idepref_devOptions_dumpLogs_title">Dump logs</string>
-	<string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.androidide/logs</string>
+	<string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.cg/logs</string>
 	<string name="msg_emptyview_applogs">Run the debug variant of your application to view its logs here.</string>
 	<string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
 	<string name="msg_emptyview_idelogs">Logs from the IDE are shown here.</string>
@@ -612,6 +715,7 @@
 	<string name="msg_project_cache_read_failure">Failed to read project cache</string>
 	<string name="msg_font_copy_failed">Could not save the font file. Please try again.</string>
 	<string name="msg_files_being_saved">A file save operation is already in progress!</string>
+	<string name="msg_undock_save_failed">Couldn\'t save “%1$s”. Undock cancelled.</string>
 	<string name="title_install_tools">Install Development Tools</string>
 	<string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of the screen\n</string>
 	<string name="msg_install_tools"> </string>
@@ -619,20 +723,20 @@
 	<string name="greeting_subtitle">No computer? No Internet? No problem.</string>
 	<string name="title_grant">Allow</string>
 	<string name="permission_title_storage">Storage</string>
-	<string name="permission_desc_storage">Allow Code on the Go to access files.</string>
+	<string name="permission_desc_storage">Allow Code on the Go to open and save files on this device.</string>
 	<string name="permission_title_install_packages">Install packages</string>
-	<string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
-	<string name="permission_title_overlay_window">Overlay window</string>
-	<string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
+	<string name="permission_desc_install_packages">Allow Code on the Go to install the apps that you build on this device.</string>
+	<string name="permission_title_overlay_window">Floating debugger</string>
+	<string name="permission_desc_overlay_window">Allow Code on the Go to display floating debugger controls to inspect your code while it runs.</string>
+	<string name="permission_overlay_unsupported_hint">Floating debugger is not available on this device.</string>
+	<string name="permission_overlay_restricted_settings_hint">If you can\'t enable this permission, display App info for Code on the Go, tap the three-dot menu, and enable restricted settings.</string>
+	<string name="permission_overlay_restricted_dialog_title">Enable restricted settings</string>
+	<string name="permission_overlay_restricted_dialog_message">Android turned off the “Display over other apps” switch because Code on the Go was installed from outside an app store. To turn it on:</string>
+	<string name="permission_overlay_open_app_info">Open App info</string>
 	<string name="permission_title_notifications">Notifications</string>
-	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
+	<string name="permission_desc_notifications">Allow Code on the Go to display notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
-	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow up to four permissions.</string>
-	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages. On Android 12 and earlier, notifications are enabled by default and won’t appear as a permission request.</string>
-	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
-	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
-	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> is required so you can use the debugger. If your device won\'t let you enable this permission, go to <b>Settings \u2192 Apps \u2192 Code on the Go</b>. In the Options menu at the upper right, tap <b>Enable restricted settings</b>. When you return to the installer, you can assign the permission. (The exact steps may vary on different devices.)</string>
 	<string name="finish_installation">Finish installation</string>
 	<string name="onboarding_title_permissions">Permissions</string>
 	<string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
@@ -652,11 +756,6 @@
 	<string name="title_install_location_error">Install location error</string>
 	<string name="title_unsupported_user">Unsupported user</string>
 	<string name="title_socials">Socials</string>
-	<string name="title_contributors">Contributors</string>
-	<string name="summary_contributors">Top community contributors.</string>
-	<string name="title_github_contributors">GitHub Contributors</string>
-	<string name="title_crowdin_translators">Crowdin Translators</string>
-	<string name="title_misc">Misc</string>
 	<string name="title_contribute">Contribute</string>
 	<string name="summary_contribute">It\'s not just an IDE, it\'s a community. Contribute code, ideas, and passion to Code On The Go.</string>
 	<string name="msg_app_unavailable_for_intent">No application available to handle intent.</string>
@@ -700,6 +799,19 @@
 	<string name="debugger_dialog_button_set">Set</string>
 	<string name="debugger_variable_value_invalid">Invalid value for this variable</string>
 	<string name="debugger_error_immutable_variable">The value of variable \'%1$s\' cannot be updated.</string>
+	<string name="debugger_error_network_access_error">Network access error</string>
+	<string name="debugger_error_errno">Unable to listen for JDWP connections. Operation failed with error %1$d.</string>
+	<string name="debugger_error_errno_eperm">Code On the Go is not allowed to open or bind a network socket on the local network.</string>
+	<string name="debugger_error_errno_econnrefused">Network access for Code On the Go is blocked by the system. The app is not allowed to use the network or the service is unavailable.</string>
+	<string name="debugger_error_debugger_startup_failure">Unable to start Code On the Go debugger.</string>
+	<string name="debugger_not_ready">The debugger is not ready for a debug session.</string>
+	<string name="debugger_error_suggestion_network_restriction">Please ensure Code On the Go has permissions to access the local network. This can be checked by
+		going to the "App info" screen of Code On the Go in your device\'s settings, and checking if
+		network access is allowed under \"Data usage\" (exact name might differ between devices).
+
+		If network access is allowed and the issue still persists, please file a bug report with the
+		logs attached.
+	</string>
 
 	<string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
 
@@ -738,6 +850,7 @@
 		Internet access is required.</string>
 	<string name="code_on_the_go">Code on the Go</string>
 	<string name="feedback_email_subject">Feedback for Code on the Go</string>
+	<string name="msg_feedback_log_too_long">The log is too large to send directly.</string>
 	<string name="msg_no_internet_no_problem">No computer? No Internet?\nNo problem.</string>
 	<string name="offline_message">Offline</string>
 	<string name="more_label">More</string>
@@ -754,6 +867,8 @@
 	<string name="breakpoint">Breakpoint</string>
 	<string name="project_name">Project name</string>
 	<string name="project_options">Project Options</string>
+	<string name="desc_enter_fullscreen">Enter full screen</string>
+    <string name="desc_exit_fullscreen">Exit full screen</string>
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">Plugin Manager</string>
@@ -773,6 +888,15 @@
 	<string name="plugin_details">Plugin Details</string>
 	<string name="plugin_permissions">Permissions</string>
 	<string name="plugin_dependencies">Dependencies</string>
+
+	<!-- Plugin crash dialog -->
+	<string name="title_plugin_crashed">Plugin crashed</string>
+	<string name="msg_plugin_crash">\"%1$s\" crashed (%2$d of 3).</string>
+	<string name="msg_plugin_crash_disabled">\"%1$s\" was disabled after repeated crashes.</string>
+	<string name="msg_plugin_crash_dev_hint">If you\'re the plugin developer, tap the info icon to view the crash logs.</string>
+	<string name="cd_plugin_crash_view_logs">View crash logs</string>
+	<string name="title_plugin_crash_log">Crash log: %1$s</string>
+	<string name="msg_crash_log_copied">Crash log copied to clipboard</string>
 
 	<!-- Message shown when the bootstrap installer is extract a file from the zip -->
 	<!-- The first parameter is the name of the zip entry -->
@@ -795,7 +919,7 @@
                         color: %1$s;
                      }
                      a{
-                        color: #233490;
+                        color: %3$s;
                         text-decoration: underline;
                        }
                 </style>
@@ -807,10 +931,82 @@
 		</html>
 		]]></string>
 
+	<!-- Tooltip HTML Components -->
+	<string name="tooltip_buttons_separator"><![CDATA[<br>]]></string>
+	<string name="tooltip_detail_links_template"><![CDATA[%1$s<br><br>%2$s]]></string>
+	<string name="plugin_documentation_third_party_disclaimer">&lt;br&gt;&lt;br&gt;&lt;em style=&quot;color: #888; font-size: 0.9em;&quot;&gt;This documentation is provided by a third-party plugin.&lt;/em&gt;</string>
+
+	<!-- Tooltip Debug Dialog -->
+	<string name="tooltip_debug_dialog_title">Tooltip Debug Info</string>
+	<string name="tooltip_debug_metadata_html"><![CDATA[<b>Version</b> <small>%1$s</small><br/>
+<b>Row:</b> %2$d<br/>
+<b>ID:</b> %3$d<br/>
+<b>Category:</b> %4$s<br/>
+<b>Tag:</b> %5$s<br/>
+<b>Raw Summary:</b> %6$s<br/>
+<b>Raw Detail:</b> %7$s<br/>
+<b>Buttons:</b> %8$s<br/>]]></string>
+	<string name="tooltip_debug_plugin_html"><![CDATA[<h3>Plugin Tooltip Debug Info</h3>
+<b>Version:</b> <small>%1$s</small><br/>
+<b>Row:</b> %2$d<br/>
+<b>ID:</b> %3$d<br/>
+<b>Category:</b> %4$s<br/>
+<b>Tag:</b> %5$s<br/>
+<br/>
+<b>Raw Summary:</b><br/>
+<small>%6$s</small><br/>
+<br/>
+<b>Raw Detail:</b><br/>
+<small>%7$s</small><br/>
+<br/>
+<b>Buttons:</b> %8$s]]></string>
+
+	<!-- Tooltip Debug Button Formatting -->
+	<string name="tooltip_debug_button_separator"><![CDATA[<br/>]]></string>
+	<string name="tooltip_debug_button_item_template_simple">• %1$s</string>
+	<string name="tooltip_debug_button_item_template">\'%1$s \u2192 %2$s\'</string>
+
 	<string name="info_icon_content_description">Info icon</string>
 	<string name="feedback_button_description">Send feedback about this tooltip</string>
+	<string name="sponsor_button_description">Support us on GitHub Sponsors</string>
+	<string name="cd_more_options">More options</string>
+	<string name="cd_expand_collapse">Expand or collapse</string>
+	<string name="cd_file_icon">File icon</string>
+	<string name="cd_folder_icon">Folder icon</string>
+	<string name="cd_close">Close</string>
+	<string name="cd_save">Save</string>
+	<string name="cd_undo">Undo</string>
+	<string name="cd_redo">Redo</string>
+	<string name="cd_delete">Delete</string>
+	<string name="cd_add">Add</string>
+	<string name="cd_search">Search</string>
+	<string name="cd_diagnostic_error">Error</string>
+	<string name="cd_diagnostic_warning">Warning</string>
+	<string name="cd_diagnostic_info">Information</string>
+
+	<!-- Toolbar content descriptions for TalkBack (match actual function) -->
+	<string name="cd_toolbar_quick_run">Quick run</string>
+	<string name="cd_toolbar_cancel_build">Cancel build</string>
+	<string name="cd_toolbar_sync_project">Sync project</string>
+	<string name="cd_toolbar_start_debugger">Start debugger</string>
+	<string name="cd_toolbar_run_gradle_tasks">Run Gradle tasks</string>
+	<string name="cd_toolbar_undo">Undo</string>
+	<string name="cd_toolbar_redo">Redo</string>
+	<string name="cd_toolbar_save">Save</string>
+	<string name="cd_toolbar_preview_layout">Preview layout</string>
+	<string name="cd_toolbar_find">Find</string>
+	<string name="cd_toolbar_find_in_file">Find in file</string>
+	<string name="cd_toolbar_find_in_project">Find in project</string>
+	<string name="cd_toolbar_launch_app">Launch app</string>
+	<string name="cd_toolbar_disconnect_log_senders">Disconnect log senders</string>
+	<string name="cd_toolbar_image_to_layout">Image to layout</string>
+
+	<!-- Drawer toggle content descriptions -->
+	<string name="cd_drawer_open">Open project menu</string>
+	<string name="cd_drawer_close">Close project menu</string>
+
 	<string name="unknown_error">"An unknown error occurred."</string>
-	<string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
+	<string name="build_in_progress_warning">A build is already in progress. Ignoring new request.</string>
 	<string name="error_build_service_not_found">Build service not found.</string>
 	<string name="error_task_execution_failed">Task execution failed.</string>
 	<string name="error_no_output_listing_file">No output listing file found in project model.</string>
@@ -821,16 +1017,41 @@
 	<string name="status_building">Building…</string>
 	<string name="status_installing_plugin">Installing plugin…</string>
 	<string name="title_install_plugin">Install Plugin</string>
+	<string name="title_plugin_already_installed">Plugin Already Installed</string>
+	<string name="msg_plugin_overwrite_confirm">\'%1$s\' v%2$s is already installed. Replace it with v%3$s?</string>
 	<string name="msg_install_plugin_prompt">Plugin \'%1$s\' built successfully. Would you like to install it now?</string>
 	<string name="btn_install">Install</string>
 	<string name="btn_later">Later</string>
 	<string name="msg_plugin_installed_restart">Plugin installed. Restart the app to activate it.</string>
-	<string name="title_restart_required">Restart Required</string>
+	<string name="title_restart_required">Restart required</string>
 	<string name="msg_restart_for_plugin_changes">Plugin changes will take effect after restarting the app. Do you want to restart now?</string>
-	<string name="btn_restart_now">Restart Now</string>
+	<string name="btn_restart_now">Restart now</string>
 	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
+	<string name="msg_plugin_signature_mismatch">\'%1$s\' was installed from a different build variant. Uninstall it before installing this version.</string>
+	<string name="msg_plugin_error_clip_label">Plugin error</string>
 	<string name="msg_plugin_file_not_found">Plugin file not found</string>
+	<string name="msg_plugin_invalid_file">Invalid or corrupted plugin file. Cannot read plugin metadata.</string>
+	<string name="msg_plugin_installed">Plugin installed successfully</string>
+	<string name="msg_plugin_load_failed">Failed to load plugins: %1$s</string>
+	<string name="msg_plugin_enabled">Plugin enabled</string>
+	<string name="msg_plugin_enable_failed">Failed to enable plugin</string>
+	<string name="msg_plugin_enable_error">Error enabling plugin: %1$s</string>
+	<string name="msg_plugin_disabled">Plugin disabled</string>
+	<string name="msg_plugin_disable_failed">Failed to disable plugin</string>
+	<string name="msg_plugin_disable_error">Error disabling plugin: %1$s</string>
+	<string name="msg_plugin_uninstalled">Plugin uninstalled successfully</string>
+	<string name="msg_plugin_uninstall_failed">Failed to uninstall plugin</string>
+	<string name="msg_plugin_uninstall_error">Error uninstalling plugin: %1$s</string>
+	<string name="msg_source_delete_failed">Could not delete the installation file</string>
+	<string name="msg_unsupported_plugin_file">Unsupported file type. Please select a .cgp file</string>
+	<string name="msg_no_file_manager">No file manager found</string>
+	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
+	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
+	<string name="action_discover_plugins">Discover plugins</string>
+	<string name="url_discover_plugins" translatable="false">https://www.appdevforall.org/contribute/</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
+
+	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
 	<string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
@@ -854,7 +1075,7 @@
 	<string name="notification_adb_pairing_succeed_title">Pairing successful</string>
 
 	<!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
-	<string name="notification_adb_pairing_succeed_text">Code on the Go\'s Shizuku service will now be started.</string>
+	<string name="notification_adb_pairing_succeed_text">Tap the Back button to return to Code on the Go.</string>
 
 	<!-- Title for the notification when wireless debugging pairing has failed. -->
 	<string name="notification_adb_pairing_failed_title">Pairing failed</string>
@@ -926,6 +1147,11 @@
 	To use the debugger, you must enable developer options. When you’re ready to pair with the debugger:]]></string>
 
 	<!-- Steps shown to the user in an ordered list in the ADB pairing dialog -->
+	<string-array name="overlay_restricted_settings_steps">
+		<item><![CDATA[On the <b>App info</b> screen, tap the three-dot menu (⋮) in the top corner.]]></item>
+		<item><![CDATA[Tap <b>Allow restricted settings</b>.]]></item>
+		<item><![CDATA[Open <b>Display over other apps</b> and turn it on for Code on the Go.]]></item>
+	</string-array>
 	<string-array name="debugger_setup_pairing_steps">
 		<item><![CDATA[Tap <b>Start pairing</b>. Developer options are displayed.]]></item>
 		<item><![CDATA[Enable <b>Wireless debugging</b>.]]></item>
@@ -938,13 +1164,15 @@
 	<string name="debugger_setup_description_footer"><![CDATA[Some devices (including older Xiaomi devices) also require giving Code on the Go the “Unrestricted battery usage permission”. <a href="http://localhost:6174/i/debug-enable.html">See more information including troubleshooting tips</a>.]]></string>
 
 	<!-- Tooltip Links HTML Template -->
-	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
+	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:%2$s;text-decoration:underline;">%3$s</a>]]></string>
 	<string name="title_alert">Send feedback</string>
 
 	<!-- Strings from BaseApplication.java -->
-	<string name="telegram_group_url">https://t.me/CodeOnTheGoDiscussions</string>
+	<string name="github_discussions_url">https://github.com/appdevforall/CodeOnTheGo/discussions</string>
 	<string name="telegram_channel_url">https://t.me/CodeOnTheGoOfficial</string>
 	<string name="sponsor_url">https://m.androidide.com/donate</string>
+	<string name="support_our_work">Support our work</string>
+	<string name="github_sponsors_url">https://github.com/sponsors/appdevforall</string>
 	<string name="docs_url">http://localhost:6174/i/index.html</string>
 	<string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
 	<string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
@@ -957,6 +1185,21 @@
 	<string name="ai_setting_loading_model_please_wait">🔄 Loading model, please wait…</string>
 	<string name="ai_setting_model_loaded">✅ Model loaded: %1$s</string>
 	<string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
+
+	<!-- Model load errors -->
+	<string name="model_error_engine_init">Inference engine could not be initialized.</string>
+	<string name="model_error_copy_failed">Could not copy the model file.</string>
+	<string name="model_error_verification_failed">Model file verification failed.</string>
+	<string name="model_error_load_failed">Failed to load model \'%1$s\'.</string>
+	<string name="model_error_format_unsupported">This model format is not supported.</string>
+	<string name="model_error_embedding">The selected model \'%1$s\' is an embedding model designed for semantic search and similarity tasks. It cannot be used for chat or text generation.\n\nPlease select a chat/instruct model instead (e.g., models with \'chat\', \'instruct\', \'conversational\' in their name).</string>
+	<string name="model_error_format_onnx">ONNX models (.onnx) are not supported.\n\nThis app uses llama.cpp which only supports GGUF format (.gguf).\n\nTo use this model:\n1. Convert it to GGUF format using llama.cpp conversion tools\n2. Or download a pre-converted GGUF version from Hugging Face</string>
+	<string name="model_error_format_pytorch">PyTorch models (.pt, .pth, .bin) are not supported.\n\nThis app uses llama.cpp which only supports GGUF format (.gguf).\n\nTo use this model:\n1. Convert it to GGUF format using convert_hf_to_gguf.py\n2. Or download a pre-converted GGUF version from Hugging Face</string>
+	<string name="model_error_format_safetensors">SafeTensors models (.safetensors) are not directly supported.\n\nThis app uses llama.cpp which only supports GGUF format (.gguf).\n\nTo use this model:\n1. Convert it to GGUF format using convert_hf_to_gguf.py\n2. Or download a pre-converted GGUF version from Hugging Face</string>
+	<string name="model_error_format_tensorflow">TensorFlow models (.pb) are not supported.\n\nThis app uses llama.cpp which only supports GGUF format (.gguf).\n\nTo use this model:\n1. Convert it to GGUF format using appropriate conversion tools\n2. Or download a pre-converted GGUF version from Hugging Face</string>
+	<string name="model_error_format_tflite">TensorFlow Lite models (.tflite) are not supported.\n\nThis app uses llama.cpp which only supports GGUF format (.gguf).\n\nPlease select a GGUF format model.</string>
+	<string name="model_error_format_ggml">GGML models (.ggml) are deprecated.\n\nThis app uses the newer GGUF format (.gguf).\n\nTo use this model:\n1. Convert it to GGUF using convert_llama_ggml_to_gguf.py\n2. Or download a GGUF version from Hugging Face</string>
+
 	<string name="ai_disclaimer">Disclaimer</string>
 	<string name="ai_disclaimer_message">This AI agent is experimental and may give incorrect or harmful answers. Always back up your work before you try it, and always double-check its suggestions before using them. We are not responsible for any errors, bugs, or damage caused by its output. Use at your own risk.</string>
     <string name="ai_api_key_not_found">❌ No Gemini API Key found.\nIf you recently updated or reinstalled the app, your API key may have been reset.\nPlease add your Gemini key again in AI Settings.</string>
@@ -993,4 +1236,138 @@
     <string name="ai_setting_initializing_engine">Initializing engine</string>
     <string name="ai_setting_engine_ready">Engine is ready.</string>
 	<string name="title_image_to_layout">Image to Layout</string>
+
+	<!-- Compose Preview -->
+	<string name="preview_error_title">Preview Error</string>
+	<string name="preview_empty_title">No @Preview composables found</string>
+	<string name="preview_empty_message">Add @Preview annotation to a @Composable function to see it here</string>
+	<string name="title_compose_preview">Compose Preview</string>
+	<string name="toggle_preview_mode">Toggle preview mode</string>
+	<string name="preview_build_required_title">Build Required</string>
+	<string name="preview_build_required_message">Build the project to enable multi-file preview support</string>
+	<string name="preview_build_project">Build Project</string>
+	<string name="preview_building_project">Building project…</string>
+	<string name="preview_initializing">Initializing Compose preview…</string>
+
+	<!-- Copy Diagnostics -->
+	<string name="msg_diagnostics_copied">Diagnostics copied to clipboard</string>
+	<string name="msg_no_diagnostics_to_copy">No diagnostics to copy</string>
+	<string name="msg_clipboard_copy_failed">Failed to copy to clipboard</string>
+    <string name="dismiss">Dismiss</string>
+
+    <!-- Git -->
+    <string name="repository_url">Repository URL</string>
+    <string name="local_path">Local Path</string>
+    <string name="use_authentication">Use Authentication</string>
+    <string name="username">Username</string>
+    <string name="personal_access_token">Personal access token</string>
+    <string name="clone_project">Clone project</string>
+    <string name="destination_directory_not_empty">Destination directory is not empty</string>
+    <string name="clone_successful">Clone successful!</string>
+    <string name="clone_failed">Clone failed: %1$s</string>
+    <string name="cloning_repo">Cloning repository…</string>
+    <string name="pick_folder">Pick folder</string>
+    <string name="git_title">Git</string>
+    <string name="no_uncommitted_changes">No uncommitted changes</string>
+    <string name="unable_to_load_diff">Unable to load diff</string>
+    <string name="diff_viewer">Diff Viewer</string>
+    <string name="diff_loading">Loading Git Diff…</string>
+    <string name="commit_summary">Summary (required)</string>
+    <string name="commit_description_optional">Description (optional) </string>
+    <string name="commit">Commit</string>
+    <string name="view_commit_history">View Commit History</string>
+    <string name="git_commit_history">Git Commit History</string>
+    <string name="no_commit_history">No commit history</string>
+    <string name="commit_not_pushed">This commit has not been pushed to the remote repository</string>
+    <string name="commit_pushed">This commit has been pushed to the remote repository</string>
+    <string name="no_internet_connection">No internet connection. Please check your network and try again.</string>
+    <string name="connection_lost">Connection lost during download. Please check your internet connection and try again.</string>
+    <string name="desc_file_added">File added</string>
+    <string name="desc_file_modified">File modified</string>
+    <string name="desc_file_deleted">File deleted</string>
+    <string name="desc_file_untracked">File untracked</string>
+    <string name="desc_file_renamed">File renamed</string>
+    <string name="desc_file_conflicted">File conflicted</string>
+    <string name="cancel_clone">Cancel clone</string>
+    <string name="initialising_clone">Initializing clone…</string>
+    <string name="cancelling_clone">Cancelling clone…</string>
+
+    <!-- Git Preferences -->
+    <string name="idepref_git_summary">Set and update Git configuration</string>
+    <string name="idepref_git_author_title">Author identity</string>
+    <string name="idepref_git_author_summary">Set the name and email used for commits</string>
+    <string name="idepref_git_user_name_title">User name</string>
+    <string name="idepref_git_user_name_summary">Used as author name in commits</string>
+    <string name="idepref_git_user_email_title">User email</string>
+    <string name="idepref_git_user_email_summary">Used as author email in commits</string>
+    <string name="idepref_git_author_missing_warning">Configure Git author in Preferences to enable commits.\nTap the avatar for more info.</string>
+    <string name="git_committing_as">Committing as %1$s</string>
+    <string name="git_committing_email">Email - %1$s</string>
+    <string name="git_update_config_in_preferences">You can update your Git configuration in Preferences.</string>
+    <string name="author_not_set">Not set</string>
+    <string name="not_a_git_repo">This project is not a Git repository</string>
+    <string name="current_branch_name">Current branch: %1$s</string>
+    <string name="push">Push</string>
+    <string name="pushing">Pushing…</string>
+    <string name="push_successful">Push successful!</string>
+    <string name="push_failed">Push failed</string>
+    <string name="push_rejected_nonfastforward">Push rejected: Your branch is behind the remote. Please pull to resolve conflicts before pushing.</string>
+    <string name="pull">Pull</string>
+    <string name="pulling">Pulling…</string>
+    <string name="pull_successful">Pull successful!</string>
+    <string name="pull_failed">Pull failed</string>
+    <string name="git_credentials_title">Git credentials</string>
+    <string name="git_credentials_message">Enter your credentials to sync changes with the remote repository.</string>
+    <string name="git_credentials_clear">Clear credentials</string>
+    <string name="repo_authorization_error">Authentication failed. Ensure your Personal Access Token has \'repo\' permissions, or try clearing and re-entering credentials.</string>
+    <string name="info_merge_conflicts">Pull completed with conflicts.\nPlease select the conflicted files from the list, resolve the highlighted issues in the editor, save file(s) and then commit your changes.</string>
+    <string name="merge_conflicts">Merge conflicts</string>
+    <string name="abort_merge">Abort merge</string>
+    <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
+    <string name="msg_save_before_git_action">You have unsaved changes. Would you like to save them before proceeding?</string>
+    <string name="no_save_before_git_action">Proceed without saving</string>
+    <string name="save_before_git_action">Save before proceeding</string>
+    <string name="mark_as_resolved">Mark resolved</string>
+    <string name="check_all">Check All</string>
+    <string name="uncheck_all">Uncheck All</string>
+
+	<!-- Templates -->
+	<string name="template_exec_info_basepath">Starting project creation for %1$s</string>
+	<string name="template_exec_warn_identifiers">Identifier warnings: %1$s</string>
+	<string name="template_exec_warn_suspicious_entry">Skipping suspicious template entry outside project dir: %1$s</string>
+	<string name="template_exec_info_processing">Processing template %1$s</string>
+	<string name="template_exec_error_read_fail">Failed to read template %1$s</string>
+	<string name="template_exec_error_parse_line">Pebble parse error in %1$s at line %2$d: %3$s</string>
+	<string name="template_exec_error_parse">Unexpected Pebble parse error in %1$s</string>
+	<string name="template_exec_error_evaluate_line">Pebble evaluation error in %1$s at line %2$d: %3$s</string>
+	<string name="template_exec_error_evaluate">Unexpected Pebble evaluation error in %1$s %2$s</string>
+	<string name="template_exec_error_write">Failed writing output file: %1$s %2$s</string>
+	<string name="template_exec_error_copy">Failed copying binary entry: %1$s %2$s</string>
+	<string name="template_exec_error_process">Failed to process template entry: %1$s %2$s</string>
+
+	<string name="template_exec_warn_map_appname">Missing appName, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_pkgname">Missing packageName, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_location">Missing saveLocation, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_agp">Missing agpVersion, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_kotlin">Missing kotlinVersion, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_gradle">Missing gradleVersion, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_compilesdk">Missing compileSdk, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_targetsdk">Missing targetSdk, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_javasource_compat">Missing javaSourceCompat, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_javatarget_compat">Missing javaTargetCompat, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_javatarget">Missing javaTarget, defaulted to %1$s</string>
+
+	<string name="template_read_error_archive_json">%1$s does not contain %2$s</string>
+	<string name="template_read_error_template_load">Failed to load template at %1$s  error: %2$s</string>
+	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
+    <string name="navigate_up">Navigate up</string>
+    <string name="undock">Undock</string>
+
+	<!-- Floating window chrome button accessibility labels (announced by screen readers) -->
+	<string name="floating_window_action_minimize">Minimize</string>
+	<string name="floating_window_action_restore">Restore</string>
+	<string name="floating_window_action_maximize">Maximize</string>
+	<string name="floating_window_action_dock">Dock to editor</string>
+	<string name="floating_window_action_close">Close</string>
+
 </resources>

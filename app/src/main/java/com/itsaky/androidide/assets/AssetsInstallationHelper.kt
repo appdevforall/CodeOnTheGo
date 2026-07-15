@@ -20,8 +20,10 @@ import org.adfa.constants.DOCUMENTATION_DB
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.slf4j.LoggerFactory
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.flashError
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -33,9 +35,9 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
-import kotlin.io.path.pathString
 import kotlin.math.pow
 
 typealias AssetsInstallerProgressConsumer = (AssetsInstallationHelper.Progress) -> Unit
@@ -50,6 +52,7 @@ object AssetsInstallationHelper {
 		data class Failure(
 			val cause: Throwable?,
 			val errorMessage: String? = cause?.message,
+			val shouldReportToSentry: Boolean = true
 		) : Result
 	}
 
@@ -57,7 +60,6 @@ object AssetsInstallationHelper {
 		val message: String,
 	)
 
-    const val LLAMA_AAR = "dynamic_libs/llama.aar"
     const val PLUGIN_ARTIFACTS_ZIP = "plugin-artifacts.zip"
     private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
 	private val ASSETS_INSTALLER = AssetsInstaller.CURRENT_INSTALLER
@@ -76,11 +78,19 @@ object AssetsInstallationHelper {
 				}
 
 			if (result.isFailure) {
-				val e = result.exceptionOrNull()
-				val msg = e?.message ?: "Failed to install assets"
+				val e = result.exceptionOrNull() ?: RuntimeException(context.getString(R.string.error_installation_failed))
+				if (e is CancellationException) throw e
+
+				val isMissingAsset = generateSequence(e) { it.cause }.any { it is FileNotFoundException }
+				val cause = if (isMissingAsset) MissingAssetsEntryException(e) else e
+				val msg = if (isMissingAsset) {
+					context.getString(R.string.err_missing_or_corrupt_assets, context.getString(R.string.app_name))
+				} else {
+					e.message ?: context.getString(R.string.error_installation_failed)
+				}
 				logger.error("Failed to install assets", e)
 				onProgress(Progress(msg))
-				return@withContext Result.Failure(e, errorMessage = msg)
+				return@withContext Result.Failure(cause, errorMessage = msg, shouldReportToSentry = !isMissingAsset)
 			}
 
 			return@withContext Result.Success
@@ -103,8 +113,8 @@ object AssetsInstallationHelper {
 				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
 				BOOTSTRAP_ENTRY_NAME,
 				GRADLE_API_NAME_JAR_ZIP,
-                LLAMA_AAR,
-                PLUGIN_ARTIFACTS_ZIP
+                PLUGIN_ARTIFACTS_ZIP,
+                TEMPLATE_CORE_ARCHIVE,
 			)
 
 		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())
@@ -120,7 +130,7 @@ object AssetsInstallationHelper {
 				true
 			} catch (e: FileNotFoundException) {
 				logger.error("ZIP file not found: {}", e.message)
-				onProgress(Progress("${e.message}"))
+                flashError("File not found - ${e.message}")
 				false
 			} catch (e: ZipException) {
 				logger.error("Invalid ZIP format: {}", e.message)
@@ -136,76 +146,83 @@ object AssetsInstallationHelper {
 			return@coroutineScope Result.Failure(IOException("preInstall failed"))
 		}
 
-        val entrySizes: Map<String, Long> = expectedEntries.associateWith { entry ->
-            ASSETS_INSTALLER.expectedSize(entry)
-        }
-
-        val totalSize = entrySizes.values.sum()
-
-        val entryStatusMap = ConcurrentHashMap<String, String>()
-
-		val installerJobs =
-			expectedEntries.map { entry ->
-				async {
-					entryStatusMap[entry] = STATUS_INSTALLING
-
-					ASSETS_INSTALLER.doInstall(
-						context = context,
-						stagingDir = stagingDir,
-						cpuArch = cpuArch,
-						entryName = entry,
-					)
-
-					entryStatusMap[entry] = STATUS_FINISHED
-				}
+		try {
+			val entrySizes: Map<String, Long> = expectedEntries.associateWith { entry ->
+				ASSETS_INSTALLER.expectedSize(entry)
 			}
 
-		val progressUpdater =
-            launch {
-                var previousSnapshot = ""
-                while (isActive) {
-                    val installedSize = entryStatusMap
-                        .filterValues { it == STATUS_FINISHED }
-                        .keys
-                        .sumOf { entrySizes[it] ?: 0 }
+			val totalSize = entrySizes.values.sum()
 
-                    val percent = if (totalSize > 0) {
-                        (installedSize * 100.0 / totalSize)
-                    } else 0.0
+			val entryStatusMap = ConcurrentHashMap<String, String>()
 
-                    val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
+			val installerJobs =
+				expectedEntries.map { entry ->
+					async {
+						entryStatusMap[entry] = STATUS_INSTALLING
 
-                    val snapshot =
-                        buildString {
-                            entryStatusMap.forEach { (entry, status) ->
-                                appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
-                            }
-                            appendLine("--------------------")
-                            appendLine("Progress: ${formatPercent(percent)}")
-                            appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
-                            appendLine("Remaining storage: ${formatBytes(freeStorage)}")
-                        }
+						ASSETS_INSTALLER.doInstall(
+							context = context,
+							stagingDir = stagingDir,
+							cpuArch = cpuArch,
+							entryName = entry,
+						)
 
-                    if (snapshot != previousSnapshot) {
-                        onProgress(Progress(snapshot))
-                        previousSnapshot = snapshot
-                    }
+						entryStatusMap[entry] = STATUS_FINISHED
+					}
+				}
 
-                    delay(500)
-                }
-            }
+			val progressUpdater =
+				launch {
+					var previousSnapshot = ""
+					while (isActive) {
+						val installedSize = entryStatusMap
+							.filterValues { it == STATUS_FINISHED }
+							.keys
+							.sumOf { entrySizes[it] ?: 0 }
 
-        // wait for all jobs to complete
-		installerJobs.joinAll()
+						val percent = if (totalSize > 0) {
+							(installedSize * 100.0 / totalSize)
+						} else 0.0
 
-		// notify post-install
-		ASSETS_INSTALLER.postInstall(context, stagingDir)
+						val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
-		// then cancel progress updater
-		progressUpdater.cancel()
+						val snapshot =
+							if (percent >= 99.0) {
+								"Post install processing in progress...."
+							} else {
+								buildString {
+									entryStatusMap.forEach { (entry, status) ->
+										appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
+									}
+									appendLine("--------------------")
+									appendLine("Progress: ${formatPercent(percent)}")
+									appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
+									appendLine("Remaining storage: ${formatBytes(freeStorage)}")
+								}
+							}
 
-		// clean up
-		stagingDir.deleteRecursively()
+						if (snapshot != previousSnapshot) {
+							onProgress(Progress(snapshot))
+							previousSnapshot = snapshot
+						}
+
+						delay(500)
+					}
+				}
+
+			// wait for all jobs to complete
+			installerJobs.joinAll()
+
+			// then cancel progress updater
+			progressUpdater.cancel()
+		} finally {
+			// Always run postInstall so zip/FS resources are closed (e.g. SplitAssetsInstaller.zipFile)
+			runCatching { ASSETS_INSTALLER.postInstall(context, stagingDir) }
+				.onFailure { e -> logger.warn("postInstall failed", e) }
+			if (Files.exists(stagingDir)) {
+				stagingDir.deleteRecursively()
+			}
+		}
 	}
 
 	@WorkerThread
@@ -279,13 +296,21 @@ object AssetsInstallationHelper {
 		onProgress: AssetsInstallerProgressConsumer,
 	): Result.Failure? {
 		val rootDir = File(DEFAULT_ROOT)
+
+		if (!rootDir.exists()) {
+			runCatching {
+				rootDir.mkdirs()
+			}.onFailure { logger.warn("Failed to create root dir: ${it.message}") }
+		}
+
 		if (!rootDir.exists() || !rootDir.canWrite()) {
 			val errorMsg = context.getString(R.string.storage_not_accessible)
 			logger.error("Storage not accessible: {}", DEFAULT_ROOT)
 			onProgress(Progress(errorMsg))
 			return Result.Failure(
 				IllegalStateException(errorMsg),
-				errorMsg
+				errorMsg,
+				false
 			)
 		}
 		return null

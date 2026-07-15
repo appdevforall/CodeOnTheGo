@@ -17,6 +17,8 @@ version = 1
 [install]
 jdk17.pkg-path = "jdk17"
 android-studio-tools.pkg-path = "android-studio-tools"
+gh.pkg-path = "gh"
+awscli2.pkg-path = "awscli2"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 
@@ -77,11 +79,11 @@ on-activate = '''
 
   # The packages we need
   install_sdk_tools_if_required \
-    "build-tools;35.0.0" \
+    "build-tools;36.0.0" \
     "cmake;3.31.6" \
-    "platforms;android-35" \
+    "platforms;android-36" \
     "platform-tools" \
-    "ndk;28.1.13356709"
+    "ndk;29.0.14206865"
 '''
 
 

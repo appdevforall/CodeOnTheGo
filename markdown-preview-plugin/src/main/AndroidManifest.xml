@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:label="Markdown Previewer"
+        android:theme="@style/Theme.MarkdownPreviewer">
+
+        <!-- Plugin metadata -->
+        <meta-data
+            android:name="plugin.id"
+            android:value="com.codeonthego.markdownpreviewer" />
+
+        <meta-data
+            android:name="plugin.name"
+            android:value="Markdown Previewer" />
+
+        <meta-data
+            android:name="plugin.version"
+            android:value="${pluginVersion}" />
+
+        <meta-data
+            android:name="plugin.description"
+            android:value="Preview Markdown and HTML files with live rendering. Select files from the project tree or device storage." />
+
+        <meta-data
+            android:name="plugin.author"
+            android:value="Code on the Go Team" />
+
+        <meta-data
+            android:name="plugin.min_ide_version"
+            android:value="1.0.0" />
+
+        <meta-data
+            android:name="plugin.permissions"
+            android:value="filesystem.read" />
+
+        <meta-data
+            android:name="plugin.main_class"
+            android:value="com.codeonthego.markdownpreviewer.MarkdownPreviewerPlugin" />
+
+        <meta-data
+            android:name="plugin.sidebar_items"
+            android:value="1" />
+
+    </application>
+
+</manifest>

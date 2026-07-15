@@ -12,6 +12,7 @@ import com.itsaky.androidide.models.StorageInfo
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.bytesToGigabytes
+import com.itsaky.androidide.utils.getMinimumStorageNeeded
 import com.itsaky.androidide.utils.gigabytesToBytes
 import com.itsaky.androidide.utils.withStopWatch
 import com.itsaky.androidide.viewmodel.InstallationState.InstallationComplete
@@ -20,6 +21,7 @@ import com.itsaky.androidide.viewmodel.InstallationState.InstallationGranted
 import com.itsaky.androidide.viewmodel.InstallationState.InstallationPending
 import com.itsaky.androidide.viewmodel.InstallationState.Installing
 import io.sentry.Sentry
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,9 +34,6 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 class InstallationViewModel : ViewModel() {
-	companion object {
-		const val LEAST_STORAGE_NEEDED_FOR_INSTALLATION = 2L
-	}
 
 	private val log = LoggerFactory.getLogger(InstallationViewModel::class.java)
 
@@ -61,64 +60,68 @@ class InstallationViewModel : ViewModel() {
 			return
 		}
 
-		if (!checkStorageAndNotify(context)) {
-			return
-		}
-		if (!checkToolsIsInstalled()) {
-			viewModelScope.launch {
-				try {
-					_state.update { Installing() }
+		viewModelScope.launch {
+			if (!checkStorageAndNotify(context)) {
+				return@launch
+			}
+			if (withContext(Dispatchers.IO) { checkToolsIsInstalled() }) {
+				// Tools already installed
+				_state.update { InstallationComplete }
+				return@launch
+			}
+			try {
+				_state.update { Installing() }
 
-					withContext(Dispatchers.IO) {
-						val result =
-							withStopWatch("Assets installation") {
-								AssetsInstallationHelper.install(context) { progress ->
-									log.debug("Assets installation progress: {}", progress.message)
-									_installationProgress.value = progress.message
-								}
+				withContext(Dispatchers.IO) {
+					val result =
+						withStopWatch("Assets installation") {
+							AssetsInstallationHelper.install(context) { progress ->
+								log.debug("Assets installation progress: {}", progress.message)
+								_installationProgress.value = progress.message
 							}
+						}
 
-						log.info("Assets installation result: {}", result)
+					log.info("Assets installation result: {}", result)
 
-						when (result) {
-							is AssetsInstallationHelper.Result.Success -> {
-								val distributionProvider = IJdkDistributionProvider.getInstance()
-								distributionProvider.loadDistributions()
+					when (result) {
+						is AssetsInstallationHelper.Result.Success -> {
+							val distributionProvider = IJdkDistributionProvider.getInstance()
+							distributionProvider.loadDistributions()
 
-								_state.update { InstallationComplete }
-							}
-							is AssetsInstallationHelper.Result.Failure -> {
+							_state.update { InstallationComplete }
+						}
+						is AssetsInstallationHelper.Result.Failure -> {
+							if (result.shouldReportToSentry) {
 								result.cause?.let { Sentry.captureException(it) }
-								val errorMsg = result.errorMessage
-									?: context.getString(R.string.title_installation_failed)
-								viewModelScope.launch {
-									_events.emit(InstallationEvent.ShowError(errorMsg))
-								}
-								_state.update {
-									InstallationError(errorMsg)
-								}
+							}
+							val errorMsg = result.errorMessage
+								?: context.getString(R.string.title_installation_failed)
+							_events.emit(InstallationEvent.ShowError(errorMsg))
+							_state.update {
+								InstallationError(errorMsg)
 							}
 						}
 					}
-				} catch (e: Exception) {
-					Sentry.captureException(e)
-					log.error("IDE setup installation failed", e)
-					val errorMsg = e.message ?: context.getString(R.string.unknown_error)
-					viewModelScope.launch {
-						_events.emit(InstallationEvent.ShowError(errorMsg))
-					}
-					_state.update {
-						InstallationError(errorMsg)
-					}
+				}
+			} catch (e: Exception) {
+				if (e is CancellationException) {
+					_state.update { InstallationPending }
+					throw e
+				}
+				Sentry.captureException(e)
+				log.error("IDE setup installation failed", e)
+				val errorMsg = e.message ?: context.getString(R.string.unknown_error)
+				_events.emit(InstallationEvent.ShowError(errorMsg))
+				_state.update {
+					InstallationError(errorMsg)
 				}
 			}
-		} else {
-			// Tools already installed
-			_state.update { InstallationComplete }
 		}
 	}
 
 	fun isSetupComplete(): Boolean = checkToolsIsInstalled()
+
+	suspend fun isSetupCompleteAsync(): Boolean = withContext(Dispatchers.IO) { checkToolsIsInstalled() }
 
 	private fun checkToolsIsInstalled(): Boolean =
 		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
@@ -132,7 +135,7 @@ class InstallationViewModel : ViewModel() {
         val stat = StatFs(internalStoragePath)
 
         val availableStorageInBytes = stat.availableBlocksLong * stat.blockSizeLong
-        val requiredStorageInBytes = LEAST_STORAGE_NEEDED_FOR_INSTALLATION.gigabytesToBytes()
+        val requiredStorageInBytes = getMinimumStorageNeeded().gigabytesToBytes()
 
         val isLowStorage = availableStorageInBytes < requiredStorageInBytes
 
@@ -142,7 +145,7 @@ class InstallationViewModel : ViewModel() {
         return StorageInfo(isLowStorage, availableStorageInBytes, additionalBytesNeeded)
     }
 
-    fun checkStorageAndNotify(context: Context): Boolean {
+    suspend fun checkStorageAndNotify(context: Context): Boolean = withContext(Dispatchers.IO) {
         val storageInfo = getStorageInfo(context)
 
         if (storageInfo.isLowStorage) {
@@ -155,13 +158,11 @@ class InstallationViewModel : ViewModel() {
                 availableGB
             )
 
-            viewModelScope.launch {
-                _events.emit(InstallationEvent.ShowError(errorMessage))
-            }
-            return false
+            _events.emit(InstallationEvent.ShowError(errorMessage))
+            return@withContext false
         }
 
-        return true
+        return@withContext true
     }
 
 }

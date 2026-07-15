@@ -18,6 +18,8 @@
 package com.itsaky.androidide.ui
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.util.AttributeSet
 import android.util.Log
@@ -59,9 +61,13 @@ import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
+import com.itsaky.androidide.utils.DiagnosticsFormatter
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
+import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
@@ -106,6 +112,7 @@ constructor(
 
 	private var anchorOffset = 0
 	private var isImeVisible = false
+	private var isSearchModeActive = false
 	private var windowInsets: Insets? = null
 
 	private val insetBottom: Int
@@ -113,12 +120,12 @@ constructor(
 
 	private val viewModel by (context as FragmentActivity).viewModels<BottomSheetViewModel>()
 	private val apkViewModel by (context as FragmentActivity).viewModels<ApkInstallationViewModel>()
+	private val buildOutputViewModel by (context as FragmentActivity).viewModels<BuildOutputViewModel>()
 	private lateinit var mediator: TabLayoutMediator
 	private var shareJob: Job? = null
 
 	companion object {
 		private val log = LoggerFactory.getLogger(EditorBottomSheet::class.java)
-		private const val COLLAPSE_HEADER_AT_OFFSET = 0.5f
 
 		const val CHILD_HEADER = 0
 		const val CHILD_SYMBOL_INPUT = 1
@@ -153,9 +160,10 @@ constructor(
 				tab.view.setOnLongClickListener { view ->
 					val tooltipTag =
 						pagerAdapter.getTooltipTag(position) ?: return@setOnLongClickListener true
-					TooltipManager.showIdeCategoryTooltip(
+					TooltipManager.showTooltip(
 						context = context,
 						anchorView = view,
+						category = pagerAdapter.getTooltipCategory(position),
 						tag = tooltipTag,
 					)
 					true
@@ -180,6 +188,12 @@ constructor(
 						binding.clearFab.hide()
 						binding.shareOutputFab.hide()
 					}
+
+					if (tab.position == EditorBottomSheetTabAdapter.TAB_DIAGNOSTICS) {
+						binding.copyDiagnosticsFab.show()
+					} else {
+						binding.copyDiagnosticsFab.hide()
+					}
 				}
 
 				override fun onTabUnselected(tab: Tab) {}
@@ -201,8 +215,9 @@ constructor(
 
 			shareJob = context.lifecycleScope.launch {
 				try {
-					val filename = fragment.getShareableFilename()
-					val content = fragment.getShareableContent()
+					val (filename, content) = withContext(Dispatchers.IO) {
+						fragment.getShareableFilename() to fragment.getShareableContent()
+					}
 
 					if (!isAttachedToWindow) return@launch
 					shareText(text = content, type = filename)
@@ -232,6 +247,10 @@ constructor(
 		}
 		binding.clearFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_CLEAR))
 
+		binding.copyDiagnosticsFab.setOnClickListener {
+			copyDiagnosticsToClipboard()
+		}
+
 		binding.headerContainer.setOnClickListener {
 			viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 		}
@@ -255,6 +274,7 @@ constructor(
     binding.shareOutputFab.setOnLongClickListener(null)
     binding.clearFab.setOnClickListener(null)
     binding.clearFab.setOnLongClickListener(null)
+    binding.copyDiagnosticsFab.setOnClickListener(null)
     binding.headerContainer.setOnClickListener(null)
     ViewCompat.setOnApplyWindowInsetsListener(this, null)
 
@@ -320,7 +340,21 @@ constructor(
 	 */
 	fun setImeVisible(isVisible: Boolean) {
 		isImeVisible = isVisible
-		behavior.isGestureInsetBottomIgnored = isVisible
+		behavior.isGestureInsetBottomIgnored = true
+		applyPeekHeight()
+	}
+
+
+	fun setSearchModeActive(isActive: Boolean) {
+		isSearchModeActive = isActive
+		if (isActive && behavior.state != BottomSheetBehavior.STATE_COLLAPSED) {
+			behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+		}
+		applyPeekHeight()
+	}
+
+	private fun applyPeekHeight() {
+		behavior.peekHeight = if (isSearchModeActive) 0 else collapsedHeight.roundToInt()
 	}
 
 	fun setOffsetAnchor(view: View) {
@@ -332,7 +366,7 @@ constructor(
 
 					behavior.peekHeight = collapsedHeight.roundToInt()
 					behavior.expandedOffset = anchorOffset
-					behavior.isGestureInsetBottomIgnored = isImeVisible
+					behavior.isGestureInsetBottomIgnored = true
 
 					binding.root.updatePadding(bottom = anchorOffset + insetBottom)
 					binding.headerContainer.apply {
@@ -347,20 +381,27 @@ constructor(
 		view.viewTreeObserver.addOnGlobalLayoutListener(listener)
 	}
 
-	fun onSlide(sheetOffset: Float) {
-		val heightScale =
-			if (sheetOffset >= COLLAPSE_HEADER_AT_OFFSET) {
-				((COLLAPSE_HEADER_AT_OFFSET - sheetOffset) + COLLAPSE_HEADER_AT_OFFSET) * 2f
-			} else {
-				1f
+	fun resetOffsetAnchor() {
+		anchorOffset = 0
+		behavior.peekHeight = collapsedHeight.roundToInt()
+		behavior.expandedOffset = 0
+		binding.root.updatePadding(bottom = insetBottom)
+		binding.headerContainer.apply {
+			updatePaddingRelative(bottom = insetBottom)
+			updateLayoutParams<LayoutParams> {
+				height = (collapsedHeight + insetBottom).roundToInt()
 			}
+		}
+	}
 
-		val paddingScale =
-			if (!isImeVisible && sheetOffset <= COLLAPSE_HEADER_AT_OFFSET) {
-				((1f - sheetOffset) * 2f) - 1f
-			} else {
-				0f
-			}
+	fun onSlide(sheetOffset: Float) {
+		val safeOffset = sheetOffset.coerceIn(0f, 1f)
+
+		val heightScale = 1f - safeOffset
+
+		val paddingScale = if (!isImeVisible) {
+			1f - safeOffset
+		} else 0f
 
 		val padding = insetBottom * paddingScale
 		binding.headerContainer.apply {
@@ -411,7 +452,7 @@ constructor(
 		suppressedGradleWarnings.any { msg.contains(it) }
 
 	fun clearBuildOutput() {
-		pagerAdapter.buildOutputFragment?.clearOutput()
+		pagerAdapter.buildOutputFragment?.takeIf { it.isAdded }?.clearOutput()
 	}
 
 	fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
@@ -516,5 +557,29 @@ constructor(
 		Files.write(path, text.toByteArray(StandardCharsets.UTF_8), CREATE_NEW, WRITE)
 
 		return path.toFile()
+	}
+
+	private fun copyDiagnosticsToClipboard() {
+		if (!IDELanguageClientImpl.isInitialized()) {
+			flashError(context.getString(string.msg_no_diagnostics_to_copy))
+			return
+		}
+
+		val diagnostics = IDELanguageClientImpl.getInstance().allDiagnostics
+		if (diagnostics.isEmpty()) {
+			flashError(context.getString(string.msg_no_diagnostics_to_copy))
+			return
+		}
+
+		val formatted = DiagnosticsFormatter.format(diagnostics)
+		val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+		if (clipboard == null) {
+			flashError(context.getString(string.msg_clipboard_copy_failed))
+			return
+		}
+
+		runCatching { clipboard.setPrimaryClip(ClipData.newPlainText("diagnostics", formatted)) }
+			.onSuccess { flashSuccess(context.getString(string.msg_diagnostics_copied)) }
+			.onFailure { flashError(context.getString(string.msg_clipboard_copy_failed)) }
 	}
 }

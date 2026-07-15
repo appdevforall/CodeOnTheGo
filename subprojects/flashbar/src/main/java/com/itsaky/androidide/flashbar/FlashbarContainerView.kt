@@ -18,7 +18,9 @@
 package com.itsaky.androidide.flashbar
 
 import android.app.Activity
+import android.content.ComponentCallbacks
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Rect
 import android.view.HapticFeedbackConstants.VIRTUAL_KEY
 import android.view.MotionEvent
@@ -26,7 +28,9 @@ import android.view.MotionEvent.ACTION_DOWN
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.widget.FrameLayout
 import android.widget.RelativeLayout
+import androidx.core.view.ViewCompat
 import com.itsaky.androidide.flashbar.Flashbar.Companion.DURATION_INDEFINITE
 import com.itsaky.androidide.flashbar.Flashbar.DismissEvent
 import com.itsaky.androidide.flashbar.Flashbar.DismissEvent.*
@@ -76,8 +80,12 @@ internal class FlashbarContainerView(context: Context)
     private var isBarDismissing = false
     private var barDismissOnTapOutside: Boolean = false
     private var earlyDismissalRequested = false
+    private var isShowInitiated = false
     private var showOverlay: Boolean = false
     private var overlayBlockable: Boolean = false
+
+    private var configCallbacks: ComponentCallbacks? = null
+    private var registeredActivity: Activity? = null
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
@@ -107,7 +115,7 @@ internal class FlashbarContainerView(context: Context)
 
     override fun onDismiss(view: View) {
         removeCallbacks(dismissRunnable)
-
+        unregisterConfigurationCallback()
         (parent as? ViewGroup)?.removeView(this@FlashbarContainerView)
         isBarShown = false
 
@@ -144,15 +152,15 @@ internal class FlashbarContainerView(context: Context)
     }
 
     internal fun adjustOrientation(activity: Activity) {
-        val flashbarContainerViewLp = LayoutParams(MATCH_PARENT, MATCH_PARENT)
+        // Parent is window decor view (FrameLayout); use FrameLayout.LayoutParams to avoid ClassCastException in onMeasure.
+        val flashbarContainerViewLp = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
 
         val navigationBarPosition = activity.getNavigationBarPosition()
         val navigationBarSize = activity.getNavigationBarSizeInPx()
 
         when (navigationBarPosition) {
-            LEFT -> flashbarContainerViewLp.leftMargin = navigationBarSize
+            LEFT, RIGHT -> { /* full width: no extra horizontal margin */ }
             TOP -> flashbarContainerViewLp.topMargin = navigationBarSize
-            RIGHT -> flashbarContainerViewLp.rightMargin = navigationBarSize
             BOTTOM -> flashbarContainerViewLp.bottomMargin = navigationBarSize
         }
 
@@ -165,10 +173,25 @@ internal class FlashbarContainerView(context: Context)
 
         val activityRootView = activity.getRootView() ?: return
 
+        isShowInitiated = true
+
         // Only add the withView to the parent once
-        if (this.parent == null) activityRootView.addView(this)
+        if (this.parent == null) {
+            activityRootView.addView(this)
+            registerConfigurationCallback(activity)
+            post {
+                adjustOrientation(activity)
+                ViewCompat.requestApplyInsets(this)
+                requestLayout()
+            }
+        }
 
         activityRootView.afterMeasured {
+            if (earlyDismissalRequested) {
+                cancelPendingShow()
+                return@afterMeasured
+            }
+
             val enterAnim = enterAnimBuilder.withView(flashbarView).build()
             enterAnim.start(object : FlashAnim.InternalAnimListener {
                 override fun onStart() {
@@ -183,6 +206,7 @@ internal class FlashbarContainerView(context: Context)
                 override fun onStop() {
                     isBarShowing = false
                     isBarShown = true
+                    isShowInitiated = false
 
                     flashbarView.startIconAnimation(iconAnimBuilder)
 
@@ -278,7 +302,14 @@ internal class FlashbarContainerView(context: Context)
             return
         }
 
-        if (isBarDismissing || !isBarShown) {
+        if (isBarDismissing) {
+            return
+        }
+
+        if (!isBarShown) {
+            if (isShowInitiated) {
+                earlyDismissalRequested = true
+            }
             return
         }
 
@@ -305,8 +336,43 @@ internal class FlashbarContainerView(context: Context)
 
                 onBarDismissListener?.onDismissed(parentFlashbar, event)
 
-                post { (parent as? ViewGroup)?.removeView(this@FlashbarContainerView) }
+                post {
+                    unregisterConfigurationCallback()
+                    (parent as? ViewGroup)?.removeView(this@FlashbarContainerView)
+                }
             }
         })
+    }
+
+    private fun cancelPendingShow() {
+        isShowInitiated = false
+        earlyDismissalRequested = false
+        removeCallbacks(dismissRunnable)
+        unregisterConfigurationCallback()
+        (parent as? ViewGroup)?.removeView(this)
+        onBarDismissListener?.onDismissed(parentFlashbar, MANUAL)
+    }
+
+    private fun registerConfigurationCallback(activity: Activity) {
+        if (configCallbacks != null) return
+        registeredActivity = activity
+        configCallbacks =
+            object : ComponentCallbacks {
+                override fun onConfigurationChanged(newConfig: Configuration) {
+                    adjustOrientation(activity)
+                    requestLayout()
+                }
+
+                override fun onLowMemory() {}
+            }
+        activity.registerComponentCallbacks(configCallbacks)
+    }
+
+    private fun unregisterConfigurationCallback() {
+        registeredActivity?.let { activity ->
+            configCallbacks?.let { activity.unregisterComponentCallbacks(it) }
+        }
+        configCallbacks = null
+        registeredActivity = null
     }
 }

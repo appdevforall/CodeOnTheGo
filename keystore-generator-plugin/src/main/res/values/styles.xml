@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="PluginTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/plugin_primary</item>
+        <item name="colorOnPrimary">@color/plugin_on_primary</item>
+        <item name="colorPrimaryContainer">@color/plugin_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/plugin_on_primary_container</item>
+        <item name="colorSecondary">@color/plugin_secondary</item>
+        <item name="colorOnSecondary">@color/plugin_on_secondary</item>
+        <item name="colorSurface">@color/plugin_surface</item>
+        <item name="colorOnSurface">@color/plugin_on_surface</item>
+        <item name="colorOnSurfaceVariant">@color/plugin_on_surface_variant</item>
+        <item name="colorOutline">@color/plugin_outline</item>
+        <item name="colorOutlineVariant">@color/plugin_outline_variant</item>
+    </style>
+</resources>

@@ -26,7 +26,6 @@ import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.actions.observers.FileActionObserver
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
-import com.itsaky.androidide.api.commands.CreateFileCommand
 import com.itsaky.androidide.databinding.LayoutCreateFileJavaBinding
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -280,10 +279,6 @@ class NewFileAction(val context: Context, override val order: Int) :
       else -> createFile(node, sourceFileDirectory, name, "")
     }
 
-    node?.let {
-      requestCollapseNode(it, true)
-    }
-
     if (autoLayout) {
       val packagePath = pkgName.toString().replace(".", "/")
       createAutoLayout(context, sourceFileDirectory, name, packagePath, isKotlin)
@@ -439,8 +434,7 @@ class NewFileAction(val context: Context, override val order: Int) :
       return
     }
     this.currentNode = node
-    val command = CreateFileCommand(directory, name, content)
-    fileActionManager.execute(command, this)
+    fileActionManager.createFile(directory, name, content, this)
   }
 
   private fun notifyFileCreated(file: File, context: Context) {
@@ -449,10 +443,8 @@ class NewFileAction(val context: Context, override val order: Int) :
 
   override fun onActionSuccess(message: String, createdFile: File?) {
     flashSuccess(R.string.msg_file_created)
-    if (currentNode != null && createdFile != null) {
-      val newNode = TreeNode(createdFile)
-      newNode.viewHolder = FileTreeViewHolder(this.context)
-      currentNode!!.addChild(newNode)
+    if (currentNode != null) {
+      requestCollapseNode(currentNode!!, false)
       requestExpandNode(currentNode!!)
     } else {
       requestFileListing()

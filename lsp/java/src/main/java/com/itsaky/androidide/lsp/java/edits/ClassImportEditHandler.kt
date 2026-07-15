@@ -34,17 +34,17 @@ import java.nio.file.Path
  */
 class ClassImportEditHandler(val imports: Set<String>, file: Path) : AdvancedJavaEditHandler(file) {
 
-  override fun performEdits(
-    compiler: JavaCompilerService,
-    editor: CodeEditor,
-    completionItem: CompletionItem
-  ) {
-    val data = completionItem.data as? ClassCompletionData ?: return
-    val className = data.className
-    val edits = EditHelper.addImportIfNeeded(compiler, file, imports, className)
+	override fun performEdits(
+		compiler: JavaCompilerService,
+		editor: CodeEditor,
+		completionItem: CompletionItem
+	) {
+		val data = completionItem.data as? ClassCompletionData ?: return
+		val className = data.className
+		val edits = EditHelper.addImportIfNeeded(compiler, file, imports, className)
 
-    if (edits.isNotEmpty()) {
-      RewriteHelper.performEdits(edits, editor)
-    }
-  }
+		if (edits.isNotEmpty()) {
+			RewriteHelper.performEdits(edits, editor)
+		}
+	}
 }

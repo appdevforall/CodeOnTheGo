@@ -20,18 +20,21 @@ import androidx.collection.LongSparseArray
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
-import com.itsaky.androidide.agent.fragments.AgentFragmentContainer
 import com.itsaky.androidide.app.IDEApplication.Companion.getPluginManager
 import com.itsaky.androidide.fragments.DiagnosticsListFragment
 import com.itsaky.androidide.fragments.SearchResultFragment
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
+import com.itsaky.androidide.fragments.git.GitBottomSheetFragment
 import com.itsaky.androidide.fragments.output.AppLogFragment
 import com.itsaky.androidide.fragments.output.BuildOutputFragment
 import com.itsaky.androidide.fragments.output.IDELogFragment
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.extensions.TabItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
+import com.itsaky.androidide.plugins.manager.pluginCategory
+import com.itsaky.androidide.plugins.manager.pluginTooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.FeatureFlags
 import org.slf4j.LoggerFactory
@@ -52,7 +55,7 @@ class EditorBottomSheetTabAdapter(
 		const val TAB_DIAGNOSTICS = 3
 		const val TAB_SEARCH_RESULTS = 4
 		const val TAB_DEBUGGER = 5
-		const val TAB_AGENT = 6
+        const val TAB_GIT = 6
 	}
 
 	private val allTabs =
@@ -111,21 +114,20 @@ class EditorBottomSheetTabAdapter(
 				),
 			)
 
-			if (FeatureFlags.isExperimentsEnabled) {
-				add(
-					Tab(
-						title = fragmentActivity.getString(R.string.title_agent),
-						fragmentClass = AgentFragmentContainer::class.java,
-						itemId = TAB_AGENT,
-						tooltipTag = TooltipTag.PROJECT_AGENT,
-					),
-				)
-			}
+            add(
+                Tab(
+                    title = fragmentActivity.getString(R.string.git_title),
+                    fragmentClass = GitBottomSheetFragment::class.java,
+                    itemId = TAB_GIT,
+                    tooltipTag = TooltipTag.PROJECT_GIT,
+                ),
+            )
 		}
 
 	private val tabs = MutableList(allTabs.size) { allTabs[it] }
 	private val pluginFragmentFactories = mutableMapOf<Long, () -> Fragment>()
 	private val pluginExtensions = mutableMapOf<Long, UIExtension>()
+	private val pluginIdsByTabItemId = mutableMapOf<Long, String>()
 
 	init {
 		addPluginTabs()
@@ -137,6 +139,7 @@ class EditorBottomSheetTabAdapter(
 		tabs.clear()
 		pluginFragmentFactories.clear()
 		pluginExtensions.clear()
+		pluginIdsByTabItemId.clear()
 		notifyDataSetChanged()
 	}
 
@@ -327,7 +330,24 @@ class EditorBottomSheetTabAdapter(
 		) : this(title, fragmentClass, itemId.toLong(), tooltipTag)
 	}
 
-	fun getTooltipTag(position: Int): String? = allTabs[position].tooltipTag
+	// Position-keyed lookups must index `tabs` (the visible list, what the
+	// ViewPager iterates), not `allTabs` (the full master list).
+	// `removeFragment` / `restoreFragment` can diverge the two, and the
+	// long-press handler in EditorBottomSheet passes the ViewPager position.
+	fun getTooltipTag(position: Int): String? = tabs[position].tooltipTag
+
+	/**
+	 * Tooltip category for the tab at [position]. Built-in tabs live in
+	 * [TooltipCategory.CATEGORY_IDE]; plugin-contributed tabs live in their
+	 * own per-plugin category (`plugin_<pluginId>`) so each plugin can
+	 * publish its own tooltip entries via [DocumentationExtension] without
+	 * colliding with other plugins or the IDE's own tags.
+	 */
+	fun getTooltipCategory(position: Int): String {
+		val itemId = tabs[position].itemId
+		val pluginId = pluginIdsByTabItemId[itemId]
+		return if (pluginId != null) pluginCategory(pluginId) else TooltipCategory.CATEGORY_IDE
+	}
 
 	private data class PluginTabData(val tabItem: TabItem, val plugin: UIExtension)
 
@@ -379,17 +399,21 @@ class EditorBottomSheetTabAdapter(
 			// Add plugin tabs to the adapter at the end
 			val startIndex = allTabs.size
 			for ((index, data) in pluginTabs.withIndex()) {
+				val pluginId = pluginManager.getPluginIdForInstance(data.plugin)
 				val tab =
 					Tab(
 						title = data.tabItem.title,
 						fragmentClass = Fragment::class.java, // Placeholder, actual fragment from factory
 						itemId = startIndex + index + 1000L, // Offset to avoid conflicts
-						tooltipTag = null,
+						tooltipTag = data.tabItem.tooltipTag
+							?: pluginId?.let { pluginTooltipTag(it, data.tabItem.id) }
+							?: TooltipTag.PROJECT_PLUGIN_TAB,
 					)
 
 				// Store the fragment factory and the extension for later use
 				pluginFragmentFactories[tab.itemId] = data.tabItem.fragmentFactory
 				pluginExtensions[tab.itemId] = data.plugin
+				if (pluginId != null) pluginIdsByTabItemId[tab.itemId] = pluginId
 
 				allTabs.add(tab)
 				tabs.add(tab)

@@ -1,8 +1,10 @@
 name: Analyze Repository with Jacoco and SonarQube
 
 permissions:
-  id-token: write
-  contents: write
+  # checkout only reads the repo; cancel-workflow-action needs to cancel
+  # previous in-flight runs.  Nothing here writes commits, releases, or
+  # exchanges an OIDC token.
+  contents: read
   actions: write
 
 on:
@@ -11,27 +13,17 @@ on:
   workflow_dispatch:
 
 env:
+  # GitHub deprecated Node 20 actions on 2025-09-19; default flips to
+  # Node 24 on 2026-06-16.  Opt in early so a default change never silently
+  # breaks this workflow.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
-  IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
-  IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
-  IDE_SIGNING_KEY_PASS: ${{ secrets.IDE_SIGNING_KEY_PASS }}
-  IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
-  IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
-  IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
-  ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
-  ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
-  ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
-  ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
-  ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
-  FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
-  SENTRY_DSN_DEBUG: ${{ secrets.SENTRY_DSN_DEBUG }}
 
 jobs:
   analyze:
     name: analysis
     runs-on: self-hosted
-    timeout-minutes: 120
+    timeout-minutes: 180
 
     steps:
       - name: Cancel previous runs
@@ -70,32 +62,60 @@ jobs:
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/*.gradle.kts', '**/libs.versions.toml') }}
-          restore-keys: ${{ runner.os }}-gradle
+          # Exclude ~/.gradle/caches/build-cache-1 (Gradle's task-output build
+          # cache) — it ballooned the stage-branch entry to ~26 GB.
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/*.gradle.kts', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
       - name: Assemble V8 Debug
+        env:
+          # Build-time secrets consumed by the Gradle build (Sentry plugin,
+          # Firebase config).  Scoped to this step so SonarCloud and other
+          # third-party actions never see them.
+          FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
         run: |
           echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
           echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
 
-      - name: Stop Gradle daemons
-        run: |
-          flox activate -d flox/base -- ./gradlew --stop
-          echo "Gradle daemons stopped"
-
       - name: Cache SonarQube packages
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
+          # Branch-scoped + content-hashed so the key rolls over and old
+          # entries age out under GitHub's 7-day LRU instead of pinning forever.
+          key: ${{ runner.os }}-sonar-${{ github.ref_name }}-${{ hashFiles('**/*.gradle', '**/*.gradle.kts', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-sonar-${{ github.ref_name }}-
+            ${{ runner.os }}-sonar-
 
       - name: Build and analyze
+        timeout-minutes: 60
         env:
+          GRADLE_OPTS: "-Xmx10g -XX:MaxMetaspaceSize=512m"
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonarqube --info -x lint --continue
+          # The Gradle build also drives Sentry/Firebase configuration during
+          # the unit-test compile path.
+          FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
+        run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonarqube --info --no-build-cache -x lint --continue
+
+      - name: Upload JaCoCo report
+        # Coverage data is written even when :sonarqube fails (e.g. a bad
+        # SONAR_TOKEN) -- keep the artifact recoverable from any outcome.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: build/reports/jacoco/jacocoAggregateReport/
+          retention-days: 7
 
       - name: Cleanup google-services.json
         if: always()

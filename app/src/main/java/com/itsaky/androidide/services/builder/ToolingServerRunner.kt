@@ -19,7 +19,6 @@ package com.itsaky.androidide.services.builder
 
 import ch.qos.logback.core.CoreConstants
 import com.itsaky.androidide.logging.JvmStdErrAppender
-import com.itsaky.androidide.shell.executeProcessAsync
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tooling.api.IToolingApiClient
@@ -27,6 +26,7 @@ import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher
 import com.itsaky.androidide.tooling.api.util.ToolingProps
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.reflection.ReflectionUtils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
@@ -67,7 +67,7 @@ internal class ToolingServerRunner(
 		/**
 		 * Whether to enable logging of the error stream of the tooling server.
 		 */
-		const val TOOLING_ERR_STREAM_LOGGING_ENABLED = true
+		val TOOLING_ERR_STREAM_LOGGING_ENABLED = FeatureFlags.isDebugLoggingEnabled
 
 		/**
 		 * Whether to enable force killing the Gradle daemon.
@@ -79,6 +79,20 @@ internal class ToolingServerRunner(
 		 * forcibly killing the daemon process tree if it's still alive.
 		 */
 		val TOOLING_DAEMON_KILL_TIMEOUT = 3.seconds
+
+		/**
+		 * Android/ART classpath variables must not be inherited by the standalone
+		 * OpenJDK process used for the tooling API. Some OEM framework images contain
+		 * stale entries here (for example Huawei/Honor UniPerf classes) that can make
+		 * native ART registration abort the JVM before the server starts.
+		 */
+		private val ANDROID_RUNTIME_ENV_KEYS = setOf(
+			"BOOTCLASSPATH",
+			"DEX2OATBOOTCLASSPATH",
+			"SYSTEMSERVERCLASSPATH",
+			"STANDALONE_SYSTEMSERVER_JARS",
+			"CLASSPATH",
+		)
 	}
 
 	fun setListener(listener: OnServerStartListener?) {
@@ -122,15 +136,21 @@ internal class ToolingServerRunner(
 							Environment.TOOLING_API_JAR.absolutePath,
 						)
 
-					process =
-						executeProcessAsync {
-							this.command = command
+					val sanitizedEnv = envs.filterKeys { it !in ANDROID_RUNTIME_ENV_KEYS }
 
+					process =
+						ProcessBuilder(command).run {
 							// input and output is used for communication to the tooling server
 							// error stream is used to read the server logs
-							this.redirectErrorStream = false
-							this.workingDirectory = null // HOME
-							this.environment = envs
+							redirectErrorStream(false)
+							directory(Environment.HOME)
+
+							// Do not inherit the app process environment. Inheriting Android runtime
+							// classpath variables can crash the standalone OpenJDK process on some
+							// OEM images before our tooling server is initialized.
+							environment().clear()
+							environment().putAll(sanitizedEnv)
+							start()
 						}
 
 					pid =

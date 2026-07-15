@@ -10,6 +10,8 @@ android {
 }
 
 dependencies {
+	compileOnly(libs.composite.javac)
+
 	api(platform(libs.sora.bom))
 	api(libs.common.editor)
 	api(libs.common.lang3)
@@ -26,11 +28,13 @@ dependencies {
 
 	api(libs.androidx.core.ktx)
 	api(libs.common.kotlin)
+	api(libs.kotlinx.coroutines.core)
 
 	api(projects.buildInfo)
 	api(projects.eventbusAndroid)
 	api(projects.eventbusEvents)
 	api(projects.lexers)
+	api(projects.pluginApi)
 	api(projects.resources)
 
 	api(projects.shared)
@@ -40,6 +44,8 @@ dependencies {
 	implementation(libs.monitor)
 
 	testImplementation(projects.testing.common)
+	testImplementation(libs.tests.kotlinx.coroutines)
+	testImplementation(libs.tests.google.truth)
 	androidTestImplementation(projects.testing.android)
 
 	// brotli4j

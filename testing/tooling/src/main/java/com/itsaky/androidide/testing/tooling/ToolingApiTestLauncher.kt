@@ -22,6 +22,10 @@ import com.itsaky.androidide.testing.tooling.models.ToolingApiTestLauncherParams
 import com.itsaky.androidide.testing.tooling.models.ToolingApiTestScope
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
+import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
+import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
@@ -45,11 +49,14 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.nio.file.Path
 import java.util.Collections
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.bufferedWriter
 import kotlin.io.path.deleteIfExists
 import kotlin.io.path.pathString
+import kotlin.random.Random
 
 /**
  * Launches the Tooling API server in a separate JVM process.
@@ -84,6 +91,12 @@ object ToolingApiTestLauncher {
 			InitializeProjectParams(
 				projectDir.pathString,
 				client.gradleDistParams,
+				buildId =
+					BuildId(
+						buildSessionId = UUID.randomUUID().toString(),
+						buildId = Random.nextLong(),
+						runType = BuildRunType.ProjectSync,
+					),
 			),
 		log: Logger = LoggerFactory.getLogger("BuildOutputLogger"),
 		sysProps: Map<String, String> = emptyMap(),
@@ -181,10 +194,27 @@ object ToolingApiTestLauncher {
 			// perform the action
 			ToolingApiTestScope(server, gradleBuild, result).action()
 		} finally {
-			server.cancelCurrentBuild().get()
-			server.shutdown().get()
+			// Bound every shutdown step so a stalled child JVM or hung RPC can't wedge
+			// the calling test (and the whole Gradle worker) for hours.
+			runCatching {
+				server.cancelCurrentBuild().get(SHUTDOWN_RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+			}.onFailure { error ->
+				println("[ToolingApiTestLauncher] cancelCurrentBuild failed or timed out: ${error.message}")
+			}
+			runCatching {
+				server.shutdown().get(SHUTDOWN_RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+			}.onFailure { error ->
+				println("[ToolingApiTestLauncher] shutdown failed or timed out: ${error.message}")
+			}
+			if (!proc.waitFor(PROCESS_EXIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+				println("[ToolingApiTestLauncher] child JVM still alive after shutdown RPC; destroying forcibly")
+				proc.destroyForcibly()
+			}
 		}
 	}
+
+	private const val SHUTDOWN_RPC_TIMEOUT_SECONDS = 30L
+	private const val PROCESS_EXIT_TIMEOUT_SECONDS = 30L
 
 	private fun createProcessCmd(
 		jar: String,
@@ -253,8 +283,8 @@ object ToolingApiTestLauncher {
 			const val appBuildFile = "app/build.gradle"
 			const val appBuildFileIn = "$appBuildFile.in"
 
-			const val DEFAULT_AGP_VERSION = "7.2.0"
-			const val DEFAULT_GRADLE_VERSION = "7.3.3"
+			const val DEFAULT_AGP_VERSION = "8.8.2"
+			const val DEFAULT_GRADLE_VERSION = "8.14.4"
 
 			const val GENERATED_FILE_WARNING =
 				"DO NOT EDIT - Automatically generated file"
@@ -286,35 +316,47 @@ object ToolingApiTestLauncher {
 			log.debug(trimmed)
 		}
 
-		override fun prepareBuild(buildInfo: BuildInfo) {
-			log.debug("---------- PREPARE BUILD ----------")
-			log.debug("AGP Version : ${this.agpVersion}")
-			log.debug("Gradle Version : ${this.gradleVersion}")
-			log.debug("-----------------------------------")
+		override fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig> =
+			CompletableFuture.supplyAsync {
+				log.debug("---------- PREPARE BUILD ----------")
+				log.debug("AGP Version : ${this.agpVersion}")
+				log.debug("Gradle Version : ${this.gradleVersion}")
+				log.debug("-----------------------------------")
 
-			projectDir
-				.resolve(buildFileIn)
-				.replaceContents(
-					dest = projectDir.resolve(buildFile),
-					candidate = "@@TOOLING_API_TEST_AGP_VERSION@@" to this.agpVersion,
+				projectDir
+					.resolve(buildFileIn)
+					.replaceContents(
+						dest = projectDir.resolve(buildFile),
+						candidate = "@@TOOLING_API_TEST_AGP_VERSION@@" to this.agpVersion,
+					)
+
+				val unresolvedDependency =
+					if (!excludeUnresolvedDependency) {
+						"implementation 'unresolved:unresolved:unresolved'"
+					} else {
+						""
+					}
+
+				projectDir
+					.resolve(appBuildFileIn)
+					.replaceContents(
+						projectDir.resolve(appBuildFile),
+						"//",
+						"@@ANDROID_BLOCK_CONFIG@@" to androidBlockConfig,
+						"@@UNRESOLVED_DEPENDENCY@@" to unresolvedDependency,
+					)
+
+				return@supplyAsync ClientGradleBuildConfig(
+					buildParams =
+						GradleBuildParams(
+							gradleArgs =
+								mutableListOf(
+									"--stacktrace",
+									"--info",
+								).also { it.addAll(extraArgs) },
+						),
 				)
-
-			val unresolvedDependency =
-				if (!excludeUnresolvedDependency) {
-					"implementation 'unresolved:unresolved:unresolved'"
-				} else {
-					""
-				}
-
-			projectDir
-				.resolve(appBuildFileIn)
-				.replaceContents(
-					projectDir.resolve(appBuildFile),
-					"//",
-					"@@ANDROID_BLOCK_CONFIG@@" to androidBlockConfig,
-					"@@UNRESOLVED_DEPENDENCY@@" to unresolvedDependency,
-				)
-		}
+			}
 
 		override fun onBuildSuccessful(result: BuildResult) {
 			onBuildResult(result)
@@ -332,11 +374,6 @@ object ToolingApiTestLauncher {
 		}
 
 		override fun onProgressEvent(event: ProgressEvent) {}
-
-		override fun getBuildArguments(): CompletableFuture<List<String>> =
-			CompletableFuture.completedFuture(
-				mutableListOf("--stacktrace", "--info").also { it.addAll(extraArgs) },
-			)
 
 		override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =
 			CompletableFuture.completedFuture(GradleWrapperCheckResult(true))

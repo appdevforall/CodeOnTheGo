@@ -29,9 +29,14 @@ import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
+import com.itsaky.androidide.analytics.gradle.BuildCompletedMetric
+import com.itsaky.androidide.analytics.gradle.BuildStartedMetric
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.eventbus.events.BuildCompletedEvent
+import com.itsaky.androidide.eventbus.events.BuildStartedEvent
 import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
@@ -43,10 +48,15 @@ import com.itsaky.androidide.services.builder.ToolingServerRunner.OnServerStartL
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
-import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_AAR
-import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
+import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
+import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
+import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
@@ -59,28 +69,34 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.greenrobot.eventbus.EventBus
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.util.Objects
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * A foreground service that handles interaction with the Gradle Tooling API.
+ * A foreground service that handles interaction with the Gradle Tooling
+ * API.
  *
  * @author Akash Yadav
  */
@@ -95,9 +111,10 @@ class GradleBuildService :
 		private set
 
 	/**
-	 * We do not provide direct access to GradleBuildService instance to the Tooling API launcher as
-	 * it may cause memory leaks. Instead, we create another client object which forwards all calls to
-	 * us. So, when the service is destroyed, we release the reference to the service from this
+	 * We do not provide direct access to GradleBuildService instance to the
+	 * Tooling API launcher as it may cause memory leaks. Instead, we create
+	 * another client object which forwards all calls to us. So, when the
+	 * service is destroyed, we release the reference to the service from this
 	 * client.
 	 */
 	private var toolingApiClient: ForwardingToolingApiClient? = null
@@ -107,7 +124,12 @@ class GradleBuildService :
 	private var server: IToolingApiServer? = null
 	private var eventListener: EventListener? = null
 	private val analyticsManager: IAnalyticsManager by inject()
-	private var buildStartTime: Long = 0
+
+	private val buildSessionId = UUID.randomUUID().toString()
+	private val buildId = AtomicLong(0)
+
+	@Volatile
+	private var tuningConfig: GradleTuningConfig? = null
 
 	private val buildServiceScope =
 		CoroutineScope(
@@ -143,6 +165,13 @@ class GradleBuildService :
 				else -> "custom"
 			}
 		} ?: "unknown"
+
+	internal fun nextBuildId(runType: BuildRunType): BuildId =
+		BuildId(
+			buildSessionId = buildSessionId,
+			buildId = buildId.incrementAndGet(),
+			runType = runType,
+		)
 
 	companion object {
 		private val log = LoggerFactory.getLogger(GradleBuildService::class.java)
@@ -199,7 +228,7 @@ class GradleBuildService :
 		val builder =
 			Notification
 				.Builder(this, BaseApplication.NOTIFICATION_GRADLE_BUILD_SERVICE)
-				.setSmallIcon(R.drawable.ic_launcher_fg_vector)
+				.setSmallIcon(R.drawable.ic_cogo_notification)
 				.setTicker(ticker)
 				.setWhen(System.currentTimeMillis())
 				.setContentTitle(title)
@@ -224,6 +253,7 @@ class GradleBuildService :
 	}
 
 	override fun onDestroy() {
+		buildServiceScope.cancel()
 		mBinder?.release()
 		mBinder = null
 
@@ -247,9 +277,11 @@ class GradleBuildService :
 					// IOException.
 					runCatching { server.shutdown().await() }
 						.onFailure { err ->
-							val isStreamClosed =
-								err.message?.contains("stream closed", ignoreCase = true) == true
-							if (err !is IOException || !isStreamClosed) {
+							val actualCause = err.cause ?: err
+							val message = actualCause.message?.lowercase() ?: ""
+							if (message.contains("stream closed") || message.contains("broken pipe")) {
+								log.info("Tooling API server stream closed during shutdown (expected)")
+							} else {
 								// log if the error is not due to the stream being closed
 								log.error("Failed to shutdown Tooling API server", err)
 								Sentry.captureException(err)
@@ -321,52 +353,124 @@ class GradleBuildService :
 		eventListener?.onOutput(line)
 	}
 
-	override fun prepareBuild(buildInfo: BuildInfo) {
-		updateNotification(getString(R.string.build_status_in_progress), true)
-		buildStartTime = System.currentTimeMillis()
+	override fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig> =
+		CompletableFuture.supplyAsync {
+			updateNotification(getString(R.string.build_status_in_progress), true)
 
-		val projectPath = ProjectManagerImpl.getInstance().projectDirPath ?: "unknown"
-		val buildType = getBuildType(buildInfo.tasks)
+			val projectPath = ProjectManagerImpl.getInstance().projectDirPath ?: "unknown"
+			val buildType = getBuildType(buildInfo.tasks)
+			val isDebugBuild = buildType == "debug"
 
-		analyticsManager.trackBuildRun(buildType, projectPath)
-		eventListener?.prepareBuild(buildInfo)
-	}
+			val currentTuningConfig = tuningConfig
+			var newTuningConfig: GradleTuningConfig? = null
+
+			@Suppress("SimplifyBooleanWithConstants")
+			val extraArgs =
+				getGradleExtraArgs(enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild)
+
+			var buildParams =
+				if (FeatureFlags.isExperimentsEnabled) {
+					runCatching {
+						newTuningConfig =
+							GradleBuildTuner.autoTune(
+								device = DeviceInfo.buildDeviceProfile(applicationContext),
+								build = BuildProfile(isDebugBuild),
+								previousConfig = currentTuningConfig,
+								analyticsManager = analyticsManager,
+								buildId = buildInfo.buildId,
+							)
+
+						tuningConfig = newTuningConfig
+						GradleBuildTuner
+							.toGradleBuildParams(tuningConfig = newTuningConfig)
+							.run {
+								copy(gradleArgs = gradleArgs + extraArgs)
+							}
+					}.onFailure { err ->
+						log.error("Failed to auto-tune Gradle build", err)
+						Sentry.captureException(err)
+					}.getOrDefault(null)
+				} else {
+					null
+				}
+
+			if (buildParams == null) {
+				buildParams = GradleBuildParams(gradleArgs = extraArgs)
+			}
+
+			analyticsManager.trackBuildRun(
+				metric =
+					BuildStartedMetric(
+						buildId = buildInfo.buildId,
+						buildType = buildType,
+						projectPath = projectPath,
+						tuningConfig = newTuningConfig,
+					),
+			)
+
+			EventBus.getDefault()
+				.post(
+					BuildStartedEvent(buildInfo)
+				)
+
+			eventListener?.prepareBuild(buildInfo)
+
+			return@supplyAsync ClientGradleBuildConfig(
+				buildParams = buildParams,
+			)
+		}
 
 	override fun onBuildSuccessful(result: BuildResult) {
 		updateNotification(getString(R.string.build_status_sucess), false)
 
-		// Track build completion in Firebase Analytics
-		if (buildStartTime > 0) {
-			val duration = System.currentTimeMillis() - buildStartTime
-			val buildType = getBuildType(result.tasks)
-
-			analyticsManager.trackBuildCompleted(buildType, true, duration)
-			buildStartTime = 0
-		}
-
+		dispatchBuildResult(result, true)
 		eventListener?.onBuildSuccessful(result.tasks)
 	}
 
 	override fun onBuildFailed(result: BuildResult) {
 		updateNotification(getString(R.string.build_status_failed), false)
 
-		// Track build failure in Firebase Analytics
-		if (buildStartTime > 0) {
-			val duration = System.currentTimeMillis() - buildStartTime
-			val buildType = getBuildType(result.tasks)
+		dispatchBuildResult(result, false)
+		eventListener?.onBuildFailed(result.tasks)
+	}
 
-			analyticsManager.trackBuildCompleted(buildType, false, duration)
-			buildStartTime = 0
+	private fun dispatchBuildResult(
+		result: BuildResult,
+		isSuccess: Boolean,
+	) {
+		val buildType = getBuildType(result.tasks)
+		analyticsManager.trackBuildCompleted(
+			metric =
+				BuildCompletedMetric(
+					buildId = result.buildId,
+					isSuccess = isSuccess,
+					buildType = buildType,
+					buildResult = result,
+				),
+		)
+
+		buildServiceScope.launch {
+			ProjectManagerImpl.getInstance()
+				.indexingServiceManager
+				.onBuildCompleted()
 		}
 
-		eventListener?.onBuildFailed(result.tasks)
+		EventBus.getDefault()
+			.post(
+				BuildCompletedEvent(
+					result = result,
+				)
+			)
 	}
 
 	override fun onProgressEvent(event: ProgressEvent) {
 		eventListener?.onProgressEvent(event)
 	}
 
-	override fun getBuildArguments(): CompletableFuture<List<String>> {
+	private fun getGradleExtraArgs(
+		enableJdwp: Boolean = JdwpOptions.JDWP_ENABLED,
+		enableLogSender: Boolean = DevOpsPreferences.logsenderEnabled,
+	): List<String> {
 		val extraArgs = ArrayList<String>()
 		extraArgs.add("--init-script")
 		extraArgs.add(Environment.INIT_SCRIPT.absolutePath)
@@ -374,8 +478,9 @@ class GradleBuildService :
 		// Override AAPT2 binary
 		// The one downloaded from Maven is not built for Android
 		extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${DevOpsPreferences.logsenderEnabled}")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
+		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=$enableJdwp")
+		extraArgs.add("-P${PROPERTY_LOG_SENDER_ENABLED}=$enableLogSender")
+		extraArgs.add("-P${PROPERTY_LOG_SENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
 
 		if (BuildPreferences.isStacktraceEnabled) {
 			extraArgs.add("--stacktrace")
@@ -403,7 +508,8 @@ class GradleBuildService :
 				log.warn("Gradle Enterprise plugin is not available. The --scan option has been disabled for this build.")
 			}
 		}
-		return CompletableFuture.completedFuture(extraArgs)
+
+		return extraArgs
 	}
 
 	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =
@@ -485,6 +591,15 @@ class GradleBuildService :
 		}
 	}
 
+	override fun executeTasks(tasks: List<String>): CompletableFuture<TaskExecutionResult> =
+		executeTasks(
+			message =
+				TaskExecutionMessage(
+					tasks = tasks,
+					buildId = nextBuildId(BuildRunType.TaskRun),
+				),
+		)
+
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
 		checkServerStarted()
 
@@ -517,9 +632,9 @@ class GradleBuildService :
 				} catch (e: Throwable) {
 					if (BuildPreferences.isScanEnabled &&
 						(
-							e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
-								e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
-						)
+								e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
+										e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
+								)
 					) {
 						BuildPreferences.isScanEnabled = false
 
@@ -661,7 +776,7 @@ class GradleBuildService :
 				val reader = input.bufferedReader()
 				try {
 					reader.forEachLine { line ->
-						SERVER_System_err.error(line)
+						SERVER_System_err.debug(line)
 						if (!isActive) throw CancellationException()
 					}
 				} catch (e: Throwable) {
@@ -678,9 +793,7 @@ class GradleBuildService :
 			}
 	}
 
-	/**
-	 * Handles events received from a Gradle build.
-	 */
+	/** Handles events received from a Gradle build. */
 	interface EventListener {
 		/**
 		 * Called just before a build is started.

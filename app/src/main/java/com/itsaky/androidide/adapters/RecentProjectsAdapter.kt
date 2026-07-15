@@ -28,8 +28,8 @@ import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
-import org.appdevforall.codeonthego.layouteditor.ProjectFile
-import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
+import com.itsaky.androidide.databinding.RenameProjectTextinputBinding
+import com.itsaky.androidide.models.ProjectFile
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -39,6 +39,7 @@ class RecentProjectsAdapter(
     private val onRemoveProjectClick: (ProjectFile) -> Unit,
     private val onFileRenamed: (RenamedFile) -> Unit,
     private val onInfoClick: (ProjectFile) -> Unit,
+    private val nameExists: (String) -> Boolean,
 ) : RecyclerView.Adapter<RecentProjectsAdapter.ProjectViewHolder>() {
 
 	private var projectOptionsPopup: PopupWindow? = null
@@ -218,7 +219,7 @@ class RecentProjectsAdapter(
         val oldName = project.name
         val builder = MaterialAlertDialogBuilder(context).setTitle(R.string.rename_project)
 
-        val binding = TextinputlayoutBinding.inflate(LayoutInflater.from(context))
+        val binding = RenameProjectTextinputBinding.inflate(LayoutInflater.from(context))
         binding.textinputEdittext.setText(project.name)
         binding.textinputLayout.hint = context.getString(R.string.msg_new_project_name)
         val padding = (16 * context.resources.displayMetrics.density).toInt()
@@ -226,12 +227,13 @@ class RecentProjectsAdapter(
 
         builder.setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
         builder.setPositiveButton(R.string.rename) { _, _ ->
-            val newName = binding.textinputEdittext.text.toString()
-            val newPath = project.path.substringBeforeLast("/") + "/" + newName
+            val newName = binding.textinputEdittext.text.toString().trim()
+            val oldPath = project.path
+            val newPath = oldPath.substringBeforeLast("/") + "/" + newName
             try {
                 project.rename(newPath)
                 flashSuccess(R.string.renamed)
-                onFileRenamed(RenamedFile(oldName, newName, newPath))
+                onFileRenamed(RenamedFile(oldName, newName, oldPath, newPath))
                 notifyItemChanged(position)
             } catch (e: Exception) {
 				logger.error("Failed to rename project", e)
@@ -261,13 +263,14 @@ class RecentProjectsAdapter(
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                validateProjectName(binding.textinputLayout, s.toString(), dialog)
+                validateProjectName(binding.textinputLayout, s.toString().trim(), oldName, dialog)
             }
         })
 
         validateProjectName(
             binding.textinputLayout,
-            binding.textinputEdittext.text.toString(),
+            binding.textinputEdittext.text.toString().trim(),
+            oldName,
             dialog
         )
     }
@@ -275,12 +278,28 @@ class RecentProjectsAdapter(
     private fun validateProjectName(
         inputLayout: TextInputLayout,
 		newName: String,
+		oldName: String,
 		dialog: AlertDialog
     ) {
         val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
         when {
             newName.isEmpty() -> {
                 inputLayout.error = dialog.context.getString(R.string.msg_cannnot_empty)
+                positiveButton.isEnabled = false
+            }
+
+            newName.contains('/') ||
+                newName.contains('\\') ||
+                newName.contains(File.separatorChar) ||
+                newName == "." ||
+                newName == ".." -> {
+                inputLayout.error = dialog.context.getString(R.string.msg_invalid_name)
+                positiveButton.isEnabled = false
+            }
+
+            newName != oldName && nameExists(newName) -> {
+                inputLayout.error =
+                    dialog.context.getString(R.string.msg_current_name_unavailable)
                 positiveButton.isEnabled = false
             }
 
@@ -291,5 +310,10 @@ class RecentProjectsAdapter(
         }
     }
 
-    data class RenamedFile(val oldName: String, val newName: String, val newPath: String)
+    data class RenamedFile(
+        val oldName: String,
+        val newName: String,
+        val oldPath: String,
+        val newPath: String
+    )
 }

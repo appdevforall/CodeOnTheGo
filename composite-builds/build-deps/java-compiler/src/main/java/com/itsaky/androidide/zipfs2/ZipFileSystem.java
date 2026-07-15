@@ -31,6 +31,7 @@ import java.io.EOFException;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
@@ -46,10 +47,6 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.UserPrincipalLookupService;
 import java.nio.file.spi.FileSystemProvider;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -90,9 +87,8 @@ public class ZipFileSystem extends FileSystem {
     private final boolean noExtt;        // see readExtra()
     private final boolean useTempFile;   // use a temp file for newOS, default
     // is to use BAOS for better performance
-    private static final boolean isWindows = AccessController.doPrivileged(
-            (PrivilegedAction<Boolean>) () -> System.getProperty("os.name")
-                    .startsWith("Windows"));
+    private static final boolean isWindows = System.getProperty("os.name")
+            .startsWith("Windows");
     private final boolean forceEnd64;
     private final int defaultMethod;     // METHOD_STORED if "noCompression=true"
     // METHOD_DEFLATED otherwise
@@ -119,8 +115,7 @@ public class ZipFileSystem extends FileSystem {
         }
         // sm and existence check
         zfpath.getFileSystem().provider().checkAccess(zfpath, AccessMode.READ);
-        boolean writeable = AccessController.doPrivileged(
-                (PrivilegedAction<Boolean>) () -> Files.isWritable(zfpath));
+        boolean writeable = Files.isWritable(zfpath);
         this.readOnly = !writeable;
         this.zc = ZipCoder.get(nameEncoding);
         this.rootdir = new ZipPath(this, new byte[]{'/'});
@@ -288,14 +283,9 @@ public class ZipFileSystem extends FileSystem {
         }
         beginWrite();                // lock and sync
         try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                sync();
-                return null;
-            });
-            ch.close();              // close the ch just in case no update
-            // and sync didn't close the ch
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getException();
+            sync();
+            closeChannelQuietly(ch); // close the ch just in case no update
+                                     // and sync didn't close the ch
         } finally {
             endWrite();
         }
@@ -323,10 +313,8 @@ public class ZipFileSystem extends FileSystem {
         synchronized (tmppaths) {
             for (Path p : tmppaths) {
                 try {
-                    AccessController.doPrivileged(
-                            (PrivilegedExceptionAction<Boolean>) () -> Files.deleteIfExists(p));
-                } catch (PrivilegedActionException e) {
-                    IOException x = (IOException) e.getException();
+                    Files.deleteIfExists(p);
+                } catch (IOException x) {
                     if (ioe == null) {
                         ioe = x;
                     } else {
@@ -1074,10 +1062,23 @@ public class ZipFileSystem extends FileSystem {
         return zc.toString(name);
     }
 
-    @SuppressWarnings("deprecation")
-    protected void finalize() throws IOException {
-        close();
+    /**
+     * Closes a channel, swallowing I/O errors that can occur on devices with
+     * flaky storage (e.g. EIO wrapped in UncheckedIOException). This prevents
+     * an exception during cleanup from killing the FinalizerDaemon thread.
+     */
+    private static void closeChannelQuietly(SeekableByteChannel channel) {
+        try {
+            channel.close();
+        } catch (IOException | UncheckedIOException ignored) {
+        }
     }
+
+    // No finalize() override: finalization must not perform I/O.
+    // On slow storage, close() can exceed the 10-second FinalizerWatchdogDaemon
+    // timeout, causing a fatal TimeoutException crash (Sentry APPDEVFORALL-E8).
+    // All ZipFileSystems should be closed deterministically via close()/doClose().
+    // The OS reclaims file descriptors at process exit regardless.
 
     // Reads len bytes of data from the specified offset into buf.
     // Returns the total number of bytes read.
@@ -1500,7 +1501,7 @@ public class ZipFileSystem extends FileSystem {
             exChClosers.add(ecc);
             streams = Collections.synchronizedSet(new HashSet<>());
         } else {
-            ch.close();
+            closeChannelQuietly(ch);
             Files.delete(zfpath);
         }
 
@@ -2830,7 +2831,7 @@ public class ZipFileSystem extends FileSystem {
          */
         public boolean closeAndDeleteIfDone() throws IOException {
             if (streams.isEmpty()) {
-                ch.close();
+                closeChannelQuietly(ch);
                 Files.delete(path);
                 return true;
             }

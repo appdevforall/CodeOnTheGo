@@ -75,7 +75,7 @@ object XMLLSPTest : LSPTest() {
   }
 
   override fun registerServer() {
-    ILanguageServerRegistry.getDefault().register(server)
+    ILanguageServerRegistry.default.register(server)
   }
 
   override fun getServerId(): String {

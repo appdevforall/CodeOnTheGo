@@ -2,12 +2,20 @@ package com.itsaky.androidide.screens
 
 import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.R
+import com.itsaky.androidide.helper.clickFirstAccessibilityNodeByText
+import com.itsaky.androidide.helper.setAccessibilityEditText
 import com.kaspersky.kaspresso.screens.KScreen
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import io.github.kakaocup.kakao.check.KCheckBox
 import io.github.kakaocup.kakao.spinner.KSpinner
 import io.github.kakaocup.kakao.spinner.KSpinnerItem
 import io.github.kakaocup.kakao.text.KButton
+
+private const val KOTLIN_LANGUAGE_SELECTION_TIMEOUT_MS = 30_000L
+private const val LANGUAGE_OPTION_TIMEOUT_MS = 5_000L
+private const val LANGUAGE_DROPDOWN_EXPANSION_TIMEOUT_MS = 2_000L
+private const val PROJECT_NAME_FIELD_TIMEOUT_MS = 3_000L
+private const val LANGUAGE_DROPDOWN_FALLBACK_X_OFFSET = 80
 
 object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
@@ -31,6 +39,7 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
     fun TestContext<Unit>.selectJavaLanguage() {
         step("Select the java language") {
+            val javaText = device.targetContext.getString(R.string.lang_java)
             ProjectSettingsScreen {
                 spinner {
                     isVisible()
@@ -38,7 +47,7 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
                     childAt<KSpinnerItem>(0) {
                         isVisible()
-                        hasText("Java")
+                        hasText(javaText)
                         click()
                     }
                 }
@@ -48,67 +57,63 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
     fun TestContext<Unit>.selectKotlinLanguage() {
         step("Select the kotlin language") {
-            flakySafely(30000) {  // Increased timeout
-                try {
-                    ProjectSettingsScreen {
-                        spinner {
-                            isVisible()
-                            open()
-                            
-                            // Wait for spinner to fully open
-                            Thread.sleep(1000)
+            flakySafely(KOTLIN_LANGUAGE_SELECTION_TIMEOUT_MS) {
+                val kotlinText = device.targetContext.getString(R.string.lang_kotlin)
+                openProjectLanguageDropdown()
 
-                            // Retry mechanism for selecting Kotlin
-                            var attempts = 0
-                            var success = false
-                            while (attempts < 3 && !success) {
-                                try {
-                                    childAt<KSpinnerItem>(1) {
-                                        isVisible()
-                                        hasText("Kotlin")
-                                        click()
-                                    }
-                                    success = true
-                                } catch (e: Exception) {
-                                    attempts++
-                                    println("Failed to select Kotlin on attempt $attempts: ${e.message}")
-                                    if (attempts < 3) {
-                                        // Close and reopen spinner
-                                        device.uiDevice.pressBack()
-                                        Thread.sleep(1000)
-                                        open()
-                                        Thread.sleep(1000)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    println("Error in selectKotlinLanguage: ${e.message}")
-                    // One more attempt with a different approach
-                    ProjectSettingsScreen {
-                        spinner {
-                            isVisible()
-                            open()
-                            
-                            // Wait for spinner to fully open
-                            Thread.sleep(1000)
-                            
-                            // Try to select by text instead of position
-                            device.uiDevice.findObject(UiSelector().text("Kotlin")).click()
-                        }
-                    }
-                }
+                val d = device.uiDevice
+                val kotlin = d.findObject(UiSelector().text(kotlinText))
+                check(kotlin.waitForExists(LANGUAGE_OPTION_TIMEOUT_MS)) { "Kotlin language option not found" }
+                kotlin.click()
+                d.waitForIdle()
             }
         }
     }
 
+    private fun TestContext<Unit>.openProjectLanguageDropdown() {
+        val d = device.uiDevice
+        val javaText = device.targetContext.getString(R.string.lang_java)
+        val kotlinText = device.targetContext.getString(R.string.lang_kotlin)
+        val languageLabelText = device.targetContext.getString(R.string.wizard_language)
+
+        val javaValue = d.findObject(UiSelector().text(javaText))
+        if (javaValue.waitForExists(LANGUAGE_OPTION_TIMEOUT_MS)) {
+            val bounds = javaValue.visibleBounds
+            d.click(bounds.centerX(), bounds.centerY())
+            d.waitForIdle()
+            if (d.findObject(UiSelector().text(kotlinText)).waitForExists(LANGUAGE_DROPDOWN_EXPANSION_TIMEOUT_MS)) {
+                return
+            }
+        }
+
+        val languageLabel = d.findObject(UiSelector().text(languageLabelText))
+        if (languageLabel.waitForExists(LANGUAGE_OPTION_TIMEOUT_MS)) {
+            val bounds = languageLabel.visibleBounds
+            d.click(d.displayWidth - LANGUAGE_DROPDOWN_FALLBACK_X_OFFSET, bounds.centerY())
+            d.waitForIdle()
+            if (d.findObject(UiSelector().text(kotlinText)).waitForExists(LANGUAGE_DROPDOWN_EXPANSION_TIMEOUT_MS)) {
+                return
+            }
+        }
+
+        error("Project language dropdown did not open")
+    }
+
     fun TestContext<Unit>.clickCreateProjectProjectSettings() {
         step("Click create project on the Settings Page") {
-            createProjectButton {
-                isVisible()
-                click()
-            }
+            val createText = device.targetContext.getString(R.string.create_project)
+            clickFirstAccessibilityNodeByText(createText)
+            device.uiDevice.waitForIdle()
+        }
+    }
+
+    fun TestContext<Unit>.setProjectName(name: String) {
+        step("Set project name to '$name'") {
+            val d = device.uiDevice
+            val byText = d.findObject(UiSelector().textStartsWith("My Application"))
+            check(byText.waitForExists(PROJECT_NAME_FIELD_TIMEOUT_MS)) { "Project name field not found" }
+            setAccessibilityEditText("My Application", name, "project name")
+            d.waitForIdle()
         }
     }
 

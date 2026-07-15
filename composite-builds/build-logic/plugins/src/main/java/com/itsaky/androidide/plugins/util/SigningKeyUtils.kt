@@ -21,8 +21,8 @@ import com.itsaky.androidide.build.config.AUTH_PASS
 import com.itsaky.androidide.build.config.AUTH_USER
 import com.itsaky.androidide.build.config.KEY_BIN
 import com.itsaky.androidide.build.config.KEY_URL
-import org.gradle.api.Project
 import com.itsaky.androidide.build.config.signingKey
+import org.gradle.api.Project
 import org.gradle.api.invocation.Gradle
 import java.util.Base64
 
@@ -32,59 +32,68 @@ import java.util.Base64
  * @author Akash Yadav
  */
 object SigningKeyUtils {
-  
-  private val _warned = mutableMapOf<String, Boolean>()
+	private val warned = mutableMapOf<String, Boolean>()
 
-  @JvmStatic
-  fun Project.downloadSigningKey() {
-    val signingKey = signingKey.get().asFile
-    if (signingKey.exists()) {
-      logger.info("Skipping download as ${signingKey.name} file already exists.")
-      return
-    }
+	@JvmStatic
+	fun Project.downloadSigningKey() {
+		val signingKey = signingKey.get().asFile
+		if (signingKey.exists()) {
+			logger.info("Skipping download as ${signingKey.name} file already exists.")
+			return
+		}
 
-    signingKey.parentFile.mkdirs()
+		signingKey.parentFile.mkdirs()
 
-    getEnvOrProp(key = KEY_BIN, warn = false)?.also { bin ->
-      val contents = Base64.getDecoder().decode(bin)
-      signingKey.writeBytes(contents)
-      return
-    }
+		getEnvOrProp(key = KEY_BIN, warn = false)?.also { bin ->
+			val contents = Base64.getDecoder().decode(bin)
+			signingKey.writeBytes(contents)
+			return
+		}
 
-    // URL to download the signing key
-    val url = getEnvOrProp(KEY_URL) ?: return
+		// URL to download the signing key
+		val url = getEnvOrProp(KEY_URL) ?: return
 
-    // Username and password required to download the keystore
-    val user = getEnvOrProp(AUTH_USER) ?: return
-    val pass = getEnvOrProp(AUTH_PASS) ?: return
+		// Username and password required to download the keystore
+		val user = getEnvOrProp(AUTH_USER) ?: return
+		val pass = getEnvOrProp(AUTH_PASS) ?: return
 
-    logger.info("Downloading signing key...")
-    val result = exec {
-      var rootGradle: Gradle? = gradle
-      while (rootGradle?.parent != null) {
-        rootGradle = rootGradle.parent
-      }
+		logger.info("Downloading signing key...")
+		val result =
+			exec {
+				var rootGradle: Gradle? = gradle
+				while (rootGradle?.parent != null) {
+					rootGradle = rootGradle.parent
+				}
 
-      workingDir(rootGradle!!.rootProject.projectDir)
-      commandLine("bash", "./scripts/download_key.sh", signingKey.absolutePath, url, user, pass)
-    }
+				workingDir(rootGradle!!.rootProject.projectDir)
+				commandLine(
+					"bash",
+					"./scripts/download_key.sh",
+					signingKey.absolutePath,
+					url,
+					user,
+					pass,
+				)
+			}
 
-    result.assertNormalExitValue()
-  }
+		result.assertNormalExitValue()
+	}
 
-  internal fun Project.getEnvOrProp(key: String, warn: Boolean = true): String? {
-    var value: String? = System.getenv(key)
-    if (value.isNullOrBlank()) {
-      value = project.properties[key] as? String?
-    }
+	internal fun Project.getEnvOrProp(
+		key: String,
+		warn: Boolean = true,
+	): String? {
+		var value: String? = System.getenv(key)
+		if (value.isNullOrBlank()) {
+			value = project.properties[key] as? String?
+		}
 
-    if (value.isNullOrBlank()) {
-      if (warn && _warned.putIfAbsent(key, true) != true) {
-        logger.warn("$key is not set. Debug key will be used to sign the APK")
-      }
-      return null
-    }
-    return value
-  }
-
+		if (value.isNullOrBlank()) {
+			if (warn && warned.putIfAbsent(key, true) != true) {
+				logger.warn("$key is not set. Debug key will be used to sign the APK")
+			}
+			return null
+		}
+		return value
+	}
 }

@@ -20,7 +20,9 @@ package com.itsaky.androidide.activities.editor
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
@@ -40,6 +42,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
+import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -50,12 +53,15 @@ import androidx.annotation.RequiresApi
 import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.Insets
 import androidx.core.view.GravityCompat
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -70,11 +76,14 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
+import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HIDDEN
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
+import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.actions.build.DebugAction
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
@@ -90,6 +99,9 @@ import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
 import com.itsaky.androidide.handlers.LspHandler.registerLanguageServers
+import com.itsaky.androidide.handlers.SnippetHandler.loadPluginSnippets
+import com.itsaky.androidide.handlers.SnippetHandler.loadUserSnippets
+import com.itsaky.androidide.handlers.SnippetHandler.refreshPluginSnippets
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.DiagnosticClickListener
@@ -99,8 +111,10 @@ import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.services.debug.DebuggerService
@@ -115,8 +129,15 @@ import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.StringsInjectionException
+import com.itsaky.androidide.utils.StringsXmlInjector
+import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
+import com.itsaky.androidide.utils.applyImmersiveModeInsets
+import com.itsaky.androidide.utils.applyResponsiveAppBarInsets
+import com.itsaky.androidide.utils.applyRootSystemInsetsAsPadding
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
+import com.itsaky.androidide.utils.getOrStoreInitialPadding
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
@@ -169,6 +190,8 @@ abstract class BaseEditorActivity :
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
+	private var fullscreenManager: FullscreenManager? = null
+	private val topEdgeThreshold by lazy { SizeUtils.dp2px(TOP_EDGE_SWIPE_THRESHOLD_DP) }
 
 	var isDestroying = false
 		protected set
@@ -193,12 +216,21 @@ abstract class BaseEditorActivity :
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
 	val binding: ActivityEditorBinding
-		get() = _binding ?: throw IllegalStateException("Activity destroyed; binding not accessible")
+		get() = _binding
+			?: throw IllegalStateException("Activity destroyed; binding not accessible")
 	val content: ContentEditorBinding
 		get() = binding.content
 
 	override val subscribeToEvents: Boolean
 		get() = true
+
+	protected val contentOrNull: ContentEditorBinding?
+		get() {
+			if (_binding == null || isDestroyed || isDestroying) {
+				return null
+			}
+			return _binding!!.content
+		}
 
 	private val onBackPressedCallback: OnBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -207,12 +239,15 @@ abstract class BaseEditorActivity :
 					binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START) -> {
 						binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
 					}
-					bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED -> {
-						bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
+
+					bottomSheetViewModel.sheetBehaviorState != STATE_COLLAPSED -> {
+						bottomSheetViewModel.setSheetState(sheetState = STATE_COLLAPSED)
 					}
+
 					binding.swipeReveal.isOpen -> {
 						binding.swipeReveal.close()
 					}
+
 					else -> {
 						doConfirmProjectClose()
 					}
@@ -222,10 +257,16 @@ abstract class BaseEditorActivity :
 
 	private val memoryUsageListener =
 		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
+			var dataChanged = false
 			memoryUsage.forEachValue { proc ->
 				_binding?.memUsageView?.chart?.apply {
 					val dataset =
-						(data.getDataSetByIndex(pidToDatasetIdxMap[proc.pid]) as LineDataSet?)
+						(data.getDataSetByIndex(
+							pidToDatasetIdxMap.getOrDefault(
+								proc.pid,
+								-1
+							)
+						) as LineDataSet?)
 							?: run {
 								log.error(
 									"No dataset found for process: {}: {}",
@@ -242,6 +283,12 @@ abstract class BaseEditorActivity :
 
 					dataset.label = "%s - %.2fMB".format(proc.pname, dataset.entries.last().y)
 					dataset.notifyDataSetChanged()
+					dataChanged = true
+				}
+			}
+
+			if (dataChanged) {
+				_binding?.memUsageView?.chart?.apply {
 					data.notifyDataChanged()
 					notifyDataSetChanged()
 					invalidate()
@@ -330,6 +377,12 @@ abstract class BaseEditorActivity :
 		isDebuggerStarting = true
 
 		val intent = Intent(this, DebuggerService::class.java)
+			.apply {
+				val currentOrDefaultDisplay =
+					ContextCompat.getDisplayOrDefault(this@BaseEditorActivity)
+				putExtra(DebuggerService.EXTRA_DISPLAY_ID, currentOrDefaultDisplay.displayId)
+			}
+
 		if (bindService(intent, debuggerServiceConnection, BIND_AUTO_CREATE)) {
 			postStopDebuggerServiceIfNotConnected()
 			doSetStatus(getString(string.debugger_starting))
@@ -355,10 +408,8 @@ abstract class BaseEditorActivity :
 	private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
 	private var editorAppBarInsetTop: Int = 0
-	private var sidebarLastInsetTop: Int = 0
 
 	companion object {
-		private const val TAG = "ResizePanelDebugger"
 
 		const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
@@ -375,6 +426,7 @@ abstract class BaseEditorActivity :
 		protected val log: Logger = LoggerFactory.getLogger(BaseEditorActivity::class.java)
 
 		private const val OPTIONS_MENU_INVALIDATION_DELAY = 150L
+		private const val TOP_EDGE_SWIPE_THRESHOLD_DP = 60f
 
 		const val EDITOR_CONTAINER_SCALE_FACTOR = 0.87f
 		const val KEY_BOTTOM_SHEET_SHOWN = "editor_bottomSheetShown"
@@ -401,6 +453,8 @@ abstract class BaseEditorActivity :
 	protected open fun preDestroy() {
 		BuildOutputProvider.clearBottomSheet()
 
+		IDEApplication.getPluginManager()?.setSnippetRefreshListener(null)
+
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 		if (isAtLeastR()) wadbConnectionViewModel.stop(this)
 
@@ -425,12 +479,13 @@ abstract class BaseEditorActivity :
 		}
 		mLifecycleObserver = null
 
-		IDEApplication.instance.setCurrentActivity(null)
-
 		diagnosticInfoBinding = null
 		filesTreeFragment = null
 		editorBottomSheet = null
 		gestureDetector = null
+
+		fullscreenManager?.destroy()
+		fullscreenManager = null
 
 		_binding = null
 
@@ -464,9 +519,24 @@ abstract class BaseEditorActivity :
 		val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
 		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 
-		_binding?.content?.editorAppBarLayout?.updatePadding(top = systemBars.top)
-		applySidebarInsets(systemBars)
+		applyStandardInsets(systemBars)
 
+		applyImmersiveModeInsets(systemBars)
+
+		handleKeyboardInsets(imeInsets, systemBars)
+	}
+
+	private fun applyStandardInsets(systemBars: Insets) {
+		val root = _binding?.root ?: return
+		val initial = root.getOrStoreInitialPadding()
+		root.updatePadding(bottom = initial.bottom + systemBars.bottom)
+	}
+
+	private fun applyImmersiveModeInsets(systemBars: Insets) {
+		_binding?.content?.applyImmersiveModeInsets(systemBars)
+	}
+
+	private fun handleKeyboardInsets(imeInsets: Insets, systemBars: Insets) {
 		val isImeVisible = imeInsets.bottom > 0
 		_binding?.content?.bottomSheet?.setImeVisible(isImeVisible)
 
@@ -475,12 +545,16 @@ abstract class BaseEditorActivity :
 				isImeVisible -> {
 					contentCardRealHeight?.let { baseHeight ->
 						updateLayoutParams<ViewGroup.LayoutParams> {
-							height = (baseHeight - imeInsets.bottom).coerceAtLeast(0)
+							val diff = (imeInsets.bottom - systemBars.bottom).coerceAtLeast(0)
+							height = (baseHeight - diff).coerceAtLeast(0)
 						}
 					}
 				}
+
 				else -> {
-					updateLayoutParams<ViewGroup.LayoutParams> { height = ViewGroup.LayoutParams.MATCH_PARENT }
+					updateLayoutParams<ViewGroup.LayoutParams> {
+						height = ViewGroup.LayoutParams.MATCH_PARENT
+					}
 					post { contentCardRealHeight = measuredHeight }
 				}
 			}
@@ -488,6 +562,14 @@ abstract class BaseEditorActivity :
 
 		if (this.isImeVisible != isImeVisible) {
 			this.isImeVisible = isImeVisible
+
+			if (editorViewModel.isFullscreen) {
+                // Hide the bottom sheet if in fullscreen mode, but only collapse it if keyboard
+                // is open so the symbol input view is visible
+                val targetState = if (isImeVisible) STATE_COLLAPSED else STATE_HIDDEN
+				editorBottomSheet?.state = targetState
+			}
+
 			onSoftInputChanged()
 		}
 	}
@@ -495,13 +577,6 @@ abstract class BaseEditorActivity :
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
 		editorAppBarInsetTop = insets.top
-	}
-
-	private fun applySidebarInsets(systemBars: Insets) {
-		val sidebar = _binding?.drawerSidebar ?: return
-		val baseTop = sidebar.paddingTop - sidebarLastInsetTop
-		sidebarLastInsetTop = systemBars.top
-		sidebar.updatePadding(top = baseTop + systemBars.top)
 	}
 
 	@Subscribe(threadMode = MAIN)
@@ -560,9 +635,34 @@ abstract class BaseEditorActivity :
 		builder.show()
 	}
 
+	/**
+	 * Restores the project path on recreation (saved state, launch intent, or last opened
+	 * project) and routes back to MainActivity if none is available, rather than crashing while
+	 * building the editor UI.
+	 */
 	override fun onCreate(savedInstanceState: Bundle?) {
-		savedInstanceState?.getString(KEY_PROJECT_PATH)?.let(ProjectManagerImpl.getInstance()::projectPath::set)
+		// The OS can recreate EditorActivity after process death without routing through
+		// MainActivity, leaving the ProjectManagerImpl singleton's lateinit projectPath unset.
+		// Restore it from the saved state, the launch intent, or the last opened project.
+		val restoredProjectPath =
+			savedInstanceState?.getString(KEY_PROJECT_PATH)?.takeIf { it.isNotBlank() }
+				?: intent?.getStringExtra("PROJECT_PATH")?.takeIf { it.isNotBlank() }
+				?: GeneralPreferences.lastOpenedProject
+					.takeIf { it.isNotBlank() && it != GeneralPreferences.NO_OPENED_PROJECT }
+		if (restoredProjectPath != null) {
+			ProjectManagerImpl.getInstance().projectPath = restoredProjectPath
+		}
 		super.onCreate(savedInstanceState)
+
+		// If we still have no project path after every fallback, we cannot safely build the
+		// editor UI (setupToolbar -> getProjectName dereferences the project path). Route the
+		// user back to MainActivity instead of crashing.
+		if (ProjectManagerImpl.getInstance().projectDirPath.isBlank()) {
+			log.warn("No project path available in EditorActivity.onCreate(); returning to MainActivity")
+			startActivity(Intent(this, MainActivity::class.java))
+			finish()
+			return
+		}
 
 		editorViewModel.isBuildInProgress = false
 		editorViewModel.isInitializing = false
@@ -580,6 +680,11 @@ abstract class BaseEditorActivity :
 
 		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
+		loadUserSnippets()
+		loadPluginSnippets()
+		IDEApplication.getPluginManager()?.setSnippetRefreshListener { pluginId ->
+			refreshPluginSnippets(pluginId)
+		}
 		registerLanguageServers()
 
 		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
@@ -592,7 +697,23 @@ abstract class BaseEditorActivity :
 		content.tabs.addOnTabSelectedListener(this)
 
 		setupStateObservers()
+		setupFullscreenObserver()
+		setupBottomSheetObserver()
 		setupViews()
+
+		fullscreenManager = FullscreenManager(
+			contentBinding = content,
+			bottomSheetBehavior = editorBottomSheet!!,
+			closeDrawerAction = {
+				binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+			},
+			onFullscreenToggleRequested = {
+				editorViewModel.toggleFullscreen()
+			},
+		).also {
+			it.bind()
+			it.render(editorViewModel.isFullscreen, animate = false)
+		}
 
 		setupContainers()
 		setupDiagnosticInfo()
@@ -611,7 +732,7 @@ abstract class BaseEditorActivity :
 		feedbackButtonManager =
 			FeedbackButtonManager(
 				activity = this,
-				feedbackFab = binding.fabFeedback,
+				feedbackFab = binding.fabFeedback.root,
 				getLogContent = ::getLogContent,
 			)
 		feedbackButtonManager?.setupDraggableFab()
@@ -623,11 +744,36 @@ abstract class BaseEditorActivity :
 		setupGestureDetector()
 	}
 
+	override fun onConfigurationChanged(newConfig: Configuration) {
+		super.onConfigurationChanged(newConfig)
+		window?.decorView?.let { ViewCompat.requestApplyInsets(it) }
+		reapplySystemBarInsetsFromRoot()
+		_binding?.content?.applyBottomSheetAnchorForOrientation(newConfig.orientation)
+		fullscreenManager?.render(editorViewModel.isFullscreen, animate = false)
+	}
+
+	private fun reapplySystemBarInsetsFromRoot() {
+		val root = _binding?.root ?: return
+		val rootInsets = ViewCompat.getRootWindowInsets(root)
+		if (rootInsets == null) {
+			// Insets can be temporarily unavailable right after a configuration change.
+			root.post { reapplySystemBarInsetsFromRoot() }
+			return
+		}
+
+		val systemBars = rootInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+		applyStandardInsets(systemBars)
+		applyImmersiveModeInsets(systemBars)
+	}
+
+
 	private fun setupToolbar() {
 		// Set the project name in the title TextView
-		content.root.findViewById<android.widget.TextView>(R.id.title_text)?.apply {
+		content.root.findViewById<TextView>(R.id.title_text)?.apply {
 			text = editorViewModel.getProjectName()
 		}
+
+		content.editorAppBarLayout.applyResponsiveAppBarInsets(content.editorAppbarContent)
 
 		// Set up the drawer toggle on the title toolbar (where the hamburger menu should be)
 		content.titleToolbar.apply {
@@ -636,8 +782,8 @@ abstract class BaseEditorActivity :
 					this@BaseEditorActivity,
 					binding.editorDrawerLayout,
 					this,
-					string.app_name,
-					string.app_name,
+					string.cd_drawer_open,
+					string.cd_drawer_close,
 				) {
 					override fun onDrawerOpened(drawerView: View) {
 						super.onDrawerOpened(drawerView)
@@ -645,6 +791,8 @@ abstract class BaseEditorActivity :
 						closeKeyboard()
 						// Dismiss autocomplete and other editor windows
 						provideCurrentEditor()?.editor?.ensureWindowsDismissed()
+						// Reflect files changed while the drawer was closed (e.g. by a plugin).
+						getFileTreeFragment()?.refreshExpandedNodes()
 					}
 				}
 
@@ -678,9 +826,17 @@ abstract class BaseEditorActivity :
 		_binding?.apply {
 			contentCard.progress = progress
 			val insetsTop = systemBarInsets?.top ?: 0
-			content.editorAppBarLayout.updatePadding(
-				top = (insetsTop * (1f - progress)).roundToInt(),
-			)
+			val topInset = (insetsTop * (1f - progress)).roundToInt()
+
+			val isLandscape =
+				resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+			if (isLandscape) {
+				content.editorAppbarContent.updatePadding(top = topInset)
+			} else {
+				content.editorAppBarLayout.updatePadding(top = topInset)
+			}
+
 			memUsageView.chart.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				topMargin = (insetsTop * progress).roundToInt()
 			}
@@ -776,16 +932,18 @@ abstract class BaseEditorActivity :
 
 		this.isDestroying = isFinishing
 		getFileTreeFragment()?.saveTreeState()
-
-		// Clear current activity from plugin services when activity is finishing
-		if (isFinishing) {
-			IDEApplication.instance.setCurrentActivity(null)
-		}
 	}
 
 	override fun onResume() {
 		super.onResume()
 		invalidateOptionsMenu()
+
+		val displayId = ContextCompat.getDisplayOrDefault(this).displayId
+		runCatching {
+			debuggerService?.maybeMoveOverlayToDisplay(displayId)
+		}.onFailure { err ->
+			log.warn("Unable to move debugger overlay to display {}", displayId, err)
+		}
 
 		memoryUsageWatcher.listener = memoryUsageListener
 		memoryUsageWatcher.startWatching()
@@ -799,8 +957,6 @@ abstract class BaseEditorActivity :
 			flashError(string.msg_failed_list_files)
 		}
 
-		// Set this activity as current for plugin services
-		IDEApplication.instance.setCurrentActivity(this)
 		feedbackButtonManager?.loadFabPosition()
 	}
 
@@ -884,9 +1040,32 @@ abstract class BaseEditorActivity :
 			(this as EditorHandlerActivity).showPluginTabPopup(tab)
 			return
 		}
+
+		val pluginMenuItems = if (this is EditorHandlerActivity) {
+			val self = this
+			val fileIndex = getFileIndexForTabPosition(position)
+			if (fileIndex >= 0) {
+				val file = editorViewModel.getOpenedFile(fileIndex)
+				val pluginItems =
+					IDEApplication.getPluginManager()?.getFileTabMenuItems(file) ?: emptyList()
+				listOf(
+					FileTabMenuItem(
+						id = "ide.floating.undock",
+						title = getString(R.string.undock),
+						tooltipTag = TooltipTag.WINDOW_UNDOCK,
+					) { self.undockFileTab(fileIndex) },
+				) + pluginItems
+			} else {
+				emptyList()
+			}
+		} else {
+			emptyList()
+		}
+
 		showPopupWindow(
 			context = this,
 			anchorView = tab.view,
+			pluginMenuItems = pluginMenuItems,
 		)
 	}
 
@@ -925,10 +1104,13 @@ abstract class BaseEditorActivity :
 	}
 
 	open fun hideBottomSheet() {
-		bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
+		bottomSheetViewModel.setSheetState(sheetState = STATE_COLLAPSED)
 	}
 
 	private fun updateBottomSheetState(state: BottomSheetViewModel.SheetState = BottomSheetViewModel.SheetState.EMPTY) {
+		when (state.sheetState) {
+			BottomSheetBehavior.STATE_DRAGGING, BottomSheetBehavior.STATE_SETTLING -> return
+		}
 		log.debug("updateSheetState: {}", state)
 		content.bottomSheet.setCurrentTab(state.currentTab)
 		if (editorBottomSheet?.state != state.sheetState) {
@@ -955,13 +1137,20 @@ abstract class BaseEditorActivity :
 	}
 
 	open fun getFileTreeFragment(): FileTreeFragment? {
-		if (filesTreeFragment == null) {
-			filesTreeFragment =
-				supportFragmentManager.findFragmentByTag(
-					FileTreeFragment.TAG,
-				) as FileTreeFragment?
+		if (filesTreeFragment?.isAdded != true) {
+			filesTreeFragment = findFileTreeFragment(supportFragmentManager)
 		}
 		return filesTreeFragment
+	}
+
+	private fun findFileTreeFragment(manager: FragmentManager): FileTreeFragment? {
+		for (fragment in manager.fragments) {
+			if (fragment is FileTreeFragment) {
+				return fragment
+			}
+			findFileTreeFragment(fragment.childFragmentManager)?.let { return it }
+		}
+		return null
 	}
 
 	fun doSetStatus(
@@ -991,24 +1180,66 @@ abstract class BaseEditorActivity :
 			log.warn(
 				"UI Designer returned invalid result: resultCode={}, data={}",
 				result.resultCode,
-				result.data,
+				result.data
 			)
 			return
 		}
-		val generated =
-			result.data!!.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
-		if (TextUtils.isEmpty(generated)) {
+
+		val data = result.data!!
+		val generatedXml = data.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
+
+		if (TextUtils.isEmpty(generatedXml)) {
 			log.warn("UI Designer returned blank generated XML code")
 			return
 		}
-		val view = provideCurrentEditor()
-		val text =
-			view?.editor?.text ?: run {
-				log.warn("No file opened to append UI designer result")
-				return
+
+		editorActivityScope.launch {
+			val injectionSuccess = handleStringsInjection(data)
+
+			if (injectionSuccess) {
+				withContext(Dispatchers.Main) { applyGeneratedXmlToEditor(generatedXml!!) }
+			} else {
+				log.warn("Aborting layout update due to string injection failure.")
 			}
+		}
+	}
+
+	private suspend fun handleStringsInjection(data: Intent): Boolean {
+		val stringsXml = data.getStringExtra(UIDesignerActivity.EXTRA_GENERATED_STRINGS)
+		val layoutFilePath = data.getStringExtra(UIDesignerActivity.EXTRA_LAYOUT_FILE_PATH)
+
+		if (stringsXml.isNullOrBlank()) return true
+
+		if (layoutFilePath.isNullOrBlank()) {
+			log.warn("Skipping string injection: generated strings present but layout file path is missing.")
+			return false
+		}
+
+		val result = StringsXmlInjector.inject(layoutFilePath, stringsXml)
+
+		result.onFailure { error ->
+			log.error("String injection failed", error)
+			withContext(Dispatchers.Main) {
+				val message = when (error) {
+					is StringsInjectionException -> getString(error.messageRes)
+					else -> getString(string.msg_strings_injection_failed)
+				}
+				flashError(message)
+			}
+		}
+
+		return result.isSuccess
+	}
+
+	private fun applyGeneratedXmlToEditor(generatedXml: String) {
+		val view = provideCurrentEditor()
+		val text = view?.editor?.text ?: run {
+			log.warn("No file opened to append UI designer result")
+			return
+		}
+
 		val endLine = text.lineCount - 1
-		text.replace(0, 0, endLine, text.getColumnCount(endLine), generated)
+		text.replace(0, 0, endLine, text.getColumnCount(endLine), generatedXml)
 	}
 
 	private fun setupDrawers() {
@@ -1023,6 +1254,7 @@ abstract class BaseEditorActivity :
 					ContentTranslatingDrawerLayout.TranslationBehavior.FULL
 				setScrimColor(Color.TRANSPARENT)
 			}
+			drawerSidebar.applyRootSystemInsetsAsPadding(applyTop = true)
 		}
 	}
 
@@ -1137,6 +1369,34 @@ abstract class BaseEditorActivity :
 		}
 	}
 
+	private fun setupFullscreenObserver() {
+		lifecycleScope.launch {
+			repeatOnLifecycle(Lifecycle.State.STARTED) {
+				editorViewModel.uiState.collectLatest { uiState ->
+					fullscreenManager?.render(uiState.isFullscreen, animate = true)
+					updateSwipeRevealDragState()
+				}
+			}
+		}
+	}
+
+	private fun setupBottomSheetObserver() {
+		lifecycleScope.launch {
+			repeatOnLifecycle(Lifecycle.State.STARTED) {
+				bottomSheetViewModel.sheetState.collectLatest { _ ->
+					updateSwipeRevealDragState()
+				}
+			}
+		}
+	}
+
+	private fun updateSwipeRevealDragState() {
+		val isFullscreen = editorViewModel.isFullscreen
+		val isBottomSheetOpen = bottomSheetViewModel.sheetBehaviorState != STATE_COLLAPSED &&
+				bottomSheetViewModel.sheetBehaviorState != STATE_HIDDEN
+		binding.swipeReveal.setVerticalDragEnabled(!isFullscreen && !isBottomSheetOpen)
+	}
+
 	private fun setupViews() {
 		setupNoEditorView()
 		setupBottomSheet()
@@ -1148,7 +1408,7 @@ abstract class BaseEditorActivity :
 		) {
 			bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_EXPANDED)
 			ThreadUtils.runOnUiThreadDelayed({
-				bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_COLLAPSED)
+				bottomSheetViewModel.setSheetState(STATE_COLLAPSED)
 				app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
 			}, 1500)
 		}
@@ -1267,7 +1527,8 @@ abstract class BaseEditorActivity :
 					slideOffset: Float,
 				) {
 					content.apply {
-						val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
+						val safeOffset = slideOffset.coerceAtLeast(0f)
+						val editorScale = 1 - safeOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
 						this.bottomSheet.onSlide(slideOffset)
 						this.viewContainer.scaleX = editorScale
 						this.viewContainer.scaleY = editorScale
@@ -1286,9 +1547,9 @@ abstract class BaseEditorActivity :
 						it.realContainer.pivotX = it.realContainer.width.toFloat() / 2f
 						it.realContainer.pivotY =
 							(it.realContainer.height.toFloat() / 2f) + (
-								systemBarInsets?.run { bottom - top }
-									?: 0
-							)
+									systemBarInsets?.run { bottom - top }
+										?: 0
+									)
 						it.viewContainer.viewTreeObserver.removeOnGlobalLayoutListener(this)
 					}
 				}
@@ -1296,7 +1557,7 @@ abstract class BaseEditorActivity :
 
 		content.apply {
 			viewContainer.viewTreeObserver.addOnGlobalLayoutListener(observer)
-			bottomSheet.setOffsetAnchor(editorAppBarLayout)
+			applyBottomSheetAnchorForOrientation(resources.configuration.orientation)
 		}
 	}
 
@@ -1320,6 +1581,10 @@ abstract class BaseEditorActivity :
 			invalidateOptionsMenu()
 			content.bottomSheet.onSoftInputChanged()
 		}
+	}
+
+	fun setEditorSearchModeActive(isActive: Boolean) {
+		contentOrNull?.bottomSheet?.setSearchModeActive(isActive)
 	}
 
 	private fun observeFileOperations() {
@@ -1351,17 +1616,65 @@ abstract class BaseEditorActivity :
 						velocityX: Float,
 						velocityY: Float,
 					): Boolean {
-						// Check if no files are open by looking at the displayedChild of the view flipper
-						val noFilesOpen = content.viewContainer.displayedChild == 1
-						if (!noFilesOpen) {
-							return false // If files are open, do nothing
+						if (e1 == null) return false
+
+						val diffX = e2.x - e1.x
+						val diffY = e2.y - e1.y
+
+						val isVerticalSwipe = abs(diffY) > abs(diffX)
+						val isHorizontalSwipe = abs(diffX) > abs(diffY)
+
+						val hasDownFlingDistance = diffY > flingDistanceThreshold
+						val hasUpFlingDistance = diffY < -flingDistanceThreshold
+
+						val hasVerticalVelocity = abs(velocityY) > flingVelocityThreshold
+						val hasHorizontalVelocity = abs(velocityX) > flingVelocityThreshold
+						val hasRightFlingDistance = diffX > flingDistanceThreshold
+
+						val screenHeight = resources.displayMetrics.heightPixels
+						val bottomEdgeThreshold = screenHeight - topEdgeThreshold
+
+						val startedNearTopEdge = e1.y < topEdgeThreshold
+						val startedNearBottomEdge = e1.y > bottomEdgeThreshold
+						val isTopEdgeDismissFling = isVerticalSwipe &&
+								hasVerticalVelocity &&
+								startedNearTopEdge &&
+								hasDownFlingDistance
+						val isBottomEdgeDismissFling = isVerticalSwipe &&
+								hasVerticalVelocity &&
+								startedNearBottomEdge &&
+								hasUpFlingDistance
+						val isDrawerOpenFling = hasRightFlingDistance &&
+								hasHorizontalVelocity &&
+								isHorizontalSwipe
+
+						val isBottomSheetOpen = bottomSheetViewModel.sheetBehaviorState != STATE_COLLAPSED &&
+								bottomSheetViewModel.sheetBehaviorState != STATE_HIDDEN
+
+						if (isBottomSheetOpen) {
+							return false
 						}
 
-						val diffX = e2.x - (e1?.x ?: 0f)
+						if (isTopEdgeDismissFling && editorViewModel.isFullscreen) {
+							editorViewModel.exitFullscreen()
+							return true
+						}
 
-						// Check for a right swipe (to open left drawer) - This part is still correct
-						if (diffX > flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
-							// Use the correct binding for the drawer layout
+						if (isBottomEdgeDismissFling && editorViewModel.isFullscreen) {
+							editorViewModel.exitFullscreen()
+							return true
+						}
+
+						// Preserve the editor interaction area; drawer gestures are only enabled on the empty state.
+						val noFilesOpen = content.viewContainer.displayedChild == 1
+						if (!noFilesOpen) {
+							return false
+						}
+
+						// Filter out diagonal flings so only an intentional right swipe opens the drawer.
+						// A horizontal fling that started on the bottom-sheet tab strip is the user
+						// scrolling tabs, not asking for the drawer.
+						if (isDrawerOpenFling && !isTouchOnBottomSheetTabs(e1)) {
 							binding.editorDrawerLayout.openDrawer(GravityCompat.START)
 							return true
 						}
@@ -1379,6 +1692,13 @@ abstract class BaseEditorActivity :
 		}
 		// Then, let the default dispatching happen
 		return super.dispatchTouchEvent(ev)
+	}
+
+	private fun isTouchOnBottomSheetTabs(ev: MotionEvent): Boolean {
+		val tabs = contentOrNull?.bottomSheet?.binding?.tabs ?: return false
+		val rect = Rect()
+		if (!tabs.getGlobalVisibleRect(rect)) return false
+		return rect.contains(ev.rawX.toInt(), ev.rawY.toInt())
 	}
 
 	private fun showTooltip(tag: String) {

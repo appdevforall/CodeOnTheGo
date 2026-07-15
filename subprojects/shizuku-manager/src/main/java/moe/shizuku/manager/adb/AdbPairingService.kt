@@ -189,14 +189,16 @@ class AdbPairingService : Service() {
 					return@launch
 				}
 
-			AdbPairingClient(host, port, code, key)
-				.runCatching {
-					start()
-				}.onFailure {
-					handleResult(false, it)
-				}.onSuccess {
-					handleResult(it, null)
-				}
+			AdbPairingClient(host, port, code, key).use { pairingClient ->
+				pairingClient
+					.runCatching {
+						start()
+					}.onFailure {
+						handleResult(false, it)
+					}.onSuccess {
+						handleResult(it, null)
+					}
+			}
 		}
 
 		return workingNotification
@@ -249,7 +251,7 @@ class AdbPairingService : Service() {
 			NOTIFICATION_ID,
 			Notification
 				.Builder(this, NOTIFICATION_CHANNEL)
-				.setSmallIcon(R.drawable.ic_launcher_fg_vector)
+				.setSmallIcon(R.drawable.ic_cogo_notification)
 				.setContentTitle(title)
 				.setContentText(text)
 				.build(),
@@ -348,7 +350,7 @@ class AdbPairingService : Service() {
 	private val searchingNotification by unsafeLazy {
 		Notification
 			.Builder(this, NOTIFICATION_CHANNEL)
-			.setSmallIcon(R.drawable.ic_launcher_fg_vector)
+			.setSmallIcon(R.drawable.ic_cogo_notification)
 			.setContentTitle(getString(R.string.notification_adb_pairing_searching_for_service_title))
 			.addAction(stopNotificationAction)
 			.build()
@@ -358,7 +360,7 @@ class AdbPairingService : Service() {
 		Notification
 			.Builder(this, NOTIFICATION_CHANNEL)
 			.setContentTitle(getString(R.string.notification_adb_pairing_service_found_title))
-			.setSmallIcon(R.drawable.ic_launcher_fg_vector)
+			.setSmallIcon(R.drawable.ic_cogo_notification)
 			.addAction(replyNotificationAction(port))
 			.build()
 
@@ -366,7 +368,7 @@ class AdbPairingService : Service() {
 		Notification
 			.Builder(this, NOTIFICATION_CHANNEL)
 			.setContentTitle(getString(R.string.notification_adb_pairing_working_title))
-			.setSmallIcon(R.drawable.ic_launcher_fg_vector)
+			.setSmallIcon(R.drawable.ic_cogo_notification)
 			.build()
 	}
 }

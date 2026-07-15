@@ -20,6 +20,7 @@ package com.itsaky.androidide.projects
 import androidx.annotation.RestrictTo
 import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.eventbus.events.EventReceiver
 import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
@@ -42,6 +43,7 @@ import com.itsaky.androidide.tooling.api.IAndroidProject
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DocumentUtils
+import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.withStopWatch
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +53,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -73,7 +77,21 @@ import kotlin.io.path.pathString
 class ProjectManagerImpl :
 	IProjectManager,
 	EventReceiver {
+
+	private var _indexingServiceManager: IndexingServiceManager? = null
 	lateinit var projectPath: String
+
+	val indexingServiceManager: IndexingServiceManager
+		get() {
+			if (_indexingServiceManager == null) {
+				_indexingServiceManager = IndexingServiceManager()
+			}
+
+			return _indexingServiceManager!!
+		}
+
+    @Volatile
+    internal var pluginProjectCached: Boolean? = null
 
 	override var gradleBuild: GradleModels.GradleBuild? = null
 	override var workspace: Workspace? = null
@@ -81,10 +99,15 @@ class ProjectManagerImpl :
 	override var androidBuildVariants: Map<String, BuildVariantInfo> = emptyMap()
 		private set
 
+	/**
+	 * The project directory path, or an empty string when [projectPath] has not yet been
+	 * initialized (e.g. the OS recreated EditorActivity after process death without routing
+	 * through MainActivity). Guarding the lateinit access avoids crashing the caller.
+	 */
 	override val projectDirPath: String
-		get() = projectPath
+		get() = if (this::projectPath.isInitialized) projectPath else ""
 
-	override val projectSyncIssues: List<GradleModels.SyncIssue>?
+	override val projectSyncIssues: List<GradleModels.SyncIssue>
 		get() = gradleBuild?.syncIssueList ?: emptyList()
 
 	companion object {
@@ -98,6 +121,15 @@ class ProjectManagerImpl :
 	suspend fun isGradleSyncNeeded(projectDir: File): Boolean = ProjectSyncHelper.checkSyncNeeded(projectDir)
 
 	override suspend fun setup(gradleBuild: GradleModels.GradleBuild) {
+		if (!this::projectPath.isInitialized) {
+			log.warn("Project path not initialized before setup(); skipping plugin project cache check.")
+			pluginProjectCached = null
+		} else {
+			pluginProjectCached = withContext(Dispatchers.IO) {
+				File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
+			}
+		}
+
 		this.gradleBuild = gradleBuild
 		this.workspace =
 			Workspace(
@@ -126,6 +158,10 @@ class ProjectManagerImpl :
 			gradleBuild.syncIssueList,
 		)
 
+		withStopWatch("notify indexing services") {
+			indexingServiceManager.onProjectSynced()
+		}
+
 		withStopWatch("Setup project") {
 			val indexerScope = CoroutineScope(Dispatchers.Default)
 			val modulesFlow =
@@ -148,6 +184,36 @@ class ProjectManagerImpl :
 			// wait for the indexing to finish
 			jobs.toList().awaitAll()
 		}
+
+		reportUnreadableClasspathJars(workspace)
+	}
+
+	/**
+	 * Surface any classpath JARs that were corrupt/unreadable during indexing (e.g. a truncated
+	 * download or incomplete offline provisioning) to the user — naming the offending dependency and
+	 * offering a recovery path (re-sync) — instead of silently dropping its code-completion symbols.
+	 */
+	private fun reportUnreadableClasspathJars(workspace: Workspace) {
+		val names = workspace.subProjects
+			.filterIsInstance<ModuleProject>()
+			.flatMap { it.unreadableClasspathJars }
+			.map { it.name }
+			.distinct()
+		if (names.isEmpty()) {
+			return
+		}
+
+		log.warn("Skipped {} unreadable classpath JAR(s) during indexing: {}", names.size, names)
+
+		val context = BaseApplication.baseInstance
+		val shown = names.take(3).joinToString(", ")
+		val list =
+			if (names.size > 3) {
+				context.getString(R.string.msg_unreadable_classpath_jars_overflow, shown, names.size - 3)
+			} else {
+				shown
+			}
+		flashError(context.getString(R.string.msg_unreadable_classpath_jars, list))
 	}
 
 	override fun getAndroidModules(): List<AndroidModule> {
@@ -216,6 +282,10 @@ class ProjectManagerImpl :
 	override fun destroy() {
 		log.info("Destroying project manager")
 		this.workspace = null
+		pluginProjectCached = null
+
+		_indexingServiceManager?.close()
+		_indexingServiceManager = null
 
 		(this.androidBuildVariants as? MutableMap?)?.clear()
 	}

@@ -94,27 +94,22 @@ private class TextSize(
   override fun onConfigureDialog(preference: Preference, dialog: MaterialAlertDialogBuilder) {
     val binding = LayoutTextSizeSliderBinding.inflate(LayoutInflater.from(preference.context))
     var size = EditorPreferences.fontSize
-    if (size < 6 || size > 32) {
+    if (size !in 6f..32f) {
       size = 14f
     }
-    changeTextSize(binding, size)
+    binding.slider.value = kotlin.math.round(size)
     binding.slider.setLabelFormatter { it.toString() }
 
     dialog.setView(binding.root)
     dialog.setPositiveButton(android.R.string.ok) { iface, _ ->
       iface.dismiss()
-      changeTextSize(binding, binding.slider.value)
+      EditorPreferences.fontSize = binding.slider.value
     }
     dialog.setNegativeButton(android.R.string.cancel, null)
     dialog.setNeutralButton(string.reset) { iface, _ ->
       iface.dismiss()
-      changeTextSize(binding, 14f)
+      EditorPreferences.fontSize = 14f
     }
-  }
-
-  private fun changeTextSize(binding: LayoutTextSizeSliderBinding, size: Float) {
-    EditorPreferences.fontSize = size
-    binding.slider.value = size
   }
 }
 
@@ -135,9 +130,6 @@ private class TabSize(
   override val icon: Int? = drawable.ic_tab,
   override val tooltipTag: String = TooltipTag.PREFS_EDITOR,
 ) : SingleChoicePreference() {
-
-  @IgnoredOnParcel
-  override val dialogCancellable = true
 
   @IgnoredOnParcel
   private val tabSizes = intArrayOf(2, 4, 6, 8)

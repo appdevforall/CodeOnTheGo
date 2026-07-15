@@ -42,6 +42,18 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 class LayoutInflaterTest {
 
+  // No per-test @Rule Timeout here on purpose. JUnit's Timeout wraps the test in a
+  // separate thread (FailOnTimeout$CallableStatement), which breaks Robolectric APIs
+  // that require the runner's main-looper thread — notably Robolectric.buildActivity
+  // backing XmlInflaterTest.activity, which throws "buildActivity must be called on
+  // main Looper thread" the moment a test reaches requiresActivity { ... }.
+  //
+  // Hang protection comes from two other layers added by ADFA-3863:
+  //   * the project-wide 10-minute Test task timeout in build.gradle.kts, and
+  //   * XmlInflaterTest's State machine (UNINITIALIZED → READY|FAILED) so a single
+  //     init failure short-circuits every subsequent test in the suite rather than
+  //     re-paying the cost.
+
   @Before
   fun `setup project`() {
     XmlInflaterTest.initIfNeeded()

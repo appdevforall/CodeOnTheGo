@@ -20,17 +20,11 @@ package com.itsaky.androidide.templates.base
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.CheckBoxWidget
 import com.itsaky.androidide.templates.EnumParameter
-import com.itsaky.androidide.templates.FileTemplate
-import com.itsaky.androidide.templates.FileTemplateRecipeResult
 import com.itsaky.androidide.templates.Language
-import com.itsaky.androidide.templates.ModuleTemplate
 import com.itsaky.androidide.templates.ModuleTemplateData
-import com.itsaky.androidide.templates.ModuleType
 import com.itsaky.androidide.templates.ModuleType.AndroidApp
-import com.itsaky.androidide.templates.ModuleType.AndroidLibrary
 import com.itsaky.androidide.templates.ParameterConstraint.DIRECTORY
 import com.itsaky.androidide.templates.ParameterConstraint.EXISTS
-import com.itsaky.androidide.templates.ParameterConstraint.MODULE_NAME
 import com.itsaky.androidide.templates.ParameterConstraint.NONEMPTY
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.ProjectTemplateData
@@ -41,7 +35,6 @@ import com.itsaky.androidide.templates.StringParameter
 import com.itsaky.androidide.templates.TextFieldWidget
 import com.itsaky.androidide.templates.base.util.getNewProjectName
 import com.itsaky.androidide.templates.base.util.moduleNameToDir
-import com.itsaky.androidide.templates.enumParameter
 import com.itsaky.androidide.templates.minSdkParameter
 import com.itsaky.androidide.templates.packageNameParameter
 import com.itsaky.androidide.templates.projectLanguageParameter
@@ -53,14 +46,13 @@ import com.itsaky.androidide.utils.Environment
 import org.adfa.constants.Sdk
 import java.io.File
 
-typealias AndroidModuleTemplateConfigurator = AndroidModuleTemplateBuilder.() -> Unit
 
 /**
- * Setup base files for project templates.
+ * Setup base files for zip project templates.
  *
  * @param block Function to configure the template.
  */
-inline fun baseProject(
+inline fun baseZipProject(
     projectName: StringParameter = projectNameParameter(),
     packageName: StringParameter = packageNameParameter(),
     useKts: BooleanParameter = useKtsParameter(),
@@ -68,28 +60,36 @@ inline fun baseProject(
     language: EnumParameter<Language> = projectLanguageParameter(),
     projectVersionData: ProjectVersionData = ProjectVersionData(),
     isToml: Boolean = false,
-    showUseKts: Boolean = true,
+    showUseKts: Boolean = false,
     showMinSdk: Boolean = true,
+    showLanguage: Boolean = true,
+    showPackageName: Boolean = true,
+    defaultSaveLocation: String? = null,
     crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
     return ProjectTemplateBuilder().apply {
 
-        // When project name is changed, change the package name accordingly
-        projectName.observe { name ->
-            val newPackage =
-                AndroidUtils.appNameToPackageName(name.value, packageName.value)
-            packageName.setValue(newPackage)
+        if (showPackageName) {
+            projectName.observe { name ->
+                val newPackage = AndroidUtils.appNameToPackageName(name.value, packageName.value)
+                packageName.setValue(newPackage)
+            }
         }
 
-        Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
+        val saveDir = if (defaultSaveLocation != null) {
+            File(defaultSaveLocation).also { Environment.mkdirIfNotExists(it) }
+        } else {
+            Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
+            Environment.PROJECTS_DIR
+        }
 
         val saveLocation = stringParameter {
             name = R.string.wizard_save_location
-            default = Environment.PROJECTS_DIR.absolutePath
+            default = saveDir.absolutePath
             endIcon = { R.drawable.ic_folder }
             constraints = listOf(NONEMPTY, DIRECTORY, EXISTS)
             inputType =
-                android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
             maxLines = 1
             tooltipTag = "setup.save.location"
@@ -99,10 +99,13 @@ inline fun baseProject(
             it.setValue(getNewProjectName(saveLocation.value, projectName.value))
         }
 
-        widgets(
-            TextFieldWidget(projectName), TextFieldWidget(packageName),
-            TextFieldWidget(saveLocation), SpinnerWidget(language)
-        )
+        widgets(TextFieldWidget(projectName))
+        if (showPackageName) widgets(TextFieldWidget(packageName))
+        widgets(TextFieldWidget(saveLocation))
+
+        if (showLanguage) {
+            widgets(SpinnerWidget(language))
+        }
 
         if (showMinSdk) {
             widgets(SpinnerWidget(minSdk))
@@ -122,12 +125,15 @@ inline fun baseProject(
 
             this@apply._data = ProjectTemplateData(
                 projectName.value,
-                File(saveLocation.value, projectName.value), projectVersionData,
-                language = language.value, useKts = useKts.value, useToml = isToml
+                File(saveLocation.value, projectName.value),
+                projectVersionData,
+                language = if (showLanguage) language.value else null,
+                useKts = useKts.value,
+                useToml = isToml
             )
 
             if (data.projectDir.exists() && data.projectDir.listFiles()
-                    ?.isNotEmpty() == true
+                ?.isNotEmpty() == true
             ) {
                 throw IllegalArgumentException("Project directory already exists")
             }
@@ -136,188 +142,14 @@ inline fun baseProject(
                 ModuleTemplateData(
                     ":app", appName = data.name, packageName.value,
                     data.moduleNameToDir(":app"), type = AndroidApp,
-                    language = language.value, minSdk = minSdk.value,
+                    language = if (showLanguage) language.value else null,
+                    minSdk = if (showMinSdk) minSdk.value else null,
                     useKts = data.useKts, useToml = isToml
                 )
             )
         }
 
-        // After the recipe is executed, finalize the project creation
-        // In this phase, we write the build scripts as they may need additional data based on the previous recipe
-        // For example, writing settings.gradle[.kts] needs to know the name of the modules so that those can be includedl
-        postRecipe = {
-            // build.gradle[.kts]
-            buildGradle()
-
-            // settings.gradle[.kts]
-            settingsGradle()
-
-            // gradle.properties
-            gradleProps()
-            if (isToml) {
-                tomlFile()
-            }
-
-            // gradlew
-            // gradlew.bat
-            // gradle/wrapper/gradle-wrapper.jar
-            // gradle/wrapper/gradle-wrapper.properties
-            gradleWrapper()
-            //gradleZip(isToml)
-            //agpJar()
-            //mavenCaches()
-
-            // .gitignore
-            gitignore()
-
-            // keystore
-            keystore()
-        }
-
         block()
 
     }.build() as ProjectTemplate
-}
-
-/**
- * Setup base files for plugin project templates.
- * @param block Function to configure the template.
- */
-inline fun basePluginProject(
-    projectName: StringParameter = projectNameParameter(),
-    packageName: StringParameter = packageNameParameter(),
-    crossinline block: ProjectTemplateBuilder.() -> Unit
-): ProjectTemplate {
-    return ProjectTemplateBuilder().apply {
-        projectName.observe { name ->
-            val newPackage = AndroidUtils.appNameToPackageName(name.value, packageName.value)
-            packageName.setValue(newPackage)
-        }
-
-        Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
-
-        val saveLocation = stringParameter {
-            name = R.string.wizard_save_location
-            default = Environment.PROJECTS_DIR.absolutePath
-            endIcon = { R.drawable.ic_folder }
-            constraints = listOf(NONEMPTY, DIRECTORY, EXISTS)
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
-            maxLines = 1
-        }
-
-        projectName.doBeforeCreateView {
-            it.setValue(getNewProjectName(saveLocation.value, projectName.value))
-        }
-
-        widgets(
-            TextFieldWidget(projectName),
-            TextFieldWidget(packageName),
-            TextFieldWidget(saveLocation)
-        )
-
-        preRecipe = {
-            this@apply._executor = this
-            this@apply._data = ProjectTemplateData(
-                projectName.value,
-                File(saveLocation.value, projectName.value),
-                ProjectVersionData(),
-                language = Language.Kotlin,
-                useKts = true,
-                useToml = false
-            )
-
-            if (data.projectDir.exists() && data.projectDir.listFiles()?.isNotEmpty() == true) {
-                throw IllegalArgumentException("Project directory already exists")
-            }
-        }
-
-        postRecipe = {
-            gradleWrapper()
-            gitignore()
-            keystore()
-        }
-
-        block()
-    }.build() as ProjectTemplate
-}
-
-/**
- * Create a new module project in this project.
- *
- * @param block The module configurator.
- */
-inline fun baseAndroidModule(
-    isLibrary: Boolean = false,
-    crossinline block: AndroidModuleTemplateConfigurator
-): ModuleTemplate {
-    return AndroidModuleTemplateBuilder().apply {
-
-        val appName = if (isLibrary) null else projectNameParameter()
-        val language = projectLanguageParameter()
-        val minSdk = minSdkParameter()
-        val packageName = packageNameParameter()
-        val useKts = useKtsParameter()
-
-        val moduleName = stringParameter {
-            name = R.string.wizard_module_name
-            default = ":app"
-            constraints = listOf(NONEMPTY, MODULE_NAME)
-            inputType =
-                android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
-            maxLines = 1
-        }
-
-        val type = enumParameter<ModuleType> {
-            name = R.string.wizard_module_type
-            default = AndroidLibrary
-            startIcon = { R.drawable.ic_android }
-            displayName = ModuleType::typeName
-        }
-
-        widgets(TextFieldWidget(moduleName))
-
-        appName?.let {
-            widgets(TextFieldWidget(it))
-        }
-
-        widgets(
-            TextFieldWidget(packageName), SpinnerWidget(minSdk),
-            SpinnerWidget(type), SpinnerWidget(language), CheckBoxWidget(useKts)
-        )
-
-
-        /**
-         * Currently useToml is equals to isComposeModule because only compose template uses toml.
-         * In the future, in case we will extend toml adoption, we will have to change this.
-         */
-        preRecipe = commonPreRecipe {
-            ModuleTemplateData(
-                name = moduleName.value, appName = appName?.value,
-                packageName = packageName.value,
-                projectDir = requireProjectData().moduleNameToDir(moduleName.value),
-                type = type.value, language = language.value, minSdk = minSdk.value,
-                useKts = useKts.value, useToml = isComposeModule
-            )
-        }
-        postRecipe = commonPostRecipe()
-
-        block()
-    }.build() as ModuleTemplate
-}
-
-/**
- * Creates a template for a file.
- *
- * @param dir The directory in which the file will be created.
- * @param configurator The configurator to configure the template.
- * @return The [FileTemplate].
- */
-inline fun <R : FileTemplateRecipeResult> baseFile(
-    dir: File,
-    crossinline configurator: FileTemplateBuilder<R>.() -> Unit
-): FileTemplate<R> {
-    return FileTemplateBuilder<R>(dir).apply(configurator)
-        .build() as FileTemplate<R>
 }

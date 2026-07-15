@@ -17,11 +17,8 @@
 
 package com.itsaky.androidide.activities
 
-import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.os.Bundle
-import android.util.TypedValue
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.animation.Animation
@@ -31,7 +28,9 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -43,13 +42,12 @@ import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.fragments.onboarding.GreetingFragment
 import com.itsaky.androidide.fragments.onboarding.OnboardingInfoFragment
 import com.itsaky.androidide.fragments.onboarding.PermissionsFragment
-import com.itsaky.androidide.fragments.onboarding.PermissionsInfoFragment
 import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.OrientationUtilities
+import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.isAtLeastV
 import com.itsaky.androidide.utils.isSystemInDarkMode
@@ -57,19 +55,13 @@ import com.itsaky.androidide.utils.resolveAttr
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
-import androidx.core.view.isVisible
 
 class OnboardingActivity : AppIntro2() {
-	private val activityScope =
-		CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
 
 	private var listJdkInstallationsJob: Job? = null
     private lateinit var feedbackButton: FloatingActionButton
@@ -83,14 +75,8 @@ class OnboardingActivity : AppIntro2() {
 			"ide.archConfig.experimentalWarning.isShown"
 	}
 
-	@SuppressLint("SourceLockedOrientationActivity")
 	override fun onCreate(savedInstanceState: Bundle?) {
 		IThemeManager.getInstance().applyTheme(this)
-		setOrientationFunction {
-			OrientationUtilities.setOrientation {
-				requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-			}
-		}
 
 		super.onCreate(savedInstanceState)
 
@@ -125,7 +111,6 @@ class OnboardingActivity : AppIntro2() {
         pulseAnimation = AnimationUtils.loadAnimation(this, R.anim.pulse_animation)
 
         addSlide(GreetingFragment())
-		addSlide(PermissionsInfoFragment())
 
 		if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
 			val errorMessage =
@@ -185,24 +170,21 @@ class OnboardingActivity : AppIntro2() {
 
                 val appIntroContainer: ConstraintLayout? = findViewById(R.id.background)
                 if (appIntroContainer != null) {
-                    feedbackButton = FloatingActionButton(this@OnboardingActivity).apply {
-                        id = R.id.fab_feedback
-                        setImageResource(R.drawable.baseline_feedback_64)
-                        contentDescription = getString(string.send_feedback)
-                        val layoutParams = ConstraintLayout.LayoutParams(
+                    // Reuse the shared feedback FAB definition (size, icon, elevation) so this
+                    // matches every other screen (ADFA-2686); only positioning is set here.
+                    feedbackButton = (layoutInflater.inflate(
+                        R.layout.feedback_fab, appIntroContainer, false
+                    ) as FloatingActionButton).apply {
+                        layoutParams = ConstraintLayout.LayoutParams(
                             ConstraintLayout.LayoutParams.WRAP_CONTENT,
                             ConstraintLayout.LayoutParams.WRAP_CONTENT
-                        )
-
-                        layoutParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                        layoutParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-                        val marginInPx = TypedValue.applyDimension(
-                            TypedValue.COMPLEX_UNIT_DIP,
-                            16f,
-                            resources.displayMetrics
-                        ).toInt()
-                        layoutParams.setMargins(marginInPx, marginInPx, marginInPx, marginInPx)
-                        this.layoutParams = layoutParams
+                        ).apply {
+                            startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                            bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                            val marginInPx =
+                                resources.getDimensionPixelSize(R.dimen.feedback_fab_margin)
+                            setMargins(marginInPx, marginInPx, marginInPx, marginInPx)
+                        }
                     }
 
                     appIntroContainer.addView(feedbackButton)
@@ -220,16 +202,14 @@ class OnboardingActivity : AppIntro2() {
 
 	override fun onResume() {
 		super.onResume()
-		activityScope.launch {
-			reloadJdkDistInfo {
-				tryNavigateToMainIfSetupIsCompleted()
+
+		if (!isTestMode()) {
+			lifecycleScope.launch {
+				reloadJdkDistInfo {
+					tryNavigateToMainIfSetupIsCompleted()
+				}
 			}
 		}
-	}
-
-	override fun onDestroy() {
-		super.onDestroy()
-		activityScope.cancel("Activity is being destroyed")
 	}
 
 	override fun onDonePressed(currentFragment: Fragment?) {
@@ -241,27 +221,17 @@ class OnboardingActivity : AppIntro2() {
 		tryNavigateToMainIfSetupIsCompleted()
 	}
 
+    fun setOnboardingChromeVisible(visible: Boolean) {
+        isIndicatorEnabled = visible
+        isButtonsEnabled = visible
+    }
+
 	override fun onPageSelected(position: Int) {
 		super.onPageSelected(position)
 
-		// Get the fragment at the current position
-		val fragment = supportFragmentManager.fragments.getOrNull(position)
-
-		// Hide indicator and buttons when on PermissionsFragment
-		if (fragment is PermissionsFragment) {
-			isIndicatorEnabled = false
-			isButtonsEnabled = false
-		} else {
-			isIndicatorEnabled = true
-			isButtonsEnabled = true
-		}
-
-        if (nextButton.isVisible) {
-            if (nextButton.animation == null) {
-                nextButton.startAnimation(pulseAnimation)
-            }
-        } else {
-            nextButton.clearAnimation()
+        when {
+            !nextButton.isVisible -> nextButton.clearAnimation()
+            !isTestMode() && nextButton.animation == null -> nextButton.startAnimation(pulseAnimation)
         }
 	}
 
@@ -273,10 +243,14 @@ class OnboardingActivity : AppIntro2() {
 		checkToolsIsInstalled() &&
 				PermissionsHelper.areAllPermissionsGranted(this)
 
+	internal fun navigateToMain() {
+		startActivity(Intent(this, MainActivity::class.java))
+		finish()
+	}
+
 	internal fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
 		if (isSetupCompleted()) {
-			startActivity(Intent(this, MainActivity::class.java))
-			finish()
+			navigateToMain()
 			return true
 		}
 
@@ -284,7 +258,16 @@ class OnboardingActivity : AppIntro2() {
 	}
 
 	private suspend fun reloadJdkDistInfo(distConsumer: (List<JdkDistribution>) -> Unit) {
-		listJdkInstallationsJob?.cancel("Reloading JDK distributions")
+        val distributionProvider = IJdkDistributionProvider.getInstance()
+        val currentDistributions = distributionProvider.installedDistributions
+        if (currentDistributions.isNotEmpty()) {
+            distConsumer(currentDistributions)
+            return
+        }
+
+        if (listJdkInstallationsJob?.isActive == true) {
+            return
+        }
 
 		listJdkInstallationsJob =
 			doAsyncWithProgress(
@@ -293,11 +276,12 @@ class OnboardingActivity : AppIntro2() {
 					builder.message(string.please_wait)
 				},
 			) { _, _ ->
-				val distributionProvider = IJdkDistributionProvider.getInstance()
 				distributionProvider.loadDistributions()
 				withContext(Dispatchers.Main) {
-					distConsumer(distributionProvider.installedDistributions)
-				}
+                    if (!isFinishing && !isDestroyed) {
+                        distConsumer(distributionProvider.installedDistributions)
+                    }
+                }
 			}.also {
 				it?.invokeOnCompletion {
 					listJdkInstallationsJob = null

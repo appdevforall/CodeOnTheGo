@@ -20,13 +20,16 @@ package com.itsaky.androidide.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.Application
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import androidx.work.Configuration
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
+import com.itsaky.androidide.handlers.SentryDiagnosticsContext
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.utils.RecyclableObjectPool
@@ -39,9 +42,12 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
-import org.appdevforall.codeonthego.computervision.di.computerVisionModule
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
@@ -51,11 +57,25 @@ import java.lang.Thread.UncaughtExceptionHandler
 
 const val EXIT_CODE_CRASH = 1
 
-class IDEApplication : BaseApplication() {
+class IDEApplication :
+	BaseApplication(),
+	Configuration.Provider,
+	Application.ActivityLifecycleCallbacks by ActivityLifecycleCallbacksDelegate() {
 	val coroutineScope = MainScope() + CoroutineName("ApplicationScope")
 
 	internal var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
-	private var currentActivity: Activity? = null
+	private var _foregroundActivity = MutableStateFlow<Activity?>(null)
+
+	/**
+	 * A [StateFlow] to publish updates about foreground activities in the IDE.
+	 */
+	val foregroundActivityState = _foregroundActivity.asStateFlow()
+
+	/**
+	 * The currently visible (foreground) activity.
+	 */
+	val foregroundActivity: Activity?
+		get() = foregroundActivityState.value
 
 	private val deviceUnlockReceiver =
 		object : BroadcastReceiver() {
@@ -65,6 +85,9 @@ class IDEApplication : BaseApplication() {
 			) {
 				if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
 					runCatching { unregisterReceiver(this) }
+					// Stamp the unlock time so Sentry's boot_mode context reflects the
+					// live state and can report the direct-boot locked duration.
+					SentryDiagnosticsContext.onUserUnlocked()
 					coroutineScope.launch(Dispatchers.Default) {
 						logger.info("Device unlocked! Loading all components...")
 						CredentialProtectedApplicationLoader.load(this@IDEApplication)
@@ -92,9 +115,15 @@ class IDEApplication : BaseApplication() {
 					.setFlags(Shell.FLAG_REDIRECT_STDERR),
 			)
 
-			HiddenApiBypass.setHiddenApiExemptions("")
-
 			if (!VMUtils.isJvm && !isTestMode()) {
+				// HiddenApiBypass.<clinit> reflectively resolves
+				// sun.misc.Unsafe.getUnsafe(); under Robolectric the Android
+				// shadow of Unsafe does not expose that method, so the call
+				// throws NoSuchMethodException and poisons IDEApplication
+				// static init for every unit test in this module.  The call
+				// is only meaningful on a real Android device anyway.
+				HiddenApiBypass.setHiddenApiExemptions("")
+
 				try {
 					if (isAtLeastR()) {
 						System.loadLibrary("adb")
@@ -114,19 +143,18 @@ class IDEApplication : BaseApplication() {
 		fun getPluginManager(): PluginManager? = CredentialProtectedApplicationLoader.pluginManager
 	}
 
-	/**
-	 * Gets the current active activity from AndroidIDE.
-	 * This method should return the currently visible activity.
-	 */
-	fun getCurrentActiveActivity(): Activity? = currentActivity
+	override fun onActivityPostPaused(activity: Activity) {
+		super.onActivityPostPaused(activity)
+		if (foregroundActivity == activity && activity.isFinishing) {
+			logger.debug("foregroundActivity = null")
+			_foregroundActivity.update { null }
+		}
+	}
 
-	/**
-	 * Called by activities when they become active/visible.
-	 * This is used for plugin UI service integration.
-	 */
-	fun setCurrentActivity(activity: Activity?) {
-		this.currentActivity = activity
-		logger.debug("Current activity set to: ${activity?.javaClass?.simpleName}")
+	override fun onActivityPreResumed(activity: Activity) {
+		super.onActivityPreResumed(activity)
+		logger.debug("foregroundActivity = {}", activity.javaClass)
+		_foregroundActivity.update { activity }
 	}
 
 	@OptIn(DelicateCoroutinesApi::class)
@@ -136,6 +164,7 @@ class IDEApplication : BaseApplication() {
 		Thread.setDefaultUncaughtExceptionHandler(::handleUncaughtException)
 
 		super.onCreate()
+		registerActivityLifecycleCallbacks(this)
 
 		// @devs: looking to initialize a component at application startup?
 		// first, decide whether the component you want to initialize can be
@@ -172,11 +201,14 @@ class IDEApplication : BaseApplication() {
 		}
 	}
 
+	override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().build()
+
 	private fun ensureKoinStarted() {
 		runCatching { GlobalContext.get() }.getOrNull()?.let { return }
 		startKoin {
 			androidContext(this@IDEApplication)
-			modules(coreModule, pluginModule, computerVisionModule)
+			modules(coreModule, pluginModule)
 		}
 	}
 
@@ -184,16 +216,36 @@ class IDEApplication : BaseApplication() {
 		thread: Thread,
 		exception: Throwable,
 	) {
+		if (isNonFatalGcCleanupFailure(exception)) {
+			logger.warn("Non-fatal: ZipFile GC cleanup failed with I/O error", exception)
+			return
+		}
+
+		if (isFinalizerWatchdogTimeout(thread, exception)) {
+			logger.warn("Non-fatal: FinalizerWatchdogDaemon timeout (suppressed crash)", exception)
+			Sentry.captureException(exception)
+			return
+		}
+
 		if (isUserUnlocked) {
-			// we can access credential protected storage, delegate the job to
-			// to advanced crash handler
 			CredentialProtectedApplicationLoader.handleUncaughtException(thread, exception)
 			return
 		}
 
-		// we can only access device-protected storage, and are not allowed
-		// to show crash handler screen
-		// delegate the job to the basic crash handler
 		DeviceProtectedApplicationLoader.handleUncaughtException(thread, exception)
+	}
+
+	private fun isNonFatalGcCleanupFailure(exception: Throwable): Boolean {
+		if (exception !is java.io.UncheckedIOException) return false
+		return exception.stackTrace.any {
+			it.className.contains("CleanableResource") ||
+				it.className.contains("PhantomCleanable")
+		}
+	}
+
+	private fun isFinalizerWatchdogTimeout(thread: Thread, exception: Throwable): Boolean {
+		if (exception !is java.util.concurrent.TimeoutException) return false
+		return thread.name.contains("FinalizerWatchdogDaemon") ||
+			exception.stackTrace.any { it.className.contains("Daemons\$FinalizerWatchdogDaemon") }
 	}
 }

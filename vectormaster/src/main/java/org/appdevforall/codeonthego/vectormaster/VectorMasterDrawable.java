@@ -400,6 +400,14 @@ public class VectorMasterDrawable extends Drawable {
       }
     } catch (XmlPullParserException | IOException e) {
       e.printStackTrace();
+    } finally {
+      if (vectorStream != null) {
+        try {
+          vectorStream.close();
+        } catch (IOException ignored) {
+        }
+        vectorStream = null;
+      }
     }
   }
 

@@ -20,6 +20,8 @@ import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE_BR
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
@@ -27,6 +29,8 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipInputStream
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.deleteRecursively
 
 data object BundledAssetsInstaller : BaseAssetsInstaller() {
 	private val logger = LoggerFactory.getLogger(BundledAssetsInstaller::class.java)
@@ -38,6 +42,7 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 		stagingDir: Path,
 	): Unit = Unit
 
+	@OptIn(ExperimentalPathApi::class)
 	@WorkerThread
 	override suspend fun doInstall(
 		context: Context,
@@ -52,10 +57,14 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 				ANDROID_SDK_ZIP,
 				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
 				-> {
+					val destDir = destinationDirForArchiveEntry(entryName).toPath()
+					if (Files.exists(destDir)) {
+						destDir.deleteRecursively()
+					}
+					Files.createDirectories(destDir)
 					val assetPath = ToolsManager.getCommonAsset("$entryName.br")
 					assets.open(assetPath).use { assetStream ->
 						BrotliInputStream(assetStream).use { srcStream ->
-							val destDir = destinationDirForArchiveEntry(entryName).toPath()
 							AssetsInstallationHelper.extractZipToDir(srcStream, destDir)
 						}
 					}
@@ -71,26 +80,36 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 					}
 				}
 
-				AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
+                TEMPLATE_CORE_ARCHIVE -> {
+                    val assetPath = ToolsManager.getCommonAsset(TEMPLATE_CORE_ARCHIVE_BR)
+                    BrotliInputStream(assets.open(assetPath)).use { input ->
+                        val destFile = Environment.TEMPLATES_DIR.resolve(TEMPLATE_CORE_ARCHIVE)
+                        destFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
+
+                AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
 					val assetPath =
 						ToolsManager.getCommonAsset("${AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME}.br")
 
 					val result = retryOnceOnNoSuchFile (
 						onFirstFailure = { Files.createDirectories(stagingDir) },
 						onSecondFailure = { e2 ->
-            	throw IOException(
-								context.getString(R.string.terminal_installation_failed_low_storage),
-								e2
-							)
-						}
-					) {
-						withTempZipChannel(
-							stagingDir = stagingDir,
-							prefix = "bootstrap",
-							writeTo = { path -> writeBrotliAssetToPath(context, assetPath, path) },
-							useChannel = { ch -> TerminalInstaller.installIfNeeded(context, ch) }
-						)
-					}
+                            throw IOException(
+                                            context.getString(R.string.terminal_installation_failed_low_storage),
+                                            e2
+                                        )
+                                    }
+                        ) {
+                            withTempZipChannel(
+                                stagingDir = stagingDir,
+                                prefix = "bootstrap",
+                                writeTo = { path -> writeBrotliAssetToPath(context, assetPath, path) },
+                                useChannel = { ch -> TerminalInstaller.installIfNeeded(context, ch) }
+                            )
+					    }
 
 					when (result) {
 						is TerminalInstaller.InstallResult.Success -> {}
@@ -115,57 +134,15 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 						}
 					}
 				}
-                AssetsInstallationHelper.LLAMA_AAR -> {
-                    val sourceAssetName = when (cpuArch) {
-                        CpuArch.AARCH64 -> "llama-v8.aar"
-                        CpuArch.ARM -> "llama-v7.aar"
-                        else -> {
-                            logger.warn("Unsupported CPU arch for Llama AAR: $cpuArch. Skipping.")
-                            return@withContext
-                        }
-                    }
-                    val candidates = listOf(
-                        "dynamic_libs/${sourceAssetName}.br", // preferred (compressed)
-                        "dynamic_libs/${sourceAssetName}",    // fallback (uncompressed)
-                    )
-
-                    val destDir = context.getDir("dynamic_libs", Context.MODE_PRIVATE)
-                    destDir.mkdirs()
-                    val destFile = File(destDir, "llama.aar")
-
-                    val opened = candidates.firstNotNullOfOrNull { path ->
-                        try {
-                            path to assets.open(path)
-                        } catch (_: FileNotFoundException) {
-                            null
-                        }
-                    } ?: run {
-                        logger.warn(
-                            "Llama AAR asset not found for arch {}. Tried {}",
-                            cpuArch,
-                            candidates
-                        )
-                        return@withContext
-                    }
-
-                    val (assetPath, stream) = opened
-                    logger.debug("Extracting '{}' to {}", assetPath, destFile.absolutePath)
-
-                    val inputStream =
-                        if (assetPath.endsWith(".br")) BrotliInputStream(stream) else stream
-
-                    inputStream.use { input ->
-                        destFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                }
                 AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> {
                     logger.debug("Extracting plugin artifacts from '{}'", entryName)
                     val pluginDir = Environment.PLUGIN_API_JAR.parentFile
                         ?: throw IllegalStateException("Plugin API parent directory is null")
-                    pluginDir.mkdirs()
                     val pluginDirPath = pluginDir.toPath().toAbsolutePath().normalize()
+                    if (Files.exists(pluginDirPath)) {
+                        pluginDirPath.deleteRecursively()
+                    }
+                    Files.createDirectories(pluginDirPath)
 
                     val assetPath = ToolsManager.getCommonAsset("$entryName.br")
                     assets.open(assetPath).use { assetStream ->
@@ -201,12 +178,13 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 
     override fun expectedSize(entryName: String): Long = when (entryName) {
         GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 63399283L
-        ANDROID_SDK_ZIP                  -> 53226785L
+        ANDROID_SDK_ZIP                  -> 254814511L
         DOCUMENTATION_DB                  -> 297763377L
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 97485855L
         AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 124120151L
         GRADLE_API_NAME_JAR_ZIP           -> 29447748L
         AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> 86442L
+        TEMPLATE_CORE_ARCHIVE               -> 133120L
         else -> 0L
     }
 

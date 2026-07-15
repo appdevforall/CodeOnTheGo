@@ -46,8 +46,17 @@ android {
 	}
 }
 
+// logsender ships into CoGo-built end-user apps with minSdk=16 but pulls in
+// :resources (minSdk=28). The shipped AAR is fine; the unit-test manifest
+// merger isn't. There are no unit tests here, so disable the variant rather
+// than paper over the merger.
+androidComponents {
+	beforeVariants { variant ->
+		variant.enableUnitTest = false
+		variant.enableAndroidTest = false
+	}
+}
+
 dependencies {
-	testImplementation(libs.tests.junit)
-	testImplementation(libs.tests.robolectric)
-	testImplementation(libs.tests.google.truth)
+	implementation(projects.resources)
 }

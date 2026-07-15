@@ -1,9 +1,10 @@
 package com.itsaky.androidide.plugins.base
 
 import android.content.Context
-import android.os.Bundle
+import android.content.res.Resources
 import android.view.LayoutInflater
 import com.itsaky.androidide.plugins.ServiceRegistry
+import java.lang.ref.WeakReference
 
 /**
  * Base class for plugin fragments that ensures proper resource context.
@@ -14,28 +15,50 @@ import com.itsaky.androidide.plugins.ServiceRegistry
  */
 object PluginFragmentHelper {
 
-    // Map of plugin IDs to their resource contexts
-    private val pluginContexts = mutableMapOf<String, Context>()
+    @JvmStatic
+    var onPluginInflationError: ((pluginId: String, error: Throwable) -> Unit)? = null
 
-    // Map of plugin IDs to their service registries
+    private val pluginContexts = mutableMapOf<String, Context>()
     private val serviceRegistries = mutableMapOf<String, ServiceRegistry>()
+    private val legacyPlugins = mutableSetOf<String>()
+
+    private data class ActivitySnapshot(
+        val contextRef: WeakReference<Context>,
+        val themeRef: WeakReference<Resources.Theme>
+    )
+
+    private val activitySnapshots = mutableMapOf<String, ActivitySnapshot>()
+
+    @JvmStatic
+    fun getCurrentActivityTheme(pluginId: String): Resources.Theme? =
+        activitySnapshots[pluginId]?.themeRef?.get()
+
+    @JvmStatic
+    fun getCurrentActivityContext(pluginId: String): Context? =
+        activitySnapshots[pluginId]?.contextRef?.get()
 
     /**
      * Register a plugin's resource context.
      * Called by the plugin manager when loading APK-based plugins.
      */
+    @InternalPluginApi
     @JvmStatic
-    fun registerPluginContext(pluginId: String, context: Context) {
+    @JvmOverloads
+    fun registerPluginContext(pluginId: String, context: Context, isLegacy: Boolean = false) {
         pluginContexts[pluginId] = context
+        if (isLegacy) legacyPlugins.add(pluginId) else legacyPlugins.remove(pluginId)
     }
 
     /**
      * Unregister a plugin's resource context.
      * Called when a plugin is unloaded.
      */
+    @InternalPluginApi
     @JvmStatic
     fun unregisterPluginContext(pluginId: String) {
         pluginContexts.remove(pluginId)
+        activitySnapshots.remove(pluginId)
+        legacyPlugins.remove(pluginId)
     }
 
     /**
@@ -50,6 +73,7 @@ object PluginFragmentHelper {
      * Register a plugin's service registry.
      * Called by the plugin manager when creating plugin context.
      */
+    @InternalPluginApi
     @JvmStatic
     fun registerServiceRegistry(pluginId: String, registry: ServiceRegistry) {
         serviceRegistries[pluginId] = registry
@@ -66,10 +90,13 @@ object PluginFragmentHelper {
     /**
      * Clear all registered plugin contexts.
      */
+    @InternalPluginApi
     @JvmStatic
     fun clearAllContexts() {
         pluginContexts.clear()
         serviceRegistries.clear()
+        activitySnapshots.clear()
+        legacyPlugins.clear()
     }
 
     /**
@@ -82,12 +109,17 @@ object PluginFragmentHelper {
      */
     @JvmStatic
     fun getPluginInflater(pluginId: String, defaultInflater: LayoutInflater): LayoutInflater {
-        val pluginContext = getPluginContext(pluginId)
-        return if (pluginContext != null) {
-            val inflater = pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
-            inflater ?: defaultInflater.cloneInContext(pluginContext)
+        val pluginContext = getPluginContext(pluginId) ?: return defaultInflater
+        activitySnapshots[pluginId] = ActivitySnapshot(
+            contextRef = WeakReference(defaultInflater.context),
+            themeRef = WeakReference(defaultInflater.context.theme)
+        )
+        val inflater = if (pluginId in legacyPlugins) {
+            pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
+                ?: defaultInflater.cloneInContext(pluginContext)
         } else {
-            defaultInflater
+            defaultInflater.cloneInContext(pluginContext)
         }
+        return SafePluginLayoutInflater.wrap(inflater, pluginId)
     }
 }

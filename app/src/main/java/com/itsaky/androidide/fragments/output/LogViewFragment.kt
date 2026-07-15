@@ -31,7 +31,7 @@ import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.models.LogLine
-import com.itsaky.androidide.utils.BuildInfoUtils
+import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.jetbrainsMono
 import com.itsaky.androidide.utils.viewLifecycleScope
@@ -85,7 +85,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 				?.editor
 				?.text
 				?.toString() ?: ""
-		return "${BuildInfoUtils.BASIC_INFO}${System.lineSeparator()}$editorText"
+		return "${BasicBuildInfo.shareableBuildInfo()}${System.lineSeparator()}$editorText"
 	}
 
 	override fun clearOutput() {
@@ -112,6 +112,13 @@ abstract class LogViewFragment<V : LogViewModel> :
 	}
 
 	private suspend fun observeLogs(): Nothing {
+		// Wait for the editor's first layout pass. The sora-editor's
+		// LineBreakLayout populates its line-width tracker asynchronously after
+		// layout; appending before that races BlockIntList.set on an empty list.
+		_binding?.editor?.awaitLayout(
+			onForceVisible = { emptyStateViewModel.setEmpty(false) },
+		)
+
 		viewModel.uiEvents.collect { event ->
 			when (event) {
 				is LogViewModel.UiEvent.Append -> {
@@ -127,13 +134,12 @@ abstract class LogViewFragment<V : LogViewModel> :
 		editor.props.autoIndent = false
 		editor.isEditable = false
 		editor.dividerWidth = 0f
-		editor.isWordwrap = false
+		editor.isWordwrap = true
 		editor.isUndoEnabled = false
 		editor.typefaceLineNumber = jetbrainsMono()
 		editor.setTextSize(12f)
 		editor.typefaceText = jetbrainsMono()
 		editor.isEnsurePosAnimEnabled = false
-		editor.includeDebugInfoOnCopy = true
 		editor.tag = tooltipTag
 		editor.cursorAnimator = NoOpCursorAnimator
 
@@ -162,9 +168,10 @@ abstract class LogViewFragment<V : LogViewModel> :
 			return
 		}
 
-		_binding?.editor?.append(chars)?.also {
-			emptyStateViewModel.setEmpty(false)
-		}
+		val editor = _binding?.editor ?: return
+		if (!editor.isReadyToAppend) return
+		editor.appendBatch(chars.toString())
+		emptyStateViewModel.setEmpty(false)
 	}
 
 	@UiThread

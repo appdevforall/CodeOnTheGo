@@ -67,23 +67,6 @@
 
       </com.google.android.material.card.MaterialCardView>
 
-      <com.google.android.material.card.MaterialCardView
-        android:id="@+id/misc_card"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/social_card">
-
-        <include
-          android:id="@+id/misc"
-          layout="@layout/layout_about_list_section" />
-
-      </com.google.android.material.card.MaterialCardView>
-
       <com.itsaky.androidide.ui.BottomInsetHeightDistributor
         android:id="@+id/height_distributor"
         android:layout_width="0dp"
@@ -91,7 +74,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/misc_card" />
+        app:layout_constraintTop_toBottomOf="@id/social_card" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -113,14 +96,12 @@
 
   </com.google.android.material.appbar.AppBarLayout>
 
-  <com.google.android.material.floatingactionbutton.FloatingActionButton
+  <include
       android:id="@+id/fab_feedback"
+      layout="@layout/feedback_fab"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
-      android:layout_margin="16dp"
-      android:layout_gravity="bottom|start"
-      android:elevation="16dp"
-      android:src="@drawable/baseline_feedback_64"
-      app:fabCustomSize="32dp" />
+      android:layout_margin="@dimen/feedback_fab_margin"
+      android:layout_gravity="bottom|start" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

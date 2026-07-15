@@ -60,21 +60,6 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-        <com.google.android.material.card.MaterialCardView
-          android:id="@+id/misc_card"
-          android:layout_width="0dp"
-          android:layout_height="wrap_content"
-          android:layout_marginTop="@dimen/content_padding_double"
-          app:layout_constraintEnd_toEndOf="parent"
-          app:layout_constraintStart_toStartOf="parent"
-          app:layout_constraintTop_toBottomOf="@id/social_card">
-
-          <include
-            android:id="@+id/misc"
-            layout="@layout/layout_about_list_section" />
-
-        </com.google.android.material.card.MaterialCardView>
-
         <com.itsaky.androidide.ui.BottomInsetHeightDistributor
           android:id="@+id/height_distributor"
           android:layout_width="0dp"
@@ -83,7 +68,7 @@
           app:layout_constraintBottom_toBottomOf="parent"
           app:layout_constraintEnd_toEndOf="parent"
           app:layout_constraintStart_toStartOf="parent"
-          app:layout_constraintTop_toBottomOf="@id/misc_card" />
+          app:layout_constraintTop_toBottomOf="@id/social_card" />
 
       </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -132,5 +117,13 @@
       android:layout_height="wrap_content" />
 
   </com.google.android.material.appbar.AppBarLayout>
+
+  <include
+      android:id="@+id/fab_feedback"
+      layout="@layout/feedback_fab"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_margin="@dimen/feedback_fab_margin"
+      android:layout_gravity="bottom|start" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -32,19 +32,19 @@ object BuildConfig {
 	const val PACKAGE_NAME = "com.itsaky.androidide"
 
 	/** The compile SDK version. */
-	const val COMPILE_SDK = 35
+	const val COMPILE_SDK = 36
 
 	/** The minimum SDK version. */
 	const val MIN_SDK = 28
 
-	/** The minimum SDK version for apps built in CoGo. */
+	/** The minimum SDK version for apps built in Code On the Go. */
 	const val MIN_SDK_FOR_APPS_BUILT_WITH_COGO = 16
 
 	/** The target SDK version. */
 	const val TARGET_SDK = 28
 
 	/** The NDK version. */
-	const val NDK_VERSION = "28.1.13356709"
+	const val NDK_VERSION = "29.0.14206865"
 
 	/** The source and target Java compatibility. */
 	val JAVA_VERSION = JavaVersion.VERSION_17

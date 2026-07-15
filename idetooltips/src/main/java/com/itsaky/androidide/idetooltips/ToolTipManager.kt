@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -22,23 +21,33 @@ import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
+import android.os.Handler
+import android.os.Looper
+import android.view.InputDevice
+import android.view.MotionEvent
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
-import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.activities.editor.HelpActivity
+import com.itsaky.androidide.utils.DatabaseVersionResolver
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeedbackManager
+import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.utils.isSystemInDarkMode
+import com.itsaky.androidide.utils.toCssHex
+import com.itsaky.androidide.resources.R as ResR
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import java.io.File
 
 
 object TooltipManager {
     private const val TAG = "TooltipManager"
+    private const val DEFAULT_HOVER_DISMISS_DELAY_MS = 800L
+    private var activePopupWindow: PopupWindow? = null
+    private val dismissHandler = Handler(Looper.getMainLooper())
+    private var pendingDismiss: Runnable? = null
     private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/documentation.db")
@@ -57,12 +66,6 @@ object TooltipManager {
         FROM TooltipButtons
         WHERE tooltipId = ?
         ORDER BY buttonNumberId
-    """
-
-    private const val QUERY_LAST_CHANGE = """
-        SELECT changeTime, who
-        FROM LastChange
-        WHERE documentationSet = 'wholedb'
     """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
@@ -90,51 +93,51 @@ object TooltipManager {
             try {
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
 
-                var cursor = db.rawQuery(QUERY_LAST_CHANGE, arrayOf())
-                cursor.moveToFirst()
-
-                lastChange = "${cursor.getString(0)} ${cursor.getString(1)}"
-
-                Log.d(TAG, "last change is '${lastChange}'.")
-
-                cursor = db.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category))
-
-                when (cursor.count) {
-                    0 -> throw NoTooltipFoundException(category, tag)
-                    1 -> { /* Expected case, continue processing */
+                db.use { database ->
+                    try {
+                        lastChange = DatabaseVersionResolver.resolveDatabaseVersion(database)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Version resolution failed: ${e.message}")
                     }
 
-                    else -> throw DatabaseCorruptionException(
-                        "Multiple tooltips found for category='$category', tag='$tag' (found ${cursor.count} rows). " +
-                                "Each category/tag combination should be unique."
+                    Log.d(TAG, "last change is '${lastChange}'.")
+
+                    database.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category)).use { c ->
+                        when (c.count) {
+                            0 -> throw NoTooltipFoundException(category, tag)
+                            1 -> { /* Expected case, continue processing */
+                            }
+
+                            else -> throw DatabaseCorruptionException(
+                                "Multiple tooltips found for category='$category', tag='$tag' (found ${c.count} rows). " +
+                                        "Each category/tag combination should be unique."
+                            )
+                        }
+
+                        c.moveToFirst()
+
+                        rowId = c.getInt(0)
+                        tooltipId = c.getInt(1)
+                        summary = c.getString(2)
+                        detail = c.getString(3)
+                    }
+
+                    database.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString())).use { c ->
+                        while (c.moveToNext()) {
+                            buttons.add(
+                                Pair(
+                                    c.getString(0),
+                                    "http://localhost:6174/" + c.getString(1)
+                                )
+                            )
+                        }
+                    }
+
+                    Log.d(
+                        TAG,
+                        "For tooltip ${tooltipId}, retrieved ${buttons.size} buttons. They are $buttons."
                     )
                 }
-
-                cursor.moveToFirst()
-
-                rowId = cursor.getInt(0)
-                tooltipId = cursor.getInt(1)
-                summary = cursor.getString(2)
-                detail = cursor.getString(3)
-
-                cursor = db.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString()))
-
-                while (cursor.moveToNext()) {
-                    buttons.add(
-                        Pair(
-                            cursor.getString(0),
-                            "http://localhost:6174/" + cursor.getString(1)
-                        )
-                    )
-                }
-
-                Log.d(
-                    TAG,
-                    "For tooltip ${tooltipId}, retrieved ${buttons.size} buttons. They are $buttons."
-                )
-
-                cursor.close()
-                db.close()
 
             } catch (e: Exception) {
                 Log.e(
@@ -147,19 +150,52 @@ object TooltipManager {
         }
     }
 
+    fun dismissActiveTooltip() {
+        cancelScheduledDismiss()
+        activePopupWindow?.dismiss()
+        activePopupWindow = null
+    }
+
+    fun scheduleActiveTooltipDismiss(delayMs: Long = DEFAULT_HOVER_DISMISS_DELAY_MS) {
+        cancelScheduledDismiss()
+        val popup = activePopupWindow ?: return
+        pendingDismiss = Runnable {
+            if (activePopupWindow === popup) {
+                popup.dismiss()
+            }
+        }.also { dismissHandler.postDelayed(it, delayMs) }
+    }
+
+    fun cancelScheduledDismiss() {
+        pendingDismiss?.let { dismissHandler.removeCallbacks(it) }
+        pendingDismiss = null
+    }
+
     // Displays a tooltip for category [TooltipCategory.CATEGORY_IDE] in a particular context
     // (An Activity, Fragment, Dialog etc)
-    fun showIdeCategoryTooltip(context: Context, anchorView: View, tag: String) {
+    fun showIdeCategoryTooltip(
+        context: Context,
+        anchorView: View,
+        tag: String,
+        requestFocus: Boolean = true,
+    ) {
         showTooltip(
             context = context,
             anchorView = anchorView,
             category = TooltipCategory.CATEGORY_IDE,
-            tag = tag
+            tag = tag,
+            requestFocus = requestFocus,
         )
     }
 
     // Displays a tooltip in a particular context with a specific category
-    fun showTooltip(context: Context, anchorView: View, category: String, tag: String) {
+    fun showTooltip(
+        context: Context,
+        anchorView: View,
+        category: String,
+        tag: String,
+        requestFocus: Boolean = true,
+    ) {
         CoroutineScope(Dispatchers.Main).launch {
             val tooltipItem = getTooltip(
                 context,
@@ -172,20 +208,13 @@ object TooltipManager {
                     anchorView = anchorView,
                     level = 0,
                     tooltipItem = tooltipItem,
+                    requestFocus = requestFocus,
                     onHelpLinkClicked = { context, url, title ->
-                        val intent =
-                            Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, context.getString(R.string.back_to_cogo))
-                                if (context !is android.app.Activity) {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                            }
-                        context.startActivity(intent)
+                        HelpActivity.launch(context, url, title)
                     }
                 )
             } else {
-                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
+                Log.e(TAG, "Tooltip item $tooltipItem is null")
             }
         }
     }
@@ -198,6 +227,7 @@ object TooltipManager {
         anchorView: View,
         level: Int,
         tooltipItem: IDETooltipItem,
+        requestFocus: Boolean,
         onHelpLinkClicked: (context: Context, url: String, title: String) -> Unit
     ) {
         setupAndShowTooltipPopup(
@@ -205,13 +235,14 @@ object TooltipManager {
             anchorView = anchorView,
             level = level,
             tooltipItem = tooltipItem,
+            requestFocus = requestFocus,
             onActionButtonClick = { popupWindow, urlContent ->
                 popupWindow.dismiss()
                 onHelpLinkClicked(context, urlContent.first, urlContent.second)
             },
             onSeeMoreClicked = { popupWindow, nextLevel, item ->
                 popupWindow.dismiss()
-                showTooltipPopup(context, anchorView, nextLevel, item, onHelpLinkClicked)
+                showTooltipPopup(context, anchorView, nextLevel, item, requestFocus, onHelpLinkClicked)
             }
         )
     }
@@ -248,6 +279,7 @@ object TooltipManager {
         anchorView: View,
         level: Int,
         tooltipItem: IDETooltipItem,
+        requestFocus: Boolean,
         onActionButtonClick: (popupWindow: PopupWindow, url: Pair<String, String>) -> Unit,
         onSeeMoreClicked: (popupWindow: PopupWindow, nextLevel: Int, tooltipItem: IDETooltipItem) -> Unit,
     ) {
@@ -267,32 +299,33 @@ object TooltipManager {
         val seeMore = popupView.findViewById<TextView>(R.id.see_more)
         val webView = popupView.findViewById<WebView>(R.id.webview)
 
-        val textColor = MaterialColors.getColor(
-            context,
-            com.google.android.material.R.attr.colorOnSurface,
-            "Color attribute not found in theme"
-        )
-
-        // TODO: The color string below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
-        fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
-        val hexColor = textColor.toHexColor()
+        val isDarkMode = context.isSystemInDarkMode()
+        val bodyColorHex =
+            getColor(
+                context,
+                if (isDarkMode) ResR.color.tooltip_text_color_dark
+                else ResR.color.tooltip_text_color_light,
+            ).toCssHex()
+        val linkColorHex =
+            getColor(
+                context,
+                if (isDarkMode) ResR.color.brand_color
+                else ResR.color.tooltip_link_color_light,
+            ).toCssHex()
 
         val tooltipHtmlContent = when (level) {
             0 -> {
-                val rawSummary = tooltipItem.summary
-                // Escape HTML characters so they're displayed correctly in the WebView
-                Html.escapeHtml(rawSummary)
+                tooltipItem.summary
             }
             1 -> {
-                val detailContent = if (tooltipItem.detail.isNotBlank()) {
-                    Html.escapeHtml(tooltipItem.detail)
-                } else ""
+                val detailContent = tooltipItem.detail.ifBlank { "" }
                 if (tooltipItem.buttons.isNotEmpty()) {
-                    val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
-                        context.getString(R.string.tooltip_links_html_template, url, label)
+                    val buttonsSeparator = context.getString(R.string.tooltip_buttons_separator)
+                    val linksHtml = tooltipItem.buttons.joinToString(buttonsSeparator) { (label, url) ->
+                        context.getString(R.string.tooltip_links_html_template, url, linkColorHex, label)
                     }
                     if (detailContent.isNotBlank()) {
-                        "$detailContent<br><br>$linksHtml"
+                        context.getString(R.string.tooltip_detail_links_template, detailContent, linksHtml)
                     } else {
                         linksHtml
                     }
@@ -307,7 +340,7 @@ object TooltipManager {
         Log.d(TAG, "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
 
         val styledHtml =
-            context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
+            context.getString(R.string.tooltip_html_template, bodyColorHex, tooltipHtmlContent, linkColorHex)
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -352,22 +385,88 @@ object TooltipManager {
         popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
         popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
-        popupWindow.isFocusable = true
+        dismissActiveTooltip()
+
+        activePopupWindow = popupWindow
+        popupWindow.setOnDismissListener {
+            cancelScheduledDismiss()
+            if (activePopupWindow === popupWindow) {
+                activePopupWindow = null
+            }
+        }
+
+        popupWindow.isFocusable = requestFocus
         popupWindow.isOutsideTouchable = true
-        popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+        if (anchorView.isInOverlayWindow()) {
+            showOverlayTooltip(popupWindow, popupView, anchorView)
+        } else {
+            popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+        }
+
+        val iconTintColor = if (anchorView.isInOverlayWindow()) {
+            Color.WHITE
+        } else {
+            getColor(
+                context,
+                if (isDarkMode) ResR.color.tooltip_text_color_dark
+                else ResR.color.tooltip_text_color_light
+            )
+        }
 
         val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
-        infoButton.setOnClickListener {
-            onInfoButtonClicked(context, popupWindow, tooltipItem)
+        infoButton.apply {
+            setColorFilter(iconTintColor)
+            setOnClickListener {
+                onInfoButtonClicked(context, popupWindow, tooltipItem)
+            }
         }
 
         val feedbackButton = popupView.findViewById<ImageButton>(R.id.feedback_button)
         val pulseAnimation = AnimationUtils.loadAnimation(context, R.anim.pulse_animation)
         feedbackButton.startAnimation(pulseAnimation)
 
-        feedbackButton.setOnClickListener {
-            onFeedbackButtonClicked(context, popupWindow, tooltipItem)
+        feedbackButton.apply {
+            setOnClickListener {
+                onFeedbackButtonClicked(context, popupWindow, tooltipItem)
+            }
+            setColorFilter(iconTintColor)
         }
+
+        val sponsorButton = popupView.findViewById<ImageButton>(R.id.sponsor_button)
+        sponsorButton.apply {
+            visibility = if (level >= 1) View.VISIBLE else View.GONE
+            setColorFilter(iconTintColor)
+            setOnClickListener {
+                val sponsorUrl = context.getString(ResR.string.github_sponsors_url)
+                UrlManager.openUrl(sponsorUrl, null, context)
+            }
+        }
+
+        val hoverGuard: (MotionEvent) -> Unit = label@{ event ->
+            if (!event.isFromSource(InputDevice.SOURCE_MOUSE)) return@label
+            when (event.actionMasked) {
+                MotionEvent.ACTION_HOVER_ENTER,
+                MotionEvent.ACTION_HOVER_MOVE -> cancelScheduledDismiss()
+                MotionEvent.ACTION_HOVER_EXIT -> scheduleActiveTooltipDismiss()
+            }
+        }
+
+        val hoverListener = View.OnHoverListener { _, event ->
+            hoverGuard(event)
+            false
+        }
+
+        installHoverGuard(
+            hoverListener = hoverListener,
+            popupView = popupView,
+            webView = webView,
+            seeMore = seeMore,
+            infoButton = infoButton,
+            feedbackButton = feedbackButton,
+            sponsorButton = sponsorButton,
+        )
+
+        cancelScheduledDismiss()
     }
 
     /**
@@ -380,19 +479,23 @@ object TooltipManager {
     ) {
         popupWindow.dismiss()
 
-        val metadata = """
-        <b>Version</b> <small>'${tooltip.lastChange}'</small><br/>
-        <b>Row:</b> ${tooltip.rowId}<br/>
-        <b>ID:</b> ${tooltip.id}<br/>
-        <b>Category:</b> '${tooltip.category}'<br/>
-        <b>Tag:</b> '${tooltip.tag}'<br/>
-        <b>Raw Summary:</b> '${Html.escapeHtml(tooltip.summary)}'<br/>
-        <b>Raw Detail:</b> '${Html.escapeHtml(tooltip.detail)}'<br/>
-        <b>Buttons:</b> ${tooltip.buttons.joinToString { "'${it.first} → ${it.second}'" }}<br/>
-        """.trimIndent()
+        val buttonsFormatted = tooltip.buttons.joinToString {
+            context.getString(R.string.tooltip_debug_button_item_template, it.first, it.second)
+        }
+        val metadata = context.getString(
+            R.string.tooltip_debug_metadata_html,
+            tooltip.lastChange,
+            tooltip.rowId,
+            tooltip.id,
+            tooltip.category,
+            tooltip.tag,
+            Html.escapeHtml(tooltip.summary),
+            Html.escapeHtml(tooltip.detail),
+            buttonsFormatted
+        )
 
         val builder = AlertDialog.Builder(context)
-            .setTitle("Tooltip Debug Info")
+            .setTitle(context.getString(R.string.tooltip_debug_dialog_title))
             .setMessage(
                 Html.fromHtml(
                     metadata,
@@ -450,6 +553,52 @@ object TooltipManager {
 
             ---
         """.trimIndent()
+    }
+
+    private fun View.isInOverlayWindow(): Boolean {
+        val params = layoutParams
+        return params is WindowManager.LayoutParams &&
+                params.type == WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+    }
+
+    private fun showOverlayTooltip(
+        popupWindow: PopupWindow,
+        popupView: View,
+        parentView: View
+    ) {
+        popupView.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+
+        val popupWidth = popupView.measuredWidth
+        val popupHeight = popupView.measuredHeight
+
+        val displayMetrics = parentView.resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+
+        val x = (screenWidth - popupWidth) / 2
+        val y = (screenHeight - popupHeight) / 2
+
+        popupWindow.showAtLocation(parentView, Gravity.NO_GRAVITY, x, y)
+    }
+
+    private fun installHoverGuard(
+        hoverListener: View.OnHoverListener,
+        popupView: View,
+        webView: WebView,
+        seeMore: View,
+        infoButton: View,
+        feedbackButton: View,
+        sponsorButton: View,
+    ) {
+        popupView.setOnHoverListener(hoverListener)
+        webView.setOnHoverListener(hoverListener)
+        seeMore.setOnHoverListener(hoverListener)
+        infoButton.setOnHoverListener(hoverListener)
+        feedbackButton.setOnHoverListener(hoverListener)
+        sponsorButton.setOnHoverListener(hoverListener)
     }
 
 }

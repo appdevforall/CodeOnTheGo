@@ -67,8 +67,11 @@ abstract class BaseJavaCodeAction : EditorActionItem {
     }
 
     val file = data.requireFile()
-    visible = DocumentUtils.isJavaFile(file.toPath())
-    enabled = visible
+    val isJava = DocumentUtils.isJavaFile(file.toPath())
+    val module = IProjectManager.getInstance().findModuleForFile(file, false)
+
+    visible = isJava
+    enabled = isJava && module != null
   }
 
   fun performCodeAction(data: ActionData, result: Rewrite) {
@@ -96,7 +99,7 @@ abstract class BaseJavaCodeAction : EditorActionItem {
   }
 
   protected fun ActionData.requireLanguageServer(): JavaLanguageServer {
-    return ILanguageServerRegistry.getDefault().getServer(JavaLanguageServer.SERVER_ID)
+    return ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
         as JavaLanguageServer
   }
 

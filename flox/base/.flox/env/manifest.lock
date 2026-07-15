@@ -6,12 +6,18 @@
       "android-studio-tools": {
         "pkg-path": "android-studio-tools"
       },
+      "awscli2": {
+        "pkg-path": "awscli2"
+      },
+      "gh": {
+        "pkg-path": "gh"
+      },
       "jdk17": {
         "pkg-path": "jdk17"
       }
     },
     "hook": {
-      "on-activate": "  set -eu\n  set -o pipefail\n\n  if ! [ -f \".androidide_root\" ]; then\n    echo \"Run `flox activate` from the root directory\"\n    echo \"Abort.\"\n    exit 1\n  fi\n\n  # Use these env vars if set; otherwise fall back to default\n  DEFAULT_ANDROID_HOME=\"$HOME/Android/Sdk\"\n  DEFAULT_GRADLE_USER_HOME=\"$HOME/.gradle\"\n  ANDROID_HOME=\"${ANDROID_HOME:-$DEFAULT_ANDROID_HOME}\"\n  GRADLE_USER_HOME=\"${GRADLE_USER_HOME:-$DEFAULT_GRADLE_USER_HOME}\"\n  export ANDROID_HOME\n  export GRADLE_USER_HOME\n\n  echo \"Using ANDROID_HOME=$ANDROID_HOME\"\n  echo \"Using GRADLE_USER_HOME=$GRADLE_USER_HOME\"\n\n  # Accept licenses\n  echo \"Accepting SDK licenses...\"\n  { yes || true; } | sdkmanager --sdk_root=\"$ANDROID_HOME\" --licenses 2>&1 > /dev/null\n\n  install_sdk_tools_if_required() {\n    installed_tools=$(sdkmanager --sdk_root=\"$ANDROID_HOME\" --list_installed)\n\n    declare -a to_install=()\n    for package in \"$@\"; do\n        if ! echo \"$installed_tools\" | grep -q \"$package\"; then\n            echo \"'$package' is missing.\"\n            to_install+=(\"$package\")\n        fi\n    done\n\n    if [ ${#to_install[@]} -ne 0 ]; then\n        echo \"Installing SDK Tools: ${to_install[*]}\"\n        sdkmanager --sdk_root=\"$ANDROID_HOME\" --install \"${to_install[@]}\"\n    fi\n  }\n\n  # The packages we need\n  install_sdk_tools_if_required \\\n    \"build-tools;35.0.0\" \\\n    \"cmake;3.31.6\" \\\n    \"platforms;android-35\" \\\n    \"platform-tools\" \\\n    \"ndk;28.1.13356709\"\n"
+      "on-activate": "  set -eu\n  set -o pipefail\n\n  if ! [ -f \".androidide_root\" ]; then\n    echo \"Run `flox activate` from the root directory\"\n    echo \"Abort.\"\n    exit 1\n  fi\n\n  # Use these env vars if set; otherwise fall back to default\n  DEFAULT_ANDROID_HOME=\"$HOME/Android/Sdk\"\n  DEFAULT_GRADLE_USER_HOME=\"$HOME/.gradle\"\n  ANDROID_HOME=\"${ANDROID_HOME:-$DEFAULT_ANDROID_HOME}\"\n  GRADLE_USER_HOME=\"${GRADLE_USER_HOME:-$DEFAULT_GRADLE_USER_HOME}\"\n  export ANDROID_HOME\n  export GRADLE_USER_HOME\n\n  echo \"Using ANDROID_HOME=$ANDROID_HOME\"\n  echo \"Using GRADLE_USER_HOME=$GRADLE_USER_HOME\"\n\n  # Accept licenses\n  echo \"Accepting SDK licenses...\"\n  { yes || true; } | sdkmanager --sdk_root=\"$ANDROID_HOME\" --licenses 2>&1 > /dev/null\n\n  install_sdk_tools_if_required() {\n    installed_tools=$(sdkmanager --sdk_root=\"$ANDROID_HOME\" --list_installed)\n\n    declare -a to_install=()\n    for package in \"$@\"; do\n        if ! echo \"$installed_tools\" | grep -q \"$package\"; then\n            echo \"'$package' is missing.\"\n            to_install+=(\"$package\")\n        fi\n    done\n\n    if [ ${#to_install[@]} -ne 0 ]; then\n        echo \"Installing SDK Tools: ${to_install[*]}\"\n        sdkmanager --sdk_root=\"$ANDROID_HOME\" --install \"${to_install[@]}\"\n    fi\n  }\n\n  # The packages we need\n  install_sdk_tools_if_required \\\n    \"build-tools;36.0.0\" \\\n    \"cmake;3.31.6\" \\\n    \"platforms;android-36\" \\\n    \"platform-tools\" \\\n    \"ndk;29.0.14206865\"\n"
     },
     "profile": {
       "common": "  # Override the 'sdkmanager' command so that we don't have to\n  #   specify --sdk_root everytime\n  sdkman=$(command -v sdkmanager)\n  alias sdkmanager=\"$sdkman --sdk_root=$ANDROID_HOME\"\n"
@@ -33,15 +39,18 @@
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
       "name": "android-studio-tools-13114758",
       "pname": "android-studio-tools",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:22:15.112666Z",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:22:26.347933Z",
       "stabilities": [
-        "unstable"
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
       ],
       "unfree": true,
       "version": "13114758",
@@ -62,15 +71,18 @@
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
       "name": "android-studio-tools-13114758",
       "pname": "android-studio-tools",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:40:49.451730Z",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:39:56.392774Z",
       "stabilities": [
-        "unstable"
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
       ],
       "unfree": true,
       "version": "13114758",
@@ -91,15 +103,18 @@
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
       "name": "android-studio-tools-13114758",
       "pname": "android-studio-tools",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:57:24.026334Z",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:56:01.730844Z",
       "stabilities": [
-        "unstable"
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
       ],
       "unfree": true,
       "version": "13114758",
@@ -120,15 +135,18 @@
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
       "name": "android-studio-tools-13114758",
       "pname": "android-studio-tools",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T05:16:51.111855Z",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T05:14:30.519517Z",
       "stabilities": [
-        "unstable"
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
       ],
       "unfree": true,
       "version": "13114758",
@@ -143,21 +161,284 @@
       "priority": 5
     },
     {
+      "attr_path": "awscli2",
+      "broken": false,
+      "derivation": "/nix/store/v5gxglicwhyknfwswhngrbawzdwnapp5-awscli2-2.27.2.drv",
+      "description": "Unified tool to manage your AWS services",
+      "install_id": "awscli2",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "awscli2-2.27.2",
+      "pname": "awscli2",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:22:26.435939Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.27.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/sc270lyggbhz78lcxh9khqmggayqpp6i-awscli2-2.27.2-dist",
+        "out": "/nix/store/b5fa0fplfpiyx8zwc9y7d08a57lsk229-awscli2-2.27.2"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "awscli2",
+      "broken": false,
+      "derivation": "/nix/store/7ykn42yxjf7ncyl2z00700hq214xs4jn-awscli2-2.27.2.drv",
+      "description": "Unified tool to manage your AWS services",
+      "install_id": "awscli2",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "awscli2-2.27.2",
+      "pname": "awscli2",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:39:56.495925Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.27.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/ss8xqzwn1l8qdbwlml439bx1ik13vxlk-awscli2-2.27.2-dist",
+        "out": "/nix/store/161s22pbddllc4mabgr5rvrpmhiffsp4-awscli2-2.27.2"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "awscli2",
+      "broken": false,
+      "derivation": "/nix/store/id7b0p6cwlkcsnfb767s820ig9xj0qnp-awscli2-2.27.2.drv",
+      "description": "Unified tool to manage your AWS services",
+      "install_id": "awscli2",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "awscli2-2.27.2",
+      "pname": "awscli2",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:56:01.820295Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.27.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/q9rzj2ikpl9vn4sns3ydsy7i8sachnha-awscli2-2.27.2-dist",
+        "out": "/nix/store/l18j8wgidf145m0zw6ydg8blim44hrkq-awscli2-2.27.2"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "awscli2",
+      "broken": false,
+      "derivation": "/nix/store/j2ajkr3y4c0fg9lxl22z30hd4spb74d9-awscli2-2.27.2.drv",
+      "description": "Unified tool to manage your AWS services",
+      "install_id": "awscli2",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "awscli2-2.27.2",
+      "pname": "awscli2",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T05:14:30.638052Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.27.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/r5cw3141myaf5lnzra9c0nc8prb2zv6y-awscli2-2.27.2-dist",
+        "out": "/nix/store/gx3hx0b3lbm11sishxl4k7a7ha4w405q-awscli2-2.27.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gh",
+      "broken": false,
+      "derivation": "/nix/store/lqwnggadbrhm51j595qlmga18zqlib0v-gh-2.73.0.drv",
+      "description": "GitHub CLI tool",
+      "install_id": "gh",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "gh-2.73.0",
+      "pname": "gh",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:22:27.610678Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.73.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/inxkf35rrzg4lpn2npgd948nhmhxmm8j-gh-2.73.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gh",
+      "broken": false,
+      "derivation": "/nix/store/72pr90vnpj5czzisi4hhp3irkyck86pk-gh-2.73.0.drv",
+      "description": "GitHub CLI tool",
+      "install_id": "gh",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "gh-2.73.0",
+      "pname": "gh",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:39:57.703306Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.73.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/2cz3xa8ird2alc3r3ls0y2gdh3r04ssm-gh-2.73.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gh",
+      "broken": false,
+      "derivation": "/nix/store/likik4fp8824dx2rmrhcz3wfdali3ip9-gh-2.73.0.drv",
+      "description": "GitHub CLI tool",
+      "install_id": "gh",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "gh-2.73.0",
+      "pname": "gh",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:56:02.568585Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.73.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/2z3hpmxp4z8qwcqh0fn68603wizqzr19-gh-2.73.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gh",
+      "broken": false,
+      "derivation": "/nix/store/gpj8jfzhkwylffdjfsv0wldxn8d2asp0-gh-2.73.0.drv",
+      "description": "GitHub CLI tool",
+      "install_id": "gh",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "gh-2.73.0",
+      "pname": "gh",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T05:14:31.970256Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.73.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/ldj4l6hdw3qyz93k3lrk22gw30hmj3ki-gh-2.73.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
       "attr_path": "jdk17",
       "broken": false,
       "derivation": "/nix/store/g9c6ymdb9zwxnyqhjggh3czhm4bx03dp-zulu-ca-jdk-17.0.12.drv",
       "description": "Certified builds of OpenJDK",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
       "name": "zulu-ca-jdk-17.0.12",
       "pname": "jdk17",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:22:16.521322Z",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:22:28.135281Z",
       "stabilities": [
-        "unstable"
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
       ],
       "unfree": false,
       "version": "17.0.12",
@@ -178,15 +459,18 @@
       "description": "Open-source Java Development Kit",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
       "name": "openjdk-17.0.14+7",
       "pname": "jdk17",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:40:52.420256Z",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:39:59.371893Z",
       "stabilities": [
-        "unstable"
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
       ],
       "unfree": false,
       "version": "17.0.14+7",
@@ -208,15 +492,18 @@
       "description": "Certified builds of OpenJDK",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
       "name": "zulu-ca-jdk-17.0.12",
       "pname": "jdk17",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:57:25.459654Z",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:56:03.138456Z",
       "stabilities": [
-        "unstable"
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
       ],
       "unfree": false,
       "version": "17.0.12",
@@ -237,15 +524,18 @@
       "description": "Open-source Java Development Kit",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
       "name": "openjdk-17.0.14+7",
       "pname": "jdk17",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T05:16:54.365394Z",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T05:14:33.795817Z",
       "stabilities": [
-        "unstable"
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
       ],
       "unfree": false,
       "version": "17.0.14+7",

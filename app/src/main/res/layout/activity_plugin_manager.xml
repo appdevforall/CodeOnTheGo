@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="?attr/colorSurface"
     tools:context=".activities.PluginManagerActivity">
 
     <com.google.android.material.appbar.AppBarLayout
@@ -46,6 +47,7 @@
                 android:layout_marginBottom="16dp"
                 android:alpha="0.6"
                 android:src="@drawable/ic_package"
+                android:importantForAccessibility="no"
                 app:tint="?attr/colorOnSurface" />
 
             <TextView
@@ -73,18 +75,15 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
-        android:contentDescription="Install Plugin"
+        android:contentDescription="@string/cd_add"
         app:srcCompat="@drawable/ic_add" />
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
+    <include
         android:id="@+id/fab_feedback"
+        layout="@layout/feedback_fab"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:elevation="16dp"
-        android:layout_gravity="bottom|start"
-        android:contentDescription="@string/send_feedback"
-        android:src="@drawable/baseline_feedback_64"
-        app:fabCustomSize="32dp" />
+        android:layout_margin="@dimen/feedback_fab_margin"
+        android:layout_gravity="bottom|start" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

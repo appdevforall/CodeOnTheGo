@@ -282,7 +282,7 @@
   <string name="xml_formatting_options">خيارات تنسيق XML</string>
   <string name="xml_formatting_options_summary">تهيئة تنسيق XML</string>
   <string name="idepref_customFont_title">استخدام خط مخصص</string>
-  <string name="idepref_customFont_summary">في حالة التمكين، سيتم استخدام الملف الموجود على \"/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" كخط محرر.</string>
+  <string name="idepref_customFont_summary">في حالة التمكين، سيتم استخدام الملف الموجود على \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" كخط محرر.</string>
   <string name="msg_installing_apk">تثبيت APK...</string>
   <string name="msg_action_open_application">هل تريد فتح التطبيق؟</string>
   <string name="title_gradle_service_notification_channel">خدمة بناء Code on the Go</string>
@@ -399,7 +399,7 @@
   <string name="idepref_devOptions_summary">خيارات تجريبية/تصحيح أخطاء Code on the Go</string>
   <string name="idepref_group_debugging">تصحيح الأخطاء</string>
   <string name="idepref_devOptions_dumpLogs_title">تفريغ السجلات</string>
-  <string name="idepref_devOptions_dumpLogs_summary">تفريغ سجلات Code on the Go إلى $HOME/.androidide/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">تفريغ سجلات Code on the Go إلى $HOME/.cg/logs</string>
   <string name="msg_emptyview_applogs">قم بتشغيل النسخة التصحيحية (debug) من تطبيقك لعرض السجلات هنا.</string>
   <string name="msg_logsender_disabled">تم تعطيل إرسال السجل. يمكنك تمكينه في الخيارات.</string>
   <string name="msg_emptyview_idelogs">تظهر سجلات من بيئة التطوير المتكاملة هنا.</string>
@@ -466,11 +466,6 @@
   <string name="title_install_location_error">Install location error</string>
   <string name="title_unsupported_user">Unsupported user</string>
   <string name="title_socials">Socials</string>
-  <string name="title_contributors">Contributors</string>
-  <string name="summary_contributors">Top community contributors.</string>
-  <string name="title_github_contributors">GitHub Contributors</string>
-  <string name="title_crowdin_translators">Crowdin Translators</string>
-  <string name="title_misc">Misc</string>
   <string name="title_contribute">Contribute</string>
   <string name="summary_contribute">It\'s not just an IDE, it\'s a community. Contribute code, ideas, and passion to Code on the Go.</string>
   <string name="msg_app_unavailable_for_intent">No application available to handle intent.</string>
