@@ -31,41 +31,45 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class SearchResultFragment : RecyclerViewFragment<SearchListAdapter>() {
-  override val fragmentTooltipTag: String? = TooltipTag.PROJECT_SEARCH_RESULTS
+	override val fragmentTooltipTag: String? = TooltipTag.PROJECT_SEARCH_RESULTS
 
-    private val editorViewModel: EditorViewModel by activityViewModels()
+	private val editorViewModel: EditorViewModel by activityViewModels()
 
-    private val editorActivity: BaseEditorActivity?
-        get() = activity as? BaseEditorActivity
+	private val editorActivity: BaseEditorActivity?
+		get() = activity as? BaseEditorActivity
 
-  override fun onCreateAdapter(): RecyclerView.Adapter<*> {
-    val noOp: (Any) -> Unit = {}
-    return SearchListAdapter(emptyMap(), noOp, noOp)
-  }
+	override fun onCreateAdapter(): RecyclerView.Adapter<*> {
+		val noOp: (Any) -> Unit = {}
+		return SearchListAdapter(emptyMap(), noOp, noOp)
+	}
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                editorViewModel.searchResultSections.collectLatest { sections ->
-                    if (isAdded && _binding != null) {
-                        binding.root.adapter = SearchListAdapter(
-                            sections,
-                            onFileClick = { file ->
-                                editorActivity?.doOpenFile(file, null)
-                                editorActivity?.hideBottomSheet()
-                            },
-                            onMatchClick = { match ->
-                                editorActivity?.doOpenFile(match.file, match)
-                                editorActivity?.hideBottomSheet()
-                            }
-                        )
-                        val itemCount = binding.root.adapter?.itemCount ?: 0
-                        isEmpty = itemCount == 0
-                    }
-                }
-            }
-        }
-    }
+		viewLifecycleOwner.lifecycleScope.launch {
+			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				editorViewModel.searchResultSections.collectLatest { sections ->
+					if (isAdded && _binding != null) {
+						binding.root.adapter =
+							SearchListAdapter(
+								sections,
+								onFileClick = { file ->
+									editorActivity?.doOpenFile(file, null)
+									editorActivity?.hideBottomSheet()
+								},
+								onMatchClick = { match ->
+									editorActivity?.doOpenFile(match.file, match)
+									editorActivity?.hideBottomSheet()
+								},
+							)
+						val itemCount = binding.root.adapter?.itemCount ?: 0
+						isEmpty = itemCount == 0
+					}
+				}
+			}
+		}
+	}
 }

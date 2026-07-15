@@ -952,65 +952,74 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			return
 		}
 
-		val request = ProjectSearchRequest(
-			query = query,
-			roots = searchDirs,
-			extensions = extensions,
-		)
-		val futures = plugins.mapNotNull { plugin ->
-			val pluginId =
-				pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin)
-					?: plugin.javaClass.name
-			try {
-				plugin.searchProject(request)
-					.exceptionally { error ->
-						logger.warn("Project search plugin '{}' failed", pluginId, error)
-						pluginManager.recordPluginCrash(pluginId)
-						emptyList()
-					}
-			} catch (error: Throwable) {
-				logger.warn("Project search plugin '{}' failed", pluginId, error)
-				pluginManager.recordPluginCrash(pluginId)
-				null
+		val request =
+			ProjectSearchRequest(
+				query = query,
+				roots = searchDirs,
+				extensions = extensions,
+			)
+		val futures =
+			plugins.mapNotNull { plugin ->
+				val pluginId =
+					pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin)
+						?: plugin.javaClass.name
+				try {
+					plugin
+						.searchProject(request)
+						.exceptionally { error ->
+							logger.warn("Project search plugin '{}' failed", pluginId, error)
+							pluginManager.recordPluginCrash(pluginId)
+							emptyList()
+						}
+				} catch (error: Throwable) {
+					logger.warn("Project search plugin '{}' failed", pluginId, error)
+					pluginManager.recordPluginCrash(pluginId)
+					null
+				}
 			}
-		}
 		if (futures.isEmpty()) {
 			return
 		}
 
-		CompletableFuture.allOf(*futures.toTypedArray()).thenRun {
-			val pluginSections = futures
-				.flatMap { future -> future.getNow(emptyList()) }
-				.mapNotNull { section -> section.toSearchResultSection() }
-			val sections = buildList {
-				if (exactResults.isNotEmpty()) {
-					add(SearchResultSection(title = null, results = exactResults))
+		CompletableFuture
+			.allOf(*futures.toTypedArray())
+			.thenRun {
+				val pluginSections =
+					futures
+						.flatMap { future -> future.getNow(emptyList()) }
+						.mapNotNull { section -> section.toSearchResultSection() }
+				val sections =
+					buildList {
+						if (exactResults.isNotEmpty()) {
+							add(SearchResultSection(title = null, results = exactResults))
+						}
+						addAll(pluginSections)
+					}
+				runOnUiThread {
+					editorViewModel.onSearchResultSectionsReady(sections)
 				}
-				addAll(pluginSections)
+			}.exceptionally { error ->
+				logger.warn("Failed to collect project search plugin results", error)
+				null
 			}
-			runOnUiThread {
-				editorViewModel.onSearchResultSectionsReady(sections)
-			}
-		}.exceptionally { error ->
-			logger.warn("Failed to collect project search plugin results", error)
-			null
-		}
 	}
 
 	private fun ProjectSearchSection.toSearchResultSection(): SearchResultSection? {
-		val grouped = results
-			.map { it.toSearchResult() }
-			.groupBy { it.file }
+		val grouped =
+			results
+				.map { it.toSearchResult() }
+				.groupBy { it.file }
 		return grouped
 			.takeIf { it.isNotEmpty() }
 			?.let { SearchResultSection(title = title, results = it) }
 	}
 
 	private fun ProjectSearchResult.toSearchResult(): SearchResult {
-		val range = Range(
-			Position(startLine, startColumn),
-			Position(endLine, endColumn),
-		)
+		val range =
+			Range(
+				Position(startLine, startColumn),
+				Position(endLine, endColumn),
+			)
 		return SearchResult(range, file, linePreview, matchText)
 	}
 

@@ -36,122 +36,148 @@ import java.io.File
 import java.util.concurrent.CompletableFuture
 
 class SearchListAdapter(
-  results: Map<File, List<SearchResult>?>,
-  private val onFileClick: (File) -> Unit,
-  private val onMatchClick: (SearchResult) -> Unit,
-  keys: List<File>
+	results: Map<File, List<SearchResult>?>,
+	private val onFileClick: (File) -> Unit,
+	private val onMatchClick: (SearchResult) -> Unit,
+	keys: List<File>,
 ) : Adapter<ViewHolder>() {
+	private val rows: List<Row> =
+		buildRows(listOf(SearchResultSection(null, results.filterValues { it != null }.mapValues { it.value.orEmpty() })), keys)
 
-  private val rows: List<Row> = buildRows(listOf(SearchResultSection(null, results.filterValues { it != null }.mapValues { it.value.orEmpty() })), keys)
+	constructor(
+		results: Map<File, List<SearchResult>?>,
+		onFileClick: (File) -> Unit,
+		onMatchClick: (SearchResult) -> Unit,
+	) : this(results, onFileClick, onMatchClick, results.keys.toList())
 
-  constructor(
-    results: Map<File, List<SearchResult>?>,
-    onFileClick: (File) -> Unit,
-    onMatchClick: (SearchResult) -> Unit
-  ) : this(results, onFileClick, onMatchClick, results.keys.toList())
+	constructor(
+		sections: List<SearchResultSection>,
+		onFileClick: (File) -> Unit,
+		onMatchClick: (SearchResult) -> Unit,
+	) : this(emptyMap(), onFileClick, onMatchClick, emptyList()) {
+		sectionRows = buildRows(sections, null)
+	}
 
-  constructor(
-    sections: List<SearchResultSection>,
-    onFileClick: (File) -> Unit,
-    onMatchClick: (SearchResult) -> Unit
-  ) : this(emptyMap(), onFileClick, onMatchClick, emptyList()) {
-    sectionRows = buildRows(sections, null)
-  }
+	private var sectionRows: List<Row>? = null
 
-  private var sectionRows: List<Row>? = null
+	override fun getItemViewType(position: Int): Int =
+		when (visibleRows[position]) {
+			is Row.Header -> VIEW_TYPE_HEADER
+			is Row.Group -> VIEW_TYPE_GROUP
+		}
 
-  override fun getItemViewType(position: Int): Int {
-    return when (visibleRows[position]) {
-      is Row.Header -> VIEW_TYPE_HEADER
-      is Row.Group -> VIEW_TYPE_GROUP
-    }
-  }
+	override fun onCreateViewHolder(
+		parent: ViewGroup,
+		viewType: Int,
+	): ViewHolder {
+		val inflater = LayoutInflater.from(parent.context)
+		return when (viewType) {
+			VIEW_TYPE_HEADER -> HeaderVH(LayoutSearchResultSectionBinding.inflate(inflater, parent, false))
+			else -> VH(LayoutSearchResultGroupBinding.inflate(inflater, parent, false))
+		}
+	}
 
-  override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-    val inflater = LayoutInflater.from(parent.context)
-    return when (viewType) {
-      VIEW_TYPE_HEADER -> HeaderVH(LayoutSearchResultSectionBinding.inflate(inflater, parent, false))
-      else -> VH(LayoutSearchResultGroupBinding.inflate(inflater, parent, false))
-    }
-  }
+	override fun onBindViewHolder(
+		holder: ViewHolder,
+		position: Int,
+	) {
+		when (val row = visibleRows[position]) {
+			is Row.Header -> (holder as HeaderVH).binding.title.text = row.title
+			is Row.Group -> bindGroup(holder as VH, row)
+		}
+	}
 
-  override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-    when (val row = visibleRows[position]) {
-      is Row.Header -> (holder as HeaderVH).binding.title.text = row.title
-      is Row.Group -> bindGroup(holder as VH, row)
-    }
-  }
+	private fun bindGroup(
+		holder: VH,
+		row: Row.Group,
+	) {
+		val binding = holder.binding
+		val file = row.file
+		val matches = row.matches
+		val color = binding.icon.context.resolveAttr(R.attr.colorPrimary)
+		binding.title.text = file.name
+		binding.icon.setImageResource(FileExtension.Factory.forFile(file, false).icon)
+		binding.icon.setColorFilter(color, SRC_ATOP)
+		binding.items.layoutManager = LinearLayoutManager(binding.items.context)
+		binding.items.adapter = ChildAdapter(matches)
+		binding.root.setOnClickListener { onFileClick(file) }
+	}
 
-  private fun bindGroup(holder: VH, row: Row.Group) {
-    val binding = holder.binding
-    val file = row.file
-    val matches = row.matches
-    val color = binding.icon.context.resolveAttr(R.attr.colorPrimary)
-    binding.title.text = file.name
-    binding.icon.setImageResource(FileExtension.Factory.forFile(file, false).icon)
-    binding.icon.setColorFilter(color, SRC_ATOP)
-    binding.items.layoutManager = LinearLayoutManager(binding.items.context)
-    binding.items.adapter = ChildAdapter(matches)
-    binding.root.setOnClickListener { onFileClick(file) }
-  }
+	override fun getItemCount(): Int = visibleRows.size
 
-  override fun getItemCount(): Int {
-    return visibleRows.size
-  }
+	inner class ChildAdapter(
+		val matches: List<SearchResult>,
+	) : Adapter<ChildVH>() {
+		override fun onCreateViewHolder(
+			p1: ViewGroup,
+			p2: Int,
+		): ChildVH = ChildVH(LayoutSearchResultItemBinding.inflate(LayoutInflater.from(p1.context)))
 
-  inner class ChildAdapter(val matches: List<SearchResult>) : Adapter<ChildVH>() {
+		override fun onBindViewHolder(
+			p1: ChildVH,
+			p2: Int,
+		) {
+			val match = matches[p2]
+			val binding = p1.binding
+			CompletableFuture.runAsync {
+				try {
+					val scheme = SchemeAndroidIDE.newInstance(binding.text.context)
+					val sb = JavaHighlighter().highlight(scheme, match.line, match.match)
+					ThreadUtils.runOnUiThread { binding.text.text = sb }
+				} catch (e: Exception) {
+					ThreadUtils.runOnUiThread { binding.text.text = match.match }
+				}
+			}
+			binding.root.setOnClickListener { onMatchClick(match) }
+		}
 
-    override fun onCreateViewHolder(p1: ViewGroup, p2: Int): ChildVH {
-      return ChildVH(LayoutSearchResultItemBinding.inflate(LayoutInflater.from(p1.context)))
-    }
+		override fun getItemCount(): Int = matches.size
+	}
 
-    override fun onBindViewHolder(p1: ChildVH, p2: Int) {
-      val match = matches[p2]
-      val binding = p1.binding
-      CompletableFuture.runAsync {
-        try {
-          val scheme = SchemeAndroidIDE.newInstance(binding.text.context)
-          val sb = JavaHighlighter().highlight(scheme, match.line, match.match)
-          ThreadUtils.runOnUiThread { binding.text.text = sb }
-        } catch (e: Exception) {
-          ThreadUtils.runOnUiThread { binding.text.text = match.match }
-        }
-      }
-      binding.root.setOnClickListener { onMatchClick(match) }
-    }
+	private val visibleRows: List<Row>
+		get() = sectionRows ?: rows
 
-    override fun getItemCount(): Int {
-      return matches.size
-    }
-  }
+	class VH(
+		val binding: LayoutSearchResultGroupBinding,
+	) : ViewHolder(binding.root)
 
-  private val visibleRows: List<Row>
-    get() = sectionRows ?: rows
+	class ChildVH(
+		val binding: LayoutSearchResultItemBinding,
+	) : ViewHolder(binding.root)
 
-  class VH(val binding: LayoutSearchResultGroupBinding) : ViewHolder(binding.root)
-  class ChildVH(val binding: LayoutSearchResultItemBinding) : ViewHolder(binding.root)
-  class HeaderVH(val binding: LayoutSearchResultSectionBinding) : ViewHolder(binding.root)
+	class HeaderVH(
+		val binding: LayoutSearchResultSectionBinding,
+	) : ViewHolder(binding.root)
 
-  private sealed class Row {
-    data class Header(val title: String) : Row()
-    data class Group(val file: File, val matches: List<SearchResult>) : Row()
-  }
+	private sealed class Row {
+		data class Header(
+			val title: String,
+		) : Row()
 
-  private companion object {
-    const val VIEW_TYPE_HEADER = 0
-    const val VIEW_TYPE_GROUP = 1
+		data class Group(
+			val file: File,
+			val matches: List<SearchResult>,
+		) : Row()
+	}
 
-    fun buildRows(sections: List<SearchResultSection>, keys: List<File>?): List<Row> {
-      return buildList {
-        sections.forEach { section ->
-          if (section.results.isEmpty()) return@forEach
-          section.title?.let { add(Row.Header(it)) }
-          val sectionKeys = keys ?: section.results.keys.toList()
-          sectionKeys.forEach { file ->
-            section.results[file]?.let { matches -> add(Row.Group(file, matches)) }
-          }
-        }
-      }
-    }
-  }
+	private companion object {
+		const val VIEW_TYPE_HEADER = 0
+		const val VIEW_TYPE_GROUP = 1
+
+		fun buildRows(
+			sections: List<SearchResultSection>,
+			keys: List<File>?,
+		): List<Row> {
+			return buildList {
+				sections.forEach { section ->
+					if (section.results.isEmpty()) return@forEach
+					section.title?.let { add(Row.Header(it)) }
+					val sectionKeys = keys ?: section.results.keys.toList()
+					sectionKeys.forEach { file ->
+						section.results[file]?.let { matches -> add(Row.Group(file, matches)) }
+					}
+				}
+			}
+		}
+	}
 }
