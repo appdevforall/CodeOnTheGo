@@ -26,6 +26,7 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 
 /**
@@ -39,6 +40,12 @@ import kotlinx.coroutines.withContext
 class BuildOutputViewModel(application: Application) : AndroidViewModel(application) {
 
   private val lock = ReentrantLock()
+
+  /**
+   * Case-insensitive line filter applied to the *editor view* of the build output.
+   * The session file always receives the unfiltered text.
+   */
+  val filterText = MutableStateFlow("")
 
   /**
    * Thread-safe snapshot of content for synchronous [getShareableContent] without blocking.
@@ -163,6 +170,22 @@ class BuildOutputViewModel(application: Application) : AndroidViewModel(applicat
   }
 
   companion object {
+
+    /**
+     * Returns only the lines of [content] containing [query] (case-insensitive), each terminated
+     * with a newline. Returns [content] unchanged when [query] is empty.
+     */
+    fun filterLines(content: String, query: String): String {
+      if (query.isEmpty() || content.isEmpty()) return content
+      return buildString {
+        for (line in content.lineSequence()) {
+          if (line.contains(query, ignoreCase = true)) {
+            append(line).append('\n')
+          }
+        }
+      }
+    }
+
     private const val SESSION_FILE_NAME = "build_output_session.txt"
     private const val WINDOW_SIZE_CHARS = 512 * 1024
     /** Max length of [cachedContentSnapshot] to bound memory. */
