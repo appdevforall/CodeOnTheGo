@@ -24,7 +24,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LogBufferTest {
-
 	@Test
 	fun `sequence numbers increase monotonically`() {
 		val buffer = LogBuffer(trimOnEntryCount = 10, maxEntryCount = 5)

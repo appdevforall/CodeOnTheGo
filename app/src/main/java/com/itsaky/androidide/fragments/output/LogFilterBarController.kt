@@ -91,6 +91,11 @@ class LogFilterBarController(
 				levels.add(level)
 			}
 		}
-		onFilterChanged(levels, binding.filterInput.text?.toString().orEmpty())
+		onFilterChanged(
+			levels,
+			binding.filterInput.text
+				?.toString()
+				.orEmpty(),
+		)
 	}
 }

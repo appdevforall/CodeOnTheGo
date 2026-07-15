@@ -43,7 +43,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 class BuildOutputFragment :
 	NonEditableEditorFragment(),
 	SearchableOutputFragment {
-
 	private val buildOutputViewModel: BuildOutputViewModel by activityViewModels()
 
 	companion object {
@@ -61,7 +60,10 @@ class BuildOutputFragment :
 	// so a re-render never misses or duplicates a concurrently flushed batch.
 	private val editorContentMutex = Mutex()
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
 		editor?.tag = TooltipTag.PROJECT_BUILD_OUTPUT
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_buildoutput))
@@ -156,9 +158,10 @@ class BuildOutputFragment :
 		if (content.isEmpty()) return
 		withContext(Dispatchers.Main) {
 			val editor = this@BuildOutputFragment.editor ?: return@withContext
-			val layoutCompleted = withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-				editor.awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
-			}
+			val layoutCompleted =
+				withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+					editor.awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+				}
 			if (layoutCompleted != null) {
 				editor.appendBatch(content)
 				emptyStateViewModel.setEmpty(false)
@@ -212,8 +215,7 @@ class BuildOutputFragment :
 	 * Ensures the string ends with a newline character (`\n`).
 	 * Useful for maintaining correct formatting when concatenating log lines.
 	 */
-	private fun String.ensureNewline(): String =
-		if (endsWith('\n')) this else "$this\n"
+	private fun String.ensureNewline(): String = if (endsWith('\n')) this else "$this\n"
 
 	/**
 	 * Immediately drains (consumes) all available messages from the channel into the [buffer].
@@ -239,18 +241,19 @@ class BuildOutputFragment :
 	 * 2. Wakes up and drains the entire queue (Batching).
 	 * 3. Sends the complete block to the UI in a single pass.
 	 */
-	private suspend fun processLogs() = with(StringBuilder()) {
-		for (firstLine in logChannel) {
-			append(firstLine.ensureNewline())
-			logChannel.drainTo(this)
+	private suspend fun processLogs() =
+		with(StringBuilder()) {
+			for (firstLine in logChannel) {
+				append(firstLine.ensureNewline())
+				logChannel.drainTo(this)
 
-			if (isNotEmpty()) {
-				val batchText = toString()
-				clear()
-				flushToEditor(batchText)
+				if (isNotEmpty()) {
+					val batchText = toString()
+					clear()
+					flushToEditor(batchText)
+				}
 			}
 		}
-	}
 
 	/**
 	 * Performs the safe UI update on the Main Thread.
@@ -272,9 +275,10 @@ class BuildOutputFragment :
 
 			withContext(Dispatchers.Main) {
 				editor?.run {
-					val layoutCompleted = withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-						awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
-					}
+					val layoutCompleted =
+						withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+						}
 					if (layoutCompleted != null) {
 						appendBatch(visibleText)
 						emptyStateViewModel.setEmpty(false)

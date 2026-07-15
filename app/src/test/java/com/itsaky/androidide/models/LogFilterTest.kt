@@ -23,7 +23,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LogFilterTest {
-
 	@Test
 	fun `default filter matches everything and is inactive`() {
 		val filter = LogFilter.NONE

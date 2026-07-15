@@ -22,7 +22,6 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 class BuildOutputFilterTest {
-
 	@Test
 	fun `empty query returns content unchanged`() {
 		val content = "> Task :app:compileDebugKotlin\nBUILD SUCCESSFUL\n"

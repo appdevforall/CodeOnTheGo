@@ -36,7 +36,6 @@ import org.junit.Test
  * and chunks output on a real 50ms cadence.
  */
 class LogViewModelTest {
-
 	private class TestLogViewModel : LogViewModel()
 
 	companion object {
