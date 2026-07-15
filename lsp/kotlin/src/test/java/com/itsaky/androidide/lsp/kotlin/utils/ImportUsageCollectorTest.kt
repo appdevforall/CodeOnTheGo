@@ -204,6 +204,48 @@ class ImportUsageCollectorTest : KtLspTest() {
 	}
 
 	@Test
+	fun `constructor-only reference records the class as used`() {
+		createSourceFile(
+			"lib/Widget.kt",
+			"""
+			package lib
+			class Widget(val n: Int)
+			""".trimIndent(),
+		)
+		val ktFile = createSourceFile(
+			"UseCtor.kt",
+			"""
+			package p
+			import lib.Widget
+			fun f() { val w = Widget(1) }
+			""".trimIndent(),
+		)
+		val usage = usageOf(ktFile)
+		assertTrue("lib.Widget" in usage.usedFqNames)
+	}
+
+	@Test
+	fun `annotation-only reference records the annotation class as used`() {
+		createSourceFile(
+			"lib/Marker.kt",
+			"""
+			package lib
+			annotation class Marker
+			""".trimIndent(),
+		)
+		val ktFile = createSourceFile(
+			"UseAnnotation.kt",
+			"""
+			package p
+			import lib.Marker
+			@Marker fun f() {}
+			""".trimIndent(),
+		)
+		val usage = usageOf(ktFile)
+		assertTrue("lib.Marker" in usage.usedFqNames)
+	}
+
+	@Test
 	fun `getValue operator used via property delegation is recorded`() {
 		createSourceFile(
 			"lib/Ops.kt",

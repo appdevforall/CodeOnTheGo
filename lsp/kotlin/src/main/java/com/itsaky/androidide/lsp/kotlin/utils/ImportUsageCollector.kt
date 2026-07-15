@@ -5,6 +5,7 @@ import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassLikeSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaConstructorSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
 import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.psi.KtArrayAccessExpression
@@ -92,6 +93,10 @@ internal fun KaSession.collectImportUsage(ktFile: KtFile): ImportUsage {
 }
 
 private fun KaSymbol.importableFqNameString(): String? = when (this) {
+	// A constructor's own callableId is null, so it must map to its containing class -- the name
+	// that's actually imported. Covers `Foo()` calls and `@Foo` annotations (both resolve to the
+	// constructor). Must precede the KaCallableSymbol branch, which a constructor also matches.
+	is KaConstructorSymbol -> containingClassId?.asSingleFqName()?.asString()
 	is KaClassLikeSymbol -> classId?.asSingleFqName()?.asString()
 	is KaCallableSymbol -> callableId?.asSingleFqName()?.asString()
 	else -> null
