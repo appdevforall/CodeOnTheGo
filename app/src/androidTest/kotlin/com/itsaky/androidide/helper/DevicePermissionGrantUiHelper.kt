@@ -68,7 +68,7 @@ fun clickFirstAccessibilityNodeByText(
 }
 
 /**
- * Clicks a node found by [searchText] matching on [contentDescription] rather than text.
+ * Clicks a node found by [searchText] matching on `contentDescription` rather than text.
  * Useful for toolbar ImageButtons that have no text label.
  */
 fun clickFirstAccessibilityNodeByDescription(
@@ -137,6 +137,9 @@ fun setAccessibilityEditText(
  *
  * @return true if [action] returned true for any node before the deadline.
  */
+// recycle() is a no-op from API 33 but still meaningful on older physical test
+// devices, so keep the calls and suppress the deprecation warning.
+@Suppress("DEPRECATION")
 private fun findAndActOnAccessibilityNode(
     searchText: String,
     timeoutMs: Long = ACCESSIBILITY_ACTION_TIMEOUT_MS,

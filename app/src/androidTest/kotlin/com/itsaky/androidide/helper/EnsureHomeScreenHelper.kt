@@ -225,7 +225,7 @@ fun logOnboardingNavigation(msg: String) {
 
 /**
  * After "Finish installation" on the permissions slide, [com.itsaky.androidide.fragments.onboarding.PermissionsFragment]
- * runs IDE setup — there is **no** guarantee that AppIntro's `@id/done` exists ([OnboardingActivity] does not add
+ * runs IDE setup — there is **no** guarantee that AppIntro's `@id/done` exists ([com.itsaky.androidide.activities.OnboardingActivity] does not add
  * [com.itsaky.androidide.fragments.onboarding.IdeSetupConfigurationFragment] as a slide). Poll until **Get started**
  * or **editor** is visible.
  */
