@@ -70,7 +70,7 @@
 				android:layout_height="wrap_content"
 				android:checkable="true"
 				android:checked="true"
-				android:text="@string/log_level_verbose" />
+				android:text="@string/log_filter_level_verbose" />
 
 			<com.google.android.material.chip.Chip
 				android:id="@+id/chip_level_debug"
@@ -79,7 +79,7 @@
 				android:layout_height="wrap_content"
 				android:checkable="true"
 				android:checked="true"
-				android:text="@string/log_level_debug" />
+				android:text="@string/log_filter_level_debug" />
 
 			<com.google.android.material.chip.Chip
 				android:id="@+id/chip_level_info"
@@ -88,7 +88,7 @@
 				android:layout_height="wrap_content"
 				android:checkable="true"
 				android:checked="true"
-				android:text="@string/log_level_info" />
+				android:text="@string/log_filter_level_info" />
 
 			<com.google.android.material.chip.Chip
 				android:id="@+id/chip_level_warning"
@@ -97,7 +97,7 @@
 				android:layout_height="wrap_content"
 				android:checkable="true"
 				android:checked="true"
-				android:text="@string/log_level_warning" />
+				android:text="@string/log_filter_level_warning" />
 
 			<com.google.android.material.chip.Chip
 				android:id="@+id/chip_level_error"
@@ -106,7 +106,7 @@
 				android:layout_height="wrap_content"
 				android:checkable="true"
 				android:checked="true"
-				android:text="@string/log_level_error" />
+				android:text="@string/log_filter_level_error" />
 		</com.google.android.material.chip.ChipGroup>
 	</HorizontalScrollView>
 </LinearLayout>

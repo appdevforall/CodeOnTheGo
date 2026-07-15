@@ -680,11 +680,11 @@
 	<string name="msg_emptyview_diagnostics">Open a file to show its diagnostic results</string>
 	<string name="log_filter_hint">Filter lines</string>
 	<string name="log_filter_hide">Hide filter bar</string>
-	<string name="log_level_verbose">Verbose</string>
-	<string name="log_level_debug">Debug</string>
-	<string name="log_level_info">Info</string>
-	<string name="log_level_warning">Warning</string>
-	<string name="log_level_error">Error</string>
+	<string name="log_filter_level_verbose">Verbose</string>
+	<string name="log_filter_level_debug">Debug</string>
+	<string name="log_filter_level_info">Info</string>
+	<string name="log_filter_level_warning">Warning</string>
+	<string name="log_filter_level_error">Error</string>
 	<string name="tooltip_search_output">Search in output</string>
 	<string name="tooltip_filter_output">Filter output</string>
 	<string name="msg_emptyview_buildoutput">"Build the application or run a task to see its build output here. "</string>
