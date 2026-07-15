@@ -20,21 +20,16 @@ package com.itsaky.androidide.fragments.output
 import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.activityViewModels
-import ch.qos.logback.classic.Level
 import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipTag
-import com.itsaky.androidide.logging.GlobalBufferAppender
-import com.itsaky.androidide.utils.FeatureFlags
-import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.viewmodel.IDELogsViewModel
 
 /**
- * Fragment to show IDE logs.
+ * Fragment to show IDE logs. Log consumption happens in [IDELogsViewModel].
+ *
  * @author Akash Yadav
  */
-class IDELogFragment :
-	LogViewFragment<IDELogsViewModel>(),
-	GlobalBufferAppender.Consumer {
+class IDELogFragment : LogViewFragment<IDELogsViewModel>() {
 	override fun isSimpleFormattingEnabled() = true
 
 	override fun getShareableFilename() = "ide_logs"
@@ -43,36 +38,11 @@ class IDELogFragment :
 
 	override val viewModel by activityViewModels<IDELogsViewModel>()
 
-	override val logLevel: Level
-		get() = if (FeatureFlags.isDebugLoggingEnabled) Level.DEBUG else Level.INFO
-
 	override fun onViewCreated(
 		view: View,
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_idelogs))
-
-		// Register with GlobalBufferAppender to receive all logs (including buffered ones)
-		GlobalBufferAppender.registerConsumer(this)
-	}
-
-	override fun consume(
-		level: Level,
-		message: String,
-	) = viewModel.submit(level.toILoggerLevel(), message)
-
-	override fun onDestroyView() {
-		GlobalBufferAppender.unregisterConsumer(this)
-		super.onDestroyView()
 	}
 }
-
-private fun Level.toILoggerLevel(): ILogger.Level =
-	when {
-		levelInt <= Level.TRACE_INT -> ILogger.Level.VERBOSE
-		levelInt <= Level.DEBUG_INT -> ILogger.Level.DEBUG
-		levelInt <= Level.INFO_INT -> ILogger.Level.INFO
-		levelInt <= Level.WARN_INT -> ILogger.Level.WARNING
-		else -> ILogger.Level.ERROR
-	}
