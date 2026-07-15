@@ -143,7 +143,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 		}
 	}
 
-	private suspend fun observeLogs(): Nothing {
+	private suspend fun observeLogs() {
 		// Wait for the editor's first layout pass. The sora-editor's
 		// LineBreakLayout populates its line-width tracker asynchronously after
 		// layout; appending before that races BlockIntList.set on an empty list.
