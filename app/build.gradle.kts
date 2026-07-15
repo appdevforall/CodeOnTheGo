@@ -17,7 +17,6 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.FileTime
 import java.security.MessageDigest
-import java.util.Locale
 import java.util.Properties
 import java.util.zip.CRC32
 import java.util.zip.Deflater
@@ -148,7 +147,7 @@ android {
 }
 
 sentry {
-      includeProguardMapping = false
+	includeProguardMapping = false
 }
 
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.AppEventsIndex") } }
@@ -336,8 +335,8 @@ dependencies {
 	implementation(libs.google.genai)
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
 
-    // Pebble template engine
-    implementation("io.pebbletemplates:pebble:4.1.1")
+	// Pebble template engine
+	implementation("io.pebbletemplates:pebble:4.1.1")
 }
 
 tasks.register("downloadDocDb") {
@@ -385,7 +384,6 @@ tasks.register("downloadDocDb") {
 		}
 	}
 }
-
 
 tasks.register("copyPluginApiJarToAssets") {
 	dependsOn(":plugin-api:createPluginApiJar")
@@ -736,12 +734,12 @@ val debugAssets =
 			"localMvnRepository.zip",
 			"debug",
 		),
-        Asset(
-          "assets/core.cgt",
-          "https://appdevforall.org/dev-assets/debug/core.cgt",
-          "core.cgt",
-          "debug",
-        ),
+		Asset(
+			"assets/core.cgt",
+			"https://appdevforall.org/dev-assets/debug/core.cgt",
+			"core.cgt",
+			"debug",
+		),
 	)
 
 val releaseAssets =
@@ -794,12 +792,12 @@ val releaseAssets =
 			"v8/bootstrap.zip.br",
 			"release",
 		),
-        Asset(
-          "assets/release/common/data/common/core.cgt.br",
-          "https://appdevforall.org/dev-assets/release/core.cgt.br",
-          "core.cgt.br",
-          "release",
-        ),
+		Asset(
+			"assets/release/common/data/common/core.cgt.br",
+			"https://appdevforall.org/dev-assets/release/core.cgt.br",
+			"core.cgt.br",
+			"release",
+		),
 	)
 
 fun assetsBatch(
@@ -926,7 +924,9 @@ fun assetsFileChecksum(asset: Asset): String {
 
 	if (!checksum.matches(Regex("^[a-fA-F0-9]{32}$"))) {
 		throw GradleException(
-			"Invalid MD5 checksum for ${asset.remotePath} (got: '${checksum.take(50)}') - the server may be returning an error page instead of the checksum",
+			"Invalid MD5 checksum for ${asset.remotePath} (got: '${checksum.take(
+				50,
+			)}') - the server may be returning an error page instead of the checksum",
 		)
 	}
 	return checksum.lowercase()
