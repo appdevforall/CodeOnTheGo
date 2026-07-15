@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory
  *
  * @author Akash Yadav
  */
-class TracingEditorRenderer(
+open class TracingEditorRenderer(
   private val enabled: Boolean = BuildConfig.DEBUG,
   editor: CodeEditor
 ) : EditorRenderer(editor) {

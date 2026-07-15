@@ -18,7 +18,6 @@ import java.io.FilterInputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
 import kotlin.system.measureTimeMillis
 
 class IdeArchiveServiceImpl(
@@ -255,6 +254,21 @@ class IdeArchiveServiceImpl(
         }
     }
 
+    /**
+     * Extracts a `.tar.xz` archive by invoking Termux `tar`.
+     *
+     * The child process's combined stdout/stderr is redirected to a temporary log file
+     * ([ProcessBuilder.redirectOutput]) and read back after the process exits, rather than being
+     * drained by a separate reader thread. This removes the concurrency hazard behind ADFA-3945
+     * (Sentry APPDEVFORALL-V0): when a timeout triggers [Process.destroyForcibly] the pipe is
+     * closed, and a thread blocked in `read()` on it would throw an `InterruptedIOException` on a
+     * bare thread with no handler, crashing the app. With OS-side redirection there is no in-flight
+     * read to interrupt, and the process also cannot deadlock on a full pipe buffer.
+     *
+     * @param archiveFile the `.tar.xz` to extract.
+     * @param outputDir the directory to extract into (must exist and be writable).
+     * @return `true` only if `tar` completed within the timeout with exit code 0.
+     */
     private fun extractTarXzViaTermux(archiveFile: File, outputDir: File): Boolean {
         if (!archiveFile.exists()) {
             logger.debug("Archive not found: ${archiveFile.absolutePath}")
@@ -263,28 +277,43 @@ class IdeArchiveServiceImpl(
 
         logger.debug("Starting Termux tar extraction: ${archiveFile.absolutePath}")
 
-        return runCatching {
-            val output = StringBuilder()
+        val logFile = File.createTempFile("tarxz-extract", ".log", outputDir)
+        val result = runCatching {
             var exitCode = -1
 
             val elapsed = measureTimeMillis {
                 val process = ProcessBuilder(
                     "$TERMUX_BIN_PATH/tar", "-xJf", archiveFile.absolutePath,
                     "-C", outputDir.canonicalPath, "--no-same-owner"
-                ).redirectErrorStream(true).apply {
-                    environment()["PATH"] = TERMUX_BIN_PATH
-                }.start()
+                ).redirectErrorStream(true)
+                    .redirectOutput(logFile)
+                    .apply { environment()["PATH"] = TERMUX_BIN_PATH }
+                    .start()
 
-                val reader = thread(name = "tar-xz-extract-output") {
-                    process.inputStream.bufferedReader().useLines { it.forEach(output::appendLine) }
+                val completed = try {
+                    process.waitFor(2, TimeUnit.MINUTES)
+                } catch (e: InterruptedException) {
+                    // Interrupted mid-wait: kill the child so it can't outlive us, restore the
+                    // interrupt flag, and rethrow — surfaced as cancellation by getOrElse below.
+                    process.destroyForcibly()
+                    Thread.currentThread().interrupt()
+                    throw e
                 }
-
-                val completed = process.waitFor(2, TimeUnit.MINUTES)
-                if (!completed) process.destroyForcibly()
-                reader.join()
+                if (!completed) {
+                    // Timed out. destroyForcibly() is asynchronous, so wait (bounded) for the kill
+                    // to actually land before we read the exit code and the log — otherwise the tar
+                    // process (and its redirected output pipe) can outlive this method.
+                    process.destroyForcibly()
+                    try {
+                        process.waitFor(10, TimeUnit.SECONDS)
+                    } catch (e: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                    }
+                }
                 exitCode = if (completed) process.exitValue() else -1
             }
 
+            val output = runCatching { logFile.readText() }.getOrDefault("")
             when (exitCode) {
                 0 -> {
                     logger.debug("Extraction succeeded in ${elapsed}ms: $output")
@@ -295,7 +324,18 @@ class IdeArchiveServiceImpl(
                     false
                 }
             }
-        }.getOrElse { e ->
+        }
+
+        // Always clean up the temp log, regardless of how the block above resolved. `result` is a
+        // Result (runCatching never throws), so this runs before we unwrap it below.
+        if (!logFile.delete()) {
+            logger.warn("Failed to delete temp extraction log: ${logFile.absolutePath}")
+        }
+
+        return result.getOrElse { e ->
+            // Let an interruption unwind the stack as cancellation instead of masquerading as a
+            // plain extraction failure; the interrupt flag was already restored at the throw site.
+            if (e is InterruptedException) throw e
             logger.error("Termux process error: ${e.message}")
             false
         }

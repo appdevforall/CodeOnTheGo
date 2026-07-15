@@ -37,8 +37,6 @@ import java.nio.file.DirectoryStream.Filter;
 import java.nio.file.attribute.*;
 import java.nio.file.spi.FileSystemProvider;
 import java.net.URI;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -158,7 +156,6 @@ public final class JrtFileSystemProvider extends FileSystemProvider {
         }
     }
 
-    @SuppressWarnings("removal")
     private static URLClassLoader newJrtFsLoader(Path jrtfs) {
         final URL url;
         try {
@@ -168,14 +165,7 @@ public final class JrtFileSystemProvider extends FileSystemProvider {
         }
 
         final URL[] urls = new URL[] { url };
-        return AccessController.doPrivileged(
-                new PrivilegedAction<URLClassLoader>() {
-                    @Override
-                    public URLClassLoader run() {
-                        return new JrtFsLoader(urls);
-                    }
-                }
-        );
+        return new JrtFsLoader(urls);
     }
 
     @Override
