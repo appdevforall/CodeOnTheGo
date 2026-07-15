@@ -53,7 +53,6 @@ import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
-import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter.Companion.TAB_DIAGNOSTICS
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
@@ -608,7 +607,9 @@ class EditorBottomSheet
 					state.sheetState == BottomSheetBehavior.STATE_HALF_EXPANDED
 
 			val showShareAndClear = isExpanded && currentFragment is ShareableOutputFragment
-			val showCopy = isExpanded && state.currentTab == TAB_DIAGNOSTICS
+			val showCopy =
+				isExpanded && currentFragment != null &&
+					currentFragment === pagerAdapter.diagnosticsFragment
 
 			binding.clearFab.isVisible = showShareAndClear
 			binding.shareOutputFab.isVisible = showShareAndClear
