@@ -229,7 +229,11 @@ fun logOnboardingNavigation(msg: String) {
  * [com.itsaky.androidide.fragments.onboarding.IdeSetupConfigurationFragment] as a slide). Poll until **Get started**
  * or **editor** is visible.
  */
-fun waitForMainHomeOrEditorUi(device: UiDevice, maxWaitMs: Long = 300_000L) {
+// First-run IDE setup extracts multi-GB assets (bootstrap, SDK, Gradle dist,
+// Maven repo) and runs pip setup; on a cold or loaded emulator this was observed
+// still healthy past the old 300 s ceiling. Visible setup errors fail fast
+// below, so a generous ceiling only costs time when something is really wrong.
+fun waitForMainHomeOrEditorUi(device: UiDevice, maxWaitMs: Long = 900_000L) {
     val deadline = System.currentTimeMillis() + maxWaitMs
     var lastLog = 0L
     logOnboardingNavigation("Waiting up to ${maxWaitMs / 1000}s for main home or editor after IDE setup…")

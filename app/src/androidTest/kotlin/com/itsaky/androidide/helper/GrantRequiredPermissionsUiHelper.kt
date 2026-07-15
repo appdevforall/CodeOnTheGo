@@ -18,6 +18,11 @@ fun TestContext<Unit>.grantAllRequiredPermissionsThroughOnboardingUi() {
     required.forEachIndexed { index, item ->
         step("Grant: ${targetContext.getString(item.title)}") {
             flakySafely(timeoutMs = 10_000) {
+                val alreadyGranted = PermissionsHelper.isPermissionGranted(targetContext, item.permission)
+                if (item.isOptional || alreadyGranted) {
+                    return@flakySafely
+                }
+
                 // Scroll to the permission item and click its grant button via accessibility
                 // ACTION_CLICK. The button may be in the gesture exclusion zone where
                 // coordinate-based clicks (Espresso) get swallowed by the OS.

@@ -176,8 +176,18 @@ class InitializationProjectAndCancelingBuildScenario(
     }
 
     companion object {
-        private const val PROJECT_INIT_TIMEOUT_MS = 5 * 60 * 1000L
-        private const val QUICK_RUN_TIMEOUT_MS = 10 * 60 * 1000L
+        // The first sync on a cold emulator daemon was measured at 311 s
+        // ("Fetch 'IdeaProject' model completed in 311152ms"), just past the
+        // previous 5-minute ceiling. 15 minutes gives cold-start headroom;
+        // the per-15 s diagnostics in the wait loop keep timeouts actionable.
+        private const val PROJECT_INIT_TIMEOUT_MS = 15 * 60 * 1000L
+
+        // The first cold quick-run build was killed by the previous 10-minute
+        // ceiling while still healthy — dex-merge outputs were being written in
+        // the same minute the timeout fired. The wait loop fails early on
+        // visible BUILD FAILED / tooling errors, so the ceiling only pays out
+        // when the build is genuinely stuck.
+        private const val QUICK_RUN_TIMEOUT_MS = 20 * 60 * 1000L
     }
 
     class CloseProjectScenario : Scenario() {

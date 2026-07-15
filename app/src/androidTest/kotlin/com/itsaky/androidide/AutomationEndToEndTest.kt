@@ -4,16 +4,16 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.advancePastWelcomeScreen
 import com.itsaky.androidide.helper.clickFirstAccessibilityNodeByText
+import com.itsaky.androidide.helper.configureAutomationBuildPreferences
 import com.itsaky.androidide.helper.ensureOnHomeScreenBeforeCreateProject
 import com.itsaky.androidide.helper.grantAllRequiredPermissionsThroughOnboardingUi
+import com.itsaky.androidide.helper.handlePrivacyDisclosure
 import com.itsaky.androidide.helper.initializeProjectRunAssembleTasksAndCancelBuild
 import com.itsaky.androidide.helper.selectProjectTemplate
 import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
-import com.itsaky.androidide.resources.R as ResourcesR
 import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
@@ -23,13 +23,11 @@ import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
 private const val LAUNCH_SETTLE_DELAY_MS = 1_000L
-private const val PRIVACY_DIALOG_TIMEOUT_MS = 2_000L
 private const val PERMISSIONS_ASSERTION_TIMEOUT_MS = 3_000L
 private const val KOTLIN_LANGUAGE_TEMPLATE_COUNT = 7
 
@@ -45,15 +43,6 @@ class AutomationEndToEndTest : TestCase() {
 
     private val targetContext
         get() = InstrumentationRegistry.getInstrumentation().targetContext
-
-    private val acceptText: String
-        get() = targetContext.getString(ResourcesR.string.privacy_disclosure_accept)
-
-    private val learnMoreText: String
-        get() = targetContext.getString(ResourcesR.string.privacy_disclosure_learn_more)
-
-    private val dialogTitle: String
-        get() = targetContext.getString(ResourcesR.string.privacy_disclosure_title)
 
     @Test
     fun test_endToEnd() = run {
@@ -82,25 +71,7 @@ class AutomationEndToEndTest : TestCase() {
 
         // ── Permissions Screen (with privacy disclosure dialog overlay) ──
 
-        step("Verify privacy disclosure dialog") {
-            val d = device.uiDevice
-            val title = d.findObject(UiSelector().text(dialogTitle))
-            assertTrue("Dialog title missing", title.waitForExists(PRIVACY_DIALOG_TIMEOUT_MS))
-            assertTrue("Accept button missing", d.findObject(UiSelector().text(acceptText)).exists())
-            assertTrue("Learn more button missing", d.findObject(UiSelector().text(learnMoreText)).exists())
-        }
-
-        step("Accept privacy disclosure") {
-            clickFirstAccessibilityNodeByText(acceptText)
-            device.uiDevice.waitForIdle()
-        }
-
-        step("Verify privacy dialog does not reappear") {
-            assertFalse(
-                "Dialog should not reappear",
-                device.uiDevice.findObject(UiSelector().text(dialogTitle)).exists(),
-            )
-        }
+        handlePrivacyDisclosure()
 
         val required = PermissionsHelper.getRequiredPermissions(targetContext)
 
@@ -128,8 +99,10 @@ class AutomationEndToEndTest : TestCase() {
                                 }
                                 grantButton {
                                     isVisible()
-                                    isClickable()
-                                    hasText(R.string.title_grant)
+                                    if (!item.isGranted && !item.isOptional) {
+                                        isClickable()
+                                        hasText(R.string.title_grant)
+                                    }
                                 }
                             }
                         }
@@ -169,6 +142,8 @@ class AutomationEndToEndTest : TestCase() {
         step("Wait for IDE setup to complete") {
             waitForMainHomeOrEditorUi(device.uiDevice)
         }
+
+        configureAutomationBuildPreferences()
 
         // ── Phase 2: Project creation + build across default and Kotlin template variants ──
 

@@ -1,9 +1,13 @@
 package com.itsaky.androidide.helper
 
 import android.Manifest
+import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.platform.app.InstrumentationRegistry
 import com.kaspersky.kaspresso.device.Device
+
+private const val ACCESSIBILITY_ACTION_TIMEOUT_MS = 10_000L
+private const val ACCESSIBILITY_ACTION_POLL_INTERVAL_MS = 250L
 
 /**
  * Grant permissions after tapping "Allow" on the onboarding permission list.
@@ -41,8 +45,11 @@ fun Device.grantDisplayOverOtherAppsUi() {
 /**
  * Finds accessibility nodes matching [searchText] and clicks the first one accepted by [matchBy].
  *
- * Handles root-window acquisition, node iteration, and recycling.
- * @throws IllegalStateException if no matching node was clicked.
+ * Handles root-window acquisition, node iteration, and recycling. The tree is re-scanned
+ * for up to [ACCESSIBILITY_ACTION_TIMEOUT_MS] so a target that is still rendering
+ * (e.g. RecyclerView items populating after the screen's title appears) is not an
+ * instant failure.
+ * @throws IllegalStateException if no matching node was clicked before the deadline.
  */
 fun clickFirstAccessibilityNodeByText(
     searchText: String,
@@ -123,29 +130,46 @@ fun setAccessibilityEditText(
  * Searches the accessibility tree for nodes matching [searchText], applies [action] to each
  * until one returns true. Handles root-window acquisition, node iteration, and recycling.
  *
- * @return true if [action] returned true for any node.
+ * The tree is re-scanned every [ACCESSIBILITY_ACTION_POLL_INTERVAL_MS] until [timeoutMs]
+ * elapses — the target may not be rendered yet (e.g. a RecyclerView still populating right
+ * after a screen assertion passes on its title), and the active window root can be
+ * transiently null during window transitions.
+ *
+ * @return true if [action] returned true for any node before the deadline.
  */
 private fun findAndActOnAccessibilityNode(
     searchText: String,
+    timeoutMs: Long = ACCESSIBILITY_ACTION_TIMEOUT_MS,
     action: (AccessibilityNodeInfo) -> Boolean,
 ): Boolean {
     val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
-    val root = uiAutomation.rootInActiveWindow
-        ?: throw AssertionError("No active window for accessibility")
+    val deadline = SystemClock.uptimeMillis() + timeoutMs
 
-    val nodes = root.findAccessibilityNodeInfosByText(searchText)
-    var success = false
-    try {
-        for (node in nodes) {
-            if (!success) {
-                success = action(node)
+    while (true) {
+        val root = uiAutomation.rootInActiveWindow
+        if (root != null) {
+            val nodes = root.findAccessibilityNodeInfosByText(searchText)
+            var success = false
+            try {
+                for (node in nodes) {
+                    if (!success) {
+                        success = action(node)
+                    }
+                    node.recycle()
+                }
+            } finally {
+                root.recycle()
             }
-            node.recycle()
+            if (success) {
+                return true
+            }
         }
-    } finally {
-        root.recycle()
+
+        if (SystemClock.uptimeMillis() >= deadline) {
+            return false
+        }
+        SystemClock.sleep(ACCESSIBILITY_ACTION_POLL_INTERVAL_MS)
     }
-    return success
 }
 
 /** Appops that are granted via [grantViaAppOpsAndBack] and must be explicitly revoked in cleanup. */

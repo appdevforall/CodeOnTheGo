@@ -4,16 +4,16 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.advancePastWelcomeScreen
 import com.itsaky.androidide.helper.clickFirstAccessibilityNodeByText
+import com.itsaky.androidide.helper.configureAutomationBuildPreferences
 import com.itsaky.androidide.helper.ensureOnHomeScreenBeforeCreateProject
 import com.itsaky.androidide.helper.grantAllRequiredPermissionsThroughOnboardingUi
+import com.itsaky.androidide.helper.handlePrivacyDisclosure
 import com.itsaky.androidide.helper.initializeProjectAndCancelBuild
 import com.itsaky.androidide.helper.selectProjectTemplate
 import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
-import com.itsaky.androidide.resources.R as ResourcesR
 import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
@@ -22,7 +22,6 @@ import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,15 +38,6 @@ class EndToEndTest : TestCase() {
 
     private val targetContext
         get() = InstrumentationRegistry.getInstrumentation().targetContext
-
-    private val acceptText: String
-        get() = targetContext.getString(ResourcesR.string.privacy_disclosure_accept)
-
-    private val learnMoreText: String
-        get() = targetContext.getString(ResourcesR.string.privacy_disclosure_learn_more)
-
-    private val dialogTitle: String
-        get() = targetContext.getString(ResourcesR.string.privacy_disclosure_title)
 
     @Test
     fun test_endToEnd() = run {
@@ -76,25 +66,7 @@ class EndToEndTest : TestCase() {
 
         // ── Permissions Screen (with privacy disclosure dialog overlay) ──
 
-        step("Verify privacy disclosure dialog") {
-            val d = device.uiDevice
-            val title = d.findObject(UiSelector().text(dialogTitle))
-            assertTrue("Dialog title missing", title.waitForExists(2_000))
-            assertTrue("Accept button missing", d.findObject(UiSelector().text(acceptText)).exists())
-            assertTrue("Learn more button missing", d.findObject(UiSelector().text(learnMoreText)).exists())
-        }
-
-        step("Accept privacy disclosure") {
-            clickFirstAccessibilityNodeByText(acceptText)
-            device.uiDevice.waitForIdle()
-        }
-
-        step("Verify privacy dialog does not reappear") {
-            assertFalse(
-                "Dialog should not reappear",
-                device.uiDevice.findObject(UiSelector().text(dialogTitle)).exists(),
-            )
-        }
+        handlePrivacyDisclosure()
 
         val required = PermissionsHelper.getRequiredPermissions(targetContext)
 
@@ -122,8 +94,10 @@ class EndToEndTest : TestCase() {
                                 }
                                 grantButton {
                                     isVisible()
-                                    isClickable()
-                                    hasText(R.string.title_grant)
+                                    if (!item.isGranted && !item.isOptional) {
+                                        isClickable()
+                                        hasText(R.string.title_grant)
+                                    }
                                 }
                             }
                         }
@@ -161,11 +135,10 @@ class EndToEndTest : TestCase() {
         }
 
         step("Wait for IDE setup to complete") {
-            waitForMainHomeOrEditorUi(
-                device.uiDevice,
-                maxWaitMs = 60_000L,
-            )
+            waitForMainHomeOrEditorUi(device.uiDevice)
         }
+
+        configureAutomationBuildPreferences()
 
         // ── Phase 2: Project creation + build for first 3 templates ──
 
