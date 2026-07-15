@@ -36,7 +36,7 @@ class GlobalBufferAppender : AppenderBase<ILoggingEvent>() {
 
 	interface Consumer {
 		val logLevel: Level
-		fun consume(message: String)
+		fun consume(level: Level, message: String)
 	}
 
 	private data class LogEvent(val level: Level, val message: String)
@@ -83,7 +83,7 @@ class GlobalBufferAppender : AppenderBase<ILoggingEvent>() {
 			message: String
 		) {
 			if (level.levelInt < consumer.logLevel.levelInt) return
-			runCatching { consumer.consume(message) }
+			runCatching { consumer.consume(level, message) }
 		}
 	}
 

@@ -25,6 +25,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.logging.GlobalBufferAppender
 import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.viewmodel.IDELogsViewModel
 
 /**
@@ -56,10 +57,22 @@ class IDELogFragment :
 		GlobalBufferAppender.registerConsumer(this)
 	}
 
-	override fun consume(message: String) = appendLine(message)
+	override fun consume(
+		level: Level,
+		message: String,
+	) = viewModel.submit(level.toILoggerLevel(), message)
 
 	override fun onDestroyView() {
 		GlobalBufferAppender.unregisterConsumer(this)
 		super.onDestroyView()
 	}
 }
+
+private fun Level.toILoggerLevel(): ILogger.Level =
+	when {
+		levelInt <= Level.TRACE_INT -> ILogger.Level.VERBOSE
+		levelInt <= Level.DEBUG_INT -> ILogger.Level.DEBUG
+		levelInt <= Level.INFO_INT -> ILogger.Level.INFO
+		levelInt <= Level.WARN_INT -> ILogger.Level.WARNING
+		else -> ILogger.Level.ERROR
+	}

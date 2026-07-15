@@ -80,15 +80,13 @@ abstract class LogViewFragment<V : LogViewModel> :
 	}
 
 	override fun getShareableContent(): String {
-		val editorText =
-			this._binding
-				?.editor
-				?.text
-				?.toString() ?: ""
-		return "${BasicBuildInfo.shareableBuildInfo()}${System.lineSeparator()}$editorText"
+		// Share the full retained history, not the (possibly filtered) editor text
+		val logText = viewModel.snapshotUnfiltered()
+		return "${BasicBuildInfo.shareableBuildInfo()}${System.lineSeparator()}$logText"
 	}
 
 	override fun clearOutput() {
+		viewModel.clear()
 		_binding?.editor?.setText("")?.also {
 			emptyStateViewModel.setEmpty(true)
 		}
@@ -121,6 +119,10 @@ abstract class LogViewFragment<V : LogViewModel> :
 
 		viewModel.uiEvents.collect { event ->
 			when (event) {
+				is LogViewModel.UiEvent.SetText -> {
+					setText(event.text)
+				}
+
 				is LogViewModel.UiEvent.Append -> {
 					append(event.text)
 					trimLinesAtStart()
@@ -128,6 +130,9 @@ abstract class LogViewFragment<V : LogViewModel> :
 			}
 		}
 	}
+
+	/** Called after the editor content has been replaced wholesale (e.g. on a filter change). */
+	protected open fun onContentReplaced() {}
 
 	private fun setupEditor() {
 		val editor = this.binding.editor
@@ -160,6 +165,14 @@ abstract class LogViewFragment<V : LogViewModel> :
 				}
 			}
 		}
+	}
+
+	@UiThread
+	private fun setText(text: String) {
+		val editor = _binding?.editor ?: return
+		editor.setText(text)
+		emptyStateViewModel.setEmpty(text.isBlank())
+		onContentReplaced()
 	}
 
 	@UiThread
