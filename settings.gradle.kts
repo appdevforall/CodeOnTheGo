@@ -189,7 +189,7 @@ include(
 	":plugin-api:plugin-builder",
 	":plugin-manager",
 	":compose-preview",
-	":floating-window"
+	":floating-window",
 )
 
 object FDroidConfig {

@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package org.appdevforall.cotg.profiler.heap
 
 import org.appdevforall.cotg.profiler.heap.dominator.DominatorNode
@@ -170,7 +172,7 @@ internal object HeapDominators {
 		if (dropped) {
 			logger.debug(
 				"Heap dominator tree pruned to {} frames (cap {}); " +
-						"small subtrees fold into their parent's self.",
+					"small subtrees fold into their parent's self.",
 				discovered.size,
 				MAX_NODES,
 			)

@@ -54,12 +54,12 @@ plugins {
 	alias(libs.plugins.rikka.refine) apply false
 	alias(libs.plugins.google.protobuf) apply false
 	alias(libs.plugins.spotless)
-    alias(libs.plugins.sonarqube)
-    id("jacoco")
+	alias(libs.plugins.sonarqube)
+	id("jacoco")
 }
 
 jacoco {
-    toolVersion = "0.8.11"
+	toolVersion = "0.8.11"
 }
 
 buildscript {
@@ -70,48 +70,48 @@ buildscript {
 }
 
 subprojects {
-    plugins.apply("jacoco")
+	plugins.apply("jacoco")
 
-    extensions.configure<JacocoPluginExtension> {
-        toolVersion = "0.8.11"
-    }
+	extensions.configure<JacocoPluginExtension> {
+		toolVersion = "0.8.11"
+	}
 
-    // Always load the F-Droid config
+	// Always load the F-Droid config
 	FDroidConfig.load(project)
 
-    tasks.withType<Test> {
-        // Continue even if tests fail, so coverage data is written
-        ignoreFailures = true
+	tasks.withType<Test> {
+		// Continue even if tests fail, so coverage data is written
+		ignoreFailures = true
 
-        // Backstop: kill any individual Test task that runs longer than 10 minutes.
-        // Prevents a single hung test JVM (e.g. the Tooling API child) from burning
-        // the entire CI job budget.
-        timeout.set(Duration.ofMinutes(10))
+		// Backstop: kill any individual Test task that runs longer than 10 minutes.
+		// Prevents a single hung test JVM (e.g. the Tooling API child) from burning
+		// the entire CI job budget.
+		timeout.set(Duration.ofMinutes(10))
 
-        // JPMS opens required by the unit-test stack on JDK 17+:
-        //   - jdk.unsupported/sun.misc: HiddenApiBypass.<clinit> reflectively
-        //     resolves sun.misc.Unsafe; without this the IDEApplication
-        //     static initializer fails and poisons every Robolectric test.
-        //   - java.base/java.lang(.reflect): Mockito's field injector calls
-        //     setAccessible on java.lang.Class fields.
-        //   - java.base/java.io, java.util: needed by Robolectric/Gradle worker
-        //     reflection in the same test JVM.
-        jvmArgs(
-            "--add-opens=java.base/java.lang=ALL-UNNAMED",
-            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
-            "--add-opens=java.base/java.io=ALL-UNNAMED",
-            "--add-opens=java.base/java.util=ALL-UNNAMED",
-            "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
-        )
+		// JPMS opens required by the unit-test stack on JDK 17+:
+		//   - jdk.unsupported/sun.misc: HiddenApiBypass.<clinit> reflectively
+		//     resolves sun.misc.Unsafe; without this the IDEApplication
+		//     static initializer fails and poisons every Robolectric test.
+		//   - java.base/java.lang(.reflect): Mockito's field injector calls
+		//     setAccessible on java.lang.Class fields.
+		//   - java.base/java.io, java.util: needed by Robolectric/Gradle worker
+		//     reflection in the same test JVM.
+		jvmArgs(
+			"--add-opens=java.base/java.lang=ALL-UNNAMED",
+			"--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+			"--add-opens=java.base/java.io=ALL-UNNAMED",
+			"--add-opens=java.base/java.util=ALL-UNNAMED",
+			"--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
+		)
 
-        // Attach jacoco agent
-        extensions.configure<JacocoTaskExtension> {
-            isIncludeNoLocationClasses = true
-            excludes = listOf("jdk.internal.*")
-        }
-    }
+		// Attach jacoco agent
+		extensions.configure<JacocoTaskExtension> {
+			isIncludeNoLocationClasses = true
+			excludes = listOf("jdk.internal.*")
+		}
+	}
 
-    afterEvaluate {
+	afterEvaluate {
 		apply {
 			plugin(AndroidIDEPlugin::class.java)
 		}
@@ -188,7 +188,9 @@ spotless {
 	kotlin {
 		// compose-rules ruleset validates @Composable naming/conventions so we can enable
 		// PascalCase Composables (see ktlint_function_naming_ignore_when_annotated_with in .editorconfig)
-		val composeRulesKtlint = libs.compose.rules.ktlint.get()
+		val composeRulesKtlint =
+			libs.compose.rules.ktlint
+				.get()
 		ktlint().customRuleSets(listOf("${composeRulesKtlint.module}:${composeRulesKtlint.version}"))
 		leadingSpacesToTabs()
 		trimTrailingWhitespace()
@@ -252,7 +254,7 @@ spotless {
 			".githooks/**/*",
 			"scripts/**/*",
 		)
-        targetExclude("scripts/debug-keystore/adfa-keystore.jks")
+		targetExclude("scripts/debug-keystore/adfa-keystore.jks")
 	}
 }
 
@@ -294,138 +296,167 @@ tasks.named<Delete>("clean") {
 }
 
 sonar {
-    properties {
-        val binaries = subprojects.flatMap { subproj ->
-            val dirs = listOf(
-                subproj.layout.buildDirectory.dir("classes/java/main").get().asFile,
-                subproj.layout.buildDirectory.dir("classes/kotlin/main").get().asFile,
+	properties {
+		val binaries =
+			subprojects.flatMap { subproj ->
+				val dirs =
+					listOf(
+						subproj.layout.buildDirectory
+							.dir("classes/java/main")
+							.get()
+							.asFile,
+						subproj.layout.buildDirectory
+							.dir("classes/kotlin/main")
+							.get()
+							.asFile,
+						subproj.layout.buildDirectory
+							.dir("intermediates/javac/v8Debug/classes")
+							.get()
+							.asFile,
+						subproj.layout.buildDirectory
+							.dir("tmp/kotlin-classes/v8Debug")
+							.get()
+							.asFile,
+					)
 
-                subproj.layout.buildDirectory.dir("intermediates/javac/v8Debug/classes").get().asFile,
-                subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8Debug").get().asFile
-            )
+				// include directories that actually exist
+				dirs.filter { it.exists() }.map { it.absolutePath }
+			}
 
-            // include directories that actually exist
-            dirs.filter { it.exists() }.map { it.absolutePath }
-        }
+		property("sonar.java.binaries", binaries.joinToString(","))
 
-        property("sonar.java.binaries", binaries.joinToString(","))
+		property("sonar.c.file.suffixes", "-")
+		property("sonar.cpp.file.suffixes", "-")
+		property("sonar.objc.file.suffixes", "-")
 
-        property("sonar.c.file.suffixes", "-")
-        property("sonar.cpp.file.suffixes", "-")
-        property("sonar.objc.file.suffixes", "-")
+		property(
+			"sonar.coverage.jacoco.xmlReportPaths",
+			project.layout.buildDirectory
+				.dir("reports/jacoco/jacocoAggregateReport/jacocoAggregateReport.xml")
+				.get()
+				.asFile.absolutePath,
+		)
 
-        property("sonar.coverage.jacoco.xmlReportPaths",
-            project.layout.buildDirectory
-                .dir("reports/jacoco/jacocoAggregateReport/jacocoAggregateReport.xml").get().asFile.absolutePath
-        )
+		property("sonar.host.url", "https://sonarcloud.io")
+		property("sonar.projectKey", "appdevforall_CodeOnTheGo")
+		property("sonar.organization", "app-dev-for-all")
+		property("sonar.androidVariant", "v8Debug")
+		property("sonar.token", System.getenv("SONAR_TOKEN"))
 
-
-        property("sonar.host.url", "https://sonarcloud.io")
-        property("sonar.projectKey", "appdevforall_CodeOnTheGo")
-        property("sonar.organization", "app-dev-for-all")
-        property("sonar.androidVariant", "v8Debug")
-        property("sonar.token", System.getenv("SONAR_TOKEN"))
-
-        // The Sonar Android sensor auto-scans every Android module for a
-        // lint XML at the standard AGP path and emits "Unable to import"
-        // for each module where lint never ran (~57 warnings, because the
-        // analyze workflow uses `-x lint`).  Pin the property to a single
-        // empty-but-valid report so the sensor finds something and the
-        // auto-scan never runs.  See :generateEmptySonarLintReport below.
-        property("sonar.androidLint.reportPaths",
-            project.layout.buildDirectory
-                .file("reports/sonar/empty-lint-report.xml").get().asFile.absolutePath
-        )
-    }
+		// The Sonar Android sensor auto-scans every Android module for a
+		// lint XML at the standard AGP path and emits "Unable to import"
+		// for each module where lint never ran (~57 warnings, because the
+		// analyze workflow uses `-x lint`).  Pin the property to a single
+		// empty-but-valid report so the sensor finds something and the
+		// auto-scan never runs.  See :generateEmptySonarLintReport below.
+		property(
+			"sonar.androidLint.reportPaths",
+			project.layout.buildDirectory
+				.file("reports/sonar/empty-lint-report.xml")
+				.get()
+				.asFile.absolutePath,
+		)
+	}
 }
 
 val generateEmptySonarLintReport by tasks.registering {
-    val output = project.layout.buildDirectory.file("reports/sonar/empty-lint-report.xml")
-    outputs.file(output)
-    doLast {
-        val file = output.get().asFile
-        file.parentFile.mkdirs()
-        file.writeText(
-            """<?xml version="1.0" encoding="UTF-8"?>
-            |<issues format="6" by="empty-placeholder"></issues>
-            |""".trimMargin()
-        )
-    }
+	val output = project.layout.buildDirectory.file("reports/sonar/empty-lint-report.xml")
+	outputs.file(output)
+	doLast {
+		val file = output.get().asFile
+		file.parentFile.mkdirs()
+		file.writeText(
+			"""<?xml version="1.0" encoding="UTF-8"?>
+			|<issues format="6" by="empty-placeholder"></issues>
+			|
+			""".trimMargin(),
+		)
+	}
 }
 
 tasks.named("sonarqube") {
-    dependsOn("jacocoAggregateReport", generateEmptySonarLintReport)
+	dependsOn("jacocoAggregateReport", generateEmptySonarLintReport)
 }
 
 tasks.register<JacocoReport>("jacocoAggregateReport") {
-    val excludedProjects = emptySet<String>()
+	val excludedProjects = emptySet<String>()
 
-    // Depend only on testV8DebugUnitTest tasks in subprojects
-    dependsOn(
-        subprojects
-            .filterNot { it.name in excludedProjects }
-            .mapNotNull { it.tasks.findByName("testV8DebugUnitTest") }
-    )
+	// Depend only on testV8DebugUnitTest tasks in subprojects
+	dependsOn(
+		subprojects
+			.filterNot { it.name in excludedProjects }
+			.mapNotNull { it.tasks.findByName("testV8DebugUnitTest") },
+	)
 
-    reports {
-        xml.required.set(true)
-        html.required.set(true)
-    }
+	reports {
+		xml.required.set(true)
+		html.required.set(true)
+	}
 
-    val fileFilter = listOf(
-        "**/R.class", "**/R$*.class", "**/BuildConfig.*",
-        "**/Manifest*.*", "**/*Test*.*"
-    )
+	val fileFilter =
+		listOf(
+			"**/R.class",
+			"**/R$*.class",
+			"**/BuildConfig.*",
+			"**/Manifest*.*",
+			"**/*Test*.*",
+		)
 
-    // Collect kotlin and java class directories for v8Debug and v8DebugUnitTest variant
-    val classDirs = subprojects
-        .filterNot { it.name in excludedProjects }
-        .flatMap { subproj ->
-            listOf(
-                fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8Debug")) {
-                    exclude(fileFilter)
-                },
-                fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8DebugUnitTest")) {
-                    exclude(fileFilter)
-                },
-                fileTree(subproj.layout.buildDirectory.dir("classes/java/v8Debug")) {
-                    exclude(fileFilter)
-                },
-                fileTree(subproj.layout.buildDirectory.dir("intermediates/javac/v8DebugUnitTest/classes")) {
-                    exclude(fileFilter)
-                }
-            )
-        }
+	// Collect kotlin and java class directories for v8Debug and v8DebugUnitTest variant
+	val classDirs =
+		subprojects
+			.filterNot { it.name in excludedProjects }
+			.flatMap { subproj ->
+				listOf(
+					fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8Debug")) {
+						exclude(fileFilter)
+					},
+					fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8DebugUnitTest")) {
+						exclude(fileFilter)
+					},
+					fileTree(subproj.layout.buildDirectory.dir("classes/java/v8Debug")) {
+						exclude(fileFilter)
+					},
+					fileTree(subproj.layout.buildDirectory.dir("intermediates/javac/v8DebugUnitTest/classes")) {
+						exclude(fileFilter)
+					},
+				)
+			}
 
-    // Collect source directories
-    val sourceDirs = subprojects
-        .filterNot { it.name in excludedProjects }
-        .map { it.file("src/main/java") }
+	// Collect source directories
+	val sourceDirs =
+		subprojects
+			.filterNot { it.name in excludedProjects }
+			.map { it.file("src/main/java") }
 
-    // Collect execution data (.exec files)
-    val execFiles = subprojects
-        .filterNot { it.name in excludedProjects }
-        .map { subproj ->
-            subproj.layout.buildDirectory.file(
-                "outputs/unit_test_code_coverage/v8DebugUnitTest/testV8DebugUnitTest.exec"
-            )
-        }
+	// Collect execution data (.exec files)
+	val execFiles =
+		subprojects
+			.filterNot { it.name in excludedProjects }
+			.map { subproj ->
+				subproj.layout.buildDirectory.file(
+					"outputs/unit_test_code_coverage/v8DebugUnitTest/testV8DebugUnitTest.exec",
+				)
+			}
 
-    classDirectories.setFrom(classDirs)
-    sourceDirectories.setFrom(sourceDirs)
-    executionData.setFrom(execFiles)
+	classDirectories.setFrom(classDirs)
+	sourceDirectories.setFrom(sourceDirs)
+	executionData.setFrom(execFiles)
 }
 
 val mavenCacheDirProvider = providers.gradleProperty("mavenCacheDir").orElse("build/maven-cache")
 val localMavenRepoDirProvider = providers.gradleProperty("localMavenRepoDir").orElse("build/localMavenRepository")
 val mavenRepoDirProvider = providers.gradleProperty("mavenRepoDir").orElse(localMavenRepoDirProvider)
 val zeroMavenRepoDirProvider =
-	providers.gradleProperty("zeroMavenRepoDir")
-		.orElse(mavenRepoDirProvider.map { repoDir ->
-			val repoPath = file(repoDir).toPath()
-			val fileName = repoPath.fileName.toString()
-			repoPath.resolveSibling("$fileName-zero").toString()
-		})
+	providers
+		.gradleProperty("zeroMavenRepoDir")
+		.orElse(
+			mavenRepoDirProvider.map { repoDir ->
+				val repoPath = file(repoDir).toPath()
+				val fileName = repoPath.fileName.toString()
+				repoPath.resolveSibling("$fileName-zero").toString()
+			},
+		)
 
 tasks.register("cacheToLocalMavenRepo") {
 	group = "cicd"
@@ -449,7 +480,8 @@ tasks.register("zeroCompressMavenRepo") {
 	val source = mavenRepoDirProvider.map { file(it) }
 	val destination = zeroMavenRepoDirProvider.map { file(it) }
 	val validateArchives =
-		providers.gradleProperty("zeroMavenRepoValidate")
+		providers
+			.gradleProperty("zeroMavenRepoValidate")
 			.map(String::toBoolean)
 			.orElse(true)
 
@@ -477,16 +509,17 @@ tasks.named("zeroCompressMavenRepo") {
 	mustRunAfter("cacheToLocalMavenRepo")
 }
 
-fun Path.resolveParts(parts: Iterable<String>): Path =
-	parts.fold(this) { path, part -> path.resolve(part) }
+fun Path.resolveParts(parts: Iterable<String>): Path = parts.fold(this) { path, part -> path.resolve(part) }
 
-fun Path.relativeTo(base: Path): Path =
-	base.relativize(this)
+fun Path.relativeTo(base: Path): Path = base.relativize(this)
 
-fun Path.normalizedAbsolute(): Path =
-	toAbsolutePath().normalize()
+fun Path.normalizedAbsolute(): Path = toAbsolutePath().normalize()
 
-fun convertCacheToLocalMavenRepo(source: Path, destination: Path, logger: Logger) {
+fun convertCacheToLocalMavenRepo(
+	source: Path,
+	destination: Path,
+	logger: Logger,
+) {
 	val allowedExtensions = setOf("aar", "jar", "module", "pom")
 	val normalizedSource = source.normalizedAbsolute()
 	val normalizedDestination = destination.normalizedAbsolute()
@@ -500,7 +533,9 @@ fun convertCacheToLocalMavenRepo(source: Path, destination: Path, logger: Logger
 
 	Files.createDirectories(normalizedDestination)
 
-	normalizedSource.toFile().walkTopDown()
+	normalizedSource
+		.toFile()
+		.walkTopDown()
 		.filter { it.isFile }
 		.filter { it.extension.lowercase() in allowedExtensions }
 		.forEach { file ->
@@ -526,7 +561,12 @@ fun convertCacheToLocalMavenRepo(source: Path, destination: Path, logger: Logger
 		}
 }
 
-fun zeroCompressMavenRepo(source: Path, destination: Path, validateArchives: Boolean, logger: Logger) {
+fun zeroCompressMavenRepo(
+	source: Path,
+	destination: Path,
+	validateArchives: Boolean,
+	logger: Logger,
+) {
 	val normalizedSource = source.normalizedAbsolute()
 	val normalizedDestination = destination.normalizedAbsolute()
 
@@ -539,7 +579,9 @@ fun zeroCompressMavenRepo(source: Path, destination: Path, validateArchives: Boo
 
 	Files.createDirectories(normalizedDestination)
 
-	normalizedSource.toFile().walkTopDown()
+	normalizedSource
+		.toFile()
+		.walkTopDown()
 		.filter { it.isFile }
 		.forEach { file ->
 			val sourceFile = file.toPath()
@@ -560,7 +602,10 @@ fun zeroCompressMavenRepo(source: Path, destination: Path, validateArchives: Boo
 		}
 }
 
-fun zeroCompressArchive(source: Path, destination: Path) {
+fun zeroCompressArchive(
+	source: Path,
+	destination: Path,
+) {
 	ZipInputStream(Files.newInputStream(source).buffered()).use { input ->
 		ZipOutputStream(Files.newOutputStream(destination).buffered()).use { output ->
 			while (true) {
@@ -592,10 +637,18 @@ fun zeroCompressArchive(source: Path, destination: Path) {
 	}
 }
 
-fun validateZeroCompressedArchive(source: Path, destination: Path) {
+fun validateZeroCompressedArchive(
+	source: Path,
+	destination: Path,
+) {
 	ZipFile(source.toFile()).use { sourceZip ->
 		ZipFile(destination.toFile()).use { destinationZip ->
-			val sourceEntries = sourceZip.entries().asSequence().map { it.name }.toSet()
+			val sourceEntries =
+				sourceZip
+					.entries()
+					.asSequence()
+					.map { it.name }
+					.toSet()
 			val destinationEntries = destinationZip.entries().asSequence().toList()
 			val destinationEntryNames = destinationEntries.map { it.name }.toSet()
 
