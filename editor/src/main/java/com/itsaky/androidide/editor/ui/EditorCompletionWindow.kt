@@ -41,9 +41,18 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
     private var listView: ListView? = null
     private val items: MutableList<CompletionItem> = mutableListOf()
 
+    /**
+     * A scheduled-but-not-yet-started completion request, kept so a newer keystroke can cancel it.
+     * See [requireCompletion].
+     */
+    private var pendingCompletion: Runnable? = null
+
     companion object {
 
         private val log = LoggerFactory.getLogger(EditorCompletionWindow::class.java)
+
+        /** Quiet period for coalescing a keystroke burst: analysis runs only after typing pauses this long. */
+        private const val COMPLETION_DEBOUNCE_MS = 80L
     }
 
     init {
@@ -119,29 +128,54 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
     }
 
     override fun cancelCompletion() {
+        // Drop any request that was scheduled but hasn't started yet.
+        pendingCompletion?.let { editor.handler.removeCallbacks(it) }
+        pendingCompletion = null
         if (completionThread != null) {
             ProgressManager.instance.cancel(completionThread)
         }
         super.cancelCompletion()
     }
 
-    override fun requireCompletion() {
+    /** Whether completion may run now; hides the window when the cursor is selected or otherwise not applicable. */
+    private fun canStartCompletion(): Boolean {
         if (cancelShowUp || !isEnabled || !editor.isAttachedToWindow) {
-            return
+            return false
         }
-
-        val text = editor.text
-        if (text.cursor.isSelected || checkNoCompletion()) {
+        if (editor.text.cursor.isSelected || checkNoCompletion()) {
             hide()
+            return false
+        }
+        return true
+    }
+
+    /**
+     * Coalesces a keystroke burst into one completion for the latest cursor position, keeping at most one
+     * analysis in flight. This prevents the CompletionThread/allocation pile-up that saturated the heap and
+     * froze the editor during fast typing.
+     */
+    override fun requireCompletion() {
+        if (!canStartCompletion()) {
             return
         }
 
-        if (System.nanoTime() - requestTime < editor.props.cancelCompletionNs) {
-            requestTime = System.nanoTime()
-            return
-        }
-
+        // cancelCompletion() clears any in-flight and pending request, so we then schedule exactly one.
         cancelCompletion()
+
+        val request = Runnable { startCompletion() }
+        pendingCompletion = request
+        editor.handler.postDelayed(request, COMPLETION_DEBOUNCE_MS)
+    }
+
+    /** Runs on the UI thread. */
+    private fun startCompletion() {
+        pendingCompletion = null
+
+        // Editor state may have changed during the debounce delay; re-check the guards.
+        if (!canStartCompletion()) {
+            return
+        }
+
         requestTime = System.nanoTime()
         currentSelection = -1
 

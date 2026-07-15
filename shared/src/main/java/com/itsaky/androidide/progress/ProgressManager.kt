@@ -40,22 +40,52 @@ class ProgressManager private constructor() {
 		}
 	}
 
-	fun cancel(thread: Thread) {
-		var checker = threads[thread]
-		if (checker == null) {
-			checker = Default()
+	/**
+	 * Associate an existing [checker] with [thread] so a later [cancel] of [thread] flips *this*
+	 * checker (not a throwaway [Default]), letting a caller that polls [checker] observe the
+	 * cancellation. Pair with [unregister].
+	 *
+	 * **Contract:** at most one live registration per thread. A caller must [unregister] its checker
+	 * before registering another on the same thread. Any existing registration is overwritten and
+	 * discarded, *including a cancelled one*: a [cancel] that arrived while nothing was registered
+	 * targeted prior work on this thread, so it is not carried forward to the incoming [checker]. A
+	 * caller that needs a cancel-before-register signal to survive must not rely on this method.
+	 */
+	fun register(thread: Thread, checker: ICancelChecker) {
+		synchronized(threads) {
+			threads[thread] = checker
 		}
-		checker.cancel()
-		threads[thread] = checker
+	}
+
+	/** Remove any checker previously associated with [thread] via [register]. */
+	fun unregister(thread: Thread) {
+		synchronized(threads) {
+			threads.remove(thread)
+		}
+	}
+
+	fun cancel(thread: Thread) {
+		synchronized(threads) {
+			var checker = threads[thread]
+			if (checker == null) {
+				checker = Default()
+				threads[thread] = checker
+			}
+			checker.cancel()
+		}
 	}
 
 	@JvmName("internalAbortIfCancelled")
 	private fun abortIfCancelled() {
 		val thisThread = Thread.currentThread()
-		val checker = threads[thisThread]
-		if (checker != null && checker.isCancelled()) {
-			threads.remove(thisThread)
-			throw CancellationException()
+		// Check and remove atomically: a separate check-then-remove could race a concurrent register()
+		// reusing this thread and delete the new, unrelated registration instead of the stale one.
+		synchronized(threads) {
+			val checker = threads[thisThread]
+			if (checker != null && checker.isCancelled()) {
+				threads.remove(thisThread)
+				throw CancellationException()
+			}
 		}
 	}
 }

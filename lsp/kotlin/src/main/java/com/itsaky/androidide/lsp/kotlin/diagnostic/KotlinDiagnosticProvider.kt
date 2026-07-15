@@ -1,6 +1,8 @@
 package com.itsaky.androidide.lsp.kotlin.diagnostic
 
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
@@ -59,11 +61,16 @@ private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResu
 		return DiagnosticResult.NO_UPDATE
 	}
 
+	// Diagnostics yield to completion but preempt indexing. The wrapped checker turns a scheduler
+	// preemption into an AnalysisPreemptedException, which CompilationEnvironment's fileAnalyzer catches
+	// to re-schedule this run once the higher-priority work finishes.
+	val checker = ScheduledCancelChecker(cancelChecker)
+
 	val diagnostics = env.project.read {
 		buildList {
 			PsiTreeUtil.collectElementsOfType(ktFile, PsiErrorElement::class.java)
 				.forEach { errorElement ->
-					cancelChecker.abortIfCancelled()
+					checker.abortIfCancelled()
 					add(
 						diagnosticItem(
 							file = ktFile,
@@ -74,14 +81,13 @@ private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResu
 					)
 				}
 
-			// This should be canceled as well
-			// The analysis API uses a no-op implementation of
-			// Intellij's ProgressManager for cancellations, so the following
-			// isn't really cancellable at the moment
-			analyzeMaybeDangling(ktFile) {
+			// analyzeMaybeDangling installs a CancelCheckerProgressIndicator, so this is cancellable
+			// mid-`analyze`: it aborts at the compiler's internal checkCanceled() once `checker` reports
+			// preemption/cancellation. (Previously this analysis was not cancellable at all.)
+			analyzeMaybeDangling(ktFile, AnalysisPriority.DIAGNOSTICS, checker) {
 				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
 					.forEach { diagnostic ->
-						cancelChecker.abortIfCancelled()
+						checker.abortIfCancelled()
 						// Extract plain data while still inside the analyze context; never let
 						// the KaLifetimeOwner diagnostic escape (see KotlinDiagnosticExtra).
 						val unresolvedReference =

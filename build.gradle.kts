@@ -96,11 +96,16 @@ subprojects {
         //     setAccessible on java.lang.Class fields.
         //   - java.base/java.io, java.util: needed by Robolectric/Gradle worker
         //     reflection in the same test JVM.
+        //   - java.base/java.util.concurrent: the embedded IntelliJ scheduler
+        //     reflectively reads FutureTask.callable; without this its periodic
+        //     thread dies, disabling the cancellation poll that makes the Kotlin
+        //     Analysis API interruptible mid-`analyze`.
         jvmArgs(
             "--add-opens=java.base/java.lang=ALL-UNNAMED",
             "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
             "--add-opens=java.base/java.io=ALL-UNNAMED",
             "--add-opens=java.base/java.util=ALL-UNNAMED",
+            "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
             "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
         )
 

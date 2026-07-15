@@ -3,7 +3,11 @@ package com.itsaky.androidide.lsp.kotlin.completion
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.describeSnippet
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.ContextKeywords
@@ -22,7 +26,7 @@ import com.itsaky.androidide.lsp.models.MatchLevel
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.progress.ProgressManager
-import kotlinx.coroutines.CancellationException
+import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
@@ -73,12 +77,36 @@ private const val KT_COMPLETION_PLACEHOLDER = "KT_COMPLETION_PLACEHOLDER"
 
 private val logger = LoggerFactory.getLogger("KotlinCompletions")
 
+/** Max unimported symbols pulled from each index for scope completion (see [collectUnimportedSymbols]). */
+private const val UNIMPORTED_SYMBOL_LIMIT = 100
+
+/**
+ * The [ScheduledCancelChecker] for the completion running on this thread, set for the duration of
+ * [doComplete]. The [abortIfCancelled] checkpoints consult it so they observe scheduler *preemption*
+ * (a newer completion superseding this one), not just the editor's own request cancellation.
+ */
+private val currentCancelChecker = ThreadLocal<ScheduledCancelChecker?>()
+
 private fun abortIfCancelled() {
 	ProgressManager.abortIfCancelled()
-	Lookup.getDefault()
-		.lookup(ICancelChecker::class.java)
-		?.abortIfCancelled()
+	val checker = currentCancelChecker.get()
+	if (checker != null) {
+		checker.abortIfCancelled()
+	} else {
+		Lookup.getDefault()
+			.lookup(ICancelChecker::class.java)
+			?.abortIfCancelled()
+	}
 }
+
+/**
+ * A cancelled completion surfaces as different exception types. [isAnalysisCancellation] covers the
+ * analysis-level ones (cancellation, preemption, process-cancellation, interruption); the
+ * sora-publisher-specific [CompletionCancelledException] is layered on here. All mean
+ * "superseded/cancelled"; treat them uniformly so none is logged as a spurious error.
+ */
+private fun Throwable.isCancellation(): Boolean =
+	isAnalysisCancellation() || this is CompletionCancelledException
 
 /**
  * Provide code completion for the given completion parameters.
@@ -92,8 +120,9 @@ internal fun codeComplete(params: CompletionParams): CompletionResult {
 	return try {
 		doComplete(params)
 	} catch (error: Throwable) {
-		if (error is CancellationException || error is InterruptedException) {
-			logger.info("completion cancelled")
+		if (error.isCancellation()) {
+			val isPreempted = error is AnalysisPreemptedException
+			logger.info("completion cancelled (preempted={})", isPreempted)
 			if (error is InterruptedException) {
 				Thread.interrupted()
 			}
@@ -105,6 +134,11 @@ internal fun codeComplete(params: CompletionParams): CompletionResult {
 	}
 }
 
+/**
+ * Runs at the highest [AnalysisPriority.INTERACTIVE]: preempts in-progress diagnostics/indexing and
+ * is never preempted by lower-priority work, but is superseded (cancelled and discarded) by a newer
+ * completion request as the user keeps typing.
+ */
 context(env: CompilationEnvironment)
 internal fun doComplete(params: CompletionParams): CompletionResult {
 	val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).get()
@@ -142,11 +176,20 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 
 	abortIfCancelled()
 
+	// Use the request-scoped checker on params, not the global Lookup: Lookup holds one ICancelChecker
+	// updated per request, so with concurrent completions an older request could read a newer request's
+	// checker and never observe its own cancellation. Fall back to Lookup only for a NOOP checker (tests).
+	val delegate = params.cancelChecker.takeUnless { it === ICancelChecker.NOOP }
+		?: Lookup.getDefault().lookup(ICancelChecker::class.java)
+		?: ICancelChecker.NOOP
+	val cancelChecker = ScheduledCancelChecker(delegate)
+	currentCancelChecker.set(cancelChecker)
+
 	return try {
 		env.project.read {
 			abortIfCancelled()
 
-			analyzeMaybeDangling(completionKtFile) {
+			analyzeMaybeDangling(completionKtFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
 				val ctx =
 					resolveAnalysisContext(
 						env = env,
@@ -182,12 +225,14 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 			}
 		}
 	} catch (e: Throwable) {
-		if (e is CancellationException) {
+		if (e.isCancellation()) {
 			throw e
 		}
 
 		logger.warn("An error occurred while computing completions for {}", params.file, e)
 		return CompletionResult.EMPTY
+	} finally {
+		currentCancelChecker.remove()
 	}
 }
 
@@ -350,13 +395,13 @@ private fun KaSession.collectUnimportedSymbols(
 		buildUnimportedSymbolItem(symbol)?.let { to += it }
 	}
 
-	env.libraryIndex?.findByPrefix(ctx.partial, limit = 0)
+	env.libraryIndex?.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_LIMIT)
 		?.forEach(::addCompletionItem)
 
-	env.sourceIndex?.findByPrefix(ctx.partial, limit = 0)
+	env.sourceIndex?.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_LIMIT)
 		?.forEach(::addCompletionItem)
 
-	env.generatedIndex?.findByPrefix(ctx.partial, limit = 0)
+	env.generatedIndex?.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_LIMIT)
 		?.forEach(::addCompletionItem)
 }
 

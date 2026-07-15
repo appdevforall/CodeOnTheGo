@@ -3,8 +3,10 @@ package com.itsaky.androidide.lsp.kotlin.compiler
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AbstractKtModule
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.AnalysisApiServiceProviders
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.LspAnalysisApiServiceRegistrar
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
@@ -45,6 +47,7 @@ import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironment
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironmentMode
 import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
@@ -61,184 +64,192 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param jdkRelease The JDK release version at [jdkHome].
  */
 internal class CompilationEnvironment(
-	name: String,
-	kind: CompilationKind,
-	private val workspace: Workspace,
-	val ktProject: KotlinProjectModel,
-	intellijPluginRoot: Path,
-	jdkHome: Path,
-	jdkRelease: Int,
-	languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
-	enableParserEventSystem: Boolean = true,
-	val coroutineScope: CoroutineScope =
-		CoroutineScope(
-			SupervisorJob() + CoroutineName("CompilationEnv[$name]") +
-				CoroutineExceptionHandler { _, t ->
-					// Defense in depth: swallow (but log) non-cancellation failures from the
-					// debounce worker so a ClosedReceiveChannelException can never crash the app.
-					if (t !is CancellationException) {
-						logger.warn("Uncaught exception in compilation environment coroutine", t)
-					}
-				},
-		),
+    name: String,
+    kind: CompilationKind,
+    private val workspace: Workspace,
+    val ktProject: KotlinProjectModel,
+    intellijPluginRoot: Path,
+    jdkHome: Path,
+    jdkRelease: Int,
+    languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
+    enableParserEventSystem: Boolean = true,
+    val coroutineScope: CoroutineScope =
+        CoroutineScope(
+            SupervisorJob() + CoroutineName("CompilationEnv[$name]") +
+                    CoroutineExceptionHandler { _, t ->
+                        // Defense in depth: swallow (but log) non-cancellation failures from the
+                        // debounce worker so a ClosedReceiveChannelException can never crash the app.
+                        if (t !is CancellationException) {
+                            logger.warn(
+                                "Uncaught exception in compilation environment coroutine",
+                                t
+                            )
+                        }
+                    },
+        ),
 ) : AbstractCompilationEnvironment(
-		name = name,
-		kind = kind,
-		intellijPluginRoot = intellijPluginRoot,
-		jdkHome = jdkHome,
-		jdkRelease = jdkRelease,
-		languageVersion = languageVersion,
-		applicationEnvironmentMode = KotlinCoreApplicationEnvironmentMode.Production,
-		enableParserEventSystem = enableParserEventSystem,
-	),
-	KotlinProjectModel.ProjectModelListener {
-	companion object {
-		val DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION = 400.milliseconds
-		private val logger = LoggerFactory.getLogger(CompilationEnvironment::class.java)
-	}
+    name = name,
+    kind = kind,
+    intellijPluginRoot = intellijPluginRoot,
+    jdkHome = jdkHome,
+    jdkRelease = jdkRelease,
+    languageVersion = languageVersion,
+    applicationEnvironmentMode = KotlinCoreApplicationEnvironmentMode.Production,
+    enableParserEventSystem = enableParserEventSystem,
+),
+    KotlinProjectModel.ProjectModelListener {
+    companion object {
+        val DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION = 400.milliseconds
+        private val logger = LoggerFactory.getLogger(CompilationEnvironment::class.java)
+    }
 
-	private var _languageClient: ILanguageClient? = null
+    private var _languageClient: ILanguageClient? = null
 
-	val fileAnalyzer: KeyedDebouncingAction<Path>
+    val fileAnalyzer: KeyedDebouncingAction<Path>
 
-	val refreshScheduler: KeyedDebouncingAction<Path>
+    val refreshScheduler: KeyedDebouncingAction<Path>
 
-	val libraryIndex: JvmSymbolIndex?
-		get() = ktProject.libraryIndex
+    val libraryIndex: JvmSymbolIndex?
+        get() = ktProject.libraryIndex
 
-	val requireLibraryIndex: JvmSymbolIndex
-		get() = checkNotNull(libraryIndex)
+    val requireLibraryIndex: JvmSymbolIndex
+        get() = checkNotNull(libraryIndex)
 
-	val sourceIndex: JvmSymbolIndex?
-		get() = ktProject.sourceIndex
+    val sourceIndex: JvmSymbolIndex?
+        get() = ktProject.sourceIndex
 
-	val requireSourceIndex: JvmSymbolIndex
-		get() = checkNotNull(sourceIndex)
+    val requireSourceIndex: JvmSymbolIndex
+        get() = checkNotNull(sourceIndex)
 
-	val fileIndex: KtFileMetadataIndex?
-		get() = ktProject.fileIndex
+    val fileIndex: KtFileMetadataIndex?
+        get() = ktProject.fileIndex
 
-	val requireFileIndex: KtFileMetadataIndex
-		get() = checkNotNull(fileIndex)
+    val requireFileIndex: KtFileMetadataIndex
+        get() = checkNotNull(fileIndex)
 
-	val generatedIndex: JvmSymbolIndex?
-		get() = ktProject.generatedIndex
+    val generatedIndex: JvmSymbolIndex?
+        get() = ktProject.generatedIndex
 
-	val symbolVisibilityChecker: SymbolVisibilityChecker by lazy {
-		SymbolVisibilityChecker(ProjectStructureProvider.getInstance(project))
-	}
+    val symbolVisibilityChecker: SymbolVisibilityChecker by lazy {
+        SymbolVisibilityChecker(ProjectStructureProvider.getInstance(project))
+    }
 
-	var languageClient: ILanguageClient?
-		get() = _languageClient
-		set(value) {
-			_languageClient = value
-		}
+    var languageClient: ILanguageClient?
+        get() = _languageClient
+        set(value) {
+            _languageClient = value
+        }
 
-	init {
-		initialize(::buildModules, ::buildKtSymbolIndex)
-	}
+    init {
+        initialize(::buildModules, ::buildKtSymbolIndex)
+    }
 
-	@OptIn(KaImplementationDetail::class)
-	@Suppress("UNUSED_PARAMETER")
-	private fun buildKtSymbolIndex(
-		modules: List<KtModule>,
-		libraryRoots: List<JavaRoot>,
-	): KtSymbolIndex =
-		KtSymbolIndex(
-			kind = kind,
-			project = project,
-			modules = modules,
-			fileIndex = requireFileIndex,
-			sourceIndex = requireSourceIndex,
-			libraryIndex = requireLibraryIndex,
-		)
+    @OptIn(KaImplementationDetail::class)
+    @Suppress("UNUSED_PARAMETER")
+    private fun buildKtSymbolIndex(
+        modules: List<KtModule>,
+        libraryRoots: List<JavaRoot>,
+    ): KtSymbolIndex =
+        KtSymbolIndex(
+            kind = kind,
+            project = project,
+            modules = modules,
+            fileIndex = requireFileIndex,
+            sourceIndex = requireSourceIndex,
+            libraryIndex = requireLibraryIndex,
+        )
 
-	private fun buildModules(
-		project: MockProject,
-		applicationEnv: KotlinCoreApplicationEnvironment,
-	): List<KtModule> = workspace.collectKtModules(project, applicationEnv)
+    private fun buildModules(
+        project: MockProject,
+        applicationEnv: KotlinCoreApplicationEnvironment,
+    ): List<KtModule> = workspace.collectKtModules(project, applicationEnv)
 
-	override fun createServiceRegistrars() = listOf(LspAnalysisApiServiceRegistrar(AnalysisApiServiceProviders.Production))
+    override fun createServiceRegistrars() =
+        listOf(LspAnalysisApiServiceRegistrar(AnalysisApiServiceProviders.Production))
 
-	override fun createMessageCollector(): MessageCollector =
-		object : MessageCollector {
-			override fun clear() {}
+    override fun createMessageCollector(): MessageCollector =
+        object : MessageCollector {
+            override fun clear() {}
 
-			override fun hasErrors() = false
+            override fun hasErrors() = false
 
-			override fun report(
-				severity: CompilerMessageSeverity,
-				message: String,
-				location: CompilerMessageSourceLocation?,
-			) {
-				logger.info("[{}] {} ({})", severity.name, message, location)
-			}
-		}
+            override fun report(
+                severity: CompilerMessageSeverity,
+                message: String,
+                location: CompilerMessageSourceLocation?,
+            ) {
+                logger.info("[{}] {} ({})", severity.name, message, location)
+            }
+        }
 
-	override fun postInit(libraryRoots: List<JavaRoot>) {
-		ktSymbolIndex.syncIndexInBackground()
-	}
+    override fun postInit(libraryRoots: List<JavaRoot>) {
+        ktSymbolIndex.syncIndexInBackground()
+    }
 
-	init {
-		fileAnalyzer =
-			KeyedDebouncingAction(
-				scope = coroutineScope,
-				debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
-			) { path, cancelChecker ->
-				val result = collectDiagnosticsFor(path, cancelChecker)
-				withContext(Dispatchers.Main.immediate) {
-					languageClient?.publishDiagnostics(result)
-				}
-			}
+    init {
+        fileAnalyzer = KeyedDebouncingAction(
+            scope = coroutineScope,
+            debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
+        ) { path, cancelChecker ->
+            try {
+                val result = collectDiagnosticsFor(path, cancelChecker)
+                withContext(Dispatchers.Main.immediate) {
+                    languageClient?.publishDiagnostics(result)
+                }
+            } catch (e: AnalysisPreemptedException) {
+                // Preempted by completion; re-schedule so diagnostics still run once it finishes.
+                logger.debug("diagnostics for {} preempted; rescheduling", path)
+                fileAnalyzer.schedule(path)
+            }
+        }
 
-		refreshScheduler =
-			KeyedDebouncingAction(
-				scope = coroutineScope,
-				debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
-			) { path, _ ->
-				// Pull through the cache so a refresh (and its reindex) happens after every edit,
-				// independent of whether diagnostics run.
-				ktSymbolIndex.getCurrentKtFile(path).await()
-			}
-	}
+        refreshScheduler =
+            KeyedDebouncingAction(
+                scope = coroutineScope,
+                debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
+            ) { path, _ ->
+                // Pull through the cache so a refresh (and its reindex) happens after every edit,
+                // independent of whether diagnostics run.
+                ktSymbolIndex.getCurrentKtFile(path).await()
+            }
+    }
 
-	fun refreshSources() {
+    fun refreshSources() {
 		Sentry.addBreadcrumb("refreshSources (env=$name, modules=${modules.size})")
-		project.write {
+        project.write {
 			Sentry.addBreadcrumb("refreshSources(env=$name): in-progress")
-			ResolutionScopeProvider.getInstance(project).invalidateAll()
+            ResolutionScopeProvider.getInstance(project).invalidateAll()
 			modules
 				.asFlatSequence()
-				.filterIsInstance<AbstractKtModule>()
-				.forEach { it.invalidateSearchScope() }
-		}
-		ktSymbolIndex.refreshSources()
-	}
+                .filterIsInstance<AbstractKtModule>()
+                .forEach { it.invalidateSearchScope() }
+        }
+        ktSymbolIndex.refreshSources()
+    }
 
-	fun openFileIfNeeded(path: Path) {
+    fun openFileIfNeeded(path: Path) {
 		fileAnalyzer.schedule(path)
-	}
+    }
 
-	fun onFileOpen(path: Path) {
-		// "Open" is now owned by FileManager; the first request/analysis parses lazily via the cache.
-		fileAnalyzer.schedule(path)
-	}
+    fun onFileOpen(path: Path) {
+        fileAnalyzer.schedule(path)
+    }
 
-	fun onFileSaved(path: Path) {
-		fileAnalyzer.schedule(path)
-	}
+    fun onFileSaved(path: Path) {
+        fileAnalyzer.schedule(path)
+    }
 
-	fun onFileClosed(path: Path) {
-		fileAnalyzer.cancelPending(path)
+    fun onFileClosed(path: Path) {
+        fileAnalyzer.cancelPending(path)
 		refreshScheduler.cancelPending(path)
 		ktSymbolIndex.invalidateCurrent(path)
-	}
+    }
 
-	@OptIn(KaImplementationDetail::class)
-	private inline fun notifyElementModifiedForPath(
-		path: Path,
-		crossinline typeProvider: (KtFile) -> KaElementModificationType,
-	) {
+    @OptIn(KaImplementationDetail::class)
+    private inline fun notifyElementModifiedForPath(
+        path: Path,
+        crossinline typeProvider: (KtFile) -> KaElementModificationType,
+    ) {
 		// Resolve PSI/module structure under the read lock; driving psiManager.findFile /
 		// structureProvider concurrently with an `analyze` read section otherwise races.
 		val (ktFile, module) =
@@ -258,84 +269,84 @@ internal class CompilationEnvironment(
 				ktFile to module
 			}
 
-		project.write {
-			// Must run under the write lock so the session mutation can't race a concurrent
+        project.write {
+            // Must run under the write lock so the session mutation can't race a concurrent
 			// `analyze` (which only holds the read lock); see KtSymbolIndex.refreshToCurrent.
-			if (ktFile != null) {
+            if (ktFile != null) {
 				KaSourceModificationService
 					.getInstance(project)
-					.handleElementModification(ktFile, typeProvider(ktFile))
-			}
+                    .handleElementModification(ktFile, typeProvider(ktFile))
+            }
 
-			if (module != null) {
-				module.invalidateSearchScope()
-				project.publishModificationEvent(
-					KotlinModuleStateModificationEvent(
-						module,
-						KotlinModuleStateModificationKind.UPDATE,
+            if (module != null) {
+                module.invalidateSearchScope()
+                project.publishModificationEvent(
+                    KotlinModuleStateModificationEvent(
+                        module,
+                        KotlinModuleStateModificationKind.UPDATE,
 					),
-				)
-				project.analysisMessageBus
-					.syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
-					.afterInvalidation(setOf(module))
-				ResolutionScopeProvider.getInstance(project).invalidate(module)
-			} else {
-				project.analysisMessageBus
-					.syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
-					.afterGlobalInvalidation()
-				ResolutionScopeProvider.getInstance(project).invalidateAll()
-			}
-		}
-	}
+                )
+                project.analysisMessageBus
+                    .syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
+                    .afterInvalidation(setOf(module))
+                ResolutionScopeProvider.getInstance(project).invalidate(module)
+            } else {
+                project.analysisMessageBus
+                    .syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
+                    .afterGlobalInvalidation()
+                ResolutionScopeProvider.getInstance(project).invalidateAll()
+            }
+        }
+    }
 
-	suspend fun onFileCreated(path: Path) {
-		notifyElementModifiedForPath(path) { KaElementModificationType.ElementAdded }
-		ktSymbolIndex.submitForIndexing(path)
-	}
+    suspend fun onFileCreated(path: Path) {
+        notifyElementModifiedForPath(path) { KaElementModificationType.ElementAdded }
+        ktSymbolIndex.submitForIndexing(path)
+    }
 
-	suspend fun onFileRemoved(path: Path) {
-		notifyElementModifiedForPath(path) { ktFile ->
-			KaElementModificationType.ElementRemoved(ktFile)
-		}
-		ProjectStructureProvider.getInstance(project).unregisterInMemoryFile(path.pathString)
-		ktSymbolIndex.removeFromIndex(path)
-	}
+    suspend fun onFileRemoved(path: Path) {
+        notifyElementModifiedForPath(path) { ktFile ->
+            KaElementModificationType.ElementRemoved(ktFile)
+        }
+        ProjectStructureProvider.getInstance(project).unregisterInMemoryFile(path.pathString)
+        ktSymbolIndex.removeFromIndex(path)
+    }
 
 	suspend fun onFileMoved(
 		fromPath: Path,
 		toPath: Path,
 	) {
 		val isFileOpen = FileManager.isActive(fromPath)
-		onFileRemoved(fromPath)
-		onFileCreated(toPath)
-		if (isFileOpen) {
+        onFileRemoved(fromPath)
+        onFileCreated(toPath)
+        if (isFileOpen) {
 			ktSymbolIndex.invalidateCurrent(fromPath)
-			onFileOpen(toPath)
-		}
-	}
+            onFileOpen(toPath)
+        }
+    }
 
-	fun onFileContentChanged(path: Path) {
+    fun onFileContentChanged(path: Path) {
 		refreshScheduler.schedule(path)
 		fileAnalyzer.schedule(path)
-	}
+    }
 
-	override fun close() {
-		ktProject.removeListener(this)
+    override fun close() {
+        ktProject.removeListener(this)
 
-		// fileAnalyzer reads the project (collectDiagnosticsFor). Cancel AND join it before
-		// super.close() disposes the project, so an in-flight read can't touch a disposed project
-		// (APPDEVFORALL-17R / ADFA-4384). Bounded so a slow read can't block shutdown indefinitely.
-		runBlocking {
-			withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT) {
-				coroutineScope.coroutineContext[Job]?.cancelAndJoin()
-			}
-		}
+        // fileAnalyzer reads the project (collectDiagnosticsFor). Cancel AND join it before
+        // super.close() disposes the project, so an in-flight read can't touch a disposed project
+        // (APPDEVFORALL-17R / ADFA-4384). Bounded so a slow read can't block shutdown indefinitely.
+        runBlocking {
+            withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT) {
+                coroutineScope.coroutineContext[Job]?.cancelAndJoin()
+            }
+        }
 
-		super.close()
-	}
+        super.close()
+    }
 
-	override fun onProjectModelChanged(
-		model: KotlinProjectModel,
-		changeKind: KotlinProjectModel.ChangeKind,
-	) = Unit
+    override fun onProjectModelChanged(
+        model: KotlinProjectModel,
+        changeKind: KotlinProjectModel.ChangeKind,
+    ) = Unit
 }

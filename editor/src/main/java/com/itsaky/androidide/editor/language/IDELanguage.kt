@@ -25,6 +25,7 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointDefinition
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.progress.ICancelChecker
+import com.itsaky.androidide.progress.ProgressManager
 import io.github.rosemoe.sora.lang.Language
 import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
 import io.github.rosemoe.sora.lang.completion.CompletionPublisher
@@ -67,11 +68,17 @@ abstract class IDELanguage : Language {
 		publisher: CompletionPublisher,
 		extraArguments: Bundle
 	) {
+		val completionThread = Thread.currentThread()
 		try {
 			val cancelChecker = CompletionCancelChecker(publisher)
 			Lookup.getDefault().update(ICancelChecker::class.java, cancelChecker)
+			// Bind the checker to this thread so cancelCompletion()'s ProgressManager.cancel(thread)
+			// routes here, letting the LSP's invokeOnCancel abort the running analysis mid-`analyze`
+			// immediately rather than only at coarse checkpoints.
+			ProgressManager.instance.register(completionThread, cancelChecker)
 			doComplete(content, position, publisher, cancelChecker, extraArguments)
 		} finally {
+			ProgressManager.instance.unregister(completionThread)
 			Lookup.getDefault().unregister(
 				ICancelChecker::class.java
 			)

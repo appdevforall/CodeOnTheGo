@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.progress.ICancelChecker
@@ -8,6 +9,7 @@ import com.itsaky.androidide.utils.KeyedDebouncingAction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
@@ -54,8 +56,14 @@ internal class IndexWorker(
 			debounceDuration = CompilationEnvironment.DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION
 		) { (path, ktFile), cancelChecker ->
 			logger.debug("Indexing modified file: {}", path)
-			indexSourceFile(project, ktFile, fileIndex, sourceIndex, cancelChecker)
-			sourceIndexCount++
+			try {
+				indexSourceFile(project, ktFile, fileIndex, sourceIndex, cancelChecker)
+				sourceIndexCount++
+			} catch (e: AnalysisPreemptedException) {
+				// Preempted by higher-priority analysis; re-queue so the edit still gets indexed.
+				logger.debug("Indexing of modified file {} preempted; re-queueing", path)
+				scope.launch { submitCommand(IndexCommand.IndexModifiedFile(ktFile)) }
+			}
 		}
 
 		while (isActive) {
@@ -93,15 +101,23 @@ internal class IndexWorker(
 						continue
 					}
 
-					indexSourceFile(
-						project = project,
-						ktFile = ktFile,
-						fileIndex = fileIndex,
-						symbolsIndex = sourceIndex,
-						cancelChecker = ICancelChecker.NOOP
-					)
+					try {
+						indexSourceFile(
+							project = project,
+							ktFile = ktFile,
+							fileIndex = fileIndex,
+							symbolsIndex = sourceIndex,
+							// A real (cancellable) checker so the scheduler can preempt this pass
+							// in favour of completion/diagnostics.
+							cancelChecker = ICancelChecker.Default()
+						)
 
-					sourceIndexCount++
+						sourceIndexCount++
+					} catch (e: AnalysisPreemptedException) {
+						// Preempted by higher-priority analysis; re-queue so the file still gets indexed.
+						logger.debug("Indexing of {} preempted; re-queueing", cmd.vf.path)
+						scope.launch { submitCommand(cmd) }
+					}
 				}
 
 				is IndexCommand.IndexModifiedFile -> {
