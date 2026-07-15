@@ -20,9 +20,7 @@ package com.itsaky.androidide.plugins.conf
 import com.android.build.api.dsl.CommonExtension
 import com.android.build.api.variant.AndroidComponentsExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
-import com.android.build.api.variant.FilterConfiguration
 import com.android.build.api.variant.Variant
-import com.android.build.api.variant.impl.getFilter
 import com.android.build.gradle.AppExtension
 import com.android.build.gradle.BaseExtension
 import com.itsaky.androidide.build.config.BuildConfig
@@ -157,12 +155,6 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 // 		}
 
 		if (":app" == project.path) {
-			packagingOptions {
-				jniLibs {
-					useLegacyPackaging = true
-				}
-			}
-
 			flavorsAbis.forEach { (abi, _) ->
 				// the common defaultConfig, not the flavor-specific
 				defaultConfig.buildConfigField(
@@ -176,19 +168,27 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 				onVariants { variant ->
 					variant.outputs.forEach { output ->
 						// version code increment
-                        // NOTE: use the following lines when using split abis instead of flavor abis - jm 250916
-                        // val filter = output.getFilter(FilterConfiguration.FilterType.ABI)
+						// NOTE: use the following lines when using split abis instead of flavor abis - jm 250916
+						// val filter = output.getFilter(FilterConfiguration.FilterType.ABI)
 						// val verCodeIncrement = flavorsAbis[filter?.identifier] ?: 1
-                        val verCodeIncrement = when {
-                            variant.name.contains("v8", ignoreCase = true) -> flavorsAbis["arm64-v8a"]
-                            variant.name.contains("v7", ignoreCase = true) -> flavorsAbis["armeabi-v7a"]
-                            else -> 1
-                        } ?: 1
+						val verCodeIncrement =
+							when {
+								variant.name.contains("v8", ignoreCase = true) -> flavorsAbis["arm64-v8a"]
+								variant.name.contains("v7", ignoreCase = true) -> flavorsAbis["armeabi-v7a"]
+								else -> 1
+							} ?: 1
 
 						output.versionCode.set(10 * projectVersionCode + verCodeIncrement)
 					}
 
 					if (hasBundledAssets(variant)) {
+						// Ship native libs deflate-compressed; the installer extracts them to
+						// nativeLibraryDir at install time. Saves ~5.9 MB per APK (ADFA-2306).
+						// Debug builds keep modern packaging (uncompressed, loaded from the APK)
+						// via the useLegacyPackaging = false default in app/build.gradle.kts.
+						variant.packaging.jniLibs.useLegacyPackaging
+							.set(true)
+
 						// include bundled assets in the APK
 						val assetsDir = rootProject.file("assets/release")
 						variant.sources.assets?.apply {
@@ -230,23 +230,24 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 				}
 			}
 		}
-        if (project.path != ":plugin-api") {
-            flavorDimensions("abi")
-		productFlavors {
-			create("v7") {
-				dimension = "abi"
+		if (project.path != ":plugin-api") {
+			flavorDimensions("abi")
+			productFlavors {
+				create("v7") {
+					dimension = "abi"
 
-				ndk.abiFilters.clear()
-				ndk.abiFilters += "armeabi-v7a"
+					ndk.abiFilters.clear()
+					ndk.abiFilters += "armeabi-v7a"
+				}
+
+				create("v8") {
+					dimension = "abi"
+
+					ndk.abiFilters.clear()
+					ndk.abiFilters += "arm64-v8a"
+				}
 			}
-
-			create("v8") {
-				dimension = "abi"
-
-				ndk.abiFilters.clear()
-				ndk.abiFilters += "arm64-v8a"
-			}
-		} }
+		}
 
 		buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
 			initWith(buildTypes.getByName("debug"))
