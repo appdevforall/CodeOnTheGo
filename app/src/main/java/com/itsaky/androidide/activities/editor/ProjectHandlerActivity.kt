@@ -43,6 +43,7 @@ import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.activities.MainActivity
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.fragments.FindActionDialog
@@ -58,6 +59,13 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
+import com.itsaky.androidide.models.Position
+import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.plugins.extensions.ProjectSearchExtension
+import com.itsaky.androidide.plugins.extensions.ProjectSearchRequest
+import com.itsaky.androidide.plugins.extensions.ProjectSearchResult
+import com.itsaky.androidide.plugins.extensions.ProjectSearchSection
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.projectDir
@@ -96,6 +104,7 @@ import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
+import com.itsaky.androidide.viewmodel.EditorViewModel.SearchResultSection
 import io.github.rosemoe.sora.text.ICUUtils
 import io.github.rosemoe.sora.util.IntPair
 import io.sentry.Sentry
@@ -896,6 +905,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					searchDirs,
 				) { results ->
 					handleSearchResults(results)
+					requestPluginSearchSections(text, extensionList, searchDirs, results)
 				}
 			}
 		}
@@ -928,6 +938,80 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		mFindInProjectDialog = dialog
 		return mFindInProjectDialog
+	}
+
+	private fun requestPluginSearchSections(
+		query: String,
+		extensions: List<String>,
+		searchDirs: List<File>,
+		exactResults: Map<File, List<SearchResult>>,
+	) {
+		val pluginManager = IDEApplication.getPluginManager() ?: return
+		val plugins = pluginManager.getAllPluginInstances().filterIsInstance<ProjectSearchExtension>()
+		if (plugins.isEmpty()) {
+			return
+		}
+
+		val request = ProjectSearchRequest(
+			query = query,
+			roots = searchDirs,
+			extensions = extensions,
+		)
+		val futures = plugins.mapNotNull { plugin ->
+			val pluginId =
+				pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin)
+					?: plugin.javaClass.name
+			try {
+				plugin.searchProject(request)
+					.exceptionally { error ->
+						logger.warn("Project search plugin '{}' failed", pluginId, error)
+						pluginManager.recordPluginCrash(pluginId)
+						emptyList()
+					}
+			} catch (error: Throwable) {
+				logger.warn("Project search plugin '{}' failed", pluginId, error)
+				pluginManager.recordPluginCrash(pluginId)
+				null
+			}
+		}
+		if (futures.isEmpty()) {
+			return
+		}
+
+		CompletableFuture.allOf(*futures.toTypedArray()).thenRun {
+			val pluginSections = futures
+				.flatMap { future -> future.getNow(emptyList()) }
+				.mapNotNull { section -> section.toSearchResultSection() }
+			val sections = buildList {
+				if (exactResults.isNotEmpty()) {
+					add(SearchResultSection(title = null, results = exactResults))
+				}
+				addAll(pluginSections)
+			}
+			runOnUiThread {
+				editorViewModel.onSearchResultSectionsReady(sections)
+			}
+		}.exceptionally { error ->
+			logger.warn("Failed to collect project search plugin results", error)
+			null
+		}
+	}
+
+	private fun ProjectSearchSection.toSearchResultSection(): SearchResultSection? {
+		val grouped = results
+			.map { it.toSearchResult() }
+			.groupBy { it.file }
+		return grouped
+			.takeIf { it.isNotEmpty() }
+			?.let { SearchResultSection(title = title, results = it) }
+	}
+
+	private fun ProjectSearchResult.toSearchResult(): SearchResult {
+		val range = Range(
+			Position(startLine, startColumn),
+			Position(endLine, endColumn),
+		)
+		return SearchResult(range, file, linePreview, matchText)
 	}
 
 	fun EditText.selectCurrentWord() {

@@ -48,10 +48,10 @@ class SearchResultFragment : RecyclerViewFragment<SearchListAdapter>() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                editorViewModel.searchResults.collectLatest { results ->
+                editorViewModel.searchResultSections.collectLatest { sections ->
                     if (isAdded && _binding != null) {
                         binding.root.adapter = SearchListAdapter(
-                            results,
+                            sections,
                             onFileClick = { file ->
                                 editorActivity?.doOpenFile(file, null)
                                 editorActivity?.hideBottomSheet()

@@ -46,6 +46,11 @@ import java.util.Collections
 @Suppress("PropertyName")
 class EditorViewModel : ViewModel() {
 
+	data class SearchResultSection(
+		val title: String?,
+		val results: Map<File, List<SearchResult>>,
+	)
+
     data class UiState(
         val isFullscreen: Boolean = false,
     )
@@ -65,13 +70,22 @@ class EditorViewModel : ViewModel() {
     private val _files = MutableLiveData<MutableList<File>>(ArrayList())
     private val _uiState = MutableStateFlow(UiState())
 
-    private val _searchResults = MutableStateFlow<Map<File, List<SearchResult>>>(emptyMap())
-    val searchResults: StateFlow<Map<File, List<SearchResult>>> = _searchResults.asStateFlow()
-    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+	private val _searchResults = MutableStateFlow<Map<File, List<SearchResult>>>(emptyMap())
+	val searchResults: StateFlow<Map<File, List<SearchResult>>> = _searchResults.asStateFlow()
+	private val _searchResultSections = MutableStateFlow<List<SearchResultSection>>(emptyList())
+	val searchResultSections: StateFlow<List<SearchResultSection>> = _searchResultSections.asStateFlow()
+	val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    fun onSearchResultsReady(results: Map<File, List<SearchResult>>) {
-        _searchResults.value = results
-    }
+	fun onSearchResultsReady(results: Map<File, List<SearchResult>>) {
+		_searchResults.value = results
+		_searchResultSections.value = listOfNotNull(
+			results.takeIf { it.isNotEmpty() }?.let { SearchResultSection(title = null, results = it) },
+		)
+	}
+
+	fun onSearchResultSectionsReady(sections: List<SearchResultSection>) {
+		_searchResultSections.value = sections
+	}
 
     /**
      * Holds information about the currently selected editor fragment. First value in the pair is the
