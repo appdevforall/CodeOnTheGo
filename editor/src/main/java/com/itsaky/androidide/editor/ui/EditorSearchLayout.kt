@@ -49,9 +49,20 @@ import java.util.regex.Pattern
  * @author Akash Yadav
  */
 @SuppressLint("ViewConstructor") // Always created dynamically
-class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(context) {
+class EditorSearchLayout(
+  context: Context,
+  val editor: IDEEditor,
+  showReplaceAction: Boolean = true,
+  applyCollapsedSheetMargin: Boolean = true,
+) : FrameLayout(context) {
+  // Hosts above the collapsed bottom sheet need a margin so the action row stays visible;
+  // hosts inside the sheet itself don't.
   private val collapsedSheetMargin =
-    context.resources.getDimensionPixelSize(R.dimen.editor_sheet_peek_height)
+    if (applyCollapsedSheetMargin) {
+      context.resources.getDimensionPixelSize(R.dimen.editor_sheet_peek_height)
+    } else {
+      0
+    }
 
   var onSearchModeChanged: ((isActive: Boolean) -> Unit)? = null
 
@@ -65,6 +76,10 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
     findInFileBinding.next.setOnClickListener(::onSearchActionClick)
     findInFileBinding.replace.setOnClickListener(::onSearchActionClick)
     findInFileBinding.close.setOnClickListener(::onSearchActionClick)
+    if (!showReplaceAction) {
+      // Read-only hosts (log/output views) cannot replace text
+      findInFileBinding.replace.visibility = GONE
+    }
       findInFileBinding.root.applyLongPressRecursively {
           TooltipManager.showIdeCategoryTooltip(
               context = this.context,
@@ -223,6 +238,30 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
     findInFileBinding.searchInput.requestFocus()
     findInFileBinding.searchInput.post {
       ViewCompat.getWindowInsetsController(findInFileBinding.searchInput)?.show(WindowInsetsCompat.Type.ime())
+    }
+  }
+
+  fun isSearchModeActive(): Boolean = searchInputTextWatcher != null
+
+  /**
+   * Re-run the current query against the editor's (possibly changed) content,
+   * or stop the search if there is no query.
+   */
+  fun refreshSearch() {
+    if (!isSearchModeActive()) {
+      return
+    }
+
+    val query = findInFileBinding.searchInput.text?.toString() ?: ""
+    val isValidQuery =
+      query.isNotBlank() &&
+        (searchOptions.type != SearchOptions.TYPE_REGULAR_EXPRESSION ||
+          runCatching { Pattern.compile(query) }.isSuccess)
+
+    if (isValidQuery) {
+      editor.searcher.search(query, searchOptions)
+    } else {
+      editor.searcher.stopSearch()
     }
   }
 

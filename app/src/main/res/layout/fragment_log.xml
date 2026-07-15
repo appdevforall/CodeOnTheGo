@@ -17,9 +17,23 @@
   ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<com.itsaky.androidide.editor.ui.IDEEditor xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/editor"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    app:isReadOnlyContext="true" />
+    android:orientation="vertical">
+
+    <ViewStub
+        android:id="@+id/filter_bar_stub"
+        android:inflatedId="@+id/filter_bar"
+        android:layout="@layout/layout_log_filter_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <com.itsaky.androidide.editor.ui.IDEEditor
+        android:id="@+id/editor"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        app:isReadOnlyContext="true" />
+</LinearLayout>
