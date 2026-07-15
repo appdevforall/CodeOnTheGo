@@ -68,15 +68,12 @@
 
     </FrameLayout>
 
-  <com.google.android.material.floatingactionbutton.FloatingActionButton
+  <include
       android:id="@+id/fab_feedback"
+      layout="@layout/feedback_fab"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
-      android:layout_margin="16dp"
-      android:contentDescription="@string/send_feedback"
-      android:elevation="16dp"
-      android:src="@drawable/baseline_feedback_64"
-      app:fabCustomSize="32dp"
+      android:layout_margin="@dimen/feedback_fab_margin"
       app:layout_constraintBottom_toBottomOf="parent"
       app:layout_constraintStart_toStartOf="parent" />
 

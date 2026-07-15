@@ -85,7 +85,7 @@ public abstract class NonEditableEditorFragment extends
 		editor.setEditable(false);
 		editor.setDividerWidth(0);
 		editor.setEditorLanguage(new EmptyLanguage());
-		editor.setWordwrap(false);
+		editor.setWordwrap(true);
 		editor.setUndoEnabled(false);
 		editor.setTypefaceLineNumber(TypefaceUtilsKt.jetbrainsMono());
 		editor.setTypefaceText(TypefaceUtilsKt.jetbrainsMono());
