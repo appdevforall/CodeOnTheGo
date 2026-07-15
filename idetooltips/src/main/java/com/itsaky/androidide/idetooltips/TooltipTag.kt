@@ -26,6 +26,8 @@ object TooltipTag {
     const val PROJECT_AGENT = "project.agent"
 	const val OUTPUT_CLEAR = "output.clear"
 	const val OUTPUT_SHARE_EXTERNAL = "output.share.external"
+	const val OUTPUT_SEARCH = "output.search"
+	const val OUTPUT_FILTER = "output.filter"
 	const val PROJECT_BUILD_OUTPUT = "project.buildoutput"
 	const val PROJECT_GRADLE_TASKS = "project.gradle.tasks"
     const val PROJECT_RUN_GRADLE_TASKS = "project.run.gradle.tasks"

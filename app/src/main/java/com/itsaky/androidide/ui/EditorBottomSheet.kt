@@ -54,6 +54,7 @@ import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
+import com.itsaky.androidide.fragments.output.SearchableOutputFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -189,6 +190,14 @@ constructor(
 						binding.shareOutputFab.hide()
 					}
 
+					if (fragment is SearchableOutputFragment) {
+						binding.searchOutputFab.show()
+						binding.filterOutputFab.show()
+					} else {
+						binding.searchOutputFab.hide()
+						binding.filterOutputFab.hide()
+					}
+
 					if (tab.position == EditorBottomSheetTabAdapter.TAB_DIAGNOSTICS) {
 						binding.copyDiagnosticsFab.show()
 					} else {
@@ -251,6 +260,29 @@ constructor(
 			copyDiagnosticsToClipboard()
 		}
 
+		binding.searchOutputFab.setOnClickListener {
+			val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
+			if (fragment !is SearchableOutputFragment) {
+				log.error("Unknown fragment: {}", fragment)
+				return@setOnClickListener
+			}
+			// Search happens inside the sheet, so it must be expanded to be usable
+			viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
+			fragment.beginSearch()
+		}
+		binding.searchOutputFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SEARCH))
+
+		binding.filterOutputFab.setOnClickListener {
+			val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
+			if (fragment !is SearchableOutputFragment) {
+				log.error("Unknown fragment: {}", fragment)
+				return@setOnClickListener
+			}
+			viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
+			fragment.toggleFilterBar()
+		}
+		binding.filterOutputFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_FILTER))
+
 		binding.headerContainer.setOnClickListener {
 			viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 		}
@@ -274,6 +306,10 @@ constructor(
     binding.shareOutputFab.setOnLongClickListener(null)
     binding.clearFab.setOnClickListener(null)
     binding.clearFab.setOnLongClickListener(null)
+    binding.searchOutputFab.setOnClickListener(null)
+    binding.searchOutputFab.setOnLongClickListener(null)
+    binding.filterOutputFab.setOnClickListener(null)
+    binding.filterOutputFab.setOnLongClickListener(null)
     binding.copyDiagnosticsFab.setOnClickListener(null)
     binding.headerContainer.setOnClickListener(null)
     ViewCompat.setOnApplyWindowInsetsListener(this, null)

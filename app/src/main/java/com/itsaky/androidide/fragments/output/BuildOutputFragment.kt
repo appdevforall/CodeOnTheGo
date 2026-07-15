@@ -18,11 +18,15 @@ package com.itsaky.androidide.fragments.output
 
 import android.os.Bundle
 import android.view.View
+import android.widget.LinearLayout
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
+import com.itsaky.androidide.databinding.LayoutLogFilterBarBinding
+import com.itsaky.androidide.editor.ui.EditorSearchLayout
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +40,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
-class BuildOutputFragment : NonEditableEditorFragment() {
+class BuildOutputFragment :
+	NonEditableEditorFragment(),
+	SearchableOutputFragment {
 
 	private val buildOutputViewModel: BuildOutputViewModel by activityViewModels()
 
@@ -48,6 +54,9 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 
 	private val logChannel = Channel<String>(Channel.UNLIMITED)
 
+	private var searchLayout: EditorSearchLayout? = null
+	private var filterBar: LogFilterBarController? = null
+
 	// Serializes editor-content mutations (filtered re-renders vs live batch appends)
 	// so a re-render never misses or duplicates a concurrently flushed batch.
 	private val editorContentMutex = Mutex()
@@ -56,6 +65,7 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		super.onViewCreated(view, savedInstanceState)
 		editor?.tag = TooltipTag.PROJECT_BUILD_OUTPUT
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_buildoutput))
+		setupSearchLayout()
 
 		viewLifecycleOwner.lifecycleScope.launch {
 			restoreWindowFromViewModel()
@@ -89,7 +99,56 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	}
 
 	/** Called after the editor content has been replaced wholesale (e.g. on a filter change). */
-	private fun onContentReplaced() {}
+	private fun onContentReplaced() {
+		val searchLayout = this.searchLayout ?: return
+		if (searchLayout.isSearchModeActive()) {
+			searchLayout.refreshSearch()
+		} else {
+			editor?.searcher?.stopSearch()
+		}
+	}
+
+	override fun beginSearch() {
+		searchLayout?.beginSearchMode()
+	}
+
+	override fun toggleFilterBar() {
+		(filterBar ?: createFilterBar())?.toggle()
+	}
+
+	private fun setupSearchLayout() {
+		val editor = this.editor ?: return
+		val root = _binding?.root ?: return
+		val searchLayout =
+			EditorSearchLayout(
+				context = requireContext(),
+				editor = editor,
+				showReplaceAction = false,
+				applyCollapsedSheetMargin = false,
+			)
+		root.addView(
+			searchLayout,
+			LinearLayout.LayoutParams(
+				LinearLayout.LayoutParams.MATCH_PARENT,
+				LinearLayout.LayoutParams.WRAP_CONTENT,
+			),
+		)
+		this.searchLayout = searchLayout
+	}
+
+	private fun createFilterBar(): LogFilterBarController? {
+		val stub = _binding?.filterBarStub ?: return null
+		val barBinding = LayoutLogFilterBarBinding.bind(stub.inflate())
+		return LogFilterBarController(
+			binding = barBinding,
+			coroutineScope = viewLifecycleOwner.lifecycleScope,
+			showLevelChips = false,
+			initialText = buildOutputViewModel.filterText.value,
+			initialLevels = LogFilter.ALL_LEVELS,
+		) { _, text ->
+			buildOutputViewModel.filterText.value = text.trim()
+		}.also { filterBar = it }
+	}
 
 	private suspend fun restoreWindowFromViewModel() {
 		val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
@@ -119,6 +178,8 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	}
 
 	override fun onDestroyView() {
+		searchLayout = null
+		filterBar = null
 		editor?.release()
 		super.onDestroyView()
 	}
