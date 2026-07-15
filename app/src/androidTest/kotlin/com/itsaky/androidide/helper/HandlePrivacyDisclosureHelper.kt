@@ -4,10 +4,10 @@ import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.preferences.internal.prefManager
-import com.itsaky.androidide.resources.R as ResourcesR
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import com.itsaky.androidide.resources.R as ResourcesR
 
 private const val TAG = "PrivacyDisclosure"
 
@@ -30,52 +30,54 @@ private const val PRIVACY_FLAG_PERSIST_TIMEOUT_MS = 5_000L
  * rerun on a device that already accepted asserts it stays hidden.
  */
 fun TestContext<Unit>.handlePrivacyDisclosure() {
-    val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
-    val dialogTitle = targetContext.getString(ResourcesR.string.privacy_disclosure_title)
+	val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+	val dialogTitle = targetContext.getString(ResourcesR.string.privacy_disclosure_title)
 
-    val expectDialog =
-        !prefManager.getBoolean(KEY_PRIVACY_DISCLOSURE_SHOWN, false)
+	val expectDialog =
+		!prefManager.getBoolean(KEY_PRIVACY_DISCLOSURE_SHOWN, false)
 
-    if (expectDialog) {
-        Log.i(TAG, "Privacy disclosure flag unset; expecting dialog and accepting it")
-        step("Verify and accept privacy disclosure") {
-            val d = device.uiDevice
-            val acceptText = targetContext.getString(ResourcesR.string.privacy_disclosure_accept)
-            val learnMoreText =
-                targetContext.getString(ResourcesR.string.privacy_disclosure_learn_more)
+	if (expectDialog) {
+		Log.i(TAG, "Privacy disclosure flag unset; expecting dialog and accepting it")
+		step("Verify and accept privacy disclosure") {
+			val d = device.uiDevice
+			val acceptText = targetContext.getString(ResourcesR.string.privacy_disclosure_accept)
+			val learnMoreText =
+				targetContext.getString(ResourcesR.string.privacy_disclosure_learn_more)
 
-            assertTrue(
-                "Dialog title missing",
-                d.findObject(UiSelector().text(dialogTitle))
-                    .waitForExists(PRIVACY_DIALOG_APPEAR_TIMEOUT_MS),
-            )
-            assertTrue("Accept button missing", d.findObject(UiSelector().text(acceptText)).exists())
-            assertTrue(
-                "Learn more button missing",
-                d.findObject(UiSelector().text(learnMoreText)).exists(),
-            )
+			assertTrue(
+				"Dialog title missing",
+				d
+					.findObject(UiSelector().text(dialogTitle))
+					.waitForExists(PRIVACY_DIALOG_APPEAR_TIMEOUT_MS),
+			)
+			assertTrue("Accept button missing", d.findObject(UiSelector().text(acceptText)).exists())
+			assertTrue(
+				"Learn more button missing",
+				d.findObject(UiSelector().text(learnMoreText)).exists(),
+			)
 
-            clickFirstAccessibilityNodeByText(acceptText)
-            d.waitForIdle()
+			clickFirstAccessibilityNodeByText(acceptText)
+			d.waitForIdle()
 
-            // The accessibility click is dispatched asynchronously; retry until the
-            // dialog's positive-button listener has persisted the flag.
-            flakySafely(timeoutMs = PRIVACY_FLAG_PERSIST_TIMEOUT_MS) {
-                assertTrue(
-                    "Accepting the disclosure did not persist the shown flag",
-                    prefManager.getBoolean(KEY_PRIVACY_DISCLOSURE_SHOWN, false),
-                )
-            }
-        }
-    } else {
-        Log.i(TAG, "Privacy disclosure already accepted (flag set); verifying dialog stays hidden")
-    }
+			// The accessibility click is dispatched asynchronously; retry until the
+			// dialog's positive-button listener has persisted the flag.
+			flakySafely(timeoutMs = PRIVACY_FLAG_PERSIST_TIMEOUT_MS) {
+				assertTrue(
+					"Accepting the disclosure did not persist the shown flag",
+					prefManager.getBoolean(KEY_PRIVACY_DISCLOSURE_SHOWN, false),
+				)
+			}
+		}
+	} else {
+		Log.i(TAG, "Privacy disclosure already accepted (flag set); verifying dialog stays hidden")
+	}
 
-    step("Verify privacy dialog is not shown") {
-        assertFalse(
-            "Dialog should not be shown",
-            device.uiDevice.findObject(UiSelector().text(dialogTitle))
-                .waitForExists(PRIVACY_DIALOG_ABSENT_TIMEOUT_MS),
-        )
-    }
+	step("Verify privacy dialog is not shown") {
+		assertFalse(
+			"Dialog should not be shown",
+			device.uiDevice
+				.findObject(UiSelector().text(dialogTitle))
+				.waitForExists(PRIVACY_DIALOG_ABSENT_TIMEOUT_MS),
+		)
+	}
 }

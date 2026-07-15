@@ -16,9 +16,9 @@ import com.itsaky.androidide.helper.selectProjectTemplate
 import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
 import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.OnboardingScreen
+import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
 import com.itsaky.androidide.screens.ProjectSettingsScreen.setProjectName
-import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.Assert.assertEquals
@@ -35,141 +35,141 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class EndToEndTest : TestCase() {
+	private val targetContext
+		get() = InstrumentationRegistry.getInstrumentation().targetContext
 
-    private val targetContext
-        get() = InstrumentationRegistry.getInstrumentation().targetContext
+	@Test
+	fun test_endToEnd() =
+		run {
+			// ── Launch ──
 
-    @Test
-    fun test_endToEnd() = run {
+			step("Launch app") {
+				ActivityScenario.launch(SplashActivity::class.java)
+				Thread.sleep(1000)
+			}
 
-        // ── Launch ──
+			// ── Welcome Screen ──
 
-        step("Launch app") {
-            ActivityScenario.launch(SplashActivity::class.java)
-            Thread.sleep(1000)
-        }
+			step("Verify welcome screen") {
+				OnboardingScreen {
+					greetingTitle.isVisible()
+					greetingSubtitle.isVisible()
+					nextButton {
+						isVisible()
+						isClickable()
+					}
+				}
+			}
 
-        // ── Welcome Screen ──
+			advancePastWelcomeScreen()
 
-        step("Verify welcome screen") {
-            OnboardingScreen {
-                greetingTitle.isVisible()
-                greetingSubtitle.isVisible()
-                nextButton {
-                    isVisible()
-                    isClickable()
-                }
-            }
-        }
+			// ── Permissions Screen (with privacy disclosure dialog overlay) ──
 
-        advancePastWelcomeScreen()
+			handlePrivacyDisclosure()
 
-        // ── Permissions Screen (with privacy disclosure dialog overlay) ──
+			val required = PermissionsHelper.getRequiredPermissions(targetContext)
 
-        handlePrivacyDisclosure()
+			step("Verify all permission items") {
+				flakySafely(timeoutMs = 3_000) {
+					PermissionScreen {
+						title { isVisible() }
+						subTitle { isVisible() }
+						rvPermissions {
+							isVisible()
+							isDisplayed()
+						}
+						assertEquals(required.size, rvPermissions.getSize())
 
-        val required = PermissionsHelper.getRequiredPermissions(targetContext)
+						rvPermissions {
+							required.forEachIndexed { index, item ->
+								childAt<PermissionScreen.PermissionItem>(index) {
+									title {
+										isVisible()
+										hasText(item.title)
+									}
+									description {
+										isVisible()
+										hasText(item.description)
+									}
+									grantButton {
+										isVisible()
+										if (!item.isGranted && !item.isOptional) {
+											isClickable()
+											hasText(R.string.title_grant)
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
 
-        step("Verify all permission items") {
-            flakySafely(timeoutMs = 3_000) {
-                PermissionScreen {
-                    title { isVisible() }
-                    subTitle { isVisible() }
-                    rvPermissions {
-                        isVisible()
-                        isDisplayed()
-                    }
-                    assertEquals(required.size, rvPermissions.getSize())
+			grantAllRequiredPermissionsThroughOnboardingUi()
 
-                    rvPermissions {
-                        required.forEachIndexed { index, item ->
-                            childAt<PermissionScreen.PermissionItem>(index) {
-                                title {
-                                    isVisible()
-                                    hasText(item.title)
-                                }
-                                description {
-                                    isVisible()
-                                    hasText(item.description)
-                                }
-                                grantButton {
-                                    isVisible()
-                                    if (!item.isGranted && !item.isOptional) {
-                                        isClickable()
-                                        hasText(R.string.title_grant)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+			step("Confirm all permissions granted") {
+				flakySafely(timeoutMs = 3_000) {
+					assertTrue(PermissionsHelper.areAllPermissionsGranted(targetContext))
+				}
+			}
 
-        grantAllRequiredPermissionsThroughOnboardingUi()
+			step("Confirm all grant buttons disabled") {
+				device.uiDevice.waitForIdle()
+				PermissionScreen {
+					rvPermissions {
+						required.indices.forEach { index ->
+							childAt<PermissionScreen.PermissionItem>(index) {
+								grantButton {
+									isNotEnabled()
+								}
+							}
+						}
+					}
+				}
+			}
 
-        step("Confirm all permissions granted") {
-            flakySafely(timeoutMs = 3_000) {
-                assertTrue(PermissionsHelper.areAllPermissionsGranted(targetContext))
-            }
-        }
+			step("Tap Finish installation") {
+				// The button is in the gesture exclusion zone — use accessibility click
+				clickFirstAccessibilityNodeByText("Finish installation")
+			}
 
-        step("Confirm all grant buttons disabled") {
-            device.uiDevice.waitForIdle()
-            PermissionScreen {
-                rvPermissions {
-                    required.indices.forEach { index ->
-                        childAt<PermissionScreen.PermissionItem>(index) {
-                            grantButton {
-                                isNotEnabled()
-                            }
-                        }
-                    }
-                }
-            }
-        }
+			step("Wait for IDE setup to complete") {
+				waitForMainHomeOrEditorUi(device.uiDevice)
+			}
 
-        step("Tap Finish installation") {
-            // The button is in the gesture exclusion zone — use accessibility click
-            clickFirstAccessibilityNodeByText("Finish installation")
-        }
+			configureAutomationBuildPreferences()
 
-        step("Wait for IDE setup to complete") {
-            waitForMainHomeOrEditorUi(device.uiDevice)
-        }
+			// ── Phase 2: Project creation + build for first 3 templates ──
 
-        configureAutomationBuildPreferences()
+			ensureOnHomeScreenBeforeCreateProject()
 
-        // ── Phase 2: Project creation + build for first 3 templates ──
+			data class TemplateConfig(
+				val label: String,
+				val templateResId: Int,
+				val projectName: String,
+			)
 
-        ensureOnHomeScreenBeforeCreateProject()
+			val templates =
+				listOf(
+					TemplateConfig("No Activity", R.string.template_no_activity, "TestNoActivity"),
+					TemplateConfig("Empty Activity", R.string.template_empty, "TestEmptyActivity"),
+					TemplateConfig("Basic Activity", R.string.template_basic, "TestBasicActivity"),
+				)
 
-        data class TemplateConfig(
-            val label: String,
-            val templateResId: Int,
-            val projectName: String,
-        )
+			for ((index, config) in templates.withIndex()) {
+				step("Create+build template ${index + 1}/${templates.size}: ${config.label}") {
+					clickCreateProjectHomeScreen()
+				}
+				selectProjectTemplate("Select ${config.label} template", config.templateResId)
+				setProjectName(config.projectName)
+				clickCreateProjectProjectSettings()
+				initializeProjectAndCancelBuild()
 
-        val templates = listOf(
-            TemplateConfig("No Activity", R.string.template_no_activity, "TestNoActivity"),
-            TemplateConfig("Empty Activity", R.string.template_empty, "TestEmptyActivity"),
-            TemplateConfig("Basic Activity", R.string.template_basic, "TestBasicActivity"),
-        )
+				if (index < templates.lastIndex) {
+					ensureOnHomeScreenBeforeCreateProject()
+				}
+			}
 
-        for ((index, config) in templates.withIndex()) {
-            step("Create+build template ${index + 1}/${templates.size}: ${config.label}") {
-                clickCreateProjectHomeScreen()
-            }
-            selectProjectTemplate("Select ${config.label} template", config.templateResId)
-            setProjectName(config.projectName)
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-
-            if (index < templates.lastIndex) {
-                ensureOnHomeScreenBeforeCreateProject()
-            }
-        }
-
-        // ── Future phases (preferences, more templates, etc.) go here ──
-    }
+			// ── Future phases (preferences, more templates, etc.) go here ──
+		}
 }

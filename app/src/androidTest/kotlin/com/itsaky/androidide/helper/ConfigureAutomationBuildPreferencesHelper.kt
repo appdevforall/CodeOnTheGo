@@ -16,20 +16,21 @@ private const val ARG_BUILD_OFFLINE = "androidide.build.offline"
  * explicitly to force a deterministic online or offline mode for the run.
  */
 fun TestContext<Unit>.configureAutomationBuildPreferences() {
-    val args = InstrumentationRegistry.getArguments()
-    val offlineModeArg = args.getString(ARG_BUILD_OFFLINE)
+	val args = InstrumentationRegistry.getArguments()
+	val offlineModeArg = args.getString(ARG_BUILD_OFFLINE)
 
-    step("Configure automation build preferences") {
-        if (offlineModeArg == null) {
-            Log.i(TAG, "Gradle offline mode arg '$ARG_BUILD_OFFLINE' omitted; leaving IDE preference unchanged")
-            return@step
-        }
+	step("Configure automation build preferences") {
+		if (offlineModeArg == null) {
+			Log.i(TAG, "Gradle offline mode arg '$ARG_BUILD_OFFLINE' omitted; leaving IDE preference unchanged")
+			return@step
+		}
 
-        val offlineMode = checkNotNull(offlineModeArg.toBooleanStrictOrNull()) {
-            "Instrumentation argument '$ARG_BUILD_OFFLINE' must be 'true' or 'false'"
-        }
+		val offlineMode =
+			checkNotNull(offlineModeArg.toBooleanStrictOrNull()) {
+				"Instrumentation argument '$ARG_BUILD_OFFLINE' must be 'true' or 'false'"
+			}
 
-        BuildPreferences.isOfflineEnabled = offlineMode
-        Log.i(TAG, "Gradle offline mode set to $offlineMode (arg '$ARG_BUILD_OFFLINE')")
-    }
+		BuildPreferences.isOfflineEnabled = offlineMode
+		Log.i(TAG, "Gradle offline mode set to $offlineMode (arg '$ARG_BUILD_OFFLINE')")
+	}
 }

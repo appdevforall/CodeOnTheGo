@@ -12,51 +12,51 @@ import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
  * [PermissionsHelper.getRequiredPermissions].
  */
 fun TestContext<Unit>.grantAllRequiredPermissionsThroughOnboardingUi() {
-    val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
-    val required = PermissionsHelper.getRequiredPermissions(targetContext)
+	val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+	val required = PermissionsHelper.getRequiredPermissions(targetContext)
 
-    required.forEachIndexed { index, item ->
-        step("Grant: ${targetContext.getString(item.title)}") {
-            flakySafely(timeoutMs = 10_000) {
-                val alreadyGranted = PermissionsHelper.isPermissionGranted(targetContext, item.permission)
-                if (item.isOptional || alreadyGranted) {
-                    return@flakySafely
-                }
+	required.forEachIndexed { index, item ->
+		step("Grant: ${targetContext.getString(item.title)}") {
+			flakySafely(timeoutMs = 10_000) {
+				val alreadyGranted = PermissionsHelper.isPermissionGranted(targetContext, item.permission)
+				if (item.isOptional || alreadyGranted) {
+					return@flakySafely
+				}
 
-                // Scroll to the permission item and click its grant button via accessibility
-                // ACTION_CLICK. The button may be in the gesture exclusion zone where
-                // coordinate-based clicks (Espresso) get swallowed by the OS.
-                PermissionScreen {
-                    rvPermissions {
-                        childAt<PermissionScreen.PermissionItem>(index) {
-                            grantButton {
-                                isVisible()
-                            }
-                        }
-                    }
-                }
-                clickFirstGrantButton()
+				// Scroll to the permission item and click its grant button via accessibility
+				// ACTION_CLICK. The button may be in the gesture exclusion zone where
+				// coordinate-based clicks (Espresso) get swallowed by the OS.
+				PermissionScreen {
+					rvPermissions {
+						childAt<PermissionScreen.PermissionItem>(index) {
+							grantButton {
+								isVisible()
+							}
+						}
+					}
+				}
+				clickFirstGrantButton()
 
-                when (item.permission) {
-                    Manifest.permission.POST_NOTIFICATIONS -> {
-                        device.grantPostNotificationsUi()
-                    }
-                    Manifest.permission_group.STORAGE -> {
-                        device.grantStorageManageAllFilesUi()
-                    }
-                    Manifest.permission.REQUEST_INSTALL_PACKAGES -> {
-                        device.grantInstallUnknownAppsUi()
-                    }
-                    Manifest.permission.SYSTEM_ALERT_WINDOW -> {
-                        device.grantDisplayOverOtherAppsUi()
-                    }
-                    else -> {
-                        throw IllegalStateException("Unknown permission row: ${item.permission}")
-                    }
-                }
-            }
-        }
-    }
+				when (item.permission) {
+					Manifest.permission.POST_NOTIFICATIONS -> {
+						device.grantPostNotificationsUi()
+					}
+					Manifest.permission_group.STORAGE -> {
+						device.grantStorageManageAllFilesUi()
+					}
+					Manifest.permission.REQUEST_INSTALL_PACKAGES -> {
+						device.grantInstallUnknownAppsUi()
+					}
+					Manifest.permission.SYSTEM_ALERT_WINDOW -> {
+						device.grantDisplayOverOtherAppsUi()
+					}
+					else -> {
+						throw IllegalStateException("Unknown permission row: ${item.permission}")
+					}
+				}
+			}
+		}
+	}
 }
 
 /**
@@ -67,7 +67,7 @@ fun TestContext<Unit>.grantAllRequiredPermissionsThroughOnboardingUi() {
  * "Allow" is always the next permission to grant.
  */
 private fun clickFirstGrantButton() {
-    val ctx = InstrumentationRegistry.getInstrumentation().targetContext
-    val grantText = ctx.getString(R.string.title_grant)
-    clickFirstAccessibilityNodeByText(grantText)
+	val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+	val grantText = ctx.getString(R.string.title_grant)
+	clickFirstAccessibilityNodeByText(grantText)
 }
