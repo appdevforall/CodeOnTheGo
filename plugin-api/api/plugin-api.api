@@ -6,16 +6,25 @@ public abstract interface class com/itsaky/androidide/plugins/IPlugin {
 }
 
 public abstract interface class com/itsaky/androidide/plugins/PluginContext {
+	public abstract fun addPluginLifecycleListener (Lcom/itsaky/androidide/plugins/PluginLifecycleListener;)V
 	public abstract fun getAndroidContext ()Landroid/content/Context;
 	public abstract fun getAppFilesDir ()Ljava/io/File;
+	public abstract fun getAppSharedPreferences (Ljava/lang/String;)Landroid/content/SharedPreferences;
 	public abstract fun getEventBus ()Ljava/lang/Object;
 	public abstract fun getLogger ()Lcom/itsaky/androidide/plugins/PluginLogger;
 	public abstract fun getPluginDataDir ()Ljava/io/File;
 	public abstract fun getPluginFilesDir ()Ljava/io/File;
 	public abstract fun getPluginId ()Ljava/lang/String;
+	public abstract fun getPluginService (Ljava/lang/String;Ljava/lang/Class;)Ljava/lang/Object;
 	public abstract fun getPluginSharedPreferences (Ljava/lang/String;)Landroid/content/SharedPreferences;
+	public abstract fun getPluginVersion (Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun getProvidedServices ()Ljava/util/List;
 	public abstract fun getResources ()Lcom/itsaky/androidide/plugins/ResourceManager;
 	public abstract fun getServices ()Lcom/itsaky/androidide/plugins/ServiceRegistry;
+	public abstract fun isPluginActive (Ljava/lang/String;)Z
+	public abstract fun registerService (Ljava/lang/Class;Ljava/lang/Object;)V
+	public abstract fun removePluginLifecycleListener (Lcom/itsaky/androidide/plugins/PluginLifecycleListener;)V
+	public abstract fun unregisterService (Ljava/lang/Class;)V
 }
 
 public final class com/itsaky/androidide/plugins/PluginInfo {
@@ -34,6 +43,12 @@ public final class com/itsaky/androidide/plugins/PluginInfo {
 	public final fun isEnabled ()Z
 	public final fun isLoaded ()Z
 	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/PluginLifecycleListener {
+	public abstract fun onPluginActivated (Ljava/lang/String;)V
+	public abstract fun onPluginDeactivated (Ljava/lang/String;)V
+	public abstract fun onPluginUninstalled (Ljava/lang/String;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/PluginLogger {
@@ -1053,6 +1068,7 @@ public final class com/itsaky/androidide/plugins/extensions/ToolbarAction {
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAction ()Lkotlin/jvm/functions/Function0;
 	public final fun getIcon ()Ljava/lang/Integer;
+	public final fun getIconProvider ()Lkotlin/jvm/functions/Function0;
 	public final fun getId ()Ljava/lang/String;
 	public final fun getOrder ()I
 	public final fun getShowAsAction ()Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;
@@ -1063,6 +1079,7 @@ public final class com/itsaky/androidide/plugins/extensions/ToolbarAction {
 	public final fun isVisible ()Z
 	public final fun isVisibleProvider ()Lkotlin/jvm/functions/Function0;
 	public final fun setEnabledProvider (Lkotlin/jvm/functions/Function0;)V
+	public final fun setIconProvider (Lkotlin/jvm/functions/Function0;)V
 	public final fun setVisibleProvider (Lkotlin/jvm/functions/Function0;)V
 	public fun toString ()Ljava/lang/String;
 }
@@ -1151,6 +1168,10 @@ public final class com/itsaky/androidide/plugins/services/CursorPosition {
 	public fun toString ()Ljava/lang/String;
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/EditorContentChangeListener {
+	public abstract fun onContentChanged (Ljava/lang/String;IILjava/lang/String;)V
+}
+
 public abstract class com/itsaky/androidide/plugins/services/ExtractResult {
 }
 
@@ -1224,9 +1245,11 @@ public final class com/itsaky/androidide/plugins/services/IdeCommandService$Defa
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeEditorService {
+	public abstract fun addContentChangeListener (Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
 	public abstract fun addFileChangeListener (Lcom/itsaky/androidide/plugins/services/FileChangeListener;)V
 	public abstract fun appendToLine (Ljava/io/File;ILjava/lang/String;)Z
 	public abstract fun deleteLine (Ljava/io/File;I)Z
+	public abstract fun dismissInlineSuggestion ()V
 	public abstract fun getCurrentCursorPosition ()Lcom/itsaky/androidide/plugins/services/CursorPosition;
 	public abstract fun getCurrentFile ()Ljava/io/File;
 	public abstract fun getCurrentFileContent ()Ljava/lang/String;
@@ -1248,11 +1271,20 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeEditor
 	public abstract fun openFile (Ljava/io/File;)Z
 	public abstract fun openFileAt (Ljava/io/File;II)Z
 	public abstract fun prependToLine (Ljava/io/File;ILjava/lang/String;)Z
+	public abstract fun removeContentChangeListener (Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
 	public abstract fun removeFileChangeListener (Lcom/itsaky/androidide/plugins/services/FileChangeListener;)V
 	public abstract fun replaceLine (Ljava/io/File;ILjava/lang/String;)Z
 	public abstract fun replaceRange (Ljava/io/File;Lcom/itsaky/androidide/plugins/services/SelectionRange;Ljava/lang/String;)Z
 	public abstract fun replaceSelection (Ljava/lang/String;)Z
 	public abstract fun saveCurrentFile ()Z
+	public abstract fun showInlineSuggestion (Ljava/lang/String;)V
+}
+
+public final class com/itsaky/androidide/plugins/services/IdeEditorService$DefaultImpls {
+	public static fun addContentChangeListener (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
+	public static fun dismissInlineSuggestion (Lcom/itsaky/androidide/plugins/services/IdeEditorService;)V
+	public static fun removeContentChangeListener (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
+	public static fun showInlineSuggestion (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/lang/String;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeEditorTabService {
@@ -1354,6 +1386,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeUIServ
 	public abstract fun getCurrentActivity ()Landroid/app/Activity;
 	public abstract fun isUIAvailable ()Z
 	public abstract fun openPluginScreen (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+	public abstract fun refreshToolbarActions ()V
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeUIService$Companion {
@@ -1366,6 +1399,7 @@ public final class com/itsaky/androidide/plugins/services/IdeUIService$Companion
 public final class com/itsaky/androidide/plugins/services/IdeUIService$DefaultImpls {
 	public static fun openPluginScreen (Lcom/itsaky/androidide/plugins/services/IdeUIService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
 	public static synthetic fun openPluginScreen$default (Lcom/itsaky/androidide/plugins/services/IdeUIService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Z
+	public static fun refreshToolbarActions (Lcom/itsaky/androidide/plugins/services/IdeUIService;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService {
@@ -1492,6 +1526,14 @@ public final class com/itsaky/androidide/plugins/services/SelectionRange {
 	public final fun getStartLine ()I
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/SharedServices {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/services/SharedServices;
+	public final fun clear ()V
+	public final fun get (Ljava/lang/Class;)Ljava/lang/Object;
+	public final fun register (Ljava/lang/Class;Ljava/lang/Object;)V
+	public final fun unregister (Ljava/lang/Class;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/ThemeChangeListener {

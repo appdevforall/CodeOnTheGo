@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# Non-blocking nudge: when a push includes changes to first-party app source,
+# remind the author to run an architecture pass (the architecture-review skill /
+# REVIEW.md §10) before opening the PR.
+#
+# This is a REMINDER, not a gate — it always exits 0 and never blocks a push.
+# It stays silent unless the push actually touches first-party Kotlin/Java, so
+# docs-, test-, and vendored-only pushes produce no output.
+
+set -u
+
+cyan=$(tput setaf 6 2>/dev/null || true)
+yellow=$(tput setaf 3 2>/dev/null || true)
+reset=$(tput sgr0 2>/dev/null || true)
+
+# Determine the commits being pushed. Prefer the tracked upstream; fall back to
+# the integration branch (feature branches are based on stage). If neither is
+# resolvable, stay quiet rather than nag.
+if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
+	range="@{upstream}..HEAD"
+elif git rev-parse --verify -q origin/stage >/dev/null 2>&1; then
+	range="origin/stage..HEAD"
+else
+	exit 0
+fi
+
+changed=$(git diff --name-only "$range" 2>/dev/null) || exit 0
+[ -n "$changed" ] || exit 0
+
+# Keep only first-party production Kotlin/Java: drop tests, generated build
+# output, and vendored subtrees (mirrors Spotless's commonTargetExcludes).
+firstparty=$(printf '%s\n' "$changed" \
+	| grep -E '\.(kt|java)$' \
+	| grep -vE '(^|/)(build|src/test|src/androidTest)/' \
+	| grep -vE '^(composite-builds/build-deps|termux/|eventbus/|LayoutEditor/|subprojects/(aaptcompiler|builder-model-impl|flashbar|xml-dom|llama\.cpp)/)' \
+	|| true)
+
+[ -n "$firstparty" ] || exit 0
+
+count=$(printf '%s\n' "$firstparty" | grep -c .)
+
+echo ""
+echo "${cyan}[architecture nudge]${reset} this push changes ${count} first-party source file(s)."
+echo "${yellow}  Consider an architecture pass before opening the PR:${reset}"
+echo "    - run the ${cyan}architecture-review${reset} skill (reads ARCHITECTURE.md + the ADRs, checks the diff), or"
+echo "    - self-check against ${cyan}REVIEW.md section 10${reset} (UDF, sealed state, Koin, Room, module boundaries, Compose)."
+echo "${yellow}  (Reminder only — your push continues.)${reset}"
+echo ""
+
+exit 0
