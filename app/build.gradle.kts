@@ -135,6 +135,9 @@ android {
 		}
 
 		jniLibs {
+			// Debug default: uncompressed libs, loaded straight from the APK. Bundled-assets
+			// variants (release/instrumentation) override this to true in AndroidModuleConf.kt
+			// so their libs ship deflate-compressed and extract at install time (ADFA-2306).
 			useLegacyPackaging = false
 		}
 	}
@@ -475,6 +478,12 @@ val noCompress =
 // tooling-api-all.jar ships as a brotli-encoded .jar.br.
 val noCompressDebug = noCompress - "jar"
 
+// Release APKs DEFLATE native libs for ~5.9 MB size reduction (ADFA-2306): release uses
+// legacy jniLibs packaging (extractNativeLibs=true, set in AndroidModuleConf.kt), so the
+// installer extracts them at install time and they need not be STORED for mmap. Debug
+// keeps "so" STORED because it loads libs directly from the APK.
+val noCompressRelease = noCompress - "so"
+
 afterEvaluate {
 	tasks.named("assembleV8Release").configure {
 		finalizedBy("recompressApk")
@@ -483,7 +492,7 @@ afterEvaluate {
 			tasks.named("recompressApk").configure {
 				extensions.extraProperties["abi"] = "v8"
 				extensions.extraProperties["buildName"] = "release"
-				extensions.extraProperties["noCompressExtensions"] = noCompress
+				extensions.extraProperties["noCompressExtensions"] = noCompressRelease
 			}
 		}
 
@@ -499,7 +508,7 @@ afterEvaluate {
 			tasks.named("recompressApk").configure {
 				extensions.extraProperties["abi"] = "v7"
 				extensions.extraProperties["buildName"] = "release"
-				extensions.extraProperties["noCompressExtensions"] = noCompress
+				extensions.extraProperties["noCompressExtensions"] = noCompressRelease
 			}
 		}
 
