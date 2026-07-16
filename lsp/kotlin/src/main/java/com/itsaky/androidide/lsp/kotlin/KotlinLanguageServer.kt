@@ -120,8 +120,7 @@ class KotlinLanguageServer : ILanguageServer {
 	}
 
 	/** Returns the [CompilationEnvironment] responsible for [file], or null if the compiler is not ready. */
-	internal fun compilationEnvironmentFor(file: Path): CompilationEnvironment? =
-		compiler?.compilationEnvironmentFor(file)
+	internal fun compilationEnvironmentFor(file: Path): CompilationEnvironment? = compiler?.compilationEnvironmentFor(file)
 
 	override fun applySettings(settings: IServerSettings?) {
 		this._settings = settings

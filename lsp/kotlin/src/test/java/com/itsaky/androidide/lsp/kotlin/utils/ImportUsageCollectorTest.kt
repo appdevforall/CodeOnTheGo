@@ -9,20 +9,19 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ImportUsageCollectorTest : KtLspTest() {
-
-	private fun usageOf(ktFile: KtFile): ImportUsage =
-		env.project.read { analyzeMaybeDangling(ktFile) { collectImportUsage(ktFile) } }
+	private fun usageOf(ktFile: KtFile): ImportUsage = env.project.read { analyzeMaybeDangling(ktFile) { collectImportUsage(ktFile) } }
 
 	@Test
 	fun `type reference is recorded as used`() {
-		val ktFile = createSourceFile(
-			"UseType.kt",
-			"""
-			package p
-			fun f(): java.io.File? = null
-			fun g() { val x: java.io.File = java.io.File("a") }
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"UseType.kt",
+				"""
+				package p
+				fun f(): java.io.File? = null
+				fun g() { val x: java.io.File = java.io.File("a") }
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertTrue("java.io.File" in usage.usedFqNames)
 		assertTrue("java.io" in usage.usedPackages)
@@ -37,14 +36,15 @@ class ImportUsageCollectorTest : KtLspTest() {
 			fun topLevelHelper() {}
 			""".trimIndent(),
 		)
-		val ktFile = createSourceFile(
-			"UseFn.kt",
-			"""
-			package p
-			import lib.topLevelHelper
-			fun f() { topLevelHelper() }
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"UseFn.kt",
+				"""
+				package p
+				import lib.topLevelHelper
+				fun f() { topLevelHelper() }
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertTrue("lib.topLevelHelper" in usage.usedFqNames)
 	}
@@ -59,15 +59,16 @@ class ImportUsageCollectorTest : KtLspTest() {
 			operator fun Money.plus(other: Money): Money = this
 			""".trimIndent(),
 		)
-		val ktFile = createSourceFile(
-			"UseOp.kt",
-			"""
-			package p
-			import lib.Money
-			import lib.plus
-			fun f(a: Money, b: Money) { val c = a + b }
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"UseOp.kt",
+				"""
+				package p
+				import lib.Money
+				import lib.plus
+				fun f(a: Money, b: Money) { val c = a + b }
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertTrue("lib.plus" in usage.usedFqNames)
 	}
@@ -81,28 +82,30 @@ class ImportUsageCollectorTest : KtLspTest() {
 			class Extra
 			""".trimIndent(),
 		)
-		val ktFile = createSourceFile(
-			"NoUse.kt",
-			"""
-			package p
-			import lib.Extra
-			fun f() {}
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"NoUse.kt",
+				"""
+				package p
+				import lib.Extra
+				fun f() {}
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertFalse("lib.Extra" in usage.usedFqNames)
 	}
 
 	@Test
 	fun `unresolved reference is recorded by short name, not as used`() {
-		val ktFile = createSourceFile(
-			"Unresolved.kt",
-			"""
-			package p
-			import a.b.Mystery
-			fun f(m: Mystery) {}
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"Unresolved.kt",
+				"""
+				package p
+				import a.b.Mystery
+				fun f(m: Mystery) {}
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertFalse("a.b.Mystery" in usage.usedFqNames)
 		assertTrue("Mystery" in usage.unresolvedNames)
@@ -118,15 +121,16 @@ class ImportUsageCollectorTest : KtLspTest() {
 			operator fun Foo.get(i: Int): Int = i
 			""".trimIndent(),
 		)
-		val ktFile = createSourceFile(
-			"UseGet.kt",
-			"""
-			package p
-			import lib.Foo
-			import lib.get
-			fun f(foo: Foo) { val x = foo[0] }
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"UseGet.kt",
+				"""
+				package p
+				import lib.Foo
+				import lib.get
+				fun f(foo: Foo) { val x = foo[0] }
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertTrue("lib.get" in usage.usedFqNames)
 	}
@@ -141,15 +145,16 @@ class ImportUsageCollectorTest : KtLspTest() {
 			operator fun Foo.set(i: Int, v: Int) {}
 			""".trimIndent(),
 		)
-		val ktFile = createSourceFile(
-			"UseSet.kt",
-			"""
-			package p
-			import lib.Foo
-			import lib.set
-			fun f(foo: Foo) { foo[0] = 1 }
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"UseSet.kt",
+				"""
+				package p
+				import lib.Foo
+				import lib.set
+				fun f(foo: Foo) { foo[0] = 1 }
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertTrue("lib.set" in usage.usedFqNames)
 	}
@@ -164,15 +169,16 @@ class ImportUsageCollectorTest : KtLspTest() {
 			operator fun Foo.iterator(): Iterator<Int> = listOf(1, 2, 3).iterator()
 			""".trimIndent(),
 		)
-		val ktFile = createSourceFile(
-			"UseIterator.kt",
-			"""
-			package p
-			import lib.Foo
-			import lib.iterator
-			fun f(foo: Foo) { for (x in foo) {} }
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"UseIterator.kt",
+				"""
+				package p
+				import lib.Foo
+				import lib.iterator
+				fun f(foo: Foo) { for (x in foo) {} }
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertTrue("lib.iterator" in usage.usedFqNames)
 	}
@@ -188,16 +194,17 @@ class ImportUsageCollectorTest : KtLspTest() {
 			operator fun Foo.component2(): Int = 2
 			""".trimIndent(),
 		)
-		val ktFile = createSourceFile(
-			"UseDestructure.kt",
-			"""
-			package p
-			import lib.Foo
-			import lib.component1
-			import lib.component2
-			fun f(foo: Foo) { val (a, b) = foo }
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"UseDestructure.kt",
+				"""
+				package p
+				import lib.Foo
+				import lib.component1
+				import lib.component2
+				fun f(foo: Foo) { val (a, b) = foo }
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertTrue("lib.component1" in usage.usedFqNames)
 		assertTrue("lib.component2" in usage.usedFqNames)
@@ -212,14 +219,15 @@ class ImportUsageCollectorTest : KtLspTest() {
 			class Widget(val n: Int)
 			""".trimIndent(),
 		)
-		val ktFile = createSourceFile(
-			"UseCtor.kt",
-			"""
-			package p
-			import lib.Widget
-			fun f() { val w = Widget(1) }
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"UseCtor.kt",
+				"""
+				package p
+				import lib.Widget
+				fun f() { val w = Widget(1) }
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertTrue("lib.Widget" in usage.usedFqNames)
 	}
@@ -233,14 +241,15 @@ class ImportUsageCollectorTest : KtLspTest() {
 			annotation class Marker
 			""".trimIndent(),
 		)
-		val ktFile = createSourceFile(
-			"UseAnnotation.kt",
-			"""
-			package p
-			import lib.Marker
-			@Marker fun f() {}
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"UseAnnotation.kt",
+				"""
+				package p
+				import lib.Marker
+				@Marker fun f() {}
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertTrue("lib.Marker" in usage.usedFqNames)
 	}
@@ -256,15 +265,16 @@ class ImportUsageCollectorTest : KtLspTest() {
 			operator fun Foo.getValue(thisRef: Any?, property: KProperty<*>): Int = 1
 			""".trimIndent(),
 		)
-		val ktFile = createSourceFile(
-			"UseDelegate.kt",
-			"""
-			package p
-			import lib.Foo
-			import lib.getValue
-			fun f(foo: Foo) { val x: Int by foo }
-			""".trimIndent(),
-		)
+		val ktFile =
+			createSourceFile(
+				"UseDelegate.kt",
+				"""
+				package p
+				import lib.Foo
+				import lib.getValue
+				fun f(foo: Foo) { val x: Int by foo }
+				""".trimIndent(),
+			)
 		val usage = usageOf(ktFile)
 		assertTrue("lib.getValue" in usage.usedFqNames)
 	}

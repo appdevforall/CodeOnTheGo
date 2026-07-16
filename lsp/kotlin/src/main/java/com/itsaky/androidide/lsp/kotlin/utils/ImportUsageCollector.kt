@@ -77,12 +77,13 @@ internal fun KaSession.collectImportUsage(ktFile: KtFile): ImportUsage {
 
 	// 2) Convention / operator call sites (no textual name reference).
 	ktFile.collectDescendantsOfType<KtElement>().forEach { element ->
-		val isConvention = element is KtOperationReferenceExpression ||
-			element is KtArrayAccessExpression ||
-			element is KtCallExpression ||
-			element is KtForExpression ||
-			element is KtDestructuringDeclaration ||
-			element is KtPropertyDelegate
+		val isConvention =
+			element is KtOperationReferenceExpression ||
+				element is KtArrayAccessExpression ||
+				element is KtCallExpression ||
+				element is KtForExpression ||
+				element is KtDestructuringDeclaration ||
+				element is KtPropertyDelegate
 		if (!isConvention) return@forEach
 		runCatching {
 			record(element.resolveToCall()?.successfulFunctionCallOrNull()?.symbol)
@@ -92,12 +93,13 @@ internal fun KaSession.collectImportUsage(ktFile: KtFile): ImportUsage {
 	return ImportUsage(usedFqNames, usedPackages, unresolvedNames)
 }
 
-private fun KaSymbol.importableFqNameString(): String? = when (this) {
-	// A constructor's own callableId is null, so it must map to its containing class -- the name
-	// that's actually imported. Covers `Foo()` calls and `@Foo` annotations (both resolve to the
-	// constructor). Must precede the KaCallableSymbol branch, which a constructor also matches.
-	is KaConstructorSymbol -> containingClassId?.asSingleFqName()?.asString()
-	is KaClassLikeSymbol -> classId?.asSingleFqName()?.asString()
-	is KaCallableSymbol -> callableId?.asSingleFqName()?.asString()
-	else -> null
-}
+private fun KaSymbol.importableFqNameString(): String? =
+	when (this) {
+		// A constructor's own callableId is null, so it must map to its containing class -- the name
+		// that's actually imported. Covers `Foo()` calls and `@Foo` annotations (both resolve to the
+		// constructor). Must precede the KaCallableSymbol branch, which a constructor also matches.
+		is KaConstructorSymbol -> containingClassId?.asSingleFqName()?.asString()
+		is KaClassLikeSymbol -> classId?.asSingleFqName()?.asString()
+		is KaCallableSymbol -> callableId?.asSingleFqName()?.asString()
+		else -> null
+	}

@@ -1,7 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.utils
 
-import org.jetbrains.kotlin.kdoc.psi.api.KDoc
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
+import org.jetbrains.kotlin.kdoc.psi.api.KDoc
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtImportDirective
 
@@ -21,18 +21,19 @@ internal data class ImportUsage(
 )
 
 /** JVM packages that Kotlin imports with a wildcard by default; explicit named imports from these are redundant. */
-internal val DEFAULT_STAR_PACKAGES: Set<String> = setOf(
-	"kotlin",
-	"kotlin.annotation",
-	"kotlin.collections",
-	"kotlin.comparisons",
-	"kotlin.io",
-	"kotlin.ranges",
-	"kotlin.sequences",
-	"kotlin.text",
-	"kotlin.jvm",
-	"java.lang",
-)
+internal val DEFAULT_STAR_PACKAGES: Set<String> =
+	setOf(
+		"kotlin",
+		"kotlin.annotation",
+		"kotlin.collections",
+		"kotlin.comparisons",
+		"kotlin.io",
+		"kotlin.ranges",
+		"kotlin.sequences",
+		"kotlin.text",
+		"kotlin.jvm",
+		"java.lang",
+	)
 
 private val KDOC_LINK = Regex("""\[([^\]\s]+)]""")
 
@@ -41,18 +42,22 @@ private val KDOC_LINK = Regex("""\[([^\]\s]+)]""")
  * survivors deduped and lexicographically sorted. Returns null when the imports are already in that
  * exact form (no edit needed). The returned text has no surrounding newlines.
  */
-internal fun organizedImportBlock(ktFile: KtFile, usage: ImportUsage): String? {
+internal fun organizedImportBlock(
+	ktFile: KtFile,
+	usage: ImportUsage,
+): String? {
 	val directives = ktFile.importDirectives
 	if (directives.isEmpty()) return null
 
 	val filePackage = ktFile.packageFqName.asString()
 	val kdocNames = collectKDocLinkNames(ktFile)
 
-	val newLines = directives
-		.filter { keepImport(it, usage, filePackage, kdocNames) }
-		.mapNotNull { it.importPath?.let { path -> "import $path" } }
-		.distinct()
-		.sorted()
+	val newLines =
+		directives
+			.filter { keepImport(it, usage, filePackage, kdocNames) }
+			.mapNotNull { it.importPath?.let { path -> "import $path" } }
+			.distinct()
+			.sorted()
 
 	val currentLines = directives.mapNotNull { it.importPath?.let { path -> "import $path" } }
 
@@ -91,6 +96,7 @@ private fun keepImport(
 }
 
 private fun collectKDocLinkNames(ktFile: KtFile): Set<String> =
-	PsiTreeUtil.collectElementsOfType(ktFile, KDoc::class.java)
+	PsiTreeUtil
+		.collectElementsOfType(ktFile, KDoc::class.java)
 		.flatMap { kdoc -> KDOC_LINK.findAll(kdoc.text).map { it.groupValues[1].substringAfterLast('.') } }
 		.toSet()

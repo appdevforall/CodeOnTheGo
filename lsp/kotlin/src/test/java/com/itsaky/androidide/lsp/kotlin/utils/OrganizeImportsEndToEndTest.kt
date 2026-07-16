@@ -9,7 +9,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OrganizeImportsEndToEndTest : KtLspTest() {
-
 	@Test
 	fun `removes unused import end to end`() {
 		createSourceFile(

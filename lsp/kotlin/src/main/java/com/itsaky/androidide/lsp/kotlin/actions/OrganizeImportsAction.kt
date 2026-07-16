@@ -46,7 +46,10 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 	 * exception handler, so an uncaught throw here would crash the app. Degrading to zero edits is
 	 * always safe -- it just leaves the imports as-is, never produces a partial/incorrect rewrite.
 	 */
-	internal fun computeOrganizeEdit(env: AbstractCompilationEnvironment, nioPath: Path): List<TextEdit> =
+	internal fun computeOrganizeEdit(
+		env: AbstractCompilationEnvironment,
+		nioPath: Path,
+	): List<TextEdit> =
 		runCatching {
 			val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return emptyList()
 			if (ktFile.importDirectives.isEmpty()) return emptyList()
@@ -62,17 +65,21 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 			emptyList()
 		}
 
-	override fun postExec(data: ActionData, result: Any) {
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
 		super.postExec(data, result)
 		if (result !is List<*> || result.isEmpty()) return
 
 		@Suppress("UNCHECKED_CAST")
 		result as List<TextEdit>
 
-		val client = data.languageClient ?: run {
-			logger.warn("No language client set. Cannot organize imports.")
-			return
-		}
+		val client =
+			data.languageClient ?: run {
+				logger.warn("No language client set. Cannot organize imports.")
+				return
+			}
 		val file = data.requireFile()
 		client.performCodeAction(
 			CodeActionItem(
@@ -80,7 +87,7 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 				changes = listOf(DocumentChange(file = file.toPath(), edits = result)),
 				kind = CodeActionKind.QuickFix,
 				command = Command("", ""), // no post-action command (no CMD_FORMAT_CODE)
-			)
+			),
 		)
 	}
 }
