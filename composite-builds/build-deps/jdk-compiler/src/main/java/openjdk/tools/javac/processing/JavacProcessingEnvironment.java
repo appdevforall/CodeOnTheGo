@@ -1916,7 +1916,7 @@ public class JavacProcessingEnvironment implements ProcessingEnvironment, Closea
     }
 
     private static void rethrowAbort(final Throwable t) throws Error {
-        if (t instanceof ThreadDeath || t instanceof Abort) {
+        if (t instanceof Abort) {
             throw (Error) t;
         }
     }

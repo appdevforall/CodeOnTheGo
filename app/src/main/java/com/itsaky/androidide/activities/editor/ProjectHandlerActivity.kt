@@ -34,6 +34,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.SizeUtils
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
@@ -91,6 +92,7 @@ import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.utils.withIcon
+import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
@@ -216,10 +218,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		observeStates()
 		startServices()
 
-        if (intent.getBooleanExtra("HAS_TEMPLATE_ISSUES", false)) {
-            flashError(getString(string.msg_template_warnings))
-        }
-
+		if (intent.getBooleanExtra("HAS_TEMPLATE_ISSUES", false)) {
+			flashError(getString(string.msg_template_warnings))
+		}
 	}
 
 	private fun observeStates() {
@@ -270,6 +271,15 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			apk = state.apkFile,
 			launchInDebugMode = state.launchInDebugMode,
 		)
+
+		if (state.launchProfilerAfterInstall) {
+			// The "Profile" action built a profileable APK and just launched it; surface the
+			// Profiler tab so the user can immediately profile the running app.
+			bottomSheetViewModel.setSheetState(
+				sheetState = BottomSheetBehavior.STATE_EXPANDED,
+				currentTab = BottomSheetViewModel.TAB_PROFILER,
+			)
+		}
 	}
 
 	private fun showPluginInstallDialog(cgpFile: File) {
@@ -978,51 +988,54 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		connectClient(IDELanguageClientImpl.getInstance())
 
-		val results = try {
-			connectDebugClient(debuggerViewModel.debugClient).values
-		} catch (e: Throwable) {
-			if (e is CancellationException) {
-				throw e
-			}
+		val results =
+			try {
+				connectDebugClient(debuggerViewModel.debugClient).values
+			} catch (e: Throwable) {
+				if (e is CancellationException) {
+					throw e
+				}
 
-			Sentry.captureException(e)
-			logger.error("Unable to connect LSP servers with debug client", e)
-			listOf(DebugClientConnectionResult.Failure(cause = e))
-		}
+				Sentry.captureException(e)
+				logger.error("Unable to connect LSP servers with debug client", e)
+				listOf(DebugClientConnectionResult.Failure(cause = e))
+			}
 
 		if (results.any { it is DebugClientConnectionResult.Failure }) {
 			// one or more debug adapters failed to initialize
-			val message = buildString {
-				results.filterIsInstance<DebugClientConnectionResult.Failure>().forEach { result ->
-					val msg = result.contextRes?.let(::getString)
-						?: result.context
-						?: (result.cause as? SocketException?).let { err ->
-							val msg = err?.message ?: ""
-							when {
-								msg.contains("EPERM") -> getString(string.debugger_error_errno_eperm)
-								msg.contains("ECONNREFUSED") -> getString(string.debugger_error_errno_econnrefused)
-								else -> null
-							}
-						}
-						?: (result.cause as? ErrnoException? ?: result.cause?.cause as? ErrnoException?)?.let { err ->
-							when (err.errno) {
-								OsConstants.EPERM -> getString(string.debugger_error_errno_eperm)
-								OsConstants.ECONNREFUSED -> getString(string.debugger_error_errno_econnrefused)
-								else -> getString(R.string.debugger_error_errno, err.errno)
-							}
-						}
-						?: getString(R.string.debugger_error_debugger_startup_failure)
+			val message =
+				buildString {
+					results.filterIsInstance<DebugClientConnectionResult.Failure>().forEach { result ->
+						val msg =
+							result.contextRes?.let(::getString)
+								?: result.context
+								?: (result.cause as? SocketException?).let { err ->
+									val msg = err?.message ?: ""
+									when {
+										msg.contains("EPERM") -> getString(string.debugger_error_errno_eperm)
+										msg.contains("ECONNREFUSED") -> getString(string.debugger_error_errno_econnrefused)
+										else -> null
+									}
+								}
+								?: (result.cause as? ErrnoException? ?: result.cause?.cause as? ErrnoException?)?.let { err ->
+									when (err.errno) {
+										OsConstants.EPERM -> getString(string.debugger_error_errno_eperm)
+										OsConstants.ECONNREFUSED -> getString(string.debugger_error_errno_econnrefused)
+										else -> getString(R.string.debugger_error_errno, err.errno)
+									}
+								}
+								?: getString(R.string.debugger_error_debugger_startup_failure)
 
-					append(msg)
-					append(System.lineSeparator())
+						append(msg)
+						append(System.lineSeparator())
+					}
+
+					if (isNotBlank()) {
+						append(System.lineSeparator())
+					}
+
+					append(getString(R.string.debugger_error_suggestion_network_restriction))
 				}
-
-				if (isNotBlank()) {
-					append(System.lineSeparator())
-				}
-
-				append(getString(R.string.debugger_error_suggestion_network_restriction))
-			}
 
 			withContext(Dispatchers.Main) {
 				newMaterialDialogBuilder(this@ProjectHandlerActivity)
