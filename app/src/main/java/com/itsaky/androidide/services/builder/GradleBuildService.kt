@@ -49,10 +49,10 @@ import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
-import com.itsaky.androidide.tooling.api.IToolingApiClient
-import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
+import com.itsaky.androidide.tooling.api.IToolingApiClient
+import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
@@ -166,7 +166,7 @@ class GradleBuildService :
 			}
 		} ?: "unknown"
 
-	internal fun nextBuildId(runType: BuildRunType): BuildId =
+	override fun nextBuildId(runType: BuildRunType): BuildId =
 		BuildId(
 			buildSessionId = buildSessionId,
 			buildId = buildId.incrementAndGet(),
@@ -408,9 +408,10 @@ class GradleBuildService :
 					),
 			)
 
-			EventBus.getDefault()
+			EventBus
+				.getDefault()
 				.post(
-					BuildStartedEvent(buildInfo)
+					BuildStartedEvent(buildInfo),
 				)
 
 			eventListener?.prepareBuild(buildInfo)
@@ -450,16 +451,18 @@ class GradleBuildService :
 		)
 
 		buildServiceScope.launch {
-			ProjectManagerImpl.getInstance()
+			ProjectManagerImpl
+				.getInstance()
 				.indexingServiceManager
 				.onBuildCompleted()
 		}
 
-		EventBus.getDefault()
+		EventBus
+			.getDefault()
 			.post(
 				BuildCompletedEvent(
 					result = result,
-				)
+				),
 			)
 	}
 
@@ -632,9 +635,9 @@ class GradleBuildService :
 				} catch (e: Throwable) {
 					if (BuildPreferences.isScanEnabled &&
 						(
-								e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
-										e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
-								)
+							e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
+								e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
+						)
 					) {
 						BuildPreferences.isScanEnabled = false
 
