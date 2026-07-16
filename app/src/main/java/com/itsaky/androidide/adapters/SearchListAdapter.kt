@@ -17,12 +17,10 @@ package com.itsaky.androidide.adapters
 import android.graphics.PorterDuff.Mode.SRC_ATOP
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView.Adapter
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
-import com.itsaky.androidide.adapters.SearchListAdapter.VH
 import com.itsaky.androidide.databinding.LayoutSearchResultGroupBinding
 import com.itsaky.androidide.databinding.LayoutSearchResultItemBinding
 import com.itsaky.androidide.databinding.LayoutSearchResultSectionBinding
@@ -41,7 +39,10 @@ class SearchListAdapter(
 	private val onMatchClick: (SearchResult) -> Unit,
 	keys: List<File>,
 ) : Adapter<ViewHolder>() {
-	private val rows: List<Row> =
+	// Sections, files and matches are flattened into a single row list so the hosting
+	// RecyclerView can recycle match rows; a nested RecyclerView would inflate every
+	// match of a file at once.
+	private var rows: List<Row> =
 		buildRows(listOf(SearchResultSection(null, results.filterValues { it != null }.mapValues { it.value.orEmpty() })), keys)
 
 	constructor(
@@ -55,15 +56,14 @@ class SearchListAdapter(
 		onFileClick: (File) -> Unit,
 		onMatchClick: (SearchResult) -> Unit,
 	) : this(emptyMap(), onFileClick, onMatchClick, emptyList()) {
-		sectionRows = buildRows(sections, null)
+		rows = buildRows(sections, null)
 	}
 
-	private var sectionRows: List<Row>? = null
-
 	override fun getItemViewType(position: Int): Int =
-		when (visibleRows[position]) {
+		when (rows[position]) {
 			is Row.Header -> VIEW_TYPE_HEADER
 			is Row.Group -> VIEW_TYPE_GROUP
+			is Row.Match -> VIEW_TYPE_MATCH
 		}
 
 	override fun onCreateViewHolder(
@@ -73,7 +73,8 @@ class SearchListAdapter(
 		val inflater = LayoutInflater.from(parent.context)
 		return when (viewType) {
 			VIEW_TYPE_HEADER -> HeaderVH(LayoutSearchResultSectionBinding.inflate(inflater, parent, false))
-			else -> VH(LayoutSearchResultGroupBinding.inflate(inflater, parent, false))
+			VIEW_TYPE_GROUP -> VH(LayoutSearchResultGroupBinding.inflate(inflater, parent, false))
+			else -> ChildVH(LayoutSearchResultItemBinding.inflate(inflater, parent, false))
 		}
 	}
 
@@ -81,9 +82,10 @@ class SearchListAdapter(
 		holder: ViewHolder,
 		position: Int,
 	) {
-		when (val row = visibleRows[position]) {
+		when (val row = rows[position]) {
 			is Row.Header -> (holder as HeaderVH).binding.title.text = row.title
 			is Row.Group -> bindGroup(holder as VH, row)
+			is Row.Match -> bindMatch(holder as ChildVH, row.match)
 		}
 	}
 
@@ -93,49 +95,43 @@ class SearchListAdapter(
 	) {
 		val binding = holder.binding
 		val file = row.file
-		val matches = row.matches
 		val color = binding.icon.context.resolveAttr(R.attr.colorPrimary)
 		binding.title.text = file.name
 		binding.icon.setImageResource(FileExtension.Factory.forFile(file, false).icon)
 		binding.icon.setColorFilter(color, SRC_ATOP)
-		binding.items.layoutManager = LinearLayoutManager(binding.items.context)
-		binding.items.adapter = ChildAdapter(matches)
 		binding.root.setOnClickListener { onFileClick(file) }
 	}
 
-	override fun getItemCount(): Int = visibleRows.size
-
-	inner class ChildAdapter(
-		val matches: List<SearchResult>,
-	) : Adapter<ChildVH>() {
-		override fun onCreateViewHolder(
-			p1: ViewGroup,
-			p2: Int,
-		): ChildVH = ChildVH(LayoutSearchResultItemBinding.inflate(LayoutInflater.from(p1.context)))
-
-		override fun onBindViewHolder(
-			p1: ChildVH,
-			p2: Int,
-		) {
-			val match = matches[p2]
-			val binding = p1.binding
-			CompletableFuture.runAsync {
-				try {
-					val scheme = SchemeAndroidIDE.newInstance(binding.text.context)
-					val sb = JavaHighlighter().highlight(scheme, match.line, match.match)
-					ThreadUtils.runOnUiThread { binding.text.text = sb }
-				} catch (e: Exception) {
-					ThreadUtils.runOnUiThread { binding.text.text = match.match }
+	private fun bindMatch(
+		holder: ChildVH,
+		match: SearchResult,
+	) {
+		val text = holder.binding.text
+		// Show the plain preview immediately; the tag guards the async highlight below
+		// against landing on a recycled row.
+		text.text = match.line
+		text.tag = match
+		CompletableFuture.runAsync {
+			try {
+				val scheme = SchemeAndroidIDE.newInstance(text.context)
+				val sb = JavaHighlighter().highlight(scheme, match.line, match.match)
+				ThreadUtils.runOnUiThread {
+					if (text.tag === match) {
+						text.text = sb
+					}
+				}
+			} catch (e: Exception) {
+				ThreadUtils.runOnUiThread {
+					if (text.tag === match) {
+						text.text = match.match
+					}
 				}
 			}
-			binding.root.setOnClickListener { onMatchClick(match) }
 		}
-
-		override fun getItemCount(): Int = matches.size
+		holder.binding.root.setOnClickListener { onMatchClick(match) }
 	}
 
-	private val visibleRows: List<Row>
-		get() = sectionRows ?: rows
+	override fun getItemCount(): Int = rows.size
 
 	class VH(
 		val binding: LayoutSearchResultGroupBinding,
@@ -156,13 +152,17 @@ class SearchListAdapter(
 
 		data class Group(
 			val file: File,
-			val matches: List<SearchResult>,
+		) : Row()
+
+		data class Match(
+			val match: SearchResult,
 		) : Row()
 	}
 
 	private companion object {
 		const val VIEW_TYPE_HEADER = 0
 		const val VIEW_TYPE_GROUP = 1
+		const val VIEW_TYPE_MATCH = 2
 
 		fun buildRows(
 			sections: List<SearchResultSection>,
@@ -174,7 +174,10 @@ class SearchListAdapter(
 					section.title?.let { add(Row.Header(it)) }
 					val sectionKeys = keys ?: section.results.keys.toList()
 					sectionKeys.forEach { file ->
-						section.results[file]?.let { matches -> add(Row.Group(file, matches)) }
+						section.results[file]?.let { matches ->
+							add(Row.Group(file))
+							matches.forEach { match -> add(Row.Match(match)) }
+						}
 					}
 				}
 			}

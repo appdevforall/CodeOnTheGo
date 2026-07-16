@@ -120,6 +120,7 @@ import java.io.FileNotFoundException
 import java.net.SocketException
 import java.nio.file.NoSuchFileException
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 import java.util.stream.Collectors
 
@@ -190,6 +191,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		const val STATE_KEY_FROM_SAVED_INSTANACE = "ide.editor.isFromSavedInstance"
 		const val STATE_KEY_SHOULD_INITIALIZE = "ide.editor.isInitializing"
+
+		private const val PLUGIN_SEARCH_TIMEOUT_SECONDS = 10L
 	}
 
 	abstract fun doCloseAll()
@@ -952,6 +955,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			return
 		}
 
+		// handleSearchResults() just published the built-in results and bumped the generation;
+		// capture it so a superseding search invalidates this fan-out's late results.
+		val generation = editorViewModel.currentSearchGeneration
 		val request =
 			ProjectSearchRequest(
 				query = query,
@@ -968,10 +974,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						.searchProject(request)
 						.exceptionally { error ->
 							logger.warn("Project search plugin '{}' failed", pluginId, error)
-							pluginManager.recordPluginCrash(pluginId)
+							// Runs on whatever thread completed the future; recordPluginCrash may
+							// force-disable the plugin, which mutates UI (tabs, sidebar).
+							runOnUiThread { pluginManager.recordPluginCrash(pluginId) }
 							emptyList()
 						}
-				} catch (error: Throwable) {
+				} catch (error: Exception) {
 					logger.warn("Project search plugin '{}' failed", pluginId, error)
 					pluginManager.recordPluginCrash(pluginId)
 					null
@@ -981,27 +989,32 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			return
 		}
 
-		CompletableFuture
-			.allOf(*futures.toTypedArray())
-			.thenRun {
-				val pluginSections =
-					futures
-						.flatMap { future -> future.getNow(emptyList()) }
-						.mapNotNull { section -> section.toSearchResultSection() }
-				val sections =
-					buildList {
-						if (exactResults.isNotEmpty()) {
-							add(SearchResultSection(title = null, results = exactResults))
-						}
-						addAll(pluginSections)
-					}
-				runOnUiThread {
-					editorViewModel.onSearchResultSectionsReady(sections)
-				}
-			}.exceptionally { error ->
-				logger.warn("Failed to collect project search plugin results", error)
-				null
+		CompletableFuture.runAsync {
+			try {
+				CompletableFuture
+					.allOf(*futures.toTypedArray())
+					.get(PLUGIN_SEARCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+			} catch (error: Exception) {
+				logger.warn("Project search plugins did not complete in time", error)
 			}
+			val pluginSections =
+				futures
+					// getNow() skips futures still pending after the timeout; orEmpty() and
+					// filterNotNull() guard against Java plugins completing with a null list
+					// or null elements.
+					.flatMap { future -> future.getNow(emptyList()).orEmpty().filterNotNull() }
+					.mapNotNull { section -> section.toSearchResultSection() }
+			val sections =
+				buildList {
+					if (exactResults.isNotEmpty()) {
+						add(SearchResultSection(title = null, results = exactResults))
+					}
+					addAll(pluginSections)
+				}
+			runOnUiThread {
+				editorViewModel.onSearchResultSectionsReady(generation, sections)
+			}
+		}
 	}
 
 	private fun ProjectSearchSection.toSearchResultSection(): SearchResultSection? {
@@ -1084,7 +1097,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		val results =
 			try {
 				connectDebugClient(debuggerViewModel.debugClient).values
-			} catch (e: Throwable) {
+			} catch (e: Exception) {
 				if (e is CancellationException) {
 					throw e
 				}

@@ -11,20 +11,63 @@ import java.util.concurrent.CompletableFuture
  * plugins for extra sections to append in the existing Search Results tab.
  */
 interface ProjectSearchExtension : IPlugin {
+	/**
+	 * Searches the project for [ProjectSearchRequest.query] and returns the sections to
+	 * append to the Search Results tab.
+	 *
+	 * Called on the UI thread — implementations must not block. Do the work asynchronously
+	 * and complete the returned future from any thread. The IDE waits a bounded time for
+	 * the future; sections from futures that complete after the timeout are dropped.
+	 *
+	 * Complete with an empty list (never null) when there are no results. A future that
+	 * completes exceptionally, or a method that throws, is logged and recorded as a plugin
+	 * crash, and contributes no sections.
+	 */
 	fun searchProject(request: ProjectSearchRequest): CompletableFuture<List<ProjectSearchSection>>
 }
 
+/**
+ * Query parameters passed to [ProjectSearchExtension.searchProject].
+ *
+ * @property query The literal (non-regex), non-empty search text entered by the user.
+ * @property roots Source directories the user selected for this search; implementations
+ *   must not report matches outside them.
+ * @property extensions File-name suffixes to restrict the search to, as typed in the
+ *   search dialog's filter field (e.g. "java", ".kt"); empty means all files match.
+ */
 data class ProjectSearchRequest(
 	val query: String,
 	val roots: List<File>,
 	val extensions: List<String> = emptyList(),
 )
 
+/**
+ * A titled group of results rendered as its own section in the Search Results list.
+ *
+ * @property title Section header shown above the results, e.g. the contributing plugin's
+ *   display name. Sections with no results are not rendered.
+ * @property results Matches in this section; the IDE groups them by [ProjectSearchResult.file].
+ */
 data class ProjectSearchSection(
 	val title: String,
 	val results: List<ProjectSearchResult>,
 )
 
+/**
+ * A single match within a [ProjectSearchSection].
+ *
+ * All line and column values are 0-based, matching the IDE's editor coordinates: [startLine]
+ * and [startColumn] address the first character of the match, [endLine] and [endColumn]
+ * address the position just past its last character (exclusive end). Columns are character
+ * offsets within the line. The IDE feeds these values directly into editor navigation when
+ * the user opens the result, so 1-based values will misplace the cursor by one.
+ *
+ * @property file The file containing the match.
+ * @property linePreview Short single-line snippet shown in the results list.
+ * @property matchText The exact text that matched.
+ * @property score Optional relevance score, higher is more relevant; may be used to order
+ *   results within a section.
+ */
 data class ProjectSearchResult(
 	val file: File,
 	val linePreview: String,

@@ -41,6 +41,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
 
 /** ViewModel for data used in [com.itsaky.androidide.activities.editor.EditorActivityKt] */
 @Suppress("PropertyName")
@@ -69,21 +70,36 @@ class EditorViewModel : ViewModel() {
 	private val _files = MutableLiveData<MutableList<File>>(ArrayList())
 	private val _uiState = MutableStateFlow(UiState())
 
-	private val _searchResults = MutableStateFlow<Map<File, List<SearchResult>>>(emptyMap())
-	val searchResults: StateFlow<Map<File, List<SearchResult>>> = _searchResults.asStateFlow()
 	private val _searchResultSections = MutableStateFlow<List<SearchResultSection>>(emptyList())
 	val searchResultSections: StateFlow<List<SearchResultSection>> = _searchResultSections.asStateFlow()
 	val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
+	private val searchGeneration = AtomicInteger()
+
+	/**
+	 * Identifies the search whose results are currently displayed. Capture it when starting
+	 * an async fan-out and pass it to [onSearchResultSectionsReady] so late results of a
+	 * superseded search cannot overwrite a newer one.
+	 */
+	val currentSearchGeneration: Int
+		get() = searchGeneration.get()
+
 	fun onSearchResultsReady(results: Map<File, List<SearchResult>>) {
-		_searchResults.value = results
+		searchGeneration.incrementAndGet()
 		_searchResultSections.value =
 			listOfNotNull(
 				results.takeIf { it.isNotEmpty() }?.let { SearchResultSection(title = null, results = it) },
 			)
 	}
 
-	fun onSearchResultSectionsReady(sections: List<SearchResultSection>) {
+	/** Publishes [sections] unless [generation] no longer matches [currentSearchGeneration]. */
+	fun onSearchResultSectionsReady(
+		generation: Int,
+		sections: List<SearchResultSection>,
+	) {
+		if (generation != searchGeneration.get()) {
+			return
+		}
 		_searchResultSections.value = sections
 	}
 
