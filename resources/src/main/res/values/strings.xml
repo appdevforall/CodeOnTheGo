@@ -689,6 +689,7 @@
 	<string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
 	<string name="title_choose_application">Choose application</string>
 	<string name="err_selected_variant_not_found">Selected build variant not found</string>
+	<string name="err_no_release_variant">No release build variant found for module \'%1$s\'. Profiling requires a release variant.</string>
 	<string name="title_disconnect_log_senders">Disconnect log senders</string>
 	<string name="title_begin_long_select">Begin long select</string>
 	<string name="idepref_editor_stickScroll_title">Sticky scroll</string>
@@ -1138,6 +1139,9 @@
 	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
 	<string name="err_debugger_requires_a11">The debugger requires Android 11 or higher to work.</string>
+	<!-- Error message displayed when the profiler feature is accessed on a device running an Android version older than
+		11, as it's a requirement. -->
+	<string name="err_profiler_requires_a11">The profiler requires Android 11 or higher to work.</string>
 
 	<!-- Title of the dialog shown to ask the user to complete the pairing process -->
 	<string name="debugger_setup_title">Wireless debugging pairing</string>
@@ -1361,9 +1365,56 @@
 	<string name="template_read_error_template_load">Failed to load template at %1$s  error: %2$s</string>
 	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
     <string name="navigate_up">Navigate up</string>
-    <string name="undock">Undock</string>
+
+	<!-- Profiler -->
+	<string name="profiler_title">Profiler</string>
+    <string name="profiler_action_label">Profile</string>
+    <string name="profiler_dump_heap">Dump heap</string>
+    <string name="profiler_cpu_hotspots">CPU hotspots</string>
+    <string name="profiler_empty">No profile data yet. Run a heap dump or CPU sample.</string>
+    <string name="profiler_col_class">Class</string>
+    <string name="profiler_col_count">Count</string>
+    <string name="profiler_col_shallow">Shallow</string>
+    <string name="profiler_col_retained">Retained</string>
+    <string name="profiler_col_symbol">Symbol</string>
+    <string name="profiler_col_self">Self</string>
+    <string name="profiler_col_total">Total</string>
+    <string name="profiler_process_picker_debuggable">debuggable</string>
+    <string name="profiler_process_picker_profileable">profileable</string>
+    <string name="profiler_process_picker_pid">%1$s · PID %2$d</string>
+    <string name="profiler_select_process">Select a process to profile</string>
+    <string name="profiler_no_processes">No debuggable or profileable processes found.</string>
+    <string name="profiler_running">Capturing heap dump from %1$s…</string>
+    <string name="profiler_cpu_not_implemented">CPU profiling isn\'t available yet.</string>
+    <string name="profiler_service_unavailable">Profiler service unavailable. Make sure Shizuku is running.</string>
+    <string name="profiler_heap_dump_failed">Heap dump failed: %1$s</string>
+    <string name="profiler_retry">Back</string>
+    <string name="profiler_cpu_recording">Recording CPU usage for %1$s…</string>
+    <string name="profiler_cpu_stop">Stop profiling</string>
+    <string name="profiler_cpu_processing">Generating CPU report…</string>
+    <string name="profiler_cpu_failed">CPU profiling failed: %1$s</string>
+    <string name="profiler_cpu_failed_generic">CPU profiling failed.</string>
+    <string name="profiler_cpu_no_samples">No CPU samples were captured. Try profiling for a bit longer.</string>
+    <string name="profiler_hide_system_frames">Hide system frames</string>
+    <string name="profiler_orientation_toggle">Flip graph direction</string>
+    <string name="profiler_cpu_self">Self %1$s (%2$s)</string>
+    <string name="profiler_cpu_total">Total %1$s (%2$s)</string>
+    <string name="profiler_cpu_tap_hint">Tap a frame for details</string>
+    <string name="profiler_heap_metric_retained">Retained size</string>
+    <string name="profiler_heap_metric_count">Instances</string>
+    <string name="profiler_heap_view_table">Class list</string>
+    <string name="profiler_hide_framework_classes">Hide framework classes</string>
+    <string name="profiler_heap_shallow">Shallow %1$s</string>
+    <string name="profiler_heap_retained">Retained %1$s (%2$s)</string>
+    <string name="profiler_heap_objects">%1$s objects</string>
+    <string name="profiler_heap_tap_hint">Tap a frame for object details</string>
+    <string name="profiler_cancel">Cancel</string>
+    <string name="profiler_start_another">Start another task</string>
+    <string name="profiler_cancelled">Profiling was cancelled.</string>
+    <string name="profiler_interrupted">Profiling was interrupted because the profiler service disconnected.</string>
 
 	<!-- Floating window chrome button accessibility labels (announced by screen readers) -->
+	<string name="undock">Undock</string>
 	<string name="floating_window_action_minimize">Minimize</string>
 	<string name="floating_window_action_restore">Restore</string>
 	<string name="floating_window_action_maximize">Maximize</string>
