@@ -1,5 +1,28 @@
 # ADFA-4128 handoff — resume here to plan the real feature build
 
+## ALWAYS PRESERVE — the on-device invariant (hard constraint, re-check before every design/implementation decision)
+
+**The live-reload loop runs on-device, end to end:** edit → save → watch → compile → dex →
+deploy → hot reload all happen on the phone (A56), with no Mac in the loop. The **only**
+exception is the one explicit dev-harness step that *simulates the next code edit* (Flow 1's
+"Ask Claude" Mac-side orchestrator) — and that is scaffolding, not product.
+
+**Why:** the product target is an offline, self-contained on-device IDE for low-end phones
+with no internet and no dev machine. Anything that needs a Mac (adb, a Mac-side watcher or
+build trigger, host tooling) cannot ship — it is architecturally invalid, not merely
+inconvenient.
+
+**How to apply:** if any piece of a proposed design or debug step would run on the Mac rather
+than the device, say so **at decision time, before doing it** — not as a post-hoc narration.
+When something isn't reloading, the fix is on-device (daemon/watcher/Run wiring), never a
+Mac-side poller or trigger. `adb` and the orchestrator exist only as demo scaffolding for
+Flow 1; do not extend them into the reload path.
+
+This invariant was stated once during the spike and then silently violated five times across
+compactions and model switches (see RETRO-2026-07-14.md). It lives here so it survives both.
+
+---
+
 Written 2026-07-14, end of the prototyping spike. Next step (in ~2 days, after team
 discussion): make the plan for the actual feature. The likely shape: **build from scratch,
 using this repo as reference**, in the direction of the
