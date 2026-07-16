@@ -197,11 +197,19 @@ jobs:
         run: |
           flox activate -d flox/base -- ./gradlew :plugin-api:apiCheck --no-daemon
 
+      - name: Run spotlessCheck
+        run: |
+          flox activate -d flox/base -- ./gradlew spotlessCheck --no-daemon || {
+            echo "::error::Spotless found formatting violations in this branch. Run './gradlew spotlessApply' locally, then commit and push the formatted files."
+            exit 1
+          }
+
       - name: Assemble Universal APK
         run: |
           echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
           echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
+
 
       - name: Find APK file
         id: find_apk
@@ -251,6 +259,11 @@ jobs:
         env:
           COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
           BRANCH_TYPE: ${{ needs.validate_branch.outputs.branch_type }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref }}
         run: |
           if [[ "$BRANCH_TYPE" == "community" ]]; then
             echo "Community branch, skipping Jira ticket extraction"
@@ -268,9 +281,9 @@ jobs:
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
           
             # Fetch Jira ticket title if credentials are available
-            if [ -n "${{ secrets.JIRA_EMAIL }}" ] && [ -n "${{ secrets.JIRA_API_TOKEN }}" ]; then
+            if [ -n "$JIRA_EMAIL" ] && [ -n "$JIRA_API_TOKEN" ]; then
               JIRA_TITLE=$(curl -s \
-                -u "${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
+                -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
                 -H "Accept: application/json" \
                 "https://appdevforall.atlassian.net/rest/api/3/issue/${JIRA_TICKET}?fields=summary" \
                 | jq -r '.fields.summary // ""' 2>/dev/null || echo "")
@@ -285,7 +298,7 @@ jobs:
           else
             JIRA_TICKET="N/A"
             JIRA_TITLE="$COMMIT_MSG"
-            JIRA_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }} (Ref: ${{ github.ref }})"
+            JIRA_URL="https://github.com/${REPO}/commit/${SHA} (Ref: ${REF})"
           fi
 
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
