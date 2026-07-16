@@ -1,41 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout
+<LinearLayout
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:tools="http://schemas.android.com/tools"
 	android:layout_width="match_parent"
 	android:layout_height="wrap_content"
-	tools:ignore="Overdraw">
+	android:clickable="true"
+	android:descendantFocusability="blocksDescendants"
+	android:focusable="true"
+	android:foreground="?attr/selectableItemBackground"
+	android:gravity="center_vertical"
+	android:orientation="horizontal"
+	android:paddingStart="16dp"
+	android:paddingTop="8dp"
+	android:paddingEnd="16dp"
+	android:paddingBottom="8dp"
+	tools:ignore="Overdraw,UnusedAttribute">
 
-	<LinearLayout
-		android:id="@+id/item"
+	<ImageView
+		android:id="@+id/icon"
+		android:layout_width="30dp"
+		android:layout_height="30dp"
+		android:layout_marginEnd="16dp"
+		android:importantForAccessibility="no"
+		android:scaleType="center" />
+
+	<TextView
+		android:id="@+id/title"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
-		android:clickable="true"
-		android:descendantFocusability="blocksDescendants"
-		android:focusable="true"
-		android:foreground="?attr/selectableItemBackground"
-		android:gravity="center_vertical"
-		android:orientation="horizontal"
-		android:paddingStart="16dp"
-		android:paddingTop="8dp"
-		android:paddingEnd="16dp"
-		android:paddingBottom="8dp"
-		tools:ignore="UnusedAttribute">
+		android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+		tools:text="Filename" />
 
-		<ImageView
-			android:id="@+id/icon"
-			android:layout_width="30dp"
-			android:layout_height="30dp"
-			android:layout_marginEnd="16dp"
-			android:scaleType="center" />
-
-		<TextView
-			android:id="@+id/title"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-			tools:text="Filename" />
-
-	</LinearLayout>
-
-</RelativeLayout>
+</LinearLayout>

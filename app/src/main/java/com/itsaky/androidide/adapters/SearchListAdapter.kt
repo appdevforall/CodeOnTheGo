@@ -30,6 +30,7 @@ import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.syntax.highlighters.JavaHighlighter
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.EditorViewModel.SearchResultSection
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CompletableFuture
 
@@ -121,11 +122,8 @@ class SearchListAdapter(
 					}
 				}
 			} catch (e: Exception) {
-				ThreadUtils.runOnUiThread {
-					if (text.tag === match) {
-						text.text = match.match
-					}
-				}
+				// The plain preview set above stays in place; only the highlight is lost.
+				logger.warn("Failed to highlight search result preview", e)
 			}
 		}
 		holder.binding.root.setOnClickListener { onMatchClick(match) }
@@ -160,6 +158,8 @@ class SearchListAdapter(
 	}
 
 	private companion object {
+		val logger = LoggerFactory.getLogger(SearchListAdapter::class.java)
+
 		const val VIEW_TYPE_HEADER = 0
 		const val VIEW_TYPE_GROUP = 1
 		const val VIEW_TYPE_MATCH = 2
@@ -174,7 +174,7 @@ class SearchListAdapter(
 					section.title?.let { add(Row.Header(it)) }
 					val sectionKeys = keys ?: section.results.keys.toList()
 					sectionKeys.forEach { file ->
-						section.results[file]?.let { matches ->
+						section.results[file]?.takeIf { it.isNotEmpty() }?.let { matches ->
 							add(Row.Group(file))
 							matches.forEach { match -> add(Row.Match(match)) }
 						}
