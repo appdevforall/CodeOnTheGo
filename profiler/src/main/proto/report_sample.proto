@@ -1,0 +1,51 @@
+// Subset of simpleperf's cmd_report_sample.proto (AOSP system/extras/simpleperf), vendored for
+// parsing `simpleperf report-sample --protobuf` output on-device. Kept in sync with upstream:
+//   syntax/labels mirror the source (proto2); only the fields the profiler reads are declared.
+// Field NUMBERS and TYPES must match simpleperf's wire format; the java_package/outer-class are
+// local. Records/fields not declared here (Thread/MetaInfo/Lost/ContextSwitch, mangled_symbol, ...)
+// are simply skipped by the lite parser.
+//
+// Container framing (from the upstream file header):
+//   char magic[10] = "SIMPLEPERF"; LE16(version)=1; { LE32(size) Record(size bytes) }* LE32(0)
+
+syntax = "proto2";
+
+option java_package = "org.appdevforall.cotg.profiler.cpu.proto";
+option java_outer_classname = "SimpleperfReportProto";
+
+package cotg_simpleperf_report;
+
+message Sample {
+  optional uint64 time = 1;
+  optional int32 thread_id = 2;
+
+  message CallChainEntry {
+    optional uint64 vaddr_in_file = 1;
+    optional uint32 file_id = 2;
+    // Valid index into File.symbol of the File with id == file_id, or -1 when unknown.
+    optional int32 symbol_id = 3;
+    // Upstream enum ExecutionType; read as int32 since we don't branch on it.
+    optional int32 execution_type = 4;
+  }
+
+  // Leaf-first: callchain[0] is the innermost (sampled) frame.
+  repeated CallChainEntry callchain = 3;
+
+  // For the cpu-clock event this is CPU time in nanoseconds attributed to the sample.
+  optional uint64 event_count = 4;
+  optional uint32 event_type_id = 5;
+}
+
+message File {
+  optional uint32 id = 1;
+  optional string path = 2;
+  // symbol[symbol_id] resolves a CallChainEntry's symbol_id.
+  repeated string symbol = 3;
+}
+
+message Record {
+  oneof record_data {
+    Sample sample = 1;
+    File file = 3;
+  }
+}
