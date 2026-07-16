@@ -62,23 +62,40 @@ public class UserService {
 							? UserHandleHidden.of(userId)
 							: new UserHandleHidden(userId));
 			Context context = Refine.<ContextHidden> unsafeCast(systemContext).createPackageContextAsUser(pkg, Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY, userHandle);
-			Field mPackageInfo = context.getClass().getDeclaredField("mPackageInfo");
-			mPackageInfo.setAccessible(true);
-			Object loadedApk = mPackageInfo.get(context);
-			Method makeApplication = loadedApk.getClass().getDeclaredMethod("makeApplication", boolean.class, Instrumentation.class);
-			Application application = (Application) makeApplication.invoke(loadedApk, true, null);
-			Field mInitialApplication = activityThread.getClass().getDeclaredField("mInitialApplication");
-			mInitialApplication.setAccessible(true);
-			mInitialApplication.set(activityThread, application);
 
-			ClassLoader classLoader = application.getClassLoader();
+			// The class loader is available directly from the package context (CONTEXT_INCLUDE_CODE),
+			// so we don't need the Application instance to load the user service class.
+			ClassLoader classLoader = context.getClassLoader();
+
+			// Building the Application is best-effort: on some platforms LoadedApk.makeApplication()
+			// eagerly re-initializes the network-security-config in this already-initialized process
+			// and throws ("Found multiple conflicting per-domain rules"). User services that don't
+			// require a real Application (no Context constructor) must still start, so we don't let
+			// this abort creation.
+			Application application = null;
+			try {
+				Field mPackageInfo = context.getClass().getDeclaredField("mPackageInfo");
+				mPackageInfo.setAccessible(true);
+				Object loadedApk = mPackageInfo.get(context);
+				Method makeApplication = loadedApk.getClass().getDeclaredMethod("makeApplication", boolean.class, Instrumentation.class);
+				application = (Application) makeApplication.invoke(loadedApk, true, null);
+				Field mInitialApplication = activityThread.getClass().getDeclaredField("mInitialApplication");
+				mInitialApplication.setAccessible(true);
+				mInitialApplication.set(activityThread, application);
+			} catch (Throwable tr) {
+				Log.w(TAG, String.format("unable to create application for %s, continuing without it", pkg), tr);
+			}
+
 			Class<?> serviceClass = classLoader.loadClass(cls);
 			Constructor<?> constructorWithContext = null;
 			try {
 				constructorWithContext = serviceClass.getConstructor(Context.class);
 			} catch (NoSuchMethodException | SecurityException ignored) {}
 			if (constructorWithContext != null) {
-				service = (IBinder) constructorWithContext.newInstance(application);
+				// Prefer the Application, but fall back to the package context (also a Context) when
+				// the Application could not be built.
+				Context serviceContext = application != null ? application : context;
+				service = (IBinder) constructorWithContext.newInstance(serviceContext);
 			} else {
 				service = (IBinder) serviceClass.newInstance();
 			}

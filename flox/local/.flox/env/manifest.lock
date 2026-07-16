@@ -1,22 +1,27 @@
 {
   "lockfile-version": 1,
   "manifest": {
-    "version": 1,
+    "schema-version": "1.12.0",
     "install": {
       "android-studio-tools": {
-        "pkg-path": "android-studio-tools"
+        "pkg-path": "android-studio-tools",
+        "outputs": "all"
       },
       "findutils": {
-        "pkg-path": "findutils"
+        "pkg-path": "findutils",
+        "outputs": "all"
       },
       "gnugrep": {
-        "pkg-path": "gnugrep"
+        "pkg-path": "gnugrep",
+        "outputs": "all"
       },
       "gnused": {
-        "pkg-path": "gnused"
+        "pkg-path": "gnused",
+        "outputs": "all"
       },
       "jdk17": {
-        "pkg-path": "jdk17"
+        "pkg-path": "jdk17",
+        "outputs": "all"
       }
     },
     "hook": {
@@ -645,16 +650,19 @@
   ],
   "compose": {
     "composer": {
-      "version": 1,
+      "schema-version": "1.12.0",
       "install": {
         "findutils": {
-          "pkg-path": "findutils"
+          "pkg-path": "findutils",
+          "outputs": "all"
         },
         "gnugrep": {
-          "pkg-path": "gnugrep"
+          "pkg-path": "gnugrep",
+          "outputs": "all"
         },
         "gnused": {
-          "pkg-path": "gnused"
+          "pkg-path": "gnused",
+          "outputs": "all"
         }
       },
       "hook": {
