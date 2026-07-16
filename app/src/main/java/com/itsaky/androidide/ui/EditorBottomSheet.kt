@@ -608,7 +608,8 @@ class EditorBottomSheet
 
 			val showShareAndClear = isExpanded && currentFragment is ShareableOutputFragment
 			val showCopy =
-				isExpanded && currentFragment != null &&
+				isExpanded &&
+					currentFragment != null &&
 					currentFragment === pagerAdapter.diagnosticsFragment
 
 			binding.clearFab.isVisible = showShareAndClear
