@@ -67,7 +67,8 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_OVERRIDE_SUPER = "editor.codeactions.overridesuper"
 	const val EDITOR_CODE_ACTIONS_OVERRIDE_SUPER_DIALOG = "editor.codeactions.overridesuper.dialog"
 	const val EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR = "editor.codeactions.genconstructor"
-	const val EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR_DIALOG = "editor.codeactions.genconstructor.dialog"
+	const val EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR_DIALOG =
+		"editor.codeactions.genconstructor.dialog"
 	const val EDITOR_CODE_ACTIONS_GEN_TO_STRING = "editor.codeactions.gentostring"
 	const val EDITOR_CODE_ACTIONS_GEN_TO_STRING_DIALOG = "editor.codeactions.gentostring.dialog"
 	const val EDITOR_CODE_ACTIONS_UNUSED_IMPORTS = "editor.codeactions.unusedimports"
@@ -89,6 +90,7 @@ object TooltipTag {
 	const val EDITOR_TOOLBAR_NAV_ICON = "project.menu"
 	const val EDITOR_TOOLBAR_QUICK_RUN = "project.run"
 	const val EDITOR_TOOLBAR_DEBUG = "project.debug"
+	const val EDITOR_TOOLBAR_PROFILE = "project.profiler"
 	const val EDITOR_TOOLBAR_FIND = "project.find.top"
 	const val EDITOR_TOOLBAR_FIND_IN_PROJECT = "project.find.in.project"
 	const val EDITOR_TOOLBAR_FIND_IN_FILE = "editor.find.in.file"
