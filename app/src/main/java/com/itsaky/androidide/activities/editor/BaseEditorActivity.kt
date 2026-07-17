@@ -1355,10 +1355,14 @@ abstract class BaseEditorActivity :
 	private fun onUpdateWadbConnectionStatus(status: WADBConnectionViewModel.ConnectionStatus) {
 		when (status) {
 			// Unknown status, do nothing
-			WADBConnectionViewModel.ConnectionStatus.Unknown -> Unit
+			WADBConnectionViewModel.ConnectionStatus.Unknown -> {
+				Unit
+			}
 
 			// Pairing process has started, do nothing
-			WADBConnectionViewModel.ConnectionStatus.Pairing -> Unit
+			WADBConnectionViewModel.ConnectionStatus.Pairing -> {
+				Unit
+			}
 
 			WADBConnectionViewModel.ConnectionStatus.Paired -> {
 				// show debugger UI after pairing is successful
@@ -1375,10 +1379,21 @@ abstract class BaseEditorActivity :
 			}
 
 			// These are handled by WADBPermissionFragment
-			is WADBConnectionViewModel.ConnectionStatus.SearchingConnectionPort -> Unit
-			WADBConnectionViewModel.ConnectionStatus.ConnectionPortNotFound -> Unit
-			is WADBConnectionViewModel.ConnectionStatus.Connecting -> Unit
-			is WADBConnectionViewModel.ConnectionStatus.ConnectionFailed -> Unit
+			is WADBConnectionViewModel.ConnectionStatus.SearchingConnectionPort -> {
+				Unit
+			}
+
+			WADBConnectionViewModel.ConnectionStatus.ConnectionPortNotFound -> {
+				Unit
+			}
+
+			is WADBConnectionViewModel.ConnectionStatus.Connecting -> {
+				Unit
+			}
+
+			is WADBConnectionViewModel.ConnectionStatus.ConnectionFailed -> {
+				Unit
+			}
 
 			WADBConnectionViewModel.ConnectionStatus.Connected -> {
 				debuggerViewModel.currentView = DebuggerFragment.VIEW_DEBUGGER
@@ -1610,11 +1625,12 @@ abstract class BaseEditorActivity :
 			repeatOnLifecycle(Lifecycle.State.STARTED) {
 				fileManagerViewModel.operationResult.collect { result ->
 					when (result) {
-						is FileOpResult.Success ->
+						is FileOpResult.Success -> {
 							flashMessage(
 								result.messageRes,
 								FlashType.SUCCESS,
 							)
+						}
 
 						is FileOpResult.Error -> flashMessage(result.messageRes, FlashType.ERROR)
 					}
