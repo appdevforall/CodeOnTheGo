@@ -94,7 +94,7 @@ class WhitelistEngineTest {
 				stackTraceElement("com.oplus.uifirst.Utils", "writeProcNode", "Utils.java", 139),
 				stackTraceElement("com.oplus.uifirst.OplusUIFirstManager", "writeProcNode", "OplusUIFirstManager.java", 382),
 				stackTraceElement("com.oplus.uifirst.OplusUIFirstManager", "setBinderThreadUxFlag", "OplusUIFirstManager.java", 877),
-				// Minimal tail (system server / wm — optional but matches GlitchTip shape)
+				// Minimal tail (system server / wm - optional but matches GlitchTip shape)
 				stackTraceElement("com.android.server.wm.ActivityRecordExtImpl", "hookSetBinderUxFlag", "ActivityRecordExtImpl.java", 3008),
 			)
 
