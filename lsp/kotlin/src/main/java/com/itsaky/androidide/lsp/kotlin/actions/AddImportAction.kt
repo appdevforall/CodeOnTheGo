@@ -132,9 +132,15 @@ class AddImportAction : BaseKotlinCodeAction() {
 				}
 
 		when (actions.size) {
-			0 -> logger.error("No code actions found. Cannot completion action.")
-			1 -> client.performCodeAction(actions[0])
-			else ->
+			0 -> {
+				logger.error("No code actions found. Cannot completion action.")
+			}
+
+			1 -> {
+				client.performCodeAction(actions[0])
+			}
+
+			else -> {
 				newDialogBuilder(data)
 					.setTitle(label)
 					.setItems(actions.map { it.title }.toTypedArray()) { dialog, which ->
@@ -144,6 +150,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 								logger.error("Index $which is out of bounds for actions of size ${actions.size}")
 							}
 					}.show()
+			}
 		}
 	}
 }

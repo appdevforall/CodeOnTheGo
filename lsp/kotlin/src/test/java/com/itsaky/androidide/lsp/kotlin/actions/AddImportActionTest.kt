@@ -13,7 +13,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AddImportActionTest : KtLspTest() {
-
 	private val mainPath get() = env.sourceRoots.first().resolve("Main.kt")
 
 	private fun classSymbol(
@@ -45,8 +44,7 @@ class AddImportActionTest : KtLspTest() {
 		)
 	}
 
-	private fun index(vararg symbols: JvmSymbol) =
-		runBlocking { symbols.forEach { env.ktSymbolIndex.sourceIndex.insert(it) } }
+	private fun index(vararg symbols: JvmSymbol) = runBlocking { symbols.forEach { env.ktSymbolIndex.sourceIndex.insert(it) } }
 
 	@Test
 	fun `resolves a single classifier candidate by simple name`() {
@@ -99,6 +97,12 @@ class AddImportActionTest : KtLspTest() {
 		val unbounded = env.ktSymbolIndex.findSymbolBySimpleName("Foo", limit = 0).toList()
 		assertEquals(setOf("a.Foo", "b.Foo", "c.Foo"), unbounded.map { it.fqName }.toSet())
 
-		assertEquals(2, env.ktSymbolIndex.findSymbolBySimpleName("Foo", limit = 2).toList().size)
+		assertEquals(
+			2,
+			env.ktSymbolIndex
+				.findSymbolBySimpleName("Foo", limit = 2)
+				.toList()
+				.size,
+		)
 	}
 }

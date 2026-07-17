@@ -9,7 +9,6 @@ import org.junit.Test
 
 /** Tests for [insertImport]: the sorted-insertion + dedup logic the Add-import action relies on. */
 class EditExtsTest : KtLspTest() {
-
 	private val nl = System.lineSeparator()
 
 	private fun insert(
