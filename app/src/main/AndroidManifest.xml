@@ -26,6 +26,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Required so voice/speech plugins (e.g. speech-to-text) can record audio. Plugins run
+         under this app's UID, so the runtime permission must be declared here — a plugin
+         manifest's uses-permission is not merged into the host APK. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission
@@ -143,30 +147,14 @@
         <!-- enable the performance API by setting a sample-rate, adjust in production env -->
         <meta-data
             android:name="io.sentry.traces.sample-rate"
-            android:value="1.0" />
-        <!-- enable profiling when starting transactions, adjust in production env -->
-        <meta-data
-            android:name="io.sentry.traces.profiling.sample-rate"
-            android:value="1.0" />
+            android:value="0.0" />
         <meta-data
             android:name="io.sentry.send-default-pii"
-            android:value="true" />
-        <!-- Enable profiling on app start -->
-        <meta-data
-            android:name="io.sentry.traces.profiling.start-on-app-start"
             android:value="true" />
         <!-- Enable logs to be sent to Sentry -->
         <meta-data
             android:name="io.sentry.logs.enabled"
             android:value="true" />
-        <!-- Record session replays for 100% of errors and 10% of sessions -->
-        <meta-data
-            android:name="io.sentry.session-replay.on-error-sample-rate"
-            android:value="1.0" />
-        <meta-data
-            android:name="io.sentry.session-replay.session-sample-rate"
-            android:value="0.1" />
-
         <provider
             android:name=".provider.IDEDocumentsProvider"
             android:authorities="com.itsaky.androidide.documents"

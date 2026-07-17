@@ -159,6 +159,21 @@ data class ToolbarAction(
      * from the toolbar when this resolves to false.
      */
     var isVisibleProvider: (() -> Boolean)? = null
+
+    /**
+     * Optional callback to compute the icon dynamically at render time, returning a
+     * drawable resource id from the plugin's own resources (e.g. `R.drawable.ic_mic`).
+     * When null, the static [icon] is used — existing plugins keep their fixed icon.
+     *
+     * The host re-invokes this each time the toolbar is (re)built, so a plugin can
+     * change the icon in response to its own state. Ask the host to rebuild the
+     * toolbar after a state change via
+     * [com.itsaky.androidide.plugins.services.IdeUIService.refreshToolbarActions].
+     * If the returned resource is an animated drawable (e.g. `AnimatedVectorDrawable`),
+     * the host starts it automatically; author it to loop for a continuous animation.
+     * Returning null (or a failure) falls back to the static [icon].
+     */
+    var iconProvider: (() -> Int?)? = null
 }
 
 enum class ShowAsAction {
