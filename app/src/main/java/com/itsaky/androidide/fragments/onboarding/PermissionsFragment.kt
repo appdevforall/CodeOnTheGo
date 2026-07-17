@@ -55,7 +55,6 @@ import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.InstallationState
 import com.itsaky.androidide.viewmodel.InstallationViewModel
-import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -404,8 +403,7 @@ class PermissionsFragment :
 			val privacyPolicyUrl = getString(R.string.privacy_policy_url)
 			val intent = Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
 			startActivity(intent)
-		} catch (e: Exception) {
-			Sentry.captureException(e)
+		} catch (_: Exception) {
 		}
 	}
 

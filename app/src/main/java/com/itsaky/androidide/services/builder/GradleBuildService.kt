@@ -71,7 +71,6 @@ import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
-import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -284,7 +283,6 @@ class GradleBuildService :
 							} else {
 								// log if the error is not due to the stream being closed
 								log.error("Failed to shutdown Tooling API server", err)
-								Sentry.captureException(err)
 							}
 						}
 				}
@@ -388,7 +386,6 @@ class GradleBuildService :
 							}
 					}.onFailure { err ->
 						log.error("Failed to auto-tune Gradle build", err)
-						Sentry.captureException(err)
 					}.getOrDefault(null)
 				} else {
 					null

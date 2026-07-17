@@ -9,7 +9,6 @@ import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
 import com.itsaky.androidide.tooling.api.util.RuntimeTypeAdapterFactory
 import com.itsaky.androidide.utils.Environment
-import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -105,7 +104,6 @@ object BreakpointRepository {
 					"Failed to save breakpoints to file: ${file.absolutePath}",
 					e
 				)
-				Sentry.captureException(e)
 			}
 		}
 	}

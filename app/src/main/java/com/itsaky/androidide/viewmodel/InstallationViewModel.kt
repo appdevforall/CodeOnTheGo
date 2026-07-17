@@ -20,7 +20,6 @@ import com.itsaky.androidide.viewmodel.InstallationState.InstallationError
 import com.itsaky.androidide.viewmodel.InstallationState.InstallationGranted
 import com.itsaky.androidide.viewmodel.InstallationState.InstallationPending
 import com.itsaky.androidide.viewmodel.InstallationState.Installing
-import io.sentry.Sentry
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -91,9 +90,6 @@ class InstallationViewModel : ViewModel() {
 							_state.update { InstallationComplete }
 						}
 						is AssetsInstallationHelper.Result.Failure -> {
-							if (result.shouldReportToSentry) {
-								result.cause?.let { Sentry.captureException(it) }
-							}
 							val errorMsg = result.errorMessage
 								?: context.getString(R.string.title_installation_failed)
 							_events.emit(InstallationEvent.ShowError(errorMsg))
@@ -108,7 +104,6 @@ class InstallationViewModel : ViewModel() {
 					_state.update { InstallationPending }
 					throw e
 				}
-				Sentry.captureException(e)
 				log.error("IDE setup installation failed", e)
 				val errorMsg = e.message ?: context.getString(R.string.unknown_error)
 				_events.emit(InstallationEvent.ShowError(errorMsg))

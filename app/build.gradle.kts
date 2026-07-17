@@ -33,8 +33,7 @@ plugins {
 	id("kotlin-parcelize")
 	id("androidx.navigation.safeargs.kotlin")
 	id("com.itsaky.androidide.desugaring")
-	alias(libs.plugins.sentry)
-	alias(libs.plugins.google.services)
+alias(libs.plugins.google.services)
 }
 
 fun propOrEnv(name: String): String =
@@ -79,12 +78,8 @@ android {
 	buildTypes {
 		debug {
 			signingConfig = signingConfigs.getByName("debug")
-			manifestPlaceholders["sentryDsn"] =
-				props.getProperty("sentryDsnDebug") ?: propOrEnv("SENTRY_DSN_DEBUG")
 		}
 		release {
-			manifestPlaceholders["sentryDsn"] =
-				props.getProperty("sentryDsnRelease") ?: propOrEnv("SENTRY_DSN_RELEASE")
 		}
 	}
 
@@ -145,10 +140,6 @@ android {
 		targetCompatibility = JavaVersion.VERSION_17
 		isCoreLibraryDesugaringEnabled = true
 	}
-}
-
-sentry {
-      includeProguardMapping = false
 }
 
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.AppEventsIndex") } }
@@ -320,11 +311,6 @@ dependencies {
 	// Koin for Dependency Injection
 	implementation(libs.koin.android)
 	implementation(libs.androidx.security.crypto)
-
-	// Sentry Android SDK (core + replay for quality configuration)
-	implementation(libs.sentry.core)
-	implementation(libs.sentry.android.core)
-	implementation(libs.sentry.android.replay)
 
 	// Firebase Analytics
 	implementation(platform(libs.firebase.bom))

@@ -7,7 +7,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -23,7 +22,7 @@ class AssetsInstallationHelperTest {
     }
 
     @Test
-    fun `install with missing asset skips sentry`() = runBlocking {
+    fun `install with missing asset wraps in MissingAssetsEntryException`() = runBlocking {
         val helper = AssetsInstallationHelper
 
         every {
@@ -38,7 +37,6 @@ class AssetsInstallationHelperTest {
 
         assertTrue("Expected Result.Failure", result is Failure)
         val failure = result as Failure
-        assertFalse("Should skip Sentry report", failure.shouldReportToSentry)
         assertTrue(
             "Expected MissingAssetsEntryException as cause",
             failure.cause is MissingAssetsEntryException

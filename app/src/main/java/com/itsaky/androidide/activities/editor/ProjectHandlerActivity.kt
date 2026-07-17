@@ -96,7 +96,6 @@ import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
 import io.github.rosemoe.sora.text.ICUUtils
 import io.github.rosemoe.sora.util.IntPair
-import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -689,10 +688,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 				val isExpectedError = error.isFileNotFound
 
-				if (error != null && !isExpectedError) {
-					Sentry.captureException(error)
-				}
-
 				withContext(Dispatchers.Main) { postProjectInit(false, CACHE_READ_ERROR) }
 				return@launch
 			}
@@ -985,7 +980,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				throw e
 			}
 
-			Sentry.captureException(e)
 			logger.error("Unable to connect LSP servers with debug client", e)
 			listOf(DebugClientConnectionResult.Failure(cause = e))
 		}

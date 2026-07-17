@@ -25,7 +25,6 @@ import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.FileUtil
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
-import io.sentry.Sentry
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -143,7 +142,6 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
             WorkManager.getInstance(app)
         }.onFailure { error ->
             logger.error("Failed to get WorkManager instance after storage validation", error)
-            Sentry.captureException(error)
         }
     }
 
@@ -167,7 +165,6 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		}
 
 		writeException(exception)
-		Sentry.captureException(exception)
 
 		runCatching {
 			val intent = Intent()
@@ -179,7 +176,6 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 			IDEApplication.instance.startActivity(intent)
 		}.onFailure { error ->
-			Sentry.captureException(error)
 			logger.error("Unable to start crash handler activity", error)
 		}
 
@@ -191,12 +187,6 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 	private fun handlePluginCrash(pluginId: String, exception: Throwable) {
 		runCatching {
 			writeException(exception)
-
-			Sentry.withScope { scope ->
-				scope.setTag("plugin_crash", "true")
-				scope.setTag("plugin_id", pluginId)
-				Sentry.captureException(exception)
-			}
 
 			val pluginManager = PluginManager.getInstance() ?: return
 			val result = pluginManager.recordPluginCrash(pluginId)
@@ -338,7 +328,6 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 				}
 			}
 		} catch (e: Exception) {
-			Sentry.captureException(e)
 			logger.error("Failed to initialize plugin system", e)
 		}
 	}

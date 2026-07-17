@@ -6,8 +6,6 @@ import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.toNioPathOrNull
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.projects.FileManager
-import io.sentry.Attachment
-import io.sentry.Sentry
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFieldInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
@@ -133,23 +131,6 @@ private fun KaSession.analyzeDeclaration(filePath: String, dcl: KtDeclaration): 
 			is KtProperty -> analyzeProperty(filePath, dcl)
 			is KtTypeAlias -> analyzeTypeAlias(filePath, dcl)
 			else -> null
-		}
-	}.onFailure { err ->
-		Sentry.captureException(err) { scope ->
-			scope.apply {
-				setExtra("fpth", filePath)
-				setExtra("dcl", dcl.name)
-				setExtra("dcl.dbg", dcl.getDebugText())
-				setExtra(
-					"par.dbg",
-					(dcl.parent as? KtElement)?.getDebugText() ?: dcl.parent?.toString() ?: "none"
-				)
-				if (err is KotlinExceptionWithAttachments) {
-					err.attachments.forEach { attachment ->
-						scope.addAttachment(Attachment(attachment.bytes, attachment.path))
-					}
-				}
-			}
 		}
 	}.getOrNull()
 }

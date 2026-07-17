@@ -33,7 +33,6 @@ import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.WADBConnectionViewModel
-import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -423,8 +422,7 @@ class ThreadSelectorListAdapter(
 								if (view.isAttachedToWindow) {
 									onItemLongClick.invoke(item, position, view)
 								}
-							} catch (e: Exception) {
-								Sentry.captureException(e)
+							} catch (_: Exception) {
 							}
 						}
 

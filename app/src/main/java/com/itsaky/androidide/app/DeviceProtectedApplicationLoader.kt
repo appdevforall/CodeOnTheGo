@@ -13,16 +13,12 @@ import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
-import com.itsaky.androidide.handlers.SentryDiagnosticsContext
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
-import io.sentry.Sentry
-import io.sentry.SentryReplayOptions.SentryReplayQuality
-import io.sentry.android.core.SentryAndroid
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,18 +63,6 @@ internal object DeviceProtectedApplicationLoader :
 			),
 		)
 
-		SentryAndroid.init(app) { options ->
-			// Reduce replay quality to LOW to prevent OOM
-			// This reduces screenshot compression to 10 and bitrate to 50kbps
-			// (defaults to MEDIUM quality)
-			options.sessionReplay.quality = SentryReplayQuality.LOW
-			options.environment =
-				if (BuildConfig.DEBUG) IDEApplication.SENTRY_ENV_DEV else IDEApplication.SENTRY_ENV_PROD
-
-			// Enrich every Sentry event with app-specific diagnostic context.
-			SentryDiagnosticsContext.install(options)
-		}
-
 		ShizukuSettings.initialize()
 
 		EventBus
@@ -120,10 +104,6 @@ internal object DeviceProtectedApplicationLoader :
 		thread: Thread,
 		exception: Throwable,
 	) {
-		// we can't write logs to files, nor we can show the crash handler
-		// activity to the user. Just report to Sentry and exit.
-
-		Sentry.captureException(exception)
 		IDEApplication.instance.uncaughtExceptionHandler?.uncaughtException(thread, exception)
 		exitProcess(EXIT_CODE_CRASH)
 	}

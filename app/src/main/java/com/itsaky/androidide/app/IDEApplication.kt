@@ -29,7 +29,6 @@ import androidx.work.Configuration
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
-import com.itsaky.androidide.handlers.SentryDiagnosticsContext
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.utils.RecyclableObjectPool
@@ -37,7 +36,6 @@ import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isTestMode
 import com.topjohnwu.superuser.Shell
-import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -85,9 +83,6 @@ class IDEApplication :
 			) {
 				if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
 					runCatching { unregisterReceiver(this) }
-					// Stamp the unlock time so Sentry's boot_mode context reflects the
-					// live state and can report the direct-boot locked duration.
-					SentryDiagnosticsContext.onUserUnlocked()
 					coroutineScope.launch(Dispatchers.Default) {
 						logger.info("Device unlocked! Loading all components...")
 						CredentialProtectedApplicationLoader.load(this@IDEApplication)
@@ -98,9 +93,6 @@ class IDEApplication :
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(IDEApplication::class.java)
-
-		const val SENTRY_ENV_DEV = "development"
-		const val SENTRY_ENV_PROD = "production"
 
 		@JvmStatic
 		@SuppressLint("StaticFieldLeak")
@@ -131,7 +123,6 @@ class IDEApplication :
 
 					TreeSitter.loadLibrary()
 				} catch (e: UnsatisfiedLinkError) {
-					Sentry.captureException(e)
 					logger.warn("Failed to load native libraries", e)
 				}
 			}
@@ -180,7 +171,6 @@ class IDEApplication :
 		// In case any of the components fail to initialize there, it may lead
 		// to ANRs when the IDE is launched after device reboot.
 		// https://appdevforall.atlassian.net/browse/ADFA-2026
-		// https://appdevforall-inc-9p.sentry.io/issues/6860179170/events/7177c576e7b3491c9e9746c76f806d37/
 
 		ensureKoinStarted()
 
@@ -223,7 +213,6 @@ class IDEApplication :
 
 		if (isFinalizerWatchdogTimeout(thread, exception)) {
 			logger.warn("Non-fatal: FinalizerWatchdogDaemon timeout (suppressed crash)", exception)
-			Sentry.captureException(exception)
 			return
 		}
 

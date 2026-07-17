@@ -10,7 +10,6 @@ import com.itsaky.androidide.lsp.kotlin.compiler.write
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.utils.DocumentUtils
-import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -151,7 +150,6 @@ internal class KtSymbolIndex(
 	}
 
 	fun refreshSources() {
-		Sentry.addBreadcrumb("KtSymbolIndex.refreshSources()")
 		indexingJob ?: startIndexing()
 
 		scanningJob?.cancel()

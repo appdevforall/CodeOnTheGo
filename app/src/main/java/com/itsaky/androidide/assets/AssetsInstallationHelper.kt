@@ -52,7 +52,6 @@ object AssetsInstallationHelper {
 		data class Failure(
 			val cause: Throwable?,
 			val errorMessage: String? = cause?.message,
-			val shouldReportToSentry: Boolean = true
 		) : Result
 	}
 
@@ -90,7 +89,7 @@ object AssetsInstallationHelper {
 				}
 				logger.error("Failed to install assets", e)
 				onProgress(Progress(msg))
-				return@withContext Result.Failure(cause, errorMessage = msg, shouldReportToSentry = !isMissingAsset)
+				return@withContext Result.Failure(cause, errorMessage = msg)
 			}
 
 			return@withContext Result.Success

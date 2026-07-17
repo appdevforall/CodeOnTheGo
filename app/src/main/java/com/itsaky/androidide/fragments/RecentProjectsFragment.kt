@@ -38,7 +38,6 @@ import com.itsaky.androidide.viewmodel.FilterState
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.SortCriteria
 import com.itsaky.androidide.ui.ProjectInfoBottomSheet
-import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
@@ -324,8 +323,7 @@ class RecentProjectsFragment : BaseFragment() {
                 if (validProjects.isEmpty()) return@launch
 
                 loadProjectsIntoViewModel(validProjects)
-            } catch (e: Throwable) {
-                Sentry.captureException(e)
+            } catch (_: Throwable) {
             }
         }
     }
