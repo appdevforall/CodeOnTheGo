@@ -26,9 +26,11 @@ import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.io.File
 
 class SearchResultFragment : RecyclerViewFragment<SearchListAdapter>() {
 	override val fragmentTooltipTag: String? = TooltipTag.PROJECT_SEARCH_RESULTS
@@ -38,10 +40,17 @@ class SearchResultFragment : RecyclerViewFragment<SearchListAdapter>() {
 	private val editorActivity: BaseEditorActivity?
 		get() = activity as? BaseEditorActivity
 
-	override fun onCreateAdapter(): RecyclerView.Adapter<*> {
-		val noOp: (Any) -> Unit = {}
-		return SearchListAdapter(emptyMap(), noOp, noOp)
+	private val onFileClick: (File) -> Unit = { file ->
+		editorActivity?.doOpenFile(file, null)
+		editorActivity?.hideBottomSheet()
 	}
+
+	private val onMatchClick: (SearchResult) -> Unit = { match ->
+		editorActivity?.doOpenFile(match.file, match)
+		editorActivity?.hideBottomSheet()
+	}
+
+	override fun onCreateAdapter(): RecyclerView.Adapter<*> = SearchListAdapter(onFileClick, onMatchClick)
 
 	override fun onViewCreated(
 		view: View,
@@ -53,20 +62,12 @@ class SearchResultFragment : RecyclerViewFragment<SearchListAdapter>() {
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 				editorViewModel.searchResultSections.collectLatest { sections ->
 					if (isAdded && _binding != null) {
-						binding.root.adapter =
-							SearchListAdapter(
-								sections,
-								onFileClick = { file ->
-									editorActivity?.doOpenFile(file, null)
-									editorActivity?.hideBottomSheet()
-								},
-								onMatchClick = { match ->
-									editorActivity?.doOpenFile(match.file, match)
-									editorActivity?.hideBottomSheet()
-								},
-							)
-						val itemCount = binding.root.adapter?.itemCount ?: 0
-						isEmpty = itemCount == 0
+						// Reuse the attached adapter so re-publishes diff instead of resetting
+						// scroll and re-running highlights; only create one if none is present.
+						val adapter =
+							binding.root.adapter as? SearchListAdapter
+								?: SearchListAdapter(onFileClick, onMatchClick).also { binding.root.adapter = it }
+						adapter.submit(sections) { isEmpty = adapter.itemCount == 0 }
 					}
 				}
 			}

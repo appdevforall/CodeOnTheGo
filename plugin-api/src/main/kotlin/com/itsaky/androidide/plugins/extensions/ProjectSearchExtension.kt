@@ -15,7 +15,7 @@ interface ProjectSearchExtension : IPlugin {
 	 * Searches the project for [ProjectSearchRequest.query] and returns the sections to
 	 * append to the Search Results tab.
 	 *
-	 * Called on the UI thread — implementations must not block. Do the work asynchronously
+	 * Called on the UI thread - implementations must not block. Do the work asynchronously
 	 * and complete the returned future from any thread. The IDE waits a bounded time for
 	 * the future; sections from futures that complete after the timeout are dropped.
 	 *
@@ -32,8 +32,10 @@ interface ProjectSearchExtension : IPlugin {
  * @property query The literal (non-regex), non-empty search text entered by the user.
  * @property roots Source directories the user selected for this search; implementations
  *   must not report matches outside them.
- * @property extensions File-name suffixes to restrict the search to, as typed in the
- *   search dialog's filter field (e.g. "java", ".kt"); empty means all files match.
+ * @property extensions File-name suffixes to restrict the search to (e.g. "java", ".kt");
+ *   empty means all files match. The IDE splits the search dialog's filter field on "|" and
+ *   trims each token, dropping blanks, so "java | kt" arrives as ["java", "kt"]. A match is a
+ *   plain suffix test (file name ends with the token).
  */
 data class ProjectSearchRequest(
 	val query: String,
@@ -65,8 +67,8 @@ data class ProjectSearchSection(
  * @property file The file containing the match.
  * @property linePreview Short single-line snippet shown in the results list.
  * @property matchText The exact text that matched.
- * @property score Optional relevance score, higher is more relevant; may be used to order
- *   results within a section.
+ * @property score Optional relevance score, higher is more relevant. The IDE currently groups
+ *   a section's results by [file] and does not order them by score.
  */
 data class ProjectSearchResult(
 	val file: File,

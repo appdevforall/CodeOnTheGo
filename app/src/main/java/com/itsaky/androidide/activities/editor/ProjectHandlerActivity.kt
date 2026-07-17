@@ -110,8 +110,10 @@ import io.github.rosemoe.sora.util.IntPair
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.adfa.constants.CONTENT_KEY
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
@@ -883,10 +885,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						.dropLastWhile { it.isEmpty() }
 						.toTypedArray()
 					) {
-						if (str.trim().isEmpty()) {
+						val token = str.trim()
+						if (token.isEmpty()) {
 							continue
 						}
-						extensionList.add(str)
+						// Trim so a pipe-split token keeps no surrounding space; the file-name
+						// suffix test is endsWith(), which a stray " kt" would never satisfy.
+						extensionList.add(token)
 					}
 				} else {
 					extensionList.add(extensions)
@@ -907,8 +912,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					extensionList,
 					searchDirs,
 				) { results ->
-					handleSearchResults(results)
-					requestPluginSearchSections(text, extensionList, searchDirs, results)
+					val plugins = projectSearchPlugins()
+					// When the built-in search finds nothing but a plugin may still match, keep
+					// the progress indicator up until the plugin phase resolves.
+					handleSearchResults(results, dismissProgress = plugins.isEmpty() || results.isNotEmpty())
+					if (plugins.isNotEmpty()) {
+						requestPluginSearchSections(plugins, text, extensionList, searchDirs, results)
+					}
 				}
 			}
 		}
@@ -943,17 +953,21 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		return mFindInProjectDialog
 	}
 
+	private fun projectSearchPlugins(): List<ProjectSearchExtension> =
+		IDEApplication
+			.getPluginManager()
+			?.getAllPluginInstances()
+			?.filterIsInstance<ProjectSearchExtension>()
+			?: emptyList()
+
 	private fun requestPluginSearchSections(
+		plugins: List<ProjectSearchExtension>,
 		query: String,
 		extensions: List<String>,
 		searchDirs: List<File>,
 		exactResults: Map<File, List<SearchResult>>,
 	) {
 		val pluginManager = IDEApplication.getPluginManager() ?: return
-		val plugins = pluginManager.getAllPluginInstances().filterIsInstance<ProjectSearchExtension>()
-		if (plugins.isEmpty()) {
-			return
-		}
 
 		// handleSearchResults() just published the built-in results and bumped the generation;
 		// capture it so a superseding search invalidates this fan-out's late results.
@@ -964,6 +978,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				roots = searchDirs,
 				extensions = extensions,
 			)
+		// searchProject() is contractually called on the UI thread; launch the futures here.
 		val futures =
 			plugins.mapNotNull { plugin ->
 				val pluginId =
@@ -986,24 +1001,31 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				}
 			}
 		if (futures.isEmpty()) {
+			doDismissSearchProgress()
 			return
 		}
 
-		CompletableFuture.runAsync {
-			try {
-				CompletableFuture
-					.allOf(*futures.toTypedArray())
-					.get(PLUGIN_SEARCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-			} catch (error: Exception) {
-				logger.warn("Project search plugins did not complete in time", error)
-			}
+		// lifecycleScope cancels on destroy, so a slow plugin cannot pin this Activity/ViewModel
+		// or post to a dead Activity; await() suspends instead of blocking a commonPool worker.
+		lifecycleScope.launch {
 			val pluginSections =
-				futures
-					// getNow() skips futures still pending after the timeout; orEmpty() and
-					// filterNotNull() guard against Java plugins completing with a null list
-					// or null elements.
-					.flatMap { future -> future.getNow(emptyList()).orEmpty().filterNotNull() }
-					.mapNotNull { section -> section.toSearchResultSection() }
+				withContext(Dispatchers.Default) {
+					try {
+						withTimeoutOrNull(TimeUnit.SECONDS.toMillis(PLUGIN_SEARCH_TIMEOUT_SECONDS)) {
+							CompletableFuture.allOf(*futures.toTypedArray()).await()
+						}
+						futures
+							// getNow() skips futures still pending after the timeout; orEmpty()
+							// guards a Java plugin completing with a null list.
+							.flatMap { future -> future.getNow(emptyList()).orEmpty() }
+							.mapNotNull { section -> section?.toSearchResultSection() }
+					} catch (cancellation: CancellationException) {
+						throw cancellation
+					} catch (error: Exception) {
+						logger.warn("Failed to collect project search plugin results", error)
+						emptyList()
+					}
+				}
 			val sections =
 				buildList {
 					if (exactResults.isNotEmpty()) {
@@ -1011,16 +1033,17 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					}
 					addAll(pluginSections)
 				}
-			runOnUiThread {
-				editorViewModel.onSearchResultSectionsReady(generation, sections)
-			}
+			editorViewModel.onSearchResultSectionsReady(generation, sections)
+			doDismissSearchProgress()
 		}
 	}
 
 	private fun ProjectSearchSection.toSearchResultSection(): SearchResultSection? {
 		val grouped =
 			results
-				.map { it.toSearchResult() }
+				// mapNotNull guards a Java plugin returning null elements; a bare map() would
+				// NPE in toSearchResult() and take down the whole fan-out.
+				.mapNotNull { it?.toSearchResult() }
 				.groupBy { it.file }
 		return grouped
 			.takeIf { it.isNotEmpty() }

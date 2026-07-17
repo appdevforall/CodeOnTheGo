@@ -17,7 +17,8 @@ package com.itsaky.androidide.adapters
 import android.graphics.PorterDuff.Mode.SRC_ATOP
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import androidx.recyclerview.widget.RecyclerView.Adapter
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
@@ -34,34 +35,38 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CompletableFuture
 
+// Sections, files and matches are flattened into a single row list so the hosting
+// RecyclerView can recycle match rows; a nested RecyclerView would inflate every
+// match of a file at once. Backed by ListAdapter so re-publishing (e.g. built-in results
+// then built-in + plugin results) diffs against the current rows instead of rebinding
+// everything and resetting the scroll position.
 class SearchListAdapter(
-	results: Map<File, List<SearchResult>?>,
 	private val onFileClick: (File) -> Unit,
 	private val onMatchClick: (SearchResult) -> Unit,
-	keys: List<File>,
-) : Adapter<ViewHolder>() {
-	// Sections, files and matches are flattened into a single row list so the hosting
-	// RecyclerView can recycle match rows; a nested RecyclerView would inflate every
-	// match of a file at once.
-	private var rows: List<Row> =
-		buildRows(listOf(SearchResultSection(null, results.filterValues { it != null }.mapValues { it.value.orEmpty() })), keys)
-
+) : ListAdapter<SearchListAdapter.Row, ViewHolder>(DIFF) {
+	/** Convenience for a flat map of matches with no section header. */
 	constructor(
-		results: Map<File, List<SearchResult>?>,
+		results: Map<File, List<SearchResult>>,
 		onFileClick: (File) -> Unit,
 		onMatchClick: (SearchResult) -> Unit,
-	) : this(results, onFileClick, onMatchClick, results.keys.toList())
+	) : this(onFileClick, onMatchClick) {
+		submit(results)
+	}
 
-	constructor(
+	/** Publishes [sections], invoking [onCommitted] once the new rows are applied. */
+	fun submit(
 		sections: List<SearchResultSection>,
-		onFileClick: (File) -> Unit,
-		onMatchClick: (SearchResult) -> Unit,
-	) : this(emptyMap(), onFileClick, onMatchClick, emptyList()) {
-		rows = buildRows(sections, null)
+		onCommitted: (() -> Unit)? = null,
+	) {
+		submitList(buildRows(sections), onCommitted?.let { Runnable(it) })
+	}
+
+	fun submit(results: Map<File, List<SearchResult>>) {
+		submit(listOf(SearchResultSection(null, results)))
 	}
 
 	override fun getItemViewType(position: Int): Int =
-		when (rows[position]) {
+		when (getItem(position)) {
 			is Row.Header -> VIEW_TYPE_HEADER
 			is Row.Group -> VIEW_TYPE_GROUP
 			is Row.Match -> VIEW_TYPE_MATCH
@@ -83,7 +88,7 @@ class SearchListAdapter(
 		holder: ViewHolder,
 		position: Int,
 	) {
-		when (val row = rows[position]) {
+		when (val row = getItem(position)) {
 			is Row.Header -> (holder as HeaderVH).binding.title.text = row.title
 			is Row.Group -> bindGroup(holder as VH, row)
 			is Row.Match -> bindMatch(holder as ChildVH, row.match)
@@ -129,8 +134,6 @@ class SearchListAdapter(
 		holder.binding.root.setOnClickListener { onMatchClick(match) }
 	}
 
-	override fun getItemCount(): Int = rows.size
-
 	class VH(
 		val binding: LayoutSearchResultGroupBinding,
 	) : ViewHolder(binding.root)
@@ -143,7 +146,7 @@ class SearchListAdapter(
 		val binding: LayoutSearchResultSectionBinding,
 	) : ViewHolder(binding.root)
 
-	private sealed class Row {
+	sealed class Row {
 		data class Header(
 			val title: String,
 		) : Row()
@@ -164,23 +167,45 @@ class SearchListAdapter(
 		const val VIEW_TYPE_GROUP = 1
 		const val VIEW_TYPE_MATCH = 2
 
-		fun buildRows(
-			sections: List<SearchResultSection>,
-			keys: List<File>?,
-		): List<Row> {
-			return buildList {
+		fun buildRows(sections: List<SearchResultSection>): List<Row> =
+			buildList {
 				sections.forEach { section ->
-					if (section.results.isEmpty()) return@forEach
-					section.title?.let { add(Row.Header(it)) }
-					val sectionKeys = keys ?: section.results.keys.toList()
-					sectionKeys.forEach { file ->
-						section.results[file]?.takeIf { it.isNotEmpty() }?.let { matches ->
-							add(Row.Group(file))
-							matches.forEach { match -> add(Row.Match(match)) }
+					// Buffer the section's groups/matches so an empty section (no keys, or all
+					// values empty) never emits an orphan header, and skip blank titles.
+					val groupRows =
+						buildList {
+							section.results.forEach { (file, matches) ->
+								if (matches.isNotEmpty()) {
+									add(Row.Group(file))
+									matches.forEach { match -> add(Row.Match(match)) }
+								}
+							}
 						}
-					}
+					if (groupRows.isEmpty()) return@forEach
+					section.title?.takeIf { it.isNotBlank() }?.let { add(Row.Header(it)) }
+					addAll(groupRows)
 				}
 			}
-		}
+
+		val DIFF =
+			object : DiffUtil.ItemCallback<Row>() {
+				override fun areItemsTheSame(
+					oldItem: Row,
+					newItem: Row,
+				): Boolean =
+					when {
+						oldItem is Row.Header && newItem is Row.Header -> oldItem.title == newItem.title
+						oldItem is Row.Group && newItem is Row.Group -> oldItem.file == newItem.file
+						// SearchResult has no value equality; identity keeps rows from a re-publish
+						// (same instances) stable so their async highlight is not re-run.
+						oldItem is Row.Match && newItem is Row.Match -> oldItem.match === newItem.match
+						else -> false
+					}
+
+				override fun areContentsTheSame(
+					oldItem: Row,
+					newItem: Row,
+				): Boolean = oldItem == newItem
+			}
 	}
 }
