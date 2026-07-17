@@ -16,7 +16,8 @@ class NullSafetyFixTest : KtLspTest() {
 	private fun unsafeCallRange(ktFile: KtFile): Pair<Int, Int> =
 		env.project.read {
 			analyzeMaybeDangling(ktFile) {
-				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+				ktFile
+					.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
 					.filter { it.factoryName == UNSAFE_CALL_FACTORY }
 					.map { it.psi.textRange.startOffset to it.psi.textRange.endOffset }
 					.single()
@@ -27,7 +28,8 @@ class NullSafetyFixTest : KtLspTest() {
 	private fun nullSafetyMarkers(ktFile: KtFile): List<String?> =
 		env.project.read {
 			analyzeMaybeDangling(ktFile) {
-				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+				ktFile
+					.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
 					.map { nullSafetyFactoryFor(it.factoryName) }
 			}
 		}

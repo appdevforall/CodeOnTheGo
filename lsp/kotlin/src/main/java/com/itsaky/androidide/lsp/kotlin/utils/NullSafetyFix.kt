@@ -46,8 +46,7 @@ internal fun findNullableMemberAccess(
 	file: PsiFile,
 	startOffset: Int,
 	endOffset: Int,
-): KtDotQualifiedExpression? =
-	PsiTreeUtil.findElementOfClassAtRange(file, startOffset, endOffset, KtDotQualifiedExpression::class.java)
+): KtDotQualifiedExpression? = PsiTreeUtil.findElementOfClassAtRange(file, startOffset, endOffset, KtDotQualifiedExpression::class.java)
 
 /**
  * Builds the three null-safety rewrites for [qe]. Each variant is a single, minimal, fully-formed

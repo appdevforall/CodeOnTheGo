@@ -43,7 +43,10 @@ internal data class KotlinDiagnosticExtra(
 )
 
 context(env: CompilationEnvironment)
-internal fun collectDiagnosticsFor(file: Path, cancelChecker: ICancelChecker): DiagnosticResult {
+internal fun collectDiagnosticsFor(
+	file: Path,
+	cancelChecker: ICancelChecker,
+): DiagnosticResult {
 	try {
 		logger.info("analyzing file: {}", file)
 		return doAnalyze(file, cancelChecker)
@@ -59,54 +62,62 @@ internal fun collectDiagnosticsFor(file: Path, cancelChecker: ICancelChecker): D
 
 @OptIn(KaExperimentalApi::class)
 context(env: CompilationEnvironment)
-private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResult {
+private fun doAnalyze(
+	file: Path,
+	cancelChecker: ICancelChecker,
+): DiagnosticResult {
 	val ktFile = env.ktSymbolIndex.getCurrentKtFile(file).get()
 	if (ktFile == null) {
 		logger.warn("File {} is not accessible", file)
 		return DiagnosticResult.NO_UPDATE
 	}
 
-	val diagnostics = env.project.read {
-		buildList {
-			PsiTreeUtil.collectElementsOfType(ktFile, PsiErrorElement::class.java)
-				.forEach { errorElement ->
-					cancelChecker.abortIfCancelled()
-					add(
-						diagnosticItem(
-							file = ktFile,
-							message = errorElement.errorDescription,
-							range = errorElement.textRange,
-							severity = DiagnosticSeverity.ERROR,
-						)
-					)
-				}
-
-			// This should be canceled as well
-			// The analysis API uses a no-op implementation of
-			// Intellij's ProgressManager for cancellations, so the following
-			// isn't really cancellable at the moment
-			analyzeMaybeDangling(ktFile) {
-				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
-					.forEach { diagnostic ->
+	val diagnostics =
+		env.project.read {
+			buildList {
+				PsiTreeUtil
+					.collectElementsOfType(ktFile, PsiErrorElement::class.java)
+					.forEach { errorElement ->
 						cancelChecker.abortIfCancelled()
-						// Extract plain data while still inside the analyze context; never let
-						// the KaLifetimeOwner diagnostic escape (see KotlinDiagnosticExtra).
-						val unresolvedReference =
-							(diagnostic as? KaFirDiagnostic.UnresolvedReference)?.reference
-						val nullSafetyFactory = nullSafetyFactoryFor(diagnostic.factoryName)
-						add(diagnostic.toDiagnosticItem().apply {
-							extra = KotlinDiagnosticExtra(unresolvedReference, env, nullSafetyFactory)
-						})
+						add(
+							diagnosticItem(
+								file = ktFile,
+								message = errorElement.errorDescription,
+								range = errorElement.textRange,
+								severity = DiagnosticSeverity.ERROR,
+							),
+						)
 					}
+
+				// This should be canceled as well
+				// The analysis API uses a no-op implementation of
+				// Intellij's ProgressManager for cancellations, so the following
+				// isn't really cancellable at the moment
+				analyzeMaybeDangling(ktFile) {
+					ktFile
+						.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+						.forEach { diagnostic ->
+							cancelChecker.abortIfCancelled()
+							// Extract plain data while still inside the analyze context; never let
+							// the KaLifetimeOwner diagnostic escape (see KotlinDiagnosticExtra).
+							val unresolvedReference =
+								(diagnostic as? KaFirDiagnostic.UnresolvedReference)?.reference
+							val nullSafetyFactory = nullSafetyFactoryFor(diagnostic.factoryName)
+							add(
+								diagnostic.toDiagnosticItem().apply {
+									extra = KotlinDiagnosticExtra(unresolvedReference, env, nullSafetyFactory)
+								},
+							)
+						}
+				}
 			}
 		}
-	}
 
 	logger.info("Found {} diagnostics", diagnostics.size)
 
 	return DiagnosticResult(
 		file = file,
-		diagnostics = diagnostics
+		diagnostics = diagnostics,
 	)
 }
 
@@ -133,10 +144,9 @@ private fun diagnosticItem(
 	severity = severity,
 )
 
-private fun KaSeverity.toDiagnosticSeverity(): DiagnosticSeverity {
-	return when (this) {
+private fun KaSeverity.toDiagnosticSeverity(): DiagnosticSeverity =
+	when (this) {
 		KaSeverity.ERROR -> DiagnosticSeverity.ERROR
 		KaSeverity.WARNING -> DiagnosticSeverity.WARNING
 		KaSeverity.INFO -> DiagnosticSeverity.INFO
 	}
-}

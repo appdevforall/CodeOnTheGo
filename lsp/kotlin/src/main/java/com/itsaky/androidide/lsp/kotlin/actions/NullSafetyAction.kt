@@ -63,7 +63,10 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 
 			val nioPath = data.requireFile().toPath()
 			// Fetch the live KtFile BEFORE entering `read` (deadlock rule: its refresh needs write access).
-			val ktFile = extra.compilationEnv.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return emptyList()
+			val ktFile =
+				extra.compilationEnv.ktSymbolIndex
+					.getCurrentKtFile(nioPath)
+					.get() ?: return emptyList()
 
 			extra.compilationEnv.project.read {
 				val qe =
@@ -108,9 +111,15 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 			}
 
 		when (actions.size) {
-			0 -> return
-			1 -> client.performCodeAction(actions[0])
-			else ->
+			0 -> {
+				return
+			}
+
+			1 -> {
+				client.performCodeAction(actions[0])
+			}
+
+			else -> {
 				newDialogBuilder(data)
 					.setTitle(label)
 					.setItems(actions.map { it.title }.toTypedArray()) { dialog, which ->
@@ -118,6 +127,7 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 						actions.getOrNull(which)?.also { client.performCodeAction(it) }
 							?: logger.error("Index $which is out of bounds for actions of size ${actions.size}")
 					}.show()
+			}
 		}
 	}
 }
