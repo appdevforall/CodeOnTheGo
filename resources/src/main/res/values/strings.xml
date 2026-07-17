@@ -535,6 +535,10 @@
 	<string name="action_generate_toString">Generate toString()</string>
 	<string name="action_remove_unused_imports">Remove unused imports</string>
 	<string name="action_organize_imports">Organize imports</string>
+	<string name="action_null_safety_fixes">Null-safety fixes</string>
+	<string name="action_null_safety_assert">Add non-null assertion (!!)</string>
+	<string name="action_null_safety_safe_call">Change to safe call (?.)</string>
+	<string name="action_null_safety_elvis">Add Elvis operator (?:)</string>
 	<string name="msg_cannot_generate_toString">Unable to generate toString() implementation</string>
 	<string name="msg_toString_overridden">toString() is already overridden</string>
 	<string name="action_generate_missing_constructor">Generate missing constructor</string>

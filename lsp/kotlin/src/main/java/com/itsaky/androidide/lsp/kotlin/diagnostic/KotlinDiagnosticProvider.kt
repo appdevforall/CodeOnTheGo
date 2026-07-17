@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.kotlin.diagnostic
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.lsp.kotlin.utils.nullSafetyFactoryFor
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.models.DiagnosticResult
@@ -33,6 +34,12 @@ internal data class KotlinDiagnosticExtra(
 	 */
 	val unresolvedReference: String?,
 	val compilationEnv: CompilationEnvironment,
+	/**
+	 * The FIR diagnostic factory name (e.g. `UNSAFE_CALL`) when this diagnostic flags an unsafe
+	 * member access on a nullable receiver, else `null`. Captured here as plain data so a code
+	 * action can decide visibility without touching the [KaDiagnosticWithPsi] lifetime owner.
+	 */
+	val nullSafetyFactory: String?,
 )
 
 context(env: CompilationEnvironment)
@@ -86,8 +93,9 @@ private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResu
 						// the KaLifetimeOwner diagnostic escape (see KotlinDiagnosticExtra).
 						val unresolvedReference =
 							(diagnostic as? KaFirDiagnostic.UnresolvedReference)?.reference
+						val nullSafetyFactory = nullSafetyFactoryFor(diagnostic.factoryName)
 						add(diagnostic.toDiagnosticItem().apply {
-							extra = KotlinDiagnosticExtra(unresolvedReference, env)
+							extra = KotlinDiagnosticExtra(unresolvedReference, env, nullSafetyFactory)
 						})
 					}
 			}
