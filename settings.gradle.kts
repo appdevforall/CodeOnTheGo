@@ -79,7 +79,6 @@ dependencyResolutionManagement {
 	}
 }
 
-
 FDroidConfig.load(rootDir)
 
 if (FDroidConfig.hasRead && FDroidConfig.isFDroidBuild) {

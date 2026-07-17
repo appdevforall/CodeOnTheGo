@@ -308,13 +308,14 @@ class AdbKey(
 		this.publicKey =
 			KeyFactory.getInstance("RSA").generatePublic(RSAPublicKeySpec(privateKey.modulus, RSAKeyGenParameterSpec.F4)) as RSAPublicKey
 
-		this.certificate = generateSelfSignedCert(
-			KeyPair(publicKey, privateKey),
-			"CN=00",
-			BigInteger.ONE,
-			Date(0),
-			Date(2461449600 * 1000),
-		)
+		this.certificate =
+			generateSelfSignedCert(
+				KeyPair(publicKey, privateKey),
+				"CN=00",
+				BigInteger.ONE,
+				Date(0),
+				Date(2461449600 * 1000),
+			)
 
 		Log.d(TAG, privateKey.toString())
 	}

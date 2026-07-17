@@ -50,5 +50,4 @@ dependencies {
 
 	// brotli4j
 	implementation(libs.brotli4j)
-
 }

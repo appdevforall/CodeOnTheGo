@@ -189,10 +189,9 @@ public class ToolsManager {
 
 			LOG.debug("Generating keystore at: {}", keystorePath);
 
-
 			String storePassword = generateRandomPassword(Environment.KEYSTORE_PWD_LEN);
 
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+			KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
 			keyGen.initialize(Environment.KEYSTORE_KEY_SIZE);
 			KeyPair keyPair = keyGen.generateKeyPair();
 
