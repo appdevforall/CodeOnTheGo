@@ -679,6 +679,10 @@
 	<string name="msg_emptyview_idelogs">Logs from the IDE are shown here.</string>
 	<string name="msg_emptyview_diagnostics">Open a file to show its diagnostic results</string>
 	<string name="log_filter_hint">Filter lines</string>
+	<string name="log_action_filter">Filter</string>
+	<string name="log_action_search">Search</string>
+	<string name="log_action_share">Share</string>
+	<string name="log_action_clear">Clear</string>
 	<string name="log_filter_hide">Hide filter bar</string>
 	<string name="log_filter_level_verbose">Verbose</string>
 	<string name="log_filter_level_debug">Debug</string>

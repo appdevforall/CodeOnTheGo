@@ -9,7 +9,6 @@
 
 <RelativeLayout
 	xmlns:android="http://schemas.android.com/apk/res/android"
-	xmlns:app="http://schemas.android.com/apk/res-auto"
 	xmlns:tools="http://schemas.android.com/tools"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
@@ -64,74 +63,52 @@
 		android:layout_alignParentBottom="true"
 		tools:layout_height="56dp" />
 
+	<LinearLayout
+		android:id="@+id/output_actions"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_below="@id/tabs"
+		android:gravity="end|center_vertical"
+		android:orientation="horizontal"
+		android:padding="8dp">
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/filter_output_action"
+			style="@style/EditorBottomSheet.OutputActionButton"
+			android:text="@string/log_action_filter" />
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/search_output_action"
+			style="@style/EditorBottomSheet.OutputActionButton"
+			android:text="@string/log_action_search" />
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/share_output_action"
+			style="@style/EditorBottomSheet.OutputActionButton"
+			android:text="@string/log_action_share" />
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/clear_output_action"
+			style="@style/EditorBottomSheet.OutputActionButton"
+			android:text="@string/log_action_clear" />
+	</LinearLayout>
+
 	<androidx.viewpager2.widget.ViewPager2
 		android:id="@+id/pager"
 		android:layout_width="match_parent"
 		android:layout_height="match_parent"
 		android:layout_above="@id/space_bottom"
-		android:layout_below="@id/tabs"
+		android:layout_below="@id/output_actions"
 		android:clickable="true"
 		android:focusable="false" />
-
-	<com.google.android.material.floatingactionbutton.FloatingActionButton
-		android:id="@+id/clear_fab"
-		android:layout_width="wrap_content"
-		android:layout_height="wrap_content"
-		android:layout_above="@id/space_bottom"
-		android:layout_alignParentEnd="true"
-		android:layout_margin="16dp"
-		android:src="@drawable/ic_sweep_delete" />
-
-	<com.google.android.material.floatingactionbutton.FloatingActionButton
-		android:id="@+id/share_output_fab"
-		android:layout_width="wrap_content"
-		android:layout_height="wrap_content"
-		android:layout_above="@id/clear_fab"
-		android:layout_alignParentEnd="true"
-		android:layout_marginStart="16dp"
-		android:layout_marginTop="16dp"
-		android:layout_marginEnd="16dp"
-		android:layout_marginBottom="16dp"
-		android:src="@drawable/ic_share" />
-
-	<com.google.android.material.floatingactionbutton.FloatingActionButton
-		android:id="@+id/search_output_fab"
-		android:layout_width="wrap_content"
-		android:layout_height="wrap_content"
-		android:layout_above="@id/share_output_fab"
-		android:layout_alignParentEnd="true"
-		android:layout_marginStart="16dp"
-		android:layout_marginTop="16dp"
-		android:layout_marginEnd="24dp"
-		android:layout_marginBottom="16dp"
-		android:contentDescription="@string/tooltip_search_output"
-		android:src="@drawable/ic_search"
-		app:fabSize="mini" />
-
-	<com.google.android.material.floatingactionbutton.FloatingActionButton
-		android:id="@+id/filter_output_fab"
-		android:layout_width="wrap_content"
-		android:layout_height="wrap_content"
-		android:layout_above="@id/search_output_fab"
-		android:layout_alignParentEnd="true"
-		android:layout_marginStart="16dp"
-		android:layout_marginTop="16dp"
-		android:layout_marginEnd="24dp"
-		android:layout_marginBottom="16dp"
-		android:contentDescription="@string/tooltip_filter_output"
-		android:src="@drawable/ic_filter"
-		app:fabSize="mini" />
 
 	<com.google.android.material.floatingactionbutton.FloatingActionButton
 		android:id="@+id/copy_diagnostics_fab"
 		android:layout_width="wrap_content"
 		android:layout_height="wrap_content"
-		android:layout_above="@id/share_output_fab"
+		android:layout_above="@id/space_bottom"
 		android:layout_alignParentEnd="true"
-		android:layout_marginStart="16dp"
-		android:layout_marginTop="16dp"
-		android:layout_marginEnd="16dp"
-		android:layout_marginBottom="16dp"
+		android:layout_margin="16dp"
 		android:src="@drawable/ic_copy"
 		android:visibility="gone" />
 

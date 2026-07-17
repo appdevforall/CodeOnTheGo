@@ -204,7 +204,7 @@ class EditorBottomSheet
 				},
 			)
 
-			binding.shareOutputFab.setOnClickListener {
+			binding.shareOutputAction.setOnClickListener {
 				val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
 				if (fragment !is ShareableOutputFragment) {
 					log.error("Unknown fragment: {}", fragment)
@@ -212,8 +212,8 @@ class EditorBottomSheet
 				}
 				if (shareJob?.isActive == true) return@setOnClickListener
 
-				binding.shareOutputFab.isEnabled = false
-				binding.clearFab.isEnabled = false
+				binding.shareOutputAction.isEnabled = false
+				binding.clearOutputAction.isEnabled = false
 
 				shareJob =
 					context.lifecycleScope.launch {
@@ -232,15 +232,15 @@ class EditorBottomSheet
 							}
 						} finally {
 							if (isAttachedToWindow) {
-								binding.shareOutputFab.isEnabled = true
-								binding.clearFab.isEnabled = true
+								binding.shareOutputAction.isEnabled = true
+								binding.clearOutputAction.isEnabled = true
 							}
 						}
 					}
 			}
-			binding.shareOutputFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SHARE_EXTERNAL))
+			binding.shareOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SHARE_EXTERNAL))
 
-			binding.clearFab.setOnClickListener {
+			binding.clearOutputAction.setOnClickListener {
 				val fragment =
 					pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
 				if (fragment !is ShareableOutputFragment) {
@@ -249,13 +249,13 @@ class EditorBottomSheet
 				}
 				(fragment as ShareableOutputFragment).clearOutput()
 			}
-			binding.clearFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_CLEAR))
+			binding.clearOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_CLEAR))
 
 			binding.copyDiagnosticsFab.setOnClickListener {
 				copyDiagnosticsToClipboard()
 			}
 
-			binding.searchOutputFab.setOnClickListener {
+			binding.searchOutputAction.setOnClickListener {
 				val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
 				if (fragment !is SearchableOutputFragment) {
 					log.error("Unknown fragment: {}", fragment)
@@ -265,9 +265,9 @@ class EditorBottomSheet
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 				fragment.beginSearch()
 			}
-			binding.searchOutputFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SEARCH))
+			binding.searchOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SEARCH))
 
-			binding.filterOutputFab.setOnClickListener {
+			binding.filterOutputAction.setOnClickListener {
 				val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
 				if (fragment !is SearchableOutputFragment) {
 					log.error("Unknown fragment: {}", fragment)
@@ -276,7 +276,7 @@ class EditorBottomSheet
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 				fragment.toggleFilterBar()
 			}
-			binding.filterOutputFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_FILTER))
+			binding.filterOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_FILTER))
 
 			binding.headerContainer.setOnClickListener {
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
@@ -299,14 +299,14 @@ class EditorBottomSheet
 			}
 
 			binding.tabs.clearOnTabSelectedListeners()
-			binding.shareOutputFab.setOnClickListener(null)
-			binding.shareOutputFab.setOnLongClickListener(null)
-			binding.clearFab.setOnClickListener(null)
-			binding.clearFab.setOnLongClickListener(null)
-			binding.searchOutputFab.setOnClickListener(null)
-			binding.searchOutputFab.setOnLongClickListener(null)
-			binding.filterOutputFab.setOnClickListener(null)
-			binding.filterOutputFab.setOnLongClickListener(null)
+			binding.shareOutputAction.setOnClickListener(null)
+			binding.shareOutputAction.setOnLongClickListener(null)
+			binding.clearOutputAction.setOnClickListener(null)
+			binding.clearOutputAction.setOnLongClickListener(null)
+			binding.searchOutputAction.setOnClickListener(null)
+			binding.searchOutputAction.setOnLongClickListener(null)
+			binding.filterOutputAction.setOnClickListener(null)
+			binding.filterOutputAction.setOnLongClickListener(null)
 			binding.copyDiagnosticsFab.setOnClickListener(null)
 			binding.headerContainer.setOnClickListener(null)
 			removeOnLayoutChangeListener(fabLayoutChangeListener)
@@ -641,23 +641,19 @@ class EditorBottomSheet
 					currentFragment != null &&
 					currentFragment === pagerAdapter.diagnosticsFragment
 
-			binding.clearFab.isVisible = showShareAndClear
-			binding.shareOutputFab.isVisible = showShareAndClear
-			binding.searchOutputFab.isVisible = showSearchAndFilter
-			binding.filterOutputFab.isVisible = showSearchAndFilter
+			binding.clearOutputAction.isVisible = showShareAndClear
+			binding.shareOutputAction.isVisible = showShareAndClear
+			binding.searchOutputAction.isVisible = showSearchAndFilter
+			binding.filterOutputAction.isVisible = showSearchAndFilter
+			binding.outputActions.isVisible = showShareAndClear || showSearchAndFilter
 			binding.copyDiagnosticsFab.isVisible = showCopy
 		}
 
-		// The bottom-anchored FABs go off-screen when the bottom sheet is collapsed.
-		// Shift them up by the offset from the expanded position (zero when fully expanded).
+		// The bottom-anchored FAB goes off-screen when the bottom sheet is collapsed.
+		// Shift it up by the offset from the expanded position (zero when fully expanded).
+		// The output actions row sits in normal layout flow, so it needs no translation.
 		private fun updateFabTranslation() {
 			val translationY = -(top - anchorOffset).coerceAtLeast(0).toFloat()
-			binding.apply {
-				clearFab.translationY = translationY
-				shareOutputFab.translationY = translationY
-				searchOutputFab.translationY = translationY
-				filterOutputFab.translationY = translationY
-				copyDiagnosticsFab.translationY = translationY
-			}
+			binding.copyDiagnosticsFab.translationY = translationY
 		}
 	}
