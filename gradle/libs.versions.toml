@@ -149,7 +149,8 @@ compose-activity = { module = "androidx.activity:activity-compose", version = "1
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics-ktx" }
 
-# Sentry
+# Sentry SDK - our GlitchTip client (GlitchTip speaks the Sentry protocol).
+# Aliases stay sentry-* to match the io.sentry: coordinates below.
 sentry-core = { module = "io.sentry:sentry", version.ref = "sentry" }
 sentry-android-core = { module = "io.sentry:sentry-android-core", version.ref = "sentry" }
 sentry-logback = { module = "io.sentry:sentry-logback", version.ref = "sentry" }
