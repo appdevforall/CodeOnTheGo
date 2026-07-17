@@ -65,6 +65,8 @@ libsu-core = "6.0.0"
 ## put it in app/src/main/jniLibs
 brotli4j = "1.18.0"
 spotless = "8.8.0"
+# compose-rules ktlint ruleset; 0.4.23 targets ktlint 1.5.0 (spotless 7.2.1's bundled ktlint)
+composeRulesKtlint = "0.4.23"
 fragmentKtx = "1.8.8"
 
 protobuf = "4.32.1"
@@ -84,6 +86,9 @@ pebble = "4.1.1"
 
 
 [libraries]
+
+# ktlint ruleset for Jetpack Compose (used by spotless via customRuleSets)
+compose-rules-ktlint = { module = "io.nlopez.compose.rules:ktlint", version.ref = "composeRulesKtlint" }
 
 # Dependencies in composite build
 androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref = "activityKtx" }
@@ -313,6 +318,11 @@ org-json = { module = "org.json:json", version = "20210307"}
 
 pebble = { module = "io.pebbletemplates:pebble", version.ref = "pebble" }
 kotlinx-metadata = { module = "org.jetbrains.kotlin:kotlin-metadata-jvm", version.ref = "kotlin" }
+
+shark = { module = "com.squareup.leakcanary:shark", version.ref = "leakcanary" }
+shark-android = { module = "com.squareup.leakcanary:shark-android", version.ref = "leakcanary" }
+shark-hprof = { module = "com.squareup.leakcanary:shark-hprof", version.ref = "leakcanary" }
+shark-graph = { module = "com.squareup.leakcanary:shark-graph", version.ref = "leakcanary" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
