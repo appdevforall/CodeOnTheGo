@@ -10,6 +10,7 @@ import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 
 /**
  * Generates a self-signed X.509 v3 certificate using only standard Java SE / Android APIs -
@@ -45,7 +46,7 @@ private fun buildTbsCertificate(
 	notBefore: Date,
 	notAfter: Date,
 ): ByteArray {
-	val version = derContextTagged(0, derInteger(BigInteger.TWO)) // v3
+	val version = derContextTagged(0, derInteger(BigInteger.valueOf(2))) // v3
 	val serialNum = derInteger(serial)
 	val sigAlg = sha256WithRsaAlgId()
 	val issuer = encodeDn(dn)
@@ -118,7 +119,9 @@ private fun derTime(date: Date): ByteArray {
 	cal.time = date
 	return if (cal.get(Calendar.YEAR) >= 2050) {
 		val s =
-			"%04d%02d%02d%02d%02d%02dZ".format(
+			String.format(
+				Locale.ROOT,
+				"%04d%02d%02d%02d%02d%02dZ",
 				cal.get(Calendar.YEAR),
 				cal.get(Calendar.MONTH) + 1,
 				cal.get(Calendar.DAY_OF_MONTH),
@@ -129,7 +132,9 @@ private fun derTime(date: Date): ByteArray {
 		tlv(0x18, s.toByteArray(Charsets.US_ASCII))
 	} else {
 		val s =
-			"%02d%02d%02d%02d%02d%02dZ".format(
+			String.format(
+				Locale.ROOT,
+				"%02d%02d%02d%02d%02d%02dZ",
 				cal.get(Calendar.YEAR) % 100,
 				cal.get(Calendar.MONTH) + 1,
 				cal.get(Calendar.DAY_OF_MONTH),
