@@ -189,6 +189,8 @@ private fun KaSession.analyzeDeclaration(
 			else -> null
 		}
 	}.onFailure { err ->
+		// runCatching catches Throwable, so preserve cancellation instead of reporting it as a failure.
+		if (err is CancellationException) throw err
 		if (err.isMissingClasspathFile()) {
 			logger.debug("Skipping symbol in {}: dependency jar unavailable during indexing", filePath, err)
 			return@onFailure
