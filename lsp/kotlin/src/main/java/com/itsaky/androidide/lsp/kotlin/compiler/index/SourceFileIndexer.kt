@@ -130,6 +130,10 @@ internal suspend fun indexSourceFile(
 	// failure during analyze() session setup (e.g. a Gradle transform-cache jar vanishing mid-index,
 	// ADFA-4755) escapes here into KtSymbolIndex.scope, which has no CoroutineExceptionHandler - an
 	// uncaught throw there crashes the app. Degrade to skipping this pass; the file retries next time.
+	// The catch is intentionally broad (Throwable, matching this module's other analysis handlers):
+	// because this scope has no exception handler, narrowing it would let Error-type failures (e.g. a
+	// StackOverflowError from deep FIR recursion, a LinkageError from a stale analysis classpath) crash
+	// the app instead of degrading. CancellationException is rethrown first to keep cancellation intact.
 	val symbols =
 		try {
 			project.read {
