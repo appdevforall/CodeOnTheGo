@@ -65,6 +65,12 @@ class SQLiteIndex<T : Indexable>(
 ) : Index<T> {
     companion object {
         private val log = LoggerFactory.getLogger(SQLiteIndex::class.java)
+
+        /**
+         * Max number of `_source_id` placeholders per batched DELETE.
+         * Kept well under SQLite's default 999 bound-parameter limit.
+         */
+        private const val DELETE_CHUNK_SIZE = 900
     }
 
 
@@ -189,6 +195,35 @@ class SQLiteIndex<T : Indexable>(
     override suspend fun removeBySource(sourceId: String) = withContext(Dispatchers.IO) {
         ifOpen { db.execSQL("DELETE FROM $tableName WHERE _source_id = ?", arrayOf(sourceId)) }
     }
+
+    /**
+     * Remove every row whose `_source_id` is in [sourceIds] using a single SQLite
+     * transaction. The ids are split into chunks of at most [DELETE_CHUNK_SIZE] so
+     * each `DELETE ... IN (?, ?, ...)` stays within SQLite's bound-parameter limit;
+     * all chunks run inside the one transaction, so the batch commits atomically
+     * (an empty [sourceIds] is a no-op and opens no transaction).
+     *
+     * @param sourceIds Source ids whose rows should be deleted.
+     */
+    override suspend fun removeBySources(sourceIds: Collection<String>) =
+        withContext(Dispatchers.IO) {
+            if (sourceIds.isEmpty()) return@withContext
+            ifOpen {
+                db.beginTransaction()
+                try {
+                    for (chunk in sourceIds.chunked(DELETE_CHUNK_SIZE)) {
+                        val placeholders = chunk.joinToString(",") { "?" }
+                        db.execSQL(
+                            "DELETE FROM $tableName WHERE _source_id IN ($placeholders)",
+                            chunk.toTypedArray(),
+                        )
+                    }
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
+            }
+        }
 
     override suspend fun clear() = withContext(Dispatchers.IO) {
         ifOpen { db.execSQL("DELETE FROM $tableName") }

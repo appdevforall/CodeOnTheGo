@@ -17,13 +17,16 @@
 package com.itsaky.androidide.utils
 
 import android.content.Context
-import com.itsaky.androidide.actions.ActionItem
 import android.util.Log
+import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TABS
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TREE
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry
+import com.itsaky.androidide.actions.PluginActionItem
+import com.itsaky.androidide.actions.PluginToolbarActionItem
 import com.itsaky.androidide.actions.build.DebugAction
+import com.itsaky.androidide.actions.build.PluginBuildActionItem
 import com.itsaky.androidide.actions.build.ProjectSyncAction
 import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.build.RunTasksAction
@@ -41,8 +44,8 @@ import com.itsaky.androidide.actions.etc.LaunchAppAction
 import com.itsaky.androidide.actions.file.CloseAllFilesAction
 import com.itsaky.androidide.actions.file.CloseFileAction
 import com.itsaky.androidide.actions.file.CloseOtherFilesAction
-import com.itsaky.androidide.actions.file.InstallFileAction
 import com.itsaky.androidide.actions.file.FormatCodeAction
+import com.itsaky.androidide.actions.file.InstallFileAction
 import com.itsaky.androidide.actions.file.SaveFileAction
 import com.itsaky.androidide.actions.file.ShowTooltipAction
 import com.itsaky.androidide.actions.filetree.CopyPathAction
@@ -52,15 +55,12 @@ import com.itsaky.androidide.actions.filetree.NewFileAction
 import com.itsaky.androidide.actions.filetree.NewFolderAction
 import com.itsaky.androidide.actions.filetree.OpenWithAction
 import com.itsaky.androidide.actions.filetree.RenameAction
+import com.itsaky.androidide.actions.profiler.ProfilerAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
-import com.itsaky.androidide.actions.PluginActionItem
-import com.itsaky.androidide.actions.PluginToolbarActionItem
-import com.itsaky.androidide.actions.build.PluginBuildActionItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
-
 
 /**
  * Takes care of registering actions to the actions registry for the editor activity.
@@ -68,149 +68,162 @@ import com.itsaky.androidide.plugins.manager.core.PluginManager
  * @author Akash Yadav
  */
 class EditorActivityActions {
+	companion object {
+		private const val ORDER_COPY_PATH = 100
+		private const val ORDER_DELETE = 200
+		private const val ORDER_NEW_FILE = 300
+		private const val ORDER_NEW_FOLDER = 400
+		private const val ORDER_OPEN_WITH = 500
+		private const val ORDER_RENAME = 600
+		private const val ORDER_HELP = 1000
+		private const val ORDER_PROFILER = 1100
 
-    companion object {
+		@JvmStatic
+		fun register(context: Context) {
+			clear()
+			val registry = ActionsRegistry.getInstance()
+			var order = 0
 
-        private const val ORDER_COPY_PATH = 100
-        private const val ORDER_DELETE = 200
-        private const val ORDER_NEW_FILE = 300
-        private const val ORDER_NEW_FOLDER = 400
-        private const val ORDER_OPEN_WITH = 500
-        private const val ORDER_RENAME = 600
-        private const val ORDER_HELP = 1000
+			// Toolbar actions
+			registry.registerAction(QuickRunAction(context, order++))
+			registry.registerAction(ProjectSyncAction(context, order++))
+			registry.registerAction(DebugAction(context, order++))
+			registry.registerAction(RunTasksAction(context, order++))
+			registry.registerAction(UndoAction(context, order++))
+			registry.registerAction(RedoAction(context, order++))
+			registry.registerAction(SaveFileAction(context, order++))
+			registry.registerAction(FindAction(context, order++))
+			registry.registerAction(FindInFileAction(context, order++))
+			registry.registerAction(FindInProjectAction(context, order++))
+			registry.registerAction(LaunchAppAction(context, order++))
+			registry.registerAction(DisconnectLogSendersAction(context, order++))
 
-        @JvmStatic
-        fun register(context: Context) {
-            clear()
-            val registry = ActionsRegistry.getInstance()
-            var order = 0
+			// Plugin contributions
+			order = registerPluginActions(context, registry, order)
+			order = registerPluginBuildActions(context, registry, order)
 
-            // Toolbar actions
-            registry.registerAction(QuickRunAction(context, order++))
-            registry.registerAction(ProjectSyncAction(context, order++))
-            registry.registerAction(DebugAction(context, order++))
-            registry.registerAction(RunTasksAction(context, order++))
-            registry.registerAction(UndoAction(context, order++))
-            registry.registerAction(RedoAction(context, order++))
-            registry.registerAction(SaveFileAction(context, order++))
-            registry.registerAction(FindAction(context, order++))
-            registry.registerAction(FindInFileAction(context, order++))
-            registry.registerAction(FindInProjectAction(context, order++))
-            registry.registerAction(LaunchAppAction(context, order++))
-            registry.registerAction(DisconnectLogSendersAction(context, order++))
+			// editor text actions
+			registry.registerAction(ExpandSelectionAction(context, order++))
+			registry.registerAction(SelectAllAction(context, order++))
+			registry.registerAction(LongSelectAction(context, order++))
+			registry.registerAction(CutAction(context, order++))
+			registry.registerAction(CopyAction(context, order++))
+			registry.registerAction(PasteAction(context, order++))
+			registry.registerAction(FormatCodeAction(context, order++))
+			registry.registerAction(ShowTooltipAction(context, order++))
 
-            // Plugin contributions
-            order = registerPluginActions(context, registry, order)
-            order = registerPluginBuildActions(context, registry, order)
+			// file tab actions
+			registry.registerAction(CloseFileAction(context, order++))
+			registry.registerAction(CloseOtherFilesAction(context, order++))
+			registry.registerAction(CloseAllFilesAction(context, order++))
+			registry.registerAction(InstallFileAction(context, order++))
 
-            // editor text actions
-            registry.registerAction(ExpandSelectionAction(context, order++))
-            registry.registerAction(SelectAllAction(context, order++))
-            registry.registerAction(LongSelectAction(context, order++))
-            registry.registerAction(CutAction(context, order++))
-            registry.registerAction(CopyAction(context, order++))
-            registry.registerAction(PasteAction(context, order++))
-            registry.registerAction(FormatCodeAction(context, order++))
-            registry.registerAction(ShowTooltipAction(context, order++))
+			// file tree actions
+			registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
+			registry.registerAction(DeleteAction(context, ORDER_DELETE))
+			registry.registerAction(NewFileAction(context, ORDER_NEW_FILE))
+			registry.registerAction(NewFolderAction(context, ORDER_NEW_FOLDER))
+			registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
+			registry.registerAction(RenameAction(context, ORDER_RENAME))
+			registry.registerAction(HelpAction(context, ORDER_HELP))
 
-            // file tab actions
-            registry.registerAction(CloseFileAction(context, order++))
-            registry.registerAction(CloseOtherFilesAction(context, order++))
-            registry.registerAction(CloseAllFilesAction(context, order++))
-            registry.registerAction(InstallFileAction(context, order++))
+			// Profiler actions
+			if (FeatureFlags.isExperimentsEnabled) {
+				registry.registerAction(ProfilerAction(context, ORDER_PROFILER))
+			}
+		}
 
-            // file tree actions
-            registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
-            registry.registerAction(DeleteAction(context, ORDER_DELETE))
-            registry.registerAction(NewFileAction(context, ORDER_NEW_FILE))
-            registry.registerAction(NewFolderAction(context, ORDER_NEW_FOLDER))
-            registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
-            registry.registerAction(RenameAction(context, ORDER_RENAME))
-            registry.registerAction(HelpAction(context, ORDER_HELP))
-        }
+		@JvmStatic
+		fun clear() {
+			// EDITOR_TEXT_ACTIONS should not be cleared as the language servers register actions there as
+			// well
+			val locations = arrayOf(EDITOR_TOOLBAR, EDITOR_FILE_TABS, EDITOR_FILE_TREE)
+			val registry = ActionsRegistry.getInstance()
+			locations.forEach(registry::clearActions)
+		}
 
-        @JvmStatic
-        fun clear() {
-            // EDITOR_TEXT_ACTIONS should not be cleared as the language servers register actions there as
-            // well
-            val locations = arrayOf(EDITOR_TOOLBAR, EDITOR_FILE_TABS, EDITOR_FILE_TREE)
-            val registry = ActionsRegistry.getInstance()
-            locations.forEach(registry::clearActions)
-        }
+		@JvmStatic
+		fun clearActions() {
+			// Clear actions but preserve build actions to prevent cancellation during onPause
+			val locations =
+				arrayOf(
+					EDITOR_TOOLBAR,
+					EDITOR_FILE_TABS,
+					EDITOR_FILE_TREE,
+					ActionItem.Location.EDITOR_FIND_ACTION_MENU,
+				)
+			val registry = ActionsRegistry.getInstance()
+			locations.forEach(registry::clearActions)
 
-        @JvmStatic
-        fun clearActions() {
-            // Clear actions but preserve build actions to prevent cancellation during onPause
-            val locations = arrayOf(
-                EDITOR_TOOLBAR,
-                EDITOR_FILE_TABS,
-                EDITOR_FILE_TREE,
-                ActionItem.Location.EDITOR_FIND_ACTION_MENU
-            )
-            val registry = ActionsRegistry.getInstance()
-            locations.forEach(registry::clearActions)
+			// Clear toolbar actions except build actions
+			registry.clearActionsExceptWhere(EDITOR_TOOLBAR) { action ->
+				action.id == QuickRunAction.ID ||
+					action.id == RunTasksAction.ID ||
+					action.id == ProjectSyncAction.ID ||
+					action.id.startsWith("plugin.build.")
+			}
+		}
 
-            // Clear toolbar actions except build actions
-            registry.clearActionsExceptWhere(EDITOR_TOOLBAR) { action ->
-                action.id == QuickRunAction.ID ||
-                        action.id == RunTasksAction.ID ||
-                        action.id == ProjectSyncAction.ID ||
-                        action.id.startsWith("plugin.build.")
-      }
-    }
+		/**
+		 * Register plugin UI contributions to the actions registry.
+		 *
+		 * @param context The application context
+		 * @param registry The actions registry
+		 * @param startOrder The starting order for plugin actions
+		 * @return The next available order number
+		 */
+		@JvmStatic
+		private fun registerPluginActions(
+			context: Context,
+			registry: ActionsRegistry,
+			startOrder: Int,
+		): Int {
+			var order = startOrder
 
-    /**
-     * Register plugin UI contributions to the actions registry.
-     *
-     * @param context The application context
-     * @param registry The actions registry
-     * @param startOrder The starting order for plugin actions
-     * @return The next available order number
-     */
-    @JvmStatic
-    private fun registerPluginActions(context: Context, registry: ActionsRegistry, startOrder: Int): Int {
-        var order = startOrder
+			val pluginManager = PluginManager.getInstance() ?: return order
 
-        val pluginManager = PluginManager.getInstance() ?: return order
+			pluginManager
+				.getAllPluginInstances()
+				.filterIsInstance<UIExtension>()
+				.forEach { plugin ->
+					try {
+						Log.d("plugin_debug", "Registering menu items for plugin: ${plugin.javaClass.simpleName}")
+						val pluginId = pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin) ?: ""
+						plugin.getMainMenuItems().forEach { menuItem ->
+							val action = PluginActionItem(context, menuItem, order++, pluginId)
+							registry.registerAction(action)
+						}
+						// Toolbar actions carry their own order so a plugin can position its icon
+						// among the built-in toolbar actions; do not consume the sequential counter.
+						plugin.getToolbarActions().forEach { toolbarAction ->
+							registry.registerAction(PluginToolbarActionItem(context, toolbarAction, pluginId))
+						}
+					} catch (e: Exception) {
+						Log.w("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName}", e)
+					}
+				}
 
-        pluginManager.getAllPluginInstances()
-            .filterIsInstance<UIExtension>()
-            .forEach { plugin ->
-                try {
-                    Log.d("plugin_debug", "Registering menu items for plugin: ${plugin.javaClass.simpleName}")
-                    val pluginId = pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin) ?: ""
-                    plugin.getMainMenuItems().forEach { menuItem ->
-                        val action = PluginActionItem(context, menuItem, order++, pluginId)
-                        registry.registerAction(action)
-                    }
-                    // Toolbar actions carry their own order so a plugin can position its icon
-                    // among the built-in toolbar actions; do not consume the sequential counter.
-                    plugin.getToolbarActions().forEach { toolbarAction ->
-                        registry.registerAction(PluginToolbarActionItem(context, toolbarAction, pluginId))
-                    }
-                } catch (e: Exception) {
-                    Log.w("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName}", e)
-                }
-            }
+			return order
+		}
 
-        return order
-    }
+		@JvmStatic
+		private fun registerPluginBuildActions(
+			context: Context,
+			registry: ActionsRegistry,
+			startOrder: Int,
+		): Int {
+			var order = startOrder
 
-    @JvmStatic
-    private fun registerPluginBuildActions(context: Context, registry: ActionsRegistry, startOrder: Int): Int {
-        var order = startOrder
+			PluginBuildActionManager.getInstance().getAllBuildActions().forEach { registered ->
+				runCatching {
+					registry.registerAction(PluginBuildActionItem(context, registered, order++))
+					Log.d("plugin_debug", "Registered build action: ${registered.action.id} from plugin: ${registered.pluginId}")
+				}.onFailure { e ->
+					Log.w("plugin_debug", "Failed to register build action: ${registered.action.id}", e)
+				}
+			}
 
-        PluginBuildActionManager.getInstance().getAllBuildActions().forEach { registered ->
-            runCatching {
-                registry.registerAction(PluginBuildActionItem(context, registered, order++))
-                Log.d("plugin_debug", "Registered build action: ${registered.action.id} from plugin: ${registered.pluginId}")
-            }.onFailure { e ->
-                Log.w("plugin_debug", "Failed to register build action: ${registered.action.id}", e)
-            }
-        }
-
-        return order
-    }
-
-  }
+			return order
+		}
+	}
 }
