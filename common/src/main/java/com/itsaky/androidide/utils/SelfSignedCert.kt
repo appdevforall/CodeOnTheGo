@@ -12,7 +12,7 @@ import java.util.Calendar
 import java.util.Date
 
 /**
- * Generates a self-signed X.509 v3 certificate using only standard Java SE / Android APIs —
+ * Generates a self-signed X.509 v3 certificate using only standard Java SE / Android APIs -
  * no BouncyCastle required. Encodes the DER structure manually.
  *
  * Supports a simple distinguished name with C, O, and CN components (empty values are omitted).
@@ -36,9 +36,7 @@ fun generateSelfSignedCert(
 		.generateCertificate(certDer.inputStream()) as X509Certificate
 }
 
-// ---------------------------------------------------------------------------
 // TBSCertificate
-// ---------------------------------------------------------------------------
 
 private fun buildTbsCertificate(
 	spkiBytes: ByteArray,
@@ -58,10 +56,8 @@ private fun buildTbsCertificate(
 	return derSeq(version + serialNum + sigAlg + issuer + validity + subject + spki)
 }
 
-// ---------------------------------------------------------------------------
 // Distinguished Name encoding
 // Parses "C=XX, O=Foo, CN=Bar"-style strings; skips RDNs with empty values.
-// ---------------------------------------------------------------------------
 
 // OIDs for common attribute types
 private val OID_COMMON_NAME = oidBytes(2, 5, 4, 3)
@@ -90,17 +86,13 @@ private fun encodeDn(dn: String): ByteArray {
 	return derSeq(rdns.fold(ByteArray(0)) { acc, b -> acc + b })
 }
 
-// ---------------------------------------------------------------------------
 // Algorithm identifier: SHA256WithRSA (OID 1.2.840.113549.1.1.11) + NULL
-// ---------------------------------------------------------------------------
 
 private val SHA256_WITH_RSA_OID = oidBytes(1, 2, 840, 113549, 1, 1, 11)
 
 private fun sha256WithRsaAlgId(): ByteArray = derSeq(SHA256_WITH_RSA_OID + byteArrayOf(0x05, 0x00)) // NULL
 
-// ---------------------------------------------------------------------------
 // DER encoding primitives
-// ---------------------------------------------------------------------------
 
 private fun derSeq(content: ByteArray): ByteArray = tlv(0x30, content)
 
@@ -112,7 +104,7 @@ private fun derUtf8String(s: String): ByteArray = tlv(0x0C, s.toByteArray(Charse
 
 private fun derInteger(value: BigInteger): ByteArray =
 	// BigInteger.toByteArray() already prepends a 0x00 sign byte for positive integers whose
-	// high bit would otherwise be set — exactly what DER requires.
+	// high bit would otherwise be set - exactly what DER requires.
 	tlv(0x02, value.toByteArray())
 
 private fun derContextTagged(
@@ -149,9 +141,7 @@ private fun derTime(date: Date): ByteArray {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // OID encoding helpers
-// ---------------------------------------------------------------------------
 
 private fun oidBytes(vararg arcs: Int): ByteArray {
 	val out = ByteArrayOutputStream()
@@ -180,9 +170,7 @@ private fun encodeBase128(value: Int): ByteArray {
 	return result
 }
 
-// ---------------------------------------------------------------------------
 // Type-Length-Value builder
-// ---------------------------------------------------------------------------
 
 private fun tlv(
 	tag: Int,

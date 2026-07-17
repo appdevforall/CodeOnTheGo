@@ -314,7 +314,7 @@ class AdbKey(
 				"CN=00",
 				BigInteger.ONE,
 				Date(0),
-				Date(2461449600 * 1000),
+				Date(2461449600L * 1000),
 			)
 
 		Log.d(TAG, privateKey.toString())
