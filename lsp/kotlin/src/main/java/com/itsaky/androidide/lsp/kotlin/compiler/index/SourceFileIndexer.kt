@@ -8,6 +8,7 @@ import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.projects.FileManager
 import io.sentry.Attachment
 import io.sentry.Sentry
+import kotlinx.coroutines.CancellationException
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFieldInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
@@ -49,21 +50,47 @@ import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 import org.jetbrains.kotlin.psi.KtTypeAlias
 import org.jetbrains.kotlin.psi.debugText.getDebugText
 import org.jetbrains.kotlin.utils.exceptions.KotlinExceptionWithAttachments
+import org.slf4j.LoggerFactory
+import java.io.FileNotFoundException
+import java.nio.file.NoSuchFileException
 import java.time.Instant
 import kotlin.io.path.pathString
 
-internal fun KtFile.toMetadata(project: Project, isIndexed: Boolean = false): KtFileMetadata =
+private val logger =
+	LoggerFactory.getLogger(
+		"com.itsaky.androidide.lsp.kotlin.compiler.index.SourceFileIndexer",
+	)
+
+/**
+ * True when this throwable (or any cause) is a missing-dependency-file failure: FIR resolution tried
+ * to read a jar that no longer exists on disk - typically a Gradle transform-cache entry evicted or
+ * rebuilt while indexing was in flight (ADFA-4755). Expected and transient, so we skip error
+ * reporting for it; a later index pass, once the build settles, succeeds. The FIR layer wraps the
+ * original [NoSuchFileException] in KotlinIllegalArgumentExceptionWithAttachments / RuntimeException,
+ * so we scan the whole cause chain. Bounded to guard against a self-referential cause.
+ */
+internal fun Throwable.isMissingClasspathFile(): Boolean =
+	generateSequence(this) { it.cause }
+		.take(32)
+		.any { it is NoSuchFileException || it is FileNotFoundException }
+
+internal fun KtFile.toMetadata(
+	project: Project,
+	isIndexed: Boolean = false,
+): KtFileMetadata =
 	project.read {
 		KtFileMetadata(
-			filePath = checkNotNull((virtualFile?.toNioPathOrNull() ?: backingFilePath)) {
-				"KtFile '$name' has neither a resolvable virtualFile path nor a backingFilePath"
-			}.pathString,
+			filePath =
+				checkNotNull((virtualFile?.toNioPathOrNull() ?: backingFilePath)) {
+					"KtFile '$name' has neither a resolvable virtualFile path nor a backingFilePath"
+				}.pathString,
 			packageFqName = packageFqName.asString(),
-			lastModified = (backingFilePath?.let { FileManager.getLastModified(it) })
-				?: Instant.ofEpochMilli(virtualFile?.timeStamp ?: System.currentTimeMillis()),
+			lastModified =
+				(backingFilePath?.let { FileManager.getLastModified(it) })
+					?: Instant.ofEpochMilli(virtualFile?.timeStamp ?: System.currentTimeMillis()),
 			modificationStamp = modificationStamp,
 			isIndexed = isIndexed,
-			symbolKeys = emptyList()
+			symbolKeys = emptyList(),
 		)
 	}
 
@@ -81,10 +108,11 @@ internal suspend fun indexSourceFile(
 
 	// Re-check disposal *inside* the read lock so it is atomic with toMetadata()'s PSI access:
 	// the fast-path check above can race a concurrent disposal before toMetadata enters its read.
-	val newFile = project.read {
-		if (project.isDisposed) return@read null
-		ktFile.toMetadata(project, isIndexed = true)
-	} ?: return
+	val newFile =
+		project.read {
+			if (project.isDisposed) return@read null
+			ktFile.toMetadata(project, isIndexed = true)
+		} ?: return
 	val existingFile = fileIndex.get(newFile.filePath)
 	cancelChecker.abortIfCancelled()
 
@@ -98,32 +126,54 @@ internal suspend fun indexSourceFile(
 		cancelChecker.abortIfCancelled()
 	}
 
-	val symbols = project.read {
-		// Atomic w.r.t. the read lock: bail if the project was disposed before we acquired it.
-		if (project.isDisposed) return@read emptyList()
+	// Defense in depth: analyzeDeclaration already swallows per-declaration analysis failures, but a
+	// failure during analyze() session setup (e.g. a Gradle transform-cache jar vanishing mid-index,
+	// ADFA-4755) escapes here into KtSymbolIndex.scope, which has no CoroutineExceptionHandler - an
+	// uncaught throw there crashes the app. Degrade to skipping this pass; the file retries next time.
+	val symbols =
+		try {
+			project.read {
+				// Atomic w.r.t. the read lock: bail if the project was disposed before we acquired it.
+				if (project.isDisposed) return@read emptyList()
 
-		val list = mutableListOf<JvmSymbol>()
-		analyzeMaybeDangling(ktFile) {
-			val session = this
-			ktFile.accept(object : KtTreeVisitorVoid() {
-				override fun visitDeclaration(dcl: KtDeclaration) {
-					cancelChecker.abortIfCancelled()
-					val symbol = with(session) { analyzeDeclaration(newFile.filePath, dcl) }
-					cancelChecker.abortIfCancelled()
-					symbol?.let { list.add(it) }
-					super.visitDeclaration(dcl)
+				val list = mutableListOf<JvmSymbol>()
+				analyzeMaybeDangling(ktFile) {
+					val session = this
+					ktFile.accept(
+						object : KtTreeVisitorVoid() {
+							override fun visitDeclaration(dcl: KtDeclaration) {
+								cancelChecker.abortIfCancelled()
+								val symbol = with(session) { analyzeDeclaration(newFile.filePath, dcl) }
+								cancelChecker.abortIfCancelled()
+								symbol?.let { list.add(it) }
+								super.visitDeclaration(dcl)
+							}
+						},
+					)
 				}
-			})
+				list
+			}
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Throwable) {
+			if (e.isMissingClasspathFile()) {
+				logger.debug("Skipping index pass for {}: dependency jar unavailable", newFile.filePath, e)
+			} else {
+				logger.error("Failed to index {}", newFile.filePath, e)
+				Sentry.captureException(e)
+			}
+			return
 		}
-		list
-	}
 
 	symbolsIndex.insertAll(symbols.asSequence())
 	fileIndex.upsert(newFile.copy(symbolKeys = symbols.map { it.key }))
 }
 
 @OptIn(KaImplementationDetail::class)
-private fun KaSession.analyzeDeclaration(filePath: String, dcl: KtDeclaration): JvmSymbol? {
+private fun KaSession.analyzeDeclaration(
+	filePath: String,
+	dcl: KtDeclaration,
+): JvmSymbol? {
 	dcl.name ?: return null
 	return runCatching {
 		when (dcl) {
@@ -135,6 +185,10 @@ private fun KaSession.analyzeDeclaration(filePath: String, dcl: KtDeclaration): 
 			else -> null
 		}
 	}.onFailure { err ->
+		if (err.isMissingClasspathFile()) {
+			logger.debug("Skipping symbol in {}: dependency jar unavailable during indexing", filePath, err)
+			return@onFailure
+		}
 		Sentry.captureException(err) { scope ->
 			scope.apply {
 				setExtra("fpth", filePath)
@@ -142,7 +196,7 @@ private fun KaSession.analyzeDeclaration(filePath: String, dcl: KtDeclaration): 
 				setExtra("dcl.dbg", dcl.getDebugText())
 				setExtra(
 					"par.dbg",
-					(dcl.parent as? KtElement)?.getDebugText() ?: dcl.parent?.toString() ?: "none"
+					(dcl.parent as? KtElement)?.getDebugText() ?: dcl.parent?.toString() ?: "none",
 				)
 				if (err is KotlinExceptionWithAttachments) {
 					err.attachments.forEach { attachment ->
@@ -162,8 +216,11 @@ private fun KtClassOrObject.internalName(): String? {
 	val pkg = containingKtFile.packageFqName.asString()
 	val fqName = fqName?.asString() ?: return null
 	val relative = if (pkg.isEmpty()) fqName else fqName.removePrefix("$pkg.")
-	return if (pkg.isEmpty()) relative.replace('.', '$')
-	else "${pkg.replace('.', '/')}/${relative.replace('.', '$')}"
+	return if (pkg.isEmpty()) {
+		relative.replace('.', '$')
+	} else {
+		"${pkg.replace('.', '/')}/${relative.replace('.', '$')}"
+	}
 }
 
 /**
@@ -179,12 +236,13 @@ private fun KtDeclaration.containingClassInternalName(): String? {
 	return null
 }
 
-private fun KtModifierListOwner.jvmVisibility(): JvmVisibility = when {
-	hasModifier(KtTokens.PRIVATE_KEYWORD) -> JvmVisibility.PRIVATE
-	hasModifier(KtTokens.PROTECTED_KEYWORD) -> JvmVisibility.PROTECTED
-	hasModifier(KtTokens.INTERNAL_KEYWORD) -> JvmVisibility.INTERNAL
-	else -> JvmVisibility.PUBLIC
-}
+private fun KtModifierListOwner.jvmVisibility(): JvmVisibility =
+	when {
+		hasModifier(KtTokens.PRIVATE_KEYWORD) -> JvmVisibility.PRIVATE
+		hasModifier(KtTokens.PROTECTED_KEYWORD) -> JvmVisibility.PROTECTED
+		hasModifier(KtTokens.INTERNAL_KEYWORD) -> JvmVisibility.INTERNAL
+		else -> JvmVisibility.PUBLIC
+	}
 
 /**
  * Slash-package / dollar-nesting internal name for a resolved [KaType].
@@ -196,8 +254,11 @@ private fun KaSession.kaTypeInternalName(type: KaType): String {
 	val classId = type.classId
 	val pkg = classId.packageFqName.asString()
 	val rel = classId.relativeClassName.asString()
-	return if (pkg.isEmpty()) rel.replace('.', '$')
-	else "${pkg.replace('.', '/')}/${rel.replace('.', '$')}"
+	return if (pkg.isEmpty()) {
+		rel.replace('.', '$')
+	} else {
+		"${pkg.replace('.', '/')}/${rel.replace('.', '$')}"
+	}
 }
 
 /**
@@ -216,7 +277,10 @@ private fun KaSession.kaTypeDisplayName(type: KaType): String {
 	}
 }
 
-private fun KaSession.analyzeFunction(filePath: String, dcl: KtNamedFunction): JvmSymbol? {
+private fun KaSession.analyzeFunction(
+	filePath: String,
+	dcl: KtNamedFunction,
+): JvmSymbol? {
 	if (dcl.isLocal) return null
 	val fnName = dcl.name ?: return null
 	val visibility = dcl.jvmVisibility()
@@ -227,30 +291,36 @@ private fun KaSession.analyzeFunction(filePath: String, dcl: KtNamedFunction): J
 
 	val fnSymbol = dcl.symbol as? KaNamedFunctionSymbol ?: return null
 
-	val parameters = fnSymbol.valueParameters.map { param ->
-		JvmParameterInfo(
-			name = param.name.asString(),
-			typeName = kaTypeInternalName(param.returnType),
-			typeDisplayName = kaTypeDisplayName(param.returnType),
-			hasDefaultValue = param.hasDefaultValue,
-			isVararg = param.isVararg,
-		)
-	}
+	val parameters =
+		fnSymbol.valueParameters.map { param ->
+			JvmParameterInfo(
+				name = param.name.asString(),
+				typeName = kaTypeInternalName(param.returnType),
+				typeDisplayName = kaTypeDisplayName(param.returnType),
+				hasDefaultValue = param.hasDefaultValue,
+				isVararg = param.isVararg,
+			)
+		}
 
 	val receiverType = fnSymbol.receiverParameter?.returnType
 	val returnType = fnSymbol.returnType
 
 	// Mirrors KotlinMetadataScanner.extractFunction key / name conventions.
-	val qualifiedName = if (containingClass != null) "$containingClass#$fnName"
-	else "$pkg#$fnName"
+	val qualifiedName =
+		if (containingClass != null) {
+			"$containingClass#$fnName"
+		} else {
+			"$pkg#$fnName"
+		}
 	val key = "$qualifiedName(${parameters.joinToString(",") { it.typeFqName }})"
 
-	val signatureDisplay = buildString {
-		append("(")
-		append(parameters.joinToString(", ") { "${it.name}: ${it.typeDisplayName}" })
-		append("): ")
-		append(kaTypeDisplayName(returnType))
-	}
+	val signatureDisplay =
+		buildString {
+			append("(")
+			append(parameters.joinToString(", ") { "${it.name}: ${it.typeDisplayName}" })
+			append("): ")
+			append(kaTypeDisplayName(returnType))
+		}
 
 	return JvmSymbol(
 		key = key,
@@ -261,33 +331,38 @@ private fun KaSession.analyzeFunction(filePath: String, dcl: KtNamedFunction): J
 		kind = if (receiverType != null) JvmSymbolKind.EXTENSION_FUNCTION else JvmSymbolKind.FUNCTION,
 		language = JvmSourceLanguage.KOTLIN,
 		visibility = visibility,
-		data = JvmFunctionInfo(
-			containingClassName = containingClass ?: "",
-			returnTypeName = kaTypeInternalName(returnType),
-			returnTypeDisplayName = kaTypeDisplayName(returnType),
-			parameterCount = parameters.size,
-			parameters = parameters,
-			signatureDisplay = signatureDisplay,
-			typeParameters = fnSymbol.typeParameters.map { it.name.asString() },
-			kotlin = KotlinFunctionInfo(
-				receiverTypeName = receiverType?.let { kaTypeInternalName(it) } ?: "",
-				receiverTypeDisplayName = receiverType?.let { kaTypeDisplayName(it) } ?: "",
-				isSuspend = fnSymbol.isSuspend,
-				isInline = fnSymbol.isInline,
-				isInfix = fnSymbol.isInfix,
-				isOperator = fnSymbol.isOperator,
-				isTailrec = fnSymbol.isTailRec,
-				isExternal = fnSymbol.isExternal,
-				isExpect = fnSymbol.isExpect,
-				isReturnTypeNullable = returnType.isMarkedNullable,
+		data =
+			JvmFunctionInfo(
+				containingClassName = containingClass ?: "",
+				returnTypeName = kaTypeInternalName(returnType),
+				returnTypeDisplayName = kaTypeDisplayName(returnType),
+				parameterCount = parameters.size,
+				parameters = parameters,
+				signatureDisplay = signatureDisplay,
+				typeParameters = fnSymbol.typeParameters.map { it.name.asString() },
+				kotlin =
+					KotlinFunctionInfo(
+						receiverTypeName = receiverType?.let { kaTypeInternalName(it) } ?: "",
+						receiverTypeDisplayName = receiverType?.let { kaTypeDisplayName(it) } ?: "",
+						isSuspend = fnSymbol.isSuspend,
+						isInline = fnSymbol.isInline,
+						isInfix = fnSymbol.isInfix,
+						isOperator = fnSymbol.isOperator,
+						isTailrec = fnSymbol.isTailRec,
+						isExternal = fnSymbol.isExternal,
+						isExpect = fnSymbol.isExpect,
+						isReturnTypeNullable = returnType.isMarkedNullable,
+					),
 			),
-		),
 	)
 }
 
 @OptIn(KaExperimentalApi::class)
-private fun KaSession.analyzeClassOrObject(filePath: String, dcl: KtClassOrObject): JvmSymbol? {
-	dcl.name ?: return null   // anonymous objects have no stable name
+private fun KaSession.analyzeClassOrObject(
+	filePath: String,
+	dcl: KtClassOrObject,
+): JvmSymbol? {
+	dcl.name ?: return null // anonymous objects have no stable name
 	val visibility = dcl.jvmVisibility()
 	if (visibility == JvmVisibility.PRIVATE) return null
 
@@ -298,27 +373,33 @@ private fun KaSession.analyzeClassOrObject(filePath: String, dcl: KtClassOrObjec
 
 	val clsSymbol = dcl.symbol as? KaClassSymbol ?: return null
 
-	val kind = when (dcl) {
-		is KtObjectDeclaration if dcl.isCompanion() -> JvmSymbolKind.COMPANION_OBJECT
-		is KtObjectDeclaration -> JvmSymbolKind.OBJECT
-		is KtClass if dcl.isInterface() -> JvmSymbolKind.INTERFACE
-		is KtClass if dcl.isEnum() -> JvmSymbolKind.ENUM
-		is KtClass if dcl.isAnnotation() -> JvmSymbolKind.ANNOTATION_CLASS
-		is KtClass if dcl.isData() -> JvmSymbolKind.DATA_CLASS
-		is KtClass if dcl.hasModifier(KtTokens.VALUE_KEYWORD) -> JvmSymbolKind.VALUE_CLASS
-		is KtClass if dcl.hasModifier(KtTokens.SEALED_KEYWORD) -> JvmSymbolKind.SEALED_CLASS
-		else -> JvmSymbolKind.CLASS
-	}
+	val kind =
+		when (dcl) {
+			is KtObjectDeclaration if dcl.isCompanion() -> JvmSymbolKind.COMPANION_OBJECT
+			is KtObjectDeclaration -> JvmSymbolKind.OBJECT
+			is KtClass if dcl.isInterface() -> JvmSymbolKind.INTERFACE
+			is KtClass if dcl.isEnum() -> JvmSymbolKind.ENUM
+			is KtClass if dcl.isAnnotation() -> JvmSymbolKind.ANNOTATION_CLASS
+			is KtClass if dcl.isData() -> JvmSymbolKind.DATA_CLASS
+			is KtClass if dcl.hasModifier(KtTokens.VALUE_KEYWORD) -> JvmSymbolKind.VALUE_CLASS
+			is KtClass if dcl.hasModifier(KtTokens.SEALED_KEYWORD) -> JvmSymbolKind.SEALED_CLASS
+			else -> JvmSymbolKind.CLASS
+		}
 
-	val supertypes = clsSymbol.superTypes.mapNotNull { st ->
-		if (st !is KaClassType) return@mapNotNull null
-		val sId = st.classId
-		val sPkg = sId.packageFqName.asString()
-		val sRel = sId.relativeClassName.asString()
-		val sInternal = if (sPkg.isEmpty()) sRel.replace('.', '$')
-		else "${sPkg.replace('.', '/')}/${sRel.replace('.', '$')}"
-		if (sInternal == "kotlin/Any") null else sInternal
-	}
+	val supertypes =
+		clsSymbol.superTypes.mapNotNull { st ->
+			if (st !is KaClassType) return@mapNotNull null
+			val sId = st.classId
+			val sPkg = sId.packageFqName.asString()
+			val sRel = sId.relativeClassName.asString()
+			val sInternal =
+				if (sPkg.isEmpty()) {
+					sRel.replace('.', '$')
+				} else {
+					"${sPkg.replace('.', '/')}/${sRel.replace('.', '$')}"
+				}
+			if (sInternal == "kotlin/Any") null else sInternal
+		}
 
 	return JvmSymbol(
 		key = internalName,
@@ -329,29 +410,34 @@ private fun KaSession.analyzeClassOrObject(filePath: String, dcl: KtClassOrObjec
 		kind = kind,
 		language = JvmSourceLanguage.KOTLIN,
 		visibility = visibility,
-		data = JvmClassInfo(
-			internalName = internalName,
-			containingClassName = containingClass ?: "",
-			supertypeNames = supertypes,
-			typeParameters = clsSymbol.typeParameters.map { it.name.asString() },
-			isAbstract = dcl.hasModifier(KtTokens.ABSTRACT_KEYWORD),
-			isFinal = dcl.hasModifier(KtTokens.FINAL_KEYWORD),
-			isInner = dcl is KtClass && dcl.isInner(),
-			isStatic = containingClass != null && !(dcl is KtClass && dcl.isInner()),
-			kotlin = KotlinClassInfo(
-				isData = dcl is KtClass && dcl.isData(),
-				isValue = dcl is KtClass && dcl.hasModifier(KtTokens.VALUE_KEYWORD),
-				isSealed = dcl is KtClass && dcl.hasModifier(KtTokens.SEALED_KEYWORD),
-				isFunInterface = dcl is KtClass && dcl.hasModifier(KtTokens.FUN_KEYWORD),
-				isExpect = dcl.hasModifier(KtTokens.EXPECT_KEYWORD),
-				isActual = dcl.hasModifier(KtTokens.ACTUAL_KEYWORD),
-				isExternal = dcl.hasModifier(KtTokens.EXTERNAL_KEYWORD),
+		data =
+			JvmClassInfo(
+				internalName = internalName,
+				containingClassName = containingClass ?: "",
+				supertypeNames = supertypes,
+				typeParameters = clsSymbol.typeParameters.map { it.name.asString() },
+				isAbstract = dcl.hasModifier(KtTokens.ABSTRACT_KEYWORD),
+				isFinal = dcl.hasModifier(KtTokens.FINAL_KEYWORD),
+				isInner = dcl is KtClass && dcl.isInner(),
+				isStatic = containingClass != null && !(dcl is KtClass && dcl.isInner()),
+				kotlin =
+					KotlinClassInfo(
+						isData = dcl is KtClass && dcl.isData(),
+						isValue = dcl is KtClass && dcl.hasModifier(KtTokens.VALUE_KEYWORD),
+						isSealed = dcl is KtClass && dcl.hasModifier(KtTokens.SEALED_KEYWORD),
+						isFunInterface = dcl is KtClass && dcl.hasModifier(KtTokens.FUN_KEYWORD),
+						isExpect = dcl.hasModifier(KtTokens.EXPECT_KEYWORD),
+						isActual = dcl.hasModifier(KtTokens.ACTUAL_KEYWORD),
+						isExternal = dcl.hasModifier(KtTokens.EXTERNAL_KEYWORD),
+					),
 			),
-		),
 	)
 }
 
-private fun KaSession.analyzeProperty(filePath: String, dcl: KtProperty): JvmSymbol? {
+private fun KaSession.analyzeProperty(
+	filePath: String,
+	dcl: KtProperty,
+): JvmSymbol? {
 	if (dcl.isLocal) return null
 	val propName = dcl.name ?: return null
 	val visibility = dcl.jvmVisibility()
@@ -364,8 +450,12 @@ private fun KaSession.analyzeProperty(filePath: String, dcl: KtProperty): JvmSym
 	val returnType = propSymbol.returnType
 	val receiverType = propSymbol.receiverParameter?.returnType
 
-	val qualifiedName = if (containingClass != null) "$containingClass#$propName"
-	else "$pkg#$propName"
+	val qualifiedName =
+		if (containingClass != null) {
+			"$containingClass#$propName"
+		} else {
+			"$pkg#$propName"
+		}
 
 	return JvmSymbol(
 		key = qualifiedName,
@@ -376,24 +466,26 @@ private fun KaSession.analyzeProperty(filePath: String, dcl: KtProperty): JvmSym
 		kind = if (receiverType != null) JvmSymbolKind.EXTENSION_PROPERTY else JvmSymbolKind.PROPERTY,
 		language = JvmSourceLanguage.KOTLIN,
 		visibility = visibility,
-		data = JvmFieldInfo(
-			containingClassName = containingClass ?: "",
-			typeName = kaTypeInternalName(returnType),
-			typeDisplayName = kaTypeDisplayName(returnType),
-			kotlin = KotlinPropertyInfo(
-				receiverTypeName = receiverType?.let { kaTypeInternalName(it) } ?: "",
-				receiverTypeDisplayName = receiverType?.let { kaTypeDisplayName(it) } ?: "",
-				isConst = dcl.hasModifier(KtTokens.CONST_KEYWORD),
-				isLateinit = dcl.hasModifier(KtTokens.LATEINIT_KEYWORD),
-				hasGetter = dcl.getter != null,
-				hasSetter = dcl.setter != null,
-				isDelegated = dcl.delegateExpression != null,
-				isTypeNullable = returnType.isMarkedNullable,
-				isExpect = dcl.hasModifier(KtTokens.EXPECT_KEYWORD),
-				isActual = dcl.hasModifier(KtTokens.ACTUAL_KEYWORD),
-				isExternal = dcl.hasModifier(KtTokens.EXTERNAL_KEYWORD),
+		data =
+			JvmFieldInfo(
+				containingClassName = containingClass ?: "",
+				typeName = kaTypeInternalName(returnType),
+				typeDisplayName = kaTypeDisplayName(returnType),
+				kotlin =
+					KotlinPropertyInfo(
+						receiverTypeName = receiverType?.let { kaTypeInternalName(it) } ?: "",
+						receiverTypeDisplayName = receiverType?.let { kaTypeDisplayName(it) } ?: "",
+						isConst = dcl.hasModifier(KtTokens.CONST_KEYWORD),
+						isLateinit = dcl.hasModifier(KtTokens.LATEINIT_KEYWORD),
+						hasGetter = dcl.getter != null,
+						hasSetter = dcl.setter != null,
+						isDelegated = dcl.delegateExpression != null,
+						isTypeNullable = returnType.isMarkedNullable,
+						isExpect = dcl.hasModifier(KtTokens.EXPECT_KEYWORD),
+						isActual = dcl.hasModifier(KtTokens.ACTUAL_KEYWORD),
+						isExternal = dcl.hasModifier(KtTokens.EXTERNAL_KEYWORD),
+					),
 			),
-		),
 	)
 }
 
@@ -402,7 +494,10 @@ private fun KaSession.analyzeProperty(filePath: String, dcl: KtProperty): JvmSym
  * they appear in completion and navigation just like explicitly declared
  * properties.  Plain constructor or function parameters are skipped.
  */
-private fun KaSession.analyzeParameter(filePath: String, dcl: KtParameter): JvmSymbol? {
+private fun KaSession.analyzeParameter(
+	filePath: String,
+	dcl: KtParameter,
+): JvmSymbol? {
 	if (!dcl.hasValOrVar()) return null
 
 	val propName = dcl.name ?: return null
@@ -415,8 +510,12 @@ private fun KaSession.analyzeParameter(filePath: String, dcl: KtParameter): JvmS
 	val paramSymbol = dcl.symbol as? KaValueParameterSymbol ?: return null
 	val returnType = paramSymbol.returnType
 
-	val qualifiedName = if (containingClass != null) "$containingClass#$propName"
-	else "$pkg#$propName"
+	val qualifiedName =
+		if (containingClass != null) {
+			"$containingClass#$propName"
+		} else {
+			"$pkg#$propName"
+		}
 
 	return JvmSymbol(
 		key = qualifiedName,
@@ -427,18 +526,23 @@ private fun KaSession.analyzeParameter(filePath: String, dcl: KtParameter): JvmS
 		kind = JvmSymbolKind.PROPERTY,
 		language = JvmSourceLanguage.KOTLIN,
 		visibility = visibility,
-		data = JvmFieldInfo(
-			containingClassName = containingClass ?: "",
-			typeName = kaTypeInternalName(returnType),
-			typeDisplayName = kaTypeDisplayName(returnType),
-			kotlin = KotlinPropertyInfo(
-				isTypeNullable = returnType.isMarkedNullable,
+		data =
+			JvmFieldInfo(
+				containingClassName = containingClass ?: "",
+				typeName = kaTypeInternalName(returnType),
+				typeDisplayName = kaTypeDisplayName(returnType),
+				kotlin =
+					KotlinPropertyInfo(
+						isTypeNullable = returnType.isMarkedNullable,
+					),
 			),
-		),
 	)
 }
 
-private fun KaSession.analyzeTypeAlias(filePath: String, dcl: KtTypeAlias): JvmSymbol? {
+private fun KaSession.analyzeTypeAlias(
+	filePath: String,
+	dcl: KtTypeAlias,
+): JvmSymbol? {
 	val aliasName = dcl.name ?: return null
 	val visibility = dcl.jvmVisibility()
 	if (visibility == JvmVisibility.PRIVATE) return null
@@ -460,10 +564,11 @@ private fun KaSession.analyzeTypeAlias(filePath: String, dcl: KtTypeAlias): JvmS
 		kind = JvmSymbolKind.TYPE_ALIAS,
 		language = JvmSourceLanguage.KOTLIN,
 		visibility = visibility,
-		data = JvmTypeAliasInfo(
-			expandedTypeName = kaTypeInternalName(expandedType),
-			expandedTypeDisplayName = kaTypeDisplayName(expandedType),
-			typeParameters = aliasSymbol.typeParameters.map { it.name.asString() },
-		),
+		data =
+			JvmTypeAliasInfo(
+				expandedTypeName = kaTypeInternalName(expandedType),
+				expandedTypeDisplayName = kaTypeDisplayName(expandedType),
+				typeParameters = aliasSymbol.typeParameters.map { it.name.asString() },
+			),
 	)
 }
