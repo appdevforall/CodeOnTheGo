@@ -180,11 +180,15 @@ private fun tlv(
 	out.write(tag)
 	val len = content.size
 	when {
-		len < 0x80 -> out.write(len)
+		len < 0x80 -> {
+			out.write(len)
+		}
+
 		len < 0x100 -> {
 			out.write(0x81)
 			out.write(len)
 		}
+
 		else -> {
 			out.write(0x82)
 			out.write(len ushr 8)
