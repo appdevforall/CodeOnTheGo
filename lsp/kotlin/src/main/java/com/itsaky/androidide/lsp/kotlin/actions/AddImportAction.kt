@@ -41,38 +41,15 @@ class AddImportAction : BaseKotlinCodeAction() {
 			return
 		}
 
+		// Optimistic visibility: decide from the in-memory unresolved-reference marker only. The
+		// importable-classifier resolution runs in the background execAction; doing it here would be
+		// main-thread SQLite I/O, because fillMenu() calls prepare() synchronously on the UI thread.
 		val extra = data.require<DiagnosticItem>().extra as? KotlinDiagnosticExtra
-		if (extra == null) {
-			markInvisible()
-			return
-		}
-
-		val reference = extra.unresolvedReference
-		if (reference == null) {
-			markInvisible()
-			return
-		}
-
-		// Known main-thread I/O: prepare() runs on the UI thread (menu build) and this resolves
-		// against the SQLite-backed symbol index synchronously. Pre-existing (ADFA-3754); tracked
-		// as a follow-up to move the visibility lookup off the main thread. Keep it cheap here.
-		if (!hasImportableClassifier(extra.compilationEnv, reference)) {
+		if (extra?.unresolvedReference == null) {
 			markInvisible()
 			return
 		}
 	}
-
-	/**
-	 * True when [reference] resolves to at least one importable classifier in [env]'s indexes.
-	 * This is the exact predicate that gates the action's visibility in [prepare].
-	 */
-	internal fun hasImportableClassifier(
-		env: AbstractCompilationEnvironment,
-		reference: String,
-	): Boolean =
-		env.ktSymbolIndex
-			.findSymbolBySimpleName(reference, limit = 0)
-			.any { it.kind.isClassifier }
 
 	override suspend fun execAction(data: ActionData): Map<String, List<TextEdit>> {
 		val (reference, env) =
