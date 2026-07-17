@@ -60,13 +60,14 @@ private fun KaSession.renderFunctionStub(
 	indent: String,
 	unit: String,
 ): String {
-	val modifiers = buildString {
-		append(visibilityPrefix(fn.visibility))
-		append("override ")
-		if (fn.isSuspend) append("suspend ")
-		if (fn.isOperator) append("operator ")
-		if (fn.isInfix) append("infix ")
-	}
+	val modifiers =
+		buildString {
+			append(visibilityPrefix(fn.visibility))
+			append("override ")
+			if (fn.isSuspend) append("suspend ")
+			if (fn.isOperator) append("operator ")
+			if (fn.isInfix) append("infix ")
+		}
 	val typeParams = renderTypeParams(fn.typeParameters)
 	val receiver = fn.receiverType?.let { "${renderName(it)}." } ?: ""
 	val params =
@@ -80,7 +81,12 @@ private fun KaSession.renderFunctionStub(
 	return buildString {
 		append(indent).append(modifiers).append("fun")
 		if (typeParams.isNotEmpty()) append(" ").append(typeParams)
-		append(" ").append(receiver).append(fn.name.asString()).append("(").append(params).append(")")
+		append(" ")
+			.append(receiver)
+			.append(fn.name.asString())
+			.append("(")
+			.append(params)
+			.append(")")
 		append(returnType)
 		append(where)
 		append(" {\n")
@@ -102,7 +108,11 @@ private fun KaSession.renderPropertyStub(
 
 	return buildString {
 		append(indent).append(modifiers).append(keyword).append(" ")
-		append(receiver).append(prop.name.asString()).append(": ").append(type).append("\n")
+		append(receiver)
+			.append(prop.name.asString())
+			.append(": ")
+			.append(type)
+			.append("\n")
 		append(indent).append(unit).append("get() = ").append(STUB_BODY)
 		if (!prop.isVal) {
 			append("\n").append(indent).append(unit).append("set(value) {}")

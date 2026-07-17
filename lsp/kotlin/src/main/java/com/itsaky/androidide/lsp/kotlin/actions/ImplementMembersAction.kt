@@ -204,7 +204,10 @@ private fun buildInsertionEdit(
 			}
 
 			body.declarations.isNotEmpty() -> {
-				val at = body.declarations.last().textRange.endOffset
+				val at =
+					body.declarations
+						.last()
+						.textRange.endOffset
 				TextEdit(TextRange(at, at).toRange(ktFile), "\n\n$memberBlock")
 			}
 

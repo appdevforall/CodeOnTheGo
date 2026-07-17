@@ -20,7 +20,8 @@ class AbstractMemberStubsTest : KtLspTest() {
 		return env.project.read {
 			analyzeMaybeDangling(ktFile) {
 				val decl =
-					PsiTreeUtil.collectElementsOfType(ktFile, KtClassOrObject::class.java)
+					PsiTreeUtil
+						.collectElementsOfType(ktFile, KtClassOrObject::class.java)
 						.first { it.name == className }
 				val symbol = decl.symbol as KaClassSymbol
 				membersToImplement(symbol).mapNotNull { renderOverrideStub(it, "\t", "\t") }
