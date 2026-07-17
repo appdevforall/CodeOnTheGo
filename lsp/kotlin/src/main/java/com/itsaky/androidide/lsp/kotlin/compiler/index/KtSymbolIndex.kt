@@ -336,8 +336,16 @@ internal fun KtSymbolIndex.filesForPackage(packageFqn: String) = fileIndex.getFi
 
 internal fun KtSymbolIndex.subpackageNames(packageFqn: String) = fileIndex.getSubpackageNames(packageFqn)
 
+/**
+ * Returns source- and library-index symbols whose simple name equals [name].
+ *
+ * [limit] `<= 0` means unbounded, honoring the same convention as
+ * [org.appdevforall.codeonthego.indexing.api.ReadableIndex.query] ("If IndexQuery.limit is 0, all
+ * matches are emitted"). A plain `take(limit)` would turn the common `limit = 0` call into
+ * `take(0)`, silently yielding no results.
+ */
 internal fun KtSymbolIndex.findSymbolBySimpleName(
 	name: String,
 	limit: Int,
 ) = (sourceIndex.findBySimpleName(name, 0) + libraryIndex.findBySimpleName(name, 0))
-	.take(limit)
+	.let { if (limit <= 0) it else it.take(limit) }
