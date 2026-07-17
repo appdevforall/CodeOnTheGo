@@ -68,19 +68,18 @@
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
 		android:layout_below="@id/tabs"
-		android:gravity="end|center_vertical"
 		android:orientation="horizontal"
-		android:padding="8dp">
-
-		<com.google.android.material.button.MaterialButton
-			android:id="@+id/filter_output_action"
-			style="@style/EditorBottomSheet.OutputActionButton"
-			android:text="@string/log_action_filter" />
+		android:layout_margin="8dp">
 
 		<com.google.android.material.button.MaterialButton
 			android:id="@+id/search_output_action"
 			style="@style/EditorBottomSheet.OutputActionButton"
 			android:text="@string/log_action_search" />
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/filter_output_action"
+			style="@style/EditorBottomSheet.OutputActionButton"
+			android:text="@string/log_action_filter" />
 
 		<com.google.android.material.button.MaterialButton
 			android:id="@+id/share_output_action"

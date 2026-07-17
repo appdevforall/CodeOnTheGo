@@ -95,7 +95,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 
 	override fun toggleFilterBar() {
 		val existing = filterBar
-        existing?.toggle() ?: createFilterBar()
+		existing?.toggle() ?: createFilterBar()
 	}
 
 	private fun createFilterBar(): LogFilterBarController? {

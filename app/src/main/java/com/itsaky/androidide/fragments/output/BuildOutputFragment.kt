@@ -116,7 +116,7 @@ class BuildOutputFragment :
 
 	override fun toggleFilterBar() {
 		val existing = filterBar
-        existing?.toggle() ?: createFilterBar()
+		existing?.toggle() ?: createFilterBar()
 	}
 
 	private fun setupSearchLayout() {
