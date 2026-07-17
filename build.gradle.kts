@@ -168,7 +168,7 @@ spotless {
 		importOrder()
 
 		removeUnusedImports()
-		removeWildcardImports()
+		forbidWildcardImports()
 
 		// custom rule to fix lambda formatting
 		custom(
@@ -597,7 +597,10 @@ fun zeroCompressMavenRepo(
 					}
 					logger.lifecycle("Zero-compressed ${sourceFile.relativeTo(normalizedSource)}")
 				}
-				else -> Files.copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
+
+				else -> {
+					Files.copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
+				}
 			}
 		}
 }
