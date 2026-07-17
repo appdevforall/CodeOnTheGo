@@ -19,6 +19,7 @@ import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.flashError
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 
@@ -104,6 +105,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 
 		if (result.isEmpty()) {
 			logger.warn("No classifiers to import.")
+			flashError(R.string.msg_no_imports_found)
 			return
 		}
 
