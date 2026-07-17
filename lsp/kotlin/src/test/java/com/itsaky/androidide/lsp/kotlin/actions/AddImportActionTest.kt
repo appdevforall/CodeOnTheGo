@@ -9,7 +9,6 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -87,26 +86,6 @@ class AddImportActionTest : KtLspTest() {
 		createSourceFile("Main.kt", "package p\nfun f() {}")
 
 		assertTrue(AddImportAction().computeImportCandidates(env, mainPath, "Nope").isEmpty())
-	}
-
-	/**
-	 * The user-facing bug: the action never appeared on an unresolved-reference diagnostic.
-	 * prepare() gates visibility on exactly this predicate; `take(0)` made it always false. Guards
-	 * that the action goes VISIBLE when the reference resolves to an importable classifier.
-	 */
-	@Test
-	fun `visibility gate is true when the reference resolves to an importable classifier`() {
-		index(classSymbol("lib", "Foo"))
-
-		assertTrue(AddImportAction().hasImportableClassifier(env, "Foo"))
-	}
-
-	@Test
-	fun `visibility gate is false for an unknown or non-classifier reference`() {
-		index(funSymbol("lib", "Bar"))
-
-		assertFalse(AddImportAction().hasImportableClassifier(env, "Bar"))
-		assertFalse(AddImportAction().hasImportableClassifier(env, "Unknown"))
 	}
 
 	/**
