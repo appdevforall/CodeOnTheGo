@@ -19,6 +19,7 @@ package com.itsaky.androidide.gradle
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_ENABLED
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logging
@@ -52,6 +53,11 @@ class AndroidIDEGradlePlugin : Plugin<Project> {
 			val isProfileableEnabled = findProperty(PROPERTY_PROFILEABLE_ENABLED) == "true"
 			if (isProfileableEnabled) {
 				pluginManager.apply(ProfilerPlugin::class.java)
+			}
+
+			val isQuickBuildEnabled = findProperty(PROPERTY_QUICK_BUILD_ENABLED) == "true"
+			if (isQuickBuildEnabled) {
+				pluginManager.apply(QuickBuildPlugin::class.java)
 			}
 		}
 	}

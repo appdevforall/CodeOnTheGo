@@ -17,7 +17,6 @@
 
 @file:Suppress("UnstableApiUsage")
 
-import com.itsaky.androidide.build.config.AGP_VERSION_MINIMUM
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.ProjectConfig
 
@@ -52,8 +51,12 @@ dependencies {
 	implementation(projects.gradlePluginConfig)
 	implementation(projects.buildInfo)
 
-	// use the AGP APIs from the minimum supported AGP version
-	add("androidBuildTool", "com.android.tools.build:gradle:${AGP_VERSION_MINIMUM}")
+	// Quick Build (ADFA-4128) needs the ScopedArtifacts API (AGP 7.4+) and the D8 API
+	// shipped inside AGP's builder artifact, so this module compiles against the repo's
+	// AGP instead of AGP_VERSION_MINIMUM. Projects on older AGPs are unaffected at
+	// runtime: QuickBuildPlugin's classes load only when quick build is enabled, and the
+	// other plugins stick to APIs that exist since the minimum supported version.
+	add("androidBuildTool", libs.android.gradle.plugin)
 
 	testImplementation(gradleTestKit())
 	testImplementation(libs.tests.junit.jupiter)
