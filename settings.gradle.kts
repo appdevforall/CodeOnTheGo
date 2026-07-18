@@ -79,15 +79,6 @@ dependencyResolutionManagement {
 	}
 }
 
-buildscript {
-	repositories {
-		mavenCentral()
-	}
-	dependencies {
-		classpath("org.bouncycastle:bcutil-jdk18on:1.78.1")
-	}
-}
-
 FDroidConfig.load(rootDir)
 
 if (FDroidConfig.hasRead && FDroidConfig.isFDroidBuild) {
