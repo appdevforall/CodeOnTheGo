@@ -17,7 +17,6 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.FileTime
 import java.security.MessageDigest
-import java.util.Locale
 import java.util.Properties
 import java.util.zip.CRC32
 import java.util.zip.Deflater
@@ -33,6 +32,7 @@ plugins {
 	id("kotlin-parcelize")
 	id("androidx.navigation.safeargs.kotlin")
 	id("com.itsaky.androidide.desugaring")
+	// Sentry gradle plugin; the SDK it wires up reports to our GlitchTip backend.
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
 }
@@ -136,6 +136,9 @@ android {
 		}
 
 		jniLibs {
+			// Debug default: uncompressed libs, loaded straight from the APK. Bundled-assets
+			// variants (release/instrumentation) override this to true in AndroidModuleConf.kt
+			// so their libs ship deflate-compressed and extract at install time (ADFA-2306).
 			useLegacyPackaging = false
 		}
 	}
@@ -147,8 +150,9 @@ android {
 	}
 }
 
+// Sentry gradle plugin config (crash reporting to GlitchTip).
 sentry {
-      includeProguardMapping = false
+	includeProguardMapping = false
 }
 
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.AppEventsIndex") } }
@@ -293,6 +297,7 @@ dependencies {
 	implementation(projects.idetooltips)
 	implementation(projects.floatingWindow)
 	implementation(projects.gitCore)
+	implementation(projects.profiler)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -321,7 +326,7 @@ dependencies {
 	implementation(libs.koin.android)
 	implementation(libs.androidx.security.crypto)
 
-	// Sentry Android SDK (core + replay for quality configuration)
+	// Sentry Android SDK (core + replay for quality configuration); our GlitchTip client.
 	implementation(libs.sentry.core)
 	implementation(libs.sentry.android.core)
 	implementation(libs.sentry.logback)
@@ -336,8 +341,8 @@ dependencies {
 	implementation(libs.google.genai)
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
 
-    // Pebble template engine
-    implementation("io.pebbletemplates:pebble:4.1.1")
+	// Pebble template engine
+	implementation("io.pebbletemplates:pebble:4.1.1")
 }
 
 tasks.register("downloadDocDb") {
@@ -385,7 +390,6 @@ tasks.register("downloadDocDb") {
 		}
 	}
 }
-
 
 tasks.register("copyPluginApiJarToAssets") {
 	dependsOn(":plugin-api:createPluginApiJar")
@@ -475,7 +479,15 @@ val noCompress =
 // Debug APKs DEFLATE jar assets (tooling-api-all.jar, cogo-plugin.jar) for
 // ~75% size reduction (ADFA-4188). Release keeps jars STORED because
 // tooling-api-all.jar ships as a brotli-encoded .jar.br.
-val noCompressDebug = noCompress - "jar"
+//
+// "so" stays DEFLATED in both lists (ADFA-2306 release, ADFA-4729 CI debug): the app
+// manifest hard-codes extractNativeLibs="true", so the installer extracts libs to
+// nativeLibraryDir at install time and AGP already packages them deflate-compressed
+// (~5.9 MB smaller per APK). Re-storing them here would silently undo that, which is
+// exactly what happened to CI debug APKs before ADFA-4729. Local debug builds never
+// run this task and get AGP's deflated packaging as-is.
+val noCompressDebug = noCompress - "jar" - "so"
+val noCompressRelease = noCompress - "so"
 
 afterEvaluate {
 	tasks.named("assembleV8Release").configure {
@@ -485,7 +497,7 @@ afterEvaluate {
 			tasks.named("recompressApk").configure {
 				extensions.extraProperties["abi"] = "v8"
 				extensions.extraProperties["buildName"] = "release"
-				extensions.extraProperties["noCompressExtensions"] = noCompress
+				extensions.extraProperties["noCompressExtensions"] = noCompressRelease
 			}
 		}
 
@@ -501,7 +513,7 @@ afterEvaluate {
 			tasks.named("recompressApk").configure {
 				extensions.extraProperties["abi"] = "v7"
 				extensions.extraProperties["buildName"] = "release"
-				extensions.extraProperties["noCompressExtensions"] = noCompress
+				extensions.extraProperties["noCompressExtensions"] = noCompressRelease
 			}
 		}
 
@@ -736,12 +748,12 @@ val debugAssets =
 			"localMvnRepository.zip",
 			"debug",
 		),
-        Asset(
-          "assets/core.cgt",
-          "https://appdevforall.org/dev-assets/debug/core.cgt",
-          "core.cgt",
-          "debug",
-        ),
+		Asset(
+			"assets/core.cgt",
+			"https://appdevforall.org/dev-assets/debug/core.cgt",
+			"core.cgt",
+			"debug",
+		),
 	)
 
 val releaseAssets =
@@ -794,12 +806,12 @@ val releaseAssets =
 			"v8/bootstrap.zip.br",
 			"release",
 		),
-        Asset(
-          "assets/release/common/data/common/core.cgt.br",
-          "https://appdevforall.org/dev-assets/release/core.cgt.br",
-          "core.cgt.br",
-          "release",
-        ),
+		Asset(
+			"assets/release/common/data/common/core.cgt.br",
+			"https://appdevforall.org/dev-assets/release/core.cgt.br",
+			"core.cgt.br",
+			"release",
+		),
 	)
 
 fun assetsBatch(
@@ -864,12 +876,11 @@ fun assetsFileDownload(
 		conn.setRequestProperty("Connection", "keep-alive")
 		conn.instanceFollowRedirects = true
 		conn.connectTimeout = 10_000
-		conn.readTimeout = 10_000
+		conn.readTimeout = 60_000
 
 		try {
 			val status = conn.responseCode
 			if (status == HttpURLConnection.HTTP_OK) {
-				// Stream the response body into the target file
 				conn.inputStream.use { input ->
 					target.outputStream().use { output ->
 						input.copyTo(output)
@@ -877,8 +888,7 @@ fun assetsFileDownload(
 				}
 				project.logger.lifecycle("Downloaded ${asset.url} → ${target.absolutePath}")
 			} else {
-				project.logger.warn("Failed to download ${asset.url} (HTTP $status: ${conn.responseMessage})")
-				project.logger.warn("Build will continue without this asset - some functionality may be unavailable")
+				throw GradleException("Failed to download ${asset.url} (HTTP $status: ${conn.responseMessage})")
 			}
 		} finally {
 			conn.disconnect()
@@ -886,104 +896,79 @@ fun assetsFileDownload(
 	}
 }
 
-fun assetsFileChecksum(asset: Asset): String? {
-	return if (isCiCd) {
-		val stagedChecksum = stagedChecksumFor(asset, rootProject.projectDir)
-		if (stagedChecksum.exists()) {
-			stagedChecksum.readText().trim()
-		} else {
-			throw GradleException("Failed to find checksum in ${stagedChecksum.absolutePath}")
-		}
-	} else {
-		val checksumUrl = asset.url + ".md5"
-		val conn = URL(checksumUrl).openConnection() as HttpURLConnection
-		conn.requestMethod = "GET"
-		conn.setRequestProperty("User-Agent", "Mozilla/5.0")
-		conn.instanceFollowRedirects = true
-		conn.connectTimeout = 10_000
-		conn.readTimeout = 10_000
-
-		return try {
-			val status = conn.responseCode
-
-			if (status == HttpURLConnection.HTTP_OK) {
-				val checksum = conn.inputStream.bufferedReader().use { it.readText().trim() }
-				// Validate MD5 format (32 hex characters) to detect HTML responses from Cloudflare
-				if (checksum.matches(Regex("^[a-fA-F0-9]{32}$"))) {
-					checksum
-				} else {
-					project.logger.warn("Invalid checksum format from $checksumUrl (got: ${checksum.take(50)}...)")
-					project.logger.warn("Server likely returning HTML instead of checksum - skipping")
-					null
-				}
-			} else {
-				// Workaround for HTTP 415 errors from asset server
-				project.logger.warn("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
-				null
-			}
-		} finally {
-			conn.disconnect()
+fun fileMd5(file: File): String {
+	val digest = MessageDigest.getInstance("MD5")
+	file.inputStream().use { input ->
+		val buffer = ByteArray(8192)
+		var read: Int
+		while (input.read(buffer).also { read = it } > 0) {
+			digest.update(buffer, 0, read)
 		}
 	}
+	return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+fun assetsFileChecksum(asset: Asset): String {
+	val checksum =
+		if (isCiCd) {
+			val stagedChecksum = stagedChecksumFor(asset, rootProject.projectDir)
+			if (!stagedChecksum.exists()) {
+				throw GradleException("Failed to find checksum in ${stagedChecksum.absolutePath}")
+			}
+			stagedChecksum.readText().trim()
+		} else {
+			val checksumUrl = asset.url + ".md5"
+			val conn = URL(checksumUrl).openConnection() as HttpURLConnection
+			conn.requestMethod = "GET"
+			conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+			conn.instanceFollowRedirects = true
+			conn.connectTimeout = 10_000
+			conn.readTimeout = 10_000
+
+			try {
+				val status = conn.responseCode
+				if (status != HttpURLConnection.HTTP_OK) {
+					throw GradleException("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
+				}
+				conn.inputStream.bufferedReader().use { it.readText().trim() }
+			} finally {
+				conn.disconnect()
+			}
+		}
+
+	if (!checksum.matches(Regex("^[a-fA-F0-9]{32}$"))) {
+		throw GradleException(
+			"Invalid MD5 checksum for ${asset.remotePath} (got: '${checksum.take(
+				50,
+			)}') - the server may be returning an error page instead of the checksum",
+		)
+	}
+	return checksum.lowercase()
 }
 
 fun assetsDownload(
 	assets: List<Asset>,
 	projectDir: File,
 ) {
-	val checksumDir = File(projectDir, ".checksum")
-	checksumDir.mkdirs()
-
 	assets.forEach { asset ->
 		val target = File(projectDir, asset.localPath)
 		target.parentFile.mkdirs()
 
-		// Path for checksum file
-		val canonicalName = asset.localPath.replace("/", "_")
-		val checksumFile = File(checksumDir, "${asset.variant}-$canonicalName.md5")
-
-		// Load previous checksum (empty string if missing)
-		val previousChecksum: String =
-			if (checksumFile.exists()) {
-				checksumFile.readText()
-			} else {
-				""
-			}
-
 		val remoteChecksum = assetsFileChecksum(asset)
 
-		val needsDownload = (previousChecksum != remoteChecksum) || previousChecksum.isEmpty()
-
-		if (needsDownload) {
-			project.logger.lifecycle("Downloading ${asset.url} → ${asset.localPath}")
-
-			assetsFileDownload(asset, File(rootProject.projectDir, asset.localPath))
-
-			// Only verify checksum if download succeeded
-			if (target.exists()) {
-				// Recompute checksum after download
-				val digest = MessageDigest.getInstance("MD5")
-				target.inputStream().use { input ->
-					val buffer = ByteArray(8192)
-					var read: Int
-					while (input.read(buffer).also { read = it } > 0) {
-						digest.update(buffer, 0, read)
-					}
-				}
-				val newChecksum = digest.digest().joinToString("") { "%02x".format(it) }
-				if (!remoteChecksum.isNullOrEmpty() && newChecksum != remoteChecksum) {
-					project.logger.warn("Checksum mismatch for ${asset.localPath} (expected $remoteChecksum, got $newChecksum)")
-					project.logger.warn("This may indicate asset server issues - build will continue with downloaded file")
-				}
-
-				checksumFile.writeText(newChecksum)
-				project.logger.lifecycle("Updated checksum stored: ${checksumFile.absolutePath}")
-			} else {
-				project.logger.warn("Download failed for ${asset.localPath} - skipping checksum verification")
-				project.logger.warn("Build will continue - some functionality may be unavailable")
-			}
-		} else {
+		if (target.exists() && fileMd5(target) == remoteChecksum) {
 			project.logger.lifecycle("File ${asset.localPath} is up-to-date (checksum matches).")
+			return@forEach
+		}
+
+		project.logger.lifecycle("Downloading ${asset.url} → ${asset.localPath}")
+		assetsFileDownload(asset, target)
+
+		val newChecksum = fileMd5(target)
+		if (newChecksum != remoteChecksum) {
+			throw GradleException(
+				"Checksum mismatch for ${asset.localPath} (expected $remoteChecksum, got $newChecksum)",
+			)
 		}
 	}
 }

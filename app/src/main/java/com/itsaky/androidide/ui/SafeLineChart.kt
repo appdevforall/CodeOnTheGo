@@ -31,37 +31,37 @@ import org.slf4j.LoggerFactory
  * drawn from more than one thread at once, a reader can observe the new `mEntryCount` while `mEntries` is
  * still the old (shorter) array, throwing an [IndexOutOfBoundsException] from the label renderer.
  *
- * This happens in AndroidIDE because Sentry Session Replay records the screen by drawing the view
+ * This happens in AndroidIDE because Sentry Session Replay (the SDK feature we use to report to
+ * GlitchTip) records the screen by drawing the view
  * hierarchy on a background thread, which races the main-thread updates of the memory-usage chart. The
  * chart is a non-critical diagnostic view, so dropping the occasional frame is preferable to crashing the
  * whole IDE. The next `invalidate()` recovers cleanly.
  *
  */
 class SafeLineChart : LineChart {
+	constructor(context: Context) : super(context)
+	constructor(context: Context, attrs: AttributeSet?) : super(context, attrs)
+	constructor(
+		context: Context,
+		attrs: AttributeSet?,
+		defStyleAttr: Int,
+	) : super(context, attrs, defStyleAttr)
 
-  constructor(context: Context) : super(context)
-  constructor(context: Context, attrs: AttributeSet?) : super(context, attrs)
-  constructor(
-    context: Context,
-    attrs: AttributeSet?,
-    defStyleAttr: Int,
-  ) : super(context, attrs, defStyleAttr)
+	companion object {
+		private val log = LoggerFactory.getLogger(SafeLineChart::class.java)
+	}
 
-  companion object {
-    private val log = LoggerFactory.getLogger(SafeLineChart::class.java)
-  }
+	private var skippedFrames = 0L
 
-  private var skippedFrames = 0L
-
-  override fun onDraw(canvas: Canvas) {
-    try {
-      super.onDraw(canvas)
-    } catch (e: IndexOutOfBoundsException) {
-      // Transient race in MPAndroidChart's axis renderer (see class doc). Skip this frame.
-      // Only log occasionally to avoid flooding logcat, since onDraw runs every frame.
-      if (skippedFrames++ % 60L == 0L) {
-        log.warn("Skipped {} chart frame(s) due to a transient axis-rendering race", skippedFrames, e)
-      }
-    }
-  }
+	override fun onDraw(canvas: Canvas) {
+		try {
+			super.onDraw(canvas)
+		} catch (e: IndexOutOfBoundsException) {
+			// Transient race in MPAndroidChart's axis renderer (see class doc). Skip this frame.
+			// Only log occasionally to avoid flooding logcat, since onDraw runs every frame.
+			if (skippedFrames++ % 60L == 0L) {
+				log.warn("Skipped {} chart frame(s) due to a transient axis-rendering race", skippedFrames, e)
+			}
+		}
+	}
 }

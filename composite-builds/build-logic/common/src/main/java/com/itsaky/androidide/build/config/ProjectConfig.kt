@@ -149,8 +149,6 @@ val Project.downloadVersion: String
 		return if (CI.isCiBuild || isFDroidBuild) {
 			publishingVersion
 		} else {
-			// sometimes, when working locally, Gradle fails to download the latest snapshot version
-			// this may cause issues while initializing the project in AndroidIDE
-			VersionUtils.getLatestSnapshotVersion("gradle-plugin")
+			VersionUtils.LATEST_INTEGRATION
 		}
 	}

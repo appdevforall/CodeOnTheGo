@@ -37,6 +37,7 @@ import com.itsaky.androidide.dnd.FileDragResult
 import com.itsaky.androidide.dnd.FileDragStarter
 import com.itsaky.androidide.eventbus.events.filetree.FileClickEvent
 import com.itsaky.androidide.eventbus.events.filetree.FileLongClickEvent
+import com.itsaky.androidide.eventbus.events.filetree.PluginFilesChangedEvent
 import com.itsaky.androidide.events.CollapseTreeNodeRequestEvent
 import com.itsaky.androidide.events.ExpandTreeNodeRequestEvent
 import com.itsaky.androidide.events.ListProjectFilesRequestEvent
@@ -65,6 +66,15 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
 
     private var binding: LayoutEditorFileTreeBinding? = null
     private var fileTreeView: AndroidTreeView? = null
+
+    // Root of the current tree; used to walk expanded nodes on refresh.
+    private var treeRoot: TreeNode? = null
+
+    private val pluginRefreshRunnable = Runnable {
+        if (isVisible && context != null) {
+            refreshExpandedNodes()
+        }
+    }
 
     private val viewModel by viewModels<FileTreeViewModel>(ownerProducer = { requireActivity() })
     private val fileDragStarter by lazy(LazyThreadSafetyMode.NONE) {
@@ -112,10 +122,12 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
         super.onDestroyView()
         EventBus.getDefault().unregister(this)
 
+        binding?.root?.removeCallbacks(pluginRefreshRunnable)
         saveTreeState()
 
         binding = null
         fileTreeView = null
+        treeRoot = null
         _dropController = null
     }
 
@@ -271,6 +283,18 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
         listProjectFiles()
     }
 
+    @Suppress("unused", "UNUSED_PARAMETER")
+    @Subscribe(threadMode = MAIN)
+    fun onPluginFilesChanged(event: PluginFilesChangedEvent) {
+        if (!isVisible || context == null) {
+            return
+        }
+        val root = binding?.root ?: return
+        // Debounce bursts of writes into a single refresh.
+        root.removeCallbacks(pluginRefreshRunnable)
+        root.postDelayed(pluginRefreshRunnable, PLUGIN_REFRESH_DEBOUNCE_MS)
+    }
+
     @Suppress("unused")
     @Subscribe(threadMode = MAIN)
     fun onGetExpandTreeNodeRequest(event: ExpandTreeNodeRequestEvent) {
@@ -309,6 +333,7 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
         val projectRoot = TreeNode.root(projectDir)
         projectRoot.viewHolder = FileTreeViewHolder(context, externalDropHandler)
         rootNode.addChild(projectRoot, false)
+        treeRoot = rootNode
 
         binding!!.horizontalCroll.visibility = View.GONE
         binding!!.horizontalCroll.visibility = View.VISIBLE
@@ -332,6 +357,67 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
                 view.post { tryRestoreState(rootNode) }
             }
         }
+    }
+
+    /**
+     * Re-lists expanded folders whose on-disk contents changed, so plugin-created
+     * files appear without a manual refresh.
+     */
+    fun refreshExpandedNodes() {
+        if (binding == null || context == null) return
+
+        treeRoot?.let(::refreshChangedDirectories)
+    }
+
+    private fun refreshChangedDirectories(node: TreeNode) {
+        node.children.forEach { child ->
+            val file = child.value ?: return@forEach
+
+            if (!file.isDirectory || !child.isExpanded) {
+                return@forEach
+            }
+
+            if (!hasDirectoryContentsChanged(child)) {
+                refreshChangedDirectories(child)
+                return@forEach
+            }
+
+            val expandedPaths = hashSetOf<String>()
+            collectExpandedPaths(child, expandedPaths)
+            relistPreservingExpansion(child, expandedPaths)
+        }
+    }
+
+    private fun collectExpandedPaths(node: TreeNode, into: MutableSet<String>) {
+        for (child in node.children) {
+            val file = child.value ?: continue
+            if (file.isDirectory && child.isExpanded) {
+                into.add(file.absolutePath)
+                collectExpandedPaths(child, into)
+            }
+        }
+    }
+
+    private fun relistPreservingExpansion(node: TreeNode, expandedPaths: Set<String>) {
+        listNode(node) {
+            expandNode(node, false)
+            for (child in node.children) {
+                val file = child.value ?: continue
+                if (file.isDirectory && file.absolutePath in expandedPaths) {
+                    relistPreservingExpansion(child, expandedPaths)
+                }
+            }
+        }
+    }
+
+    private fun hasDirectoryContentsChanged(node: TreeNode): Boolean {
+        val displayed = node.children.mapNotNull { it.value?.name }.toHashSet()
+        val files = node.value.listFiles() ?: return displayed.isNotEmpty()
+        if (files.size != displayed.size) {
+            return true
+        }
+
+        return files.any { it.name !in displayed }
     }
 
     private fun createTreeView(node: TreeNode): AndroidTreeView? {
@@ -408,6 +494,9 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
 
         // Should be same as defined in layout/activity_layouteditor.xml
         const val TAG = "editor.fileTree"
+
+        // Debounce window for coalescing write bursts into one refresh.
+        private const val PLUGIN_REFRESH_DEBOUNCE_MS = 250L
 
         @JvmStatic
         fun newInstance(): FileTreeFragment {

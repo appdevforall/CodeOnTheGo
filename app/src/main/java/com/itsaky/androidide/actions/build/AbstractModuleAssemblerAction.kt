@@ -6,6 +6,7 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.openApplicationModuleChooser
+import com.itsaky.androidide.actions.profiler.ProfilerAction
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
@@ -23,6 +24,25 @@ abstract class AbstractModuleAssemblerAction(
 	@StringRes private val labelRes: Int,
 	@DrawableRes private val iconRes: Int,
 ) : AbstractCancellableRunAction(context, labelRes, iconRes) {
+	/**
+	 * Extra Gradle arguments (e.g. `-P` properties) to pass for this action's build. Subclasses
+	 * override this to influence the build; for example, the profiler action enables a profileable APK.
+	 */
+	protected open val gradleArgs: List<String>
+		get() = emptyList()
+
+	/**
+	 * Resolves the variant that should actually be built for this action, given the user's
+	 * [selectedVariant]. The default returns [selectedVariant] unchanged. Subclasses may override
+	 * to build a different variant (e.g. the profiler builds the release counterpart). Returning
+	 * `null` aborts the build; an overriding implementation must surface its own error first.
+	 */
+	protected open fun resolveBuildVariant(
+		data: ActionData,
+		module: AndroidModule,
+		selectedVariant: AndroidModels.AndroidVariant,
+	): AndroidModels.AndroidVariant? = selectedVariant
+
 	override fun doExec(data: ActionData): Boolean {
 		val projectManager = IProjectManager.getInstance()
 
@@ -61,10 +81,17 @@ abstract class AbstractModuleAssemblerAction(
 		variant: AndroidModels.AndroidVariant,
 	) {
 		val activity = data.requireActivity()
+		val resolvedVariant = resolveBuildVariant(data, module, variant) ?: return
 		val buildViewModel: BuildViewModel by activity.viewModels()
 		actionScope.launch {
 			activity.saveAllResult()
 		}
-		buildViewModel.runQuickBuild(module, variant, launchInDebugMode = id == DebugAction.ID)
+		buildViewModel.runQuickBuild(
+			module,
+			resolvedVariant,
+			launchInDebugMode = id == DebugAction.ID,
+			launchProfilerAfterInstall = id == ProfilerAction.ID,
+			gradleArgs = gradleArgs,
+		)
 	}
 }

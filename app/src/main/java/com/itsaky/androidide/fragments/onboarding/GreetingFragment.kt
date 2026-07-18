@@ -33,7 +33,7 @@ class GreetingFragment : FragmentWithBinding<FragmentOnboardingGreetingBinding>(
 	) {
 		super.onViewCreated(view, savedInstanceState)
 
-		// EXPERIMENTAL MODE - Crash app in order to capture exception on Sentry
+		// EXPERIMENTAL MODE - Crash app in order to capture exception on GlitchTip
 		if (FeatureFlags.isExperimentsEnabled) {
 			binding.icon.setOnLongClickListener {
 				crashApp()
