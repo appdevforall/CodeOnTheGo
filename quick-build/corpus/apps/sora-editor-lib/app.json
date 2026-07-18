@@ -1,0 +1,7 @@
+{
+	"applicationId": "io.github.rosemoe.sora",
+	"entryActivity": "io.github.rosemoe.sora.corpusharness.EditorHostActivity",
+	"minSdk": 30,
+	"language": "mixed",
+	"note": "real sora-editor :editor module source (LGPL-2.1, pinned commit 43f7e8e298133248ce4128812092114f397a94f6) -- a small acyclic subset (ContentLine/LineSeparator + leaf deps), not the full module. corpusharness package is harness scaffolding. See README.md."
+}

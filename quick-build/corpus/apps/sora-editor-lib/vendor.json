@@ -1,0 +1,21 @@
+{
+	"repo": "https://github.com/Rosemoe/sora-editor",
+	"commit": "43f7e8e298133248ce4128812092114f397a94f6",
+	"license": "LGPL-2.1",
+	"note": "Real :editor module source, fetched at the pinned commit by harness/fetch_vendored.py into corpus/.cache/ (never checked in). files maps upstream path -> app-relative destination. Edits that touch fetched files are checked in as .patch files against the pinned commit and applied at materialization.",
+	"files": {
+		"editor/src/main/java/io/github/rosemoe/sora/annotations/UnsupportedUserUsage.java": "src/main/java/io/github/rosemoe/sora/annotations/UnsupportedUserUsage.java",
+		"editor/src/main/java/io/github/rosemoe/sora/text/ContentLine.java": "src/main/java/io/github/rosemoe/sora/text/ContentLine.java",
+		"editor/src/main/java/io/github/rosemoe/sora/text/LineSeparator.java": "src/main/java/io/github/rosemoe/sora/text/LineSeparator.java",
+		"editor/src/main/java/io/github/rosemoe/sora/text/bidi/BidiRequirementChecker.java": "src/main/java/io/github/rosemoe/sora/text/bidi/BidiRequirementChecker.java",
+		"editor/src/main/java/io/github/rosemoe/sora/text/bidi/Directions.java": "src/main/java/io/github/rosemoe/sora/text/bidi/Directions.java",
+		"editor/src/main/java/io/github/rosemoe/sora/text/bidi/IDirections.java": "src/main/java/io/github/rosemoe/sora/text/bidi/IDirections.java",
+		"editor/src/main/java/io/github/rosemoe/sora/text/bidi/TextBidi.java": "src/main/java/io/github/rosemoe/sora/text/bidi/TextBidi.java",
+		"editor/src/main/java/io/github/rosemoe/sora/text/string/StringLatin1.java": "src/main/java/io/github/rosemoe/sora/text/string/StringLatin1.java",
+		"editor/src/main/java/io/github/rosemoe/sora/text/string/StringUTF16.java": "src/main/java/io/github/rosemoe/sora/text/string/StringUTF16.java",
+		"editor/src/main/java/io/github/rosemoe/sora/util/Floats.java": "src/main/java/io/github/rosemoe/sora/util/Floats.java",
+		"editor/src/main/java/io/github/rosemoe/sora/util/IntPair.java": "src/main/java/io/github/rosemoe/sora/util/IntPair.java",
+		"editor/src/main/java/io/github/rosemoe/sora/util/ShareableData.kt": "src/main/java/io/github/rosemoe/sora/util/ShareableData.kt",
+		"editor/src/main/java/io/github/rosemoe/sora/util/TemporaryCharBuffer.java": "src/main/java/io/github/rosemoe/sora/util/TemporaryCharBuffer.java"
+	}
+}

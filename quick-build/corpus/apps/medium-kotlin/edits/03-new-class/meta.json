@@ -1,0 +1,13 @@
+{
+	"editClass": "new-class",
+	"description": "Add CurrencyFormatter (new leaf class) and use it from DetailsActivity to render each product's price alongside its label.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/medium/formatters/CurrencyFormatter.kt": "CurrencyFormatter.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/medium/ui/DetailsActivity.kt": "DetailsActivity.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 2, "max": 4},
+		"behavioralMarker": "QB_MARKER_STEP3"
+	}
+}

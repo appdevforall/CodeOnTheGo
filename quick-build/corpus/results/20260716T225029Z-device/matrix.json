@@ -1,0 +1,154 @@
+{
+  "generatedAt": "2026-07-16T22:50:30.381983+00:00",
+  "config": {
+    "mode": "device",
+    "serial": "RZGYC24640P",
+    "pkg": "com.itsaky.androidide",
+    "daemonAvailable": true,
+    "deviceAndroidJar": "/data/user/0/com.itsaky.androidide/files/home/android-sdk/platforms/android-36/android.jar",
+    "deviceKotlinStdlib": "/data/user/0/com.itsaky.androidide/files/home/.cg/quickbuild/daemon/kotlin-stdlib-2.3.0.jar",
+    "deviceAapt2": "/data/user/0/com.itsaky.androidide/files/home/android-sdk/build-tools/35.0.0/aapt2",
+    "deviceD8Jar": "/data/user/0/com.itsaky.androidide/files/home/android-sdk/build-tools/35.0.0/lib/d8.jar",
+    "hostAndroidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "hostAapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "hostJavac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "hello-java",
+      "language": "java",
+      "applicationId": "org.appdevforall.cotg.corpus.hellojava",
+      "baseline": {
+        "status": "PASS",
+        "ms": 1408.554208,
+        "daemonMs": 1397,
+        "classCount": 3,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change Greeter.greet's returned string literal; signature unchanged.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 367.84641699999906
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellojava/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/hellojava/Greeter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'The quick build reloaded this method.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 362,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-new-method",
+          "editClass": "new-method",
+          "description": "Add Greeter.farewell(String) and call it from MainActivity, rendering a second TextView.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 365.17845800000083
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellojava/Greeter.class",
+            "org/appdevforall/cotg/corpus/hellojava/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 3]: ['org/appdevforall/cotg/corpus/hellojava/Greeter.class', 'org/appdevforall/cotg/corpus/hellojava/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'This new method was added by a live edit.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 361,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the greeting_name string value in strings.xml; no code touched.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 737.5130419999998
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 682,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-asset",
+          "editClass": "asset",
+          "description": "Change the bundled data/note.txt asset; no code or resources touched.",
+          "expectedRoute": "assets",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "assets-pass: no daemon op required"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "3 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [],
+  "summary": {
+    "apps": 1,
+    "edits": 4,
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0
+  }
+}

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">Resources Heavy Corpus App</string>
+	<string name="label_01">Home label (updated)</string>
+	<string name="label_02">Profile label</string>
+	<string name="label_03">Cart label</string>
+	<string name="label_04">Checkout label</string>
+	<string name="label_05">Search label</string>
+	<string name="label_06">Notifications label</string>
+	<string name="label_07">Help label</string>
+	<string name="label_08">About label</string>
+	<string name="label_09">Feedback label</string>
+	<string name="label_10">Onboarding label</string>
+	<string name="label_11">Login label</string>
+	<string name="label_12">Signup label</string>
+	<string name="label_13">Wallet label</string>
+	<string name="label_14">Orders label</string>
+	<string name="label_15">Favorites label</string>
+	<string name="label_16">Messages label</string>
+	<string name="label_17">Rewards label</string>
+	<string name="label_18">Referral label</string>
+	<string name="label_19">Logout label</string>
+	<string name="label_20">Settings label</string>
+	<string name="label_21">Dashboard label</string>
+	<string name="label_22">Reports label</string>
+	<string name="label_23">Analytics label</string>
+	<string name="label_24">Billing label</string>
+	<string name="label_25">Support label</string>
+	<string name="label_26">Inventory label</string>
+	<string name="label_27">Shipping label</string>
+	<string name="label_28">Returns label</string>
+	<string name="label_29">Reviews label</string>
+	<string name="label_30">Coupons label</string>
+	<string name="label_31">Deals label</string>
+	<string name="label_32">Alerts label</string>
+	<string name="label_33">Calendar label</string>
+	<string name="label_34">Tasks label</string>
+	<string name="label_35">Contacts label</string>
+	<string name="label_36">Files label</string>
+	<string name="label_37">Media label</string>
+	<string name="label_38">Downloads label</string>
+	<string name="label_39">History label</string>
+	<string name="label_40">Privacy label</string>
+	<string name="new_feature_label">New in this build</string>
+</resources>

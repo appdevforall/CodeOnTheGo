@@ -1,0 +1,150 @@
+{
+  "generatedAt": "2026-07-18T01:51:10.076348+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "/Users/bryanchan/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/2.3.20/ed866de74ad3d49086a27bbd75952cd186479436/kotlin-stdlib-2.3.20.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "sora-editor-lib",
+      "language": "mixed",
+      "applicationId": "io.github.rosemoe.sora",
+      "baseline": {
+        "status": "PASS",
+        "ms": 1840.556125,
+        "daemonMs": 1838,
+        "classCount": 16,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-editor-core-value",
+          "editClass": "method-body",
+          "description": "editor-core value edit: Floats.withinDelta comparison operator tweak (real sora-editor :editor source)",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 268.88095799999957
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/util/Floats.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['io/github/rosemoe/sora/util/Floats.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded Floats.withinDelta' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 269,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-sample-app-ui",
+          "editClass": "const-change",
+          "description": "sample-app UI edit: harness EditorHostActivity's displayed sample text constant (harness scaffolding, not vendored sora-editor code)",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 234.41545799999997
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/corpusharness/EditorHostActivity.class",
+            "io/github/rosemoe/sora/corpusharness/SampleText.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 2]: ['io/github/rosemoe/sora/corpusharness/EditorHostActivity.class', 'io/github/rosemoe/sora/corpusharness/SampleText.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded the sample-app text' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 234,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-cross-module",
+          "editClass": "cross-file-api-add",
+          "description": "cross-module edit: new LineSeparator.describe() API (editor-core) consumed by a new ContentLine.describeLineSeparator() method in the same edit",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 226.51737500000024
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/text/ContentLine.class",
+            "io/github/rosemoe/sora/text/LineSeparator.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 4]: ['io/github/rosemoe/sora/text/ContentLine.class', 'io/github/rosemoe/sora/text/LineSeparator.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded LineSeparator.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 226,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "16 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 1,
+    "edits": 3,
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0
+  }
+}

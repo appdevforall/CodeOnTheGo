@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Harness scaffolding (ADFA-4128 D4), not part of upstream sora-editor. -->
+<resources>
+	<string name="qb_corpus_app_name">sora-editor-lib corpus</string>
+</resources>

@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "Change NumberFormatter.format()'s body. NumberFormatter is a leaf class — no other file depends on its internals — so this should recompile only itself (and possibly its one caller, MainActivity).",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/medium/formatters/NumberFormatter.kt": "NumberFormatter.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 2},
+		"behavioralMarker": "QB_MARKER_STEP1"
+	}
+}

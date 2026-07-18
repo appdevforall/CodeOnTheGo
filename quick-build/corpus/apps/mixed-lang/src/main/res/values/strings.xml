@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">Mixed Lang Corpus</string>
+	<string name="order_total_label">Order total: %1$d</string>
+</resources>

@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "Change MainActivity.onActivityResult()'s no-data fallback string. Exercises the startActivityForResult path directly on the entry activity.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/multiactivity/ui/MainActivity.kt": "MainActivity.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 2},
+		"behavioralMarker": "QB_NO_DATA_MARKER_V2"
+	}
+}

@@ -1,0 +1,12 @@
+{
+	"editClass": "layout-edit",
+	"description": "Change main_title's android:textSize attribute in activity_main.xml (text_size_medium -> text_size_large). No code changes — aapt2 relink only, cached dex reused.",
+	"files": {
+		"src/main/res/layout/activity_main.xml": "activity_main.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

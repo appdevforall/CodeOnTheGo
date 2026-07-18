@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "Change Greeter.greet's returned string literal; signature unchanged.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/hellokotlin/Greeter.kt": "Greeter.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": "The quick build reloaded this method."
+	}
+}

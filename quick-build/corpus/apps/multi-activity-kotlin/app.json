@@ -1,0 +1,6 @@
+{
+	"applicationId": "org.appdevforall.cotg.corpus.multiactivity",
+	"entryActivity": "org.appdevforall.cotg.corpus.multiactivity.ui.MainActivity",
+	"minSdk": 30,
+	"language": "kotlin"
+}

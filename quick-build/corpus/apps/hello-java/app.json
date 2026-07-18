@@ -1,0 +1,6 @@
+{
+	"applicationId": "org.appdevforall.cotg.corpus.hellojava",
+	"entryActivity": "org.appdevforall.cotg.corpus.hellojava.MainActivity",
+	"minSdk": 30,
+	"language": "java"
+}

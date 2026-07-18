@@ -1,0 +1,850 @@
+{
+  "generatedAt": "2026-07-16T22:50:57.341494+00:00",
+  "config": {
+    "mode": "device",
+    "serial": "RZGYC24640P",
+    "pkg": "com.itsaky.androidide",
+    "daemonAvailable": true,
+    "deviceAndroidJar": "/data/user/0/com.itsaky.androidide/files/home/android-sdk/platforms/android-36/android.jar",
+    "deviceKotlinStdlib": "/data/user/0/com.itsaky.androidide/files/home/.cg/quickbuild/daemon/kotlin-stdlib-2.3.0.jar",
+    "deviceAapt2": "/data/user/0/com.itsaky.androidide/files/home/android-sdk/build-tools/35.0.0/aapt2",
+    "deviceD8Jar": "/data/user/0/com.itsaky.androidide/files/home/android-sdk/build-tools/35.0.0/lib/d8.jar",
+    "hostAndroidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "hostAapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "hostJavac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "assets-app",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.assetsapp",
+      "baseline": {
+        "status": "PASS",
+        "ms": 11126.665125000001,
+        "daemonMs": 11111,
+        "classCount": 3,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-asset-only",
+          "editClass": "asset-only",
+          "description": "Change data/message.txt only; no code or resources touched.",
+          "expectedRoute": "assets",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "assets-pass: no daemon op required"
+            }
+          ],
+          "status": "PASS"
+        },
+        {
+          "edit": "02-method-body",
+          "editClass": "method-body",
+          "description": "Change AssetReader.readMessage's formatting prefix; signature unchanged.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1798.2702089999982
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/assetsapp/AssetReader.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/assetsapp/AssetReader.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Reloaded reader formats it now:' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1792,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-asset-plus-code",
+          "editClass": "asset-plus-code",
+          "description": "Change AssetReader.kt's method body AND data/message.txt in the same save. Per ChangeClassifier, a code+asset changeset (no resources) still routes as CodeOnly -- code recompiles subsume the asset copy in the deploy payload.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1543.63575
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/assetsapp/AssetReader.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/assetsapp/AssetReader.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Combined edit landed:' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1539,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "3 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "fanout-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.fanout",
+      "baseline": {
+        "status": "PASS",
+        "ms": 3218.0679579999955,
+        "daemonMs": 3209,
+        "classCount": 34,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-const-change",
+          "editClass": "const-change",
+          "description": "Change Constants.APP_LABEL's value. Because it's a const val, all 20 files under screens/ that reference Constants.APP_LABEL inline the new literal at compile time and must be recompiled \u2014 this is the fan-out case the star-topology synthetic generator missed.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1846.405666999999
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/fanout/core/Constants.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/AboutScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/CartScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/CheckoutScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/FavoritesScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/FeedbackScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/HelpScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/HomeScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/LoginScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/LogoutScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/MessagesScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/NotificationsScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/OnboardingScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/OrdersScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/ProfileScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/ReferralScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/RewardsScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/SearchScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/SettingsScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/SignupScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/WalletScreenLabel.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 21 classes, expected [15, 36]: ['org/appdevforall/cotg/corpus/fanout/core/Constants.class', 'org/appdevforall/cotg/corpus/fanout/screens/AboutScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/CartScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/CheckoutScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/FavoritesScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/FeedbackScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/HelpScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/HomeScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/LoginScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/LogoutScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/MessagesScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/NotificationsScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/OnboardingScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/OrdersScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/ProfileScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/ReferralScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/RewardsScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/SearchScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/SettingsScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/SignupScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/WalletScreenLabel.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Fanout Demo Rev2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1836,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-inline-body",
+          "editClass": "inline-body",
+          "description": "Change the inline fmt() function's body. Because it's inline, all 10 files under formatters/ that call fmt() inline the new body at compile time and must be recompiled.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1665.6328330000038
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/fanout/core/FormattingKt.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/CartTotalFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/FavoritesCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/MessageCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/NotificationCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/OrderCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/ReferralCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/RewardsPointsFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/SearchResultsFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/SessionDurationFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/WalletBalanceFormatter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 11 classes, expected [8, 36]: ['org/appdevforall/cotg/corpus/fanout/core/FormattingKt.class', 'org/appdevforall/cotg/corpus/fanout/formatters/CartTotalFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/FavoritesCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/MessageCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/NotificationCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/OrderCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/ReferralCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/RewardsPointsFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/SearchResultsFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/SessionDurationFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/WalletBalanceFormatter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_FMT_V2::' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1657,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-leaf-method-body",
+          "editClass": "leaf-method-body",
+          "description": "Change LeafUtility.tag()'s body. LeafUtility is not part of the const/inline fan-out set and has no callers, so this should recompile only itself.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 652.9968749999995
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/fanout/core/LeafUtility.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/fanout/core/LeafUtility.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'leaf-v2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 648,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "34 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "hello-java",
+      "language": "java",
+      "applicationId": "org.appdevforall.cotg.corpus.hellojava",
+      "baseline": {
+        "status": "PASS",
+        "ms": 895.9709579999994,
+        "daemonMs": 888,
+        "classCount": 3,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change Greeter.greet's returned string literal; signature unchanged.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 526.4476670000065
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellojava/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/hellojava/Greeter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'The quick build reloaded this method.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 524,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-new-method",
+          "editClass": "new-method",
+          "description": "Add Greeter.farewell(String) and call it from MainActivity, rendering a second TextView.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 277.2325409999965
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellojava/Greeter.class",
+            "org/appdevforall/cotg/corpus/hellojava/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 3]: ['org/appdevforall/cotg/corpus/hellojava/Greeter.class', 'org/appdevforall/cotg/corpus/hellojava/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'This new method was added by a live edit.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 273,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the greeting_name string value in strings.xml; no code touched.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 392.9235829999982
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 339,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-asset",
+          "editClass": "asset",
+          "description": "Change the bundled data/note.txt asset; no code or resources touched.",
+          "expectedRoute": "assets",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "assets-pass: no daemon op required"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "3 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "hello-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.hellokotlin",
+      "baseline": {
+        "status": "PASS",
+        "ms": 2040.3920830000004,
+        "daemonMs": 2035,
+        "classCount": 5,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change Greeter.greet's returned string literal; signature unchanged.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1045.407333
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellokotlin/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/hellokotlin/Greeter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'The quick build reloaded this method.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1041,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the greeting_name string value in strings.xml; no code touched.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 257.38400000000183
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 250,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-noop",
+          "editClass": "noop",
+          "description": "Whitespace-only change to Greeter.kt (added a blank line); no semantic change.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 976.742583999993
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellokotlin/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [0, 1]: ['org/appdevforall/cotg/corpus/hellokotlin/Greeter.class']"
+            }
+          ],
+          "daemonMs_compile": 972,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-mixed",
+          "editClass": "mixed",
+          "description": "Change Greeter.kt's method body AND strings.xml's greeting_name in the same save.",
+          "expectedRoute": "mixed",
+          "opsInvoked": [
+            "compile",
+            "relink"
+          ],
+          "ms": {
+            "compile": 879.7760409999995,
+            "relink": 249.72554100000366
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellokotlin/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/hellokotlin/Greeter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Mixed save landed:' found in recompiled class bytes"
+            },
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_compile": 874,
+          "daemonMs_relink": 244,
+          "status": "PASS"
+        },
+        {
+          "edit": "05-manifest",
+          "editClass": "manifest",
+          "description": "Add a <meta-data> entry to the application manifest; baseline invalidated.",
+          "expectedRoute": "fallback",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "fallback recorded: no daemon op invoked (full Gradle build expected)"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "5 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "medium-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.medium",
+      "baseline": {
+        "status": "PASS",
+        "ms": 3659.0938749999964,
+        "daemonMs": 3653,
+        "classCount": 28,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change NumberFormatter.format()'s body. NumberFormatter is a leaf class \u2014 no other file depends on its internals \u2014 so this should recompile only itself (and possibly its one caller, MainActivity).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1049.3718750000057
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/medium/formatters/NumberFormatter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/medium/formatters/NumberFormatter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_MARKER_STEP1' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1043,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-signature-change",
+          "editClass": "signature-change",
+          "description": "Change Calculator.compute()'s return type from Int to String. Cascades to all 3 implementors (AdditionCalculator, SubtractionCalculator, MultiplicationCalculator) and both call sites (OrderProcessor, ReportGenerator), which must adapt to the new return type.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1133.9935829999918
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/medium/core/Calculator.class",
+            "org/appdevforall/cotg/corpus/medium/data/OrderProcessor.class",
+            "org/appdevforall/cotg/corpus/medium/data/ReportGenerator.class",
+            "org/appdevforall/cotg/corpus/medium/formatters/AdditionCalculator.class",
+            "org/appdevforall/cotg/corpus/medium/formatters/MultiplicationCalculator.class",
+            "org/appdevforall/cotg/corpus/medium/formatters/SubtractionCalculator.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 6 classes, expected [5, 12]: ['org/appdevforall/cotg/corpus/medium/core/Calculator.class', 'org/appdevforall/cotg/corpus/medium/data/OrderProcessor.class', 'org/appdevforall/cotg/corpus/medium/data/ReportGenerator.class', 'org/appdevforall/cotg/corpus/medium/formatters/AdditionCalculator.class', 'org/appdevforall/cotg/corpus/medium/formatters/MultiplicationCalculator.class', 'org/appdevforall/cotg/corpus/medium/formatters/SubtractionCalculator.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_MARKER_STEP2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1126,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-new-class",
+          "editClass": "new-class",
+          "description": "Add CurrencyFormatter (new leaf class) and use it from DetailsActivity to render each product's price alongside its label.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1495.6460420000042
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/medium/formatters/CurrencyFormatter.class",
+            "org/appdevforall/cotg/corpus/medium/ui/DetailsActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 4]: ['org/appdevforall/cotg/corpus/medium/formatters/CurrencyFormatter.class', 'org/appdevforall/cotg/corpus/medium/ui/DetailsActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_MARKER_STEP3' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1488,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the status_ready string resource's value. No code changes \u2014 aapt2 relink only, cached dex reused.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 285.6157919999873
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 279,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "29 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "resources-heavy",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.resheavy",
+      "baseline": {
+        "status": "PASS",
+        "ms": 1584.3078749999931,
+        "daemonMs": 1581,
+        "classCount": 4,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-string-value",
+          "editClass": "string-value",
+          "description": "Change label_01's value in strings.xml. No code changes \u2014 aapt2 relink only, cached dex reused.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 337.3070000000098
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 329,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-color-value",
+          "editClass": "color-value",
+          "description": "Change color_01's hex value in colors.xml. No code changes \u2014 aapt2 relink only, cached dex reused.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 402.5885840000001
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 395,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-layout-edit",
+          "editClass": "layout-edit",
+          "description": "Change main_title's android:textSize attribute in activity_main.xml (text_size_medium -> text_size_large). No code changes \u2014 aapt2 relink only, cached dex reused.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 314.6247090000003
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 309,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-string-ADD",
+          "editClass": "string-add",
+          "description": "Add a new string resource (new_feature_label) and reference it from MainActivity via R.string.new_feature_label. This is the R-id-regeneration case: aapt2 must assign the new resource an ID (not just relink an existing one) before the code that references it can compile, so the route is mixed (relink AND compile), not resources-only.",
+          "expectedRoute": "mixed",
+          "opsInvoked": [
+            "reconfigure",
+            "compile",
+            "relink"
+          ],
+          "ms": {
+            "compile": 1273.5922079999966,
+            "relink": 321.4937919999983
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/resheavy/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/resheavy/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_MARKER_STEP4' found in recompiled class bytes"
+            },
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "reconfigureMs": 2427.4164170000035,
+          "daemonMs_compile": 1269,
+          "daemonMs_relink": 317,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "4 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [],
+  "summary": {
+    "apps": 6,
+    "edits": 23,
+    "passed": 23,
+    "failed": 0,
+    "skipped": 0
+  }
+}

@@ -1,0 +1,12 @@
+{
+	"editClass": "inline-body",
+	"description": "Change the inline fmt() function's body. Because it's inline, all 10 files under formatters/ that call fmt() inline the new body at compile time and must be recompiled.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/fanout/core/Formatting.kt": "Formatting.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 8, "max": 36},
+		"behavioralMarker": "QB_FMT_V2::"
+	}
+}

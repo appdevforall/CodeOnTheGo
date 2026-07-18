@@ -1,0 +1,18 @@
+--- a/editor/src/main/java/io/github/rosemoe/sora/text/ContentLine.java
++++ b/editor/src/main/java/io/github/rosemoe/sora/text/ContentLine.java
+@@ -425,6 +425,15 @@
+     }
+ 
+     /**
++     * ADFA-4128 D4 corpus edit 03 (cross-module): consumes the new
++     * LineSeparator.describe() API added in the same edit.
++     */
++    @NonNull
++    public String describeLineSeparator() {
++        return getLineSeparator().describe();
++    }
++
++    /**
+      * Copy the object.
+      * The new instance can be safely modified without affecting the original instance.
+      */

@@ -1,0 +1,14 @@
+{
+	"editClass": "signature-change",
+	"description": "ItemRepository.findById() drops its nullable return in favor of a sentinel item. Both callers - DetailActivity (startActivityForResult target) and DeepLinkActivity (the VIEW deep-link target) - drop their null-check and must recompile against the new signature.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/multiactivity/data/ItemRepository.kt": "ItemRepository.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/multiactivity/ui/DetailActivity.kt": "DetailActivity.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/multiactivity/ui/DeepLinkActivity.kt": "DeepLinkActivity.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 5, "max": 6},
+		"behavioralMarker": "QB_LOOKUP_FALLBACK_V2"
+	}
+}

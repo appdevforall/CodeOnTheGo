@@ -1,0 +1,12 @@
+{
+	"editClass": "noop",
+	"description": "Whitespace-only change to Greeter.kt (added a blank line); no semantic change.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/hellokotlin/Greeter.kt": "Greeter.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 0, "max": 1 },
+		"behavioralMarker": null
+	}
+}

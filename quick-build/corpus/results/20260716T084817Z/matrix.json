@@ -1,0 +1,594 @@
+{
+  "generatedAt": "2026-07-16T08:48:18.602099+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/libs/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/libs/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "assets-app",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.assetsapp",
+      "baseline": {
+        "status": "PASS",
+        "ms": 21366.064875,
+        "daemonMs": 21344,
+        "classCount": 5,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-asset-only",
+          "editClass": "asset-only",
+          "description": "Change data/message.txt only; no code or resources touched.",
+          "expectedRoute": "assets",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "assets-pass: no daemon op required"
+            }
+          ],
+          "status": "PASS"
+        },
+        {
+          "edit": "02-method-body",
+          "editClass": "method-body",
+          "description": "Change AssetReader.readMessage's formatting prefix; signature unchanged.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 972.3912500000012
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/assetsapp/AssetReader.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/assetsapp/AssetReader.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Reloaded reader formats it now:' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 971,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-asset-plus-code",
+          "editClass": "asset-plus-code",
+          "description": "Change AssetReader.kt's method body AND data/message.txt in the same save. Per ChangeClassifier, a code+asset changeset (no resources) still routes as CodeOnly -- code recompiles subsume the asset copy in the deploy payload.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 456.1995409999966
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/assetsapp/AssetReader.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/assetsapp/AssetReader.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Combined edit landed:' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 455,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "5 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "fanout-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.fanout",
+      "baseline": {
+        "status": "PASS",
+        "ms": 5507.4302080000025,
+        "daemonMs": 5494,
+        "classCount": 36,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-const-change",
+          "editClass": "const-change",
+          "description": "Change Constants.APP_LABEL's value. Because it's a const val, all 20 files under screens/ that reference Constants.APP_LABEL inline the new literal at compile time and must be recompiled \u2014 this is the fan-out case the star-topology synthetic generator missed.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1745.4372910000018
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/fanout/core/Constants.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/AboutScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/CartScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/CheckoutScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/FavoritesScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/FeedbackScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/HelpScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/HomeScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/LoginScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/LogoutScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/MessagesScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/NotificationsScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/OnboardingScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/OrdersScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/ProfileScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/ReferralScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/RewardsScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/SearchScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/SettingsScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/SignupScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/WalletScreenLabel.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 21 classes, expected [15, 36]: ['org/appdevforall/cotg/corpus/fanout/core/Constants.class', 'org/appdevforall/cotg/corpus/fanout/screens/AboutScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/CartScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/CheckoutScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/FavoritesScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/FeedbackScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/HelpScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/HomeScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/LoginScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/LogoutScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/MessagesScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/NotificationsScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/OnboardingScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/OrdersScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/ProfileScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/ReferralScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/RewardsScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/SearchScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/SettingsScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/SignupScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/WalletScreenLabel.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Fanout Demo Rev2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1738,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-inline-body",
+          "editClass": "inline-body",
+          "description": "Change the inline fmt() function's body. Because it's inline, all 10 files under formatters/ that call fmt() inline the new body at compile time and must be recompiled.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1495.0929170000009
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/fanout/core/FormattingKt.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/CartTotalFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/FavoritesCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/MessageCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/NotificationCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/OrderCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/ReferralCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/RewardsPointsFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/SearchResultsFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/SessionDurationFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/WalletBalanceFormatter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 11 classes, expected [8, 36]: ['org/appdevforall/cotg/corpus/fanout/core/FormattingKt.class', 'org/appdevforall/cotg/corpus/fanout/formatters/CartTotalFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/FavoritesCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/MessageCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/NotificationCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/OrderCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/ReferralCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/RewardsPointsFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/SearchResultsFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/SessionDurationFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/WalletBalanceFormatter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_FMT_V2::' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1488,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-leaf-method-body",
+          "editClass": "leaf-method-body",
+          "description": "Change LeafUtility.tag()'s body. LeafUtility is not part of the const/inline fan-out set and has no callers, so this should recompile only itself.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 549.6333339999992
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/fanout/core/LeafUtility.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/fanout/core/LeafUtility.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'leaf-v2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 547,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "36 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "hello-java",
+      "language": "java",
+      "applicationId": "org.appdevforall.cotg.corpus.hellojava",
+      "baseline": {
+        "status": "PASS",
+        "ms": 847.1183749999938,
+        "daemonMs": 840,
+        "classCount": 6,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change Greeter.greet's returned string literal; signature unchanged.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 242.66674999999793
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellojava/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/hellojava/Greeter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'The quick build reloaded this method.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 242,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-new-method",
+          "editClass": "new-method",
+          "description": "Add Greeter.farewell(String) and call it from MainActivity, rendering a second TextView.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 263.2738749999959
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellojava/Greeter.class",
+            "org/appdevforall/cotg/corpus/hellojava/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 3]: ['org/appdevforall/cotg/corpus/hellojava/Greeter.class', 'org/appdevforall/cotg/corpus/hellojava/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'This new method was added by a live edit.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 263,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the greeting_name string value in strings.xml; no code touched.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 198.31108300000722
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 191,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-asset",
+          "editClass": "asset",
+          "description": "Change the bundled data/note.txt asset; no code or resources touched.",
+          "expectedRoute": "assets",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "assets-pass: no daemon op required"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "6 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "hello-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.hellokotlin",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/hello-kotlin/tree/src/main/java/org/appdevforall/cotg/corpus/hellokotlin/MainActivity.kt', 'line': 24, 'column': 47}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/hello-kotlin/tree/src/main/java/org/appdevforall/cotg/corpus/hellokotlin/MainActivity.kt', 'line': 28, 'column': 33}]",
+        "ms": 582.6585420000043
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-resource-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-noop",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-mixed",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "05-manifest",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "medium-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.medium",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/medium-kotlin/tree/src/main/java/org/appdevforall/cotg/corpus/medium/ui/DetailsActivity.kt', 'line': 7, 'column': 44}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/medium-kotlin/tree/src/main/java/org/appdevforall/cotg/corpus/medium/ui/DetailsActivity.kt', 'line': 30, 'column': 55}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/medium-kotlin/tree/src/main/java/org/appdevforall/cotg/corpus/medium/ui/MainActivity.kt', 'line': 10, 'column': 44}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/medium-kotlin/tree/src/main/java/org/appdevforall/cotg/corpus/medium/ui/MainActivity.kt', 'line': 44, 'column': 21}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/medium-kotlin/tree/src/main/java/org/appdevforall/cotg/corpus/medium/ui/MainActivity.kt', 'line': 49, 'column': 21}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/medium-kotlin/tree/src/main/java/org/appdevforall/cotg/corpus/medium/ui/MainActivity.kt', 'line': 55, 'column': 21}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/medium-kotlin/tree/src/main/java/org/appdevforall/cotg/corpus/medium/ui/SettingsActivity.kt', 'line': 7, 'column': 44}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/medium-kotlin/tree/src/main/java/org/appdevforall/cotg/corpus/medium/ui/SettingsActivity.kt', 'line': 24, 'column': 21}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/medium-kotlin/tree/src/main/java/org/appdevforall/cotg/corpus/medium/ui/SettingsActivity.kt', 'line': 29, 'column': 21}]",
+        "ms": 1065.3552090000035
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-signature-change",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-new-class",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-resource-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "resources-heavy",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.resheavy",
+      "baseline": {
+        "status": "SKIPPED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/resources-heavy/tree/src/main/java/org/appdevforall/cotg/corpus/resheavy/FooterViewBuilder.kt', 'line': 10, 'column': 20}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/resources-heavy/tree/src/main/java/org/appdevforall/cotg/corpus/resheavy/HeaderViewBuilder.kt', 'line': 10, 'column': 20}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/resources-heavy/tree/src/main/java/org/appdevforall/cotg/corpus/resheavy/MainActivity.kt', 'line': 12, 'column': 18}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/resources-heavy/tree/src/main/java/org/appdevforall/cotg/corpus/resheavy/MainActivity.kt', 'line': 14, 'column': 46}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/resources-heavy/tree/src/main/java/org/appdevforall/cotg/corpus/resheavy/SecondActivity.kt', 'line': 12, 'column': 18}, {'severity': 'ERROR', 'message': \"Unresolved reference 'R'.\", 'file': '/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260716T084817Z/resources-heavy/tree/src/main/java/org/appdevforall/cotg/corpus/resheavy/SecondActivity.kt', 'line': 14, 'column': 46}] (R.java unavailable -- likely cause)",
+        "ms": 490.77533299998777
+      },
+      "edits": [
+        {
+          "edit": "01-string-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-color-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-layout-edit",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-string-ADD",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "SKIPPED"
+    }
+  ],
+  "gaps": [
+    "hello-kotlin: baseline compile FAILED; all edits skipped for this app",
+    "medium-kotlin: baseline compile FAILED; all edits skipped for this app",
+    "resources-heavy: R.java generation failed even with aapt2 provided (see stderr log)",
+    "resources-heavy: baseline compile could not be verified (no R.java); all edits skipped"
+  ],
+  "summary": {
+    "apps": 6,
+    "edits": 23,
+    "passed": 10,
+    "failed": 0,
+    "skipped": 13
+  }
+}

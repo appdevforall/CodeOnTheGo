@@ -1,0 +1,13 @@
+{
+	"editClass": "string-add",
+	"description": "Add a new string resource (new_feature_label) and reference it from MainActivity via R.string.new_feature_label. This is the R-id-regeneration case: aapt2 must assign the new resource an ID (not just relink an existing one) before the code that references it can compile, so the route is mixed (relink AND compile), not resources-only.",
+	"files": {
+		"src/main/res/values/strings.xml": "strings.xml",
+		"src/main/java/org/appdevforall/cotg/corpus/resheavy/MainActivity.kt": "MainActivity.kt"
+	},
+	"expected": {
+		"route": "mixed",
+		"recompiledClasses": {"min": 1, "max": 2},
+		"behavioralMarker": "QB_MARKER_STEP4"
+	}
+}

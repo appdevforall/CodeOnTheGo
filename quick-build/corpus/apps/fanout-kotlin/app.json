@@ -1,0 +1,6 @@
+{
+	"applicationId": "org.appdevforall.cotg.corpus.fanout",
+	"entryActivity": "org.appdevforall.cotg.corpus.fanout.ui.MainActivity",
+	"minSdk": 30,
+	"language": "kotlin"
+}

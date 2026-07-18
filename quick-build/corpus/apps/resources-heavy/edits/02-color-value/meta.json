@@ -1,0 +1,12 @@
+{
+	"editClass": "color-value",
+	"description": "Change color_01's hex value in colors.xml. No code changes — aapt2 relink only, cached dex reused.",
+	"files": {
+		"src/main/res/values/colors.xml": "colors.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

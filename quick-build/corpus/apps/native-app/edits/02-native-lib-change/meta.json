@@ -1,0 +1,12 @@
+{
+	"editClass": "native-lib-change",
+	"description": "Replace the bundled arm64-v8a libnativestub.so with a rebuilt binary. ChangeClassifier has no packaging story for a changed native library - it's an UNSUPPORTED_FILE_CHANGED fallback (see ChangeClassifierTest's 'native library under jniLibs falls back honestly'), so this must route to a full Gradle rebaseline rather than be served as a quick build (D7's '.so change routes to REBASELINE').",
+	"files": {
+		"src/main/jniLibs/arm64-v8a/libnativestub.so": "libnativestub.so"
+	},
+	"expected": {
+		"route": "fallback",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

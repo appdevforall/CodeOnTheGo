@@ -1,0 +1,12 @@
+{
+	"editClass": "const-change",
+	"description": "sample-app UI edit: harness EditorHostActivity's displayed sample text constant (harness scaffolding, not vendored sora-editor code)",
+	"files": {
+		"src/main/java/io/github/rosemoe/sora/corpusharness/SampleText.kt": "SampleText.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": "quick build reloaded the sample-app text"
+	}
+}

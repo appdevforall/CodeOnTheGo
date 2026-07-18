@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "editor-core value edit: Floats.withinDelta comparison operator tweak (real sora-editor :editor source)",
+	"files": {
+		"src/main/java/io/github/rosemoe/sora/util/Floats.java": "Floats.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 1 },
+		"behavioralMarker": "quick build reloaded Floats.withinDelta"
+	}
+}

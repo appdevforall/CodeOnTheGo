@@ -1,0 +1,13 @@
+{
+	"editClass": "new-method",
+	"description": "Add Greeter.farewell(String) and call it from MainActivity, rendering a second TextView.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/hellojava/Greeter.java": "Greeter.java",
+		"src/main/java/org/appdevforall/cotg/corpus/hellojava/MainActivity.java": "MainActivity.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 2, "max": 3 },
+		"behavioralMarker": "This new method was added by a live edit."
+	}
+}

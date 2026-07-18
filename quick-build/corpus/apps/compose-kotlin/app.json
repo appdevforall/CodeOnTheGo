@@ -1,0 +1,7 @@
+{
+	"applicationId": "org.appdevforall.cotg.corpus.composekotlin",
+	"entryActivity": "org.appdevforall.cotg.corpus.composekotlin.MainActivity",
+	"minSdk": 30,
+	"language": "kotlin",
+	"compose": true
+}

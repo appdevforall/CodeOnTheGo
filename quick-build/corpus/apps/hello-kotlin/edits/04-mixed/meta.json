@@ -1,0 +1,13 @@
+{
+	"editClass": "mixed",
+	"description": "Change Greeter.kt's method body AND strings.xml's greeting_name in the same save.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/hellokotlin/Greeter.kt": "Greeter.kt",
+		"src/main/res/values/strings.xml": "strings.xml"
+	},
+	"expected": {
+		"route": "mixed",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": "Mixed save landed:"
+	}
+}

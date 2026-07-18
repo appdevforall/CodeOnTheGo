@@ -1,0 +1,12 @@
+{
+	"editClass": "resource-value",
+	"description": "Change the main_title_label string resource's value. No code changes - aapt2 relink only, cached dex reused.",
+	"files": {
+		"src/main/res/values/strings.xml": "strings.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

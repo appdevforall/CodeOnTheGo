@@ -1,0 +1,12 @@
+{
+	"editClass": "string-value",
+	"description": "Change label_01's value in strings.xml. No code changes — aapt2 relink only, cached dex reused.",
+	"files": {
+		"src/main/res/values/strings.xml": "strings.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

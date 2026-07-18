@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "Change AssetReader.readMessage's formatting prefix; signature unchanged.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/assetsapp/AssetReader.kt": "AssetReader.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": "Reloaded reader formats it now:"
+	}
+}

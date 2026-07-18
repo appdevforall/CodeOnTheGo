@@ -1,0 +1,13 @@
+{
+	"editClass": "new-class",
+	"description": "Add ResultBadgeFormatter (new leaf class) and use it from DetailActivity to render a badge alongside the looked-up item's label.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/multiactivity/core/ResultBadgeFormatter.kt": "ResultBadgeFormatter.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/multiactivity/ui/DetailActivity.kt": "DetailActivity.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 3, "max": 4},
+		"behavioralMarker": "QB_BADGE_V2"
+	}
+}

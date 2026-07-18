@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="extra_01">Beta feature</string>
+	<string name="extra_02">Experimental</string>
+	<string name="extra_03">Coming soon</string>
+	<string name="extra_04">Deprecated</string>
+	<string name="extra_05">Legacy view</string>
+	<string name="extra_06">New badge</string>
+	<string name="extra_07">Recommended</string>
+	<string name="extra_08">Popular choice</string>
+	<string name="extra_09">Editor\'s pick</string>
+	<string name="extra_10">Limited time offer</string>
+	<string name="extra_11">Free trial</string>
+	<string name="extra_12">Premium only</string>
+	<string name="extra_13">Upgrade required</string>
+	<string name="extra_14">Downgrade available</string>
+	<string name="extra_15">Trial expired</string>
+	<string name="extra_16">Subscription active</string>
+	<string name="extra_17">Subscription cancelled</string>
+	<string name="extra_18">Renewal reminder</string>
+	<string name="extra_19">Payment failed</string>
+	<string name="extra_20">Payment method updated</string>
+	<string name="extra_21">Invoice ready</string>
+	<string name="extra_22">Receipt sent</string>
+	<string name="extra_23">Refund processed</string>
+	<string name="extra_24">Discount applied</string>
+	<string name="extra_25">Coupon expired</string>
+	<string name="extra_26">Gift card redeemed</string>
+	<string name="extra_27">Points earned</string>
+	<string name="extra_28">Points redeemed</string>
+	<string name="extra_29">Tier upgraded</string>
+	<string name="extra_30">Milestone reached</string>
+	<string name="extra_31">Achievement unlocked</string>
+	<string name="extra_32">Streak continued</string>
+	<string name="extra_33">Streak broken</string>
+	<string name="extra_34">Reminder set</string>
+	<string name="extra_35">Reminder cleared</string>
+	<string name="extra_36">Snoozed for later</string>
+	<string name="extra_37">Marked as read</string>
+	<string name="extra_38">Marked as unread</string>
+	<string name="extra_39">Archived</string>
+	<string name="extra_40">Restored</string>
+</resources>

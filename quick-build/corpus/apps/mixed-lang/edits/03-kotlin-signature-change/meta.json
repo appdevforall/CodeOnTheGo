@@ -1,0 +1,13 @@
+{
+	"editClass": "kotlin-signature-change",
+	"description": "KotlinFormatter.formatLabel() gains a required suffix parameter. Java has no default-parameter sugar, so its one caller, JavaPresenter.java, must be edited in the same changeset to pass the new argument - D2's 'a Kotlin change forces Java recompile' case.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/mixedlang/core/KotlinFormatter.kt": "KotlinFormatter.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/mixedlang/core/JavaPresenter.java": "JavaPresenter.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 2, "max": 3},
+		"behavioralMarker": "QB_KOTLIN_SIG_MARKER_V2"
+	}
+}

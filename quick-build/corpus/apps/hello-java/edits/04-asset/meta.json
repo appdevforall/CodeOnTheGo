@@ -1,0 +1,12 @@
+{
+	"editClass": "asset",
+	"description": "Change the bundled data/note.txt asset; no code or resources touched.",
+	"files": {
+		"src/main/assets/data/note.txt": "note.txt"
+	},
+	"expected": {
+		"route": "assets",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">Multi Activity Corpus</string>
+	<string name="main_title_label">Multi-activity corpus app (v2)</string>
+	<string name="open_list_label">Open list</string>
+	<string name="open_detail_for_result_label">Open detail (for result)</string>
+	<string name="no_result_yet_label">No result yet</string>
+	<string name="result_summary_label">Result: %1$s (%2$s)</string>
+	<string name="open_deeplink_label">Open via deep link</string>
+	<string name="item_line_label">#%1$d %2$s</string>
+	<string name="unknown_item_label">unknown</string>
+	<string name="detail_title_label">Details: %1$s</string>
+	<string name="confirm_button_label">Confirm</string>
+	<string name="deeplink_item_label">Deep link -&gt; %1$s</string>
+</resources>

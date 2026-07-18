@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="content_01">Welcome back</string>
+	<string name="content_02">Your recent activity</string>
+	<string name="content_03">Nothing here yet</string>
+	<string name="content_04">Loading, please wait</string>
+	<string name="content_05">Something went wrong</string>
+	<string name="content_06">Try again</string>
+	<string name="content_07">Saved successfully</string>
+	<string name="content_08">Changes discarded</string>
+	<string name="content_09">No results found</string>
+	<string name="content_10">Showing all items</string>
+	<string name="content_11">Filter applied</string>
+	<string name="content_12">Sort by newest</string>
+	<string name="content_13">Sort by oldest</string>
+	<string name="content_14">Select an option</string>
+	<string name="content_15">Confirm your choice</string>
+	<string name="content_16">Action cannot be undone</string>
+	<string name="content_17">Item removed</string>
+	<string name="content_18">Item added</string>
+	<string name="content_19">Quantity updated</string>
+	<string name="content_20">Price updated</string>
+	<string name="content_21">Description</string>
+	<string name="content_22">Additional details</string>
+	<string name="content_23">Terms and conditions</string>
+	<string name="content_24">Privacy policy</string>
+	<string name="content_25">Contact support</string>
+	<string name="content_26">Frequently asked questions</string>
+	<string name="content_27">Getting started</string>
+	<string name="content_28">Next steps</string>
+	<string name="content_29">You are all set</string>
+	<string name="content_30">Almost done</string>
+	<string name="content_31">One more step</string>
+	<string name="content_32">Verify your email</string>
+	<string name="content_33">Reset your password</string>
+	<string name="content_34">Update available</string>
+	<string name="content_35">Sync in progress</string>
+	<string name="content_36">Sync complete</string>
+	<string name="content_37">Offline mode</string>
+	<string name="content_38">Connection restored</string>
+	<string name="content_39">Low storage warning</string>
+	<string name="content_40">Battery saver active</string>
+	<string name="content_41">Data usage summary</string>
+</resources>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">Medium Corpus App</string>
+	<string name="order_total_label">Order total: %1$s</string>
+	<string name="details_button_label">View details</string>
+	<string name="settings_button_label">Settings</string>
+	<string name="product_line_label">Product: %1$s</string>
+	<string name="validation_result_label">%1$s valid: %2$s</string>
+	<string name="greeting_hint">Pick a greeter style in Settings</string>
+	<string name="calculator_hint">Order totals use the Calculator registry</string>
+	<string name="report_title">Order Summary</string>
+	<string name="status_ready">Ready</string>
+</resources>

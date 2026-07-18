@@ -1,0 +1,13 @@
+{
+	"editClass": "asset-plus-code",
+	"description": "Change AssetReader.kt's method body AND data/message.txt in the same save. Per ChangeClassifier, a code+asset changeset (no resources) still routes as CodeOnly -- code recompiles subsume the asset copy in the deploy payload.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/assetsapp/AssetReader.kt": "AssetReader.kt",
+		"src/main/assets/data/message.txt": "message.txt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": "Combined edit landed:"
+	}
+}

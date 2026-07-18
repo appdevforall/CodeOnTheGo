@@ -1,0 +1,17 @@
+--- a/editor/src/main/java/io/github/rosemoe/sora/util/Floats.java
++++ b/editor/src/main/java/io/github/rosemoe/sora/util/Floats.java
+@@ -26,7 +26,13 @@
+ public class Floats {
+ 
+     public static boolean withinDelta(float a, float b, float delta) {
+-        return Math.abs(a - b) < Math.abs(delta);
++        return Math.abs(a - b) <= Math.abs(delta);
+     }
+ 
++    // ADFA-4128 D4 corpus edit 01 (editor-core-value): added for a real string-literal
++    // behavioral marker (comparison operator above also changed, '<' -> '<=').
++    public static String marker() {
++        return "quick build reloaded Floats.withinDelta";
++    }
++
+ }

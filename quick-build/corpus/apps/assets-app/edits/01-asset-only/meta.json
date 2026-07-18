@@ -1,0 +1,12 @@
+{
+	"editClass": "asset-only",
+	"description": "Change data/message.txt only; no code or resources touched.",
+	"files": {
+		"src/main/assets/data/message.txt": "message.txt"
+	},
+	"expected": {
+		"route": "assets",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

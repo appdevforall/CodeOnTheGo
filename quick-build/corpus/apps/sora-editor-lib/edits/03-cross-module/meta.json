@@ -1,0 +1,13 @@
+{
+	"editClass": "cross-file-api-add",
+	"description": "cross-module edit: new LineSeparator.describe() API (editor-core) consumed by a new ContentLine.describeLineSeparator() method in the same edit",
+	"files": {
+		"src/main/java/io/github/rosemoe/sora/text/LineSeparator.java": "LineSeparator.java",
+		"src/main/java/io/github/rosemoe/sora/text/ContentLine.java": "ContentLine.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 2, "max": 4 },
+		"behavioralMarker": "quick build reloaded LineSeparator."
+	}
+}

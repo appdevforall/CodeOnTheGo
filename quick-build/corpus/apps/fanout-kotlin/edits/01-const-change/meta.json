@@ -1,0 +1,12 @@
+{
+	"editClass": "const-change",
+	"description": "Change Constants.APP_LABEL's value. Because it's a const val, all 20 files under screens/ that reference Constants.APP_LABEL inline the new literal at compile time and must be recompiled — this is the fan-out case the star-topology synthetic generator missed.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/fanout/core/Constants.kt": "Constants.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 15, "max": 36},
+		"behavioralMarker": "Fanout Demo Rev2"
+	}
+}

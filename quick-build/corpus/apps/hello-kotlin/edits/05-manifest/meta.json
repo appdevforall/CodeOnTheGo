@@ -1,0 +1,12 @@
+{
+	"editClass": "manifest",
+	"description": "Add a <meta-data> entry to the application manifest; baseline invalidated.",
+	"files": {
+		"AndroidManifest.xml": "AndroidManifest.xml"
+	},
+	"expected": {
+		"route": "fallback",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "Change ResultCodeFormatter.describe()'s OK branch. Leaf class - MainActivity calls it but the call signature doesn't change, so this should recompile only itself (and possibly its one caller, MainActivity).",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/multiactivity/core/ResultCodeFormatter.kt": "ResultCodeFormatter.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 2},
+		"behavioralMarker": "OK_QB_RESULT_MARKER_V2"
+	}
+}

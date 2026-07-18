@@ -1,0 +1,17 @@
+{
+	"editClass": "signature-change",
+	"description": "Change Calculator.compute()'s return type from Int to String. Cascades to all 3 implementors (AdditionCalculator, SubtractionCalculator, MultiplicationCalculator) and both call sites (OrderProcessor, ReportGenerator), which must adapt to the new return type.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/medium/core/Calculator.kt": "Calculator.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/medium/formatters/AdditionCalculator.kt": "AdditionCalculator.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/medium/formatters/SubtractionCalculator.kt": "SubtractionCalculator.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/medium/formatters/MultiplicationCalculator.kt": "MultiplicationCalculator.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/medium/data/OrderProcessor.kt": "OrderProcessor.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/medium/data/ReportGenerator.kt": "ReportGenerator.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 5, "max": 12},
+		"behavioralMarker": "QB_MARKER_STEP2"
+	}
+}

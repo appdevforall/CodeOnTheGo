@@ -1,0 +1,17 @@
+--- a/editor/src/main/java/io/github/rosemoe/sora/text/LineSeparator.java
++++ b/editor/src/main/java/io/github/rosemoe/sora/text/LineSeparator.java
+@@ -74,6 +74,14 @@
+     }
+ 
+     /**
++     * ADFA-4128 D4 corpus edit 03 (cross-module): new editor-core API, consumed by
++     * ContentLine.describeLineSeparator() in the same edit.
++     */
++    public String describe() {
++        return "quick build reloaded LineSeparator." + name();
++    }
++
++    /**
+      * Get target line separator from a line separator string.
+      *
+      * @param str line separator string

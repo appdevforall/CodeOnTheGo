@@ -1,0 +1,2 @@
+# Materialized vendored apps + upstream fetches (fetch_vendored.py). Never check in.
+.cache/

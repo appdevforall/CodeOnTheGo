@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	NOTE: this manifest is harness scaffolding authored for the quick-build corpus
+	(ADFA-4128 D4). It is NOT part of upstream sora-editor. src/main/java/io/github/
+	rosemoe/sora/{util,annotations,text}/** (except corpusharness/) is vendored verbatim
+	from sora-editor's :editor module (LGPL-2.1, github.com/Rosemoe/sora-editor, pinned
+	commit 43f7e8e298133248ce4128812092114f397a94f6): a deliberately small, acyclic
+	subset (ContentLine/LineSeparator plus their leaf deps), not the whole module. See
+	README.md "sora-editor-lib" for why (the full module hit a real daemon limitation:
+	mutual Java/Kotlin symbol references). io.github.rosemoe.sora.corpusharness is
+	authored fresh for this corpus.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="io.github.rosemoe.sora">
+
+	<application
+		android:label="@string/qb_corpus_app_name"
+		android:allowBackup="false">
+
+		<activity
+			android:name=".corpusharness.EditorHostActivity"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+
+	</application>
+
+</manifest>

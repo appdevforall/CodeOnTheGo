@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "Append a marker suffix to each rendered row in ListActivity. Direct edit to the list activity itself.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/multiactivity/ui/ListActivity.kt": "ListActivity.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 2},
+		"behavioralMarker": "QB_LIST_MARKER_V2"
+	}
+}

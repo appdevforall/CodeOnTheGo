@@ -1,0 +1,12 @@
+{
+	"editClass": "java-signature-change",
+	"description": "JavaCalculator.computeTotal() widens its return type from int to long. Only the .java file is touched - OrderService.kt (one hop) and MainActivity.kt (two hops) both call it transitively without any signature declared in their own source, so this is D2's 'a Java signature change forces Kotlin recompile' case, and the bound is tight enough to fail if either Kotlin dependent is left stale.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/mixedlang/core/JavaCalculator.java": "JavaCalculator.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 3, "max": 4},
+		"behavioralMarker": "QB_JAVA_SIG_MARKER_V2"
+	}
+}

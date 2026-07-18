@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "Change LabelFormatter.label()'s body. A plain Kotlin edit in an app that also bundles a native .so - proves a Kotlin-only save still hot-compiles normally in a native-carrying app (D7's 'a Kotlin edit in the same app still hot-compiles').",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/nativeapp/core/LabelFormatter.kt": "LabelFormatter.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 2},
+		"behavioralMarker": "QB_NATIVE_MARKER_V2"
+	}
+}

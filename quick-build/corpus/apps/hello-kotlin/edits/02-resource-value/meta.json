@@ -1,0 +1,12 @@
+{
+	"editClass": "resource-value",
+	"description": "Change the greeting_name string value in strings.xml; no code touched.",
+	"files": {
+		"src/main/res/values/strings.xml": "strings.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}
