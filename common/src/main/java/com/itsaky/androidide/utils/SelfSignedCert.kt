@@ -16,7 +16,9 @@ import java.util.Locale
  * Generates a self-signed X.509 v3 certificate using only standard Java SE / Android APIs -
  * no BouncyCastle required. Encodes the DER structure manually.
  *
- * Supports a simple distinguished name with C, O, and CN components (empty values are omitted).
+ * Supports a simple distinguished name with C, O, and CN components; empty values are encoded
+ * as empty strings (not omitted). Throws [IllegalArgumentException] for any other attribute
+ * type or a malformed "key=value" component.
  */
 fun generateSelfSignedCert(
 	keyPair: KeyPair,
@@ -37,8 +39,6 @@ fun generateSelfSignedCert(
 		.generateCertificate(certDer.inputStream()) as X509Certificate
 }
 
-// TBSCertificate
-
 private fun buildTbsCertificate(
 	spkiBytes: ByteArray,
 	dn: String,
@@ -58,7 +58,7 @@ private fun buildTbsCertificate(
 }
 
 // Distinguished Name encoding
-// Parses "C=XX, O=Foo, CN=Bar"-style strings; skips RDNs with empty values.
+// Parses "C=XX, O=Foo, CN=Bar"-style strings.
 
 // OIDs for common attribute types
 private val OID_COMMON_NAME = oidBytes(2, 5, 4, 3)
@@ -69,10 +69,9 @@ private fun encodeDn(dn: String): ByteArray {
 	val rdns = mutableListOf<ByteArray>()
 	for (part in splitDnParts(dn)) {
 		val eq = part.indexOf('=')
-		if (eq < 0) continue
+		require(eq >= 0) { "Malformed DN component: \"$part\"" }
 		val key = part.substring(0, eq).trim().uppercase()
 		val value = part.substring(eq + 1).trim()
-		if (value.isEmpty()) continue
 
 		// RFC 5280 App. A pins countryName to PrintableString; other attributes may be UTF8String.
 		val (oidBytes, encodedValue) =
@@ -80,7 +79,7 @@ private fun encodeDn(dn: String): ByteArray {
 				"CN" -> OID_COMMON_NAME to derUtf8String(value)
 				"O" -> OID_ORGANIZATION to derUtf8String(value)
 				"C" -> OID_COUNTRY to derPrintableString(value)
-				else -> continue
+				else -> throw IllegalArgumentException("Unsupported DN attribute type: \"$key\"")
 			}
 		val attrType = derSeq(oidBytes + encodedValue)
 		rdns += derSet(attrType)
@@ -123,8 +122,6 @@ private val SHA256_WITH_RSA_OID = oidBytes(1, 2, 840, 113549, 1, 1, 11)
 
 private fun sha256WithRsaAlgId(): ByteArray = derSeq(SHA256_WITH_RSA_OID + byteArrayOf(0x05, 0x00)) // NULL
 
-// DER encoding primitives
-
 private fun derSeq(content: ByteArray): ByteArray = tlv(0x30, content)
 
 private fun derSet(content: ByteArray): ByteArray = tlv(0x31, content)
@@ -133,7 +130,13 @@ private fun derBitString(bytes: ByteArray): ByteArray = tlv(0x03, byteArrayOf(0x
 
 private fun derUtf8String(s: String): ByteArray = tlv(0x0C, s.toByteArray(Charsets.UTF_8))
 
-private fun derPrintableString(s: String): ByteArray = tlv(0x13, s.toByteArray(Charsets.US_ASCII))
+// X.680 Section 41: PrintableString is restricted to A-Za-z0-9 and a handful of punctuation.
+private val PRINTABLE_STRING_CHARS = (('A'..'Z') + ('a'..'z') + ('0'..'9') + " '()+,-./:=?".toList()).toSet()
+
+private fun derPrintableString(s: String): ByteArray {
+	require(s.all { it in PRINTABLE_STRING_CHARS }) { "\"$s\" is not a valid PrintableString" }
+	return tlv(0x13, s.toByteArray(Charsets.US_ASCII))
+}
 
 private fun derInteger(value: BigInteger): ByteArray =
 	// BigInteger.toByteArray() already prepends a 0x00 sign byte for positive integers whose
@@ -146,39 +149,30 @@ private fun derContextTagged(
 ): ByteArray = tlv(0xA0 or tag, content)
 
 private fun derTime(date: Date): ByteArray {
-	// GeneralizedTime (tag 0x18) for dates in or after 2050, UTCTime (tag 0x17) otherwise.
-	val cal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+	// Calendar.getInstance(TimeZone) without a Locale picks up the default locale's calendar
+	// *system* (e.g. a Thai default locale returns a Buddhist calendar, year = Gregorian + 543),
+	// not just digit formatting - Locale.ROOT forces the Gregorian calendar.
+	val cal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"), Locale.ROOT)
 	cal.time = date
-	return if (cal.get(Calendar.YEAR) >= 2050) {
-		val s =
-			String.format(
-				Locale.ROOT,
-				"%04d%02d%02d%02d%02d%02dZ",
-				cal.get(Calendar.YEAR),
-				cal.get(Calendar.MONTH) + 1,
-				cal.get(Calendar.DAY_OF_MONTH),
-				cal.get(Calendar.HOUR_OF_DAY),
-				cal.get(Calendar.MINUTE),
-				cal.get(Calendar.SECOND),
-			)
-		tlv(0x18, s.toByteArray(Charsets.US_ASCII))
+	val year = cal.get(Calendar.YEAR)
+	val fullYear =
+		String.format(
+			Locale.ROOT,
+			"%04d%02d%02d%02d%02d%02dZ",
+			year,
+			cal.get(Calendar.MONTH) + 1,
+			cal.get(Calendar.DAY_OF_MONTH),
+			cal.get(Calendar.HOUR_OF_DAY),
+			cal.get(Calendar.MINUTE),
+			cal.get(Calendar.SECOND),
+		)
+	// UTCTime's 2-digit year can only unambiguously represent 1950-2049; GeneralizedTime otherwise.
+	return if (year < 1950 || year >= 2050) {
+		tlv(0x18, fullYear.toByteArray(Charsets.US_ASCII))
 	} else {
-		val s =
-			String.format(
-				Locale.ROOT,
-				"%02d%02d%02d%02d%02d%02dZ",
-				cal.get(Calendar.YEAR) % 100,
-				cal.get(Calendar.MONTH) + 1,
-				cal.get(Calendar.DAY_OF_MONTH),
-				cal.get(Calendar.HOUR_OF_DAY),
-				cal.get(Calendar.MINUTE),
-				cal.get(Calendar.SECOND),
-			)
-		tlv(0x17, s.toByteArray(Charsets.US_ASCII))
+		tlv(0x17, fullYear.substring(2).toByteArray(Charsets.US_ASCII))
 	}
 }
-
-// OID encoding helpers
 
 private fun oidBytes(vararg arcs: Int): ByteArray {
 	val out = ByteArrayOutputStream()
@@ -206,8 +200,6 @@ private fun encodeBase128(value: Int): ByteArray {
 	}
 	return result
 }
-
-// Type-Length-Value builder
 
 private fun tlv(
 	tag: Int,
