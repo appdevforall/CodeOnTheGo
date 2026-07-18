@@ -976,6 +976,11 @@
 	<string name="cd_folder_icon">Folder icon</string>
 	<string name="cd_close">Close</string>
 	<string name="cd_save">Save</string>
+	<string name="cd_quick_build">Quick Build</string>
+	<string name="quick_build_action_label">Quick Build</string>
+	<string name="quick_build_error">Quick Build: %1$s</string>
+	<string name="quick_build_menu_standard_run">Standard Run</string>
+	<string name="quick_build_menu_restart_session">Restart session</string>
 	<string name="cd_undo">Undo</string>
 	<string name="cd_redo">Redo</string>
 	<string name="cd_delete">Delete</string>

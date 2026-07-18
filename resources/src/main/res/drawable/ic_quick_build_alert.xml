@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quick Build: needs-attention state (failed / needs full build / reconnecting). The same bolt plus a diagonal slash -
+	a distinct silhouette from both the ready and building icons, so the "something needs your attention" cue doesn't rely on
+	color perception (see QuickBuildTone). -->
+<vector
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="24dp"
+	android:height="24dp"
+	android:viewportWidth="24"
+	android:viewportHeight="24">
+	<path
+		android:fillColor="#ffffff"
+		android:pathData="M13,2L3,14L12,14L11,22L21,10L12,10L13,2Z" />
+	<path
+		android:fillColor="@android:color/transparent"
+		android:strokeColor="#ffffff"
+		android:strokeWidth="2.2"
+		android:strokeLineCap="round"
+		android:pathData="M3,3L21,21" />
+</vector>

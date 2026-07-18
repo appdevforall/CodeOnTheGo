@@ -101,6 +101,7 @@ object TooltipTag {
 	const val EDITOR_TOOLBAR_PREVIEW_COMPOSE = "editor.compose.preview"
 	const val EDITOR_TOOLBAR_COMPUTER_VISION = "project.layout.vision"
 	const val EDITOR_TOOLBAR_LOG_SENDER = "editor.disconnect.logsenders"
+	const val EDITOR_TOOLBAR_QUICK_BUILD = "project.quickbuild"
 
 	// Floating window chrome
 	const val WINDOW_MINIMIZE = "window-min"

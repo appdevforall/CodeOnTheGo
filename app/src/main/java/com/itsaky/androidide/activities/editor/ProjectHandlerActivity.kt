@@ -84,6 +84,7 @@ import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
+import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -104,7 +105,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
+import org.appdevforall.cotg.quickbuild.service.QuickBuildSessionManager
 import org.koin.android.ext.android.inject
+import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
@@ -229,6 +232,18 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				launch {
 					buildViewModel.buildState.collect { onBuildStateChanged(it) }
 				}
+				quickBuildSessionManager()?.let { quickBuild ->
+					// A2 (ADFA-4128): the toolbar icon reads the session status
+					// pull-style in prepare(); nothing else rebuilds the toolbar when
+					// e.g. a watcher-triggered build fails, so push every status
+					// change into a menu refresh or the ATTENTION icon never shows.
+					launch {
+						quickBuild.status.collect { invalidateOptionsMenu() }
+					}
+					launch {
+						quickBuild.userMessages.collect { flashError(it) }
+					}
+				}
 			}
 		}
 	}
@@ -280,6 +295,38 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				currentTab = BottomSheetViewModel.TAB_PROFILER,
 			)
 		}
+	}
+
+	/**
+	 * The Quick Build session manager (ADFA-4128), or null when the feature is off.
+	 * Gated exactly like the action's registration in EditorActivityActions - the
+	 * experiments flag only, no SDK check: Quick Build works from API 28 (plan B5's
+	 * degraded resource shim covers 28/29). Resolving the Koin singleton is cheap -
+	 * nothing spawns until the first quick build runs.
+	 *
+	 * Protected (not private): [EditorHandlerActivity]'s split-button dropdown (plan A2)
+	 * calls this too, to trigger a quick build / restart from the long-press menu.
+	 */
+	protected fun quickBuildSessionManager(): QuickBuildSessionManager? {
+		if (!FeatureFlags.isExperimentsEnabled) {
+			return null
+		}
+		return runCatching { GlobalContext.get().get<QuickBuildSessionManager>() }
+			.onFailure { logger.error("Quick Build session manager unavailable", it) }
+			.getOrNull()
+	}
+
+	/**
+	 * B3 hand-back (ADFA-4128): called by [EditorBuildEventListener] whenever ANY
+	 * external Gradle build finishes - success OR failure, Run button or "Run Gradle
+	 * tasks". Even a failed build can have rewritten build/ outputs of the modules that
+	 * DID compile (paths the quick-build watcher deliberately does not watch), so a live
+	 * session re-seeds from current disk either way. Over-reseeding is safe: it only
+	 * marks the baseline untrusted. The session's own setup builds also land here, but
+	 * the reducer drops the event in Provisioning/Prewarming.
+	 */
+	fun onExternalGradleBuildFinished() {
+		quickBuildSessionManager()?.onStandardRunCompleted()
 	}
 
 	private fun showPluginInstallDialog(cgpFile: File) {
@@ -771,6 +818,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		setStatus(getString(string.msg_project_initialized))
 		editorViewModel.isInitializing = false
 		invalidateOptionsMenu()
+
+		// B2 (ADFA-4128): eager quick-build setup build, AFTER the normal sync so it
+		// rides the warm Gradle daemon instead of fighting it. Fire-and-forget on the
+		// session manager's own thread; installs nothing until the first tap.
+		quickBuildSessionManager()?.prewarm()
 
 		if (mFindInProjectDialog?.isShowing == true) {
 			mFindInProjectDialog!!.dismiss()

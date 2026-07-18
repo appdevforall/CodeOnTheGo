@@ -128,6 +128,21 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- Quick Build tap-to-jump trampoline (ADFA-4128, plan A1): started by the
+             generated test app when the user taps the build-error overlay; brings CoGo
+             forward and opens the failing file at the error line. Exported by necessity
+             (caller is another package); validates the file against the open project. -->
+        <activity
+            android:name=".quickbuild.QuickBuildJumpActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="com.itsaky.androidide.quickbuild.action.JUMP_TO_ERROR" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Required: set your sentry.io project identifier (DSN) -->
         <meta-data
             android:name="io.sentry.dsn"

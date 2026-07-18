@@ -29,6 +29,7 @@ import androidx.work.Configuration
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
+import com.itsaky.androidide.di.quickBuildModule
 import com.itsaky.androidide.handlers.SentryDiagnosticsContext
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.treesitter.TreeSitter
@@ -202,13 +203,13 @@ class IDEApplication :
 	}
 
 	override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder().build()
+		get() = Configuration.Builder().build()
 
 	private fun ensureKoinStarted() {
 		runCatching { GlobalContext.get() }.getOrNull()?.let { return }
 		startKoin {
 			androidContext(this@IDEApplication)
-			modules(coreModule, pluginModule)
+			modules(coreModule, pluginModule, quickBuildModule)
 		}
 	}
 
@@ -243,7 +244,10 @@ class IDEApplication :
 		}
 	}
 
-	private fun isFinalizerWatchdogTimeout(thread: Thread, exception: Throwable): Boolean {
+	private fun isFinalizerWatchdogTimeout(
+		thread: Thread,
+		exception: Throwable,
+	): Boolean {
 		if (exception !is java.util.concurrent.TimeoutException) return false
 		return thread.name.contains("FinalizerWatchdogDaemon") ||
 			exception.stackTrace.any { it.className.contains("Daemons\$FinalizerWatchdogDaemon") }
