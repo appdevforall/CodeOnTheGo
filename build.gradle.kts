@@ -207,6 +207,13 @@ spotless {
 			step = "ktlint"
 			shortCode = "standard:filename"
 		}
+
+		suppressLintsFor {
+			// ktlint 1.5.0 false-positives property-naming on the TypeToken val; the name is valid camelCase
+			step = "ktlint"
+			shortCode = "standard:property-naming"
+			path = "app/src/main/java/com/itsaky/androidide/localWebServer/WebServer.kt"
+		}
 	}
 
 	kotlinGradle {
