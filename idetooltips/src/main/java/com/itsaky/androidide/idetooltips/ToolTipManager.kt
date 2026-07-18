@@ -43,553 +43,553 @@ import java.io.File
 
 
 object TooltipManager {
-    private const val TAG = "TooltipManager"
-    private const val DEFAULT_HOVER_DISMISS_DELAY_MS = 800L
-    private var activePopupWindow: PopupWindow? = null
-    private val dismissHandler = Handler(Looper.getMainLooper())
-    private var pendingDismiss: Runnable? = null
-    private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
-    private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
-            "/Download/documentation.db")
-
-    private const val QUERY_TOOLTIP = """
-        SELECT T.rowid, T.id, T.summary, T.detail
-        FROM Tooltips AS T, TooltipCategories AS TC
-        WHERE T.categoryId = TC.id
-          AND T.tag = ?
-          AND TC.category = ?
-    """
-
-
-    private const val QUERY_TOOLTIP_BUTTONS = """
-        SELECT description, uri
-        FROM TooltipButtons
-        WHERE tooltipId = ?
-        ORDER BY buttonNumberId
-    """
-
-    suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
-        Log.d(TAG, "In getTooltip() for category='$category', tag='$tag'.")
-
-        return withContext(Dispatchers.IO) {
-            var dbPath = Environment.DOC_DB.absolutePath
-
-            // TODO: The debug database code should only exist in a debug build. --DS, 30-Jul-2025
-            val debugDatabaseTimestamp =
-                if (debugDatabaseFile.exists()) debugDatabaseFile.lastModified() else -1L
-
-            if (debugDatabaseTimestamp > databaseTimestamp) {
-                // Switch to the debug database.
-                dbPath = debugDatabaseFile.absolutePath
-            }
-
-            try {
-                SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY).use { database ->
-                    val lastChange = try {
-                        DatabaseVersionResolver.resolveDatabaseVersion(database)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Version resolution failed: ${e.message}")
-                        "n/a"
-                    }
-
-                    database.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category)).use { c ->
-                        when (c.count) {
-                            // A missing tag is a normal outcome (e.g. a Gradle task with no
-                            // authored tooltip). Honor the nullable contract so the caller
-                            // shows nothing rather than an "n/a" popup.
-                            0 -> throw NoTooltipFoundException(category, tag)
-                            1 -> { /* Expected case, continue processing */
-                            }
-
-                            else -> throw DatabaseCorruptionException(
-                                "Multiple tooltips found for category='$category', tag='$tag' (found ${c.count} rows). " +
-                                        "Each category/tag combination should be unique."
-                            )
-                        }
-
-                        c.moveToFirst()
-                        val rowId = c.getInt(0)
-                        val tooltipId = c.getInt(1)
-                        val summary = c.getString(2)
-                        val detail = c.getString(3)
-
-                        val buttons = ArrayList<Pair<String, String>>()
-                        database.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString())).use { bc ->
-                            while (bc.moveToNext()) {
-                                buttons.add(
-                                    Pair(
-                                        bc.getString(0),
-                                        "http://localhost:6174/" + bc.getString(1)
-                                    )
-                                )
-                            }
-                        }
-
-                        IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
-                    }
-                }
-            } catch (e: NoTooltipFoundException) {
-                Log.d(TAG, "No tooltip found for category='$category', tag='$tag'")
-                null
-            } catch (e: Exception) {
-                Log.e(
-                    TAG,
-                    "Error getting tooltip for category='$category', tag='$tag': ${e.message}"
-                )
-                null
-            }
-        }
-    }
-
-    fun dismissActiveTooltip() {
-        cancelScheduledDismiss()
-        activePopupWindow?.dismiss()
-        activePopupWindow = null
-    }
-
-    fun scheduleActiveTooltipDismiss(delayMs: Long = DEFAULT_HOVER_DISMISS_DELAY_MS) {
-        cancelScheduledDismiss()
-        val popup = activePopupWindow ?: return
-        pendingDismiss = Runnable {
-            if (activePopupWindow === popup) {
-                popup.dismiss()
-            }
-        }.also { dismissHandler.postDelayed(it, delayMs) }
-    }
-
-    fun cancelScheduledDismiss() {
-        pendingDismiss?.let { dismissHandler.removeCallbacks(it) }
-        pendingDismiss = null
-    }
-
-    // Displays a tooltip for category [TooltipCategory.CATEGORY_IDE] in a particular context
-    // (An Activity, Fragment, Dialog etc)
-    fun showIdeCategoryTooltip(
-        context: Context,
-        anchorView: View,
-        tag: String,
-        requestFocus: Boolean = true,
-    ) {
-        showTooltip(
-            context = context,
-            anchorView = anchorView,
-            category = TooltipCategory.CATEGORY_IDE,
-            tag = tag,
-            requestFocus = requestFocus,
-        )
-    }
-
-    // Displays a tooltip in a particular context with a specific category
-    fun showTooltip(
-        context: Context,
-        anchorView: View,
-        category: String,
-        tag: String,
-        requestFocus: Boolean = true,
-    ) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val tooltipItem = getTooltip(
-                context,
-                category,
-                tag,
-            )
-            if (tooltipItem != null) {
-                showTooltipPopup(
-                    context = context,
-                    anchorView = anchorView,
-                    level = 0,
-                    tooltipItem = tooltipItem,
-                    requestFocus = requestFocus,
-                    onHelpLinkClicked = { context, url, title ->
-                        HelpActivity.launch(context, url, title)
-                    }
-                )
-            } else {
-                Log.e(TAG, "Tooltip item $tooltipItem is null")
-            }
-        }
-    }
-
-    /**
-     * Shows a tooltip anchored to a generic view.
-     */
-    private fun showTooltipPopup(
-        context: Context,
-        anchorView: View,
-        level: Int,
-        tooltipItem: IDETooltipItem,
-        requestFocus: Boolean,
-        onHelpLinkClicked: (context: Context, url: String, title: String) -> Unit
-    ) {
-        setupAndShowTooltipPopup(
-            context = context,
-            anchorView = anchorView,
-            level = level,
-            tooltipItem = tooltipItem,
-            requestFocus = requestFocus,
-            onActionButtonClick = { popupWindow, urlContent ->
-                popupWindow.dismiss()
-                onHelpLinkClicked(context, urlContent.first, urlContent.second)
-            },
-            onSeeMoreClicked = { popupWindow, nextLevel, item ->
-                popupWindow.dismiss()
-                showTooltipPopup(context, anchorView, nextLevel, item, requestFocus, onHelpLinkClicked)
-            }
-        )
-    }
-
-    private fun canShowPopup(context: Context, view: View): Boolean {
-        tailrec fun Context.findActivity(): Activity? {
-            return when (this) {
-                is Activity -> this
-                is ContextWrapper -> baseContext?.findActivity()
-                else -> null
-            }
-        }
-
-        val activity = context.findActivity()
-
-        val isLifecycleValid = if (activity != null) {
-            !activity.isFinishing && !activity.isDestroyed
-        } else {
-            true
-        }
-
-        val viewAttached = view.isAttachedToWindow && view.windowToken != null
-
-        return isLifecycleValid && viewAttached
-    }
-
-    /**
-     * Internal helper function to create, configure, and show the tooltip PopupWindow.
-     * Contains the logic common to both showTooltipPopup and showEditorTooltip.
-     */
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun setupAndShowTooltipPopup(
-        context: Context,
-        anchorView: View,
-        level: Int,
-        tooltipItem: IDETooltipItem,
-        requestFocus: Boolean,
-        onActionButtonClick: (popupWindow: PopupWindow, url: Pair<String, String>) -> Unit,
-        onSeeMoreClicked: (popupWindow: PopupWindow, nextLevel: Int, tooltipItem: IDETooltipItem) -> Unit,
-    ) {
-        if (!canShowPopup(context, anchorView)) {
-            Log.w(TAG, "Cannot show tooltip: activity destroyed or view detached")
-            return
-        }
-
-        val inflater = LayoutInflater.from(context)
-        val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
-        val popupWindow = PopupWindow(
-            popupView,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val seeMore = popupView.findViewById<TextView>(R.id.see_more)
-        val webView = popupView.findViewById<WebView>(R.id.webview)
-
-        val isDarkMode = context.isSystemInDarkMode()
-        val bodyColorHex =
-            getColor(
-                context,
-                if (isDarkMode) ResR.color.tooltip_text_color_dark
-                else ResR.color.tooltip_text_color_light,
-            ).toCssHex()
-        val linkColorHex =
-            getColor(
-                context,
-                if (isDarkMode) ResR.color.brand_color
-                else ResR.color.tooltip_link_color_light,
-            ).toCssHex()
-
-        val tooltipHtmlContent = when (level) {
-            0 -> {
-                tooltipItem.summary
-            }
-            1 -> {
-                val detailContent = tooltipItem.detail.ifBlank { "" }
-                if (tooltipItem.buttons.isNotEmpty()) {
-                    val buttonsSeparator = context.getString(R.string.tooltip_buttons_separator)
-                    val linksHtml = tooltipItem.buttons.joinToString(buttonsSeparator) { (label, url) ->
-                        context.getString(R.string.tooltip_links_html_template, url, linkColorHex, label)
-                    }
-                    if (detailContent.isNotBlank()) {
-                        context.getString(R.string.tooltip_detail_links_template, detailContent, linksHtml)
-                    } else {
-                        linksHtml
-                    }
-                } else {
-                    detailContent
-                }
-            }
-
-            else -> ""
-        }
-
-        Log.d(TAG, "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
-
-        val styledHtml =
-            context.getString(R.string.tooltip_html_template, bodyColorHex, tooltipHtmlContent, linkColorHex)
-
-        webView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                url?.let { clickedUrl ->
-                    popupWindow.dismiss()
-                    // Find the button label for this URL to use as title
-                    val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first
-                        ?: tooltipItem.tag
-                    onActionButtonClick(popupWindow, Pair(clickedUrl, buttonLabel))
-                }
-                return true
-            }
-        }
-
-        webView.settings.javaScriptEnabled = true
-        webView.setBackgroundColor(Color.TRANSPARENT)
-        webView.loadDataWithBaseURL(null, styledHtml, "text/html", "UTF-8", null)
-
-        seeMore.setOnClickListener {
-            popupWindow.dismiss()
-            val nextLevel = when {
-                level == 0 -> 1
-                else -> level + 1
-            }
-            Log.d(
-                TAG,
-                "See More clicked: level $level -> $nextLevel (detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})"
-            )
-            onSeeMoreClicked(popupWindow, nextLevel, tooltipItem)
-        }
-        val shouldShowSeeMore = when {
-            level == 0 && (tooltipItem.detail.isNotBlank() || tooltipItem.buttons.isNotEmpty()) -> true
-            else -> false
-        }
-        seeMore.visibility = if (shouldShowSeeMore) View.VISIBLE else View.GONE
-        Log.d(
-            TAG,
-            "See More visibility: $shouldShowSeeMore (level=$level, detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})"
-        )
-
-        val transparentColor = getColor(context, android.R.color.transparent)
-        popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
-        popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
-
-        dismissActiveTooltip()
-
-        activePopupWindow = popupWindow
-        popupWindow.setOnDismissListener {
-            cancelScheduledDismiss()
-            if (activePopupWindow === popupWindow) {
-                activePopupWindow = null
-            }
-        }
-
-        popupWindow.isFocusable = requestFocus
-        popupWindow.isOutsideTouchable = true
-        if (anchorView.isInOverlayWindow()) {
-            showOverlayTooltip(popupWindow, popupView, anchorView)
-        } else {
-            popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
-        }
-
-        val iconTintColor = if (anchorView.isInOverlayWindow()) {
-            Color.WHITE
-        } else {
-            getColor(
-                context,
-                if (isDarkMode) ResR.color.tooltip_text_color_dark
-                else ResR.color.tooltip_text_color_light
-            )
-        }
-
-        val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
-        infoButton.apply {
-            setColorFilter(iconTintColor)
-            setOnClickListener {
-                onInfoButtonClicked(context, popupWindow, tooltipItem)
-            }
-        }
-
-        val feedbackButton = popupView.findViewById<ImageButton>(R.id.feedback_button)
-        val pulseAnimation = AnimationUtils.loadAnimation(context, R.anim.pulse_animation)
-        feedbackButton.startAnimation(pulseAnimation)
-
-        feedbackButton.apply {
-            setOnClickListener {
-                onFeedbackButtonClicked(context, popupWindow, tooltipItem)
-            }
-            setColorFilter(iconTintColor)
-        }
-
-        val sponsorButton = popupView.findViewById<ImageButton>(R.id.sponsor_button)
-        sponsorButton.apply {
-            visibility = if (level >= 1) View.VISIBLE else View.GONE
-            setColorFilter(iconTintColor)
-            setOnClickListener {
-                val sponsorUrl = context.getString(ResR.string.github_sponsors_url)
-                UrlManager.openUrl(sponsorUrl, null, context)
-            }
-        }
-
-        val hoverGuard: (MotionEvent) -> Unit = label@{ event ->
-            if (!event.isFromSource(InputDevice.SOURCE_MOUSE)) return@label
-            when (event.actionMasked) {
-                MotionEvent.ACTION_HOVER_ENTER,
-                MotionEvent.ACTION_HOVER_MOVE -> cancelScheduledDismiss()
-                MotionEvent.ACTION_HOVER_EXIT -> scheduleActiveTooltipDismiss()
-            }
-        }
-
-        val hoverListener = View.OnHoverListener { _, event ->
-            hoverGuard(event)
-            false
-        }
-
-        installHoverGuard(
-            hoverListener = hoverListener,
-            popupView = popupView,
-            webView = webView,
-            seeMore = seeMore,
-            infoButton = infoButton,
-            feedbackButton = feedbackButton,
-            sponsorButton = sponsorButton,
-        )
-
-        cancelScheduledDismiss()
-    }
-
-    /**
-     * Handles the click on the info icon in the tooltip.
-     */
-    private fun onInfoButtonClicked(
-        context: Context,
-        popupWindow: PopupWindow,
-        tooltip: IDETooltipItem
-    ) {
-        popupWindow.dismiss()
-
-        val buttonsFormatted = tooltip.buttons.joinToString {
-            context.getString(R.string.tooltip_debug_button_item_template, it.first, it.second)
-        }
-        val metadata = context.getString(
-            R.string.tooltip_debug_metadata_html,
-            tooltip.lastChange,
-            tooltip.rowId,
-            tooltip.id,
-            tooltip.category,
-            tooltip.tag,
-            Html.escapeHtml(tooltip.summary),
-            Html.escapeHtml(tooltip.detail),
-            buttonsFormatted
-        )
-
-        val builder = AlertDialog.Builder(context)
-            .setTitle(context.getString(R.string.tooltip_debug_dialog_title))
-            .setMessage(
-                Html.fromHtml(
-                    metadata,
-                    Html.FROM_HTML_MODE_LEGACY
-                )
-            )
-            .setPositiveButton(android.R.string.ok) { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setCancelable(true) // Allow dismissing by tapping outside
-
-        val dialog = builder.create()
-
-        if (context !is Activity && canDrawOverlays(context)) {
-            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
-        }
-
-        dialog.show()
-    }
-
-    private fun onFeedbackButtonClicked(
-        context: Context,
-        popupWindow: PopupWindow,
-        tooltip: IDETooltipItem
-    ) {
-        popupWindow.dismiss()
-
-        val feedbackMetadata = buildTooltipFeedbackMetadata(tooltip)
-
-        FeedbackManager.sendTooltipFeedbackWithScreenshot(
-            context = context,
-            customSubject = "Tooltip Feedback - ${tooltip.tag}",
-            metadata = feedbackMetadata,
-            includeScreenshot = true,
-        )
-    }
-
-
-    private fun buildTooltipFeedbackMetadata(tooltip: IDETooltipItem): String {
-        return """
-            Please describe your feedback above this line.
-
-            --- Tooltip Information ---
-            Version: '${tooltip.lastChange}'
-            Row: ${tooltip.rowId}
-            ID: ${tooltip.id}
-            Category: '${tooltip.category}'
-            Tag: '${tooltip.tag}'
-
-            Summary: '${tooltip.summary}'
-            Detail: '${tooltip.detail}'
-
-            Buttons:
-            ${tooltip.buttons.joinToString("\n") { " - ${it.first}: ${it.second}" }}
-
-            ---
-        """.trimIndent()
-    }
-
-    private fun View.isInOverlayWindow(): Boolean {
-        val params = layoutParams
-        return params is WindowManager.LayoutParams &&
-                params.type == WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-    }
-
-    private fun showOverlayTooltip(
-        popupWindow: PopupWindow,
-        popupView: View,
-        parentView: View
-    ) {
-        popupView.measure(
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        )
-
-        val popupWidth = popupView.measuredWidth
-        val popupHeight = popupView.measuredHeight
-
-        val displayMetrics = parentView.resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
-
-        val x = (screenWidth - popupWidth) / 2
-        val y = (screenHeight - popupHeight) / 2
-
-        popupWindow.showAtLocation(parentView, Gravity.NO_GRAVITY, x, y)
-    }
-
-    private fun installHoverGuard(
-        hoverListener: View.OnHoverListener,
-        popupView: View,
-        webView: WebView,
-        seeMore: View,
-        infoButton: View,
-        feedbackButton: View,
-        sponsorButton: View,
-    ) {
-        popupView.setOnHoverListener(hoverListener)
-        webView.setOnHoverListener(hoverListener)
-        seeMore.setOnHoverListener(hoverListener)
-        infoButton.setOnHoverListener(hoverListener)
-        feedbackButton.setOnHoverListener(hoverListener)
-        sponsorButton.setOnHoverListener(hoverListener)
-    }
+	private const val TAG = "TooltipManager"
+	private const val DEFAULT_HOVER_DISMISS_DELAY_MS = 800L
+	private var activePopupWindow: PopupWindow? = null
+	private val dismissHandler = Handler(Looper.getMainLooper())
+	private var pendingDismiss: Runnable? = null
+	private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
+	private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
+			"/Download/documentation.db")
+
+	private const val QUERY_TOOLTIP = """
+		SELECT T.rowid, T.id, T.summary, T.detail
+		FROM Tooltips AS T, TooltipCategories AS TC
+		WHERE T.categoryId = TC.id
+		AND T.tag = ?
+		AND TC.category = ?
+	"""
+
+
+	private const val QUERY_TOOLTIP_BUTTONS = """
+		SELECT description, uri
+		FROM TooltipButtons
+		WHERE tooltipId = ?
+		ORDER BY buttonNumberId
+	"""
+
+	suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
+		Log.d(TAG, "In getTooltip() for category='$category', tag='$tag'.")
+
+		return withContext(Dispatchers.IO) {
+			var dbPath = Environment.DOC_DB.absolutePath
+
+			// TODO: The debug database code should only exist in a debug build. --DS, 30-Jul-2025
+			val debugDatabaseTimestamp =
+				if (debugDatabaseFile.exists()) debugDatabaseFile.lastModified() else -1L
+
+			if (debugDatabaseTimestamp > databaseTimestamp) {
+				// Switch to the debug database.
+				dbPath = debugDatabaseFile.absolutePath
+			}
+
+			try {
+				SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY).use { database ->
+					val lastChange = try {
+						DatabaseVersionResolver.resolveDatabaseVersion(database)
+					} catch (e: Exception) {
+						Log.e(TAG, "Version resolution failed: ${e.message}")
+						"n/a"
+					}
+
+					database.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category)).use { c ->
+						when (c.count) {
+							// A missing tag is a normal outcome (e.g. a Gradle task with no
+							// authored tooltip). Honor the nullable contract so the caller
+							// shows nothing rather than an "n/a" popup.
+							0 -> throw NoTooltipFoundException(category, tag)
+							1 -> { /* Expected case, continue processing */
+							}
+
+							else -> throw DatabaseCorruptionException(
+								"Multiple tooltips found for category='$category', tag='$tag' (found ${c.count} rows). " +
+										"Each category/tag combination should be unique."
+							)
+						}
+
+						c.moveToFirst()
+						val rowId = c.getInt(0)
+						val tooltipId = c.getInt(1)
+						val summary = c.getString(2)
+						val detail = c.getString(3)
+
+						val buttons = ArrayList<Pair<String, String>>()
+						database.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString())).use { bc ->
+							while (bc.moveToNext()) {
+								buttons.add(
+									Pair(
+										bc.getString(0),
+										"http://localhost:6174/" + bc.getString(1)
+									)
+								)
+							}
+						}
+
+						IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
+					}
+				}
+			} catch (e: NoTooltipFoundException) {
+				Log.d(TAG, "No tooltip found for category='$category', tag='$tag'")
+				null
+			} catch (e: Exception) {
+				Log.e(
+					TAG,
+					"Error getting tooltip for category='$category', tag='$tag': ${e.message}"
+				)
+				null
+			}
+		}
+	}
+
+	fun dismissActiveTooltip() {
+		cancelScheduledDismiss()
+		activePopupWindow?.dismiss()
+		activePopupWindow = null
+	}
+
+	fun scheduleActiveTooltipDismiss(delayMs: Long = DEFAULT_HOVER_DISMISS_DELAY_MS) {
+		cancelScheduledDismiss()
+		val popup = activePopupWindow ?: return
+		pendingDismiss = Runnable {
+			if (activePopupWindow === popup) {
+				popup.dismiss()
+			}
+		}.also { dismissHandler.postDelayed(it, delayMs) }
+	}
+
+	fun cancelScheduledDismiss() {
+		pendingDismiss?.let { dismissHandler.removeCallbacks(it) }
+		pendingDismiss = null
+	}
+
+	// Displays a tooltip for category [TooltipCategory.CATEGORY_IDE] in a particular context
+	// (An Activity, Fragment, Dialog etc)
+	fun showIdeCategoryTooltip(
+		context: Context,
+		anchorView: View,
+		tag: String,
+		requestFocus: Boolean = true,
+	) {
+		showTooltip(
+			context = context,
+			anchorView = anchorView,
+			category = TooltipCategory.CATEGORY_IDE,
+			tag = tag,
+			requestFocus = requestFocus,
+		)
+	}
+
+	// Displays a tooltip in a particular context with a specific category
+	fun showTooltip(
+		context: Context,
+		anchorView: View,
+		category: String,
+		tag: String,
+		requestFocus: Boolean = true,
+	) {
+		CoroutineScope(Dispatchers.Main).launch {
+			val tooltipItem = getTooltip(
+				context,
+				category,
+				tag,
+			)
+			if (tooltipItem != null) {
+				showTooltipPopup(
+					context = context,
+					anchorView = anchorView,
+					level = 0,
+					tooltipItem = tooltipItem,
+					requestFocus = requestFocus,
+					onHelpLinkClicked = { context, url, title ->
+						HelpActivity.launch(context, url, title)
+					}
+				)
+			} else {
+				Log.e(TAG, "Tooltip item $tooltipItem is null")
+			}
+		}
+	}
+
+	/**
+	 * Shows a tooltip anchored to a generic view.
+	 */
+	private fun showTooltipPopup(
+		context: Context,
+		anchorView: View,
+		level: Int,
+		tooltipItem: IDETooltipItem,
+		requestFocus: Boolean,
+		onHelpLinkClicked: (context: Context, url: String, title: String) -> Unit
+	) {
+		setupAndShowTooltipPopup(
+			context = context,
+			anchorView = anchorView,
+			level = level,
+			tooltipItem = tooltipItem,
+			requestFocus = requestFocus,
+			onActionButtonClick = { popupWindow, urlContent ->
+				popupWindow.dismiss()
+				onHelpLinkClicked(context, urlContent.first, urlContent.second)
+			},
+			onSeeMoreClicked = { popupWindow, nextLevel, item ->
+				popupWindow.dismiss()
+				showTooltipPopup(context, anchorView, nextLevel, item, requestFocus, onHelpLinkClicked)
+			}
+		)
+	}
+
+	private fun canShowPopup(context: Context, view: View): Boolean {
+		tailrec fun Context.findActivity(): Activity? {
+			return when (this) {
+				is Activity -> this
+				is ContextWrapper -> baseContext?.findActivity()
+				else -> null
+			}
+		}
+
+		val activity = context.findActivity()
+
+		val isLifecycleValid = if (activity != null) {
+			!activity.isFinishing && !activity.isDestroyed
+		} else {
+			true
+		}
+
+		val viewAttached = view.isAttachedToWindow && view.windowToken != null
+
+		return isLifecycleValid && viewAttached
+	}
+
+	/**
+	 * Internal helper function to create, configure, and show the tooltip PopupWindow.
+	 * Contains the logic common to both showTooltipPopup and showEditorTooltip.
+	 */
+	@SuppressLint("SetJavaScriptEnabled")
+	private fun setupAndShowTooltipPopup(
+		context: Context,
+		anchorView: View,
+		level: Int,
+		tooltipItem: IDETooltipItem,
+		requestFocus: Boolean,
+		onActionButtonClick: (popupWindow: PopupWindow, url: Pair<String, String>) -> Unit,
+		onSeeMoreClicked: (popupWindow: PopupWindow, nextLevel: Int, tooltipItem: IDETooltipItem) -> Unit,
+	) {
+		if (!canShowPopup(context, anchorView)) {
+			Log.w(TAG, "Cannot show tooltip: activity destroyed or view detached")
+			return
+		}
+
+		val inflater = LayoutInflater.from(context)
+		val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
+		val popupWindow = PopupWindow(
+			popupView,
+			ViewGroup.LayoutParams.WRAP_CONTENT,
+			ViewGroup.LayoutParams.WRAP_CONTENT
+		)
+
+		val seeMore = popupView.findViewById<TextView>(R.id.see_more)
+		val webView = popupView.findViewById<WebView>(R.id.webview)
+
+		val isDarkMode = context.isSystemInDarkMode()
+		val bodyColorHex =
+			getColor(
+				context,
+				if (isDarkMode) ResR.color.tooltip_text_color_dark
+				else ResR.color.tooltip_text_color_light,
+			).toCssHex()
+		val linkColorHex =
+			getColor(
+				context,
+				if (isDarkMode) ResR.color.brand_color
+				else ResR.color.tooltip_link_color_light,
+			).toCssHex()
+
+		val tooltipHtmlContent = when (level) {
+			0 -> {
+				tooltipItem.summary
+			}
+			1 -> {
+				val detailContent = tooltipItem.detail.ifBlank { "" }
+				if (tooltipItem.buttons.isNotEmpty()) {
+					val buttonsSeparator = context.getString(R.string.tooltip_buttons_separator)
+					val linksHtml = tooltipItem.buttons.joinToString(buttonsSeparator) { (label, url) ->
+						context.getString(R.string.tooltip_links_html_template, url, linkColorHex, label)
+					}
+					if (detailContent.isNotBlank()) {
+						context.getString(R.string.tooltip_detail_links_template, detailContent, linksHtml)
+					} else {
+						linksHtml
+					}
+				} else {
+					detailContent
+				}
+			}
+
+			else -> ""
+		}
+
+		Log.d(TAG, "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
+
+		val styledHtml =
+			context.getString(R.string.tooltip_html_template, bodyColorHex, tooltipHtmlContent, linkColorHex)
+
+		webView.webViewClient = object : WebViewClient() {
+			override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+				url?.let { clickedUrl ->
+					popupWindow.dismiss()
+					// Find the button label for this URL to use as title
+					val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first
+						?: tooltipItem.tag
+					onActionButtonClick(popupWindow, Pair(clickedUrl, buttonLabel))
+				}
+				return true
+			}
+		}
+
+		webView.settings.javaScriptEnabled = true
+		webView.setBackgroundColor(Color.TRANSPARENT)
+		webView.loadDataWithBaseURL(null, styledHtml, "text/html", "UTF-8", null)
+
+		seeMore.setOnClickListener {
+			popupWindow.dismiss()
+			val nextLevel = when {
+				level == 0 -> 1
+				else -> level + 1
+			}
+			Log.d(
+				TAG,
+				"See More clicked: level $level -> $nextLevel (detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})"
+			)
+			onSeeMoreClicked(popupWindow, nextLevel, tooltipItem)
+		}
+		val shouldShowSeeMore = when {
+			level == 0 && (tooltipItem.detail.isNotBlank() || tooltipItem.buttons.isNotEmpty()) -> true
+			else -> false
+		}
+		seeMore.visibility = if (shouldShowSeeMore) View.VISIBLE else View.GONE
+		Log.d(
+			TAG,
+			"See More visibility: $shouldShowSeeMore (level=$level, detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})"
+		)
+
+		val transparentColor = getColor(context, android.R.color.transparent)
+		popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
+		popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
+
+		dismissActiveTooltip()
+
+		activePopupWindow = popupWindow
+		popupWindow.setOnDismissListener {
+			cancelScheduledDismiss()
+			if (activePopupWindow === popupWindow) {
+				activePopupWindow = null
+			}
+		}
+
+		popupWindow.isFocusable = requestFocus
+		popupWindow.isOutsideTouchable = true
+		if (anchorView.isInOverlayWindow()) {
+			showOverlayTooltip(popupWindow, popupView, anchorView)
+		} else {
+			popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+		}
+
+		val iconTintColor = if (anchorView.isInOverlayWindow()) {
+			Color.WHITE
+		} else {
+			getColor(
+				context,
+				if (isDarkMode) ResR.color.tooltip_text_color_dark
+				else ResR.color.tooltip_text_color_light
+			)
+		}
+
+		val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
+		infoButton.apply {
+			setColorFilter(iconTintColor)
+			setOnClickListener {
+				onInfoButtonClicked(context, popupWindow, tooltipItem)
+			}
+		}
+
+		val feedbackButton = popupView.findViewById<ImageButton>(R.id.feedback_button)
+		val pulseAnimation = AnimationUtils.loadAnimation(context, R.anim.pulse_animation)
+		feedbackButton.startAnimation(pulseAnimation)
+
+		feedbackButton.apply {
+			setOnClickListener {
+				onFeedbackButtonClicked(context, popupWindow, tooltipItem)
+			}
+			setColorFilter(iconTintColor)
+		}
+
+		val sponsorButton = popupView.findViewById<ImageButton>(R.id.sponsor_button)
+		sponsorButton.apply {
+			visibility = if (level >= 1) View.VISIBLE else View.GONE
+			setColorFilter(iconTintColor)
+			setOnClickListener {
+				val sponsorUrl = context.getString(ResR.string.github_sponsors_url)
+				UrlManager.openUrl(sponsorUrl, null, context)
+			}
+		}
+
+		val hoverGuard: (MotionEvent) -> Unit = label@{ event ->
+			if (!event.isFromSource(InputDevice.SOURCE_MOUSE)) return@label
+			when (event.actionMasked) {
+				MotionEvent.ACTION_HOVER_ENTER,
+				MotionEvent.ACTION_HOVER_MOVE -> cancelScheduledDismiss()
+				MotionEvent.ACTION_HOVER_EXIT -> scheduleActiveTooltipDismiss()
+			}
+		}
+
+		val hoverListener = View.OnHoverListener { _, event ->
+			hoverGuard(event)
+			false
+		}
+
+		installHoverGuard(
+			hoverListener = hoverListener,
+			popupView = popupView,
+			webView = webView,
+			seeMore = seeMore,
+			infoButton = infoButton,
+			feedbackButton = feedbackButton,
+			sponsorButton = sponsorButton,
+		)
+
+		cancelScheduledDismiss()
+	}
+
+	/**
+	 * Handles the click on the info icon in the tooltip.
+	 */
+	private fun onInfoButtonClicked(
+		context: Context,
+		popupWindow: PopupWindow,
+		tooltip: IDETooltipItem
+	) {
+		popupWindow.dismiss()
+
+		val buttonsFormatted = tooltip.buttons.joinToString {
+			context.getString(R.string.tooltip_debug_button_item_template, it.first, it.second)
+		}
+		val metadata = context.getString(
+			R.string.tooltip_debug_metadata_html,
+			tooltip.lastChange,
+			tooltip.rowId,
+			tooltip.id,
+			tooltip.category,
+			tooltip.tag,
+			Html.escapeHtml(tooltip.summary),
+			Html.escapeHtml(tooltip.detail),
+			buttonsFormatted
+		)
+
+		val builder = AlertDialog.Builder(context)
+			.setTitle(context.getString(R.string.tooltip_debug_dialog_title))
+			.setMessage(
+				Html.fromHtml(
+					metadata,
+					Html.FROM_HTML_MODE_LEGACY
+				)
+			)
+			.setPositiveButton(android.R.string.ok) { dialog, _ ->
+				dialog.dismiss()
+			}
+			.setCancelable(true) // Allow dismissing by tapping outside
+
+		val dialog = builder.create()
+
+		if (context !is Activity && canDrawOverlays(context)) {
+			dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+		}
+
+		dialog.show()
+	}
+
+	private fun onFeedbackButtonClicked(
+		context: Context,
+		popupWindow: PopupWindow,
+		tooltip: IDETooltipItem
+	) {
+		popupWindow.dismiss()
+
+		val feedbackMetadata = buildTooltipFeedbackMetadata(tooltip)
+
+		FeedbackManager.sendTooltipFeedbackWithScreenshot(
+			context = context,
+			customSubject = "Tooltip Feedback - ${tooltip.tag}",
+			metadata = feedbackMetadata,
+			includeScreenshot = true,
+		)
+	}
+
+
+	private fun buildTooltipFeedbackMetadata(tooltip: IDETooltipItem): String {
+		return """
+			Please describe your feedback above this line.
+
+			--- Tooltip Information ---
+			Version: '${tooltip.lastChange}'
+			Row: ${tooltip.rowId}
+			ID: ${tooltip.id}
+			Category: '${tooltip.category}'
+			Tag: '${tooltip.tag}'
+
+			Summary: '${tooltip.summary}'
+			Detail: '${tooltip.detail}'
+
+			Buttons:
+			${tooltip.buttons.joinToString("\n") { " - ${it.first}: ${it.second}" }}
+
+			---
+		""".trimIndent()
+	}
+
+	private fun View.isInOverlayWindow(): Boolean {
+		val params = layoutParams
+		return params is WindowManager.LayoutParams &&
+				params.type == WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+	}
+
+	private fun showOverlayTooltip(
+		popupWindow: PopupWindow,
+		popupView: View,
+		parentView: View
+	) {
+		popupView.measure(
+			View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+			View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+		)
+
+		val popupWidth = popupView.measuredWidth
+		val popupHeight = popupView.measuredHeight
+
+		val displayMetrics = parentView.resources.displayMetrics
+		val screenWidth = displayMetrics.widthPixels
+		val screenHeight = displayMetrics.heightPixels
+
+		val x = (screenWidth - popupWidth) / 2
+		val y = (screenHeight - popupHeight) / 2
+
+		popupWindow.showAtLocation(parentView, Gravity.NO_GRAVITY, x, y)
+	}
+
+	private fun installHoverGuard(
+		hoverListener: View.OnHoverListener,
+		popupView: View,
+		webView: WebView,
+		seeMore: View,
+		infoButton: View,
+		feedbackButton: View,
+		sponsorButton: View,
+	) {
+		popupView.setOnHoverListener(hoverListener)
+		webView.setOnHoverListener(hoverListener)
+		seeMore.setOnHoverListener(hoverListener)
+		infoButton.setOnHoverListener(hoverListener)
+		feedbackButton.setOnHoverListener(hoverListener)
+		sponsorButton.setOnHoverListener(hoverListener)
+	}
 
 }

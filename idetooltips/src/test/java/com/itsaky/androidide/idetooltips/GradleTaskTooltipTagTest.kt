@@ -22,27 +22,26 @@ import org.junit.Test
 
 /** Verifies the Gradle task path -> tooltip tag mapping used by RunTasksListAdapter. */
 class GradleTaskTooltipTagTest {
+	@Test
+	fun `project-qualified task path maps to colon tag`() {
+		assertEquals("gradle.app:assembleDebug", TooltipTag.gradleTaskTooltipTag(":app:assembleDebug"))
+	}
 
-  @Test
-  fun `project-qualified task path maps to colon tag`() {
-    assertEquals("gradle.app:assembleDebug", TooltipTag.gradleTaskTooltipTag(":app:assembleDebug"))
-  }
+	@Test
+	fun `root task path maps to dotted tag`() {
+		assertEquals("gradle.clean", TooltipTag.gradleTaskTooltipTag(":clean"))
+	}
 
-  @Test
-  fun `root task path maps to dotted tag`() {
-    assertEquals("gradle.clean", TooltipTag.gradleTaskTooltipTag(":clean"))
-  }
+	@Test
+	fun `merge task path is preserved verbatim`() {
+		assertEquals(
+			"gradle.app:mergeReleaseResources",
+			TooltipTag.gradleTaskTooltipTag(":app:mergeReleaseResources"),
+		)
+	}
 
-  @Test
-  fun `merge task path is preserved verbatim`() {
-    assertEquals(
-      "gradle.app:mergeReleaseResources",
-      TooltipTag.gradleTaskTooltipTag(":app:mergeReleaseResources"),
-    )
-  }
-
-  @Test
-  fun `plugin-builder task maps to gradle-prefixed tag`() {
-    assertEquals("gradle.assemblePlugin", TooltipTag.gradleTaskTooltipTag(":assemblePlugin"))
-  }
+	@Test
+	fun `plugin-builder task maps to gradle-prefixed tag`() {
+		assertEquals("gradle.assemblePlugin", TooltipTag.gradleTaskTooltipTag(":assemblePlugin"))
+	}
 }
