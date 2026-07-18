@@ -67,24 +67,54 @@ private val OID_COUNTRY = oidBytes(2, 5, 4, 6)
 
 private fun encodeDn(dn: String): ByteArray {
 	val rdns = mutableListOf<ByteArray>()
-	for (part in dn.split(",")) {
+	for (part in splitDnParts(dn)) {
 		val eq = part.indexOf('=')
 		if (eq < 0) continue
 		val key = part.substring(0, eq).trim().uppercase()
 		val value = part.substring(eq + 1).trim()
 		if (value.isEmpty()) continue
 
-		val oidBytes =
+		// RFC 5280 App. A pins countryName to PrintableString; other attributes may be UTF8String.
+		val (oidBytes, encodedValue) =
 			when (key) {
-				"CN" -> OID_COMMON_NAME
-				"O" -> OID_ORGANIZATION
-				"C" -> OID_COUNTRY
+				"CN" -> OID_COMMON_NAME to derUtf8String(value)
+				"O" -> OID_ORGANIZATION to derUtf8String(value)
+				"C" -> OID_COUNTRY to derPrintableString(value)
 				else -> continue
 			}
-		val attrType = derSeq(oidBytes + derUtf8String(value))
+		val attrType = derSeq(oidBytes + encodedValue)
 		rdns += derSet(attrType)
 	}
 	return derSeq(rdns.fold(ByteArray(0)) { acc, b -> acc + b })
+}
+
+// Splits on unescaped commas per RFC 4514 (a backslash escapes the following character).
+private fun splitDnParts(dn: String): List<String> {
+	val parts = mutableListOf<String>()
+	val current = StringBuilder()
+	var i = 0
+	while (i < dn.length) {
+		val c = dn[i]
+		when {
+			c == '\\' && i + 1 < dn.length -> {
+				current.append(dn[i + 1])
+				i += 2
+			}
+
+			c == ',' -> {
+				parts += current.toString()
+				current.setLength(0)
+				i++
+			}
+
+			else -> {
+				current.append(c)
+				i++
+			}
+		}
+	}
+	parts += current.toString()
+	return parts
 }
 
 // Algorithm identifier: SHA256WithRSA (OID 1.2.840.113549.1.1.11) + NULL
@@ -102,6 +132,8 @@ private fun derSet(content: ByteArray): ByteArray = tlv(0x31, content)
 private fun derBitString(bytes: ByteArray): ByteArray = tlv(0x03, byteArrayOf(0x00) + bytes)
 
 private fun derUtf8String(s: String): ByteArray = tlv(0x0C, s.toByteArray(Charsets.UTF_8))
+
+private fun derPrintableString(s: String): ByteArray = tlv(0x13, s.toByteArray(Charsets.US_ASCII))
 
 private fun derInteger(value: BigInteger): ByteArray =
 	// BigInteger.toByteArray() already prepends a 0x00 sign byte for positive integers whose
@@ -184,22 +216,24 @@ private fun tlv(
 	val out = ByteArrayOutputStream()
 	out.write(tag)
 	val len = content.size
-	when {
-		len < 0x80 -> {
-			out.write(len)
-		}
-
-		len < 0x100 -> {
-			out.write(0x81)
-			out.write(len)
-		}
-
-		else -> {
-			out.write(0x82)
-			out.write(len ushr 8)
-			out.write(len and 0xFF)
-		}
+	if (len < 0x80) {
+		out.write(len)
+	} else {
+		val lenBytes = encodeLength(len)
+		out.write(0x80 or lenBytes.size)
+		out.write(lenBytes)
 	}
 	out.write(content)
 	return out.toByteArray()
+}
+
+// Minimal big-endian byte encoding of a non-negative length, for DER's long-form length octets.
+private fun encodeLength(len: Int): ByteArray {
+	val bytes = mutableListOf<Byte>()
+	var l = len
+	while (l > 0) {
+		bytes.add(0, (l and 0xFF).toByte())
+		l = l ushr 8
+	}
+	return bytes.toByteArray()
 }
