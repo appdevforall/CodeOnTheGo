@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+	<application>
+		<!-- Deploy channel host (plan D1, LogSender bind pattern). Exported so the
+		     generated test app (a different package) can bind; every inbound call is
+		     uid-checked against the installed test app in QuickBuildHostService. -->
+		<service
+			android:name="org.appdevforall.cotg.quickbuild.service.QuickBuildHostService"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="com.itsaky.androidide.QUICK_BUILD_ACTION" />
+			</intent-filter>
+		</service>
+	</application>
+
+</manifest>
