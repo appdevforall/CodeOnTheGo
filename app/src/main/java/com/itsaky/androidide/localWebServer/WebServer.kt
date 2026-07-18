@@ -296,6 +296,7 @@ class WebServer(private val config: ServerConfig) {
         val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
         if (debugDatabaseTimestamp > databaseTimestamp) {
             bookshelfTemplateId = -1
+            templateCache.clear()
             database.close()
             database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
             databaseTimestamp = debugDatabaseTimestamp
