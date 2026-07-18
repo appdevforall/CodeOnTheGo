@@ -128,7 +128,10 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- Required: set your sentry.io project identifier (DSN) -->
+        <!-- Crash/log reporting. These io.sentry.* keys configure the Sentry SDK,
+             which reports to our GlitchTip backend (GlitchTip speaks the Sentry
+             protocol); ${sentryDsn} carries the GlitchTip DSN. -->
+        <!-- Required: the GlitchTip project identifier (DSN) -->
         <meta-data
             android:name="io.sentry.dsn"
             android:value="${sentryDsn}" />
@@ -151,7 +154,7 @@
         <meta-data
             android:name="io.sentry.send-default-pii"
             android:value="true" />
-        <!-- Enable logs to be sent to Sentry -->
+        <!-- Enable logs to be sent to GlitchTip -->
         <meta-data
             android:name="io.sentry.logs.enabled"
             android:value="true" />
