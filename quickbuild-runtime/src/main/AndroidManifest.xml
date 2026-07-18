@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+	<!--
+		Package visibility (API 30+ filtering): the test app binds CoGo's deploy service,
+		queries CoGo's launch intent (3-finger return gesture) and starts CoGo's
+		jump-to-error trampoline. Declared here so every generated test app inherits it
+		via manifest merge.
+	-->
+	<queries>
+		<package android:name="com.itsaky.androidide" />
+	</queries>
+
+	<!--
+		Merged into the generated test app so the framework instantiates activities
+		through the payload classloader (quick-build/README.md, classloading contract).
+		Apps that also pull androidx.core (which declares CoreComponentFactory) need the
+		generated test-app manifest to re-declare this attribute with
+		tools:replace="android:appComponentFactory" - the setup build owns that.
+	-->
+	<application android:appComponentFactory="com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory" />
+
+</manifest>
