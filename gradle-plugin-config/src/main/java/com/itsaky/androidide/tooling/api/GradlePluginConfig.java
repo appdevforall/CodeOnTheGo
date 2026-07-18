@@ -35,6 +35,16 @@ public final class GradlePluginConfig {
 	public static final String PROPERTY_PROFILEABLE_ENABLED = "cotg.profileable.enabled";
 
 	/**
+	 * Property used by the Gradle plugin to determine whether this build is a Quick Build setup build (ADFA-4128). When {@code true}, the plugin generates the test-app shell: proxy activities from the merged manifest, the quick-build runtime dependency, and the class-openability transform.
+	 */
+	public static final String PROPERTY_QUICK_BUILD_ENABLED = "cotg.quickbuild.enabled";
+
+	/**
+	 * The path to the Quick Build runtime AAR file, injected into the test app like the LogSender AAR.
+	 */
+	public static final String PROPERTY_QUICK_BUILD_RUNTIME_AAR = "cotg.quickbuild.runtimeAar";
+
+	/**
 	 * Property to enable or disable <code>LogSender</code> in the project. Value can be <code>true</code> or <code>false</code>.
 	 */
 	public static final String PROPERTY_LOG_SENDER_ENABLED = "androidide.logsender.isEnabled";

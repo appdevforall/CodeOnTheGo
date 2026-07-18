@@ -87,6 +87,19 @@ pebble = "4.1.1"
 
 [libraries]
 
+# Quick Build daemon (ADFA-4128): Kotlin Build Tools API incremental engine
+kotlin-buildToolsApi = { module = "org.jetbrains.kotlin:kotlin-build-tools-api", version.ref = "kotlin" }
+kotlin-buildToolsImpl = { module = "org.jetbrains.kotlin:kotlin-build-tools-impl", version.ref = "kotlin" }
+# Compose compiler plugin matched to the daemon's compiler; staged next to the daemon
+# jar on device and passed as -Xplugin when the user project uses Compose.
+kotlin-composeCompilerPluginEmbeddable = { module = "org.jetbrains.kotlin:kotlin-compose-compiler-plugin-embeddable", version.ref = "kotlin" }
+# Compose runtime the daemon's compose compile tests resolve a classpath from
+# (classes.jar is extracted from the AAR at build time; never shipped). The -android
+# artifact directly: the KMP umbrella redirects via available-at, which a
+# non-transitive configuration will not follow.
+composeRuntimeDaemonTests = { module = "androidx.compose.runtime:runtime-android", version = "1.7.3" }
+ow2-asm = { module = "org.ow2.asm:asm", version = "9.7.1" }
+
 # ktlint ruleset for Jetpack Compose (used by spotless via customRuleSets)
 compose-rules-ktlint = { module = "io.nlopez.compose.rules:ktlint", version.ref = "composeRulesKtlint" }
 
