@@ -34,6 +34,7 @@ import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider;
 import com.itsaky.androidide.utils.Environment;
 import com.itsaky.androidide.utils.IoUtilsKt;
+import com.itsaky.androidide.utils.SelfSignedCertUtils;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
@@ -47,20 +48,12 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.SecureRandom;
-import java.security.Security;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.cert.X509v3CertificateBuilder;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.jetbrains.annotations.Contract;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -196,30 +189,21 @@ public class ToolsManager {
 
 			LOG.debug("Generating keystore at: {}", keystorePath);
 
-
 			String storePassword = generateRandomPassword(Environment.KEYSTORE_PWD_LEN);
 
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+			KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
 			keyGen.initialize(Environment.KEYSTORE_KEY_SIZE);
 			KeyPair keyPair = keyGen.generateKeyPair();
 
 			Date now = new Date();
 			Date expiry = new Date(now.getTime() + Environment.KEYSTORE_EXPIRY_5YRS);
 
-			X500Name issuer = new X500Name(generateIssuerDN());
-			X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
-					issuer,
+			X509Certificate certificate = SelfSignedCertUtils.generateSelfSignedCert(
+					keyPair,
+					generateIssuerDN(),
 					BigInteger.valueOf(System.currentTimeMillis()),
 					now,
-					expiry,
-					issuer,
-					keyPair.getPublic());
-
-			ContentSigner signer = new JcaContentSignerBuilder("SHA256WithRSAEncryption")
-					.build(keyPair.getPrivate());
-
-			X509Certificate certificate = new JcaX509CertificateConverter()
-					.getCertificate(certBuilder.build(signer));
+					expiry);
 
 			KeyStore keyStore = KeyStore.getInstance("PKCS12");
 			keyStore.load(null, null);
