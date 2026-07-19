@@ -36,9 +36,11 @@ import io.sentry.SentryOptions
 import org.slf4j.LoggerFactory
 
 /**
- * Enriches every Sentry event with app-specific diagnostic context (SELinux
- * labels, boot mode, install location, signing certificate, active plugins,
- * release/ABI/device posture).
+ * Enriches every crash event sent to GlitchTip with app-specific diagnostic
+ * context (SELinux labels, boot mode, install location, signing certificate,
+ * active plugins, release/ABI/device posture). GlitchTip is the backend; the
+ * `io.sentry` SDK is the client we report through (GlitchTip speaks the Sentry
+ * protocol), so the event types below are the SDK's.
  *
  * The context is attached through a single [EventProcessor] registered in
  * [io.sentry.android.core.SentryAndroid.init]. Running at capture time means a
@@ -56,9 +58,8 @@ import org.slf4j.LoggerFactory
  *
  * @author Hal Eisen
  */
-object SentryDiagnosticsContext {
-
-	private val log = LoggerFactory.getLogger(SentryDiagnosticsContext::class.java)
+object GlitchTipDiagnosticsContext {
+	private val log = LoggerFactory.getLogger(GlitchTipDiagnosticsContext::class.java)
 
 	/** Process/boot start stamp, used to compute the direct-boot locked duration. */
 	private val bootElapsedStartMs = SystemClock.elapsedRealtime()
@@ -102,12 +103,17 @@ object SentryDiagnosticsContext {
 		// DeviceProtectedApplicationLoader, which is reachable in direct boot.
 		startedInDirectBoot = runCatching { !IDEApplication.instance.isUserUnlocked }.getOrDefault(false)
 
-		options.addEventProcessor(object : EventProcessor {
-			override fun process(event: SentryEvent, hint: Hint): SentryEvent {
-				runCatching { enrich(event) }.onFailure { log.warn("Failed to enrich Sentry event", it) }
-				return event
-			}
-		})
+		options.addEventProcessor(
+			object : EventProcessor {
+				override fun process(
+					event: SentryEvent,
+					hint: Hint,
+				): SentryEvent {
+					runCatching { enrich(event) }.onFailure { log.warn("Failed to enrich GlitchTip event", it) }
+					return event
+				}
+			},
+		)
 	}
 
 	/**
@@ -129,7 +135,8 @@ object SentryDiagnosticsContext {
 			buildMap {
 				runCatching { SELinuxUtils.getContext() }.getOrNull()?.let { put("process_context", it) }
 				runCatching { SELinuxUtils.getFileContext(app.filesDir.absolutePath) }
-					.getOrNull()?.let { put("file_context", it) }
+					.getOrNull()
+					?.let { put("file_context", it) }
 				runCatching { seInfo }.getOrNull()?.let { put("seinfo", it) }
 			}
 		}
@@ -155,18 +162,21 @@ object SentryDiagnosticsContext {
 		// ⑤ Active plugins (enabled + loaded) with version and recent crash count.
 		context(event, "active_plugins") {
 			val pm = PluginManager.getInstance() ?: return@context null
-			val plugins = pm.getAllPlugins()
-				.filter { it.isEnabled && it.isLoaded }
-				.map { info ->
-					mapOf(
-						"id" to info.metadata.id,
-						"version" to info.metadata.version,
-						"min_ide_version" to info.metadata.minIdeVersion,
-						"crash_count" to runCatching {
-							pm.crashTracker.getCrashCount(info.metadata.id)
-						}.getOrDefault(0),
-					)
-				}
+			val plugins =
+				pm
+					.getAllPlugins()
+					.filter { it.isEnabled && it.isLoaded }
+					.map { info ->
+						mapOf(
+							"id" to info.metadata.id,
+							"version" to info.metadata.version,
+							"min_ide_version" to info.metadata.minIdeVersion,
+							"crash_count" to
+								runCatching {
+									pm.crashTracker.getCrashCount(info.metadata.id)
+								}.getOrDefault(0),
+						)
+					}
 			mapOf("count" to plugins.size, "plugins" to plugins)
 		}
 
@@ -187,17 +197,25 @@ object SentryDiagnosticsContext {
 	}
 
 	/** Sets a single tag, guarded so a failing collector drops only that tag. */
-	private inline fun tag(event: SentryEvent, key: String, value: () -> String?) {
+	private inline fun tag(
+		event: SentryEvent,
+		key: String,
+		value: () -> String?,
+	) {
 		runCatching { value()?.let { event.setTag(key, it) } }
-			.onFailure { log.debug("Sentry diagnostics: dropped tag '{}'", key, it) }
+			.onFailure { log.debug("GlitchTip diagnostics: dropped tag '{}'", key, it) }
 	}
 
 	/**
 	 * Attaches a structured context group, guarded so a failing collector drops
 	 * only that group. Empty/null maps are skipped.
 	 */
-	private inline fun context(event: SentryEvent, key: String, value: () -> Map<String, Any?>?) {
+	private inline fun context(
+		event: SentryEvent,
+		key: String,
+		value: () -> Map<String, Any?>?,
+	) {
 		runCatching { value()?.takeIf { it.isNotEmpty() }?.let { event.contexts.put(key, it) } }
-			.onFailure { log.debug("Sentry diagnostics: dropped context '{}'", key, it) }
+			.onFailure { log.debug("GlitchTip diagnostics: dropped context '{}'", key, it) }
 	}
 }
