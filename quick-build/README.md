@@ -1,24 +1,55 @@
 # Quick Build (ADFA-4128)
 
 Live-reload for user projects: tap the lightning-bolt button once and CoGo installs a
-generated **test app**; from then on every save hot-reloads in ~1–2 s with no install.
+generated **test app**; from then on every save hot-reloads with no install — measured
+p50 0.87 s build / ~1.0–1.1 s save-to-reload across all 71 measured code edits
+(mid-spec test phone, minimal Kotlin app; `corpus/results/phase1-gates-a56/`).
 Invariant: **the test app never silently runs stale code** — every edit either
-hot-reloads or visibly falls back to a real Gradle build. Full design:
-`docs/product/plans/2026-07-16_ADFA-4128_live-reload-v1/plan.md` (wrapper repo).
+hot-reloads or visibly falls back to a real Gradle build. The repo-level boundary decision is
+[ADR 0010](../docs/adr/0010-quick-build-fast-path-boundary.md); design history lives in
+Jira ticket ADFA-4128.
 
 The whole loop runs ON DEVICE: edit → watch → compile → dex → deploy → reload happen on
 the phone inside/alongside CoGo. No desktop component is part of the feature.
+
+## How a save becomes a reload
+
+```mermaid
+sequenceDiagram
+    participant W as ProjectWatcher
+    participant O as BuildOrchestrator
+    participant D as quickbuild-daemon
+    participant S as Deploy service (CoGo)
+    participant T as Test app (runtime)
+    W->>O: changed files (coalesced batch)
+    Note over O: ChangeClassifier -> BuildRoute<br/>(code / resources / assets / mixed / full-Gradle / no-op)
+    alt fast path (code / resources / assets / mixed)
+        O->>D: compile / dex / relink ops (stdio JSON)
+        D-->>O: payload (generation N+1)
+        O->>S: deploy
+        S->>T: payload fds over uid-checked AIDL
+        Note over T: swap InMemoryDexClassLoader +<br/>resource table, recreate activities
+    else full-Gradle route (manifest, deps, native, processor input)
+        O->>O: rebaseline: real setup build;<br/>reinstall only if app bytes changed
+    end
+```
+
+A compile error takes neither branch: no payload is produced, the test app keeps
+running the last good generation, and `onBuildStatus` drives its error overlay (see
+below). **Hand-back** is bidirectional: an invalidated session falls back to a real
+Gradle build, and any completed Standard Gradle build (CoGo's normal Run-button build)
+reseeds a live session's baseline.
 
 ## Pieces
 
 | Piece | Where | What |
 |---|---|---|
-| Domain model | `:quick-build` `domain/` | pure-JVM: orchestrator (coalescing, never-lose-pending), tier classifier, session reducer, generation counter |
+| Domain model | `:quick-build` `domain/` | pure-JVM: orchestrator (coalescing, never-lose-pending), change classifier (`ChangeClassifier` -> `BuildRoute`), session reducer, generation counter |
 | Setup build | `:gradle-plugin` `QuickBuildPlugin` | real Gradle build, once per baseline: generates the test app from the merged manifest |
 | Runtime | `:quickbuild-runtime` | Java-only AAR inside the test app: binds to CoGo, receives payload fds, hot-reloads |
-| Daemon | `:quickbuild-daemon` | JVM child process on the bundled JDK: BTA incremental Kotlin compile, d8, aapt2 |
+| Daemon | `:quickbuild-daemon` | JVM child process on the bundled JDK: incremental Kotlin compile via BTA (the Kotlin Build Tools API), d8, aapt2 |
 | Deploy service | `:quick-build` `service/` | bound service in CoGo; payload as ParcelFileDescriptors, uid-checked |
-| Run statistics | `:quick-build` `domain/QuickBuildMetricsSink` | per-build metrics port (route, change-set size/kB, duration, invalidations, rebaseline cost); the app wires a Firebase sink (`analytics/quickbuild/`) emitting `quick_build_{started,completed,invalidated,rebaseline}` |
+| Run statistics | `:quick-build` `domain/QuickBuildMetricsSink` | per-build metrics port; see decision 9 (the app wires a Firebase sink, `analytics/quickbuild/`) |
 
 ## Design decisions
 
@@ -28,8 +59,9 @@ Gradle, correct on the covered edit classes rather than universally** — is
 decisions, each with its why and cost:
 
 1. **Builds trigger on file save (watcher), not on a tap.** The loop's value is
-   removing interaction entirely: save -> running app in ~1.0-1.1 s, zero taps (the
-   standard path costs a tap + three dialogs). The lightning button starts/stops a
+   removing interaction entirely: save -> running app in ~1.0-1.1 s with zero taps, vs
+   a tap + three dialogs on the standard path (both measured:
+   `corpus/results/phase1-gates-a56/summary.md`). The lightning button starts/stops a
    session; it never triggers individual builds. Consequence: in-progress code is a
    normal input, so compile errors are ordinary flow (error-only overlay), and the
    watcher filters build outputs/temp files so junk writes don't trigger builds.
@@ -44,22 +76,91 @@ decisions, each with its why and cost:
    ParcelFileDescriptors; the exported host service gates every call on the uid
    PackageManager reports for the test app. No sockets, no world-readable files.
 5. **Compilation lives in a separate warm daemon process** (pure JVM on the bundled
-   JDK, stdio JSON protocol). Isolates ~540 MB RSS and the crash domain from the IDE;
-   keeps the compiler warm (the biggest latency lever). That RSS is the main low-spec
-   risk.
+   JDK, stdio JSON protocol). Isolates the compiler's memory (537 MB RSS over a 28-min
+   soak on a mid-spec phone; `corpus/results/phase1-gates-a56/`) and its crash domain
+   from the IDE; keeps the compiler warm (the biggest latency lever). That RSS is the
+   main low-spec risk.
 6. **Hot deploys load by generation via `InMemoryDexClassLoader`.** No APK install per
    edit; install only when the setup build changes the app's bytes (hash-checked).
 7. **Rebaseline is the one fallback, and hand-back is bidirectional.** Every untrusted
    state converges on a full setup-build rebaseline; any completed Standard Gradle
    build also reseeds a live session, so the two build paths interleave safely.
-8. **Everything is gated behind the experiments flag.** No flag, no behavior change;
-   the release bar for lifting the gate is a product decision in the ticket docs.
+8. **Everything is gated behind the experiments flag**
+   (`FeatureFlags.isExperimentsEnabled`; see "Running it on a device" below). No flag,
+   no behavior change; the bar for lifting the gate is a product decision tracked in
+   ADFA-4128.
 9. **Run statistics exist to prioritize, not to impress.** Events carry change mix,
    route, duration, outcome under a `(qb_session_id, qb_build_id)` join key, to replace
    assumed edit-type frequencies with measured ones before optimizing anything hard.
 10. **The corpus lives in-repo; third-party source never does** — synthetic apps are
     checked in with oracles and results; real apps are pinned by `vendor.json` and
     fetched into a gitignored cache (`corpus/README.md`).
+
+## Known limitations (v1)
+
+- **Gradle 9+ projects: the setup build fails before Quick Build even starts.** CoGo's
+  init-script plugin injection throws `UnknownPluginException` under Gradle 9.x — a
+  `gradle-plugin` defect, not quick-build-specific. Evidence + isolation:
+  `corpus/README.md`, sora-editor finding 1.
+- **Modules with bidirectional Kotlin <-> Java references can't fast-compile.** The
+  daemon compiles Kotlin then Java; a real reference cycle across the language boundary
+  fails in either order. Common in mature codebases. Evidence: `corpus/README.md`,
+  sora-editor finding 2.
+- **Edits touching kapt/KSP input always rebaseline** (Room etc.) — annotation-processor
+  correctness needs a real build (the ADR 0010 boundary).
+- **Anything bound to the real `applicationId` needs a Standard Run**: Firebase, Maps
+  API keys, OAuth/Sign-In, FCM push, verified app links, billing (ADR 0010,
+  `.quickbuild` coexistence).
+- **API 28/29 resource swaps take a degraded path** that is unit-tested but not yet
+  device-verified (see the scope note under "Test-app architecture").
+- **Resource edits on real CoGo projects currently fail at relink** (open bug):
+  CoGo's LogSenderPlugin injects `@bool/logsender_enabled` into every debug manifest,
+  and the session's hot-relink resource set doesn't include that AAR's resources, so
+  aapt2 fails on any resource edit. Never-stale held (failure surfaced, app kept the
+  last good generation), and corpus relinks pass on-device — the gap is the CoGo-side
+  resource closure, not the daemon. Evidence: `corpus/results/phase1-gates-a56/`,
+  product issue 1.
+- **A failed relink wedges the session**: the dirty resource delta never clears, so
+  even subsequent pure code edits re-fail until a gradle-file touch forces a
+  rebaseline (product issue 2, same results dir). The rebaseline itself costs ~7-8 s
+  warm / ~17 s cold on a minimal project (measured there).
+
+## Running it on a device
+
+Prerequisite: a CoGo debug build from this branch installed on an Android test phone
+(arm-only: `:app:assembleV8Debug` for arm64) — Quick Build has not shipped in any
+release. Note the `:app` build needs the gitignored, team-provided
+`app/google-services.json` (Firebase config); external contributors without it
+currently can't build `:app` — an onboarding gap that is tracked outside this module.
+
+With CoGo installed, Quick Build ships dark behind the experiments flag: create a file
+named `CodeOnTheGo.exp` in the device's `Download/` folder (the mechanism is
+`utils/FeatureFlags.kt` in `:common`) and restart CoGo. With the flag on, a
+lightning-bolt button appears next to Run in the editor toolbar; tapping it starts a
+Quick Build session for the open project — the first start runs the setup build,
+installs the generated test app (OS install dialogs apply this once), and spawns the
+daemon. From then on, saving any file triggers the loop above; tapping the button again
+stops the session.
+
+## Verifying changes
+
+- **JVM suites**: `:quick-build:test`, `:quickbuild-daemon:test`,
+  `:quickbuild-runtime:test`, plus the setup-build tests in `:gradle-plugin`. The root
+  build sets `ignoreFailures = true` on test tasks — read the test-report XML/HTML
+  under `<module>/build/test-results/`, don't trust `BUILD SUCCESSFUL`.
+- **Classification changes**: `ChangeClassifierTest.kt` in `:quick-build` is the
+  route contract — a changeset routed wrong breaks the never-stale invariant, so new
+  file patterns need cases there first.
+- **Compile-pipeline changes**: run the host corpus matrix (`corpus/README.md`) and
+  commit the results dir. Correctness = the two oracles (recompiled-class bounds +
+  output equivalence), not timings.
+- **A new edit class or route needs all three**: a classifier test, a corpus edit
+  declaring `expected.route`, and — if it produces a deploy — an on-device walk that
+  checks the overlay/fallback behavior, not just the happy path. Route execution
+  (mapping a `BuildRoute` to daemon ops + a deploy) lives in
+  `service/QuickBuildExecutorImpl.kt` — a genuinely new route touches it too.
+- **Latency claims cite a results dir** under `corpus/results/`, or say "not yet
+  measured".
 
 ## Test-app architecture (the classloading contract)
 
@@ -83,8 +184,11 @@ ONLY in the payload dex:
   payload dex). Manifest carries superset permissions + the user's icon/label;
   applicationId gets a `.quickbuild` suffix so test app and real app coexist.
 - v1 scope: activities only (no Service/Receiver/Provider proxying), default
-  `Application` class, API 28+ (resource reloads on 28/29 take the degraded
-  `addAssetPath` path, plan B5), debug + D8 only (D3).
+  `Application` class, debug builds + D8 only. Device floor: **API 28+** — 30+ gets the
+  full-fidelity `ResourcesLoader` resource swap; 28/29 take a degraded `addAssetPath`
+  path (`ResourceSwapStrategy` in the runtime; unit-tested, not yet device-verified).
+  The payload dex targets min-api 30 (`QuickBuildPlugin.MIN_PAYLOAD_API`) to skip
+  desugaring; the dex format it emits (039) loads on 28+.
 
 ## Deploy metadata JSON (`IQuickBuildTarget.onPayload`)
 
@@ -96,7 +200,13 @@ ONLY in the payload dex:
 }
 ```
 
-## Build status JSON (`IQuickBuildTarget.onBuildStatus`, plan A1)
+`reason` mirrors the build route, except `forced`: a deploy from an explicit user tap
+with no pending changes (rebuild of the current sources). Encoder:
+`service/QuickBuildExecutorImpl.kt` (CoGo); parser: `DeployMetadata.java` (runtime).
+The AIDL contract (`IQuickBuildHost` / `IQuickBuildTarget`) lives at
+`quickbuild-runtime/src/main/aidl/`.
+
+## Build status JSON (`IQuickBuildTarget.onBuildStatus`)
 
 A compile error never produces a payload, so this message is how the running test app
 learns a build failed (its overlay then says it still runs the last working version;
@@ -113,7 +223,7 @@ both directions of the version skew are safe.
 
 Encoder: `service/BuildStatusJson.kt` (CoGo); parser: `BuildStatus.java` (runtime).
 
-## Tap-to-jump + app-switcher gesture (plan A1/A3)
+## Tap-to-jump + return gesture
 
 - Overlay tap on a build failure -> explicit intent
   `com.itsaky.androidide.quickbuild.action.JUMP_TO_ERROR` (extras: FILE, LINE, COLUMN;
@@ -131,8 +241,8 @@ One request in flight at a time (the orchestrator serializes). Requests:
 
 ```json
 {"id": 1, "op": "configure", "projectRoot": "...", "classpath": ["..."], "outDir": "...",
- "aapt2": "/path/to/aapt2", "d8Jar": "/path/to/r8.jar", "androidJar": "...",
- "compilerPlugins": ["/optional/kotlin/compiler/plugin.jar"]}
+ "aapt2": "/path/to/aapt2", "d8Jar": "/path/to/d8.jar", "androidJar": "...",
+ "minApi": 30, "compilerPlugins": ["/optional/kotlin/compiler/plugin.jar"]}
 {"id": 2, "op": "compile", "allSources": ["..."], "changedFiles": ["..."]}
 {"id": 3, "op": "dex", "classesDirs": ["..."]}
 {"id": 4, "op": "relink", "resDirs": ["..."], "manifest": "..."}
@@ -142,21 +252,41 @@ One request in flight at a time (the orchestrator serializes). Requests:
 
 Responses: `{"id": N, "ok": true, ...op-specific...}` or
 `{"id": N, "ok": false, "diagnostics": [{"severity": "ERROR", "message": "...",
-"file": "...", "line": 7, "column": 13}]}`. The daemon never exits on a build error;
-it exits on `shutdown`, EOF on stdin, or a fatal internal error (exit code != 0, which
-CoGo treats as daemon death → respawn per the session model).
+"file": "...", "line": 7, "column": 13}]}`. `minApi` defaults to 30 (the payload
+floor), and a repeated `configure` replaces the daemon's session state — there is no
+separate "reconfigure" op. The daemon never exits on a build error; it exits on
+`shutdown`, EOF on stdin, or a fatal internal error (exit code != 0, which CoGo treats
+as daemon death → respawn per the session model below).
 
 BTA incremental gotchas (re-derived from the ADFA-4128 spike, load-bearing):
 `SourcesChanges.Known` required (`ToBeCalculated` falls back to full compile); the
-shrunk snapshot MUST be exactly `<rootProjectDir>/shrunk-classpath-snapshot.bin`;
+shrunk snapshot — the BTA's compact record of classpath ABI that incremental
+invalidation reads — MUST be exactly `<rootProjectDir>/shrunk-classpath-snapshot.bin`;
 runtime needs `kotlinx-coroutines-core-jvm` + `trove4j`; pass ALL sources as changed on
 the first build to seed IC caches; only set `assureNoClasspathSnapshotsChanges(true)`
 after the shrunk snapshot exists.
 
+## Session model
+
+One sealed state type (`domain/QuickBuildSession.kt`): `Idle` -> `Prewarming` (eager
+setup build at project open — no install, no daemon) -> `Provisioning` (setup build +
+test-app install + daemon spawn) -> `Ready` <-> `Building` -> `Deployed`, plus two
+off-ramps: `Invalidated` (manifest/gradle/external change — needs a full Gradle
+rebaseline) and `Degraded` (daemon died; respawn + re-seed in progress). A compile
+error is NOT a state change: the session stays `Ready` at the old generation with
+`lastFailure` set — the test app never moved, which is the never-stale invariant in
+state form. `service/QuickBuildSessionManager.kt` turns reducer effects into real work
+(provisioning, daemon respawn, Gradle rebaseline). When diagnosing on device, start
+from which state the session is in and whether the overlay surfaced a failure —
+converging on a rebaseline is intended behavior for any untrusted state, not a bug.
+One known exception that does NOT converge on its own: a failed relink wedges the
+session at the failed resource delta (Known limitations above); the unwedge today is
+any gradle-file touch, which routes to rebaseline.
+
 ## Compose projects
 
 When the user project uses Jetpack Compose, hot compiles need the Compose compiler
-plugin or every `@Composable` body miscompiles to a plain function. The wiring (D3):
+plugin or every `@Composable` body miscompiles to a plain function. The wiring:
 
 - `QuickBuildPlugin` detects Compose in `finalizeDsl` (`buildFeatures.compose` or the
   `org.jetbrains.kotlin.plugin.compose` plugin) and writes `composeEnabled` into
@@ -171,7 +301,8 @@ plugin or every `@Composable` body miscompiles to a plain function. The wiring (
   incremental compile. The compose runtime classes needed on the compile classpath
   already arrive via `setup.json`'s `classpath` (the variant compile classpath).
 
-Verified host-side (corpus app `compose-kotlin` + daemon unit tests): the transform
-runs under the BTA incremental path, recompile sets stay minimal, and the compiler's
-runtime-version check accepts even the old `androidx.compose.runtime:runtime:1.3.0`
-the offline `localMvnRepository` bundles.
+Verified host-side (corpus app `compose-kotlin` + daemon unit tests; full-corpus run
+`corpus/results/20260719T181349Z/`): the transform runs under the BTA incremental
+path, recompile sets stay minimal, and the compiler's runtime-version check accepts
+even the old `androidx.compose.runtime:runtime:1.3.0` the offline
+`localMvnRepository` bundles.

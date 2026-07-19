@@ -21,8 +21,8 @@ import java.io.File
 import java.io.FileNotFoundException
 
 /**
- * Turns a debuggable application build into the Quick Build setup build (ADFA-4128, plan
- * 2.2): a one-per-baseline real Gradle build that produces the installable test app.
+ * Turns a debuggable application build into the Quick Build setup build (ADFA-4128): a
+ * one-per-baseline real Gradle build that produces the installable test app.
  *
  * Applied by [AndroidIDEGradlePlugin] when
  * [com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_ENABLED] is
@@ -48,9 +48,10 @@ class QuickBuildPlugin : Plugin<Project> {
 			"com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory"
 
 		/**
-		 * Quick Build is gated to API 30+ devices (plan 2.4, ResourcesLoader), so the payload
-		 * dex never needs to run below 30 - dexing at that floor also avoids desugaring
-		 * against the runtime classpath.
+		 * Floor for the payload dex, NOT the device floor: Quick Build supports API 28+
+		 * (28/29 take the runtime's degraded ResourceSwapStrategy path). Dexing at 30 skips
+		 * desugaring against the runtime classpath, and the dex format it emits (039) loads
+		 * on 28+.
 		 */
 		const val MIN_PAYLOAD_API = 30
 	}

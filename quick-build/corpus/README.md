@@ -2,8 +2,8 @@
 
 Drives the `quickbuild-daemon` jar against every app in `apps/`, applying each
 app's edits in order and checking the result against what the edit declares it
-should do. This is Part 1's test matrix (plan.md "1.2 Edit-type x changeset
-matrix") made runnable, not just a table.
+should do. This is the edit-type x changeset test matrix made runnable, not
+just a table.
 
 ## Layout
 
@@ -29,7 +29,7 @@ environment gap, never a failure) until it has been materialized.
 Apps compile against **only** `android.jar` + `kotlin-stdlib` (plain
 `android.app.Activity` / `android.widget` views, no androidx) so the daemon's
 compile op has a minimal, controlled classpath. The **large-real-app tier**
-(`sora-editor-lib` -- see "Large-real-app tier (D4)" below) is the one
+(`sora-editor-lib` -- see "Large-real-app tier" below) is the one
 exception: it needs `--classpath-extra` for androidx jars, since it's real
 upstream code from an actual open-source app rather than a synthetic
 minimal-classpath fixture.
@@ -50,10 +50,13 @@ quick builds handle X?"), and it is deliberately agent-friendly - every
 input is a plain file, every result is a markdown/json artifact. The loop:
 
 1. **Add an app** (new scenario): copy the closest `apps/<name>/`, adjust
-   `app.json` + sources. Keep the minimal classpath (android.jar +
-   kotlin-stdlib) unless the scenario genuinely needs more. To test against
-   a real open-source app, don't copy its code in -- write a `vendor.json`
-   pinning `{repo, commit, files}` (see `sora-editor-lib`) and let
+   `app.json` + sources. `app.json` fields: `applicationId`, `entryActivity`,
+   `minSdk` (30 across the corpus), `language` (`"kotlin"` / `"java"`), and
+   optional `"compose": true`. Keep the minimal classpath (android.jar +
+   kotlin-stdlib) unless the scenario genuinely needs more
+   (`--classpath-extra`, below). To test against a real open-source app,
+   don't copy its code in -- write a `vendor.json` pinning
+   `{repo, commit, files}` (see `sora-editor-lib`) and let
    `fetch_vendored.py` materialize it.
 2. **Add an edit** (new change-type): new `edits/<NN>-<class>/` dir with
    `meta.json` (see schema below) + the replacement files. Edits apply
@@ -94,7 +97,11 @@ jar version must match the daemon's bundled Kotlin compiler (the
 Studio on macOS, `~/Android/Sdk` via this project's flox env -- check both if
 `$ANDROID_HOME`/`$ANDROID_SDK_ROOT` aren't set). Run needs a working `java` on
 PATH (this project's daemon needs JDK 17: `flox activate -d flox/local`, per
-the repo's CLAUDE.md, gets you one).
+the repo's CLAUDE.md, gets you one). On a fresh clone the `--kotlin-stdlib`
+discovery command finds nothing (`~/.gradle/caches` is empty until a Gradle
+build has run) -- after `stageDaemon` (next paragraph, needed anyway) a stdlib
+jar is sitting right in `quickbuild-daemon/build/daemon/`, or point the flag at
+any kotlin-stdlib jar.
 
 **Build the runnable daemon layout with `./gradlew :quickbuild-daemon:stageDaemon`**
 (what the run command's `--daemon-jar` path points at). The jar's manifest
@@ -126,6 +133,8 @@ All flags except `--android-jar`/`--kotlin-stdlib` are optional:
 - No `--d8-jar` -> dex is never exercised (off by default anyway; see below).
 - No `--compose-plugin-jar` or no `--compose-runtime-jar` -> every app with
   `"compose": true` in its `app.json` is `SKIPPED` (baseline + all edit rows).
+- `--classpath-extra <jar>` (repeatable) adds jars to every app's compile
+  classpath -- only the large-real-app tier needs it (androidx; see below).
 - `--apps hello-kotlin,hello-java` restricts the run to named apps.
 - `--exercise-dex` additionally calls `dex` once after each app's baseline
   compile, informational only (not gating).
@@ -134,29 +143,37 @@ Exit code: **0 unless some assertion actually `FAILED`** (`SKIPPED` never
 fails the run -- it means a prerequisite was missing, not that behavior was
 wrong).
 
+The latest full-corpus host run -- all 11 apps / 40 edits, compose and
+vendored tiers included -- is `results/20260719T181349Z/` (40/40 PASS, 0
+skipped). Older results dirs predate some apps; each run's Config section
+records exactly what it covered.
+
 ## Running it on-device
 
 `harness/run_matrix_device.py` drives the SAME daemon protocol against a
-physical device instead of a host JVM (real ARM compile/dex/relink timings --
-the actual plan.md 1.5 gate surface). The daemon launches via `adb shell
-run-as <pkg> sh <launcher-script>` (stdin/stdout flow through adb transparently
--- `DaemonClient` needs no changes). R class generation still runs on the
-HOST (its output bytecode, JVM target 17, is portable to the device's JDK 21)
-and gets pushed over; everything else -- the corpus tree, each edit's changed
-files, the daemon's `classesDir` for CRC snapshotting -- is pushed/pulled
-per-app under `/sdcard/qb-corpus` and `/sdcard/qb-work` (plain `adb`, no
-`run-as` needed -- confirmed readable by the app's own process too, since the
-launcher script itself lives under `/sdcard`). Requires a prior one-time
-device setup (daemon jars + a launcher script staged under the app's private
-storage, and the launcher pushed to `/sdcard/qb-daemon.sh`) -- not automated
-by this script.
+physical Android test phone instead of a host JVM (real ARM compile/dex/relink
+timings -- the surface the release benchmark gates measure). The daemon
+launches via `adb shell run-as <pkg> sh <launcher-script>` (stdin/stdout flow
+through adb transparently -- `DaemonClient` needs no changes). R class
+generation still runs on the HOST (its output bytecode, JVM target 17, is
+portable to the device's JDK 21) and gets pushed over; everything else -- the
+corpus tree, each edit's changed files, the daemon's `classesDir` for CRC
+snapshotting -- is pushed/pulled per-app under `/sdcard/qb-corpus` and
+`/sdcard/qb-work` (plain `adb`, no `run-as` needed -- confirmed readable by
+the app's own process too, since the launcher script itself lives under
+`/sdcard`). Requires a prior one-time device setup, not automated by this
+script: push the `stageDaemon` output (daemon jar + deps) to the device, and
+push a launcher script to `/sdcard/qb-daemon.sh` that runs the jar with the
+app's bundled JDK -- the exact on-device layout the script expects (tool
+paths, app-private vs shared storage) is documented in
+`run_matrix_device.py`'s module docstring.
 
 ```bash
 python3 quick-build/corpus/harness/run_matrix_device.py \
   --host-android-jar "$(find "$ANDROID_HOME/platforms" -maxdepth 1 -name 'android-*' | sort -V | tail -1)/android.jar" \
   --host-aapt2 "$(find "$ANDROID_HOME/build-tools" -maxdepth 1 -name '*.*.*' | sort -V | tail -1)/aapt2" \
   --host-javac "$(dirname "$(which javac)")/javac" \
-  --serial RZGYC24640P
+  --serial <device-serial>
 ```
 
 Device SDK tool paths (android.jar/aapt2/d8.jar/kotlin-stdlib) default to the
@@ -168,9 +185,11 @@ if a different device/build changes them. Results land in a sibling
 compile-time comparison table (`--host-results <matrix.json>` to compute the
 host side from a specific run instead of the hardcoded default).
 
-**Scope note:** this measures `compile`/`relink`/`reconfigure` op latency only
--- it does not exercise `dex` or a real deploy/reload, so it's a partial signal
-toward the plan's edit-to-reload release gate, not a full certification of it.
+**Scope note:** this measures `compile`/`relink` op latency (plus the repeated
+`configure` reported as `reconfigureMs` -- there is no separate "reconfigure"
+op in the protocol) -- it does not exercise `dex` or a real deploy/reload, so
+it's a partial signal toward the edit-to-reload release gate, not a full
+certification of it.
 
 ## meta.json schema
 
@@ -205,6 +224,11 @@ toward the plan's edit-to-reload release gate, not a full certification of it.
 - `recompiledClasses: null` / `behavioralMarker: null` -> that assertion is
   skipped for the edit (used for `resources`/`assets`/`fallback` rows, which
   never touch the compiled class set).
+- `editClass` is free-form EXCEPT for one convention: a `resources`/`mixed`
+  edit that ADDS a resource must contain `add` in its `editClass` (e.g.
+  `string-add`) -- that substring is what triggers per-edit `R` regeneration
+  (see Limitations). Name it `new-string` and the `R` class silently goes
+  stale, which then looks like a daemon bug.
 
 ## The two oracles
 
@@ -227,40 +251,42 @@ toward the plan's edit-to-reload release gate, not a full certification of it.
 - **Host-JVM only.** The daemon runs as a JVM child process on the machine
   running this script, not on-device. It exercises the same BTA/d8/aapt2
   pipeline the real quick-build feature uses, but timing numbers here are not
-  the release benchmark gates (plan.md 1.5) -- those need the device pool.
+  the release benchmark gates (per-edit hot-reload latency and the vs-standard-
+  Run ratio, measured on real phones -- see `results/phase1-gates-a56/`); those
+  need devices.
 - **The `R` class is generated by this harness, not the daemon.** The daemon's
   `relink` op only extracts `resources.arsc` (see
   `quickbuild-daemon/.../res/Aapt2Link.kt`) -- it never emits `R.java`. Every
   corpus app references `R.*` (even just via
   `android:label="@string/app_name"` in the manifest), so `compile` cannot
-  succeed without one. This harness shells out to `aapt2 compile` + `aapt2
-  link --java` directly (bypassing the daemon protocol) to produce `R.java`,
-  then `javac`-precompiles it into a classes dir added to `configure`'s
-  `classpath` -- **not** passed as a compile source. The harness keeps this
-  classpath route even though `IncrementalCompiler` now also gives kotlinc
-  visibility into raw `.java` sources for symbol resolution (added for the D2
-  mixed-language corpus entry, see `mixed-lang/`): R.java is regenerated
-  per-edit rather than being a stable project source, so precompiling it once
-  onto the classpath is simpler than re-passing a freshly generated `.java`
-  file as a source every time. This is a **harness-only convenience**, not
-  part of the protocol under test -- if it fails (aapt2 or
-  javac missing, or a genuine resource error in the app), the affected app's
-  baseline is marked `SKIPPED` with a clear reason, not `FAILED`, and its
-  edits are skipped too. (Concretely hit once while building this harness: an
-  unescaped apostrophe in a corpus app's `strings.xml` failed `aapt2 compile`
-  -- a real corpus content bug, not a harness bug; see the run's `gaps`.)
-  The harness only regenerates + re-`configure`s the `R` class for an edit
-  whose `editClass` names a resource being ADDED (e.g. `string-add`) -- a
-  value-only edit (`string-value`, `color-value`, `layout-edit`) leaves every
-  existing `R.*` field name intact, so there's nothing to regenerate. The
-  reconfigure's wall time is reported separately as `reconfigureMs`, not
-  folded into `compileMs`. Regenerating `R` from scratch does NOT guarantee
-  stable resource IDs across edits (aapt2 isn't asked to preserve prior IDs)
-  -- a real `R` field changing value is itself a compile-time constant change
-  to every referencing class, same fan-out shape as a Kotlin `const val`.
-  This harness does not attempt to correct for that; treat an unexpected
-  extra class in `recompiledClasses` for a resource-add edit as a possible
-  R-id-churn artifact before assuming it's a daemon bug.
+  succeed without one. Four things to know:
+  - **How**: the harness shells out to `aapt2 compile` + `aapt2 link --java`
+    directly (bypassing the daemon protocol) to produce `R.java`, then
+    `javac`-precompiles it into a classes dir added to `configure`'s
+    `classpath` -- **not** passed as a compile source. This is a
+    **harness-only convenience**, not part of the protocol under test -- if it
+    fails (aapt2/javac missing, or a genuine resource error in the app), the
+    app's baseline is `SKIPPED` with a clear reason, not `FAILED`, and its
+    edits are skipped too.
+  - **Why classpath, not source**: `IncrementalCompiler` does give kotlinc
+    visibility into raw `.java` sources for symbol resolution (added for the
+    mixed-language corpus entry, `mixed-lang/`), but R.java is regenerated
+    per-edit rather than being a stable project source, so precompiling it
+    once onto the classpath is simpler than re-passing a fresh `.java` source
+    every time.
+  - **When it regenerates**: only for an edit whose `editClass` names a
+    resource being ADDED (e.g. `string-add`) -- a value-only edit
+    (`string-value`, `color-value`, `layout-edit`) leaves every existing
+    `R.*` field name intact, so there's nothing to regenerate. The
+    reconfigure's wall time is reported separately as `reconfigureMs`, not
+    folded into `compileMs`.
+  - **R-id churn caveat**: regenerating `R` from scratch does NOT guarantee
+    stable resource IDs across edits (aapt2 isn't asked to preserve prior
+    IDs) -- a real `R` field changing value is itself a compile-time constant
+    change to every referencing class, same fan-out shape as a Kotlin
+    `const val`. Treat an unexpected extra class in `recompiledClasses` for a
+    resource-add edit as a possible R-id-churn artifact before assuming it's
+    a daemon bug.
 - **`dex` is not part of the per-edit assertions.** The protocol has a `dex`
   op, but recompiled-class-set correctness is checked directly against
   `compile`'s `classesDir`, not the dexed output. `--exercise-dex` smoke-tests
@@ -279,25 +305,18 @@ toward the plan's edit-to-reload release gate, not a full certification of it.
   `configure` again (with a fresh `outDir`), which the daemon documents as
   replacing its session state -- cheaper than restarting the JVM per app, and
   matches the "warm daemon" spirit of the real feature.
-- **Device benchmarks are a separate concern.** Plan.md 1.5's release gates
-  (p50/p95 latency vs Gradle Run, memory/thermal on a device pool) are out of
-  scope for this harness; it answers "is the result correct", not "is it fast
-  enough on an A56".
-- **Not exercised by this harness at all** (untested paths, list per the
-  team's verification convention): a daemon jar with the correct runnable
-  manifest (Main-Class + Class-Path, produced by the `:quickbuild-daemon`
-  Gradle module's `daemonJar` task) was not available to actually invoke
-  end-to-end in the environment this harness was built in (no working `java`
-  on PATH without `flox activate`, and the jar on disk at the time was built
-  by the default `jar` task, which has no `Main-Class`/`Class-Path` manifest
-  entries and so fails immediately with `no main manifest attribute`) --
-  verified logically via a protocol-compatible Python stand-in instead (same
-  wire format, fake compilation) to confirm the runner's dispatch, CRC
-  diffing, assertion bounds, marker search, and output-equivalence comparison
-  are all wired correctly. A real run against the real daemon jar is the
-  first thing to do once `java -jar <daemonJar>` responds to `ping`.
+- **Device benchmarks are a separate concern.** The release gates (p50/p95
+  hot-reload latency vs a standard Gradle Run, memory/thermal, measured on
+  real phones -- `results/phase1-gates-a56/`) are out of scope for this
+  harness; it answers "is the result correct", not "is it fast enough on a
+  phone".
+- **The runner's own logic has a second layer of coverage**: a
+  protocol-compatible fake daemon (same wire format, fake compilation) was
+  used during development to verify dispatch, CRC diffing, assertion bounds,
+  marker search, and the output-equivalence comparison independently of the
+  real daemon. The checked-in `results/` dirs are real-daemon runs.
 
-## Large-real-app tier (D4)
+## Large-real-app tier
 
 Two apps were picked (Bryan, 2026-07-16) to stress-test the daemon against
 real, unmodified-in-spirit open-source Android code instead of hand-written
@@ -386,7 +405,7 @@ originally planned:**
 | `02-sample-app-ui` | `corpusharness/SampleText.kt` (scaffolding) | sample-app UI edit -- a displayed constant, `const val` inlining forces the caller to recompile too |
 | `03-cross-module` | `text/LineSeparator.java` + `text/ContentLine.java` | cross-module edit -- new editor-core API (`LineSeparator.describe()`) consumed by a new caller method in the same edit |
 
-**Result: 3/3 PASS, output-equivalence PASS** (host, this session,
+**Result: 3/3 PASS, output-equivalence PASS** (host run, 2026-07-17:
 `results/20260717T061943Z/`, part of the full 7-app / 26-edit host run:
 26/26 PASS, no regression on the existing 6 synthetic apps). Compile-op
 latency across the 3 edits: 61ms, 103ms, 52ms -- **p50 = 61ms, p95 = 103ms**
@@ -414,22 +433,10 @@ comment.
 
 ### StreetComplete
 
-**Blocked -- could not read the prerequisite blocker analysis.** The task
-instructed reading `ADFA-2745` (StreetComplete-in-CoGo blocker analysis, DONE
-2026-02) via the local `jira` CLI before attempting anything. That CLI is
-not installed/configured in this session's environment (no `jira` binary on
-PATH, no `JIRA_HOST`/`JIRA_USER`/`JIRA_API_TOKEN`), and no Atlassian MCP
-authenticated for this project was available either. Per the task's own
-instruction ("if blockers clearly gate the build, stop there"), the safe
-default when the blocker analysis is unreadable is to **not** attempt the
-build blind -- StreetComplete is real-world large (~10 build modules, custom
-Gradle conventions, likely native/NDK deps for its mapping stack) and a
-guess-and-check attempt without reading the known prior findings risks
-burning the same time this session already spent on sora-editor's two real
-blockers, for a worse-informed result. **Not attempted.** Next step for
-whoever picks this back up: read `jira issue view ADFA-2745` first (that CLI
-works fine on the main dev box per this repo's CLAUDE.md), then decide
-whether its blockers gate the setup build the same way, and whether the two
-sora-editor findings above (Gradle 9 setup-build wall; Kotlin<->Java cycle
-compile wall) already predict the answer once its Gradle/AGP version and
-language mix are known.
+**Not attempted yet.** Whoever picks it up: read the prior blocker analysis
+first (Jira `ADFA-2745`, StreetComplete-in-CoGo, done 2026-02), then check
+whether the two sora-editor findings above already predict the outcome -- a
+Gradle 9+ wrapper pin hits the setup-build wall, and bidirectional
+Kotlin<->Java references hit the compile wall -- once its Gradle/AGP version
+and language mix are known. Bring it in the same way as sora-editor:
+`vendor.json` + `fetch_vendored.py`, never vendored source.

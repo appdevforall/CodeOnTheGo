@@ -1,0 +1,623 @@
+===== SAMPLE 0 22:59:50 =====
+--- meminfo com.itsaky.androidide ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 732802025 Realtime: 740991665
+
+** MEMINFO in pid 24610 [com.itsaky.androidide] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap    51592    51564       12    25171    53464    99736    59443    35781
+  Dalvik Heap    77940    77892        4     4629    80000   126804    77652    49152
+ Dalvik Other    25973    18992        0      308    33308                           
+        Stack     3292     3292        0     1540     3300                           
+       Ashmem      160       48        0        0      864                           
+    Other dev       16        0       16        0      632                           
+     .so mmap    10072      124     8236      900    41052                           
+    .jar mmap     1881        0      248        0    32152                           
+    .apk mmap    62672      140    55000      552    75064                           
+    .ttf mmap       21        0        0        0      152                           
+    .dex mmap       23        0        4        0      812                           
+    .oat mmap       28        0        0        0     1192                           
+    .art mmap     4940     4716        4     3703    20036                           
+   Other mmap     8818     4104      632        0    13844                           
+   EGL mtrack    40576    40576        0        0    40576                           
+    GL mtrack    20464    20464        0        0    20464                           
+      Unknown     6594     6196      388     2321     7384                           
+        TOTAL   354186   228108    64544    39124   424296   226540   137095    84933
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:    82612                         100036
+--- meminfo com.demo.quickbuild ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 732802402 Realtime: 740992041
+
+** MEMINFO in pid 26360 [com.demo.quickbuild] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap     3206     3192        0    16610     5132    32648    24070     3832
+  Dalvik Heap     1404     1364        0     4004     3576    28281     3705    24576
+ Dalvik Other     1442      832        4     1056     2504                           
+        Stack      296      296        0      448      304                           
+       Ashmem       10        0        0        0      568                           
+    Other dev        4        0        4        0      620                           
+     .so mmap      938       72        4      118    26068                           
+    .jar mmap     1026        0        0        0    28548                           
+    .apk mmap       96        0        0        0     1204                           
+    .ttf mmap       18        0        0        0      136                           
+    .dex mmap      249      240        0     2088     1012                           
+    .oat mmap       18        0        0        0     1068                           
+    .art mmap     2792     2572        0     5399    18280                           
+   Other mmap     3073     2632        0        0     4256                           
+    GL mtrack     3908     3908        0        0     3908                           
+      Unknown      329      324        0      234     1172                           
+        TOTAL    48766    15432       12    29957    98356    60929    27775    28408
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:     3936                          21856
+         Native Heap:     3192                           5132
+--- daemon processes RSS ---
+quickbuild-daemon pid=25654 VmRSS:	  435772 kB
+tooling-api pid=24882 VmRSS:	   99168 kB
+gradle-daemon-main pid=25005 VmRSS:	  390360 kB
+KotlinCompileDaemon pid=25370 VmRSS:	  401452 kB
+--- thermalservice ---
+IsStatusOverride: false
+ThermalEventListeners:
+	callbacks: 3
+	killed: false
+	broadcasts count: -1
+ThermalStatusListeners:
+	callbacks: 6
+	killed: false
+	broadcasts count: -1
+Thermal Status: 0
+Cached temperatures:
+	Temperature{mValue=0.0, mType=2, mName=SUBBAT, mStatus=0}
+	Temperature{mValue=34.5, mType=0, mName=AP, mStatus=0}
+	Temperature{mValue=25.4, mType=5, mName=PA, mStatus=0}
+	Temperature{mValue=20.2, mType=2, mName=BAT, mStatus=0}
+	Temperature{mValue=20.9, mType=4, mName=USB, mStatus=0}
+	Temperature{mValue=26.2, mType=3, mName=SKIN, mStatus=0}
+HAL Ready: true
+HAL connection:
+	ThermalHAL AIDL 3  connected: yes
+===== SAMPLE 1 23:04:36 =====
+--- meminfo com.itsaky.androidide ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 733088485 Realtime: 741278125
+
+** MEMINFO in pid 24610 [com.itsaky.androidide] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap    48652    48624       12    24839    50524    99364    53229    41684
+  Dalvik Heap    86508    84440        0     4334    90720   126688    77536    49152
+ Dalvik Other    25694    18664        0      308    33084                           
+        Stack     2584     2584        0     1536     2592                           
+       Ashmem      160       48        0        0      864                           
+    Other dev       16        0       16        0      632                           
+     .so mmap     9981      124     8152      900    40956                           
+    .jar mmap     1892        0      252        0    32276                           
+    .apk mmap    61859      140    54772      552    73500                           
+    .ttf mmap       21        0        0        0      152                           
+    .dex mmap       17        0        4        0      800                           
+    .oat mmap       27        0        0        0     1180                           
+    .art mmap     5072     4720        0     3695    20364                           
+   Other mmap     8858     4104      656        0    13896                           
+   EGL mtrack    40576    40576        0        0    40576                           
+    GL mtrack    20464    20464        0        0    20464                           
+      Unknown     6590     6208      372     2317     7380                           
+        TOTAL   357452   230696    64236    38481   429960   226052   130765    90836
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:    89160                         111084
+--- meminfo com.demo.quickbuild ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 733088864 Realtime: 741278503
+
+** MEMINFO in pid 26360 [com.demo.quickbuild] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap     7422     7408        0    13897     9336    34044    25055     4342
+  Dalvik Heap     7475     5340       48       54    11872    27843     3267    24576
+ Dalvik Other     3209     1504       76      404     5300                           
+        Stack      420      420        0      324      428                           
+       Ashmem       10        0        0        0      568                           
+    Other dev        4        0        4        0      620                           
+     .so mmap      962       84        8      106    26192                           
+    .jar mmap     1107        0        0        0    29160                           
+    .apk mmap       96        0        0        0     1204                           
+    .ttf mmap       18        0        0        0      136                           
+    .dex mmap      257      240        8     2080     1020                           
+    .oat mmap       18        0        0        0     1068                           
+    .art mmap     3159     2800        0     5168    18884                           
+   Other mmap     4541     4076        0        0     5748                           
+    GL mtrack     3908     3908        0        0     3908                           
+      Unknown      401      340       56      225     1244                           
+        TOTAL    55265    26120      200    22258   116688    61887    28322    28918
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:     8140                          30756
+         Native Heap:     7408                           9336
+--- daemon processes RSS ---
+quickbuild-daemon pid=25654 VmRSS:	  490564 kB
+tooling-api pid=24882 VmRSS:	   99168 kB
+gradle-daemon-main pid=25005 VmRSS:	  397632 kB
+KotlinCompileDaemon pid=25370 VmRSS:	  401260 kB
+--- thermalservice ---
+IsStatusOverride: false
+ThermalEventListeners:
+	callbacks: 3
+	killed: false
+	broadcasts count: -1
+ThermalStatusListeners:
+	callbacks: 6
+	killed: false
+	broadcasts count: -1
+Thermal Status: 0
+Cached temperatures:
+	Temperature{mValue=0.0, mType=2, mName=SUBBAT, mStatus=0}
+	Temperature{mValue=34.5, mType=0, mName=AP, mStatus=0}
+	Temperature{mValue=25.4, mType=5, mName=PA, mStatus=0}
+	Temperature{mValue=20.2, mType=2, mName=BAT, mStatus=0}
+	Temperature{mValue=20.9, mType=4, mName=USB, mStatus=0}
+	Temperature{mValue=26.2, mType=3, mName=SKIN, mStatus=0}
+HAL Ready: true
+HAL connection:
+	ThermalHAL AIDL 3  connected: yes
+===== SAMPLE 2 23:09:42 =====
+--- meminfo com.itsaky.androidide ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 733394564 Realtime: 741584204
+
+** MEMINFO in pid 24610 [com.itsaky.androidide] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap    42820    42792       12    31630    44692    99620    53368    41576
+  Dalvik Heap    87000    84920        0     4358    91200   126772    77620    49152
+ Dalvik Other    25719    18656        0      308    33144                           
+        Stack     2548     2548        0     1572     2556                           
+       Ashmem      160       48        0        0      864                           
+    Other dev       17        0       16        0      632                           
+     .so mmap     7883      120     3664      902    40936                           
+    .jar mmap     1962        0      276        0    32224                           
+    .apk mmap    62109      140    55308      552    73348                           
+    .ttf mmap       23        0        0        0      152                           
+    .dex mmap       17        0        8        0      796                           
+    .oat mmap       27        0        0        0     1176                           
+    .art mmap     5058     4708        0     3707    20352                           
+   Other mmap     8872     4104      656        0    13912                           
+   EGL mtrack    40576    40576        0        0    40576                           
+    GL mtrack    20464    20464        0        0    20464                           
+      Unknown     6325     6144      172     2381     7116                           
+        TOTAL   356990   225220    60112    45410   424140   226392   130988    90728
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:    89628                         111552
+--- meminfo com.demo.quickbuild ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 733394980 Realtime: 741584619
+
+** MEMINFO in pid 26360 [com.demo.quickbuild] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap     9357     9344        0    10561    11264    34300    23143     6661
+  Dalvik Heap     7110     4956       56       30    11488    27815     3239    24576
+ Dalvik Other     4125     1604        4      404     7108                           
+        Stack      424      424        0      320      432                           
+       Ashmem       10        0        0        0      568                           
+    Other dev        5        0        4        0      620                           
+     .so mmap     1152       88      144      106    26352                           
+    .jar mmap     1162        0        0        0    29136                           
+    .apk mmap      121        0        0        0     1204                           
+    .ttf mmap       20        0        0        0      136                           
+    .dex mmap      257      240        8     2080     1020                           
+    .oat mmap       18        0        0        0     1064                           
+    .art mmap     3161     2804        0     5163    18888                           
+   Other mmap     4541     4076        0        0     5748                           
+    GL mtrack     1860     1860        0        0     1860                           
+      Unknown      449      388       56      225     1288                           
+        TOTAL    52661    25784      272    18889   118176    62115    26382    31237
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:     7760                          30376
+         Native Heap:     9344                          11264
+--- daemon processes RSS ---
+quickbuild-daemon pid=25654 VmRSS:	  498244 kB
+tooling-api pid=24882 VmRSS:	   87008 kB
+gradle-daemon-main pid=25005 VmRSS:	  385372 kB
+KotlinCompileDaemon pid=25370 VmRSS:	  395140 kB
+--- thermalservice ---
+IsStatusOverride: false
+ThermalEventListeners:
+	callbacks: 3
+	killed: false
+	broadcasts count: -1
+ThermalStatusListeners:
+	callbacks: 6
+	killed: false
+	broadcasts count: -1
+Thermal Status: 0
+Cached temperatures:
+	Temperature{mValue=0.0, mType=2, mName=SUBBAT, mStatus=0}
+	Temperature{mValue=34.5, mType=0, mName=AP, mStatus=0}
+	Temperature{mValue=25.4, mType=5, mName=PA, mStatus=0}
+	Temperature{mValue=20.2, mType=2, mName=BAT, mStatus=0}
+	Temperature{mValue=20.9, mType=4, mName=USB, mStatus=0}
+	Temperature{mValue=26.2, mType=3, mName=SKIN, mStatus=0}
+HAL Ready: true
+HAL connection:
+	ThermalHAL AIDL 3  connected: yes
+===== SAMPLE 3 23:14:49 =====
+--- meminfo com.itsaky.androidide ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 733701059 Realtime: 741890698
+
+** MEMINFO in pid 24610 [com.itsaky.androidide] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap    39066    39036       12    35443    40936    99620    53480    41493
+  Dalvik Heap    86834    84760        0     4423    91040   126768    77616    49152
+ Dalvik Other    25701    18648        0      308    33116                           
+        Stack     2528     2528        0     1592     2536                           
+       Ashmem      160       48        0        0      864                           
+    Other dev        5        0        4        0      620                           
+     .so mmap     7788      120     3568      908    40840                           
+    .jar mmap     1974        0      260        0    32224                           
+    .apk mmap    61918      140    54824      552    73520                           
+    .ttf mmap       23        0        0        0      152                           
+    .dex mmap       15        0        4        0      796                           
+    .oat mmap       28        0        0        0     1176                           
+    .art mmap     5046     4688        0     3728    20332                           
+   Other mmap     8873     4104      656        0    13924                           
+   EGL mtrack    40576    40576        0        0    40576                           
+    GL mtrack    20464    20464        0        0    20464                           
+      Unknown     6353     6112      232     2413     7144                           
+        TOTAL   356719   221224    59560    49367   420260   226388   131096    90645
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:    89448                         111372
+--- meminfo com.demo.quickbuild ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 733701456 Realtime: 741891095
+
+** MEMINFO in pid 26360 [com.demo.quickbuild] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap     9771     9756        0    10142    11676    34300    23144     6660
+  Dalvik Heap     7077     4932       52       31    11464    27815     3239    24576
+ Dalvik Other     4125     1600        4      404     7112                           
+        Stack      436      436        0      316      444                           
+       Ashmem       10        0        0        0      568                           
+    Other dev        5        0        4        0      620                           
+     .so mmap     1158       88      144      110    26352                           
+    .jar mmap     1165        0        0        0    29136                           
+    .apk mmap      123        0        0        0     1204                           
+    .ttf mmap       20        0        0        0      136                           
+    .dex mmap      257      240        8     2080     1020                           
+    .oat mmap       18        0        0        0     1064                           
+    .art mmap     3167     2804        0     5164    18888                           
+   Other mmap     4541     4076        0        0     5748                           
+    GL mtrack     1860     1860        0        0     1860                           
+      Unknown      458      388       64      225     1296                           
+        TOTAL    52663    26180      276    18472   118588    62115    26383    31236
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:     7736                          30352
+         Native Heap:     9756                          11676
+--- daemon processes RSS ---
+quickbuild-daemon pid=25654 VmRSS:	  524544 kB
+tooling-api pid=24882 VmRSS:	   47712 kB
+gradle-daemon-main pid=25005 VmRSS:	  253492 kB
+KotlinCompileDaemon pid=25370 VmRSS:	  227760 kB
+--- thermalservice ---
+IsStatusOverride: false
+ThermalEventListeners:
+	callbacks: 3
+	killed: false
+	broadcasts count: -1
+ThermalStatusListeners:
+	callbacks: 6
+	killed: false
+	broadcasts count: -1
+Thermal Status: 0
+Cached temperatures:
+	Temperature{mValue=0.0, mType=2, mName=SUBBAT, mStatus=0}
+	Temperature{mValue=34.5, mType=0, mName=AP, mStatus=0}
+	Temperature{mValue=25.4, mType=5, mName=PA, mStatus=0}
+	Temperature{mValue=20.2, mType=2, mName=BAT, mStatus=0}
+	Temperature{mValue=20.9, mType=4, mName=USB, mStatus=0}
+	Temperature{mValue=26.2, mType=3, mName=SKIN, mStatus=0}
+HAL Ready: true
+HAL connection:
+	ThermalHAL AIDL 3  connected: yes
+===== SAMPLE 4 23:19:55 =====
+--- meminfo com.itsaky.androidide ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 734007643 Realtime: 742197282
+
+** MEMINFO in pid 24610 [com.itsaky.androidide] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap    38915    38892        4    35620    40784    99620    53573    41429
+  Dalvik Heap    86931    84852        0     4423    91132   126828    77676    49152
+ Dalvik Other    25707    18644        0      308    33132                           
+        Stack     2528     2528        0     1592     2536                           
+       Ashmem      161       48        0        0      864                           
+    Other dev        5        0        4        0      620                           
+     .so mmap     7800      120     3568      909    40840                           
+    .jar mmap     2012        0      260        0    32224                           
+    .apk mmap    62390      140    55584      552    73640                           
+    .ttf mmap       23        0        0        0      152                           
+    .dex mmap       17        0        8        0      796                           
+    .oat mmap       30        0        0        0     1176                           
+    .art mmap     5051     4688        0     3728    20332                           
+   Other mmap     8885     4104      656        0    13936                           
+   EGL mtrack    40576    40576        0        0    40576                           
+    GL mtrack    20464    20464        0        0    20464                           
+      Unknown     6353     6112      232     2413     7144                           
+        TOTAL   357393   221168    60316    49545   420348   226448   131249    90581
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:    89540                         111464
+--- meminfo com.demo.quickbuild ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 734008013 Realtime: 742197652
+
+** MEMINFO in pid 26360 [com.demo.quickbuild] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap     9796     9780        0    10086    11696    34300    23145     6660
+  Dalvik Heap     7084     4932       56       31    11464    27815     3239    24576
+ Dalvik Other     4125     1600        4      404     7112                           
+        Stack      452      452        0      300      460                           
+       Ashmem       11        0        0        0      568                           
+    Other dev        5        0        4        0      620                           
+     .so mmap     1164       88      144      111    26352                           
+    .jar mmap     1196        0        0        0    29136                           
+    .apk mmap      125        0        0        0     1204                           
+    .ttf mmap       20        0        0        0      136                           
+    .dex mmap      257      240        8     2080     1020                           
+    .oat mmap       18        0        0        0     1064                           
+    .art mmap     3178     2808        0     5160    18892                           
+   Other mmap     4542     4076        0        0     5748                           
+    GL mtrack     1860     1860        0        0     1860                           
+      Unknown      467      388       72      226     1304                           
+        TOTAL    52698    26224      288    18398   118636    62115    26384    31236
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:     7740                          30356
+         Native Heap:     9780                          11696
+--- daemon processes RSS ---
+quickbuild-daemon pid=25654 VmRSS:	  540104 kB
+tooling-api pid=24882 VmRSS:	   42080 kB
+gradle-daemon-main pid=25005 VmRSS:	  210552 kB
+KotlinCompileDaemon pid=25370 VmRSS:	  223952 kB
+--- thermalservice ---
+IsStatusOverride: false
+ThermalEventListeners:
+	callbacks: 3
+	killed: false
+	broadcasts count: -1
+ThermalStatusListeners:
+	callbacks: 6
+	killed: false
+	broadcasts count: -1
+Thermal Status: 0
+Cached temperatures:
+	Temperature{mValue=0.0, mType=2, mName=SUBBAT, mStatus=0}
+	Temperature{mValue=34.5, mType=0, mName=AP, mStatus=0}
+	Temperature{mValue=25.4, mType=5, mName=PA, mStatus=0}
+	Temperature{mValue=20.2, mType=2, mName=BAT, mStatus=0}
+	Temperature{mValue=20.9, mType=4, mName=USB, mStatus=0}
+	Temperature{mValue=26.2, mType=3, mName=SKIN, mStatus=0}
+HAL Ready: true
+HAL connection:
+	ThermalHAL AIDL 3  connected: yes
+===== SAMPLE 5 23:25:02 =====
+--- meminfo com.itsaky.androidide ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 734314430 Realtime: 742504070
+
+** MEMINFO in pid 24610 [com.itsaky.androidide] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap    38961    38940        4    35614    40832    99620    53664    41367
+  Dalvik Heap    87019    84944        0     4422    91224   126948    77796    49152
+ Dalvik Other    25735    18664        0      308    33168                           
+        Stack     2528     2528        0     1592     2536                           
+       Ashmem      152       32        0        0      864                           
+    Other dev        5        0        4        0      620                           
+     .so mmap     4343      120      364      904    37160                           
+    .jar mmap     1896        0      232        0    32132                           
+    .apk mmap    48991      140    42272      552    60188                           
+    .ttf mmap       23        0        0        0      152                           
+    .dex mmap       15        0        4        0      796                           
+    .oat mmap       28        0        0        0     1176                           
+    .art mmap     5034     4684        0     3731    20328                           
+   Other mmap     8797     4104      572        0    13856                           
+   EGL mtrack    40576    40576        0        0    40576                           
+    GL mtrack    23536    23536        0        0    23536                           
+      Unknown     6345     6112      224     2413     7136                           
+        TOTAL   343520   224380    43676    49536   406280   226568   131460    90519
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:    89628                         111552
+--- meminfo com.demo.quickbuild ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 734314850 Realtime: 742504489
+
+** MEMINFO in pid 26360 [com.demo.quickbuild] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap     9809     9796        0    10069    11712    34300    23143     6661
+  Dalvik Heap     7078     4932       52       30    11464    27815     3239    24576
+ Dalvik Other     4125     1600        4      404     7112                           
+        Stack      452      452        0      300      460                           
+       Ashmem       10        0        0        0      568                           
+    Other dev        5        0        4        0      620                           
+     .so mmap     1147       88      144      106    26352                           
+    .jar mmap     1137        0        0        0    29120                           
+    .apk mmap      122        0        0        0     1204                           
+    .ttf mmap       20        0        0        0      136                           
+    .dex mmap      257      240        8     2080     1020                           
+    .oat mmap       18        0        0        0     1064                           
+    .art mmap     3164     2808        0     5159    18892                           
+   Other mmap     4541     4076        0        0     5748                           
+    GL mtrack     1860     1860        0        0     1860                           
+      Unknown      466      388       72      225     1304                           
+        TOTAL    52584    26240      284    18373   118636    62115    26382    31237
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:     7740                          30356
+         Native Heap:     9796                          11712
+--- daemon processes RSS ---
+quickbuild-daemon pid=25654 VmRSS:	  535852 kB
+tooling-api pid=24882 VmRSS:	   42080 kB
+gradle-daemon-main pid=25005 VmRSS:	  210416 kB
+KotlinCompileDaemon pid=25370 VmRSS:	  225872 kB
+--- thermalservice ---
+IsStatusOverride: false
+ThermalEventListeners:
+	callbacks: 3
+	killed: false
+	broadcasts count: -1
+ThermalStatusListeners:
+	callbacks: 6
+	killed: false
+	broadcasts count: -1
+Thermal Status: 0
+Cached temperatures:
+	Temperature{mValue=0.0, mType=2, mName=SUBBAT, mStatus=0}
+	Temperature{mValue=34.5, mType=0, mName=AP, mStatus=0}
+	Temperature{mValue=25.4, mType=5, mName=PA, mStatus=0}
+	Temperature{mValue=20.2, mType=2, mName=BAT, mStatus=0}
+	Temperature{mValue=20.9, mType=4, mName=USB, mStatus=0}
+	Temperature{mValue=26.2, mType=3, mName=SKIN, mStatus=0}
+HAL Ready: true
+HAL connection:
+	ThermalHAL AIDL 3  connected: yes
+===== SAMPLE final 23:27:56 =====
+--- meminfo com.itsaky.androidide ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 734488743 Realtime: 742678383
+
+** MEMINFO in pid 24610 [com.itsaky.androidide] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap    38987    38968        4    35613    40860    99620    53461    41600
+  Dalvik Heap    81453    79388        0     4421    85668   126900    77748    49152
+ Dalvik Other    25739    18668        0      308    33172                           
+        Stack     2528     2528        0     1592     2536                           
+       Ashmem      151       32        0        0      864                           
+    Other dev        5        0        4        0      620                           
+     .so mmap     4185      120      332      900    36876                           
+    .jar mmap     1792        0      224        0    32108                           
+    .apk mmap    47750      140    41132      552    58868                           
+    .ttf mmap       23        0        0        0      152                           
+    .dex mmap       14        0        4        0      796                           
+    .oat mmap       24        0        0        0     1176                           
+    .art mmap     5023     4684        0     3731    20328                           
+   Other mmap     8797     4104      572        0    13856                           
+   EGL mtrack    40576    40576        0        0    40576                           
+    GL mtrack    20464    20464        0        0    20464                           
+      Unknown     6229     6112      108     2413     7020                           
+        TOTAL   333270   215784    42380    49530   395940   226520   131209    90752
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:    84072                         105996
+--- meminfo com.demo.quickbuild ---
+Applications Memory Usage (in Kilobytes):
+Uptime: 734489156 Realtime: 742678795
+
+** MEMINFO in pid 26360 [com.demo.quickbuild] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap     9272     9260        0    10067    11176    34300    22174     7630
+  Dalvik Heap     5722     3588       52       29    10120    27246     2670    24576
+ Dalvik Other     4065     1540        4      404     7052                           
+        Stack      452      452        0      300      460                           
+       Ashmem        9        0        0        0      568                           
+    Other dev        5        0        4        0      620                           
+     .so mmap     1129       88      144      101    26340                           
+    .jar mmap     1085        0        0        0    29116                           
+    .apk mmap      109        0        0        0     1204                           
+    .ttf mmap       20        0        0        0      136                           
+    .dex mmap      256      240        8     2080     1020                           
+    .oat mmap       15        0        0        0     1064                           
+    .art mmap     3151     2808        0     5159    18892                           
+   Other mmap     4541     4076        0        0     5748                           
+    GL mtrack     1860     1860        0        0     1860                           
+      Unknown      417      388       24      225     1256                           
+        TOTAL    50473    24300      236    18365   116632    61546    24844    32206
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:     6396                          29012
+         Native Heap:     9260                          11176
+--- daemon processes RSS ---
+quickbuild-daemon pid=25654 VmRSS:	  537124 kB
+tooling-api pid=24882 VmRSS:	   42080 kB
+gradle-daemon-main pid=25005 VmRSS:	  214500 kB
+KotlinCompileDaemon pid=25370 VmRSS:	  226128 kB
+--- thermalservice ---
+IsStatusOverride: false
+ThermalEventListeners:
+	callbacks: 3
+	killed: false
+	broadcasts count: -1
+ThermalStatusListeners:
+	callbacks: 6
+	killed: false
+	broadcasts count: -1
+Thermal Status: 0
+Cached temperatures:
+	Temperature{mValue=0.0, mType=2, mName=SUBBAT, mStatus=0}
+	Temperature{mValue=34.5, mType=0, mName=AP, mStatus=0}
+	Temperature{mValue=25.4, mType=5, mName=PA, mStatus=0}
+	Temperature{mValue=20.2, mType=2, mName=BAT, mStatus=0}
+	Temperature{mValue=20.9, mType=4, mName=USB, mStatus=0}
+	Temperature{mValue=26.2, mType=3, mName=SKIN, mStatus=0}
+HAL Ready: true
+HAL connection:
+	ThermalHAL AIDL 3  connected: yes

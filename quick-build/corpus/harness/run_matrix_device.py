@@ -55,9 +55,7 @@ HARNESS_DIR = Path(__file__).resolve().parent
 CORPUS_DIR = HARNESS_DIR.parent
 QUICK_BUILD_DIR = CORPUS_DIR.parent
 REPO_ROOT = QUICK_BUILD_DIR.parent
-DEFAULT_DAEMON_JAR = REPO_ROOT / "quickbuild-daemon" / "build" / "libs" / "quickbuild-daemon.jar"
-
-DEFAULT_SERIAL = "RZGYC24640P"
+DEFAULT_DAEMON_JAR = REPO_ROOT / "quickbuild-daemon" / "build" / "daemon" / "quickbuild-daemon.jar"
 DEFAULT_PKG = "com.itsaky.androidide"
 
 
@@ -572,7 +570,7 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     parser.add_argument("--corpus-dir", type=Path, default=CORPUS_DIR / "apps")
     parser.add_argument("--results-dir", type=Path, default=CORPUS_DIR / "results")
     parser.add_argument("--work-dir", type=Path, default=None)
-    parser.add_argument("--serial", default=DEFAULT_SERIAL)
+    parser.add_argument("--serial", required=True, help="adb serial of the Android test phone")
     parser.add_argument("--pkg", default=DEFAULT_PKG)
     parser.add_argument("--daemon-launcher", default=DEVICE_DAEMON_LAUNCHER, help="device path to the daemon launcher script")
     parser.add_argument("--device-android-jar", default=None, help="default: <app-private>/files/home/android-sdk/platforms/android-36/android.jar")

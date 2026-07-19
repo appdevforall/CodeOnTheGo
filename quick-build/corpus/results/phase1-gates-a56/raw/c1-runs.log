@@ -1,0 +1,20 @@
+value-02 gen=13 buildDurationMillis=1054 wallMs=1553
+value-03 gen=14 buildDurationMillis=1099 wallMs=1541
+value-04 gen=15 buildDurationMillis=978 wallMs=1541
+value-05 gen=16 buildDurationMillis=922 wallMs=1504
+method-01 gen=17 buildDurationMillis=1078 wallMs=1561
+method-02 gen=18 buildDurationMillis=931 wallMs=1470
+method-03 gen=19 buildDurationMillis=820 wallMs=1514
+method-04 gen=20 buildDurationMillis=875 wallMs=1618
+method-05 gen=21 buildDurationMillis=914 wallMs=1593
+resource-01 FAILED: relink error 'resource bool/logsender_enabled (aka com.demo.quickbuild:bool/logsender_enabled) not found' in merged manifest (LogSenderPlugin injection); session -> Ready(generation=21, lastFailure=CompileError) - never-stale correctly surfaced
+recovery-01 (code edit after failed relink): build fired but FAILED again with the same relink error - dirty resource set never clears; session wedged at gen 21 until rebaseline
+# --- resumed session (same task, post-crash) ---
+value-06 gen=22 buildDurationMillis=1007 wallMs=1128 (post-rebaseline-1 recovery verify)
+resource-02 FAILED again post-rebaseline: relink 'resource bool/logsender_enabled not found' in merged manifest, 290ms to failure; session Ready(gen22, lastFailure=CompileError); never-stale surfaced. Root cause: LogSenderPlugin injects @bool/logsender_enabled into the merged manifest; the hot relink resource set has no logsender resources. Corpus apps' resource-value relinks PASS on-device (results/20260716T225056Z-device), so the daemon relink itself is fine - the bug is the CoGo-project pipeline (any logsender-enabled project = every debug project).
+value-07 gen=23 buildDurationMillis=854 wallMs=949 (post-rebaseline-2 verify)
+value-08 gen=24 buildDurationMillis=980 wallMs=1084 (C2 quick side)
+value-09 gen=25 buildDurationMillis=968 wallMs=1063
+value-10 gen=26 buildDurationMillis=956 wallMs=1067
+value-11 gen=27 buildDurationMillis=1516 wallMs=1612 (device busy after standard-Run installs)
+# C3 soak adds ~54 more alternating value/method samples - see c3-builds.log

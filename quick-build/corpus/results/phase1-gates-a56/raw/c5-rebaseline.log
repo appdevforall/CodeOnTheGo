@@ -1,0 +1,17 @@
+# C5 rebaseline (full setup rebuild) latency - LemonadeStand on A56, CoGo debug 0716-2140
+# Trigger: append '// c5-*' comment to app/build.gradle.kts on-device (watcher detects
+# GRADLE_CONFIG_CHANGED). Measured InvalidationDetected -> ProvisioningSucceeded from
+# QuickBuildSessionManager logcat timestamps.
+
+run1: 05:25:21.835 InvalidationDetected -> 05:25:38.869 ProvisioningSucceeded = 17.03s
+  (first rebaseline of the session; fired from a Ready(lastFailure=CompileError) state
+   after the wedged resource-edit failure; ~8 min of session idle before it)
+run2: 05:37:50.316 InvalidationDetected -> 05:37:58.466 ProvisioningSucceeded = 8.15s
+  (also recovered the second wedged resource failure; warm Gradle daemon)
+run3: 05:38:58.647 InvalidationDetected -> 05:39:05.795 ProvisioningSucceeded = 7.15s
+  (back-to-back with run2; warm)
+
+# Post-rebaseline recovery verified each time with a code edit that hot-reloaded:
+#  after run1: gen 21 -> 22, buildDurationMillis=1007 (edit 05:36:26.706 -> deployed 05:36:27.834)
+#  after run2: gen 22 -> 23, buildDurationMillis=854
+#  after run3: gen 23 -> 24, buildDurationMillis=980

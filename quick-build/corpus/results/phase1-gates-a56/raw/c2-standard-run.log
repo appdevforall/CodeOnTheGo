@@ -1,0 +1,53 @@
+# C2 standard Run vs Quick Build - LemonadeStand on A56, CoGo debug 0716-2140
+# Edit class: one-line value edit in app/src/main/java/app/payload/Main.kt.
+# Standard Run = CoGo toolbar Run (green outline play, ~132,322): Gradle :app:assembleDebug
+# via tooling API -> PackageInstaller session -> confirm dialog(s) -> launch prompt.
+
+## Quick Build side (same edit class, same device, watcher-triggered, zero taps)
+edit 05:41:19.437 -> BuildStarted 05:41:19.566 -> Deployed gen24 05:41:20.521  build=980ms wall=1.08s
+edit 05:46:01.713 -> Deployed gen25 05:46:02.776                               build=968ms wall=1.06s
+edit 05:48:59.008 -> Deployed gen26 05:49:00.075                               build=956ms wall=1.07s
+edit 05:57:09.881 -> Deployed gen27 05:57:11.493                               build=1516ms wall=1.61s (device busy post-install)
+
+## Standard Run attempts (build phase = Run tap/request -> ApkInstaller "Installing APK")
+run A: tap 05:41:51.115 -> request 05:41:51.148 -> ApkInstaller 05:41:55.925   build=4.78s
+       (install confirm shown; CANCELLED deliberately - investigation detour)
+run B: tap 05:46:20?    -> "BUILD SUCCESSFUL in 4s"; installer confirm was clobbered
+       by an OS "Software update" screen -> Installation failed (environment noise)
+run C: tap 05:49:15.011 -> request 05:49:15.020 -> ApkInstaller 05:49:17.896   build=2.88s
+       -> PackageInstaller confirm displayed 05:49:18.230
+       -> Update tapped 05:49:50.665 (agent latency, excluded)
+       -> Play Protect dialog 05:49:53.277 -> Install-without-scanning 05:50:57.928
+       -> FAILED: INSTALL_FAILED_UPDATE_INCOMPATIBLE (stale com.demo from 07-14
+          release-CoGo install, different signature; environment issue)
+       com.demo uninstalled via adb; fresh install completed in run D
+run D: tap 05:54:23.601 (no source change -> build ~1.0s "813ms") -> installer
+       05:54:24.606 -> confirm -> Play Protect -> installed 05:55:38.667
+       -> CoGo "App installed - launch?" prompt -> Yes 05:56:34.966
+       -> Displayed com.demo/.MainActivity 05:56:35.462 (+455ms)
+run E (clean, MEASURED): edit C2FIN compiled by quick build gen27 first, then:
+       tap 05:57:29.384 -> request 05:57:29.409 -> ApkInstaller 05:57:32.568   build=3.16s
+       -> PENDING_USER_ACTION (confirm dialog) 05:57:32.637
+       -> [agent taps Update 05:57:34.548]
+       -> Play Protect shown; [More details + Install without scanning 05:58:00.141]
+       -> "Package installed successfully!" 05:58:00.696  (0.56s after final confirm)
+       -> CoGo launch prompt; [Yes 05:58:19.388]
+       -> Displayed com.demo/.MainActivity 05:58:19.759 (+334ms, 0.37s after Yes)
+
+## Machine-time comparison (excluding human dialog latency)
+standard Run (run E): 3.16 build + 0.07 dialog-post + 0.56 install-commit + 0.37 launch = ~4.2s
+                      + THREE interactive dialogs (installer confirm, Play Protect, launch prompt)
+                      + app restarts cold (state lost)
+standard Run build phase across runs with a real edit: 2.88 / 3.16 / 4.78s (median 3.16s)
+quick build same class: p50 0.97s build, ~1.05-1.1s wall edit->deployed, ZERO dialogs,
+                      no reinstall, activity recreate only
+
+ratio (machine-only, minimal-size project): 4.2 / 1.07 = 3.9x
+ratio (with 1s/dialog fast human handling, 3 dialogs): 7.2 / 1.07 = 6.7x
+ratio (build-phase only): 3.16 / 0.97 = 3.3x
+
+NOTE: LemonadeStand is a minimal single-module app - the standard path's Gradle
+overhead is at its floor here. Larger corpus apps widen the gap (device matrix:
+fanout const-change quick compile 1.85s vs a full Gradle recompile+package+install
+of a 34-class module). Play Protect re-prompts on EVERY install while unscanned:
+the "one-time popup" framing in B1 is optimistic on Play-Protect-enabled devices.
