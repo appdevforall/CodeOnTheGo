@@ -180,91 +180,103 @@ class ZipRecipeExecutor(
 				if (entry.isDirectory) {
 					outFile.mkdirs()
 				} else {
-					try {
-						outFile.parentFile?.mkdirs()
-
-						if (entry.name.endsWith(TEMPLATE_EXTENSION)) {
-							info(ctx, R.string.template_exec_info_processing, entry.name)
-							val content =
-								try {
-									zip.getInputStream(entry).bufferedReader().use { it.readText() }
-								} catch (e: Exception) {
-									throw e.wrap(ctx, R.string.template_exec_error_read_fail, entry.name)
-								}
-
-							val template =
-								try {
-									pebbleEngine.getTemplate(content)
-								} catch (e: PebbleException) {
-									throw e.wrap(
-										ctx,
-										R.string.template_exec_error_parse_line,
-										entry.name,
-										e.lineNumber,
-										e.message,
-									)
-								} catch (e: Exception) {
-									throw e.wrap(ctx, R.string.template_exec_error_parse, entry.name)
-								}
-
-							val writer = StringWriter()
-							try {
-								template.evaluate(writer, identifiers)
-							} catch (e: PebbleException) {
-								throw e.wrap(
-									ctx,
-									R.string.template_exec_error_evaluate_line,
-									entry.name,
-									e.lineNumber,
-									e.message,
-								)
-							} catch (e: Exception) {
-								throw e.wrap(
-									ctx,
-									R.string.template_exec_error_evaluate,
-									entry.name,
-									e.toString(),
-								)
-							}
-
-							try {
-								outFile.writeText(writer.toString(), Charsets.UTF_8)
-							} catch (e: Exception) {
-								throw e.wrap(
-									ctx,
-									R.string.template_exec_error_write,
-									outFile.absolutePath,
-									e.toString(),
-								)
-							}
-						} else {
-							try {
-								zip.getInputStream(entry).use { input ->
-									outFile.outputStream().use { output ->
-										input.copyTo(output)
-									}
-								}
-							} catch (e: Exception) {
-								throw e.wrap(
-									ctx,
-									R.string.template_exec_error_copy,
-									entry.name,
-									e.toString(),
-								)
-							}
-						}
-					} catch (e: TemplateExecutionException) {
-						throw e
-					} catch (e: Exception) {
-						throw e.wrap(
-							ctx,
-							R.string.template_exec_error_process,
-							entry.name,
-							e.toString(),
-						)
-					}
+					processEntry(ctx, zip, entry, outFile, pebbleEngine, identifiers)
 				}
 			}
+		}
+	}
+
+	private fun processEntry(
+		ctx: Context,
+		zip: ZipFile,
+		entry: ZipEntry,
+		outFile: File,
+		pebbleEngine: PebbleEngine,
+		identifiers: Map<String, Any>,
+	) {
+		try {
+			outFile.parentFile?.mkdirs()
+
+			if (entry.name.endsWith(TEMPLATE_EXTENSION)) {
+				renderTemplateEntry(ctx, zip, entry, outFile, pebbleEngine, identifiers)
+			} else {
+				copyBinaryEntry(ctx, zip, entry, outFile)
+			}
+		} catch (e: TemplateExecutionException) {
+			throw e
+		} catch (e: Exception) {
+			throw e.wrap(ctx, R.string.template_exec_error_process, entry.name, e.toString())
+		}
+	}
+
+	private fun renderTemplateEntry(
+		ctx: Context,
+		zip: ZipFile,
+		entry: ZipEntry,
+		outFile: File,
+		pebbleEngine: PebbleEngine,
+		identifiers: Map<String, Any>,
+	) {
+		info(ctx, R.string.template_exec_info_processing, entry.name)
+
+		val content =
+			try {
+				zip.getInputStream(entry).bufferedReader().use { it.readText() }
+			} catch (e: Exception) {
+				throw e.wrap(ctx, R.string.template_exec_error_read_fail, entry.name)
+			}
+
+		val template =
+			try {
+				pebbleEngine.getTemplate(content)
+			} catch (e: PebbleException) {
+				throw e.wrap(
+					ctx,
+					R.string.template_exec_error_parse_line,
+					entry.name,
+					e.lineNumber,
+					e.message,
+				)
+			} catch (e: Exception) {
+				throw e.wrap(ctx, R.string.template_exec_error_parse, entry.name)
+			}
+
+		val writer = StringWriter()
+		try {
+			template.evaluate(writer, identifiers)
+		} catch (e: PebbleException) {
+			throw e.wrap(
+				ctx,
+				R.string.template_exec_error_evaluate_line,
+				entry.name,
+				e.lineNumber,
+				e.message,
+			)
+		} catch (e: Exception) {
+			throw e.wrap(ctx, R.string.template_exec_error_evaluate, entry.name, e.toString())
+		}
+
+		try {
+			outFile.writeText(writer.toString(), Charsets.UTF_8)
+		} catch (e: Exception) {
+			throw e.wrap(ctx, R.string.template_exec_error_write, outFile.absolutePath, e.toString())
+		}
+	}
+
+	private fun copyBinaryEntry(
+		ctx: Context,
+		zip: ZipFile,
+		entry: ZipEntry,
+		outFile: File,
+	) {
+		try {
+			zip.getInputStream(entry).use { input ->
+				outFile.outputStream().use { output ->
+					input.copyTo(output)
+				}
+			}
+		} catch (e: Exception) {
+			throw e.wrap(ctx, R.string.template_exec_error_copy, entry.name, e.toString())
 		}
 	}
 
