@@ -563,11 +563,18 @@ class ZipRecipeExecutor(
 			warn("Could not adjust permissions on ${tempJar.absolutePath} $e")
 		}
 
-		val optimizedDir =
-			File(
-				Environment.TEMPLATES_DIR,
-				"$DEX_OPT_FOLDER/$basePath",
+		// basePath comes from the archive's templates.json - keep the dex-opt
+		// dir contained the same way outFile is checked against projectRoot.
+		val dexOptRoot = File(Environment.TEMPLATES_DIR, DEX_OPT_FOLDER).canonicalFile
+		val optimizedDir = File(dexOptRoot, basePath).canonicalFile
+
+		if (!optimizedDir.toPath().startsWith(dexOptRoot.toPath())) {
+			error(
+				"Template basePath escapes templates dir: $basePath",
+				IllegalArgumentException(basePath),
 			)
+			return emptyList()
+		}
 
 		if (!optimizedDir.exists() && !optimizedDir.mkdirs()) {
 			error(

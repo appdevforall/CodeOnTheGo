@@ -112,6 +112,26 @@ class ZipRecipeExecutorTest {
 	}
 
 	@Test
+	fun `malicious basePath cannot escape the dex-opt dir`() {
+		Environment.TEMPLATES_DIR = tempFolder.newFolder("ide", "templates")
+		val zip =
+			buildZip(
+				mapOf(
+					"extensions.jar" to "junk",
+					"../../pwned/hello.txt.peb" to "Hello \${{ APP_NAME }}!",
+				),
+			)
+
+		val result = executor(zip, basePath = "../../pwned").execute(recipeExecutor())
+
+		// extension loading is rejected, nothing is created outside dex_opt
+		assertThat(File(tempFolder.root, "ide/pwned").exists()).isFalse()
+		assertThat(result.hasErrorsWarnings).isTrue()
+		// rendering itself still completes
+		assertThat(File(projectDir, "hello.txt").readText()).isEqualTo("Hello TestApp!")
+	}
+
+	@Test
 	fun `existing project dir is left untouched`() {
 		projectDir.mkdirs()
 		val marker = File(projectDir, "marker.txt").apply { writeText("keep") }
@@ -134,7 +154,10 @@ class ZipRecipeExecutorTest {
 		return file
 	}
 
-	private fun executor(zip: File): ZipRecipeExecutor {
+	private fun executor(
+		zip: File,
+		basePath: String = "tpl",
+	): ZipRecipeExecutor {
 		val data =
 			ProjectTemplateData(
 				"TestApp",
@@ -154,7 +177,7 @@ class ZipRecipeExecutorTest {
 				minSdk = Sdk.Lollipop,
 			)
 		val metaJson = TemplateJson(name = "Test", description = null, version = null)
-		return ZipRecipeExecutor({ ZipFile(zip) }, metaJson, mutableMapOf(), "tpl", data, module)
+		return ZipRecipeExecutor({ ZipFile(zip) }, metaJson, mutableMapOf(), basePath, data, module)
 	}
 
 	private fun recipeExecutor(): RecipeExecutor =
