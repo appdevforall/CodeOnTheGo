@@ -48,13 +48,15 @@ fun computeSurroundWithTryCatchEdit(
 
 	val baseIndent =
 		selected.first(String::isNotBlank).takeWhile { it == ' ' || it == '\t' }
-	val body = selected.joinToString("\n") { if (it.isBlank()) it else "\t$it" }
+	val indentUnit = detectIndentUnit(lines)
+	val body =
+		selected.joinToString("\n") { if (it.isBlank()) it else "$indentUnit$it" }
 
 	val newText = buildString {
 		append(baseIndent).append("try {\n")
 		append(body).append('\n')
 		append(baseIndent).append("} catch (e: Exception) {\n")
-		append(baseIndent).append("\te.printStackTrace()\n")
+		append(baseIndent).append(indentUnit).append("e.printStackTrace()\n")
 		append(baseIndent).append("}")
 	}
 
@@ -69,6 +71,13 @@ fun computeSurroundWithTryCatchEdit(
 		),
 		newText = newText,
 	)
+}
+
+/** 4 spaces if the file's first indented line starts with a space, else a tab. */
+private fun detectIndentUnit(lines: List<String>): String {
+	val firstIndented =
+		lines.firstOrNull { it.isNotEmpty() && (it[0] == ' ' || it[0] == '\t') }
+	return if (firstIndented != null && firstIndented[0] == ' ') "    " else "\t"
 }
 
 private fun lineStartIndex(lines: List<String>, line: Int): Int {

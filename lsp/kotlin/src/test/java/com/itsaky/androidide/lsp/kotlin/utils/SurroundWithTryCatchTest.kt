@@ -48,6 +48,21 @@ class SurroundWithTryCatchTest {
 	}
 
 	@Test
+	fun `space-indented file produces a spaces-only body`() {
+		val text = "fun f() {\n    val a = read()\n    process(a)\n}"
+		val edit = computeSurroundWithTryCatchEdit(text, 1, 2)
+		assertThat(edit).isNotNull()
+		assertThat(edit!!.newText).isEqualTo(
+			"    try {\n        val a = read()\n        process(a)\n" +
+				"    } catch (e: Exception) {\n        e.printStackTrace()\n    }"
+		)
+		assertThat(edit.newText).doesNotContain("\t")
+		assertThat(edit.range).isEqualTo(
+			Range(Position(1, 0, 10), Position(2, 14, 43))
+		)
+	}
+
+	@Test
 	fun `whitespace-only span returns null`() {
 		assertThat(computeSurroundWithTryCatchEdit("\n  \n", 0, 1)).isNull()
 	}
