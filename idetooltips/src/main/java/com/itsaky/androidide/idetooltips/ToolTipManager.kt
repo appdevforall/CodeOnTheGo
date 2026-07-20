@@ -35,6 +35,7 @@ import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.toCssHex
 import com.itsaky.androidide.resources.R as ResR
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -131,6 +132,9 @@ object TooltipManager {
 			} catch (e: NoTooltipFoundException) {
 				Log.d(TAG, "No tooltip found for category='$category', tag='$tag'")
 				null
+			} catch (e: CancellationException) {
+				// Don't swallow coroutine cancellation as a "no tooltip" result.
+				throw e
 			} catch (e: Exception) {
 				Log.e(
 					TAG,
