@@ -29,7 +29,8 @@ fun resolveSurroundLines(
  * Wraps lines [startLine]..[endLine] (0-based, inclusive) of [text] in a
  * try/catch block. Whole-line based: columns are ignored and full lines are
  * replaced. Indentation is computed here so the result is correct even without a
- * follow-up formatter. Returns null when the span is blank or out of range.
+ * follow-up formatter. Returns null when the span is blank (a whitespace-only
+ * selection is an intended silent no-op) or out of range.
  */
 fun computeSurroundWithTryCatchEdit(
 	text: String,
