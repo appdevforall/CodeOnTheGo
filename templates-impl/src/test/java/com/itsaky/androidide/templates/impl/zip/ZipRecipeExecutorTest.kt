@@ -22,6 +22,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
+import java.io.IOException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -88,6 +89,26 @@ class ZipRecipeExecutorTest {
 
 		assertThat(thrown).hasMessageThat().contains("zeval.txt.peb")
 		assertThat(projectDir.exists()).isFalse()
+	}
+
+	@Test
+	fun `keystore copy failure does not discard the rendered project`() {
+		Environment.KEYSTORE_RELEASE = tempFolder.newFile("release.keystore")
+		val zip = buildZip(mapOf("tpl/hello.txt.peb" to "Hello \${{ APP_NAME }}!"))
+		val failingCopyExecutor =
+			object : RecipeExecutor by TestRecipeExecutor() {
+				override val context: Context = ApplicationProvider.getApplicationContext()
+
+				override fun copy(
+					source: File,
+					dest: File,
+				): Unit = throw IOException("disk full")
+			}
+
+		val result = executor(zip).execute(failingCopyExecutor)
+
+		assertThat(File(projectDir, "hello.txt").readText()).isEqualTo("Hello TestApp!")
+		assertThat(result.hasErrorsWarnings).isTrue()
 	}
 
 	@Test

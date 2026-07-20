@@ -65,7 +65,6 @@ class ZipRecipeExecutor(
 
 		try {
 			renderProject(ctx, projectDir)
-			keystore(executor)
 		} catch (e: Exception) {
 			// A partial project must not survive: the exists() check above would
 			// treat it as an already-created project on the next attempt.
@@ -76,6 +75,14 @@ class ZipRecipeExecutor(
 				ctx.getString(R.string.template_exec_error_terminated, e.message ?: e.toString()),
 				e,
 			)
+		}
+
+		try {
+			keystore(executor)
+		} catch (e: Exception) {
+			// The release keystore is auxiliary (only needed for release signing);
+			// failing to copy it must not discard the rendered project.
+			error("Failed to copy release keystore into ${projectDir.absolutePath}", e)
 		}
 
 		return ProjectTemplateRecipeResultImpl(data, hasErrorsWarnings)
