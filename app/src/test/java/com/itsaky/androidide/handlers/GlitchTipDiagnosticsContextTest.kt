@@ -35,15 +35,14 @@ import org.robolectric.RobolectricTestRunner
 import java.io.File
 
 /**
- * Verifies that [SentryDiagnosticsContext] enriches events and, crucially, that
+ * Verifies that [GlitchTipDiagnosticsContext] enriches events and, crucially, that
  * a single failing field collector never prevents the rest of the event from
  * being reported.
  *
  * @author Hal Eisen
  */
 @RunWith(RobolectricTestRunner::class)
-class SentryDiagnosticsContextTest {
-
+class GlitchTipDiagnosticsContextTest {
 	private lateinit var app: IDEApplication
 
 	@Before
@@ -68,9 +67,10 @@ class SentryDiagnosticsContextTest {
 	/** Installs the processor on a fresh options instance and enriches a new event. */
 	private fun enrichNewEvent(): SentryEvent {
 		val options = SentryOptions()
-		SentryDiagnosticsContext.install(options)
-		val processor = options.eventProcessors
-			.first { it.javaClass.name.contains("SentryDiagnosticsContext") }
+		GlitchTipDiagnosticsContext.install(options)
+		val processor =
+			options.eventProcessors
+				.first { it.javaClass.name.contains("GlitchTipDiagnosticsContext") }
 		return processor.process(SentryEvent(), Hint())!!
 	}
 
