@@ -42,6 +42,7 @@ import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import io.github.rosemoe.sora.widget.EditorSearcher.SearchOptions
 import java.util.regex.Pattern
+import java.util.regex.PatternSyntaxException
 
 /**
  * The search layout in [IDEEditor].
@@ -261,7 +262,12 @@ class EditorSearchLayout(
 			query.isNotBlank() &&
 				(
 					searchOptions.type != SearchOptions.TYPE_REGULAR_EXPRESSION ||
-						runCatching { Pattern.compile(query) }.isSuccess
+						try {
+							Pattern.compile(query)
+							true
+						} catch (_: PatternSyntaxException) {
+							false
+						}
 				)
 
 		if (isValidQuery) {
@@ -323,7 +329,7 @@ class EditorSearchLayout(
 						try {
 							Pattern.compile(it)
 							it
-						} catch (_: Throwable) {
+						} catch (_: PatternSyntaxException) {
 							""
 						}
 					} else {

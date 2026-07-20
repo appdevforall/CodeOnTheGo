@@ -151,6 +151,9 @@ abstract class LogViewModel : ViewModel() {
 		submit(level = null, line = line)
 	}
 
+	// Keeps buffer mutation and live emission atomic
+	private val eventLock = Any()
+
 	/**
 	 * Submit a log line.
 	 *
@@ -162,8 +165,10 @@ abstract class LogViewModel : ViewModel() {
 		line: String,
 	) {
 		val text = if (line.endsWith("\n")) line else "$line\n"
-		val entry = buffer.append(level, text)
-		liveEntries.tryEmit(entry)
+		synchronized(eventLock) {
+			val entry = buffer.append(level, text)
+			liveEntries.tryEmit(entry)
+		}
 	}
 
 	fun setFilter(filter: LogFilter) {
@@ -172,8 +177,10 @@ abstract class LogViewModel : ViewModel() {
 
 	/** Clear the retained log history and re-render the (now empty) view. */
 	fun clear() {
-		buffer.clear()
-		generation.update { it + 1 }
+		synchronized(eventLock) {
+			buffer.clear()
+			generation.update { it + 1 }
+		}
 	}
 
 	/** The full retained history, ignoring the active filter. */

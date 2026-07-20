@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.logging
 
+import android.util.Log
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.AppenderBase
@@ -92,7 +93,11 @@ class GlobalBufferAppender : AppenderBase<ILoggingEvent>() {
 			message: String,
 		) {
 			if (level.levelInt < consumer.logLevel.levelInt) return
-			runCatching { consumer.consume(level, message) }
+			try {
+				consumer.consume(level, message)
+			} catch (e: Exception) {
+				Log.e("GlobalBufferAppender", "Log consumer failed", e)
+			}
 		}
 	}
 

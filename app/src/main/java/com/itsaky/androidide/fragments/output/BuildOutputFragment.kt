@@ -60,6 +60,8 @@ class BuildOutputFragment :
 	// so a re-render never misses or duplicates a concurrently flushed batch.
 	private val editorContentMutex = Mutex()
 
+	private var editorContentGeneration = 0
+
 	override fun onViewCreated(
 		view: View,
 		savedInstanceState: Bundle?,
@@ -87,6 +89,7 @@ class BuildOutputFragment :
 	/** Re-renders the editor window from the session file, filtered by [query]. */
 	private suspend fun renderFiltered(query: String) {
 		editorContentMutex.withLock {
+			editorContentGeneration++
 			val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
 			val filtered =
 				withContext(Dispatchers.Default) {
@@ -285,11 +288,16 @@ class BuildOutputFragment :
 						emptyStateViewModel.setEmpty(false)
 					} else {
 						// Timeout: defer append until layout is ready (same as restoreWindowFromViewModel)
+						val generationAtFlush = editorContentGeneration
 						viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
 							editor?.run {
 								awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
-								appendBatch(visibleText)
-								emptyStateViewModel.setEmpty(false)
+								editorContentMutex.withLock {
+									if (editorContentGeneration == generationAtFlush) {
+										appendBatch(visibleText)
+										emptyStateViewModel.setEmpty(false)
+									}
+								}
 							}
 						}
 					}
