@@ -36,7 +36,8 @@ fun computeSurroundWithTryCatchEdit(
 	startLine: Int,
 	endLine: Int,
 ): TextEdit? {
-	val lines = text.split("\n")
+	val nl = if (text.contains("\r\n")) "\r\n" else "\n"
+	val lines = text.split(nl)
 	if (startLine < 0 || startLine > endLine || endLine >= lines.size) {
 		return null
 	}
@@ -50,19 +51,19 @@ fun computeSurroundWithTryCatchEdit(
 		selected.first(String::isNotBlank).takeWhile { it == ' ' || it == '\t' }
 	val indentUnit = detectIndentUnit(lines)
 	val body =
-		selected.joinToString("\n") { if (it.isBlank()) it else "$indentUnit$it" }
+		selected.joinToString(nl) { if (it.isBlank()) it else "$indentUnit$it" }
 
 	val newText = buildString {
-		append(baseIndent).append("try {\n")
-		append(body).append('\n')
-		append(baseIndent).append("} catch (e: Exception) {\n")
-		append(baseIndent).append(indentUnit).append("e.printStackTrace()\n")
+		append(baseIndent).append("try {").append(nl)
+		append(body).append(nl)
+		append(baseIndent).append("} catch (e: Exception) {").append(nl)
+		append(baseIndent).append(indentUnit).append("e.printStackTrace()").append(nl)
 		append(baseIndent).append("}")
 	}
 
-	val startIndex = lineStartIndex(lines, startLine)
+	val startIndex = lineStartIndex(lines, startLine, nl)
 	val endCol = lines[endLine].length
-	val endIndex = lineStartIndex(lines, endLine) + endCol
+	val endIndex = lineStartIndex(lines, endLine, nl) + endCol
 
 	return TextEdit(
 		range = Range(
@@ -80,10 +81,10 @@ private fun detectIndentUnit(lines: List<String>): String {
 	return if (firstIndented != null && firstIndented[0] == ' ') "    " else "\t"
 }
 
-private fun lineStartIndex(lines: List<String>, line: Int): Int {
+private fun lineStartIndex(lines: List<String>, line: Int, nl: String): Int {
 	var index = 0
 	for (i in 0 until line) {
-		index += lines[i].length + 1
+		index += lines[i].length + nl.length
 	}
 	return index
 }

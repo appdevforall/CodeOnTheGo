@@ -94,4 +94,16 @@ class SurroundWithTryCatchTest {
 		assertThat(resolveSurroundLines(0, 4, 0, 12)).isEqualTo(0 to 0)
 		assertThat(resolveSurroundLines(0, 4, 2, 9)).isEqualTo(0 to 2)
 	}
+
+	@Test
+	fun `CRLF file preserves carriage returns and replace indices`() {
+		val edit = computeSurroundWithTryCatchEdit("a()\r\nb()", 0, 1)
+		assertThat(edit).isNotNull()
+		assertThat(edit!!.newText).isEqualTo(
+			"try {\r\n\ta()\r\n\tb()\r\n} catch (e: Exception) {\r\n\te.printStackTrace()\r\n}"
+		)
+		assertThat(edit.range).isEqualTo(
+			Range(Position(0, 0, 0), Position(1, 3, 8))
+		)
+	}
 }
