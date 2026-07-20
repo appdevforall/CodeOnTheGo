@@ -128,7 +128,7 @@
   *;
 }
 
-## Sentry
+## GlitchTip crash reporting (via the Sentry SDK; GlitchTip speaks the Sentry protocol)
 -keepattributes SourceFile,LineNumberTable
 -keep class io.sentry.** { *; }
 -dontwarn io.sentry.**

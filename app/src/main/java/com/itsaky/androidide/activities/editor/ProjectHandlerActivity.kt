@@ -34,6 +34,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.SizeUtils
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
@@ -42,6 +43,7 @@ import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.activities.MainActivity
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.fragments.FindActionDialog
@@ -57,6 +59,13 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
+import com.itsaky.androidide.models.Position
+import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.plugins.extensions.ProjectSearchExtension
+import com.itsaky.androidide.plugins.extensions.ProjectSearchRequest
+import com.itsaky.androidide.plugins.extensions.ProjectSearchResult
+import com.itsaky.androidide.plugins.extensions.ProjectSearchSection
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.projectDir
@@ -91,16 +100,20 @@ import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.utils.withIcon
+import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
+import com.itsaky.androidide.viewmodel.EditorViewModel.SearchResultSection
 import io.github.rosemoe.sora.text.ICUUtils
 import io.github.rosemoe.sora.util.IntPair
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.adfa.constants.CONTENT_KEY
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
@@ -109,6 +122,7 @@ import java.io.FileNotFoundException
 import java.net.SocketException
 import java.nio.file.NoSuchFileException
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 import java.util.stream.Collectors
 
@@ -179,6 +193,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		const val STATE_KEY_FROM_SAVED_INSTANACE = "ide.editor.isFromSavedInstance"
 		const val STATE_KEY_SHOULD_INITIALIZE = "ide.editor.isInitializing"
+
+		private const val PLUGIN_SEARCH_TIMEOUT_SECONDS = 10L
 	}
 
 	abstract fun doCloseAll()
@@ -216,10 +232,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		observeStates()
 		startServices()
 
-        if (intent.getBooleanExtra("HAS_TEMPLATE_ISSUES", false)) {
-            flashError(getString(string.msg_template_warnings))
-        }
-
+		if (intent.getBooleanExtra("HAS_TEMPLATE_ISSUES", false)) {
+			flashError(getString(string.msg_template_warnings))
+		}
 	}
 
 	private fun observeStates() {
@@ -270,6 +285,15 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			apk = state.apkFile,
 			launchInDebugMode = state.launchInDebugMode,
 		)
+
+		if (state.launchProfilerAfterInstall) {
+			// The "Profile" action built a profileable APK and just launched it; surface the
+			// Profiler tab so the user can immediately profile the running app.
+			bottomSheetViewModel.setSheetState(
+				sheetState = BottomSheetBehavior.STATE_EXPANDED,
+				currentTab = BottomSheetViewModel.TAB_PROFILER,
+			)
+		}
 	}
 
 	private fun showPluginInstallDialog(cgpFile: File) {
@@ -551,7 +575,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						return@launch
 					}
 
-					else -> throw e
+					else -> {
+						throw e
+					}
 				}
 			}
 
@@ -861,10 +887,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						.dropLastWhile { it.isEmpty() }
 						.toTypedArray()
 					) {
-						if (str.trim().isEmpty()) {
+						val token = str.trim()
+						if (token.isEmpty()) {
 							continue
 						}
-						extensionList.add(str)
+						// Trim so a pipe-split token keeps no surrounding space; the file-name
+						// suffix test is endsWith(), which a stray " kt" would never satisfy.
+						extensionList.add(token)
 					}
 				} else {
 					extensionList.add(extensions)
@@ -885,7 +914,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					extensionList,
 					searchDirs,
 				) { results ->
-					handleSearchResults(results)
+					val plugins = projectSearchPlugins()
+					// When the built-in search finds nothing but a plugin may still match, keep
+					// the progress indicator up until the plugin phase resolves.
+					handleSearchResults(results, dismissProgress = plugins.isEmpty() || results.isNotEmpty())
+					if (plugins.isNotEmpty()) {
+						requestPluginSearchSections(plugins, text, extensionList, searchDirs, results)
+					}
 				}
 			}
 		}
@@ -918,6 +953,112 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		mFindInProjectDialog = dialog
 		return mFindInProjectDialog
+	}
+
+	private fun projectSearchPlugins(): List<ProjectSearchExtension> =
+		IDEApplication
+			.getPluginManager()
+			?.getAllPluginInstances()
+			?.filterIsInstance<ProjectSearchExtension>()
+			?: emptyList()
+
+	private fun requestPluginSearchSections(
+		plugins: List<ProjectSearchExtension>,
+		query: String,
+		extensions: List<String>,
+		searchDirs: List<File>,
+		exactResults: Map<File, List<SearchResult>>,
+	) {
+		val pluginManager = IDEApplication.getPluginManager() ?: return
+
+		// handleSearchResults() just published the built-in results and bumped the generation;
+		// capture it so a superseding search invalidates this fan-out's late results.
+		val generation = editorViewModel.currentSearchGeneration
+		val request =
+			ProjectSearchRequest(
+				query = query,
+				roots = searchDirs,
+				extensions = extensions,
+			)
+		// searchProject() is contractually called on the UI thread; launch the futures here.
+		val futures =
+			plugins.mapNotNull { plugin ->
+				val pluginId =
+					pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin)
+						?: plugin.javaClass.name
+				try {
+					plugin
+						.searchProject(request)
+						.exceptionally { error ->
+							logger.warn("Project search plugin '{}' failed", pluginId, error)
+							// Runs on whatever thread completed the future; recordPluginCrash may
+							// force-disable the plugin, which mutates UI (tabs, sidebar).
+							runOnUiThread { pluginManager.recordPluginCrash(pluginId) }
+							emptyList()
+						}
+				} catch (error: Exception) {
+					logger.warn("Project search plugin '{}' failed", pluginId, error)
+					pluginManager.recordPluginCrash(pluginId)
+					null
+				}
+			}
+		if (futures.isEmpty()) {
+			doDismissSearchProgress()
+			return
+		}
+
+		// lifecycleScope cancels on destroy, so a slow plugin cannot pin this Activity/ViewModel
+		// or post to a dead Activity; await() suspends instead of blocking a commonPool worker.
+		lifecycleScope.launch {
+			val pluginSections =
+				withContext(Dispatchers.Default) {
+					try {
+						withTimeoutOrNull(TimeUnit.SECONDS.toMillis(PLUGIN_SEARCH_TIMEOUT_SECONDS)) {
+							CompletableFuture.allOf(*futures.toTypedArray()).await()
+						}
+						futures
+							// getNow() skips futures still pending after the timeout; orEmpty()
+							// guards a Java plugin completing with a null list.
+							.flatMap { future -> future.getNow(emptyList()).orEmpty() }
+							.mapNotNull { section -> section?.toSearchResultSection() }
+					} catch (cancellation: CancellationException) {
+						throw cancellation
+					} catch (error: Exception) {
+						logger.warn("Failed to collect project search plugin results", error)
+						emptyList()
+					}
+				}
+			val sections =
+				buildList {
+					if (exactResults.isNotEmpty()) {
+						add(SearchResultSection(title = null, results = exactResults))
+					}
+					addAll(pluginSections)
+				}
+			editorViewModel.onSearchResultSectionsReady(generation, sections)
+			doDismissSearchProgress()
+		}
+	}
+
+	private fun ProjectSearchSection.toSearchResultSection(): SearchResultSection? {
+		val grouped =
+			results
+				// mapNotNull guards a Java plugin returning null elements; a bare map() would
+				// NPE in toSearchResult() and take down the whole fan-out.
+				.mapNotNull { it?.toSearchResult() }
+				.groupBy { it.file }
+		return grouped
+			.takeIf { it.isNotEmpty() }
+			?.let { SearchResultSection(title = title, results = it) }
+	}
+
+	private fun ProjectSearchResult.toSearchResult(): SearchResult {
+		val range =
+			Range(
+				Position(startLine, startColumn),
+				Position(endLine, endColumn),
+			)
+		return SearchResult(range, file, linePreview, matchText)
 	}
 
 	fun EditText.selectCurrentWord() {
@@ -978,51 +1119,54 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		connectClient(IDELanguageClientImpl.getInstance())
 
-		val results = try {
-			connectDebugClient(debuggerViewModel.debugClient).values
-		} catch (e: Throwable) {
-			if (e is CancellationException) {
-				throw e
-			}
+		val results =
+			try {
+				connectDebugClient(debuggerViewModel.debugClient).values
+			} catch (e: Exception) {
+				if (e is CancellationException) {
+					throw e
+				}
 
-			Sentry.captureException(e)
-			logger.error("Unable to connect LSP servers with debug client", e)
-			listOf(DebugClientConnectionResult.Failure(cause = e))
-		}
+				Sentry.captureException(e)
+				logger.error("Unable to connect LSP servers with debug client", e)
+				listOf(DebugClientConnectionResult.Failure(cause = e))
+			}
 
 		if (results.any { it is DebugClientConnectionResult.Failure }) {
 			// one or more debug adapters failed to initialize
-			val message = buildString {
-				results.filterIsInstance<DebugClientConnectionResult.Failure>().forEach { result ->
-					val msg = result.contextRes?.let(::getString)
-						?: result.context
-						?: (result.cause as? SocketException?).let { err ->
-							val msg = err?.message ?: ""
-							when {
-								msg.contains("EPERM") -> getString(string.debugger_error_errno_eperm)
-								msg.contains("ECONNREFUSED") -> getString(string.debugger_error_errno_econnrefused)
-								else -> null
-							}
-						}
-						?: (result.cause as? ErrnoException? ?: result.cause?.cause as? ErrnoException?)?.let { err ->
-							when (err.errno) {
-								OsConstants.EPERM -> getString(string.debugger_error_errno_eperm)
-								OsConstants.ECONNREFUSED -> getString(string.debugger_error_errno_econnrefused)
-								else -> getString(R.string.debugger_error_errno, err.errno)
-							}
-						}
-						?: getString(R.string.debugger_error_debugger_startup_failure)
+			val message =
+				buildString {
+					results.filterIsInstance<DebugClientConnectionResult.Failure>().forEach { result ->
+						val msg =
+							result.contextRes?.let(::getString)
+								?: result.context
+								?: (result.cause as? SocketException?).let { err ->
+									val msg = err?.message ?: ""
+									when {
+										msg.contains("EPERM") -> getString(string.debugger_error_errno_eperm)
+										msg.contains("ECONNREFUSED") -> getString(string.debugger_error_errno_econnrefused)
+										else -> null
+									}
+								}
+								?: (result.cause as? ErrnoException? ?: result.cause?.cause as? ErrnoException?)?.let { err ->
+									when (err.errno) {
+										OsConstants.EPERM -> getString(string.debugger_error_errno_eperm)
+										OsConstants.ECONNREFUSED -> getString(string.debugger_error_errno_econnrefused)
+										else -> getString(R.string.debugger_error_errno, err.errno)
+									}
+								}
+								?: getString(R.string.debugger_error_debugger_startup_failure)
 
-					append(msg)
-					append(System.lineSeparator())
+						append(msg)
+						append(System.lineSeparator())
+					}
+
+					if (isNotBlank()) {
+						append(System.lineSeparator())
+					}
+
+					append(getString(R.string.debugger_error_suggestion_network_restriction))
 				}
-
-				if (isNotBlank()) {
-					append(System.lineSeparator())
-				}
-
-				append(getString(R.string.debugger_error_suggestion_network_restriction))
-			}
 
 			withContext(Dispatchers.Main) {
 				newMaterialDialogBuilder(this@ProjectHandlerActivity)

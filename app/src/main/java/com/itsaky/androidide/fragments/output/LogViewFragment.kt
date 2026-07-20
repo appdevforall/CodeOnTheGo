@@ -134,7 +134,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 		editor.props.autoIndent = false
 		editor.isEditable = false
 		editor.dividerWidth = 0f
-		editor.isWordwrap = false
+		editor.isWordwrap = true
 		editor.isUndoEnabled = false
 		editor.typefaceLineNumber = jetbrainsMono()
 		editor.setTextSize(12f)

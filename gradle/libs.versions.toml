@@ -4,7 +4,6 @@ agp = "8.8.2"
 agp-tooling = "8.11.0"
 androidx-sqlite = "2.6.2"
 appcompatVersion = "1.7.1"
-bcprovJdk18on = "1.80"
 colorpickerview = "2.3.0"
 commonsCompress = "1.27.1"
 tukaaniXz = "1.9"
@@ -64,7 +63,9 @@ libsu-core = "6.0.0"
 ## When updating this value, please manually compile libbrotli.so from Brotli4j for Android and
 ## put it in app/src/main/jniLibs
 brotli4j = "1.18.0"
-spotless = "7.2.1"
+spotless = "8.8.0"
+# compose-rules ktlint ruleset; 0.4.23 targets ktlint 1.5.0 (spotless 7.2.1's bundled ktlint)
+composeRulesKtlint = "0.4.23"
 fragmentKtx = "1.8.8"
 
 protobuf = "4.32.1"
@@ -85,6 +86,9 @@ pebble = "4.1.1"
 
 [libraries]
 
+# ktlint ruleset for Jetpack Compose (used by spotless via customRuleSets)
+compose-rules-ktlint = { module = "io.nlopez.compose.rules:ktlint", version.ref = "composeRulesKtlint" }
+
 # Dependencies in composite build
 androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref = "activityKtx" }
 androidx-appcompat-v171 = { module = "androidx.appcompat:appcompat", version.ref = "appcompatVersion" }
@@ -102,8 +106,6 @@ androidx-security-crypto = { module = "androidx.security:security-crypto", versi
 androidx-sqlite-ktx = { module = "androidx.sqlite:sqlite-ktx", version.ref = "androidx-sqlite" }
 androidx-sqlite-framework = { module = "androidx.sqlite:sqlite-framework", version.ref = "androidx-sqlite" }
 androidx-viewpager2-v110beta02 = { module = "androidx.viewpager2:viewpager2", version.ref = "viewpager2" }
-bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bcprovJdk18on" }
-bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bcprovJdk18on" }
 colorpickerview = { module = "com.github.skydoves:colorpickerview", version.ref = "colorpickerview" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 tukaani-xz = { module = "org.tukaani:xz", version.ref = "tukaaniXz" }
@@ -144,7 +146,8 @@ compose-activity = { module = "androidx.activity:activity-compose", version = "1
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics-ktx" }
 
-# Sentry
+# Sentry SDK - our GlitchTip client (GlitchTip speaks the Sentry protocol).
+# Aliases stay sentry-* to match the io.sentry: coordinates below.
 sentry-core = { module = "io.sentry:sentry", version.ref = "sentry" }
 sentry-android-core = { module = "io.sentry:sentry-android-core", version.ref = "sentry" }
 sentry-logback = { module = "io.sentry:sentry-logback", version.ref = "sentry" }
@@ -313,6 +316,11 @@ org-json = { module = "org.json:json", version = "20210307"}
 
 pebble = { module = "io.pebbletemplates:pebble", version.ref = "pebble" }
 kotlinx-metadata = { module = "org.jetbrains.kotlin:kotlin-metadata-jvm", version.ref = "kotlin" }
+
+shark = { module = "com.squareup.leakcanary:shark", version.ref = "leakcanary" }
+shark-android = { module = "com.squareup.leakcanary:shark-android", version.ref = "leakcanary" }
+shark-hprof = { module = "com.squareup.leakcanary:shark-hprof", version.ref = "leakcanary" }
+shark-graph = { module = "com.squareup.leakcanary:shark-graph", version.ref = "leakcanary" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

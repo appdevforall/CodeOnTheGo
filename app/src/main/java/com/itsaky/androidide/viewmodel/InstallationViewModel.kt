@@ -21,7 +21,6 @@ import com.itsaky.androidide.viewmodel.InstallationState.InstallationGranted
 import com.itsaky.androidide.viewmodel.InstallationState.InstallationPending
 import com.itsaky.androidide.viewmodel.InstallationState.Installing
 import io.sentry.Sentry
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,9 +31,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import kotlin.coroutines.cancellation.CancellationException
 
 class InstallationViewModel : ViewModel() {
-
 	private val log = LoggerFactory.getLogger(InstallationViewModel::class.java)
 
 	private val _state = MutableStateFlow<InstallationState>(InstallationPending)
@@ -90,12 +89,14 @@ class InstallationViewModel : ViewModel() {
 
 							_state.update { InstallationComplete }
 						}
+
 						is AssetsInstallationHelper.Result.Failure -> {
-							if (result.shouldReportToSentry) {
+							if (result.shouldReportToGlitchTip) {
 								result.cause?.let { Sentry.captureException(it) }
 							}
-							val errorMsg = result.errorMessage
-								?: context.getString(R.string.title_installation_failed)
+							val errorMsg =
+								result.errorMessage
+									?: context.getString(R.string.title_installation_failed)
 							_events.emit(InstallationEvent.ShowError(errorMsg))
 							_state.update {
 								InstallationError(errorMsg)
@@ -127,42 +128,44 @@ class InstallationViewModel : ViewModel() {
 		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
 			Environment.ANDROID_HOME.exists()
 
-    /**
-     * Checks the app's internal storage and returns detailed information.
-     */
-    private fun getStorageInfo(context: Context): StorageInfo {
-        val internalStoragePath = context.filesDir.path
-        val stat = StatFs(internalStoragePath)
+	/**
+	 * Checks the app's internal storage and returns detailed information.
+	 */
+	private fun getStorageInfo(context: Context): StorageInfo {
+		val internalStoragePath = context.filesDir.path
+		val stat = StatFs(internalStoragePath)
 
-        val availableStorageInBytes = stat.availableBlocksLong * stat.blockSizeLong
-        val requiredStorageInBytes = getMinimumStorageNeeded().gigabytesToBytes()
+		val availableStorageInBytes = stat.availableBlocksLong * stat.blockSizeLong
+		val requiredStorageInBytes = getMinimumStorageNeeded().gigabytesToBytes()
 
-        val isLowStorage = availableStorageInBytes < requiredStorageInBytes
+		val isLowStorage = availableStorageInBytes < requiredStorageInBytes
 
-        val additionalBytesNeeded = (requiredStorageInBytes - availableStorageInBytes)
-            .coerceAtLeast(0L)
+		val additionalBytesNeeded =
+			(requiredStorageInBytes - availableStorageInBytes)
+				.coerceAtLeast(0L)
 
-        return StorageInfo(isLowStorage, availableStorageInBytes, additionalBytesNeeded)
-    }
+		return StorageInfo(isLowStorage, availableStorageInBytes, additionalBytesNeeded)
+	}
 
-    suspend fun checkStorageAndNotify(context: Context): Boolean = withContext(Dispatchers.IO) {
-        val storageInfo = getStorageInfo(context)
+	suspend fun checkStorageAndNotify(context: Context): Boolean =
+		withContext(Dispatchers.IO) {
+			val storageInfo = getStorageInfo(context)
 
-        if (storageInfo.isLowStorage) {
-            val additionalGBNeeded = storageInfo.additionalBytesNeeded.bytesToGigabytes()
-            val availableGB = storageInfo.availableBytes.bytesToGigabytes()
+			if (storageInfo.isLowStorage) {
+				val additionalGBNeeded = storageInfo.additionalBytesNeeded.bytesToGigabytes()
+				val availableGB = storageInfo.availableBytes.bytesToGigabytes()
 
-            val errorMessage = context.getString(
-                R.string.not_enough_storage,
-                additionalGBNeeded,
-                availableGB
-            )
+				val errorMessage =
+					context.getString(
+						R.string.not_enough_storage,
+						additionalGBNeeded,
+						availableGB,
+					)
 
-            _events.emit(InstallationEvent.ShowError(errorMessage))
-            return@withContext false
-        }
+				_events.emit(InstallationEvent.ShowError(errorMessage))
+				return@withContext false
+			}
 
-        return@withContext true
-    }
-
+			return@withContext true
+		}
 }

@@ -14,38 +14,38 @@ import org.junit.Test
 import java.io.FileNotFoundException
 
 class AssetsInstallationHelperTest {
+	private val ctx: Context = mockk(relaxed = true)
 
-    private val ctx: Context = mockk(relaxed = true)
+	@Before
+	fun setup() {
+		mockkObject(AssetsInstallationHelper)
+	}
 
-    @Before
-    fun setup() {
-        mockkObject(AssetsInstallationHelper)
-    }
+	@Test
+	fun `install with missing asset skips glitchtip`() =
+		runBlocking {
+			val helper = AssetsInstallationHelper
 
-    @Test
-    fun `install with missing asset skips sentry`() = runBlocking {
-        val helper = AssetsInstallationHelper
+			every {
+				helper["checkStorageAccessibility"](any<Context>(), any<AssetsInstallerProgressConsumer>())
+			} returns null
 
-        every {
-            helper["checkStorageAccessibility"](any<Context>(), any<AssetsInstallerProgressConsumer>())
-        } returns null
+			coEvery {
+				helper["doInstall"](any<Context>(), any<AssetsInstallerProgressConsumer>())
+			} throws FileNotFoundException("data/common/gradle.zip.br")
 
-        coEvery {
-            helper["doInstall"](any<Context>(), any<AssetsInstallerProgressConsumer>())
-        } throws FileNotFoundException("data/common/gradle.zip.br")
+			val result = helper.install(ctx)
 
-        val result = helper.install(ctx)
-
-        assertTrue("Expected Result.Failure", result is Failure)
-        val failure = result as Failure
-        assertFalse("Should skip Sentry report", failure.shouldReportToSentry)
-        assertTrue(
-            "Expected MissingAssetsEntryException as cause",
-            failure.cause is MissingAssetsEntryException
-        )
-        assertTrue(
-            "Expected FileNotFoundException as root cause",
-            (failure.cause?.cause) is FileNotFoundException
-        )
-    }
+			assertTrue("Expected Result.Failure", result is Failure)
+			val failure = result as Failure
+			assertFalse("Should skip GlitchTip report", failure.shouldReportToGlitchTip)
+			assertTrue(
+				"Expected MissingAssetsEntryException as cause",
+				failure.cause is MissingAssetsEntryException,
+			)
+			assertTrue(
+				"Expected FileNotFoundException as root cause",
+				(failure.cause?.cause) is FileNotFoundException,
+			)
+		}
 }

@@ -38,25 +38,25 @@ dependencyResolutionManagement {
 	val dependencySubstitutions =
 		mapOf(
 			"build-deps" to
-					arrayOf(
-						"appintro",
-						"fuzzysearch",
-						"google-java-format",
-						"java-compiler",
-						"javac",
-						"javapoet",
-						"jaxp",
-						"jdk-compiler",
-						"jdk-jdeps",
-						"jdt",
-						"layoutlib-api",
-						"treeview",
-					),
+				arrayOf(
+					"appintro",
+					"fuzzysearch",
+					"google-java-format",
+					"java-compiler",
+					"javac",
+					"javapoet",
+					"jaxp",
+					"jdk-compiler",
+					"jdk-jdeps",
+					"jdt",
+					"layoutlib-api",
+					"treeview",
+				),
 			"build-deps-common" to
-					arrayOf(
-						"constants",
-						"desugaring-core",
-					),
+				arrayOf(
+					"constants",
+					"desugaring-core",
+				),
 		)
 
 	for ((build, modules) in dependencySubstitutions) {
@@ -75,18 +75,7 @@ dependencyResolutionManagement {
 	repositories {
 		google()
 		mavenCentral()
-		maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }
-		maven { url = uri("https://s01.oss.sonatype.org/content/groups/public/") }
 		maven { url = uri("https://jitpack.io") }
-	}
-}
-
-buildscript {
-	repositories {
-		mavenCentral()
-	}
-	dependencies {
-		classpath("org.bouncycastle:bcutil-jdk18on:1.78.1")
 	}
 }
 
@@ -148,14 +137,19 @@ include(
 	":lsp:jvm-symbol-models",
 	":lsp:kotlin",
 	":lsp:xml",
+	":profiler",
 	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",
 	":subprojects:builder-model-impl",
+	":subprojects:flamegraph",
 	":subprojects:flashbar",
 	":subprojects:framework-stubs",
+	":subprojects:hidden-apis",
+	":subprojects:hidden-apis-compat",
 	":subprojects:javac-services",
 	":subprojects:kotlin-analysis-api",
 	":subprojects:libjdwp",
+	":subprojects:privileged-services",
 	":subprojects:projects",
 	":subprojects:project-models",
 	":subprojects:shizuku-aidl",
@@ -186,7 +180,7 @@ include(
 	":plugin-api:plugin-builder",
 	":plugin-manager",
 	":compose-preview",
-	":floating-window"
+	":floating-window",
 )
 
 object FDroidConfig {

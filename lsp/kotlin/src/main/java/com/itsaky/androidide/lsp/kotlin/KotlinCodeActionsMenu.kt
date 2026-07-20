@@ -6,9 +6,9 @@ import com.itsaky.androidide.lsp.actions.IActionsMenuProvider
 import com.itsaky.androidide.lsp.actions.UncommentLineAction
 import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
 import com.itsaky.androidide.lsp.kotlin.actions.SurroundWithTryCatchAction
+import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
 
 object KotlinCodeActionsMenu : IActionsMenuProvider {
-
 	private const val KT_LANG = "kt"
 	private val KT_EXTS = listOf("kt", "kts")
 	private const val KT_LINE_COMMENT_TOKEN = "//"
@@ -18,6 +18,7 @@ object KotlinCodeActionsMenu : IActionsMenuProvider {
 			CommentLineAction(KT_LANG, KT_EXTS, KT_LINE_COMMENT_TOKEN),
 			UncommentLineAction(KT_LANG, KT_EXTS, KT_LINE_COMMENT_TOKEN),
 			AddImportAction(),
+			OrganizeImportsAction(),
 			SurroundWithTryCatchAction(),
 		)
 }
