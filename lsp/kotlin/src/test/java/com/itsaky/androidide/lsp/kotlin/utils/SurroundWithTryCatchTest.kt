@@ -58,4 +58,25 @@ class SurroundWithTryCatchTest {
 		assertThat(computeSurroundWithTryCatchEdit("foo()", -1, 0)).isNull()
 		assertThat(computeSurroundWithTryCatchEdit("foo()", 2, 1)).isNull()
 	}
+
+	@Test
+	fun `trailing column-0 selection drops the unselected last line`() {
+		assertThat(resolveSurroundLines(1, 2, 3, 0)).isEqualTo(1 to 2)
+	}
+
+	@Test
+	fun `column-0 on a single-line selection is not trimmed`() {
+		assertThat(resolveSurroundLines(2, 0, 2, 0)).isEqualTo(2 to 2)
+	}
+
+	@Test
+	fun `non-zero end column keeps the last line`() {
+		assertThat(resolveSurroundLines(1, 4, 3, 7)).isEqualTo(1 to 3)
+	}
+
+	@Test
+	fun `partial mid-line columns still select whole lines`() {
+		assertThat(resolveSurroundLines(0, 4, 0, 12)).isEqualTo(0 to 0)
+		assertThat(resolveSurroundLines(0, 4, 2, 9)).isEqualTo(0 to 2)
+	}
 }

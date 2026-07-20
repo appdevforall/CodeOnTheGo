@@ -5,6 +5,7 @@ import com.itsaky.androidide.actions.requireEditor
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.utils.computeSurroundWithTryCatchEdit
+import com.itsaky.androidide.lsp.kotlin.utils.resolveSurroundLines
 import com.itsaky.androidide.lsp.models.CodeActionItem
 import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.Command
@@ -25,11 +26,18 @@ class SurroundWithTryCatchAction : BaseKotlinCodeAction() {
 	override suspend fun execAction(data: ActionData): List<TextEdit> {
 		val editor = data.requireEditor()
 		val cursor = editor.cursor
+		val (startLine, endLine) =
+			resolveSurroundLines(
+				cursor.leftLine,
+				cursor.leftColumn,
+				cursor.rightLine,
+				cursor.rightColumn,
+			)
 		val edit =
 			computeSurroundWithTryCatchEdit(
 				editor.text.toString(),
-				cursor.leftLine,
-				cursor.rightLine,
+				startLine,
+				endLine,
 			) ?: return emptyList()
 		return listOf(edit)
 	}
