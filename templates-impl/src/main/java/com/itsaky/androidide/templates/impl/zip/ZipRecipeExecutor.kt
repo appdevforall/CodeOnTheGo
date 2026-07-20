@@ -29,6 +29,15 @@ import java.util.ServiceLoader
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
+/**
+ * Fatal template error: execution terminates, the partially created project
+ * directory is removed and project creation is reported as failed.
+ */
+class TemplateExecutionException(
+	message: String,
+	cause: Throwable?,
+) : RuntimeException(message, cause)
+
 class ZipRecipeExecutor(
 	private val zipProvider: () -> ZipFile,
 	private val metaJson: TemplateJson,
@@ -54,6 +63,28 @@ class ZipRecipeExecutor(
 			return ProjectTemplateRecipeResultImpl(data, hasErrorsWarnings)
 		}
 
+		try {
+			renderProject(ctx, projectDir)
+			keystore(executor)
+		} catch (e: Exception) {
+			// A partial project must not survive: the exists() check above would
+			// treat it as an already-created project on the next attempt.
+			if (!projectDir.deleteRecursively()) {
+				warn(ctx, R.string.template_exec_warn_cleanup_failed, projectDir.absolutePath)
+			}
+			throw TemplateExecutionException(
+				ctx.getString(R.string.template_exec_error_terminated, e.message ?: e.toString()),
+				e,
+			)
+		}
+
+		return ProjectTemplateRecipeResultImpl(data, hasErrorsWarnings)
+	}
+
+	private fun renderProject(
+		ctx: Context,
+		projectDir: File,
+	) {
 		val projectRoot = projectDir.canonicalFile
 
 		val flags: Map<String, Boolean> =
@@ -170,33 +201,29 @@ class ZipRecipeExecutor(
 								}
 
 							val writer = StringWriter()
-							val rendered =
-								try {
-									template.evaluate(writer, identifiers)
-								} catch (e: PebbleException) {
-									error(
-										ctx,
-										R.string.template_exec_error_evaluate_line,
-										entry.name,
-										e.lineNumber,
-										e.message,
-									)
-									null
-								} catch (e: Exception) {
-									error(
-										ctx,
-										R.string.template_exec_error_evaluate,
-										entry.name,
-										e.toString(),
-									)
-									null
-								}
-							if (rendered == null) continue
+							try {
+								template.evaluate(writer, identifiers)
+							} catch (e: PebbleException) {
+								throw e.wrap(
+									ctx,
+									R.string.template_exec_error_evaluate_line,
+									entry.name,
+									e.lineNumber,
+									e.message,
+								)
+							} catch (e: Exception) {
+								throw e.wrap(
+									ctx,
+									R.string.template_exec_error_evaluate,
+									entry.name,
+									e.toString(),
+								)
+							}
 
 							try {
 								outFile.writeText(writer.toString(), Charsets.UTF_8)
 							} catch (e: Exception) {
-								error(
+								throw e.wrap(
 									ctx,
 									R.string.template_exec_error_write,
 									outFile.absolutePath,
@@ -211,16 +238,18 @@ class ZipRecipeExecutor(
 									}
 								}
 							} catch (e: Exception) {
-								error(
+								throw e.wrap(
 									ctx,
-									R.string.template_exec_error_write,
+									R.string.template_exec_error_copy,
 									entry.name,
 									e.toString(),
 								)
 							}
 						}
+					} catch (e: TemplateExecutionException) {
+						throw e
 					} catch (e: Exception) {
-						error(
+						throw e.wrap(
 							ctx,
 							R.string.template_exec_error_process,
 							entry.name,
@@ -230,10 +259,6 @@ class ZipRecipeExecutor(
 				}
 			}
 		}
-
-		keystore(executor)
-
-		return ProjectTemplateRecipeResultImpl(data, hasErrorsWarnings)
 	}
 
 	private fun keystore(executor: RecipeExecutor) {
@@ -495,23 +520,13 @@ class ZipRecipeExecutor(
 		log.error(msg, e)
 	}
 
-	private fun error(
-		context: Context,
-		@StringRes resId: Int,
-		vararg args: Any?,
-	) {
-		hasErrorsWarnings = true
-		val msg = context.getString(resId, *args)
-		log.error(msg)
-	}
-
 	private fun Exception.wrap(
 		context: Context,
 		@StringRes resId: Int,
 		vararg args: Any?,
-	): RuntimeException {
+	): TemplateExecutionException {
 		val msg = context.getString(resId, *args)
-		return RuntimeException(msg, this)
+		return TemplateExecutionException(msg, this)
 	}
 
 	@SuppressLint("SetWorldReadable")
