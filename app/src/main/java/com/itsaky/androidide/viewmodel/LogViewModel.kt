@@ -82,7 +82,7 @@ abstract class LogViewModel : ViewModel() {
 
 	private val liveEntries =
 		MutableSharedFlow<LogBuffer.Entry>(
-			replay = 0,
+			replay = EVENT_BUFFER_COUNT,
 			extraBufferCapacity = EVENT_BUFFER_COUNT,
 			onBufferOverflow = BufferOverflow.DROP_OLDEST,
 		)
