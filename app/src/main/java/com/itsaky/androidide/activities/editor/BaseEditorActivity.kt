@@ -1632,7 +1632,9 @@ abstract class BaseEditorActivity :
 							)
 						}
 
-						is FileOpResult.Error -> flashMessage(result.messageRes, FlashType.ERROR)
+						is FileOpResult.Error -> {
+							flashMessage(result.messageRes, FlashType.ERROR)
+						}
 					}
 				}
 			}

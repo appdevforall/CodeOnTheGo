@@ -575,7 +575,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						return@launch
 					}
 
-					else -> throw e
+					else -> {
+						throw e
+					}
 				}
 			}
 
