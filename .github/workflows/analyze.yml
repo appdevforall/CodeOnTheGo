@@ -75,9 +75,9 @@ jobs:
 
       - name: Assemble V8 Debug
         env:
-          # Build-time secrets consumed by the Gradle build (Sentry plugin,
-          # Firebase config).  Scoped to this step so SonarCloud and other
-          # third-party actions never see them.
+          # Build-time secrets consumed by the Gradle build (GlitchTip crash
+          # reporting via the Sentry gradle plugin, Firebase config).  Scoped to
+          # this step so SonarCloud and other third-party actions never see them.
           FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
           GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
         run: |
@@ -101,7 +101,7 @@ jobs:
         env:
           GRADLE_OPTS: "-Xmx10g -XX:MaxMetaspaceSize=512m"
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          # The Gradle build also drives Sentry/Firebase configuration during
+          # The Gradle build also drives GlitchTip/Firebase configuration during
           # the unit-test compile path.
           FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
           GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}

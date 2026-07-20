@@ -30,6 +30,12 @@ object TooltipTag {
 	const val PROJECT_GRADLE_TASKS = "project.gradle.tasks"
 	const val PROJECT_RUN_GRADLE_TASKS = "project.run.gradle.tasks"
 
+	/**
+	 * Tooltip tag for an individual Gradle task, derived from its task path.
+	 * ":app:assembleDebug" -> "gradle.app:assembleDebug"; ":clean" -> "gradle.clean".
+	 */
+	fun gradleTaskTooltipTag(taskPath: String): String = "gradle." + taskPath.removePrefix(":")
+
 	// General Preferences
 	const val PREFS_TOP = "prefs.top"
 	const val PREFS_EDITOR = "prefs.editor"

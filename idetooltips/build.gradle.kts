@@ -21,4 +21,6 @@ dependencies {
 
 	implementation(projects.resources)
 	implementation(projects.common)
+
+	testImplementation(libs.tests.junit)
 }
