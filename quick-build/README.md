@@ -113,17 +113,19 @@ decisions, each with its why and cost:
   `.quickbuild` coexistence).
 - **API 28/29 resource swaps take a degraded path** that is unit-tested but not yet
   device-verified (see the scope note under "Test-app architecture").
-- **Resource edits on real CoGo projects currently fail at relink** (open bug):
-  CoGo's LogSenderPlugin injects `@bool/logsender_enabled` into every debug manifest,
-  and the session's hot-relink resource set doesn't include that AAR's resources, so
-  aapt2 fails on any resource edit. Never-stale held (failure surfaced, app kept the
-  last good generation), and corpus relinks pass on-device — the gap is the CoGo-side
-  resource closure, not the daemon. Evidence: `corpus/results/phase1-gates-a56/`,
-  product issue 1.
-- **A failed relink wedges the session**: the dirty resource delta never clears, so
-  even subsequent pure code edits re-fail until a gradle-file touch forces a
-  rebaseline (product issue 2, same results dir). The rebaseline itself costs ~7-8 s
-  warm / ~17 s cold on a minimal project (measured there).
+- **The hot relink links only the app's own `res/`, not library resources.** A manifest
+  reference to a library-provided resource aborts every resource reload with aapt2
+  "resource not found". The one known case — CoGo's LogSenderPlugin injecting
+  `@bool/logsender_enabled` into every debug manifest, which blocked resource edits
+  product-wide (`corpus/results/phase1-gates-a56/`, product issue 1) — is FIXED: the
+  setup build inlines that ref (`QuickBuildManifestTransformer`; on-device relink 525 ms
+  post-fix). The general fix (relinking against the base APK's resource table) is a
+  tracked followup; until then any NEW library manifest ref hits the same wall.
+- **A failed relink wedges the session** (latent, recovery-UX followup): the dirty
+  resource delta never clears, so subsequent edits re-fail until a gradle-file touch
+  forces a rebaseline (~7-8 s warm / ~17 s first-hit, `phase1-gates-a56/`). Never-stale
+  holds and the error overlay surfaces each failure; auto-rebaseline on repeated
+  identical relink failure is the tracked followup (product issue 2).
 
 ## Running it on a device
 
@@ -280,8 +282,9 @@ state form. `service/QuickBuildSessionManager.kt` turns reducer effects into rea
 from which state the session is in and whether the overlay surfaced a failure —
 converging on a rebaseline is intended behavior for any untrusted state, not a bug.
 One known exception that does NOT converge on its own: a failed relink wedges the
-session at the failed resource delta (Known limitations above); the unwedge today is
-any gradle-file touch, which routes to rebaseline.
+session at the failed resource delta (Known limitations above — latent since the
+logsender fix, but any relink failure re-triggers it); the unwedge today is any
+gradle-file touch, which routes to rebaseline.
 
 ## Compose projects
 
