@@ -78,7 +78,7 @@ fun computeSurroundWithTryCatchEdit(
 /** 4 spaces if the file's first indented line starts with a space, else a tab. */
 private fun detectIndentUnit(lines: List<String>): String {
 	val firstIndented =
-		lines.firstOrNull { it.isNotEmpty() && (it[0] == ' ' || it[0] == '\t') }
+		lines.firstOrNull { it.isNotBlank() && (it[0] == ' ' || it[0] == '\t') }
 	return if (firstIndented != null && firstIndented[0] == ' ') "    " else "\t"
 }
 

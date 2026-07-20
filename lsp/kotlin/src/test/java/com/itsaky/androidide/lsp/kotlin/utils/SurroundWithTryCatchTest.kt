@@ -106,4 +106,15 @@ class SurroundWithTryCatchTest {
 			Range(Position(0, 0, 0), Position(1, 3, 8))
 		)
 	}
+
+	@Test
+	fun `stray whitespace-only line does not switch a tab file to spaces`() {
+		val text = "fun f() {\n \n\tval a = read()\n\tprocess(a)\n}"
+		val edit = computeSurroundWithTryCatchEdit(text, 2, 3)
+		assertThat(edit).isNotNull()
+		assertThat(edit!!.newText).isEqualTo(
+			"\ttry {\n\t\tval a = read()\n\t\tprocess(a)\n\t} catch (e: Exception) {\n\t\te.printStackTrace()\n\t}"
+		)
+		assertThat(edit.newText).doesNotContain("    ")
+	}
 }
