@@ -57,6 +57,7 @@ import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.SearchableOutputFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.fragments.output.WrappableOutputFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
@@ -277,6 +278,18 @@ class EditorBottomSheet
 				fragment.toggleFilterBar()
 			}
 			binding.filterOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_FILTER))
+
+			binding.wordWrapOutputAction.setOnClickListener {
+				val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
+				if (fragment is WrappableOutputFragment) {
+					val prefs = context.getSharedPreferences("OutputWordWrapPrefs", Context.MODE_PRIVATE)
+					val isCurrentlyEnabled = fragment.isWordWrapEnabled()
+					val newState = !isCurrentlyEnabled
+					fragment.setWordWrapEnabled(newState)
+					binding.wordWrapOutputAction.isChecked = newState
+					prefs.edit().putBoolean(fragment.wordWrapPrefKey, newState).apply()
+				}
+			}
 
 			binding.headerContainer.setOnClickListener {
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
@@ -636,6 +649,7 @@ class EditorBottomSheet
 
 			val showShareAndClear = isExpanded && currentFragment is ShareableOutputFragment
 			val showSearchAndFilter = isExpanded && currentFragment is SearchableOutputFragment
+			val showWordWrap = isExpanded && currentFragment is WrappableOutputFragment
 			val showCopy =
 				isExpanded &&
 					currentFragment != null &&
@@ -645,7 +659,18 @@ class EditorBottomSheet
 			binding.shareOutputAction.isVisible = showShareAndClear
 			binding.searchOutputAction.isVisible = showSearchAndFilter
 			binding.filterOutputAction.isVisible = showSearchAndFilter
-			binding.outputActions.isVisible = showShareAndClear || showSearchAndFilter
+			binding.wordWrapOutputAction.isVisible = showWordWrap
+			binding.outputActions.isVisible = showShareAndClear || showSearchAndFilter || showWordWrap
+
+			if (showWordWrap && currentFragment is WrappableOutputFragment) {
+				val prefs = context.getSharedPreferences("OutputWordWrapPrefs", Context.MODE_PRIVATE)
+				val isEnabled = prefs.getBoolean(currentFragment.wordWrapPrefKey, currentFragment.isWordWrapEnabled())
+				if (currentFragment.isWordWrapEnabled() != isEnabled) {
+					currentFragment.setWordWrapEnabled(isEnabled)
+				}
+				binding.wordWrapOutputAction.isChecked = isEnabled
+			}
+
 			binding.copyDiagnosticsFab.isVisible = showCopy
 		}
 

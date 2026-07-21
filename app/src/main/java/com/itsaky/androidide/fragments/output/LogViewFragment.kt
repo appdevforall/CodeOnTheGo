@@ -52,7 +52,8 @@ import org.slf4j.LoggerFactory
 abstract class LogViewFragment<V : LogViewModel> :
 	EmptyStateFragment<FragmentLogBinding>(R.layout.fragment_log, FragmentLogBinding::bind),
 	ShareableOutputFragment,
-	SearchableOutputFragment {
+	SearchableOutputFragment,
+	WrappableOutputFragment {
 	companion object {
 		private val log = LoggerFactory.getLogger(LogViewFragment::class.java)
 	}
@@ -60,6 +61,17 @@ abstract class LogViewFragment<V : LogViewModel> :
 	override val currentEditor: IDEEditor? get() = _binding?.editor
 
 	open val tooltipTag = ""
+
+	override val wordWrapPrefKey: String
+		get() = "word_wrap_pref_${this::class.java.simpleName}"
+
+	override fun setWordWrapEnabled(enabled: Boolean) {
+		_binding?.editor?.isWordwrap = enabled
+	}
+
+	override fun isWordWrapEnabled(): Boolean {
+		return _binding?.editor?.isWordwrap == true
+	}
 
 	abstract val viewModel: V
 
@@ -199,7 +211,8 @@ abstract class LogViewFragment<V : LogViewModel> :
 		editor.props.autoIndent = false
 		editor.isEditable = false
 		editor.dividerWidth = 0f
-		editor.isWordwrap = true
+		val prefs = requireContext().getSharedPreferences("OutputWordWrapPrefs", android.content.Context.MODE_PRIVATE)
+		editor.isWordwrap = prefs.getBoolean(wordWrapPrefKey, true)
 		editor.isUndoEnabled = false
 		editor.typefaceLineNumber = jetbrainsMono()
 		editor.setTextSize(12f)

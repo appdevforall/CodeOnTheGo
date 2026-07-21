@@ -32,7 +32,7 @@ import io.github.rosemoe.sora.lang.EmptyLanguage;
 
 public abstract class NonEditableEditorFragment extends
 		EmptyStateFragment<FragmentNonEditableEditorBinding>
-		implements ShareableOutputFragment {
+		implements ShareableOutputFragment, WrappableOutputFragment {
 
 	public NonEditableEditorFragment() {
 		super(R.layout.fragment_non_editable_editor, FragmentNonEditableEditorBinding::bind);
@@ -61,6 +61,26 @@ public abstract class NonEditableEditorFragment extends
 
 	@NonNull
 	@Override
+	public String getWordWrapPrefKey() {
+		return "word_wrap_pref_" + getClass().getSimpleName();
+	}
+
+	@Override
+	public void setWordWrapEnabled(boolean enabled) {
+		IDEEditor editor = getEditor();
+		if (editor != null) {
+			editor.setWordwrap(enabled);
+		}
+	}
+
+	@Override
+	public boolean isWordWrapEnabled() {
+		IDEEditor editor = getEditor();
+		return editor != null && editor.isWordwrap();
+	}
+
+	@NonNull
+	@Override
 	public String getShareableContent() {
 		final var editor = getEditor();
 		if (editor == null) {
@@ -85,7 +105,8 @@ public abstract class NonEditableEditorFragment extends
 		editor.setEditable(false);
 		editor.setDividerWidth(0);
 		editor.setEditorLanguage(new EmptyLanguage());
-		editor.setWordwrap(true);
+		android.content.SharedPreferences prefs = requireContext().getSharedPreferences("OutputWordWrapPrefs", android.content.Context.MODE_PRIVATE);
+		editor.setWordwrap(prefs.getBoolean(getWordWrapPrefKey(), true));
 		editor.setUndoEnabled(false);
 		editor.setTypefaceLineNumber(TypefaceUtilsKt.jetbrainsMono());
 		editor.setTypefaceText(TypefaceUtilsKt.jetbrainsMono());

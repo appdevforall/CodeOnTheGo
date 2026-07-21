@@ -684,6 +684,7 @@
 	<string name="log_action_search">Search</string>
 	<string name="log_action_share">Share</string>
 	<string name="log_action_clear">Clear</string>
+	<string name="log_action_word_wrap">Word Wrap</string>
 	<string name="log_filter_hide">Hide filter bar</string>
 	<string name="log_filter_level_verbose">Verbose</string>
 	<string name="log_filter_level_debug">Debug</string>
