@@ -1,7 +1,10 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
+import android.content.Context;
 import android.os.Build;
 import dalvik.system.InMemoryDexClassLoader;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
@@ -10,7 +13,9 @@ import java.nio.ByteBuffer;
  *
  * Why a singleton: {@link QuickBuildAppComponentFactory} (instantiated by the framework) and the deploy path both need the same loader; there is exactly one live generation per process, so one volatile snapshot is the natural shape. Generation + loader travel together in an immutable {@link Payload} swapped atomically - a reader can never observe generation N with generation N-1's classes.
  *
- * The dex is read fully into a ByteBuffer and loaded through {@link InMemoryDexClassLoader} with the APK classloader as parent: framework/androidx resolve from the APK, user classes exist ONLY in the payload, so parent-first delegation cannot serve a stale user class. Nothing is ever written to disk (plan D1).
+ * The dex is read fully into a ByteBuffer and loaded through {@link InMemoryDexClassLoader} with the APK classloader as parent: framework/androidx resolve from the APK, user classes exist ONLY in the payload, so parent-first delegation cannot serve a stale user class.
+ *
+ * Boot: {@link #ensureBaseline} loads the baked gen-0 baseline, then swaps in the NEWEST persisted generation ({@link PayloadPersistence}, component-proxying design section 3 - revising plan D1's "nothing on disk"). Without that, a killed-and-relaunched process would pin its providers and custom Application (instantiated before any binder catch-up, never re-instantiated) to baseline code - silently stale. The persisted store is fingerprint-keyed to the baseline dex, so a rebaseline/reinstall discards it.
  */
 final class PayloadStore {
 
@@ -19,12 +24,21 @@ final class PayloadStore {
 	/** Where the setup build bakes the baseline payload into the test APK. */
 	static final String BASELINE_ASSET = "assets/quickbuild/gen-0.dex";
 
+	/** Store dir for the persisted newest payload, relative to the app's filesDir. */
+	static final String PERSIST_DIR = "quickbuild/payload";
+
 	static final long BASELINE_GENERATION = 0L;
 
 	private volatile Payload current;
 
 	private ClassLoader apkClassLoader;
 	private boolean baselineAttempted;
+
+	private volatile PayloadPersistence persistence;
+	private volatile String baselineFingerprint;
+
+	/** Persisted resource payloads found at boot, pending application once a Context exists. */
+	private volatile PayloadPersistence.Loaded pendingBootResources;
 
 	private PayloadStore() {}
 
@@ -63,7 +77,7 @@ final class PayloadStore {
 	}
 
 	/**
-	 * Loads the baseline (generation 0) from the APK, once. Reads the asset through the classloader instead of a Context because the factory runs before any Context exists. A missing baseline leaves the store inert (every lookup falls back to the default classloader) - the runtime must never crash an app it was wrongly injected into.
+	 * Loads the baseline (generation 0) from the APK, once, then swaps in the newest persisted generation when one matches this baseline (see the class doc). Reads the asset through the classloader instead of a Context because the factory runs before any Context exists. A missing baseline leaves the store inert (every lookup falls back to the default classloader) - the runtime must never crash an app it was wrongly injected into.
 	 */
 	synchronized void ensureBaseline(ClassLoader apkLoader) {
 		if (baselineAttempted || apkLoader == null) {
@@ -88,9 +102,98 @@ final class PayloadStore {
 			current = new Payload(BASELINE_GENERATION,
 					new InMemoryDexClassLoader(ByteBuffer.wrap(dex), apkLoader));
 			RuntimeLog.i("baseline payload loaded (" + dex.length + " bytes, gen 0)");
+			baselineFingerprint = PayloadPersistence.fingerprint(dex);
+			loadPersisted(apkLoader);
 		} catch (Throwable error) {
 			RuntimeLog.e("failed to load baseline payload; runtime inert", error);
 			current = null;
+		} finally {
+			Streams.closeQuietly(in);
+		}
+	}
+
+	/**
+	 * Late-binds the persistence dir from a real Context (first activity). Heals a boot whose pre-Context dir derivation failed; a no-op when boot already resolved it.
+	 */
+	synchronized void attachPersistence(Context context) {
+		if (persistence != null || baselineFingerprint == null) {
+			return;
+		}
+		try {
+			persistence = new PayloadPersistence(new File(context.getFilesDir(), PERSIST_DIR));
+		} catch (Throwable error) {
+			RuntimeLog.e("cannot attach payload persistence", error);
+		}
+	}
+
+	/** The baseline's fingerprint, or null while no baseline is loaded. */
+	String baselineFingerprint() {
+		return baselineFingerprint;
+	}
+
+	/** The persisted-payload store, or null when unavailable (deploys must then fail loudly on restart). */
+	PayloadPersistence persistence() {
+		return persistence;
+	}
+
+	/** Persisted resource payloads found at boot; null after the first call (one consumer). */
+	synchronized PayloadPersistence.Loaded takePendingBootResources() {
+		PayloadPersistence.Loaded pending = pendingBootResources;
+		pendingBootResources = null;
+		return pending;
+	}
+
+	/**
+	 * Boot half of the persisted-generation contract: if a persisted payload matches this baseline, adopt its generation + classes NOW - before any provider/Application instantiates. Resource payloads cannot apply without a Context, so they are stashed for {@link #takePendingBootResources}. Best-effort: any failure keeps the gen-0 baseline (always safe for a fresh install).
+	 */
+	private void loadPersisted(ClassLoader apkLoader) {
+		try {
+			File dir = defaultPersistDir();
+			if (dir == null) {
+				RuntimeLog.w("cannot derive data dir pre-Context; booting baseline gen 0");
+				return;
+			}
+			PayloadPersistence store = new PayloadPersistence(dir);
+			persistence = store;
+			PayloadPersistence.Loaded loaded = store.load(baselineFingerprint);
+			if (loaded == null || !Generations.accepts(BASELINE_GENERATION, loaded.generation)) {
+				return;
+			}
+			ClassLoader loader = loaded.dex == null
+					// Resource-only generations persisted with no code deploy: the
+					// baseline classes ARE current, only the generation label advances.
+					? current.classLoader
+					: new InMemoryDexClassLoader(ByteBuffer.wrap(loaded.dex), apkLoader);
+			current = new Payload(loaded.generation, loader);
+			pendingBootResources = loaded;
+			RuntimeLog.i("booting persisted generation " + loaded.generation);
+		} catch (Throwable error) {
+			RuntimeLog.e("persisted payload unusable; booting baseline gen 0", error);
+		}
+	}
+
+	/**
+	 * The app's files dir derived WITHOUT a Context (none exists when the factory first runs): package name from /proc/self/cmdline - the default process name IS the applicationId, and the manifest transformer rejects android:process - and the user id from the uid. Null when the derivation fails; {@link #attachPersistence} heals that later.
+	 */
+	private static File defaultPersistDir() {
+		InputStream in = null;
+		try {
+			in = new FileInputStream("/proc/self/cmdline");
+			String cmdline = new String(Streams.readFully(in), "UTF-8");
+			int nul = cmdline.indexOf('\0');
+			String pkg = (nul >= 0 ? cmdline.substring(0, nul) : cmdline).trim();
+			if (pkg.isEmpty()) {
+				return null;
+			}
+			int userId = android.os.Process.myUid() / 100000;
+			File dataDir = new File("/data/user/" + userId + "/" + pkg);
+			if (!dataDir.isDirectory()) {
+				return null;
+			}
+			return new File(dataDir, "files/" + PERSIST_DIR);
+		} catch (Throwable error) {
+			RuntimeLog.w("cmdline data-dir derivation failed: " + error);
+			return null;
 		} finally {
 			Streams.closeQuietly(in);
 		}

@@ -19,7 +19,8 @@ final class DeployMetadata {
 		return new DeployMetadata(
 				asString(obj.get("entryActivity")),
 				asStringList(obj.get("changedAssets")),
-				asString(obj.get("reason")));
+				asString(obj.get("reason")),
+				"true".equals(obj.get("restart")));
 	}
 
 	private static String asString(Object value) {
@@ -40,11 +41,22 @@ final class DeployMetadata {
 	/** Why this payload exists: code|resources|assets|mixed|forced, or {@link #REASON_UNKNOWN}. */
 	final String reason;
 
+	/**
+	 * True when this is a restart deploy (string {@code "restart": "true"}, per the MiniJson strings-only convention): the recompiled set touched a service/provider/custom-Application class, so the runtime must persist the payload, ack, and exit instead of hot-swapping (component-proxying design, section 4).
+	 */
+	final boolean restart;
+
 	DeployMetadata(String entryActivity, List<String> changedAssets, String reason) {
+		this(entryActivity, changedAssets, reason, false);
+	}
+
+	DeployMetadata(String entryActivity, List<String> changedAssets, String reason,
+			boolean restart) {
 		this.entryActivity = entryActivity;
 		this.changedAssets = changedAssets == null
 				? Collections.<String> emptyList()
 				: Collections.unmodifiableList(changedAssets);
 		this.reason = reason == null ? REASON_UNKNOWN : reason;
+		this.restart = restart;
 	}
 }

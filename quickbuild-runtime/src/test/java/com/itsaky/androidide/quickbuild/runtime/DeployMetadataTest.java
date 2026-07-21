@@ -27,6 +27,17 @@ class DeployMetadataTest {
 		assertThat(meta.entryActivity).isNull();
 		assertThat(meta.changedAssets).isEmpty();
 		assertThat(meta.reason).isEqualTo(DeployMetadata.REASON_UNKNOWN);
+		assertThat(meta.restart).isFalse();
+	}
+
+	@Test
+	void parsesRestartFlag() {
+		// The CoGo side marks restart deploys with the STRING "true" (MiniJson
+		// strings-only convention); anything else must read as a plain hot-swap.
+		assertThat(DeployMetadata.parse("{\"restart\": \"true\"}").restart).isTrue();
+		assertThat(DeployMetadata.parse("{\"restart\": \"false\"}").restart).isFalse();
+		assertThat(DeployMetadata.parse("{\"restart\": true}").restart).isFalse();
+		assertThat(DeployMetadata.parse("{\"reason\": \"code\"}").restart).isFalse();
 	}
 
 	@Test

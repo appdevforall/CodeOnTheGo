@@ -64,13 +64,13 @@ final class QuickBuildRuntime {
 		}
 	}
 
-	private static ByteBuffer readFullyAndClose(ParcelFileDescriptor fd) throws IOException {
+	private static byte[] readBytesAndClose(ParcelFileDescriptor fd) throws IOException {
 		if (fd == null) {
 			return null;
 		}
 		InputStream in = new ParcelFileDescriptor.AutoCloseInputStream(fd);
 		try {
-			return ByteBuffer.wrap(Streams.readFully(in));
+			return Streams.readFully(in);
 		} finally {
 			in.close();
 		}
@@ -137,7 +137,9 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Applies one deploy. Runs on a binder thread; heavy work (fd reads, zip extraction) happens here, only the reload itself is posted to the main thread.
+	 * Applies one deploy. Runs on a binder thread; heavy work (fd reads, persistence, zip extraction) happens here, only the reload itself is posted to the main thread.
+	 *
+	 * Every accepted payload is persisted BEFORE it is applied ({@link PayloadPersistence}) so a killed-and-relaunched process boots the newest generation, and a restart deploy ({@code "restart": "true"} metadata) persists + acks + exits instead of hot-swapping - the component-proxying contract, section 4. A persist failure fails the deploy loudly (rollback + reportCrash): proceeding would leave a boot path that silently serves older code.
 	 */
 	void handlePayload(long generation, ParcelFileDescriptor dexPayload,
 			ParcelFileDescriptor resourcesPayload, ParcelFileDescriptor assetsPayload,
@@ -146,19 +148,47 @@ final class QuickBuildRuntime {
 		PayloadStore.Payload previous = PayloadStore.INSTANCE.snapshot();
 		try {
 			DeployMetadata metadata = parseMetadata(metadataJson);
-			ByteBuffer dex = readFullyAndClose(dexPayload);
-			if (!PayloadStore.INSTANCE.apply(generation, dex)) {
+			byte[] dexBytes = readBytesAndClose(dexPayload);
+			byte[] arscBytes = readBytesAndClose(resourcesPayload);
+			byte[] assetsBytes = readBytesAndClose(assetsPayload);
+			if (previous == null
+					|| !Generations.accepts(previous.generation, generation)) {
 				// Stale or baseline-less: contract says drop it. No report - claiming a
 				// reload for a payload we refused would be a lie the host acts on.
-				Streams.closeQuietly(resourcesPayload);
-				Streams.closeQuietly(assetsPayload);
+				RuntimeLog.w("dropping payload gen " + generation + " (running "
+						+ (previous == null ? "no baseline" : "gen " + previous.generation) + ")");
 				return;
 			}
-			if (resourcesPayload != null) {
-				ResourceStore.INSTANCE.applyTable(resourcesPayload, generation, application);
+			if (metadata.restart && dexBytes == null) {
+				// A restart deploy exists to move component CODE; without a dex the
+				// relaunch would boot old classes under a new generation label - a
+				// stale-code lie. Refuse loudly (a CoGo bug if it ever happens).
+				throw new IllegalStateException("restart deploy without a dex payload");
 			}
-			if (assetsPayload != null) {
-				ResourceStore.INSTANCE.applyAssets(assetsPayload, generation,
+			PayloadPersistence.Persisted persisted =
+					persistPayload(generation, dexBytes, arscBytes, assetsBytes);
+			if (metadata.restart) {
+				// Restart deploy: the payload is on disk; ack, then exit. The fresh
+				// process boots the persisted generation, which is what makes the swap
+				// real for services/providers/the Application. Never applied in-memory -
+				// this process is already condemned.
+				RuntimeLog.i("restart deploy gen " + generation + " persisted; exiting");
+				client.reportReloaded(generation, SystemClock.uptimeMillis() - startUptime);
+				exitForRestart();
+				return;
+			}
+			if (!PayloadStore.INSTANCE.apply(generation,
+					dexBytes == null ? null : ByteBuffer.wrap(dexBytes))) {
+				// Raced by a newer payload between the acceptance check and here.
+				return;
+			}
+			if (arscBytes != null) {
+				ResourceStore.INSTANCE.applyTable(
+						openReadOnly(persisted.arscFile), generation, application);
+			}
+			if (assetsBytes != null) {
+				ResourceStore.INSTANCE.applyAssets(
+						openReadOnly(persisted.assetsFile), generation,
 						application.getCacheDir());
 			}
 			pendingReloadStartUptime = startUptime;
@@ -185,6 +215,8 @@ final class QuickBuildRuntime {
 	void onActivityCreated(Activity activity) {
 		// First moment a usable Context exists; bind() is idempotent.
 		client.bind(activity.getApplicationContext());
+		PayloadStore.INSTANCE.attachPersistence(activity.getApplicationContext());
+		applyPendingBootResources(activity.getApplicationContext());
 	}
 
 	void onActivityResumed(Activity activity) {
@@ -207,6 +239,52 @@ final class QuickBuildRuntime {
 
 	long runningGeneration() {
 		return PayloadStore.INSTANCE.generation();
+	}
+
+	/**
+	 * Restores persisted resource payloads found at boot (the code half already loaded pre-Context in {@link PayloadStore#ensureBaseline}). Runs at the first activity - the first moment a Context exists; components that read resources earlier (providers) see baseline resources until here, a documented residual of the persisted-boot contract. Best-effort: a failure keeps baseline resources, and the next deploy re-applies current ones.
+	 */
+	private void applyPendingBootResources(android.content.Context context) {
+		PayloadPersistence.Loaded pending = PayloadStore.INSTANCE.takePendingBootResources();
+		if (pending == null) {
+			return;
+		}
+		try {
+			if (pending.arscFile != null) {
+				ResourceStore.INSTANCE.applyTable(
+						openReadOnly(pending.arscFile), pending.generation, context);
+			}
+			if (pending.assetsFile != null) {
+				ResourceStore.INSTANCE.applyAssets(
+						openReadOnly(pending.assetsFile), pending.generation,
+						context.getCacheDir());
+			}
+			RuntimeLog.i("restored persisted resources for gen " + pending.generation);
+		} catch (Throwable error) {
+			RuntimeLog.e("could not restore persisted resources", error);
+		}
+	}
+
+	/** The process must actually die - a restart deploy's ack promises a fresh boot. */
+	private void exitForRestart() {
+		android.os.Process.killProcess(android.os.Process.myPid());
+	}
+
+	private static ParcelFileDescriptor openReadOnly(File file) throws IOException {
+		return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
+	}
+
+	/**
+	 * Persists the payload before anything applies (see {@link #handlePayload}). Throws when the store is unavailable or the write fails - the deploy then fails loudly instead of leaving the boot path behind the running generation.
+	 */
+	private PayloadPersistence.Persisted persistPayload(long generation, byte[] dex,
+			byte[] arsc, byte[] assetsZip) throws IOException {
+		PayloadPersistence store = PayloadStore.INSTANCE.persistence();
+		String fingerprint = PayloadStore.INSTANCE.baselineFingerprint();
+		if (store == null || fingerprint == null) {
+			throw new IOException("payload persistence unavailable");
+		}
+		return store.persist(generation, fingerprint, dex, arsc, assetsZip);
 	}
 
 	/** Roll back, tell the host, show the honesty banner. The app stays on the old gen. */
