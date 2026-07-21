@@ -149,7 +149,6 @@ firebase-analytics = { module = "com.google.firebase:firebase-analytics-ktx" }
 # Aliases stay sentry-* to match the io.sentry: coordinates below.
 sentry-core = { module = "io.sentry:sentry", version.ref = "sentry" }
 sentry-android-core = { module = "io.sentry:sentry-android-core", version.ref = "sentry" }
-sentry-logback = { module = "io.sentry:sentry-logback", version.ref = "sentry" }
 
 # AndroidIDE
 androidide-ts = { module = "com.itsaky.androidide.treesitter:android-tree-sitter", version.ref = "tree-sitter" }
