@@ -89,9 +89,12 @@ build, and first-run install is hands-free except OS-mandated dialogs.
   Quick Build <-> Standard Run switch becomes an uninstall/reinstall: the measured
   3-dialog install flow, with Play Protect re-prompting on every install of an unscanned
   app (`quick-build/corpus/results/phase1-gates-a56/`), and hand-back could no longer
-  leave both paths usable side by side. Revisit if component proxying widens to
-  Services/Receivers/Providers — once the harness can genuinely stand in for the app, a
-  same-id opt-in mode becomes coherent.
+  leave both paths usable side by side. Component proxying has since widened to every
+  manifest component (`quick-build/docs/component-proxying-design.md`), which makes the
+  harness genuinely stand in for the app — so per this entry's revisit clause, a same-id
+  mode is now **adopted as a per-project opt-in** (2026-07-20, behind the experiments
+  flag; `quick-build/docs/same-app-id-design.md`), gated on an explicit destructive-styled
+  clobber warning on every mode entry. The suffix remains the default posture of this ADR.
 
 ## Related
 
