@@ -53,10 +53,17 @@ class IncrementalCompiler(
 	compilerPluginJars: List<File> = emptyList(),
 ) {
 	sealed interface Result {
-		/** @property classesDir single merged output dir (Kotlin + Java classes). */
+		/**
+		 * @property classesDir single merged output dir (Kotlin + Java classes).
+		 * @property changedClassFiles the .class files this compile emitted or rewrote,
+		 *   as '/'-separated paths relative to [classesDir]. Feeds the CoGo-side deploy
+		 *   policy (restart vs recreate), so it must never under-report: computed by
+		 *   diffing a pre/post snapshot of the output tree on (size, nanosecond mtime).
+		 */
 		data class Success(
 			val classesDir: File,
 			val warnings: List<Diagnostic>,
+			val changedClassFiles: List<String>,
 		) : Result
 
 		data class Failed(
@@ -103,6 +110,7 @@ class IncrementalCompiler(
 		allSources: List<File>,
 		changedFiles: List<File>,
 	): Result {
+		val before = snapshotClassOutputs()
 		val logger = CollectingLogger()
 		val kotlinResult = compileKotlin(allSources, changedFiles, logger)
 		lastCompileLog = logger.lines
@@ -133,8 +141,36 @@ class IncrementalCompiler(
 		return Result.Success(
 			classesDir = classesDir.toFile(),
 			warnings = warnings + javaDiagnostics.diagnostics,
+			changedClassFiles = changedClassOutputs(before),
 		)
 	}
+
+	/**
+	 * Snapshot of every .class under [classesDir]: relative path -> (size, mtime).
+	 * Nanosecond [java.nio.file.attribute.FileTime] (not millis) so a rewrite within
+	 * the same millisecond still diffs - an under-report here would let a changed
+	 * component class skip the restart policy, a never-stale violation.
+	 */
+	private fun snapshotClassOutputs(): Map<String, Pair<Long, java.nio.file.attribute.FileTime>> {
+		val root = classesDir
+		if (!Files.isDirectory(root)) return emptyMap()
+		val snapshot = HashMap<String, Pair<Long, java.nio.file.attribute.FileTime>>()
+		Files.walk(root).use { paths ->
+			paths.forEach { path ->
+				if (Files.isRegularFile(path) && path.toString().endsWith(".class")) {
+					val rel = root.relativize(path).toString().replace(java.io.File.separatorChar, '/')
+					snapshot[rel] = Files.size(path) to Files.getLastModifiedTime(path)
+				}
+			}
+		}
+		return snapshot
+	}
+
+	private fun changedClassOutputs(before: Map<String, Pair<Long, java.nio.file.attribute.FileTime>>): List<String> =
+		snapshotClassOutputs()
+			.filter { (rel, stamp) -> before[rel] != stamp }
+			.keys
+			.sorted()
 
 	private fun compileKotlin(
 		allSources: List<File>,

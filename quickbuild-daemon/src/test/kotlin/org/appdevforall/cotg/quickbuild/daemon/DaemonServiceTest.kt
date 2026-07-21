@@ -74,5 +74,7 @@ class DaemonServiceTest {
 		val classesDir = File(compile.values["classesDir"] as String)
 		assertThat(File(classesDir, "demo/HelloKt.class").isFile).isTrue()
 		assertThat(compile.values["durationMillis"]).isNotNull()
+		// The deploy-policy signal: this run's emitted class files.
+		assertThat(compile.values["classesChanged"]).isEqualTo(listOf("demo/HelloKt.class"))
 	}
 }

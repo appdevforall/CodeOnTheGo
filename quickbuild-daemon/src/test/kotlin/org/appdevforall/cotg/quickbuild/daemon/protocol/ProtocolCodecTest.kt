@@ -119,6 +119,23 @@ class ProtocolCodecTest {
 	}
 
 	@Test
+	fun `ok response encodes list values as JSON arrays - the classesChanged shape`() {
+		val encoded =
+			ProtocolCodec.encode(
+				DaemonResponse.ok(
+					8,
+					mapOf("classesChanged" to listOf("demo/Greeter.class", "demo/Outer\$Inner.class")),
+				),
+			)
+
+		val root = JsonParser.parseString(encoded).asJsonObject
+		assertThat(root.get("classesChanged").isJsonArray).isTrue()
+		assertThat(root.getAsJsonArray("classesChanged").map { it.asString })
+			.containsExactly("demo/Greeter.class", "demo/Outer\$Inner.class")
+			.inOrder()
+	}
+
+	@Test
 	fun `failure response encodes diagnostics in the protocol shape`() {
 		val encoded =
 			ProtocolCodec.encode(

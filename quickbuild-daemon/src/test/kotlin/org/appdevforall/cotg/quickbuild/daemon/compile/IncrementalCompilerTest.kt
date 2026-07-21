@@ -103,6 +103,28 @@ class IncrementalCompilerTest {
 	}
 
 	@Test
+	fun `changed class files list the seed build's outputs, then only the recompiled ones`() {
+		val greeter = greeterKt()
+		val sources = listOf(greeter, mainKt())
+		val compiler = compiler()
+
+		val first = compiler.compile(sources, changedFiles = sources)
+		assertThat(first).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		assertThat((first as IncrementalCompiler.Result.Success).changedClassFiles)
+			.containsAtLeast("demo/Greeter.class", "demo/MainKt.class")
+
+		greeterKt(greeting = "Howdy")
+		val second = compiler.compile(sources, changedFiles = listOf(greeter))
+
+		assertThat(second).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		val changed = (second as IncrementalCompiler.Result.Success).changedClassFiles
+		// The recompiled file is reported; the untouched one is not - an over- or
+		// under-report here would skew the CoGo-side restart decision.
+		assertThat(changed).contains("demo/Greeter.class")
+		assertThat(changed).doesNotContain("demo/MainKt.class")
+	}
+
+	@Test
 	fun `syntax error yields structured diagnostics with file and line`() {
 		val sources = listOf(greeterKt(), mainKt())
 		val compiler = compiler()

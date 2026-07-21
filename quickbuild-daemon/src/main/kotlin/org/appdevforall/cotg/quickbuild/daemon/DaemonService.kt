@@ -77,6 +77,9 @@ class DaemonService(
 						mapOf(
 							"classesDir" to result.classesDir.absolutePath,
 							"durationMillis" to durationMillis,
+							// Relative .class paths this run emitted; the CoGo-side
+							// deploy policy intersects them with the component closure.
+							"classesChanged" to result.changedClassFiles,
 						),
 					diagnostics = result.warnings,
 				)

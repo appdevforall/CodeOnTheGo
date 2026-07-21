@@ -85,6 +85,11 @@ object ProtocolCodec {
 			when (value) {
 				is Number -> root.addProperty(key, value)
 				is Boolean -> root.addProperty(key, value)
+				is Collection<*> -> {
+					val array = JsonArray()
+					value.forEach { array.add(it.toString()) }
+					root.add(key, array)
+				}
 				else -> root.addProperty(key, value.toString())
 			}
 		}
