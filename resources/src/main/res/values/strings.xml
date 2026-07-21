@@ -360,6 +360,10 @@
     <string name="xml_validation_error_generic">We could not open this layout. Fix the XML and try again.</string>
 	<string name="title_generating_xml">Generating XML code</string>
 	<string name="msg_swipe_up">Swipe up to display logs, diagnostics, debug info, and more</string>
+	<string name="cd_build_status_output_panel_empty">Build status. %1$s.</string>
+	<string name="cd_build_status_output_panel">Build status: %1$s. %2$s.</string>
+	<string name="action_expand_output_panel">Open output panel</string>
+	<string name="action_collapse_output_panel">Close output panel</string>
 	<string name="preview_render_error_title">Preview Unavailable</string>
 	<string name="preview_render_error_message">Could not create a root view. The XML is empty or missing a valid top-level element.</string>
 

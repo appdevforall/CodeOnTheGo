@@ -21,17 +21,22 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Bundle
 import android.util.AttributeSet
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewTreeObserver
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Button
 import android.widget.RelativeLayout
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.core.graphics.Insets
+import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
@@ -188,6 +193,7 @@ class EditorBottomSheet
 
 			mediator.attach()
 			binding.pager.isUserInputEnabled = false
+			setupBuildStatusAccessibility()
 
 			binding.tabs.addOnTabSelectedListener(
 				object : OnTabSelectedListener {
@@ -254,10 +260,6 @@ class EditorBottomSheet
 				copyDiagnosticsToClipboard()
 			}
 
-			binding.headerContainer.setOnClickListener {
-				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
-			}
-
 			ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
 				this.windowInsets =
 					insets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())
@@ -280,7 +282,7 @@ class EditorBottomSheet
 			binding.clearFab.setOnClickListener(null)
 			binding.clearFab.setOnLongClickListener(null)
 			binding.copyDiagnosticsFab.setOnClickListener(null)
-			binding.headerContainer.setOnClickListener(null)
+			ViewCompat.setAccessibilityDelegate(binding.buildStatus.buildStatusLayout, null)
 			removeOnLayoutChangeListener(fabLayoutChangeListener)
 			ViewCompat.setOnApplyWindowInsetsListener(this, null)
 
@@ -313,6 +315,110 @@ class EditorBottomSheet
 					apkViewModel.resetState()
 				}
 			}
+		}
+
+		private fun setupBuildStatusAccessibility() {
+			val buildStatus = binding.buildStatus.buildStatusLayout
+			buildStatus.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+			binding.buildStatus.statusText.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+			binding.buildStatus.swipeHint.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+			updateBuildStatusContentDescription()
+
+			ViewCompat.setAccessibilityDelegate(
+				buildStatus,
+				object : AccessibilityDelegateCompat() {
+					override fun onInitializeAccessibilityNodeInfo(
+						host: View,
+						info: AccessibilityNodeInfoCompat,
+					) {
+						super.onInitializeAccessibilityNodeInfo(host, info)
+						info.className = Button::class.java.name
+						info.isClickable = true
+						val expanded = isOutputPanelExpanded()
+						info.addAction(
+							AccessibilityNodeInfoCompat.AccessibilityActionCompat(
+								AccessibilityNodeInfo.ACTION_CLICK,
+								getOutputPanelActionLabel(expanded),
+							),
+						)
+
+						if (expanded) {
+							info.addAction(
+								AccessibilityNodeInfoCompat.AccessibilityActionCompat(
+									AccessibilityNodeInfo.ACTION_COLLAPSE,
+									context.getString(string.action_collapse_output_panel),
+								),
+							)
+						} else {
+							info.addAction(
+								AccessibilityNodeInfoCompat.AccessibilityActionCompat(
+									AccessibilityNodeInfo.ACTION_EXPAND,
+									context.getString(string.action_expand_output_panel),
+								),
+							)
+						}
+					}
+
+					override fun performAccessibilityAction(
+						host: View,
+						action: Int,
+						args: Bundle?,
+					): Boolean =
+						when (action) {
+							AccessibilityNodeInfo.ACTION_CLICK ->
+								if (isOutputPanelExpanded()) {
+									collapseOutputPanel()
+								} else {
+									expandOutputPanel()
+								}
+
+							AccessibilityNodeInfo.ACTION_EXPAND -> expandOutputPanel()
+
+							AccessibilityNodeInfo.ACTION_COLLAPSE -> collapseOutputPanel()
+							else -> super.performAccessibilityAction(host, action, args)
+						}
+				},
+			)
+		}
+
+		private fun expandOutputPanel(): Boolean {
+			if (viewModel.sheetBehaviorState != BottomSheetBehavior.STATE_EXPANDED) {
+				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
+			}
+			updateBuildStatusContentDescription()
+			return true
+		}
+
+		private fun collapseOutputPanel(): Boolean {
+			if (viewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
+				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
+			}
+			updateBuildStatusContentDescription()
+			return true
+		}
+
+		private fun isOutputPanelExpanded(): Boolean =
+			viewModel.sheetBehaviorState == BottomSheetBehavior.STATE_EXPANDED ||
+				viewModel.sheetBehaviorState == BottomSheetBehavior.STATE_HALF_EXPANDED
+
+		private fun getOutputPanelActionLabel(expanded: Boolean = isOutputPanelExpanded()): String =
+			context.getString(
+				if (expanded) {
+					string.action_collapse_output_panel
+				} else {
+					string.action_expand_output_panel
+				},
+			)
+
+		private fun updateBuildStatusContentDescription() {
+			val statusText = binding.buildStatus.statusText.text?.toString()?.trim().orEmpty()
+			val actionLabel = getOutputPanelActionLabel()
+			binding.buildStatus.buildStatusLayout.contentDescription =
+				if (statusText.isEmpty()) {
+					context.getString(string.cd_build_status_output_panel_empty, actionLabel)
+				} else {
+					context.getString(string.cd_build_status_output_panel, statusText, actionLabel)
+				}
 		}
 
 		private fun generateTooltipListener(tooltipTag: String): OnLongClickListener =
@@ -526,6 +632,7 @@ class EditorBottomSheet
 				binding.buildStatus.let {
 					it.statusText.gravity = gravity
 					it.statusText.text = text
+					updateBuildStatusContentDescription()
 				}
 			}
 		}
@@ -599,6 +706,7 @@ class EditorBottomSheet
 				BottomSheetBehavior.STATE_DRAGGING, BottomSheetBehavior.STATE_SETTLING -> return
 			}
 
+			updateBuildStatusContentDescription()
 			updateFabTranslation()
 			val currentFragment = pagerAdapter.getFragmentAtIndex<Fragment>(state.currentTab)
 
