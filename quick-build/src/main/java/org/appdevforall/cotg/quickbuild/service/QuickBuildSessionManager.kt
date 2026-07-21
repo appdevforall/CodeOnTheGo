@@ -24,8 +24,11 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.SetupInfo
 import org.appdevforall.cotg.quickbuild.domain.BuildOrchestrator
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
+import org.appdevforall.cotg.quickbuild.domain.BuildRequest
 import org.appdevforall.cotg.quickbuild.domain.ChangeClassifier
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
+import org.appdevforall.cotg.quickbuild.domain.ComponentKind
+import org.appdevforall.cotg.quickbuild.domain.DeployPolicy
 import org.appdevforall.cotg.quickbuild.domain.GenerationStore
 import org.appdevforall.cotg.quickbuild.domain.GenerationTracker
 import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
@@ -76,6 +79,12 @@ class QuickBuildSessionManager(
 		},
 	/** Run-statistics port (David's tracking ask); the app wires an analytics sink. */
 	private val metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop,
+	/**
+	 * Relaunches the test app after a restart deploy; the app wires an intent-based
+	 * implementation. The default refuses, which the executor surfaces as a deploy
+	 * failure ("open the app manually") instead of claiming a relaunch it cannot do.
+	 */
+	private val launcher: TestAppLauncher = TestAppLauncher { _, _ -> false },
 ) {
 	/** Builds the project watcher for a live session; overridden with a fake in tests. */
 	fun interface WatcherFactory {
@@ -138,13 +147,37 @@ class QuickBuildSessionManager(
 	private var sessionWork: Job? = null
 
 	private class LiveSession(
-		val setup: SetupInfo,
-		val layout: QuickBuildProjectLayout,
+		/** Mutable: a rebaseline regenerates setup.json and must move this snapshot. */
+		var setup: SetupInfo,
+		var layout: QuickBuildProjectLayout,
 		val tracker: GenerationTracker,
 		val filter: WatchFilter,
 		val orchestrator: BuildOrchestrator,
 		val watcher: ProjectWatcher,
-	)
+		/** Seam the rebaseline swaps a fresh SetupInfo-derived executor into. */
+		val executor: SwitchableExecutor,
+	) {
+		/**
+		 * Newest generation a deploy verifiably landed in this session, or -1 before the
+		 * first one. The reconnect catch-up compares against THIS (not the allocation
+		 * counter, which persists across sessions and burns numbers on failed builds):
+		 * a test app reconnecting below it is running code this session already
+		 * superseded.
+		 */
+		var lastDeployedGeneration = -1L
+	}
+
+	/**
+	 * Executor indirection for [LiveSession]: the orchestrator holds one executor for
+	 * its lifetime, but a rebaseline must rebuild the executor from the re-read
+	 * setup.json (new deploy-policy components, launcher/entry targets). Swapping the
+	 * delegate keeps the orchestrator - and its pending-changes bookkeeping - intact.
+	 */
+	private class SwitchableExecutor(
+		@Volatile var delegate: QuickBuildExecutor,
+	) : QuickBuildExecutor {
+		override suspend fun execute(request: BuildRequest): BuildOutcome = delegate.execute(request)
+	}
 
 	init {
 		daemon.setDeathListener { exitCode ->
@@ -155,6 +188,25 @@ class QuickBuildSessionManager(
 			connections.reports.collect { report ->
 				if (report is TargetReport.Crashed) {
 					dispatch(SessionEvent.TestAppCrashed(report.stackSummary))
+				}
+			}
+		}
+		scope.launch {
+			// Reconnect catch-up: a killed-and-relaunched test app reports the
+			// generation it booted; below what this session already deployed means it
+			// is verifiably running superseded code (persisted payload lost/stale), so
+			// force a rebuild of current sources at a fresh generation - the same path
+			// as an explicit tap. Without this, nothing reacts to a stale reconnect
+			// and the app would run old code silently until the next edit.
+			connections.target.collect { target ->
+				val session = live ?: return@collect
+				if (target != null && target.runningGeneration < session.lastDeployedGeneration) {
+					log.info(
+						"Test app reconnected at generation {} but the session deployed {}; forcing a catch-up build",
+						target.runningGeneration,
+						session.lastDeployedGeneration,
+					)
+					session.orchestrator.onQuickBuildRequested()
 				}
 			}
 		}
@@ -315,18 +367,8 @@ class QuickBuildSessionManager(
 		tracker: GenerationTracker,
 	): LiveSession {
 		val layout = outcome.layout
-		val executor =
-			executorFactory?.create(outcome.setup, layout, tracker)
-				?: QuickBuildExecutorImpl(
-					daemon = daemon,
-					deploy = deploy,
-					layout = layout,
-					entryActivity = outcome.setup.entryActivity,
-					generations = tracker,
-					workDir = File(layout.projectRoot, ".androidide/quickbuild"),
-					proxyClassesDir = outcome.setup.proxyClassesDir,
-					testAppManifest = outcome.setup.transformedManifest,
-				)
+		val setup = outcome.setup
+		val executor = SwitchableExecutor(buildExecutor(setup, layout, tracker))
 		val orchestrator =
 			BuildOrchestrator(
 				executor = executor,
@@ -342,8 +384,41 @@ class QuickBuildSessionManager(
 			filter = filter,
 			orchestrator = orchestrator,
 			watcher = watcherFactory.create(layout.watchedRoots(), layout.watchedFiles(), filter, scope),
+			executor = executor,
 		)
 	}
+
+	/** SetupInfo-derived executor; rebuilt (and swapped in) on every rebaseline. */
+	private fun buildExecutor(
+		setup: SetupInfo,
+		layout: QuickBuildProjectLayout,
+		tracker: GenerationTracker,
+	): QuickBuildExecutor =
+		executorFactory?.create(setup, layout, tracker)
+			?: QuickBuildExecutorImpl(
+				daemon = daemon,
+				deploy = deploy,
+				layout = layout,
+				entryActivity = setup.entryActivity,
+				generations = tracker,
+				workDir = File(layout.projectRoot, ".androidide/quickbuild"),
+				proxyClassesDir = setup.proxyClassesDir,
+				testAppManifest = setup.transformedManifest,
+				deployPolicy =
+					DeployPolicy(
+						components = setup.components,
+						// Pre-v2 setup.json (no schema/components) = a baseline whose
+						// runtime ignores restart deploys; the policy then routes
+						// restart-requiring builds to a rebaseline (skew guard).
+						componentInfoAvailable = setup.schema >= COMPONENT_SCHEMA_VERSION,
+					),
+				testAppPackage = setup.testAppPackage,
+				launcherActivity =
+					setup.components
+						.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
+						?.proxyClass,
+				launcher = launcher,
+			)
 
 	private fun daemonConfig(
 		layout: QuickBuildProjectLayout,
@@ -370,17 +445,29 @@ class QuickBuildSessionManager(
 				}
 				is OrchestratorEvent.BuildSucceeded -> {
 					report { metrics.onBuildFinished(event.buildId, event.result) }
+					live?.let {
+						it.lastDeployedGeneration = maxOf(it.lastDeployedGeneration, event.result.generation)
+					}
 					dispatch(
 						SessionEvent.BuildSucceeded(
 							event.result.generation,
 							event.result.durationMillis,
+							event.result.restarted,
 						),
 					)
 				}
 				is OrchestratorEvent.BuildFailed -> {
 					report { metrics.onBuildFinished(event.buildId, event.outcome) }
 					val outcome = event.outcome
-					if (outcome is BuildOutcome.InfrastructureFailure && outcome.daemonDied) {
+					if (outcome is BuildOutcome.RequiresRebaseline) {
+						// The build was fine but the baseline cannot take the deploy (a
+						// restart-requiring change on a pre-restart baseline). Route into
+						// the existing rebaseline fallback; the orchestrator already put
+						// the changed set back into pending, so the rebaseline absorbs it.
+						log.info("Quick build routed to rebaseline: {}", outcome.detail)
+						report { metrics.onInvalidation(outcome.reason) }
+						dispatch(SessionEvent.InvalidationDetected(outcome.reason))
+					} else if (outcome is BuildOutcome.InfrastructureFailure && outcome.daemonDied) {
 						dispatch(SessionEvent.DaemonDied)
 					} else {
 						dispatch(SessionEvent.BuildFailed(outcome.toSessionFailure()))
@@ -432,7 +519,19 @@ class QuickBuildSessionManager(
 		}
 
 		when (outcome) {
-			RebaselineOutcome.Success -> {
+			is RebaselineOutcome.Success -> {
+				// The rebaseline regenerated setup.json and reinstalled the test app:
+				// every SetupInfo-derived piece of the session (deploy-policy components,
+				// componentInfoAvailable, launcher/entry targets, classpath) must move to
+				// the new baseline, or the policy keeps routing on provisioning-time
+				// facts - e.g. a service the rebaseline just proxied would hot-swap and
+				// silently leave its live instance stale.
+				session.setup = outcome.setup
+				session.layout = outcome.layout
+				session.executor.delegate = buildExecutor(outcome.setup, outcome.layout, session.tracker)
+				// The freshly installed baseline boots gen 0 again; the fingerprint gate
+				// in its runtime discarded any older persisted payload.
+				session.lastDeployedGeneration = -1L
 				session.orchestrator.onBaselineReset()
 				dispatch(SessionEvent.ProvisioningSucceeded(session.tracker.current))
 			}
@@ -513,11 +612,16 @@ class QuickBuildSessionManager(
 			is BuildOutcome.CompileError -> SessionFailure.CompileError(diagnostics)
 			is BuildOutcome.DeployFailure -> SessionFailure.DeployError(message)
 			is BuildOutcome.InfrastructureFailure -> SessionFailure.DeployError(message)
+			// Handled as an invalidation before this mapping; keep it total anyway.
+			is BuildOutcome.RequiresRebaseline -> SessionFailure.DeployError(detail)
 			// Success never reaches BuildFailed; keep the mapping total anyway.
 			is BuildOutcome.Success -> SessionFailure.DeployError("unexpected success in failure path")
 		}
 
 	private companion object {
 		private val log = LoggerFactory.getLogger(QuickBuildSessionManager::class.java)
+
+		/** setup.json schema that introduced `components` + runtime restart support. */
+		private const val COMPONENT_SCHEMA_VERSION = 2
 	}
 }

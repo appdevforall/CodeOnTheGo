@@ -64,6 +64,14 @@ class QuickBuildStatusTest {
 	}
 
 	@Test
+	fun `restarted deploy maps to up to date with the restart flag - distinct surface`() {
+		val state = QuickBuildSessionState.Deployed(4, 900, restarted = true)
+
+		assertThat(QuickBuildStatus.from(state))
+			.isEqualTo(QuickBuildStatus.UpToDate(4, 900, restarted = true))
+	}
+
+	@Test
 	fun `invalidated maps to needs full build`() {
 		val state = QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 3)
 

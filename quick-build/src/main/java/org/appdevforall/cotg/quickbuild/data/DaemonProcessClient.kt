@@ -122,11 +122,20 @@ class DaemonProcessClient(
 	override suspend fun compile(
 		allSources: List<File>,
 		changedFiles: List<File>,
-	): DaemonReply<File> =
-		request("compile") {
-			add("allSources", allSources.toJsonPaths())
-			add("changedFiles", changedFiles.toJsonPaths())
-		}.mapFile("classesDir") { File(it, "classes") }
+	): DaemonReply<CompileOutput> {
+		val reply =
+			request("compile") {
+				add("allSources", allSources.toJsonPaths())
+				add("changedFiles", changedFiles.toJsonPaths())
+			}
+		val response = (reply as? DaemonReply.Ok)?.value
+		// Absent field (a daemon predating the signal) stays null - "unknown", which the
+		// deploy policy treats conservatively - distinct from an empty list ("nothing").
+		val changed =
+			(response?.get("classesChanged") as? JsonArray)
+				?.mapNotNull { it.takeIf(com.google.gson.JsonElement::isJsonPrimitive)?.asString }
+		return reply.mapFile("classesDir") { File(it, "classes") }.mapOk { CompileOutput(it, changed) }
+	}
 
 	override suspend fun dex(classesDirs: List<File>): DaemonReply<File> =
 		request("dex") {
@@ -293,6 +302,13 @@ class DaemonProcessClient(
 						?: return DaemonReply.Failed("Daemon reply missing '$field' and no outDir configured")
 				DaemonReply.Ok(file)
 			}
+			is DaemonReply.BuildFailed -> this
+			is DaemonReply.Failed -> this
+		}
+
+	private fun <T, R> DaemonReply<T>.mapOk(transform: (T) -> R): DaemonReply<R> =
+		when (this) {
+			is DaemonReply.Ok -> DaemonReply.Ok(transform(value))
 			is DaemonReply.BuildFailed -> this
 			is DaemonReply.Failed -> this
 		}

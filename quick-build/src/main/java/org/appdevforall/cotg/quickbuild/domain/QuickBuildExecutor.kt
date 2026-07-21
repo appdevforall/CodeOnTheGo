@@ -30,10 +30,28 @@ data class BuildRequest(
 )
 
 sealed interface BuildOutcome {
-	/** Compiled, deployed and reloaded: the test app now runs [generation]. */
+	/**
+	 * Compiled, deployed and reloaded: the test app now runs [generation].
+	 * [restarted] true = the deploy went through the process-restart path (a
+	 * service/provider/Application class changed): the payload was persisted, the
+	 * process exited and was relaunched, instead of a hot swap.
+	 */
 	data class Success(
 		val generation: Long,
 		val durationMillis: Long,
+		val restarted: Boolean = false,
+	) : BuildOutcome
+
+	/**
+	 * The build succeeded but the quick path must not deploy it: the installed
+	 * baseline cannot take a restart-requiring payload safely (its runtime would
+	 * ignore the restart request and hot-swap, leaving a live service stale). The
+	 * session manager routes [reason] into the full-rebaseline fallback, which
+	 * regenerates the baseline; the changed set stays pending and is absorbed there.
+	 */
+	data class RequiresRebaseline(
+		val reason: InvalidationReason,
+		val detail: String,
 	) : BuildOutcome
 
 	/** The changed-set does not compile. The test app keeps running the old generation. */

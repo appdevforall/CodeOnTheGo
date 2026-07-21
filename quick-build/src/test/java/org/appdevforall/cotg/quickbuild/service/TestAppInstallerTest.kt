@@ -34,6 +34,10 @@ class TestAppInstallerTest {
 		override fun lastUpdateTime(packageName: String): Long? = stamp
 
 		override fun apkFile(packageName: String): File? = installedApk
+
+		override fun versionCode(packageName: String): Long? = null
+
+		override fun signingCertSha256(packageName: String): String? = null
 	}
 
 	private val packages = FakePackages()

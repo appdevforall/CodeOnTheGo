@@ -26,12 +26,12 @@ interface QuickBuildDaemon {
 	 * Incremental compile. Per the BTA gotchas in the README, [changedFiles] must be
 	 * the KNOWN changed set; pass ALL sources as changed to seed IC caches.
 	 *
-	 * @return the directory containing compiled classes.
+	 * @return the compiled classes dir plus the .class files this run emitted.
 	 */
 	suspend fun compile(
 		allSources: List<File>,
 		changedFiles: List<File>,
-	): DaemonReply<File>
+	): DaemonReply<CompileOutput>
 
 	/** Dex the given class dirs. @return the produced `classes.dex`. */
 	suspend fun dex(classesDirs: List<File>): DaemonReply<File>
@@ -54,6 +54,20 @@ interface QuickBuildDaemon {
 	 */
 	fun setDeathListener(listener: ((exitCode: Int) -> Unit)?)
 }
+
+/**
+ * A successful `compile` op's output.
+ *
+ * @property classesDir directory containing the compiled classes.
+ * @property changedClassFiles the .class files this run emitted or rewrote,
+ *   '/'-separated relative to [classesDir] — the deploy policy's recompiled-set
+ *   signal. Null when the daemon did not report the field (a pre-signal daemon);
+ *   the policy then decides conservatively (restart over stale).
+ */
+data class CompileOutput(
+	val classesDir: File,
+	val changedClassFiles: List<String>?,
+)
 
 /** Everything the daemon needs to know once per session (`configure` op). */
 data class DaemonConfig(

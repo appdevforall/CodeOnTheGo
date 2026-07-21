@@ -40,6 +40,22 @@ interface QuickBuildMetricsSink {
 		durationMillis: Long,
 	)
 
+	/**
+	 * Same-app-id mode (contract section 6): the clobber warning was accepted and
+	 * provisioning will start. [updateInstall] = the data-preserving update path vs a
+	 * plain fresh install. Default no-op so existing sinks stay source-compatible.
+	 */
+	fun onSameAppIdEntered(updateInstall: Boolean) {}
+
+	/** The clobber dialog's accept itself; kept distinct so decline rate is measurable. */
+	fun onSameAppIdClobberConfirmed() {}
+
+	/** Mode entry was refused; [reason] is signature_mismatch or user_declined. */
+	fun onSameAppIdRefused(reason: SameAppIdRefusalReason) {}
+
+	/** A Standard Run ended the mode episode; [downgradeUsed] = restore requested a downgrade. */
+	fun onSameAppIdRestored(downgradeUsed: Boolean) {}
+
 	object Noop : QuickBuildMetricsSink {
 		override fun onSessionStarted() = Unit
 

@@ -38,6 +38,9 @@ class QuickBuildSessionManagerTest {
 	/** Requests seen by the scripted executor, with per-request scripted outcomes. */
 	private val executed = mutableListOf<BuildRequest>()
 
+	/** SetupInfo of every executor the manager built (provision + each rebaseline). */
+	private val factorySetups = mutableListOf<SetupInfo>()
+
 	/** Flat trace of metrics-sink calls, e.g. "started:CodeOnly:1", "rebaseline:true". */
 	private val metricsEvents = mutableListOf<String>()
 	private var metricsThrow = false
@@ -87,7 +90,7 @@ class QuickBuildSessionManagerTest {
 	private var rebaselineCount = 0
 	private var prewarmCount = 0
 	private var provisionOutcome: (() -> ProvisionOutcome)? = null
-	private var rebaselineOutcome: () -> RebaselineOutcome = { RebaselineOutcome.Success }
+	private var rebaselineOutcome: () -> RebaselineOutcome = { defaultRebaselineSuccess() }
 	private var prewarmGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 	private var prewarmError: Throwable? = null
 	private var provisionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
@@ -148,6 +151,11 @@ class QuickBuildSessionManagerTest {
 			layout = DefaultQuickBuildProjectLayout(projectRoot),
 		)
 
+	private fun defaultRebaselineSuccess(): RebaselineOutcome.Success {
+		val provision = defaultProvisionOutcome() as ProvisionOutcome.Success
+		return RebaselineOutcome.Success(setup = provision.setup, layout = provision.layout)
+	}
+
 	private fun TestScope.createManager(): QuickBuildSessionManager {
 		val provisioner =
 			object : QuickBuildProvisioner {
@@ -188,7 +196,8 @@ class QuickBuildSessionManagerTest {
 			paths = FakePaths(projectRoot),
 			dispatcher = StandardTestDispatcher(testScheduler),
 			generationStoreFactory = { store },
-			executorFactory = { _, _, tracker ->
+			executorFactory = { setup, _, tracker ->
+				factorySetups += setup
 				object : QuickBuildExecutor {
 					override suspend fun execute(request: BuildRequest): BuildOutcome {
 						executed += request
@@ -330,6 +339,46 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `a RequiresRebaseline outcome routes into the rebaseline fallback`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			scriptedOutcomes +=
+				BuildOutcome.RequiresRebaseline(
+					InvalidationReason.OUTDATED_BASELINE,
+					"baseline predates component metadata",
+				)
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			// The quick build ran once, refused to deploy, and the session fell back to
+			// the full rebaseline (which absorbs the pending change) instead of failing.
+			assertThat(executed).hasSize(1)
+			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(metricsEvents).contains("invalidated:OUTDATED_BASELINE")
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
+	fun `a restart deploy surfaces restarted in state and status`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			scriptedOutcomes += BuildOutcome.Success(1, 5, restarted = true)
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Deployed(1, 5, restarted = true))
+			assertThat(manager.status.value)
+				.isEqualTo(QuickBuildStatus.UpToDate(1, 5, restarted = true))
+		}
+
+	@Test
 	fun `a deployed build reports started and finished metrics`() =
 		runTest {
 			val manager = createManager()
@@ -396,6 +445,106 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 			assertThat(userMessages).contains("manifest does not build")
 		}
+
+	@Test
+	fun `a rebaseline rebuilds the executor from the re-read setup`() =
+		runTest {
+			// The rebaseline regenerates setup.json; here it comes back schema v2 (e.g.
+			// a manifest edit added a service the new baseline proxies).
+			rebaselineOutcome = {
+				val base = defaultRebaselineSuccess()
+				base.copy(setup = base.setup.copy(schema = 2))
+			}
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(factorySetups).hasSize(1)
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			// The live session's executor was rebuilt from the RE-READ setup, not left
+			// on the provisioning-time snapshot - otherwise the deploy policy would
+			// keep routing on stale component facts for the rest of the session.
+			assertThat(factorySetups).hasSize(2)
+			assertThat(factorySetups.last().schema).isEqualTo(2)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
+	fun `a stale reconnect triggers a catch-up build`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(executed).hasSize(1)
+
+			// A killed-and-relaunched test app that lost the deployed payload boots and
+			// reconnects at gen 0 - verifiably running code this session superseded.
+			connections.onConnected(connectedAt(0))
+			advanceUntilIdle()
+
+			assertThat(executed).hasSize(2)
+			assertThat(executed.last().forced).isTrue()
+		}
+
+	@Test
+	fun `a reconnect at the deployed generation does not trigger a build`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(executed).hasSize(1)
+
+			connections.onConnected(connectedAt(1))
+			advanceUntilIdle()
+
+			assertThat(executed).hasSize(1)
+		}
+
+	@Test
+	fun `a gen-0 reconnect after a rebaseline does not trigger a catch-up build`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			val buildsBefore = executed.size
+
+			// The rebaseline reinstalled a fresh baseline; its gen-0 IS current code,
+			// so a reconnect at 0 must not be mistaken for staleness.
+			connections.onConnected(connectedAt(0))
+			advanceUntilIdle()
+
+			assertThat(executed).hasSize(buildsBefore)
+		}
+
+	private fun connectedAt(generation: Long): ConnectedTarget =
+		ConnectedTarget(
+			target =
+				object : com.itsaky.androidide.quickbuild.IQuickBuildTarget {
+					override fun onBuildStatus(statusJson: String?) = Unit
+
+					override fun onPayload(
+						generation: Long,
+						dexPayload: android.os.ParcelFileDescriptor?,
+						resourcesPayload: android.os.ParcelFileDescriptor?,
+						assetsPayload: android.os.ParcelFileDescriptor?,
+						metadataJson: String?,
+					) = Unit
+
+					override fun asBinder(): android.os.IBinder? = null
+				},
+			packageName = "com.example.quickbuild",
+			runningGeneration = generation,
+		)
 
 	@Test
 	fun `tap while Ready forces a build even with nothing changed`() =

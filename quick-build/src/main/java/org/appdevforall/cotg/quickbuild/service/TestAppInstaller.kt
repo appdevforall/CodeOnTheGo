@@ -25,6 +25,16 @@ interface InstalledPackages {
 
 	/** The installed base APK (sourceDir), or null when not installed. */
 	fun apkFile(packageName: String): File?
+
+	/** PackageInfo.longVersionCode, or null when not installed. */
+	fun versionCode(packageName: String): Long?
+
+	/**
+	 * Lowercase hex SHA-256 of the package's current signing certificate, or null when
+	 * not installed or unreadable. Null reads as "cannot verify" - same-app-id mode
+	 * then refuses rather than guessing (design contract, section 2).
+	 */
+	fun signingCertSha256(packageName: String): String?
 }
 
 /**

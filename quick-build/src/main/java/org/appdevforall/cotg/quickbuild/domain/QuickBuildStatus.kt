@@ -17,9 +17,15 @@ sealed interface QuickBuildStatus {
 		val runningGeneration: Long,
 	) : QuickBuildStatus
 
+	/**
+	 * [restarted] true = the last deploy relaunched the test-app process (a
+	 * service/provider/Application class changed); the surface should phrase it as a
+	 * restart ("Restarted <app> - component code changed"), not a plain reload.
+	 */
 	data class UpToDate(
 		val generation: Long,
 		val buildDurationMillis: Long?,
+		val restarted: Boolean = false,
 	) : QuickBuildStatus
 
 	/** Honesty line: the test app still runs [runningGeneration]; the edit did not land. */
@@ -50,7 +56,8 @@ sealed interface QuickBuildStatus {
 					state.lastFailure?.let { Failed(state.generation, it) }
 						?: UpToDate(state.generation, buildDurationMillis = null)
 				is QuickBuildSessionState.Building -> Building(state.deployedGeneration)
-				is QuickBuildSessionState.Deployed -> UpToDate(state.generation, state.buildDurationMillis)
+				is QuickBuildSessionState.Deployed ->
+					UpToDate(state.generation, state.buildDurationMillis, state.restarted)
 				is QuickBuildSessionState.Invalidated -> NeedsFullBuild(state.reason, state.deployedGeneration)
 				is QuickBuildSessionState.Degraded -> Reconnecting(state.deployedGeneration)
 			}

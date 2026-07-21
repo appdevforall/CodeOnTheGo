@@ -1,5 +1,6 @@
 package org.appdevforall.cotg.quickbuild.service
 
+import org.appdevforall.cotg.quickbuild.data.CompileOutput
 import org.appdevforall.cotg.quickbuild.data.DaemonConfig
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
@@ -16,7 +17,8 @@ class FakeDaemon : QuickBuildDaemon {
 	var shutdownCount = 0
 
 	var startReply: DaemonReply<Unit> = DaemonReply.Ok(Unit)
-	var compileReply: DaemonReply<File> = DaemonReply.Ok(File("/fake/classes"))
+	var compileReply: DaemonReply<CompileOutput> =
+		DaemonReply.Ok(CompileOutput(File("/fake/classes"), changedClassFiles = emptyList()))
 	var dexReply: DaemonReply<File> = DaemonReply.Ok(File("/fake/classes.dex"))
 	var relinkReply: DaemonReply<File> = DaemonReply.Ok(File("/fake/resources.arsc"))
 
@@ -34,7 +36,7 @@ class FakeDaemon : QuickBuildDaemon {
 	override suspend fun compile(
 		allSources: List<File>,
 		changedFiles: List<File>,
-	): DaemonReply<File> {
+	): DaemonReply<CompileOutput> {
 		compileCalls += allSources to changedFiles
 		return compileReply
 	}
@@ -81,7 +83,17 @@ class FakeDeploy : DeploySender {
 
 	val calls = mutableListOf<Call>()
 	val statusCalls = mutableListOf<String>()
+	val awaitDisconnectCalls = mutableListOf<Long>()
+	val awaitReconnectCalls = mutableListOf<Long>()
 	var result: DeployResult = DeployResult.Reloaded(40)
+	var disconnects: Boolean = true
+
+	/**
+	 * Generation the fake "relaunched app" reconnects at, given the last deployed
+	 * generation; return null for a relaunch that never reconnects. Defaults to a
+	 * clean restart (reconnects at the deployed generation).
+	 */
+	var reconnectGeneration: (deployedGeneration: Long?) -> Long? = { it }
 
 	override suspend fun deploy(
 		generation: Long,
@@ -96,6 +108,16 @@ class FakeDeploy : DeploySender {
 
 	override fun notifyBuildStatus(statusJson: String) {
 		statusCalls += statusJson
+	}
+
+	override suspend fun awaitDisconnect(timeoutMillis: Long): Boolean {
+		awaitDisconnectCalls += timeoutMillis
+		return disconnects
+	}
+
+	override suspend fun awaitReconnect(timeoutMillis: Long): Long? {
+		awaitReconnectCalls += timeoutMillis
+		return reconnectGeneration(calls.lastOrNull()?.generation)
 	}
 }
 

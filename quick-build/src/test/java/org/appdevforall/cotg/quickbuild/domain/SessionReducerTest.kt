@@ -88,6 +88,18 @@ class SessionReducerTest {
 	}
 
 	@Test
+	fun `building plus a restarted BuildSucceeded carries restarted into Deployed`() {
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Building(1),
+				SessionEvent.BuildSucceeded(2, 800, restarted = true),
+			)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Deployed(2, 800, restarted = true))
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
 	fun `building plus BuildFailed stays on the old generation with the failure recorded`() {
 		val failure =
 			SessionFailure.CompileError(

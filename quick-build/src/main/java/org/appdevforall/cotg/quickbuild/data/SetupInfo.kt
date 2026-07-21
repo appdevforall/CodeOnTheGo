@@ -2,6 +2,8 @@ package org.appdevforall.cotg.quickbuild.data
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import org.appdevforall.cotg.quickbuild.domain.ComponentInfo
+import org.appdevforall.cotg.quickbuild.domain.ComponentKind
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -38,6 +40,28 @@ data class SetupInfo(
 	 * JSON, defaults to false.
 	 */
 	val composeEnabled: Boolean = false,
+	/**
+	 * setup.json schema version; 0 when the field is absent (a pre-v2 baseline).
+	 * Schema >= 2 means the baseline carries [components] and its baked runtime
+	 * understands restart deploys - the deploy policy's skew guard keys on this.
+	 */
+	val schema: Int = 0,
+	/**
+	 * The manifest components the setup build recorded (schema v2 `components`);
+	 * empty for pre-v2 baselines. Feeds the restart closure and the relaunch target.
+	 */
+	val components: List<ComponentInfo> = emptyList(),
+	/**
+	 * True when the setup build ran in same-app-id mode (Path B): [testAppPackage] then
+	 * IS the real applicationId. Additive field, absent in suffix-mode setup.json; the
+	 * plugin writes it as the STRING "true", so parsing accepts both forms.
+	 */
+	val sameAppId: Boolean = false,
+	/**
+	 * The pinned versionCode the setup build applied (same-app-id episodes only);
+	 * written as a numeric string. Null when absent.
+	 */
+	val versionCode: Int? = null,
 ) {
 	companion object {
 		private val log = LoggerFactory.getLogger(SetupInfo::class.java)
@@ -96,6 +120,68 @@ data class SetupInfo(
 						.get("composeEnabled")
 						?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }
 						?.asBoolean == true,
+				schema =
+					obj
+						.get("schema")
+						?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+						?.asInt ?: 0,
+				components =
+					obj
+						.getAsJsonArray("components")
+						?.mapNotNull { element -> (element as? JsonObject)?.let(::parseComponent) }
+						?: emptyList(),
+				sameAppId = obj.flexibleBoolean("sameAppId"),
+				versionCode = obj.flexibleInt("versionCode"),
+			)
+		}
+
+		/**
+		 * A boolean the plugin may write as a JSON boolean or the string "true" (the
+		 * setup.json convention is string values); anything else reads as false.
+		 */
+		private fun JsonObject.flexibleBoolean(key: String): Boolean {
+			val value = get(key)?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive ?: return false
+			return if (value.isBoolean) value.asBoolean else value.asString.equals("true", ignoreCase = true)
+		}
+
+		/** An int written as a JSON number or a numeric string; null when absent/malformed. */
+		private fun JsonObject.flexibleInt(key: String): Int? {
+			val value = get(key)?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive ?: return null
+			return if (value.isNumber) value.asInt else value.asString.toIntOrNull()
+		}
+
+		/** One `components` entry; null (skipped, logged) when malformed or of an unknown type. */
+		private fun parseComponent(obj: JsonObject): ComponentInfo? {
+			val typeName = obj.firstString("type") ?: return null
+			val kind =
+				when (typeName) {
+					"activity" -> ComponentKind.ACTIVITY
+					"service" -> ComponentKind.SERVICE
+					"receiver" -> ComponentKind.RECEIVER
+					"provider" -> ComponentKind.PROVIDER
+					"application" -> ComponentKind.APPLICATION
+					else -> {
+						// A future schema's component type this build doesn't know. The
+						// schema version, not this parser, is the compatibility gate.
+						log.warn("setup.json component of unknown type '{}' ignored", typeName)
+						return null
+					}
+				}
+			val userClass = obj.firstString("userClass") ?: return null
+			return ComponentInfo(
+				kind = kind,
+				className = userClass,
+				proxyClass = obj.firstString("proxyClass"),
+				launcher =
+					obj
+						.get("launcher")
+						?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }
+						?.asBoolean == true,
+				supertypes =
+					obj
+						.getAsJsonArray("supertypes")
+						?.mapNotNull { it.takeIf(com.google.gson.JsonElement::isJsonPrimitive)?.asString }
+						?: emptyList(),
 			)
 		}
 

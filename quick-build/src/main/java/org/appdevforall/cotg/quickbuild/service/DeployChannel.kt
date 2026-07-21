@@ -36,6 +36,24 @@ interface DeploySender {
 	 * [statusJson] comes from [BuildStatusJson].
 	 */
 	fun notifyBuildStatus(statusJson: String)
+
+	/**
+	 * Waits until no test app is bound (binder death observed, or none was connected).
+	 * The restart deploy path uses this to confirm the runtime actually exited before
+	 * relaunching - relaunching a still-alive process would just resume the old code.
+	 *
+	 * @return true when disconnected within [timeoutMillis].
+	 */
+	suspend fun awaitDisconnect(timeoutMillis: Long): Boolean
+
+	/**
+	 * Waits for a test app to (re)connect and returns the generation it reported
+	 * running, or null on timeout. The restart deploy path uses this to VERIFY the
+	 * relaunched process actually booted the deployed generation before claiming
+	 * success - claiming it blind would be a stale-code lie whenever the persist
+	 * raced the process death.
+	 */
+	suspend fun awaitReconnect(timeoutMillis: Long): Long?
 }
 
 /** Terminal outcome of one deploy attempt. */
@@ -50,6 +68,13 @@ sealed interface DeployResult {
 	) : DeployResult
 
 	data object NotConnected : DeployResult
+
+	/**
+	 * The test app disconnected while the deploy waited for its verdict. Fatal for a
+	 * hot-swap deploy; for a restart deploy it is the expected process exit (or a crash
+	 * around the payload - either way relaunch + binder catch-up reconciles honestly).
+	 */
+	data object Disconnected : DeployResult
 
 	data class TimedOut(
 		val timeoutMillis: Long,
@@ -121,8 +146,7 @@ class DeployChannel(
 				when (val report = verdict.await()) {
 					is TargetReport.Reloaded -> DeployResult.Reloaded(report.reloadMillis)
 					is TargetReport.Crashed -> DeployResult.Crashed(report.stackSummary)
-					TargetReport.Disconnected ->
-						DeployResult.Failed("Test app disconnected during deploy")
+					TargetReport.Disconnected -> DeployResult.Disconnected
 				}
 			}
 		} ?: DeployResult.TimedOut(timeoutMillis)
@@ -138,6 +162,16 @@ class DeployChannel(
 			log.warn("Build-status message to the test app failed", e)
 		}
 	}
+
+	override suspend fun awaitDisconnect(timeoutMillis: Long): Boolean =
+		withTimeoutOrNull(timeoutMillis) {
+			connections.target.first { it == null }
+		} != null
+
+	override suspend fun awaitReconnect(timeoutMillis: Long): Long? =
+		withTimeoutOrNull(timeoutMillis) {
+			connections.target.first { it != null }?.runningGeneration
+		}
 
 	private fun openReadOnly(file: File?): ParcelFileDescriptor? =
 		file?.let { ParcelFileDescriptor.open(it, ParcelFileDescriptor.MODE_READ_ONLY) }

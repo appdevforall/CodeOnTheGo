@@ -35,10 +35,16 @@ sealed interface QuickBuildSessionState {
 		val deployedGeneration: Long,
 	) : QuickBuildSessionState
 
-	/** A build just landed; the test app runs [generation]. */
+	/**
+	 * A build just landed; the test app runs [generation]. [restarted] true = it landed
+	 * via the process-restart path (service/provider/Application code changed), so the
+	 * test app relaunched at its launcher and lost in-process state - the status surface
+	 * says so instead of a plain "reloaded".
+	 */
 	data class Deployed(
 		val generation: Long,
 		val buildDurationMillis: Long,
+		val restarted: Boolean = false,
 	) : QuickBuildSessionState
 
 	/** The baseline is stale (manifest/gradle/external build); needs a full Gradle build. */
@@ -92,6 +98,8 @@ sealed interface SessionEvent {
 	data class BuildSucceeded(
 		val generation: Long,
 		val durationMillis: Long,
+		/** True when the deploy restarted the test-app process (component code changed). */
+		val restarted: Boolean = false,
 	) : SessionEvent
 
 	data class BuildFailed(
@@ -280,7 +288,9 @@ class SessionReducer {
 	): SessionTransition =
 		when (event) {
 			is SessionEvent.BuildSucceeded ->
-				SessionTransition(QuickBuildSessionState.Deployed(event.generation, event.durationMillis))
+				SessionTransition(
+					QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted),
+				)
 			is SessionEvent.BuildFailed ->
 				SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration, event.failure))
 			is SessionEvent.InvalidationDetected ->

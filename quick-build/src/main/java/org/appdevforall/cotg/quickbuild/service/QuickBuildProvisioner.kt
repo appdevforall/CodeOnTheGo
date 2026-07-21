@@ -48,7 +48,17 @@ sealed interface ProvisionOutcome {
 }
 
 sealed interface RebaselineOutcome {
-	data object Success : RebaselineOutcome
+	/**
+	 * Carries the RE-READ setup manifest (and the layout derived from it): a rebaseline
+	 * regenerates setup.json, and the live session must rebuild its SetupInfo-derived
+	 * state (deploy-policy components, launcher/entry targets, classpath) from the new
+	 * baseline - keeping the provisioning-time snapshot would leave the policy blind to
+	 * components the rebaseline just added (a silent-stale route).
+	 */
+	data class Success(
+		val setup: SetupInfo,
+		val layout: QuickBuildProjectLayout,
+	) : RebaselineOutcome
 
 	data class Failure(
 		val message: String,

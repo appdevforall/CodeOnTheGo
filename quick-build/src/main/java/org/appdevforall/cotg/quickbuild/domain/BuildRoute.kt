@@ -45,4 +45,12 @@ enum class InvalidationReason {
 
 	/** A full Gradle build ran outside the session and moved the baseline. */
 	EXTERNAL_FULL_BUILD,
+
+	/**
+	 * The installed baseline predates the component-restart contract (setup.json
+	 * schema < 2, or its runtime ignored a restart request): a restart-requiring
+	 * deploy would be silently hot-swapped, leaving a live service/provider stale.
+	 * Rebaselining regenerates setup.json and reinstalls the test app.
+	 */
+	OUTDATED_BASELINE,
 }
