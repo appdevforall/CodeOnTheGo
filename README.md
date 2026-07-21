@@ -2,7 +2,7 @@
   <img src="./images/ADFA_logo.png" alt="Code On The Go" width="80" height="80"/>
 </p>
 <p align="center">
-  💖 <strong>If you believe in democratizing app development or just love our tools, please consider <a href="https://github.com/sponsors/appdevforall">sponsoring our work</a>!</strong> 💖
+  💖 <strong>If you believe in our mission or just love our tools, please <a href="https://github.com/sponsors/appdevforall">sponsor our work</a>.</strong> 💖
 </p>
 <h2 align="center"><b>Code On The Go</b></h2>
 <p align="center">
