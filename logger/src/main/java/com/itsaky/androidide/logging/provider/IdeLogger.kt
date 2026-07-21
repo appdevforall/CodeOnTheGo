@@ -25,10 +25,11 @@ import org.slf4j.helpers.MessageFormatter
 /**
  * SLF4J [org.slf4j.Logger] implementation backed by [IdeLogRouter] instead of Logback.
  *
- * No level filtering is applied: the current Logback setup never calls `.setLevel()`
- * anywhere in this codebase, so every level is enabled here too. The only existing
- * level filtering (`IDELogFragment`'s in-app log tab) happens downstream, per-consumer,
- * in [IdeGlobalLogBuffer].
+ * DEBUG and above are always enabled: the old Logback setup never called `.setLevel()`
+ * anywhere in this codebase, leaving the root logger at Logback's default of DEBUG. TRACE
+ * is disabled to match that same default (Logback's root logger is never TRACE unless
+ * explicitly configured, which this codebase never did). The only other level filtering
+ * (`IDELogFragment`'s in-app log tab) happens downstream, per-consumer, in [IdeGlobalLogBuffer].
  *
  * @author Akash Yadav
  */
@@ -37,7 +38,7 @@ class IdeLogger(
 ) : LegacyAbstractLogger() {
 	override fun getName(): String = loggerName
 
-	override fun isTraceEnabled(): Boolean = true
+	override fun isTraceEnabled(): Boolean = false
 
 	override fun isDebugEnabled(): Boolean = true
 

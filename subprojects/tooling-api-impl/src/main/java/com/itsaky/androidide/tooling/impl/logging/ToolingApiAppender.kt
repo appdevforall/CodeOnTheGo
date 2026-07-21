@@ -35,8 +35,9 @@ object ToolingApiAppender : IdeLogRouter.ExternalSink {
 		message: String,
 		throwable: Throwable?,
 	) {
-		val fullMessage = if (throwable == null) message else "$message\n${throwable.stackTraceToString()}"
-		val formatted = IdeLogFormatter.format(level, loggerName, fullMessage)
-		Main.client?.logMessage(LogMessageParams(level.name.first(), loggerName, formatted))
+		// Send the raw message, not a pre-formatted line: the client re-logs this through its
+		// own SLF4J logger (see GradleBuildService.logMessage), which formats it once already.
+		val fullMessage = IdeLogFormatter.appendThrowable(message, throwable)
+		Main.client?.logMessage(LogMessageParams(level.name.first(), loggerName, fullMessage))
 	}
 }

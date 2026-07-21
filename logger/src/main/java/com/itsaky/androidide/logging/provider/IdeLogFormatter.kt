@@ -40,6 +40,11 @@ object IdeLogFormatter {
 		return if (lastDot == -1) loggerName else loggerName.substring(lastDot + 1)
 	}
 
+	/** Flattens a throwable's stack trace onto the message, matching Logback's PatternLayout. */
+	fun appendThrowable(message: String, throwable: Throwable?): String {
+		return if (throwable == null) message else "$message\n${throwable.stackTraceToString()}"
+	}
+
 	fun format(
 		level: Level,
 		loggerName: String,

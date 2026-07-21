@@ -61,24 +61,35 @@ object IdeLogRouter {
 	}
 
 	fun dispatch(level: Level, loggerName: String, message: String, throwable: Throwable?) {
-		val fullMessage = if (throwable == null) message else "$message\n${throwable.stackTraceToString()}"
-		val formatted = IdeLogFormatter.format(level, loggerName, fullMessage)
+		val fullMessage = IdeLogFormatter.appendThrowable(message, throwable)
 
-		if (isJvm) {
-			if (jvmStdErrEnabled) {
-				System.err.print(formatted)
+		// A log call must never throw into the caller: contain failures the way Logback's
+		// AppenderBase.doAppend used to, falling back to a raw stderr line so the message
+		// isn't lost entirely.
+		runCatching {
+			val formatted = IdeLogFormatter.format(level, loggerName, fullMessage)
+
+			if (isJvm) {
+				if (jvmStdErrEnabled) {
+					System.err.print(formatted)
+				}
+			} else {
+				logToLogcat(level, loggerName, fullMessage)
 			}
-		} else {
-			logToLogcat(level, loggerName, fullMessage)
+
+			IdeGlobalLogBuffer.append(level, formatted)
+		}.onFailure { error ->
+			System.err.println("IdeLogRouter: failed to dispatch log line: $fullMessage ($error)")
 		}
 
-		IdeGlobalLogBuffer.append(level, formatted)
-
-		externalSinks.forEach { sink -> runCatching { sink.onLog(level, loggerName, message, throwable) } }
+		externalSinks.forEach { sink ->
+			runCatching { sink.onLog(level, loggerName, message, throwable) }
+				.onFailure { error -> System.err.println("IdeLogRouter: sink $sink failed: $error") }
+		}
 	}
 
 	private fun logToLogcat(level: Level, loggerName: String, message: String) {
-		val tag = IdeLogFormatter.abbreviateLoggerName(loggerName)
+		val tag = LogUtils.processLogTag(IdeLogFormatter.abbreviateLoggerName(loggerName))
 		when (level) {
 			Level.ERROR -> android.util.Log.e(tag, message)
 			Level.WARN -> android.util.Log.w(tag, message)

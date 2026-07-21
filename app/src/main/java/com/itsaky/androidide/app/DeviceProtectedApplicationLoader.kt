@@ -84,15 +84,23 @@ internal object DeviceProtectedApplicationLoader :
 				GlitchTipDiagnosticsContext.install(options)
 			}
 
-			// Forward WARN+ logs to GlitchTip as breadcrumbs (never as events; crash events are
-			// only ever sent via explicit Sentry.captureException calls elsewhere).
+			// Forward INFO+ logs to GlitchTip as breadcrumbs (never as events; crash events are
+			// only ever sent via explicit Sentry.captureException calls elsewhere). INFO matches
+			// the old SentryAppender's setMinimumBreadcrumbLevel(Level.INFO) - that threshold is
+			// independent of setMinimumLevel(Level.WARN), which only gated the separate,
+			// unused "Sentry Logs" feature.
 			IdeLogRouter.addSink { level, loggerName, message, _ ->
-				if (level.toInt() >= Level.WARN.toInt()) {
+				if (level.toInt() >= Level.INFO.toInt()) {
 					Sentry.addBreadcrumb(
 						Breadcrumb().apply {
 							category = loggerName
 							this.message = message
-							this.level = if (level == Level.ERROR) SentryLevel.ERROR else SentryLevel.WARNING
+							this.level = when (level) {
+								Level.ERROR -> SentryLevel.ERROR
+								Level.WARN -> SentryLevel.WARNING
+								Level.INFO -> SentryLevel.INFO
+								else -> SentryLevel.DEBUG
+							}
 						},
 					)
 				}
