@@ -1,6 +1,8 @@
- <p align="center">
-  <img src="./images/ADFA_logo.png" alt="Code On The Go" width="80" height="80"/>
+<p align="center"> <a href="https://www.appdevforall.org/?utm_source=gh&utm_medium=readme"><img src="./images/ADFA_logo.png" alt="Code On The Go" width="80" height="80"/></a>
 </p>
+
+### If you believe in democratizing software development or just enjoy our tools, <a href="https://github.com/sponsors/appdevforall">please sponsor our work</a>.
+
 
 <h2 align="center"><b>Code On The Go</b></h2>
 <p align="center">
