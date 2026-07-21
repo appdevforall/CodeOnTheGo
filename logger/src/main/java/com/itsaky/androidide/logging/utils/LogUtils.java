@@ -26,35 +26,35 @@ import java.util.regex.Pattern;
  */
 public class LogUtils {
 
-    public static final int MAX_TAG_LENGTH = 23;
+	public static final int MAX_TAG_LENGTH = 23;
 
-    public static boolean isJvm() {
-        try {
-            // If we're in a testing environment
-            Class.forName("org.junit.runners.JUnit4");
-            return true;
-        } catch (ClassNotFoundException e) {
-            // ignored
-        }
+	public static boolean isJvm() {
+		try {
+			// If we're in a testing environment
+			Class.forName("org.junit.runners.JUnit4");
+			return true;
+		} catch (ClassNotFoundException e) {
+			// ignored
+		}
 
-        try {
-            Class.forName("android.content.Context");
-            return false;
-        } catch (ClassNotFoundException e) {
-            return true;
-        }
-    }
+		try {
+			Class.forName("android.content.Context");
+			return false;
+		} catch (ClassNotFoundException e) {
+			return true;
+		}
+	}
 
-    public static String processLogTag(String tag) {
-        if (tag == null) {
-            return null;
-        }
+	public static String processLogTag(String tag) {
+		if (tag == null) {
+			return null;
+		}
 
-        final var regex = "[^a-z-A-Z0-9_.]";
-        if (Pattern.compile(regex).matcher(tag).find()) {
-            tag = tag.replaceAll(regex, "_");
-        }
+		final var regex = "[^a-z-A-Z0-9_.]";
+		if (Pattern.compile(regex).matcher(tag).find()) {
+			tag = tag.replaceAll(regex, "_");
+		}
 
-        return LogTagUtils.trimTagIfNeeded(tag, MAX_TAG_LENGTH);
-    }
+		return LogTagUtils.trimTagIfNeeded(tag, MAX_TAG_LENGTH);
+	}
 }

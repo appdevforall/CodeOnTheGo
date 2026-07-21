@@ -30,13 +30,16 @@ import java.util.concurrent.atomic.AtomicInteger
  * @author Akash Yadav
  */
 object IdeGlobalLogBuffer {
-
 	interface Consumer {
 		val logLevel: Level
+
 		fun consume(message: String)
 	}
 
-	private data class LogEvent(val level: Level, val message: String)
+	private data class LogEvent(
+		val level: Level,
+		val message: String,
+	)
 
 	private const val MAX_BUFFER_SIZE = 1000
 	private val buffer = ConcurrentLinkedQueue<LogEvent>()
@@ -59,7 +62,10 @@ object IdeGlobalLogBuffer {
 		consumers.remove(consumer)
 	}
 
-	fun append(level: Level, formattedMessage: String) {
+	fun append(
+		level: Level,
+		formattedMessage: String,
+	) {
 		val trimmed = formattedMessage.trim()
 
 		buffer.offer(LogEvent(level, trimmed))
@@ -71,11 +77,18 @@ object IdeGlobalLogBuffer {
 		dispatch(level, trimmed)
 	}
 
-	private fun dispatch(level: Level, message: String) {
+	private fun dispatch(
+		level: Level,
+		message: String,
+	) {
 		consumers.forEach { consumer -> dispatchTo(consumer, level, message) }
 	}
 
-	private fun dispatchTo(consumer: Consumer, level: Level, message: String) {
+	private fun dispatchTo(
+		consumer: Consumer,
+		level: Level,
+		message: String,
+	) {
 		if (level.toInt() < consumer.logLevel.toInt()) return
 		runCatching { consumer.consume(message) }
 	}

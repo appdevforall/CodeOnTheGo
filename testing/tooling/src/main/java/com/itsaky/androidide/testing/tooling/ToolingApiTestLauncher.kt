@@ -294,7 +294,6 @@ object ToolingApiTestLauncher {
 				ILogger.Level.WARNING -> logger.warn(message)
 				ILogger.Level.ERROR -> logger.error(message)
 				ILogger.Level.INFO -> logger.info(message)
-
 				else -> logger.trace(message)
 			}
 		}

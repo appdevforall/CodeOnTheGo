@@ -32,8 +32,9 @@ import org.slf4j.helpers.MessageFormatter
  *
  * @author Akash Yadav
  */
-class IdeLogger(private val loggerName: String) : LegacyAbstractLogger() {
-
+class IdeLogger(
+	private val loggerName: String,
+) : LegacyAbstractLogger() {
 	override fun getName(): String = loggerName
 
 	override fun isTraceEnabled(): Boolean = true
@@ -53,13 +54,14 @@ class IdeLogger(private val loggerName: String) : LegacyAbstractLogger() {
 		marker: Marker?,
 		messagePattern: String,
 		arguments: Array<Any?>?,
-		throwable: Throwable?
+		throwable: Throwable?,
 	) {
-		val message = if (arguments.isNullOrEmpty()) {
-			messagePattern
-		} else {
-			MessageFormatter.arrayFormat(messagePattern, arguments).message
-		}
+		val message =
+			if (arguments.isNullOrEmpty()) {
+				messagePattern
+			} else {
+				MessageFormatter.arrayFormat(messagePattern, arguments).message
+			}
 
 		IdeLogRouter.dispatch(level, loggerName, message, throwable)
 	}

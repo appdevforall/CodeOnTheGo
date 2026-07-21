@@ -29,7 +29,6 @@ import java.time.format.DateTimeFormatter
  * @author Akash Yadav
  */
 object IdeLogFormatter {
-
 	private val TIMESTAMP_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM HH:mm:ss")
 
 	/**
@@ -41,7 +40,12 @@ object IdeLogFormatter {
 		return if (lastDot == -1) loggerName else loggerName.substring(lastDot + 1)
 	}
 
-	fun format(level: Level, loggerName: String, message: String, omitMessage: Boolean = false): String {
+	fun format(
+		level: Level,
+		loggerName: String,
+		message: String,
+		omitMessage: Boolean = false,
+	): String {
 		val now = LocalDateTime.now()
 		val centiseconds = now.nano / 10_000_000
 		val threadName = Thread.currentThread().name

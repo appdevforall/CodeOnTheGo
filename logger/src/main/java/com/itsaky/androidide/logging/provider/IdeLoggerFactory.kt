@@ -25,10 +25,7 @@ import java.util.concurrent.ConcurrentHashMap
  * @author Akash Yadav
  */
 class IdeLoggerFactory : ILoggerFactory {
-
 	private val loggers = ConcurrentHashMap<String, Logger>()
 
-	override fun getLogger(name: String): Logger {
-		return loggers.computeIfAbsent(name) { IdeLogger(it) }
-	}
+	override fun getLogger(name: String): Logger = loggers.computeIfAbsent(name) { IdeLogger(it) }
 }

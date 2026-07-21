@@ -31,7 +31,6 @@ import org.slf4j.spi.SLF4JServiceProvider
  */
 @AutoService(SLF4JServiceProvider::class)
 class IdeSlf4jServiceProvider : SLF4JServiceProvider {
-
 	private val loggerFactory = IdeLoggerFactory()
 	private val markerFactory: IMarkerFactory = BasicMarkerFactory()
 	private val mdcAdapter: MDCAdapter = NOPMDCAdapter()

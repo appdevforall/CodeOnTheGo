@@ -29,8 +29,12 @@ import org.slf4j.event.Level
  * @author Akash Yadav
  */
 object ToolingApiAppender : IdeLogRouter.ExternalSink {
-
-	override fun onLog(level: Level, loggerName: String, message: String, throwable: Throwable?) {
+	override fun onLog(
+		level: Level,
+		loggerName: String,
+		message: String,
+		throwable: Throwable?,
+	) {
 		val fullMessage = if (throwable == null) message else "$message\n${throwable.stackTraceToString()}"
 		val formatted = IdeLogFormatter.format(level, loggerName, fullMessage)
 		Main.client?.logMessage(LogMessageParams(level.name.first(), loggerName, formatted))

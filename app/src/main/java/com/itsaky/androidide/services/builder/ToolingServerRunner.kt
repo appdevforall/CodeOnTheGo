@@ -85,13 +85,14 @@ internal class ToolingServerRunner(
 		 * stale entries here (for example Huawei/Honor UniPerf classes) that can make
 		 * native ART registration abort the JVM before the server starts.
 		 */
-		private val ANDROID_RUNTIME_ENV_KEYS = setOf(
-			"BOOTCLASSPATH",
-			"DEX2OATBOOTCLASSPATH",
-			"SYSTEMSERVERCLASSPATH",
-			"STANDALONE_SYSTEMSERVER_JARS",
-			"CLASSPATH",
-		)
+		private val ANDROID_RUNTIME_ENV_KEYS =
+			setOf(
+				"BOOTCLASSPATH",
+				"DEX2OATBOOTCLASSPATH",
+				"SYSTEMSERVERCLASSPATH",
+				"STANDALONE_SYSTEMSERVER_JARS",
+				"CLASSPATH",
+			)
 	}
 
 	fun setListener(listener: OnServerStartListener?) {
