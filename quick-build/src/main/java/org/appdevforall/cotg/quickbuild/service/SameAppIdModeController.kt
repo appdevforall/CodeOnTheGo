@@ -66,12 +66,6 @@ class SameAppIdModeController(
 
 	private var pending: PendingEntry? = null
 
-	/**
-	 * Set when a restore ended the episode: later Run installs may still need the
-	 * downgrade request until versionCodes realign. Cleared on the next mode entry.
-	 */
-	private var restoreDowngradePending = false
-
 	fun isModeEnabled(): Boolean = store.isSameAppIdEnabled()
 
 	fun isEpisodeConfirmed(): Boolean = guard.isEpisodeConfirmed()
@@ -139,7 +133,7 @@ class SameAppIdModeController(
 	fun confirmEntry() {
 		val entry = checkNotNull(pending) { "confirmEntry without a pending requestEntry" }
 		pending = null
-		restoreDowngradePending = false
+		store.setRestoreDowngradePending(false)
 		store.setSameAppIdEnabled(true)
 		store.setPinnedVersionCode(entry.proceed.versionCode)
 		store.setEpisodeRealApplicationId(entry.realApplicationId)
@@ -183,16 +177,21 @@ class SameAppIdModeController(
 	 */
 	fun onStandardRunInstall(downgradeAvailable: Boolean): StandardRunRestore {
 		if (!guard.isEpisodeConfirmed()) {
+			// No live episode. A restore may still be pending from a prior (possibly
+			// cancelled, possibly pre-restart) run: the persisted flag keeps requesting
+			// the downgrade so a retried restore is not rejected as a version downgrade.
 			return StandardRunRestore(
 				episodeEnded = false,
-				requestDowngrade = restoreDowngradePending && downgradeAvailable,
+				requestDowngrade = store.isRestoreDowngradePending() && downgradeAvailable,
 			)
 		}
 		guard.endEpisode()
 		store.setClobberConfirmed(false)
 		store.setPinnedVersionCode(null)
 		store.setEpisodeRealApplicationId(null)
-		restoreDowngradePending = true
+		// Persisted (not in-memory) so a restore cancelled + retried across a CoGo restart
+		// still requests the downgrade instead of failing INSTALL_FAILED_VERSION_DOWNGRADE.
+		store.setRestoreDowngradePending(true)
 		report { metrics.onSameAppIdRestored(downgradeUsed = downgradeAvailable) }
 		return StandardRunRestore(episodeEnded = true, requestDowngrade = downgradeAvailable)
 	}
@@ -202,6 +201,7 @@ class SameAppIdModeController(
 		store.setPinnedVersionCode(null)
 		store.setClobberConfirmed(false)
 		store.setEpisodeRealApplicationId(null)
+		store.setRestoreDowngradePending(false)
 		guard.endEpisode()
 	}
 

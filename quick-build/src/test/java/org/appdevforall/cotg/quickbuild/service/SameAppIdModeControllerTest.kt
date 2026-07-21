@@ -18,6 +18,7 @@ class SameAppIdModeControllerTest {
 		private var pinned: Int? = null
 		private var confirmed = false
 		private var realAppId: String? = null
+		private var restorePending = false
 
 		override fun isSameAppIdEnabled(): Boolean = enabled
 
@@ -41,6 +42,12 @@ class SameAppIdModeControllerTest {
 
 		override fun setEpisodeRealApplicationId(applicationId: String?) {
 			realAppId = applicationId
+		}
+
+		override fun isRestoreDowngradePending(): Boolean = restorePending
+
+		override fun setRestoreDowngradePending(pending: Boolean) {
+			restorePending = pending
 		}
 	}
 
@@ -228,6 +235,8 @@ class SameAppIdModeControllerTest {
 		assertThat(store.isClobberConfirmed()).isFalse()
 		// The per-project OPT-IN stays on: the next bolt tap re-enters via the warning.
 		assertThat(store.isSameAppIdEnabled()).isTrue()
+		// The downgrade authority is persisted so a restart-and-retry still requests it.
+		assertThat(store.isRestoreDowngradePending()).isTrue()
 		assertThat(metrics.events).containsExactly("restored:true")
 	}
 
@@ -262,6 +271,55 @@ class SameAppIdModeControllerTest {
 
 		assertThat(second.episodeEnded).isFalse()
 		assertThat(second.requestDowngrade).isTrue()
+	}
+
+	@Test
+	fun `a restore cancelled and retried after a restart still requests the downgrade`() {
+		confirmedEpisode()
+		// Tap Run: the episode ends and the (persisted) downgrade authority is recorded.
+		controller().onStandardRunInstall(downgradeAvailable = true)
+
+		// Model a CoGo restart: a fresh controller with a FRESH guard (in-memory episode
+		// state lost) over the SAME persisted store. The episode is already ended, so
+		// restoreEpisode does not re-arm it.
+		val afterRestart =
+			SameAppIdModeController(
+				store = store,
+				packages = packages,
+				guard = SameAppIdGuard(),
+				metrics = metrics,
+				cogoCertSha256 = { cert },
+				onModeChanged = { modeChanges++ },
+			)
+		afterRestart.restoreEpisode()
+
+		val retry = afterRestart.onStandardRunInstall(downgradeAvailable = true)
+
+		assertThat(retry.episodeEnded).isFalse()
+		assertThat(retry.requestDowngrade).isTrue()
+	}
+
+	@Test
+	fun `entering a new episode clears a pending restore downgrade`() {
+		packages.versionCodes[appId] = 41
+		packages.certs[appId] = cert
+		store.setRestoreDowngradePending(true)
+		val controller = controller()
+		controller.requestEntry(appId, projectVersionCode = null)
+
+		controller.confirmEntry()
+
+		assertThat(store.isRestoreDowngradePending()).isFalse()
+	}
+
+	@Test
+	fun `disabling the mode clears a pending restore downgrade`() {
+		confirmedEpisode()
+		controller().onStandardRunInstall(downgradeAvailable = true)
+
+		controller().disableMode()
+
+		assertThat(store.isRestoreDowngradePending()).isFalse()
 	}
 
 	@Test

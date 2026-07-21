@@ -48,6 +48,13 @@ class PreferencesQuickBuildModeStore(
 		key(KEY_REAL_APP_ID)?.let { prefs.edit().putString(it, applicationId).apply() }
 	}
 
+	override fun isRestoreDowngradePending(): Boolean =
+		key(KEY_RESTORE_DOWNGRADE)?.let { prefs.getBoolean(it, false) } == true
+
+	override fun setRestoreDowngradePending(pending: Boolean) {
+		key(KEY_RESTORE_DOWNGRADE)?.let { prefs.edit().putBoolean(it, pending).apply() }
+	}
+
 	private fun key(suffix: String): String? {
 		val path = projectPath()?.takeIf { it.isNotBlank() } ?: return null
 		return "$path::$suffix"
@@ -58,6 +65,7 @@ class PreferencesQuickBuildModeStore(
 		private const val KEY_VERSION_CODE = "pinnedVersionCode"
 		private const val KEY_CONFIRMED = "clobberConfirmed"
 		private const val KEY_REAL_APP_ID = "episodeRealApplicationId"
+		private const val KEY_RESTORE_DOWNGRADE = "restoreDowngradePending"
 
 		/** Sentinel for "no pin"; versionCodes are always positive. */
 		private const val NO_VERSION_CODE = 0

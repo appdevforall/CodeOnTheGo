@@ -219,8 +219,10 @@ mode ENTRY (never per deploy or rebaseline) before anything builds or installs:
 - **Standard Run is the restore** — no second warning; it is the entry warning's
   "until a Standard Run reinstalls it" line. Tapping Run ends the episode, stops the
   session, and installs the real app over the test app, requesting a versionCode
-  downgrade on API 29+ (the test app runs at a pinned versionCode above the project's).
-  On API 28 the guided restore is **not yet built** (v1): with no downgrade API, the
+  downgrade on API 29+ (the test app runs at a pinned versionCode above the project's;
+  the downgrade request is persisted per-project, so a restore cancelled at the OS
+  dialog and retried after a CoGo restart still succeeds). On API 28 the guided restore
+  is **not yet built** (v1): with no downgrade API, the
   restore install fails safe with a version-downgrade error — nothing is destroyed, but
   the user must uninstall the test app manually to get the real app back. The designed
   confirmed-uninstall recovery is a tracked followup (see Known limitations). The mode

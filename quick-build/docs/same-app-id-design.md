@@ -147,7 +147,12 @@ reinstalls it" line is this, so no second warning here). Wiring:
 - The real app's project versionCode is typically **below** the pinned test
   versionCode, so the restore install is a downgrade. Debuggable packages may
   downgrade via `PackageInstaller.SessionParams.setRequestDowngrade` (API 29+);
-  CoGo's Run install path sets it when restoring over a same-id test app.
+  CoGo's Run install path sets it when restoring over a same-id test app. The
+  downgrade authority is **persisted per-project** (`restoreDowngradePending`,
+  section 6), not held in memory: a restore the user cancels at the OS install
+  dialog and retries after a CoGo restart still requests the downgrade, instead of
+  failing `INSTALL_FAILED_VERSION_DOWNGRADE` with no recovery. It clears on the next
+  mode entry or when the mode is disabled.
 - **API 28 restore — NOT YET IMPLEMENTED in v1 (tracked followup).** On the
   API-28 device floor no downgrade API exists, so the restore install fails with
   `INSTALL_FAILED_VERSION_DOWNGRADE`. v1 ships **only the fail-safe half**: the
@@ -193,6 +198,13 @@ Document in the mode's help text, not as a limitation of the implementation.
 
 ## 6. Session / state model
 
+- **Per-project persisted mode state** (`QuickBuildModeStore`): the opt-in toggle,
+  the confirmed-clobber flag, the episode's pinned versionCode + real applicationId,
+  and `restoreDowngradePending`. All are keyed by project path and survive a CoGo
+  restart, so the clobber warning shows once per EPISODE (not per process) and a
+  cancelled-then-retried restore keeps requesting its downgrade across a restart
+  (section 4). `restoreDowngradePending` is set when a Standard Run ends the episode
+  and cleared on the next mode entry or on disable.
 - **`setup.json`: additive field, no schema bump** — `"sameAppId": "true"` plus
   `"versionCode": "<pinned>"` written by the report task when the property is
   set. `SetupInfo` gains defaults-false/null fields; old parsers ignore the
