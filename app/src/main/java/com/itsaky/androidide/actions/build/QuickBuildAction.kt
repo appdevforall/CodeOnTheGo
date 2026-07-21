@@ -53,6 +53,18 @@ class QuickBuildAction(
 		// or fail the build action (REVIEW.md section 11).
 		runCatching { GlobalContext.get().get<IAnalyticsManager>().trackFeatureUsed(FEATURE_NAME) }
 			.onFailure { log.warn("Quick Build analytics unavailable", it) }
+		// Same-app-id entry gate (Path B, contract section 3): a tap with the mode
+		// toggle on but no confirmed episode (first session after enabling, or
+		// re-entry after a Standard Run restore) must pass the clobber warning before
+		// anything builds or installs. The activity owns the dialog; the tap proceeds
+		// only on accept. Hop to the UI thread - actions run on a default dispatcher.
+		val activity = data.getActivity()
+		if (activity != null) {
+			activity.runOnUiThread {
+				activity.ensureSameAppIdEntryConfirmed { sessionManager.onQuickBuildTapped() }
+			}
+			return true
+		}
 		sessionManager.onQuickBuildTapped()
 		return true
 	}

@@ -551,8 +551,9 @@ open class EditorHandlerActivity :
 				onClick = { if (action.enabled) registry.executeAction(action, data) },
 				onLongClick = {
 					// Quick Build is a split button (plan A2): long-press opens the
-					// Quick Build / Standard Run / Restart session / Help dropdown
-					// instead of the plain tooltip every other toolbar action shows.
+					// Quick Build / Standard Run / Restart session / Use real app ID /
+					// Help dropdown instead of the plain tooltip every other toolbar
+					// action shows.
 					if (action.id == QuickBuildAction.ID) {
 						showQuickBuildDropdownMenu(content.projectActionsToolbar, data)
 					} else {
@@ -587,8 +588,9 @@ open class EditorHandlerActivity :
 	 * re-execute the same [ActionItem]s the toolbar's own taps do, so B3's rebaseline-on-
 	 * return hand-back (wired at the Run button's install callback) fires the same way no
 	 * matter which entry point started the build. "Restart session" is the escape hatch
-	 * for a stuck daemon/test app; "Help" reuses the tooltip already wired via
-	 * [QuickBuildAction.retrieveTooltipTag] (E3).
+	 * for a stuck daemon/test app; "Use real app ID" toggles same-app-id mode (Path B)
+	 * through [toggleSameAppIdMode]'s warning flow; "Help" reuses the tooltip already
+	 * wired via [QuickBuildAction.retrieveTooltipTag] (E3).
 	 */
 	private fun showQuickBuildDropdownMenu(
 		anchor: View,
@@ -597,6 +599,8 @@ open class EditorHandlerActivity :
 		val registry = getInstance() as DefaultActionsRegistry
 		val popup = PopupMenu(this, anchor)
 		popup.menuInflater.inflate(R.menu.menu_quick_build, popup.menu)
+		// Same-app-id mode toggle (Path B): reflect the per-project persisted state.
+		popup.menu.findItem(R.id.action_quick_build_same_app_id)?.isChecked = isSameAppIdModeEnabled()
 		popup.setOnMenuItemClickListener { item ->
 			when (item.itemId) {
 				R.id.action_quick_build -> {
@@ -615,6 +619,14 @@ open class EditorHandlerActivity :
 
 				R.id.action_quick_build_restart_session -> {
 					quickBuildSessionManager()?.restartSession()
+					true
+				}
+
+				R.id.action_quick_build_same_app_id -> {
+					// Off -> on shows the destructive clobber warning before anything
+					// builds or installs; on -> off ends the episode and stops the
+					// session (ProjectHandlerActivity owns the flow).
+					toggleSameAppIdMode()
 					true
 				}
 

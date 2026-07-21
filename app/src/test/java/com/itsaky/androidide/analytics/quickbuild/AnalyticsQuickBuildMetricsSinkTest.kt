@@ -10,6 +10,7 @@ import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
+import org.appdevforall.cotg.quickbuild.domain.SameAppIdRefusalReason
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -161,5 +162,36 @@ class AnalyticsQuickBuildMetricsSinkTest {
 		assertThat(rebaseline.eventName).isEqualTo("quick_build_rebaseline")
 		assertThat(rebaseline.isSuccess).isTrue()
 		assertThat(rebaseline.durationMs).isEqualTo(7_500)
+	}
+
+	@Test
+	fun `same-app-id mode events map to the sameid metric family`() {
+		val sink = sink()
+		sink.onSameAppIdClobberConfirmed()
+		sink.onSameAppIdEntered(updateInstall = true)
+		sink.onSameAppIdRestored(downgradeUsed = true)
+
+		val confirmed = tracked[0] as QuickBuildSameIdClobberConfirmedMetric
+		assertThat(confirmed.eventName).isEqualTo("quick_build_sameid_clobber_confirmed")
+
+		val entered = tracked[1] as QuickBuildSameIdEnteredMetric
+		assertThat(entered.eventName).isEqualTo("quick_build_sameid_entered")
+		assertThat(entered.updateInstall).isTrue()
+		// Confirmation and entry share the session id in flight at the time.
+		assertThat(entered.qbSessionId).isEqualTo(confirmed.qbSessionId)
+
+		val restored = tracked[2] as QuickBuildSameIdRestoredMetric
+		assertThat(restored.eventName).isEqualTo("quick_build_sameid_restored")
+		assertThat(restored.downgradeUsed).isTrue()
+	}
+
+	@Test
+	fun `a refusal predates any session and carries only reason and project hash`() {
+		sink().onSameAppIdRefused(SameAppIdRefusalReason.SIGNATURE_MISMATCH)
+
+		val refused = tracked.single() as QuickBuildSameIdRefusedMetric
+		assertThat(refused.eventName).isEqualTo("quick_build_sameid_refused")
+		assertThat(refused.reason).isEqualTo("signature_mismatch")
+		assertThat(refused.projectHash).isEqualTo("/projects/demo".hashCode().toLong())
 	}
 }

@@ -105,3 +105,69 @@ data class QuickBuildRebaselineMetric(
 			putLong("project_hash", projectHash)
 		}
 }
+
+/**
+ * Same-app-id mode entered: the clobber warning was accepted and provisioning starts
+ * (contract section 6). `install` = "fresh" | "update".
+ */
+data class QuickBuildSameIdEnteredMetric(
+	val qbSessionId: String,
+	val updateInstall: Boolean,
+	val projectHash: Long,
+) : Metric {
+	override val eventName = "quick_build_sameid_entered"
+
+	override fun asBundle(): Bundle =
+		Bundle().apply {
+			putString("qb_session_id", qbSessionId)
+			putString("install", if (updateInstall) "update" else "fresh")
+			putLong("project_hash", projectHash)
+		}
+}
+
+/** The clobber dialog's accept itself; distinct from `entered` so decline rate is the gap. */
+data class QuickBuildSameIdClobberConfirmedMetric(
+	val qbSessionId: String,
+	val projectHash: Long,
+) : Metric {
+	override val eventName = "quick_build_sameid_clobber_confirmed"
+
+	override fun asBundle(): Bundle =
+		Bundle().apply {
+			putString("qb_session_id", qbSessionId)
+			putLong("project_hash", projectHash)
+		}
+}
+
+/**
+ * Same-app-id mode entry refused. Predates any session, so it carries only the
+ * project hash (contract section 6). `reason` = "signature_mismatch" | "user_declined".
+ */
+data class QuickBuildSameIdRefusedMetric(
+	val reason: String,
+	val projectHash: Long,
+) : Metric {
+	override val eventName = "quick_build_sameid_refused"
+
+	override fun asBundle(): Bundle =
+		Bundle().apply {
+			putString("reason", reason)
+			putLong("project_hash", projectHash)
+		}
+}
+
+/** A Standard Run ended the mode episode (the restore); was a downgrade requested? */
+data class QuickBuildSameIdRestoredMetric(
+	val qbSessionId: String,
+	val downgradeUsed: Boolean,
+	val projectHash: Long,
+) : Metric {
+	override val eventName = "quick_build_sameid_restored"
+
+	override fun asBundle(): Bundle =
+		Bundle().apply {
+			putString("qb_session_id", qbSessionId)
+			putBoolean("downgrade_used", downgradeUsed)
+			putLong("project_hash", projectHash)
+		}
+}

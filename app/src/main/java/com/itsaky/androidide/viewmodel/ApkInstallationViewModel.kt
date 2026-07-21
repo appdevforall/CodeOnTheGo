@@ -103,13 +103,19 @@ class ApkInstallationViewModel : ViewModel() {
 		context: Context,
 		apk: File,
 		launchInDebugMode: Boolean,
+		requestDowngrade: Boolean = false,
 	) {
 		val packageInstaller = context.packageManager.packageInstaller
 		packageInstaller.unregisterSessionCallback(callback)
 		packageInstaller.registerSessionCallback(callback)
 
 		viewModelScope.launch {
-			ApkInstaller.installApk(context, apk, launchInDebugMode)
+			ApkInstaller.installApk(
+				context,
+				apk,
+				launchInDebugMode,
+				requestDowngrade = requestDowngrade,
+			)
 		}
 	}
 

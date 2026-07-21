@@ -981,6 +981,17 @@
 	<string name="quick_build_error">Quick Build: %1$s</string>
 	<string name="quick_build_menu_standard_run">Standard Run</string>
 	<string name="quick_build_menu_restart_session">Restart session</string>
+	<string name="quick_build_menu_same_app_id">Use real app ID</string>
+	<string name="quick_build_same_app_id_warning_title">Replace %1$s with the test app?</string>
+	<string name="quick_build_same_app_id_consequence_replaced">The installed %1$s on this device is replaced by the Quick Build test app until a Standard Run reinstalls it.</string>
+	<string name="quick_build_same_app_id_consequence_os_routing">Notifications, shortcuts, widgets, alarms, and push messages for %1$s now go to the test app.</string>
+	<string name="quick_build_same_app_id_consequence_shared_data">App data is shared: the test app reads and writes the real app\'s data, and code under active editing can corrupt or migrate that data irreversibly.</string>
+	<string name="quick_build_same_app_id_consequence_reinstall">Every switch between Quick Build and Standard Run is a reinstall, with the OS install dialogs (and possibly Play Protect) each time.</string>
+	<string name="quick_build_same_app_id_confirm">Replace app</string>
+	<string name="quick_build_same_app_id_refused_title">Can\'t use the real app ID</string>
+	<string name="quick_build_same_app_id_restored">Standard Run is restoring the real app; the Quick Build test app is replaced and the session stopped</string>
+	<string name="quick_build_same_app_id_disabled">Real-app-ID mode turned off</string>
+	<string name="quick_build_same_app_id_no_app_id">Cannot determine the project\'s applicationId</string>
 	<string name="cd_undo">Undo</string>
 	<string name="cd_redo">Redo</string>
 	<string name="cd_delete">Delete</string>
