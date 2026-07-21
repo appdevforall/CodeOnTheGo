@@ -10,13 +10,13 @@
     <string name="about_footer">Code on the Go %1$s untuk %2$s</string>
     <string name="about_subtitle">Tidak punya komputer? Tidak ada internet? Tidak masalah. Koding aplikasi di mana saja.</string>
     <string name="msg_get_package_failed">Gagal mengekstrak nama paket.</string>
-    <string name="msg_need_help">Jika Anda mengalami masalah saat menggunakan Code on the Go atau saat build aplikasi Android, Anda dapat bergabung ke grup Telegram dan meminta bantuan di sana.\n\nAnda juga dapat mengirim saran melalui email kami.</string>
+    <string name="msg_need_help">Jika Anda mengalami masalah saat menggunakan Code on the Go atau dalam mengembangkan aplikasi Android, Anda dapat bergabung dengan forum Diskusi kami dan meminta bantuan di sana.\n\nAnda juga dapat mengirimkan saran melalui email kami.</string>
     <string name="download_codeonthego_message">Unduh Code on the Go dari situs web resmi untuk mendapatkan fitur dan pembaruan terbaru.</string>
     <string name="msg_invalid_url">URL tidak valid.</string>
     <string name="msg_no_browser_found">Tidak ditemukan browser untuk menangani permintaan ini.</string>
     <string name="need_help">Butuh Bantuan?</string>
     <string name="ide_preferences">Preferensi IDE</string>
-    <string name="discussions_on_telegram">Diskusi di Telegram</string>
+    <string name="discussions_on_telegram">Forum dukungan dan diskusi</string>
     <string name="official_tg_channel">Saluran Telegram resmi</string>
     <string name="msg_empty_view">Tidak ada data</string>
     <string name="title_terminal">Terminal</string>
@@ -145,6 +145,9 @@
     <string name="sort_by_name">Nama</string>
     <string name="sort_by_created">Dibuat</string>
     <string name="sort_by_modified">Diubah</string>
+    <string name="filters_active">Filter aktif</string>
+    <string name="filter_chip_remove_sort">Hapus urutan</string>
+    <string name="filter_chip_remove_search">Hapus filter pencarian</string>
     <string name="project_info">Informasi</string>
     <string name="project_info_title">Informasi dasar proyek</string>
     <string name="project_info_general_title">Umum</string>
@@ -332,15 +335,15 @@
     <string name="title_viewaction_delete">Hapus</string>
     <string name="msg_yesno_def_title">Harap konfirmasi</string>
     <string name="msg_yesno_def_message">Apakah Anda yakin?</string>
-    <string name="msg_empty_ui_layout">Belum ada view yang ditambahkan. Ketuk untuk menambahkan view.</string>
+    <string name="msg_empty_ui_layout">Belum ada tampilan yang ditambahkan. Ketuk untuk menambahkan tampilan.</string>
     <string name="msg_generate_xml_failed">Gagal menghasilkan kode XML</string>
     <string name="xml_validation_error_title">Ada kesalahan pada XML layout</string>
     <string name="xml_validation_error_invalid_file">File yang dipilih bukan layout XML Android yang valid.</string>
     <string name="xml_error_parse">Tidak dapat membaca XML layout ini. %1$s</string>
     <string name="xml_error_io">Tidak dapat membuka XML layout ini. %1$s</string>
     <string name="xml_error_generic">Tidak dapat membuka layout ini. %1$s</string>
-    <string name="xml_error_single_child_container">%1$s hanya dapat memiliki satu anak (child) langsung. Bungkus view Anda dalam wadah (container) seperti LinearLayout atau ConstraintLayout.</string>
-    <string name="xml_error_add_child_failed">Tidak dapat menempatkan %1$s di dalam %2$s. Periksa struktur view.</string>
+    <string name="xml_error_single_child_container">%1$s hanya dapat memiliki satu anak (child) langsung. Bungkus tampilan Anda ke dalam wadah (container) seperti LinearLayout atau ConstraintLayout.</string>
+    <string name="xml_error_add_child_failed">Tidak dapat menempatkan %1$s di dalam %2$s. Periksa struktur tampilan.</string>
     <string name="xml_validation_error_generic">Tidak dapat membuka layout ini. Perbaiki XML lalu coba lagi.</string>
     <string name="title_generating_xml">Hasilkan kode XML</string>
     <string name="msg_swipe_up">Geser ke atas untuk melihat log, diagnostik, info debug, dll.</string>
@@ -549,6 +552,10 @@
     <string name="title_reload_color_schemes">Muat ulang skema warna</string>
     <string name="msg_dir_picker_failed">Gagal membuka pemilih direktori : %1$s</string>
     <string name="msg_tooling_server_unavailable">Server Tooling API tidak tersedia. Periksa output build dan log IDE untuk melihat masalahnya</string>
+    <!-- Shown when one or more dependency JARs were corrupt/unreadable during classpath indexing. %1$s is a comma-separated list of dependency names (may end with an overflow clause). -->
+    <string name="msg_unreadable_classpath_jars">Beberapa dependensi tidak dapat dibaca dan dilewati, sehingga fitur pelengkapan kode mungkin tidak lengkap: %1$s. Sinkronkan proyek untuk mengunduh kembali dependensi tersebut.</string>
+    <!-- Appended to the dependency list when more than three dependencies were skipped. %1$s is the first listed dependency names; %2$d is the count of additional ones. -->
+    <string name="msg_unreadable_classpath_jars_overflow">%1$s dan %2$d lainnya</string>
     <string name="idepref_deleteEmptyLines_title">Hapus baris kosong saat menekan backspace</string>
     <string name="idepref_deleteEmptyLines_summary">Jika sebuah baris tidak berisi karakter teks terlihat, menekan backspace akan menghapus seluruh baris tersebut</string>
     <string name="idepref_deleteTabs_title">Penghapusan indentasi cerdas</string>
@@ -617,6 +624,7 @@
     <string name="msg_build_variants_fetch_failed">Gagal mengambil varian build</string>
     <string name="title_choose_application">Pilih aplikasi</string>
     <string name="err_selected_variant_not_found">Varian build yang dipilih tidak ditemukan</string>
+    <string name="err_no_release_variant">Tidak ditemukan varian rilis untuk module \'%1$s\'. Pembuatan profil memerlukan varian rilis.</string>
     <string name="title_disconnect_log_senders">Putuskan pengirim log</string>
     <string name="title_begin_long_select">Mulai seleksi panjang</string>
     <string name="idepref_editor_stickScroll_title">Gulir lengket</string>
@@ -640,6 +648,7 @@
     <string name="msg_project_cache_read_failure">Gagal membaca cache proyek</string>
     <string name="msg_font_copy_failed">Tidak dapat menyimpan file font. Silakan coba lagi.</string>
     <string name="msg_files_being_saved">Operasi penyimpanan file sedang berlangsung</string>
+    <string name="msg_undock_save_failed">Tidak dapat menyimpan “%1$s”. Pembatalan pelepasan telah dibatalkan.</string>
     <string name="title_install_tools">Instal Alat Pengembangan</string>
     <string name="subtitle_install_tools">\nUntuk menginstal alat yang diperlukan untuk mem-build proyek Android, ketuk tombol di kanan bawah layar\n</string>
     <string name="greeting_title">Selamat datang</string>
@@ -653,6 +662,9 @@
     <string name="permission_desc_overlay_window">Izinkan Code on the Go menampilkan kontrol debugger mengambang untuk memeriksa kode saat berjalan.</string>
     <string name="permission_overlay_unsupported_hint">Fitur debugger mengambang tidak tersedia di perangkat ini.</string>
     <string name="permission_overlay_restricted_settings_hint">Jika Anda tidak dapat mengaktifkan izin ini, buka Info aplikasi Code on the Go, ketuk menu titik tiga, lalu aktifkan pengaturan terbatas.</string>
+    <string name="permission_overlay_restricted_dialog_title">Aktifkan pengaturan terbatas</string>
+    <string name="permission_overlay_restricted_dialog_message">Android telah menonaktifkan tombol “Tampilkan di atas aplikasi lain” karena Code on the Go diinstal dari luar toko aplikasi. Untuk mengaktifkannya:</string>
+    <string name="permission_overlay_open_app_info">Buka Info Aplikasi</string>
     <string name="permission_title_notifications">Notifikasi</string>
     <string name="permission_desc_notifications">Izinkan Code on the Go menampilkan notifikasi.</string>
     <string name="permission_title_accessibility">Aksesibilitas</string>
@@ -827,6 +839,7 @@
 
     <string name="info_icon_content_description">Ikon info</string>
     <string name="feedback_button_description">Kirim masukan tentang keterangan (tooltip) ini</string>
+    <string name="sponsor_button_description">Dukung kami melalui GitHub Sponsors</string>
     <string name="cd_more_options">Opsi lainnya</string>
     <string name="cd_expand_collapse">Perluas atau ciutkan</string>
     <string name="cd_file_icon">Ikon file</string>
@@ -993,7 +1006,10 @@
 
     <!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
         11, as it's a requirement. -->
-    <string name="err_debugger_requires_a11">Debugger memerlukan Android 11 atau lebih baru untuk berfungsi.</string>
+    <string name="err_debugger_requires_a11">Debugger memerlukan Android 11 atau versi yang lebih baru agar dapat berfungsi.</string>
+    <!-- Error message displayed when the profiler feature is accessed on a device running an Android version older than
+        11, as it's a requirement. -->
+    <string name="err_profiler_requires_a11">Profiler memerlukan Android 11 atau versi yang lebih baru agar dapat berfungsi.</string>
 
     <!-- Title of the dialog shown to ask the user to complete the pairing process -->
     <string name="debugger_setup_title">Sambungkan debugging nirkabel</string>
@@ -1003,6 +1019,11 @@
     Untuk menggunakan debugger, Anda harus mengaktifkan opsi pengembang. Saat Anda siap untuk menyambungkan dengan debugger:]]></string>
 
     <!-- Steps shown to the user in an ordered list in the ADB pairing dialog -->
+    <string-array name="overlay_restricted_settings_steps">
+        <item><![CDATA[Di layar <b>Info Aplikasi</b>, ketuk menu titik tiga (⋮) di sudut atas.]]></item>
+        <item><![CDATA[Ketuk <b>Izinkan pengaturan terbatas</b>.]]></item>
+        <item><![CDATA[Buka <b>Tampilkan di atas aplikasi lain</b> dan aktifkan fitur tersebut untuk Code on the Go.]]></item>
+    </string-array>
     <string-array name="debugger_setup_pairing_steps">
         <item><![CDATA[Ketuk <b>Mulai menyambung</b>. Opsi pengembang akan ditampilkan.]]></item>
         <item><![CDATA[Aktifkan <b>Debugging nirkabel</b>.]]></item>
@@ -1026,6 +1047,21 @@
     <string name="ai_setting_loading_model_please_wait">🔄 Memuat model, harap tunggu…</string>
     <string name="ai_setting_model_loaded">✅ Model dimuat: %1$s</string>
     <string name="ai_setting_error_loading_model">❌ Terjadi kesalahan saat memuat model: %1$s</string>
+
+    <!-- Model load errors -->
+    <string name="model_error_engine_init">Mesin inferensi tidak dapat diinisialisasi.</string>
+    <string name="model_error_copy_failed">Tidak dapat menyalin file model.</string>
+    <string name="model_error_verification_failed">Verifikasi file model gagal.</string>
+    <string name="model_error_load_failed">Gagal memuat model \'%1$s\'.</string>
+    <string name="model_error_format_unsupported">Format model ini tidak didukung.</string>
+    <string name="model_error_embedding">Model yang dipilih, \'%1$s\', adalah model embedding yang dirancang untuk pencarian semantik dan tugas-tugas kesamaan. Model ini tidak dapat digunakan untuk obrolan atau pembuatan teks.\n\nSilakan pilih model obrolan/instruksi sebagai gantinya (misalnya, model yang memiliki kata \'obrolan\', \'instruksi\', atau \'percakapan\' dalam namanya).</string>
+    <string name="model_error_format_onnx">Model ONNX (.onnx) tidak didukung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan alat konversi llama.cpp\n2. Atau unduh versi GGUF yang sudah dikonversi dari Hugging Face</string>
+    <string name="model_error_format_pytorch">Model PyTorch (.pt, .pth, .bin) tidak didukung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan convert_hf_to_gguf.py\n2. Atau unduh versi GGUF yang sudah dikonversi dari Hugging Face</string>
+    <string name="model_error_format_safetensors">Model SafeTensors (.safetensors) tidak didukung secara langsung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan convert_hf_to_gguf.py\n2. Atau unduh versi GGUF yang sudah dikonversi dari Hugging Face</string>
+    <string name="model_error_format_tensorflow">Model TensorFlow (.pb) tidak didukung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan alat konversi yang sesuai\n2. Atau unduh versi GGUF yang sudah dikonversi dari Hugging Face</string>
+    <string name="model_error_format_tflite">Model TensorFlow Lite (.tflite) tidak didukung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nSilakan pilih model dalam format GGUF.</string>
+    <string name="model_error_format_ggml">Model GGML (.ggml) sudah tidak didukung lagi.\n\nAplikasi ini menggunakan format GGUF yang lebih baru (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan convert_llama_ggml_to_gguf.py\n2. Atau unduh versi GGUF dari Hugging Face</string>
+
     <string name="ai_disclaimer">Pernyataan</string>
     <string name="ai_disclaimer_message">Agen AI ini bersifat masih dalam percobaan dan dapat memberikan jawaban yang salah atau berbahaya. Selalu cadangkan pekerjaan Anda sebelum mencobanya, dan selalu periksa kembali sarannya sebelum digunakan. Kami tidak bertanggung jawab atas kesalahan, bug, atau kerusakan yang disebabkan oleh hasilnya. Gunakan dengan risiko Anda sendiri.</string>
     <string name="ai_api_key_not_found">❌ Kunci API Gemini tidak ditemukan.\nJika Anda baru saja memperbarui atau menginstal ulang aplikasi, kunci API Anda mungkin telah direset.\nSilakan tambahkan kembali kunci Gemini Anda di Pengaturan AI.</string>
@@ -1151,6 +1187,8 @@
     <string name="no_save_before_git_action">Lanjutkan tanpa menyimpan</string>
     <string name="save_before_git_action">Simpan sebelum melanjutkan</string>
     <string name="mark_as_resolved">Tandai sebagai selesai</string>
+    <string name="check_all">Centang Semua</string>
+    <string name="uncheck_all">Batalkan Centang Semua</string>
 
     <!-- Templates -->
     <string name="template_exec_info_basepath">Memulai pembuatan proyek untuk %1$s</string>
@@ -1182,5 +1220,60 @@
     <string name="template_read_error_template_load">Gagal memuat template di %1$s  masalahnya: %2$s</string>
     <string name="template_read_error_archive_load">Gagal memuat arsip template %1$s  masalahnya: %2$s</string>
     <string name="navigate_up">Navigasi naik</string>
+
+    <!-- Profiler -->
+    <string name="profiler_title">Profiler</string>
+    <string name="profiler_action_label">Profil</string>
+    <string name="profiler_dump_heap">Heap dump</string>
+    <string name="profiler_cpu_hotspots">Titik panas CPU</string>
+    <string name="profiler_empty">Belum ada data profil. Jalankan heap dump atau sampel CPU.</string>
+    <string name="profiler_col_class">Class</string>
+    <string name="profiler_col_count">Jumlah</string>
+    <string name="profiler_col_shallow">Dangkal</string>
+    <string name="profiler_col_retained">Dipertahankan</string>
+    <string name="profiler_col_symbol">Simbol</string>
+    <string name="profiler_col_self">Milik sendiri</string>
+    <string name="profiler_col_total">Total</string>
+    <string name="profiler_process_picker_debuggable">dapat di-debug</string>
+    <string name="profiler_process_picker_profileable">dapat diprofilkan</string>
+    <string name="profiler_process_picker_pid">%1$s · PID %2$d</string>
+    <string name="profiler_select_process">Pilih proses yang akan diprofilkan</string>
+    <string name="profiler_no_processes">Tidak ada proses yang dapat di-debug atau diprofilkan.</string>
+    <string name="profiler_running">Sedang mengambil dump heap dari %1$s…</string>
+    <string name="profiler_cpu_not_implemented">Profil CPU belum tersedia.</string>
+    <string name="profiler_service_unavailable">Layanan profiler tidak tersedia. Pastikan Shizuku sedang berjalan.</string>
+    <string name="profiler_heap_dump_failed">Gagal melakukan heap dump: %1$s</string>
+    <string name="profiler_retry">Kembali</string>
+    <string name="profiler_cpu_recording">Merekam penggunaan CPU untuk %1$s…</string>
+    <string name="profiler_cpu_stop">Hentikan profiling</string>
+    <string name="profiler_cpu_processing">Membuat laporan CPU…</string>
+    <string name="profiler_cpu_failed">Gagal melakukan profiling CPU: %1$s</string>
+    <string name="profiler_cpu_failed_generic">Gagal melakukan profiling CPU.</string>
+    <string name="profiler_cpu_no_samples">Tidak ada sampel CPU yang terekam. Cobalah lakukan profiling sedikit lebih lama.</string>
+    <string name="profiler_hide_system_frames">Sembunyikan frame sistem</string>
+    <string name="profiler_orientation_toggle">Balik arah grafik</string>
+    <string name="profiler_cpu_self">Milik sendiri %1$s (%2$s)</string>
+    <string name="profiler_cpu_total">Total %1$s (%2$s)</string>
+    <string name="profiler_cpu_tap_hint">Ketuk frame untuk melihat detailnya</string>
+    <string name="profiler_heap_metric_retained">Ukuran yang dipertahankan</string>
+    <string name="profiler_heap_metric_count">Contoh</string>
+    <string name="profiler_heap_view_table">Daftar class</string>
+    <string name="profiler_hide_framework_classes">Sembunyikan class framework</string>
+    <string name="profiler_heap_shallow">Dangkal %1$s</string>
+    <string name="profiler_heap_retained">Dipertahankan %1$s (%2$s)</string>
+    <string name="profiler_heap_objects">%1$s object</string>
+    <string name="profiler_heap_tap_hint">Ketuk frame untuk melihat detail objek</string>
+    <string name="profiler_cancel">Batalkan</string>
+    <string name="profiler_start_another">Mulai tugas lain</string>
+    <string name="profiler_cancelled">Profiling dibatalkan.</string>
+    <string name="profiler_interrupted">Pembuatan profil terhenti karena layanan profiler terputus.</string>
+
+    <!-- Floating window chrome button accessibility labels (announced by screen readers) -->
+    <string name="undock">Lepaskan</string>
+    <string name="floating_window_action_minimize">Minimalkan</string>
+    <string name="floating_window_action_restore">Pulihkan</string>
+    <string name="floating_window_action_maximize">Maksimalkan</string>
+    <string name="floating_window_action_dock">Tempelkan ke editor</string>
+    <string name="floating_window_action_close">Tutup</string>
 
 </resources>
