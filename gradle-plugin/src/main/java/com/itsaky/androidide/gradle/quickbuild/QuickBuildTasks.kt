@@ -21,6 +21,7 @@ import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
@@ -37,8 +38,9 @@ import javax.tools.ToolProvider
 
 /**
  * Rewrites the merged manifest for the test app and generates the artifacts derived from
- * it: proxy activity sources, the proxy-to-user component map (an APK asset), and the
- * manifest-info intermediate consumed by [QuickBuildSetupReportTask].
+ * it: proxy component sources (activities, services, receivers, providers), the
+ * proxy-to-user component map (an APK asset), and the manifest-info intermediate consumed
+ * by [QuickBuildSetupReportTask].
  *
  * One task for all four outputs so the proxy numbering in the manifest and in the sources
  * can never drift apart.
@@ -50,6 +52,10 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 	/** Final (suffixed) application id of the test app. */
 	@get:Input
 	abstract val applicationId: Property<String>
+
+	/** The USER app's applicationId; provider authorities under it move to the test-app id. */
+	@get:Input
+	abstract val realApplicationId: Property<String>
 
 	/** FQN of the quick-build runtime's AppComponentFactory. */
 	@get:Input
@@ -76,6 +82,8 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 			QuickBuildManifestTransformer(
 				proxyPackage = "$appId.proxies",
 				appComponentFactory = appComponentFactory.get(),
+				realApplicationId = realApplicationId.get(),
+				testApplicationId = appId,
 			)
 
 		val result =
@@ -91,23 +99,25 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 		transformer.writeTo(result.document, updatedManifest.get().asFile)
 
 		val sourcesRoot = proxySources.get().asFile.cleanDirectory()
-		result.activities.forEach { activity ->
-			val relativePath = activity.proxyClass.replace('.', '/') + ".java"
+		val proxied = result.components.filter { it.proxyClass != null }
+		proxied.forEach { component ->
+			val relativePath = component.proxyClass!!.replace('.', '/') + ".java"
 			File(sourcesRoot, relativePath)
 				.apply { parentFile.mkdirs() }
-				.writeText(ProxySourceGenerator.generateSource(activity.proxyClass, activity.userClass))
+				.writeText(ProxySourceGenerator.generateSource(component))
 		}
 
 		val assetsRoot = generatedAssets.get().asFile.cleanDirectory()
 		File(assetsRoot, "quickbuild/components.json")
 			.apply { parentFile.mkdirs() }
-			.writeText(QuickBuildJson.componentsJson(result.activities))
+			.writeText(QuickBuildJson.componentsJson(result.components))
 
 		val info =
 			ManifestInfo(
 				testAppId = appId,
 				entryActivity = result.entryActivity,
 				activities = result.activities.map { it.userClass },
+				components = result.components,
 			)
 		manifestInfoFile
 			.get()
@@ -119,8 +129,8 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 			logger.warn("Quick Build: no LAUNCHER activity found in the merged manifest")
 		}
 		logger.lifecycle(
-			"Quick Build: generated {} proxy activities for '{}'",
-			result.activities.size,
+			"Quick Build: generated {} proxy components for '{}'",
+			proxied.size,
 			appId,
 		)
 	}
@@ -420,6 +430,15 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 	@get:Input
 	abstract val composeEnabled: Property<Boolean>
 
+	/** True for a same-app-id (Path B) setup build; echoed into setup.json. */
+	@get:Input
+	abstract val sameAppId: Property<Boolean>
+
+	/** The versionCode CoGo pinned for this same-app-id episode; echoed into setup.json. */
+	@get:Input
+	@get:Optional
+	abstract val versionCodeOverride: Property<Int>
+
 	@get:OutputFile
 	abstract val setupReport: RegularFileProperty
 
@@ -450,12 +469,21 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 				)
 
 		val reportFile = setupReport.get().asFile.apply { parentFile.mkdirs() }
+		val payloadClassesRoot = File(payloadClassesPath.get())
 		val payloadJars =
-			File(payloadClassesPath.get(), "jars")
+			File(payloadClassesRoot, "jars")
 				.listFiles { file -> file.extension == "jar" }
 				.orEmpty()
 				.sortedBy { it.name }
 				.map { it.absolutePath }
+		// User-side supertype closures (superclasses + interfaces) of the proxied
+		// components, read from the diverted class headers - the deploy policy's restart
+		// closure is seeded from these.
+		val supertypeIndex = SupertypeResolver.supertypeIndex(payloadClassesRoot)
+		val supertypes =
+			info.components.associate { component ->
+				component.userClass to SupertypeResolver.chainFor(component.userClass, supertypeIndex)
+			}
 		reportFile.writeText(
 			QuickBuildJson.setupJson(
 				info,
@@ -465,6 +493,9 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 				manifestPath = transformedManifestPath.get(),
 				payloadJars = payloadJars,
 				composeEnabled = composeEnabled.getOrElse(false),
+				supertypes = supertypes,
+				sameAppId = sameAppId.getOrElse(false),
+				versionCode = versionCodeOverride.orNull,
 			),
 		)
 		logger.lifecycle("Quick Build: setup report written to {}", reportFile)

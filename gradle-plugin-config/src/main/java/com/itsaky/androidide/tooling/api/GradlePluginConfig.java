@@ -45,6 +45,16 @@ public final class GradlePluginConfig {
 	public static final String PROPERTY_QUICK_BUILD_RUNTIME_AAR = "cotg.quickbuild.runtimeAar";
 
 	/**
+	 * Opt-in same-app-id mode (Quick Build Path B). When {@code true}, the setup build installs the test app under the project's real {@code applicationId} instead of appending the {@code .quickbuild} suffix. Set per-episode by CoGo after the user confirms the clobber warning; never set by users directly.
+	 */
+	public static final String PROPERTY_QUICK_BUILD_SAME_APP_ID = "cotg.quickbuild.sameAppId";
+
+	/**
+	 * The versionCode pinned for a same-app-id mode episode ({@code max(installed + 1, project versionCode)}, computed once at mode entry). The plugin applies it to every variant output so rebaseline builds never ratchet or downgrade the installed test app.
+	 */
+	public static final String PROPERTY_QUICK_BUILD_VERSION_CODE_OVERRIDE = "cotg.quickbuild.versionCodeOverride";
+
+	/**
 	 * Property to enable or disable <code>LogSender</code> in the project. Value can be <code>true</code> or <code>false</code>.
 	 */
 	public static final String PROPERTY_LOG_SENDER_ENABLED = "androidide.logsender.isEnabled";
