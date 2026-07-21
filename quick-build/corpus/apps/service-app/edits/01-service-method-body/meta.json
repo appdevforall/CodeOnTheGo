@@ -1,0 +1,13 @@
+{
+	"editClass": "method-body",
+	"description": "Change CounterService.onStartCommand()'s foreground-notification text. Method-body-only, but the edited class IS a manifest service, so the recompiled set hits the restart closure directly: DeployPolicy must choose restart, not recreate.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/serviceapp/CounterService.kt": "CounterService.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 2},
+		"behavioralMarker": "QB_SVC_BODY_MARKER_V2",
+		"deploy": "restart"
+	}
+}

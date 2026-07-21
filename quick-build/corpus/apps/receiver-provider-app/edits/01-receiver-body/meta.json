@@ -1,0 +1,13 @@
+{
+	"editClass": "receiver-body",
+	"description": "Change the note label PingReceiver.onReceive() inserts. Body-only edit to a manifest receiver: receivers are NOT in the restart closure (fresh instantiation per delivery via the factory serves current code), so the deploy hot-swaps without a process restart.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/recvprov/PingReceiver.kt": "PingReceiver.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 2},
+		"behavioralMarker": "QB_PING_V2",
+		"deploy": "recreate"
+	}
+}

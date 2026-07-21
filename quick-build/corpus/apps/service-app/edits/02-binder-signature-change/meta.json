@@ -1,0 +1,14 @@
+{
+	"editClass": "signature-change",
+	"description": "TickBinderService's binder API changes shape: currentTick(): Int becomes describeTick(): String. The bound client (MainActivity, via its ServiceConnection) must recompile against the new signature. The recompiled set contains the service class and its nested LocalBinder (Outer$ family), so DeployPolicy must choose restart.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/serviceapp/TickBinderService.kt": "TickBinderService.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/serviceapp/MainActivity.kt": "MainActivity.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 3, "max": 5},
+		"behavioralMarker": "QB_TICK_SIG_MARKER_V2",
+		"deploy": "restart"
+	}
+}

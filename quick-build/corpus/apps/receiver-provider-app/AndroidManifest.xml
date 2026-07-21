@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="org.appdevforall.cotg.corpus.recvprov">
+
+	<application
+		android:label="@string/app_name"
+		android:allowBackup="false">
+
+		<activity
+			android:name=".MainActivity"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+
+		<!-- Manifest-declared receiver: the transformer must proxy android:name and
+		     carry the intent-filter over verbatim. -->
+		<receiver
+			android:name=".PingReceiver"
+			android:exported="false">
+			<intent-filter>
+				<action android:name="org.appdevforall.cotg.corpus.recvprov.ACTION_PING" />
+			</intent-filter>
+		</receiver>
+
+		<!-- Authority starts with the applicationId, so the transformer rewrites it
+		     to the test-app id; the provider instantiates at process start (early
+		     init), before any Activity. -->
+		<provider
+			android:name=".NotesProvider"
+			android:authorities="org.appdevforall.cotg.corpus.recvprov.notes"
+			android:exported="false" />
+
+	</application>
+</manifest>

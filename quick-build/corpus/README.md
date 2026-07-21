@@ -191,6 +191,47 @@ op in the protocol) -- it does not exercise `dex` or a real deploy/reload, so
 it's a partial signal toward the edit-to-reload release gate, not a full
 certification of it.
 
+### Offline runs
+
+Quick Build is meant to work with zero network (the whole hot loop is bundled
+toolchain + local classpaths + binder IPC -- see the wrapper repo's
+`offline-test-plan.md`). Add `--offline` to `run_matrix_device.py` to prove the
+on-device matrix runs with the phone's radios off:
+
+```bash
+python3 quick-build/corpus/harness/run_matrix_device.py \
+  --serial RZGYC24640P --offline \
+  --apps assets-app,fanout-kotlin,hello-java,hello-kotlin,medium-kotlin,resources-heavy \
+  ... (host tool flags as above)
+```
+
+What `--offline` does, in order:
+
+1. Records the device's prior airplane-mode state
+   (`adb shell settings get global airplane_mode_on`).
+2. Enables airplane mode (`adb shell cmd connectivity airplane-mode enable`).
+3. **Verifies connectivity is actually down** before running anything --
+   `adb shell ping -c1 -W2 8.8.8.8` must fail (polled a few seconds while the
+   radios drop). If ping still succeeds it aborts rather than run a matrix that
+   would falsely claim to be offline.
+4. Runs the matrix normally. `adb` rides USB debugging, not the cellular/Wi-Fi
+   radios, so it's unaffected by airplane mode -- the device compiles/dexes/
+   relinks with no network the whole time.
+5. **Always restores the prior airplane-mode state in a `finally`** -- even on
+   crash or Ctrl-C -- so an `--offline` run never leaves the phone stranded.
+   (Note: a hard `kill -9`/SIGTERM of the runner skips Python's `finally`; run
+   it detached rather than foreground-with-a-timeout, and if a run is killed,
+   `adb shell cmd connectivity airplane-mode disable` restores it by hand.)
+
+The run records `"offline": true` (and the restored prior state) in the results
+`config` block, and `matrix.md` gets an **OFFLINE RUN** banner in its header.
+
+Verified 2026-07-20 on the A56 (`RZGYC24640P`): the 6-app device subset passed
+**23/23, output-equivalence PASS on all six, no skips**, in airplane mode --
+parity with the online device run -- confirming the daemon's compile/dex/relink
+pipeline is network-free on real hardware. Results:
+`results/20260721T023009Z-device/`.
+
 ## meta.json schema
 
 ```json
@@ -229,6 +270,16 @@ certification of it.
   `string-add`) -- that substring is what triggers per-edit `R` regeneration
   (see Limitations). Name it `new-string` and the `R` class silently goes
   stale, which then looks like a daemon bug.
+- `expected.deploy` (optional, component-proxying apps -- see
+  `quick-build/docs/component-proxying-design.md`): the restart-vs-recreate
+  oracle -- `"restart"` when the edit's recompiled set intersects the restart
+  closure (service/provider/custom-Application classes plus their user-side
+  supertypes and nested classes), `"recreate"` for everything else (activity
+  recreate / fresh-per-delivery receivers / resource overlay). Declarative
+  only in this harness: `run_matrix.py` ignores it (the decision under test
+  is CoGo-side, in `DeployPolicy` -- its JVM suite and the device walk
+  consume these declarations; `service-app` and `receiver-provider-app` are
+  the fixtures, both keyed on `expected.deploy`).
 
 ## The two oracles
 

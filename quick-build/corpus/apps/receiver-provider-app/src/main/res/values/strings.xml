@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">Receiver Provider Corpus</string>
+	<string name="main_title_label">Receiver + provider corpus app</string>
+	<string name="ping_button_label">Send ping</string>
+	<string name="refresh_button_label">Refresh notes</string>
+	<string name="note_line_label">#%1$d %2$s</string>
+	<string name="no_notes_label">No notes yet</string>
+</resources>

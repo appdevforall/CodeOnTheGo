@@ -1,0 +1,6 @@
+{
+	"applicationId": "org.appdevforall.cotg.corpus.recvprov",
+	"entryActivity": "org.appdevforall.cotg.corpus.recvprov.MainActivity",
+	"minSdk": 30,
+	"language": "kotlin"
+}

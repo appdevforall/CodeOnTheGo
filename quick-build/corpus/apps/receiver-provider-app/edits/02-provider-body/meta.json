@@ -1,0 +1,13 @@
+{
+	"editClass": "provider-body",
+	"description": "Decorate every label NotesProvider.query() serves with a marker suffix. Body-only edit to a manifest ContentProvider: the provider class is in the restart closure, so DeployPolicy must restart the process (the live provider instance keeps old code; a fresh process boots from the persisted newest generation and its early-init runs the swapped class).",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/recvprov/NotesProvider.kt": "NotesProvider.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 2},
+		"behavioralMarker": "QB_PROVIDER_V2",
+		"deploy": "restart"
+	}
+}

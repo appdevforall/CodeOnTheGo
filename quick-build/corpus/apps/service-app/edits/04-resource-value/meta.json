@@ -1,0 +1,13 @@
+{
+	"editClass": "resource-value",
+	"description": "Change the main_title_label string resource's value. No code changes - aapt2 relink only. Resource-only deploys never restart (design contract section 4), even in an app with services: deploy is null because DeployPolicy only runs for code-bearing deploys.",
+	"files": {
+		"src/main/res/values/strings.xml": "strings.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null,
+		"deploy": null
+	}
+}

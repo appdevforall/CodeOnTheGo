@@ -124,6 +124,60 @@ def to_device_rel(host_path: Path, host_root: Path, device_root: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Airplane-mode control for --offline runs. adb itself is unaffected by airplane
+# mode (it rides USB/tcp debugging, not the cellular/Wi-Fi radios), so the whole
+# matrix drives normally while the device has no network -- which is the point:
+# it proves the hot loop compiles/dexes/relinks/deploys with zero egress. The
+# prior airplane-mode state is captured and ALWAYS restored (see main's finally),
+# even on crash/interrupt, so an --offline run never leaves the phone stranded.
+# ---------------------------------------------------------------------------
+
+
+def get_airplane_mode(serial: str) -> Optional[str]:
+    """Prior state as '0'/'1', or None if the device reports something unexpected."""
+    result = _run_adb(["-s", serial, "shell", "settings", "get", "global", "airplane_mode_on"])
+    value = result.stdout.strip()
+    return value if value in ("0", "1") else None
+
+
+def set_airplane_mode(serial: str, enabled: bool) -> None:
+    action = "enable" if enabled else "disable"
+    _run_adb(["-s", serial, "shell", "cmd", "connectivity", "airplane-mode", action])
+
+
+def connectivity_is_down(serial: str) -> bool:
+    """True when the device cannot reach the public internet (ping 8.8.8.8 fails)."""
+    result = _run_adb(["-s", serial, "shell", "ping", "-c1", "-W2", "8.8.8.8"], timeout=15.0)
+    return result.returncode != 0
+
+
+def enable_offline_and_verify(serial: str, settle_attempts: int = 10) -> Optional[str]:
+    """Enable airplane mode and CONFIRM connectivity is actually down before returning.
+    Returns the prior airplane_mode_on state (to restore later). If the radios do not
+    drop, restores the prior state and raises -- refusing to run a matrix that would
+    falsely claim to be offline, without stranding the phone in airplane mode."""
+    prior = get_airplane_mode(serial)
+    set_airplane_mode(serial, True)
+    for _ in range(settle_attempts):
+        if connectivity_is_down(serial):
+            return prior
+        time.sleep(1.0)
+    # We flipped airplane mode ON but the radios never dropped. This runs BEFORE the
+    # caller enters its try/finally, so restoring here is the only thing that keeps the
+    # abort from stranding the phone offline - own the cleanup on our own failure path.
+    restore_airplane_mode(serial, prior)
+    raise RuntimeError(
+        "enabled airplane mode but connectivity is still up (ping 8.8.8.8 succeeded); "
+        "refusing to run a non-offline '--offline' matrix",
+    )
+
+
+def restore_airplane_mode(serial: str, prior: Optional[str]) -> None:
+    """Restore the captured prior state. Unknown prior -> disable (OFF is the norm)."""
+    set_airplane_mode(serial, prior == "1")
+
+
+# ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
@@ -583,6 +637,11 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     parser.add_argument("--min-api", type=int, default=rm.DEFAULT_MIN_API)
     parser.add_argument("--op-timeout", type=float, default=180.0, help="seconds to wait for one daemon response (adb round-trip is slower than host)")
     parser.add_argument("--apps", default=None, help="comma-separated app names to run (default: all)")
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="enable airplane mode + verify connectivity is down before the run, restore prior state after (proves the hot loop is network-free)",
+    )
     parser.add_argument("--host-results", type=Path, default=None, help="a host-mode matrix.json to recompute the device-vs-host medians from (default: hardcoded from the 20260716T153413Z host run)")
     return parser.parse_args(argv)
 
@@ -636,92 +695,111 @@ def main(argv: Optional[List[str]] = None) -> int:
         work_root=work_root,
     )
 
-    gaps: List[str] = []
-    daemon: Optional[rm.DaemonClient] = None
-    candidate = rm.DaemonClient(
-        cmd=["adb", "-s", config.serial, "shell", "run-as", args.pkg, "sh", config.daemon_launcher],
-        timeout_seconds=config.op_timeout,
-        stderr_log=results_dir / "daemon-stderr.log",
-    )
+    # --offline: drop the radios and confirm the device is really offline BEFORE the
+    # run, then ALWAYS restore the prior state (finally below), even on crash/Ctrl-C.
+    offline_prior: Optional[str] = None
+    if args.offline:
+        offline_prior = enable_offline_and_verify(config.serial)
     try:
-        candidate.start()
-        ok, detail = candidate.health_check()
-    except (OSError, rm.DaemonError) as e:
-        ok, detail = False, str(e)
-    if ok:
-        daemon = candidate
-    else:
-        gaps.append(f"on-device daemon failed health check ({detail}); every app/edit in this run is SKIPPED")
-        candidate.stop()
+        gaps: List[str] = []
+        daemon: Optional[rm.DaemonClient] = None
+        candidate = rm.DaemonClient(
+            cmd=["adb", "-s", config.serial, "shell", "run-as", args.pkg, "sh", config.daemon_launcher],
+            timeout_seconds=config.op_timeout,
+            stderr_log=results_dir / "daemon-stderr.log",
+        )
+        try:
+            candidate.start()
+            ok, detail = candidate.health_check()
+        except (OSError, rm.DaemonError) as e:
+            ok, detail = False, str(e)
+        if ok:
+            daemon = candidate
+        else:
+            gaps.append(f"on-device daemon failed health check ({detail}); every app/edit in this run is SKIPPED")
+            candidate.stop()
 
-    device_rm_rf(config.serial, DEVICE_CORPUS_ROOT)
-    device_rm_rf(config.serial, DEVICE_WORK_ROOT)
+        device_rm_rf(config.serial, DEVICE_CORPUS_ROOT)
+        device_rm_rf(config.serial, DEVICE_WORK_ROOT)
 
-    all_app_dirs = sorted(p for p in args.corpus_dir.iterdir() if p.is_dir() and (p / "app.json").is_file())
-    if args.apps:
-        wanted = set(args.apps.split(","))
-        all_app_dirs = [p for p in all_app_dirs if p.name in wanted]
+        all_app_dirs = sorted(p for p in args.corpus_dir.iterdir() if p.is_dir() and (p / "app.json").is_file())
+        if args.apps:
+            wanted = set(args.apps.split(","))
+            all_app_dirs = [p for p in all_app_dirs if p.name in wanted]
 
-    run_report: Dict[str, Any] = {
-        "generatedAt": datetime.now(timezone.utc).isoformat(),
-        "config": {
-            "mode": "device",
-            "serial": config.serial,
-            "pkg": args.pkg,
-            "daemonAvailable": daemon is not None,
-            "deviceAndroidJar": config.device_android_jar,
-            "deviceKotlinStdlib": config.device_kotlin_stdlib,
-            "deviceAapt2": config.device_aapt2,
-            "deviceD8Jar": config.device_d8_jar,
-            "hostAndroidJar": str(config.host_android_jar),
-            "hostAapt2": str(config.host_aapt2),
-            "hostJavac": str(config.host_javac),
-            "minApi": config.min_api,
-        },
-        "apps": [],
-        "gaps": gaps,
-        "summary": {},
-    }
+        run_report: Dict[str, Any] = {
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "config": {
+                "mode": "device",
+                "offline": args.offline,
+                "airplaneModePriorState": offline_prior,
+                "serial": config.serial,
+                "pkg": args.pkg,
+                "daemonAvailable": daemon is not None,
+                "deviceAndroidJar": config.device_android_jar,
+                "deviceKotlinStdlib": config.device_kotlin_stdlib,
+                "deviceAapt2": config.device_aapt2,
+                "deviceD8Jar": config.device_d8_jar,
+                "hostAndroidJar": str(config.host_android_jar),
+                "hostAapt2": str(config.host_aapt2),
+                "hostJavac": str(config.host_javac),
+                "minApi": config.min_api,
+            },
+            "apps": [],
+            "gaps": gaps,
+            "summary": {},
+        }
 
-    try:
-        for app_dir in all_app_dirs:
-            app_report = run_app_device(app_dir, daemon, config, gaps)
-            run_report["apps"].append(app_report)
+        try:
+            for app_dir in all_app_dirs:
+                app_report = run_app_device(app_dir, daemon, config, gaps)
+                run_report["apps"].append(app_report)
+        finally:
+            if daemon is not None:
+                daemon.stop()
+
+        total_edits = sum(len(a["edits"]) for a in run_report["apps"])
+        passed = sum(1 for a in run_report["apps"] for e in a["edits"] if e["status"] == "PASS")
+        failed = sum(1 for a in run_report["apps"] for e in a["edits"] if e["status"] == "FAILED")
+        skipped = sum(1 for a in run_report["apps"] for e in a["edits"] if e["status"] == "SKIPPED")
+        run_report["summary"] = {
+            "apps": len(run_report["apps"]),
+            "edits": total_edits,
+            "passed": passed,
+            "failed": failed,
+            "skipped": skipped,
+        }
+        run_report["gaps"] = gaps
+
+        if args.host_results:
+            host_medians, host_source = _host_medians_from_results(args.host_results)
+        else:
+            host_medians, host_source = DEFAULT_HOST_MEDIANS, DEFAULT_HOST_SOURCE
+
+        markdown = rm.render_markdown(run_report) + render_device_vs_host(run_report, host_medians, host_source)
+        if args.offline:
+            md_lines = markdown.split("\n")
+            md_lines.insert(
+                1,
+                "\n> **OFFLINE RUN** -- airplane mode ON; connectivity verified down (ping 8.8.8.8 failed)"
+                " before the matrix; prior airplane_mode_on restored afterward.",
+            )
+            markdown = "\n".join(md_lines)
+
+        (results_dir / "matrix.json").write_text(json.dumps(run_report, indent=2, default=str))
+        (results_dir / "matrix.md").write_text(markdown)
+        print(f"wrote {results_dir / 'matrix.json'}")
+        print(f"wrote {results_dir / 'matrix.md'}")
+
+        any_failed = (
+            any(e["status"] == "FAILED" for a in run_report["apps"] for e in a["edits"])
+            or any((a["baseline"] or {}).get("status") == "FAILED" for a in run_report["apps"])
+            or any((a.get("outputEquivalence") or {}).get("status") == "FAILED" for a in run_report["apps"])
+        )
+        return 1 if any_failed else 0
     finally:
-        if daemon is not None:
-            daemon.stop()
-
-    total_edits = sum(len(a["edits"]) for a in run_report["apps"])
-    passed = sum(1 for a in run_report["apps"] for e in a["edits"] if e["status"] == "PASS")
-    failed = sum(1 for a in run_report["apps"] for e in a["edits"] if e["status"] == "FAILED")
-    skipped = sum(1 for a in run_report["apps"] for e in a["edits"] if e["status"] == "SKIPPED")
-    run_report["summary"] = {
-        "apps": len(run_report["apps"]),
-        "edits": total_edits,
-        "passed": passed,
-        "failed": failed,
-        "skipped": skipped,
-    }
-    run_report["gaps"] = gaps
-
-    if args.host_results:
-        host_medians, host_source = _host_medians_from_results(args.host_results)
-    else:
-        host_medians, host_source = DEFAULT_HOST_MEDIANS, DEFAULT_HOST_SOURCE
-
-    markdown = rm.render_markdown(run_report) + render_device_vs_host(run_report, host_medians, host_source)
-
-    (results_dir / "matrix.json").write_text(json.dumps(run_report, indent=2, default=str))
-    (results_dir / "matrix.md").write_text(markdown)
-    print(f"wrote {results_dir / 'matrix.json'}")
-    print(f"wrote {results_dir / 'matrix.md'}")
-
-    any_failed = (
-        any(e["status"] == "FAILED" for a in run_report["apps"] for e in a["edits"])
-        or any((a["baseline"] or {}).get("status") == "FAILED" for a in run_report["apps"])
-        or any((a.get("outputEquivalence") or {}).get("status") == "FAILED" for a in run_report["apps"])
-    )
-    return 1 if any_failed else 0
+        if args.offline:
+            restore_airplane_mode(config.serial, offline_prior)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,14 @@
+{
+	"editClass": "new-class",
+	"description": "Add NoteBadge (new leaf class) and use it from MainActivity to prefix each note line. Neither class is a service/provider/Application or one of their supertypes, so the deploy hot-swaps (activity recreate), no restart.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/recvprov/NoteBadge.kt": "NoteBadge.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/recvprov/MainActivity.kt": "MainActivity.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 2, "max": 4},
+		"behavioralMarker": "QB_NOTE_BADGE_V2",
+		"deploy": "recreate"
+	}
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">QB Service App</string>
+	<string name="main_title_label">Quick Build service corpus</string>
+	<string name="start_counter_label">Start foreground counter</string>
+	<string name="stop_counter_label">Stop counter</string>
+	<string name="bind_ticker_label">Bind ticker</string>
+	<string name="tick_prefix_label">Ticker says:</string>
+	<string name="no_tick_yet_label">Not bound yet</string>
+</resources>

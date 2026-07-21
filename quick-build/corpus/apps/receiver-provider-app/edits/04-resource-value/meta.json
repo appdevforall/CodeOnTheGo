@@ -1,0 +1,13 @@
+{
+	"editClass": "resource-value",
+	"description": "Change the main_title_label string value; no code touched. Resource-only deploys never restart, even in an app with a provider - the overlay applies and the live provider keeps running.",
+	"files": {
+		"src/main/res/values/strings.xml": "strings.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null,
+		"deploy": "recreate"
+	}
+}
