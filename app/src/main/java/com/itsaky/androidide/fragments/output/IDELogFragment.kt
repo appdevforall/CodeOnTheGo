@@ -20,12 +20,12 @@ package com.itsaky.androidide.fragments.output
 import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.activityViewModels
-import ch.qos.logback.classic.Level
 import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipTag
-import com.itsaky.androidide.logging.GlobalBufferAppender
+import com.itsaky.androidide.logging.provider.IdeGlobalLogBuffer
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.viewmodel.IDELogsViewModel
+import org.slf4j.event.Level
 
 /**
  * Fragment to show IDE logs.
@@ -33,7 +33,7 @@ import com.itsaky.androidide.viewmodel.IDELogsViewModel
  */
 class IDELogFragment :
 	LogViewFragment<IDELogsViewModel>(),
-	GlobalBufferAppender.Consumer {
+	IdeGlobalLogBuffer.Consumer {
 	override fun isSimpleFormattingEnabled() = true
 
 	override fun getShareableFilename() = "ide_logs"
@@ -52,14 +52,14 @@ class IDELogFragment :
 		super.onViewCreated(view, savedInstanceState)
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_idelogs))
 
-		// Register with GlobalBufferAppender to receive all logs (including buffered ones)
-		GlobalBufferAppender.registerConsumer(this)
+		// Register with IdeGlobalLogBuffer to receive all logs (including buffered ones)
+		IdeGlobalLogBuffer.registerConsumer(this)
 	}
 
 	override fun consume(message: String) = appendLine(message)
 
 	override fun onDestroyView() {
-		GlobalBufferAppender.unregisterConsumer(this)
+		IdeGlobalLogBuffer.unregisterConsumer(this)
 		super.onDestroyView()
 	}
 }

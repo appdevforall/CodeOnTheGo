@@ -41,7 +41,6 @@ androidx-espresso = "3.5.1"
 retrofit = "2.11.0"
 markwon = "4.6.2"
 maven-publish-plugin = "0.27.0"
-logback = "1.5.3"
 room = "2.8.4"
 utilcodex = "1.31.1"
 viewpager2 = "1.1.0-beta02"
@@ -261,9 +260,6 @@ google-flexbox = { module = "com.google.android.flexbox:flexbox", version = "3.0
 aapt2-common = { module = "com.android.tools:common", version = "31.2.2" }
 aapt2-annotations = { module = "com.android.tools:annotations", version = "31.2.2" }
 aapt2-jb-annotations = { module = "org.jetbrains:annotations", version = "24.1.0" }
-
-logging-logback-core = { module = "ch.qos.logback:logback-core", version.ref = "logback" }
-logging-logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 
 # XML
 xml-xercesImpl = { module = "xerces:xercesImpl", version = "2.12.2" }

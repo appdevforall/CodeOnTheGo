@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.logging.provider
 
+import com.google.auto.service.AutoService
 import org.slf4j.IMarkerFactory
 import org.slf4j.helpers.BasicMarkerFactory
 import org.slf4j.helpers.NOPMDCAdapter
@@ -26,14 +27,9 @@ import org.slf4j.spi.SLF4JServiceProvider
 /**
  * Logback-free SLF4J 2.x provider backed by [IdeLogRouter]/[IdeLogger].
  *
- * Not yet annotated with `@AutoService(SLF4JServiceProvider::class)`: doing so would
- * register it via `META-INF/services` immediately, which would put two SLF4J providers
- * on the classpath at once (this one and logback-classic's bundled provider) since
- * Logback is still the active backend. The annotation is added in the follow-up change
- * that removes Logback, so there's never a moment with two competing providers.
- *
  * @author Akash Yadav
  */
+@AutoService(SLF4JServiceProvider::class)
 class IdeSlf4jServiceProvider : SLF4JServiceProvider {
 
 	private val loggerFactory = IdeLoggerFactory()

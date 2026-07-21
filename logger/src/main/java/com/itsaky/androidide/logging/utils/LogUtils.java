@@ -27,7 +27,6 @@ import java.util.regex.Pattern;
 public class LogUtils {
 
     public static final int MAX_TAG_LENGTH = 23;
-    public static final String PATTERN_LAYOUT_MESSAGE_PATTERN = "[%thread] %msg%n";
 
     public static boolean isJvm() {
         try {
@@ -57,9 +56,5 @@ public class LogUtils {
         }
 
         return LogTagUtils.trimTagIfNeeded(tag, MAX_TAG_LENGTH);
-    }
-
-    public static String getPatternLayoutVerbosePattern(boolean omitMessage) {
-        return "%d{dd-MM HH:mm:ss.SS} %5level [%thread] %logger{0}:" + (omitMessage ? "" : " %msg") + "%n";
     }
 }
