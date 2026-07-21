@@ -17,8 +17,7 @@
 
 package com.itsaky.androidide.services.builder
 
-import ch.qos.logback.core.CoreConstants
-import com.itsaky.androidide.logging.JvmStdErrAppender
+import com.itsaky.androidide.logging.provider.IdeLogRouter
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tooling.api.IToolingApiClient
@@ -128,10 +127,9 @@ internal class ToolingServerRunner(
 							"java.base/java.util=ALL-UNNAMED",
 							"--add-opens",
 							"java.base/java.io=ALL-UNNAMED", // The JAR file to run
-							"-D${CoreConstants.STATUS_LISTENER_CLASS_KEY}=com.itsaky.androidide.tooling.impl.util.LogbackStatusListener",
 							"-D${ToolingProps.DAEMON_FORCE_KILL}=${TOOLING_DAEMON_KILL_ENABLED}",
 							"-D${ToolingProps.DESCENDANT_FORCE_KILL_TIMEOUT_MS}=${TOOLING_DAEMON_KILL_TIMEOUT.inWholeMilliseconds}",
-							"-D${JvmStdErrAppender.PROP_JVM_STDERR_APPENDER_ENABLED}=${TOOLING_ERR_STREAM_LOGGING_ENABLED}",
+							"-D${IdeLogRouter.PROP_JVM_STDERR_ENABLED}=${TOOLING_ERR_STREAM_LOGGING_ENABLED}",
 							"-jar",
 							Environment.TOOLING_API_JAR.absolutePath,
 						)

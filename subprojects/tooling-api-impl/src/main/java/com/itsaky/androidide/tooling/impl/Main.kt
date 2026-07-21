@@ -16,9 +16,11 @@
  */
 package com.itsaky.androidide.tooling.impl
 
+import com.itsaky.androidide.logging.provider.IdeLogRouter
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher.newServerLauncher
 import com.itsaky.androidide.tooling.api.util.ToolingProps
+import com.itsaky.androidide.tooling.impl.logging.ToolingApiAppender
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.gradle.tooling.events.OperationType
@@ -64,6 +66,8 @@ object Main {
 	@JvmStatic
 	fun main(args: Array<String>): Unit =
 		runBlocking {
+			IdeLogRouter.addSink(ToolingApiAppender)
+
 			logger.debug("Starting Tooling API server...")
 
 			val server = ToolingApiServerImpl()

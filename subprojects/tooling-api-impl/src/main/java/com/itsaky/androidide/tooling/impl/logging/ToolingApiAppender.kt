@@ -17,53 +17,22 @@
 
 package com.itsaky.androidide.tooling.impl.logging
 
-import ch.qos.logback.classic.PatternLayout
-import ch.qos.logback.classic.spi.ILoggingEvent
-import ch.qos.logback.core.AppenderBase
-import ch.qos.logback.core.Context
-import com.itsaky.androidide.logging.utils.LogUtils
+import com.itsaky.androidide.logging.provider.IdeLogFormatter
+import com.itsaky.androidide.logging.provider.IdeLogRouter
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
 import com.itsaky.androidide.tooling.impl.Main
+import org.slf4j.event.Level
 
 /**
- * [AppenderBase] implementation which forwards all logs to the tooling API client.
+ * [IdeLogRouter.ExternalSink] which forwards all logs to the tooling API client.
  *
  * @author Akash Yadav
  */
-class ToolingApiAppender : AppenderBase<ILoggingEvent>() {
+object ToolingApiAppender : IdeLogRouter.ExternalSink {
 
-  private val layout = PatternLayout()
-
-  init {
-      layout.pattern = LogUtils.PATTERN_LAYOUT_MESSAGE_PATTERN
-  }
-
-  override fun start() {
-    super.start()
-    layout.start()
-  }
-
-  override fun stop() {
-    super.stop()
-    layout.stop()
-  }
-
-  override fun setContext(context: Context?) {
-    super.setContext(context)
-    layout.context = context
-  }
-
-  override fun append(eventObject: ILoggingEvent?) {
-    if (eventObject == null || !isStarted) {
-      return
-    }
-
-    Main.client?.logMessage(
-      LogMessageParams(
-        eventObject.level.levelStr[0],
-        eventObject.loggerName,
-        layout.doLayout(eventObject)
-      )
-    )
-  }
+	override fun onLog(level: Level, loggerName: String, message: String, throwable: Throwable?) {
+		val fullMessage = if (throwable == null) message else "$message\n${throwable.stackTraceToString()}"
+		val formatted = IdeLogFormatter.format(level, loggerName, fullMessage)
+		Main.client?.logMessage(LogMessageParams(level.name.first(), loggerName, formatted))
+	}
 }

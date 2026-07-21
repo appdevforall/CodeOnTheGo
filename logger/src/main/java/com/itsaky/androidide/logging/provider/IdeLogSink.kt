@@ -41,7 +41,15 @@ object IdeLogRouter {
 		fun onLog(level: Level, loggerName: String, message: String, throwable: Throwable?)
 	}
 
+	/**
+	 * System property that toggles [System.err] output in a plain JVM process (default `true`).
+	 * Used by [com.itsaky.androidide.services.builder.ToolingServerRunner] to pass the app's
+	 * debug-logging preference into the standalone tooling-api JVM process it launches.
+	 */
+	const val PROP_JVM_STDERR_ENABLED = "ide.logging.jvmStdErrAppenderEnabled"
+
 	private val isJvm: Boolean by lazy { LogUtils.isJvm() }
+	private val jvmStdErrEnabled: Boolean by lazy { System.getProperty(PROP_JVM_STDERR_ENABLED, "true").toBoolean() }
 	private val externalSinks = CopyOnWriteArrayList<ExternalSink>()
 
 	fun addSink(sink: ExternalSink) {
@@ -57,7 +65,9 @@ object IdeLogRouter {
 		val formatted = IdeLogFormatter.format(level, loggerName, fullMessage)
 
 		if (isJvm) {
-			System.err.print(formatted)
+			if (jvmStdErrEnabled) {
+				System.err.print(formatted)
+			}
 		} else {
 			logToLogcat(level, loggerName, fullMessage)
 		}
