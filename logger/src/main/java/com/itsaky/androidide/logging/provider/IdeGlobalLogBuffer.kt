@@ -18,8 +18,8 @@
 package com.itsaky.androidide.logging.provider
 
 import org.slf4j.event.Level
-import java.util.Collections
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -44,7 +44,7 @@ object IdeGlobalLogBuffer {
 	private const val MAX_BUFFER_SIZE = 1000
 	private val buffer = ConcurrentLinkedQueue<LogEvent>()
 	private val bufferSize = AtomicInteger(0)
-	private val consumers = Collections.synchronizedList(mutableListOf<Consumer>())
+	private val consumers = CopyOnWriteArrayList<Consumer>()
 
 	/**
 	 * Register a consumer to receive log messages.
@@ -91,5 +91,6 @@ object IdeGlobalLogBuffer {
 	) {
 		if (level.toInt() < consumer.logLevel.toInt()) return
 		runCatching { consumer.consume(message) }
+			.onFailure { error -> System.err.println("IdeGlobalLogBuffer: consumer $consumer failed: $error") }
 	}
 }

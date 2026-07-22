@@ -95,12 +95,13 @@ internal object DeviceProtectedApplicationLoader :
 						Breadcrumb().apply {
 							category = loggerName
 							this.message = message
-							this.level = when (level) {
-								Level.ERROR -> SentryLevel.ERROR
-								Level.WARN -> SentryLevel.WARNING
-								Level.INFO -> SentryLevel.INFO
-								else -> SentryLevel.DEBUG
-							}
+							this.level =
+								when (level) {
+									Level.ERROR -> SentryLevel.ERROR
+									Level.WARN -> SentryLevel.WARNING
+									Level.INFO -> SentryLevel.INFO
+									else -> SentryLevel.DEBUG
+								}
 						},
 					)
 				}

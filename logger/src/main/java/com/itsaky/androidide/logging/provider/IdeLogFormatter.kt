@@ -41,10 +41,19 @@ object IdeLogFormatter {
 	}
 
 	/** Flattens a throwable's stack trace onto the message, matching Logback's PatternLayout. */
-	fun appendThrowable(message: String, throwable: Throwable?): String {
-		return if (throwable == null) message else "$message\n${throwable.stackTraceToString()}"
-	}
+	fun appendThrowable(
+		message: String,
+		throwable: Throwable?,
+	): String = if (throwable == null) message else "$message\n${throwable.stackTraceToString()}"
 
+	/**
+	 * Formats a single log line as `dd-MM HH:mm:ss.SS LEVEL [thread] tag: message`, followed
+	 * by a trailing newline. Timestamps use the JVM's local time zone (not UTC).
+	 *
+	 * @param omitMessage when `true`, the `message` argument is dropped and the line ends
+	 *   right after `tag:` (still newline-terminated) — for callers that only need the
+	 *   line's header.
+	 */
 	fun format(
 		level: Level,
 		loggerName: String,
