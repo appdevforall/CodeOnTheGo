@@ -535,6 +535,7 @@
 	<string name="action_generate_toString">Generate toString()</string>
 	<string name="action_remove_unused_imports">Remove unused imports</string>
 	<string name="action_organize_imports">Organize imports</string>
+	<string name="action_implement_members">Implement members</string>
 	<string name="msg_cannot_generate_toString">Unable to generate toString() implementation</string>
 	<string name="msg_toString_overridden">toString() is already overridden</string>
 	<string name="action_generate_missing_constructor">Generate missing constructor</string>
@@ -1348,6 +1349,8 @@
 	<string name="template_exec_error_write">Failed writing output file: %1$s %2$s</string>
 	<string name="template_exec_error_copy">Failed copying binary entry: %1$s %2$s</string>
 	<string name="template_exec_error_process">Failed to process template entry: %1$s %2$s</string>
+	<string name="template_exec_error_terminated">Project creation stopped: %1$s\n\nThe incomplete project was removed. Fix the template file mentioned above (or choose a different template) and try again.</string>
+	<string name="template_exec_warn_cleanup_failed">Could not remove the incomplete project at %1$s. Delete it manually before trying again.</string>
 
 	<string name="template_exec_warn_map_appname">Missing appName, defaulted to %1$s</string>
 	<string name="template_exec_warn_map_pkgname">Missing packageName, defaulted to %1$s</string>
