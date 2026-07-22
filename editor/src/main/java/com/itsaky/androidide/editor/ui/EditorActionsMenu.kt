@@ -51,6 +51,8 @@ import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.models.DiagnosticItem
+import com.itsaky.androidide.lsp.models.DiagnosticsInSelection
+import com.itsaky.androidide.lsp.util.DiagnosticUtil
 import com.itsaky.androidide.lsp.xml.XMLLanguageServer
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.resolveAttr
@@ -71,403 +73,420 @@ import kotlin.math.min
  * @author Akash Yadav
  */
 @SuppressLint("RestrictedApi")
-open class EditorActionsMenu(val editor: IDEEditor) :
-    AbstractPopupWindow(editor, FEATURE_SHOW_OUTSIDE_VIEW_ALLOWED),
-    ActionsRegistry.ActionExecListener,
-    MenuBuilder.Callback {
+open class EditorActionsMenu(
+	val editor: IDEEditor,
+) : AbstractPopupWindow(editor, FEATURE_SHOW_OUTSIDE_VIEW_ALLOWED),
+	ActionsRegistry.ActionExecListener,
+	MenuBuilder.Callback {
+	companion object {
+		const val DELAY: Long = 200
+	}
 
-    companion object {
+	private val touchHandler: EditorTouchEventHandler = editor.eventHandler
+	private val receipts: MutableList<SubscriptionReceipt<*>> = mutableListOf()
+	private val list = RecyclerView(editor.context)
+	private var mLastScroll: Long = 0
+	private var mLastPosition: Int = 0
 
-        const val DELAY: Long = 200
-    }
+	private val contentHeight by lazy {
+		// approximated size is around 56dp
+		SizeUtils.dp2px(56f)
+	}
 
-    private val touchHandler: EditorTouchEventHandler = editor.eventHandler
-    private val receipts: MutableList<SubscriptionReceipt<*>> = mutableListOf()
-    private val list = RecyclerView(editor.context)
-    private var mLastScroll: Long = 0
-    private var mLastPosition: Int = 0
+	private val menu: MenuBuilder = MenuBuilder(editor.context)
+	protected open var location = ActionItem.Location.EDITOR_TEXT_ACTIONS
 
-    private val contentHeight by lazy {
-        // approximated size is around 56dp
-        SizeUtils.dp2px(56f)
-    }
+	open fun init() {
+		subscribe()
+		applyBackground()
 
-    private val menu: MenuBuilder = MenuBuilder(editor.context)
-    protected open var location = ActionItem.Location.EDITOR_TEXT_ACTIONS
+		list.apply {
+			clipChildren = true
+			clipToOutline = true
+			isVerticalFadingEdgeEnabled = true
+			isVerticalScrollBarEnabled = true
+			layoutParams =
+				ViewGroup.LayoutParams(
+					ViewGroup.LayoutParams.WRAP_CONTENT,
+					ViewGroup.LayoutParams.WRAP_CONTENT,
+				)
 
-    open fun init() {
-        subscribe()
-        applyBackground()
+			setFadingEdgeLength(SizeUtils.dp2px(42f))
+			setPaddingRelative(paddingStart, paddingTop, SizeUtils.dp2px(16f), paddingBottom)
+		}
 
-        list.apply {
-            clipChildren = true
-            clipToOutline = true
-            isVerticalFadingEdgeEnabled = true
-            isVerticalScrollBarEnabled = true
-            layoutParams =
-                ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
+		popup.contentView = this.list
+		popup.animationStyle = R.style.PopupAnimation
 
-            setFadingEdgeLength(SizeUtils.dp2px(42f))
-            setPaddingRelative(paddingStart, paddingTop, SizeUtils.dp2px(16f), paddingBottom)
-        }
+		val menu = getMenu()
+		if (menu is MenuBuilder) {
+			menu.setCallback(this)
+		}
+	}
 
-        popup.contentView = this.list
-        popup.animationStyle = R.style.PopupAnimation
+	open fun subscribe() {
+		receipts.add(
+			editor.subscribeEvent(SelectionChangeEvent::class.java) { event, _ ->
+				this.onSelectionChanged(event)
+			},
+		)
+		receipts.add(editor.subscribeEvent(ScrollEvent::class.java) { _, _ -> this.onScrollEvent() })
+		receipts.add(
+			editor.subscribeEvent(HandleStateChangeEvent::class.java) { event, _ ->
+				this.onHandleStateChanged(event)
+			},
+		)
+	}
 
-        val menu = getMenu()
-        if (menu is MenuBuilder) {
-            menu.setCallback(this)
-        }
-    }
+	open fun unsubscribeEvents() {
+		for (receipt in receipts) {
+			receipt.unsubscribe()
+		}
+	}
 
-    open fun subscribe() {
-        receipts.add(
-            editor.subscribeEvent(SelectionChangeEvent::class.java) { event, _ ->
-                this.onSelectionChanged(event)
-            }
-        )
-        receipts.add(editor.subscribeEvent(ScrollEvent::class.java) { _, _ -> this.onScrollEvent() })
-        receipts.add(
-            editor.subscribeEvent(HandleStateChangeEvent::class.java) { event, _ ->
-                this.onHandleStateChanged(event)
-            }
-        )
-    }
+	fun destroy() {
+		if (this.receipts.isNotEmpty()) {
+			unsubscribeEvents()
+		}
 
-    open fun unsubscribeEvents() {
-        for (receipt in receipts) {
-            receipt.unsubscribe()
-        }
-    }
+		getInstance().unregisterActionExecListener(this)
+	}
 
-    fun destroy() {
-        if (this.receipts.isNotEmpty()) {
-            unsubscribeEvents()
-        }
+	protected open fun onSelectionChanged(event: SelectionChangeEvent) {
+		if (touchHandler.hasAnyHeldHandle()) {
+			return
+		}
+		if (event.isSelected) {
+			editor.post { displayWindow(isShowing) }
+			mLastPosition = -1
+		} else {
+			var show = false
+			if (
+				event.cause == SelectionChangeEvent.CAUSE_TAP &&
+				event.left.index == mLastPosition &&
+				!isShowing &&
+				!editor.text.isInBatchEdit
+			) {
+				editor.post(::displayWindow)
+				show = true
+			} else {
+				dismiss()
+			}
+			mLastPosition =
+				if (event.cause == SelectionChangeEvent.CAUSE_TAP && !show) {
+					event.left.index
+				} else {
+					-1
+				}
+		}
+	}
 
-        getInstance().unregisterActionExecListener(this)
-    }
+	protected open fun onScrollEvent() {
+		val last = mLastScroll
+		mLastScroll = System.currentTimeMillis()
+		if (mLastScroll - last < DELAY) {
+			postDisplay()
+		}
+	}
 
-    protected open fun onSelectionChanged(event: SelectionChangeEvent) {
-        if (touchHandler.hasAnyHeldHandle()) {
-            return
-        }
-        if (event.isSelected) {
-            editor.post { displayWindow(isShowing) }
-            mLastPosition = -1
-        } else {
-            var show = false
-            if (
-                event.cause == SelectionChangeEvent.CAUSE_TAP &&
-                event.left.index == mLastPosition &&
-                !isShowing &&
-                !editor.text.isInBatchEdit
-            ) {
-                editor.post(::displayWindow)
-                show = true
-            } else {
-                dismiss()
-            }
-            mLastPosition =
-                if (event.cause == SelectionChangeEvent.CAUSE_TAP && !show) {
-                    event.left.index
-                } else {
-                    -1
-                }
-        }
-    }
+	protected open fun onHandleStateChanged(event: HandleStateChangeEvent) {
+		if (event.isHeld) {
+			postDisplay()
+		}
+	}
 
-    protected open fun onScrollEvent() {
-        val last = mLastScroll
-        mLastScroll = System.currentTimeMillis()
-        if (mLastScroll - last < DELAY) {
-            postDisplay()
-        }
-    }
+	protected open fun applyBackground() {
+		val drawable = GradientDrawable()
+		drawable.shape = GradientDrawable.RECTANGLE
+		drawable.cornerRadius = SizeUtils.dp2px(28f).toFloat() // Recommeneded size is 28dp
+		drawable.color = ColorStateList.valueOf(editor.context.resolveAttr(R.attr.colorSurface))
+		drawable.setStroke(SizeUtils.dp2px(1f), editor.context.resolveAttr(R.attr.colorOutline))
+		list.background = drawable
+	}
 
-    protected open fun onHandleStateChanged(
-        event: HandleStateChangeEvent,
-    ) {
-        if (event.isHeld) {
-            postDisplay()
-        }
-    }
+	private fun postDisplay() {
+		if (!isShowing) {
+			return
+		}
+		dismiss()
+		if (!editor.cursor.isSelected) {
+			return
+		}
+		editor.postDelayed(
+			object : Runnable {
+				override fun run() {
+					if (
+						!touchHandler.hasAnyHeldHandle() &&
+						System.currentTimeMillis() - mLastScroll > DELAY &&
+						touchHandler.scroller.isFinished
+					) {
+						displayWindow()
+					} else {
+						editor.postDelayed(this, DELAY)
+					}
+				}
+			},
+			DELAY,
+		)
+	}
 
-    protected open fun applyBackground() {
-        val drawable = GradientDrawable()
-        drawable.shape = GradientDrawable.RECTANGLE
-        drawable.cornerRadius = SizeUtils.dp2px(28f).toFloat() // Recommeneded size is 28dp
-        drawable.color = ColorStateList.valueOf(editor.context.resolveAttr(R.attr.colorSurface))
-        drawable.setStroke(SizeUtils.dp2px(1f), editor.context.resolveAttr(R.attr.colorOutline))
-        list.background = drawable
-    }
+	private fun selectTop(rect: RectF): Int {
+		val rowHeight = editor.rowHeight
+		// when the window is being shown for the first time, the height is 0
+		val height = if (this.height == 0) contentHeight else this.height
+		return if (rect.top - rowHeight * 3 / 2f > height) {
+			(rect.top - rowHeight * 3 / 2 - height).toInt()
+		} else {
+			(rect.bottom + rowHeight / 2).toInt()
+		}
+	}
 
-    private fun postDisplay() {
-        if (!isShowing) {
-            return
-        }
-        dismiss()
-        if (!editor.cursor.isSelected) {
-            return
-        }
-        editor.postDelayed(
-            object : Runnable {
-                override fun run() {
-                    if (
-                        !touchHandler.hasAnyHeldHandle() &&
-                        System.currentTimeMillis() - mLastScroll > DELAY &&
-                        touchHandler.scroller.isFinished
-                    ) {
-                        displayWindow()
-                    } else {
-                        editor.postDelayed(this, DELAY)
-                    }
-                }
-            },
-            DELAY
-        )
-    }
+	@JvmOverloads
+	open fun displayWindow(update: Boolean = false) {
+		var top: Int
+		val cursor = editor.cursor
+		top =
+			if (cursor.isSelected) {
+				val leftRect = editor.leftHandleDescriptor.position
+				val rightRect = editor.rightHandleDescriptor.position
+				val top1 = selectTop(leftRect)
+				val top2 = selectTop(rightRect)
+				min(top1, top2)
+			} else {
+				selectTop(editor.insertHandleDescriptor.position)
+			}
+		top = max(0, min(top, editor.height - height - 5))
+		val handleLeftX = editor.getOffset(editor.cursor.leftLine, editor.cursor.leftColumn)
+		val handleRightX = editor.getOffset(editor.cursor.rightLine, editor.cursor.rightColumn)
+		val panelX = computePanelX(cursor, handleLeftX, handleRightX)
+		setLocationAbsolutely(panelX, top)
+		if (!update) {
+			show()
+		}
+	}
 
-    private fun selectTop(rect: RectF): Int {
-        val rowHeight = editor.rowHeight
-        // when the window is being shown for the first time, the height is 0
-        val height = if (this.height == 0) contentHeight else this.height
-        return if (rect.top - rowHeight * 3 / 2f > height) {
-            (rect.top - rowHeight * 3 / 2 - height).toInt()
-        } else {
-            (rect.bottom + rowHeight / 2).toInt()
-        }
-    }
+	private fun computePanelX(
+		cursor: Cursor,
+		handleLeftX: Float,
+		handleRightX: Float,
+	): Int =
+		if (cursor.isSelected) {
+			((handleLeftX + handleRightX) / 2f).toInt()
+		} else {
+			var x = (handleLeftX - (width / 2f)).toInt()
+			if (x <= 0) {
+				x = (handleRightX + SizeUtils.dp2px(10f)).toInt()
+			} else if (x >= editor.width) {
+				x = editor.width - SizeUtils.dp2px(10f)
+			}
+			x
+		}
 
-    @JvmOverloads
-    open fun displayWindow(update: Boolean = false) {
-        var top: Int
-        val cursor = editor.cursor
-        top =
-            if (cursor.isSelected) {
-                val leftRect = editor.leftHandleDescriptor.position
-                val rightRect = editor.rightHandleDescriptor.position
-                val top1 = selectTop(leftRect)
-                val top2 = selectTop(rightRect)
-                min(top1, top2)
-            } else {
-                selectTop(editor.insertHandleDescriptor.position)
-            }
-        top = max(0, min(top, editor.height - height - 5))
-        val handleLeftX = editor.getOffset(editor.cursor.leftLine, editor.cursor.leftColumn)
-        val handleRightX = editor.getOffset(editor.cursor.rightLine, editor.cursor.rightColumn)
-        val panelX = computePanelX(cursor, handleLeftX, handleRightX)
-        setLocationAbsolutely(panelX, top)
-        if (!update) {
-            show()
-        }
-    }
+	protected open fun fillMenu() {
+		getMenu().clear()
 
-    private fun computePanelX(cursor: Cursor, handleLeftX: Float, handleRightX: Float): Int {
-        return if (cursor.isSelected) {
-            ((handleLeftX + handleRightX) / 2f).toInt()
-        } else {
-            var x = (handleLeftX - (width / 2f)).toInt()
-            if (x <= 0) {
-                x = (handleRightX + SizeUtils.dp2px(10f)).toInt()
-            } else if (x >= editor.width) {
-                x = editor.width - SizeUtils.dp2px(10f)
-            }
-            x
-        }
-    }
+		val data = onCreateActionData()
 
-    protected open fun fillMenu() {
-        getMenu().clear()
+		val registry = getInstance()
+		registry.registerActionExecListener(this)
+		onFillMenu(registry, data)
 
-        val data = onCreateActionData()
+		this.list.adapter = ActionsListAdapter(getMenu(), editor = editor, location = onGetActionLocation())
+	}
 
-        val registry = getInstance()
-        registry.registerActionExecListener(this)
-        onFillMenu(registry, data)
+	protected open fun onFillMenu(
+		registry: ActionsRegistry,
+		data: ActionData,
+	) {
+		registry.fillMenu(FillMenuParams(data, onGetActionLocation(), getMenu()))
+	}
 
-        this.list.adapter = ActionsListAdapter(getMenu(),  editor = editor, location = onGetActionLocation())
+	protected open fun onGetActionLocation() = location
 
-    }
-
-    protected open fun onFillMenu(registry: ActionsRegistry, data: ActionData) {
-        registry.fillMenu(FillMenuParams(data, onGetActionLocation(), getMenu()))
-    }
-
-    protected open fun onGetActionLocation() = location
-
-    protected open fun onCreateActionData(): ActionData {
+	protected open fun onCreateActionData(): ActionData {
 		val languageServerRegistry = ILanguageServerRegistry.default
-        val data = ActionData.create(editor.context)
+		val data = ActionData.create(editor.context)
 
-        data.put(IDEEditor::class.java, this.editor)
-        data.put(
-            CodeEditor::class.java,
-            editor
-        ) // For LSP actions, as they cannot access IDEEditor class
-        data.put(File::class.java, editor.file)
-        data.put(DiagnosticItem::class.java, getDiagnosticAtCursor())
-        data.put(com.itsaky.androidide.models.Range::class.java, editor.cursorLSPRange)
+		data.put(IDEEditor::class.java, this.editor)
 		data.put(
-            JavaLanguageServer::class.java,
-            languageServerRegistry.getServer(JavaLanguageServer.SERVER_ID)
-                    as? JavaLanguageServer?
-        )
-		data.put(KotlinLanguageServer::class.java,
+			CodeEditor::class.java,
+			editor,
+		) // For LSP actions, as they cannot access IDEEditor class
+		data.put(File::class.java, editor.file)
+
+		// Compute the diagnostics overlapping the selection once; derive both the legacy
+		// at-selection-start DiagnosticItem and the full DiagnosticsInSelection container from it.
+		val range = editor.cursorLSPRange
+		val inSelection = editor.languageClient?.getDiagnosticsInRange(editor.file, range) ?: emptyList()
+		data.put(
+			DiagnosticItem::class.java,
+			DiagnosticUtil.binarySearchDiagnostic(inSelection, range.start.line, range.start.column),
+		)
+		data.put(DiagnosticsInSelection::class.java, DiagnosticsInSelection(inSelection))
+		data.put(com.itsaky.androidide.models.Range::class.java, range)
+		data.put(
+			JavaLanguageServer::class.java,
+			languageServerRegistry.getServer(JavaLanguageServer.SERVER_ID)
+				as? JavaLanguageServer?,
+		)
+		data.put(
+			KotlinLanguageServer::class.java,
 			languageServerRegistry
 				.getServer(KotlinLanguageServer.SERVER_ID)
-					as? KotlinLanguageServer?)
-        data.put(
-            XMLLanguageServer::class.java,
-            languageServerRegistry.getServer(XMLLanguageServer.SERVER_ID)
-                    as? XMLLanguageServer?
-        )
-        data.put(TextTarget::class.java, IdeEditorAdapter(this.editor))
-        data.put(IDEEditor::class.java, this.editor)
-        return data
-    }
+				as? KotlinLanguageServer?,
+		)
+		data.put(
+			XMLLanguageServer::class.java,
+			languageServerRegistry.getServer(XMLLanguageServer.SERVER_ID)
+				as? XMLLanguageServer?,
+		)
+		data.put(TextTarget::class.java, IdeEditorAdapter(this.editor))
+		data.put(IDEEditor::class.java, this.editor)
+		return data
+	}
 
-    protected open fun getMenu(): Menu = menu
+	protected open fun getMenu(): Menu = menu
 
-    private fun getDiagnosticAtCursor(): DiagnosticItem? {
-        val start = editor.cursorLSPRange.start
-        return editor.languageClient?.getDiagnosticAt(editor.file, start.line, start.column)
-    }
+	override fun onExec(
+		action: ActionItem,
+		result: Any,
+	) {
+		if (action !is EditorActionItem || action.dismissOnAction()) {
+			dismiss()
+		}
+	}
 
-    override fun onExec(action: ActionItem, result: Any) {
-        if (action !is EditorActionItem || action.dismissOnAction()) {
-            dismiss()
-        }
-    }
+	override fun show() {
+		if (list.parent != null) {
+			(list.parent as ViewGroup).removeView(list)
+		}
 
-    override fun show() {
-        if (list.parent != null) {
-            (list.parent as ViewGroup).removeView(list)
-        }
+		this.list.layoutManager =
+			LinearLayoutManager(editor.context, RecyclerView.HORIZONTAL, false)
 
-        this.list.layoutManager =
-            LinearLayoutManager(editor.context, RecyclerView.HORIZONTAL, false)
+		fillMenu()
 
-        fillMenu()
+		measureActionsList()
 
-        measureActionsList()
+		val height = list.measuredHeight
+		val width = min(editor.width - SizeUtils.dp2px(32f), list.measuredWidth)
+		setSize(width, height)
+		super.show()
+	}
 
-        val height = list.measuredHeight
-        val width = min(editor.width - SizeUtils.dp2px(32f), list.measuredWidth)
-        setSize(width, height)
-        super.show()
-    }
+	private fun measureActionsList() {
+		val dp8 = SizeUtils.dp2px(8f)
+		val dp16 = dp8 * 2
+		this.list.measure(
+			MeasureSpec.makeMeasureSpec(editor.width - dp16 * 2, MeasureSpec.AT_MOST),
+			MeasureSpec.makeMeasureSpec(
+				(260 * editor.dpUnit).toInt() - dp16 * 2,
+				MeasureSpec.AT_MOST,
+			),
+		)
+	}
 
-    private fun measureActionsList() {
-        val dp8 = SizeUtils.dp2px(8f)
-        val dp16 = dp8 * 2
-        this.list.measure(
-            MeasureSpec.makeMeasureSpec(editor.width - dp16 * 2, MeasureSpec.AT_MOST),
-            MeasureSpec.makeMeasureSpec(
-                (260 * editor.dpUnit).toInt() - dp16 * 2,
-                MeasureSpec.AT_MOST
-            )
-        )
-    }
+	private class ActionsListAdapter(
+		val menu: Menu?,
+		val forceShowTitle: Boolean = false,
+		val editor: IDEEditor,
+		val location: ActionItem.Location,
+	) : RecyclerView.Adapter<VH>() {
+		override fun getItemCount(): Int = menu?.size() ?: 0
 
-    private class ActionsListAdapter(
-        val menu: Menu?,
-        val forceShowTitle: Boolean = false,
-        val editor: IDEEditor,
-        val location: ActionItem.Location
-    ) : RecyclerView.Adapter<VH>() {
+		fun getItem(position: Int): MenuItem? = menu?.getItem(position)
 
+		override fun onCreateViewHolder(
+			parent: ViewGroup,
+			viewType: Int,
+		): VH =
+			VH(
+				LayoutPopupMenuItemBinding.inflate(
+					LayoutInflater.from(parent.context),
+					parent,
+					false,
+				),
+			)
 
-        override fun getItemCount(): Int {
-            return menu?.size() ?: 0
-        }
+		override fun onBindViewHolder(
+			holder: VH,
+			position: Int,
+		) {
+			val item = getItem(position) ?: return
 
-        fun getItem(position: Int): MenuItem? = menu?.getItem(position)
+			val action = getInstance().findAction(location, item.itemId)
+			val tooltipTag = action?.retrieveTooltipTag(false) ?: ""
+			val tag = tooltipTag.ifEmpty { item.contentDescription?.toString() ?: "" }
 
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-            return VH(
-                LayoutPopupMenuItemBinding.inflate(
-                    LayoutInflater.from(parent.context),
-                    parent,
-                    false
-                )
-            )
-        }
+			val button = holder.binding.root
+			button.text = if (forceShowTitle) item.title else ""
+			button.tooltipText = item.title
+			button.contentDescription = item.contentDescription
 
-    override fun onBindViewHolder(holder: VH, position: Int) {
-      val item = getItem(position) ?: return
+			button.icon =
+				item.icon ?: run {
+					button.text = item.title
 
-      val action = getInstance().findAction(location, item.itemId)
-      val tooltipTag = action?.retrieveTooltipTag(false) ?: ""
-      val tag = tooltipTag.ifEmpty { item.contentDescription?.toString() ?: "" }
+					val widthSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+					val heightSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+					button.measure(widthSpec, heightSpec)
 
-      val button = holder.binding.root
-      button.text = if (forceShowTitle) item.title else ""
-      button.tooltipText = item.title
-      button.contentDescription = item.contentDescription
+					button.layoutParams.width = button.measuredWidth
 
-            button.icon =
-                item.icon ?: run {
-                    button.text = item.title
+					null
+				}
 
-                    val widthSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-                    val heightSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-                    button.measure(widthSpec, heightSpec)
+			button.setOnClickListener {
+				(item as MenuItemImpl).invoke()
+			}
 
-                    button.layoutParams.width = button.measuredWidth
+			button.setOnLongClickListener {
+				if (tag.isNotEmpty()) {
+					TooltipManager.showIdeCategoryTooltip(
+						context = editor.context,
+						anchorView = editor,
+						tag = tag,
+					)
+				}
+				true
+			}
+		}
 
-                    null
-                }
+		inner class VH(
+			val binding: LayoutPopupMenuItemBinding,
+		) : ViewHolder(binding.root)
+	}
 
-            button.setOnClickListener {
-                (item as MenuItemImpl).invoke()
-            }
+	override fun onMenuItemSelected(
+		menu: MenuBuilder,
+		item: MenuItem,
+	): Boolean {
+		// Click event of MenuItems without SubMenu is consumed by the ActionsRegistry
+		// So we only need to handle click event of SubMenus
+		if (!item.hasSubMenu()) {
+			return false
+		}
 
-            button.setOnLongClickListener {
-                if (tag.isNotEmpty()) {
-                    TooltipManager.showIdeCategoryTooltip(
-                        context = editor.context,
-                        anchorView = editor,
-                        tag = tag,
-                    )
-                }
-                true
-            }
-        }
+		if (item.hasSubMenu() && item.subMenu is SubMenuBuilder) {
+			(item.subMenu as SubMenuBuilder).setCallback(this)
+		}
 
-        inner class VH(val binding: LayoutPopupMenuItemBinding) : ViewHolder(binding.root)
-    }
+		this.editor.post {
+			TransitionManager.beginDelayedTransition(this.list, ChangeBounds())
+			this.list.layoutManager = LinearLayoutManager(editor.context)
+			this.list.adapter =
+				ActionsListAdapter(item.subMenu, true, editor, location = onGetActionLocation())
 
-    override fun onMenuItemSelected(menu: MenuBuilder, item: MenuItem): Boolean {
-        // Click event of MenuItems without SubMenu is consumed by the ActionsRegistry
-        // So we only need to handle click event of SubMenus
-        if (!item.hasSubMenu()) {
-            return false
-        }
+			this.list.post {
+				measureActionsList()
+				val safeItemWidth =
+					this.list.measuredWidth + this.list.paddingEnd + this.list.paddingStart
+				popup.update(safeItemWidth, this.list.measuredHeight)
+			}
+		}
 
-        if (item.hasSubMenu() && item.subMenu is SubMenuBuilder) {
-            (item.subMenu as SubMenuBuilder).setCallback(this)
-        }
+		return true
+	}
 
-        this.editor.post {
-            TransitionManager.beginDelayedTransition(this.list, ChangeBounds())
-            this.list.layoutManager = LinearLayoutManager(editor.context)
-            this.list.adapter =
-                ActionsListAdapter(item.subMenu,  true, editor, location = onGetActionLocation())
-
-            this.list.post {
-                measureActionsList()
-                val safeItemWidth =
-                    this.list.measuredWidth + this.list.paddingEnd + this.list.paddingStart
-                popup.update(safeItemWidth, this.list.measuredHeight)
-            }
-        }
-
-        return true
-    }
-
-    override fun onMenuModeChange(menu: MenuBuilder) {}
+	override fun onMenuModeChange(menu: MenuBuilder) {}
 }
