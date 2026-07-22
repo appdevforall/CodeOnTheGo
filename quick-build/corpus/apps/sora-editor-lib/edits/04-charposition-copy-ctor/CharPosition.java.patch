@@ -1,0 +1,26 @@
+--- a/editor/src/main/java/io/github/rosemoe/sora/text/CharPosition.java
++++ b/editor/src/main/java/io/github/rosemoe/sora/text/CharPosition.java
+@@ -57,6 +57,23 @@
+     }
+ 
+     /**
++     * Copy constructor: build a new {@link CharPosition} with the same line/column/index as
++     * {@code other}. Same overload-growth spirit as sora-editor PR #267 ("Added more
++     * keybindings"), which is what added the two constructors above.
++     *
++     * @param other Position to copy
++     */
++    public CharPosition(@NonNull CharPosition other) {
++        this(other.line, other.column, other.index);
++    }
++
++    // ADFA-4128 WS-A3 corpus edit 04 (charposition-copy-ctor): added for a real string-literal
++    // behavioral marker (the real change is the copy constructor above).
++    public static String marker() {
++        return "quick build reloaded CharPosition's copy constructor";
++    }
++
++    /**
+      * Get the index
+      *
+      * @return index

@@ -1,0 +1,12 @@
+{
+	"editClass": "interface-add",
+	"description": "PR-mined (AntennaPod/AntennaPod#8542, \"Fix crash when leaving while delete dialog is open\", merged 2026-06-23 -- a genuinely recent production crash fix reported through Google Play): FeedFunding starts implementing Serializable so a Feed carrying funding info survives Activity instance-state restore.",
+	"files": {
+		"src/main/java/de/danoeh/antennapod/model/feed/FeedFunding.java": "FeedFunding.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": null
+	}
+}

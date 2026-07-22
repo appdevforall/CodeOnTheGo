@@ -1,0 +1,7 @@
+{
+	"applicationId": "fr.neamar.kiss",
+	"entryActivity": "fr.neamar.kiss.corpusharness.KissHostActivity",
+	"minSdk": 30,
+	"language": "java",
+	"note": "real Neamar/KISS (GPL-3.0) subgraph, pinned commit 8b5ebda7bc2a1f8877bed25c7b7d4e1cdcdbbdb8 -- normalizer/StringNormalizer.java + utils/ClipboardUtils.java, a real acyclic 2-file pure-Java subset (androidx.annotation/androidx.core for a couple of annotations/ContextCompat only, no Room/Hilt/Compose, no annotation processors). KISS itself pins Gradle 9.4.1 (a real setup-build-wall target for WS-F), but this corpus harness compiles source directly via kotlinc/javac/aapt2 and never invokes Gradle at all, so the Gradle-9 setup-build wall does not apply to this entry -- see README.md note. corpusharness package is harness scaffolding."
+}

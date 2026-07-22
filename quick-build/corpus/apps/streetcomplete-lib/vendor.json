@@ -1,0 +1,18 @@
+{
+	"repo": "https://github.com/streetcomplete/StreetComplete",
+	"commit": "26c673030a095e7a8b32f1074b7014f960e2b0a4",
+	"note": "Commit is tag v63.2 (2026-07). files maps upstream path -> app-relative destination. license: GPL-3.0 (see LICENSE at the pinned commit). files.map -> app-relative destination. Edits that touch fetched files are checked in as .patch files against the pinned commit and applied at materialization.",
+	"license": "GPL-3.0",
+	"files": {
+		"app/src/commonMain/kotlin/de/westnordost/streetcomplete/data/osm/mapdata/Element.kt": "src/main/java/de/westnordost/streetcomplete/data/osm/mapdata/Element.kt",
+		"app/src/commonMain/kotlin/de/westnordost/streetcomplete/data/osm/mapdata/BoundingBox.kt": "src/main/java/de/westnordost/streetcomplete/data/osm/mapdata/BoundingBox.kt",
+		"app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/ktx/Double.kt": "src/main/java/de/westnordost/streetcomplete/util/ktx/Double.kt",
+		"app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/ktx/Collections.kt": "src/main/java/de/westnordost/streetcomplete/util/ktx/Collections.kt",
+		"app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/ktx/LatLon.kt": "src/main/java/de/westnordost/streetcomplete/util/ktx/LatLon.kt",
+		"app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/math/AngleMath.kt": "src/main/java/de/westnordost/streetcomplete/util/math/AngleMath.kt",
+		"app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/math/Vector3d.kt": "src/main/java/de/westnordost/streetcomplete/util/math/Vector3d.kt",
+		"app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/math/SphericalEarthMathVector3d.kt": "src/main/java/de/westnordost/streetcomplete/util/math/SphericalEarthMathVector3d.kt",
+		"app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/math/SphericalEarthMath.kt": "src/main/java/de/westnordost/streetcomplete/util/math/SphericalEarthMath.kt",
+		"app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/math/FlatEarthMath.kt": "src/main/java/de/westnordost/streetcomplete/util/math/FlatEarthMath.kt"
+	}
+}

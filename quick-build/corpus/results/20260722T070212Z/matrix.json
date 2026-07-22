@@ -1,0 +1,80 @@
+{
+  "generatedAt": "2026-07-22T07:02:12.211457+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-a2-secuso/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "todo-list",
+      "language": "kotlin",
+      "applicationId": "org.secuso.privacyfriendlytodolist",
+      "baseline": {
+        "status": "PASS",
+        "ms": 3906.9602919999998,
+        "daemonMs": 3904,
+        "classCount": 35,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-alarm-mgr-real",
+          "editClass": "method-add",
+          "description": "Authored edit (not PR-mined -- see vendor.json for why) against the real, vendored AlarmMgr.kt: adds a hasPendingAlarm() query method plus a log line, in the same spirit as the real alarm-scheduling API it sits beside.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 297.64108300000026
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendlytodolist/util/AlarmMgr.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/secuso/privacyfriendlytodolist/util/AlarmMgr.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Checked pending alarm state via hasPendingAlarm()' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 296,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "35 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 1,
+    "edits": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  }
+}

@@ -1,0 +1,13 @@
+diff --git a/app/src/main/res/values/attrs.xml b/app/src/main/res/values/attrs.xml
+index b5ba2c6..df68c4a 100644
+--- a/app/src/main/res/values/attrs.xml
++++ b/app/src/main/res/values/attrs.xml
+@@ -1,5 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <resources>
++	<declare-styleable name="AppTheme">
++		<attr name="secusoLogoDrawable" format="reference"/>
++	</declare-styleable>
+     <attr name="buttonEmpty" format="color"/>
+     <attr name="buttonEmptyText" format="color"/>
+ 

@@ -1,0 +1,12 @@
+{
+	"editClass": "method-add",
+	"description": "PR-mined (ReadYouApp/ReadYou#732, \"fix(ui): apply any-RTL algorithm for correct text direction\"): adds a MimeType object plus requiresBidi/orNotEmpty/extractDomain to StringExt.kt -- a real multi-function addition, including a new top-level object (its own class file).",
+	"files": {
+		"src/main/java/me/ash/reader/ui/ext/StringExt.kt": "StringExt.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 3 },
+		"behavioralMarker": "text/x-opml"
+	}
+}

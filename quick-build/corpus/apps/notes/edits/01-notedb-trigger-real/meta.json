@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "PR-mined: real upstream commit a580bcd ('[fix] adds trigger creation in room callback') against the pinned commit 0a925ce. Adds a second SQL trigger (UpdateTrashTime) to the Room onCreate callback and makes the existing InsertCustomOrder trigger idempotent (IF NOT EXISTS).",
+	"files": {
+		"src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java": "NoteDatabase.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 4 },
+		"behavioralMarker": "UpdateTrashTime"
+	}
+}

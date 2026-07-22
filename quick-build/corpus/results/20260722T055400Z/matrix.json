@@ -1,0 +1,362 @@
+{
+  "generatedAt": "2026-07-22T05:54:00.227647+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-a-corpus/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "antennapod-model",
+      "language": "java",
+      "applicationId": "de.danoeh.antennapod",
+      "baseline": {
+        "status": "PASS",
+        "ms": 1853.0932920000005,
+        "daemonMs": 1848,
+        "classCount": 4,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T055400Z/antennapod-model/tree/src/main/java/de/danoeh/antennapod/model/feed/FeedFunding.java uses or overrides a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T055400Z/antennapod-model/tree/src/main/java/de/danoeh/antennapod/model/feed/FeedFunding.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T055400Z/antennapod-model/tree/src/main/java/de/danoeh/antennapod/model/feed/FeedFunding.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-mediatype-remove-extension-guessing",
+          "editClass": "code-removal",
+          "description": "PR-mined (AntennaPod/AntennaPod, \"Move mime type guessing out of MediaType enum\", d4d506345): removes MediaType.fromFileExtension() and its two extension-set constants -- a real code-shrink edit.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 561.3265419999998
+          },
+          "recompiledClasses": [
+            "de/danoeh/antennapod/model/playback/MediaType.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['de/danoeh/antennapod/model/playback/MediaType.class']"
+            }
+          ],
+          "daemonMs_compile": 560,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-feeditemfilter-serializable",
+          "editClass": "interface-add",
+          "description": "PR-mined (AntennaPod/AntennaPod, \"Update filter dialog to Fragment\", 0b431a331): FeedItemFilter starts implementing Serializable so it survives a Fragment argument bundle -- a real one-line interface addition.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 252.7039999999996
+          },
+          "recompiledClasses": [
+            "de/danoeh/antennapod/model/feed/FeedItemFilter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['de/danoeh/antennapod/model/feed/FeedItemFilter.class']"
+            }
+          ],
+          "daemonMs_compile": 252,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-feedfunding-serializable",
+          "editClass": "interface-add",
+          "description": "PR-mined (AntennaPod/AntennaPod#8542, \"Fix crash when leaving while delete dialog is open\", merged 2026-06-23 -- a genuinely recent production crash fix reported through Google Play): FeedFunding starts implementing Serializable so a Feed carrying funding info survives Activity instance-state restore.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 157.34458300000043
+          },
+          "recompiledClasses": [
+            "de/danoeh/antennapod/model/feed/FeedFunding.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['de/danoeh/antennapod/model/feed/FeedFunding.class']"
+            }
+          ],
+          "daemonMs_compile": 157,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "4 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "architecture-samples",
+      "language": "kotlin",
+      "applicationId": "com.example.android.architecture.blueprints.todoapp",
+      "baseline": {
+        "status": "PASS",
+        "ms": 10465.128958999998,
+        "daemonMs": 10462,
+        "classCount": 16,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-task-id-required",
+          "editClass": "required-param",
+          "description": "PR-mined (android/architecture-samples#924, \"Move Task ID creation out of Task\"): Task.id loses its UUID.randomUUID() default, becoming a required constructor param -- a real, source-incompatible signature tightening.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1664.2384590000033
+          },
+          "recompiledClasses": [
+            "com/example/android/architecture/blueprints/todoapp/data/Task.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['com/example/android/architecture/blueprints/todoapp/data/Task.class']"
+            }
+          ],
+          "daemonMs_compile": 1663,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-create-task-returns-id",
+          "editClass": "return-type-change",
+          "description": "PR-mined (android/architecture-samples#928, \"Change createTest to return task ID\"): TaskRepository.createTask's return type changes from Task to String -- a real interface-contract edit with no implementer in this subgraph.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 203.69033299999728
+          },
+          "recompiledClasses": [
+            "com/example/android/architecture/blueprints/todoapp/data/TaskRepository.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['com/example/android/architecture/blueprints/todoapp/data/TaskRepository.class']"
+            }
+          ],
+          "daemonMs_compile": 203,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-refresh-rename",
+          "editClass": "method-rename",
+          "description": "PR-mined (android/architecture-samples#926, \"Add application scope for fire-and-forget jobs\"): TaskRepository.refreshTasks() is renamed to refresh() -- a real method rename on the same interface edit 02 touched, applied cumulatively.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 139.73716699999983
+          },
+          "recompiledClasses": [
+            "com/example/android/architecture/blueprints/todoapp/data/TaskRepository.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['com/example/android/architecture/blueprints/todoapp/data/TaskRepository.class']"
+            }
+          ],
+          "daemonMs_compile": 140,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "16 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "readyou",
+      "language": "kotlin",
+      "applicationId": "me.ash.reader",
+      "baseline": {
+        "status": "PASS",
+        "ms": 1808.3243749999979,
+        "daemonMs": 1805,
+        "classCount": 8,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-date-isfuture",
+          "editClass": "method-add",
+          "description": "PR-mined (ReadYouApp/ReadYou#638, \"fix(sync): replace publish date of an article with the current time if it is a future date\"): adds Date.isFuture(), a real one-line pure-logic addition to DateExt.kt.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 594.4034580000022
+          },
+          "recompiledClasses": [
+            "me/ash/reader/ui/ext/DateExtKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['me/ash/reader/ui/ext/DateExtKt.class']"
+            }
+          ],
+          "daemonMs_compile": 593,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-number-infix",
+          "editClass": "modifier-change",
+          "description": "PR-mined (ReadYouApp/ReadYou#724, \"chore(greader): add null checks in greader service\"): NumberExt.spacerDollar gains the infix modifier -- a real signature-modifier-only edit.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 877.8194579999977
+          },
+          "recompiledClasses": [
+            "me/ash/reader/ui/ext/NumberExtKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['me/ash/reader/ui/ext/NumberExtKt.class']"
+            }
+          ],
+          "daemonMs_compile": 876,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-string-rtl-mimetype",
+          "editClass": "method-add",
+          "description": "PR-mined (ReadYouApp/ReadYou#732, \"fix(ui): apply any-RTL algorithm for correct text direction\"): adds a MimeType object plus requiresBidi/orNotEmpty/extractDomain to StringExt.kt -- a real multi-function addition, including a new top-level object (its own class file).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 615.942374999996
+          },
+          "recompiledClasses": [
+            "me/ash/reader/ui/ext/MimeType.class",
+            "me/ash/reader/ui/ext/StringExtKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 3]: ['me/ash/reader/ui/ext/MimeType.class', 'me/ash/reader/ui/ext/StringExtKt.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'text/x-opml' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 615,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "9 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 3,
+    "edits": 9,
+    "passed": 9,
+    "failed": 0,
+    "skipped": 0
+  }
+}

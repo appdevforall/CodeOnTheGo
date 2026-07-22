@@ -1,0 +1,16 @@
+--- a/app/src/main/java/org/secuso/privacyfriendlytodolist/util/AlarmMgr.kt
++++ b/app/src/main/java/org/secuso/privacyfriendlytodolist/util/AlarmMgr.kt
+@@ -161,4 +161,13 @@
+         intent.putExtra(KEY_ALARM_ID, alarmId)
+         return PendingIntent.getBroadcast(context, alarmId, intent, flags)
+     }
++
++    /**
++     * @return True if an alarm with the given ID is currently pending, false otherwise.
++     */
++    fun hasPendingAlarm(context: Context, alarmId: Int): Boolean {
++        val hasPendingAlarm = getPendingAlarmIntent(context, alarmId, false) != null
++        Log.d(TAG, "Checked pending alarm state via hasPendingAlarm().")
++        return hasPendingAlarm
++    }
+ }

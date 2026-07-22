@@ -1,0 +1,542 @@
+{
+  "generatedAt": "2026-07-22T06:50:59.781367+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-a-corpus/quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-a-corpus/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "findroid",
+      "language": "kotlin",
+      "applicationId": "dev.jdtech.jellyfin",
+      "baseline": {
+        "status": "PASS",
+        "ms": 2794.801875,
+        "daemonMs": 2792,
+        "classCount": 11,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-addserveraction-format",
+          "editClass": "noop-format",
+          "description": "Commit-mined (jarnedemeulemeester/findroid, \"chore: replace ktlint with ktfmt\", 8102dbc, 2025-12-25): a real repo-wide ktfmt reformat -- here a single inserted blank line, whitespace-only, no semantic change. Mined from commits, not a PR, per README's fallback for a repo whose real behavioral edits to this specific file sit further back than this session's fetch window reached (see vendor.json).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 196.1252499999997
+          },
+          "recompiledClasses": [
+            "dev/jdtech/jellyfin/setup/presentation/addserver/AddServerAction$OnBackClick.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [0, 3]: ['dev/jdtech/jellyfin/setup/presentation/addserver/AddServerAction$OnBackClick.class']"
+            }
+          ],
+          "daemonMs_compile": 195,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-serveraddressesstate-format",
+          "editClass": "noop-format",
+          "description": "Commit-mined (jarnedemeulemeester/findroid, \"chore: replace ktlint with ktfmt\", 8102dbc, 2025-12-25): the same real reformat commit collapses ServerAddressesState's constructor onto one line -- whitespace-only, no semantic change.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 155.21137500000037
+          },
+          "recompiledClasses": [
+            "dev/jdtech/jellyfin/setup/presentation/addresses/ServerAddressesState.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [0, 2]: ['dev/jdtech/jellyfin/setup/presentation/addresses/ServerAddressesState.class']"
+            }
+          ],
+          "daemonMs_compile": 155,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-server-format",
+          "editClass": "noop-format",
+          "description": "Commit-mined (jarnedemeulemeester/findroid, \"chore: replace ktlint with ktfmt\", 8102dbc, 2025-12-25): the same real reformat commit collapses Server's @PrimaryKey annotation onto its property's line -- whitespace-only, no semantic change.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 131.48266700000022
+          },
+          "recompiledClasses": [
+            "dev/jdtech/jellyfin/models/Server.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [0, 2]: ['dev/jdtech/jellyfin/models/Server.class']"
+            }
+          ],
+          "daemonMs_compile": 132,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "11 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "jcomposecogo",
+      "language": "kotlin",
+      "applicationId": "com.andihasan.jcomposecogo",
+      "baseline": {
+        "status": "PASS",
+        "ms": 532.7641669999998,
+        "daemonMs": 533,
+        "classCount": 4,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-uistate-field-add",
+          "editClass": "field-add",
+          "description": "Hand-authored (see vendor.json for why -- no prior commit exists to mine): adds isLoading: Boolean to HomeUiState, the shape of edit a real developer extending this StateFlow-backed UI state would make. Adding a field to a data class changes its ABI (copy/equals/hashCode/toString), which correctly ripples to JComposeCoGoHostActivity -- the harness's own consumer that constructs HomeUiState() directly -- so 3 classes recompile (HomeViewModel + HomeUiState from the edited file, plus the ABI-dependent HostActivity), not 1-2.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 385.1010420000005
+          },
+          "recompiledClasses": [
+            "com/andihasan/jcomposecogo/corpusharness/JComposeCoGoHostActivity.class",
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class",
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 3 classes, expected [1, 3]: ['com/andihasan/jcomposecogo/corpusharness/JComposeCoGoHostActivity.class', 'com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class', 'com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class']"
+            }
+          ],
+          "daemonMs_compile": 385,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-reset-method",
+          "editClass": "method-add",
+          "description": "Hand-authored (see vendor.json): adds a reset() method to HomeViewModel that restores HomeUiState() defaults, applied cumulatively on edit01.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 139.3476670000009
+          },
+          "recompiledClasses": [
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class",
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 2]: ['com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class', 'com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class']"
+            }
+          ],
+          "daemonMs_compile": 139,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-derived-property",
+          "editClass": "property-add",
+          "description": "Hand-authored (see vendor.json): adds a derived isEmpty property to HomeUiState, applied cumulatively on edits 01-02.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 185.78441600000062
+          },
+          "recompiledClasses": [
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class",
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 2]: ['com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class', 'com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class']"
+            }
+          ],
+          "daemonMs_compile": 186,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "4 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "kiss",
+      "language": "java",
+      "applicationId": "fr.neamar.kiss",
+      "baseline": {
+        "status": "PASS",
+        "ms": 266.57454200000075,
+        "daemonMs": 266,
+        "classCount": 5,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-ascii-z-fix",
+          "editClass": "boundary-fix",
+          "description": "PR-mined (Neamar/KISS, \"ASCII also includes z!\", d71c69a3, 2020): fixes an off-by-one boundary check (codepoint < 'z' -> <= 'z') -- a real, tiny, self-contained boundary bug.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 92.65758300000115
+          },
+          "recompiledClasses": [
+            "fr/neamar/kiss/normalizer/StringNormalizer.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['fr/neamar/kiss/normalizer/StringNormalizer.class']"
+            }
+          ],
+          "daemonMs_compile": 92,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-empty-result",
+          "editClass": "method-add",
+          "description": "PR-mined (Neamar/KISS, \"static StringNormalizer.Result\", 71ad3234, 2025-10-20): adds a static Result.EMPTY constant and an early-return for empty/null input in normalizeWithResult -- a real recent perf/null-safety improvement, applied cumulatively on edit01.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 56.65891599999995
+          },
+          "recompiledClasses": [
+            "fr/neamar/kiss/normalizer/StringNormalizer$Result.class",
+            "fr/neamar/kiss/normalizer/StringNormalizer.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 3]: ['fr/neamar/kiss/normalizer/StringNormalizer$Result.class', 'fr/neamar/kiss/normalizer/StringNormalizer.class']"
+            }
+          ],
+          "daemonMs_compile": 57,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-nonnull-tostring",
+          "editClass": "annotation-add",
+          "description": "PR-mined (Neamar/KISS, \"cleanup\", 49e0e555, 2026-04-05 -- genuinely recent, ~3 months before this corpus run): adds @NonNull to Result.toString(), applied cumulatively on edits 01-02.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 96.43437500000118
+          },
+          "recompiledClasses": [
+            "fr/neamar/kiss/normalizer/StringNormalizer$Result.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['fr/neamar/kiss/normalizer/StringNormalizer$Result.class']"
+            }
+          ],
+          "daemonMs_compile": 96,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-clipboard-label",
+          "editClass": "overload-add",
+          "description": "PR-mined (Neamar/KISS, \"allow copying of debug info to clipboard\", 03de9b99, 2025-09-15): adds a 3-arg setClipboard(context, label, text) overload, the 2-arg form delegating to it -- a real API-widening edit.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 91.67220800000031
+          },
+          "recompiledClasses": [
+            "fr/neamar/kiss/utils/ClipboardUtils.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['fr/neamar/kiss/utils/ClipboardUtils.class']"
+            }
+          ],
+          "daemonMs_compile": 91,
+          "status": "PASS"
+        },
+        {
+          "edit": "05-clipboard-contextcompat",
+          "editClass": "api-migration",
+          "description": "PR-mined (Neamar/KISS, \"use `ContextCompat` where possible\", 92c6b885, 2026-01-13): replaces the manual SDK-version branch for fetching ClipboardManager with ContextCompat.getSystemService -- a real, genuinely recent API-migration edit, applied cumulatively on edit04.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 51.2888750000009
+          },
+          "recompiledClasses": [
+            "fr/neamar/kiss/utils/ClipboardUtils.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['fr/neamar/kiss/utils/ClipboardUtils.class']"
+            }
+          ],
+          "daemonMs_compile": 51,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "5 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "seal",
+      "language": "kotlin",
+      "applicationId": "com.junkfood.seal",
+      "baseline": {
+        "status": "PASS",
+        "ms": 660.5288750000007,
+        "daemonMs": 660,
+        "classCount": 18,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-sponsor-tier-nullable",
+          "editClass": "nullable-change",
+          "description": "PR-mined (JunkFood02/Seal, \"fix: `SponsorData` parsing error\", 258b43c5): Node.tier becomes nullable -- a real one-field GraphQL-response-shape fix.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 102.91787500000105
+          },
+          "recompiledClasses": [
+            "com/junkfood/seal/util/Node.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['com/junkfood/seal/util/Node.class']"
+            }
+          ],
+          "daemonMs_compile": 103,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-sponsor-social-links",
+          "editClass": "restructure",
+          "description": "PR-mined (JunkFood02/Seal, \"feat: show social links for sponsors\", 4fa91ee1): renames User/SponsorshipsAsMaintainer/Node into Viewer/SponsorShip and adds SocialAccounts/SocialAccount -- a real GraphQL-schema restructure applied cumulatively on top of edit01.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 127.37070799999906
+          },
+          "recompiledClasses": [
+            "com/junkfood/seal/util/Data.class",
+            "com/junkfood/seal/util/Node.class",
+            "com/junkfood/seal/util/SocialAccount.class",
+            "com/junkfood/seal/util/SocialAccounts.class",
+            "com/junkfood/seal/util/SponsorEntity.class",
+            "com/junkfood/seal/util/SponsorShip.class",
+            "com/junkfood/seal/util/SponsorshipsAsMaintainer.class",
+            "com/junkfood/seal/util/Tier.class",
+            "com/junkfood/seal/util/User.class",
+            "com/junkfood/seal/util/Viewer.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 10 classes, expected [1, 10]: ['com/junkfood/seal/util/Data.class', 'com/junkfood/seal/util/Node.class', 'com/junkfood/seal/util/SocialAccount.class', 'com/junkfood/seal/util/SocialAccounts.class', 'com/junkfood/seal/util/SponsorEntity.class', 'com/junkfood/seal/util/SponsorShip.class', 'com/junkfood/seal/util/SponsorshipsAsMaintainer.class', 'com/junkfood/seal/util/Tier.class', 'com/junkfood/seal/util/User.class', 'com/junkfood/seal/util/Viewer.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'SocialAccount' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 127,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-videoinfo-fields",
+          "editClass": "field-add",
+          "description": "PR-mined but intentionally cumulative (JunkFood02/Seal, pin through commit f635f69e, \"fix(download): use original url of playlists\"): VideoInfo.kt's real, unsquashed growth across ~11 months -- new fields (uploaderId, subtitles, requestedDownloads, filename, ...), width/height widened to Double, and new data classes (RequestedDownload, SubtitleFormat) -- rather than a single isolated PR, since this file's real edit history doesn't isolate that cleanly. Generous recompile bounds reflect the file's ~10 top-level declarations.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1169.4194170000003
+          },
+          "recompiledClasses": [
+            "com/junkfood/seal/corpusharness/SealHostActivity.class",
+            "com/junkfood/seal/util/Chapter.class",
+            "com/junkfood/seal/util/Entries.class",
+            "com/junkfood/seal/util/Format.class",
+            "com/junkfood/seal/util/PlaylistResult.class",
+            "com/junkfood/seal/util/RequestedDownload.class",
+            "com/junkfood/seal/util/SubtitleFormat.class",
+            "com/junkfood/seal/util/Thumbnail.class",
+            "com/junkfood/seal/util/VideoClip.class",
+            "com/junkfood/seal/util/VideoInfo.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 10 classes, expected [1, 10]: ['com/junkfood/seal/corpusharness/SealHostActivity.class', 'com/junkfood/seal/util/Chapter.class', 'com/junkfood/seal/util/Entries.class', 'com/junkfood/seal/util/Format.class', 'com/junkfood/seal/util/PlaylistResult.class', 'com/junkfood/seal/util/RequestedDownload.class', 'com/junkfood/seal/util/SubtitleFormat.class', 'com/junkfood/seal/util/Thumbnail.class', 'com/junkfood/seal/util/VideoClip.class', 'com/junkfood/seal/util/VideoInfo.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'requested_downloads' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1168,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "21 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 4,
+    "edits": 14,
+    "passed": 14,
+    "failed": 0,
+    "skipped": 0
+  }
+}

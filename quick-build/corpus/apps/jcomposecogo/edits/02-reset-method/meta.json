@@ -1,0 +1,12 @@
+{
+	"editClass": "method-add",
+	"description": "Hand-authored (see vendor.json): adds a reset() method to HomeViewModel that restores HomeUiState() defaults, applied cumulatively on edit01.",
+	"files": {
+		"src/main/java/com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.kt": "HomeViewModel.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": null
+	}
+}

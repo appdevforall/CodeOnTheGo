@@ -1,0 +1,12 @@
+{
+	"editClass": "api-migration",
+	"description": "PR-mined (Neamar/KISS, \"use `ContextCompat` where possible\", 92c6b885, 2026-01-13): replaces the manual SDK-version branch for fetching ClipboardManager with ContextCompat.getSystemService -- a real, genuinely recent API-migration edit, applied cumulatively on edit04.",
+	"files": {
+		"src/main/java/fr/neamar/kiss/utils/ClipboardUtils.java": "ClipboardUtils.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": null
+	}
+}

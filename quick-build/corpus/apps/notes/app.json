@@ -1,0 +1,7 @@
+{
+	"applicationId": "org.secuso.privacyfriendlynotes",
+	"entryActivity": "org.secuso.privacyfriendlynotes.ui.SplashActivity",
+	"minSdk": 30,
+	"language": "kotlin",
+	"note": "real SecUSo Privacy Friendly Notes source (GPL-3.0, tag v2.2.2 ancestry, pinned commit 0a925ce6e7117ed27c7ce0494b3f33c5252b4500) -- an acyclic subgraph covering the real Room DB (NoteDatabase/DbContract/daos/models), AlarmManager-scheduled notifications, and the boot/permission-changed receiver, with backup-api and the note-editing UI excluded; see vendor.json. Real minSdk is 21; corpus keeps 30 like the rest of the matrix."
+}

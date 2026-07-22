@@ -1,0 +1,12 @@
+{
+	"editClass": "locale-file-new",
+	"description": "PR-mined: real upstream commit 51ffdbe27050d624f9b75032d429a60176255fd8 ('Added translation using Weblate (French)', privacy-friendly-ruler). Adds a brand-new values-fr/strings.xml -- but the real commit's file is an empty placeholder (<resources></resources>, no <string> entries yet), so it introduces zero new R.string names despite being a whole new resource file. editClass deliberately omits 'add' (the README's R-regen trigger substring): no new resource NAMES exist to regenerate R for, only a new (empty) qualifier directory.",
+	"files": {
+		"src/main/res/values-fr/strings.xml": "strings-fr.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

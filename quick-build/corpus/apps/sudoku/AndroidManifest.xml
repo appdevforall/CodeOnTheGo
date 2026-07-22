@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Scaffolding, not vendored: the real components from the acyclic subgraph pinned by
+  vendor.json (the foreground puzzle-generator service, specialUse type), no backup-api
+  service, no game/board activities. MainActivity is a stand-in launcher; the real subgraph
+  only ever builds an Intent targeting it, never calls into its body.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="org.secuso.privacyfriendlysudoku">
+
+	<application
+		android:allowBackup="true"
+		android:icon="@mipmap/ic_launcher"
+		android:label="@string/app_name"
+		android:name=".PFSudoku"
+		android:theme="@style/AppTheme">
+
+		<activity
+			android:exported="true"
+			android:name=".ui.MainActivity">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+
+		<service
+			android:name=".controller.GeneratorService"
+			android:enabled="true"
+			android:permission="android.permission.BIND_JOB_SERVICE"
+			android:foregroundServiceType="specialUse"
+			android:exported="false" />
+
+	</application>
+
+</manifest>

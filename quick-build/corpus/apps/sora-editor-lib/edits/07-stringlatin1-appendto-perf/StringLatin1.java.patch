@@ -1,0 +1,23 @@
+--- a/editor/src/main/java/io/github/rosemoe/sora/text/string/StringLatin1.java
++++ b/editor/src/main/java/io/github/rosemoe/sora/text/string/StringLatin1.java
+@@ -53,11 +53,17 @@
+     }
+ 
+     public static void appendTo(byte[] value, int length, StringBuilder sb) {
+-        for (int i = 0; i < length; i++) {
+-            sb.append(getChar(value, i));
+-        }
++        // Same avoid-the-char[]-roundtrip optimization as newString() below (real upstream perf
++        // commit): decode straight from bytes instead of looping getChar() one char at a time.
++        sb.append(new String(value, 0, length, StandardCharsets.ISO_8859_1));
+     }
+ 
++    // ADFA-4128 WS-A3 corpus edit 07 (stringlatin1-appendto-perf): added for a real
++    // string-literal behavioral marker (the real change is appendTo()'s decode path above).
++    public static String marker() {
++        return "quick build reloaded StringLatin1.appendTo perf path";
++    }
++
+     public static String newString(byte[] value, int length) {
+         return new String(value, 0, length, StandardCharsets.ISO_8859_1);
+     }

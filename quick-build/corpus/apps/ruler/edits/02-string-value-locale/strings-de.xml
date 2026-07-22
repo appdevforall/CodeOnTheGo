@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lineal</string>
+    <string name="navigation_drawer_open">Navigationsmenü öffnen</string>
+    <string name="navigation_drawer_close">Navigationsmenü schließen</string>
+    <string name="app_name_long">Privacy Friendly Lineal</string>
+    <string name="version_number">Version v%s</string>
+    <string name="mode">Modus</string>
+    <string name="ruler">Lineal</string>
+    <string name="calibrate">Kalibrieren</string>
+    <string name="measureLineHeading">1. Messen</string>
+    <string name="measureLine">Bitte messen Sie die Länge der Linie möglichst genau.</string>
+    <string name="headingEnter">2. Gemessene Länge eingeben</string>
+    <string name="calibrateConfirmButton">Kalibrieren</string>
+    <string name="noInput">Bitte geben Sie die Länge der Linie ein.</string>
+    <string name="calibrationDone">Kalibrierung abgeschlossen.</string>
+    <string name="calibrationMM">mm</string>
+    <string name="calibrationInch">zoll</string>
+    <string name="calibrationWarning">Manuelle Kalibrierung eliminiert die rundungsbedingten Ungenauigkeiten nicht.</string>
+    <string name="settings">Einstellungen</string>
+    <string name="action_calibration">Kalibrieren</string>
+    <string name="action_resetcalibration">Kalibrierung Zurücksetzen</string>
+    <string name="calibrationReset">Kalibrierung zurückgesetzt.</string>
+    <string name="pref_ruler">Linealeinstellungen</string>
+    <string name="pref_leftruler">Linkes Lineal</string>
+    <string name="pref_leftruler_verbose">Was sollte auf dem linken Lineal angezeigt werden?</string>
+    <string-array name="pref_leftruler_entries">
+        <item>cm</item>
+        <item>zoll</item>
+        <item>aus</item>
+    </string-array>
+    <string-array name="pref_leftruler_evs">
+        <item>cm</item>
+        <item>inch</item>
+        <item>off</item>
+    </string-array>
+    <string name="pref_leftruler_default">cm</string>
+    <string name="pref_rightruler">Rechtes Lineal</string>
+    <string name="pref_rightruler_verbose">Was sollte auf dem rechten Lineal angezeigt werden?</string>
+    <string-array name="pref_rightruler_entries">
+        <item>cm</item>
+        <item>zoll</item>
+        <item>aus</item>
+    </string-array>
+    <string-array name="pref_rightruler_evs">
+        <item>cm</item>
+        <item>inch</item>
+        <item>off</item>
+    </string-array>
+    <string name="pref_rightruler_default">Zoll</string>
+    <string name="pref_anglemeasure">Winkelmesser</string>
+    <string name="pref_anglemeasure_verbose">Winkelmesser einschalten?</string>
+    <string-array name="pref_anglemeasure_entries">
+        <item>Grad</item>
+        <item>Radiant</item>
+        <item>aus</item>
+    </string-array>
+    <string-array name="pref_anglemeasure_evs">
+        <item>degree</item>
+        <item>radian</item>
+        <item>off</item>
+    </string-array>
+    <string name="pref_anglemeasure_default">aus</string>
+    <string name="welcome">Willkommen</string>
+    <string name="field_select_description_headline">Willkommen zu Privacy Friendly Lineal</string>
+    <string name="field_select_description">Diese App stellt Ihnen ein Lineal und einen Winkelmesser auf Ihrem Bildschirm bereit.</string>
+    <string name="difficulty_description_headline">Einstellungen</string>
+    <string name="difficulty_description">Sie können die Maßeinheiten in den Einstellungen ändern. In dem Aktionsmenü können Sie das Lineal kalibrieren (optional).</string>
+    <string name="disclaimer">Diese App ist kein professionell geeichtes Messgerät. Die App kann zwar kalibriert werden, dies minimiert den Fehler, allerdings kann es abhängig vom Gerät trotzdem zu Rundungsfehlern kommen.</string>
+    <string name="disclaimer_check">Ich habe den Disclaimer über potentielle Rundungsfehler gelesen.</string>
+    <string name="disclaimer_check_toast">Bitte markieren Sie, dass Sie den Disclaimer gelesen haben.</string>
+    <string name="okay">Okay</string>
+    <string name="viewhelp">Hilfe anzeigen</string>
+    <string name="help">Hilfe</string>
+    <string name="help_overview_heading">Übersicht</string>
+    <string name="help_calibration">Manuelle Kalibrierung</string>
+    <string name="help_disclaimer">Haftungsausschluss</string>
+    <string name="pref_calibration_summary">Sie können das Lineal manuell mit der "Kalibrieren" Option im Aktionsmenü kalibirieren.</string>
+    <string name="help_permissions_heading">Berechtigungen</string>
+    <string name="help_permissions_description">Privacy Friendly Lineal benutzt keine Android-Berechtigungen.</string>
+    <string name="pref_units_summary">Sie können ein Lineal mit Zentimeter-Skala, Zoll-Skala oder kein Lineal auf der linken und der rechten Bildschirmseite anzeigen lassen. Beide Lineale können separat in den Einstellungen gesetzt werden.</string>
+    <string name="pref_angles_summary">Sie können einen Winkelmesser in Grad oder Radiant auf der linken Bildschirmseite anzeigen lassen.</string>
+    <string name="help_intro">Die Privacy Friendly Lineal App macht Ihr Smartphone zu einem Lineal um Messungen vorzunehmen, wenn Sie gerade kein Messgerät zur Hand haben.</string>
+    <string name="about">Über</string>
+    <string name="about_author">Autor: </string>
+    <string name="about_author_contributors">und Mitwirkende.</string>
+    <string name="about_affiliation">In Zusammenarbeit mit</string>
+    <string name="privacy_friendly">Diese App gehört zur Gruppe der Privacy Friendly Apps entwickelt vom Karlsruher Institut für Technologie. Quelltext lizenziert unter GPLv3. Bilder copyright KIT und Google Inc.</string>
+    <string name="more_info">Mehr Information unter:</string>
+    <string name="url"><a href="https://www.secuso.org/pfa">SECUSO-Webseite</a></string>
+</resources>

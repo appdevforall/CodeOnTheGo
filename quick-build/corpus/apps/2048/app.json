@@ -1,0 +1,7 @@
+{
+	"applicationId": "org.secuso.privacyfriendly2048",
+	"entryActivity": "org.secuso.privacyfriendly2048.activities.SplashActivity",
+	"minSdk": 30,
+	"language": "mixed",
+	"note": "real SecUSo Privacy Friendly 2048 source (GPL-3.0, tag v1.4.2, commit 4ee3cf356376c1f8905f81a02ffc9f37b3db6c96) -- the game + UI, minus the backup-api integration (see vendor.json). Real minSdk is 21; corpus keeps 30 like the rest of the matrix."
+}

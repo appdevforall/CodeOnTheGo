@@ -1,0 +1,43 @@
+--- a/editor/src/main/java/io/github/rosemoe/sora/text/bidi/TextBidi.java
++++ b/editor/src/main/java/io/github/rosemoe/sora/text/bidi/TextBidi.java
+@@ -44,13 +44,26 @@
+      */
+     @NonNull
+     public static Directions getDirections(@NonNull CharSequence text) {
++        return getDirections(text, Bidi.DIRECTION_DEFAULT_LEFT_TO_RIGHT);
++    }
++
++    /**
++     * Compute text directions for the given text using an explicit {@link Bidi} base-direction
++     * flag, instead of always defaulting to {@link Bidi#DIRECTION_DEFAULT_LEFT_TO_RIGHT}. Follows
++     * the same "stop enforcing a single base direction" spirit as the real upstream commit that
++     * moved the single-arg overload above off {@code Bidi.DIRECTION_LEFT_TO_RIGHT}.
++     *
++     * @param bidiFlags One of the {@code Bidi.DIRECTION_*} constants
++     */
++    @NonNull
++    public static Directions getDirections(@NonNull CharSequence text, int bidiFlags) {
+         var len = text.length();
+         if (doesNotNeedBidi(text)) {
+             return new Directions(new long[]{IntPair.pack(0, 0)}, len);
+         }
+         var chars = TemporaryCharBuffer.obtain(len);
+         TextUtils.getChars(text, 0, len, chars, 0);
+-        var bidi = new Bidi(chars, 0, null, 0, text.length(), Bidi.DIRECTION_DEFAULT_LEFT_TO_RIGHT);
++        var bidi = new Bidi(chars, 0, null, 0, text.length(), bidiFlags);
+         var runs = new long[bidi.getRunCount()];
+         for (int i = 0; i < runs.length; i++) {
+             runs[i] = IntPair.pack(bidi.getRunStart(i), bidi.getRunLevel(i));
+@@ -59,6 +72,12 @@
+         return new Directions(runs, len);
+     }
+ 
++    // ADFA-4128 WS-A3 corpus edit 06 (textbidi-explicit-direction): added for a real
++    // string-literal behavioral marker (the real change is the bidiFlags overload above).
++    public static String marker() {
++        return "quick build reloaded TextBidi.getDirections(text, bidiFlags)";
++    }
++
+     public static boolean couldAffectRtl(char c) {
+         return (0x0590 <= c && c <= 0x08FF) ||  // RTL scripts
+                 c == 0x200E ||  // Bidi format character

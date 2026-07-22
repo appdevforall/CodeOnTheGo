@@ -1,0 +1,12 @@
+{
+	"editClass": "overload-add",
+	"description": "PR-mined (Neamar/KISS, \"allow copying of debug info to clipboard\", 03de9b99, 2025-09-15): adds a 3-arg setClipboard(context, label, text) overload, the 2-arg form delegating to it -- a real API-widening edit.",
+	"files": {
+		"src/main/java/fr/neamar/kiss/utils/ClipboardUtils.java": "ClipboardUtils.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": null
+	}
+}

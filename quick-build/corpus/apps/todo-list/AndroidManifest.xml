@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Scaffolding, not vendored: the real components from the acyclic subgraph pinned by
+  vendor.json (boot/alarm/notification-action receivers, the JobScheduler-dispatched job
+  service), no backup-api service, no widget/calendar/PIN activities. MainActivity is a
+  stand-in launcher Activity: the real subgraph never calls into its body.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="org.secuso.privacyfriendlytodolist">
+
+	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+	<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+	<application
+		android:allowBackup="true"
+		android:icon="@mipmap/ic_launcher"
+		android:label="@string/app_name"
+		android:theme="@style/AppTheme">
+
+		<activity
+			android:exported="true"
+			android:name=".view.MainActivity">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+
+		<receiver
+			android:name=".receiver.AutoStartReceiver"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.BOOT_COMPLETED" />
+			</intent-filter>
+		</receiver>
+		<receiver
+			android:name=".receiver.AlarmReceiver"
+			android:exported="false">
+			<intent-filter>
+				<action android:name="org.secuso.privacyfriendlytodolist.ALARM" />
+			</intent-filter>
+		</receiver>
+		<receiver
+			android:name=".receiver.NotificationReceiver"
+			android:exported="false">
+			<intent-filter>
+				<action android:name="org.secuso.privacyfriendlytodolist.SNOOZE" />
+				<action android:name="org.secuso.privacyfriendlytodolist.SET_DONE" />
+			</intent-filter>
+		</receiver>
+
+		<service
+			android:name=".service.JobInstanceMultiplier"
+			android:permission="android.permission.BIND_JOB_SERVICE" />
+
+	</application>
+
+</manifest>

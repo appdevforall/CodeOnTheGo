@@ -1,0 +1,7 @@
+{
+	"applicationId": "com.example.android.architecture.blueprints.todoapp",
+	"entryActivity": "com.example.android.architecture.blueprints.todoapp.corpusharness.TodoHostActivity",
+	"minSdk": 30,
+	"language": "kotlin",
+	"note": "real android/architecture-samples data-layer subgraph (Apache-2.0), pinned commit 077b7aead614e15d2e69b5e15fc863cda85663d9 -- Task/TaskRepository/ModelMappingExt/LocalTask/NetworkTask/StatisticsUtils/Async/TasksFilterType, an acyclic 8-file real subset (no Room/Hilt/Compose framework wiring, no KSP). corpusharness package is harness scaffolding. See README.md."
+}

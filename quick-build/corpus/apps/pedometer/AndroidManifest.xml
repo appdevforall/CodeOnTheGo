@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Scaffolding, not vendored: the real components from the acyclic subgraph pinned by
+  vendor.json (step-detection services, the widget/motivation/persistence receivers), no
+  backup-api service, no charts/fragments/tutorial activities. MainActivity/TrainingActivity/
+  SplashActivity are stand-in scaffolding Activities; the real subgraph only ever builds
+  Intent/PendingIntent objects targeting them, never calls into their bodies.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="org.secuso.privacyfriendlyactivitytracker">
+
+	<application
+		android:allowBackup="true"
+		android:icon="@mipmap/ic_launcher"
+		android:label="@string/app_name"
+		android:theme="@style/AppTheme">
+		<activity
+			android:exported="true"
+			android:name=".activities.MainActivity">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+		<activity android:name=".activities.TrainingActivity" />
+		<activity android:name=".activities.SplashActivity" />
+
+		<receiver
+			android:name=".receivers.StepCountPersistenceReceiver"
+			android:enabled="true"
+			android:exported="false">
+			<intent-filter>
+				<action android:name="org.secuso.privacyfriendlystepcounter.WALKING_MODE_CHANGED" />
+			</intent-filter>
+		</receiver>
+		<receiver
+			android:name=".receivers.WidgetReceiver"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+			</intent-filter>
+			<meta-data android:name="android.appwidget.provider"
+				android:resource="@xml/appwidget_provider" />
+		</receiver>
+		<receiver android:name=".receivers.MotivationAlertReceiver" />
+
+		<service android:name=".services.MovementSpeedService"
+			android:foregroundServiceType="health"
+			android:permission="android.permission.BIND_JOB_SERVICE"/>
+		<service android:name=".services.AccelerometerStepDetectorService"
+			android:foregroundServiceType="health"
+			android:permission="android.permission.BIND_JOB_SERVICE"/>
+		<service
+			android:name=".services.HardwareStepService"
+			android:foregroundServiceType="health"
+			android:stopWithTask="false"
+			android:permission="android.permission.BIND_JOB_SERVICE"/>
+	</application>
+
+</manifest>

@@ -1,0 +1,24 @@
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 8becc33..70e9c23 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -15,7 +15,7 @@
+     You should have received a copy of the GNU General Public License
+     along with this program. If not, see <http://www.gnu.org/licenses/>.
+ -->
+-<resources>
++<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en" tools:ignore="MissingTranslation">
+     <string name="app_name">Pedometer</string>
+     <string name="app_name_long">Privacy Friendly Pedometer</string>
+ 
+@@ -365,4 +365,10 @@
+     <string name="help_counting_hardware">Many Android devices also support specific step hardware like a step counter and step detector. They can be more reliable than the accelerometer because they are specifically designed to register step events. However, since Android devices are very diverse it is not guaranteed to work best. The detector is a fast way to detect step events while the counter does some post-processing to increase certainty about actual steps taken.</string>
+     <string name="dialog_permission_activity_recognition">The Activity Recognition permission is needed to access step data.</string>
+     <string name="dialog_permission_activity_recognition_2">The permission was denied multiple times. You will need to enable the permission manually though the the device settings.</string>
++    <string name="a11y_options">Options</string>
++    <string name="a11y_add">Add</string>
++    <string name="a11y_prev">Previous</string>
++    <string name="a11y_next">Next</string>
++    <string name="a11y_start_training">Start training</string>
++    <string name="a11y_walking_modes">Walking modes</string>
+ </resources>

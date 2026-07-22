@@ -1,0 +1,7 @@
+{
+	"applicationId": "de.westnordost.streetcomplete",
+	"entryActivity": "de.westnordost.streetcomplete.corpusharness.GeoHostActivity",
+	"minSdk": 30,
+	"language": "kotlin",
+	"note": "real StreetComplete source (GPL-3.0, pinned commit 26c673030a095e7a8b32f1074b7014f960e2b0a4 = tag v63.2) -- a small, self-contained subset of the app/commonMain domain-model + geometry-math layer (Element/LatLon/BoundingBox + util/math + util/ktx helpers), not the full app (which is Kotlin Multiplatform, Compose UI, Room, and a much larger dependency graph). corpusharness package is harness scaffolding. See README.md."
+}

@@ -1,0 +1,12 @@
+{
+	"editClass": "noop-format",
+	"description": "Commit-mined (jarnedemeulemeester/findroid, \"chore: replace ktlint with ktfmt\", 8102dbc, 2025-12-25): the same real reformat commit collapses Server's @PrimaryKey annotation onto its property's line -- whitespace-only, no semantic change.",
+	"files": {
+		"src/main/java/dev/jdtech/jellyfin/models/Server.kt": "Server.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 0, "max": 2 },
+		"behavioralMarker": null
+	}
+}

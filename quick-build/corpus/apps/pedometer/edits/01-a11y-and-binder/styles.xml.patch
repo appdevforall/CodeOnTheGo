@@ -1,0 +1,12 @@
+diff --git a/app/src/main/res/values/styles.xml b/app/src/main/res/values/styles.xml
+index 5c64e60..45d562d 100644
+--- a/app/src/main/res/values/styles.xml
++++ b/app/src/main/res/values/styles.xml
+@@ -19,6 +19,7 @@
+ 
+     <!-- Base application theme. -->
+     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
++		<item name="secusoLogoDrawable">@drawable/secuso_logo_black</item>
+         <item name="colorPrimary">@color/colorPrimary</item>
+         <item name="colorPrimaryDark">@color/colorPrimary</item>
+         <item name="colorAccent">@color/colorAccent</item>

@@ -1,0 +1,18 @@
+--- a/app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/ktx/Collections.kt
++++ b/app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/ktx/Collections.kt
+@@ -80,3 +80,15 @@
+ }
+ 
+ private fun <T> Collection<T>.toCountMap() = groupingBy { it }.eachCount()
++
++/**
++ * Returns the most common element in this collection, or `null` if it is empty. Reuses the same
++ * count-map idiom as the real upstream fix to [containsExactlyInAnyOrder] above (StreetComplete
++ * PR #6318, "util: handle duplicate elements in Collection.containsExactlyInAnyOrder()").
++ */
++fun <T> Collection<T>.mostCommonOrNull(): T? =
++    if (isEmpty()) null else toCountMap().maxByOrNull { it.value }?.key
++
++// ADFA-4128 WS-A3 corpus edit 01 (collections-most-common): added for a real string-literal
++// behavioral marker (the real change is mostCommonOrNull() above).
++fun collectionsEditMarker(): String = "quick build reloaded Collections.mostCommonOrNull"

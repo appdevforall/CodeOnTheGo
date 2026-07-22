@@ -1,0 +1,22 @@
+{
+	"repo": "https://github.com/SecUSo/privacy-friendly-qr-scanner",
+	"commit": "f48fc1816e559bd3e1841dc78bf56e0f59146aba",
+	"license": "GPL-3.0",
+	"note": "Real source of SecUSo Privacy Friendly QR Scanner, pinned just before commit 28bfd52 ('Fix crash if error correction metadata contains percentage sign') so that commit can be edit 01 -- a genuine self-contained real changeset (3 lines, one file). Not the whole app (74 files: K17/J57, camera-scan UI, generator UI, backup-api, QuickTileService) -- an acyclic real SUBGRAPH: the real Room history database (database/AppDatabase.java + HistoryDao.java + AppRepository.java, all Java) plus its real Kotlin entity/converters (database/HistoryItem.kt + Converters.kt, converted from Java in an earlier real commit, 1711f7a) and the real ZXing barcode-bitmap generator (helpers/Utils.java). THIS IS THE APP CANDIDATES.MD FLAGGED for two-way K/J coupling risk (same daemon limitation documented for sora-editor-lib: Kotlin compiles first and never sees Java sources, so a genuine bidirectional reference cycle can't compile either order) -- the chosen subgraph sidesteps that wall the same way sora-editor-lib's edit did: it is verifiably ONE-DIRECTIONAL (AppDatabase.java/HistoryDao.java/AppRepository.java/Utils.java depend on HistoryItem.kt/Converters.kt; neither Kotlin file references anything Java-side in this package). The app's genuinely bidirectional files (QuickTileService.kt <-> ScannerActivity, ScannerViewModel.kt <-> the Java result/adapter classes) are excluded, not forced through. Excludes :backup-api (same rationale as other SecUSo entries) and the camera/scan/generator UI. Needs com.google.zxing:core:3.5.3, com.journeyapps:zxing-android-embedded:4.3.0, com.google.code.gson:gson:2.9.1, androidx.room:room-runtime:2.6.1, androidx.lifecycle (LiveData in HistoryDao/AppRepository) on the compile classpath. Real strings.xml and the mdpi launcher icon are vendored as-is (only mdpi density, same as the other SecUSo entries). AndroidManifest.xml and ScannerActivity are scaffolding: no components in this subgraph are Android-manifest-declared components, so the manifest just supplies a launcher stand-in Activity.",
+	"files": {
+		"app/src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/database/HistoryItem.kt": "src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/database/HistoryItem.kt",
+		"app/src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/database/Converters.kt": "src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/database/Converters.kt",
+		"app/src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/database/AppDatabase.java": "src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/database/AppDatabase.java",
+		"app/src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/database/HistoryDao.java": "src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/database/HistoryDao.java",
+		"app/src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/database/AppRepository.java": "src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/database/AppRepository.java",
+		"app/src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/helpers/Utils.java": "src/main/java/com/secuso/privacyfriendlycodescanner/qrscanner/helpers/Utils.java",
+		"app/src/main/res/values/strings.xml": "src/main/res/values/strings.xml",
+		"app/src/main/res/mipmap-mdpi/ic_launcher.png": "src/main/res/mipmap-mdpi/ic_launcher.png",
+		"app/src/main/res/drawable/ic_baseline_qr_code_24dp.xml": "src/main/res/drawable/ic_baseline_qr_code_24dp.xml",
+		"app/src/main/res/drawable/ic_maxicode_24dp.xml": "src/main/res/drawable/ic_maxicode_24dp.xml",
+		"app/src/main/res/drawable/ic_barcode_24dp.xml": "src/main/res/drawable/ic_barcode_24dp.xml",
+		"app/src/main/res/drawable/ic_pdf_417_code_24dp.xml": "src/main/res/drawable/ic_pdf_417_code_24dp.xml",
+		"app/src/main/res/drawable/ic_data_matrix_code_24dp.xml": "src/main/res/drawable/ic_data_matrix_code_24dp.xml",
+		"app/src/main/res/drawable/ic_aztec_code_24dp.xml": "src/main/res/drawable/ic_aztec_code_24dp.xml"
+	}
+}

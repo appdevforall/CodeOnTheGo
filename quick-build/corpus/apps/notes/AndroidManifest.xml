@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Scaffolding, not vendored: the real components from the acyclic subgraph pinned by
+  vendor.json (boot/permission-changed + notification-display receivers), no backup-api
+  service, no note-editor/category/settings activities, no custom Application class.
+  SplashActivity and the ui.notes.* activities are stand-in launcher/dispatch targets:
+  the real subgraph never calls into their bodies.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="org.secuso.privacyfriendlynotes">
+
+	<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+	<application
+		android:allowBackup="true"
+		android:icon="@mipmap/ic_launcher"
+		android:label="@string/app_name"
+		android:theme="@style/AppTheme">
+
+		<activity
+			android:exported="true"
+			android:name=".ui.SplashActivity">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+		<activity android:name=".ui.notes.TextNoteActivity" android:exported="true" />
+		<activity android:name=".ui.notes.AudioNoteActivity" />
+		<activity android:name=".ui.notes.SketchActivity" />
+		<activity android:name=".ui.notes.ChecklistNoteActivity" />
+
+		<receiver
+			android:name=".receiver.NotificationEventsReceiver"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.BOOT_COMPLETED" />
+				<action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+			</intent-filter>
+		</receiver>
+		<receiver
+			android:name=".receiver.NotificationReceiver"
+			android:exported="true"
+			android:process=":remote">
+			<intent-filter>
+				<action android:name="android.media.action.DISPLAY_NOTIFICATION" />
+				<category android:name="android.intent.category.DEFAULT" />
+			</intent-filter>
+		</receiver>
+
+	</application>
+
+</manifest>

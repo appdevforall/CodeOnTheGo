@@ -1,0 +1,12 @@
+{
+	"editClass": "field-add",
+	"description": "PR-mined but intentionally cumulative (JunkFood02/Seal, pin through commit f635f69e, \"fix(download): use original url of playlists\"): VideoInfo.kt's real, unsquashed growth across ~11 months -- new fields (uploaderId, subtitles, requestedDownloads, filename, ...), width/height widened to Double, and new data classes (RequestedDownload, SubtitleFormat) -- rather than a single isolated PR, since this file's real edit history doesn't isolate that cleanly. Generous recompile bounds reflect the file's ~10 top-level declarations.",
+	"files": {
+		"src/main/java/com/junkfood/seal/util/VideoInfo.kt": "VideoInfo.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 10 },
+		"behavioralMarker": "requested_downloads"
+	}
+}

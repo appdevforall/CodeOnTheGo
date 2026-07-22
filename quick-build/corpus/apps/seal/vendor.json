@@ -1,0 +1,10 @@
+{
+	"repo": "https://github.com/JunkFood02/Seal",
+	"commit": "6d2fa0bfb392a072508464a588af6cbc70e439d2",
+	"license": "GPL-3.0",
+	"note": "Real util/ source, fetched at the pinned commit by harness/fetch_vendored.py into corpus/.cache/ (never checked in). files maps upstream path -> app-relative destination. Pinned right before SponsorData's 2023 GraphQL-parsing fixes and before VideoInfo's cumulative 2023-2024 field growth, so edits/01-03 apply as clean forward patches (edit03 is intentionally a larger cumulative diff -- pin-to-commit across ~11 months of real, unsquashed VideoInfo.kt history, not a single PR -- see its meta.json). DateTimeUtil.kt (candidates-doc pick) was excluded: it did not exist yet at any pin early enough to precede real edits on SponsorData/VideoInfo without those edits being already baked into HEAD; kept the subgraph to the two files where a clean pin-before-edit story held.",
+	"files": {
+		"app/src/main/java/com/junkfood/seal/util/SponsorData.kt": "src/main/java/com/junkfood/seal/util/SponsorData.kt",
+		"app/src/main/java/com/junkfood/seal/util/VideoInfo.kt": "src/main/java/com/junkfood/seal/util/VideoInfo.kt"
+	}
+}

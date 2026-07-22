@@ -1,0 +1,24 @@
+--- a/src/main/java/com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.kt
++++ b/src/main/java/com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.kt
+@@ -16,9 +16,19 @@
+             it.copy(text = newText)
+         }
+     }
++
++    fun reset() {
++        _uiState.update {
++            HomeUiState()
++        }
++    }
+ }
+ 
+ data class HomeUiState(
+-    val text: String = "Data Real-Time"
+-)
++    val text: String = "Data Real-Time",
++    val isLoading: Boolean = false
++) {
++    val isEmpty: Boolean
++        get() = text.isEmpty()
++}
+ 

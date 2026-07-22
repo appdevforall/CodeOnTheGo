@@ -1,0 +1,7 @@
+{
+	"applicationId": "com.junkfood.seal",
+	"entryActivity": "com.junkfood.seal.corpusharness.SealHostActivity",
+	"minSdk": 30,
+	"language": "kotlin",
+	"note": "real JunkFood02/Seal (GPL-3.0) subgraph, pinned commit 6d2fa0bfb392a072508464a588af6cbc70e439d2 -- util/SponsorData.kt + util/VideoInfo.kt, real @Serializable yt-dlp/GraphQL domain models (no Room/Hilt/Compose framework wiring, no KSP; kotlinx.serialization's @Serializable is present only as an annotation -- its compiler plugin is not applied, matching how Room's @Entity is treated elsewhere in the corpus). corpusharness package is harness scaffolding. See README.md."
+}

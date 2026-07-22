@@ -1,0 +1,12 @@
+{
+	"editClass": "method-rename",
+	"description": "PR-mined (android/architecture-samples#926, \"Add application scope for fire-and-forget jobs\"): TaskRepository.refreshTasks() is renamed to refresh() -- a real method rename on the same interface edit 02 touched, applied cumulatively.",
+	"files": {
+		"src/main/java/com/example/android/architecture/blueprints/todoapp/data/TaskRepository.kt": "TaskRepository.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": null
+	}
+}

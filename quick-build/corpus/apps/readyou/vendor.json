@@ -1,0 +1,13 @@
+{
+	"repo": "https://github.com/ReadYouApp/ReadYou",
+	"commit": "f06d8ce05e1028e906374523541b4a6c36d2577c",
+	"license": "GPL-3.0",
+	"note": "Real utility/domain source, fetched at the pinned commit by harness/fetch_vendored.py into corpus/.cache/ (never checked in). files maps upstream path -> app-relative destination. Pinned right before three real merged upstream PRs (#638 DateExt.isFuture, #724 NumberExt infix, #732 StringExt any-RTL) so edits/01-03 apply as clean forward patches. Edits that touch fetched files are checked in as .patch files against the pinned commit and applied at materialization.",
+	"files": {
+		"app/src/main/java/me/ash/reader/domain/model/account/security/DESUtils.kt": "src/main/java/me/ash/reader/domain/model/account/security/DESUtils.kt",
+		"app/src/main/java/me/ash/reader/ui/ext/DateExt.kt": "src/main/java/me/ash/reader/ui/ext/DateExt.kt",
+		"app/src/main/java/me/ash/reader/ui/ext/StringExt.kt": "src/main/java/me/ash/reader/ui/ext/StringExt.kt",
+		"app/src/main/java/me/ash/reader/ui/ext/NumberExt.kt": "src/main/java/me/ash/reader/ui/ext/NumberExt.kt",
+		"app/src/main/java/me/ash/reader/ui/ext/BooleanExt.kt": "src/main/java/me/ash/reader/ui/ext/BooleanExt.kt"
+	}
+}

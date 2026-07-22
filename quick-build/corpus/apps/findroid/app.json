@@ -1,0 +1,7 @@
+{
+	"applicationId": "dev.jdtech.jellyfin",
+	"entryActivity": "dev.jdtech.jellyfin.corpusharness.FindroidHostActivity",
+	"minSdk": 30,
+	"language": "kotlin",
+	"note": "real jarnedemeulemeester/findroid (GPL-3.0) subgraph, pinned commit c03bc239cf0a5592603c1d429f7948dddc212ca4 -- setup/presentation/addserver/{AddServerAction,AddServerEvent}.kt + setup/presentation/addresses/ServerAddressesState.kt + models/{Server,ServerAddress,DiscoveredServer}.kt (6 files, 3 modules: setup/data/core), a real acyclic subset (Room @Entity annotations only, no KSP/Hilt/Compose actually applied). findroid's model layer (FindroidItem -> ServerDatabaseDao + JellyfinRepository -> org.jellyfin.sdk) does NOT isolate cleanly -- deliberately avoided, see vendor.json. corpusharness package is harness scaffolding."
+}

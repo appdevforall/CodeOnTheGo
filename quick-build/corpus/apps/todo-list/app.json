@@ -1,0 +1,7 @@
+{
+	"applicationId": "org.secuso.privacyfriendlytodolist",
+	"entryActivity": "org.secuso.privacyfriendlytodolist.view.MainActivity",
+	"minSdk": 30,
+	"language": "kotlin",
+	"note": "real SecUSo Privacy Friendly To-Do List source (GPL-3.0, tag v3.4.0, commit dbf5b053a27c65db9cdf5f23eac5c3a3152c97c8) -- an acyclic subgraph covering AlarmManager-scheduled reminders, JobScheduler dispatch, and the boot-completed receiver, with backup-api and the Room-backed data layer excluded; see vendor.json. Real minSdk is 21; corpus keeps 30 like the rest of the matrix."
+}

@@ -1,0 +1,12 @@
+{
+	"editClass": "method-add",
+	"description": "Authored edit (not PR-mined -- see vendor.json for why) against the real, vendored AlarmMgr.kt: adds a hasPendingAlarm() query method plus a log line, in the same spirit as the real alarm-scheduling API it sits beside.",
+	"files": {
+		"src/main/java/org/secuso/privacyfriendlytodolist/util/AlarmMgr.kt": "AlarmMgr.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": "Checked pending alarm state via hasPendingAlarm()"
+	}
+}

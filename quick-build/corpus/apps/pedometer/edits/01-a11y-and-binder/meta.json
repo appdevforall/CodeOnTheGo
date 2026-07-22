@@ -1,0 +1,20 @@
+{
+	"editClass": "mixed-add",
+	"description": "PR-mined: real upstream range v3.1.0..v3.1.1 (privacy-friendly-pedometer). Adds accessibility contentDescriptions to the widget's pause/continue/start-training ImageButtons (new a11y_* strings + the AppTheme secusoLogoDrawable wiring, both real, not authored), plus a real code change: AbstractStepDetectorService gains a getmStepDetectorBinder() getter and AccelerometerStepDetectorService starts tracking a static self-reference. 'add' in editClass: new string names (a11y_*) AND two new drawable names (secuso_logo_black/white) both need R regen.",
+	"files": {
+		"src/main/java/org/secuso/privacyfriendlyactivitytracker/services/AbstractStepDetectorService.java": "AbstractStepDetectorService.java",
+		"src/main/java/org/secuso/privacyfriendlyactivitytracker/services/AccelerometerStepDetectorService.java": "AccelerometerStepDetectorService.java",
+		"src/main/res/layout/widget_2x1.xml": "widget_2x1.xml",
+		"src/main/res/layout/widget_3x1.xml": "widget_3x1.xml",
+		"src/main/res/values/styles.xml": "styles.xml",
+		"src/main/res/values/strings.xml": "strings.xml",
+		"src/main/res/values/attrs.xml": "attrs.xml",
+		"src/main/res/drawable/secuso_logo_black.xml": "secuso_logo_black.xml",
+		"src/main/res/drawable/secuso_logo_white.xml": "secuso_logo_white.xml"
+	},
+	"expected": {
+		"route": "mixed",
+		"recompiledClasses": {"min": 2, "max": 20},
+		"behavioralMarker": null
+	}
+}

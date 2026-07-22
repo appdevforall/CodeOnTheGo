@@ -1,0 +1,12 @@
+{
+	"editClass": "string-value",
+	"description": "Authored (not PR-mined): real post-pin upstream history for 2048 is thin (only a versionCode-only commit after v1.4.2, already used as edit 01's source range). Clarifies the 'undo' button label from 'Undo' to 'Undo Last Move'. No new string names, resources-only relink.",
+	"files": {
+		"src/main/res/values/strings.xml": "strings.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

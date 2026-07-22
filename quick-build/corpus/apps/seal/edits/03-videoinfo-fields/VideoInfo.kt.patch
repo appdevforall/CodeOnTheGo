@@ -1,0 +1,142 @@
+--- a/app/src/main/java/com/junkfood/seal/util/VideoInfo.kt
++++ b/app/src/main/java/com/junkfood/seal/util/VideoInfo.kt
+@@ -15,6 +15,9 @@ data class VideoInfo(
+     val thumbnail: String? = null,
+     val description: String? = null,
+     val uploader: String? = null,
++    @SerialName("uploader_id") val uploaderId: String? = null,
++    val subtitles: Map<String, List<SubtitleFormat>> = emptyMap(),
++    @SerialName("automatic_captions") val automaticCaptions: Map<String, List<SubtitleFormat>> = emptyMap(),
+ //    @SerialName("uploader_id") val uploaderId: String? = null,
+ //    @SerialName("uploader_url") val uploaderUrl: String? = null,
+ //    @SerialName("channel_id") val channelId: Int? = null,
+@@ -52,8 +55,8 @@ data class VideoInfo(
+     @SerialName("filesize_approx") val fileSizeApprox: Double? = null,
+     @SerialName("filesize") val fileSize: Double? = null,
+     val tbr: Double? = null,
+-    val width: Int? = null,
+-    val height: Int? = null,
++    val width: Double? = null,
++    val height: Double? = null,
+     val resolution: String? = null,
+     val fps: Double? = null,
+     @SerialName("dynamic_range") val dynamicRange: String? = null,
+@@ -63,7 +66,10 @@ data class VideoInfo(
+     val abr: Double? = null,
+     val asr: Int? = null,
+     val epoch: Int? = null,
+-    @SerialName("_type") val Type: String? = null,
++    @SerialName("requested_downloads") val requestedDownloads: List<RequestedDownload>? = null,
++    @SerialName("requested_formats") val requestedFormats: List<Format>? = null,
++    val filename: String? = null,
++    @SerialName("_type") val type: String? = null,
+ ) : YoutubeDLInfo
+ 
+ @Serializable
+@@ -74,8 +80,8 @@ data class Format(
+     @SerialName("acodec") val acodec: String? = null,
+     @SerialName("vcodec") val vcodec: String? = null,
+     val url: String? = null,
+-    val width: Int? = null,
+-    val height: Int? = null,
++    val width: Double? = null,
++    val height: Double? = null,
+     val fps: Double? = null,
+     @SerialName("audio_ext") val audioExt: String? = null,
+     @SerialName("video_ext") val videoExt: String? = null,
+@@ -89,46 +95,43 @@ data class Format(
+ )
+ 
+ data class VideoClip(
+-    val start: Int = 0,
+-    val end: Int = 0
++    val start: Int = 0, val end: Int = 0
+ ) {
+     constructor(range: ClosedFloatingPointRange<Float>) : this(
+-        range.start.roundToInt(),
+-        range.endInclusive.roundToInt()
++        range.start.roundToInt(), range.endInclusive.roundToInt()
+     )
+ }
+ 
+ @Serializable
+ data class Chapter(
+     val title: String? = null,
+-    @SerialName("start_time")
+-    val startTime: Double? = null,
+-    @SerialName("end_time")
+-    val endTime: Double? = null
++    @SerialName("start_time") val startTime: Double? = null,
++    @SerialName("end_time") val endTime: Double? = null
+ )
+ 
+ 
+ @Serializable
+ data class RequestedDownload(
+     @SerialName("requested_formats") val requestedFormats: List<Format>? = emptyList(),
+-    @SerialName("format") val format: String? = null,
+     @SerialName("format_id") val formatId: String? = null,
+-    @SerialName("ext") val ext: String? = null,
+-    @SerialName("protocol") val protocol: String? = null,
+     @SerialName("format_note") val formatNote: String? = null,
+-    @SerialName("filesize_approx") val fileSizeApprox: Double? = null,
+-    @SerialName("tbr") val tbr: Double? = null,
+-    @SerialName("width") val width: Int? = null,
+-    @SerialName("height") val height: Int? = null,
+-    @SerialName("resolution") val resolution: String? = null,
+-    @SerialName("fps") val fps: Double? = null,
+-    @SerialName("dynamic_range") val dynamicRange: String? = null,
+-    @SerialName("vcodec") val vcodec: String? = null,
+-    @SerialName("vbr") val vbr: Int? = null,
++    val ext: String? = null,
+     @SerialName("acodec") val acodec: String? = null,
+-    @SerialName("abr") val abr: Double? = null,
+-    @SerialName("asr") val asr: Int? = null,
+-    @SerialName("epoch") val epoch: Int? = null,
++    @SerialName("vcodec") val vcodec: String? = null,
++    val url: String? = null,
++    val width: Double? = null,
++    val height: Double? = null,
++    val fps: Double? = null,
++    @SerialName("audio_ext") val audioExt: String? = null,
++    @SerialName("video_ext") val videoExt: String? = null,
++    val format: String? = null,
++    val resolution: String? = null,
++    val vbr: Double? = null,
++    val abr: Double? = null,
++    val tbr: Double? = null,
++    @SerialName("filesize") val fileSize: Double? = null,
++    @SerialName("filesize_approx") val fileSizeApprox: Double? = null,
++    val filename: String? = null,
+ )
+ 
+ @Serializable
+@@ -141,14 +144,15 @@ data class PlaylistResult(
+     @SerialName("_type") val type: String? = null,
+     val entries: List<Entries>? = emptyList(),
+     @SerialName("webpage_url") val webpageUrl: String? = null,
++    @SerialName("original_url") val originalUrl: String? = null,
+     @SerialName("extractor_key") val extractorKey: String? = null,
+ ) : YoutubeDLInfo
+ 
+ @Serializable
+ data class Thumbnail(
+     val url: String,
+-    val height: Int = 0,
+-    val width: Int = 0,
++    val height: Double = .0,
++    val width: Double = .0,
+ )
+ 
+ @Serializable
+@@ -163,3 +167,9 @@ data class Entries(
+     val channel: String? = null,
+     val thumbnails: List<Thumbnail>? = emptyList(),
+ )
++
++
++@Serializable
++data class SubtitleFormat(
++    val ext: String, val url: String, val name: String? = null, val protocol: String? = null
++)
+\ No newline at end of file

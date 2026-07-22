@@ -1,0 +1,12 @@
+{
+	"editClass": "string-value",
+	"description": "PR-mined: real upstream commit fd799d4ef9a53be68c3d3323710071cf2adb936d ('Translated using Weblate (English)', privacy-friendly-ruler). Retranslates a couple of strings (okay -> Ok; viewhelp picks up a stray French string, a genuine upstream Weblate mistranslation bug) plus incidental whitespace/XML-declaration normalization. No new string names, so no R regen needed -- resources-only relink.",
+	"files": {
+		"src/main/res/values/strings.xml": "strings.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

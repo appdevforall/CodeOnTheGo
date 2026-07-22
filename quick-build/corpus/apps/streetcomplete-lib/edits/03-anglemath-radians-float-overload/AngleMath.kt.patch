@@ -1,0 +1,23 @@
+--- a/app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/math/AngleMath.kt
++++ b/app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/math/AngleMath.kt
+@@ -23,3 +23,20 @@
+     if (result < 0) result += 360
+     return result + startAt
+ }
++
++/**
++ * returns a number in the range [startAt, startAt + 2PI). Fills the same Double/Float overload
++ * gap that the real upstream fix above closed for normalizeDegrees (StreetComplete PR #6307,
++ * "Fix angle normalization with non-zero startAt parameter") -- normalizeRadians only had a
++ * Double overload before this edit.
++ */
++fun normalizeRadians(value: Float, startAt: Float = 0f): Float {
++    val pi2 = (PI * 2).toFloat()
++    var result = (value - startAt) % pi2
++    if (result < 0) result += pi2
++    return result + startAt
++}
++
++// ADFA-4128 WS-A3 corpus edit 03 (anglemath-radians-float-overload): added for a real
++// string-literal behavioral marker (the real change is the Float normalizeRadians() above).
++fun angleMathEditMarker(): String = "quick build reloaded AngleMath.normalizeRadians(Float)"

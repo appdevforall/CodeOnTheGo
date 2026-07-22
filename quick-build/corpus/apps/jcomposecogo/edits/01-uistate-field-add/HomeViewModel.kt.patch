@@ -1,0 +1,11 @@
+--- a/src/main/java/com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.kt
++++ b/src/main/java/com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.kt
+@@ -19,6 +19,7 @@
+ }
+ 
+ data class HomeUiState(
+-    val text: String = "Data Real-Time"
++    val text: String = "Data Real-Time",
++    val isLoading: Boolean = false
+ )
+ 

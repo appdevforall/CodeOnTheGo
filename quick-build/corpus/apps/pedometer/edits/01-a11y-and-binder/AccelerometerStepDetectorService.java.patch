@@ -1,0 +1,19 @@
+diff --git a/app/src/main/java/org/secuso/privacyfriendlyactivitytracker/services/AccelerometerStepDetectorService.java b/app/src/main/java/org/secuso/privacyfriendlyactivitytracker/services/AccelerometerStepDetectorService.java
+index d6c711b..2f8e3ee 100644
+--- a/app/src/main/java/org/secuso/privacyfriendlyactivitytracker/services/AccelerometerStepDetectorService.java
++++ b/app/src/main/java/org/secuso/privacyfriendlyactivitytracker/services/AccelerometerStepDetectorService.java
+@@ -59,12 +59,14 @@ public class AccelerometerStepDetectorService extends AbstractStepDetectorServic
+     private int validStepsThreshold = 0;
+     //private float[]
+ 
++    public static AccelerometerStepDetectorService accelerometerStepDetectorService;
+     /**
+      * Creates an AccelerometerStepDetectorService.
+      */
+     public AccelerometerStepDetectorService() {
+         super();
+         // required empty constructor
++        accelerometerStepDetectorService = this;
+     }
+ 
+     @Override

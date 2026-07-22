@@ -1,0 +1,30 @@
+// Standalone dependency-resolution helper for corpus/harness/resolve_classpath.py.
+// Not a real Android build -- just resolves Maven coordinates (including AARs, as
+// opaque files) to a flat, transitively-resolved jar/aar list, so vendored corpus
+// apps that need real androidx/library jars for --classpath-extra don't have to
+// hand-chase transitive versions. See resolve_classpath.py for the extraction step
+// (AARs get unzipped for their classes.jar; this project only resolves files).
+repositories {
+    google()
+    mavenCentral()
+}
+configurations {
+    cp
+}
+dependencies {
+    // populated per-invocation via -PdepList=coord1,coord2,...
+    if (project.hasProperty("depList")) {
+        depList.split(",").each { c -> if (c) { dependencies.add("cp", c) } }
+    }
+}
+tasks.register("resolveClasspath") {
+    doLast {
+        def seen = new LinkedHashSet<String>()
+        configurations.cp.resolvedConfiguration.resolvedArtifacts.each { art ->
+            def p = art.file.absolutePath
+            if (seen.add(p)) {
+                println "RESOLVED:" + p
+            }
+        }
+    }
+}

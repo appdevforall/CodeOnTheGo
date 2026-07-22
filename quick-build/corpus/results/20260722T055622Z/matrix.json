@@ -1,0 +1,286 @@
+{
+  "generatedAt": "2026-07-22T05:56:22.277293+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/nix/store/dccfc40cyivwlmd4qbl6lbfq4fzjfp95-zulu-ca-jdk-17.0.12/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "sora-editor-lib",
+      "language": "mixed",
+      "applicationId": "io.github.rosemoe.sora",
+      "baseline": {
+        "status": "PASS",
+        "ms": 5588.4841670000005,
+        "daemonMs": 5580,
+        "classCount": 17,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-editor-core-value",
+          "editClass": "method-body",
+          "description": "editor-core value edit: Floats.withinDelta comparison operator tweak (real sora-editor :editor source)",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 687.7104579999998
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/util/Floats.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['io/github/rosemoe/sora/util/Floats.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded Floats.withinDelta' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 687,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-sample-app-ui",
+          "editClass": "const-change",
+          "description": "sample-app UI edit: harness EditorHostActivity's displayed sample text constant (harness scaffolding, not vendored sora-editor code)",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 548.7398329999991
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/corpusharness/EditorHostActivity.class",
+            "io/github/rosemoe/sora/corpusharness/SampleText.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 2]: ['io/github/rosemoe/sora/corpusharness/EditorHostActivity.class', 'io/github/rosemoe/sora/corpusharness/SampleText.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded the sample-app text' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 548,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-cross-module",
+          "editClass": "cross-file-api-add",
+          "description": "cross-module edit: new LineSeparator.describe() API (editor-core) consumed by a new ContentLine.describeLineSeparator() method in the same edit",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 492.9762909999997
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/text/ContentLine.class",
+            "io/github/rosemoe/sora/text/LineSeparator.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 4]: ['io/github/rosemoe/sora/text/ContentLine.class', 'io/github/rosemoe/sora/text/LineSeparator.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded LineSeparator.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 492,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-charposition-copy-ctor",
+          "editClass": "ctor-add",
+          "description": "PR-mined (subgraph-extending): modeled after Rosemoe/sora-editor PR #267 'Added more keybindings' (merged 2022-10-18), which added CharPosition's zero-arg/2-arg/3-arg constructor overloads -- those are already baked into our pinned commit (43f7e8e2981...), so a literal forward-patch of PR #267's own diff is a no-op against this baseline. This edit reproduces the SAME real transformation (growing CharPosition's constructor overload set) with the next overload in that spirit: a copy constructor. CharPosition.java is newly added to vendor.json by this edit (verified acyclic: only imports androidx.annotation.NonNull, java.util.Objects, and io.github.rosemoe.sora.util.IntPair, already in the subgraph).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 383.43183299999953
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/text/CharPosition.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['io/github/rosemoe/sora/text/CharPosition.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker \"quick build reloaded CharPosition's copy constructor\" found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 383,
+          "status": "PASS"
+        },
+        {
+          "edit": "05-intpair-swap",
+          "editClass": "new-api",
+          "description": "PR-mined: modeled after the real upstream commit 89fe30473e88a1adf8354c6b607c2c0515d8cfba 'docs: update the doc of IntPair' (Rosemoe, 2025-12-13 -- a direct maintainer commit, not routed through a PR; verified via GitHub's commits/{sha}/pulls API returning no associated PR), which documented/grew IntPair's small pure-function helper set (packIntFloat/getSecondAsFloat). That exact commit is already baked into our pinned commit (43f7e8e2981...), so a literal forward-patch of its diff is a no-op against this baseline. This edit reproduces the same real transformation (growing IntPair's helper set with a small doc'd pure function) with the natural next helper: swap().",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 414.59508300000005
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/util/IntPair.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['io/github/rosemoe/sora/util/IntPair.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded IntPair.swap' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 413,
+          "status": "PASS"
+        },
+        {
+          "edit": "06-textbidi-explicit-direction",
+          "editClass": "cross-file-api-add",
+          "description": "PR-mined: modeled after the real upstream commit 192c9356991df297a0c02f9d1c85a24e4022aacc 'feat(editor): no longer use enforced LTR base direction in editor' (Rosemoe, 2025-11-10), which moved TextBidi.getDirections off a hardcoded Bidi.DIRECTION_LEFT_TO_RIGHT onto Bidi.DIRECTION_DEFAULT_LEFT_TO_RIGHT. That commit is already baked into our pinned commit (TextBidi.java already uses DIRECTION_DEFAULT_LEFT_TO_RIGHT), so a literal forward-patch of its diff is a no-op. This edit continues the same real spirit ('stop enforcing a single base direction') with the natural next step: an overload that takes an explicit Bidi direction flag, with the existing single-arg method delegating to it.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 295.7607500000012
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/text/bidi/TextBidi.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['io/github/rosemoe/sora/text/bidi/TextBidi.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded TextBidi.getDirections(text, bidiFlags)' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 295,
+          "status": "PASS"
+        },
+        {
+          "edit": "07-stringlatin1-appendto-perf",
+          "editClass": "method-body",
+          "description": "PR-mined: modeled after the real upstream commit 10370f833f496363d44a4d76380e29bd1e7e77e2 'perf(editor): avoid copying when create String in Latin1 implementation' (Rosemoe, 2026-03-03), which changed StringLatin1.newString() from a char[]-roundtrip to a direct new String(bytes, offset, length, ISO_8859_1) decode. That commit is already baked into our pinned commit's newString() (visible a few lines below this edit's change), so a literal forward-patch of its diff is a no-op. This edit applies the SAME real perf pattern to the sibling method appendTo(), which still had the pre-fix per-char loop.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 431.2552919999995
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/text/string/StringLatin1.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['io/github/rosemoe/sora/text/string/StringLatin1.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded StringLatin1.appendTo perf path' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 431,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "17 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 1,
+    "edits": 7,
+    "passed": 7,
+    "failed": 0,
+    "skipped": 0
+  }
+}

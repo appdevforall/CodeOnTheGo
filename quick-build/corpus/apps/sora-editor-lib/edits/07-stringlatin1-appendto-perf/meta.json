@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "PR-mined: modeled after the real upstream commit 10370f833f496363d44a4d76380e29bd1e7e77e2 'perf(editor): avoid copying when create String in Latin1 implementation' (Rosemoe, 2026-03-03), which changed StringLatin1.newString() from a char[]-roundtrip to a direct new String(bytes, offset, length, ISO_8859_1) decode. That commit is already baked into our pinned commit's newString() (visible a few lines below this edit's change), so a literal forward-patch of its diff is a no-op. This edit applies the SAME real perf pattern to the sibling method appendTo(), which still had the pre-fix per-char loop.",
+	"files": {
+		"src/main/java/io/github/rosemoe/sora/text/string/StringLatin1.java": "StringLatin1.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 1 },
+		"behavioralMarker": "quick build reloaded StringLatin1.appendTo perf path"
+	}
+}

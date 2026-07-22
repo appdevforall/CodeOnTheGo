@@ -1,0 +1,12 @@
+{
+	"editClass": "new-api",
+	"description": "PR-mined: modeled after the real upstream commit 89fe30473e88a1adf8354c6b607c2c0515d8cfba 'docs: update the doc of IntPair' (Rosemoe, 2025-12-13 -- a direct maintainer commit, not routed through a PR; verified via GitHub's commits/{sha}/pulls API returning no associated PR), which documented/grew IntPair's small pure-function helper set (packIntFloat/getSecondAsFloat). That exact commit is already baked into our pinned commit (43f7e8e2981...), so a literal forward-patch of its diff is a no-op against this baseline. This edit reproduces the same real transformation (growing IntPair's helper set with a small doc'd pure function) with the natural next helper: swap().",
+	"files": {
+		"src/main/java/io/github/rosemoe/sora/util/IntPair.java": "IntPair.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 1 },
+		"behavioralMarker": "quick build reloaded IntPair.swap"
+	}
+}

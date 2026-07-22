@@ -1,0 +1,16 @@
+{
+	"editClass": "mixed-add",
+	"description": "PR-mined: real upstream range v1.4.0..v1.4.2 (privacy-friendly-2048), specifically the SettingsActivity super-qualifier cleanup + secusoLogoDrawable theme wiring (commit range collapsed to its net diff; version-bump-only commits in between excluded). Adds a new declare-styleable attr + wires AppTheme's colorScheme item to a NEW drawable resource (secuso_logo_black.xml, secuso_logo_white.xml -- real vendored content, not authored) while also touching a Java class (SettingsActivity's onCreate drops an unneeded super. qualifier). 'add' in editClass because two brand-new drawable resource NAMES are introduced, needing R regen. recompiledClasses upper bound is widened past SettingsActivity(+nested fragment) to 6: adding new drawable IDs shifts other R.* int constants, so any class with an inlined R reference recompiles too -- the README's documented 'R-id churn' caveat, reproduced here on real content rather than synthetic.",
+	"files": {
+		"src/main/java/org/secuso/privacyfriendly2048/activities/SettingsActivity.java": "SettingsActivity.java",
+		"src/main/res/values/attrs.xml": "attrs.xml",
+		"src/main/res/values/styles.xml": "styles.xml",
+		"src/main/res/drawable/secuso_logo_black.xml": "secuso_logo_black.xml",
+		"src/main/res/drawable/secuso_logo_white.xml": "secuso_logo_white.xml"
+	},
+	"expected": {
+		"route": "mixed",
+		"recompiledClasses": {"min": 1, "max": 6},
+		"behavioralMarker": null
+	}
+}

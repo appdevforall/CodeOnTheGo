@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "Authored (not PR-mined; see edit 02's note on thin post-pin history). FirstLaunchManager.initFirstTimeLaunch() actually clears the first-time-launch flag now (the real upstream method body is an empty if-block, a genuine dead-code spot in the real app -- this edit fills it in with the plausible fix plus a marker).",
+	"files": {
+		"src/main/java/org/secuso/privacyfriendly2048/helpers/FirstLaunchManager.java": "FirstLaunchManager.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 1},
+		"behavioralMarker": "QB_2048_INIT_MARKER_V2"
+	}
+}

@@ -1,0 +1,12 @@
+{
+	"editClass": "string-value-locale",
+	"description": "PR-mined: real upstream commit 37b67200487beee92bf018c76cd6e43e518ad30d ('Translated using Weblate (German)', privacy-friendly-ruler). Retranslates pref_rightruler_default/pref_anglemeasure_default and a few other German strings; whitespace normalization. Applied as a full-file replacement (not a .patch) because vendor.json deliberately vendors two files both basenamed strings.xml (default + values-de) and fetch_vendored.py's patch step keys its base-file lookup on basename alone -- see vendor.json's note. No new string names, resources-only relink.",
+	"files": {
+		"src/main/res/values-de/strings.xml": "strings-de.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

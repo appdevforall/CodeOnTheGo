@@ -1,0 +1,16 @@
+{
+	"repo": "https://github.com/android/architecture-samples",
+	"commit": "077b7aead614e15d2e69b5e15fc863cda85663d9",
+	"license": "Apache-2.0",
+	"note": "Real :app data-layer source, fetched at the pinned commit by harness/fetch_vendored.py into corpus/.cache/ (never checked in). files maps upstream path -> app-relative destination. Pinned right after upstream PR #921 (\"Remove task pluralisation and smurf method naming\", merged 2023-03-21) so edits/01-03 -- each a real subsequent merged PR -- apply as clean forward patches. Edits that touch fetched files are checked in as .patch files against the pinned commit and applied at materialization.",
+	"files": {
+		"app/src/main/java/com/example/android/architecture/blueprints/todoapp/data/Task.kt": "src/main/java/com/example/android/architecture/blueprints/todoapp/data/Task.kt",
+		"app/src/main/java/com/example/android/architecture/blueprints/todoapp/data/TaskRepository.kt": "src/main/java/com/example/android/architecture/blueprints/todoapp/data/TaskRepository.kt",
+		"app/src/main/java/com/example/android/architecture/blueprints/todoapp/data/ModelMappingExt.kt": "src/main/java/com/example/android/architecture/blueprints/todoapp/data/ModelMappingExt.kt",
+		"app/src/main/java/com/example/android/architecture/blueprints/todoapp/data/source/local/LocalTask.kt": "src/main/java/com/example/android/architecture/blueprints/todoapp/data/source/local/LocalTask.kt",
+		"app/src/main/java/com/example/android/architecture/blueprints/todoapp/data/source/network/NetworkTask.kt": "src/main/java/com/example/android/architecture/blueprints/todoapp/data/source/network/NetworkTask.kt",
+		"app/src/main/java/com/example/android/architecture/blueprints/todoapp/statistics/StatisticsUtils.kt": "src/main/java/com/example/android/architecture/blueprints/todoapp/statistics/StatisticsUtils.kt",
+		"app/src/main/java/com/example/android/architecture/blueprints/todoapp/util/Async.kt": "src/main/java/com/example/android/architecture/blueprints/todoapp/util/Async.kt",
+		"app/src/main/java/com/example/android/architecture/blueprints/todoapp/tasks/TasksFilterType.kt": "src/main/java/com/example/android/architecture/blueprints/todoapp/tasks/TasksFilterType.kt"
+	}
+}

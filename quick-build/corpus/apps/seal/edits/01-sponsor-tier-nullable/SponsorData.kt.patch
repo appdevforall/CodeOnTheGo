@@ -1,0 +1,10 @@
+--- a/app/src/main/java/com/junkfood/seal/util/SponsorData.kt
++++ b/app/src/main/java/com/junkfood/seal/util/SponsorData.kt
+@@ -34,5 +34,5 @@ data class Tier(
+ 
+ @Serializable
+ data class Node(
+-    val sponsorEntity: SponsorEntity, val tier: Tier
++    val sponsorEntity: SponsorEntity, val tier: Tier?
+ )
+\ No newline at end of file

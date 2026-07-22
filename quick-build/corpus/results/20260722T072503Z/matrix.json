@@ -1,0 +1,80 @@
+{
+  "generatedAt": "2026-07-22T07:25:03.308224+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-a2-secuso/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "qr-scanner",
+      "language": "java",
+      "applicationId": "com.secuso.privacyfriendlycodescanner.qrscanner",
+      "baseline": {
+        "status": "PASS",
+        "ms": 2751.267791999999,
+        "daemonMs": 2750,
+        "classCount": 10,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-utils-percent-fix-real",
+          "editClass": "method-body",
+          "description": "PR-mined: real upstream commit 28bfd52 ('Fix crash if error correction metadata contains percentage sign', SecUSo/privacy-friendly-qr-scanner#238). Strips a stray '%' from the error-correction metadata value before passing it as an encoder hint.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 554.5358330000001
+          },
+          "recompiledClasses": [
+            "com/secuso/privacyfriendlycodescanner/qrscanner/helpers/Utils.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['com/secuso/privacyfriendlycodescanner/qrscanner/helpers/Utils.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker '%' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 554,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "10 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 1,
+    "edits": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  }
+}

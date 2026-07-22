@@ -1,0 +1,33 @@
+{
+	"repo": "https://github.com/SecUSo/privacy-friendly-sudoku",
+	"commit": "1452d0c64307d72de140195b1601b65933e6955d",
+	"license": "GPL-3.0",
+	"note": "Real source of SecUSo Privacy Friendly Sudoku, pinned just before commit 85895f3 ('[fix] changes foreground service type to special use') so that commit can be edit 01 -- a genuine self-contained real changeset (one line in the vendored file). Not the whole app (Java-primary + a Kotlin backup shim, game/board UI, backup-api) -- an acyclic real SUBGRAPH covering the distinctive behaviors this app was picked for: the real foreground puzzle-generator Service (controller/GeneratorService.java, foregroundServiceType specialUse), the real qqwing sudoku-generation algorithm (controller/qqwing/{QQWing,LogItem,PrintStyle,LogType,Action,Symmetry}.java, pure logic, ~1900 lines, no Android deps beyond android.util.Log), and the legacy-SQLite persistence layer it saves generated puzzles through (controller/database/{DatabaseHelper,columns/*,migration/*,model/*}.java, controller/Symbol.java, game/{GameDifficulty,GameType}.java). Same acyclic-subgraph technique as pedometer/todo-list/notes: pin real leaf files, author minimal scaffolding only where the real files reference UI/backup they don't otherwise need -- ui/MainActivity.java is a stand-in launcher (the real GeneratorService only builds an Intent targeting it for the notification's PendingIntent) and PFSudoku.kt is a stand-in Application subclass providing just the CHANNEL_ID constant GeneratorService reads (the real PFSudoku wires the :backup-api submodule, excluded per the standard rationale). controller/NewLevelManager.java is ALSO a stand-in (real file is 525 lines of game-flow orchestration; GeneratorService only reads its PRE_SAVES_MIN constant via a static import). Needs no extra androidx beyond androidx.core (JobIntentService/NotificationCompat/ServiceCompat) and androidx.annotation (StringRes) on the compile classpath -- everything else here is plain android.* / java.*. Real strings.xml and the mdpi launcher icon are vendored as-is (only mdpi density, same as the other SecUSo entries); game/GameType.java's real icon_default_* drawables are vendored too since its enum constructor references them directly.",
+	"files": {
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/Symbol.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/Symbol.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/QQWing.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/QQWing.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/LogItem.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/LogItem.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/PrintStyle.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/PrintStyle.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/LogType.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/LogType.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/Action.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/Action.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/Symmetry.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/qqwing/Symmetry.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/database/DatabaseHelper.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/database/DatabaseHelper.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/database/model/Level.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/database/model/Level.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/database/model/DailySudoku.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/database/model/DailySudoku.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/database/columns/DailySudokuColumns.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/database/columns/DailySudokuColumns.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/database/columns/LevelColumns.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/database/columns/LevelColumns.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/database/migration/MigrationUtil.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/database/migration/MigrationUtil.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/controller/database/migration/Migration.java": "src/main/java/org/secuso/privacyfriendlysudoku/controller/database/migration/Migration.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/game/GameDifficulty.java": "src/main/java/org/secuso/privacyfriendlysudoku/game/GameDifficulty.java",
+		"app/src/main/java/org/secuso/privacyfriendlysudoku/game/GameType.java": "src/main/java/org/secuso/privacyfriendlysudoku/game/GameType.java",
+		"app/src/main/res/values/strings.xml": "src/main/res/values/strings.xml",
+		"app/src/main/res/values/colors.xml": "src/main/res/values/colors.xml",
+		"app/src/main/res/mipmap-mdpi/ic_launcher.png": "src/main/res/mipmap-mdpi/ic_launcher.png",
+		"app/src/main/res/drawable/icon_default_6x6.xml": "src/main/res/drawable/icon_default_6x6.xml",
+		"app/src/main/res/drawable/icon_default_9x9.xml": "src/main/res/drawable/icon_default_9x9.xml",
+		"app/src/main/res/drawable/icon_default_12x12.xml": "src/main/res/drawable/icon_default_12x12.xml",
+		"app/src/main/res/drawable/icon_default_16x16.xml": "src/main/res/drawable/icon_default_16x16.xml",
+		"app/src/main/res/drawable-mdpi/splash_icon.png": "src/main/res/drawable-mdpi/splash_icon.png"
+	}
+}

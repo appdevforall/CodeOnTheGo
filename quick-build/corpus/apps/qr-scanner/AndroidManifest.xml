@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Scaffolding, not vendored: none of this subgraph's real files (the Room history DB,
+  the ZXing barcode-bitmap generator) are Android-manifest-declared components: no
+  backup-api service, no camera-scan/generator activities, no QuickTileService.
+  ScannerActivity is a stand-in launcher; the real subgraph never calls into its body.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="com.secuso.privacyfriendlycodescanner.qrscanner">
+
+	<application
+		android:allowBackup="true"
+		android:icon="@mipmap/ic_launcher"
+		android:label="@string/app_name"
+		android:theme="@style/AppTheme">
+
+		<activity
+			android:exported="true"
+			android:name=".ui.activities.ScannerActivity">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+
+	</application>
+
+</manifest>

@@ -1,0 +1,12 @@
+{
+	"editClass": "method-add",
+	"description": "PR-mined (Neamar/KISS, \"static StringNormalizer.Result\", 71ad3234, 2025-10-20): adds a static Result.EMPTY constant and an early-return for empty/null input in normalizeWithResult -- a real recent perf/null-safety improvement, applied cumulatively on edit01.",
+	"files": {
+		"src/main/java/fr/neamar/kiss/normalizer/StringNormalizer.java": "StringNormalizer.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 3 },
+		"behavioralMarker": null
+	}
+}

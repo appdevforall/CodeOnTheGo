@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	NOTE: this manifest is harness scaffolding authored for the quick-build corpus
+	(ADFA-4128, WS-A3). It is NOT part of upstream StreetComplete. src/main/java/de/
+	westnordost/streetcomplete/{data,util}/** is vendored verbatim from StreetComplete's
+	commonMain source set (GPL-3.0, github.com/streetcomplete/StreetComplete, pinned
+	commit 26c673030a095e7a8b32f1074b7014f960e2b0a4, tag v63.2): a small, self-contained
+	subset of the domain-model + geometry-math layer (Element/LatLon/BoundingBox plus
+	their util deps), not the full multiplatform app. See README.md "streetcomplete-lib"
+	for why. de.westnordost.streetcomplete.corpusharness is authored fresh for this corpus.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="de.westnordost.streetcomplete">
+
+	<application
+		android:label="@string/qb_corpus_app_name"
+		android:allowBackup="false">
+
+		<activity
+			android:name=".corpusharness.GeoHostActivity"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+
+	</application>
+
+</manifest>

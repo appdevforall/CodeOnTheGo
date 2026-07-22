@@ -1,0 +1,11 @@
+{
+	"repo": "https://github.com/AntennaPod/AntennaPod",
+	"commit": "c376be44dd14132dafe49e311714b637e3af61fd",
+	"license": "GPL-3.0",
+	"note": "Real :model module source, fetched at the pinned commit by harness/fetch_vendored.py into corpus/.cache/ (never checked in). files maps upstream path -> app-relative destination. Pinned right before three real merged upstream changes (MediaType file-extension-guessing removal, FeedItemFilter Serializable, FeedFunding's #8542 Serializable crash fix) so edits/01-03 apply as clean forward patches. FeedFilter.java was deliberately excluded -- at every commit where it exists it already depends on FeedItem (and transitively Feed/FeedMedia/Playable), which would balloon this subgraph well past an acyclic leaf-chase; FeedItemFilter.java is safe because this pin predates its own FeedItem-dependent matches() method (added 2024+). Edits that touch fetched files are checked in as .patch files against the pinned commit and applied at materialization.",
+	"files": {
+		"model/src/main/java/de/danoeh/antennapod/model/feed/FeedItemFilter.java": "src/main/java/de/danoeh/antennapod/model/feed/FeedItemFilter.java",
+		"model/src/main/java/de/danoeh/antennapod/model/feed/FeedFunding.java": "src/main/java/de/danoeh/antennapod/model/feed/FeedFunding.java",
+		"model/src/main/java/de/danoeh/antennapod/model/playback/MediaType.java": "src/main/java/de/danoeh/antennapod/model/playback/MediaType.java"
+	}
+}

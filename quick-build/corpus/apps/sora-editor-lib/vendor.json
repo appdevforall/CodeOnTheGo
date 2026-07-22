@@ -5,6 +5,7 @@
 	"note": "Real :editor module source, fetched at the pinned commit by harness/fetch_vendored.py into corpus/.cache/ (never checked in). files maps upstream path -> app-relative destination. Edits that touch fetched files are checked in as .patch files against the pinned commit and applied at materialization.",
 	"files": {
 		"editor/src/main/java/io/github/rosemoe/sora/annotations/UnsupportedUserUsage.java": "src/main/java/io/github/rosemoe/sora/annotations/UnsupportedUserUsage.java",
+		"editor/src/main/java/io/github/rosemoe/sora/text/CharPosition.java": "src/main/java/io/github/rosemoe/sora/text/CharPosition.java",
 		"editor/src/main/java/io/github/rosemoe/sora/text/ContentLine.java": "src/main/java/io/github/rosemoe/sora/text/ContentLine.java",
 		"editor/src/main/java/io/github/rosemoe/sora/text/LineSeparator.java": "src/main/java/io/github/rosemoe/sora/text/LineSeparator.java",
 		"editor/src/main/java/io/github/rosemoe/sora/text/bidi/BidiRequirementChecker.java": "src/main/java/io/github/rosemoe/sora/text/bidi/BidiRequirementChecker.java",

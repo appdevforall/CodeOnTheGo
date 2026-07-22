@@ -1,0 +1,26 @@
+--- a/app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/math/Vector3d.kt
++++ b/app/src/commonMain/kotlin/de/westnordost/streetcomplete/util/math/Vector3d.kt
+@@ -28,6 +28,15 @@
+     operator fun plus(o: Vector3d) = Vector3d(x + o.x, y + o.y, z + o.z)
+     operator fun minus(o: Vector3d) = Vector3d(x - o.x, y - o.y, z - o.z)
+ 
++    /**
++     * Destructuring component access (`val (x, y, z) = vector`). Same "make the per-component
++     * operators actually correct/complete" spirit as the real upstream fix above (StreetComplete
++     * PR #6311, "fix: correct Vector3d division and subtraction operations").
++     */
++    operator fun component1() = x
++    operator fun component2() = y
++    operator fun component3() = z
++
+     /** dot (scalar) product with [o] */
+     operator fun times(o: Vector3d) = x * o.x + y * o.y + z * o.z
+ 
+@@ -102,3 +111,7 @@
+ 
+     override fun toString() = "$x,$y,$z"
+ }
++
++// ADFA-4128 WS-A3 corpus edit 02 (vector3d-destructuring): added for a real string-literal
++// behavioral marker (the real change is the component1/2/3() operators above).
++fun vector3dEditMarker(): String = "quick build reloaded Vector3d's destructuring operators"

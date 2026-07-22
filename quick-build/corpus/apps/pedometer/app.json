@@ -1,0 +1,7 @@
+{
+	"applicationId": "org.secuso.privacyfriendlyactivitytracker",
+	"entryActivity": "org.secuso.privacyfriendlyactivitytracker.activities.MainActivity",
+	"minSdk": 30,
+	"language": "java",
+	"note": "real SecUSo Privacy Friendly Pedometer source (GPL-3.0, tag v3.1.2, commit 017f24f0660b8874529f6daf91ea94640f6f921a) -- an acyclic subgraph covering step-detection services, sensor listening, alarm-scheduled receivers, legacy SQLite, and a widget; see vendor.json. Real minSdk is lower; corpus keeps 30 like the rest of the matrix."
+}

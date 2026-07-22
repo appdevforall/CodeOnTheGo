@@ -1,0 +1,169 @@
+{
+  "generatedAt": "2026-07-22T06:01:11.451045+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-a2-secuso/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "2048",
+      "language": "mixed",
+      "applicationId": "org.secuso.privacyfriendly2048",
+      "baseline": {
+        "status": "PASS",
+        "ms": 6197.878541,
+        "daemonMs": 6184,
+        "classCount": 47,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "Double(double) in java.lang.Double has been deprecated and marked for removal",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T060111Z/2048/tree/src/main/java/org/secuso/privacyfriendly2048/activities/StatsActivity.java",
+            "line": 288,
+            "column": 30
+          },
+          {
+            "severity": "WARNING",
+            "message": "Double(double) in java.lang.Double has been deprecated and marked for removal",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T060111Z/2048/tree/src/main/java/org/secuso/privacyfriendly2048/activities/StatsActivity.java",
+            "line": 305,
+            "column": 30
+          },
+          {
+            "severity": "WARNING",
+            "message": "Some input files use or override a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T060111Z/2048/tree/src/main/java/org/secuso/privacyfriendly2048/activities/AboutActivity.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T060111Z/2048/tree/src/main/java/org/secuso/privacyfriendly2048/activities/AboutActivity.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-logo-theming",
+          "editClass": "mixed-add",
+          "description": "PR-mined: real upstream range v1.4.0..v1.4.2 (privacy-friendly-2048), specifically the SettingsActivity super-qualifier cleanup + secusoLogoDrawable theme wiring (commit range collapsed to its net diff; version-bump-only commits in between excluded). Adds a new declare-styleable attr + wires AppTheme's colorScheme item to a NEW drawable resource (secuso_logo_black.xml, secuso_logo_white.xml -- real vendored content, not authored) while also touching a Java class (SettingsActivity's onCreate drops an unneeded super. qualifier). 'add' in editClass because two brand-new drawable resource NAMES are introduced, needing R regen. recompiledClasses upper bound is widened past SettingsActivity(+nested fragment) to 6: adding new drawable IDs shifts other R.* int constants, so any class with an inlined R reference recompiles too -- the README's documented 'R-id churn' caveat, reproduced here on real content rather than synthetic.",
+          "expectedRoute": "mixed",
+          "opsInvoked": [
+            "reconfigure",
+            "compile",
+            "relink"
+          ],
+          "ms": {
+            "compile": 1721.766290999998,
+            "relink": 2166.881042
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendly2048/activities/MainActivity.class",
+            "org/secuso/privacyfriendly2048/activities/SettingsActivity$GeneralPreferenceFragment.class",
+            "org/secuso/privacyfriendly2048/activities/SettingsActivity.class",
+            "org/secuso/privacyfriendly2048/activities/TutorialActivity$MyViewPagerAdapter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 4 classes, expected [1, 6]: ['org/secuso/privacyfriendly2048/activities/MainActivity.class', 'org/secuso/privacyfriendly2048/activities/SettingsActivity$GeneralPreferenceFragment.class', 'org/secuso/privacyfriendly2048/activities/SettingsActivity.class', 'org/secuso/privacyfriendly2048/activities/TutorialActivity$MyViewPagerAdapter.class']"
+            },
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "reconfigureMs": 8924.737542,
+          "daemonMs_compile": 1717,
+          "daemonMs_relink": 2160,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-resource-value",
+          "editClass": "string-value",
+          "description": "Authored (not PR-mined): real post-pin upstream history for 2048 is thin (only a versionCode-only commit after v1.4.2, already used as edit 01's source range). Clarifies the 'undo' button label from 'Undo' to 'Undo Last Move'. No new string names, resources-only relink.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 1754.2769579999983
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 1754,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-method-body",
+          "editClass": "method-body",
+          "description": "Authored (not PR-mined; see edit 02's note on thin post-pin history). FirstLaunchManager.initFirstTimeLaunch() actually clears the first-time-launch flag now (the real upstream method body is an empty if-block, a genuine dead-code spot in the real app -- this edit fills it in with the plausible fix plus a marker).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 4618.721167000004
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendly2048/helpers/FirstLaunchManager.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['org/secuso/privacyfriendly2048/helpers/FirstLaunchManager.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_2048_INIT_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 4615,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "47 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 1,
+    "edits": 3,
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0
+  }
+}

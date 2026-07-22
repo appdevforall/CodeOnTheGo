@@ -1,0 +1,26 @@
+--- a/editor/src/main/java/io/github/rosemoe/sora/util/IntPair.java
++++ b/editor/src/main/java/io/github/rosemoe/sora/util/IntPair.java
+@@ -92,4 +92,23 @@
+         return Float.intBitsToFloat(getSecond(packedValue));
+     }
+ 
++    /**
++     * Swap first and second of a packed pair.
++     * <p>
++     * Same doc-and-small-helper growth style as the real upstream commit that documented
++     * {@link #packIntFloat(int, float)} and {@link #getSecondAsFloat(long)} above.
++     *
++     * @param packedValue Packed value
++     * @return A new packed value with first and second swapped
++     */
++    public static long swap(long packedValue) {
++        return pack(getSecond(packedValue), getFirst(packedValue));
++    }
++
++    // ADFA-4128 WS-A3 corpus edit 05 (intpair-swap): added for a real string-literal behavioral
++    // marker (the real change is IntPair.swap() above).
++    public static String marker() {
++        return "quick build reloaded IntPair.swap";
++    }
++
+ }

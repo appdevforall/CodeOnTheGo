@@ -1,0 +1,7 @@
+{
+	"applicationId": "com.andihasan.jcomposecogo",
+	"entryActivity": "com.andihasan.jcomposecogo.corpusharness.JComposeCoGoHostActivity",
+	"minSdk": 30,
+	"language": "kotlin",
+	"note": "real hasanelfalakiy/JComposeCoGo (GPL-3.0) subgraph -- literal target-audience code, built on-device in CoGo (candidates doc section 5, `.androidide/` editor state + Gradle 8.14.3 quad). Pinned at HEAD a81e49f52aa855c248090567e1af3bdf88ef83c2 (its only commit touching HomeViewModel.kt). Vendors ui/screen/home/HomeViewModel.kt (ViewModel + UiState, androidx.lifecycle.ViewModel + kotlinx.coroutines.flow only) -- BottomNavItem.kt/the Compose screens were excluded since they need the Compose classpath this session's runs don't wire up. See vendor.json for why edits here are hand-authored rather than PR/commit-mined."
+}

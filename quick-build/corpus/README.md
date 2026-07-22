@@ -484,6 +484,43 @@ latency across the 3 edits: 61ms, 103ms, 52ms -- **p50 = 61ms, p95 = 103ms**
 the same ballpark as the synthetic corpus's small apps). Baseline compile
 240ms for 16 classes.
 
+**4 more edits, PR/commit-mined (2026-07-21, WS-A3):** the ask was "convert
+each selected PR's diff into a `.patch` against the pinned commit." That
+literal mechanic turns out to be **structurally impossible for any already-
+merged historical PR**: `fetch_vendored.py` checks out the file at the SAME
+pinned commit for every edit's base, and a pinned commit by definition
+already contains the result of every PR merged before it -- confirmed
+empirically for all 3 candidates below (their "after" diff lines are already
+present verbatim in the pinned commit's file). So "apply PR #N's diff forward
+against the pinned baseline" is a no-op/reject for anything that landed
+before the pin, and there is no PR merged *after* the pin
+(`43f7e8e2981...` = `2026-07-13T04:30:30Z`, itself the merge of PR #855 --
+checked all 334 merged PRs in the repo's history via `gh pr list --state
+merged --limit 500`, none merged later). **What these edits actually do**:
+reproduce the exact real transformation as a fresh, original edit in the
+same file/spirit, since the historical version is unusable as a literal
+forward patch. Each `meta.json.description` names the real PR/commit,
+explains why a literal replay was impossible, and states what the edit
+does instead.
+
+| Edit | Target | Real PR/commit modeled after | What it exercises |
+|---|---|---|---|
+| `04-charposition-copy-ctor` | `text/CharPosition.java` (new subgraph file) | PR [#267](https://github.com/Rosemoe/sora-editor/pull/267) "Added more keybindings" (2022-10-18) -- added CharPosition's ctor overloads, already baseline at the pin | grows the same overload set with a copy constructor |
+| `05-intpair-swap` | `util/IntPair.java` | commit `89fe30473e88` "docs: update the doc of `IntPair`" (2025-12-13, direct maintainer commit, no associated PR -- confirmed via `gh api repos/.../commits/{sha}/pulls` returning empty) | grows IntPair's small doc'd-helper set with `swap()` |
+| `06-textbidi-explicit-direction` | `text/bidi/TextBidi.java` | commit `192c935699` "feat: no longer use enforced LTR base direction" (2025-11-10) | continues the same "stop enforcing a fixed direction" idea with an explicit-flag overload |
+| `07-stringlatin1-appendto-perf` | `text/string/StringLatin1.java` | commit `10370f833f4` "perf: avoid copying when create `String` in Latin1 implementation" (2026-03-03) | applies the same `ISO_8859_1`-direct-decode perf fix to the sibling method `appendTo()`, which the real commit didn't touch |
+
+`CharPosition.java` is a new addition to `vendor.json`'s `files` (verified
+acyclic before adding: only imports `androidx.annotation.NonNull`,
+`java.util.Objects`, `io.github.rosemoe.sora.util.IntPair` -- all
+already-resolvable within the subgraph or external).
+
+**Result: 7/7 PASS** (3 original + 4 new), **output-equivalence PASS**, host
+run 2026-07-21: `results/20260722T055622Z/` (`sora-editor-lib` alone) and
+`results/20260722T055735Z/` (full 13-app / 52-edit host run, all PASS, no
+regressions). Compile-op latency for the 4 new edits: 383ms, 415ms, 296ms,
+431ms.
+
 Run command (androidx needed via `--classpath-extra`; everything else as in
 "Running it" above):
 ```bash
@@ -504,10 +541,94 @@ comment.
 
 ### StreetComplete
 
-**Not attempted yet.** Whoever picks it up: read the prior blocker analysis
-first (Jira `ADFA-2745`, StreetComplete-in-CoGo, done 2026-02), then check
-whether the two sora-editor findings above already predict the outcome -- a
-Gradle 9+ wrapper pin hits the setup-build wall, and bidirectional
-Kotlin<->Java references hit the compile wall -- once its Gradle/AGP version
-and language mix are known. Bring it in the same way as sora-editor:
-`vendor.json` + `fetch_vendored.py`, never vendored source.
+`apps/streetcomplete-lib/` -- real source from
+[streetcomplete/StreetComplete](https://github.com/streetcomplete/StreetComplete),
+GPL-3.0, pinned commit `26c673030a095e7a8b32f1074b7014f960e2b0a4` (tag
+`v63.2`, 2026-07). Brought in 2026-07-21 (WS-A3), after checking Jira
+`ADFA-2745` (StreetComplete-in-CoGo, done 2026-02) and its linked Confluence
+page ("Building StreetComplete in Code On the Go").
+
+**Neither of sora-editor's two blockers apply here** -- a materially
+different, better outcome than assuming they would:
+
+1. **Gradle 9+ setup-build wall: does not apply.** StreetComplete's
+   `gradle/wrapper/gradle-wrapper.properties` pins **Gradle 8.14**
+   (confirmed via `gh api repos/streetcomplete/StreetComplete/contents/...`),
+   matching CoGo's own bundled 8.14.3. ADFA-2745's Confluence page confirms
+   this empirically: `sh gradlew assembleDebug` on-device used the project's
+   own 8.14 wrapper without incident.
+2. **Bidirectional Kotlin<->Java: does not apply.** StreetComplete is
+   **100% Kotlin** -- `gh api repos/.../languages` reports
+   `{"Kotlin":5195580,"HTML":365566,"Swift":712}`, zero Java, confirmed
+   independently by a full recursive tree listing at the pinned tag (1717
+   `.kt` files, 0 `.java`). A pure-Kotlin module has no K<->J compile-order
+   wall at all -- kotlinc resolves same-language cycles in one pass, unlike
+   the two-compiler-pass problem that blocked sora-editor's `:editor` module.
+
+**StreetComplete DOES have its own real wall, found in ADFA-2745 -- but it's
+in the SETUP/plugin-resolution path, not the daemon's compile/relink
+protocol this corpus exercises.** Per the ticket + Confluence page: the
+CoGo GUI build failed with `Plugin [id: 'org.gradle.kotlin.kotlin-dsl',
+version: '5.2.0'] was not found` resolving `buildSrc/build.gradle.kts`
+against CoGo's offline `localMvnRepository` (an incomplete-offline-closure
+gap, the same shape as other gaps catalogued in
+`docs/process/learnings.md`), and separately, CoGo's local-maven-repo
+injection into the settings' plugin-resolution repositories interfered with
+StreetComplete's own plugin resolution (worked around at the time by an
+ad hoc CoGo build with that injection disabled; a ticket was filed to fix
+it properly). **This corpus tier never touches `buildSrc` or Gradle plugin
+resolution at all** -- the daemon's `compile`/`relink` protocol operates
+directly on source files against a fixed classpath, so this wall is
+orthogonal to what's tested here. It remains real for the full
+CoGo-GUI-build path and is unrelated to WS-F's Gradle-9 finding.
+
+**Vendored subgraph: 10 real, self-contained files from `app/src/commonMain`**
+(StreetComplete is Kotlin Multiplatform -- `commonMain` is the
+platform-independent source set) -- the domain-model + geometry-math layer,
+not the full app (which also has Compose UI, Room persistence, and a much
+larger dependency graph excluded here):
+
+- `data/osm/mapdata/Element.kt` -- `LatLon`/`Node`/`Way`/`Relation`/`Element`/`ElementType`
+- `data/osm/mapdata/BoundingBox.kt`
+- `util/ktx/{Double,Collections,LatLon}.kt`
+- `util/math/{AngleMath,Vector3d,SphericalEarthMathVector3d,SphericalEarthMath,FlatEarthMath}.kt`
+
+**One new corpus dependency:** these model classes carry
+`@Serializable`/`@SerialName` (`kotlinx.serialization`) -- StreetComplete's
+own `app/build.gradle.kts` applies `org.jetbrains.kotlin.plugin.serialization`
+version `2.4.0` against `kotlinx-serialization-core`/`-json` `1.11.0`. None
+of the vendored functions in this subgraph call the generated
+`.serializer()`/`Json.encodeToString` machinery, so the **compiler plugin is
+not needed** -- only the plain annotation classes need to resolve, via
+`--classpath-extra <path>/kotlinx-serialization-core-jvm-1.11.0.jar`
+(not in `~/.gradle/caches` by default on a fresh clone; fetch from Maven
+Central: `https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-core-jvm/1.11.0/kotlinx-serialization-core-jvm-1.11.0.jar`).
+Confirmed empirically: baseline compiles clean with just that jar on the
+classpath, no `-Xplugin` needed.
+
+**3 edits, PR-mined** -- same methodology note as sora-editor-lib applies
+here too: all 3 real PRs below are already baked into the pinned commit (all
+merged well before the 2026-07 pin), so each edit reproduces the real fix's
+spirit as a fresh, original follow-on change rather than literally replaying
+the historical diff:
+
+| Edit | Target | Real PR modeled after | What it exercises |
+|---|---|---|---|
+| `01-collections-most-common` | `util/ktx/Collections.kt` | PR [#6318](https://github.com/streetcomplete/StreetComplete/pull/6318) "util: handle duplicate elements in Collection.containsExactlyInAnyOrder()" (2025-08-13) -- fixed to use a count-map | reuses the same count-map idiom for a new helper, `mostCommonOrNull()` |
+| `02-vector3d-destructuring` | `util/math/Vector3d.kt` | PR [#6311](https://github.com/streetcomplete/StreetComplete/pull/6311) "fix: correct Vector3d division and subtraction operations" (2025-06-06) -- fixed copy-paste bugs in `div`/`minus` | continues the "make per-component operators complete" spirit with `component1/2/3()` destructuring |
+| `03-anglemath-radians-float-overload` | `util/math/AngleMath.kt` | PR [#6307](https://github.com/streetcomplete/StreetComplete/pull/6307) "Fix angle normalization with non-zero startAt parameter" (2025-06-06) | fills the file's own real overload gap: `normalizeDegrees` has Double+Float overloads, `normalizeRadians` only had Double -- adds the Float one |
+
+**Result: 3/3 PASS, output-equivalence PASS** (host run, 2026-07-22:
+`results/20260722T060647Z/`), part of the full 14-app / 55-edit host run
+(`results/20260722T060930Z/`, all PASS, no regressions on any existing app).
+Baseline compile 5134ms for 22 classes (cold daemon; warm-daemon per-edit
+compiles were 400ms/349ms/474ms).
+
+Run command (serialization annotation classes needed via
+`--classpath-extra`; everything else as in "Running it" above):
+```bash
+python3 quick-build/corpus/harness/run_matrix.py \
+  --classpath-extra <path>/kotlinx-serialization-core-jvm-1.11.0.jar \
+  --apps streetcomplete-lib \
+  ... (other flags as usual)
+```

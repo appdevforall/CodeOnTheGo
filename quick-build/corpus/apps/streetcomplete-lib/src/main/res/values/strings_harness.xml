@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Harness scaffolding (ADFA-4128, WS-A3), not part of upstream StreetComplete. -->
+<resources>
+	<string name="qb_corpus_app_name">streetcomplete-lib corpus</string>
+</resources>

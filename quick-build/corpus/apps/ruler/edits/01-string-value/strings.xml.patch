@@ -1,0 +1,87 @@
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 1d6d7dd..8efc2f9 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1,15 +1,12 @@
++<?xml version="1.0" encoding="utf-8"?>
+ <resources>
+     <string name="app_name">Ruler</string>
+-
+     <string name="navigation_drawer_open">Open navigation drawer</string>
+     <string name="navigation_drawer_close">Close navigation drawer</string>
+-
+     <string name="app_name_long">Privacy Friendly Ruler</string>
+     <string name="version_number">Version v%s</string>
+-
+     <string name="mode">Mode</string>
+     <string name="ruler">Ruler</string>
+-
+     <string name="calibrate">Calibrate</string>
+     <string name="measureLineHeading">1. Measure</string>
+     <string name="measureLine">Please measure the length of the line below as precisely as possible.</string>
+@@ -20,13 +17,10 @@
+     <string name="calibrationMM">mm</string>
+     <string name="calibrationInch">inch</string>
+     <string name="calibrationWarning">Manual calibration can not eliminate all inaccuracies due to rounding.</string>
+-
+     <string name="settings">Settings</string>
+-
+     <string name="action_calibration">Calibrate</string>
+     <string name="action_resetcalibration">Reset Calibration</string>
+     <string name="calibrationReset">Calibration reset.</string>
+-
+     <string name="pref_ruler">Ruler Settings</string>
+     <string name="pref_leftruler">Left Ruler</string>
+     <string name="pref_leftruler_verbose">What should be displayed on left ruler?</string>
+@@ -41,7 +35,6 @@
+         <item>off</item>
+     </string-array>
+     <string name="pref_leftruler_default">cm</string>
+-
+     <string name="pref_rightruler">Right Ruler</string>
+     <string name="pref_rightruler_verbose">What should be displayed on right ruler?</string>
+     <string-array name="pref_rightruler_entries">
+@@ -55,7 +48,6 @@
+         <item>off</item>
+     </string-array>
+     <string name="pref_rightruler_default">inch</string>
+-
+     <string name="pref_anglemeasure">Angle Measure</string>
+     <string name="pref_anglemeasure_verbose">Turn on scale for angle measuring?</string>
+     <string-array name="pref_anglemeasure_entries">
+@@ -69,7 +61,6 @@
+         <item>off</item>
+     </string-array>
+     <string name="pref_anglemeasure_default">off</string>
+-
+     <string name="welcome">Welcome</string>
+     <string name="field_select_description_headline">Welcome to Privacy Friendly Ruler</string>
+     <string name="field_select_description">This app provides rulers and angle measures on Your screen.</string>
+@@ -78,9 +69,8 @@
+     <string name="disclaimer">This App is not a professionally calibrated measuring device. This App can be manually calibrated which may minimize the error. However, depending on the device there still could be rounding errors.</string>
+     <string name="disclaimer_check">I have read the disclaimer about potential rounding issues.</string>
+     <string name="disclaimer_check_toast">Please check that you have read the disclaimer.</string>
+-    <string name="okay">Okay</string>
+-    <string name="viewhelp">View Help</string>
+-
++    <string name="okay">Ok</string>
++    <string name="viewhelp">Voir l\'aide</string>
+     <string name="help">Help</string>
+     <string name="help_overview_heading">Overview</string>
+     <string name="help_calibration">Manual Calibration</string>
+@@ -91,7 +81,6 @@
+     <string name="pref_units_summary">You can display a cm ruler, an inch ruler or no ruler on the left and on the right side of the screen. Both rulers can be set separately in the option menu.</string>
+     <string name="pref_angles_summary">You can display an angle measure in degrees or radian on the left side of the screen.</string>
+     <string name="help_intro">The Privacy Friendly Ruler App turns Your Phone into a ruler for quick on the fly measurements.</string>
+-
+     <string name="about">About</string>
+     <string name="about_author">Author: </string>
+     <string name="about_author_names" translatable="false">Roberts Kolosovs</string>
+@@ -101,5 +90,4 @@
+     <string name="more_info">More information can be found on:</string>
+     <string name="github" translatable="false"><a href="https://github.com/SecUSo/privacy-friendly-ruler">Github-Repo</a></string>
+     <string name="url"><a href="https://www.secuso.org/pfa">SECUSO Website</a></string>
+-
+-</resources>
+\ No newline at end of file
++</resources>

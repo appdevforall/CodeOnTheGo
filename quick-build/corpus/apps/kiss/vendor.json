@@ -1,0 +1,11 @@
+{
+	"repo": "https://github.com/Neamar/KISS",
+	"commit": "8b5ebda7bc2a1f8877bed25c7b7d4e1cdcdbbdb8",
+	"license": "GPL-3.0",
+	"note": "Real source, fetched at the pinned commit by harness/fetch_vendored.py into corpus/.cache/ (never checked in). files maps upstream path -> app-relative destination. Pinned right before StringNormalizer's real 'ASCII also includes z!' fix (2020) so edits 01-03 replay its full multi-year edit history forward (2020 bugfix, 2025 static EMPTY result, 2026 @NonNull cleanup); edits 04-05 replay ClipboardUtils's 2025/2026 real history the same way. Edits that touch fetched files are checked in as .patch files against the pinned commit and applied at materialization.",
+	"files": {
+		"app/src/main/java/fr/neamar/kiss/normalizer/StringNormalizer.java": "src/main/java/fr/neamar/kiss/normalizer/StringNormalizer.java",
+		"app/src/main/java/fr/neamar/kiss/normalizer/IntSequenceBuilder.java": "src/main/java/fr/neamar/kiss/normalizer/IntSequenceBuilder.java",
+		"app/src/main/java/fr/neamar/kiss/utils/ClipboardUtils.java": "src/main/java/fr/neamar/kiss/utils/ClipboardUtils.java"
+	}
+}

@@ -1,0 +1,149 @@
+{
+  "generatedAt": "2026-07-22T06:06:47.831013+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/nix/store/dccfc40cyivwlmd4qbl6lbfq4fzjfp95-zulu-ca-jdk-17.0.12/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "streetcomplete-lib",
+      "language": "kotlin",
+      "applicationId": "de.westnordost.streetcomplete",
+      "baseline": {
+        "status": "PASS",
+        "ms": 5133.88875,
+        "daemonMs": 5127,
+        "classCount": 22,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-collections-most-common",
+          "editClass": "new-api",
+          "description": "PR-mined: modeled after the real merged StreetComplete PR #6318 'util: handle duplicate elements in Collection.containsExactlyInAnyOrder()' (2025-08-13), which fixed containsExactlyInAnyOrder to use a count-map instead of a naive containsAll check. That fix is already baked into our pinned commit (26c673030a09..., tag v63.2), so a literal forward-patch of the PR's own diff is a no-op against this baseline. This edit reuses the same count-map idiom for a new, related helper: mostCommonOrNull().",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 399.7389999999994
+          },
+          "recompiledClasses": [
+            "de/westnordost/streetcomplete/util/ktx/CollectionsKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['de/westnordost/streetcomplete/util/ktx/CollectionsKt.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded Collections.mostCommonOrNull' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 400,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-vector3d-destructuring",
+          "editClass": "method-body",
+          "description": "PR-mined: modeled after the real merged StreetComplete PR #6311 'fix: correct Vector3d division and subtraction operations' (2025-06-06), which fixed copy-paste bugs in Vector3d's div()/minus() operators (they referenced the wrong component). That fix is already baked into our pinned commit (div/minus already use x/y/z correctly), so a literal forward-patch of the PR's own diff is a no-op against this baseline. This edit continues the same 'make Vector3d's per-component operators complete' spirit by adding destructuring component1/2/3() operators.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 348.8189160000008
+          },
+          "recompiledClasses": [
+            "de/westnordost/streetcomplete/util/math/Vector3d.class",
+            "de/westnordost/streetcomplete/util/math/Vector3dKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 2]: ['de/westnordost/streetcomplete/util/math/Vector3d.class', 'de/westnordost/streetcomplete/util/math/Vector3dKt.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker \"quick build reloaded Vector3d's destructuring operators\" found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 349,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-anglemath-radians-float-overload",
+          "editClass": "new-api",
+          "description": "PR-mined: modeled after the real merged StreetComplete PR #6307 'Fix angle normalization with non-zero startAt parameter' (2025-06-06), which fixed the normalizeDegrees/normalizeRadians formulas and their docs. That fix is already baked into our pinned commit, so a literal forward-patch of the PR's own diff is a no-op against this baseline. This edit continues the same file's real overload asymmetry: normalizeDegrees has both Double and Float overloads, but normalizeRadians only had Double -- this adds the missing Float overload.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 473.62270900000067
+          },
+          "recompiledClasses": [
+            "de/westnordost/streetcomplete/util/math/AngleMathKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['de/westnordost/streetcomplete/util/math/AngleMathKt.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded AngleMath.normalizeRadians(Float)' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 473,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "23 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 1,
+    "edits": 3,
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0
+  }
+}

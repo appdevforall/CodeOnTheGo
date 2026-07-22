@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "PR-mined: modeled after the real merged StreetComplete PR #6311 'fix: correct Vector3d division and subtraction operations' (2025-06-06), which fixed copy-paste bugs in Vector3d's div()/minus() operators (they referenced the wrong component). That fix is already baked into our pinned commit (div/minus already use x/y/z correctly), so a literal forward-patch of the PR's own diff is a no-op against this baseline. This edit continues the same 'make Vector3d's per-component operators complete' spirit by adding destructuring component1/2/3() operators.",
+	"files": {
+		"src/main/java/de/westnordost/streetcomplete/util/math/Vector3d.kt": "Vector3d.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": "quick build reloaded Vector3d's destructuring operators"
+	}
+}

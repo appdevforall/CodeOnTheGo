@@ -1,0 +1,12 @@
+{
+	"editClass": "property-add",
+	"description": "Hand-authored (see vendor.json): adds a derived isEmpty property to HomeUiState, applied cumulatively on edits 01-02.",
+	"files": {
+		"src/main/java/com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.kt": "HomeViewModel.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": null
+	}
+}

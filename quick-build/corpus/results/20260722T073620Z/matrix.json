@@ -1,0 +1,86 @@
+{
+  "generatedAt": "2026-07-22T07:36:20.322954+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-a2-secuso/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "sudoku",
+      "language": "java",
+      "applicationId": "org.secuso.privacyfriendlysudoku",
+      "baseline": {
+        "status": "PASS",
+        "ms": 2986.0817909999996,
+        "daemonMs": 2984,
+        "classCount": 27,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T073620Z/sudoku/tree/src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java uses or overrides a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T073620Z/sudoku/tree/src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T073620Z/sudoku/tree/src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-generator-real",
+          "editClass": "method-body",
+          "description": "PR-mined: real upstream commit 85895f3 ('[fix] changes foreground service type to special use'). Switches the on-Android-14+ ServiceCompat.startForeground() call from FOREGROUND_SERVICE_TYPE_SHORT_SERVICE to FOREGROUND_SERVICE_TYPE_SPECIAL_USE, matching the manifest's specialUse declaration. behavioralMarker is null: both constants are javac-inlined ints (ServiceInfo.FOREGROUND_SERVICE_TYPE_* are compile-time constants), so neither name survives into the recompiled class bytes -- same class of issue as the README's R-id-churn note, just via an SDK constant instead of an R field.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 509.2187079999997
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendlysudoku/controller/GeneratorService.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['org/secuso/privacyfriendlysudoku/controller/GeneratorService.class']"
+            }
+          ],
+          "daemonMs_compile": 509,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "27 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 1,
+    "edits": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  }
+}

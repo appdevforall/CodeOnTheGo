@@ -1,0 +1,12 @@
+{
+	"editClass": "interface-add",
+	"description": "PR-mined (AntennaPod/AntennaPod, \"Update filter dialog to Fragment\", 0b431a331): FeedItemFilter starts implementing Serializable so it survives a Fragment argument bundle -- a real one-line interface addition.",
+	"files": {
+		"src/main/java/de/danoeh/antennapod/model/feed/FeedItemFilter.java": "FeedItemFilter.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": null
+	}
+}

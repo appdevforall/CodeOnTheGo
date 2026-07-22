@@ -1,0 +1,7 @@
+{
+	"applicationId": "de.danoeh.antennapod",
+	"entryActivity": "de.danoeh.antennapod.corpusharness.AntennaPodHostActivity",
+	"minSdk": 30,
+	"language": "java",
+	"note": "real AntennaPod/AntennaPod (GPL-3.0) :model module subgraph, pinned commit c376be44dd14132dafe49e311714b637e3af61fd -- FeedItemFilter/MediaType/FeedFunding, a real acyclic 3-file domain-model subset (pure Java + commons-lang3, no Room/Hilt/Compose, no annotation processors). corpusharness package is harness scaffolding. See README.md."
+}

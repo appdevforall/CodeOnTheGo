@@ -1,0 +1,7 @@
+{
+	"applicationId": "org.secuso.privacyfriendlyrulerapp",
+	"entryActivity": "org.secuso.privacyfriendlyrulerapp.activities.SplashActivity",
+	"minSdk": 30,
+	"language": "java",
+	"note": "real SecUSo Privacy Friendly Ruler source (GPL-3.0, tag v1.1.4, commit 0365dd8ea6e5929cf7d595394c0cb9a1a08f31e8) -- the whole app module, self-contained (no org.secuso.pfacore dep). Real minSdk is 17; corpus keeps 30 like the rest of the matrix (harness convention, doesn't affect compile-only assertions). See README.md and vendor.json."
+}

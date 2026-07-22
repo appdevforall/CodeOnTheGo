@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Scaffolding, not vendored: same 7 activities as the real app's manifest, minus the
+  PFABackupService, the androidx.startup provider, and the custom PF2048 Application
+  subclass; see vendor.json's note (the backup-api integration is excluded from this
+  corpus entry).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="org.secuso.privacyfriendly2048">
+
+	<application
+		android:allowBackup="true"
+		android:icon="@mipmap/ic_launcher"
+		android:label="@string/app_name"
+		android:supportsRtl="true"
+		android:theme="@style/AppTheme">
+		<activity
+			android:exported="true"
+			android:name=".activities.SplashActivity"
+			android:theme="@style/SplashTheme">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+		<activity
+			android:name=".activities.TutorialActivity"
+			android:theme="@style/AppTheme.NoActionBar" />
+		<activity
+			android:name=".activities.MainActivity"
+			android:label="@string/app_name"
+			android:theme="@style/AppTheme.NoActionBar" />
+		<activity
+			android:name=".activities.AboutActivity"
+			android:label="@string/about"
+			android:parentActivityName=".activities.MainActivity" />
+		<activity
+			android:name=".activities.HelpActivity"
+			android:label="@string/help"
+			android:parentActivityName=".activities.MainActivity"
+			android:theme="@style/AppTheme.NoActionBar" />
+		<activity
+			android:name="org.secuso.privacyfriendly2048.activities.StatsActivity"
+			android:theme="@style/AppTheme.NoActionBar" />
+		<activity
+			android:name=".activities.SettingsActivity"
+			android:label="@string/settings_name"
+			android:parentActivityName=".activities.MainActivity"
+			android:theme="@style/AppTheme.NoActionBar" />
+		<activity
+			android:exported="true"
+			android:name=".activities.GameActivity"
+			android:label="@string/title_activity_game"
+			android:parentActivityName=".activities.MainActivity" />
+	</application>
+
+</manifest>

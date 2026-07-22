@@ -1,0 +1,12 @@
+{
+	"editClass": "new-api",
+	"description": "PR-mined: modeled after the real merged StreetComplete PR #6318 'util: handle duplicate elements in Collection.containsExactlyInAnyOrder()' (2025-08-13), which fixed containsExactlyInAnyOrder to use a count-map instead of a naive containsAll check. That fix is already baked into our pinned commit (26c673030a09..., tag v63.2), so a literal forward-patch of the PR's own diff is a no-op against this baseline. This edit reuses the same count-map idiom for a new, related helper: mostCommonOrNull().",
+	"files": {
+		"src/main/java/de/westnordost/streetcomplete/util/ktx/Collections.kt": "Collections.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 1 },
+		"behavioralMarker": "quick build reloaded Collections.mostCommonOrNull"
+	}
+}

@@ -1,0 +1,12 @@
+{
+	"editClass": "noop-format",
+	"description": "Commit-mined (jarnedemeulemeester/findroid, \"chore: replace ktlint with ktfmt\", 8102dbc, 2025-12-25): a real repo-wide ktfmt reformat -- here a single inserted blank line, whitespace-only, no semantic change. Mined from commits, not a PR, per README's fallback for a repo whose real behavioral edits to this specific file sit further back than this session's fetch window reached (see vendor.json).",
+	"files": {
+		"src/main/java/dev/jdtech/jellyfin/setup/presentation/addserver/AddServerAction.kt": "AddServerAction.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 0, "max": 3 },
+		"behavioralMarker": null
+	}
+}

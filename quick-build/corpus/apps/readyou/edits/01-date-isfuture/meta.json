@@ -1,0 +1,12 @@
+{
+	"editClass": "method-add",
+	"description": "PR-mined (ReadYouApp/ReadYou#638, \"fix(sync): replace publish date of an article with the current time if it is a future date\"): adds Date.isFuture(), a real one-line pure-logic addition to DateExt.kt.",
+	"files": {
+		"src/main/java/me/ash/reader/ui/ext/DateExt.kt": "DateExt.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": null
+	}
+}

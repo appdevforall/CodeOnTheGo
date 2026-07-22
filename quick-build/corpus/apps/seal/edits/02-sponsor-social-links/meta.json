@@ -1,0 +1,12 @@
+{
+	"editClass": "restructure",
+	"description": "PR-mined (JunkFood02/Seal, \"feat: show social links for sponsors\", 4fa91ee1): renames User/SponsorshipsAsMaintainer/Node into Viewer/SponsorShip and adds SocialAccounts/SocialAccount -- a real GraphQL-schema restructure applied cumulatively on top of edit01.",
+	"files": {
+		"src/main/java/com/junkfood/seal/util/SponsorData.kt": "SponsorData.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 10 },
+		"behavioralMarker": "SocialAccount"
+	}
+}

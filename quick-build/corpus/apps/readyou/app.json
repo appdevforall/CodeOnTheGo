@@ -1,0 +1,7 @@
+{
+	"applicationId": "me.ash.reader",
+	"entryActivity": "me.ash.reader.corpusharness.ReadYouHostActivity",
+	"minSdk": 30,
+	"language": "kotlin",
+	"note": "real ReadYouApp/ReadYou (GPL-3.0) subgraph, pinned commit f06d8ce05e1028e906374523541b4a6c36d2577c -- DESUtils (account-security crypto) + ui/ext/{Date,String,Number,Boolean}Ext, a real acyclic 5-file util/domain subset (no Room/Hilt/Compose/WorkManager framework wiring, no KSP). corpusharness package is harness scaffolding. See README.md."
+}

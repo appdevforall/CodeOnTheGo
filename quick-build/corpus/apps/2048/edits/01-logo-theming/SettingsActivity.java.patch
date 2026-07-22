@@ -1,0 +1,13 @@
+diff --git a/app/src/main/java/org/secuso/privacyfriendly2048/activities/SettingsActivity.java b/app/src/main/java/org/secuso/privacyfriendly2048/activities/SettingsActivity.java
+index 81aed3d..7462533 100644
+--- a/app/src/main/java/org/secuso/privacyfriendly2048/activities/SettingsActivity.java
++++ b/app/src/main/java/org/secuso/privacyfriendly2048/activities/SettingsActivity.java
+@@ -110,7 +110,7 @@ public class SettingsActivity extends BaseActivity implements SharedPreferences.
+     protected void onCreate(Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
+ 
+-        super.mSharedPreferences.registerOnSharedPreferenceChangeListener(this);
++        mSharedPreferences.registerOnSharedPreferenceChangeListener(this);
+         setContentView(R.layout.activity_settings);
+ 
+         //setupActionBar();

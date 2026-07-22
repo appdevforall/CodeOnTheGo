@@ -1,0 +1,12 @@
+{
+	"editClass": "new-api",
+	"description": "PR-mined: modeled after the real merged StreetComplete PR #6307 'Fix angle normalization with non-zero startAt parameter' (2025-06-06), which fixed the normalizeDegrees/normalizeRadians formulas and their docs. That fix is already baked into our pinned commit, so a literal forward-patch of the PR's own diff is a no-op against this baseline. This edit continues the same file's real overload asymmetry: normalizeDegrees has both Double and Float overloads, but normalizeRadians only had Double -- this adds the missing Float overload.",
+	"files": {
+		"src/main/java/de/westnordost/streetcomplete/util/math/AngleMath.kt": "AngleMath.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 1 },
+		"behavioralMarker": "quick build reloaded AngleMath.normalizeRadians(Float)"
+	}
+}

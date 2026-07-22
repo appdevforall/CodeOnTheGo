@@ -1,0 +1,13 @@
+diff --git a/app/src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java b/app/src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java
+index 4588d5f..62044b3 100644
+--- a/app/src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java
++++ b/app/src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java
+@@ -278,7 +278,7 @@ public class GeneratorService extends JobIntentService {
+         builder.setWhen(0);
+         builder.setSmallIcon(R.drawable.splash_icon);
+         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+-            ServiceCompat.startForeground(this, 50, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE);
++            ServiceCompat.startForeground(this, 50, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+         } else {
+             startForeground(50, builder.build());
+         }

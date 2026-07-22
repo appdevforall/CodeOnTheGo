@@ -1,0 +1,14 @@
+{
+	"repo": "https://github.com/jarnedemeulemeester/findroid",
+	"commit": "c03bc239cf0a5592603c1d429f7948dddc212ca4",
+	"license": "GPL-3.0",
+	"note": "Real source across findroid's setup/data/core modules, fetched at the pinned commit by harness/fetch_vendored.py into corpus/.cache/ (never checked in). files maps upstream path -> app-relative destination. Pinned right before a real repo-wide ktfmt reformat commit (8102dbc, 2025-12-25, 'chore: replace ktlint with ktfmt') so edits 01-03 replay that commit's per-file reformatting -- whitespace/formatting-only, not behavioral, called out honestly in each edit's meta.json (findroid's actual behavioral edit history for these specific files sits further back than a practical shallow-clone-plus-targeted-fetch window could reach in this session; the ktfmt commit is real and self-contained, unlike forcing a synthetic edit). findroid's models/FindroidItem.kt (the natural richer domain type) was deliberately excluded: it depends on ServerDatabaseDao (a Room DAO) and JellyfinRepository (a large interface), which pull in org.jellyfin.sdk types transitively -- unlike KISS/AntennaPod's utility layers, findroid's real domain model does not isolate into a small acyclic subgraph without a much larger vendoring effort. That is itself the corpus finding for findroid: real multi-module apps with a DB+repository-centric model layer resist the narrow-subgraph technique that works for utility-heavy apps.",
+	"files": {
+		"setup/src/main/java/dev/jdtech/jellyfin/setup/presentation/addserver/AddServerAction.kt": "src/main/java/dev/jdtech/jellyfin/setup/presentation/addserver/AddServerAction.kt",
+		"setup/src/main/java/dev/jdtech/jellyfin/setup/presentation/addserver/AddServerEvent.kt": "src/main/java/dev/jdtech/jellyfin/setup/presentation/addserver/AddServerEvent.kt",
+		"setup/src/main/java/dev/jdtech/jellyfin/setup/presentation/addresses/ServerAddressesState.kt": "src/main/java/dev/jdtech/jellyfin/setup/presentation/addresses/ServerAddressesState.kt",
+		"data/src/main/java/dev/jdtech/jellyfin/models/Server.kt": "src/main/java/dev/jdtech/jellyfin/models/Server.kt",
+		"data/src/main/java/dev/jdtech/jellyfin/models/ServerAddress.kt": "src/main/java/dev/jdtech/jellyfin/models/ServerAddress.kt",
+		"core/src/main/java/dev/jdtech/jellyfin/models/DiscoveredServer.kt": "src/main/java/dev/jdtech/jellyfin/models/DiscoveredServer.kt"
+	}
+}

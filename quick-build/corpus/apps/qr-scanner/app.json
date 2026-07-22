@@ -1,0 +1,7 @@
+{
+	"applicationId": "com.secuso.privacyfriendlycodescanner.qrscanner",
+	"entryActivity": "com.secuso.privacyfriendlycodescanner.qrscanner.ui.activities.ScannerActivity",
+	"minSdk": 30,
+	"language": "java",
+	"note": "real SecUSo Privacy Friendly QR Scanner source (GPL-3.0, pinned commit f48fc1816e559bd3e1841dc78bf56e0f59146aba, just before v4.6.19) -- an acyclic subgraph covering the real Room history DB and ZXing barcode-bitmap generation, with backup-api, the camera/scan UI, and QuickTileService excluded; see vendor.json. This app is the corpus's real mixed-Kotlin/Java entry (candidates.md flags it for two-way K/J coupling risk): the CHOSEN subgraph is one-directional (Java depends on Kotlin, never the reverse), same shape as sora-editor-lib's acyclic pick -- see vendor.json for why the app's genuinely bidirectional files (QuickTileService.kt/ScannerViewModel.kt <-> the Java result/activity classes) are excluded rather than forced through the daemon's documented compile-order limitation. Real minSdk is 26; corpus keeps 30 like the rest of the matrix."
+}

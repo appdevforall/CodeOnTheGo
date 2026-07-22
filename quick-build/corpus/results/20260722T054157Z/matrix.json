@@ -1,0 +1,123 @@
+{
+  "generatedAt": "2026-07-22T05:42:01.794287+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-a2-secuso/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "ruler",
+      "language": "java",
+      "applicationId": "org.secuso.privacyfriendlyrulerapp",
+      "baseline": {
+        "status": "PASS",
+        "ms": 3813.173584000001,
+        "daemonMs": 3795,
+        "classCount": 19,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "Some input files use or override a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T054157Z/ruler/tree/src/main/java/org/secuso/privacyfriendlyrulerapp/activities/BaseActivity.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T054157Z/ruler/tree/src/main/java/org/secuso/privacyfriendlyrulerapp/activities/BaseActivity.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-string-value",
+          "editClass": "string-value",
+          "description": "PR-mined: real upstream commit fd799d4ef9a53be68c3d3323710071cf2adb936d ('Translated using Weblate (English)', privacy-friendly-ruler). Retranslates a couple of strings (okay -> Ok; viewhelp picks up a stray French string, a genuine upstream Weblate mistranslation bug) plus incidental whitespace/XML-declaration normalization. No new string names, so no R regen needed -- resources-only relink.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 2190.2656249999986
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 2157,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-string-value-locale",
+          "editClass": "string-value-locale",
+          "description": "PR-mined: real upstream commit 37b67200487beee92bf018c76cd6e43e518ad30d ('Translated using Weblate (German)', privacy-friendly-ruler). Retranslates pref_rightruler_default/pref_anglemeasure_default and a few other German strings; whitespace normalization. Applied as a full-file replacement (not a .patch) because vendor.json deliberately vendors two files both basenamed strings.xml (default + values-de) and fetch_vendored.py's patch step keys its base-file lookup on basename alone -- see vendor.json's note. No new string names, resources-only relink.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 331.5314580000006
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 330,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-resource-add",
+          "editClass": "locale-file-new",
+          "description": "PR-mined: real upstream commit 51ffdbe27050d624f9b75032d429a60176255fd8 ('Added translation using Weblate (French)', privacy-friendly-ruler). Adds a brand-new values-fr/strings.xml -- but the real commit's file is an empty placeholder (<resources></resources>, no <string> entries yet), so it introduces zero new R.string names despite being a whole new resource file. editClass deliberately omits 'add' (the README's R-regen trigger substring): no new resource NAMES exist to regenerate R for, only a new (empty) qualifier directory.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 394.36812499999974
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 392,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "19 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 1,
+    "edits": 3,
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0
+  }
+}

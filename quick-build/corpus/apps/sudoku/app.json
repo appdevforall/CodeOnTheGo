@@ -1,0 +1,7 @@
+{
+	"applicationId": "org.secuso.privacyfriendlysudoku",
+	"entryActivity": "org.secuso.privacyfriendlysudoku.ui.MainActivity",
+	"minSdk": 30,
+	"language": "java",
+	"note": "real SecUSo Privacy Friendly Sudoku source (GPL-3.0, pinned commit 1452d0c64307d72de140195b1601b65933e6955d, just before v3.2.6) -- an acyclic subgraph covering the real foreground puzzle-generator Service (specialUse) and the real qqwing generation algorithm + Room-free SQLite persistence, with backup-api and the game/board UI excluded; see vendor.json. Real minSdk is 17; corpus keeps 30 like the rest of the matrix."
+}

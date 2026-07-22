@@ -1,0 +1,12 @@
+{
+	"editClass": "code-removal",
+	"description": "PR-mined (AntennaPod/AntennaPod, \"Move mime type guessing out of MediaType enum\", d4d506345): removes MediaType.fromFileExtension() and its two extension-set constants -- a real code-shrink edit.",
+	"files": {
+		"src/main/java/de/danoeh/antennapod/model/playback/MediaType.java": "MediaType.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": null
+	}
+}

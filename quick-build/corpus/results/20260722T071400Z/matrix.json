@@ -1,0 +1,102 @@
+{
+  "generatedAt": "2026-07-22T07:14:01.076278+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-a2-secuso/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "notes",
+      "language": "kotlin",
+      "applicationId": "org.secuso.privacyfriendlynotes",
+      "baseline": {
+        "status": "PASS",
+        "ms": 3369.883042,
+        "daemonMs": 3368,
+        "classCount": 37,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T071400Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java uses or overrides a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T071400Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T071400Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T071400Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java uses unchecked or unsafe operations.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T071400Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:unchecked for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T071400Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-notedb-trigger-real",
+          "editClass": "method-body",
+          "description": "PR-mined: real upstream commit a580bcd ('[fix] adds trigger creation in room callback') against the pinned commit 0a925ce. Adds a second SQL trigger (UpdateTrashTime) to the Room onCreate callback and makes the existing InsertCustomOrder trigger idempotent (IF NOT EXISTS).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 843.8743750000004
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendlynotes/room/NoteDatabase$10.class",
+            "org/secuso/privacyfriendlynotes/room/NoteDatabase.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 4]: ['org/secuso/privacyfriendlynotes/room/NoteDatabase$10.class', 'org/secuso/privacyfriendlynotes/room/NoteDatabase.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'UpdateTrashTime' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 843,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "37 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 1,
+    "edits": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  }
+}

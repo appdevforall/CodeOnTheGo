@@ -1,0 +1,38 @@
+--- a/app/src/main/java/fr/neamar/kiss/normalizer/StringNormalizer.java
++++ b/app/src/main/java/fr/neamar/kiss/normalizer/StringNormalizer.java
+@@ -1,5 +1,7 @@
+ package fr.neamar.kiss.normalizer;
+ 
++import android.text.TextUtils;
++
+ import androidx.annotation.NonNull;
+ 
+ import java.nio.CharBuffer;
+@@ -35,6 +37,10 @@ public class StringNormalizer {
+      * string position
+      */
+     public static Result normalizeWithResult(CharSequence input, boolean makeLowercase) {
++        if (TextUtils.isEmpty(input)) {
++            return StringNormalizer.Result.EMPTY;
++        }
++
+         int numCodePoints = Character.codePointCount(input, 0, input.length());
+         IntSequenceBuilder codePoints = new IntSequenceBuilder(numCodePoints);
+         IntSequenceBuilder resultMap = new IntSequenceBuilder(numCodePoints);
+@@ -45,7 +51,7 @@ public class StringNormalizer {
+             String decomposedCharString;
+             // Is it within the basic latin range?
+             // If so, we can skip the expensive call to Normalizer.normalize
+-            if(codepoint < 'z') {
++            if(codepoint <= 'z') {
+                 // Ascii range, no need to normalize!
+                 // Add directly if it's not a dash
+                 // (HYPHEN-MINUS is the only character before 'z' in one of the
+@@ -102,6 +108,7 @@ public class StringNormalizer {
+     }
+ 
+     public static class Result implements Comparable<Result> {
++        public static final Result EMPTY = new Result(0, new int[]{}, new int[]{});
+         private final int originalInputLastCharPosition;
+         public final int[] codePoints;
+         private final int[] mapPositions;

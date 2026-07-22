@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Scaffolding: the harness's aapt2 link only links against android.jar (see other apps'
+     appcompat_shim.xml and README.md), so this theme parents a plain framework theme rather
+     than Theme.MaterialComponents.*. AlarmMgr.kt's real MaterialAlertDialogBuilder usage still
+     compiles fine: that's a Kotlin/Java-level API, independent of this theme's resource chain. -->
+<resources>
+	<style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

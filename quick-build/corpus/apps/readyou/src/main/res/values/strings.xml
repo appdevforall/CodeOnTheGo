@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">ReadYou Ext Corpus</string>
+	<string name="date_at_time">%1$s at %2$s</string>
+	<string name="today">Today</string>
+	<string name="yesterday">Yesterday</string>
+</resources>

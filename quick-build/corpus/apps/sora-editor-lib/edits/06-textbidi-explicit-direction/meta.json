@@ -1,0 +1,12 @@
+{
+	"editClass": "cross-file-api-add",
+	"description": "PR-mined: modeled after the real upstream commit 192c9356991df297a0c02f9d1c85a24e4022aacc 'feat(editor): no longer use enforced LTR base direction in editor' (Rosemoe, 2025-11-10), which moved TextBidi.getDirections off a hardcoded Bidi.DIRECTION_LEFT_TO_RIGHT onto Bidi.DIRECTION_DEFAULT_LEFT_TO_RIGHT. That commit is already baked into our pinned commit (TextBidi.java already uses DIRECTION_DEFAULT_LEFT_TO_RIGHT), so a literal forward-patch of its diff is a no-op. This edit continues the same real spirit ('stop enforcing a single base direction') with the natural next step: an overload that takes an explicit Bidi direction flag, with the existing single-arg method delegating to it.",
+	"files": {
+		"src/main/java/io/github/rosemoe/sora/text/bidi/TextBidi.java": "TextBidi.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 1 },
+		"behavioralMarker": "quick build reloaded TextBidi.getDirections(text, bidiFlags)"
+	}
+}

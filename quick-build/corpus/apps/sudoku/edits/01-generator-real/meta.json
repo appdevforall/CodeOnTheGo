@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "PR-mined: real upstream commit 85895f3 ('[fix] changes foreground service type to special use'). Switches the on-Android-14+ ServiceCompat.startForeground() call from FOREGROUND_SERVICE_TYPE_SHORT_SERVICE to FOREGROUND_SERVICE_TYPE_SPECIAL_USE, matching the manifest's specialUse declaration. behavioralMarker is null: both constants are javac-inlined ints (ServiceInfo.FOREGROUND_SERVICE_TYPE_* are compile-time constants), so neither name survives into the recompiled class bytes -- same class of issue as the README's R-id-churn note, just via an SDK constant instead of an R field.",
+	"files": {
+		"src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java": "GeneratorService.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 3 },
+		"behavioralMarker": null
+	}
+}

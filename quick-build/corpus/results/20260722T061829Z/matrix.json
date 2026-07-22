@@ -1,0 +1,218 @@
+{
+  "generatedAt": "2026-07-22T06:18:29.487593+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-a2-secuso/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": null,
+    "composeRuntimeJar": null,
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "pedometer",
+      "language": "java",
+      "applicationId": "org.secuso.privacyfriendlyactivitytracker",
+      "baseline": {
+        "status": "PASS",
+        "ms": 565.2261659999998,
+        "daemonMs": 561,
+        "classCount": 35,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/StepCountDbHelper.java",
+            "line": 255,
+            "column": 28
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/StepCountPersistenceHelper.java",
+            "line": 194,
+            "column": 35
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingDbHelper.java",
+            "line": 279,
+            "column": 28
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 44,
+            "column": 34
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 57,
+            "column": 28
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 69,
+            "column": 28
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 112,
+            "column": 27
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 126,
+            "column": 27
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 139,
+            "column": 26
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModeDbHelper.java",
+            "line": 315,
+            "column": 28
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 52,
+            "column": 37
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 65,
+            "column": 31
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 108,
+            "column": 27
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 172,
+            "column": 31
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 185,
+            "column": 27
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 198,
+            "column": 26
+          },
+          {
+            "severity": "WARNING",
+            "message": "Some input files use or override a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/Factory.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T061829Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/Factory.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-a11y-and-binder",
+          "editClass": "mixed-add",
+          "description": "PR-mined: real upstream range v3.1.0..v3.1.1 (privacy-friendly-pedometer). Adds accessibility contentDescriptions to the widget's pause/continue/start-training ImageButtons (new a11y_* strings + the AppTheme secusoLogoDrawable wiring, both real, not authored), plus a real code change: AbstractStepDetectorService gains a getmStepDetectorBinder() getter and AccelerometerStepDetectorService starts tracking a static self-reference. 'add' in editClass: new string names (a11y_*) AND two new drawable names (secuso_logo_black/white) both need R regen.",
+          "expectedRoute": "mixed",
+          "opsInvoked": [
+            "reconfigure",
+            "compile",
+            "relink"
+          ],
+          "ms": {
+            "compile": 170.6512090000003,
+            "relink": 92.41616600000002
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendlyactivitytracker/Factory.class",
+            "org/secuso/privacyfriendlyactivitytracker/models/StepCount.class",
+            "org/secuso/privacyfriendlyactivitytracker/persistence/StepCountPersistenceHelper.class",
+            "org/secuso/privacyfriendlyactivitytracker/receivers/MotivationAlertReceiver.class",
+            "org/secuso/privacyfriendlyactivitytracker/receivers/WidgetReceiver.class",
+            "org/secuso/privacyfriendlyactivitytracker/services/AbstractStepDetectorService.class",
+            "org/secuso/privacyfriendlyactivitytracker/services/AccelerometerStepDetectorService.class",
+            "org/secuso/privacyfriendlyactivitytracker/services/MovementSpeedService.class",
+            "org/secuso/privacyfriendlyactivitytracker/utils/AndroidVersionHelper.class",
+            "org/secuso/privacyfriendlyactivitytracker/utils/StepDetectionServiceHelper.class",
+            "org/secuso/privacyfriendlyactivitytracker/utils/UnitHelper.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 11 classes, expected [2, 20]: ['org/secuso/privacyfriendlyactivitytracker/Factory.class', 'org/secuso/privacyfriendlyactivitytracker/models/StepCount.class', 'org/secuso/privacyfriendlyactivitytracker/persistence/StepCountPersistenceHelper.class', 'org/secuso/privacyfriendlyactivitytracker/receivers/MotivationAlertReceiver.class', 'org/secuso/privacyfriendlyactivitytracker/receivers/WidgetReceiver.class', 'org/secuso/privacyfriendlyactivitytracker/services/AbstractStepDetectorService.class', 'org/secuso/privacyfriendlyactivitytracker/services/AccelerometerStepDetectorService.class', 'org/secuso/privacyfriendlyactivitytracker/services/MovementSpeedService.class', 'org/secuso/privacyfriendlyactivitytracker/utils/AndroidVersionHelper.class', 'org/secuso/privacyfriendlyactivitytracker/utils/StepDetectionServiceHelper.class', 'org/secuso/privacyfriendlyactivitytracker/utils/UnitHelper.class']"
+            },
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "reconfigureMs": 928.2443749999998,
+          "daemonMs_compile": 170,
+          "daemonMs_relink": 91,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "35 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [
+    "no --compose-plugin-jar/--compose-runtime-jar: apps with \"compose\": true SKIPPED in this run"
+  ],
+  "summary": {
+    "apps": 1,
+    "edits": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  }
+}

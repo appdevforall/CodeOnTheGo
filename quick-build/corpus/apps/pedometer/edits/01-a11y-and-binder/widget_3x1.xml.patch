@@ -1,0 +1,30 @@
+diff --git a/app/src/main/res/layout/widget_3x1.xml b/app/src/main/res/layout/widget_3x1.xml
+index 2d0c27b..c7fd8e6 100644
+--- a/app/src/main/res/layout/widget_3x1.xml
++++ b/app/src/main/res/layout/widget_3x1.xml
+@@ -65,6 +65,7 @@
+             android:layout_width="wrap_content"
+             android:layout_height="wrap_content"
+             android:background="@color/transparent"
++            android:contentDescription="@string/pause_step_detection"
+             android:src="@android:drawable/ic_media_pause" />
+ 
+         <ImageButton
+@@ -72,6 +73,7 @@
+             android:layout_width="wrap_content"
+             android:layout_height="wrap_content"
+             android:background="@color/transparent"
++            android:contentDescription="@string/continue_step_detection"
+             android:src="@android:drawable/ic_media_play"
+             android:visibility="gone" />
+     </LinearLayout>
+@@ -87,6 +89,7 @@
+             android:layout_width="wrap_content"
+             android:layout_height="wrap_content"
+             android:background="@color/transparent"
++            android:contentDescription="@string/a11y_start_training"
+             android:src="@drawable/ic_plus_white_24dp" />
+     </LinearLayout>
+-</LinearLayout>
+\ No newline at end of file
++</LinearLayout>

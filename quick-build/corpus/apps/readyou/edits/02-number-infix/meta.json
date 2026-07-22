@@ -1,0 +1,12 @@
+{
+	"editClass": "modifier-change",
+	"description": "PR-mined (ReadYouApp/ReadYou#724, \"chore(greader): add null checks in greader service\"): NumberExt.spacerDollar gains the infix modifier -- a real signature-modifier-only edit.",
+	"files": {
+		"src/main/java/me/ash/reader/ui/ext/NumberExt.kt": "NumberExt.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 2 },
+		"behavioralMarker": null
+	}
+}

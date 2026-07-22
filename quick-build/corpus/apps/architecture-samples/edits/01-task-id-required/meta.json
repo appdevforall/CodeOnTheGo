@@ -1,0 +1,12 @@
+{
+	"editClass": "required-param",
+	"description": "PR-mined (android/architecture-samples#924, \"Move Task ID creation out of Task\"): Task.id loses its UUID.randomUUID() default, becoming a required constructor param -- a real, source-incompatible signature tightening.",
+	"files": {
+		"src/main/java/com/example/android/architecture/blueprints/todoapp/data/Task.kt": "Task.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": { "min": 1, "max": 3 },
+		"behavioralMarker": null
+	}
+}

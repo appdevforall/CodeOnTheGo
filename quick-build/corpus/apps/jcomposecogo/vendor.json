@@ -1,0 +1,9 @@
+{
+	"repo": "https://github.com/hasanelfalakiy/JComposeCoGo",
+	"commit": "a81e49f52aa855c248090567e1af3bdf88ef83c2",
+	"license": "GPL-3.0",
+	"note": "Real source, fetched at the pinned commit by harness/fetch_vendored.py into corpus/.cache/ (never checked in). files maps upstream path -> app-relative destination. HAND-AUTHORED edits, not PR- or commit-mined: this is a small (~274 LoC), single-author, on-device-built CoGo project with only 5 commits total, and HomeViewModel.kt has exactly ONE commit in its history (its creation, alongside the bottom-nav feature) -- there is no real prior state to diff against for a forward-replay edit, unlike every other app in this session. Per the overnight brief's own fallback for CoGo-made repos ('mine recent commits instead and say so'), even commits do not help here since there IS no earlier commit for this file. The 3 edits below are authored in the same spirit as the file's own real code (an on-device developer adding a field, a reset action, and a derived property to a StateFlow-backed UI state class) rather than invented from nothing -- disclosed here rather than mislabeled as PR-mined.",
+	"files": {
+		"app/src/main/java/com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.kt": "src/main/java/com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.kt"
+	}
+}
