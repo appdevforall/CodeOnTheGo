@@ -1,0 +1,3906 @@
+{
+  "generatedAt": "2026-07-22T09:26:42.203872+00:00",
+  "config": {
+    "daemonJar": "quickbuild-daemon/build/daemon/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "kotlinStdlib": "quickbuild-daemon/build/daemon/kotlin-stdlib-2.3.0.jar",
+    "classpathExtra": [
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.annotation_annotation-jvm-1.9.1.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.appcompat_appcompat-1.7.1.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.collection_collection-jvm-1.5.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.core_core-1.16.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.drawerlayout_drawerlayout-1.2.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.fragment_fragment-1.8.9.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.legacy_legacy-support-core-utils-1.0.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.lifecycle_lifecycle-common-jvm-2.9.3.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.lifecycle_lifecycle-livedata-core-2.9.3.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.lifecycle_lifecycle-viewmodel-android-2.9.3.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.localbroadcastmanager_localbroadcastmanager-1.0.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.room_room-common-jvm-2.8.4.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.room_room-runtime-2.6.1.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.sqlite_sqlite-2.4.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.sqlite_sqlite-framework-2.4.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.viewpager_viewpager-1.0.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/org.jetbrains.kotlinx_kotlinx-coroutines-core-jvm-1.10.2.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/org.jetbrains.kotlinx_kotlinx-serialization-core-jvm-1.9.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.customview_customview-1.1.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.activity_activity-1.10.1.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/androidx.savedstate_savedstate-1.2.1.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/com.google.android.material_material-1.12.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/com.google.zxing_core-3.5.3.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/com.journeyapps_zxing-android-embedded-4.3.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/com.google.code.gson_gson-2.12.1.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/org.apache.commons_commons-lang3-3.18.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/org.jetbrains_annotations-24.1.0.jar",
+      "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/adfa-4128-quick-build/quick-build/corpus/.cache/classpath-extra/com.github.bumptech.glide_glide-4.16.0.jar"
+    ],
+    "aapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "javac": "flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/lib/d8.jar",
+    "composePluginJar": "/Users/bryanchan/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-compose-compiler-plugin-embeddable/2.3.0/f375396c5723812604a2a3bce1d27d3bd56a16c9/kotlin-compose-compiler-plugin-embeddable-2.3.0.jar",
+    "composeRuntimeJar": "quickbuild-daemon/build/compose-test-runtime/compose-runtime.jar",
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "2048",
+      "language": "mixed",
+      "applicationId": "org.secuso.privacyfriendly2048",
+      "baseline": {
+        "status": "PASS",
+        "ms": 3005.065375,
+        "daemonMs": 2995,
+        "classCount": 47,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "Double(double) in java.lang.Double has been deprecated and marked for removal",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/2048/tree/src/main/java/org/secuso/privacyfriendly2048/activities/StatsActivity.java",
+            "line": 288,
+            "column": 30
+          },
+          {
+            "severity": "WARNING",
+            "message": "Double(double) in java.lang.Double has been deprecated and marked for removal",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/2048/tree/src/main/java/org/secuso/privacyfriendly2048/activities/StatsActivity.java",
+            "line": 305,
+            "column": 30
+          },
+          {
+            "severity": "WARNING",
+            "message": "Some input files use or override a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/2048/tree/src/main/java/org/secuso/privacyfriendly2048/activities/AboutActivity.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/2048/tree/src/main/java/org/secuso/privacyfriendly2048/activities/AboutActivity.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-logo-theming",
+          "editClass": "mixed-add",
+          "description": "PR-mined: real upstream range v1.4.0..v1.4.2 (privacy-friendly-2048), specifically the SettingsActivity super-qualifier cleanup + secusoLogoDrawable theme wiring (commit range collapsed to its net diff; version-bump-only commits in between excluded). Adds a new declare-styleable attr + wires AppTheme's colorScheme item to a NEW drawable resource (secuso_logo_black.xml, secuso_logo_white.xml -- real vendored content, not authored) while also touching a Java class (SettingsActivity's onCreate drops an unneeded super. qualifier). 'add' in editClass because two brand-new drawable resource NAMES are introduced, needing R regen. recompiledClasses upper bound is widened past SettingsActivity(+nested fragment) to 6: adding new drawable IDs shifts other R.* int constants, so any class with an inlined R reference recompiles too -- the README's documented 'R-id churn' caveat, reproduced here on real content rather than synthetic.",
+          "expectedRoute": "mixed",
+          "opsInvoked": [
+            "reconfigure",
+            "compile",
+            "relink"
+          ],
+          "ms": {
+            "compile": 559.6465419999994,
+            "relink": 1524.2569999999987
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendly2048/activities/MainActivity.class",
+            "org/secuso/privacyfriendly2048/activities/SettingsActivity$GeneralPreferenceFragment.class",
+            "org/secuso/privacyfriendly2048/activities/SettingsActivity.class",
+            "org/secuso/privacyfriendly2048/activities/TutorialActivity$MyViewPagerAdapter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 4 classes, expected [1, 6]: ['org/secuso/privacyfriendly2048/activities/MainActivity.class', 'org/secuso/privacyfriendly2048/activities/SettingsActivity$GeneralPreferenceFragment.class', 'org/secuso/privacyfriendly2048/activities/SettingsActivity.class', 'org/secuso/privacyfriendly2048/activities/TutorialActivity$MyViewPagerAdapter.class']"
+            },
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "reconfigureMs": 2695.6420000000003,
+          "daemonMs_compile": 557,
+          "daemonMs_relink": 1522,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-resource-value",
+          "editClass": "string-value",
+          "description": "Authored (not PR-mined): real post-pin upstream history for 2048 is thin (only a versionCode-only commit after v1.4.2, already used as edit 01's source range). Clarifies the 'undo' button label from 'Undo' to 'Undo Last Move'. No new string names, resources-only relink.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 1529.9717919999996
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 1529,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-method-body",
+          "editClass": "method-body",
+          "description": "Authored (not PR-mined; see edit 02's note on thin post-pin history). FirstLaunchManager.initFirstTimeLaunch() actually clears the first-time-launch flag now (the real upstream method body is an empty if-block, a genuine dead-code spot in the real app -- this edit fills it in with the plausible fix plus a marker).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 268.6639579999994
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendly2048/helpers/FirstLaunchManager.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['org/secuso/privacyfriendly2048/helpers/FirstLaunchManager.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_2048_INIT_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 268,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "47 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "antennapod-model",
+      "language": "java",
+      "applicationId": "de.danoeh.antennapod",
+      "baseline": {
+        "status": "PASS",
+        "ms": 59.936665999998695,
+        "daemonMs": 59,
+        "classCount": 4,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/antennapod-model/tree/src/main/java/de/danoeh/antennapod/model/feed/FeedFunding.java uses or overrides a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/antennapod-model/tree/src/main/java/de/danoeh/antennapod/model/feed/FeedFunding.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/antennapod-model/tree/src/main/java/de/danoeh/antennapod/model/feed/FeedFunding.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-mediatype-remove-extension-guessing",
+          "editClass": "code-removal",
+          "description": "PR-mined (AntennaPod/AntennaPod, \"Move mime type guessing out of MediaType enum\", d4d506345): removes MediaType.fromFileExtension() and its two extension-set constants -- a real code-shrink edit.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 61.87804199999647
+          },
+          "recompiledClasses": [
+            "de/danoeh/antennapod/model/playback/MediaType.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['de/danoeh/antennapod/model/playback/MediaType.class']"
+            }
+          ],
+          "daemonMs_compile": 62,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-feeditemfilter-serializable",
+          "editClass": "interface-add",
+          "description": "PR-mined (AntennaPod/AntennaPod, \"Update filter dialog to Fragment\", 0b431a331): FeedItemFilter starts implementing Serializable so it survives a Fragment argument bundle -- a real one-line interface addition.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 36.96129200000087
+          },
+          "recompiledClasses": [
+            "de/danoeh/antennapod/model/feed/FeedItemFilter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['de/danoeh/antennapod/model/feed/FeedItemFilter.class']"
+            }
+          ],
+          "daemonMs_compile": 37,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-feedfunding-serializable",
+          "editClass": "interface-add",
+          "description": "PR-mined (AntennaPod/AntennaPod#8542, \"Fix crash when leaving while delete dialog is open\", merged 2026-06-23 -- a genuinely recent production crash fix reported through Google Play): FeedFunding starts implementing Serializable so a Feed carrying funding info survives Activity instance-state restore.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 35.61375000000311
+          },
+          "recompiledClasses": [
+            "de/danoeh/antennapod/model/feed/FeedFunding.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['de/danoeh/antennapod/model/feed/FeedFunding.class']"
+            }
+          ],
+          "daemonMs_compile": 35,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "4 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "architecture-samples",
+      "language": "kotlin",
+      "applicationId": "com.example.android.architecture.blueprints.todoapp",
+      "baseline": {
+        "status": "PASS",
+        "ms": 1458.124999999999,
+        "daemonMs": 1455,
+        "classCount": 16,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-task-id-required",
+          "editClass": "required-param",
+          "description": "PR-mined (android/architecture-samples#924, \"Move Task ID creation out of Task\"): Task.id loses its UUID.randomUUID() default, becoming a required constructor param -- a real, source-incompatible signature tightening.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 645.0642500000008
+          },
+          "recompiledClasses": [
+            "com/example/android/architecture/blueprints/todoapp/data/Task.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['com/example/android/architecture/blueprints/todoapp/data/Task.class']"
+            }
+          ],
+          "daemonMs_compile": 645,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-create-task-returns-id",
+          "editClass": "return-type-change",
+          "description": "PR-mined (android/architecture-samples#928, \"Change createTest to return task ID\"): TaskRepository.createTask's return type changes from Task to String -- a real interface-contract edit with no implementer in this subgraph.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 98.69954099999845
+          },
+          "recompiledClasses": [
+            "com/example/android/architecture/blueprints/todoapp/data/TaskRepository.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['com/example/android/architecture/blueprints/todoapp/data/TaskRepository.class']"
+            }
+          ],
+          "daemonMs_compile": 98,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-refresh-rename",
+          "editClass": "method-rename",
+          "description": "PR-mined (android/architecture-samples#926, \"Add application scope for fire-and-forget jobs\"): TaskRepository.refreshTasks() is renamed to refresh() -- a real method rename on the same interface edit 02 touched, applied cumulatively.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 107.00570799999909
+          },
+          "recompiledClasses": [
+            "com/example/android/architecture/blueprints/todoapp/data/TaskRepository.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['com/example/android/architecture/blueprints/todoapp/data/TaskRepository.class']"
+            }
+          ],
+          "daemonMs_compile": 107,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "16 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "assets-app",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.assetsapp",
+      "baseline": {
+        "status": "PASS",
+        "ms": 772.3127920000011,
+        "daemonMs": 771,
+        "classCount": 3,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-asset-only",
+          "editClass": "asset-only",
+          "description": "Change data/message.txt only; no code or resources touched.",
+          "expectedRoute": "assets",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "assets-pass: no daemon op required"
+            }
+          ],
+          "status": "PASS"
+        },
+        {
+          "edit": "02-method-body",
+          "editClass": "method-body",
+          "description": "Change AssetReader.readMessage's formatting prefix; signature unchanged.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 126.36399999999881
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/assetsapp/AssetReader.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/assetsapp/AssetReader.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Reloaded reader formats it now:' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 126,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-asset-plus-code",
+          "editClass": "asset-plus-code",
+          "description": "Change AssetReader.kt's method body AND data/message.txt in the same save. Per ChangeClassifier, a code+asset changeset (no resources) still routes as CodeOnly -- code recompiles subsume the asset copy in the deploy payload.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 101.22270800000166
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/assetsapp/AssetReader.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/assetsapp/AssetReader.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Combined edit landed:' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 101,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "3 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "compose-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.composekotlin",
+      "baseline": {
+        "status": "PASS",
+        "ms": 824.4502920000016,
+        "daemonMs": 817,
+        "classCount": 5,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-composable-body",
+          "editClass": "composable-body",
+          "description": "Change the string literal inside the GreetingLine composable; signatures unchanged. Exercises the Compose-transformed compile path end to end.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 326.6221250000001
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/composekotlin/ComposablesKt.class",
+            "org/appdevforall/cotg/corpus/composekotlin/GreetingLog.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 3]: ['org/appdevforall/cotg/corpus/composekotlin/ComposablesKt.class', 'org/appdevforall/cotg/corpus/composekotlin/GreetingLog.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'The quick build reloaded this composable.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 326,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-add-composable",
+          "editClass": "add-composable",
+          "description": "Add a new TapSummary composable and call it from GreetingScreen. A new restartable function group must compile and land in the same payload.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 318.10237500000227
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/composekotlin/ComposablesKt.class",
+            "org/appdevforall/cotg/corpus/composekotlin/GreetingLog.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 3]: ['org/appdevforall/cotg/corpus/composekotlin/ComposablesKt.class', 'org/appdevforall/cotg/corpus/composekotlin/GreetingLog.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'A freshly added composable compiled into the payload.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 318,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "5 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "fanout-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.fanout",
+      "baseline": {
+        "status": "PASS",
+        "ms": 904.1621250000062,
+        "daemonMs": 902,
+        "classCount": 34,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-const-change",
+          "editClass": "const-change",
+          "description": "Change Constants.APP_LABEL's value. Because it's a const val, all 20 files under screens/ that reference Constants.APP_LABEL inline the new literal at compile time and must be recompiled \u2014 this is the fan-out case the star-topology synthetic generator missed.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 463.74899999999997
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/fanout/core/Constants.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/AboutScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/CartScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/CheckoutScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/FavoritesScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/FeedbackScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/HelpScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/HomeScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/LoginScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/LogoutScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/MessagesScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/NotificationsScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/OnboardingScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/OrdersScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/ProfileScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/ReferralScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/RewardsScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/SearchScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/SettingsScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/SignupScreenLabel.class",
+            "org/appdevforall/cotg/corpus/fanout/screens/WalletScreenLabel.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 21 classes, expected [15, 36]: ['org/appdevforall/cotg/corpus/fanout/core/Constants.class', 'org/appdevforall/cotg/corpus/fanout/screens/AboutScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/CartScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/CheckoutScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/FavoritesScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/FeedbackScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/HelpScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/HomeScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/LoginScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/LogoutScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/MessagesScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/NotificationsScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/OnboardingScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/OrdersScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/ProfileScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/ReferralScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/RewardsScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/SearchScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/SettingsScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/SignupScreenLabel.class', 'org/appdevforall/cotg/corpus/fanout/screens/WalletScreenLabel.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Fanout Demo Rev2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 463,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-inline-body",
+          "editClass": "inline-body",
+          "description": "Change the inline fmt() function's body. Because it's inline, all 10 files under formatters/ that call fmt() inline the new body at compile time and must be recompiled.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 320.12870900000223
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/fanout/core/FormattingKt.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/CartTotalFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/FavoritesCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/MessageCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/NotificationCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/OrderCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/ReferralCountFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/RewardsPointsFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/SearchResultsFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/SessionDurationFormatter.class",
+            "org/appdevforall/cotg/corpus/fanout/formatters/WalletBalanceFormatter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 11 classes, expected [8, 36]: ['org/appdevforall/cotg/corpus/fanout/core/FormattingKt.class', 'org/appdevforall/cotg/corpus/fanout/formatters/CartTotalFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/FavoritesCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/MessageCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/NotificationCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/OrderCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/ReferralCountFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/RewardsPointsFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/SearchResultsFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/SessionDurationFormatter.class', 'org/appdevforall/cotg/corpus/fanout/formatters/WalletBalanceFormatter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_FMT_V2::' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 320,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-leaf-method-body",
+          "editClass": "leaf-method-body",
+          "description": "Change LeafUtility.tag()'s body. LeafUtility is not part of the const/inline fan-out set and has no callers, so this should recompile only itself.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 157.4697080000007
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/fanout/core/LeafUtility.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/fanout/core/LeafUtility.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'leaf-v2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 157,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "34 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "findroid",
+      "language": "kotlin",
+      "applicationId": "dev.jdtech.jellyfin",
+      "baseline": {
+        "status": "PASS",
+        "ms": 840.8865829999996,
+        "daemonMs": 840,
+        "classCount": 11,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-addserveraction-format",
+          "editClass": "noop-format",
+          "description": "Commit-mined (jarnedemeulemeester/findroid, \"chore: replace ktlint with ktfmt\", 8102dbc, 2025-12-25): a real repo-wide ktfmt reformat -- here a single inserted blank line, whitespace-only, no semantic change. Mined from commits, not a PR, per README's fallback for a repo whose real behavioral edits to this specific file sit further back than this session's fetch window reached (see vendor.json).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 183.65987499999648
+          },
+          "recompiledClasses": [
+            "dev/jdtech/jellyfin/setup/presentation/addserver/AddServerAction$OnBackClick.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [0, 3]: ['dev/jdtech/jellyfin/setup/presentation/addserver/AddServerAction$OnBackClick.class']"
+            }
+          ],
+          "daemonMs_compile": 184,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-serveraddressesstate-format",
+          "editClass": "noop-format",
+          "description": "Commit-mined (jarnedemeulemeester/findroid, \"chore: replace ktlint with ktfmt\", 8102dbc, 2025-12-25): the same real reformat commit collapses ServerAddressesState's constructor onto one line -- whitespace-only, no semantic change.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 210.2527499999951
+          },
+          "recompiledClasses": [
+            "dev/jdtech/jellyfin/setup/presentation/addresses/ServerAddressesState.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [0, 2]: ['dev/jdtech/jellyfin/setup/presentation/addresses/ServerAddressesState.class']"
+            }
+          ],
+          "daemonMs_compile": 210,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-server-format",
+          "editClass": "noop-format",
+          "description": "Commit-mined (jarnedemeulemeester/findroid, \"chore: replace ktlint with ktfmt\", 8102dbc, 2025-12-25): the same real reformat commit collapses Server's @PrimaryKey annotation onto its property's line -- whitespace-only, no semantic change.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 215.62033400000047
+          },
+          "recompiledClasses": [
+            "dev/jdtech/jellyfin/models/Server.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [0, 2]: ['dev/jdtech/jellyfin/models/Server.class']"
+            }
+          ],
+          "daemonMs_compile": 215,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "11 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "hello-java",
+      "language": "java",
+      "applicationId": "org.appdevforall.cotg.corpus.hellojava",
+      "baseline": {
+        "status": "PASS",
+        "ms": 189.5534579999989,
+        "daemonMs": 188,
+        "classCount": 3,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change Greeter.greet's returned string literal; signature unchanged.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 79.02333300000208
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellojava/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/hellojava/Greeter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'The quick build reloaded this method.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 79,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-new-method",
+          "editClass": "new-method",
+          "description": "Add Greeter.farewell(String) and call it from MainActivity, rendering a second TextView.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 60.51624999999916
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellojava/Greeter.class",
+            "org/appdevforall/cotg/corpus/hellojava/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 3]: ['org/appdevforall/cotg/corpus/hellojava/Greeter.class', 'org/appdevforall/cotg/corpus/hellojava/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'This new method was added by a live edit.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 60,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the greeting_name string value in strings.xml; no code touched.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 110.38745799999816
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 110,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-asset",
+          "editClass": "asset",
+          "description": "Change the bundled data/note.txt asset; no code or resources touched.",
+          "expectedRoute": "assets",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "assets-pass: no daemon op required"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "3 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "hello-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.hellokotlin",
+      "baseline": {
+        "status": "PASS",
+        "ms": 544.2734579999992,
+        "daemonMs": 544,
+        "classCount": 5,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change Greeter.greet's returned string literal; signature unchanged.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 90.08120900000449
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellokotlin/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/hellokotlin/Greeter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'The quick build reloaded this method.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 89,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the greeting_name string value in strings.xml; no code touched.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 94.76662499999833
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 94,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-noop",
+          "editClass": "noop",
+          "description": "Whitespace-only change to Greeter.kt (added a blank line); no semantic change.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 95.61362499999859
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellokotlin/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [0, 1]: ['org/appdevforall/cotg/corpus/hellokotlin/Greeter.class']"
+            }
+          ],
+          "daemonMs_compile": 95,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-mixed",
+          "editClass": "mixed",
+          "description": "Change Greeter.kt's method body AND strings.xml's greeting_name in the same save.",
+          "expectedRoute": "mixed",
+          "opsInvoked": [
+            "compile",
+            "relink"
+          ],
+          "ms": {
+            "compile": 93.39762500000148,
+            "relink": 112.30670900000206
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellokotlin/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/hellokotlin/Greeter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Mixed save landed:' found in recompiled class bytes"
+            },
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_compile": 93,
+          "daemonMs_relink": 112,
+          "status": "PASS"
+        },
+        {
+          "edit": "05-manifest",
+          "editClass": "manifest",
+          "description": "Add a <meta-data> entry to the application manifest; baseline invalidated.",
+          "expectedRoute": "fallback",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "fallback recorded: no daemon op invoked (full Gradle build expected)"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "5 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "jcomposecogo",
+      "language": "kotlin",
+      "applicationId": "com.andihasan.jcomposecogo",
+      "baseline": {
+        "status": "PASS",
+        "ms": 970.2513749999966,
+        "daemonMs": 953,
+        "classCount": 4,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-uistate-field-add",
+          "editClass": "field-add",
+          "description": "Hand-authored (see vendor.json for why -- no prior commit exists to mine): adds isLoading: Boolean to HomeUiState, the shape of edit a real developer extending this StateFlow-backed UI state would make. Adding a field to a data class changes its ABI (copy/equals/hashCode/toString), which correctly ripples to JComposeCoGoHostActivity -- the harness's own consumer that constructs HomeUiState() directly -- so 3 classes recompile (HomeViewModel + HomeUiState from the edited file, plus the ABI-dependent HostActivity), not 1-2.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1381.8924589999995
+          },
+          "recompiledClasses": [
+            "com/andihasan/jcomposecogo/corpusharness/JComposeCoGoHostActivity.class",
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class",
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 3 classes, expected [1, 3]: ['com/andihasan/jcomposecogo/corpusharness/JComposeCoGoHostActivity.class', 'com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class', 'com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class']"
+            }
+          ],
+          "daemonMs_compile": 1378,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-reset-method",
+          "editClass": "method-add",
+          "description": "Hand-authored (see vendor.json): adds a reset() method to HomeViewModel that restores HomeUiState() defaults, applied cumulatively on edit01.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 526.0406670000037
+          },
+          "recompiledClasses": [
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class",
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 2]: ['com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class', 'com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class']"
+            }
+          ],
+          "daemonMs_compile": 525,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-derived-property",
+          "editClass": "property-add",
+          "description": "Hand-authored (see vendor.json): adds a derived isEmpty property to HomeUiState, applied cumulatively on edits 01-02.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 406.7080839999875
+          },
+          "recompiledClasses": [
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class",
+            "com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 2]: ['com/andihasan/jcomposecogo/ui/screen/home/HomeUiState.class', 'com/andihasan/jcomposecogo/ui/screen/home/HomeViewModel.class']"
+            }
+          ],
+          "daemonMs_compile": 404,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "4 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "kiss",
+      "language": "java",
+      "applicationId": "fr.neamar.kiss",
+      "baseline": {
+        "status": "PASS",
+        "ms": 161.40320800001007,
+        "daemonMs": 159,
+        "classCount": 5,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-ascii-z-fix",
+          "editClass": "boundary-fix",
+          "description": "PR-mined (Neamar/KISS, \"ASCII also includes z!\", d71c69a3, 2020): fixes an off-by-one boundary check (codepoint < 'z' -> <= 'z') -- a real, tiny, self-contained boundary bug.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 75.91954200000828
+          },
+          "recompiledClasses": [
+            "fr/neamar/kiss/normalizer/StringNormalizer.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['fr/neamar/kiss/normalizer/StringNormalizer.class']"
+            }
+          ],
+          "daemonMs_compile": 75,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-empty-result",
+          "editClass": "method-add",
+          "description": "PR-mined (Neamar/KISS, \"static StringNormalizer.Result\", 71ad3234, 2025-10-20): adds a static Result.EMPTY constant and an early-return for empty/null input in normalizeWithResult -- a real recent perf/null-safety improvement, applied cumulatively on edit01.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 89.51912499999537
+          },
+          "recompiledClasses": [
+            "fr/neamar/kiss/normalizer/StringNormalizer$Result.class",
+            "fr/neamar/kiss/normalizer/StringNormalizer.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 3]: ['fr/neamar/kiss/normalizer/StringNormalizer$Result.class', 'fr/neamar/kiss/normalizer/StringNormalizer.class']"
+            }
+          ],
+          "daemonMs_compile": 88,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-nonnull-tostring",
+          "editClass": "annotation-add",
+          "description": "PR-mined (Neamar/KISS, \"cleanup\", 49e0e555, 2026-04-05 -- genuinely recent, ~3 months before this corpus run): adds @NonNull to Result.toString(), applied cumulatively on edits 01-02.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 54.23654200001238
+          },
+          "recompiledClasses": [
+            "fr/neamar/kiss/normalizer/StringNormalizer$Result.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['fr/neamar/kiss/normalizer/StringNormalizer$Result.class']"
+            }
+          ],
+          "daemonMs_compile": 54,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-clipboard-label",
+          "editClass": "overload-add",
+          "description": "PR-mined (Neamar/KISS, \"allow copying of debug info to clipboard\", 03de9b99, 2025-09-15): adds a 3-arg setClipboard(context, label, text) overload, the 2-arg form delegating to it -- a real API-widening edit.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 71.94574999999759
+          },
+          "recompiledClasses": [
+            "fr/neamar/kiss/utils/ClipboardUtils.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['fr/neamar/kiss/utils/ClipboardUtils.class']"
+            }
+          ],
+          "daemonMs_compile": 72,
+          "status": "PASS"
+        },
+        {
+          "edit": "05-clipboard-contextcompat",
+          "editClass": "api-migration",
+          "description": "PR-mined (Neamar/KISS, \"use `ContextCompat` where possible\", 92c6b885, 2026-01-13): replaces the manual SDK-version branch for fetching ClipboardManager with ContextCompat.getSystemService -- a real, genuinely recent API-migration edit, applied cumulatively on edit04.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 59.06670799998892
+          },
+          "recompiledClasses": [
+            "fr/neamar/kiss/utils/ClipboardUtils.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['fr/neamar/kiss/utils/ClipboardUtils.class']"
+            }
+          ],
+          "daemonMs_compile": 59,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "5 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "medium-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.medium",
+      "baseline": {
+        "status": "PASS",
+        "ms": 1595.8044999999997,
+        "daemonMs": 1594,
+        "classCount": 28,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change NumberFormatter.format()'s body. NumberFormatter is a leaf class \u2014 no other file depends on its internals \u2014 so this should recompile only itself (and possibly its one caller, MainActivity).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 124.8417089999947
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/medium/formatters/NumberFormatter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/medium/formatters/NumberFormatter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_MARKER_STEP1' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 125,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-signature-change",
+          "editClass": "signature-change",
+          "description": "Change Calculator.compute()'s return type from Int to String. Cascades to all 3 implementors (AdditionCalculator, SubtractionCalculator, MultiplicationCalculator) and both call sites (OrderProcessor, ReportGenerator), which must adapt to the new return type.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 328.1359580000043
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/medium/core/Calculator.class",
+            "org/appdevforall/cotg/corpus/medium/data/OrderProcessor.class",
+            "org/appdevforall/cotg/corpus/medium/data/ReportGenerator.class",
+            "org/appdevforall/cotg/corpus/medium/formatters/AdditionCalculator.class",
+            "org/appdevforall/cotg/corpus/medium/formatters/MultiplicationCalculator.class",
+            "org/appdevforall/cotg/corpus/medium/formatters/SubtractionCalculator.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 6 classes, expected [5, 12]: ['org/appdevforall/cotg/corpus/medium/core/Calculator.class', 'org/appdevforall/cotg/corpus/medium/data/OrderProcessor.class', 'org/appdevforall/cotg/corpus/medium/data/ReportGenerator.class', 'org/appdevforall/cotg/corpus/medium/formatters/AdditionCalculator.class', 'org/appdevforall/cotg/corpus/medium/formatters/MultiplicationCalculator.class', 'org/appdevforall/cotg/corpus/medium/formatters/SubtractionCalculator.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_MARKER_STEP2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 327,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-new-class",
+          "editClass": "new-class",
+          "description": "Add CurrencyFormatter (new leaf class) and use it from DetailsActivity to render each product's price alongside its label.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 452.6011669999974
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/medium/formatters/CurrencyFormatter.class",
+            "org/appdevforall/cotg/corpus/medium/ui/DetailsActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 4]: ['org/appdevforall/cotg/corpus/medium/formatters/CurrencyFormatter.class', 'org/appdevforall/cotg/corpus/medium/ui/DetailsActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_MARKER_STEP3' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 452,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the status_ready string resource's value. No code changes \u2014 aapt2 relink only, cached dex reused.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 111.96712500000672
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 111,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "29 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "mixed-lang",
+      "language": "mixed",
+      "applicationId": "org.appdevforall.cotg.corpus.mixedlang",
+      "baseline": {
+        "status": "PASS",
+        "ms": 950.0372079999977,
+        "daemonMs": 949,
+        "classCount": 5,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change KotlinFormatter.formatLabel()'s body. Pure Kotlin edit (no .java file touched) - sanity check that the plain Kotlin-only incremental path still recompiles just the leaf, not the whole module, inside a mixed-language app.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 109.37654100000316
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/mixedlang/core/KotlinFormatter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['org/appdevforall/cotg/corpus/mixedlang/core/KotlinFormatter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_FORMAT_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 109,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-java-signature-change",
+          "editClass": "java-signature-change",
+          "description": "JavaCalculator.computeTotal() widens its return type from int to long. Only the .java file is touched - OrderService.kt (one hop) and MainActivity.kt (two hops) both call it transitively without any signature declared in their own source, so this is D2's 'a Java signature change forces Kotlin recompile' case, and the bound is tight enough to fail if either Kotlin dependent is left stale.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 287.60216699998864
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/mixedlang/core/JavaCalculator.class",
+            "org/appdevforall/cotg/corpus/mixedlang/core/OrderService.class",
+            "org/appdevforall/cotg/corpus/mixedlang/ui/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 3 classes, expected [3, 4]: ['org/appdevforall/cotg/corpus/mixedlang/core/JavaCalculator.class', 'org/appdevforall/cotg/corpus/mixedlang/core/OrderService.class', 'org/appdevforall/cotg/corpus/mixedlang/ui/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_JAVA_SIG_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 287,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-kotlin-signature-change",
+          "editClass": "kotlin-signature-change",
+          "description": "KotlinFormatter.formatLabel() gains a required suffix parameter. Java has no default-parameter sugar, so its one caller, JavaPresenter.java, must be edited in the same changeset to pass the new argument - D2's 'a Kotlin change forces Java recompile' case.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 120.60029199999178
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/mixedlang/core/JavaPresenter.class",
+            "org/appdevforall/cotg/corpus/mixedlang/core/KotlinFormatter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 3]: ['org/appdevforall/cotg/corpus/mixedlang/core/JavaPresenter.class', 'org/appdevforall/cotg/corpus/mixedlang/core/KotlinFormatter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_KOTLIN_SIG_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 121,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the order_total_label string resource's value. No code changes - aapt2 relink only, cached dex reused.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 94.48258300000134
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 94,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "5 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "mixed-lang-cyclic",
+      "language": "mixed",
+      "applicationId": "org.appdevforall.cotg.corpus.mixedcyclic",
+      "baseline": {
+        "status": "PASS",
+        "ms": 480.37887499999954,
+        "daemonMs": 480,
+        "classCount": 5,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-kotlin-method-body",
+          "editClass": "method-body",
+          "description": "Change TreeNode.summary()'s body. Pure Kotlin edit inside a module that has a real Kotlin<->Java cycle - sanity check that the presence of the cycle does not push a single-language edit off the incremental fast path.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 163.60537500000305
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/mixedcyclic/core/TreeNode.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/mixedcyclic/core/TreeNode.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_CYCLIC_K_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 163,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-java-method-body",
+          "editClass": "java-method-body",
+          "description": "Change NodeRenderer.render()'s body, on the Java side of the cycle. No signature moves, so no Kotlin class' bytecode may change - the bound catches a regression where the Java pass' conservative full-Kotlin-recompile starts emitting different Kotlin bytecode.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 42.166500000007545
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/mixedcyclic/core/NodeRenderer.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['org/appdevforall/cotg/corpus/mixedcyclic/core/NodeRenderer.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_CYCLIC_J_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 41,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-java-signature-change",
+          "editClass": "java-signature-change",
+          "description": "NodeRenderer.render() widens its return type from String to CharSequence. Only the .java file is touched, but TreeNode.describe() infers its return type from that call, so TreeNode's own ABI changes and every caller of describe() (MainActivity) plus the Java override (JavaLeafNode, which now needs a covariant bridge) must be recompiled. If the Kotlin side were left stale it would still call render()Ljava/lang/String; - a NoSuchMethodError at run time - so this edit is the never-stale check for the Java->Kotlin direction of the cycle.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 374.64495900000827
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/mixedcyclic/core/JavaLeafNode.class",
+            "org/appdevforall/cotg/corpus/mixedcyclic/core/NodeRenderer.class",
+            "org/appdevforall/cotg/corpus/mixedcyclic/core/TreeNode.class",
+            "org/appdevforall/cotg/corpus/mixedcyclic/ui/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 4 classes, expected [4, 5]: ['org/appdevforall/cotg/corpus/mixedcyclic/core/JavaLeafNode.class', 'org/appdevforall/cotg/corpus/mixedcyclic/core/NodeRenderer.class', 'org/appdevforall/cotg/corpus/mixedcyclic/core/TreeNode.class', 'org/appdevforall/cotg/corpus/mixedcyclic/ui/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_CYCLIC_JSIG_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 374,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-kotlin-signature-change",
+          "editClass": "kotlin-signature-change",
+          "description": "TreeNode gains a required depth constructor parameter. Java has no default-parameter sugar, so the Java subclass (JavaLeafNode, whose super call and describe() body both change) must move in the same changeset, as must the Kotlin caller MainActivity - the mirror of edit 03, driving the change Kotlin->Java across the cycle.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 267.20920899998646
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/mixedcyclic/core/JavaLeafNode.class",
+            "org/appdevforall/cotg/corpus/mixedcyclic/core/TreeNode$Companion.class",
+            "org/appdevforall/cotg/corpus/mixedcyclic/core/TreeNode.class",
+            "org/appdevforall/cotg/corpus/mixedcyclic/ui/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 4 classes, expected [4, 6]: ['org/appdevforall/cotg/corpus/mixedcyclic/core/JavaLeafNode.class', 'org/appdevforall/cotg/corpus/mixedcyclic/core/TreeNode$Companion.class', 'org/appdevforall/cotg/corpus/mixedcyclic/core/TreeNode.class', 'org/appdevforall/cotg/corpus/mixedcyclic/ui/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_CYCLIC_KSIG_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 267,
+          "status": "PASS"
+        },
+        {
+          "edit": "05-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the tree_label string resource's value. No code changes - aapt2 relink only, so the cycle is irrelevant to this route; included so the app covers the resources path too.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 108.2693749999919
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 108,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "5 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "multi-activity-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.multiactivity",
+      "baseline": {
+        "status": "PASS",
+        "ms": 629.8979160000044,
+        "daemonMs": 629,
+        "classCount": 9,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change ResultCodeFormatter.describe()'s OK branch. Leaf class - MainActivity calls it but the call signature doesn't change, so this should recompile only itself (and possibly its one caller, MainActivity).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 218.95474999999465
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/multiactivity/core/ResultCodeFormatter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/multiactivity/core/ResultCodeFormatter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'OK_QB_RESULT_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 217,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-main-activity-body",
+          "editClass": "method-body",
+          "description": "Change MainActivity.onActivityResult()'s no-data fallback string. Exercises the startActivityForResult path directly on the entry activity.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 474.70933300000695
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/multiactivity/ui/MainActivity$Companion.class",
+            "org/appdevforall/cotg/corpus/multiactivity/ui/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/multiactivity/ui/MainActivity$Companion.class', 'org/appdevforall/cotg/corpus/multiactivity/ui/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_NO_DATA_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 473,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-list-activity-body",
+          "editClass": "method-body",
+          "description": "Append a marker suffix to each rendered row in ListActivity. Direct edit to the list activity itself.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 556.023874999994
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/multiactivity/ui/ListActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/multiactivity/ui/ListActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_LIST_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 555,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-signature-change",
+          "editClass": "signature-change",
+          "description": "ItemRepository.findById() drops its nullable return in favor of a sentinel item. Both callers - DetailActivity (startActivityForResult target) and DeepLinkActivity (the VIEW deep-link target) - drop their null-check and must recompile against the new signature.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1194.1801659999953
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/multiactivity/data/Item.class",
+            "org/appdevforall/cotg/corpus/multiactivity/data/ItemRepository$Companion.class",
+            "org/appdevforall/cotg/corpus/multiactivity/data/ItemRepository.class",
+            "org/appdevforall/cotg/corpus/multiactivity/ui/DeepLinkActivity.class",
+            "org/appdevforall/cotg/corpus/multiactivity/ui/DetailActivity$Companion.class",
+            "org/appdevforall/cotg/corpus/multiactivity/ui/DetailActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 6 classes, expected [5, 6]: ['org/appdevforall/cotg/corpus/multiactivity/data/Item.class', 'org/appdevforall/cotg/corpus/multiactivity/data/ItemRepository$Companion.class', 'org/appdevforall/cotg/corpus/multiactivity/data/ItemRepository.class', 'org/appdevforall/cotg/corpus/multiactivity/ui/DeepLinkActivity.class', 'org/appdevforall/cotg/corpus/multiactivity/ui/DetailActivity$Companion.class', 'org/appdevforall/cotg/corpus/multiactivity/ui/DetailActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_LOOKUP_FALLBACK_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1188,
+          "status": "PASS"
+        },
+        {
+          "edit": "05-new-class",
+          "editClass": "new-class",
+          "description": "Add ResultBadgeFormatter (new leaf class) and use it from DetailActivity to render a badge alongside the looked-up item's label.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 565.1934999999924
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/multiactivity/core/ResultBadgeFormatter.class",
+            "org/appdevforall/cotg/corpus/multiactivity/ui/DetailActivity$Companion.class",
+            "org/appdevforall/cotg/corpus/multiactivity/ui/DetailActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 3 classes, expected [3, 4]: ['org/appdevforall/cotg/corpus/multiactivity/core/ResultBadgeFormatter.class', 'org/appdevforall/cotg/corpus/multiactivity/ui/DetailActivity$Companion.class', 'org/appdevforall/cotg/corpus/multiactivity/ui/DetailActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_BADGE_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 564,
+          "status": "PASS"
+        },
+        {
+          "edit": "06-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the main_title_label string resource's value. No code changes - aapt2 relink only, cached dex reused.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 132.3487080000092
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 131,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "11 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "native-app",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.nativeapp",
+      "baseline": {
+        "status": "PASS",
+        "ms": 408.24770799999044,
+        "daemonMs": 408,
+        "classCount": 4,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change LabelFormatter.label()'s body. A plain Kotlin edit in an app that also bundles a native .so - proves a Kotlin-only save still hot-compiles normally in a native-carrying app (D7's 'a Kotlin edit in the same app still hot-compiles').",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 80.91554199999962
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/nativeapp/core/LabelFormatter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/nativeapp/core/LabelFormatter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_NATIVE_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 81,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-native-lib-change",
+          "editClass": "native-lib-change",
+          "description": "Replace the bundled arm64-v8a libnativestub.so with a rebuilt binary. ChangeClassifier has no packaging story for a changed native library - it's an UNSUPPORTED_FILE_CHANGED fallback (see ChangeClassifierTest's 'native library under jniLibs falls back honestly'), so this must route to a full Gradle rebaseline rather than be served as a quick build (D7's '.so change routes to REBASELINE').",
+          "expectedRoute": "fallback",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "fallback recorded: no daemon op invoked (full Gradle build expected)"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "4 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "notes",
+      "language": "kotlin",
+      "applicationId": "org.secuso.privacyfriendlynotes",
+      "baseline": {
+        "status": "PASS",
+        "ms": 1793.232125000003,
+        "daemonMs": 1792,
+        "classCount": 37,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java uses or overrides a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java uses unchecked or unsafe operations.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:unchecked for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/notes/tree/src/main/java/org/secuso/privacyfriendlynotes/room/NoteDatabase.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-notedb-trigger-real",
+          "editClass": "method-body",
+          "description": "PR-mined: real upstream commit a580bcd ('[fix] adds trigger creation in room callback') against the pinned commit 0a925ce. Adds a second SQL trigger (UpdateTrashTime) to the Room onCreate callback and makes the existing InsertCustomOrder trigger idempotent (IF NOT EXISTS).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1269.3444579999918
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendlynotes/room/NoteDatabase$10.class",
+            "org/secuso/privacyfriendlynotes/room/NoteDatabase.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 4]: ['org/secuso/privacyfriendlynotes/room/NoteDatabase$10.class', 'org/secuso/privacyfriendlynotes/room/NoteDatabase.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'UpdateTrashTime' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1268,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "37 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "pedometer",
+      "language": "java",
+      "applicationId": "org.secuso.privacyfriendlyactivitytracker",
+      "baseline": {
+        "status": "PASS",
+        "ms": 344.98679200000026,
+        "daemonMs": 344,
+        "classCount": 35,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/StepCountDbHelper.java",
+            "line": 255,
+            "column": 28
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/StepCountPersistenceHelper.java",
+            "line": 194,
+            "column": 35
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingDbHelper.java",
+            "line": 279,
+            "column": 28
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 44,
+            "column": 34
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 57,
+            "column": 28
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 69,
+            "column": 28
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 112,
+            "column": 27
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 126,
+            "column": 27
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/TrainingPersistenceHelper.java",
+            "line": 139,
+            "column": 26
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModeDbHelper.java",
+            "line": 315,
+            "column": 28
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 52,
+            "column": 37
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 65,
+            "column": 31
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 108,
+            "column": 27
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 172,
+            "column": 31
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 185,
+            "column": 27
+          },
+          {
+            "severity": "WARNING",
+            "message": "deprecated item is not annotated with @Deprecated",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/persistence/WalkingModePersistenceHelper.java",
+            "line": 198,
+            "column": 26
+          },
+          {
+            "severity": "WARNING",
+            "message": "Some input files use or override a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/Factory.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/pedometer/tree/src/main/java/org/secuso/privacyfriendlyactivitytracker/Factory.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-a11y-and-binder",
+          "editClass": "mixed-add",
+          "description": "PR-mined: real upstream range v3.1.0..v3.1.1 (privacy-friendly-pedometer). Adds accessibility contentDescriptions to the widget's pause/continue/start-training ImageButtons (new a11y_* strings + the AppTheme secusoLogoDrawable wiring, both real, not authored), plus a real code change: AbstractStepDetectorService gains a getmStepDetectorBinder() getter and AccelerometerStepDetectorService starts tracking a static self-reference. 'add' in editClass: new string names (a11y_*) AND two new drawable names (secuso_logo_black/white) both need R regen.",
+          "expectedRoute": "mixed",
+          "opsInvoked": [
+            "reconfigure",
+            "compile",
+            "relink"
+          ],
+          "ms": {
+            "compile": 501.2373750000023,
+            "relink": 210.42541700001038
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendlyactivitytracker/Factory.class",
+            "org/secuso/privacyfriendlyactivitytracker/models/StepCount.class",
+            "org/secuso/privacyfriendlyactivitytracker/persistence/StepCountPersistenceHelper.class",
+            "org/secuso/privacyfriendlyactivitytracker/receivers/MotivationAlertReceiver.class",
+            "org/secuso/privacyfriendlyactivitytracker/receivers/WidgetReceiver.class",
+            "org/secuso/privacyfriendlyactivitytracker/services/AbstractStepDetectorService.class",
+            "org/secuso/privacyfriendlyactivitytracker/services/AccelerometerStepDetectorService.class",
+            "org/secuso/privacyfriendlyactivitytracker/services/MovementSpeedService.class",
+            "org/secuso/privacyfriendlyactivitytracker/utils/AndroidVersionHelper.class",
+            "org/secuso/privacyfriendlyactivitytracker/utils/StepDetectionServiceHelper.class",
+            "org/secuso/privacyfriendlyactivitytracker/utils/UnitHelper.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 11 classes, expected [2, 20]: ['org/secuso/privacyfriendlyactivitytracker/Factory.class', 'org/secuso/privacyfriendlyactivitytracker/models/StepCount.class', 'org/secuso/privacyfriendlyactivitytracker/persistence/StepCountPersistenceHelper.class', 'org/secuso/privacyfriendlyactivitytracker/receivers/MotivationAlertReceiver.class', 'org/secuso/privacyfriendlyactivitytracker/receivers/WidgetReceiver.class', 'org/secuso/privacyfriendlyactivitytracker/services/AbstractStepDetectorService.class', 'org/secuso/privacyfriendlyactivitytracker/services/AccelerometerStepDetectorService.class', 'org/secuso/privacyfriendlyactivitytracker/services/MovementSpeedService.class', 'org/secuso/privacyfriendlyactivitytracker/utils/AndroidVersionHelper.class', 'org/secuso/privacyfriendlyactivitytracker/utils/StepDetectionServiceHelper.class', 'org/secuso/privacyfriendlyactivitytracker/utils/UnitHelper.class']"
+            },
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "reconfigureMs": 2330.3975000000037,
+          "daemonMs_compile": 497,
+          "daemonMs_relink": 209,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "35 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "qr-scanner",
+      "language": "java",
+      "applicationId": "com.secuso.privacyfriendlycodescanner.qrscanner",
+      "baseline": {
+        "status": "PASS",
+        "ms": 856.3356249999998,
+        "daemonMs": 856,
+        "classCount": 10,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-utils-percent-fix-real",
+          "editClass": "method-body",
+          "description": "PR-mined: real upstream commit 28bfd52 ('Fix crash if error correction metadata contains percentage sign', SecUSo/privacy-friendly-qr-scanner#238). Strips a stray '%' from the error-correction metadata value before passing it as an encoder hint.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 102.35758399998929
+          },
+          "recompiledClasses": [
+            "com/secuso/privacyfriendlycodescanner/qrscanner/helpers/Utils.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['com/secuso/privacyfriendlycodescanner/qrscanner/helpers/Utils.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker '%' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 102,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "10 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "readyou",
+      "language": "kotlin",
+      "applicationId": "me.ash.reader",
+      "baseline": {
+        "status": "PASS",
+        "ms": 1366.793625000014,
+        "daemonMs": 1362,
+        "classCount": 8,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-date-isfuture",
+          "editClass": "method-add",
+          "description": "PR-mined (ReadYouApp/ReadYou#638, \"fix(sync): replace publish date of an article with the current time if it is a future date\"): adds Date.isFuture(), a real one-line pure-logic addition to DateExt.kt.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 589.9207080000224
+          },
+          "recompiledClasses": [
+            "me/ash/reader/ui/ext/DateExtKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['me/ash/reader/ui/ext/DateExtKt.class']"
+            }
+          ],
+          "daemonMs_compile": 589,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-number-infix",
+          "editClass": "modifier-change",
+          "description": "PR-mined (ReadYouApp/ReadYou#724, \"chore(greader): add null checks in greader service\"): NumberExt.spacerDollar gains the infix modifier -- a real signature-modifier-only edit.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 513.5814580000044
+          },
+          "recompiledClasses": [
+            "me/ash/reader/ui/ext/NumberExtKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['me/ash/reader/ui/ext/NumberExtKt.class']"
+            }
+          ],
+          "daemonMs_compile": 513,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-string-rtl-mimetype",
+          "editClass": "method-add",
+          "description": "PR-mined (ReadYouApp/ReadYou#732, \"fix(ui): apply any-RTL algorithm for correct text direction\"): adds a MimeType object plus requiresBidi/orNotEmpty/extractDomain to StringExt.kt -- a real multi-function addition, including a new top-level object (its own class file).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 244.46641600002295
+          },
+          "recompiledClasses": [
+            "me/ash/reader/ui/ext/MimeType.class",
+            "me/ash/reader/ui/ext/StringExtKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 3]: ['me/ash/reader/ui/ext/MimeType.class', 'me/ash/reader/ui/ext/StringExtKt.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'text/x-opml' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 244,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "9 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "receiver-provider-app",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.recvprov",
+      "baseline": {
+        "status": "PASS",
+        "ms": 633.5184159999869,
+        "daemonMs": 632,
+        "classCount": 5,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-receiver-body",
+          "editClass": "receiver-body",
+          "description": "Change the note label PingReceiver.onReceive() inserts. Body-only edit to a manifest receiver: receivers are NOT in the restart closure (fresh instantiation per delivery via the factory serves current code), so the deploy hot-swaps without a process restart.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 102.62699999998404
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/recvprov/PingReceiver.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/recvprov/PingReceiver.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_PING_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 102,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-provider-body",
+          "editClass": "provider-body",
+          "description": "Decorate every label NotesProvider.query() serves with a marker suffix. Body-only edit to a manifest ContentProvider: the provider class is in the restart closure, so DeployPolicy must restart the process (the live provider instance keeps old code; a fresh process boots from the persisted newest generation and its early-init runs the swapped class).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 130.92929199999048
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/recvprov/NotesProvider.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/recvprov/NotesProvider.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_PROVIDER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 130,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-new-class",
+          "editClass": "new-class",
+          "description": "Add NoteBadge (new leaf class) and use it from MainActivity to prefix each note line. Neither class is a service/provider/Application or one of their supertypes, so the deploy hot-swaps (activity recreate), no restart.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 273.57462500000906
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/recvprov/MainActivity.class",
+            "org/appdevforall/cotg/corpus/recvprov/NoteBadge.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 4]: ['org/appdevforall/cotg/corpus/recvprov/MainActivity.class', 'org/appdevforall/cotg/corpus/recvprov/NoteBadge.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_NOTE_BADGE_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 273,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the main_title_label string value; no code touched. Resource-only deploys never restart, even in an app with a provider - the overlay applies and the live provider keeps running.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 92.1941249999918
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 92,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "6 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "resources-heavy",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.resheavy",
+      "baseline": {
+        "status": "PASS",
+        "ms": 473.5425410000005,
+        "daemonMs": 473,
+        "classCount": 4,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-string-value",
+          "editClass": "string-value",
+          "description": "Change label_01's value in strings.xml. No code changes \u2014 aapt2 relink only, cached dex reused.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 106.61795799998686
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 106,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-color-value",
+          "editClass": "color-value",
+          "description": "Change color_01's hex value in colors.xml. No code changes \u2014 aapt2 relink only, cached dex reused.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 105.93991699997218
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 106,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-layout-edit",
+          "editClass": "layout-edit",
+          "description": "Change main_title's android:textSize attribute in activity_main.xml (text_size_medium -> text_size_large). No code changes \u2014 aapt2 relink only, cached dex reused.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 120.65145799999755
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 120,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-string-ADD",
+          "editClass": "string-add",
+          "description": "Add a new string resource (new_feature_label) and reference it from MainActivity via R.string.new_feature_label. This is the R-id-regeneration case: aapt2 must assign the new resource an ID (not just relink an existing one) before the code that references it can compile, so the route is mixed (relink AND compile), not resources-only.",
+          "expectedRoute": "mixed",
+          "opsInvoked": [
+            "reconfigure",
+            "compile",
+            "relink"
+          ],
+          "ms": {
+            "compile": 455.87029199998597,
+            "relink": 145.56325000000925
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/resheavy/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/resheavy/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_MARKER_STEP4' found in recompiled class bytes"
+            },
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "reconfigureMs": 1456.0151249999933,
+          "daemonMs_compile": 454,
+          "daemonMs_relink": 145,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "4 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "ruler",
+      "language": "java",
+      "applicationId": "org.secuso.privacyfriendlyrulerapp",
+      "baseline": {
+        "status": "PASS",
+        "ms": 136.29724999998416,
+        "daemonMs": 135,
+        "classCount": 19,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "Some input files use or override a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/ruler/tree/src/main/java/org/secuso/privacyfriendlyrulerapp/activities/BaseActivity.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/ruler/tree/src/main/java/org/secuso/privacyfriendlyrulerapp/activities/BaseActivity.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-string-value",
+          "editClass": "string-value",
+          "description": "PR-mined: real upstream commit fd799d4ef9a53be68c3d3323710071cf2adb936d ('Translated using Weblate (English)', privacy-friendly-ruler). Retranslates a couple of strings (okay -> Ok; viewhelp picks up a stray French string, a genuine upstream Weblate mistranslation bug) plus incidental whitespace/XML-declaration normalization. No new string names, so no R regen needed -- resources-only relink.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 274.939833000019
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 274,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-string-value-locale",
+          "editClass": "string-value-locale",
+          "description": "PR-mined: real upstream commit 37b67200487beee92bf018c76cd6e43e518ad30d ('Translated using Weblate (German)', privacy-friendly-ruler). Retranslates pref_rightruler_default/pref_anglemeasure_default and a few other German strings; whitespace normalization. Applied as a full-file replacement (not a .patch) because vendor.json deliberately vendors two files both basenamed strings.xml (default + values-de) and fetch_vendored.py's patch step keys its base-file lookup on basename alone -- see vendor.json's note. No new string names, resources-only relink.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 269.2385830000035
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 269,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-resource-add",
+          "editClass": "locale-file-new",
+          "description": "PR-mined: real upstream commit 51ffdbe27050d624f9b75032d429a60176255fd8 ('Added translation using Weblate (French)', privacy-friendly-ruler). Adds a brand-new values-fr/strings.xml -- but the real commit's file is an empty placeholder (<resources></resources>, no <string> entries yet), so it introduces zero new R.string names despite being a whole new resource file. editClass deliberately omits 'add' (the README's R-regen trigger substring): no new resource NAMES exist to regenerate R for, only a new (empty) qualifier directory.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 200.46320800000217
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 200,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "19 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "seal",
+      "language": "kotlin",
+      "applicationId": "com.junkfood.seal",
+      "baseline": {
+        "status": "PASS",
+        "ms": 1591.5190420000158,
+        "daemonMs": 1582,
+        "classCount": 18,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-sponsor-tier-nullable",
+          "editClass": "nullable-change",
+          "description": "PR-mined (JunkFood02/Seal, \"fix: `SponsorData` parsing error\", 258b43c5): Node.tier becomes nullable -- a real one-field GraphQL-response-shape fix.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 304.9538749999954
+          },
+          "recompiledClasses": [
+            "com/junkfood/seal/util/Node.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['com/junkfood/seal/util/Node.class']"
+            }
+          ],
+          "daemonMs_compile": 302,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-sponsor-social-links",
+          "editClass": "restructure",
+          "description": "PR-mined (JunkFood02/Seal, \"feat: show social links for sponsors\", 4fa91ee1): renames User/SponsorshipsAsMaintainer/Node into Viewer/SponsorShip and adds SocialAccounts/SocialAccount -- a real GraphQL-schema restructure applied cumulatively on top of edit01.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 525.8049999999912
+          },
+          "recompiledClasses": [
+            "com/junkfood/seal/util/Data.class",
+            "com/junkfood/seal/util/Node.class",
+            "com/junkfood/seal/util/SocialAccount.class",
+            "com/junkfood/seal/util/SocialAccounts.class",
+            "com/junkfood/seal/util/SponsorEntity.class",
+            "com/junkfood/seal/util/SponsorShip.class",
+            "com/junkfood/seal/util/SponsorshipsAsMaintainer.class",
+            "com/junkfood/seal/util/Tier.class",
+            "com/junkfood/seal/util/User.class",
+            "com/junkfood/seal/util/Viewer.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 10 classes, expected [1, 10]: ['com/junkfood/seal/util/Data.class', 'com/junkfood/seal/util/Node.class', 'com/junkfood/seal/util/SocialAccount.class', 'com/junkfood/seal/util/SocialAccounts.class', 'com/junkfood/seal/util/SponsorEntity.class', 'com/junkfood/seal/util/SponsorShip.class', 'com/junkfood/seal/util/SponsorshipsAsMaintainer.class', 'com/junkfood/seal/util/Tier.class', 'com/junkfood/seal/util/User.class', 'com/junkfood/seal/util/Viewer.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'SocialAccount' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 523,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-videoinfo-fields",
+          "editClass": "field-add",
+          "description": "PR-mined but intentionally cumulative (JunkFood02/Seal, pin through commit f635f69e, \"fix(download): use original url of playlists\"): VideoInfo.kt's real, unsquashed growth across ~11 months -- new fields (uploaderId, subtitles, requestedDownloads, filename, ...), width/height widened to Double, and new data classes (RequestedDownload, SubtitleFormat) -- rather than a single isolated PR, since this file's real edit history doesn't isolate that cleanly. Generous recompile bounds reflect the file's ~10 top-level declarations.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1190.5418340000153
+          },
+          "recompiledClasses": [
+            "com/junkfood/seal/corpusharness/SealHostActivity.class",
+            "com/junkfood/seal/util/Chapter.class",
+            "com/junkfood/seal/util/Entries.class",
+            "com/junkfood/seal/util/Format.class",
+            "com/junkfood/seal/util/PlaylistResult.class",
+            "com/junkfood/seal/util/RequestedDownload.class",
+            "com/junkfood/seal/util/SubtitleFormat.class",
+            "com/junkfood/seal/util/Thumbnail.class",
+            "com/junkfood/seal/util/VideoClip.class",
+            "com/junkfood/seal/util/VideoInfo.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 10 classes, expected [1, 10]: ['com/junkfood/seal/corpusharness/SealHostActivity.class', 'com/junkfood/seal/util/Chapter.class', 'com/junkfood/seal/util/Entries.class', 'com/junkfood/seal/util/Format.class', 'com/junkfood/seal/util/PlaylistResult.class', 'com/junkfood/seal/util/RequestedDownload.class', 'com/junkfood/seal/util/SubtitleFormat.class', 'com/junkfood/seal/util/Thumbnail.class', 'com/junkfood/seal/util/VideoClip.class', 'com/junkfood/seal/util/VideoInfo.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'requested_downloads' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1182,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "21 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "service-app",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.serviceapp",
+      "baseline": {
+        "status": "PASS",
+        "ms": 464.40279199998713,
+        "daemonMs": 464,
+        "classCount": 7,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-service-method-body",
+          "editClass": "method-body",
+          "description": "Change CounterService.onStartCommand()'s foreground-notification text. Method-body-only, but the edited class IS a manifest service, so the recompiled set hits the restart closure directly: DeployPolicy must choose restart, not recreate.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 83.7404589999835
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/serviceapp/CounterService.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/serviceapp/CounterService.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_SVC_BODY_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 84,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-binder-signature-change",
+          "editClass": "signature-change",
+          "description": "TickBinderService's binder API changes shape: currentTick(): Int becomes describeTick(): String. The bound client (MainActivity, via its ServiceConnection) must recompile against the new signature. The recompiled set contains the service class and its nested LocalBinder (Outer$ family), so DeployPolicy must choose restart.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 154.93679200000088
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/serviceapp/MainActivity$tickConnection$1.class",
+            "org/appdevforall/cotg/corpus/serviceapp/TickBinderService$LocalBinder.class",
+            "org/appdevforall/cotg/corpus/serviceapp/TickBinderService.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 3 classes, expected [3, 5]: ['org/appdevforall/cotg/corpus/serviceapp/MainActivity$tickConnection$1.class', 'org/appdevforall/cotg/corpus/serviceapp/TickBinderService$LocalBinder.class', 'org/appdevforall/cotg/corpus/serviceapp/TickBinderService.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_TICK_SIG_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 155,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-activity-body",
+          "editClass": "method-body",
+          "description": "Change MainActivity.onCreate()'s not-bound placeholder text. Activities are deliberately NOT in the restart closure (recreate applies loader catch-up), so even though this app declares two services, an activity-only recompile must stay on the recreate path.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 116.32145800001581
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/serviceapp/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['org/appdevforall/cotg/corpus/serviceapp/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_ACT_BODY_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 116,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the main_title_label string resource's value. No code changes - aapt2 relink only. Resource-only deploys never restart (design contract section 4), even in an app with services: deploy is null because DeployPolicy only runs for code-bearing deploys.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 88.17587500001878
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 88,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "7 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "sora-editor-full",
+      "language": "mixed",
+      "applicationId": "io.github.rosemoe.sora",
+      "baseline": {
+        "status": "PASS",
+        "ms": 3955.236415999991,
+        "daemonMs": 3953,
+        "classCount": 457,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "Some input files use or override a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/sora-editor-full/tree/src/main/java/io/github/rosemoe/sora/widget/EditorSearcher.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/sora-editor-full/tree/src/main/java/io/github/rosemoe/sora/widget/EditorSearcher.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-java-body-edit",
+          "editClass": "java-method-body",
+          "description": "Body-only change to LineSeparator.getContent(), real upstream code. No Java ABI moves, so no Kotlin file may be recompiled - on this module that is the difference between touching one class and recompiling all 73 Kotlin sources. The measurement this edit exists for is its compile time next to edit 03's.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 507.2080419999736
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/text/LineSeparator.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['io/github/rosemoe/sora/text/LineSeparator.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_SORA_JBODY_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 506,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-kotlin-body-edit",
+          "editClass": "method-body",
+          "description": "Kotlin-side body edit in the module's only authored file, which calls the Java CodeEditor. The single-language fast path inside a 288-file module with real cycles - the control for edits 01 and 03.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 668.3409999999981
+          },
+          "recompiledClasses": [
+            "org/appdevforall/corpusharness/EditorHostActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/corpusharness/EditorHostActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_SORA_KBODY_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 667,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-java-abi-change",
+          "editClass": "java-abi-change",
+          "description": "LineSeparator gains a public method, so the Java ABI moves and every Kotlin source in the module is recompiled (the conservative path - see IncrementalCompiler.kotlinFilesToCompile). Adding a method cannot change any caller's bytecode, so the recompiled SET stays small; what this edit measures is the wall-clock cost of that conservatism on a 73-Kotlin-file module, against edit 01's fast path.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 4372.377667000023
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/text/LineSeparator.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['io/github/rosemoe/sora/text/LineSeparator.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'QB_SORA_JABI_MARKER_V2' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 4368,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "457 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "sora-editor-lib",
+      "language": "mixed",
+      "applicationId": "io.github.rosemoe.sora",
+      "baseline": {
+        "status": "PASS",
+        "ms": 629.2512079999995,
+        "daemonMs": 629,
+        "classCount": 17,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-editor-core-value",
+          "editClass": "method-body",
+          "description": "editor-core value edit: Floats.withinDelta comparison operator tweak (real sora-editor :editor source)",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 201.5089579999767
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/util/Floats.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['io/github/rosemoe/sora/util/Floats.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded Floats.withinDelta' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 201,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-sample-app-ui",
+          "editClass": "const-change",
+          "description": "sample-app UI edit: harness EditorHostActivity's displayed sample text constant (harness scaffolding, not vendored sora-editor code)",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 204.89937499999655
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/corpusharness/EditorHostActivity.class",
+            "io/github/rosemoe/sora/corpusharness/SampleText.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 2]: ['io/github/rosemoe/sora/corpusharness/EditorHostActivity.class', 'io/github/rosemoe/sora/corpusharness/SampleText.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded the sample-app text' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 202,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-cross-module",
+          "editClass": "cross-file-api-add",
+          "description": "cross-module edit: new LineSeparator.describe() API (editor-core) consumed by a new ContentLine.describeLineSeparator() method in the same edit",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 229.93187499997703
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/text/ContentLine.class",
+            "io/github/rosemoe/sora/text/LineSeparator.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 4]: ['io/github/rosemoe/sora/text/ContentLine.class', 'io/github/rosemoe/sora/text/LineSeparator.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded LineSeparator.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 229,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-charposition-copy-ctor",
+          "editClass": "ctor-add",
+          "description": "PR-mined (subgraph-extending): modeled after Rosemoe/sora-editor PR #267 'Added more keybindings' (merged 2022-10-18), which added CharPosition's zero-arg/2-arg/3-arg constructor overloads -- those are already baked into our pinned commit (43f7e8e2981...), so a literal forward-patch of PR #267's own diff is a no-op against this baseline. This edit reproduces the SAME real transformation (growing CharPosition's constructor overload set) with the next overload in that spirit: a copy constructor. CharPosition.java is newly added to vendor.json by this edit (verified acyclic: only imports androidx.annotation.NonNull, java.util.Objects, and io.github.rosemoe.sora.util.IntPair, already in the subgraph).",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 220.4372909999961
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/text/CharPosition.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['io/github/rosemoe/sora/text/CharPosition.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker \"quick build reloaded CharPosition's copy constructor\" found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 220,
+          "status": "PASS"
+        },
+        {
+          "edit": "05-intpair-swap",
+          "editClass": "new-api",
+          "description": "PR-mined: modeled after the real upstream commit 89fe30473e88a1adf8354c6b607c2c0515d8cfba 'docs: update the doc of IntPair' (Rosemoe, 2025-12-13 -- a direct maintainer commit, not routed through a PR; verified via GitHub's commits/{sha}/pulls API returning no associated PR), which documented/grew IntPair's small pure-function helper set (packIntFloat/getSecondAsFloat). That exact commit is already baked into our pinned commit (43f7e8e2981...), so a literal forward-patch of its diff is a no-op against this baseline. This edit reproduces the same real transformation (growing IntPair's helper set with a small doc'd pure function) with the natural next helper: swap().",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 206.54245800000126
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/util/IntPair.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['io/github/rosemoe/sora/util/IntPair.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded IntPair.swap' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 206,
+          "status": "PASS"
+        },
+        {
+          "edit": "06-textbidi-explicit-direction",
+          "editClass": "cross-file-api-add",
+          "description": "PR-mined: modeled after the real upstream commit 192c9356991df297a0c02f9d1c85a24e4022aacc 'feat(editor): no longer use enforced LTR base direction in editor' (Rosemoe, 2025-11-10), which moved TextBidi.getDirections off a hardcoded Bidi.DIRECTION_LEFT_TO_RIGHT onto Bidi.DIRECTION_DEFAULT_LEFT_TO_RIGHT. That commit is already baked into our pinned commit (TextBidi.java already uses DIRECTION_DEFAULT_LEFT_TO_RIGHT), so a literal forward-patch of its diff is a no-op. This edit continues the same real spirit ('stop enforcing a single base direction') with the natural next step: an overload that takes an explicit Bidi direction flag, with the existing single-arg method delegating to it.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 170.7100000000139
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/text/bidi/TextBidi.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['io/github/rosemoe/sora/text/bidi/TextBidi.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded TextBidi.getDirections(text, bidiFlags)' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 170,
+          "status": "PASS"
+        },
+        {
+          "edit": "07-stringlatin1-appendto-perf",
+          "editClass": "method-body",
+          "description": "PR-mined: modeled after the real upstream commit 10370f833f496363d44a4d76380e29bd1e7e77e2 'perf(editor): avoid copying when create String in Latin1 implementation' (Rosemoe, 2026-03-03), which changed StringLatin1.newString() from a char[]-roundtrip to a direct new String(bytes, offset, length, ISO_8859_1) decode. That commit is already baked into our pinned commit's newString() (visible a few lines below this edit's change), so a literal forward-patch of its diff is a no-op. This edit applies the SAME real perf pattern to the sibling method appendTo(), which still had the pre-fix per-char loop.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 257.2251659999836
+          },
+          "recompiledClasses": [
+            "io/github/rosemoe/sora/text/string/StringLatin1.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['io/github/rosemoe/sora/text/string/StringLatin1.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded StringLatin1.appendTo perf path' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 257,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "17 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "streetcomplete-lib",
+      "language": "kotlin",
+      "applicationId": "de.westnordost.streetcomplete",
+      "baseline": {
+        "status": "PASS",
+        "ms": 2594.8677920000023,
+        "daemonMs": 2586,
+        "classCount": 22,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-collections-most-common",
+          "editClass": "new-api",
+          "description": "PR-mined: modeled after the real merged StreetComplete PR #6318 'util: handle duplicate elements in Collection.containsExactlyInAnyOrder()' (2025-08-13), which fixed containsExactlyInAnyOrder to use a count-map instead of a naive containsAll check. That fix is already baked into our pinned commit (26c673030a09..., tag v63.2), so a literal forward-patch of the PR's own diff is a no-op against this baseline. This edit reuses the same count-map idiom for a new, related helper: mostCommonOrNull().",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 810.1814170000239
+          },
+          "recompiledClasses": [
+            "de/westnordost/streetcomplete/util/ktx/CollectionsKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['de/westnordost/streetcomplete/util/ktx/CollectionsKt.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded Collections.mostCommonOrNull' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 801,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-vector3d-destructuring",
+          "editClass": "method-body",
+          "description": "PR-mined: modeled after the real merged StreetComplete PR #6311 'fix: correct Vector3d division and subtraction operations' (2025-06-06), which fixed copy-paste bugs in Vector3d's div()/minus() operators (they referenced the wrong component). That fix is already baked into our pinned commit (div/minus already use x/y/z correctly), so a literal forward-patch of the PR's own diff is a no-op against this baseline. This edit continues the same 'make Vector3d's per-component operators complete' spirit by adding destructuring component1/2/3() operators.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 839.5082090000017
+          },
+          "recompiledClasses": [
+            "de/westnordost/streetcomplete/util/math/Vector3d.class",
+            "de/westnordost/streetcomplete/util/math/Vector3dKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [1, 2]: ['de/westnordost/streetcomplete/util/math/Vector3d.class', 'de/westnordost/streetcomplete/util/math/Vector3dKt.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker \"quick build reloaded Vector3d's destructuring operators\" found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 833,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-anglemath-radians-float-overload",
+          "editClass": "new-api",
+          "description": "PR-mined: modeled after the real merged StreetComplete PR #6307 'Fix angle normalization with non-zero startAt parameter' (2025-06-06), which fixed the normalizeDegrees/normalizeRadians formulas and their docs. That fix is already baked into our pinned commit, so a literal forward-patch of the PR's own diff is a no-op against this baseline. This edit continues the same file's real overload asymmetry: normalizeDegrees has both Double and Float overloads, but normalizeRadians only had Double -- this adds the missing Float overload.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 901.4443330000006
+          },
+          "recompiledClasses": [
+            "de/westnordost/streetcomplete/util/math/AngleMathKt.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 1]: ['de/westnordost/streetcomplete/util/math/AngleMathKt.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'quick build reloaded AngleMath.normalizeRadians(Float)' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 899,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "23 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "sudoku",
+      "language": "java",
+      "applicationId": "org.secuso.privacyfriendlysudoku",
+      "baseline": {
+        "status": "PASS",
+        "ms": 521.8239579999988,
+        "daemonMs": 521,
+        "classCount": 27,
+        "warnings": [
+          {
+            "severity": "WARNING",
+            "message": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/sudoku/tree/src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java uses or overrides a deprecated API.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/sudoku/tree/src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java"
+          },
+          {
+            "severity": "WARNING",
+            "message": "Recompile with -Xlint:deprecation for details.",
+            "file": "/var/folders/1x/qb7n_q_n0pqcmdtr1jn2s3_80000gn/T/quickbuild-matrix/20260722T092642Z/sudoku/tree/src/main/java/org/secuso/privacyfriendlysudoku/controller/GeneratorService.java"
+          }
+        ]
+      },
+      "edits": [
+        {
+          "edit": "01-generator-real",
+          "editClass": "method-body",
+          "description": "PR-mined: real upstream commit 85895f3 ('[fix] changes foreground service type to special use'). Switches the on-Android-14+ ServiceCompat.startForeground() call from FOREGROUND_SERVICE_TYPE_SHORT_SERVICE to FOREGROUND_SERVICE_TYPE_SPECIAL_USE, matching the manifest's specialUse declaration. behavioralMarker is null: both constants are javac-inlined ints (ServiceInfo.FOREGROUND_SERVICE_TYPE_* are compile-time constants), so neither name survives into the recompiled class bytes -- same class of issue as the README's R-id-churn note, just via an SDK constant instead of an R field.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 242.16125000000943
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendlysudoku/controller/GeneratorService.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 3]: ['org/secuso/privacyfriendlysudoku/controller/GeneratorService.class']"
+            }
+          ],
+          "daemonMs_compile": 242,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "27 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "todo-list",
+      "language": "kotlin",
+      "applicationId": "org.secuso.privacyfriendlytodolist",
+      "baseline": {
+        "status": "PASS",
+        "ms": 1305.2462079999998,
+        "daemonMs": 1302,
+        "classCount": 35,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-alarm-mgr-real",
+          "editClass": "method-add",
+          "description": "Authored edit (not PR-mined -- see vendor.json for why) against the real, vendored AlarmMgr.kt: adds a hasPendingAlarm() query method plus a log line, in the same spirit as the real alarm-scheduling API it sits beside.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 247.40208299999722
+          },
+          "recompiledClasses": [
+            "org/secuso/privacyfriendlytodolist/util/AlarmMgr.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/secuso/privacyfriendlytodolist/util/AlarmMgr.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Checked pending alarm state via hasPendingAlarm()' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 247,
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "35 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    }
+  ],
+  "gaps": [],
+  "summary": {
+    "apps": 30,
+    "edits": 97,
+    "passed": 97,
+    "failed": 0,
+    "skipped": 0
+  }
+}

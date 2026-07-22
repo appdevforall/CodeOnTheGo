@@ -898,6 +898,8 @@ def render_markdown(run_report: Dict[str, Any]) -> str:
     lines.append("## Config")
     lines.append("")
     for k, v in run_report["config"].items():
+        if isinstance(v, list):
+            v = ", ".join(v) if v else "(none)"
         lines.append(f"- **{k}**: {v}")
     lines.append("")
     s = run_report["summary"]
@@ -1114,6 +1116,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             "daemonAvailable": daemon is not None,
             "androidJar": str(config.android_jar),
             "kotlinStdlib": str(config.kotlin_stdlib),
+            "classpathExtra": [str(p) for p in config.classpath_extra],
             "aapt2": str(config.aapt2) if config.aapt2 else None,
             "javac": str(config.javac) if config.javac else None,
             "d8Jar": str(config.d8_jar) if config.d8_jar else None,

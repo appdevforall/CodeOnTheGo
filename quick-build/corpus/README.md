@@ -134,7 +134,33 @@ All flags except `--android-jar`/`--kotlin-stdlib` are optional:
 - No `--compose-plugin-jar` or no `--compose-runtime-jar` -> every app with
   `"compose": true` in its `app.json` is `SKIPPED` (baseline + all edit rows).
 - `--classpath-extra <jar>` (repeatable) adds jars to every app's compile
-  classpath -- only the large-real-app tier needs it (androidx; see below).
+  classpath -- only the large-real-app / popular-apps / SecUSo vendored tiers
+  need it (real androidx/kotlinx symbols; see below). **Recorded in the run's
+  Config block** (`matrix.md`'s `classpathExtra` line, `matrix.json`'s
+  `config.classpathExtra`) so a results dir shows exactly what a run compiled
+  against -- earlier sessions derived these jars by hand from
+  `~/.gradle/caches` and the Config block never showed them (see
+  `harness/stage_classpath_extra.py`, next).
+  - **`harness/stage_classpath_extra.py` stages every jar the corpus's
+    vendored apps currently need** (a checked-in, declared artifact list --
+    androidx annotation/appcompat/collection/core/drawerlayout/fragment/
+    legacy-support-core-utils/lifecycle/localbroadcastmanager/room/sqlite/
+    viewpager, plus kotlinx-coroutines-core-jvm and
+    kotlinx-serialization-core-jvm) into `corpus/.cache/classpath-extra/`
+    (gitignored) and prints the ready-made flags. It reads
+    `~/.gradle/caches/modules-2/files-2.1` directly (override with
+    `--gradle-cache`) -- **no Gradle invocation**, so it's safe to run
+    alongside another Gradle build in the same worktree. Extracts
+    `classes.jar` from AAR-only artifacts, same technique as the Compose
+    runtime jar below. Idempotent (re-run is a no-op once staged); fails
+    loudly naming the missing artifact if the cache doesn't have it yet (run
+    any Gradle build that resolves it once, then re-run). Extend
+    `DECLARED_ARTIFACTS` in that script when a new vendored app needs another
+    symbol -- don't re-derive the list by hand.
+    ```bash
+    python3 quick-build/corpus/harness/stage_classpath_extra.py
+    # then pass the printed --classpath-extra flags straight to run_matrix.py
+    ```
 - `--apps hello-kotlin,hello-java` restricts the run to named apps.
 - `--exercise-dex` additionally calls `dex` once after each app's baseline
   compile, informational only (not gating).
