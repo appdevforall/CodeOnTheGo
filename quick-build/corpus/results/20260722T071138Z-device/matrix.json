@@ -1,0 +1,311 @@
+{
+  "generatedAt": "2026-07-22T07:11:46.007074+00:00",
+  "config": {
+    "mode": "device",
+    "offline": false,
+    "airplaneModePriorState": null,
+    "serial": "RZGYC24640P",
+    "pkg": "com.itsaky.androidide",
+    "daemonAvailable": true,
+    "deviceAndroidJar": "/data/user/0/com.itsaky.androidide/files/home/android-sdk/platforms/android-36/android.jar",
+    "deviceKotlinStdlib": "/data/user/0/com.itsaky.androidide/files/home/.cg/quickbuild/daemon/kotlin-stdlib-2.3.0.jar",
+    "deviceAapt2": "/data/user/0/com.itsaky.androidide/files/home/android-sdk/build-tools/35.0.0/aapt2",
+    "deviceD8Jar": "/data/user/0/com.itsaky.androidide/files/home/android-sdk/build-tools/35.0.0/lib/d8.jar",
+    "hostAndroidJar": "/Users/bryanchan/Android/Sdk/platforms/android-36/android.jar",
+    "hostAapt2": "/Users/bryanchan/Android/Sdk/build-tools/36.0.0/aapt2",
+    "hostJavac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/CodeOnTheGo/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "hello-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.hellokotlin",
+      "baseline": {
+        "status": "PASS",
+        "ms": 12892.639874999999,
+        "daemonMs": 12870,
+        "classCount": 5,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change Greeter.greet's returned string literal; signature unchanged.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1619.7455420000003
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellokotlin/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/hellokotlin/Greeter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'The quick build reloaded this method.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 1615,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the greeting_name string value in strings.xml; no code touched.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 367.5863749999984
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 307,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-noop",
+          "editClass": "noop",
+          "description": "Whitespace-only change to Greeter.kt (added a blank line); no semantic change.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 1827.7570420000018
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellokotlin/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [0, 1]: ['org/appdevforall/cotg/corpus/hellokotlin/Greeter.class']"
+            }
+          ],
+          "daemonMs_compile": 1823,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-mixed",
+          "editClass": "mixed",
+          "description": "Change Greeter.kt's method body AND strings.xml's greeting_name in the same save.",
+          "expectedRoute": "mixed",
+          "opsInvoked": [
+            "compile",
+            "relink"
+          ],
+          "ms": {
+            "compile": 1719.0004579999963,
+            "relink": 285.2311249999957
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellokotlin/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/hellokotlin/Greeter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'Mixed save landed:' found in recompiled class bytes"
+            },
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_compile": 1713,
+          "daemonMs_relink": 280,
+          "status": "PASS"
+        },
+        {
+          "edit": "05-manifest",
+          "editClass": "manifest",
+          "description": "Add a <meta-data> entry to the application manifest; baseline invalidated.",
+          "expectedRoute": "fallback",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "fallback recorded: no daemon op invoked (full Gradle build expected)"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "5 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "medium-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.medium",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.OutOfMemoryError: Java heap space'}]",
+        "ms": 30443.595124999996
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-signature-change",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-new-class",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-resource-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "resources-heavy",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.resheavy",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.OutOfMemoryError: Java heap space'}]",
+        "ms": 15022.031708
+      },
+      "edits": [
+        {
+          "edit": "01-string-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-color-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-layout-edit",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-string-ADD",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    }
+  ],
+  "gaps": [
+    "medium-kotlin: baseline compile did not succeed on-device; all edits skipped for this app",
+    "resources-heavy: baseline compile did not succeed on-device; all edits skipped for this app"
+  ],
+  "summary": {
+    "apps": 3,
+    "edits": 13,
+    "passed": 5,
+    "failed": 0,
+    "skipped": 8
+  }
+}

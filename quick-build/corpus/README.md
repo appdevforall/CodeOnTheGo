@@ -232,6 +232,16 @@ parity with the online device run -- confirming the daemon's compile/dex/relink
 pipeline is network-free on real hardware. Results:
 `results/20260721T023009Z-device/`.
 
+Re-run at full breadth 2026-07-22 on the same device: **11 apps / 43 edits,
+43/43 PASS, output-equivalence PASS on all 11, 0 skipped**, airplane mode ON
+throughout (`results/20260722T060635Z-device/`). That is every app the device
+runner can host today -- `compose-kotlin` and `sora-editor-lib` are the two it
+cannot, because `run_matrix_device.py` has no `--compose-plugin-jar` /
+`--compose-runtime-jar` / `--classpath-extra` equivalents (their jars would also
+have to be staged on-device). Adding them is the one remaining gap between the
+host and device matrices; until then those two apps are host-only, which is a
+harness limitation, not an offline finding.
+
 ## meta.json schema
 
 ```json
