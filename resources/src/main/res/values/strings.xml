@@ -536,6 +536,11 @@
 	<string name="action_generate_toString">Generate toString()</string>
 	<string name="action_remove_unused_imports">Remove unused imports</string>
 	<string name="action_organize_imports">Organize imports</string>
+	<string name="action_null_safety_fixes">Null-safety fixes</string>
+	<string name="action_null_safety_assert">Add non-null assertion (!!)</string>
+	<string name="action_null_safety_safe_call">Change to safe call (?.)</string>
+	<string name="action_null_safety_elvis">Add Elvis operator (?:)</string>
+	<string name="action_implement_members">Implement members</string>
 	<string name="msg_cannot_generate_toString">Unable to generate toString() implementation</string>
 	<string name="msg_toString_overridden">toString() is already overridden</string>
 	<string name="action_generate_missing_constructor">Generate missing constructor</string>
@@ -679,6 +684,19 @@
 	<string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
 	<string name="msg_emptyview_idelogs">Logs from the IDE are shown here.</string>
 	<string name="msg_emptyview_diagnostics">Open a file to show its diagnostic results</string>
+	<string name="log_filter_hint">Filter lines</string>
+	<string name="log_action_filter">Filter</string>
+	<string name="log_action_search">Search</string>
+	<string name="log_action_share">Share</string>
+	<string name="log_action_clear">Clear</string>
+	<string name="log_filter_hide">Hide filter bar</string>
+	<string name="log_filter_level_verbose">Verbose</string>
+	<string name="log_filter_level_debug">Debug</string>
+	<string name="log_filter_level_info">Info</string>
+	<string name="log_filter_level_warning">Warning</string>
+	<string name="log_filter_level_error">Error</string>
+	<string name="tooltip_search_output">Search in output</string>
+	<string name="tooltip_filter_output">Filter output</string>
 	<string name="msg_emptyview_buildoutput">"Build the application or run a task to see its build output here. "</string>
 	<string name="msg_codeaction_failed">Failed to perform code action</string>
 	<string name="idepref_devOptions_enableLogsender_title">Enable LogSender</string>
@@ -1349,6 +1367,8 @@
 	<string name="template_exec_error_write">Failed writing output file: %1$s %2$s</string>
 	<string name="template_exec_error_copy">Failed copying binary entry: %1$s %2$s</string>
 	<string name="template_exec_error_process">Failed to process template entry: %1$s %2$s</string>
+	<string name="template_exec_error_terminated">Project creation stopped: %1$s\n\nThe incomplete project was removed. Fix the template file mentioned above (or choose a different template) and try again.</string>
+	<string name="template_exec_warn_cleanup_failed">Could not remove the incomplete project at %1$s. Delete it manually before trying again.</string>
 
 	<string name="template_exec_warn_map_appname">Missing appName, defaulted to %1$s</string>
 	<string name="template_exec_warn_map_pkgname">Missing packageName, defaulted to %1$s</string>

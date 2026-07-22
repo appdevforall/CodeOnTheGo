@@ -14,11 +14,11 @@ import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.utils.DocumentUtils
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
 
 abstract class BaseKotlinCodeAction : EditorActionItem {
-
 	override var visible: Boolean = true
 	override var enabled: Boolean = true
 	override var icon: Drawable? = null
@@ -28,14 +28,14 @@ abstract class BaseKotlinCodeAction : EditorActionItem {
 	@get:StringRes
 	protected abstract var titleTextRes: Int
 
-	protected val logger = LoggerFactory.getLogger(BaseKotlinCodeAction::class.java)
+	protected val logger: Logger = LoggerFactory.getLogger(javaClass)
 
 	override fun prepare(data: ActionData) {
 		super.prepare(data)
 		if (!data.hasRequiredData(
 				Context::class.java,
 				KotlinLanguageServer::class.java,
-				File::class.java
+				File::class.java,
 			)
 		) {
 			markInvisible()
@@ -55,6 +55,7 @@ abstract class BaseKotlinCodeAction : EditorActionItem {
 	}
 
 	protected val ActionData.languageClient: ILanguageClient?
-		get() = get<KotlinLanguageServer>()
-			?.client
+		get() =
+			get<KotlinLanguageServer>()
+				?.client
 }
