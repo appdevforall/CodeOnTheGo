@@ -9,16 +9,15 @@ import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class SurroundWithTryCatchTest {
-
 	@Test
 	fun `single unindented line is wrapped`() {
 		val edit = computeSurroundWithTryCatchEdit("foo()", 0, 0)
 		assertThat(edit).isNotNull()
 		assertThat(edit!!.newText).isEqualTo(
-			"try {\n\tfoo()\n} catch (e: Exception) {\n\te.printStackTrace()\n}"
+			"try {\n\tfoo()\n} catch (e: Exception) {\n\te.printStackTrace()\n}",
 		)
 		assertThat(edit.range).isEqualTo(
-			Range(Position(0, 0, 0), Position(0, 5, 5))
+			Range(Position(0, 0, 0), Position(0, 5, 5)),
 		)
 		assertThat(edit.range.start.index).isEqualTo(0)
 		assertThat(edit.range.end.index).isEqualTo(5)
@@ -30,10 +29,10 @@ class SurroundWithTryCatchTest {
 		val edit = computeSurroundWithTryCatchEdit(text, 1, 2)
 		assertThat(edit).isNotNull()
 		assertThat(edit!!.newText).isEqualTo(
-			"\ttry {\n\t\tval a = read()\n\t\tprocess(a)\n\t} catch (e: Exception) {\n\t\te.printStackTrace()\n\t}"
+			"\ttry {\n\t\tval a = read()\n\t\tprocess(a)\n\t} catch (e: Exception) {\n\t\te.printStackTrace()\n\t}",
 		)
 		assertThat(edit.range).isEqualTo(
-			Range(Position(1, 0, 10), Position(2, 11, 37))
+			Range(Position(1, 0, 10), Position(2, 11, 37)),
 		)
 		assertThat(edit.range.start.index).isEqualTo(10)
 		assertThat(edit.range.end.index).isEqualTo(37)
@@ -43,7 +42,7 @@ class SurroundWithTryCatchTest {
 	fun `blank lines inside the span are not indented`() {
 		val edit = computeSurroundWithTryCatchEdit("a()\n\nb()", 0, 2)
 		assertThat(edit!!.newText).isEqualTo(
-			"try {\n\ta()\n\n\tb()\n} catch (e: Exception) {\n\te.printStackTrace()\n}"
+			"try {\n\ta()\n\n\tb()\n} catch (e: Exception) {\n\te.printStackTrace()\n}",
 		)
 	}
 
@@ -54,11 +53,11 @@ class SurroundWithTryCatchTest {
 		assertThat(edit).isNotNull()
 		assertThat(edit!!.newText).isEqualTo(
 			"    try {\n        val a = read()\n        process(a)\n" +
-				"    } catch (e: Exception) {\n        e.printStackTrace()\n    }"
+				"    } catch (e: Exception) {\n        e.printStackTrace()\n    }",
 		)
 		assertThat(edit.newText).doesNotContain("\t")
 		assertThat(edit.range).isEqualTo(
-			Range(Position(1, 0, 10), Position(2, 14, 43))
+			Range(Position(1, 0, 10), Position(2, 14, 43)),
 		)
 	}
 
@@ -100,10 +99,10 @@ class SurroundWithTryCatchTest {
 		val edit = computeSurroundWithTryCatchEdit("a()\r\nb()", 0, 1)
 		assertThat(edit).isNotNull()
 		assertThat(edit!!.newText).isEqualTo(
-			"try {\r\n\ta()\r\n\tb()\r\n} catch (e: Exception) {\r\n\te.printStackTrace()\r\n}"
+			"try {\r\n\ta()\r\n\tb()\r\n} catch (e: Exception) {\r\n\te.printStackTrace()\r\n}",
 		)
 		assertThat(edit.range).isEqualTo(
-			Range(Position(0, 0, 0), Position(1, 3, 8))
+			Range(Position(0, 0, 0), Position(1, 3, 8)),
 		)
 	}
 
@@ -113,7 +112,7 @@ class SurroundWithTryCatchTest {
 		val edit = computeSurroundWithTryCatchEdit(text, 2, 3)
 		assertThat(edit).isNotNull()
 		assertThat(edit!!.newText).isEqualTo(
-			"\ttry {\n\t\tval a = read()\n\t\tprocess(a)\n\t} catch (e: Exception) {\n\t\te.printStackTrace()\n\t}"
+			"\ttry {\n\t\tval a = read()\n\t\tprocess(a)\n\t} catch (e: Exception) {\n\t\te.printStackTrace()\n\t}",
 		)
 		assertThat(edit.newText).doesNotContain("    ")
 	}

@@ -42,7 +42,10 @@ class SurroundWithTryCatchAction : BaseKotlinCodeAction() {
 		return listOf(edit)
 	}
 
-	override fun postExec(data: ActionData, result: Any) {
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
 		super.postExec(data, result)
 
 		if (result !is List<*> || result.isEmpty()) {
@@ -66,7 +69,7 @@ class SurroundWithTryCatchAction : BaseKotlinCodeAction() {
 				changes = listOf(DocumentChange(file = file.toPath(), edits = edits)),
 				kind = CodeActionKind.QuickFix,
 				command = Command.CMD_FORMAT_CODE,
-			)
+			),
 		)
 	}
 }

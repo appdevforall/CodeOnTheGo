@@ -5,8 +5,8 @@ import com.itsaky.androidide.lsp.actions.CommentLineAction
 import com.itsaky.androidide.lsp.actions.IActionsMenuProvider
 import com.itsaky.androidide.lsp.actions.UncommentLineAction
 import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
-import com.itsaky.androidide.lsp.kotlin.actions.SurroundWithTryCatchAction
 import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
+import com.itsaky.androidide.lsp.kotlin.actions.SurroundWithTryCatchAction
 
 object KotlinCodeActionsMenu : IActionsMenuProvider {
 	private const val KT_LANG = "kt"
