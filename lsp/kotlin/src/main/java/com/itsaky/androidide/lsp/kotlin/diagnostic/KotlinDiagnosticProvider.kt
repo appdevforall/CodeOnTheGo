@@ -103,7 +103,6 @@ private fun doAnalyze(
 									else -> DiagnosticAction.None
 								}
 
-							logger.info("diagnostic={} action={}", diagnostic.javaClass, action.javaClass)
 							add(
 								diagnostic.toDiagnosticItem().apply {
 									extra = KotlinDiagnosticExtra(env, action)

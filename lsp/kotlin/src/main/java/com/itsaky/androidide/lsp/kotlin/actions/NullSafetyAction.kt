@@ -20,6 +20,8 @@ import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.models.DiagnosticsInSelection
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Offers null-safety quick fixes on an UNSAFE_CALL diagnostic (`receiver.selector` where `receiver`
@@ -67,9 +69,11 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 
 			// Fetch the live KtFile BEFORE entering `read` (deadlock rule: its refresh needs write access).
 			val ktFile =
-				extra.compilationEnv.ktSymbolIndex
-					.getCurrentKtFile(nioPath)
-					.get() ?: return emptyList()
+				withContext(Dispatchers.IO) {
+					extra.compilationEnv.ktSymbolIndex
+						.getCurrentKtFile(nioPath)
+						.get()
+				} ?: return emptyList()
 
 			extra.compilationEnv.project.read {
 				val qe =
