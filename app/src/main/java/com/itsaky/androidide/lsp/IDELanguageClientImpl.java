@@ -24,7 +24,6 @@ import static com.itsaky.androidide.resources.R.string;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
 import com.blankj.utilcode.util.FileIOUtils;
 import com.blankj.utilcode.util.FileUtils;
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity;
@@ -50,10 +49,8 @@ import com.itsaky.androidide.ui.CodeEditorView;
 import com.itsaky.androidide.utils.FlashbarActivityUtilsKt;
 import com.itsaky.androidide.utils.FlashbarUtilsKt;
 import com.itsaky.androidide.utils.LSPUtils;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import io.github.rosemoe.sora.lang.diagnostic.DiagnosticsContainer;
+import io.github.rosemoe.sora.text.Content;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -65,415 +62,418 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-
-import io.github.rosemoe.sora.lang.diagnostic.DiagnosticsContainer;
-import io.github.rosemoe.sora.text.Content;
 import kotlin.Unit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * AndroidIDE specific implementation of the LanguageClient
  */
 public class IDELanguageClientImpl implements ILanguageClient {
 
-  public static final int MAX_DIAGNOSTIC_FILES = 10;
-  public static final int MAX_DIAGNOSTIC_ITEMS_PER_FILE = 20;
-  protected static final Logger LOG = LoggerFactory.getLogger(IDELanguageClientImpl.class);
-  private static IDELanguageClientImpl mInstance;
-  private final Map<File, List<DiagnosticItem>> diagnostics = new HashMap<>();
+	public static final int MAX_DIAGNOSTIC_FILES = 10;
+	public static final int MAX_DIAGNOSTIC_ITEMS_PER_FILE = 20;
+	protected static final Logger LOG = LoggerFactory.getLogger(IDELanguageClientImpl.class);
+	private static IDELanguageClientImpl mInstance;
 
-  protected EditorHandlerActivity activity;
+	public static IDELanguageClientImpl getInstance() {
+		if (mInstance == null) {
+			throw new IllegalStateException("Client not initialized");
+		}
 
-  private IDELanguageClientImpl(EditorHandlerActivity provider) {
-    setActivity(provider);
-  }
+		return mInstance;
+	}
 
-  public void setActivity(EditorHandlerActivity provider) {
-    this.activity = provider;
-  }
+	public static IDELanguageClientImpl initialize(EditorHandlerActivity provider) {
+		if (mInstance != null) {
+			throw new IllegalStateException("Client is already initialized");
+		}
 
-  public static IDELanguageClientImpl initialize(EditorHandlerActivity provider) {
-    if (mInstance != null) {
-      throw new IllegalStateException("Client is already initialized");
-    }
+		mInstance = new IDELanguageClientImpl(provider);
 
-    mInstance = new IDELanguageClientImpl(provider);
+		return getInstance();
+	}
 
-    return getInstance();
-  }
+	public static boolean isInitialized() {
+		return mInstance != null;
+	}
 
-  public static IDELanguageClientImpl getInstance() {
-    if (mInstance == null) {
-      throw new IllegalStateException("Client not initialized");
-    }
+	public static void shutdown() {
+		if (mInstance != null) {
+			mInstance.activity = null;
+		}
+		mInstance = null;
+	}
 
-    return mInstance;
-  }
+	private final Map<File, List<DiagnosticItem>> diagnostics = new HashMap<>();
 
-  public static void shutdown() {
-    if (mInstance != null) {
-      mInstance.activity = null;
-    }
-    mInstance = null;
-  }
+	protected EditorHandlerActivity activity;
 
-  public static boolean isInitialized() {
-    return mInstance != null;
-  }
+	private IDELanguageClientImpl(EditorHandlerActivity provider) {
+		setActivity(provider);
+	}
 
-  @Override
-  public IDEDebugClientImpl getDebugClient() {
-    return IDEDebugClientImpl.getInstance();
-  }
+	@NonNull
+	public Map<File, List<DiagnosticItem>> getAllDiagnostics() {
+		return new HashMap<>(this.diagnostics);
+	}
 
-  @Override
-  public void publishDiagnostics(DiagnosticResult result) {
-    if (result == DiagnosticResult.NO_UPDATE || !canUseActivity()) {
-      // No update is expected
-      return;
-    }
+	@Override
+	public IDEDebugClientImpl getDebugClient() {
+		return IDEDebugClientImpl.getInstance();
+	}
 
-    boolean error = result == null;
-    activity.handleDiagnosticsResultVisibility(error || result.getDiagnostics().isEmpty());
+	@Nullable
+	@Override
+	public DiagnosticItem getDiagnosticAt(final File file, final int line, final int column) {
+		return DiagnosticUtil.binarySearchDiagnostic(this.diagnostics.get(file), line, column);
+	}
 
-    if (error) {
-      return;
-    }
+	@NonNull
+	@Override
+	public List<DiagnosticItem> getDiagnosticsInRange(final File file, final Range range) {
+		return DiagnosticUtil.findDiagnosticsInRange(this.diagnostics.get(file), range);
+	}
 
-    File file = result.getFile().toFile();
-    if (!file.exists() || !file.isFile()) {
-      return;
-    }
+	public DiagnosticsAdapter newDiagnosticsAdapter() {
+		return new DiagnosticsAdapter(mapAsGroup(this.diagnostics), activity);
+	}
 
-    final var editorView = activity.getEditorForFile(file);
-    if (editorView != null) {
-      final var editor = editorView.getEditor();
-      if (editor != null) {
-        final var container = new DiagnosticsContainer();
-        try {
-          container.addDiagnostics(
-              result.getDiagnostics().stream()
-                  .map(DiagnosticItem::asDiagnosticRegion)
-                  .collect(Collectors.toList()));
-        } catch (Throwable err) {
-          LOG.error("Unable to map DiagnosticItem to DiagnosticRegion", err);
-        }
-        editor.setDiagnostics(container);
-      }
-    }
+	@Override
+	public void performCodeAction(PerformCodeActionParams params) {
+		if (params == null) {
+			return;
+		}
 
-    diagnostics.put(file, result.getDiagnostics());
-    activity.setDiagnosticsAdapter(newDiagnosticsAdapter());
-  }
+		final var action = params.getAction();
+		if (!canUseActivity()) {
+			LOG.error("Unable to perform code action activity=null action={}", action);
+			FlashbarUtilsKt.flashError(string.msg_cannot_perform_fix);
+			return;
+		}
 
-  @Nullable
-  @Override
-  public DiagnosticItem getDiagnosticAt(final File file, final int line, final int column) {
-    return DiagnosticUtil.binarySearchDiagnostic(this.diagnostics.get(file), line, column);
-  }
+		final var currentEditor = this.activity.getCurrentEditor();
+		final var editor = currentEditor != null ? currentEditor.getEditor() : null;
 
-  @NonNull
-  public Map<File, List<DiagnosticItem>> getAllDiagnostics() {
-    return new HashMap<>(this.diagnostics);
-  }
+		if (!params.getAsync()) {
+			applyActionEdits(editor, action);
+			if (editor != null) {
+				action.getCommand();
+				editor.executeCommand(action.getCommand());
+			}
+			return;
+		}
 
-  @Override
-  public void performCodeAction(PerformCodeActionParams params) {
-    if (params == null) {
-      return;
-    }
+		final ProgressSheet progress = new ProgressSheet();
+		progress.setSubMessageEnabled(false);
+		progress.setCancelable(false);
+		progress.setMessage(this.activity.getString(string.msg_performing_actions));
+		progress.show(this.activity.getSupportFragmentManager(), "quick_fix_progress");
 
-    final var action = params.getAction();
-    if (!canUseActivity()) {
-      LOG.error("Unable to perform code action activity=null action={}", action);
-      FlashbarUtilsKt.flashError(string.msg_cannot_perform_fix);
-      return;
-    }
+		TaskExecutor.executeAsyncProvideError(
+				() -> applyActionEdits(editor, action),
+				(result, throwable) -> {
+					progress.dismiss();
+					if (result == null || throwable != null || !result) {
+						LOG.error("Unable to perform code action result={}", result, throwable);
+						FlashbarActivityUtilsKt.flashError(this.activity, string.msg_cannot_perform_fix);
+					} else if (editor != null) {
+						editor.executeCommand(action.getCommand());
+					}
+				});
+	}
 
-    final var currentEditor = this.activity.getCurrentEditor();
-    final var editor = currentEditor != null ? currentEditor.getEditor() : null;
+	@Override
+	public void publishDiagnostics(DiagnosticResult result) {
+		if (result == DiagnosticResult.NO_UPDATE || !canUseActivity()) {
+			// No update is expected
+			return;
+		}
 
-    if (!params.getAsync()) {
-      applyActionEdits(editor, action);
-      if (editor != null) {
-        action.getCommand();
-        editor.executeCommand(action.getCommand());
-      }
-      return;
-    }
+		boolean error = result == null;
+		activity.handleDiagnosticsResultVisibility(error || result.getDiagnostics().isEmpty());
 
-    final ProgressSheet progress = new ProgressSheet();
-    progress.setSubMessageEnabled(false);
-    progress.setCancelable(false);
-    progress.setMessage(this.activity.getString(string.msg_performing_actions));
-    progress.show(this.activity.getSupportFragmentManager(), "quick_fix_progress");
+		if (error) {
+			return;
+		}
 
-    TaskExecutor.executeAsyncProvideError(
-        () -> applyActionEdits(editor, action),
-        (result, throwable) -> {
-          progress.dismiss();
-          if (result == null || throwable != null || !result) {
-            LOG.error("Unable to perform code action result={}", result, throwable);
-            FlashbarActivityUtilsKt.flashError(this.activity, string.msg_cannot_perform_fix);
-          } else if (editor != null) {
-            editor.executeCommand(action.getCommand());
-          }
-        });
-  }
+		File file = result.getFile().toFile();
+		if (!file.exists() || !file.isFile()) {
+			return;
+		}
 
-  private Boolean applyActionEdits(@Nullable final IDEEditor editor, final CodeActionItem action) {
-    final var changes = action.getChanges();
-    if (changes.isEmpty()) {
-      return Boolean.FALSE;
-    }
+		final var editorView = activity.getEditorForFile(file);
+		if (editorView != null) {
+			final var editor = editorView.getEditor();
+			if (editor != null) {
+				final var container = new DiagnosticsContainer();
+				try {
+					container.addDiagnostics(
+							result.getDiagnostics().stream()
+									.map(DiagnosticItem::asDiagnosticRegion)
+									.collect(Collectors.toList()));
+				} catch (Throwable err) {
+					LOG.error("Unable to map DiagnosticItem to DiagnosticRegion", err);
+				}
+				editor.setDiagnostics(container);
+			}
+		}
 
-    for (var change : changes) {
-      final var path = change.getFile();
-      if (path == null) {
-        continue;
-      }
+		diagnostics.put(file, result.getDiagnostics());
+		activity.setDiagnosticsAdapter(newDiagnosticsAdapter());
+	}
 
-      final File file = path.toFile();
-      if (!file.exists()) {
-        continue;
-      }
+	public void setActivity(EditorHandlerActivity provider) {
+		this.activity = provider;
+	}
 
-      for (TextEdit edit : change.getEdits()) {
-        final String editorFilepath =
-            editor == null || editor.getFile() == null ? "" : editor.getFile().getAbsolutePath();
-        if (file.getAbsolutePath().equals(editorFilepath)) {
-          // Edit is in the same editor which requested the code action
-          editInEditor(editor, edit);
-        } else {
-          var openedFrag = findEditorByFile(file);
+	@Override
+	public ShowDocumentResult showDocument(ShowDocumentParams params) {
+		boolean success = false;
+		final var result = new ShowDocumentResult(false);
+		if (!canUseActivity()) {
+			return result;
+		}
 
-          if (openedFrag != null && openedFrag.getEditor() != null) {
-            // Edit is in another 'opened' file
-            editInEditor(openedFrag.getEditor(), edit);
-          } else {
-            // Edit is in some other file which is not opened
-            // open that file and perform the edit
-            activity.openFileAsync(file, null, openedEditor -> {
-              if (openedEditor != null && openedEditor.getEditor() != null) {
-                editInEditor(openedEditor.getEditor(), edit);
-              }
-              return kotlin.Unit.INSTANCE;
-            });
-          }
-        }
-      }
-    }
+		if (params != null) {
+			File file = params.getFile().toFile();
+			if (file.exists() && file.isFile() && FileUtils.isUtf8(file)) {
+				final var range = params.getSelection();
+				var frag = activity.getEditorAtIndex(activity.getContent().tabs.getSelectedTabPosition());
+				if (frag != null
+						&& frag.getFile() != null
+						&& frag.getEditor() != null
+						&& frag.getFile().getAbsolutePath().equals(file.getAbsolutePath())) {
+					if (LSPUtils.isEqual(range.getStart(), range.getEnd())) {
+						frag.getEditor().setSelection(range.getStart().getLine(), range.getStart().getColumn());
+					} else {
+						frag.getEditor().setSelection(range);
+					}
+				} else {
+					activity.openFileAndSelect(file, range);
+				}
+				success = true;
+			}
+		}
 
-    return Boolean.TRUE;
-  }
+		result.setSuccess(success);
+		return result;
+	}
 
-  private void editInEditor(final IDEEditor editor, final TextEdit edit) {
-    activity
-        .runOnUiThread(
-            () -> {
-              final Range range = edit.getRange();
-              final int startLine = range.getStart().getLine();
-              final int startCol = range.getStart().getColumn();
-              final int endLine = range.getEnd().getLine();
-              final int endCol = range.getEnd().getColumn();
-              if (startLine == endLine && startCol == endCol) {
-                editor.getText().insert(startLine, startCol, edit.getNewText());
-              } else {
-                editor.getText().replace(startLine, startCol, endLine, endCol, edit.getNewText());
-              }
-            });
-  }
+	/**
+	 * Called by {@link IDEEditor IDEEditor} to show locations in EditorActivity
+	 */
+	@Override
+	public void showLocations(List<Location> locations) {
 
-  @Override
-  public ShowDocumentResult showDocument(ShowDocumentParams params) {
-    boolean success = false;
-    final var result = new ShowDocumentResult(false);
-    if (!canUseActivity()) {
-      return result;
-    }
+		// Cannot show anything if the activity() is null
+		if (!canUseActivity()) {
+			return;
+		}
 
-    if (params != null) {
-      File file = params.getFile().toFile();
-      if (file.exists() && file.isFile() && FileUtils.isUtf8(file)) {
-        final var range = params.getSelection();
-        var frag =
-            activity.getEditorAtIndex(activity.getContent().tabs.getSelectedTabPosition());
-        if (frag != null
-            && frag.getFile() != null
-            && frag.getEditor() != null
-            && frag.getFile().getAbsolutePath().equals(file.getAbsolutePath())) {
-          if (LSPUtils.isEqual(range.getStart(), range.getEnd())) {
-            frag.getEditor().setSelection(range.getStart().getLine(), range.getStart().getColumn());
-          } else {
-            frag.getEditor().setSelection(range);
-          }
-        } else {
-          activity.openFileAndSelect(file, range);
-        }
-        success = true;
-      }
-    }
+		boolean error = locations == null || locations.isEmpty();
+		activity.handleSearchResultVisibility(error);
 
-    result.setSuccess(success);
-    return result;
-  }
+		if (error) {
+			activity
+					.setSearchResultAdapter(
+							new SearchListAdapter(Collections.emptyMap(), this::noOp, this::noOp));
+			return;
+		}
 
-  public DiagnosticsAdapter newDiagnosticsAdapter() {
-    return new DiagnosticsAdapter(mapAsGroup(this.diagnostics), activity);
-  }
+		final Map<File, List<SearchResult>> results = new HashMap<>();
+		for (int i = 0; i < locations.size(); i++) {
+			try {
+				final Location loc = locations.get(i);
+				if (loc == null) {
+					continue;
+				}
 
-  private List<DiagnosticGroup> mapAsGroup(Map<File, List<DiagnosticItem>> map) {
-    final var groups = new ArrayList<DiagnosticGroup>();
-    var diagnosticMap = map;
-    if (diagnosticMap == null || diagnosticMap.size() == 0) {
-      return groups;
-    }
+				final File file = loc.getFile().toFile();
+				if (!file.exists() || !file.isFile()) {
+					continue;
+				}
+				var frag = findEditorByFile(file);
+				Content content;
+				if (frag != null && frag.getEditor() != null) {
+					content = frag.getEditor().getText();
+				} else {
+					content = new Content(FileIOUtils.readFile2String(file));
+				}
+				final List<SearchResult> matches = results.containsKey(file) ? results.get(file) : new ArrayList<>();
+				Objects.requireNonNull(matches)
+						.add(
+								new SearchResult(
+										loc.getRange(),
+										file,
+										content.getLineString(loc.getRange().getStart().getLine()),
+										content
+												.subContent(
+														loc.getRange().getStart().getLine(),
+														loc.getRange().getStart().getColumn(),
+														loc.getRange().getEnd().getLine(),
+														loc.getRange().getEnd().getColumn())
+												.toString()));
+				results.put(file, matches);
+			} catch (Throwable th) {
+				LOG.error("Failed to show file location", th);
+			}
+		}
 
-    if (diagnosticMap.size() > 10) {
-      LOG.warn("Limiting the diagnostics to 10 files");
-      diagnosticMap = filterRelevantDiagnostics(map);
-    }
+		activity.handleSearchResults(results);
+	}
 
-    for (File file : diagnosticMap.keySet()) {
-      var fileDiagnostics = diagnosticMap.get(file);
-      if (fileDiagnostics == null || fileDiagnostics.size() == 0) {
-        continue;
-      }
+	private Boolean applyActionEdits(@Nullable final IDEEditor editor, final CodeActionItem action) {
+		final var changes = action.getChanges();
+		if (changes.isEmpty()) {
+			return Boolean.FALSE;
+		}
 
-      // Trim the diagnostics list if we have too many diagnostic items.
-      // Including a lot of diagnostic items will result in UI lag when they are shown
-      if (fileDiagnostics.size() > MAX_DIAGNOSTIC_ITEMS_PER_FILE) {
-        LOG.warn("Limiting diagnostics to {} items for file {}",
-            MAX_DIAGNOSTIC_ITEMS_PER_FILE,
-            file.getName());
+		for (var change : changes) {
+			final var path = change.getFile();
+			if (path == null) {
+				continue;
+			}
 
-        fileDiagnostics = fileDiagnostics.subList(0, MAX_DIAGNOSTIC_ITEMS_PER_FILE);
-      }
-      DiagnosticGroup group = new DiagnosticGroup(drawable.ic_language_java, file, fileDiagnostics);
-      groups.add(group);
-    }
-    return groups;
-  }
+			final File file = path.toFile();
+			if (!file.exists()) {
+				continue;
+			}
 
-  @NonNull
-  private Map<File, List<DiagnosticItem>> filterRelevantDiagnostics(
-      @NonNull final Map<File, List<DiagnosticItem>> map) {
-    final var result = new HashMap<File, List<DiagnosticItem>>();
-    final var files = map.keySet();
+			for (TextEdit edit : change.getEdits()) {
+				final String editorFilepath = editor == null || editor.getFile() == null ? "" : editor.getFile().getAbsolutePath();
+				if (file.getAbsolutePath().equals(editorFilepath)) {
+					// Edit is in the same editor which requested the code action
+					editInEditor(editor, edit);
+				} else {
+					var openedFrag = findEditorByFile(file);
 
-    // Diagnostics of files that are open must always be included
-    final var relevantFiles = findOpenFiles(files, MAX_DIAGNOSTIC_FILES);
+					if (openedFrag != null && openedFrag.getEditor() != null) {
+						// Edit is in another 'opened' file
+						editInEditor(openedFrag.getEditor(), edit);
+					} else {
+						// Edit is in some other file which is not opened
+						// open that file and perform the edit
+						activity.openFileAsync(file, null, openedEditor -> {
+							if (openedEditor != null && openedEditor.getEditor() != null) {
+								editInEditor(openedEditor.getEditor(), edit);
+							}
+							return kotlin.Unit.INSTANCE;
+						});
+					}
+				}
+			}
+		}
 
-    // If we can show a few more file diagnostics...
-    if (relevantFiles.size() < MAX_DIAGNOSTIC_FILES) {
-      final var alphabetical = new TreeSet<>(Comparator.comparing(File::getName));
-      alphabetical.addAll(files);
-      for (var file : alphabetical) {
-        relevantFiles.add(file);
-        if (relevantFiles.size() == MAX_DIAGNOSTIC_FILES) {
-          break;
-        }
-      }
-    }
+		return Boolean.TRUE;
+	}
 
-    for (var file : relevantFiles) {
-      result.put(file, map.get(file));
-    }
-    return result;
-  }
+	private boolean canUseActivity() {
+		return activity != null
+				&& !activity.isFinishing()
+				&& !activity.isDestroyed()
+				&& !activity.getSupportFragmentManager().isDestroyed()
+				&& !activity.getSupportFragmentManager().isStateSaved();
+	}
 
-  @NonNull
-  private Set<File> findOpenFiles(final Set<File> files, final int max) {
-    final var openedFiles = activity.getEditorViewModel().getOpenedFiles();
-    final var result = new TreeSet<File>();
-    for (int i = 0; i < openedFiles.size(); i++) {
-      final var opened = openedFiles.get(i);
-      if (files.contains(opened)) {
-        result.add(opened);
-      }
-      if (result.size() == max) {
-        break;
-      }
-    }
-    return result;
-  }
+	private void editInEditor(final IDEEditor editor, final TextEdit edit) {
+		activity
+				.runOnUiThread(
+						() -> {
+							final Range range = edit.getRange();
+							final int startLine = range.getStart().getLine();
+							final int startCol = range.getStart().getColumn();
+							final int endLine = range.getEnd().getLine();
+							final int endCol = range.getEnd().getColumn();
+							if (startLine == endLine && startCol == endCol) {
+								editor.getText().insert(startLine, startCol, edit.getNewText());
+							} else {
+								editor.getText().replace(startLine, startCol, endLine, endCol, edit.getNewText());
+							}
+						});
+	}
 
-  /**
-   * Called by {@link IDEEditor IDEEditor} to show locations in EditorActivity
-   */
-  @Override
-  public void showLocations(List<Location> locations) {
+	@NonNull
+	private Map<File, List<DiagnosticItem>> filterRelevantDiagnostics(
+			@NonNull final Map<File, List<DiagnosticItem>> map) {
+		final var result = new HashMap<File, List<DiagnosticItem>>();
+		final var files = map.keySet();
 
-    // Cannot show anything if the activity() is null
-    if (!canUseActivity()) {
-      return;
-    }
+		// Diagnostics of files that are open must always be included
+		final var relevantFiles = findOpenFiles(files, MAX_DIAGNOSTIC_FILES);
 
-    boolean error = locations == null || locations.isEmpty();
-    activity.handleSearchResultVisibility(error);
+		// If we can show a few more file diagnostics...
+		if (relevantFiles.size() < MAX_DIAGNOSTIC_FILES) {
+			final var alphabetical = new TreeSet<>(Comparator.comparing(File::getName));
+			alphabetical.addAll(files);
+			for (var file : alphabetical) {
+				relevantFiles.add(file);
+				if (relevantFiles.size() == MAX_DIAGNOSTIC_FILES) {
+					break;
+				}
+			}
+		}
 
-    if (error) {
-      activity
-          .setSearchResultAdapter(
-              new SearchListAdapter(Collections.emptyMap(), this::noOp, this::noOp));
-      return;
-    }
+		for (var file : relevantFiles) {
+			result.put(file, map.get(file));
+		}
+		return result;
+	}
 
-    final Map<File, List<SearchResult>> results = new HashMap<>();
-    for (int i = 0; i < locations.size(); i++) {
-      try {
-        final Location loc = locations.get(i);
-        if (loc == null) {
-          continue;
-        }
+	private CodeEditorView findEditorByFile(File file) {
+		return activity.getEditorForFile(file);
+	}
 
-        final File file = loc.getFile().toFile();
-        if (!file.exists() || !file.isFile()) {
-          continue;
-        }
-        var frag = findEditorByFile(file);
-        Content content;
-        if (frag != null && frag.getEditor() != null) {
-          content = frag.getEditor().getText();
-        } else {
-          content = new Content(FileIOUtils.readFile2String(file));
-        }
-        final List<SearchResult> matches =
-            results.containsKey(file) ? results.get(file) : new ArrayList<>();
-        Objects.requireNonNull(matches)
-            .add(
-                new SearchResult(
-                    loc.getRange(),
-                    file,
-                    content.getLineString(loc.getRange().getStart().getLine()),
-                    content
-                        .subContent(
-                            loc.getRange().getStart().getLine(),
-                            loc.getRange().getStart().getColumn(),
-                            loc.getRange().getEnd().getLine(),
-                            loc.getRange().getEnd().getColumn())
-                        .toString()));
-        results.put(file, matches);
-      } catch (Throwable th) {
-        LOG.error("Failed to show file location", th);
-      }
-    }
+	@NonNull
+	private Set<File> findOpenFiles(final Set<File> files, final int max) {
+		final var openedFiles = activity.getEditorViewModel().getOpenedFiles();
+		final var result = new TreeSet<File>();
+		for (int i = 0; i < openedFiles.size(); i++) {
+			final var opened = openedFiles.get(i);
+			if (files.contains(opened)) {
+				result.add(opened);
+			}
+			if (result.size() == max) {
+				break;
+			}
+		}
+		return result;
+	}
 
-    activity.handleSearchResults(results);
-  }
+	private List<DiagnosticGroup> mapAsGroup(Map<File, List<DiagnosticItem>> map) {
+		final var groups = new ArrayList<DiagnosticGroup>();
+		var diagnosticMap = map;
+		if (diagnosticMap == null || diagnosticMap.size() == 0) {
+			return groups;
+		}
 
-  private CodeEditorView findEditorByFile(File file) {
-    return activity.getEditorForFile(file);
-  }
+		if (diagnosticMap.size() > 10) {
+			LOG.warn("Limiting the diagnostics to 10 files");
+			diagnosticMap = filterRelevantDiagnostics(map);
+		}
 
-  private boolean canUseActivity() {
-    return activity != null
-        && !activity.isFinishing()
-        && !activity.isDestroyed()
-        && !activity.getSupportFragmentManager().isDestroyed()
-        && !activity.getSupportFragmentManager().isStateSaved();
-  }
+		for (File file : diagnosticMap.keySet()) {
+			var fileDiagnostics = diagnosticMap.get(file);
+			if (fileDiagnostics == null || fileDiagnostics.size() == 0) {
+				continue;
+			}
 
-  private Unit noOp(final Object obj) {
-    return Unit.INSTANCE;
-  }
+			// Trim the diagnostics list if we have too many diagnostic items.
+			// Including a lot of diagnostic items will result in UI lag when they are shown
+			if (fileDiagnostics.size() > MAX_DIAGNOSTIC_ITEMS_PER_FILE) {
+				LOG.warn("Limiting diagnostics to {} items for file {}",
+						MAX_DIAGNOSTIC_ITEMS_PER_FILE,
+						file.getName());
+
+				fileDiagnostics = fileDiagnostics.subList(0, MAX_DIAGNOSTIC_ITEMS_PER_FILE);
+			}
+			DiagnosticGroup group = new DiagnosticGroup(drawable.ic_language_java, file, fileDiagnostics);
+			groups.add(group);
+		}
+		return groups;
+	}
+
+	private Unit noOp(final Object obj) {
+		return Unit.INSTANCE;
+	}
 }

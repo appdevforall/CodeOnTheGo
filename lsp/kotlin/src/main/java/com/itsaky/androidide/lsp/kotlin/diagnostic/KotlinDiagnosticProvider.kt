@@ -3,7 +3,6 @@ package com.itsaky.androidide.lsp.kotlin.diagnostic
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
-import com.itsaky.androidide.lsp.kotlin.utils.nullSafetyFactoryFor
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.models.DiagnosticResult
@@ -25,22 +24,19 @@ import java.nio.file.Path
 private val logger = LoggerFactory.getLogger("KotlinDiagnosticProvider")
 
 internal data class KotlinDiagnosticExtra(
-	/**
-	 * The unresolved-reference name extracted from an [KaFirDiagnostic.UnresolvedReference]
-	 * diagnostic, or `null` for any other diagnostic. This is plain data extracted *inside* the
-	 * `analyze` block on purpose: storing the [KaDiagnosticWithPsi] (a `KaLifetimeOwner`) here and
-	 * reading its members later from a code action would access it outside an `analyze` context and
-	 * crash with `KaInaccessibleLifetimeOwnerAccessException`.
-	 */
-	val unresolvedReference: String?,
 	val compilationEnv: CompilationEnvironment,
-	/**
-	 * The FIR diagnostic factory name (e.g. `UNSAFE_CALL`) when this diagnostic flags an unsafe
-	 * member access on a nullable receiver, else `null`. Captured here as plain data so a code
-	 * action can decide visibility without touching the [KaDiagnosticWithPsi] lifetime owner.
-	 */
-	val nullSafetyFactory: String?,
+	val action: DiagnosticAction,
 )
+
+internal sealed interface DiagnosticAction {
+	data object None : DiagnosticAction
+
+	data class ResolveReference(
+		val referenceName: String,
+	) : DiagnosticAction
+
+	data object NullSafetyFix : DiagnosticAction
+}
 
 context(env: CompilationEnvironment)
 internal fun collectDiagnosticsFor(
@@ -100,12 +96,17 @@ private fun doAnalyze(
 							cancelChecker.abortIfCancelled()
 							// Extract plain data while still inside the analyze context; never let
 							// the KaLifetimeOwner diagnostic escape (see KotlinDiagnosticExtra).
-							val unresolvedReference =
-								(diagnostic as? KaFirDiagnostic.UnresolvedReference)?.reference
-							val nullSafetyFactory = nullSafetyFactoryFor(diagnostic.factoryName)
+							val action =
+								when (diagnostic) {
+									is KaFirDiagnostic.UnresolvedReference -> DiagnosticAction.ResolveReference(diagnostic.reference)
+									is KaFirDiagnostic.UnsafeCall -> DiagnosticAction.NullSafetyFix
+									else -> DiagnosticAction.None
+								}
+
+							logger.info("diagnostic={} action={}", diagnostic.javaClass, action.javaClass)
 							add(
 								diagnostic.toDiagnosticItem().apply {
-									extra = KotlinDiagnosticExtra(unresolvedReference, env, nullSafetyFactory)
+									extra = KotlinDiagnosticExtra(env, action)
 								},
 							)
 						}
