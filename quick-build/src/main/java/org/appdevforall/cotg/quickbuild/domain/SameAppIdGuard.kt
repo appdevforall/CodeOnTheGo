@@ -56,16 +56,20 @@ class SameAppIdGuard {
 		if (!sameAppId) {
 			if (!targetPackage.endsWith(TEST_APP_ID_SUFFIX) || targetPackage == realApplicationId) {
 				throw Violation(
-					"Suffix-mode install targets '$targetPackage' which is not a " +
-						"'$TEST_APP_ID_SUFFIX'-suffixed test package distinct from '$realApplicationId'",
+					"Quick Build tried to install applicationId '$targetPackage', which is not a " +
+						"'$TEST_APP_ID_SUFFIX'-suffixed test package distinct from the project's " +
+						"applicationId '$realApplicationId'. This is an internal Quick Build bug, " +
+						"not a project misconfiguration - rebaseline the project (edit any Gradle " +
+						"file) and try again; if it recurs, please report a bug.",
 				)
 			}
 			return
 		}
 		if (targetPackage != realApplicationId) {
 			throw Violation(
-				"Same-app-id install targets '$targetPackage' but the project's " +
-					"applicationId is '$realApplicationId'",
+				"Quick Build tried to install applicationId '$targetPackage', but the project's " +
+					"applicationId is now '$realApplicationId'. Turn same-app-id mode off and back " +
+					"on to re-confirm it against the current applicationId.",
 			)
 		}
 		if (tokenFor != realApplicationId) {

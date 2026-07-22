@@ -194,4 +194,15 @@ class AnalyticsQuickBuildMetricsSinkTest {
 		assertThat(refused.reason).isEqualTo("signature_mismatch")
 		assertThat(refused.projectHash).isEqualTo("/projects/demo".hashCode().toLong())
 	}
+
+	@Test
+	fun `a versionCode-overflow refusal reports its own reason, not signature_mismatch`() {
+		// Pins the analytics-sink side of the reason-mislabel fix: SameAppIdModeController
+		// used to hardcode SIGNATURE_MISMATCH for every refusal, so this reason would have
+		// been reported as "signature_mismatch" too.
+		sink().onSameAppIdRefused(SameAppIdRefusalReason.VERSION_CODE_OVERFLOW)
+
+		val refused = tracked.single() as QuickBuildSameIdRefusedMetric
+		assertThat(refused.reason).isEqualTo("version_code_overflow")
+	}
 }

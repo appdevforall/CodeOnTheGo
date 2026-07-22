@@ -15,6 +15,8 @@ data class InstalledRealApp(
 enum class SameAppIdRefusalReason {
 	SIGNATURE_MISMATCH,
 	USER_DECLINED,
+	/** The pinned versionCode would exceed Int.MAX_VALUE - an update install is impossible. */
+	VERSION_CODE_OVERFLOW,
 }
 
 /** Outcome of the mode-entry decision (contract section 2). */
@@ -35,9 +37,14 @@ sealed interface SameAppIdEntryDecision {
 		val signatureVerified: Boolean,
 	) : SameAppIdEntryDecision
 
-	/** Entry is refused outright; [message] names the reason for the user. */
+	/**
+	 * Entry is refused outright; [message] names the reason for the user, [reason] is
+	 * the machine-readable cause for analytics - callers must report THIS, not assume
+	 * every refusal is a signature mismatch (two distinct causes exist below).
+	 */
 	data class Refuse(
 		val message: String,
+		val reason: SameAppIdRefusalReason,
 	) : SameAppIdEntryDecision
 }
 
@@ -71,7 +78,10 @@ object SameAppIdEntry {
 
 		val bothCertsKnown = installed.certSha256 != null && cogoCertSha256 != null
 		if (bothCertsKnown && !installed.certSha256.equals(cogoCertSha256, ignoreCase = true)) {
-			return SameAppIdEntryDecision.Refuse(refusalMessage(realApplicationId))
+			return SameAppIdEntryDecision.Refuse(
+				refusalMessage(realApplicationId),
+				SameAppIdRefusalReason.SIGNATURE_MISMATCH,
+			)
 		}
 
 		val candidate = maxOf(installed.versionCode + 1, floor)
@@ -79,6 +89,7 @@ object SameAppIdEntry {
 			return SameAppIdEntryDecision.Refuse(
 				"The installed $realApplicationId has versionCode ${installed.versionCode}; " +
 					"a higher versionCode cannot be represented, so an update install is impossible.",
+				SameAppIdRefusalReason.VERSION_CODE_OVERFLOW,
 			)
 		}
 		return SameAppIdEntryDecision.Proceed(

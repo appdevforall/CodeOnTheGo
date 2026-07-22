@@ -111,7 +111,7 @@ class SameAppIdModeController(
 		) {
 			is SameAppIdEntryDecision.Refuse -> {
 				pending = null
-				report { metrics.onSameAppIdRefused(SameAppIdRefusalReason.SIGNATURE_MISMATCH) }
+				report { metrics.onSameAppIdRefused(decision.reason) }
 				EntryRequest.Refused(decision.message)
 			}
 			is SameAppIdEntryDecision.Proceed -> {

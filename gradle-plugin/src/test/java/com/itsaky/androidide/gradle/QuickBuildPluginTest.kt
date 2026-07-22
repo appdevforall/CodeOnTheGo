@@ -9,9 +9,34 @@ import org.junit.jupiter.api.assertThrows
 /**
  * JVM-pure checks for QuickBuildPlugin's property parsing. The full setup-build behavior
  * (suffix skipped, versionCode applied to outputs) is TestKit territory and rides the
- * existing functional-suite environment.
+ * existing functional-suite environment; QuickBuildJsonTest covers the setup.json shape
+ * the report task writes for both modes.
  */
 class QuickBuildPluginTest {
+	@Test
+	fun `sameAppId is false when the property is unset`() {
+		assertThat(QuickBuildPlugin.resolveSameAppId(null)).isFalse()
+	}
+
+	@Test
+	fun `sameAppId is true only for the literal string true`() {
+		assertThat(QuickBuildPlugin.resolveSameAppId("true")).isTrue()
+	}
+
+	@Test
+	fun `sameAppId stays false for anything else, including a typo or explicit false`() {
+		listOf("false", "True", "TRUE", "1", "yes", "").forEach { raw ->
+			assertThat(QuickBuildPlugin.resolveSameAppId(raw)).isFalse()
+		}
+	}
+
+	@Test
+	fun `sameAppId accepts a non-string true via toString, matching resolveVersionCodeOverride's leniency`() {
+		// -P values are always Strings in practice, but findProperty's return type is
+		// Any? - stay consistent with resolveVersionCodeOverride's raw.toString() handling
+		// rather than assuming the caller always passes a String.
+		assertThat(QuickBuildPlugin.resolveSameAppId(StringBuilder("true"))).isTrue()
+	}
 	@Test
 	fun `versionCodeOverride is null when the property is unset`() {
 		assertThat(QuickBuildPlugin.resolveVersionCodeOverride(null)).isNull()

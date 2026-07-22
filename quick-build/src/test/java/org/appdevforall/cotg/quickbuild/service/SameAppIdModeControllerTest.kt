@@ -158,6 +158,17 @@ class SameAppIdModeControllerTest {
 	}
 
 	@Test
+	fun `entry over a versionCode-overflow install refuses with the overflow reason, not signature mismatch`() {
+		packages.versionCodes[appId] = Int.MAX_VALUE.toLong()
+		packages.certs[appId] = cert
+
+		val request = controller().requestEntry(appId, projectVersionCode = null)
+
+		assertThat(request).isInstanceOf(SameAppIdModeController.EntryRequest.Refused::class.java)
+		assertThat(metrics.events).containsExactly("refused:VERSION_CODE_OVERFLOW")
+	}
+
+	@Test
 	fun `confirmEntry persists the episode, mints the token and flips the mode`() {
 		packages.versionCodes[appId] = 41
 		packages.certs[appId] = cert

@@ -222,7 +222,7 @@ Document in the mode's help text, not as a limitation of the implementation.
   - `quick_build_sameid_clobber_confirmed` — the dialog accept itself (kept
     distinct from `entered` so decline rate is measurable from the gap).
   - `quick_build_sameid_refused` — param `reason`:
-    `signature_mismatch | user_declined`.
+    `signature_mismatch | user_declined | version_code_overflow`.
   - `quick_build_sameid_restored` — Standard Run ended the episode (param:
     `downgrade_used` true/false).
   Session-scoped events carry `qb_session_id` as today; `refused` predates a
@@ -262,3 +262,28 @@ warning (accept + decline), update-install with data preservation verified
 mismatch refusal, Standard Run restore incl. the downgrade path, and re-entry
 warning after restore. README "Known limitations" gains the cert-pinned-
 services note; ADR 0010's Alternatives entry is updated to "planned as opt-in".
+
+## PR followups (need a product decision, not fixed here - 2026-07-21)
+
+- **`ApkSigningCert.sha256` / `getPackageArchiveInfo` can return a null cert on some
+  OEMs** (`app/.../QuickBuildInstallAdapters.kt`). A null read is already treated as
+  "cannot verify" and routes to the unverified-`Proceed` path (`SameAppIdEntry.decide`'s
+  `bothCertsKnown` gate) rather than a hard refusal - so the mode does not currently HARD
+  FAIL on this OEM fragility, but it does mean the authoritative provisioner-side check
+  (`SameAppIdProvisionGuard.installGate`'s `signatureRefusal`) also sees a null and, per
+  its "unreadable counts as a mismatch" rule, refuses the install right before it would
+  otherwise proceed - the update-install path silently degrades to "always refuses" on
+  those devices. Needs a product call: which OEMs/API levels are affected, whether a
+  fallback verification exists (APK signature scheme v2/v3 parsing without
+  PackageManager?), and whether "refuse" is really the right default when the read
+  itself failed vs. when it succeeded and disagreed.
+- **`ProjectHandlerActivity.startSameAppIdEntry` always passes `projectVersionCode =
+  null`** to `SameAppIdModeController.requestEntry` (the project model exposes no
+  versionCode today). This floors the pinned versionCode to 1 on first entry, which is
+  harmless once an app is already installed (the installed versionCode + 1 dominates,
+  per `SameAppIdEntry.decide`), but means a FRESH install always pins versionCode 1
+  regardless of what the project's own `build.gradle` versionCode says - a later
+  Standard Run restore could then need a downgrade immediately if the project's real
+  versionCode is higher. Needs a product call on whether to read the real versionCode
+  from the Tooling API model (cost/timing of that read against project-open/entry-tap
+  latency) or accept the fresh-install floor as permanent behavior.

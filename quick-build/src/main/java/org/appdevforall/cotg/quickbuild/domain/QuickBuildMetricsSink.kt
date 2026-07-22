@@ -50,7 +50,7 @@ interface QuickBuildMetricsSink {
 	/** The clobber dialog's accept itself; kept distinct so decline rate is measurable. */
 	fun onSameAppIdClobberConfirmed() {}
 
-	/** Mode entry was refused; [reason] is signature_mismatch or user_declined. */
+	/** Mode entry was refused; [reason] is signature_mismatch, user_declined, or version_code_overflow. */
 	fun onSameAppIdRefused(reason: SameAppIdRefusalReason) {}
 
 	/** A Standard Run ended the mode episode; [downgradeUsed] = restore requested a downgrade. */

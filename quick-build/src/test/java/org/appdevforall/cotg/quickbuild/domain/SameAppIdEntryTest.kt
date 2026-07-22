@@ -87,7 +87,7 @@ class SameAppIdEntryTest {
 	}
 
 	@Test
-	fun `signature mismatch refuses with the app id named`() {
+	fun `signature mismatch refuses with the app id named and the signature-mismatch reason`() {
 		val decision =
 			SameAppIdEntry.decide(
 				appId,
@@ -97,7 +97,9 @@ class SameAppIdEntryTest {
 			)
 
 		assertThat(decision).isInstanceOf(SameAppIdEntryDecision.Refuse::class.java)
-		assertThat((decision as SameAppIdEntryDecision.Refuse).message).contains(appId)
+		val refuse = decision as SameAppIdEntryDecision.Refuse
+		assertThat(refuse.message).contains(appId)
+		assertThat(refuse.reason).isEqualTo(SameAppIdRefusalReason.SIGNATURE_MISMATCH)
 	}
 
 	@Test
@@ -132,7 +134,7 @@ class SameAppIdEntryTest {
 	}
 
 	@Test
-	fun `versionCode overflow refuses instead of wrapping`() {
+	fun `versionCode overflow refuses instead of wrapping, tagged distinctly from a signature mismatch`() {
 		val decision =
 			SameAppIdEntry.decide(
 				appId,
@@ -142,5 +144,9 @@ class SameAppIdEntryTest {
 			)
 
 		assertThat(decision).isInstanceOf(SameAppIdEntryDecision.Refuse::class.java)
+		// Matching certs above: this refusal is NOT a signature mismatch. Analytics must
+		// not conflate the two - see SameAppIdModeControllerTest for the reporting side.
+		assertThat((decision as SameAppIdEntryDecision.Refuse).reason)
+			.isEqualTo(SameAppIdRefusalReason.VERSION_CODE_OVERFLOW)
 	}
 }

@@ -22,6 +22,17 @@ class SameAppIdGuardTest {
 	}
 
 	@Test
+	fun `suffix mode violation names both ids and the one action to take`() {
+		val error =
+			assertThrows<SameAppIdGuard.Violation> {
+				guard.checkInstall(sameAppId = false, targetPackage = realAppId, realApplicationId = realAppId)
+			}
+
+		assertThat(error).hasMessageThat().contains(realAppId)
+		assertThat(error).hasMessageThat().contains("rebaseline")
+	}
+
+	@Test
 	fun `suffix mode rejects a suffixed target that equals the real id`() {
 		// A confused state where the "real" id already carries the suffix: the target
 		// must still DIFFER from the real id or the install aborts.
@@ -56,6 +67,20 @@ class SameAppIdGuardTest {
 		assertThrows<SameAppIdGuard.Violation> {
 			guard.checkInstall(sameAppId = true, targetPackage = testAppId, realApplicationId = realAppId)
 		}
+	}
+
+	@Test
+	fun `same-id mode id-mismatch violation names both ids and the one action to take`() {
+		guard.mintClobberToken(realAppId)
+
+		val error =
+			assertThrows<SameAppIdGuard.Violation> {
+				guard.checkInstall(sameAppId = true, targetPackage = testAppId, realApplicationId = realAppId)
+			}
+
+		assertThat(error).hasMessageThat().contains(testAppId)
+		assertThat(error).hasMessageThat().contains(realAppId)
+		assertThat(error).hasMessageThat().contains("Turn same-app-id mode off and back on")
 	}
 
 	@Test

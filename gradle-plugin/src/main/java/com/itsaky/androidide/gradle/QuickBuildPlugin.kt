@@ -85,6 +85,13 @@ class QuickBuildPlugin : Plugin<Project> {
 			}
 			return value
 		}
+
+		/**
+		 * Parses [PROPERTY_QUICK_BUILD_SAME_APP_ID]. Only the literal string "true" (the
+		 * `-P` convention CoGo writes) opts in; anything else - unset, "false", a typo -
+		 * keeps the default suffix-mode posture, never same-app-id by accident.
+		 */
+		internal fun resolveSameAppId(raw: Any?): Boolean = raw?.toString() == "true"
 	}
 
 	override fun apply(target: Project) {
@@ -116,7 +123,7 @@ class QuickBuildPlugin : Plugin<Project> {
 		// skip the suffix so the test app installs under the real applicationId. The
 		// authority rewrite needs no mode branch - with test id == real id it collapses to
 		// verbatim by construction. CoGo pins the versionCode for the whole mode episode.
-		val sameAppId = target.findProperty(PROPERTY_QUICK_BUILD_SAME_APP_ID) == "true"
+		val sameAppId = resolveSameAppId(target.findProperty(PROPERTY_QUICK_BUILD_SAME_APP_ID))
 		val versionCodeOverride =
 			resolveVersionCodeOverride(target.findProperty(PROPERTY_QUICK_BUILD_VERSION_CODE_OVERRIDE))
 

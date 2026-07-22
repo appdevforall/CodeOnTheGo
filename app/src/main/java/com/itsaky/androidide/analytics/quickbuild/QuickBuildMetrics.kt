@@ -141,7 +141,8 @@ data class QuickBuildSameIdClobberConfirmedMetric(
 
 /**
  * Same-app-id mode entry refused. Predates any session, so it carries only the
- * project hash (contract section 6). `reason` = "signature_mismatch" | "user_declined".
+ * project hash (contract section 6). `reason` = "signature_mismatch" |
+ * "user_declined" | "version_code_overflow".
  */
 data class QuickBuildSameIdRefusedMetric(
 	val reason: String,
