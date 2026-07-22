@@ -164,9 +164,14 @@ class DeployChannel(
 	}
 
 	override suspend fun awaitDisconnect(timeoutMillis: Long): Boolean =
+		// The awaited value IS null by construction, so the block must yield its own
+		// non-null sentinel - returning `first { it == null }` makes a real disconnect
+		// indistinguishable from a timeout, and the restart path then always falls back
+		// to a rebaseline (observed on-device 2026-07-22, gen-90 service edit).
 		withTimeoutOrNull(timeoutMillis) {
 			connections.target.first { it == null }
-		} != null
+			true
+		} == true
 
 	override suspend fun awaitReconnect(timeoutMillis: Long): Long? =
 		withTimeoutOrNull(timeoutMillis) {
