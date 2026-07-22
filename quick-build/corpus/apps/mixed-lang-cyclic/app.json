@@ -1,0 +1,6 @@
+{
+	"applicationId": "org.appdevforall.cotg.corpus.mixedcyclic",
+	"entryActivity": "org.appdevforall.cotg.corpus.mixedcyclic.ui.MainActivity",
+	"minSdk": 30,
+	"language": "mixed"
+}

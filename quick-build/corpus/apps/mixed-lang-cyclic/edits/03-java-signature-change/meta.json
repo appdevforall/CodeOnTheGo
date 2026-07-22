@@ -1,0 +1,12 @@
+{
+	"editClass": "java-signature-change",
+	"description": "NodeRenderer.render() widens its return type from String to CharSequence. Only the .java file is touched, but TreeNode.describe() infers its return type from that call, so TreeNode's own ABI changes and every caller of describe() (MainActivity) plus the Java override (JavaLeafNode, which now needs a covariant bridge) must be recompiled. If the Kotlin side were left stale it would still call render()Ljava/lang/String; - a NoSuchMethodError at run time - so this edit is the never-stale check for the Java->Kotlin direction of the cycle.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/mixedcyclic/core/NodeRenderer.java": "NodeRenderer.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 4, "max": 5},
+		"behavioralMarker": "QB_CYCLIC_JSIG_MARKER_V2"
+	}
+}

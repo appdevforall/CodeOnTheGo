@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "Change TreeNode.summary()'s body. Pure Kotlin edit inside a module that has a real Kotlin<->Java cycle - sanity check that the presence of the cycle does not push a single-language edit off the incremental fast path.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/mixedcyclic/core/TreeNode.kt": "TreeNode.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 2},
+		"behavioralMarker": "QB_CYCLIC_K_MARKER_V2"
+	}
+}

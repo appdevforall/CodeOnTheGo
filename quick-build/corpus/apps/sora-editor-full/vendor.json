@@ -1,0 +1,10 @@
+{
+	"repo": "https://github.com/Rosemoe/sora-editor",
+	"commit": "43f7e8e298133248ce4128812092114f397a94f6",
+	"license": "LGPL-2.1",
+	"note": "The COMPLETE :editor module (73 Kotlin + 214 Java files, with real Kotlin<->Java cycles), taken as whole directories via the trees mapping rather than a hand-picked file list. sora-editor-lib is the small acyclic slice of the same commit; this entry is the full-module stress test. Harness scaffolding lives under org.appdevforall.corpusharness so the vendored io.github.rosemoe.sora tree can be replaced wholesale.",
+	"trees": {
+		"editor/src/main/java/io/github/rosemoe": "src/main/java/io/github/rosemoe",
+		"editor/src/main/res": "src/main/res"
+	}
+}

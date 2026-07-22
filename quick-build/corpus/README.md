@@ -426,25 +426,31 @@ originally planned:**
    Not something this corpus entry can work around (it's a plugin-injection
    defect, not a project-content problem) -- filed here as the actionable
    finding; a fix belongs in `gradle-plugin`, not the corpus.
-2. **The daemon cannot compile a module with MUTUAL (bidirectional)
-   Kotlin<->Java symbol references -- a real, generalizable limitation
-   beyond the already-documented R-class gap.** The existing "R class is
-   harness-only, precompiled + put on classpath" workaround
-   (see "Limitations" above) works because that dependency is one-directional
-   (Kotlin/Java -> R, never the reverse). sora-editor's real `:editor` module
-   is NOT one-directional: of its 73 Kotlin files, 50 are referenced by at
-   least one Java file, and Java files are referenced back from Kotlin files
-   too (e.g. `CodeEditor.java` from Kotlin event/style files) --  a genuine
-   dependency cycle across the language boundary. Confirmed empirically: the
-   full module fails baseline compile with `Unresolved reference 'CodeEditor'`
-   in Kotlin sources (Kotlin compiles first per the daemon's own
-   `IncrementalCompiler` architecture, so it never sees Java sources -- not
-   even on the classpath route, since they haven't been compiled yet either).
-   Precompiling the Java side first hits the mirror error (`cannot find
-   symbol` for Kotlin-defined types). **Neither compile order works for a
-   module with real cycles; this is not a workaround-able ordering problem.**
-   This is a real gap for a large share of mature Android codebases, which
-   very commonly mix Kotlin and Java with references running both ways.
+2. ~~**The daemon cannot compile a module with MUTUAL (bidirectional)
+   Kotlin<->Java symbol references.**~~ **RESOLVED, and the original finding was
+   wrong about the mechanism** (2026-07-22, WS-D). It was recorded on 2026-07-17,
+   one day before `IncrementalCompiler` started passing `.java` sources into
+   kotlinc's own source list for symbol resolution (the `mixed-lang` entry). With
+   that in place the daemon does Gradle's two-pass shape -- kotlinc resolves
+   against raw Java sources, then javac compiles Java against kotlinc's output --
+   which handles cycles by construction, because neither language is compiled
+   "first" in the sense the finding assumed.
+
+   Re-tested against the **whole** `:editor` module at the same pinned commit
+   (`sora-editor-full`, below): **287 upstream files -- 73 Kotlin, 214 Java, with
+   references running both ways -- compile to 457 classes, output-equivalence
+   PASS.** The specific error the finding cited, `Unresolved reference
+   'CodeEditor'` in Kotlin, does not occur; a Kotlin harness activity calling
+   `CodeEditor` directly is part of the entry precisely to keep that pinned.
+   The genuinely blocking finding for that first attempt was (1), the Gradle 9
+   setup-build defect, which still stands.
+
+   What remains is a cost, not a wall: the incremental engine has no dependency
+   tracking over `.java` sources, so an edit that moves a Java **ABI** recompiles
+   every Kotlin source in the module. Body-only Java edits (the common case) stay
+   on the fast path via `JavaSourceAbi` fingerprinting. See
+   `IncrementalCompiler.kotlinFilesToCompile` for why the remaining conservatism
+   is not narrowed further.
 3. **Corpus content, given (2):** rather than force a same-language-only
    slice through artificial restructuring, this entry pins a genuinely
    real, but small, **acyclic** subgraph of `:editor` --
@@ -456,7 +462,11 @@ originally planned:**
    reference the vendored Java types directly -- see finding 2) is authored
    scaffolding: an `EditorHostActivity` giving the app an entry point, and a
    `SampleText` object for the sample-app-UI edit. Every fetched file keeps
-   its original LGPL-2.1 header.
+   its original LGPL-2.1 header. **This entry is kept as-is** now that finding 2
+   is resolved: `sora-editor-full` covers the whole module, and this one stays
+   useful as the small, fast tier over the same real code. (Its scaffolding
+   being Java "so it can reference the vendored Java types" is no longer a
+   constraint, just how it was written.)
 
 **3 scripted edits, all real sora-editor source except edit 02:**
 

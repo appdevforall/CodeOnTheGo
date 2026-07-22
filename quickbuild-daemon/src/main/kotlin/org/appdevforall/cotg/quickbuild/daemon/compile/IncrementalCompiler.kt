@@ -37,10 +37,13 @@ import java.util.UUID
  * Java sources: kotlinc sees `.java` files for symbol resolution (so Kotlin may call a
  * same-module Java class), then the JDK's javac compiles them for real after Kotlin,
  * against the same classpath plus the Kotlin output (so Java may also call Kotlin), into
- * the same output directory. javac's pass is not incremental - user projects here are
- * Kotlin-first and stray Java files are small - and any `.java` file in `changedFiles`
- * forces a full (not incremental) Kotlin recompile too, since the incremental engine can't
- * see java-side ABI changes on its own (see `compileKotlin`'s doc below).
+ * the same output directory. This is Gradle's own two-pass shape, and it compiles genuine
+ * Kotlin<->Java cycles - mutual calls, and a Java class whose supertype is a Kotlin source
+ * in the same pass (corpus app `mixed-lang-cyclic`). javac's pass is not incremental: user
+ * projects here are Kotlin-first and stray Java files are small.
+ *
+ * A `.java` edit's effect on the Kotlin side is decided by [JavaSourceAbi] - see
+ * `compileKotlin` below for the rule and the conservatism it keeps.
  *
  * Kotlin 2.3 deprecates this [CompilationService] entry point in favor of the new
  * `KotlinToolchains` API; it still works and matches the spike-proven recipe above, so
@@ -88,6 +91,20 @@ class IncrementalCompiler(
 	/** Raw logger lines from the last compile, level-tagged; test/debug visibility only. */
 	var lastCompileLog: List<String> = emptyList()
 		private set
+
+	/**
+	 * Java type names whose ABI moved in the last compile, forcing a full Kotlin recompile
+	 * (see [kotlinFilesToCompile]). Empty when the Java side stayed ABI-stable - which is
+	 * what tells a reader of a slow compile why it was slow.
+	 */
+	var lastJavaAbiChange: Set<String> = emptySet()
+		private set
+
+	/** Last SUCCESSFUL compile's `.java` ABI; null when unknown and Kotlin must be recompiled whole. */
+	private var javaAbi: Map<File, JavaSourceAbi.FileAbi>? = null
+
+	/** This compile's `.java` ABI, promoted to [javaAbi] only once the compile succeeds. */
+	private var pendingJavaAbi: Map<File, JavaSourceAbi.FileAbi>? = null
 
 	init {
 		Files.createDirectories(icCachesDir)
@@ -138,6 +155,11 @@ class IncrementalCompiler(
 		if (!javaDiagnostics.success) {
 			return Result.Failed(javaDiagnostics.diagnostics + warnings)
 		}
+		// Only a compile that fully succeeded may become the ABI baseline. A failed compile
+		// leaves output the caller never deployed, so the NEXT compile has to keep seeing
+		// the Java side as changed relative to the last good state - committing here rather
+		// than where the snapshot is taken is what makes that true.
+		javaAbi = pendingJavaAbi
 		return Result.Success(
 			classesDir = classesDir.toFile(),
 			warnings = warnings + javaDiagnostics.diagnostics,
@@ -179,7 +201,11 @@ class IncrementalCompiler(
 	): CompilationResult {
 		val kotlinSources = allSources.filter { it.extension != "java" }
 		val javaSources = allSources.filter { it.extension == "java" }
-		if (kotlinSources.isEmpty()) return CompilationResult.COMPILATION_SUCCESS
+		if (kotlinSources.isEmpty()) {
+			// Nothing for a Java ABI change to invalidate; keep no baseline for it either.
+			pendingJavaAbi = null
+			return CompilationResult.COMPILATION_SUCCESS
+		}
 
 		// A Kotlin file calling a same-module Java class (not yet on any jar classpath) needs
 		// kotlinc to see that .java source for symbol resolution - passing javaSources into
@@ -187,15 +213,11 @@ class IncrementalCompiler(
 		// BTA entry point silently ignores) makes that resolution work without asking kotlinc
 		// to emit bytecode for them (JavaCompileStep does that afterward). But BTA's incremental
 		// engine has no ABI/dependency tracking over those java sources (unlike the
-		// jar-classpath-snapshot machinery it uses for external deps): if only a .java file is
-		// in `changedFiles`, filtering it out of SourcesChanges.Known would tell the engine
-		// "nothing changed" and it would skip recompiling Kotlin callers entirely, leaving their
-		// .class files calling the OLD Java signature - a stale-bytecode bug the NEVER-STALE
-		// invariant forbids. So: any .java file in the changed set forces every Kotlin source to
-		// be treated as changed (a full, but correct, Kotlin recompile) rather than trusting the
-		// (java-blind) incremental filter.
-		val changedHasJava = changedFiles.any { it.extension == "java" }
-		val kotlinChanged = if (changedHasJava) kotlinSources else changedFiles.filter { it.extension != "java" }
+		// jar-classpath-snapshot machinery it uses for external deps): telling the engine only
+		// that a .java file changed says nothing, and it would skip recompiling Kotlin callers
+		// entirely, leaving their .class files calling the OLD Java signature - a stale-bytecode
+		// bug the NEVER-STALE invariant forbids.
+		val kotlinChanged = kotlinFilesToCompile(kotlinSources, javaSources, changedFiles)
 
 		val strategy = service.makeCompilerExecutionStrategyConfiguration().useInProcessStrategy()
 		val config = service.makeJvmCompilationConfiguration().useLogger(logger)
@@ -225,6 +247,47 @@ class IncrementalCompiler(
 				"-nowarn",
 			) + pluginArguments
 		return service.compileJvm(projectId, strategy, config, kotlinSources + javaSources, arguments)
+	}
+
+	/**
+	 * Which Kotlin sources this compile must treat as changed, given the engine is blind to
+	 * the `.java` sources it is resolving against.
+	 *
+	 * The rule has two cases and only two:
+	 * - **No Java ABI moved** (every `.java` file's declarations hash the same as last
+	 *   compile) - the Kotlin changed set is exactly the caller's Kotlin changes. This is
+	 *   sound without any cross-language dependency analysis: Kotlin never inlines a Java
+	 *   method body, and Java compile-time constants, which it does inline, are part of the
+	 *   ABI hash. So no Kotlin bytecode can differ. This is the common edit - a Java method
+	 *   body - and it now costs the same as a same-size Kotlin edit.
+	 * - **Some Java ABI moved, or the ABI is unknown** (first compile of the session, no
+	 *   system Java compiler, an unparseable source) - every Kotlin source is treated as
+	 *   changed: a full, correct Kotlin recompile.
+	 *
+	 * The second case is deliberately blunt. Narrowing it needs the set of Kotlin files that
+	 * depend on the changed Java types, and neither available signal is sound: BTA exposes no
+	 * way to inject a non-classpath ABI change into its lookup caches (which is exactly the
+	 * machinery that would answer this precisely), and seeding from Kotlin files that
+	 * lexically name the changed type misses indirect dependents - a `typealias` to the Java
+	 * type re-exports it under a name the dependent writes instead, and its own ABI does not
+	 * move, so the engine has no reason to propagate. Both leave stale bytecode. Until one of
+	 * those is closed, an ABI-changing Java edit pays a full Kotlin recompile.
+	 */
+	private fun kotlinFilesToCompile(
+		kotlinSources: List<File>,
+		javaSources: List<File>,
+		changedFiles: List<File>,
+	): List<File> {
+		lastJavaAbiChange = emptySet()
+		val kotlinChanged = changedFiles.filter { it.extension != "java" }
+		val previous = javaAbi
+		val current = JavaSourceAbi.snapshot(javaSources)
+		pendingJavaAbi = current
+		if (previous == null || current == null) return kotlinSources
+		val changedTypes = JavaSourceAbi.changedTypeNames(previous, current)
+		if (changedTypes.isEmpty()) return kotlinChanged
+		lastJavaAbiChange = changedTypes
+		return kotlinSources
 	}
 
 	/** Collects compiler output per channel; errors feed structured diagnostics. */

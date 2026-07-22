@@ -1,0 +1,7 @@
+{
+	"applicationId": "io.github.rosemoe.sora",
+	"entryActivity": "org.appdevforall.corpusharness.EditorHostActivity",
+	"minSdk": 30,
+	"language": "mixed",
+	"note": "The full sora-editor :editor module (LGPL-2.1, pinned commit 43f7e8e298133248ce4128812092114f397a94f6) -- 287 real source files with bidirectional Kotlin<->Java references. Needs androidx.annotation + androidx.collection via --classpath-extra. org.appdevforall.corpusharness is harness scaffolding. See README.md."
+}

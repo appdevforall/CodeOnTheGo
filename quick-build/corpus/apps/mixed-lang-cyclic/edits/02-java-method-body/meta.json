@@ -1,0 +1,12 @@
+{
+	"editClass": "java-method-body",
+	"description": "Change NodeRenderer.render()'s body, on the Java side of the cycle. No signature moves, so no Kotlin class' bytecode may change - the bound catches a regression where the Java pass' conservative full-Kotlin-recompile starts emitting different Kotlin bytecode.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/mixedcyclic/core/NodeRenderer.java": "NodeRenderer.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 1},
+		"behavioralMarker": "QB_CYCLIC_J_MARKER_V2"
+	}
+}

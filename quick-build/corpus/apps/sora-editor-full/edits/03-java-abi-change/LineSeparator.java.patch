@@ -1,0 +1,23 @@
+--- quick-build/corpus/.cache/upstream/sora-editor-43f7e8e29813/editor/src/main/java/io/github/rosemoe/sora/text/LineSeparator.java	2026-07-21 22:44:00
++++ /private/tmp/claude-501/-Volumes-Data-Users-bryanchan-dev-agent-wrapper-project-worktrees-codeonthego-adfa-4128-quick-build/3e00a422-d94f-46d0-b2a4-b2b342f31638/scratchpad/v3.java	2026-07-21 23:01:33
+@@ -56,10 +56,20 @@
+      * Get the text of this separator
+      */
+     public String getContent() {
++        if (str == null) {
++            return "QB_SORA_JBODY_MARKER_V2";
++        }
+         return str;
+     }
+ 
+     /**
++     * Quick-build corpus edit: new public API, so the Java ABI moves.
++     */
++    public String describe() {
++        return "QB_SORA_JABI_MARKER_V2:" + name();
++    }
++
++    /**
+      * Get text length of this separator
+      */
+     public int getLength() {

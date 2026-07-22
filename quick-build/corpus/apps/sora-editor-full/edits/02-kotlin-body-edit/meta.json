@@ -1,0 +1,12 @@
+{
+	"editClass": "method-body",
+	"description": "Kotlin-side body edit in the module's only authored file, which calls the Java CodeEditor. The single-language fast path inside a 288-file module with real cycles - the control for edits 01 and 03.",
+	"files": {
+		"src/main/java/org/appdevforall/corpusharness/EditorHostActivity.kt": "EditorHostActivity.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 2},
+		"behavioralMarker": "QB_SORA_KBODY_MARKER_V2"
+	}
+}

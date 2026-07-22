@@ -1,0 +1,14 @@
+{
+	"editClass": "kotlin-signature-change",
+	"description": "TreeNode gains a required depth constructor parameter. Java has no default-parameter sugar, so the Java subclass (JavaLeafNode, whose super call and describe() body both change) must move in the same changeset, as must the Kotlin caller MainActivity - the mirror of edit 03, driving the change Kotlin->Java across the cycle.",
+	"files": {
+		"src/main/java/org/appdevforall/cotg/corpus/mixedcyclic/core/TreeNode.kt": "TreeNode.kt",
+		"src/main/java/org/appdevforall/cotg/corpus/mixedcyclic/core/JavaLeafNode.java": "JavaLeafNode.java",
+		"src/main/java/org/appdevforall/cotg/corpus/mixedcyclic/ui/MainActivity.kt": "MainActivity.kt"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 4, "max": 6},
+		"behavioralMarker": "QB_CYCLIC_KSIG_MARKER_V2"
+	}
+}

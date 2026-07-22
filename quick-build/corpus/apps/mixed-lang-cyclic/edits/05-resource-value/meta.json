@@ -1,0 +1,12 @@
+{
+	"editClass": "resource-value",
+	"description": "Change the tree_label string resource's value. No code changes - aapt2 relink only, so the cycle is irrelevant to this route; included so the app covers the resources path too.",
+	"files": {
+		"src/main/res/values/strings.xml": "strings.xml"
+	},
+	"expected": {
+		"route": "resources",
+		"recompiledClasses": null,
+		"behavioralMarker": null
+	}
+}

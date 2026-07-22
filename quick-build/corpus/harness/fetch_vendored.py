@@ -4,7 +4,8 @@ vendored code into this repo.
 
 An app under corpus/apps/ that carries a vendor.json is a VENDORED app: its
 third-party sources are NOT in this repo. vendor.json pins {repo, commit} and
-maps upstream paths to app-relative destinations. This script:
+maps upstream paths to app-relative destinations ("files" for individual files,
+"trees" for whole directories). This script:
 
   1. shallow-fetches the pinned commit into corpus/.cache/upstream/<slug>-<sha>/
      (GitHub serves arbitrary-sha shallow fetches; the cache is immutable per sha,
@@ -64,22 +65,49 @@ def materialize(app_dir: Path) -> Path:
         shutil.rmtree(out)  # cheap; always rebuild from the repo app dir + cache
     shutil.copytree(app_dir, out)
 
-    for src, dst in vendor["files"].items():
+    for src, dst in vendor.get("files", {}).items():
         # git checkout keeps the cache tree matching the pinned commit exactly
         run(["git", "checkout", "-q", "FETCH_HEAD", "--", src], cwd=upstream)
         target = out / dst
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(upstream / src, target)
 
+    # "trees" maps an upstream DIRECTORY to an app-relative one, for an entry that takes a
+    # whole module rather than a hand-picked slice - listing a few hundred files by hand
+    # would be unreadable and would drift from upstream on any rename.
+    for src, dst in vendor.get("trees", {}).items():
+        run(["git", "checkout", "-q", "FETCH_HEAD", "--", src], cwd=upstream)
+        target = out / dst
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(upstream / src, target)
+
     # Edit patches: <File>.<ext>.patch beside meta.json -> the replacement file
     # meta.json names. The patch base is the same-named file the vendor mapping
     # just materialized (patches are against the pinned commit).
-    by_name = {Path(dst).name: out / dst for dst in vendor["files"].values()}
+    by_name = {Path(dst).name: out / dst for dst in vendor.get("files", {}).values()}
+    # Tree-materialized files are patchable too, indexed by name like the explicit ones.
+    # An ambiguous name would silently patch the wrong file, so record the clash and fail
+    # only if a patch actually asks for it.
+    ambiguous = set()
+    for dst in vendor.get("trees", {}).values():
+        for path in sorted((out / dst).rglob("*")):
+            if not path.is_file():
+                continue
+            if path.name in by_name:
+                ambiguous.add(path.name)
+            by_name[path.name] = path
     for patch in sorted(out.glob("edits/*/*.patch")):
         replacement = patch.with_suffix("")  # Floats.java.patch -> Floats.java
         base = by_name.get(replacement.name)
         if base is None or not base.is_file():
             raise SystemExit(f"{patch}: no vendored base file named {replacement.name}")
+        if replacement.name in ambiguous:
+            raise SystemExit(
+                f"{patch}: {replacement.name} is not a unique name in the vendored trees;"
+                " rename the patch target or vendor that file explicitly under 'files'"
+            )
         proc = subprocess.run(
             ["patch", "-u", "-s", str(base), "-o", str(replacement)],
             stdin=patch.open("rb"),

@@ -384,6 +384,166 @@ class IncrementalCompilerTest {
 		assertThat(after).isNotEqualTo(before)
 	}
 
+	/**
+	 * A genuine Kotlin<->Java cycle: mutual calls, plus a Java class whose supertype is a
+	 * Kotlin source in the same compile. Neither language can be compiled first in
+	 * isolation, so this is the shape the corpus's `mixed-lang-cyclic` app pins end to end.
+	 */
+	private fun cyclicSources(rendererBody: String = """return "Node(" + node.getLabel() + ")";"""): List<File> {
+		val node =
+			writeSource(
+				"TreeNode.kt",
+				"""
+				package demo
+
+				open class TreeNode(val label: String) {
+					open fun describe() = NodeRenderer.render(this)
+
+					companion object {
+						fun leaf(label: String): TreeNode = JavaLeafNode(label)
+					}
+				}
+				""".trimIndent(),
+			)
+		val renderer =
+			writeSource(
+				"NodeRenderer.java",
+				"""
+				package demo;
+
+				public final class NodeRenderer {
+					public static String render(TreeNode node) { $rendererBody }
+				}
+				""".trimIndent(),
+			)
+		val leaf =
+			writeSource(
+				"JavaLeafNode.java",
+				"""
+				package demo;
+
+				public class JavaLeafNode extends TreeNode {
+					public JavaLeafNode(String label) { super(label); }
+
+					@Override
+					public String describe() { return "Leaf[" + getLabel() + "]"; }
+				}
+				""".trimIndent(),
+			)
+		return listOf(node, renderer, leaf)
+	}
+
+	@Test
+	fun `mutually referencing kotlin and java sources compile in one pass`() {
+		val sources = cyclicSources()
+		val compiler = compiler()
+
+		val result = compiler.compile(sources, changedFiles = sources)
+
+		assertThat(result).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		val classesDir = (result as IncrementalCompiler.Result.Success).classesDir
+		assertThat(File(classesDir, "demo/TreeNode.class").isFile).isTrue()
+		assertThat(File(classesDir, "demo/NodeRenderer.class").isFile).isTrue()
+		// The Java subclass is the sharp end: javac could only resolve its supertype
+		// because kotlinc had already emitted TreeNode into the same output dir.
+		assertThat(File(classesDir, "demo/JavaLeafNode.class").isFile).isTrue()
+	}
+
+	@Test
+	fun `a java body-only edit leaves kotlin untouched`() {
+		val sources = cyclicSources()
+		val compiler = compiler()
+		assertThat(compiler.compile(sources, changedFiles = sources))
+			.isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+
+		cyclicSources(rendererBody = """return "Node[" + node.getLabel() + "]";""")
+		val result = compiler.compile(sources, changedFiles = listOf(sources[1]))
+
+		assertThat(result).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		// No Java signature moved, so no Kotlin class can differ - and none may be rewritten.
+		assertThat(compiler.lastJavaAbiChange).isEmpty()
+		val changed = (result as IncrementalCompiler.Result.Success).changedClassFiles
+		assertThat(changed).contains("demo/NodeRenderer.class")
+		assertThat(changed).doesNotContain("demo/TreeNode.class")
+	}
+
+	private fun limitsSources(max: String): List<File> {
+		val limits =
+			writeSource(
+				"JavaLimits.java",
+				"""
+				package demo;
+
+				public class JavaLimits {
+					public static final int MAX = $max;
+				}
+				""".trimIndent(),
+			)
+		val caller =
+			writeSource(
+				"LimitUser.kt",
+				"""
+				package demo
+
+				class LimitUser {
+					fun ceiling(): Int = JavaLimits.MAX
+				}
+				""".trimIndent(),
+			)
+		return listOf(limits, caller)
+	}
+
+	@Test
+	fun `a java constant's new value reaches its kotlin caller's bytecode`() {
+		// Kotlin inlines Java compile-time constants, so nothing about this edit shows up in
+		// a signature - if the ABI fingerprint ignored constant VALUES, the fast path would
+		// skip LimitUser and leave it returning 5 forever.
+		val sources = limitsSources("5")
+		val compiler = compiler()
+		val baseline = compiler.compile(sources, changedFiles = sources)
+		assertThat(baseline).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		val classesDir = (baseline as IncrementalCompiler.Result.Success).classesDir
+		val before = File(classesDir, "demo/LimitUser.class").readBytes()
+
+		limitsSources("7")
+		val result = compiler.compile(sources, changedFiles = listOf(sources[0]))
+
+		assertThat(result).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		assertThat(compiler.lastJavaAbiChange).contains("JavaLimits")
+		assertThat(File(classesDir, "demo/LimitUser.class").readBytes()).isNotEqualTo(before)
+	}
+
+	@Test
+	fun `a failed compile does not become the java ABI baseline`() {
+		// Otherwise the next compile compares against an ABI whose bytecode was never
+		// emitted, and silently skips the Kotlin recompile the Java change still needs.
+		val sources = limitsSources("5")
+		val compiler = compiler()
+		assertThat(compiler.compile(sources, changedFiles = sources))
+			.isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+
+		limitsSources("7")
+		writeSource("LimitUser.kt", "package demo\n\nclass LimitUser { fun ceiling(): Int = ")
+		assertThat(compiler.compile(sources, changedFiles = sources))
+			.isInstanceOf(IncrementalCompiler.Result.Failed::class.java)
+
+		// Repair only the Kotlin file; the Java constant is still 7, still unaccounted for.
+		writeSource(
+			"LimitUser.kt",
+			"""
+			package demo
+
+			class LimitUser {
+				fun ceiling(): Int = JavaLimits.MAX
+			}
+			""".trimIndent(),
+		)
+		val result = compiler.compile(sources, changedFiles = listOf(sources[1]))
+
+		assertThat(result).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		assertThat(compiler.lastJavaAbiChange).contains("JavaLimits")
+	}
+
 	@Test
 	fun `java error yields structured diagnostics and fails the compile`() {
 		val javaSource =

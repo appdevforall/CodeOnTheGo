@@ -1,0 +1,12 @@
+{
+	"editClass": "java-abi-change",
+	"description": "LineSeparator gains a public method, so the Java ABI moves and every Kotlin source in the module is recompiled (the conservative path - see IncrementalCompiler.kotlinFilesToCompile). Adding a method cannot change any caller's bytecode, so the recompiled SET stays small; what this edit measures is the wall-clock cost of that conservatism on a 73-Kotlin-file module, against edit 01's fast path.",
+	"files": {
+		"src/main/java/io/github/rosemoe/sora/text/LineSeparator.java": "LineSeparator.java"
+	},
+	"expected": {
+		"route": "code",
+		"recompiledClasses": {"min": 1, "max": 3},
+		"behavioralMarker": "QB_SORA_JABI_MARKER_V2"
+	}
+}
