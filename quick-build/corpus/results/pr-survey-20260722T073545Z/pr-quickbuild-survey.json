@@ -1,0 +1,684 @@
+{
+  "generated_at": "2026-07-22T07:43:34Z",
+  "repos": 100,
+  "total_prs": 2927,
+  "quick_buildable": 1104,
+  "quick_buildable_pct": 37.7,
+  "route_distribution": {
+    "FullGradleBuild": 1823,
+    "CodeOnly": 695,
+    "CodeAndResources": 131,
+    "ResourcesOnly": 272,
+    "NoOp": 4,
+    "AssetsOnly": 2
+  },
+  "top_fallback_causes": [
+    [
+      "non-source .md",
+      501
+    ],
+    [
+      "version catalog (libs.versions.toml)",
+      482
+    ],
+    [
+      "non-source .yml",
+      332
+    ],
+    [
+      "build.gradle.kts",
+      281
+    ],
+    [
+      "build.gradle",
+      144
+    ],
+    [
+      "AndroidManifest.xml",
+      133
+    ],
+    [
+      "non-source .json",
+      117
+    ],
+    [
+      "non-source .xml",
+      108
+    ],
+    [
+      "non-source .txt",
+      102
+    ],
+    [
+      "non-source (no ext)",
+      84
+    ]
+  ],
+  "size_cut_files": 20,
+  "quick_buildable_pct_le_cut": 40.0,
+  "quick_buildable_pct_gt_cut": 22.3,
+  "prs_le_cut": 2542,
+  "prs_gt_cut": 385,
+  "headline": "Quick Build would handle 1104 of 2927 recent merged PRs (37.7%) across 100 active Android apps on its fast path; the rest need a full Gradle build.",
+  "counterfactual": {
+    "ignore_list": [
+      "Docs: *.md, *.markdown, *.txt, *.rst, *.adoc, and anything under a `docs/` dir",
+      "CI/VCS/editor: *.yml, *.yaml, anything under `.github/`, .gitignore, .gitattributes, .editorconfig",
+      "Project metadata: LICENSE/NOTICE/COPYING/CODEOWNERS, anything under `fastlane/`",
+      "Scope: only OUTSIDE a module `src/` dir -- files under src/ are always build inputs"
+    ],
+    "headline": "37.7% today -> 56.4% with the proposed ignore-list (+546 PRs flip from full Gradle build to a quick route; PROPOSED-SEMANTICS ESTIMATE, conservative lower bound).",
+    "quick_buildable": 1650,
+    "quick_buildable_pct": 56.4,
+    "flipped_prs": 546,
+    "residual_route_distribution": {
+      "NoOp": 366,
+      "CodeAndResources": 18,
+      "CodeOnly": 98,
+      "ResourcesOnly": 64
+    },
+    "note": "Proposed-semantics estimate from cached PR summaries. The real ChangeClassifier has NO ignore-list today. Conservative lower bound: extensionless files (LICENSE) and non-yaml .github/ files are not counted as ignorable in the summary estimate."
+  },
+  "per_repo": [
+    {
+      "repo": "ZemerTeam/zemer-cipher",
+      "pr_count": 1,
+      "quick_buildable": 1,
+      "pct": 100.0
+    },
+    {
+      "repo": "Hamza417/Inure",
+      "pr_count": 50,
+      "quick_buildable": 45,
+      "pct": 90.0
+    },
+    {
+      "repo": "sdex/ActivityManager",
+      "pr_count": 50,
+      "quick_buildable": 45,
+      "pct": 90.0
+    },
+    {
+      "repo": "AntennaPod/AntennaPod",
+      "pr_count": 50,
+      "quick_buildable": 40,
+      "pct": 80.0
+    },
+    {
+      "repo": "Ashinch/ReadYou",
+      "pr_count": 50,
+      "quick_buildable": 39,
+      "pct": 78.0
+    },
+    {
+      "repo": "Hy4ri/hermes-mobile",
+      "pr_count": 50,
+      "quick_buildable": 38,
+      "pct": 76.0
+    },
+    {
+      "repo": "uakihir0/planetlink",
+      "pr_count": 50,
+      "quick_buildable": 38,
+      "pct": 76.0
+    },
+    {
+      "repo": "ankidroid/Anki-Android",
+      "pr_count": 50,
+      "quick_buildable": 36,
+      "pct": 72.0
+    },
+    {
+      "repo": "gsantner/markor",
+      "pr_count": 50,
+      "quick_buildable": 36,
+      "pct": 72.0
+    },
+    {
+      "repo": "Neamar/KISS",
+      "pr_count": 50,
+      "quick_buildable": 34,
+      "pct": 68.0
+    },
+    {
+      "repo": "N-Zik-Group/N-Zik",
+      "pr_count": 50,
+      "quick_buildable": 33,
+      "pct": 66.0
+    },
+    {
+      "repo": "Hamza417/Felicity",
+      "pr_count": 38,
+      "quick_buildable": 24,
+      "pct": 63.1578947368421
+    },
+    {
+      "repo": "d0x-dev/AirBeats",
+      "pr_count": 8,
+      "quick_buildable": 5,
+      "pct": 62.5
+    },
+    {
+      "repo": "streetcomplete/StreetComplete",
+      "pr_count": 50,
+      "quick_buildable": 31,
+      "pct": 62.0
+    },
+    {
+      "repo": "MixinNetwork/android-app",
+      "pr_count": 50,
+      "quick_buildable": 30,
+      "pct": 60.0
+    },
+    {
+      "repo": "OneBusAway/onebusaway-android",
+      "pr_count": 50,
+      "quick_buildable": 30,
+      "pct": 60.0
+    },
+    {
+      "repo": "bitfireAT/davx5-ose",
+      "pr_count": 50,
+      "quick_buildable": 30,
+      "pct": 60.0
+    },
+    {
+      "repo": "duckduckgo/Android",
+      "pr_count": 50,
+      "quick_buildable": 30,
+      "pct": 60.0
+    },
+    {
+      "repo": "JunkFood02/Seal",
+      "pr_count": 50,
+      "quick_buildable": 26,
+      "pct": 52.0
+    },
+    {
+      "repo": "androidx/androidx",
+      "pr_count": 6,
+      "quick_buildable": 3,
+      "pct": 50.0
+    },
+    {
+      "repo": "garfiec/Librechat-Mobile",
+      "pr_count": 50,
+      "quick_buildable": 25,
+      "pct": 50.0
+    },
+    {
+      "repo": "open-ani/animeko",
+      "pr_count": 50,
+      "quick_buildable": 25,
+      "pct": 50.0
+    },
+    {
+      "repo": "pewaru-333/HomeMedkit-App",
+      "pr_count": 50,
+      "quick_buildable": 25,
+      "pct": 50.0
+    },
+    {
+      "repo": "shiaho777/web-to-app",
+      "pr_count": 50,
+      "quick_buildable": 25,
+      "pct": 50.0
+    },
+    {
+      "repo": "Ivorisnoob/Koda",
+      "pr_count": 35,
+      "quick_buildable": 17,
+      "pct": 48.57142857142857
+    },
+    {
+      "repo": "tzebrowski/ObdGraphs",
+      "pr_count": 50,
+      "quick_buildable": 24,
+      "pct": 48.0
+    },
+    {
+      "repo": "Rosemoe/sora-editor",
+      "pr_count": 50,
+      "quick_buildable": 23,
+      "pct": 46.0
+    },
+    {
+      "repo": "nextcloud/android",
+      "pr_count": 50,
+      "quick_buildable": 23,
+      "pct": 46.0
+    },
+    {
+      "repo": "wordpress-mobile/WordPress-Android",
+      "pr_count": 50,
+      "quick_buildable": 23,
+      "pct": 46.0
+    },
+    {
+      "repo": "Adyen/adyen-android",
+      "pr_count": 50,
+      "quick_buildable": 21,
+      "pct": 42.0
+    },
+    {
+      "repo": "zly2006/zhihu-plus-plus",
+      "pr_count": 50,
+      "quick_buildable": 21,
+      "pct": 42.0
+    },
+    {
+      "repo": "home-assistant/android",
+      "pr_count": 50,
+      "quick_buildable": 19,
+      "pct": 38.0
+    },
+    {
+      "repo": "signalapp/Signal-Android",
+      "pr_count": 50,
+      "quick_buildable": 19,
+      "pct": 38.0
+    },
+    {
+      "repo": "Tweener/czan",
+      "pr_count": 8,
+      "quick_buildable": 3,
+      "pct": 37.5
+    },
+    {
+      "repo": "composablehorizons/compose-unstyled",
+      "pr_count": 50,
+      "quick_buildable": 17,
+      "pct": 34.0
+    },
+    {
+      "repo": "vrcm-team/VRCM",
+      "pr_count": 9,
+      "quick_buildable": 3,
+      "pct": 33.333333333333336
+    },
+    {
+      "repo": "Aryan-Raj3112/episteme",
+      "pr_count": 50,
+      "quick_buildable": 16,
+      "pct": 32.0
+    },
+    {
+      "repo": "SRGSSR/pillarbox-android",
+      "pr_count": 50,
+      "quick_buildable": 16,
+      "pct": 32.0
+    },
+    {
+      "repo": "jeiel85/markleaf-android",
+      "pr_count": 33,
+      "quick_buildable": 10,
+      "pct": 30.303030303030305
+    },
+    {
+      "repo": "SecUSo/privacy-friendly-qr-scanner",
+      "pr_count": 50,
+      "quick_buildable": 15,
+      "pct": 30.0
+    },
+    {
+      "repo": "ZemerTeam/zemer-app",
+      "pr_count": 50,
+      "quick_buildable": 15,
+      "pct": 30.0
+    },
+    {
+      "repo": "android/architecture-samples",
+      "pr_count": 50,
+      "quick_buildable": 15,
+      "pct": 30.0
+    },
+    {
+      "repo": "SecUSo/privacy-friendly-notes",
+      "pr_count": 50,
+      "quick_buildable": 14,
+      "pct": 28.0
+    },
+    {
+      "repo": "TeamNewPipe/NewPipe",
+      "pr_count": 50,
+      "quick_buildable": 13,
+      "pct": 26.0
+    },
+    {
+      "repo": "Sreecharannuthi/kordx",
+      "pr_count": 4,
+      "quick_buildable": 1,
+      "pct": 25.0
+    },
+    {
+      "repo": "joreilly/Confetti",
+      "pr_count": 50,
+      "quick_buildable": 12,
+      "pct": 24.0
+    },
+    {
+      "repo": "yschimke/compose-ai-tools",
+      "pr_count": 50,
+      "quick_buildable": 12,
+      "pct": 24.0
+    },
+    {
+      "repo": "bloomberg/pushiko",
+      "pr_count": 50,
+      "quick_buildable": 11,
+      "pct": 22.0
+    },
+    {
+      "repo": "SecUSo/privacy-friendly-todo-list",
+      "pr_count": 50,
+      "quick_buildable": 10,
+      "pct": 20.0
+    },
+    {
+      "repo": "seijikohara/femto-car-launcher",
+      "pr_count": 50,
+      "quick_buildable": 10,
+      "pct": 20.0
+    },
+    {
+      "repo": "trevarj/motd",
+      "pr_count": 5,
+      "quick_buildable": 1,
+      "pct": 20.0
+    },
+    {
+      "repo": "vinaygaba/Learn-Jetpack-Compose-By-Example",
+      "pr_count": 50,
+      "quick_buildable": 6,
+      "pct": 12.0
+    },
+    {
+      "repo": "boxcreate/boxlore",
+      "pr_count": 50,
+      "quick_buildable": 5,
+      "pct": 10.0
+    },
+    {
+      "repo": "wgtunnel/android",
+      "pr_count": 50,
+      "quick_buildable": 5,
+      "pct": 10.0
+    },
+    {
+      "repo": "LawnchairLauncher/lawnicons",
+      "pr_count": 50,
+      "quick_buildable": 3,
+      "pct": 6.0
+    },
+    {
+      "repo": "getsentry/sentry-java",
+      "pr_count": 50,
+      "quick_buildable": 3,
+      "pct": 6.0
+    },
+    {
+      "repo": "jarnedemeulemeester/findroid",
+      "pr_count": 50,
+      "quick_buildable": 3,
+      "pct": 6.0
+    },
+    {
+      "repo": "PostHog/posthog-android",
+      "pr_count": 50,
+      "quick_buildable": 1,
+      "pct": 2.0
+    },
+    {
+      "repo": "100nandoo/shelfdroid",
+      "pr_count": 50,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "AbubakarMahmood/Echoes",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "AgusRomeroL/video-boost-ao",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "Arnav-Sharma-codes/FinX-Android",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "BlackF1re/watchmetrics",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "BugeStudioTeam/Buge-App-Manager",
+      "pr_count": 2,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "Dvalin21/UnifiedComms",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "Evilgodxu/EdgeGesture",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "GateOfTruth/BluetoothBleX",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "Helandy/YummyTV",
+      "pr_count": 2,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "Kaifazad/LocalShare",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "MesmerPrism/Rusty-Kiosk",
+      "pr_count": 5,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "MrX-zeta/Itera",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "QWEA0/Liquid-Glass-Android",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "SirPrizeNZ/keen",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "SysAdminDoc/CallShield",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "Tweener/passage",
+      "pr_count": 2,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "VarunKumarMup/SpaceClean",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "akasajal/roadRoot",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "aoreshkov/kmp-ledger",
+      "pr_count": 9,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "arkaceananda/NewYearCountdown",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "bgorzelic/signal-app",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "chrisbanes/tivi",
+      "pr_count": 50,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "edwardlthompson/screen-wakelock-detector",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "envywook/Lust",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "formatools/forma",
+      "pr_count": 50,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "iZakirSheikh/OnePlayer",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "jrs8205/BetaScout",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "killertop/NekoPilot-Android",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "klllas/vokta",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "lebrit/qwdtt-legacy-android",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "lydavid/MusicSearch",
+      "pr_count": 50,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "mozilla-mobile/reference-browser",
+      "pr_count": 50,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "pawelorzech/FastMask",
+      "pr_count": 3,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "po4yka/RIPDPI",
+      "pr_count": 50,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "priv-kit/priv-kit",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "raikwaramit/CryptoAtlas",
+      "pr_count": 6,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "siddharthjaswal/logpose",
+      "pr_count": 1,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "skaradimitriou/elmepa-uni-app",
+      "pr_count": 50,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "sm32d/streamfolio",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "tjdgus278/ProConKit",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    },
+    {
+      "repo": "vauchi/android",
+      "pr_count": 0,
+      "quick_buildable": 0,
+      "pct": 0.0
+    }
+  ]
+}
