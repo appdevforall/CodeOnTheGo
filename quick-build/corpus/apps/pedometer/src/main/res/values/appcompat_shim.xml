@@ -1,29 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Harness scaffolding, not vendored: the corpus harness's aapt2 invocation only
-  links against android.jar (see run_matrix.py's generate_r_classes); it has
-  no way to feed it appcompat/material's own AAR resources, so any real style
-  chain rooted at Theme.AppCompat.*/ThemeOverlay.AppCompat.* fails resource
-  linking, even though the compile classpath jars (classpath-extra) make the
-  Java/Kotlin side compile fine. This file defines the same style/attr NAMES
-  the vendored resources reference, backed by framework equivalents, purely
-  so aapt2 link resolves; see ruler's identical shim and README.md.
--->
+<!-- Harness scaffolding, not vendored: the corpus harness's aapt2 invocation only links against android.jar (see run_matrix.py's
+	generate_r_classes); it has no way to feed it appcompat/material's own AAR resources, so any real style chain rooted at Theme.AppCompat.*/ThemeOverlay.AppCompat.*
+	fails resource linking, even though the compile classpath jars (classpath-extra) make the Java/Kotlin side compile fine.
+	This file defines the same style/attr NAMES the vendored resources reference, backed by framework equivalents, purely so
+	aapt2 link resolves; see ruler's identical shim and README.md. -->
 <resources>
-	<attr name="colorPrimary" format="color"/>
-	<attr name="colorPrimaryDark" format="color"/>
-	<attr name="colorAccent" format="color"/>
-	<attr name="windowActionBar" format="boolean"/>
-	<attr name="windowNoTitle" format="boolean"/>
-	<attr name="textAppearanceLargePopupMenu" format="reference"/>
-	<attr name="textAppearanceSmallPopupMenu" format="reference"/>
-	<attr name="selectableItemBackgroundBorderless" format="reference"/>
+	<attr
+		name="colorPrimary"
+		format="color" />
+	<attr
+		name="colorPrimaryDark"
+		format="color" />
+	<attr
+		name="colorAccent"
+		format="color" />
+	<attr
+		name="windowActionBar"
+		format="boolean" />
+	<attr
+		name="windowNoTitle"
+		format="boolean" />
+	<attr
+		name="textAppearanceLargePopupMenu"
+		format="reference" />
+	<attr
+		name="textAppearanceSmallPopupMenu"
+		format="reference" />
+	<attr
+		name="selectableItemBackgroundBorderless"
+		format="reference" />
 
-	<style name="Theme.AppCompat.Light.DarkActionBar" parent="android:Theme.Material.Light.DarkActionBar"/>
-	<style name="Theme.AppCompat.Light.Dialog" parent="android:Theme.Material.Light.Dialog"/>
-	<style name="Theme.AppCompat.Light" parent="android:Theme.Material.Light"/>
-	<style name="ThemeOverlay.AppCompat.Dark.ActionBar" parent="android:ThemeOverlay.Material.Dark.ActionBar"/>
-	<style name="ThemeOverlay.AppCompat.Light" parent="android:ThemeOverlay.Material.Light"/>
-	<style name="TextAppearance.AppCompat.Light.Widget.PopupMenu.Small" parent="android:TextAppearance.Material.Widget.PopupMenu.Small"/>
-	<style name="TextAppearance.AppCompat.Light.Widget.PopupMenu.Large" parent="android:TextAppearance.Material.Widget.PopupMenu.Large"/>
+	<style
+		name="Theme.AppCompat.Light.DarkActionBar"
+		parent="android:Theme.Material.Light.DarkActionBar" />
+	<style
+		name="Theme.AppCompat.Light.Dialog"
+		parent="android:Theme.Material.Light.Dialog" />
+	<style
+		name="Theme.AppCompat.Light"
+		parent="android:Theme.Material.Light" />
+	<style
+		name="ThemeOverlay.AppCompat.Dark.ActionBar"
+		parent="android:ThemeOverlay.Material.Dark.ActionBar" />
+	<style
+		name="ThemeOverlay.AppCompat.Light"
+		parent="android:ThemeOverlay.Material.Light" />
+	<style
+		name="TextAppearance.AppCompat.Light.Widget.PopupMenu.Small"
+		parent="android:TextAppearance.Material.Widget.PopupMenu.Small" />
+	<style
+		name="TextAppearance.AppCompat.Light.Widget.PopupMenu.Large"
+		parent="android:TextAppearance.Material.Widget.PopupMenu.Large" />
 </resources>

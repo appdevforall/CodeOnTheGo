@@ -38,8 +38,7 @@ class DeployChannelWaitsTest {
 			override fun onBuildStatus(statusJson: String?) = Unit
 		}
 
-	private fun connect(generation: Long) =
-		connections.onConnected(ConnectedTarget(target, "com.example.quickbuild", generation))
+	private fun connect(generation: Long) = connections.onConnected(ConnectedTarget(target, "com.example.quickbuild", generation))
 
 	@Test
 	fun `awaitDisconnect reports true when the test app actually disconnects`() =

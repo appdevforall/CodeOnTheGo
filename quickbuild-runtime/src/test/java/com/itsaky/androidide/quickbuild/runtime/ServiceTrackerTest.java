@@ -8,11 +8,6 @@ import org.junit.jupiter.api.Test;
 /** Exercises the Object-typed census seams; the Service-typed entry points are one-line delegates verified on-device. */
 class ServiceTrackerTest {
 
-	@BeforeEach
-	void resetCensus() {
-		ServiceTracker.reset();
-	}
-
 	@Test
 	void censusIsIdentityBased() {
 		// Two equal-but-distinct instances are two live services; equals/hashCode
@@ -61,5 +56,10 @@ class ServiceTrackerTest {
 		ServiceTracker.trackCreated(null);
 		ServiceTracker.trackDestroyed(null);
 		assertThat(ServiceTracker.liveCount()).isEqualTo(0);
+	}
+
+	@BeforeEach
+	void resetCensus() {
+		ServiceTracker.reset();
 	}
 }

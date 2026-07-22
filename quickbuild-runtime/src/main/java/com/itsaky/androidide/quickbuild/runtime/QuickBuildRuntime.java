@@ -53,6 +53,10 @@ final class QuickBuildRuntime {
 		}
 	}
 
+	private static ParcelFileDescriptor openReadOnly(File file) throws IOException {
+		return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
+	}
+
 	private static DeployMetadata parseMetadata(String metadataJson) {
 		try {
 			return DeployMetadata.parse(metadataJson);
@@ -96,13 +100,14 @@ final class QuickBuildRuntime {
 	}
 
 	private final Application application;
+
 	private final Handler mainHandler = new Handler(Looper.getMainLooper());
-
 	private final ActivityTracker tracker = new ActivityTracker(this);
-	private final QuickBuildClient client = new QuickBuildClient(this);
 
+	private final QuickBuildClient client = new QuickBuildClient(this);
 	private final StatusOverlay overlay = new StatusOverlay();
 	private final ReturnToIdeButton returnButton = new ReturnToIdeButton();
+
 	private volatile ComponentMap componentMap = ComponentMap.EMPTY;
 
 	private volatile OverlayState overlayState = OverlayState.hidden();
@@ -171,8 +176,7 @@ final class QuickBuildRuntime {
 				// stale-code lie. Refuse loudly (a CoGo bug if it ever happens).
 				throw new IllegalStateException("restart deploy without a dex payload");
 			}
-			PayloadPersistence.Persisted persisted =
-					persistPayload(generation, dexBytes, arscBytes, assetsBytes);
+			PayloadPersistence.Persisted persisted = persistPayload(generation, dexBytes, arscBytes, assetsBytes);
 			if (metadata.restart) {
 				// Restart deploy: the payload is on disk; ack, then exit. The fresh
 				// process boots the persisted generation, which is what makes the swap
@@ -279,23 +283,6 @@ final class QuickBuildRuntime {
 		android.os.Process.killProcess(android.os.Process.myPid());
 	}
 
-	private static ParcelFileDescriptor openReadOnly(File file) throws IOException {
-		return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
-	}
-
-	/**
-	 * Persists the payload before anything applies (see {@link #handlePayload}). Throws when the store is unavailable or the write fails - the deploy then fails loudly instead of leaving the boot path behind the running generation.
-	 */
-	private PayloadPersistence.Persisted persistPayload(long generation, byte[] dex,
-			byte[] arsc, byte[] assetsZip) throws IOException {
-		PayloadPersistence store = PayloadStore.INSTANCE.persistence();
-		String fingerprint = PayloadStore.INSTANCE.baselineFingerprint();
-		if (store == null || fingerprint == null) {
-			throw new IOException("payload persistence unavailable");
-		}
-		return store.persist(generation, fingerprint, dex, arsc, assetsZip);
-	}
-
 	/** Roll back, tell the host, show the honesty banner. The app stays on the old gen. */
 	private void failReload(long generation, PayloadStore.Payload rollback, Throwable error) {
 		PayloadStore.INSTANCE.restore(rollback);
@@ -385,6 +372,19 @@ final class QuickBuildRuntime {
 		} catch (Throwable error) {
 			RuntimeLog.w("gesture hint skipped", error);
 		}
+	}
+
+	/**
+	 * Persists the payload before anything applies (see {@link #handlePayload}). Throws when the store is unavailable or the write fails - the deploy then fails loudly instead of leaving the boot path behind the running generation.
+	 */
+	private PayloadPersistence.Persisted persistPayload(long generation, byte[] dex,
+			byte[] arsc, byte[] assetsZip) throws IOException {
+		PayloadPersistence store = PayloadStore.INSTANCE.persistence();
+		String fingerprint = PayloadStore.INSTANCE.baselineFingerprint();
+		if (store == null || fingerprint == null) {
+			throw new IOException("payload persistence unavailable");
+		}
+		return store.persist(generation, fingerprint, dex, arsc, assetsZip);
 	}
 
 	/**

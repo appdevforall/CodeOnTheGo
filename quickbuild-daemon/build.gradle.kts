@@ -170,9 +170,14 @@ tasks.register<Sync>("stageDaemonShrunk") {
 	into(layout.buildDirectory.dir("daemon-shrunk"))
 	val prefixes = quickBuildStripPrefixes
 	doLast {
-		val dir = layout.buildDirectory.dir("daemon-shrunk").get().asFile
+		val dir =
+			layout.buildDirectory
+				.dir("daemon-shrunk")
+				.get()
+				.asFile
 		val jar =
-			dir.listFiles { f -> f.name.startsWith("kotlin-compiler-embeddable-") }
+			dir
+				.listFiles { f -> f.name.startsWith("kotlin-compiler-embeddable-") }
 				?.singleOrNull()
 				?: error("compiler-embeddable jar not found in $dir")
 		val tmp = File(jar.parentFile, "${jar.name}.stripping")

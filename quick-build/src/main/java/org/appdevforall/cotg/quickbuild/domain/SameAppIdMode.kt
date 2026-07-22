@@ -15,6 +15,7 @@ data class InstalledRealApp(
 enum class SameAppIdRefusalReason {
 	SIGNATURE_MISMATCH,
 	USER_DECLINED,
+
 	/** The pinned versionCode would exceed Int.MAX_VALUE - an update install is impossible. */
 	VERSION_CODE_OVERFLOW,
 }

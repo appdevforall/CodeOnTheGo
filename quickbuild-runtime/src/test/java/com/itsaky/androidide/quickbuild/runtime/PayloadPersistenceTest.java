@@ -21,26 +21,65 @@ class PayloadPersistenceTest {
 	@TempDir
 	File temp;
 
-	private PayloadPersistence store() {
-		return new PayloadPersistence(new File(temp, "payload"));
+	@Test
+	void clearOnEmptyDirIsHarmless() {
+		store().clear();
 	}
 
 	@Test
-	void roundTripsAFullPayload() throws IOException {
+	void corruptMetaDeletesTheStore() throws IOException {
 		PayloadPersistence store = store();
-		store.persist(3, FP, bytes("dex3"), bytes("arsc3"), bytes("assets3"));
+		store.persist(5, FP, bytes("dex5"), null, null);
+		try (FileOutputStream out = new FileOutputStream(new File(store.dir(), PayloadPersistence.META_FILE))) {
+			out.write(bytes("not json"));
+		}
+
+		assertThat(store.load(FP)).isNull();
+		assertThat(new File(store.dir(), PayloadPersistence.DEX_FILE).exists()).isFalse();
+	}
+
+	@Test
+	void crashBeforeMetaWriteClaimsTheOlderGeneration() throws IOException {
+		// The crash window the meta-last ordering allows: newer payload files, older
+		// meta. The store must claim the OLDER generation (host catch-up redeploys),
+		// never the newer one.
+		PayloadPersistence store = store();
+		store.persist(1, FP, bytes("dex1"), null, null);
+		// Simulate a crash mid-persist of gen 2: dex written, meta not.
+		try (FileOutputStream out = new FileOutputStream(new File(store.dir(), PayloadPersistence.DEX_FILE))) {
+			out.write(bytes("dex2"));
+		}
 
 		PayloadPersistence.Loaded loaded = store.load(FP);
-		assertThat(loaded).isNotNull();
-		assertThat(loaded.generation).isEqualTo(3);
-		assertThat(loaded.dex).isEqualTo(bytes("dex3"));
-		assertThat(Files.readAllBytes(loaded.arscFile.toPath())).isEqualTo(bytes("arsc3"));
-		assertThat(Files.readAllBytes(loaded.assetsFile.toPath())).isEqualTo(bytes("assets3"));
+		assertThat(loaded.generation).isEqualTo(1);
+		assertThat(loaded.dex).isEqualTo(bytes("dex2"));
 	}
 
 	@Test
 	void emptyStoreLoadsNull() {
 		assertThat(store().load(FP)).isNull();
+	}
+
+	@Test
+	void fingerprintIsStableAndContentSensitive() {
+		assertThat(PayloadPersistence.fingerprint(bytes("a")))
+				.isEqualTo(PayloadPersistence.fingerprint(bytes("a")));
+		assertThat(PayloadPersistence.fingerprint(bytes("a")))
+				.isNotEqualTo(PayloadPersistence.fingerprint(bytes("b")));
+	}
+
+	@Test
+	void fingerprintMismatchDeletesTheStore() throws IOException {
+		// A rebaseline/reinstall changed the baseline: the persisted payload was
+		// compiled against the OLD baseline and must never boot on the new one.
+		PayloadPersistence store = store();
+		store.persist(5, FP, bytes("dex5"), null, null);
+
+		assertThat(store.load(PayloadPersistence.fingerprint(bytes("new-baseline")))).isNull();
+		assertThat(new File(store.dir(), PayloadPersistence.META_FILE).exists()).isFalse();
+		assertThat(new File(store.dir(), PayloadPersistence.DEX_FILE).exists()).isFalse();
+		// And the original fingerprint finds nothing either - the store is gone.
+		assertThat(store.load(FP)).isNull();
 	}
 
 	@Test
@@ -60,71 +99,14 @@ class PayloadPersistenceTest {
 	}
 
 	@Test
-	void resourceOnlyHistoryLoadsWithNullDex() throws IOException {
-		PayloadPersistence store = store();
-		store.persist(1, FP, null, bytes("arsc1"), null);
-
-		PayloadPersistence.Loaded loaded = store.load(FP);
-		assertThat(loaded.generation).isEqualTo(1);
-		assertThat(loaded.dex).isNull();
-		assertThat(loaded.arscFile).isNotNull();
-	}
-
-	@Test
-	void fingerprintMismatchDeletesTheStore() throws IOException {
-		// A rebaseline/reinstall changed the baseline: the persisted payload was
-		// compiled against the OLD baseline and must never boot on the new one.
-		PayloadPersistence store = store();
-		store.persist(5, FP, bytes("dex5"), null, null);
-
-		assertThat(store.load(PayloadPersistence.fingerprint(bytes("new-baseline")))).isNull();
-		assertThat(new File(store.dir(), PayloadPersistence.META_FILE).exists()).isFalse();
-		assertThat(new File(store.dir(), PayloadPersistence.DEX_FILE).exists()).isFalse();
-		// And the original fingerprint finds nothing either - the store is gone.
-		assertThat(store.load(FP)).isNull();
-	}
-
-	@Test
-	void corruptMetaDeletesTheStore() throws IOException {
-		PayloadPersistence store = store();
-		store.persist(5, FP, bytes("dex5"), null, null);
-		try (FileOutputStream out =
-				new FileOutputStream(new File(store.dir(), PayloadPersistence.META_FILE))) {
-			out.write(bytes("not json"));
-		}
-
-		assertThat(store.load(FP)).isNull();
-		assertThat(new File(store.dir(), PayloadPersistence.DEX_FILE).exists()).isFalse();
-	}
-
-	@Test
 	void metaWithoutFingerprintDeletesTheStore() throws IOException {
 		PayloadPersistence store = store();
 		store.persist(5, FP, bytes("dex5"), null, null);
-		try (FileOutputStream out =
-				new FileOutputStream(new File(store.dir(), PayloadPersistence.META_FILE))) {
+		try (FileOutputStream out = new FileOutputStream(new File(store.dir(), PayloadPersistence.META_FILE))) {
 			out.write(bytes("{\"generation\":\"5\"}"));
 		}
 
 		assertThat(store.load(FP)).isNull();
-	}
-
-	@Test
-	void crashBeforeMetaWriteClaimsTheOlderGeneration() throws IOException {
-		// The crash window the meta-last ordering allows: newer payload files, older
-		// meta. The store must claim the OLDER generation (host catch-up redeploys),
-		// never the newer one.
-		PayloadPersistence store = store();
-		store.persist(1, FP, bytes("dex1"), null, null);
-		// Simulate a crash mid-persist of gen 2: dex written, meta not.
-		try (FileOutputStream out =
-				new FileOutputStream(new File(store.dir(), PayloadPersistence.DEX_FILE))) {
-			out.write(bytes("dex2"));
-		}
-
-		PayloadPersistence.Loaded loaded = store.load(FP);
-		assertThat(loaded.generation).isEqualTo(1);
-		assertThat(loaded.dex).isEqualTo(bytes("dex2"));
 	}
 
 	@Test
@@ -140,15 +122,30 @@ class PayloadPersistenceTest {
 	}
 
 	@Test
-	void fingerprintIsStableAndContentSensitive() {
-		assertThat(PayloadPersistence.fingerprint(bytes("a")))
-				.isEqualTo(PayloadPersistence.fingerprint(bytes("a")));
-		assertThat(PayloadPersistence.fingerprint(bytes("a")))
-				.isNotEqualTo(PayloadPersistence.fingerprint(bytes("b")));
+	void resourceOnlyHistoryLoadsWithNullDex() throws IOException {
+		PayloadPersistence store = store();
+		store.persist(1, FP, null, bytes("arsc1"), null);
+
+		PayloadPersistence.Loaded loaded = store.load(FP);
+		assertThat(loaded.generation).isEqualTo(1);
+		assertThat(loaded.dex).isNull();
+		assertThat(loaded.arscFile).isNotNull();
 	}
 
 	@Test
-	void clearOnEmptyDirIsHarmless() {
-		store().clear();
+	void roundTripsAFullPayload() throws IOException {
+		PayloadPersistence store = store();
+		store.persist(3, FP, bytes("dex3"), bytes("arsc3"), bytes("assets3"));
+
+		PayloadPersistence.Loaded loaded = store.load(FP);
+		assertThat(loaded).isNotNull();
+		assertThat(loaded.generation).isEqualTo(3);
+		assertThat(loaded.dex).isEqualTo(bytes("dex3"));
+		assertThat(Files.readAllBytes(loaded.arscFile.toPath())).isEqualTo(bytes("arsc3"));
+		assertThat(Files.readAllBytes(loaded.assetsFile.toPath())).isEqualTo(bytes("assets3"));
+	}
+
+	private PayloadPersistence store() {
+		return new PayloadPersistence(new File(temp, "payload"));
 	}
 }

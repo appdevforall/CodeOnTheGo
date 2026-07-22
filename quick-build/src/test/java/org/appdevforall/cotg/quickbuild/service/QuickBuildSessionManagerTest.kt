@@ -307,10 +307,19 @@ class QuickBuildSessionManagerTest {
 
 			val building =
 				deploy.statusCalls.single {
-					JsonParser.parseString(it).asJsonObject.get("kind").asString == "building"
+					JsonParser
+						.parseString(it)
+						.asJsonObject
+						.get("kind")
+						.asString == "building"
 				}
-			assertThat(JsonParser.parseString(building).asJsonObject.get("runningGeneration").asString)
-				.isEqualTo("0")
+			assertThat(
+				JsonParser
+					.parseString(building)
+					.asJsonObject
+					.get("runningGeneration")
+					.asString,
+			).isEqualTo("0")
 		}
 
 	@Test
@@ -333,10 +342,19 @@ class QuickBuildSessionManagerTest {
 
 			val building =
 				deploy.statusCalls.single {
-					JsonParser.parseString(it).asJsonObject.get("kind").asString == "building"
+					JsonParser
+						.parseString(it)
+						.asJsonObject
+						.get("kind")
+						.asString == "building"
 				}
-			assertThat(JsonParser.parseString(building).asJsonObject.get("runningGeneration").asString)
-				.isEqualTo("1")
+			assertThat(
+				JsonParser
+					.parseString(building)
+					.asJsonObject
+					.get("runningGeneration")
+					.asString,
+			).isEqualTo("1")
 		}
 
 	@Test

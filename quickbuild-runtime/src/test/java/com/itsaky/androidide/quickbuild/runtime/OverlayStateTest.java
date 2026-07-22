@@ -47,6 +47,23 @@ class OverlayStateTest {
 	}
 
 	@Test
+	void buildingSaysWhichGenerationIsStillOnScreen() {
+		OverlayState state = OverlayState.building(4L);
+		assertThat(state.text()).contains("gen 4");
+		assertThat(state.isBuilding()).isTrue();
+		// Not an error and not jumpable - there is no failure location yet.
+		assertThat(state.isError()).isFalse();
+		assertThat(state.canJumpToEditor()).isFalse();
+	}
+
+	@Test
+	void buildingWithAnUnknownGenerationStillRendersHonestly() {
+		OverlayState state = OverlayState.building(-1L);
+		assertThat(state.text()).doesNotContain("gen -1");
+		assertThat(state.text()).contains("one build behind");
+	}
+
+	@Test
 	void crashedSaysTheAppRunsTheLastWorkingVersionAndCarriesTheSummary() {
 		OverlayState state = OverlayState.crashed("java.lang.NullPointerException\n at Foo.bar");
 		assertThat(state.text()).contains("running the last working version");
@@ -70,23 +87,6 @@ class OverlayStateTest {
 		assertThat(state.text()).contains("3 fingers");
 		assertThat(state.isError()).isFalse();
 		assertThat(state.canJumpToEditor()).isFalse();
-	}
-
-	@Test
-	void buildingSaysWhichGenerationIsStillOnScreen() {
-		OverlayState state = OverlayState.building(4L);
-		assertThat(state.text()).contains("gen 4");
-		assertThat(state.isBuilding()).isTrue();
-		// Not an error and not jumpable - there is no failure location yet.
-		assertThat(state.isError()).isFalse();
-		assertThat(state.canJumpToEditor()).isFalse();
-	}
-
-	@Test
-	void buildingWithAnUnknownGenerationStillRendersHonestly() {
-		OverlayState state = OverlayState.building(-1L);
-		assertThat(state.text()).doesNotContain("gen -1");
-		assertThat(state.text()).contains("one build behind");
 	}
 
 	@Test

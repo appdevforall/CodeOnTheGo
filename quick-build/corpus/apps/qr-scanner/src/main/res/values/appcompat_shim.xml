@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Harness scaffolding, not vendored: same rationale as ruler/2048/pedometer/todo-list's
-     appcompat_shim.xml (the corpus harness's aapt2 invocation only links against android.jar).
-     The vendored ic_*_24dp.xml drawables theme-tint via colorIcons/colorAccent: attrs the
-     real app declares itself (colorIcons) or gets from AppCompat/Material (colorAccent).
-     Declaring the attr names here is enough for aapt2 link to resolve them; it changes nothing
-     about which classes/bytecode the daemon compiles. -->
+<!-- Harness scaffolding, not vendored: same rationale as ruler/2048/pedometer/todo-list's appcompat_shim.xml (the corpus
+	harness's aapt2 invocation only links against android.jar). The vendored ic_*_24dp.xml drawables theme-tint via colorIcons/colorAccent:
+	attrs the real app declares itself (colorIcons) or gets from AppCompat/Material (colorAccent). Declaring the attr names here
+	is enough for aapt2 link to resolve them; it changes nothing about which classes/bytecode the daemon compiles. -->
 <resources>
-	<attr name="colorIcons" format="color" />
-	<attr name="colorAccent" format="color" />
+	<attr
+		name="colorIcons"
+		format="color" />
+	<attr
+		name="colorAccent"
+		format="color" />
 </resources>

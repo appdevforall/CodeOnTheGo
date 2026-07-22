@@ -27,7 +27,6 @@ sealed interface SameAppIdProvisionDecision {
  * this object is only the boolean logic between those reads.
  */
 object SameAppIdProvisionGuard {
-
 	/**
 	 * Runs BEFORE the setup build: same-app-id mode must be a confirmed episode (a
 	 * pinned versionCode exists) and the override must not decrease within the episode

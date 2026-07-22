@@ -351,7 +351,7 @@ class QuickBuildExecutorImpl(
 			reconnectGeneration == null ->
 				BuildOutcome.DeployFailure(
 					"Test app was relaunched for ${restart.componentClass} but did not " +
-						"reconnect within ${restartReconnectTimeoutMillis} ms; open it manually",
+						"reconnect within $restartReconnectTimeoutMillis ms; open it manually",
 				)
 			reconnectGeneration < generation ->
 				// The payload did not survive the process death: the fresh process booted

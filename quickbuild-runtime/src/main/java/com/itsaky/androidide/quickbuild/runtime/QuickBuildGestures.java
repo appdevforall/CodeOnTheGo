@@ -30,8 +30,7 @@ public final class QuickBuildGestures {
 	}
 
 	/**
-	 * Package-private (not private) so {@link ReturnToIdeButton} (WS-G) shares the exact
-	 * same path - the gesture and the visible button are two triggers for one action.
+	 * Package-private (not private) so {@link ReturnToIdeButton} (WS-G) shares the exact same path - the gesture and the visible button are two triggers for one action.
 	 */
 	static void returnToIde(Activity activity) {
 		Intent launch = activity.getPackageManager()

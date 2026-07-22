@@ -39,9 +39,17 @@ tasks.named<Test>("test") {
 	val stagedRepos =
 		mavenLocalStagingProjects.map { path ->
 			dependsOn("$path:publishAllPublicationsToBuildMavenLocalRepository")
-			project(path).layout.buildDirectory.dir("maven-local").get().asFile.absolutePath
+			project(path)
+				.layout.buildDirectory
+				.dir("maven-local")
+				.get()
+				.asFile.absolutePath
 		}
-	val reposFile = layout.buildDirectory.file("maven-local/repos.txt").get().asFile
+	val reposFile =
+		layout.buildDirectory
+			.file("maven-local/repos.txt")
+			.get()
+			.asFile
 
 	doFirst {
 		reposFile.parentFile.mkdirs()

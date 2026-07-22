@@ -89,7 +89,12 @@ val Project.simpleVersionName: String
 
 val Project.releaseVersion: String
 	get() {
-		val raw = providers.gradleProperty("next_release_version").orNull.orEmpty().trim()
+		val raw =
+			providers
+				.gradleProperty("next_release_version")
+				.orNull
+				.orEmpty()
+				.trim()
 		if (raw.isNotEmpty() && !Regex("""^\d{2}\.\d{2}$""").matches(raw)) {
 			throw GradleException(
 				"Invalid next_release_version '$raw'; expected YY.ww (two digits, dot, two digits), e.g. 25.47",

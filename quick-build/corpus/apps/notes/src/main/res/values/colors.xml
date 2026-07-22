@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Scaffolding: the vendored, real receiver/NotificationReceiver.kt calls
-     resources.getColor(R.color.colorPrimary), but no version of the app's own colors.xml
-     (checked at the pin and back through its git history) actually defines a color named
-     colorPrimary: the app only declares it as a THEME ATTR (values/attrs.xml) and as a
-     Material style item aliasing @color/seed. This resource fills that apparent real-app gap
-     so the vendored call resolves; value matches the app's own @color/seed. -->
+<!-- Scaffolding: the vendored, real receiver/NotificationReceiver.kt calls resources.getColor(R.color.colorPrimary), but
+	no version of the app's own colors.xml (checked at the pin and back through its git history) actually defines a color named
+	colorPrimary: the app only declares it as a THEME ATTR (values/attrs.xml) and as a Material style item aliasing @color/seed.
+	This resource fills that apparent real-app gap so the vendored call resolves; value matches the app's own @color/seed. -->
 <resources>
 	<color name="colorPrimary">#024265</color>
 </resources>

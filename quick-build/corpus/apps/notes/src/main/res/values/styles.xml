@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Scaffolding: the harness's aapt2 link only resolves against android.jar (see
-     todo-list/ruler/2048/pedometer's equivalent notes), so this theme parents a plain
-     framework theme rather than a Material/AppCompat one. Nothing in this subgraph needs
-     a Material-derived theme chain. -->
+<!-- Scaffolding: the harness's aapt2 link only resolves against android.jar (see todo-list/ruler/2048/pedometer's equivalent
+	notes), so this theme parents a plain framework theme rather than a Material/AppCompat one. Nothing in this subgraph needs
+	a Material-derived theme chain. -->
 <resources>
-	<style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar" />
+	<style
+		name="AppTheme"
+		parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

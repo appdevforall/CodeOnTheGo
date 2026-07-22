@@ -48,8 +48,7 @@ class PreferencesQuickBuildModeStore(
 		key(KEY_REAL_APP_ID)?.let { prefs.edit().putString(it, applicationId).apply() }
 	}
 
-	override fun isRestoreDowngradePending(): Boolean =
-		key(KEY_RESTORE_DOWNGRADE)?.let { prefs.getBoolean(it, false) } == true
+	override fun isRestoreDowngradePending(): Boolean = key(KEY_RESTORE_DOWNGRADE)?.let { prefs.getBoolean(it, false) } == true
 
 	override fun setRestoreDowngradePending(pending: Boolean) {
 		key(KEY_RESTORE_DOWNGRADE)?.let { prefs.edit().putBoolean(it, pending).apply() }

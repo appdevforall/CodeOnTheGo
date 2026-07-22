@@ -23,7 +23,6 @@ import java.io.File
  * @author Akash Yadav
  */
 object ApkInstaller {
-
 	private val log = LoggerFactory.getLogger(ApkInstaller::class.java)
 	private const val DEBUG_FALLBACK_INSTALLER = false
 
@@ -44,9 +43,10 @@ object ApkInstaller {
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
 		requestDowngrade: Boolean = false,
 	): Boolean {
-		val isValidApk = withContext(Dispatchers.IO) {
-			apk.exists() && apk.isFile && apk.extension == "apk"
-		}
+		val isValidApk =
+			withContext(Dispatchers.IO) {
+				apk.exists() && apk.isFile && apk.extension == "apk"
+			}
 		if (!isValidApk) {
 			log.error("File is not an APK: {}", apk)
 			return false
@@ -64,7 +64,7 @@ object ApkInstaller {
 		if (DeviceUtils.isMiui() || debugFallbackInstaller) {
 			log.warn(
 				"Cannot use session-based installer on this device." +
-						" Falling back to intent-based installer."
+					" Falling back to intent-based installer.",
 			)
 
 			if (requestDowngrade) {
@@ -80,7 +80,11 @@ object ApkInstaller {
 	}
 
 	@Suppress("DEPRECATION", "RequestInstallPackagesPolicy")
-	private fun installUsingIntent(context: Context, apk: File, intent: Intent) {
+	private fun installUsingIntent(
+		context: Context,
+		apk: File,
+		intent: Intent,
+	) {
 		val authority = "${context.packageName}.providers.fileprovider"
 		val uri = FileProvider.getUriForFile(context, authority, apk)
 		intent.setAction(Intent.ACTION_INSTALL_PACKAGE)
@@ -111,15 +115,18 @@ object ApkInstaller {
 
 				try {
 					session = installer.openSession(sessionId)
-					val callback = requireNotNull(getCallbackIntent(context, intent, sessionId)) {
-						"PackageInstaller callback intent is null"
-					}
+					val callback =
+						requireNotNull(getCallbackIntent(context, intent, sessionId)) {
+							"PackageInstaller callback intent is null"
+						}
 					addToSession(session, apk)
 					session.commit(callback.intentSender)
 				} catch (t: Throwable) {
 					runCatching { installer.abandonSession(sessionId) }
 					throw t
-				} finally { session?.close() }
+				} finally {
+					session?.close()
+				}
 			}
 		}.onFailure { error ->
 			log.error("Package installation failed", error)
@@ -171,14 +178,18 @@ object ApkInstaller {
 			}
 		}
 
-	private fun getCallbackIntent(context: Context, intent: Intent, sessionId: Int): PendingIntent? {
-		val intent = intent.apply {
-			action = InstallationResultReceiver.ACTION_INSTALL_STATUS
-			setClass(context, InstallationResultReceiver::class.java)
-			setPackage(context.packageName)
-			addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-		}
-
+	private fun getCallbackIntent(
+		context: Context,
+		intent: Intent,
+		sessionId: Int,
+	): PendingIntent? {
+		val intent =
+			intent.apply {
+				action = InstallationResultReceiver.ACTION_INSTALL_STATUS
+				setClass(context, InstallationResultReceiver::class.java)
+				setPackage(context.packageName)
+				addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+			}
 
 		return PendingIntentCompat.getBroadcast(
 			context,

@@ -7,38 +7,6 @@ import org.junit.jupiter.api.Test;
 
 class LoaderRouterTest {
 
-	/** Serves exactly one class name (with a stand-in Class object); CNFE for everything else its parent chain misses. */
-	private static final class ServingLoader extends ClassLoader {
-
-		private final String served;
-
-		ServingLoader(String served) {
-			// Bootstrap parent: framework-style names still resolve parent-first.
-			super(null);
-			this.served = served;
-		}
-
-		@Override
-		protected Class<?> findClass(String name) throws ClassNotFoundException {
-			if (name.equals(served)) {
-				return Runnable.class;
-			}
-			throw new ClassNotFoundException(name);
-		}
-	}
-
-	private static final class BrokenLoader extends ClassLoader {
-
-		BrokenLoader() {
-			super(null);
-		}
-
-		@Override
-		protected Class<?> findClass(String name) {
-			throw new NoClassDefFoundError("corrupt payload entry: " + name);
-		}
-	}
-
 	private final ClassLoader defaultLoader = getClass().getClassLoader();
 
 	@Test
@@ -78,5 +46,37 @@ class LoaderRouterTest {
 		ClassLoader payload = new ServingLoader("com.example.UserActivity");
 		assertThat(LoaderRouter.pick(defaultLoader, payload, "com.example.UserActivity"))
 				.isSameInstanceAs(payload);
+	}
+
+	private static final class BrokenLoader extends ClassLoader {
+
+		BrokenLoader() {
+			super(null);
+		}
+
+		@Override
+		protected Class<?> findClass(String name) {
+			throw new NoClassDefFoundError("corrupt payload entry: " + name);
+		}
+	}
+
+	/** Serves exactly one class name (with a stand-in Class object); CNFE for everything else its parent chain misses. */
+	private static final class ServingLoader extends ClassLoader {
+
+		private final String served;
+
+		ServingLoader(String served) {
+			// Bootstrap parent: framework-style names still resolve parent-first.
+			super(null);
+			this.served = served;
+		}
+
+		@Override
+		protected Class<?> findClass(String name) throws ClassNotFoundException {
+			if (name.equals(served)) {
+				return Runnable.class;
+			}
+			throw new ClassNotFoundException(name);
+		}
 	}
 }

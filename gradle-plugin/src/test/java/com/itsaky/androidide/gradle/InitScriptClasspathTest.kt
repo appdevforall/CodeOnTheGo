@@ -32,9 +32,10 @@ import java.io.File
  * much later as `Plugin with id '...' not found`.
  */
 class InitScriptClasspathTest {
-
 	@Test
-	fun `uses the bundled jar when the IDE has one`(@TempDir dir: File) {
+	fun `uses the bundled jar when the IDE has one`(
+		@TempDir dir: File,
+	) {
 		val bundled = File(dir, "cogo-plugin.jar").apply { writeText("jar") }
 		val other = File(dir, "from-init-script.jar").apply { writeText("jar") }
 
@@ -57,7 +58,9 @@ class InitScriptClasspathTest {
 	}
 
 	@Test
-	fun `drops init script classpath entries that do not exist`(@TempDir dir: File) {
+	fun `drops init script classpath entries that do not exist`(
+		@TempDir dir: File,
+	) {
 		val missing = File(dir, "does-not-exist.jar")
 		val real = File(dir, "real.jar").apply { writeText("jar") }
 		val ghost = File(dir, "ghost.jar")
@@ -69,7 +72,9 @@ class InitScriptClasspathTest {
 	}
 
 	@Test
-	fun `a directory is not mistaken for the bundled jar`(@TempDir dir: File) {
+	fun `a directory is not mistaken for the bundled jar`(
+		@TempDir dir: File,
+	) {
 		// isFile, not exists: a directory at the jar path must not be injected as the plugin.
 		val bundledAsDir = File(dir, "cogo-plugin.jar").apply { mkdirs() }
 		val fallback = File(dir, "a.jar").apply { writeText("jar") }
@@ -81,7 +86,9 @@ class InitScriptClasspathTest {
 	}
 
 	@Test
-	fun `fails loud when there is nothing to inject`(@TempDir dir: File) {
+	fun `fails loud when there is nothing to inject`(
+		@TempDir dir: File,
+	) {
 		val missing = File(dir, "does-not-exist.jar")
 
 		val error =

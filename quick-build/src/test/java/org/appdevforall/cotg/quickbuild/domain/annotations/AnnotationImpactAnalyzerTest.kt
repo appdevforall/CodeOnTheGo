@@ -26,8 +26,7 @@ class AnnotationImpactAnalyzerTest {
 	private fun analyzer(
 		fixture: RoomAppFixture,
 		profile: AnnotationProcessorProfile = roomProfile,
-	): AnnotationImpactAnalyzer =
-		AnnotationImpactAnalyzer(profile, AnnotationBaseline.capture(fixture.all, profile))
+	): AnnotationImpactAnalyzer = AnnotationImpactAnalyzer(profile, AnnotationBaseline.capture(fixture.all, profile))
 
 	private fun fixture(): RoomAppFixture = RoomAppFixture(root)
 
@@ -277,7 +276,10 @@ class AnnotationImpactAnalyzerTest {
 	fun `editing a non-annotated entity base class escalates`() {
 		val fixture = fixture()
 		val analyzer = analyzer(fixture)
-		fixture.edit(fixture.baseEntity, RoomAppFixture.BASE_ENTITY.replace("var createdAt: Long = 0", "var createdAt: Long = 0\n\tvar updatedAt: Long = 0"))
+		fixture.edit(
+			fixture.baseEntity,
+			RoomAppFixture.BASE_ENTITY.replace("var createdAt: Long = 0", "var createdAt: Long = 0\n\tvar updatedAt: Long = 0"),
+		)
 
 		assertThat(analyzer.escalation(listOf(fixture.baseEntity))).contains("BaseEntity")
 	}

@@ -37,6 +37,7 @@ class QuickBuildPluginTest {
 		// rather than assuming the caller always passes a String.
 		assertThat(QuickBuildPlugin.resolveSameAppId(StringBuilder("true"))).isTrue()
 	}
+
 	@Test
 	fun `versionCodeOverride is null when the property is unset`() {
 		assertThat(QuickBuildPlugin.resolveVersionCodeOverride(null)).isNull()

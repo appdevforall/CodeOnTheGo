@@ -20,8 +20,7 @@ class SameAppIdProvisionGuardTest {
 	}
 
 	/** A guard with a confirmed episode for [realId] (what a real provision reaches with). */
-	private fun confirmedGuard(): SameAppIdGuard =
-		SameAppIdGuard().apply { mintClobberToken(realId) }
+	private fun confirmedGuard(): SameAppIdGuard = SameAppIdGuard().apply { mintClobberToken(realId) }
 
 	// --- preflight -----------------------------------------------------------
 

@@ -674,7 +674,8 @@ class QuickBuildExecutorImplTest {
 			// feed records its real superclass edge.
 			daemon.compileReply =
 				DaemonReply.Ok(
-					org.appdevforall.cotg.quickbuild.data.CompileOutput(classesDir, listOf(servicePath)),
+					org.appdevforall.cotg.quickbuild.data
+						.CompileOutput(classesDir, listOf(servicePath)),
 				)
 			assertThat(
 				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)))),
@@ -685,7 +686,8 @@ class QuickBuildExecutorImplTest {
 			// it -> Restart, proving the real file was read.
 			daemon.compileReply =
 				DaemonReply.Ok(
-					org.appdevforall.cotg.quickbuild.data.CompileOutput(classesDir, listOf(basePath)),
+					org.appdevforall.cotg.quickbuild.data
+						.CompileOutput(classesDir, listOf(basePath)),
 				)
 			assertThat(
 				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)))),

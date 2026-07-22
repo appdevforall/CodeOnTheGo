@@ -185,7 +185,8 @@ open class EditorHandlerActivity :
 			focusView = currentFocus,
 			hasModal = supportFragmentManager.hasVisibleDialog(),
 			executionContext = editorShortcutExecutionContext(),
-		) || super.dispatchKeyEvent(event)
+		) ||
+			super.dispatchKeyEvent(event)
 
 	private fun editorShortcutExecutionContext(): ShortcutExecutionContext =
 		ShortcutExecutionContext(

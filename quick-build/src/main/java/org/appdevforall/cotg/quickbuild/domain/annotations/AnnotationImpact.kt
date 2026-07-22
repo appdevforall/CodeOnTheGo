@@ -150,9 +150,7 @@ class AnnotationImpactAnalyzer(
 		return null
 	}
 
-	private fun AnnotationFacts.hasProcessorInput(): Boolean =
-		annotations.any { profile.isProcessorInput(it, this) }
+	private fun AnnotationFacts.hasProcessorInput(): Boolean = annotations.any { profile.isProcessorInput(it, this) }
 
-	private fun AnnotationFacts.processorAnnotations(): List<AnnotationUse> =
-		annotations.filter { profile.isProcessorInput(it, this) }
+	private fun AnnotationFacts.processorAnnotations(): List<AnnotationUse> = annotations.filter { profile.isProcessorInput(it, this) }
 }

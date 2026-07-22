@@ -11,25 +11,11 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 
 /**
- * On-disk store of the NEWEST payload generation (component-proxying design, section 3;
- * revises plan D1's "nothing on disk"). A fresh process boots the persisted generation
- * instead of the baked gen-0 baseline - without this, providers and a custom Application
- * (which instantiate before the binder connects and are never re-instantiated) would be
- * pinned to baseline code after any process death, and the restart-based swap for
- * services/providers could not work at all.
+ * On-disk store of the NEWEST payload generation (component-proxying design, section 3; revises plan D1's "nothing on disk"). A fresh process boots the persisted generation instead of the baked gen-0 baseline - without this, providers and a custom Application (which instantiate before the binder connects and are never re-instantiated) would be pinned to baseline code after any process death, and the restart-based swap for services/providers could not work at all.
  *
- * Layout under the store dir: {@code payload.dex}, {@code resources.arsc},
- * {@code assets.zip} (each optional - a deploy carries only what changed, and the store
- * keeps the newest file of each kind), plus {@code meta.json} holding the generation and
- * the baseline fingerprint. Files are written temp-then-rename with {@code meta.json}
- * LAST, so a crash mid-persist leaves the old meta pointing at possibly-newer payload
- * files - the store then claims an OLDER generation than it serves, which is the safe
- * direction (the host redeploys anything newer than the claimed generation; claiming
- * newer than served would be a stale-code lie).
+ * Layout under the store dir: {@code payload.dex}, {@code resources.arsc}, {@code assets.zip} (each optional - a deploy carries only what changed, and the store keeps the newest file of each kind), plus {@code meta.json} holding the generation and the baseline fingerprint. Files are written temp-then-rename with {@code meta.json} LAST, so a crash mid-persist leaves the old meta pointing at possibly-newer payload files - the store then claims an OLDER generation than it serves, which is the safe direction (the host redeploys anything newer than the claimed generation; claiming newer than served would be a stale-code lie).
  *
- * The fingerprint is a digest of the baked gen-0 baseline dex: a rebaseline/reinstall
- * changes it, and {@link #load} deletes a mismatching store and falls back to gen-0 -
- * a persisted payload must never outlive the baseline it was compiled against.
+ * The fingerprint is a digest of the baked gen-0 baseline dex: a rebaseline/reinstall changes it, and {@link #load} deletes a mismatching store and falls back to gen-0 - a persisted payload must never outlive the baseline it was compiled against.
  *
  * Pure Java + java.io only, so the whole store is JVM-unit-testable.
  */
@@ -41,8 +27,7 @@ final class PayloadPersistence {
 	static final String META_FILE = "meta.json";
 
 	/**
-	 * Hex SHA-256 of the baseline dex bytes - the key that ties a persisted payload to
-	 * the exact baseline APK it was deployed onto.
+	 * Hex SHA-256 of the baseline dex bytes - the key that ties a persisted payload to the exact baseline APK it was deployed onto.
 	 */
 	static String fingerprint(byte[] baselineDex) {
 		try {
@@ -61,14 +46,41 @@ final class PayloadPersistence {
 		}
 	}
 
+	private static byte[] readBytes(File file) throws IOException {
+		InputStream in = new FileInputStream(file);
+		try {
+			return Streams.readFully(in);
+		} finally {
+			Streams.closeQuietly(in);
+		}
+	}
+
+	private static String readText(File file) throws IOException {
+		return new String(readBytes(file), StandardCharsets.UTF_8);
+	}
+
+	private static void writeAtomic(File target, byte[] bytes) throws IOException {
+		File temp = new File(target.getParentFile(), target.getName() + ".tmp");
+		FileOutputStream out = new FileOutputStream(temp);
+		try {
+			out.write(bytes);
+			out.getFD().sync();
+		} finally {
+			Streams.closeQuietly(out);
+		}
+		if (!temp.renameTo(target)) {
+			// rename over an existing file is atomic on POSIX; a failure here is a
+			// filesystem oddity - fall back to delete+rename before giving up.
+			if (!target.delete() || !temp.renameTo(target)) {
+				throw new IOException("cannot rename " + temp + " to " + target);
+			}
+		}
+	}
+
 	private final File dir;
 
 	PayloadPersistence(File dir) {
 		this.dir = dir;
-	}
-
-	File dir() {
-		return dir;
 	}
 
 	/** Deletes the whole store; best-effort, used when the store is untrusted. */
@@ -86,11 +98,12 @@ final class PayloadPersistence {
 		}
 	}
 
+	File dir() {
+		return dir;
+	}
+
 	/**
-	 * Loads the persisted payload when it exists, parses, and matches
-	 * {@code expectedFingerprint}. Any mismatch or corruption deletes the store and
-	 * returns null - the caller then boots the gen-0 baseline, which is always current
-	 * for a fresh install/rebaseline.
+	 * Loads the persisted payload when it exists, parses, and matches {@code expectedFingerprint}. Any mismatch or corruption deletes the store and returns null - the caller then boots the gen-0 baseline, which is always current for a fresh install/rebaseline.
 	 */
 	Loaded load(String expectedFingerprint) {
 		File meta = new File(dir, META_FILE);
@@ -125,14 +138,9 @@ final class PayloadPersistence {
 	}
 
 	/**
-	 * Persists {@code generation} as the newest payload. Null byte arrays keep the
-	 * previously persisted file of that kind (deploys are deltas per payload kind; the
-	 * store is cumulative so a boot always has the newest of everything). Throws on any
-	 * IO failure so the caller can refuse the deploy LOUDLY instead of leaving a boot
-	 * path that would silently serve older code.
+	 * Persists {@code generation} as the newest payload. Null byte arrays keep the previously persisted file of that kind (deploys are deltas per payload kind; the store is cumulative so a boot always has the newest of everything). Throws on any IO failure so the caller can refuse the deploy LOUDLY instead of leaving a boot path that would silently serve older code.
 	 *
-	 * @return the store's current payload files after the write, for callers that apply
-	 *   resources from the persisted copies.
+	 * @return the store's current payload files after the write, for callers that apply resources from the persisted copies.
 	 */
 	Persisted persist(long generation, String fingerprint, byte[] dex, byte[] arsc,
 			byte[] assetsZip) throws IOException {
@@ -159,49 +167,6 @@ final class PayloadPersistence {
 				assetsFile.isFile() ? assetsFile : null);
 	}
 
-	private static byte[] readBytes(File file) throws IOException {
-		InputStream in = new FileInputStream(file);
-		try {
-			return Streams.readFully(in);
-		} finally {
-			Streams.closeQuietly(in);
-		}
-	}
-
-	private static String readText(File file) throws IOException {
-		return new String(readBytes(file), StandardCharsets.UTF_8);
-	}
-
-	private static void writeAtomic(File target, byte[] bytes) throws IOException {
-		File temp = new File(target.getParentFile(), target.getName() + ".tmp");
-		FileOutputStream out = new FileOutputStream(temp);
-		try {
-			out.write(bytes);
-			out.getFD().sync();
-		} finally {
-			Streams.closeQuietly(out);
-		}
-		if (!temp.renameTo(target)) {
-			// rename over an existing file is atomic on POSIX; a failure here is a
-			// filesystem oddity - fall back to delete+rename before giving up.
-			if (!target.delete() || !temp.renameTo(target)) {
-				throw new IOException("cannot rename " + temp + " to " + target);
-			}
-		}
-	}
-
-	/** The payload files currently in the store (post-persist view). */
-	static final class Persisted {
-
-		final File arscFile;
-		final File assetsFile;
-
-		Persisted(File arscFile, File assetsFile) {
-			this.arscFile = arscFile;
-			this.assetsFile = assetsFile;
-		}
-	}
-
 	/** A successfully loaded persisted payload. [dex] null = no code deploy persisted. */
 	static final class Loaded {
 
@@ -213,6 +178,18 @@ final class PayloadPersistence {
 		Loaded(long generation, byte[] dex, File arscFile, File assetsFile) {
 			this.generation = generation;
 			this.dex = dex;
+			this.arscFile = arscFile;
+			this.assetsFile = assetsFile;
+		}
+	}
+
+	/** The payload files currently in the store (post-persist view). */
+	static final class Persisted {
+
+		final File arscFile;
+		final File assetsFile;
+
+		Persisted(File arscFile, File assetsFile) {
 			this.arscFile = arscFile;
 			this.assetsFile = assetsFile;
 		}

@@ -182,8 +182,7 @@ class ChangeClassifierTest {
 			object : AnnotationImpact {
 				override val active = active
 
-				override fun escalation(changedCodeFiles: List<File>): String? =
-					"annotation input changed".takeIf { escalates }
+				override fun escalation(changedCodeFiles: List<File>): String? = "annotation input changed".takeIf { escalates }
 			},
 		)
 }

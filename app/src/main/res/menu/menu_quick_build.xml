@@ -15,8 +15,8 @@
 		android:id="@+id/action_quick_build_restart_session"
 		android:title="@string/quick_build_menu_restart_session" />
 
-	<!-- Same-app-id mode toggle (Path B): checking it runs the mode-entry flow, which
-		shows the destructive clobber warning before anything builds or installs. -->
+	<!-- Same-app-id mode toggle (Path B): checking it runs the mode-entry flow, which shows the destructive clobber warning
+		before anything builds or installs. -->
 	<item
 		android:id="@+id/action_quick_build_same_app_id"
 		android:checkable="true"

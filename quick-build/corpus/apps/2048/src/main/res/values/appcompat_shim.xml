@@ -1,46 +1,93 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Harness scaffolding, not vendored: the corpus harness's aapt2 invocation only
-  links against android.jar (see run_matrix.py's generate_r_classes); it has
-  no way to feed it appcompat/material's own AAR resources, so any real style
-  chain rooted at Theme.AppCompat.*/ThemeOverlay.AppCompat.* fails resource
-  linking, even though the compile classpath jars (classpath-extra) make the
-  Java/Kotlin side compile fine. This file defines the same style/attr NAMES
-  the vendored resources reference, backed by framework equivalents, purely
-  so aapt2 link resolves; see ruler's identical shim and README.md.
--->
+<!-- Harness scaffolding, not vendored: the corpus harness's aapt2 invocation only links against android.jar (see run_matrix.py's
+	generate_r_classes); it has no way to feed it appcompat/material's own AAR resources, so any real style chain rooted at Theme.AppCompat.*/ThemeOverlay.AppCompat.*
+	fails resource linking, even though the compile classpath jars (classpath-extra) make the Java/Kotlin side compile fine.
+	This file defines the same style/attr NAMES the vendored resources reference, backed by framework equivalents, purely so
+	aapt2 link resolves; see ruler's identical shim and README.md. -->
 <resources>
-	<attr name="colorPrimary" format="color"/>
-	<attr name="colorPrimaryDark" format="color"/>
-	<attr name="colorAccent" format="color"/>
-	<attr name="windowActionBar" format="boolean"/>
-	<attr name="windowNoTitle" format="boolean"/>
-	<attr name="srcCompat" format="reference"/>
-	<attr name="layout_behavior" format="string"/>
-	<attr name="headerLayout" format="reference"/>
-	<attr name="menu" format="reference"/>
-	<attr name="selectableItemBackgroundBorderless" format="reference"/>
-	<attr name="actionBarSize" format="dimension"/>
-	<attr name="popupTheme" format="reference"/>
+	<attr
+		name="colorPrimary"
+		format="color" />
+	<attr
+		name="colorPrimaryDark"
+		format="color" />
+	<attr
+		name="colorAccent"
+		format="color" />
+	<attr
+		name="windowActionBar"
+		format="boolean" />
+	<attr
+		name="windowNoTitle"
+		format="boolean" />
+	<attr
+		name="srcCompat"
+		format="reference" />
+	<attr
+		name="layout_behavior"
+		format="string" />
+	<attr
+		name="headerLayout"
+		format="reference" />
+	<attr
+		name="menu"
+		format="reference" />
+	<attr
+		name="selectableItemBackgroundBorderless"
+		format="reference" />
+	<attr
+		name="actionBarSize"
+		format="dimension" />
+	<attr
+		name="popupTheme"
+		format="reference" />
 	<attr name="layout_scrollFlags">
-		<flag name="scroll" value="0x1"/>
-		<flag name="exitUntilCollapsed" value="0x2"/>
-		<flag name="enterAlways" value="0x4"/>
-		<flag name="enterAlwaysCollapsed" value="0x8"/>
-		<flag name="snap" value="0x10"/>
+		<flag
+			name="scroll"
+			value="0x1" />
+		<flag
+			name="exitUntilCollapsed"
+			value="0x2" />
+		<flag
+			name="enterAlways"
+			value="0x4" />
+		<flag
+			name="enterAlwaysCollapsed"
+			value="0x8" />
+		<flag
+			name="snap"
+			value="0x10" />
 	</attr>
 	<attr name="showAsAction">
-		<flag name="never" value="0"/>
-		<flag name="ifRoom" value="1"/>
-		<flag name="always" value="2"/>
-		<flag name="withText" value="4"/>
-		<flag name="collapseActionView" value="8"/>
+		<flag
+			name="never"
+			value="0" />
+		<flag
+			name="ifRoom"
+			value="1" />
+		<flag
+			name="always"
+			value="2" />
+		<flag
+			name="withText"
+			value="4" />
+		<flag
+			name="collapseActionView"
+			value="8" />
 	</attr>
 
-	<style name="Theme.AppCompat.DayNight.DarkActionBar" parent="android:Theme.Material.Light.DarkActionBar"/>
-	<style name="ThemeOverlay.AppCompat.Light" parent="android:ThemeOverlay.Material.Light"/>
-	<style name="ThemeOverlay.AppCompat.Dark" parent="android:ThemeOverlay.Material.Dark"/>
-	<style name="TextAppearance.AppCompat.Body1" parent="android:TextAppearance.Material.Body1"/>
+	<style
+		name="Theme.AppCompat.DayNight.DarkActionBar"
+		parent="android:Theme.Material.Light.DarkActionBar" />
+	<style
+		name="ThemeOverlay.AppCompat.Light"
+		parent="android:ThemeOverlay.Material.Light" />
+	<style
+		name="ThemeOverlay.AppCompat.Dark"
+		parent="android:ThemeOverlay.Material.Dark" />
+	<style
+		name="TextAppearance.AppCompat.Body1"
+		parent="android:TextAppearance.Material.Body1" />
 
 	<string name="appbar_scrolling_view_behavior">com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior</string>
 </resources>

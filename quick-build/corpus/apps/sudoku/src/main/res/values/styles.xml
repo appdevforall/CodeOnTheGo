@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Scaffolding: the harness's aapt2 link only resolves against android.jar, so this theme
-     parents a plain framework theme. Nothing in this subgraph needs a Material theme chain. -->
+<!-- Scaffolding: the harness's aapt2 link only resolves against android.jar, so this theme parents a plain framework theme.
+	Nothing in this subgraph needs a Material theme chain. -->
 <resources>
-	<style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar" />
+	<style
+		name="AppTheme"
+		parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

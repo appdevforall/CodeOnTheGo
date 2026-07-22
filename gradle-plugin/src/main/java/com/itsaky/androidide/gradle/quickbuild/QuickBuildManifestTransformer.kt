@@ -16,7 +16,9 @@ import javax.xml.transform.stream.StreamResult
  * Kind of a manifest component the Quick Build test app proxies. [jsonName] is the
  * `type` value in the setup.json/manifest-info `components` array.
  */
-enum class ComponentType(val jsonName: String) {
+enum class ComponentType(
+	val jsonName: String,
+) {
 	ACTIVITY("activity"),
 	SERVICE("service"),
 	RECEIVER("receiver"),

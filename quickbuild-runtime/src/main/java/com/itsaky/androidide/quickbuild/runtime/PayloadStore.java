@@ -29,12 +29,39 @@ final class PayloadStore {
 
 	static final long BASELINE_GENERATION = 0L;
 
+	/**
+	 * The app's files dir derived WITHOUT a Context (none exists when the factory first runs): package name from /proc/self/cmdline - the default process name IS the applicationId, and the manifest transformer rejects android:process - and the user id from the uid. Null when the derivation fails; {@link #attachPersistence} heals that later.
+	 */
+	private static File defaultPersistDir() {
+		InputStream in = null;
+		try {
+			in = new FileInputStream("/proc/self/cmdline");
+			String cmdline = new String(Streams.readFully(in), "UTF-8");
+			int nul = cmdline.indexOf('\0');
+			String pkg = (nul >= 0 ? cmdline.substring(0, nul) : cmdline).trim();
+			if (pkg.isEmpty()) {
+				return null;
+			}
+			int userId = android.os.Process.myUid() / 100000;
+			File dataDir = new File("/data/user/" + userId + "/" + pkg);
+			if (!dataDir.isDirectory()) {
+				return null;
+			}
+			return new File(dataDir, "files/" + PERSIST_DIR);
+		} catch (Throwable error) {
+			RuntimeLog.w("cmdline data-dir derivation failed: " + error);
+			return null;
+		} finally {
+			Streams.closeQuietly(in);
+		}
+	}
+
 	private volatile Payload current;
-
 	private ClassLoader apkClassLoader;
-	private boolean baselineAttempted;
 
+	private boolean baselineAttempted;
 	private volatile PayloadPersistence persistence;
+
 	private volatile String baselineFingerprint;
 
 	/** Persisted resource payloads found at boot, pending application once a Context exists. */
@@ -68,6 +95,25 @@ final class PayloadStore {
 				: new InMemoryDexClassLoader(dex, apkClassLoader);
 		current = new Payload(generation, loader);
 		return true;
+	}
+
+	/**
+	 * Late-binds the persistence dir from a real Context (first activity). Heals a boot whose pre-Context dir derivation failed; a no-op when boot already resolved it.
+	 */
+	synchronized void attachPersistence(Context context) {
+		if (persistence != null || baselineFingerprint == null) {
+			return;
+		}
+		try {
+			persistence = new PayloadPersistence(new File(context.getFilesDir(), PERSIST_DIR));
+		} catch (Throwable error) {
+			RuntimeLog.e("cannot attach payload persistence", error);
+		}
+	}
+
+	/** The baseline's fingerprint, or null while no baseline is loaded. */
+	String baselineFingerprint() {
+		return baselineFingerprint;
 	}
 
 	/** The current payload classloader, or null when no payload is live (runtime inert). */
@@ -112,28 +158,27 @@ final class PayloadStore {
 		}
 	}
 
-	/**
-	 * Late-binds the persistence dir from a real Context (first activity). Heals a boot whose pre-Context dir derivation failed; a no-op when boot already resolved it.
-	 */
-	synchronized void attachPersistence(Context context) {
-		if (persistence != null || baselineFingerprint == null) {
-			return;
-		}
-		try {
-			persistence = new PayloadPersistence(new File(context.getFilesDir(), PERSIST_DIR));
-		} catch (Throwable error) {
-			RuntimeLog.e("cannot attach payload persistence", error);
-		}
-	}
-
-	/** The baseline's fingerprint, or null while no baseline is loaded. */
-	String baselineFingerprint() {
-		return baselineFingerprint;
+	/** The generation the app currently runs; baseline (0) when nothing was deployed yet. */
+	long generation() {
+		Payload payload = current;
+		return payload == null ? BASELINE_GENERATION : payload.generation;
 	}
 
 	/** The persisted-payload store, or null when unavailable (deploys must then fail loudly on restart). */
 	PayloadPersistence persistence() {
 		return persistence;
+	}
+
+	/**
+	 * Rolls back to a {@link #snapshot}. Keeps the never-silently-stale invariant honest: a failed reload leaves the app VISIBLY on the old generation (the host is told via reportCrash), instead of claiming a generation whose classes never rendered.
+	 */
+	synchronized void restore(Payload payload) {
+		current = payload;
+	}
+
+	/** Snapshot for rollback: pair with {@link #restore} when a reload fails. */
+	synchronized Payload snapshot() {
+		return current;
 	}
 
 	/** Persisted resource payloads found at boot; null after the first call (one consumer). */
@@ -170,51 +215,6 @@ final class PayloadStore {
 		} catch (Throwable error) {
 			RuntimeLog.e("persisted payload unusable; booting baseline gen 0", error);
 		}
-	}
-
-	/**
-	 * The app's files dir derived WITHOUT a Context (none exists when the factory first runs): package name from /proc/self/cmdline - the default process name IS the applicationId, and the manifest transformer rejects android:process - and the user id from the uid. Null when the derivation fails; {@link #attachPersistence} heals that later.
-	 */
-	private static File defaultPersistDir() {
-		InputStream in = null;
-		try {
-			in = new FileInputStream("/proc/self/cmdline");
-			String cmdline = new String(Streams.readFully(in), "UTF-8");
-			int nul = cmdline.indexOf('\0');
-			String pkg = (nul >= 0 ? cmdline.substring(0, nul) : cmdline).trim();
-			if (pkg.isEmpty()) {
-				return null;
-			}
-			int userId = android.os.Process.myUid() / 100000;
-			File dataDir = new File("/data/user/" + userId + "/" + pkg);
-			if (!dataDir.isDirectory()) {
-				return null;
-			}
-			return new File(dataDir, "files/" + PERSIST_DIR);
-		} catch (Throwable error) {
-			RuntimeLog.w("cmdline data-dir derivation failed: " + error);
-			return null;
-		} finally {
-			Streams.closeQuietly(in);
-		}
-	}
-
-	/** The generation the app currently runs; baseline (0) when nothing was deployed yet. */
-	long generation() {
-		Payload payload = current;
-		return payload == null ? BASELINE_GENERATION : payload.generation;
-	}
-
-	/**
-	 * Rolls back to a {@link #snapshot}. Keeps the never-silently-stale invariant honest: a failed reload leaves the app VISIBLY on the old generation (the host is told via reportCrash), instead of claiming a generation whose classes never rendered.
-	 */
-	synchronized void restore(Payload payload) {
-		current = payload;
-	}
-
-	/** Snapshot for rollback: pair with {@link #restore} when a reload fails. */
-	synchronized Payload snapshot() {
-		return current;
 	}
 
 	/** Immutable generation snapshot; swapped as one unit. */

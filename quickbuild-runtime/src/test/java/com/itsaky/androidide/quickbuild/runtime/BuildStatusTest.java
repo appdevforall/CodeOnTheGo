@@ -8,6 +8,12 @@ import org.junit.jupiter.api.Test;
 class BuildStatusTest {
 
 	@Test
+	void buildingWithAMissingOrUnparseableGenerationFallsBackToUnknown() {
+		assertThat(BuildStatus.parse("{\"kind\": \"building\"}").runningGeneration).isEqualTo(-1L);
+		assertThat(BuildStatus.parse("{\"kind\": \"building\", \"runningGeneration\": \"nope\"}").runningGeneration).isEqualTo(-1L);
+	}
+
+	@Test
 	void malformedJsonThrows() {
 		assertThrows(IllegalArgumentException.class, () -> BuildStatus.parse("not json"));
 		assertThrows(IllegalArgumentException.class, () -> BuildStatus.parse(null));
@@ -45,6 +51,14 @@ class BuildStatusTest {
 	}
 
 	@Test
+	void parsesBuilding() {
+		BuildStatus status = BuildStatus.parse(
+				"{\"kind\": \"building\", \"runningGeneration\": \"5\"}");
+		assertThat(status.kind).isEqualTo(BuildStatus.KIND_BUILDING);
+		assertThat(status.runningGeneration).isEqualTo(5L);
+	}
+
+	@Test
 	void unknownFieldsAreIgnored() {
 		BuildStatus status = BuildStatus.parse(
 				"{\"kind\": \"build_failed\", \"message\": \"x\", \"futureField\": {\"y\": 1}}");
@@ -65,20 +79,5 @@ class BuildStatusTest {
 		assertThat(status.line).isEqualTo(-1);
 		// A negative extra-error count would render as nonsense; clamped to zero.
 		assertThat(status.moreErrors).isEqualTo(0);
-	}
-
-	@Test
-	void parsesBuilding() {
-		BuildStatus status = BuildStatus.parse(
-				"{\"kind\": \"building\", \"runningGeneration\": \"5\"}");
-		assertThat(status.kind).isEqualTo(BuildStatus.KIND_BUILDING);
-		assertThat(status.runningGeneration).isEqualTo(5L);
-	}
-
-	@Test
-	void buildingWithAMissingOrUnparseableGenerationFallsBackToUnknown() {
-		assertThat(BuildStatus.parse("{\"kind\": \"building\"}").runningGeneration).isEqualTo(-1L);
-		assertThat(BuildStatus.parse("{\"kind\": \"building\", \"runningGeneration\": \"nope\"}")
-				.runningGeneration).isEqualTo(-1L);
 	}
 }

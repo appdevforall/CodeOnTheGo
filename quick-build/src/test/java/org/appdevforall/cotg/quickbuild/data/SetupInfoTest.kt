@@ -59,11 +59,11 @@ class SetupInfoTest {
 					"schema": 2,
 					"components": [
 						{"type": "activity", "userClass": "com.example.app.MainActivity",
-						 "proxyClass": "com.example.app.quickbuild.proxies.Proxy0Activity",
-						 "launcher": true, "supertypes": ["com.example.app.BaseActivity"]},
+						"proxyClass": "com.example.app.quickbuild.proxies.Proxy0Activity",
+						"launcher": true, "supertypes": ["com.example.app.BaseActivity"]},
 						{"type": "service", "userClass": "com.example.app.SyncService",
-						 "proxyClass": "com.example.app.quickbuild.proxies.Proxy0Service",
-						 "foregroundServiceType": "dataSync", "supertypes": []},
+						"proxyClass": "com.example.app.quickbuild.proxies.Proxy0Service",
+						"foregroundServiceType": "dataSync", "supertypes": []},
 						{"type": "application", "userClass": "com.example.app.App"}
 					]
 					""",
@@ -176,7 +176,8 @@ class SetupInfoTest {
 		val info =
 			SetupInfo.parse(
 				json(
-					""",
+					"""
+					,
 					"annotationProcessors": ["androidx.room:room-compiler:2.6.1", "  "],
 					"sourceRoots": ["app/src/main/java", "/abs/build/generated/ksp/debug/kotlin"]
 					""".trimIndent(),
