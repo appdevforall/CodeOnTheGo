@@ -32,6 +32,7 @@ plugins {
 	id("kotlin-parcelize")
 	id("androidx.navigation.safeargs.kotlin")
 	id("com.itsaky.androidide.desugaring")
+	// Sentry gradle plugin; the SDK it wires up reports to our GlitchTip backend.
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
 }
@@ -149,6 +150,7 @@ android {
 	}
 }
 
+// Sentry gradle plugin config (crash reporting to GlitchTip).
 sentry {
 	includeProguardMapping = false
 }
@@ -324,7 +326,7 @@ dependencies {
 	implementation(libs.koin.android)
 	implementation(libs.androidx.security.crypto)
 
-	// Sentry Android SDK (core + replay for quality configuration)
+	// Sentry Android SDK (core + replay for quality configuration); our GlitchTip client.
 	implementation(libs.sentry.core)
 	implementation(libs.sentry.android.core)
 	implementation(libs.sentry.logback)

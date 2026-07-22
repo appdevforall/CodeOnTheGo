@@ -16,7 +16,7 @@ A review isn't done because it *looks* fine; it's done when you can **show what 
 | Area | Evidence to show |
 |---|---|
 | Ticket / feature completeness | Requirements list from ADFA-####, each mapped to code + test (or flagged missing) |
-| §1 Exceptions | Where new failure paths are caught; nothing new can reach the Sentry wrapper |
+| §1 Exceptions | Where new failure paths are caught; nothing new can reach the GlitchTip wrapper |
 | §2 Leaks | LeakCanary result for the touched flows (clean, or the leak addressed) |
 | §3 Threading/StrictMode | No new main-thread I/O or long compute; StrictMode run clean, no app-code whitelist |
 | §4 Security | Which untrusted inputs were validated; secrets checked |
@@ -31,7 +31,7 @@ Keep it proportional — a two-line change needs a two-line ledger.
 ## The 60-second checklist
 
 - [ ] **Feature complete:** does what the linked ticket asks — requirements implemented, intended flow covered by tests.
-- [ ] **Exceptions** are handled locally — nothing unexpected reaches the global Sentry crash handler.
+- [ ] **Exceptions** are handled locally — nothing unexpected reaches the global GlitchTip crash handler.
 - [ ] **No leaks** LeakCanary would catch later: every register/open/subscribe has a matching unregister/close in the right lifecycle callback.
 - [ ] **No main-thread disk/network I/O** — no new StrictMode violations, and no whitelisting of *our own* code.
 - [ ] **Security:** untrusted input (zip entries, URLs, file paths, web-server requests) is validated; no secrets in code, logs, or analytics.
@@ -46,9 +46,9 @@ Keep it proportional — a two-line change needs a two-line ledger.
 
 ---
 
-## 1. Exception handling — stay out of the Sentry crash wrapper
+## 1. Exception handling — stay out of the GlitchTip crash wrapper
 
-`IDEApplication` installs a global uncaught-exception handler (`handleUncaughtException`) that reports to **Sentry** and then runs the device/credential-protected loaders' handlers. An exception that escapes your code lands there and is recorded as a **crash**. That handler is a safety net, not a control-flow tool.
+`IDEApplication` installs a global uncaught-exception handler (`handleUncaughtException`) that reports to **GlitchTip** and then runs the device/credential-protected loaders' handlers. An exception that escapes your code lands there and is recorded as a **crash**. That handler is a safety net, not a control-flow tool.
 
 - **Catch where you can recover.** Wrap I/O, parsing, IPC to the `tooling-api`, git, and plugin calls. Convert failures into a sealed error state (`…UiEffect.ShowError`, `Result`, `BuildState.Failed`) the UI can render.
 - **Never swallow silently.** A bare `catch (e: Exception) {}` hides bugs. At minimum log it; if it's notable-but-handled, report it explicitly with the established idiom:
@@ -89,7 +89,7 @@ This app extracts archives, runs a local web server, stores git credentials and 
 
 - **Injection / path traversal (Zip Slip):** template/project extraction (`ZipRecipeExecutor`) and any unzip must reject entries that resolve outside the target dir (`canonicalPath.startsWith(targetDir)`). Validate file paths built from user/project input.
 - **SQL:** use parameterized queries (`rawQuery(sql, args)` with `?` placeholders), never string-concatenated SQL. (Existing `WebServer`/tooltip queries already do this — match them.)
-- **Secrets & credential storage:** git tokens, keystore/signing passwords → `EncryptedSharedPreferences` / the Android Keystore, never plaintext files, never committed, **never logged or sent to analytics/Sentry**. Scrub secrets from breadcrumbs and exception messages.
+- **Secrets & credential storage:** git tokens, keystore/signing passwords → `EncryptedSharedPreferences` / the Android Keystore, never plaintext files, never committed, **never logged or sent to analytics/GlitchTip**. Scrub secrets from breadcrumbs and exception messages.
 - **Local web server (`WebServer`):** bind to loopback, scope what it serves, and don't reflect unsanitized input into responses. Treat every request as untrusted.
 - **Network:** HTTPS only; no disabled TLS/hostname verification; verify git remotes.
 - **Untrusted code/plugins:** respect the plugin manifest permission model (`plugin.permissions` in `AndroidManifest.xml`); don't widen plugin capabilities or load classes from untrusted sources without the manager's checks.
@@ -188,7 +188,7 @@ Hold the change to the patterns in [ARCHITECTURE.md](ARCHITECTURE.md). The key r
 CoGo is meant to work **without a network** — editing, building, and running an app on-device must not depend on connectivity. Hold new work to that:
 
 - **Degrade gracefully offline.** A feature that needs the network must still launch, explain itself, and leave the rest of the app usable when there's no connection — never block a core flow (edit/build/run) on a request.
-- **Network calls are non-blocking and failure-tolerant.** Analytics, Sentry, and Gemini calls run off the main thread and must tolerate timeouts/failures silently (no crash, no hang, no lost user action). A dropped analytics event is acceptable; a dropped keystroke is not.
+- **Network calls are non-blocking and failure-tolerant.** Analytics, GlitchTip, and Gemini calls run off the main thread and must tolerate timeouts/failures silently (no crash, no hang, no lost user action). A dropped analytics event is acceptable; a dropped keystroke is not.
 - **No network on the critical path.** Don't introduce a connectivity dependency into startup, the editor, or the build pipeline.
 - **Verify it offline.** For a change to a network-touching flow, actually exercise it with the network off — `adb shell svc wifi disable && adb shell svc data disable` (re-enable after), or airplane mode — and confirm the core edit/build/run flow still works. Add an explicit offline test case for the path rather than trusting it by inspection.
 
