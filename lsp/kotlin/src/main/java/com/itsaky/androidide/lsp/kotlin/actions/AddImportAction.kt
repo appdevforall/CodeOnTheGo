@@ -8,6 +8,7 @@ import com.itsaky.androidide.actions.require
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.compiler.index.findSymbolBySimpleName
+import com.itsaky.androidide.lsp.kotlin.diagnostic.DiagnosticAction
 import com.itsaky.androidide.lsp.kotlin.diagnostic.KotlinDiagnosticExtra
 import com.itsaky.androidide.lsp.kotlin.utils.insertImport
 import com.itsaky.androidide.lsp.models.CodeActionItem
@@ -17,6 +18,8 @@ import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.slf4j.LoggerFactory
 
@@ -45,8 +48,8 @@ class AddImportAction : BaseKotlinCodeAction() {
 			return
 		}
 
-		val reference = extra.unresolvedReference
-		if (reference == null) {
+		val action = extra.action
+		if (action !is DiagnosticAction.ResolveReference) {
 			markInvisible()
 			return
 		}
@@ -54,7 +57,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 		val env = extra.compilationEnv
 		val hasImportableSymbols =
 			env.ktSymbolIndex
-				.findSymbolBySimpleName(reference, limit = 0)
+				.findSymbolBySimpleName(action.referenceName, limit = 0)
 				.any { it.kind.isClassifier }
 
 		if (!hasImportableSymbols) {
@@ -64,22 +67,24 @@ class AddImportAction : BaseKotlinCodeAction() {
 	}
 
 	override suspend fun execAction(data: ActionData): Map<JvmSymbol, List<TextEdit>> {
-		val (reference, env) =
+		val (env, action) =
 			data.require<DiagnosticItem>().extra as? KotlinDiagnosticExtra
 				?: return emptyMap()
 
-		if (reference == null) return emptyMap()
+		if (action !is DiagnosticAction.ResolveReference) return emptyMap()
 
 		val file = data.requireFile()
 		val nioPath = file.toPath()
 		val ktFile =
-			env.ktSymbolIndex
-				.getCurrentKtFile(nioPath)
-				.get()
+			withContext(Dispatchers.IO) {
+				env.ktSymbolIndex
+					.getCurrentKtFile(nioPath)
+					.get()
+			}
 				?: return emptyMap()
 
 		return env.ktSymbolIndex
-			.findSymbolBySimpleName(reference, limit = 0)
+			.findSymbolBySimpleName(action.referenceName, limit = 0)
 			.filter { it.kind.isClassifier }
 			.associateWith { symbol -> insertImport(ktFile, symbol.fqName) }
 	}
@@ -123,9 +128,15 @@ class AddImportAction : BaseKotlinCodeAction() {
 				}
 
 		when (actions.size) {
-			0 -> logger.error("No code actions found. Cannot completion action.")
-			1 -> client.performCodeAction(actions[0])
-			else ->
+			0 -> {
+				logger.error("No code actions found. Cannot completion action.")
+			}
+
+			1 -> {
+				client.performCodeAction(actions[0])
+			}
+
+			else -> {
 				newDialogBuilder(data)
 					.setTitle(label)
 					.setItems(actions.map { it.title }.toTypedArray()) { dialog, which ->
@@ -135,6 +146,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 								logger.error("Index $which is out of bounds for actions of size ${actions.size}")
 							}
 					}.show()
+			}
 		}
 	}
 }
