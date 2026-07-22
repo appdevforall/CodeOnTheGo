@@ -34,20 +34,31 @@ interface QuickBuildProjectLayout {
  * Convention-based layout for the standard single-app-module project the templates
  * emit: sources in `src/main/{java,kotlin}`, resources in `src/main/res`, assets in
  * `src/main/assets`. Pure JVM on purpose.
+ *
+ * @param extraSourceRoots additional source roots the setup build reported (`setup.json`
+ *   `sourceRoots`) - in practice the KSP/kapt GENERATED roots. Without them a project
+ *   using an API-generating processor (Dagger and kin) cannot hot-compile at all: user
+ *   code references generated classes the daemon has neither a source nor a classpath
+ *   entry for. They are compiled but deliberately NOT watched - Gradle owns `build/`,
+ *   and watching it would feed the loop its own output.
  */
 class DefaultQuickBuildProjectLayout(
 	override val projectRoot: File,
 	private val appModuleDir: File = File(projectRoot, "app"),
 	private val classpath: List<File> = emptyList(),
+	private val extraSourceRoots: List<File> = emptyList(),
 ) : QuickBuildProjectLayout {
 	private val mainDir = File(appModuleDir, "src/main")
 
 	override fun allSources(): List<File> =
-		listOf(File(mainDir, "java"), File(mainDir, "kotlin"))
+		(listOf(File(mainDir, "java"), File(mainDir, "kotlin")) + extraSourceRoots)
+			.map { it.absoluteFile.normalize() }
+			.distinct()
 			.filter { it.isDirectory }
 			.flatMap { root ->
 				root.walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
-			}.sorted()
+			}.distinct()
+			.sorted()
 
 	override fun resDirs(): List<File> = listOf(File(mainDir, "res")).filter { it.isDirectory }
 

@@ -242,4 +242,37 @@ class QuickBuildJsonTest {
 			}
 		assertThat(error).hasMessageThat().contains("testAppId")
 	}
+
+	@Test
+	fun `setup json carries annotation processors and source roots`() {
+		val json =
+			QuickBuildJson.setupJson(
+				info,
+				"/apk/app-debug.apk",
+				annotationProcessors = listOf("androidx.room:room-compiler:2.6.1"),
+				sourceRoots =
+					listOf(
+						"/project/app/src/main/java",
+						"/project/app/build/generated/ksp/v8Debug/kotlin",
+					),
+			)
+
+		val parsed = JsonSlurper().parseText(json) as Map<*, *>
+		assertThat(parsed["annotationProcessors"]).isEqualTo(listOf("androidx.room:room-compiler:2.6.1"))
+		assertThat(parsed["sourceRoots"])
+			.isEqualTo(
+				listOf(
+					"/project/app/src/main/java",
+					"/project/app/build/generated/ksp/v8Debug/kotlin",
+				),
+			)
+	}
+
+	@Test
+	fun `setup json reports no processors for a project without any`() {
+		val parsed =
+			JsonSlurper().parseText(QuickBuildJson.setupJson(info, "/apk/app-debug.apk")) as Map<*, *>
+
+		assertThat(parsed["annotationProcessors"]).isEqualTo(emptyList<String>())
+	}
 }

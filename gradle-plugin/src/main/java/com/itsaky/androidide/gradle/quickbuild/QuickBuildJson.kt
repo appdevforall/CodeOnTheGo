@@ -65,6 +65,13 @@ object QuickBuildJson {
 	 * @param sameAppId true for a same-app-id (Path B) setup build; testAppId then equals
 	 *   the real applicationId.
 	 * @param versionCode the versionCode CoGo pinned for the same-app-id episode, or null.
+	 * @param annotationProcessors coordinates on the variant's `ksp`/`kapt`/
+	 *   `annotationProcessor` configurations. Empty means the quick path never has to
+	 *   worry about stale generated code; non-empty switches CoGo's classifier into
+	 *   annotation-aware mode.
+	 * @param sourceRoots every java/kotlin source directory of the variant, GENERATED ones
+	 *   included, so the daemon compiles processor output alongside user sources instead of
+	 *   failing to resolve it.
 	 */
 	fun setupJson(
 		info: ManifestInfo,
@@ -77,6 +84,8 @@ object QuickBuildJson {
 		supertypes: Map<String, List<String>> = emptyMap(),
 		sameAppId: Boolean = false,
 		versionCode: Int? = null,
+		annotationProcessors: List<String> = emptyList(),
+		sourceRoots: List<String> = emptyList(),
 	): String {
 		val map =
 			linkedMapOf(
@@ -101,6 +110,12 @@ object QuickBuildJson {
 				"payloadJars" to payloadJars,
 				// The daemon adds its bundled Compose compiler plugin when true.
 				"composeEnabled" to composeEnabled,
+				// KSP/kapt/annotationProcessor coordinates, and every source root the
+				// variant compiles (GENERATED roots included). Together they let CoGo keep
+				// a processor-using project on the fast path for edits that miss processor
+				// input, instead of rebaselining on every save.
+				"annotationProcessors" to annotationProcessors,
+				"sourceRoots" to sourceRoots,
 			)
 		// Same-app-id mode fields are ADDITIVE and absent in suffix mode - no schema bump,
 		// old parsers ignore them. String values per the design contract

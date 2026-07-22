@@ -42,6 +42,11 @@ import org.appdevforall.cotg.quickbuild.domain.SessionEvent
 import org.appdevforall.cotg.quickbuild.domain.SessionFailure
 import org.appdevforall.cotg.quickbuild.domain.SessionReducer
 import org.appdevforall.cotg.quickbuild.domain.WatchFilter
+import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationBaseline
+import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpact
+import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpactAnalyzer
+import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationProcessorProfile
+import org.appdevforall.cotg.quickbuild.domain.annotations.SwitchableAnnotationImpact
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -156,6 +161,8 @@ class QuickBuildSessionManager(
 		val watcher: ProjectWatcher,
 		/** Seam the rebaseline swaps a fresh SetupInfo-derived executor into. */
 		val executor: SwitchableExecutor,
+		/** Seam the rebaseline swaps a fresh annotation baseline into. */
+		val annotationImpact: SwitchableAnnotationImpact,
 	) {
 		/**
 		 * Newest generation a deploy verifiably landed in this session, or -1 before the
@@ -369,10 +376,11 @@ class QuickBuildSessionManager(
 		val layout = outcome.layout
 		val setup = outcome.setup
 		val executor = SwitchableExecutor(buildExecutor(setup, layout, tracker))
+		val annotationImpact = SwitchableAnnotationImpact(annotationImpact(setup, layout))
 		val orchestrator =
 			BuildOrchestrator(
 				executor = executor,
-				classifier = ChangeClassifier(),
+				classifier = ChangeClassifier(annotationImpact),
 				scope = scope,
 				onEvent = ::onOrchestratorEvent,
 			)
@@ -385,7 +393,31 @@ class QuickBuildSessionManager(
 			orchestrator = orchestrator,
 			watcher = watcherFactory.create(layout.watchedRoots(), layout.watchedFiles(), filter, scope),
 			executor = executor,
+			annotationImpact = annotationImpact,
 		)
+	}
+
+	/**
+	 * Annotation-processor awareness for this session's baseline. A project with no
+	 * `ksp`/`kapt`/`annotationProcessor` dependency gets [AnnotationImpact.Inactive] and
+	 * behaves exactly as before; otherwise the classifier compares each edit against the
+	 * annotation input the setup build actually ran against, and only edits that could
+	 * have moved generated code pay a rebaseline.
+	 *
+	 * Rebuilt on every re-baseline too (see [SwitchableAnnotationImpact]): the Gradle build
+	 * that just ran IS the new reference point.
+	 */
+	private fun annotationImpact(
+		setup: SetupInfo,
+		layout: QuickBuildProjectLayout,
+	): AnnotationImpact {
+		val profile = AnnotationProcessorProfile.of(setup.annotationProcessors)
+		if (!profile.hasProcessors) return AnnotationImpact.Inactive
+		log.info(
+			"Quick build: annotation-aware classification on for processors {}",
+			profile.processorCoordinates,
+		)
+		return AnnotationImpactAnalyzer(profile, AnnotationBaseline.capture(layout.allSources(), profile))
 	}
 
 	/** SetupInfo-derived executor; rebuilt (and swapped in) on every rebaseline. */
@@ -529,6 +561,7 @@ class QuickBuildSessionManager(
 				session.setup = outcome.setup
 				session.layout = outcome.layout
 				session.executor.delegate = buildExecutor(outcome.setup, outcome.layout, session.tracker)
+				session.annotationImpact.delegate = annotationImpact(outcome.setup, outcome.layout)
 				// The freshly installed baseline boots gen 0 again; the fingerprint gate
 				// in its runtime discarded any older persisted payload.
 				session.lastDeployedGeneration = -1L

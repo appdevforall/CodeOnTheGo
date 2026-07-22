@@ -62,6 +62,18 @@ data class SetupInfo(
 	 * written as a numeric string. Null when absent.
 	 */
 	val versionCode: Int? = null,
+	/**
+	 * KSP/kapt/annotationProcessor coordinates the setup build saw. Empty (or absent, on
+	 * an older setup.json) means no processors, and the classifier stays in its original
+	 * content-free mode; non-empty switches on annotation-aware classification.
+	 */
+	val annotationProcessors: List<String> = emptyList(),
+	/**
+	 * Every java/kotlin source root of the built variant, GENERATED roots included. The
+	 * layout adds these to the daemon's source set so processor output compiles alongside
+	 * user code. Absent on an older setup.json, where only the convention roots apply.
+	 */
+	val sourceRoots: List<File> = emptyList(),
 ) {
 	companion object {
 		private val log = LoggerFactory.getLogger(SetupInfo::class.java)
@@ -132,8 +144,17 @@ data class SetupInfo(
 						?: emptyList(),
 				sameAppId = obj.flexibleBoolean("sameAppId"),
 				versionCode = obj.flexibleInt("versionCode"),
+				annotationProcessors = obj.stringArray("annotationProcessors"),
+				sourceRoots = obj.stringArray("sourceRoots").map { resolve(it, baseDir) },
 			)
 		}
+
+		/** A JSON array of strings; empty when the key is absent or not an array. */
+		private fun JsonObject.stringArray(key: String): List<String> =
+			getAsJsonArray(key)
+				?.mapNotNull { it.takeIf(com.google.gson.JsonElement::isJsonPrimitive)?.asString }
+				?.filter { it.isNotBlank() }
+				?: emptyList()
 
 		/**
 		 * A boolean the plugin may write as a JSON boolean or the string "true" (the

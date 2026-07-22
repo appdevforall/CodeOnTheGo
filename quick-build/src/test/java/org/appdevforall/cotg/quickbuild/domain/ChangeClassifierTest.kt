@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.domain
 
 import com.google.common.truth.Truth.assertThat
+import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpact
 import org.junit.jupiter.api.Test
 import java.io.File
 
@@ -129,4 +130,60 @@ class ChangeClassifierTest {
 	fun `empty known set is a no-op`() {
 		assertThat(classifier.classify(ChangedFiles.Known.EMPTY)).isEqualTo(BuildRoute.NoOp)
 	}
+
+	@Test
+	fun `annotation impact escalates a code change to a Gradle rebaseline`() {
+		assertThat(
+			classifierWith(active = true, escalates = true)
+				.classify(ChangedFiles.Known(setOf(File("app/src/main/java/Dao.kt")))),
+		).isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.ANNOTATION_PROCESSOR_INPUT_CHANGED))
+	}
+
+	@Test
+	fun `annotation impact leaves a safe code change on the fast path`() {
+		assertThat(
+			classifierWith(active = true, escalates = false)
+				.classify(ChangedFiles.Known(setOf(File("app/src/main/java/Ui.kt")))),
+		).isEqualTo(BuildRoute.CodeOnly)
+	}
+
+	@Test
+	fun `annotation impact is never consulted for a resource-only change`() {
+		var consulted = false
+		val impact =
+			object : AnnotationImpact {
+				override val active = true
+
+				override fun escalation(changedCodeFiles: List<File>): String {
+					consulted = true
+					return "should not be reached"
+				}
+			}
+
+		assertThat(
+			ChangeClassifier(impact)
+				.classify(ChangedFiles.Known(setOf(File("app/src/main/res/values/strings.xml")))),
+		).isEqualTo(BuildRoute.ResourcesOnly)
+		assertThat(consulted).isFalse()
+	}
+
+	@Test
+	fun `an unknown changed-set falls back to Gradle when processors are configured`() {
+		// Cannot enumerate what changed, so cannot prove it missed processor input.
+		assertThat(classifierWith(active = true, escalates = false).classify(ChangedFiles.Unknown))
+			.isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.ANNOTATION_PROCESSOR_INPUT_CHANGED))
+	}
+
+	private fun classifierWith(
+		active: Boolean,
+		escalates: Boolean,
+	): ChangeClassifier =
+		ChangeClassifier(
+			object : AnnotationImpact {
+				override val active = active
+
+				override fun escalation(changedCodeFiles: List<File>): String? =
+					"annotation input changed".takeIf { escalates }
+			},
+		)
 }

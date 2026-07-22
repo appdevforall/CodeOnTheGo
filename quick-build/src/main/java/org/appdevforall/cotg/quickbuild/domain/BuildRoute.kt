@@ -47,6 +47,15 @@ enum class InvalidationReason {
 	EXTERNAL_FULL_BUILD,
 
 	/**
+	 * A changed source could have moved annotation-processor (KSP/kapt) output - a Room
+	 * entity, a `@Query`, a Hilt module. Only a real Gradle build re-runs the processor,
+	 * so the quick path stands down rather than deploy fresh code beside stale generated
+	 * classes. Edits that provably miss processor input stay on the fast path; see
+	 * `domain/annotations/AnnotationImpact.kt` for what "provably" covers.
+	 */
+	ANNOTATION_PROCESSOR_INPUT_CHANGED,
+
+	/**
 	 * The installed baseline predates the component-restart contract (setup.json
 	 * schema < 2, or its runtime ignored a restart request): a restart-requiring
 	 * deploy would be silently hot-swapped, leaving a live service/provider stale.

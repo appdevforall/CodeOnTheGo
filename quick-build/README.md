@@ -108,8 +108,14 @@ decisions, each with its why and cost:
   daemon compiles Kotlin then Java; a real reference cycle across the language boundary
   fails in either order. Common in mature codebases. Evidence: `corpus/README.md`,
   sora-editor finding 2.
-- **Edits touching kapt/KSP input always rebaseline** (Room etc.) — annotation-processor
-  correctness needs a real build (the ADR 0010 boundary).
+- **Edits touching kapt/KSP input rebaseline** (Room etc.) — annotation-processor
+  correctness needs a real build (the ADR 0010 boundary). Only those edits, though: with a
+  processor configured, the classifier compares each changed file against the annotation
+  input the setup build ran against, so editing a Composable or a ViewModel in a Room app
+  stays on the fast path while editing a `@Dao` does not
+  (`domain/annotations/AnnotationImpact.kt` enumerates what counts as safe). Running the
+  processors in the daemon instead would close the remaining gap:
+  `docs/ksp-kapt-feasibility.md`.
 - **Anything bound to the real `applicationId` needs a Standard Run**: Firebase, Maps
   API keys, OAuth/Sign-In, FCM push, verified app links, billing (ADR 0010,
   `.quickbuild` coexistence). The opt-in same-app-id mode

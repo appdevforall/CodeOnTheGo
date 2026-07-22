@@ -63,6 +63,13 @@ class QuickBuildPlugin : Plugin<Project> {
 		const val MIN_PAYLOAD_API = 30
 
 		/**
+		 * Configuration names that carry annotation processors: `ksp` / `kapt` (plus their
+		 * per-variant forms) and `annotationProcessor` (plain or variant-prefixed).
+		 */
+		internal val PROCESSOR_CONFIGURATION =
+			Regex("^(ksp|kapt)([A-Z].*)?$|^annotationProcessor$|^[a-z][A-Za-z0-9]*AnnotationProcessor$")
+
+		/**
 		 * Parses [PROPERTY_QUICK_BUILD_VERSION_CODE_OVERRIDE]. Null when unset; a set value
 		 * must be a positive integer, otherwise the setup build fails loud - silently
 		 * dropping the pin could install a downgrade-rejected or ratcheted test app over the
@@ -272,6 +279,12 @@ class QuickBuildPlugin : Plugin<Project> {
 				// Provider, not a plain value: finalizeDsl (which computes the flag) runs
 				// during configuration, but reading here at task-config time could race it.
 				task.composeEnabled.set(project.provider { composeEnabled() })
+				// Lazy for the same reason: a `dependencies { ksp(...) }` block may not have
+				// been evaluated yet when this task is configured.
+				task.annotationProcessors.set(
+					project.provider { annotationProcessorCoordinates(project) },
+				)
+				task.sourceRoots.set(variantSourceRoots(project, variant))
 				task.sameAppId.set(sameAppId)
 				versionCodeOverride?.let { task.versionCodeOverride.set(it) }
 				// One report per setup build (the contract path CoGo reads); setup builds build
@@ -283,6 +296,40 @@ class QuickBuildPlugin : Plugin<Project> {
 		val assembleTaskName = variant.generateTaskName("assemble")
 		project.tasks.matching { it.name == assembleTaskName }.configureEach { assemble ->
 			assemble.finalizedBy(report)
+		}
+	}
+
+	/**
+	 * Coordinates on every annotation-processor configuration in the project (`ksp`,
+	 * `kspV8Debug`, `kapt`, `annotationProcessor`, `v8DebugAnnotationProcessor`, ...).
+	 *
+	 * Deliberately NOT filtered to the built variant: a coordinate that belongs to another
+	 * variant only makes CoGo's classifier more conservative, while missing one would let
+	 * an edit past that should have rebaselined.
+	 */
+	private fun annotationProcessorCoordinates(project: Project): List<String> =
+		project.configurations
+			.filter { PROCESSOR_CONFIGURATION.matches(it.name) }
+			.flatMap { it.allDependencies }
+			.map { dependency ->
+				listOfNotNull(dependency.group, dependency.name, dependency.version)
+					.joinToString(":")
+			}.distinct()
+			.sorted()
+
+	/**
+	 * The variant's java + kotlin source roots, GENERATED ones included - KSP and kapt
+	 * register their output here, and the daemon has to compile it or user code that calls
+	 * generated classes will not resolve.
+	 */
+	private fun variantSourceRoots(
+		project: Project,
+		variant: ApplicationVariant,
+	): org.gradle.api.provider.Provider<List<String>> {
+		val roots = listOfNotNull(variant.sources.java?.all, variant.sources.kotlin?.all)
+		if (roots.isEmpty()) return project.provider { emptyList() }
+		return roots.reduce { left, right -> left.zip(right) { a, b -> a + b } }.map { directories ->
+			directories.map { it.asFile.absolutePath }.distinct().sorted()
 		}
 	}
 

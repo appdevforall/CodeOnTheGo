@@ -430,6 +430,18 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 	@get:Input
 	abstract val composeEnabled: Property<Boolean>
 
+	/**
+	 * Coordinates declared on the variant's `ksp` / `kapt` / `annotationProcessor`
+	 * configurations. Empty for a project with no processors - the common case, and the
+	 * one where the quick path never has to think about stale generated code.
+	 */
+	@get:Input
+	abstract val annotationProcessors: ListProperty<String>
+
+	/** Every java/kotlin source root of the variant, GENERATED roots included. */
+	@get:Input
+	abstract val sourceRoots: ListProperty<String>
+
 	/** True for a same-app-id (Path B) setup build; echoed into setup.json. */
 	@get:Input
 	abstract val sameAppId: Property<Boolean>
@@ -496,6 +508,8 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 				supertypes = supertypes,
 				sameAppId = sameAppId.getOrElse(false),
 				versionCode = versionCodeOverride.orNull,
+				annotationProcessors = annotationProcessors.getOrElse(emptyList()),
+				sourceRoots = sourceRoots.getOrElse(emptyList()),
 			),
 		)
 		logger.lifecycle("Quick Build: setup report written to {}", reportFile)

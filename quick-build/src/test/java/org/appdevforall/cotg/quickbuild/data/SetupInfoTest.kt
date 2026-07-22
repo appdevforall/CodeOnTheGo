@@ -170,4 +170,35 @@ class SetupInfoTest {
 		assertThat(info!!.sameAppId).isFalse()
 		assertThat(info.versionCode).isNull()
 	}
+
+	@Test
+	fun `annotation processors and source roots parse through`() {
+		val info =
+			SetupInfo.parse(
+				json(
+					""",
+					"annotationProcessors": ["androidx.room:room-compiler:2.6.1", "  "],
+					"sourceRoots": ["app/src/main/java", "/abs/build/generated/ksp/debug/kotlin"]
+					""".trimIndent(),
+				),
+				baseDir,
+			)
+
+		assertThat(info).isNotNull()
+		assertThat(info!!.annotationProcessors).containsExactly("androidx.room:room-compiler:2.6.1")
+		assertThat(info.sourceRoots)
+			.containsExactly(
+				File("/project/app/src/main/java"),
+				File("/abs/build/generated/ksp/debug/kotlin"),
+			).inOrder()
+	}
+
+	@Test
+	fun `annotation processors and source roots default to empty`() {
+		val info = SetupInfo.parse(json(), baseDir)
+
+		assertThat(info).isNotNull()
+		assertThat(info!!.annotationProcessors).isEmpty()
+		assertThat(info.sourceRoots).isEmpty()
+	}
 }

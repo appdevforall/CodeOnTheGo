@@ -85,6 +85,7 @@ class GradleQuickBuildProvisioner(
 					projectRoot = projectRoot,
 					appModuleDir = moduleDir,
 					classpath = setup.classpath,
+					extraSourceRoots = setup.sourceRoots,
 				),
 		)
 	}
@@ -129,6 +130,7 @@ class GradleQuickBuildProvisioner(
 							projectRoot = setupResult.projectRoot,
 							appModuleDir = setupResult.moduleDir,
 							classpath = setupResult.setup.classpath,
+							extraSourceRoots = setupResult.setup.sourceRoots,
 						),
 				)
 		}

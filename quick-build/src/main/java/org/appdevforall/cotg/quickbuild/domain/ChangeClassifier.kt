@@ -1,5 +1,6 @@
 package org.appdevforall.cotg.quickbuild.domain
 
+import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpact
 import java.io.File
 
 /**
@@ -17,13 +18,26 @@ import java.io.File
  * [ChangedFiles.Unknown] routes to [BuildRoute.CodeAndResources]: the incremental engine
  * recompiles everything and resources are relinked — a slow-but-correct quick build, not
  * a Gradle fallback. (Baseline drift while CoGo was dead — manifest/gradle edits — is the
- * session manager's job to detect via fingerprints, not the classifier's.)
+ * session manager's job to detect via fingerprints, not the classifier's.) With annotation
+ * processors configured, `Unknown` DOES fall back: we cannot prove an unenumerable change
+ * missed processor input.
+ *
+ * The one content-aware step is [annotationImpact]: on a project with a KSP/kapt processor,
+ * a changed source that could have moved generated code escalates to a Gradle rebaseline.
+ * Default [AnnotationImpact.Inactive] keeps a processor-free project exactly as it was.
  */
-class ChangeClassifier {
+class ChangeClassifier(
+	private val annotationImpact: AnnotationImpact = AnnotationImpact.Inactive,
+) {
 	fun classify(changes: ChangedFiles): BuildRoute {
 		val known =
 			when (changes) {
-				ChangedFiles.Unknown -> return BuildRoute.CodeAndResources
+				ChangedFiles.Unknown ->
+					return if (annotationImpact.active) {
+						BuildRoute.FullGradleBuild(InvalidationReason.ANNOTATION_PROCESSOR_INPUT_CHANGED)
+					} else {
+						BuildRoute.CodeAndResources
+					}
 				is ChangedFiles.Known -> changes
 			}
 
@@ -31,9 +45,9 @@ class ChangeClassifier {
 			return BuildRoute.NoOp
 		}
 
-		var hasCode = false
 		var hasResources = false
 		var hasAssets = false
+		val codeFiles = mutableListOf<File>()
 
 		for (file in known.files) {
 			when (kindOf(file)) {
@@ -43,15 +57,19 @@ class ChangeClassifier {
 					return BuildRoute.FullGradleBuild(InvalidationReason.MANIFEST_CHANGED)
 				FileKind.UNSUPPORTED ->
 					return BuildRoute.FullGradleBuild(InvalidationReason.UNSUPPORTED_FILE_CHANGED)
-				FileKind.CODE -> hasCode = true
+				FileKind.CODE -> codeFiles += file
 				FileKind.RESOURCE -> hasResources = true
 				FileKind.ASSET -> hasAssets = true
 			}
 		}
 
+		if (codeFiles.isNotEmpty() && annotationImpact.escalation(codeFiles.sorted()) != null) {
+			return BuildRoute.FullGradleBuild(InvalidationReason.ANNOTATION_PROCESSOR_INPUT_CHANGED)
+		}
+
 		return when {
-			hasCode && hasResources -> BuildRoute.CodeAndResources
-			hasCode -> BuildRoute.CodeOnly
+			codeFiles.isNotEmpty() && hasResources -> BuildRoute.CodeAndResources
+			codeFiles.isNotEmpty() -> BuildRoute.CodeOnly
 			hasResources -> BuildRoute.ResourcesOnly
 			hasAssets -> BuildRoute.AssetsOnly
 			else -> BuildRoute.NoOp
