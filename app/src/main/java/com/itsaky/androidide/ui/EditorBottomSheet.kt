@@ -333,9 +333,10 @@ class EditorBottomSheet
 
 		private fun updateWordWrapButtonState(isWordWrapEnabled: Boolean) {
 			binding.wordWrapOutputAction.isChecked = isWordWrapEnabled
-			binding.wordWrapOutputAction.contentDescription = context.getString(
-				if (isWordWrapEnabled) R.string.cd_disable_word_wrap else R.string.cd_enable_word_wrap
-			)
+			binding.wordWrapOutputAction.contentDescription =
+				context.getString(
+					if (isWordWrapEnabled) R.string.cd_disable_word_wrap else R.string.cd_enable_word_wrap,
+				)
 		}
 
 		private fun onApkInstallationSessionChanged(state: ApkInstallationViewModel.SessionState) {
