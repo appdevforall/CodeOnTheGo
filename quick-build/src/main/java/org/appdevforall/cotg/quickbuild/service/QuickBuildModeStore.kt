@@ -40,4 +40,12 @@ interface QuickBuildModeStore {
 	fun isRestoreDowngradePending(): Boolean
 
 	fun setRestoreDowngradePending(pending: Boolean)
+
+	/**
+	 * True once this project has tapped Quick Build at least once (plan P7's eager
+	 * prewarm gate: no warm-up for a project with no signal it will ever be used).
+	 */
+	fun hasUsedQuickBuild(): Boolean
+
+	fun setHasUsedQuickBuild(used: Boolean)
 }

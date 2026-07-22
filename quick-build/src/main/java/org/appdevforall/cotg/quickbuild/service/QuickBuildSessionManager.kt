@@ -70,6 +70,8 @@ class QuickBuildSessionManager(
 	private val provisioner: QuickBuildProvisioner,
 	private val connections: TestAppConnections,
 	private val paths: QuickBuildPaths,
+	/** Gates eager prewarm on project history (plan P7) and records first use. */
+	private val modeStore: QuickBuildModeStore,
 	dispatcher: CoroutineDispatcher,
 	private val generationStoreFactory: (File) -> GenerationStore = {
 		FileGenerationStore.forProject(it)
@@ -219,9 +221,16 @@ class QuickBuildSessionManager(
 		}
 	}
 
-	/** The lightning-bolt tap: starts a session from Idle, forces a build when live. */
+	/**
+	 * The lightning-bolt tap: starts a session from Idle, forces a build when live.
+	 * Marks the project as a Quick Build user before dispatching - the signal
+	 * [prewarm] checks on every later project open (plan P7).
+	 */
 	fun onQuickBuildTapped() {
-		scope.launch { dispatch(SessionEvent.QuickBuildTapped) }
+		scope.launch {
+			modeStore.setHasUsedQuickBuild(true)
+			dispatch(SessionEvent.QuickBuildTapped)
+		}
 	}
 
 	/**
@@ -229,8 +238,18 @@ class QuickBuildSessionManager(
 	 * completes, with the experimental flag on. Runs the setup build in the background
 	 * so the first tap pays only install + bind; installs nothing. No-op unless Idle.
 	 * A tap landing mid-warm queues and provisions when the warm build finishes.
+	 *
+	 * Gated on project history (plan P7): a project that has never tapped Quick Build
+	 * gets no eager warm-up, since there's no signal it ever will (real battery cost on
+	 * the low-end target hardware for a feature that's never used). The carve-out is
+	 * same-app-id mode - enabling it is a strong signal the project is Quick-Build-first
+	 * even before the very first tap, so it prewarms too. First-ever use per project
+	 * pays the cold setup cost once; every later project open is warm.
 	 */
 	fun prewarm() {
+		if (!modeStore.hasUsedQuickBuild() && !modeStore.isSameAppIdEnabled()) {
+			return
+		}
 		scope.launch { dispatch(SessionEvent.PrewarmRequested) }
 	}
 

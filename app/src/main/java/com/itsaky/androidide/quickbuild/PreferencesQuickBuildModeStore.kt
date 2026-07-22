@@ -55,6 +55,12 @@ class PreferencesQuickBuildModeStore(
 		key(KEY_RESTORE_DOWNGRADE)?.let { prefs.edit().putBoolean(it, pending).apply() }
 	}
 
+	override fun hasUsedQuickBuild(): Boolean = key(KEY_HAS_USED)?.let { prefs.getBoolean(it, false) } == true
+
+	override fun setHasUsedQuickBuild(used: Boolean) {
+		key(KEY_HAS_USED)?.let { prefs.edit().putBoolean(it, used).apply() }
+	}
+
 	private fun key(suffix: String): String? {
 		val path = projectPath()?.takeIf { it.isNotBlank() } ?: return null
 		return "$path::$suffix"
@@ -66,6 +72,7 @@ class PreferencesQuickBuildModeStore(
 		private const val KEY_CONFIRMED = "clobberConfirmed"
 		private const val KEY_REAL_APP_ID = "episodeRealApplicationId"
 		private const val KEY_RESTORE_DOWNGRADE = "restoreDowngradePending"
+		private const val KEY_HAS_USED = "hasUsedQuickBuild"
 
 		/** Sentinel for "no pin"; versionCodes are always positive. */
 		private const val NO_VERSION_CODE = 0

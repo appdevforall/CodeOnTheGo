@@ -33,6 +33,7 @@ class QuickBuildSessionManagerTest {
 	private val deploy = FakeDeploy()
 	private val connections = TestAppConnections()
 	private val store = MemoryGenerationStore()
+	private val modeStore = FakeQuickBuildModeStore()
 	private val userMessages = mutableListOf<String>()
 
 	/** Requests seen by the scripted executor, with per-request scripted outcomes. */
@@ -194,6 +195,7 @@ class QuickBuildSessionManagerTest {
 			provisioner = provisioner,
 			connections = connections,
 			paths = FakePaths(projectRoot),
+			modeStore = modeStore,
 			dispatcher = StandardTestDispatcher(testScheduler),
 			generationStoreFactory = { store },
 			executorFactory = { setup, _, tracker ->
@@ -687,6 +689,45 @@ class QuickBuildSessionManagerTest {
 
 			assertThat(prewarmCount).isEqualTo(0)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
+	fun `prewarm is a no-op for a project that has never used Quick Build`() =
+		runTest {
+			modeStore.setHasUsedQuickBuild(false)
+			val manager = createManager()
+
+			manager.prewarm()
+			advanceUntilIdle()
+
+			assertThat(prewarmCount).isEqualTo(0)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+		}
+
+	@Test
+	fun `prewarm runs for a never-used project when same-app-id mode is enabled`() =
+		runTest {
+			modeStore.setHasUsedQuickBuild(false)
+			modeStore.setSameAppIdEnabled(true)
+			val manager = createManager()
+
+			manager.prewarm()
+			advanceUntilIdle()
+
+			assertThat(prewarmCount).isEqualTo(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+		}
+
+	@Test
+	fun `tapping Quick Build marks the project as used, so the next open prewarms`() =
+		runTest {
+			modeStore.setHasUsedQuickBuild(false)
+			val manager = createManager()
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			assertThat(modeStore.hasUsedQuickBuild()).isTrue()
 		}
 
 	@Test

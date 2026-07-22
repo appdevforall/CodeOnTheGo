@@ -19,6 +19,7 @@ class SameAppIdModeControllerTest {
 		private var confirmed = false
 		private var realAppId: String? = null
 		private var restorePending = false
+		private var used = false
 
 		override fun isSameAppIdEnabled(): Boolean = enabled
 
@@ -48,6 +49,12 @@ class SameAppIdModeControllerTest {
 
 		override fun setRestoreDowngradePending(pending: Boolean) {
 			restorePending = pending
+		}
+
+		override fun hasUsedQuickBuild(): Boolean = used
+
+		override fun setHasUsedQuickBuild(used: Boolean) {
+			this.used = used
 		}
 	}
 

@@ -530,6 +530,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			// of the project
 			ProjectManagerImpl.getInstance().destroy()
 
+			// ADFA-4128 (WS-H): the Quick Build session manager is a process-wide Koin
+			// singleton that outlives this activity, and its provisioner reads
+			// IProjectManager.getInstance().projectDirPath fresh at build time rather
+			// than a snapshot. Without this, closing a project while its eager prewarm
+			// (or a live session) is still in flight lets that work silently keep
+			// running once projectPath flips to whatever project opens next - either
+			// racing the next project's own prewarm() into a permanent no-op (the
+			// reducer treats a second PrewarmRequested while already Prewarming as a
+			// no-op) or building against the wrong directory. restartSession() is a
+			// verified no-op when nothing is live (SessionReducerTest: "idle plus
+			// SessionRestartRequested is a no-op").
+			quickBuildSessionManager()?.restartSession()
+
 			editorViewModel.isInitializing = false
 			editorViewModel.isBuildInProgress = false
 		}

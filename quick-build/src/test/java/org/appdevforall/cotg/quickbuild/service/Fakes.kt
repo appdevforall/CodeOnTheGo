@@ -144,3 +144,53 @@ class FakePaths(
 
 	override fun daemonEnvironment(): Map<String, String> = emptyMap()
 }
+
+/**
+ * In-memory [QuickBuildModeStore]. Defaults to `hasUsedQuickBuild = true` (the "warm
+ * path") so the many [QuickBuildSessionManagerTest] cases exercising prewarm/tap
+ * mechanics don't need to touch the gate; tests of the gate itself flip it to false.
+ */
+class FakeQuickBuildModeStore : QuickBuildModeStore {
+	private var enabled = false
+	private var pinned: Int? = null
+	private var confirmed = false
+	private var realAppId: String? = null
+	private var restorePending = false
+	private var used = true
+
+	override fun isSameAppIdEnabled(): Boolean = enabled
+
+	override fun setSameAppIdEnabled(enabled: Boolean) {
+		this.enabled = enabled
+	}
+
+	override fun pinnedVersionCode(): Int? = pinned
+
+	override fun setPinnedVersionCode(versionCode: Int?) {
+		pinned = versionCode
+	}
+
+	override fun isClobberConfirmed(): Boolean = confirmed
+
+	override fun setClobberConfirmed(confirmed: Boolean) {
+		this.confirmed = confirmed
+	}
+
+	override fun episodeRealApplicationId(): String? = realAppId
+
+	override fun setEpisodeRealApplicationId(applicationId: String?) {
+		realAppId = applicationId
+	}
+
+	override fun isRestoreDowngradePending(): Boolean = restorePending
+
+	override fun setRestoreDowngradePending(pending: Boolean) {
+		restorePending = pending
+	}
+
+	override fun hasUsedQuickBuild(): Boolean = used
+
+	override fun setHasUsedQuickBuild(used: Boolean) {
+		this.used = used
+	}
+}

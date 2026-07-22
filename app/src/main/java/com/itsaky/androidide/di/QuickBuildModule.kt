@@ -136,6 +136,7 @@ val quickBuildModule =
 				provisioner = get(),
 				connections = get(),
 				paths = get<EnvironmentQuickBuildPaths>(),
+				modeStore = get(),
 				// The orchestrator's ordering guarantee requires a single-threaded
 				// dispatcher (see BuildOrchestrator KDoc); a dedicated thread keeps
 				// session work off Main and off the shared pools.
