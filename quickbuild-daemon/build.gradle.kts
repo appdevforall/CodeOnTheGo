@@ -1,3 +1,8 @@
+import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
+
 plugins {
 	id("java-library")
 	id("org.jetbrains.kotlin.jvm")
@@ -76,7 +81,19 @@ dependencies {
 	implementation(libs.ow2.asm)
 	// The BTA implementation + its runtime deps are loaded from the daemon's runtime
 	// classpath on device (staged alongside the jar), matched to the bundled compiler.
-	runtimeOnly(libs.kotlin.buildToolsImpl)
+	// kotlin-compiler-runner exists solely to launch/talk to a separate long-lived
+	// "Kotlin compile daemon" JVM over RMI, which IncrementalCompiler never does here
+	// (it always calls useInProcessStrategy()) - dead weight (~17 KB of the ~62 MB
+	// quickbuild-daemon.zip, ADFA-4128 size audit).
+	// kotlin-daemon-client and kotlin-daemon-embeddable looked like the same kind of
+	// dead weight but are NOT: BuildToolsApiBuildICReporter.reportCompileIteration (part
+	// of kotlin-build-tools-impl itself, on the in-process path) references
+	// org.jetbrains.kotlin.daemon.common.CompileIterationResult, which lives in
+	// kotlin-daemon-client - excluding it throws NoClassDefFoundError and failed 12/52
+	// :quickbuild-daemon:test cases. Keep both.
+	runtimeOnly(libs.kotlin.buildToolsImpl) {
+		exclude(group = "org.jetbrains.kotlin", module = "kotlin-compiler-runner")
+	}
 
 	composeCompilerPlugin(libs.kotlin.composeCompilerPluginEmbeddable)
 	composeTestRuntimeAar(libs.composeRuntimeDaemonTests)
@@ -113,4 +130,70 @@ tasks.register<Sync>("stageDaemon") {
 	from(daemonJar)
 	from(configurations.runtimeClasspath)
 	into(layout.buildDirectory.dir("daemon"))
+}
+
+// Alternative-target codegen backends inside kotlin-compiler-embeddable that a JVM-only
+// incremental compile (the daemon's ONLY mode - IncrementalCompiler always drives
+// K2JVMCompiler) never loads. Compose is JVM-IR, so it's covered too. Prefixes are under
+// org/jetbrains/kotlin/. Verified severable by the full host corpus matrix (13 apps / 48
+// edits, output-equivalence PASS on all, including compose-kotlin, mixed-lang, and the
+// real sora-editor-lib slice): quick-build/corpus/results/ (ADFA-4128 R8/shrink spike).
+// This is deliberate jar surgery, NOT R8 tree-shaking: R8 --classfile shrank the compiler
+// to 37 MB but the output was non-functional - every Kotlin compile died with
+// NoClassDefFoundError initializing a core CLI diagnostics class, because tree-shaking cut
+// a static-init dependency reached only reflectively. Removing whole never-loaded backend
+// subtrees leaves every kept class byte-identical, so there is no reflection-breakage risk
+// in the code that remains; the corpus is the regression gate.
+val quickBuildStripPrefixes =
+	listOf(
+		"org/jetbrains/kotlin/backend/wasm/",
+		"org/jetbrains/kotlin/ir/backend/js/",
+		"org/jetbrains/kotlin/backend/konan/",
+		"org/jetbrains/kotlin/cli/js/",
+		"org/jetbrains/kotlin/cli/metadata/",
+		"org/jetbrains/kotlin/wasm/",
+		"org/jetbrains/kotlin/js/",
+		"org/jetbrains/kotlin/serialization/js/",
+		"org/jetbrains/kotlin/konan/",
+		"org/jetbrains/kotlin/library/",
+		"org/jetbrains/kotlin/native/",
+	)
+
+// Opt-in shrunk staging: same layout as stageDaemon, but the compiler jar has the
+// never-loaded backend packages removed (~5.7 MB off the compressed daemon zip). Not wired
+// into the APK packaging (:app:quickBuildDaemonZip) - flipping that to consume this is the
+// deliberate follow-up, gated on a green corpus run. Point the corpus harness'
+// --daemon-jar at build/daemon-shrunk/quickbuild-daemon.jar to re-verify.
+tasks.register<Sync>("stageDaemonShrunk") {
+	from(daemonJar)
+	from(configurations.runtimeClasspath)
+	into(layout.buildDirectory.dir("daemon-shrunk"))
+	val prefixes = quickBuildStripPrefixes
+	doLast {
+		val dir = layout.buildDirectory.dir("daemon-shrunk").get().asFile
+		val jar =
+			dir.listFiles { f -> f.name.startsWith("kotlin-compiler-embeddable-") }
+				?.singleOrNull()
+				?: error("compiler-embeddable jar not found in $dir")
+		val tmp = File(jar.parentFile, "${jar.name}.stripping")
+		var kept = 0
+		var dropped = 0
+		ZipFile(jar).use { zip ->
+			ZipOutputStream(tmp.outputStream().buffered()).use { out ->
+				for (entry in zip.entries()) {
+					if (prefixes.any { entry.name.startsWith(it) }) {
+						dropped++
+						continue
+					}
+					out.putNextEntry(ZipEntry(entry.name))
+					zip.getInputStream(entry).use { it.copyTo(out) }
+					out.closeEntry()
+					kept++
+				}
+			}
+		}
+		tmp.copyTo(jar, overwrite = true)
+		tmp.delete()
+		logger.lifecycle("stageDaemonShrunk: kept $kept entries, dropped $dropped from ${jar.name} (${jar.length() / 1048576} MB)")
+	}
 }

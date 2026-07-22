@@ -1,0 +1,817 @@
+{
+  "generatedAt": "2026-07-22T07:36:13.248448+00:00",
+  "config": {
+    "daemonJar": "/private/tmp/claude-501/-Volumes-Data-Users-bryanchan-dev-agent-wrapper-project-worktrees-codeonthego-adfa-4128-quick-build/3e00a422-d94f-46d0-b2a4-b2b342f31638/scratchpad/ws-i3/daemon-r8/quickbuild-daemon.jar",
+    "daemonAvailable": true,
+    "androidJar": "/Users/bryanchan/Library/Android/sdk/platforms/android-36.1/android.jar",
+    "kotlinStdlib": "/private/tmp/claude-501/-Volumes-Data-Users-bryanchan-dev-agent-wrapper-project-worktrees-codeonthego-adfa-4128-quick-build/3e00a422-d94f-46d0-b2a4-b2b342f31638/scratchpad/ws-i3/daemon-r8/kotlin-stdlib-2.3.0.jar",
+    "aapt2": "/Users/bryanchan/Library/Android/sdk/build-tools/37.0.0/aapt2",
+    "javac": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-i-size/flox/local/.flox/run/aarch64-darwin.local.dev/bin/javac",
+    "d8Jar": "/Users/bryanchan/Library/Android/sdk/build-tools/37.0.0/lib/d8.jar",
+    "composePluginJar": "/Users/bryanchan/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-compose-compiler-plugin-embeddable/2.3.0/f375396c5723812604a2a3bce1d27d3bd56a16c9/kotlin-compose-compiler-plugin-embeddable-2.3.0.jar",
+    "composeRuntimeJar": "/Volumes/Data/Users/bryanchan/dev/agent-wrapper-project/worktrees/codeonthego/4128-ws-i-size/quickbuild-daemon/build/compose-test-runtime/compose-runtime.jar",
+    "minApi": 30
+  },
+  "apps": [
+    {
+      "name": "assets-app",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.assetsapp",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.ExceptionInInitializerError\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.RuntimeException: Stub element type declaration for KtClass is missing required constructors\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementType.<init>(KtStubElementType.java:47)\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtClassElementType.<init>(KtClassElementType.kt:22)\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtClassElementType.<clinit>(KtClassElementType.kt)\\n\\t... 34 more\\nCaused by: java.lang.NoSuchMethodException: org.jetbrains.kotlin.psi.KtClass.<init>(org.jetbrains.kotlin.com.intellij.lang.ASTNode)\\n\\tat java.base/java.lang.Class.getConstructor0(Class.java:3585)\\n\\tat java.base/java.lang.Class.getConstructor(Class.java:2271)\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementType.<init>(KtStubElementType.java:43)\\n\\t... 36 more'}]",
+        "ms": 343.1610409999999
+      },
+      "edits": [
+        {
+          "edit": "01-asset-only",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-method-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-asset-plus-code",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "compose-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.composekotlin",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.NoClassDefFoundError: Could not initialize class org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.ExceptionInInitializerError: Exception java.lang.ExceptionInInitializerError [in thread \"main\"]\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\t... 23 more'}]",
+        "ms": 9.847624999999915
+      },
+      "edits": [
+        {
+          "edit": "01-composable-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-add-composable",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "fanout-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.fanout",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.NoClassDefFoundError: Could not initialize class org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.ExceptionInInitializerError: Exception java.lang.ExceptionInInitializerError [in thread \"main\"]\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\t... 23 more'}]",
+        "ms": 4.95408399999997
+      },
+      "edits": [
+        {
+          "edit": "01-const-change",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-inline-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-leaf-method-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "hello-java",
+      "language": "java",
+      "applicationId": "org.appdevforall.cotg.corpus.hellojava",
+      "baseline": {
+        "status": "PASS",
+        "ms": 217.34183399999995,
+        "daemonMs": 216,
+        "classCount": 3,
+        "warnings": []
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "editClass": "method-body",
+          "description": "Change Greeter.greet's returned string literal; signature unchanged.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 63.695249999999426
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellojava/Greeter.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 1 classes, expected [1, 2]: ['org/appdevforall/cotg/corpus/hellojava/Greeter.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'The quick build reloaded this method.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 63,
+          "status": "PASS"
+        },
+        {
+          "edit": "02-new-method",
+          "editClass": "new-method",
+          "description": "Add Greeter.farewell(String) and call it from MainActivity, rendering a second TextView.",
+          "expectedRoute": "code",
+          "opsInvoked": [
+            "compile"
+          ],
+          "ms": {
+            "compile": 47.19499999999943
+          },
+          "recompiledClasses": [
+            "org/appdevforall/cotg/corpus/hellojava/Greeter.class",
+            "org/appdevforall/cotg/corpus/hellojava/MainActivity.class"
+          ],
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "compile ok:true"
+            },
+            {
+              "name": "recompiled_bounds",
+              "status": "PASS",
+              "detail": "recompiled 2 classes, expected [2, 3]: ['org/appdevforall/cotg/corpus/hellojava/Greeter.class', 'org/appdevforall/cotg/corpus/hellojava/MainActivity.class']"
+            },
+            {
+              "name": "behavioral_marker",
+              "status": "PASS",
+              "detail": "marker 'This new method was added by a live edit.' found in recompiled class bytes"
+            }
+          ],
+          "daemonMs_compile": 47,
+          "status": "PASS"
+        },
+        {
+          "edit": "03-resource-value",
+          "editClass": "resource-value",
+          "description": "Change the greeting_name string value in strings.xml; no code touched.",
+          "expectedRoute": "resources",
+          "opsInvoked": [
+            "relink"
+          ],
+          "ms": {
+            "relink": 73.64308299999945
+          },
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "relink ok:true"
+            }
+          ],
+          "daemonMs_relink": 72,
+          "status": "PASS"
+        },
+        {
+          "edit": "04-asset",
+          "editClass": "asset",
+          "description": "Change the bundled data/note.txt asset; no code or resources touched.",
+          "expectedRoute": "assets",
+          "opsInvoked": [],
+          "ms": {},
+          "recompiledClasses": null,
+          "assertions": [
+            {
+              "name": "op_success",
+              "status": "PASS",
+              "detail": "assets-pass: no daemon op required"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "outputEquivalence": {
+        "status": "PASS",
+        "detail": "3 classes match (set + CRC)"
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "hello-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.hellokotlin",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.NoClassDefFoundError: Could not initialize class org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.ExceptionInInitializerError: Exception java.lang.ExceptionInInitializerError [in thread \"main\"]\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\t... 23 more'}]",
+        "ms": 3.0913339999996126
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-resource-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-noop",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-mixed",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "05-manifest",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "medium-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.medium",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.NoClassDefFoundError: Could not initialize class org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.ExceptionInInitializerError: Exception java.lang.ExceptionInInitializerError [in thread \"main\"]\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\t... 23 more'}]",
+        "ms": 3.8835840000004396
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-signature-change",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-new-class",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-resource-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "mixed-lang",
+      "language": "mixed",
+      "applicationId": "org.appdevforall.cotg.corpus.mixedlang",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.NoClassDefFoundError: Could not initialize class org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.ExceptionInInitializerError: Exception java.lang.ExceptionInInitializerError [in thread \"main\"]\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\t... 23 more'}]",
+        "ms": 3.091541999999947
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-java-signature-change",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-kotlin-signature-change",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-resource-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "multi-activity-kotlin",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.multiactivity",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.NoClassDefFoundError: Could not initialize class org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.ExceptionInInitializerError: Exception java.lang.ExceptionInInitializerError [in thread \"main\"]\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\t... 23 more'}]",
+        "ms": 3.1788749999996924
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-main-activity-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-list-activity-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-signature-change",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "05-new-class",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "06-resource-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "native-app",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.nativeapp",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.NoClassDefFoundError: Could not initialize class org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.ExceptionInInitializerError: Exception java.lang.ExceptionInInitializerError [in thread \"main\"]\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\t... 23 more'}]",
+        "ms": 2.911790999998942
+      },
+      "edits": [
+        {
+          "edit": "01-method-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-native-lib-change",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "receiver-provider-app",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.recvprov",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.NoClassDefFoundError: Could not initialize class org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.ExceptionInInitializerError: Exception java.lang.ExceptionInInitializerError [in thread \"main\"]\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\t... 23 more'}]",
+        "ms": 2.8603750000009143
+      },
+      "edits": [
+        {
+          "edit": "01-receiver-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-provider-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-new-class",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-resource-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "resources-heavy",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.resheavy",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.NoClassDefFoundError: Could not initialize class org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.ExceptionInInitializerError: Exception java.lang.ExceptionInInitializerError [in thread \"main\"]\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\t... 23 more'}]",
+        "ms": 2.981124999999807
+      },
+      "edits": [
+        {
+          "edit": "01-string-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-color-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-layout-edit",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-string-ADD",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "service-app",
+      "language": "kotlin",
+      "applicationId": "org.appdevforall.cotg.corpus.serviceapp",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.NoClassDefFoundError: Could not initialize class org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.ExceptionInInitializerError: Exception java.lang.ExceptionInInitializerError [in thread \"main\"]\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\t... 23 more'}]",
+        "ms": 2.9055830000004335
+      },
+      "edits": [
+        {
+          "edit": "01-service-method-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-binder-signature-change",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-activity-body",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "04-resource-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    },
+    {
+      "name": "sora-editor-lib",
+      "language": "mixed",
+      "applicationId": "io.github.rosemoe.sora",
+      "baseline": {
+        "status": "FAILED",
+        "detail": "baseline compile failed: [{'severity': 'ERROR', 'message': 'java.lang.NoClassDefFoundError: Could not initialize class org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport\\n\\tat org.jetbrains.kotlin.cli.common.fir.FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(FirDiagnosticsCompilerResultsReporter.kt:26)\\n\\tat org.jetbrains.kotlin.cli.pipeline.CheckCompilationErrors$CheckDiagnosticCollector.reportDiagnosticsToMessageCollector(PipelineActions.kt:39)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.runPhasedPipeline(AbstractCliPipeline.kt:131)\\n\\tat org.jetbrains.kotlin.cli.pipeline.AbstractCliPipeline.execute(AbstractCliPipeline.kt:68)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:51)\\n\\tat org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecutePhased(K2JVMCompiler.kt:42)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:89)\\n\\tat org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.kt:359)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:178)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerBase.runCompiler(IncrementalJvmCompilerRunnerBase.kt:40)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:504)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:418)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:301)\\n\\tat org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:128)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileInProcess(CompilationServiceImpl.kt:218)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceImpl.compileJvm(CompilationServiceImpl.kt:113)\\n\\tat org.jetbrains.kotlin.buildtools.internal.CompilationServiceProxy.compileJvm(CompilationServiceImpl.kt)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compileKotlin(IncrementalCompiler.kt:227)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.compile.IncrementalCompiler.compile(IncrementalCompiler.kt:115)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonService.compile(DaemonService.kt:68)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.protocol.RequestRouter.route(RequestRouter.kt:45)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.serve(DaemonMain.kt:66)\\n\\tat org.appdevforall.cotg.quickbuild.daemon.DaemonMain.main(DaemonMain.kt:36)\\nCaused by: java.lang.ExceptionInInitializerError: Exception java.lang.ExceptionInInitializerError [in thread \"main\"]\\n\\tat org.jetbrains.kotlin.psi.stubs.elements.KtStubElementTypes.<clinit>(KtStubElementTypes.java:11)\\n\\tat org.jetbrains.kotlin.psi.impl.KotlinElementTypeProviderImpl.<clinit>(KotlinElementTypeProviderImpl.kt:36)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.instance_delegate$lambda$0(KotlinElementTypeProvider.kt:28)\\n\\tat kotlin.SafePublicationLazyImpl.getValue(LazyJVM.kt:125)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider$Companion.getInstance(KotlinElementTypeProvider.kt:23)\\n\\tat org.jetbrains.kotlin.KotlinElementTypeProvider.getInstance(KotlinElementTypeProvider.kt)\\n\\tat org.jetbrains.kotlin.kdoc.lexer.KDocTokens.<clinit>(KDocTokens.java:24)\\n\\tat org.jetbrains.kotlin.lexer.KtTokens.<clinit>(KtTokens.java:176)\\n\\tat org.jetbrains.kotlin.diagnostics.PositioningStrategies.<clinit>(PositioningStrategies.kt:120)\\n\\tat org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.create(DiagnosticFactory0.java:30)\\n\\tat org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.<clinit>(AnalyzerWithCompilerReport.kt:142)\\n\\t... 23 more'}]",
+        "ms": 2.9193339999995516
+      },
+      "edits": [
+        {
+          "edit": "01-editor-core-value",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "02-sample-app-ui",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        },
+        {
+          "edit": "03-cross-module",
+          "status": "SKIPPED",
+          "assertions": [
+            {
+              "name": "baseline",
+              "status": "SKIPPED",
+              "detail": "baseline compile did not succeed"
+            }
+          ]
+        }
+      ],
+      "outputEquivalence": null,
+      "status": "FAILED"
+    }
+  ],
+  "gaps": [
+    "assets-app: baseline compile FAILED; all edits skipped for this app",
+    "compose-kotlin: baseline compile FAILED; all edits skipped for this app",
+    "fanout-kotlin: baseline compile FAILED; all edits skipped for this app",
+    "hello-kotlin: baseline compile FAILED; all edits skipped for this app",
+    "medium-kotlin: baseline compile FAILED; all edits skipped for this app",
+    "mixed-lang: baseline compile FAILED; all edits skipped for this app",
+    "multi-activity-kotlin: baseline compile FAILED; all edits skipped for this app",
+    "native-app: baseline compile FAILED; all edits skipped for this app",
+    "receiver-provider-app: baseline compile FAILED; all edits skipped for this app",
+    "resources-heavy: baseline compile FAILED; all edits skipped for this app",
+    "service-app: baseline compile FAILED; all edits skipped for this app",
+    "sora-editor-lib: baseline compile FAILED; all edits skipped for this app"
+  ],
+  "summary": {
+    "apps": 13,
+    "edits": 48,
+    "passed": 4,
+    "failed": 0,
+    "skipped": 44
+  }
+}
