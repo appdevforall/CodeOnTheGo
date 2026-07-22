@@ -32,9 +32,11 @@ import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.ui.EditorSearchLayout
 import com.itsaky.androidide.editor.ui.IDEEditor
+import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.models.LogLine
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.jetbrainsMono
@@ -42,13 +44,10 @@ import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.LogViewModel
 import io.github.rosemoe.sora.widget.style.CursorAnimator
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
-
-import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
-import com.itsaky.androidide.preferences.internal.EditorPreferences
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.slf4j.LoggerFactory
 
 /**
  * Fragment to show logs.
@@ -72,9 +71,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 		_binding?.editor?.isWordwrap = enabled
 	}
 
-	override fun isWordWrapEnabled(): Boolean {
-		return _binding?.editor?.isWordwrap == true
-	}
+	override fun isWordWrapEnabled(): Boolean = _binding?.editor?.isWordwrap == true
 
 	abstract val viewModel: V
 

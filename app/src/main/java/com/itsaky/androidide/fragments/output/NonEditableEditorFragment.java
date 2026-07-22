@@ -24,14 +24,13 @@ import androidx.annotation.Nullable;
 import com.itsaky.androidide.R;
 import com.itsaky.androidide.databinding.FragmentNonEditableEditorBinding;
 import com.itsaky.androidide.editor.ui.IDEEditor;
+import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent;
 import com.itsaky.androidide.fragments.EmptyStateFragment;
+import com.itsaky.androidide.preferences.internal.EditorPreferences;
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE;
 import com.itsaky.androidide.utils.BasicBuildInfo;
 import com.itsaky.androidide.utils.TypefaceUtilsKt;
 import io.github.rosemoe.sora.lang.EmptyLanguage;
-
-import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent;
-import com.itsaky.androidide.preferences.internal.EditorPreferences;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
@@ -65,20 +64,6 @@ public abstract class NonEditableEditorFragment extends
 		return binding.editor;
 	}
 
-	@Override
-	public void setWordWrapEnabled(boolean enabled) {
-		IDEEditor editor = getEditor();
-		if (editor != null) {
-			editor.setWordwrap(enabled);
-		}
-	}
-
-	@Override
-	public boolean isWordWrapEnabled() {
-		IDEEditor editor = getEditor();
-		return editor != null && editor.isWordwrap();
-	}
-
 	@NonNull
 	@Override
 	public String getShareableContent() {
@@ -98,6 +83,12 @@ public abstract class NonEditableEditorFragment extends
 	}
 
 	@Override
+	public boolean isWordWrapEnabled() {
+		IDEEditor editor = getEditor();
+		return editor != null && editor.isWordwrap();
+	}
+
+	@Override
 	public void onDestroyView() {
 		if (EventBus.getDefault().isRegistered(this)) {
 			EventBus.getDefault().unregister(this);
@@ -105,18 +96,18 @@ public abstract class NonEditableEditorFragment extends
 		super.onDestroyView();
 	}
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onPreferenceChanged(PreferenceChangeEvent event) {
-        if (!EditorPreferences.OUTPUT_WORD_WRAP.equals(event.getKey())) {
-            return;
-        }
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	public void onPreferenceChanged(PreferenceChangeEvent event) {
+		if (!EditorPreferences.OUTPUT_WORD_WRAP.equals(event.getKey())) {
+			return;
+		}
 
-        boolean enabled = event.getValue() instanceof Boolean
-                ? (Boolean) event.getValue()
-                : EditorPreferences.INSTANCE.getOutputWordWrap();
+		boolean enabled = event.getValue() instanceof Boolean
+				? (Boolean) event.getValue()
+				: EditorPreferences.INSTANCE.getOutputWordWrap();
 
-        setWordWrapEnabled(enabled);
-    }
+		setWordWrapEnabled(enabled);
+	}
 
 	@Override
 	public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
@@ -135,6 +126,14 @@ public abstract class NonEditableEditorFragment extends
 		editor.setTypefaceText(TypefaceUtilsKt.jetbrainsMono());
 		editor.setTextSize(12);
 		editor.setColorScheme(SchemeAndroidIDE.newInstance(requireContext()));
+	}
+
+	@Override
+	public void setWordWrapEnabled(boolean enabled) {
+		IDEEditor editor = getEditor();
+		if (editor != null) {
+			editor.setWordwrap(enabled);
+		}
 	}
 
 	@NonNull

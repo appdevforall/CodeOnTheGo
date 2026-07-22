@@ -23,19 +23,19 @@ import com.itsaky.androidide.preferences.internal.EditorPreferences
  * Interface for output fragments that support toggling word wrap.
  */
 interface WrappableOutputFragment {
-    /**
-     * Preference key to persist word wrap for output fragments.
-     */
-    val wordWrapPrefKey: String
-        get() = EditorPreferences.OUTPUT_WORD_WRAP
+	/**
+	 * Preference key to persist word wrap for output fragments.
+	 */
+	val wordWrapPrefKey: String
+		get() = EditorPreferences.OUTPUT_WORD_WRAP
 
-    /**
-     * Set the word wrap state of the editor.
-     */
-    fun setWordWrapEnabled(enabled: Boolean)
+	/**
+	 * Set the word wrap state of the editor.
+	 */
+	fun setWordWrapEnabled(enabled: Boolean)
 
-    /**
-     * Return the current word wrap state of the editor.
-     */
-    fun isWordWrapEnabled(): Boolean
+	/**
+	 * Return the current word wrap state of the editor.
+	 */
+	fun isWordWrapEnabled(): Boolean
 }
