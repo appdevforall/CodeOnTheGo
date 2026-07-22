@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-22T07:43:34Z",
+  "generated_at": "2026-07-22T17:43:57Z",
   "repos": 100,
   "total_prs": 2927,
   "quick_buildable": 1104,
@@ -680,5 +680,48 @@
       "quick_buildable": 0,
       "pct": 0.0
     }
-  ]
+  ],
+  "by_commit": {
+    "repos_sampled": 26,
+    "total_commits": 3319,
+    "quick_buildable_pct": 58.8,
+    "quick_buildable_pct_ignore_list": 72.0,
+    "avg_commits_per_pr": 3.43,
+    "commits_per_pr_distribution": {
+      "1": 585,
+      "2": 126,
+      "3": 69,
+      "4": 43,
+      "5": 32,
+      "6": 19,
+      "7": 23,
+      "8": 12,
+      "9": 9,
+      "10": 5,
+      "11": 7,
+      "12": 7,
+      "13": 6,
+      "14": 2,
+      "15": 4,
+      "16": 1,
+      "17": 1,
+      "20": 1,
+      "22": 2,
+      "24": 1,
+      "26": 2,
+      "28": 2,
+      "29": 2,
+      "34": 1,
+      "35": 1,
+      "38": 1,
+      "44": 1,
+      "64": 1,
+      "112": 1,
+      "250": 2
+    },
+    "fallback_pr_count": 638,
+    "fallback_pr_commits": 2010,
+    "fallback_pr_commits_quick_buildable_pct": 40.2,
+    "headline": "58.8% of 3319 commits across 26 repos are quick-buildable (72.0% with the docs/CI ignore-list); of the 638 PR-level fallbacks, 40.2% of their commits would still have quick-built -- so PR-level union is a floor."
+  }
 }

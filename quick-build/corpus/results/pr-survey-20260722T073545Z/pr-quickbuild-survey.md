@@ -1,6 +1,6 @@
 # PR Quick-Buildability Survey
 
-_Generated 2026-07-22T07:43:34Z. Classification mirrors `ChangeClassifier.kt` (path-based, exact)._
+_Generated 2026-07-22T17:43:57Z. Classification mirrors `ChangeClassifier.kt` (path-based, exact)._
 
 **Quick Build would handle 1104 of 2927 recent merged PRs (37.7%) across 100 active Android apps on its fast path; the rest need a full Gradle build.**
 
@@ -41,6 +41,55 @@ Residual routes of the flipped PRs (what they'd build instead):
 | CodeOnly | 98 |
 | ResourcesOnly | 64 |
 | CodeAndResources | 18 |
+
+## By commit (models a phone user's incremental save stream)
+
+> **58.8% of 3319 commits across 26 repos are quick-buildable (72.0% with the docs/CI ignore-list); of the 638 PR-level fallbacks, 40.2% of their commits would still have quick-built -- so PR-level union is a floor.**
+
+PR-level classification unions all of a PR's files, so one manifest/gradle edit anywhere forces the whole PR to fall back. A phone user saves incrementally, so per-commit is the truer model. Sample: 26 repos, 3319 commits.
+
+| Metric | Value |
+|---|---|
+| Commits quick-buildable | 58.8% |
+| Commits quick-buildable, with ignore-list | 72.0% |
+| Avg commits per PR | 3.43 |
+| PR-level fallbacks in sample | 638 |
+| ...their commits that would still quick-build | 40.2% |
+
+Commits-per-PR distribution (commits -> #PRs):
+
+| Commits in PR | PRs |
+|---|---|
+| 1 | 585 |
+| 2 | 126 |
+| 3 | 69 |
+| 4 | 43 |
+| 5 | 32 |
+| 6 | 19 |
+| 7 | 23 |
+| 8 | 12 |
+| 9 | 9 |
+| 10 | 5 |
+| 11 | 7 |
+| 12 | 7 |
+| 13 | 6 |
+| 14 | 2 |
+| 15 | 4 |
+| 16 | 1 |
+| 17 | 1 |
+| 20 | 1 |
+| 22 | 2 |
+| 24 | 1 |
+| 26 | 2 |
+| 28 | 2 |
+| 29 | 2 |
+| 34 | 1 |
+| 35 | 1 |
+| 38 | 1 |
+| 44 | 1 |
+| 64 | 1 |
+| 112 | 1 |
+| 250 | 2 |
 
 ## Route distribution
 

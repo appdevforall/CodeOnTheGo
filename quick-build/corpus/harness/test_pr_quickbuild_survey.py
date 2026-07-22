@@ -17,6 +17,8 @@ from pr_quickbuild_survey import (
     classify_route,
     classify_route_counterfactual,
     counterfactual_from_summary,
+    aggregate_by_commit,
+    _stratified_sample,
     is_ignorable,
     CODE_ONLY,
     RESOURCES_ONLY,
@@ -287,6 +289,91 @@ def test_cf_summary_flip_flags():
     flipped2, _, quick2 = counterfactual_from_summary(
         _summary("settings.gradle", "README.md"))
     assert flipped2 is False and quick2 is False
+
+
+# --- per-commit: stratified sampling + by-commit aggregation ---
+
+def test_stratified_sample_includes_extremes():
+    repos = [("r%d" % i, float(i)) for i in range(20)]   # pct 0..19
+    picks = _stratified_sample(repos, 5)
+    assert len(picks) == 5
+    assert "r0" in picks and "r19" in picks               # lowest + highest included
+
+
+def test_stratified_sample_smaller_than_n_returns_all():
+    repos = [("a", 1.0), ("b", 2.0)]
+    assert set(_stratified_sample(repos, 5)) == {"a", "b"}
+
+
+def _commit(*paths):
+    """A per-commit cache entry (as scrape_repo_commits would write)."""
+    r = classify_route(list(paths))
+    return {
+        "oid": "deadbeef",
+        "file_count": len(paths),
+        "route": r["route"],
+        "quick_buildable": r["quick_buildable"],
+        "reason": r["reason"],
+        "kind_counts": r["kind_counts"],
+        "trigger_labels": r["trigger_labels"],
+    }
+
+
+def test_by_commit_aggregation_cross_cut():
+    # One PR whose UNION falls back (a gradle bump commit) but whose other two
+    # commits are pure code -> shows PR-level union is a floor.
+    caches = [{
+        "repo": "o/n",
+        "prs": [
+            {
+                "number": 1,
+                "pr_route": FULL_GRADLE_BUILD,
+                "pr_quick_buildable": False,
+                "commit_count": 3,
+                "commits": [
+                    _commit("app/build.gradle.kts"),                    # fallback
+                    _commit("app/src/main/java/A.kt"),                  # quick
+                    _commit("app/src/main/java/B.kt"),                  # quick
+                ],
+            },
+            {
+                "number": 2,
+                "pr_route": CODE_ONLY,
+                "pr_quick_buildable": True,
+                "commit_count": 1,
+                "commits": [_commit("app/src/main/java/C.kt")],         # quick
+            },
+        ],
+    }]
+    agg = aggregate_by_commit(caches)
+    assert agg["total_commits"] == 4
+    # 3 of 4 commits quick-buildable (the gradle one is the only fallback).
+    assert agg["quick_buildable_pct"] == 75.0
+    assert agg["fallback_pr_count"] == 1
+    assert agg["fallback_pr_commits"] == 3
+    # Of the fallback PR's 3 commits, 2 (the code ones) would still quick-build.
+    assert abs(agg["fallback_pr_commits_quick_buildable_pct"] - 66.7) < 0.1
+    assert agg["commits_per_pr_distribution"] == {1: 1, 3: 1}
+
+
+def test_by_commit_ignore_list_lifts_pct():
+    # A commit that only touches a README falls back today but flips with the
+    # ignore-list -> the ignore-list % must be >= the raw %.
+    caches = [{
+        "repo": "o/n",
+        "prs": [{
+            "number": 1, "pr_route": FULL_GRADLE_BUILD, "pr_quick_buildable": False,
+            "commit_count": 2,
+            "commits": [_commit("README.md"), _commit("app/build.gradle.kts")],
+        }],
+    }]
+    agg = aggregate_by_commit(caches)
+    assert agg["quick_buildable_pct"] == 0.0                       # both fall back today
+    assert agg["quick_buildable_pct_ignore_list"] == 50.0          # README commit flips
+
+
+def test_by_commit_empty_is_none():
+    assert aggregate_by_commit([]) is None
 
 
 def run_all():

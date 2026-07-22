@@ -41,6 +41,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CORPUS_ROOT = os.path.dirname(HERE)                       # quick-build/corpus
 CACHE_DIR = os.path.join(CORPUS_ROOT, ".cache", "pr-survey")
 VERIFY_DIR = os.path.join(CACHE_DIR, "_verify")
+COMMITS_CACHE_DIR = os.path.join(CORPUS_ROOT, ".cache", "pr-survey-commits")
 DEFAULT_REPOS_FILE = os.path.join(HERE, "pr-survey-repos.txt")
 
 # ---------------------------------------------------------------------------
@@ -389,19 +390,44 @@ def _gh_graphql(query, variables, max_retries=6):
     raise RuntimeError("gh graphql: exhausted retries (rate limited)")
 
 
-def _sleep_for_rate_limit(fallback_seconds):
-    """Sleep until the GraphQL rate limit resets (or a fallback interval)."""
+def _sleep_for_rate_limit(fallback_seconds, resource="graphql"):
+    """Sleep until the named rate limit (graphql or core/REST) resets."""
     secs = fallback_seconds
     rc, out, _ = _run_gh(["api", "rate_limit"], check=False)
     if rc == 0:
         try:
-            reset = json.loads(out)["resources"]["graphql"]["reset"]
+            reset = json.loads(out)["resources"][resource]["reset"]
             secs = max(5, int(reset) - int(time.time()) + 5)
         except (ValueError, KeyError):
             pass
     secs = min(secs, 3600)
-    _log("rate limited; sleeping %ds" % secs)
+    _log("rate limited (%s); sleeping %ds" % (resource, secs))
     time.sleep(secs)
+
+
+def _gh_rest_json(path, max_retries=6):
+    """GET a REST endpoint via `gh api`, with core-limit backoff. None on 404."""
+    delay = 30
+    for attempt in range(max_retries):
+        rc, out, err = _run_gh(["api", "-H", "Accept: application/vnd.github+json", path],
+                               check=False)
+        if rc == 0:
+            try:
+                return json.loads(out)
+            except ValueError:
+                raise RuntimeError("gh api %s: non-JSON: %s" % (path, out[:200]))
+        low = err.lower()
+        if "rate limit" in low or "was submitted too quickly" in low or "abuse" in low:
+            _sleep_for_rate_limit(delay, resource="core")
+            delay = min(delay * 2, 900)
+            continue
+        if "404" in err or "not found" in low:
+            return None
+        if attempt < max_retries - 1:
+            time.sleep(10)
+            continue
+        raise RuntimeError("gh api %s failed: %s" % (path, err.strip()))
+    raise RuntimeError("gh api %s: exhausted retries" % path)
 
 
 def _log(msg):
@@ -553,6 +579,195 @@ def cmd_scrape(args):
         _log("  [%d/%d] %s: %s" % (i, len(repos), full, status))
     _log("scrape complete: %s" % dict(stats))
     _log("run --report to summarize")
+
+
+# ---------------------------------------------------------------------------
+# Per-commit scrape
+#
+# PR-level classification takes the UNION of a PR's files -- conservative, because
+# one manifest/gradle edit anywhere in the PR forces the whole PR to fall back. A
+# phone user commits (saves) incrementally, so per-COMMIT is the truer model: many
+# individual commits inside a fallback PR would still have quick-built. This mode
+# expands each cached PR into its commits and classifies each commit's file set.
+#
+# Commit file lists come from REST (`repos/{o}/{n}/commits/{sha}`, files capped at
+# 300) -- GraphQL's Commit type doesn't expose changed files. Cached per repo,
+# resumable at repo granularity.
+# ---------------------------------------------------------------------------
+
+PR_COMMITS_QUERY = """
+query($owner:String!, $name:String!, $number:Int!, $cursor:String) {
+  repository(owner:$owner, name:$name) {
+    pullRequest(number:$number) {
+      commits(first:100, after:$cursor) {
+        totalCount
+        pageInfo { hasNextPage endCursor }
+        nodes { commit { oid } }
+      }
+    }
+  }
+}
+"""
+
+
+def _commits_cache_path(owner, name):
+    return os.path.join(COMMITS_CACHE_DIR, "%s__%s.json" % (owner, name))
+
+
+def _pr_commit_oids(owner, name, number):
+    """All commit OIDs of a PR, paginated."""
+    oids = []
+    cursor = None
+    while True:
+        data = _gh_graphql(PR_COMMITS_QUERY, {
+            "owner": owner, "name": name, "number": number, "cursor": cursor,
+        })
+        pr = (data.get("data") or {}).get("repository", {})
+        pr = pr.get("pullRequest") if pr else None
+        if not pr:
+            break
+        block = pr["commits"]
+        oids += [n["commit"]["oid"] for n in block["nodes"]]
+        if block["pageInfo"]["hasNextPage"]:
+            cursor = block["pageInfo"]["endCursor"]
+        else:
+            break
+    return oids
+
+
+def _classify_commit(owner, name, oid):
+    """Fetch one commit's changed files (REST) and classify them. None if missing."""
+    obj = _gh_rest_json("repos/%s/%s/commits/%s" % (owner, name, oid))
+    if obj is None:
+        return None
+    files = obj.get("files", []) or []
+    paths = [f["filename"] for f in files]
+    cls = classify_route(paths)
+    return {
+        "oid": oid[:12],
+        "file_count": len(paths),
+        "truncated": len(files) >= 300,   # REST caps commit files at 300
+        "route": cls["route"],
+        "quick_buildable": cls["quick_buildable"],
+        "reason": cls["reason"],
+        "kind_counts": cls["kind_counts"],
+        "trigger_labels": cls["trigger_labels"],
+    }
+
+
+def scrape_repo_commits(owner, name, refresh=False):
+    """Expand every cached PR of a repo into per-commit classifications; cache them.
+
+    Returns "cached" | "done" | "nopr". Requires the PR-level cache to exist (that's
+    where the PR numbers come from) -- run the PR scrape first.
+    """
+    out_path = _commits_cache_path(owner, name)
+    if os.path.exists(out_path) and not refresh:
+        return "cached"
+    pr_cache = _cache_path(owner, name)
+    if not os.path.exists(pr_cache):
+        return "nopr"
+    with open(pr_cache) as fh:
+        pr_data = json.load(fh)
+    if not pr_data["prs"]:
+        return "nopr"
+
+    prs_out = []
+    for pr in pr_data["prs"]:
+        number = pr["number"]
+        oids = _pr_commit_oids(owner, name, number)
+        commits = []
+        for oid in oids:
+            c = _classify_commit(owner, name, oid)
+            if c is not None:
+                commits.append(c)
+        prs_out.append({
+            "number": number,
+            "mergedAt": pr["mergedAt"],
+            "pr_route": pr["route"],
+            "pr_quick_buildable": pr["quick_buildable"],
+            "commit_count": len(commits),
+            "commits": commits,
+        })
+
+    payload = {
+        "repo": "%s/%s" % (owner, name),
+        "fetched_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "pr_count": len(prs_out),
+        "commit_count": sum(p["commit_count"] for p in prs_out),
+        "prs": prs_out,
+    }
+    _atomic_write_json(out_path, payload)
+    return "done"
+
+
+def _stratified_sample(repos_with_pct, n):
+    """Pick n repos spread across the quick-build% distribution (includes the
+    highest and lowest scorers plus an even spread between)."""
+    ordered = sorted(repos_with_pct, key=lambda r: r[1])   # by pct asc
+    if n >= len(ordered):
+        return [r[0] for r in ordered]
+    picks = []
+    for i in range(n):
+        idx = round(i * (len(ordered) - 1) / (n - 1)) if n > 1 else 0
+        picks.append(ordered[idx][0])
+    # de-dup while preserving spread
+    seen, out = set(), []
+    for p in picks:
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    # backfill if de-dup shrank the set
+    for r in ordered:
+        if len(out) >= n:
+            break
+        if r[0] not in seen:
+            seen.add(r[0])
+            out.append(r[0])
+    return out
+
+
+def _repos_by_pr_pct():
+    """(repo, quick_build_pct) for every repo with a non-empty PR cache."""
+    out = []
+    if not os.path.isdir(CACHE_DIR):
+        return out
+    for fn in sorted(os.listdir(CACHE_DIR)):
+        if not fn.endswith(".json") or fn.startswith("_"):
+            continue
+        with open(os.path.join(CACHE_DIR, fn)) as fh:
+            d = json.load(fh)
+        prs = d["prs"]
+        if not prs:
+            continue
+        qb = sum(1 for p in prs if p["quick_buildable"])
+        out.append((d["repo"], 100.0 * qb / len(prs)))
+    return out
+
+
+def cmd_scrape_commits(args):
+    os.makedirs(COMMITS_CACHE_DIR, exist_ok=True)
+    repos_pct = _repos_by_pr_pct()
+    if args.sample:
+        repos = _stratified_sample(repos_pct, args.sample)
+        _log("commit scrape: %d-repo stratified sample (by PR quick-build%%)"
+             % len(repos))
+    else:
+        repos = [r[0] for r in repos_pct]
+        _log("commit scrape: all %d repos with PR caches" % len(repos))
+    stats = Counter()
+    for i, full in enumerate(repos, 1):
+        owner, _, name = full.partition("/")
+        try:
+            status = scrape_repo_commits(owner, name, refresh=args.refresh)
+        except RuntimeError as e:
+            _log("  %s ERROR: %s" % (full, e))
+            stats["error"] += 1
+            continue
+        stats[status] += 1
+        _log("  [%d/%d] %s: %s" % (i, len(repos), full, status))
+    _log("commit scrape complete: %s" % dict(stats))
+    _log("run --report to summarize (the by-commit section appears when commit caches exist)")
 
 
 # ---------------------------------------------------------------------------
@@ -763,6 +978,10 @@ def cmd_report(args):
         "per_repo": sorted(per_repo, key=lambda r: r["pct"], reverse=True),
     }
 
+    by_commit = _by_commit_summary()
+    if by_commit:
+        summary["by_commit"] = by_commit
+
     md = _render_markdown(summary)
 
     if args.out_dir:
@@ -776,6 +995,87 @@ def cmd_report(args):
         print(md)
     print("\nHEADLINE: " + headline)
     print("WHAT-IF: " + cf_headline)
+    if by_commit:
+        print("BY-COMMIT: " + by_commit["headline"])
+
+
+def _by_commit_summary():
+    """Aggregate the per-commit caches (if any) into the by-commit report block.
+
+    Returns None when no commit caches exist yet, so the section only shows once the
+    commit scrape (sample or full) has produced data.
+    """
+    caches = []
+    if os.path.isdir(COMMITS_CACHE_DIR):
+        for fn in sorted(os.listdir(COMMITS_CACHE_DIR)):
+            if fn.endswith(".json") and not fn.startswith("_"):
+                with open(os.path.join(COMMITS_CACHE_DIR, fn)) as fh:
+                    caches.append(json.load(fh))
+    return aggregate_by_commit(caches)
+
+
+def aggregate_by_commit(caches):
+    """Pure aggregation of per-commit cache dicts into the by-commit report block.
+    Returns None when there's no commit data."""
+    if not caches:
+        return None
+
+    total_commits = 0
+    qb_commits = 0
+    cf_qb_commits = 0                       # with the docs/CI ignore-list
+    commits_per_pr = Counter()
+    # Cross-cut: among PRs that fall back at PR level, how many of THEIR commits
+    # would still have quick-built? This is the number that shows PR-level is a floor.
+    fb_pr_commits = 0
+    fb_pr_commits_qb = 0
+    fb_pr_count = 0
+    for c in caches:
+        for pr in c["prs"]:
+            commits_per_pr[pr["commit_count"]] += 1
+            pr_is_fallback = not pr["pr_quick_buildable"]
+            if pr_is_fallback:
+                fb_pr_count += 1
+            for cm in pr["commits"]:
+                total_commits += 1
+                if cm["quick_buildable"]:
+                    qb_commits += 1
+                # counterfactual per commit (reuse the summary estimator)
+                _, _, cf_quick = counterfactual_from_summary(cm)
+                if cf_quick:
+                    cf_qb_commits += 1
+                if pr_is_fallback:
+                    fb_pr_commits += 1
+                    if cm["quick_buildable"]:
+                        fb_pr_commits_qb += 1
+
+    if total_commits == 0:
+        return None
+
+    pct_raw = 100.0 * qb_commits / total_commits
+    pct_cf = 100.0 * cf_qb_commits / total_commits
+    pct_fb_floor = (100.0 * fb_pr_commits_qb / fb_pr_commits) if fb_pr_commits else 0.0
+    dist = dict(sorted(commits_per_pr.items()))
+    total_prs = sum(commits_per_pr.values())
+    avg_cpp = (sum(k * v for k, v in commits_per_pr.items()) / total_prs) if total_prs else 0.0
+
+    headline = (
+        "%.1f%% of %d commits across %d repos are quick-buildable (%.1f%% with the "
+        "docs/CI ignore-list); of the %d PR-level fallbacks, %.1f%% of their commits "
+        "would still have quick-built -- so PR-level union is a floor."
+        % (pct_raw, total_commits, len(caches), pct_cf, fb_pr_count, pct_fb_floor)
+    )
+    return {
+        "repos_sampled": len(caches),
+        "total_commits": total_commits,
+        "quick_buildable_pct": round(pct_raw, 1),
+        "quick_buildable_pct_ignore_list": round(pct_cf, 1),
+        "avg_commits_per_pr": round(avg_cpp, 2),
+        "commits_per_pr_distribution": dist,
+        "fallback_pr_count": fb_pr_count,
+        "fallback_pr_commits": fb_pr_commits,
+        "fallback_pr_commits_quick_buildable_pct": round(pct_fb_floor, 1),
+        "headline": headline,
+    }
 
 
 def _render_markdown(s):
@@ -830,6 +1130,35 @@ def _render_markdown(s):
                            key=lambda kv: kv[1], reverse=True):
         lines.append("| %s | %d |" % (route, n))
     lines.append("")
+    bc = s.get("by_commit")
+    if bc:
+        lines.append("## By commit (models a phone user's incremental save stream)")
+        lines.append("")
+        lines.append("> **%s**" % bc["headline"])
+        lines.append("")
+        lines.append("PR-level classification unions all of a PR's files, so one "
+                     "manifest/gradle edit anywhere forces the whole PR to fall back. "
+                     "A phone user saves incrementally, so per-commit is the truer "
+                     "model. Sample: %d repos, %d commits."
+                     % (bc["repos_sampled"], bc["total_commits"]))
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|---|---|")
+        lines.append("| Commits quick-buildable | %.1f%% |" % bc["quick_buildable_pct"])
+        lines.append("| Commits quick-buildable, with ignore-list | %.1f%% |"
+                     % bc["quick_buildable_pct_ignore_list"])
+        lines.append("| Avg commits per PR | %.2f |" % bc["avg_commits_per_pr"])
+        lines.append("| PR-level fallbacks in sample | %d |" % bc["fallback_pr_count"])
+        lines.append("| ...their commits that would still quick-build | %.1f%% |"
+                     % bc["fallback_pr_commits_quick_buildable_pct"])
+        lines.append("")
+        lines.append("Commits-per-PR distribution (commits -> #PRs):")
+        lines.append("")
+        lines.append("| Commits in PR | PRs |")
+        lines.append("|---|---|")
+        for k, v in bc["commits_per_pr_distribution"].items():
+            lines.append("| %s | %d |" % (k, v))
+        lines.append("")
     lines.append("## Route distribution")
     lines.append("")
     lines.append("| Route | PRs | Quick? |")
@@ -922,6 +1251,10 @@ def main(argv=None):
                    help="--report: write pr-quickbuild-survey.{md,json} here")
     p.add_argument("--size-cut", type=int, default=20,
                    help="--report: file-count threshold for the size split")
+    p.add_argument("--commits", action="store_true",
+                   help="scrape per-commit files for cached PRs (models incremental saves)")
+    p.add_argument("--sample", type=int, default=0,
+                   help="--commits: only a stratified N-repo sample (spread by PR quick-build%%)")
     p.add_argument("--selftest", action="store_true",
                    help="run the classifier unit tests and exit")
     args = p.parse_args(argv)
@@ -934,6 +1267,9 @@ def main(argv=None):
         return
     if args.report:
         cmd_report(args)
+        return
+    if args.commits:
+        cmd_scrape_commits(args)
         return
     cmd_scrape(args)
 
