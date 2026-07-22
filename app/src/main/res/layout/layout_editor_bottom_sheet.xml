@@ -109,7 +109,7 @@
 			android:layout_width="wrap_content"
 			android:layout_height="wrap_content"
 			android:checkable="true"
-			android:contentDescription="@string/log_action_word_wrap"
+			android:contentDescription="@string/cd_enable_word_wrap"
 			app:icon="@drawable/ic_wrap_text"
 			app:layout_constraintBottom_toBottomOf="parent"
 			app:layout_constraintEnd_toEndOf="parent"

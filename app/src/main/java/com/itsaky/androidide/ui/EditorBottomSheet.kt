@@ -198,7 +198,7 @@ class EditorBottomSheet
 						// update view model in case the tab was selected
 						// by user input; the sheetState collector refreshes the FABs.
 						viewModel.setSheetState(currentTab = tab.position)
-						binding.wordWrapOutputAction.isChecked = EditorPreferences.outputWordWrap
+						updateWordWrapButtonState(EditorPreferences.outputWordWrap)
 					}
 
 					override fun onTabUnselected(tab: Tab) {}
@@ -281,12 +281,13 @@ class EditorBottomSheet
 			}
 			binding.filterOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_FILTER))
 
-			binding.wordWrapOutputAction.isChecked = EditorPreferences.outputWordWrap
+			updateWordWrapButtonState(EditorPreferences.outputWordWrap)
 			binding.wordWrapOutputAction.setOnClickListener {
 				val newState = !EditorPreferences.outputWordWrap
 				EditorPreferences.outputWordWrap = newState
-				binding.wordWrapOutputAction.isChecked = newState
+				updateWordWrapButtonState(newState)
 			}
+			binding.wordWrapOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_WORD_WRAP))
 
 			binding.headerContainer.setOnClickListener {
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
@@ -317,6 +318,8 @@ class EditorBottomSheet
 			binding.searchOutputAction.setOnLongClickListener(null)
 			binding.filterOutputAction.setOnClickListener(null)
 			binding.filterOutputAction.setOnLongClickListener(null)
+			binding.wordWrapOutputAction.setOnClickListener(null)
+			binding.wordWrapOutputAction.setOnLongClickListener(null)
 			binding.copyDiagnosticsFab.setOnClickListener(null)
 			binding.headerContainer.setOnClickListener(null)
 			removeOnLayoutChangeListener(fabLayoutChangeListener)
@@ -326,6 +329,13 @@ class EditorBottomSheet
 
 			pagerAdapter.clearAll()
 			super.onDetachedFromWindow()
+		}
+
+		private fun updateWordWrapButtonState(isWordWrapEnabled: Boolean) {
+			binding.wordWrapOutputAction.isChecked = isWordWrapEnabled
+			binding.wordWrapOutputAction.contentDescription = context.getString(
+				if (isWordWrapEnabled) R.string.cd_disable_word_wrap else R.string.cd_enable_word_wrap
+			)
 		}
 
 		private fun onApkInstallationSessionChanged(state: ApkInstallationViewModel.SessionState) {
