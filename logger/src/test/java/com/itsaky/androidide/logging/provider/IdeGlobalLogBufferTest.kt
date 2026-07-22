@@ -98,6 +98,7 @@ class IdeGlobalLogBufferTest {
 			java.util.concurrent.atomic
 				.AtomicReference<Throwable?>(null)
 		val ready = CountDownLatch(1)
+		val churned = CountDownLatch(1)
 
 		val churner =
 			Thread {
@@ -106,16 +107,22 @@ class IdeGlobalLogBufferTest {
 					val consumer = RecordingConsumer(Level.INFO)
 					IdeGlobalLogBuffer.registerConsumer(consumer)
 					IdeGlobalLogBuffer.unregisterConsumer(consumer)
+					churned.countDown()
 				}
 			}
 		churner.setUncaughtExceptionHandler { _, error -> failure.set(error) }
 		churner.start()
 
 		ready.countDown()
+		// Make sure the churner has actually registered/unregistered at least once before
+		// dispatching, so this test can't silently pass without exercising the race at all.
+		assertThat(churned.await(10, TimeUnit.SECONDS)).isTrue()
+
 		repeat(2000) { IdeGlobalLogBuffer.append(Level.INFO, "concurrent-marker-$it") }
 		stop.set(true)
 		churner.join(TimeUnit.SECONDS.toMillis(10))
 
+		assertThat(churner.isAlive).isFalse()
 		assertThat(failure.get()).isNull()
 	}
 }
