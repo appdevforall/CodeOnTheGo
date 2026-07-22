@@ -10,24 +10,20 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.edit
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.utils.generateSelfSignedCert
 import moe.shizuku.manager.utils.unsafeLazy
-import org.bouncycastle.asn1.x500.X500Name
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
-import org.bouncycastle.cert.X509v3CertificateBuilder
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
-import java.io.ByteArrayInputStream
 import java.math.BigInteger
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.Key
 import java.security.KeyFactory
+import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.Principal
 import java.security.PrivateKey
 import java.security.SecureRandom
-import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.interfaces.RSAPrivateKey
 import java.security.interfaces.RSAPublicKey
@@ -35,7 +31,6 @@ import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.RSAKeyGenParameterSpec
 import java.security.spec.RSAPublicKeySpec
 import java.util.Date
-import java.util.Locale
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.spec.GCMParameterSpec
@@ -313,21 +308,14 @@ class AdbKey(
 		this.publicKey =
 			KeyFactory.getInstance("RSA").generatePublic(RSAPublicKeySpec(privateKey.modulus, RSAKeyGenParameterSpec.F4)) as RSAPublicKey
 
-		val signer = JcaContentSignerBuilder("SHA256withRSA").build(privateKey)
-		val x509Certificate =
-			X509v3CertificateBuilder(
-				X500Name("CN=00"),
+		this.certificate =
+			generateSelfSignedCert(
+				KeyPair(publicKey, privateKey),
+				"CN=00",
 				BigInteger.ONE,
 				Date(0),
-				Date(2461449600 * 1000),
-				Locale.ROOT,
-				X500Name("CN=00"),
-				SubjectPublicKeyInfo.getInstance(publicKey.encoded),
-			).build(signer)
-		this.certificate =
-			CertificateFactory
-				.getInstance("X.509")
-				.generateCertificate(ByteArrayInputStream(x509Certificate.encoded)) as X509Certificate
+				Date(2461449600L * 1000),
+			)
 
 		Log.d(TAG, privateKey.toString())
 	}

@@ -585,7 +585,7 @@
     <string name="title_privacy">Privasi</string>
 
     <string name="privacy_disclosure_title">Privasi &amp; analitik</string>
-    <string name="privacy_disclosure_message">Code on the Go menggunakan Firebase Analytics dan Sentry untuk membantu kami meningkatkan aplikasi.\n\nFirebase Analytics mengumpulkan data penggunaan anonim untuk membantu kami memahami bagaimana aplikasi digunakan.\n\nSentry membantu kami melacak dan memperbaiki masalah.\n\nTidak ada informasi pribadi yang dikumpulkan atau dibagikan. Semua data diproses sesuai dengan kebijakan privasi kami.</string>
+    <string name="privacy_disclosure_message">Code on the Go menggunakan Firebase Analytics dan GlitchTip untuk membantu kami meningkatkan aplikasi.\n\nFirebase Analytics mengumpulkan data penggunaan anonim untuk membantu kami memahami bagaimana aplikasi digunakan.\n\nGlitchTip membantu kami melacak dan memperbaiki masalah.\n\nTidak ada informasi pribadi yang dikumpulkan atau dibagikan. Semua data diproses sesuai dengan kebijakan privasi kami.</string>
     <string name="privacy_disclosure_accept">Saya mengerti</string>
     <string name="privacy_disclosure_learn_more">Pelajari lebih lanjut</string>
 
@@ -1165,6 +1165,8 @@
     <string name="template_exec_error_write">Gagal menulis file output: %1$s %2$s</string>
     <string name="template_exec_error_copy">Gagal menyalin entri biner: %1$s %2$s</string>
     <string name="template_exec_error_process">Gagal memproses entri template: %1$s %2$s</string>
+    <string name="template_exec_error_terminated">Pembuatan proyek dihentikan: %1$s\n\nProyek yang belum selesai telah dihapus. Perbaiki file template yang disebutkan di atas (atau pilih template lain), lalu coba lagi.</string>
+    <string name="template_exec_warn_cleanup_failed">Tidak dapat menghapus proyek yang belum selesai di %1$s. Hapus secara manual sebelum mencoba lagi.</string>
 
     <string name="template_exec_warn_map_appname">appName tidak ditemukan, menggunakan default %1$s</string>
     <string name="template_exec_warn_map_pkgname">packageName tidak ditemukan, menggunakan default %1$s</string>

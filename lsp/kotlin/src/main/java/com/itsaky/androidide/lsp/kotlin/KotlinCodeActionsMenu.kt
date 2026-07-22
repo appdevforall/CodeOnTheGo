@@ -5,6 +5,7 @@ import com.itsaky.androidide.lsp.actions.CommentLineAction
 import com.itsaky.androidide.lsp.actions.IActionsMenuProvider
 import com.itsaky.androidide.lsp.actions.UncommentLineAction
 import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
+import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
 import com.itsaky.androidide.lsp.kotlin.actions.NullSafetyAction
 import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
 
@@ -20,5 +21,6 @@ object KotlinCodeActionsMenu : IActionsMenuProvider {
 			AddImportAction(),
 			OrganizeImportsAction(),
 			NullSafetyAction(),
+			ImplementMembersAction(),
 		)
 }
