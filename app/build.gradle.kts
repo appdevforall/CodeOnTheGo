@@ -32,6 +32,7 @@ plugins {
 	id("kotlin-parcelize")
 	id("androidx.navigation.safeargs.kotlin")
 	id("com.itsaky.androidide.desugaring")
+	// Sentry gradle plugin; the SDK it wires up reports to our GlitchTip backend.
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
 }
@@ -149,6 +150,7 @@ android {
 	}
 }
 
+// Sentry gradle plugin config (crash reporting to GlitchTip).
 sentry {
 	includeProguardMapping = false
 }
@@ -324,7 +326,7 @@ dependencies {
 	implementation(libs.koin.android)
 	implementation(libs.androidx.security.crypto)
 
-	// Sentry Android SDK (core + replay for quality configuration)
+	// Sentry Android SDK (core + replay for quality configuration); our GlitchTip client.
 	implementation(libs.sentry.core)
 	implementation(libs.sentry.android.core)
 	implementation(libs.sentry.logback)
@@ -477,12 +479,14 @@ val noCompress =
 // Debug APKs DEFLATE jar assets (tooling-api-all.jar, cogo-plugin.jar) for
 // ~75% size reduction (ADFA-4188). Release keeps jars STORED because
 // tooling-api-all.jar ships as a brotli-encoded .jar.br.
-val noCompressDebug = noCompress - "jar"
-
-// Release APKs DEFLATE native libs for ~5.9 MB size reduction (ADFA-2306): release uses
-// legacy jniLibs packaging (extractNativeLibs=true, set in AndroidModuleConf.kt), so the
-// installer extracts them at install time and they need not be STORED for mmap. Debug
-// keeps "so" STORED because it loads libs directly from the APK.
+//
+// "so" stays DEFLATED in both lists (ADFA-2306 release, ADFA-4729 CI debug): the app
+// manifest hard-codes extractNativeLibs="true", so the installer extracts libs to
+// nativeLibraryDir at install time and AGP already packages them deflate-compressed
+// (~5.9 MB smaller per APK). Re-storing them here would silently undo that, which is
+// exactly what happened to CI debug APKs before ADFA-4729. Local debug builds never
+// run this task and get AGP's deflated packaging as-is.
+val noCompressDebug = noCompress - "jar" - "so"
 val noCompressRelease = noCompress - "so"
 
 afterEvaluate {
