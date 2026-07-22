@@ -1,5 +1,6 @@
 package org.appdevforall.cotg.quickbuild.service
 
+import android.content.ComponentCallbacks2
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -219,6 +220,14 @@ class QuickBuildSessionManager(
 				}
 			}
 		}
+		scope.launch {
+			// Retries a low-memory teardown that [shrinkDaemonForMemory] deferred while a
+			// build was in flight, the moment that build's own transition lands (success,
+			// failure, or a real daemon death all move the state away from Building).
+			_state.collect {
+				if (pendingLowMemoryTeardown) shrinkDaemonForMemory()
+			}
+		}
 	}
 
 	/**
@@ -272,6 +281,76 @@ class QuickBuildSessionManager(
 	 */
 	fun restartSession() {
 		scope.launch { dispatch(SessionEvent.SessionRestartRequested) }
+	}
+
+	/**
+	 * Framework low-memory signal (P1a.1, low-spec device support): the host
+	 * Activity/Service forwards `ComponentCallbacks2.onTrimMemory`'s level here. The
+	 * compile daemon is a separate child JVM ([org.appdevforall.cotg.quickbuild.data.DaemonProcessClient])
+	 * whose heap is pure overhead between builds - on a constrained device it is the
+	 * first thing worth giving back under memory pressure.
+	 *
+	 * Decision (this ticket asked for one, not just an action): only
+	 * [ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL] and above tear the daemon down.
+	 * `RUNNING_MODERATE`/`RUNNING_LOW` are no-ops - those fire on transient pressure the
+	 * OS usually recovers from without ever killing the process, and tearing the daemon
+	 * down pays a full re-baseline's cost (every rebaseline is a real Gradle build) for
+	 * pressure that may pass in seconds. `RUNNING_CRITICAL` is documented as "about to be
+	 * killed" - the point where giving the memory back is worth that cost. Everything
+	 * from `UI_HIDDEN` upward (the backgrounded-process levels) tears down too: once CoGo
+	 * is no longer visible, Quick Build's whole value (seeing an edit reload while you're
+	 * looking at it) is moot until the user returns, so a background low-spec device gets
+	 * more value from the freed RAM than from a warm daemon nobody can see. Android
+	 * numbers the levels so a plain `>=` against `RUNNING_CRITICAL` is exactly this check
+	 * (`RUNNING_MODERATE`=5 < `RUNNING_LOW`=10 < `RUNNING_CRITICAL`=15 < `UI_HIDDEN`=20 <
+	 * ... < `COMPLETE`=80).
+	 *
+	 * A build already in flight is never interrupted: forcibly killing the daemon
+	 * mid-compile would abort a request that may be seconds from finishing, only to redo
+	 * the same work on the auto-respawn. The teardown defers instead, applied the moment
+	 * the build's own completion event moves the state off [QuickBuildSessionState.Building]
+	 * (see the `_state` collector in `init`).
+	 *
+	 * Re-warm is deliberately lazy, not immediate: nothing here calls `daemon.start`. The
+	 * next build attempt (a tap or a watcher-triggered save) finds the daemon dead, which
+	 * [org.appdevforall.cotg.quickbuild.service.QuickBuildExecutorImpl] already reports as
+	 * an [org.appdevforall.cotg.quickbuild.domain.BuildOutcome.InfrastructureFailure] with
+	 * `daemonDied = true` - the SAME signal a real daemon crash produces - so the existing
+	 * [SessionEvent.DaemonDied] -> [QuickBuildSessionState.Degraded] ->
+	 * [SessionEffect.RespawnDaemon] recovery re-seeds with [ChangedFiles.Unknown] and
+	 * that build lands normally. No new recovery path needed: this reuses the one that
+	 * already exists for an unplanned daemon death, on purpose.
+	 */
+	fun onTrimMemory(level: Int) {
+		scope.launch { handleTrimMemory(level) }
+	}
+
+	/** Set only on [dispatcher]; a build in flight defers the real teardown to here. */
+	private var pendingLowMemoryTeardown = false
+
+	private suspend fun handleTrimMemory(level: Int) {
+		if (level < ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) {
+			log.debug("Quick Build: onTrimMemory({}) below the shrink threshold; no-op", level)
+			return
+		}
+		pendingLowMemoryTeardown = true
+		shrinkDaemonForMemory()
+	}
+
+	/**
+	 * Tears the daemon down for memory pressure, unless a build is in flight - then this
+	 * is a no-op that leaves [pendingLowMemoryTeardown] set for the `init` state collector
+	 * to retry once that build's own transition lands. Idempotent: a daemon already down,
+	 * or no pending request at all, is a silent no-op either way - safe to call from a
+	 * repeated `onTrimMemory(CRITICAL)` or from the retry collector alike.
+	 */
+	private suspend fun shrinkDaemonForMemory() {
+		if (_state.value is QuickBuildSessionState.Building) return
+		if (!pendingLowMemoryTeardown) return
+		pendingLowMemoryTeardown = false
+		if (!daemon.isRunning) return
+		log.info("Quick Build: tearing down the compile daemon for low memory; the next build re-warms it")
+		daemon.shutdown()
 	}
 
 	/**

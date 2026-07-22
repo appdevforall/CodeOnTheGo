@@ -1,5 +1,6 @@
 package org.appdevforall.cotg.quickbuild.service
 
+import android.content.ComponentCallbacks2
 import com.google.common.truth.Truth.assertThat
 import com.google.gson.JsonParser
 import kotlinx.coroutines.launch
@@ -97,6 +98,9 @@ class QuickBuildSessionManagerTest {
 	private var prewarmError: Throwable? = null
 	private var provisionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 	private var provisionSurvivesCancel = false
+
+	/** Set to make the scripted executor await mid-build, so a test can observe Building. */
+	private var executionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
 	/** Captures the watcher the manager builds so a test can push change batches. */
 	private var watcher: FakeWatcher? = null
@@ -204,6 +208,7 @@ class QuickBuildSessionManagerTest {
 				object : QuickBuildExecutor {
 					override suspend fun execute(request: BuildRequest): BuildOutcome {
 						executed += request
+						executionGate?.await()
 						return scriptedOutcomes.removeFirstOrNull()
 							?: BuildOutcome.Success(tracker.next(), 5)
 					}
@@ -1058,6 +1063,131 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			// DaemonDied -> Degraded -> respawn -> Ready -> Unknown re-seed build succeeds.
+			assertThat(daemon.startConfigs).hasSize(2)
+			assertThat(executed.last().changes).isEqualTo(ChangedFiles.Unknown)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+		}
+
+	@Test
+	fun `onTrimMemory below RUNNING_CRITICAL is a no-op`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE)
+			advanceUntilIdle()
+			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)
+			advanceUntilIdle()
+
+			assertThat(daemon.shutdownCount).isEqualTo(0)
+			assertThat(daemon.isRunning).isTrue()
+		}
+
+	@Test
+	fun `onTrimMemory at RUNNING_CRITICAL tears down an idle daemon`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(daemon.isRunning).isTrue()
+
+			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL)
+			advanceUntilIdle()
+
+			assertThat(daemon.shutdownCount).isEqualTo(1)
+			assertThat(daemon.isRunning).isFalse()
+		}
+
+	@Test
+	fun `onTrimMemory at UI_HIDDEN also tears down - CoGo backgrounded has no visible reload to protect`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN)
+			advanceUntilIdle()
+
+			assertThat(daemon.shutdownCount).isEqualTo(1)
+		}
+
+	@Test
+	fun `onTrimMemory is idempotent across repeated critical signals`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL)
+			advanceUntilIdle()
+			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_COMPLETE)
+			advanceUntilIdle()
+
+			// One real shutdown call; the second signal found the daemon already down.
+			assertThat(daemon.shutdownCount).isEqualTo(1)
+		}
+
+	@Test
+	fun `onTrimMemory with no live session is a safe no-op`() =
+		runTest {
+			val manager = createManager()
+
+			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL)
+			advanceUntilIdle()
+
+			assertThat(daemon.shutdownCount).isEqualTo(0)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+		}
+
+	@Test
+	fun `onTrimMemory during a build defers the teardown until the build completes`() =
+		runTest {
+			executionGate = kotlinx.coroutines.CompletableDeferred()
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isInstanceOf(QuickBuildSessionState.Building::class.java)
+
+			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL)
+			advanceUntilIdle()
+
+			// Must not tear down mid-compile: the build is still in flight.
+			assertThat(daemon.shutdownCount).isEqualTo(0)
+			assertThat(daemon.isRunning).isTrue()
+
+			executionGate!!.complete(Unit)
+			advanceUntilIdle()
+
+			// The deferred teardown applied the moment the build's own transition landed.
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+			assertThat(daemon.shutdownCount).isEqualTo(1)
+			assertThat(daemon.isRunning).isFalse()
+		}
+
+	@Test
+	fun `a Quick Build after a low-memory teardown re-warms the daemon and still succeeds`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL)
+			advanceUntilIdle()
+			assertThat(daemon.isRunning).isFalse()
+
+			// The scripted executor doesn't know the daemon died; script what the REAL
+			// executor reports for a torn-down daemon (QuickBuildExecutorImpl.compileAndDex
+			// maps DaemonReply.Failed(daemonDied=true) to exactly this outcome).
+			scriptedOutcomes += BuildOutcome.InfrastructureFailure("daemon not running", daemonDied = true)
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			// DaemonDied -> Degraded -> auto respawn -> Ready -> Unknown re-seed build
+			// succeeds - "slower, not broken": no user retap needed.
 			assertThat(daemon.startConfigs).hasSize(2)
 			assertThat(executed.last().changes).isEqualTo(ChangedFiles.Unknown)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))

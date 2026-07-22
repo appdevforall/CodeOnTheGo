@@ -231,6 +231,17 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 	}
 
+	/**
+	 * Low-spec device support (ADFA-4128 P1a.1): forward the framework signal so a live
+	 * Quick Build session can give back the compile daemon's heap under memory pressure.
+	 * See [QuickBuildSessionManager.onTrimMemory] for the per-level decision and the
+	 * (lazy, auto-healing) re-warm path - nothing else is required here.
+	 */
+	override fun onTrimMemory(level: Int) {
+		super.onTrimMemory(level)
+		quickBuildSessionManager()?.onTrimMemory(level)
+	}
+
 	private fun observeStates() {
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.STARTED) {
