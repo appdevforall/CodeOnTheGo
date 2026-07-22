@@ -12,6 +12,20 @@ import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
 object BuildStatusJson {
 	const val KIND_BUILD_FAILED = "build_failed"
 	const val KIND_BUILD_OK = "build_ok"
+	const val KIND_BUILDING = "building"
+
+	/**
+	 * A build has started (WS-G honesty line): tells the test app it is still running
+	 * [runningGeneration] while a newer one compiles, so a slow quick build never reads
+	 * as silence to whoever is looking at the screen. Cleared by the [buildFailed] or
+	 * [buildOk] this attempt eventually sends.
+	 */
+	fun building(runningGeneration: Long): String =
+		JsonObject()
+			.apply {
+				addProperty("kind", KIND_BUILDING)
+				addProperty("runningGeneration", runningGeneration.toString())
+			}.toString()
 
 	/**
 	 * A compile failure: carries the FIRST error's location plus the first line of its

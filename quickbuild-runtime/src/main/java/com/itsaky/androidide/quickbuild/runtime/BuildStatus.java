@@ -9,6 +9,7 @@ final class BuildStatus {
 
 	static final String KIND_BUILD_FAILED = "build_failed";
 	static final String KIND_BUILD_OK = "build_ok";
+	static final String KIND_BUILDING = "building";
 
 	/**
 	 * Parses a build status. Returns null for a kind this runtime does not know (the defensive-versioning contract: ignore, don't fail); malformed JSON throws {@link IllegalArgumentException} for the caller to log and drop.
@@ -17,7 +18,7 @@ final class BuildStatus {
 		Map<String, Object> obj = MiniJson.parseObject(json);
 		String kind = asString(obj.get("kind"));
 		if (KIND_BUILD_OK.equals(kind)) {
-			return new BuildStatus(KIND_BUILD_OK, null, -1, -1, null, 0);
+			return new BuildStatus(KIND_BUILD_OK, null, -1, -1, null, 0, -1);
 		}
 		if (KIND_BUILD_FAILED.equals(kind)) {
 			return new BuildStatus(
@@ -26,7 +27,12 @@ final class BuildStatus {
 					asInt(obj.get("line"), -1),
 					asInt(obj.get("column"), -1),
 					asString(obj.get("message")),
-					Math.max(0, asInt(obj.get("moreErrors"), 0)));
+					Math.max(0, asInt(obj.get("moreErrors"), 0)),
+					-1);
+		}
+		if (KIND_BUILDING.equals(kind)) {
+			return new BuildStatus(
+					KIND_BUILDING, null, -1, -1, null, 0, asLong(obj.get("runningGeneration"), -1));
 		}
 		return null;
 	}
@@ -37,6 +43,17 @@ final class BuildStatus {
 		}
 		try {
 			return Integer.parseInt((String) value);
+		} catch (NumberFormatException e) {
+			return fallback;
+		}
+	}
+
+	private static long asLong(Object value, long fallback) {
+		if (!(value instanceof String)) {
+			return fallback;
+		}
+		try {
+			return Long.parseLong((String) value);
 		} catch (NumberFormatException e) {
 			return fallback;
 		}
@@ -64,13 +81,17 @@ final class BuildStatus {
 	/** How many further errors the build reported beyond the first, >= 0. */
 	final int moreErrors;
 
+	/** For {@link #KIND_BUILDING}: the generation the app still runs, or -1 if unknown. */
+	final long runningGeneration;
+
 	private BuildStatus(String kind, String file, int line, int column, String message,
-			int moreErrors) {
+			int moreErrors, long runningGeneration) {
 		this.kind = kind;
 		this.file = file;
 		this.line = line;
 		this.column = column;
 		this.message = message;
 		this.moreErrors = moreErrors;
+		this.runningGeneration = runningGeneration;
 	}
 }

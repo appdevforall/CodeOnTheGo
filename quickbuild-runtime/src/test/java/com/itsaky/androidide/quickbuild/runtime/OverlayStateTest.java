@@ -71,4 +71,28 @@ class OverlayStateTest {
 		assertThat(state.isError()).isFalse();
 		assertThat(state.canJumpToEditor()).isFalse();
 	}
+
+	@Test
+	void buildingSaysWhichGenerationIsStillOnScreen() {
+		OverlayState state = OverlayState.building(4L);
+		assertThat(state.text()).contains("gen 4");
+		assertThat(state.isBuilding()).isTrue();
+		// Not an error and not jumpable - there is no failure location yet.
+		assertThat(state.isError()).isFalse();
+		assertThat(state.canJumpToEditor()).isFalse();
+	}
+
+	@Test
+	void buildingWithAnUnknownGenerationStillRendersHonestly() {
+		OverlayState state = OverlayState.building(-1L);
+		assertThat(state.text()).doesNotContain("gen -1");
+		assertThat(state.text()).contains("one build behind");
+	}
+
+	@Test
+	void onlyBuildingIsBuilding() {
+		assertThat(OverlayState.hidden().isBuilding()).isFalse();
+		assertThat(OverlayState.hint().isBuilding()).isFalse();
+		assertThat(OverlayState.crashed("x").isBuilding()).isFalse();
+	}
 }

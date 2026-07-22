@@ -91,6 +91,20 @@ class BuildStatusJsonTest {
 	}
 
 	@Test
+	fun `building encodes the kind and running generation as strings`() {
+		val obj = parse(BuildStatusJson.building(5L))
+		assertThat(obj.get("kind").asString).isEqualTo("building")
+		assertThat(obj.get("runningGeneration").asJsonPrimitive.isString).isTrue()
+		assertThat(obj.get("runningGeneration").asString).isEqualTo("5")
+	}
+
+	@Test
+	fun `building encodes a zero generation the same way as any other`() {
+		val obj = parse(BuildStatusJson.building(0L))
+		assertThat(obj.get("runningGeneration").asString).isEqualTo("0")
+	}
+
+	@Test
 	fun `wire format round-trips through the runtime parser contract`() {
 		// Gson must escape what MiniJson unescapes - quotes, backslashes, newlines.
 		val json =

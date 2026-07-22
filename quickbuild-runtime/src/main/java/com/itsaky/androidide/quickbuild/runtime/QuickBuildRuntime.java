@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
  *
  * Installed once per process by {@link QuickBuildAppComponentFactory} at application instantiation - the earliest hook a library gets without a ContentProvider. Context work (binding to CoGo, cache dirs) is deferred to the first activity because the Application has no base context yet at install time.
  *
- * The overlay is ERROR-ONLY (plan A1): nothing renders on success or while building; a CoGo-side build failure ({@link #handleBuildStatus}) or a payload crash shows a banner saying the app still runs the last working version, cleared by the next successful build/reload. Plus a one-time hint for the 3-finger return gesture.
+ * The overlay is ERROR-MOSTLY (plan A1, WS-G): a CoGo-side build failure ({@link #handleBuildStatus}) or a payload crash shows a banner saying the app still runs the last working version, cleared by the next successful build/reload; a one-time hint for the 3-finger return gesture; and (WS-G) a neutral in-flight line while a build compiles, so a slow build never reads as silence. Success itself still renders nothing - it only clears whatever was showing.
  *
  * Failure policy, everywhere: a reload failure calls reportCrash and ROLLS BACK to the old generation - the app keeps running gen N and says so; it never crash-loops on a bad payload and never silently claims gen N+1 (the never-stale invariant, plan 1.4).
  */
@@ -102,6 +102,7 @@ final class QuickBuildRuntime {
 	private final QuickBuildClient client = new QuickBuildClient(this);
 
 	private final StatusOverlay overlay = new StatusOverlay();
+	private final ReturnToIdeButton returnButton = new ReturnToIdeButton();
 	private volatile ComponentMap componentMap = ComponentMap.EMPTY;
 
 	private volatile OverlayState overlayState = OverlayState.hidden();
@@ -127,8 +128,13 @@ final class QuickBuildRuntime {
 			}
 			if (BuildStatus.KIND_BUILD_FAILED.equals(status.kind)) {
 				setOverlayState(OverlayState.buildFailed(status));
-			} else if (overlayState.isError()) {
-				// build_ok clears a stale failure banner; it never renders anything.
+			} else if (BuildStatus.KIND_BUILDING.equals(status.kind)) {
+				// Replaces whatever was showing (a stale failure, the gesture hint, or
+				// nothing) - a new attempt starting is real news either way.
+				setOverlayState(OverlayState.building(status.runningGeneration));
+			} else if (overlayState.isError() || overlayState.isBuilding()) {
+				// build_ok clears a stale failure or in-flight banner; it never renders
+				// anything itself.
 				setOverlayState(OverlayState.hidden());
 			}
 		} catch (Throwable error) {
@@ -225,8 +231,10 @@ final class QuickBuildRuntime {
 			pendingReloadGeneration = -1;
 			long reloadMillis = SystemClock.uptimeMillis() - pendingReloadStartUptime;
 			client.reportReloaded(pending, reloadMillis);
-			// ERROR-ONLY overlay: success renders nothing, it only CLEARS a shown error.
-			if (overlayState.isError()) {
+			// Success renders nothing itself - it only CLEARS a shown error or an
+			// in-flight banner (a reload landing IS the build finishing, even if the
+			// build_ok status message is still in flight behind it).
+			if (overlayState.isError() || overlayState.isBuilding()) {
 				setOverlayState(OverlayState.hidden());
 			} else {
 				overlay.render(activity, overlayState);
@@ -235,6 +243,7 @@ final class QuickBuildRuntime {
 			maybeShowGestureHint(activity);
 			overlay.render(activity, overlayState);
 		}
+		returnButton.render(activity);
 	}
 
 	long runningGeneration() {

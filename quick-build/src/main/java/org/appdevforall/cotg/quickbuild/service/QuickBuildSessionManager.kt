@@ -493,6 +493,7 @@ class QuickBuildSessionManager(
 				is OrchestratorEvent.BuildStarted -> {
 					report { metrics.onBuildStarted(event.buildId, event.route, event.changes) }
 					dispatch(SessionEvent.BuildStarted)
+					notifyBuilding()
 				}
 				is OrchestratorEvent.BuildSucceeded -> {
 					report { metrics.onBuildFinished(event.buildId, event.result) }
@@ -529,6 +530,31 @@ class QuickBuildSessionManager(
 					dispatch(SessionEvent.InvalidationDetected(event.reason))
 				}
 			}
+		}
+	}
+
+	/**
+	 * Honesty line while a build is in flight (WS-G): tells the test app it is one
+	 * generation behind while the new one compiles, so a slow build never reads as
+	 * silence. Prefers [LiveSession.lastDeployedGeneration] - the session's own tally,
+	 * kept current across every hot-swap deploy - over the connected target's
+	 * self-reported generation, which is only fresh at connect time and goes stale the
+	 * moment a hot swap lands without a rebind. Falls back to the connection's value
+	 * before this session has deployed anything (a fresh test-app install has no tally
+	 * yet, but it did tell us its baseline generation at connect). No connection and no
+	 * tally means nothing truthful to say - skip silently, like every other best-effort
+	 * status push.
+	 */
+	private fun notifyBuilding() {
+		val session = live ?: return
+		val runningGeneration =
+			session.lastDeployedGeneration.takeIf { it >= 0 }
+				?: connections.target.value?.runningGeneration
+				?: return
+		try {
+			deploy.notifyBuildStatus(BuildStatusJson.building(runningGeneration))
+		} catch (e: Exception) {
+			log.warn("Build-starting notification failed", e)
 		}
 	}
 

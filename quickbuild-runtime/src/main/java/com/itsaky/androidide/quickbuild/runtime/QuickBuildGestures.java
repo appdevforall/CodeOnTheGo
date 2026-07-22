@@ -29,7 +29,11 @@ public final class QuickBuildGestures {
 		}
 	}
 
-	private static void returnToIde(Activity activity) {
+	/**
+	 * Package-private (not private) so {@link ReturnToIdeButton} (WS-G) shares the exact
+	 * same path - the gesture and the visible button are two triggers for one action.
+	 */
+	static void returnToIde(Activity activity) {
 		Intent launch = activity.getPackageManager()
 				.getLaunchIntentForPackage(QuickBuildClient.IDE_PACKAGE);
 		if (launch == null) {
@@ -37,7 +41,7 @@ public final class QuickBuildGestures {
 					+ QuickBuildClient.IDE_PACKAGE);
 			return;
 		}
-		RuntimeLog.i("3-finger tap: returning to CoGo");
+		RuntimeLog.i("returning to CoGo");
 		activity.startActivity(launch);
 	}
 

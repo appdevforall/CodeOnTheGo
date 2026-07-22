@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.service
 
 import com.google.common.truth.Truth.assertThat
+import com.google.gson.JsonParser
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -290,6 +291,52 @@ class QuickBuildSessionManagerTest {
 			assertThat((request.changes as ChangedFiles.Known).files).containsExactly(sourceFile)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
 			assertThat(manager.status.value).isEqualTo(QuickBuildStatus.UpToDate(1, 5))
+		}
+
+	@Test
+	fun `a build start before any deploy this session tells the test app its own connect-time generation`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			connections.onConnected(connectedAt(0))
+			advanceUntilIdle()
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			val building =
+				deploy.statusCalls.single {
+					JsonParser.parseString(it).asJsonObject.get("kind").asString == "building"
+				}
+			assertThat(JsonParser.parseString(building).asJsonObject.get("runningGeneration").asString)
+				.isEqualTo("0")
+		}
+
+	@Test
+	fun `a build start after a deploy uses the session's own tally, not a stale connect-time value`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			// First build: nothing deployed yet this session and no test app connected in
+			// this test, so there is nothing truthful to say - no "building" message.
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(executed).hasSize(1)
+			assertThat(deploy.statusCalls).isEmpty()
+
+			// Second build: the session's own tally (gen 1, from the first build) is now
+			// authoritative, even though no reconnect ever refreshed a connected target.
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			val building =
+				deploy.statusCalls.single {
+					JsonParser.parseString(it).asJsonObject.get("kind").asString == "building"
+				}
+			assertThat(JsonParser.parseString(building).asJsonObject.get("runningGeneration").asString)
+				.isEqualTo("1")
 		}
 
 	@Test
