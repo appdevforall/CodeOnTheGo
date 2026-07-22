@@ -54,6 +54,16 @@ class ZipRecipeExecutorTest {
 	}
 
 	@Test
+	fun `cgt path and directory are exposed to templates`() {
+		val zip = buildZip(mapOf("tpl/cgt.txt.peb" to "\${{ COGO_CGT_PATH }}|\${{ COGO_CGT_DIRECTORY }}"))
+
+		executor(zip).execute(recipeExecutor())
+
+		assertThat(File(projectDir, "cgt.txt").readText())
+			.isEqualTo("${zip.absolutePath}|tpl")
+	}
+
+	@Test
 	fun `pebble parse error terminates execution and removes the project dir`() {
 		val zip =
 			buildZip(
