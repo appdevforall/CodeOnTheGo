@@ -30,6 +30,12 @@ import com.itsaky.androidide.utils.BasicBuildInfo;
 import com.itsaky.androidide.utils.TypefaceUtilsKt;
 import io.github.rosemoe.sora.lang.EmptyLanguage;
 
+import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent;
+import com.itsaky.androidide.preferences.internal.EditorPreferences;
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
+
 public abstract class NonEditableEditorFragment extends
 		EmptyStateFragment<FragmentNonEditableEditorBinding>
 		implements ShareableOutputFragment, WrappableOutputFragment {
@@ -57,12 +63,6 @@ public abstract class NonEditableEditorFragment extends
 			return null;
 		}
 		return binding.editor;
-	}
-
-	@NonNull
-	@Override
-	public String getWordWrapPrefKey() {
-		return "word_wrap_pref_" + getClass().getSimpleName();
 	}
 
 	@Override
@@ -98,15 +98,38 @@ public abstract class NonEditableEditorFragment extends
 	}
 
 	@Override
+	public void onDestroyView() {
+		if (EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().unregister(this);
+		}
+		super.onDestroyView();
+	}
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onPreferenceChanged(PreferenceChangeEvent event) {
+        if (!EditorPreferences.OUTPUT_WORD_WRAP.equals(event.getKey())) {
+            return;
+        }
+
+        boolean enabled = event.getValue() instanceof Boolean
+                ? (Boolean) event.getValue()
+                : EditorPreferences.INSTANCE.getOutputWordWrap();
+
+        setWordWrapEnabled(enabled);
+    }
+
+	@Override
 	public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
 		super.onViewCreated(view, savedInstanceState);
+		if (!EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().register(this);
+		}
 		getEmptyStateViewModel().setEmptyMessage(createEmptyStateMessage());
 		final var editor = getBinding().editor;
 		editor.setEditable(false);
 		editor.setDividerWidth(0);
 		editor.setEditorLanguage(new EmptyLanguage());
-		android.content.SharedPreferences prefs = requireContext().getSharedPreferences("OutputWordWrapPrefs", android.content.Context.MODE_PRIVATE);
-		editor.setWordwrap(prefs.getBoolean(getWordWrapPrefKey(), true));
+		editor.setWordwrap(EditorPreferences.INSTANCE.getOutputWordWrap());
 		editor.setUndoEnabled(false);
 		editor.setTypefaceLineNumber(TypefaceUtilsKt.jetbrainsMono());
 		editor.setTypefaceText(TypefaceUtilsKt.jetbrainsMono());

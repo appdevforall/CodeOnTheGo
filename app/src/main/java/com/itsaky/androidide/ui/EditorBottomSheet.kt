@@ -62,6 +62,7 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.models.LogLine
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.utils.DiagnosticsFormatter
 import com.itsaky.androidide.utils.IntentUtils.shareFile
@@ -197,6 +198,7 @@ class EditorBottomSheet
 						// update view model in case the tab was selected
 						// by user input; the sheetState collector refreshes the FABs.
 						viewModel.setSheetState(currentTab = tab.position)
+						binding.wordWrapOutputAction.isChecked = EditorPreferences.outputWordWrap
 					}
 
 					override fun onTabUnselected(tab: Tab) {}
@@ -279,16 +281,11 @@ class EditorBottomSheet
 			}
 			binding.filterOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_FILTER))
 
+			binding.wordWrapOutputAction.isChecked = EditorPreferences.outputWordWrap
 			binding.wordWrapOutputAction.setOnClickListener {
-				val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
-				if (fragment is WrappableOutputFragment) {
-					val prefs = context.getSharedPreferences("OutputWordWrapPrefs", Context.MODE_PRIVATE)
-					val isCurrentlyEnabled = fragment.isWordWrapEnabled()
-					val newState = !isCurrentlyEnabled
-					fragment.setWordWrapEnabled(newState)
-					binding.wordWrapOutputAction.isChecked = newState
-					prefs.edit().putBoolean(fragment.wordWrapPrefKey, newState).apply()
-				}
+				val newState = !EditorPreferences.outputWordWrap
+				EditorPreferences.outputWordWrap = newState
+				binding.wordWrapOutputAction.isChecked = newState
 			}
 
 			binding.headerContainer.setOnClickListener {

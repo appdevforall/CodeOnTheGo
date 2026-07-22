@@ -44,6 +44,12 @@ import io.github.rosemoe.sora.widget.style.CursorAnimator
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 
+import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.preferences.internal.EditorPreferences
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
+
 /**
  * Fragment to show logs.
  *
@@ -61,9 +67,6 @@ abstract class LogViewFragment<V : LogViewModel> :
 	override val currentEditor: IDEEditor? get() = _binding?.editor
 
 	open val tooltipTag = ""
-
-	override val wordWrapPrefKey: String
-		get() = "word_wrap_pref_${this::class.java.simpleName}"
 
 	override fun setWordWrapEnabled(enabled: Boolean) {
 		_binding?.editor?.isWordwrap = enabled
@@ -95,10 +98,20 @@ abstract class LogViewFragment<V : LogViewModel> :
 	abstract fun isSimpleFormattingEnabled(): Boolean
 
 	override fun onDestroyView() {
+		if (EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().unregister(this)
+		}
 		searchLayout = null
 		filterBar = null
 		_binding?.editor?.release()
 		super.onDestroyView()
+	}
+
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPreferenceChanged(event: PreferenceChangeEvent) {
+		if (event.key == EditorPreferences.OUTPUT_WORD_WRAP) {
+			setWordWrapEnabled(event.value as? Boolean ?: EditorPreferences.outputWordWrap)
+		}
 	}
 
 	override fun beginSearch() {
@@ -143,6 +156,10 @@ abstract class LogViewFragment<V : LogViewModel> :
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
+
+		if (!EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().register(this)
+		}
 
 		setupEditor()
 		setupSearchLayout()
@@ -211,8 +228,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 		editor.props.autoIndent = false
 		editor.isEditable = false
 		editor.dividerWidth = 0f
-		val prefs = requireContext().getSharedPreferences("OutputWordWrapPrefs", android.content.Context.MODE_PRIVATE)
-		editor.isWordwrap = prefs.getBoolean(wordWrapPrefKey, true)
+		editor.isWordwrap = EditorPreferences.outputWordWrap
 		editor.isUndoEnabled = false
 		editor.typefaceLineNumber = jetbrainsMono()
 		editor.setTextSize(12f)
