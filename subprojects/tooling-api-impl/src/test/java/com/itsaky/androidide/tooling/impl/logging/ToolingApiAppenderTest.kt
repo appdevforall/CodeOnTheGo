@@ -15,28 +15,23 @@ import org.slf4j.event.Level
 
 /**
  * [Main.client] has no production setter (only ever assigned once, when the tooling API
- * server actually connects), so this test reaches into [Main]'s private backing field via
- * reflection to install a mock for the duration of each test, and always clears it afterward.
+ * server actually connects), so this test uses [Main.setClientForTesting] to install a mock
+ * for the duration of each test, and always clears it afterward.
  *
  * @author Akash Yadav
  */
 @RunWith(JUnit4::class)
 class ToolingApiAppenderTest {
-	private fun setMainClient(client: IToolingApiClient?) {
-		val field = Main::class.java.getDeclaredField("_client")
-		field.isAccessible = true
-		field.set(Main, client)
-	}
 
 	@After
 	fun clearMainClient() {
-		setMainClient(null)
+		Main.setClientForTesting(null)
 	}
 
 	@Test
 	fun `onLog forwards level, tag and message`() {
 		val client = mockk<IToolingApiClient>(relaxed = true)
-		setMainClient(client)
+		Main.setClientForTesting(client)
 
 		ToolingApiAppender.onLog(Level.WARN, "com.itsaky.androidide.Foo", "hello world", null)
 
@@ -50,7 +45,7 @@ class ToolingApiAppenderTest {
 	@Test
 	fun `onLog appends the throwable's stack trace to the message`() {
 		val client = mockk<IToolingApiClient>(relaxed = true)
-		setMainClient(client)
+		Main.setClientForTesting(client)
 
 		ToolingApiAppender.onLog(Level.ERROR, "Foo", "boom happened", RuntimeException("cause"))
 
@@ -64,7 +59,7 @@ class ToolingApiAppenderTest {
 
 	@Test
 	fun `onLog does not throw when no client is connected`() {
-		setMainClient(null)
+		Main.setClientForTesting(null)
 
 		ToolingApiAppender.onLog(Level.INFO, "Foo", "no client yet", null)
 	}

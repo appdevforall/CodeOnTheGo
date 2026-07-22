@@ -16,6 +16,7 @@
  */
 package com.itsaky.androidide.tooling.impl
 
+import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.logging.provider.IdeLogRouter
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher.newServerLauncher
@@ -44,6 +45,12 @@ object Main {
 
 	val client: IToolingApiClient?
 		get() = _client
+
+	/** Test-only seam for [_client]; the property itself stays private. */
+	@VisibleForTesting
+	internal fun setClientForTesting(client: IToolingApiClient?) {
+		_client = client
+	}
 
 	val future: Future<Void?>?
 		get() = _future

@@ -69,6 +69,7 @@ dependencies {
 	implementation(projects.shared)
 	implementation(projects.subprojects.projectModels)
 
+	implementation(libs.androidx.annotation)
 	implementation(libs.common.jkotlin)
 	implementation(libs.google.auto.service.annotations)
 	implementation(libs.xml.xercesImpl)
