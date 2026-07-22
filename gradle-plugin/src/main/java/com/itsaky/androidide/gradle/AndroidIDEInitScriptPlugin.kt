@@ -18,11 +18,14 @@
 package com.itsaky.androidide.gradle
 
 import com.itsaky.androidide.buildinfo.BuildInfo
-import org.adfa.constants.ANDROIDIDE_HOME
+import org.adfa.constants.COGO_GRADLE_PLUGIN_JAR_NAME
+import org.adfa.constants.COGO_GRADLE_PLUGIN_PATH
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.invocation.Gradle
 import org.gradle.api.logging.Logging
 import java.io.File
+import java.net.URLClassLoader
 
 const val MAX_LOGFILE_COUNT = 2
 
@@ -34,6 +37,39 @@ const val MAX_LOGFILE_COUNT = 2
 class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 	companion object {
 		private val logger = Logging.getLogger(AndroidIDEInitScriptPlugin::class.java)
+
+		/**
+		 * Picks what to put on the root buildscript classpath so that subprojects can resolve
+		 * [BuildInfo.PACKAGE_NAME] by plugin ID.
+		 *
+		 * An init script's own classpath does NOT reach project plugin resolution on any
+		 * Gradle version - a plugin ID only resolves from a buildscript classpath - so this
+		 * injection is the sole mechanism that makes `pluginManager.apply(id)` work below.
+		 *
+		 * Prefers the jar the IDE ships (unchanged on-device behavior), and falls back to
+		 * whatever the init script was loaded from, so the mechanism also works wherever
+		 * that path does not exist (tests, or a relocated IDE home). Injecting a path that
+		 * does not exist is a silent no-op in Gradle, which surfaces much later as a
+		 * confusing `Plugin with id '...' not found`, so an empty result fails loud here.
+		 */
+		internal fun resolvePluginClasspath(
+			bundledJar: File,
+			initScriptClasspath: List<File>,
+		): List<File> {
+			if (bundledJar.isFile) {
+				return listOf(bundledJar)
+			}
+
+			val fallback = initScriptClasspath.filter(File::exists)
+			if (fallback.isNotEmpty()) {
+				return fallback
+			}
+
+			throw GradleException(
+				"Cannot inject the '${BuildInfo.PACKAGE_NAME}' plugin: no plugin jar at " +
+					"'${bundledJar.absolutePath}' and the init script classpath is empty.",
+			)
+		}
 	}
 
 	override fun apply(target: Gradle) {
@@ -44,14 +80,13 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 		}
 
 		target.rootProject { rootProject ->
-			rootProject.buildscript.apply {
-				dependencies.apply {
-					add(
-						"classpath",
-						rootProject.files("$ANDROIDIDE_HOME/plugin/cogo-plugin.jar"),
-					)
-				}
-			}
+			val classpath =
+				resolvePluginClasspath(
+					File(COGO_GRADLE_PLUGIN_PATH, COGO_GRADLE_PLUGIN_JAR_NAME),
+					initScriptClasspath(),
+				)
+			logger.info("Injecting plugin classpath into the root buildscript: $classpath")
+			rootProject.buildscript.dependencies.add("classpath", rootProject.files(classpath))
 		}
 
 		target.projectsLoaded { gradle ->
@@ -69,6 +104,12 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 				}
 			}
 		}
+	}
+
+	/** The files this plugin itself was loaded from, i.e. the init script's classpath. */
+	private fun initScriptClasspath(): List<File> {
+		val loader = javaClass.classLoader as? URLClassLoader ?: return emptyList()
+		return loader.urLs.mapNotNull { url -> runCatching { File(url.toURI()) }.getOrNull() }
 	}
 
 	private fun removeDaemonLogs(gradle: Gradle) {

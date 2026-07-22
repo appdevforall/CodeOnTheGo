@@ -18,6 +18,7 @@
 package com.itsaky.androidide.gradle
 
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.tooling.api.GradlePluginConfig
 import com.itsaky.androidide.utils.FileProvider
 import com.itsaky.androidide.utils.SharedEnvironment
 import org.gradle.testkit.runner.BuildResult
@@ -32,6 +33,7 @@ internal fun buildProject(
   agpVersion: String = BuildInfo.AGP_VERSION_LATEST,
   gradleVersion: String = BuildInfo.AGP_VERSION_GRADLE_LATEST,
   useApplyPluginGroovySyntax: Boolean = false,
+  logSenderAar: File? = null,
   configureArgs: (MutableList<String>) -> Unit = {},
   vararg plugins: String
 ): BuildResult {
@@ -67,6 +69,13 @@ internal fun buildProject(
     "-Pandroidide.plugins.internal.mavenLocalRepositories=$repositories",
     "--stacktrace"
   )
+
+  if (logSenderAar != null) {
+    // LogSender is opt-in per build and reads its AAR from a property, so both have to be
+    // set for AndroidIDEGradlePlugin to apply it.
+    args += "-P${GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED}=true"
+    args += "-P${GradlePluginConfig.PROPERTY_LOG_SENDER_AAR}=${logSenderAar.absolutePath}"
+  }
 
   configureArgs(args)
 

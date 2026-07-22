@@ -27,8 +27,26 @@ plugins {
 
 description = "Gradle Plugin for projects that are built with AndroidIDE"
 
+// The functional tests run a real Gradle build against this repo's own plugins, so those
+// have to be staged into build-local maven repos first, and their locations handed to the
+// harness through repos.txt. Wired here rather than in build-logic because a
+// projectsEvaluated sweep silently misses projects under configure-on-demand.
+val mavenLocalStagingProjects = listOf(":logsender", ":logger", ":build-info")
+
 tasks.named<Test>("test") {
 	useJUnitPlatform()
+
+	val stagedRepos =
+		mavenLocalStagingProjects.map { path ->
+			dependsOn("$path:publishAllPublicationsToBuildMavenLocalRepository")
+			project(path).layout.buildDirectory.dir("maven-local").get().asFile.absolutePath
+		}
+	val reposFile = layout.buildDirectory.file("maven-local/repos.txt").get().asFile
+
+	doFirst {
+		reposFile.parentFile.mkdirs()
+		reposFile.writeText(stagedRepos.joinToString(separator = File.pathSeparator))
+	}
 }
 
 configurations {

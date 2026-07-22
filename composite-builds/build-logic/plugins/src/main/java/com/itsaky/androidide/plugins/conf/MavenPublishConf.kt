@@ -28,7 +28,7 @@ import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.tasks.Delete
-import org.gradle.api.tasks.testing.Test
+import org.gradle.plugins.signing.Sign
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.create
 import org.gradle.kotlin.dsl.withType
@@ -84,6 +84,12 @@ fun Project.configureMavenPublish() {
     coordinates(project.group.toString(), project.name, project.publishingVersion)
     publishToMavenCentral(host = S01)
     signAllPublications()
+
+    // The signing key only exists on the publishing CI (ORG_GRADLE_PROJECT_signingInMemoryKey).
+    // Without this, publishing to the build-local repo - which the gradle-plugin functional
+    // tests depend on - fails anywhere else with "no configured signatory".
+    val hasSigningKey = project.providers.gradleProperty("signingInMemoryKey").isPresent
+    project.tasks.withType<Sign>().configureEach { onlyIf { hasSigningKey } }
 
     if (plugins.hasPlugin("com.android.library")) {
       configure(AndroidMultiVariantLibrary())
