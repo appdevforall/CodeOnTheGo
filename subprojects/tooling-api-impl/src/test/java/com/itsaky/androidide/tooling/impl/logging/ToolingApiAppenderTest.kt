@@ -22,7 +22,6 @@ import org.slf4j.event.Level
  */
 @RunWith(JUnit4::class)
 class ToolingApiAppenderTest {
-
 	@After
 	fun clearMainClient() {
 		Main.setClientForTesting(null)
