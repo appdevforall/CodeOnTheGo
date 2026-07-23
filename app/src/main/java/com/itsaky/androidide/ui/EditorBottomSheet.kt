@@ -57,10 +57,12 @@ import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.SearchableOutputFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.fragments.output.WrappableOutputFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.models.LogLine
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.utils.DiagnosticsFormatter
 import com.itsaky.androidide.utils.IntentUtils.shareFile
@@ -196,6 +198,7 @@ class EditorBottomSheet
 						// update view model in case the tab was selected
 						// by user input; the sheetState collector refreshes the FABs.
 						viewModel.setSheetState(currentTab = tab.position)
+						updateWordWrapButtonState(EditorPreferences.outputWordWrap)
 					}
 
 					override fun onTabUnselected(tab: Tab) {}
@@ -278,6 +281,14 @@ class EditorBottomSheet
 			}
 			binding.filterOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_FILTER))
 
+			updateWordWrapButtonState(EditorPreferences.outputWordWrap)
+			binding.wordWrapOutputAction.setOnClickListener {
+				val newState = !EditorPreferences.outputWordWrap
+				EditorPreferences.outputWordWrap = newState
+				updateWordWrapButtonState(newState)
+			}
+			binding.wordWrapOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_WORD_WRAP))
+
 			binding.headerContainer.setOnClickListener {
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 			}
@@ -307,6 +318,8 @@ class EditorBottomSheet
 			binding.searchOutputAction.setOnLongClickListener(null)
 			binding.filterOutputAction.setOnClickListener(null)
 			binding.filterOutputAction.setOnLongClickListener(null)
+			binding.wordWrapOutputAction.setOnClickListener(null)
+			binding.wordWrapOutputAction.setOnLongClickListener(null)
 			binding.copyDiagnosticsFab.setOnClickListener(null)
 			binding.headerContainer.setOnClickListener(null)
 			removeOnLayoutChangeListener(fabLayoutChangeListener)
@@ -316,6 +329,14 @@ class EditorBottomSheet
 
 			pagerAdapter.clearAll()
 			super.onDetachedFromWindow()
+		}
+
+		private fun updateWordWrapButtonState(isWordWrapEnabled: Boolean) {
+			binding.wordWrapOutputAction.isChecked = isWordWrapEnabled
+			binding.wordWrapOutputAction.contentDescription =
+				context.getString(
+					if (isWordWrapEnabled) R.string.cd_disable_word_wrap else R.string.cd_enable_word_wrap,
+				)
 		}
 
 		private fun onApkInstallationSessionChanged(state: ApkInstallationViewModel.SessionState) {
@@ -636,6 +657,7 @@ class EditorBottomSheet
 
 			val showShareAndClear = isExpanded && currentFragment is ShareableOutputFragment
 			val showSearchAndFilter = isExpanded && currentFragment is SearchableOutputFragment
+			val showWordWrap = isExpanded && currentFragment is WrappableOutputFragment
 			val showCopy =
 				isExpanded &&
 					currentFragment != null &&
@@ -645,8 +667,17 @@ class EditorBottomSheet
 			binding.shareOutputAction.isVisible = showShareAndClear
 			binding.searchOutputAction.isVisible = showSearchAndFilter
 			binding.filterOutputAction.isVisible = showSearchAndFilter
-			binding.outputActions.isVisible = showShareAndClear || showSearchAndFilter
+			binding.wordWrapOutputAction.isVisible = showWordWrap
+			binding.outputActions.isVisible = showShareAndClear || showSearchAndFilter || showWordWrap
 			binding.copyDiagnosticsFab.isVisible = showCopy
+
+			if (showWordWrap) {
+				val isEnabled = EditorPreferences.outputWordWrap
+				if (currentFragment.isWordWrapEnabled() != isEnabled) {
+					currentFragment.setWordWrapEnabled(isEnabled)
+				}
+				updateWordWrapButtonState(isEnabled)
+			}
 		}
 
 		// The bottom-anchored FAB goes off-screen when the bottom sheet is collapsed.

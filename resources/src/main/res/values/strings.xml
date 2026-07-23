@@ -1024,6 +1024,10 @@
 	<string name="cd_drawer_open">Open project menu</string>
 	<string name="cd_drawer_close">Close project menu</string>
 
+	<!-- Output actions content descriptions -->
+	<string name="cd_enable_word_wrap">Enable word wrap</string>
+	<string name="cd_disable_word_wrap">Disable word wrap</string>
+
 	<string name="unknown_error">"An unknown error occurred."</string>
 	<string name="build_in_progress_warning">A build is already in progress. Ignoring new request.</string>
 	<string name="error_build_service_not_found">Build service not found.</string>

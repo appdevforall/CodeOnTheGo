@@ -24,15 +24,20 @@ import androidx.annotation.Nullable;
 import com.itsaky.androidide.R;
 import com.itsaky.androidide.databinding.FragmentNonEditableEditorBinding;
 import com.itsaky.androidide.editor.ui.IDEEditor;
+import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent;
 import com.itsaky.androidide.fragments.EmptyStateFragment;
+import com.itsaky.androidide.preferences.internal.EditorPreferences;
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE;
 import com.itsaky.androidide.utils.BasicBuildInfo;
 import com.itsaky.androidide.utils.TypefaceUtilsKt;
 import io.github.rosemoe.sora.lang.EmptyLanguage;
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
 
 public abstract class NonEditableEditorFragment extends
 		EmptyStateFragment<FragmentNonEditableEditorBinding>
-		implements ShareableOutputFragment {
+		implements ShareableOutputFragment, WrappableOutputFragment {
 
 	public NonEditableEditorFragment() {
 		super(R.layout.fragment_non_editable_editor, FragmentNonEditableEditorBinding::bind);
@@ -78,19 +83,51 @@ public abstract class NonEditableEditorFragment extends
 	}
 
 	@Override
+	public boolean isWordWrapEnabled() {
+		IDEEditor editor = getEditor();
+		return editor != null && editor.isWordwrap();
+	}
+
+	@Override
+	public void onDestroyView() {
+		if (EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().unregister(this);
+		}
+		super.onDestroyView();
+	}
+
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	public void onPreferenceChanged(PreferenceChangeEvent event) {
+		if (EditorPreferences.OUTPUT_WORD_WRAP.equals(event.getKey())) {
+			setWordWrapEnabled(Boolean.TRUE.equals(event.getValue()));
+		}
+	}
+
+	@Override
 	public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
 		super.onViewCreated(view, savedInstanceState);
+		if (!EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().register(this);
+		}
 		getEmptyStateViewModel().setEmptyMessage(createEmptyStateMessage());
 		final var editor = getBinding().editor;
 		editor.setEditable(false);
 		editor.setDividerWidth(0);
 		editor.setEditorLanguage(new EmptyLanguage());
-		editor.setWordwrap(true);
+		editor.setWordwrap(EditorPreferences.INSTANCE.getOutputWordWrap());
 		editor.setUndoEnabled(false);
 		editor.setTypefaceLineNumber(TypefaceUtilsKt.jetbrainsMono());
 		editor.setTypefaceText(TypefaceUtilsKt.jetbrainsMono());
 		editor.setTextSize(12);
 		editor.setColorScheme(SchemeAndroidIDE.newInstance(requireContext()));
+	}
+
+	@Override
+	public void setWordWrapEnabled(boolean enabled) {
+		IDEEditor editor = getEditor();
+		if (editor != null) {
+			editor.setWordwrap(enabled);
+		}
 	}
 
 	@NonNull

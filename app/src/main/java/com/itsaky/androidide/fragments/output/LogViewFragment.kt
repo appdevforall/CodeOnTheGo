@@ -32,9 +32,11 @@ import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.ui.EditorSearchLayout
 import com.itsaky.androidide.editor.ui.IDEEditor
+import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.models.LogLine
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.jetbrainsMono
@@ -42,6 +44,9 @@ import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.LogViewModel
 import io.github.rosemoe.sora.widget.style.CursorAnimator
 import kotlinx.coroutines.launch
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 
 /**
@@ -52,7 +57,8 @@ import org.slf4j.LoggerFactory
 abstract class LogViewFragment<V : LogViewModel> :
 	EmptyStateFragment<FragmentLogBinding>(R.layout.fragment_log, FragmentLogBinding::bind),
 	ShareableOutputFragment,
-	SearchableOutputFragment {
+	SearchableOutputFragment,
+	WrappableOutputFragment {
 	companion object {
 		private val log = LoggerFactory.getLogger(LogViewFragment::class.java)
 	}
@@ -60,6 +66,12 @@ abstract class LogViewFragment<V : LogViewModel> :
 	override val currentEditor: IDEEditor? get() = _binding?.editor
 
 	open val tooltipTag = ""
+
+	override fun setWordWrapEnabled(enabled: Boolean) {
+		_binding?.editor?.isWordwrap = enabled
+	}
+
+	override fun isWordWrapEnabled(): Boolean = _binding?.editor?.isWordwrap == true
 
 	abstract val viewModel: V
 
@@ -83,10 +95,20 @@ abstract class LogViewFragment<V : LogViewModel> :
 	abstract fun isSimpleFormattingEnabled(): Boolean
 
 	override fun onDestroyView() {
+		if (EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().unregister(this)
+		}
 		searchLayout = null
 		filterBar = null
 		_binding?.editor?.release()
 		super.onDestroyView()
+	}
+
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPreferenceChanged(event: PreferenceChangeEvent) {
+		if (event.key == EditorPreferences.OUTPUT_WORD_WRAP) {
+			setWordWrapEnabled(event.value as Boolean)
+		}
 	}
 
 	override fun beginSearch() {
@@ -131,6 +153,10 @@ abstract class LogViewFragment<V : LogViewModel> :
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
+
+		if (!EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().register(this)
+		}
 
 		setupEditor()
 		setupSearchLayout()
@@ -199,7 +225,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 		editor.props.autoIndent = false
 		editor.isEditable = false
 		editor.dividerWidth = 0f
-		editor.isWordwrap = true
+		editor.isWordwrap = EditorPreferences.outputWordWrap
 		editor.isUndoEnabled = false
 		editor.typefaceLineNumber = jetbrainsMono()
 		editor.setTextSize(12f)

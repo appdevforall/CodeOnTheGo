@@ -9,6 +9,7 @@
 
 <RelativeLayout
 	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
 	xmlns:tools="http://schemas.android.com/tools"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
@@ -18,34 +19,34 @@
 		android:id="@+id/border"
 		layout="@layout/layout_divider_horizontal"
 		android:layout_width="match_parent"
-		android:layout_marginBottom="2dp"
 		android:layout_height="0.5dp"
-		android:layout_alignParentTop="true" />
+		android:layout_alignParentTop="true"
+		android:layout_marginBottom="2dp" />
 
 	<ViewFlipper
 		android:id="@+id/header_container"
 		android:layout_width="match_parent"
-		android:layout_below="@id/border"
 		android:layout_height="@dimen/editor_sheet_collapsed_height"
+		android:layout_below="@id/border"
 		android:background="?attr/colorSurface">
 
 		<include
-			layout="@layout/layout_editor_build_status"
-			android:id="@+id/build_status" />
+			android:id="@+id/build_status"
+			layout="@layout/layout_editor_build_status" />
 
 		<com.itsaky.androidide.ui.SymbolInputView
 			android:id="@+id/symbol_input"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
 			android:fadeScrollbars="false"
 			android:scrollbarAlwaysDrawHorizontalTrack="true"
 			android:scrollbarSize="2dp"
 			android:scrollbarStyle="outsideInset"
-			android:scrollbars="horizontal"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content" />
+			android:scrollbars="horizontal" />
 
 		<include
-			layout="@layout/layout_editor_bottom_action"
-			android:id="@+id/bottom_action" />
+			android:id="@+id/bottom_action"
+			layout="@layout/layout_editor_bottom_action" />
 
 	</ViewFlipper>
 
@@ -63,34 +64,67 @@
 		android:layout_alignParentBottom="true"
 		tools:layout_height="56dp" />
 
-	<LinearLayout
+	<androidx.constraintlayout.widget.ConstraintLayout
 		android:id="@+id/output_actions"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
 		android:layout_below="@id/tabs"
-		android:orientation="horizontal"
 		android:layout_margin="8dp">
 
 		<com.google.android.material.button.MaterialButton
 			android:id="@+id/search_output_action"
 			style="@style/EditorBottomSheet.OutputActionButton"
-			android:text="@string/log_action_search" />
+			android:text="@string/log_action_search"
+			app:layout_constrainedWidth="true"
+			app:layout_constraintBottom_toBottomOf="parent"
+			app:layout_constraintEnd_toStartOf="@id/filter_output_action"
+			app:layout_constraintHorizontal_bias="0.0"
+			app:layout_constraintHorizontal_chainStyle="packed"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toTopOf="parent" />
 
 		<com.google.android.material.button.MaterialButton
 			android:id="@+id/filter_output_action"
 			style="@style/EditorBottomSheet.OutputActionButton"
-			android:text="@string/log_action_filter" />
+			android:text="@string/log_action_filter"
+			app:layout_constrainedWidth="true"
+			app:layout_constraintBottom_toBottomOf="parent"
+			app:layout_constraintEnd_toStartOf="@id/share_output_action"
+			app:layout_constraintStart_toEndOf="@id/search_output_action"
+			app:layout_constraintTop_toTopOf="parent" />
 
 		<com.google.android.material.button.MaterialButton
 			android:id="@+id/share_output_action"
 			style="@style/EditorBottomSheet.OutputActionButton"
-			android:text="@string/log_action_share" />
+			android:text="@string/log_action_share"
+			app:layout_constrainedWidth="true"
+			app:layout_constraintBottom_toBottomOf="parent"
+			app:layout_constraintEnd_toStartOf="@id/clear_output_action"
+			app:layout_constraintStart_toEndOf="@id/filter_output_action"
+			app:layout_constraintTop_toTopOf="parent" />
 
 		<com.google.android.material.button.MaterialButton
 			android:id="@+id/clear_output_action"
 			style="@style/EditorBottomSheet.OutputActionButton"
-			android:text="@string/log_action_clear" />
-	</LinearLayout>
+			android:text="@string/log_action_clear"
+			app:layout_constrainedWidth="true"
+			app:layout_constraintBottom_toBottomOf="parent"
+			app:layout_constraintEnd_toStartOf="@id/word_wrap_output_action"
+			app:layout_constraintStart_toEndOf="@id/share_output_action"
+			app:layout_constraintTop_toTopOf="parent" />
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/word_wrap_output_action"
+			style="@style/Widget.Material3.Button.IconButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:checkable="true"
+			android:contentDescription="@string/cd_enable_word_wrap"
+			app:icon="@drawable/ic_wrap_text"
+			app:layout_constraintBottom_toBottomOf="parent"
+			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintTop_toTopOf="parent" />
+	</androidx.constraintlayout.widget.ConstraintLayout>
 
 	<androidx.viewpager2.widget.ViewPager2
 		android:id="@+id/pager"
