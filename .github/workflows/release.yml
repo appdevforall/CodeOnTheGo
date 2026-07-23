@@ -498,6 +498,10 @@ jobs:
           fi
           echo "Validated NEXT_RELEASE_VERSION: $NEXT_RELEASE_VERSION"
 
+      - name: Install advancecomp (advzip, used by recompressApk)
+        run: |
+          command -v advzip || { sudo apt-get update && sudo apt-get install -y advancecomp; }
+
       - name: Assemble Release APK
         env:
           INCLUDE_LLAMA_ASSETS: "true"
