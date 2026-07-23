@@ -15,32 +15,17 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.logging;
+package com.itsaky.androidide.logging.provider
 
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import com.itsaky.androidide.logging.utils.LogUtils;
+import org.slf4j.ILoggerFactory
+import org.slf4j.Logger
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * @author Akash Yadav
  */
-public class JvmStdErrAppender extends StdErrAppender {
+class IdeLoggerFactory : ILoggerFactory {
+	private val loggers = ConcurrentHashMap<String, Logger>()
 
-	public static final String PROP_JVM_STDERR_APPENDER_ENABLED = "ide.logging.jvmStdErrAppenderEnabled";
-
-	private boolean jvmStdErrAppenderEnabled = true;
-
-	@Override
-	public void start() {
-		jvmStdErrAppenderEnabled = Boolean.parseBoolean(
-				System.getProperty(PROP_JVM_STDERR_APPENDER_ENABLED, "true"));
-		jvmStdErrAppenderEnabled &= LogUtils.isJvm();
-		super.start();
-	}
-
-	@Override
-	protected void append(ILoggingEvent eventObject) {
-		if (!jvmStdErrAppenderEnabled)
-			return;
-		super.append(eventObject);
-	}
+	override fun getLogger(name: String): Logger = loggers.computeIfAbsent(name) { IdeLogger(it) }
 }

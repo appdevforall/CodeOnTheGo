@@ -5,9 +5,6 @@ import android.provider.Settings
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
-import ch.qos.logback.classic.Level
-import ch.qos.logback.classic.Logger
-import ch.qos.logback.classic.LoggerContext
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.strictmode.StrictModeConfig
@@ -19,15 +16,17 @@ import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.handlers.GlitchTipDiagnosticsContext
+import com.itsaky.androidide.logging.provider.IdeLogRouter
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
+import io.sentry.Breadcrumb
 import io.sentry.Sentry
+import io.sentry.SentryLevel
 import io.sentry.android.core.SentryAndroid
-import io.sentry.logback.SentryAppender
 import io.sentry.protocol.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,6 +36,7 @@ import org.greenrobot.eventbus.EventBus
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 import kotlin.system.exitProcess
 
 /**
@@ -84,16 +84,28 @@ internal object DeviceProtectedApplicationLoader :
 				GlitchTipDiagnosticsContext.install(options)
 			}
 
-			val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
-			val glitchTipLogAppender =
-				SentryAppender().apply {
-					context = loggerContext
-					setMinimumEventLevel(Level.OFF)
-					setMinimumBreadcrumbLevel(Level.INFO)
-					setMinimumLevel(Level.WARN)
-					start()
+			// Forward INFO+ logs to GlitchTip as breadcrumbs (never as events; crash events are
+			// only ever sent via explicit Sentry.captureException calls elsewhere). INFO matches
+			// the old SentryAppender's setMinimumBreadcrumbLevel(Level.INFO) - that threshold is
+			// independent of setMinimumLevel(Level.WARN), which only gated the separate,
+			// unused "Sentry Logs" feature.
+			IdeLogRouter.addSink { level, loggerName, message, _ ->
+				if (level.toInt() >= Level.INFO.toInt()) {
+					Sentry.addBreadcrumb(
+						Breadcrumb().apply {
+							category = loggerName
+							this.message = message
+							this.level =
+								when (level) {
+									Level.ERROR -> SentryLevel.ERROR
+									Level.WARN -> SentryLevel.WARNING
+									Level.INFO -> SentryLevel.INFO
+									else -> SentryLevel.DEBUG
+								}
+						},
+					)
 				}
-			loggerContext.getLogger(Logger.ROOT_LOGGER_NAME).addAppender(glitchTipLogAppender)
+			}
 
 			Sentry.setUser(
 				User().apply {

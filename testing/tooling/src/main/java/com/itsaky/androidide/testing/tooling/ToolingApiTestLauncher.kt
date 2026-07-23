@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.testing.tooling
 
-import ch.qos.logback.core.CoreConstants
 import com.itsaky.androidide.testing.tooling.models.ToolingApiTestLauncherParams
 import com.itsaky.androidide.testing.tooling.models.ToolingApiTestScope
 import com.itsaky.androidide.tooling.api.IToolingApiClient
@@ -246,10 +245,6 @@ object ToolingApiTestLauncher {
 			cmd.add("-D$key=$value")
 		}
 
-		cmd.add(
-			"-D${CoreConstants.STATUS_LISTENER_CLASS_KEY}=com.itsaky.androidide.tooling.impl.util.LogbackStatusListener",
-		)
-
 		Collections.addAll(cmd, "-jar", jar)
 
 		println(
@@ -299,7 +294,6 @@ object ToolingApiTestLauncher {
 				ILogger.Level.WARNING -> logger.warn(message)
 				ILogger.Level.ERROR -> logger.error(message)
 				ILogger.Level.INFO -> logger.info(message)
-
 				else -> logger.trace(message)
 			}
 		}
