@@ -96,12 +96,12 @@ public abstract class NonEditableEditorFragment extends
 		super.onDestroyView();
 	}
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onPreferenceChanged(PreferenceChangeEvent event) {
-        if (EditorPreferences.OUTPUT_WORD_WRAP.equals(event.getKey())) {
-            setWordWrapEnabled(Boolean.TRUE.equals(event.getValue()));
-        }
-    }
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	public void onPreferenceChanged(PreferenceChangeEvent event) {
+		if (EditorPreferences.OUTPUT_WORD_WRAP.equals(event.getKey())) {
+			setWordWrapEnabled(Boolean.TRUE.equals(event.getValue()));
+		}
+	}
 
 	@Override
 	public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
