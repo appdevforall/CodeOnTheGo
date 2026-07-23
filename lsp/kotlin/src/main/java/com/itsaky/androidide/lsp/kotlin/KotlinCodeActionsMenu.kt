@@ -6,6 +6,7 @@ import com.itsaky.androidide.lsp.actions.IActionsMenuProvider
 import com.itsaky.androidide.lsp.actions.UncommentLineAction
 import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
 import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
+import com.itsaky.androidide.lsp.kotlin.actions.NullSafetyAction
 import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
 
 object KotlinCodeActionsMenu : IActionsMenuProvider {
@@ -19,6 +20,7 @@ object KotlinCodeActionsMenu : IActionsMenuProvider {
 			UncommentLineAction(KT_LANG, KT_EXTS, KT_LINE_COMMENT_TOKEN),
 			AddImportAction(),
 			OrganizeImportsAction(),
+			NullSafetyAction(),
 			ImplementMembersAction(),
 		)
 }
