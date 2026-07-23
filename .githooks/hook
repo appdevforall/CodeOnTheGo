@@ -16,8 +16,10 @@ HOOKS_DIR="${TOP_DIR}/.githooks/${HOOK_NAME}"
 
 echo "[*] Running ${HOOK_NAME} hooks..."
 
-# Find all executable files in the hooks directory and sort them
-for hook in $(find "$HOOKS_DIR" -type f -executable | sort); do
+# Find all executable files in the hooks directory and sort them.
+# Test -x per file rather than `find -executable` (a GNU primary BSD/macOS find rejects).
+for hook in $(find "$HOOKS_DIR" -type f | sort); do
+	[ -x "$hook" ] || continue
 	echo "[*] Running $(basename "$hook")..."
 	"$hook" || {
 		echo "[!] Hook $(basename "$hook") failed"
