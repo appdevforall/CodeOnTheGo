@@ -17,18 +17,10 @@
 
 package com.itsaky.androidide.fragments.output
 
-import com.itsaky.androidide.preferences.internal.EditorPreferences
-
 /**
  * Interface for output fragments that support toggling word wrap.
  */
 interface WrappableOutputFragment {
-	/**
-	 * Preference key to persist word wrap for output fragments.
-	 */
-	val wordWrapPrefKey: String
-		get() = EditorPreferences.OUTPUT_WORD_WRAP
-
 	/**
 	 * Set the word wrap state of the editor.
 	 */

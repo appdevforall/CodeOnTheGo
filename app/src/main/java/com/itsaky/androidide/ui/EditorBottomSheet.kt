@@ -670,9 +670,8 @@ class EditorBottomSheet
 			binding.wordWrapOutputAction.isVisible = showWordWrap
 			binding.outputActions.isVisible = showShareAndClear || showSearchAndFilter || showWordWrap
 
-			if (showWordWrap && currentFragment is WrappableOutputFragment) {
-				val prefs = context.getSharedPreferences("OutputWordWrapPrefs", Context.MODE_PRIVATE)
-				val isEnabled = prefs.getBoolean(currentFragment.wordWrapPrefKey, currentFragment.isWordWrapEnabled())
+			if (showWordWrap) {
+				val isEnabled = EditorPreferences.outputWordWrap
 				if (currentFragment.isWordWrapEnabled() != isEnabled) {
 					currentFragment.setWordWrapEnabled(isEnabled)
 				}
