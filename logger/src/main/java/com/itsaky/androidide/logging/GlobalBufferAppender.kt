@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.logging
 
+import android.util.Log
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.AppenderBase
@@ -33,13 +34,19 @@ import java.util.concurrent.atomic.AtomicInteger
  * @author Akash Yadav
  */
 class GlobalBufferAppender : AppenderBase<ILoggingEvent>() {
-
 	interface Consumer {
 		val logLevel: Level
-		fun consume(message: String)
+
+		fun consume(
+			level: Level,
+			message: String,
+		)
 	}
 
-	private data class LogEvent(val level: Level, val message: String)
+	private data class LogEvent(
+		val level: Level,
+		val message: String,
+	)
 
 	private val logLayout = IDELogFormatLayout(false)
 
@@ -59,7 +66,7 @@ class GlobalBufferAppender : AppenderBase<ILoggingEvent>() {
 				dispatchTo(
 					consumer = consumer,
 					level = message.level,
-					message = message.message
+					message = message.message,
 				)
 			}
 		}
@@ -71,7 +78,10 @@ class GlobalBufferAppender : AppenderBase<ILoggingEvent>() {
 			consumers.remove(consumer)
 		}
 
-		private fun dispatch(level: Level, message: String) {
+		private fun dispatch(
+			level: Level,
+			message: String,
+		) {
 			consumers.forEach { consumer ->
 				dispatchTo(consumer, level, message)
 			}
@@ -80,10 +90,14 @@ class GlobalBufferAppender : AppenderBase<ILoggingEvent>() {
 		private fun dispatchTo(
 			consumer: Consumer,
 			level: Level,
-			message: String
+			message: String,
 		) {
 			if (level.levelInt < consumer.logLevel.levelInt) return
-			runCatching { consumer.consume(message) }
+			try {
+				consumer.consume(level, message)
+			} catch (e: Exception) {
+				Log.e("GlobalBufferAppender", "Log consumer failed", e)
+			}
 		}
 	}
 
