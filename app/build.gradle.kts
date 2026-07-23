@@ -117,6 +117,9 @@ android {
 			excludes += "META-INF/DEPENDENCIES"
 			excludes += "META-INF/gradle/incremental.annotation.processors"
 
+			// httpclient's public-suffix cookie-domain data; unused, no code touches Apache HttpClient directly.
+			excludes += "mozilla/public-suffix-list.txt"
+
 			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
 			pickFirsts += "kotlin/reflect/reflect.kotlin_builtins"
 			pickFirsts += "kotlin/kotlin.kotlin_builtins"
