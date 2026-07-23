@@ -26,8 +26,12 @@ import android.util.AttributeSet
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityManager
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
+import android.widget.EditText
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
 import com.blankj.utilcode.util.FileUtils
@@ -52,6 +56,7 @@ import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.snippets.AbstractSnippetVariableResolver
 import com.itsaky.androidide.editor.snippets.FileVariableResolver
 import com.itsaky.androidide.editor.snippets.WorkspaceVariableResolver
+import com.itsaky.androidide.editor.utils.EditorAccessibilitySegments
 import com.itsaky.androidide.eventbus.events.editor.ChangeType
 import com.itsaky.androidide.eventbus.events.editor.ColorSchemeInvalidatedEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
@@ -620,6 +625,287 @@ constructor(
         }
     }
 
+    // region Accessibility (screen reader) cursor synchronization
+    //
+    // The base CodeEditor exposes its whole content to accessibility services as a single
+    // editable node, but does not advertise text-movement granularities, ACTION_SET_SELECTION
+    // or the granularity actions. As a result TalkBack cannot keep the real text cursor in sync
+    // with the reading position: navigating or double-tapping placed the cursor in the wrong
+    // location and typing landed on the wrong line. The overrides below make the editor behave
+    // like a standard EditText for screen readers.
+
+    private val accessibilityManager: AccessibilityManager? by lazy {
+        context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+    }
+
+    // Last touch-exploration (hover) position, in view coordinates, used to place the cursor
+    // where the user double-taps under TalkBack. NaN means "no recent exploration".
+    private var lastHoverX = Float.NaN
+    private var lastHoverY = Float.NaN
+
+    private val isTouchExplorationEnabled: Boolean
+        get() = accessibilityManager?.isTouchExplorationEnabled == true
+
+    override fun getAccessibilityClassName(): CharSequence =
+        // Only advertise EditText semantics in the same states createAccessibilityNodeInfo()
+        // does, so a read-only or released editor is not announced as an "Edit box".
+        if (!isReleased && isEnabled && isEditable) {
+            EditText::class.java.name
+        } else {
+            super.getAccessibilityClassName()
+        }
+
+    override fun createAccessibilityNodeInfo(): AccessibilityNodeInfo? {
+        val info = super.createAccessibilityNodeInfo() ?: return null
+        if (!isReleased && isEnabled && isEditable) {
+            // Report as an EditText so TalkBack engages its text-editing affordances and keeps
+            // the caret in sync with granular navigation.
+            info.className = EditText::class.java.name
+            info.movementGranularities = EditorAccessibilitySegments.SUPPORTED_GRANULARITIES
+            info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_SELECTION)
+            info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_NEXT_AT_MOVEMENT_GRANULARITY)
+            info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY)
+        }
+        return info
+    }
+
+    override fun dispatchHoverEvent(event: MotionEvent): Boolean {
+        // Remember where the user is exploring so ACTION_CLICK can place the caret there.
+        if (isTouchExplorationEnabled) {
+            lastHoverX = event.x
+            lastHoverY = event.y
+        }
+        return super.dispatchHoverEvent(event)
+    }
+
+    override fun performAccessibilityAction(
+        action: Int,
+        arguments: Bundle?,
+    ): Boolean {
+        when (action) {
+            AccessibilityNodeInfo.ACTION_SET_SELECTION ->
+                if (handleAccessibilitySetSelection(arguments)) return true
+
+            AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY ->
+                if (handleAccessibilityGranularityMove(action, arguments, forward = true)) return true
+
+            AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY ->
+                if (handleAccessibilityGranularityMove(action, arguments, forward = false)) return true
+
+            AccessibilityNodeInfo.ACTION_CLICK ->
+                if (handleAccessibilityClick()) return true
+        }
+        return super.performAccessibilityAction(action, arguments)
+    }
+
+    /**
+     * Places the caret where the user last explored by touch. This makes a TalkBack double-tap
+     * on a word or line move the real text cursor to that spot instead of the node's center.
+     */
+    private fun handleAccessibilityClick(): Boolean {
+        if (isReleased || !isEditable || !isTouchExplorationEnabled) return false
+        val x = lastHoverX
+        val y = lastHoverY
+        if (x.isNaN() || y.isNaN()) return false
+        return try {
+            if (!isFocused) requestFocus()
+            val packed = getPointPositionOnScreen(x, y)
+            val line = (packed ushr 32).toInt()
+            val column = (packed and 0xffffffffL).toInt()
+            if (line < 0 || column < 0) return false
+            setSelection(line, column)
+            true
+        } catch (e: IndexOutOfBoundsException) {
+            log.error("Error placing cursor from accessibility click", e)
+            false
+        } catch (e: IllegalArgumentException) {
+            log.error("Error placing cursor from accessibility click", e)
+            false
+        }
+    }
+
+    /** Handles [AccessibilityNodeInfo.ACTION_SET_SELECTION] using absolute character indices. */
+    private fun handleAccessibilitySetSelection(arguments: Bundle?): Boolean {
+        if (isReleased || !isEditable || arguments == null) return false
+        if (!arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT) ||
+            !arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT)
+        ) {
+            return false
+        }
+        val content = text
+        val length = content.length
+        val start = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT)
+        val end = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT)
+        if (start < 0 || end < 0 || start > length || end > length) return false
+        return applySelectionFromIndices(start, end)
+    }
+
+    /**
+     * Handles the move-by-granularity actions. Moves the real text cursor to the next/previous
+     * character, word or line and reports the traversed segment so the screen reader reads it,
+     * mirroring [EditText] behaviour.
+     */
+    private fun handleAccessibilityGranularityMove(
+        action: Int,
+        arguments: Bundle?,
+        forward: Boolean,
+    ): Boolean {
+        if (isReleased || !isEditable || arguments == null) return false
+        val granularity = arguments.getInt(
+            AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
+        )
+        val extendSelection = arguments.getBoolean(
+            AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
+            false,
+        )
+        val content = text
+        val cur = cursor ?: return false
+        val selStart = cur.left
+        val selEnd = cur.right
+
+        val fromIndex = if (forward) selEnd else selStart
+        val segment =
+            if (forward) {
+                EditorAccessibilitySegments.following(content, granularity, fromIndex)
+            } else {
+                EditorAccessibilitySegments.preceding(content, granularity, fromIndex)
+            } ?: return false
+
+        val segStart = segment[0]
+        val segEnd = segment[1]
+        val newCaret = if (forward) segEnd else segStart
+
+        val applied =
+            if (extendSelection) {
+                val anchor = if (forward) selStart else selEnd
+                applySelectionFromIndices(minOf(anchor, newCaret), maxOf(anchor, newCaret))
+            } else {
+                applySelectionFromIndices(newCaret, newCaret)
+            }
+        if (!applied) return false
+
+        sendTextTraversedEvent(segStart, segEnd, action, granularity)
+        return true
+    }
+
+    /** Converts absolute char indices to (line, column) positions and moves the selection. */
+    private fun applySelectionFromIndices(start: Int, end: Int): Boolean {
+        val content = text
+        return try {
+            val indexer = content.indexer
+            val startPos = indexer.getCharPosition(start)
+            if (start == end) {
+                setSelection(startPos.line, startPos.column)
+            } else {
+                val endPos = indexer.getCharPosition(end)
+                setSelectionRegion(startPos.line, startPos.column, endPos.line, endPos.column)
+            }
+            true
+        } catch (e: IndexOutOfBoundsException) {
+            log.error("Error applying accessibility selection [$start, $end]", e)
+            false
+        } catch (e: IllegalArgumentException) {
+            log.error("Error applying accessibility selection [$start, $end]", e)
+            false
+        }
+    }
+
+    /**
+     * Emits a [AccessibilityEvent.TYPE_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY] event so the
+     * screen reader announces the character/word/line the caret just traversed.
+     */
+    @Suppress("DEPRECATION") // AccessibilityEvent(int) requires API 30; obtain() works on minSdk 28.
+    private fun sendTextTraversedEvent(
+        fromIndex: Int,
+        toIndex: Int,
+        action: Int,
+        granularity: Int,
+    ) {
+        val manager = accessibilityManager ?: return
+        if (!manager.isEnabled) return
+        val event = AccessibilityEvent.obtain(
+            AccessibilityEvent.TYPE_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY,
+        )
+        onInitializeAccessibilityEvent(event)
+        event.className = EditText::class.java.name
+        event.fromIndex = fromIndex
+        event.toIndex = toIndex
+        event.action = action
+        event.movementGranularity = granularity
+        // The reader substrings [fromIndex, toIndex] out of the event text.
+        event.text.add(text.toString())
+        sendAccessibilityEventUnchecked(event)
+    }
+
+    /**
+     * Emits a [AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED] event so the screen reader
+     * tracks the caret/selection as it moves — required for reliable movement-by-granularity
+     * navigation (lines/paragraphs in particular) and to mirror standard [EditText] behaviour.
+     * Called on every selection change; cheap no-op when no accessibility service is running.
+     */
+    @Suppress("DEPRECATION")
+    fun sendSelectionChangedAccessibilityEvent() {
+        val manager = accessibilityManager ?: return
+        if (!manager.isEnabled) return
+        val cur = cursor ?: return
+        val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED)
+        onInitializeAccessibilityEvent(event)
+        event.className = EditText::class.java.name
+        val content = text.toString()
+        event.fromIndex = cur.left
+        event.toIndex = cur.right
+        event.itemCount = content.length
+        event.text.add(content)
+        sendAccessibilityEventUnchecked(event)
+    }
+
+    /**
+     * Emits a [AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED] event so the screen reader announces
+     * inserted and deleted characters, like a standard [EditText]. TalkBack reconstructs the
+     * change from [AccessibilityEvent.getFromIndex], added/removed counts, the current text and
+     * [AccessibilityEvent.getBeforeText]. Cheap no-op when no accessibility service is running.
+     */
+    @Suppress("DEPRECATION")
+    fun sendTextChangedAccessibilityEvent(changeEvent: ContentChangeEvent) {
+        val manager = accessibilityManager ?: return
+        if (!manager.isEnabled) return
+        val current = text.toString()
+        val length = current.length
+        val fromIndex = changeEvent.changeStart.index.coerceIn(0, length)
+        val changed = changeEvent.changedText
+        val changedLen = changed.length
+
+        val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)
+        onInitializeAccessibilityEvent(event)
+        event.className = EditText::class.java.name
+        event.fromIndex = fromIndex
+        when (changeEvent.action) {
+            ContentChangeEvent.ACTION_INSERT -> {
+                event.addedCount = changedLen
+                event.removedCount = 0
+                // beforeText = current text with the just-inserted range removed.
+                val insertEnd = (fromIndex + changedLen).coerceIn(0, length)
+                event.beforeText = current.substring(0, fromIndex) + current.substring(insertEnd)
+            }
+
+            ContentChangeEvent.ACTION_DELETE -> {
+                event.addedCount = 0
+                event.removedCount = changedLen
+                // beforeText = current text with the just-deleted text put back.
+                event.beforeText = current.substring(0, fromIndex) + changed + current.substring(fromIndex)
+            }
+
+            else -> { // ACTION_SET_NEW_TEXT and any other wholesale replacement
+                event.addedCount = length
+                event.removedCount = 0
+                event.beforeText = ""
+            }
+        }
+        event.text.add(current)
+        sendAccessibilityEventUnchecked(event)
+    }
+    // endregion Accessibility
+
     override fun copyTextToClipboard(
         text: CharSequence,
         start: Int,
@@ -934,6 +1220,9 @@ constructor(
                 return@subscribeEvent
             }
 
+            // Announce inserted/deleted characters to screen readers, like a standard EditText.
+            sendTextChangedAccessibilityEvent(event)
+
             refreshModifiedState()
             // A pending inline suggestion is anchored to the pre-edit cursor position; any edit
             // invalidates it. The plugin re-issues one after its debounce.
@@ -951,6 +1240,9 @@ constructor(
             if (isReleased) {
                 return@subscribeEvent
             }
+
+            // Keep the screen reader's caret in sync as the selection moves, like an EditText.
+            sendSelectionChangedAccessibilityEvent()
 
             // Moving the cursor away from the anchor makes ghost text meaningless.
             dismissInlineSuggestion()
