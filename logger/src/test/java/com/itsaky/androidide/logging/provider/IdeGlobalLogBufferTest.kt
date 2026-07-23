@@ -21,7 +21,10 @@ class IdeGlobalLogBufferTest {
 	) : IdeGlobalLogBuffer.Consumer {
 		val received = Collections.synchronizedList(mutableListOf<String>())
 
-		override fun consume(message: String) {
+		override fun consume(
+			level: Level,
+			message: String,
+		) {
 			received.add(message)
 		}
 	}

@@ -33,7 +33,10 @@ object IdeGlobalLogBuffer {
 	interface Consumer {
 		val logLevel: Level
 
-		fun consume(message: String)
+		fun consume(
+			level: Level,
+			message: String,
+		)
 	}
 
 	private data class LogEvent(
@@ -90,7 +93,7 @@ object IdeGlobalLogBuffer {
 		message: String,
 	) {
 		if (level.toInt() < consumer.logLevel.toInt()) return
-		runCatching { consumer.consume(message) }
+		runCatching { consumer.consume(level, message) }
 			.onFailure { error -> System.err.println("IdeGlobalLogBuffer: consumer $consumer failed: $error") }
 	}
 }

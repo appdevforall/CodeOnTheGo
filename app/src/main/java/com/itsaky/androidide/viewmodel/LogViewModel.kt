@@ -1,23 +1,31 @@
 package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.logs.LogBuffer
+import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.models.LogLine
+import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.viewmodel.LogViewModel.Companion.LOG_FREQUENCY
 import com.itsaky.androidide.viewmodel.LogViewModel.Companion.MAX_CHUNK_SIZE
 import com.itsaky.androidide.viewmodel.LogViewModel.Companion.MAX_LINE_COUNT
 import com.itsaky.androidide.viewmodel.LogViewModel.Companion.TRIM_ON_LINE_COUNT
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -54,35 +62,62 @@ abstract class LogViewModel : ViewModel() {
 		const val MAX_LINE_COUNT = TRIM_ON_LINE_COUNT - 300
 
 		/**
-		 * The number of log events that are replayed to consumers.
+		 * The number of live log events that may be buffered for a slow collector.
 		 */
-		const val EVENT_REPLAY_COUNT = TRIM_ON_LINE_COUNT
+		const val EVENT_BUFFER_COUNT = TRIM_ON_LINE_COUNT
 	}
 
 	sealed interface UiEvent {
+		/** Replace the entire log view content. */
+		data class SetText(
+			val text: String,
+		) : UiEvent
+
 		data class Append(
 			val text: String,
 		) : UiEvent
 	}
 
-	private val logs =
-		MutableSharedFlow<String>(
-			replay = 0,
-			extraBufferCapacity = EVENT_REPLAY_COUNT,
+	private val buffer = LogBuffer(TRIM_ON_LINE_COUNT, MAX_LINE_COUNT)
+
+	private val liveEntries =
+		MutableSharedFlow<LogBuffer.Entry>(
+			replay = EVENT_BUFFER_COUNT,
+			extraBufferCapacity = EVENT_BUFFER_COUNT,
 			onBufferOverflow = BufferOverflow.DROP_OLDEST,
 		)
 
-	@OptIn(FlowPreview::class)
-	val uiEvents: SharedFlow<UiEvent> =
-		logs
-			.map { if (it.endsWith("\n")) it else "$it\n" }
-			.chunkedBySizeOrTime(MAX_CHUNK_SIZE, LOG_FREQUENCY)
-			.map<String, UiEvent> { UiEvent.Append(it) }
-			.shareIn(
-				scope = viewModelScope,
-				started = SharingStarted.Eagerly,
-				replay = EVENT_REPLAY_COUNT,
-			)
+	private val _filter = MutableStateFlow(LogFilter.NONE)
+	val filter: StateFlow<LogFilter> = _filter.asStateFlow()
+
+	// Bumped when the buffer is cleared, to force a re-render without a filter change
+	private val generation = MutableStateFlow(0)
+
+	/**
+	 * The log view content as UI events: on every (re)collection or filter change, a
+	 * [UiEvent.SetText] snapshot of the retained history filtered by the current [filter],
+	 * followed by [UiEvent.Append]s for matching live lines. The snapshot is taken after
+	 * subscribing to the live stream and stitched by sequence number, so no line is
+	 * missed or duplicated in between.
+	 */
+	@OptIn(ExperimentalCoroutinesApi::class)
+	val uiEvents: Flow<UiEvent> =
+		combine(_filter, generation) { filter, _ -> filter }
+			.flatMapLatest { filter ->
+				channelFlow {
+					var snapshotSeq = 0L
+					liveEntries
+						.onSubscription {
+							val (text, lastSeq) = buffer.snapshotFiltered(filter)
+							snapshotSeq = lastSeq
+							send(UiEvent.SetText(text))
+						}.filter { entry ->
+							entry.seq > snapshotSeq && filter.matches(entry.level, entry.text)
+						}.map { entry -> entry.text }
+						.chunkedBySizeOrTime(MAX_CHUNK_SIZE, LOG_FREQUENCY)
+						.collect { chunk -> send(UiEvent.Append(chunk)) }
+				}
+			}.flowOn(Dispatchers.Default)
 
 	/**
 	 * Submit a log line.
@@ -94,6 +129,8 @@ abstract class LogViewModel : ViewModel() {
 		line: LogLine,
 		simpleFormattingEnabled: Boolean = false,
 	) {
+		// Copy what we need before recycling -- LogLine instances are pooled
+		val level = line.level
 		val lineString =
 			if (simpleFormattingEnabled) {
 				line.toSimpleString()
@@ -102,17 +139,52 @@ abstract class LogViewModel : ViewModel() {
 			}
 
 		line.recycle()
-		submit(lineString)
+		submit(level, lineString)
 	}
 
 	/**
-	 * Submit a log line.
+	 * Submit a log line without level metadata.
 	 *
 	 * @param line The log line to submit.
 	 */
 	fun submit(line: String) {
-		logs.tryEmit(line)
+		submit(level = null, line = line)
 	}
+
+	// Keeps buffer mutation and live emission atomic
+	private val eventLock = Any()
+
+	/**
+	 * Submit a log line.
+	 *
+	 * @param level The severity of the line, or `null` if unknown.
+	 * @param line The log line to submit.
+	 */
+	fun submit(
+		level: ILogger.Level?,
+		line: String,
+	) {
+		val text = if (line.endsWith("\n")) line else "$line\n"
+		synchronized(eventLock) {
+			val entry = buffer.append(level, text)
+			liveEntries.tryEmit(entry)
+		}
+	}
+
+	fun setFilter(filter: LogFilter) {
+		_filter.value = filter
+	}
+
+	/** Clear the retained log history and re-render the (now empty) view. */
+	fun clear() {
+		synchronized(eventLock) {
+			buffer.clear()
+			generation.update { it + 1 }
+		}
+	}
+
+	/** The full retained history, ignoring the active filter. */
+	fun snapshotUnfiltered(): String = buffer.snapshotAll()
 }
 
 /**

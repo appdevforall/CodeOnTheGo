@@ -132,7 +132,13 @@ class ZipRecipeExecutor(
 
 			val className = data.name.replace(CLASS_NAME_PATTERN, "")
 			val (baseIdentifiers, warnings) = metaJson.pebbleParams(ctx, data, defModule, params)
-			val identifiers = baseIdentifiers + (KEY_CLASS_NAME to className)
+			val identifiers =
+				baseIdentifiers +
+					mapOf(
+						KEY_CLASS_NAME to className,
+						KEY_CGT_PATH to zip.name,
+						KEY_CGT_DIRECTORY to basePath,
+					)
 
 			if (warnings.isNotEmpty()) {
 				warn(ctx, R.string.template_exec_warn_identifiers, warnings.joinToString(System.lineSeparator()))
