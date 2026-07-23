@@ -540,7 +540,6 @@
 	<string name="action_null_safety_assert">Add non-null assertion (!!)</string>
 	<string name="action_null_safety_safe_call">Change to safe call (?.)</string>
 	<string name="action_null_safety_elvis">Add Elvis operator (?:)</string>
-	<string name="action_implement_members">Implement members</string>
 	<string name="msg_cannot_generate_toString">Unable to generate toString() implementation</string>
 	<string name="msg_toString_overridden">toString() is already overridden</string>
 	<string name="action_generate_missing_constructor">Generate missing constructor</string>

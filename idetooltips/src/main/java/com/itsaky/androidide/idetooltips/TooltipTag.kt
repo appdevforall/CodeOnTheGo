@@ -79,7 +79,10 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_GEN_TO_STRING_DIALOG = "editor.codeactions.gentostring.dialog"
 	const val EDITOR_CODE_ACTIONS_UNUSED_IMPORTS = "editor.codeactions.unusedimports"
 	const val EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS = "editor.codeactions.organizeimports"
-	const val EDITOR_CODE_ACTIONS_SURROUND_TRY_CATCH = ""
+	const val EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS = "editor.codeactions.kotlin.organizeimports"
+	const val EDITOR_CODE_ACTIONS_KT_OVERRIDE_SUPER = "editor.codeactions.kotlin.overridesuper"
+	const val EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH = "editor.codeactions.kotlin.trycatch"
+	const val EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX = "editor.codeactions.kotlin.nullsafetyfix"
 
 	const val EXIT_TO_MAIN = "exit.to.main"
 

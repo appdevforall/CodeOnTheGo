@@ -15,7 +15,7 @@ import com.itsaky.androidide.resources.R
 
 class SurroundWithTryCatchAction : BaseKotlinCodeAction() {
 	override var titleTextRes: Int = R.string.action_surround_with_try_catch
-	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_SURROUND_TRY_CATCH
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH
 
 	override val id: String = "ide.editor.lsp.kt.surroundWithTryCatch"
 	override var label: String = ""
