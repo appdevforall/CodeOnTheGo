@@ -140,6 +140,37 @@ spotless {
 			"termux/**/*",
 		)
 
+	// Directories to PRUNE during the file-tree walk. Spotless auto-prunes
+	// .git/.gradle/build for string-glob targets, but that is bypassed once a
+	// fileTree is passed to target(), so we restore them here. `flox` is the
+	// ADFA-4816 fix: flox/*/.flox/run/* symlinks into /nix/store (millions of
+	// files) made spotlessCheck take 12+ minutes.
+	// Bare directory names are REQUIRED -- Gradle prunes a subtree only when an
+	// exclude matches the directory node itself; a `dir/**` glob matches the
+	// dir's CONTENTS and makes Gradle descend-and-filter (no pruning).
+	val traversalExcludes =
+		arrayOf(
+			"flox",
+			"**/.flox",
+			"**/.git",
+			"**/.gradle",
+		)
+
+	// Real Gradle build-output dirs (root + every subproject), relative to
+	// rootDir -- mirrors Spotless's own auto-exclude. Deliberately NOT
+	// "**/build": source packages named `build` exist (e.g.
+	// app/src/main/java/.../actions/build) and "**/build" would drop them.
+	val buildOutputExcludes =
+		allprojects
+			.map {
+				it.layout.buildDirectory
+					.get()
+					.asFile
+					.relativeTo(rootDir)
+					.invariantSeparatorsPath
+			}.filter { it.isNotEmpty() && !it.startsWith("..") }
+			.toTypedArray()
+
 	// ALWAYS use line feeds (LF -- '\n')
 	lineEndings = LineEnding.UNIX
 
@@ -181,8 +212,14 @@ spotless {
 			},
 		)
 
-		target("**/src/*/java/**/*.java")
-		targetExclude(*commonTargetExcludes)
+		target(
+			fileTree(rootDir) {
+				include("**/src/*/java/**/*.java")
+				exclude(*commonTargetExcludes)
+				exclude(*traversalExcludes)
+				exclude(*buildOutputExcludes)
+			},
+		)
 	}
 
 	kotlin {
@@ -197,10 +234,16 @@ spotless {
 		endWithNewline()
 
 		target(
-			"**/src/*/java/**/*.kt",
-			"**/src/*/kotlin/**/*.kt",
+			fileTree(rootDir) {
+				include(
+					"**/src/*/java/**/*.kt",
+					"**/src/*/kotlin/**/*.kt",
+				)
+				exclude(*commonTargetExcludes)
+				exclude(*traversalExcludes)
+				exclude(*buildOutputExcludes)
+			},
 		)
-		targetExclude(*commonTargetExcludes)
 
 		suppressLintsFor {
 			// suppress the 'file name <some-file> should conform PascalCase' errors
@@ -215,8 +258,14 @@ spotless {
 		trimTrailingWhitespace()
 		endWithNewline()
 
-		target("**/*.gradle.kts")
-		targetExclude(*commonTargetExcludes)
+		target(
+			fileTree(rootDir) {
+				include("**/*.gradle.kts")
+				exclude(*commonTargetExcludes)
+				exclude(*traversalExcludes)
+				exclude(*buildOutputExcludes)
+			},
+		)
 	}
 
 	format("xml") {
@@ -227,13 +276,18 @@ spotless {
 		trimTrailingWhitespace()
 		endWithNewline()
 
-		target("**/src/*/res/**/*.xml")
-		targetExclude(*commonTargetExcludes)
-
-		// Formatting strings.xml with Eclipse WTP causes the strings to be
-		// split into multiple lines, which is not what we want.
-		// Exclude strings.xml from this rule.
-		targetExclude("**/src/*/res/values*/strings.xml")
+		target(
+			fileTree(rootDir) {
+				include("**/src/*/res/**/*.xml")
+				exclude(*commonTargetExcludes)
+				exclude(*traversalExcludes)
+				exclude(*buildOutputExcludes)
+				// Formatting strings.xml with Eclipse WTP causes the strings to be
+				// split into multiple lines, which is not what we want.
+				// Exclude strings.xml from this rule.
+				exclude("**/src/*/res/values*/strings.xml")
+			},
+		)
 	}
 
 	format("misc") {
@@ -241,8 +295,14 @@ spotless {
 		trimTrailingWhitespace()
 		endWithNewline()
 
-		target("**/.gitignore", "**/.gradle")
-		targetExclude(*commonTargetExcludes)
+		target(
+			fileTree(rootDir) {
+				include("**/.gitignore", "**/.gradle")
+				exclude(*commonTargetExcludes)
+				exclude(*traversalExcludes)
+				exclude(*buildOutputExcludes)
+			},
+		)
 	}
 
 	shell {
