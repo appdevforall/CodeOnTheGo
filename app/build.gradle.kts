@@ -614,9 +614,11 @@ fun recompressApk(
 		val tempZipFile = File(apkFile.parentFile, "${apkFile.name}.tmp")
 		recompressZip(apkFile, tempZipFile, noCompressExtensions, if (useAdvzip) advzipArgs else null)
 		signApk(tempZipFile)
-		if (apkFile.delete()) {
-			tempZipFile.renameTo(apkFile)
-		}
+		Files.move(
+			tempZipFile.toPath(),
+			apkFile.toPath(),
+			StandardCopyOption.REPLACE_EXISTING,
+		)
 	}
 }
 
@@ -734,7 +736,9 @@ fun advzipCompress(
 
 // Minimal zip writer that can emit pre-compressed (raw deflate) entry data,
 // which ZipOutputStream cannot. Timestamps are zeroed for deterministic
-// output (-X). No zip64 support: APKs stay under 4 GiB / 65535 entries.
+// output (-X); STORED entry data is 4-byte aligned via zero-padded extra
+// fields (zipalign parity, so the runtime can mmap uncompressed assets).
+// No zip64 support: APKs stay under 4 GiB / 65535 entries.
 class RawZipWriter(
 	file: File,
 ) : Closeable {
@@ -780,6 +784,13 @@ class RawZipWriter(
 	) {
 		require(central.size < 0xFFFF) { "too many zip entries" }
 		val nameBytes = name.toByteArray(Charsets.UTF_8)
+		// Zero-padded extra field so STORED data starts on a 4-byte boundary
+		val padding =
+			if (method == ZipEntry.STORED) {
+				((4 - (offset + 30 + nameBytes.size) % 4) % 4).toInt()
+			} else {
+				0
+			}
 		central.add(CentralRecord(nameBytes, method, crc, compressedSize, size, offset))
 		u32(0x04034b50L)
 		u16(20) // version needed to extract
@@ -791,8 +802,9 @@ class RawZipWriter(
 		u32(compressedSize)
 		u32(size)
 		u16(nameBytes.size)
-		u16(0) // extra field length
+		u16(padding) // extra field length
 		raw(nameBytes)
+		raw(ByteArray(padding))
 		var copied = 0L
 		val buf = ByteArray(DEFAULT_BUFFER_SIZE)
 		while (true) {
