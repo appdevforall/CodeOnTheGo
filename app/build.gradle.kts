@@ -1,8 +1,6 @@
 @file:Suppress("UnstableApiUsage")
 
-import ch.qos.logback.core.util.EnvUtil
 import com.itsaky.androidide.build.config.BuildConfig
-import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
 import org.json.JSONObject
@@ -24,7 +22,6 @@ import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
-import kotlin.reflect.jvm.javaMethod
 
 plugins {
 	id("com.android.application")
@@ -57,7 +54,6 @@ apply {
 
 buildscript {
 	dependencies {
-		classpath(libs.logging.logback.core)
 		classpath(libs.composite.desugaringCore)
 		classpath(libs.org.json)
 	}
@@ -160,20 +156,9 @@ kapt { arguments { arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.AppE
 
 desugaring {
 	replacements {
-		includePackage(
-			"org.eclipse.jgit",
-			"ch.qos.logback.classic.util",
-		)
+		includePackage("org.eclipse.jgit")
 
 		applyJavaIOReplacements()
-
-		// EnvUtil.logbackVersion() uses newer Java APIs like Class.getModule() which is not available
-		// on Android. We replace the method usage with DesugarEnvUtil.logbackVersion() which
-		// always returns null
-		replaceMethod(
-			EnvUtil::logbackVersion.javaMethod!!,
-			DesugarEnvUtil::logbackVersion.javaMethod!!,
-		)
 	}
 }
 
@@ -330,7 +315,6 @@ dependencies {
 	// Sentry Android SDK (core + replay for quality configuration); our GlitchTip client.
 	implementation(libs.sentry.core)
 	implementation(libs.sentry.android.core)
-	implementation(libs.sentry.logback)
 
 	// Firebase Analytics
 	implementation(platform(libs.firebase.bom))

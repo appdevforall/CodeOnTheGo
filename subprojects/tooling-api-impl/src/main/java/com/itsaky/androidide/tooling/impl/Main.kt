@@ -16,9 +16,12 @@
  */
 package com.itsaky.androidide.tooling.impl
 
+import androidx.annotation.VisibleForTesting
+import com.itsaky.androidide.logging.provider.IdeLogRouter
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher.newServerLauncher
 import com.itsaky.androidide.tooling.api.util.ToolingProps
+import com.itsaky.androidide.tooling.impl.logging.ToolingApiAppender
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.gradle.tooling.events.OperationType
@@ -43,6 +46,12 @@ object Main {
 	val client: IToolingApiClient?
 		get() = _client
 
+	/** Test-only seam for [_client]; the property itself stays private. */
+	@VisibleForTesting
+	internal fun setClientForTesting(client: IToolingApiClient?) {
+		_client = client
+	}
+
 	val future: Future<Void?>?
 		get() = _future
 
@@ -64,6 +73,8 @@ object Main {
 	@JvmStatic
 	fun main(args: Array<String>): Unit =
 		runBlocking {
+			IdeLogRouter.addSink(ToolingApiAppender)
+
 			logger.debug("Starting Tooling API server...")
 
 			val server = ToolingApiServerImpl()
