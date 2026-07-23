@@ -297,7 +297,9 @@ spotless {
 
 		target(
 			fileTree(rootDir) {
-				include("**/.gitignore", "**/.gradle")
+				// `.gradle` is only ever a cache directory (pruned via
+				// traversalExcludes), never a formattable file -- so only .gitignore.
+				include("**/.gitignore")
 				exclude(*commonTargetExcludes)
 				exclude(*traversalExcludes)
 				exclude(*buildOutputExcludes)
