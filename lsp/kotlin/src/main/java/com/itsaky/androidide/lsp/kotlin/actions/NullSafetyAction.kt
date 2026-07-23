@@ -1,14 +1,12 @@
 package com.itsaky.androidide.lsp.kotlin.actions
 
 import com.itsaky.androidide.actions.ActionData
-import com.itsaky.androidide.actions.get
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.diagnostic.DiagnosticAction
-import com.itsaky.androidide.lsp.kotlin.diagnostic.KotlinDiagnosticExtra
 import com.itsaky.androidide.lsp.kotlin.utils.NullSafetyKind
 import com.itsaky.androidide.lsp.kotlin.utils.NullSafetyVariant
 import com.itsaky.androidide.lsp.kotlin.utils.findNullableMemberAccess
@@ -16,8 +14,6 @@ import com.itsaky.androidide.lsp.kotlin.utils.nullSafetyVariants
 import com.itsaky.androidide.lsp.models.CodeActionItem
 import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.Command
-import com.itsaky.androidide.lsp.models.DiagnosticItem
-import com.itsaky.androidide.lsp.models.DiagnosticsInSelection
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
@@ -38,23 +34,13 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 	override val id: String = "ide.editor.lsp.kt.diagnostics.nullSafety"
 	override var label: String = ""
 
-	/**
-	 * The first null-safety-fixable diagnostic in the selection. Prefers [DiagnosticsInSelection]
-	 * (any matching diagnostic in the selected region); falls back to the at-selection-start
-	 * [DiagnosticItem] when no container is present.
-	 */
-	private fun ActionData.nullSafetyDiagnostic(): DiagnosticItem? {
-		val predicate = { d: DiagnosticItem ->
-			(d.extra as? KotlinDiagnosticExtra)?.action == DiagnosticAction.NullSafetyFix
-		}
-		get<DiagnosticsInSelection>()?.let { return it.diagnostics.firstOrNull(predicate) }
-		return get<DiagnosticItem>()?.takeIf(predicate)
-	}
-
 	override fun prepare(data: ActionData) {
 		super.prepare(data)
 
-		if (!visible || data.nullSafetyDiagnostic() == null) {
+		val nullSafetyFixDiagnostic =
+			data.findDiagnosticExtra<DiagnosticAction.NullSafetyFix>()
+
+		if (!visible || nullSafetyFixDiagnostic == null) {
 			markInvisible()
 			return
 		}
@@ -62,8 +48,9 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 
 	override suspend fun execAction(data: ActionData): List<NullSafetyVariant> =
 		runCatching {
-			val diagnostic = data.nullSafetyDiagnostic() ?: return emptyList()
-			val extra = diagnostic.extra as? KotlinDiagnosticExtra ?: return emptyList()
+			val (diagnostic, extra) =
+				data.findDiagnosticExtra<DiagnosticAction.NullSafetyFix>()
+					?: return emptyList()
 
 			val nioPath = data.requireFile().toPath()
 
