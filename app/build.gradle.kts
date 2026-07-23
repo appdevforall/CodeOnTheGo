@@ -640,11 +640,17 @@ fun findAdvzip(): File? {
 	return dirs.map { File(it, "advzip") }.firstOrNull { it.canExecute() }
 }
 
+// Preallocation hint for deflateBest's output buffer: assume roughly 3:1
+// compression, plus slack so empty/tiny inputs don't start at zero capacity.
+// The buffer grows as needed; these only avoid early re-allocations.
+val assumedDeflateRatio = 3
+val deflateOutputSlackBytes = 64
+
 fun deflateBest(data: ByteArray): RecompressedData {
 	val deflater = Deflater(Deflater.BEST_COMPRESSION, true)
 	deflater.setInput(data)
 	deflater.finish()
-	val out = ByteArrayOutputStream(data.size / 3 + 64)
+	val out = ByteArrayOutputStream(data.size / assumedDeflateRatio + deflateOutputSlackBytes)
 	val buf = ByteArray(DEFAULT_BUFFER_SIZE)
 	while (!deflater.finished()) {
 		out.write(buf, 0, deflater.deflate(buf))
