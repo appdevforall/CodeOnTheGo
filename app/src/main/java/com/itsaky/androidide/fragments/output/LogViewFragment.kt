@@ -107,7 +107,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 	@Subscribe(threadMode = ThreadMode.MAIN)
 	fun onPreferenceChanged(event: PreferenceChangeEvent) {
 		if (event.key == EditorPreferences.OUTPUT_WORD_WRAP) {
-			setWordWrapEnabled(event.value as? Boolean ?: EditorPreferences.outputWordWrap)
+			setWordWrapEnabled(event.value as Boolean)
 		}
 	}
 

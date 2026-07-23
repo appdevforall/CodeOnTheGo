@@ -669,16 +669,15 @@ class EditorBottomSheet
 			binding.filterOutputAction.isVisible = showSearchAndFilter
 			binding.wordWrapOutputAction.isVisible = showWordWrap
 			binding.outputActions.isVisible = showShareAndClear || showSearchAndFilter || showWordWrap
+			binding.copyDiagnosticsFab.isVisible = showCopy
 
 			if (showWordWrap) {
 				val isEnabled = EditorPreferences.outputWordWrap
 				if (currentFragment.isWordWrapEnabled() != isEnabled) {
 					currentFragment.setWordWrapEnabled(isEnabled)
 				}
-				binding.wordWrapOutputAction.isChecked = isEnabled
+				updateWordWrapButtonState(isEnabled)
 			}
-
-			binding.copyDiagnosticsFab.isVisible = showCopy
 		}
 
 		// The bottom-anchored FAB goes off-screen when the bottom sheet is collapsed.
