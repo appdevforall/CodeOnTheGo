@@ -54,7 +54,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
-                android:text="No plugins installed"
+                android:text="@string/no_plugins_installed"
                 android:textAppearance="?attr/textAppearanceHeadline6" />
 
             <TextView
