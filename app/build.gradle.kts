@@ -117,6 +117,16 @@ android {
 			excludes += "META-INF/DEPENDENCIES"
 			excludes += "META-INF/gradle/incremental.annotation.processors"
 
+			// Beider-Morse phonetic rule data (commons-codec); unused, no code calls the phonetic encoders.
+			excludes += "org/apache/commons/codec/language/bm/**"
+			// JLine console resources bundled in the Kotlin analysis-api jar; used headlessly, no REPL/console.
+			excludes += "org/jetbrains/kotlin/org/jline/**"
+			// IntelliJ plugin K2-mode compatibility manifest; meaningless outside a real IntelliJ session.
+			excludes += "pluginsCompatibleWithK2Mode.txt"
+			// Bundled .proto well-known-type sources from protobuf jars; nothing imports them at build time.
+			excludes += "google/protobuf/**"
+			excludes += "src/google/protobuf/**"
+
 			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
 			pickFirsts += "kotlin/reflect/reflect.kotlin_builtins"
 			pickFirsts += "kotlin/kotlin.kotlin_builtins"
