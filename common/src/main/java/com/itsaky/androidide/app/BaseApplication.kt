@@ -16,10 +16,12 @@
  */
 package com.itsaky.androidide.app
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
+import android.os.Bundle
 import androidx.core.os.UserManagerCompat
 import com.itsaky.androidide.managers.NoopSharedPreferencesImpl
 import com.itsaky.androidide.managers.PreferenceManager
@@ -28,6 +30,7 @@ import org.slf4j.LoggerFactory
 
 open class BaseApplication : Application() {
 	private var _prefManager: PreferenceManager? = null
+	private var _foregroundActivity: Activity? = null
 
 	val isUserUnlocked: Boolean
 		get() = UserManagerCompat.isUserUnlocked(this)
@@ -38,6 +41,12 @@ open class BaseApplication : Application() {
 				"PreferenceManager not initialized"
 			}
 
+	/**
+	 * The currently visible (resumed) activity, if any.
+	 */
+	open val foregroundActivity: Activity?
+		get() = _foregroundActivity
+
 	init {
 		_baseInstance = this
 	}
@@ -46,6 +55,35 @@ open class BaseApplication : Application() {
 		super.onCreate()
 		_prefManager = PreferenceManager(getSafeContext())
 		JavaCharacter.initMap()
+		registerActivityLifecycleCallbacks(
+			object : Application.ActivityLifecycleCallbacks {
+				override fun onActivityCreated(
+					activity: Activity,
+					savedInstanceState: Bundle?,
+				) = Unit
+
+				override fun onActivityStarted(activity: Activity) = Unit
+
+				override fun onActivityResumed(activity: Activity) {
+					_foregroundActivity = activity
+				}
+
+				override fun onActivityPaused(activity: Activity) {
+					if (_foregroundActivity === activity) {
+						_foregroundActivity = null
+					}
+				}
+
+				override fun onActivityStopped(activity: Activity) = Unit
+
+				override fun onActivitySaveInstanceState(
+					activity: Activity,
+					outState: Bundle,
+				) = Unit
+
+				override fun onActivityDestroyed(activity: Activity) = Unit
+			},
+		)
 	}
 
 	@JvmOverloads

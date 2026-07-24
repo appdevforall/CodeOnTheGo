@@ -25,6 +25,7 @@ import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.Resources.Theme
 import android.net.ConnectivityManager
@@ -110,6 +111,17 @@ fun Context.isNetworkConnected(): Boolean {
 	val capabilities = cm.getNetworkCapabilities(network) ?: return false
 	return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
 }
+
+/**
+ * Returns this app's version code, or -1 if it could not be determined.
+ */
+@Suppress("DEPRECATION")
+fun Context.getAppVersionCode(): Int =
+	try {
+		packageManager.getPackageInfo(packageName, 0).versionCode
+	} catch (e: PackageManager.NameNotFoundException) {
+		-1
+	}
 
 /**
  * Checks whether the soft (on-screen) keyboard is currently visible in this activity's window.

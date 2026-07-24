@@ -65,8 +65,6 @@ import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.blankj.utilcode.constant.MemoryConstants
-import com.blankj.utilcode.util.ConvertUtils.byte2MemorySize
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
@@ -281,7 +279,7 @@ abstract class BaseEditorActivity :
 
 					dataset.entries.mapIndexed { index, entry ->
 						entry.y =
-							byte2MemorySize(proc.usageHistory[index], MemoryConstants.MB).toFloat()
+							(proc.usageHistory[index] / (1024.0 * 1024.0)).toFloat()
 					}
 
 					dataset.label = "%s - %.2fMB".format(proc.pname, dataset.entries.last().y)
