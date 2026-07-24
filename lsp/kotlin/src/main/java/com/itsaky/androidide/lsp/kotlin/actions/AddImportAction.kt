@@ -4,12 +4,10 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.has
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
-import com.itsaky.androidide.actions.require
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.compiler.index.findSymbolBySimpleName
 import com.itsaky.androidide.lsp.kotlin.diagnostic.DiagnosticAction
-import com.itsaky.androidide.lsp.kotlin.diagnostic.KotlinDiagnosticExtra
 import com.itsaky.androidide.lsp.kotlin.utils.insertImport
 import com.itsaky.androidide.lsp.models.CodeActionItem
 import com.itsaky.androidide.lsp.models.CodeActionKind
@@ -18,21 +16,17 @@ import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.flashError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
-import org.slf4j.LoggerFactory
 
 class AddImportAction : BaseKotlinCodeAction() {
 	override var titleTextRes: Int = R.string.action_import_classes
-	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_FIX_IMPORTS
 
 	override val id: String = "ide.editor.lsp.kt.diagnostics.addImport"
 	override var label: String = ""
-
-	companion object {
-		private val logger = LoggerFactory.getLogger(AddImportAction::class.java)
-	}
 
 	override fun prepare(data: ActionData) {
 		super.prepare(data)
@@ -42,37 +36,23 @@ class AddImportAction : BaseKotlinCodeAction() {
 			return
 		}
 
-		val extra = data.require<DiagnosticItem>().extra as? KotlinDiagnosticExtra
-		if (extra == null) {
-			markInvisible()
-			return
-		}
-
-		val action = extra.action
-		if (action !is DiagnosticAction.ResolveReference) {
-			markInvisible()
-			return
-		}
-
-		val env = extra.compilationEnv
-		val hasImportableSymbols =
-			env.ktSymbolIndex
-				.findSymbolBySimpleName(action.referenceName, limit = 0)
-				.any { it.kind.isClassifier }
-
-		if (!hasImportableSymbols) {
+		// Optimistic visibility: decide from the in-memory unresolved-reference marker only. The
+		// importable-classifier resolution runs in the background execAction; doing it here would be
+		// main-thread SQLite I/O, because fillMenu() calls prepare() synchronously on the UI thread.
+		val resolveReferenceActionDiagnostic =
+			data.findDiagnosticExtra<DiagnosticAction.ResolveReference>()
+		if (resolveReferenceActionDiagnostic == null) {
 			markInvisible()
 			return
 		}
 	}
 
 	override suspend fun execAction(data: ActionData): Map<JvmSymbol, List<TextEdit>> {
-		val (env, action) =
-			data.require<DiagnosticItem>().extra as? KotlinDiagnosticExtra
+		val (_, extra) =
+			data.findDiagnosticExtra<DiagnosticAction.ResolveReference>()
 				?: return emptyMap()
 
-		if (action !is DiagnosticAction.ResolveReference) return emptyMap()
-
+		val (env, action) = extra
 		val file = data.requireFile()
 		val nioPath = file.toPath()
 		val ktFile =
@@ -104,6 +84,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 
 		if (result.isEmpty()) {
 			logger.warn("No classifiers to import.")
+			flashError(R.string.msg_no_imports_found)
 			return
 		}
 
