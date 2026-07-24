@@ -33,6 +33,10 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import org.slf4j.LoggerFactory
 import java.lang.ref.WeakReference
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * Handles events received from [GradleBuildService] updates [EditorHandlerActivity].
@@ -40,149 +44,209 @@ import java.lang.ref.WeakReference
  */
 class EditorBuildEventListener : GradleBuildService.EventListener {
 
-  private var lastStatusLine: String = ""
+private var lastStatusLine: String = ""
 
-  private var enabled = true
-  private var activityReference: WeakReference<EditorHandlerActivity> = WeakReference(null)
+private var buildStartTimeMs: Long = 0L
+private var lastOutputTimeMs: Long = 0L
+private var lineCounter: Int = 1
 
-  private val pluginBuildService by lazy {
-    try {
-      IdeBuildService.getInstance()
-    } catch (e: Exception) {
-      log.warn("Failed to get IdeBuildServiceImpl instance", e)
-      null
-    }
-  }
+private val timestampFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
-  companion object {
+private var enabled = true
+private var activityReference: WeakReference<EditorHandlerActivity> = WeakReference(null)
 
-    private val log = LoggerFactory.getLogger(EditorBuildEventListener::class.java)
-  }
+private val pluginBuildService by lazy {
+	try {
+	IdeBuildService.getInstance()
+	} catch (e: Exception) {
+	log.warn("Failed to get IdeBuildServiceImpl instance", e)
+	null
+	}
+}
 
-  private val _activity: EditorHandlerActivity?
-    get() = activityReference.get()
-  private val activity: EditorHandlerActivity
-    get() = checkNotNull(activityReference.get()) { "Activity reference has been destroyed!" }
+companion object {
 
-  fun setActivity(activity: EditorHandlerActivity) {
-    this.activityReference = WeakReference(activity)
-    this.enabled = true
-  }
+	private val log = LoggerFactory.getLogger(EditorBuildEventListener::class.java)
+}
 
-  fun release() {
-    activityReference.clear()
-    this.enabled = false
-  }
+private val _activity: EditorHandlerActivity?
+	get() = activityReference.get()
+private val activity: EditorHandlerActivity
+	get() = checkNotNull(activityReference.get()) { "Activity reference has been destroyed!" }
 
-  override fun prepareBuild(buildInfo: BuildInfo) {
-    checkActivity("prepareBuild") ?: return
+fun setActivity(activity: EditorHandlerActivity) {
+	this.activityReference = WeakReference(activity)
+	this.enabled = true
+}
 
-    pluginBuildService?.setBuildInProgress(true)
+fun release() {
+	activityReference.clear()
+	this.enabled = false
+}
 
-    val isFirstBuild = GeneralPreferences.isFirstBuild
-    activity
-      .setStatus(
-        activity.getString(if (isFirstBuild) string.preparing_first else string.preparing)
-      )
+override fun prepareBuild(buildInfo: BuildInfo) {
+	checkActivity("prepareBuild") ?: return
 
-    if (isFirstBuild) {
-      activity.showFirstBuildNotice()
-    }
+	pluginBuildService?.setBuildInProgress(true)
 
-    activity.editorViewModel.isBuildInProgress = true
-    activity.content.bottomSheet.clearBuildOutput()
+	val isFirstBuild = GeneralPreferences.isFirstBuild
+	activity
+	.setStatus(
+		activity.getString(if (isFirstBuild) string.preparing_first else string.preparing)
+	)
 
-    if (buildInfo.tasks.isNotEmpty()) {
-      activity.content.bottomSheet.appendBuildOut(
-        activity.getString(R.string.title_run_tasks) + " : " + buildInfo.tasks)
-    }
-  }
+	if (isFirstBuild) {
+	activity.showFirstBuildNotice()
+	}
 
-  override fun onBuildSuccessful(tasks: List<String?>) {
-    val act = checkActivity("onBuildSuccessful") ?: return
+	resetBuildTimers()
 
-    pluginBuildService?.notifyBuildFinished()
+	activity.editorViewModel.isBuildInProgress = true
+	activity.content.bottomSheet.clearBuildOutput()
 
-    analyzeCurrentFile()
+	if (buildInfo.tasks.isNotEmpty()) {
+	onOutput(
+		activity.getString(R.string.title_run_tasks) + " : " + buildInfo.tasks
+	)
+	}
+}
 
-    GeneralPreferences.isFirstBuild = false
-    act.editorViewModel.isBuildInProgress = false
-    act.flashSuccess(R.string.build_status_sucess)
+private fun resetBuildTimers() {
+	buildStartTimeMs = System.currentTimeMillis()
+	lastOutputTimeMs = buildStartTimeMs
+	lineCounter = 1
+}
 
-    val message =
-      if (lastStatusLine.contains("BUILD SUCCESSFUL")) lastStatusLine else "Build completed successfully."
+override fun onBuildSuccessful(tasks: List<String?>) {
+	val act = checkActivity("onBuildSuccessful") ?: return
 
-    // Create a simulated LaunchResult because the build succeeded.
-    // We assume the action that triggered this was a "build and run".
-    val launchResult = LaunchResult(isSuccess = true, message = "Launch command issued.")
+	pluginBuildService?.notifyBuildFinished()
 
-    // Pass the new launchResult to the BuildResult constructor
-    act.notifyBuildResult(
-      BuildResult(
-        isSuccess = true,
-        message = message,
-        launchResult = launchResult
-      )
-    )
+	analyzeCurrentFile()
 
-    lastStatusLine = ""
-  }
+	GeneralPreferences.isFirstBuild = false
+	act.editorViewModel.isBuildInProgress = false
+	act.flashSuccess(R.string.build_status_sucess)
 
-  override fun onProgressEvent(event: ProgressEvent) {
-    checkActivity("onProgressEvent") ?: return
+	val message =
+	if (lastStatusLine.contains("BUILD SUCCESSFUL")) lastStatusLine else "Build completed successfully."
 
-    if (event is ProjectConfigurationStartEvent || event is TaskStartEvent) {
-      activity.setStatus(event.descriptor.displayName)
-    }
-  }
+	// Create a simulated LaunchResult because the build succeeded.
+	// We assume the action that triggered this was a "build and run".
+	val launchResult = LaunchResult(isSuccess = true, message = "Launch command issued.")
 
-  override fun onBuildFailed(tasks: List<String?>) {
-    val act = checkActivity("onBuildFailed") ?: return
+	// Pass the new launchResult to the BuildResult constructor
+	act.notifyBuildResult(
+	BuildResult(
+		isSuccess = true,
+		message = message,
+		launchResult = launchResult
+	)
+	)
 
-    analyzeCurrentFile()
-    GeneralPreferences.isFirstBuild = false
-    act.editorViewModel.isBuildInProgress = false
-    act.flashError(R.string.build_status_failed)
+	lastStatusLine = ""
+}
 
-    val message =
-      if (lastStatusLine.contains("BUILD FAILED")) lastStatusLine else "Build failed. Check build output for details."
+override fun onProgressEvent(event: ProgressEvent) {
+	checkActivity("onProgressEvent") ?: return
 
-    pluginBuildService?.notifyBuildFailed(message)
+	if (event is ProjectConfigurationStartEvent || event is TaskStartEvent) {
+	activity.setStatus(event.descriptor.displayName)
+	}
+}
 
-    act.notifyBuildResult(BuildResult(isSuccess = false, message = message, launchResult = null))
+override fun onBuildFailed(tasks: List<String?>) {
+	val act = checkActivity("onBuildFailed") ?: return
 
-    lastStatusLine = ""
-  }
+	analyzeCurrentFile()
+	GeneralPreferences.isFirstBuild = false
+	act.editorViewModel.isBuildInProgress = false
+	act.flashError(R.string.build_status_failed)
 
-  override fun onOutput(line: String?) {
-    val act = checkActivity("onOutput") ?: return
-    line?.let {
-      act.appendBuildOutput(it)
-      if (it.contains("BUILD SUCCESSFUL") || it.contains("BUILD FAILED")) {
-        act.setStatus(it)
-        lastStatusLine = it
-      }
-    }
-  }
+	val message =
+	if (lastStatusLine.contains("BUILD FAILED")) lastStatusLine else "Build failed. Check build output for details."
 
-  private fun analyzeCurrentFile() {
-    checkActivity("analyzeCurrentFile") ?: return
+	pluginBuildService?.notifyBuildFailed(message)
 
-    val editorView = _activity?.getCurrentEditor()
-    if (editorView != null) {
-      val editor = editorView.editor
-      editor?.analyze()
-    }
-  }
+	act.notifyBuildResult(BuildResult(isSuccess = false, message = message, launchResult = null))
 
-  private fun checkActivity(action: String): EditorHandlerActivity? {
-    if (!enabled) return null
+	lastStatusLine = ""
+}
 
-    return _activity.also {
-      if (it == null) {
-        log.warn("[{}] Activity reference has been destroyed!", action)
-        enabled = false
-      }
-    }
-  }
+override fun onOutput(line: String?) {
+	val act = checkActivity("onOutput") ?: return
+	line?.let { raw ->
+	val formattedOutput = formatOutput(raw)
+	act.appendBuildOutput(formattedOutput)
+	if (raw.contains("BUILD SUCCESSFUL") || raw.contains("BUILD FAILED")) {
+		act.setStatus(raw)
+		lastStatusLine = raw
+	}
+	}
+}
+
+private fun formatOutput(raw: String): String {
+	val now = System.currentTimeMillis()
+	if (buildStartTimeMs == 0L) {
+	buildStartTimeMs = now
+	lastOutputTimeMs = now
+	}
+
+	val totalDeltaMs = now - buildStartTimeMs
+	val stepDeltaMs = now - lastOutputTimeMs
+	lastOutputTimeMs = now
+
+	val timeStr = timestampFormat.format(Date(now))
+	val totalMins = TimeUnit.MILLISECONDS.toMinutes(totalDeltaMs)
+	val totalSecs = TimeUnit.MILLISECONDS.toSeconds(totalDeltaMs) % 60
+	val totalMillis = totalDeltaMs % 1000
+	val totalDeltaStr = String.format(Locale.US, "+%02d:%02d.%03d", totalMins, totalSecs, totalMillis)
+	val stepDeltaStr = String.format(Locale.US, "Δ%dms", stepDeltaMs)
+
+	val lines = raw.split("\n")
+	val builder = StringBuilder()
+	for (i in lines.indices) {
+	val l = lines[i]
+	if (i == lines.lastIndex && l.isEmpty() && lines.size > 1) {
+		continue
+	}
+	val lineNo = lineCounter++
+	builder.append(
+		String.format(
+		Locale.US,
+		"%5d | [%s] [%s] (%s) %s",
+		lineNo,
+		timeStr,
+		totalDeltaStr,
+		stepDeltaStr,
+		l
+		)
+	)
+	if (i < lines.size - 1 || raw.endsWith("\n")) {
+		builder.append("\n")
+	}
+	}
+	return builder.toString()
+}
+
+private fun analyzeCurrentFile() {
+	checkActivity("analyzeCurrentFile") ?: return
+
+	val editorView = _activity?.getCurrentEditor()
+	if (editorView != null) {
+	val editor = editorView.editor
+	editor?.analyze()
+	}
+}
+
+private fun checkActivity(action: String): EditorHandlerActivity? {
+	if (!enabled) return null
+
+	return _activity.also {
+	if (it == null) {
+		log.warn("[{}] Activity reference has been destroyed!", action)
+		enabled = false
+	}
+	}
+}
 }
