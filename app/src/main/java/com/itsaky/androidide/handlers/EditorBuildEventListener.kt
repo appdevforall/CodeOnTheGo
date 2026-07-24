@@ -19,7 +19,6 @@ package com.itsaky.androidide.handlers
 
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
-import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl as IdeBuildService
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.projects.builder.LaunchResult
@@ -33,156 +32,164 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import org.slf4j.LoggerFactory
 import java.lang.ref.WeakReference
+import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl as IdeBuildService
 
 /**
  * Handles events received from [GradleBuildService] updates [EditorHandlerActivity].
  * @author Akash Yadav
  */
 class EditorBuildEventListener : GradleBuildService.EventListener {
+	private var lastStatusLine: String = ""
 
-  private var lastStatusLine: String = ""
+	private var enabled = true
+	private var activityReference: WeakReference<EditorHandlerActivity> = WeakReference(null)
 
-  private var enabled = true
-  private var activityReference: WeakReference<EditorHandlerActivity> = WeakReference(null)
+	private val pluginBuildService by lazy {
+		try {
+			IdeBuildService.getInstance()
+		} catch (e: Exception) {
+			log.warn("Failed to get IdeBuildServiceImpl instance", e)
+			null
+		}
+	}
 
-  private val pluginBuildService by lazy {
-    try {
-      IdeBuildService.getInstance()
-    } catch (e: Exception) {
-      log.warn("Failed to get IdeBuildServiceImpl instance", e)
-      null
-    }
-  }
+	companion object {
+		private val log = LoggerFactory.getLogger(EditorBuildEventListener::class.java)
+	}
 
-  companion object {
+	private val activityOrNull: EditorHandlerActivity?
+		get() = activityReference.get()
+	private val activity: EditorHandlerActivity
+		get() = checkNotNull(activityReference.get()) { "Activity reference has been destroyed!" }
 
-    private val log = LoggerFactory.getLogger(EditorBuildEventListener::class.java)
-  }
+	fun setActivity(activity: EditorHandlerActivity) {
+		this.activityReference = WeakReference(activity)
+		this.enabled = true
+	}
 
-  private val _activity: EditorHandlerActivity?
-    get() = activityReference.get()
-  private val activity: EditorHandlerActivity
-    get() = checkNotNull(activityReference.get()) { "Activity reference has been destroyed!" }
+	fun release() {
+		activityReference.clear()
+		this.enabled = false
+	}
 
-  fun setActivity(activity: EditorHandlerActivity) {
-    this.activityReference = WeakReference(activity)
-    this.enabled = true
-  }
+	override fun prepareBuild(buildInfo: BuildInfo) {
+		checkActivity("prepareBuild") ?: return
 
-  fun release() {
-    activityReference.clear()
-    this.enabled = false
-  }
+		pluginBuildService?.setBuildInProgress(true)
 
-  override fun prepareBuild(buildInfo: BuildInfo) {
-    checkActivity("prepareBuild") ?: return
+		val isFirstBuild = GeneralPreferences.isFirstBuild
+		activity
+			.setStatus(
+				activity.getString(if (isFirstBuild) string.preparing_first else string.preparing),
+			)
 
-    pluginBuildService?.setBuildInProgress(true)
+		if (isFirstBuild) {
+			activity.showFirstBuildNotice()
+		}
 
-    val isFirstBuild = GeneralPreferences.isFirstBuild
-    activity
-      .setStatus(
-        activity.getString(if (isFirstBuild) string.preparing_first else string.preparing)
-      )
+		activity.editorViewModel.isBuildInProgress = true
+		activity.content.bottomSheet.clearBuildOutput()
 
-    if (isFirstBuild) {
-      activity.showFirstBuildNotice()
-    }
+		if (buildInfo.tasks.isNotEmpty()) {
+			activity.content.bottomSheet.appendBuildOut(
+				activity.getString(R.string.title_run_tasks) + " : " + buildInfo.tasks,
+			)
+		}
+	}
 
-    activity.editorViewModel.isBuildInProgress = true
-    activity.content.bottomSheet.clearBuildOutput()
+	override fun onBuildSuccessful(tasks: List<String?>) {
+		val act = checkActivity("onBuildSuccessful") ?: return
 
-    if (buildInfo.tasks.isNotEmpty()) {
-      activity.content.bottomSheet.appendBuildOut(
-        activity.getString(R.string.title_run_tasks) + " : " + buildInfo.tasks)
-    }
-  }
+		pluginBuildService?.notifyBuildFinished()
 
-  override fun onBuildSuccessful(tasks: List<String?>) {
-    val act = checkActivity("onBuildSuccessful") ?: return
+		analyzeCurrentFile()
 
-    pluginBuildService?.notifyBuildFinished()
+		GeneralPreferences.isFirstBuild = false
+		act.editorViewModel.isBuildInProgress = false
+		act.flashSuccess(R.string.build_status_sucess)
 
-    analyzeCurrentFile()
+		// B3 hand-back (ADFA-4128): any completed Gradle build may have rewritten build/
+		// outputs beneath a live quick-build session; re-seed its baseline.
+		act.onExternalGradleBuildFinished()
 
-    GeneralPreferences.isFirstBuild = false
-    act.editorViewModel.isBuildInProgress = false
-    act.flashSuccess(R.string.build_status_sucess)
+		val message =
+			if (lastStatusLine.contains("BUILD SUCCESSFUL")) lastStatusLine else "Build completed successfully."
 
-    val message =
-      if (lastStatusLine.contains("BUILD SUCCESSFUL")) lastStatusLine else "Build completed successfully."
+		// Create a simulated LaunchResult because the build succeeded.
+		// We assume the action that triggered this was a "build and run".
+		val launchResult = LaunchResult(isSuccess = true, message = "Launch command issued.")
 
-    // Create a simulated LaunchResult because the build succeeded.
-    // We assume the action that triggered this was a "build and run".
-    val launchResult = LaunchResult(isSuccess = true, message = "Launch command issued.")
+		// Pass the new launchResult to the BuildResult constructor
+		act.notifyBuildResult(
+			BuildResult(
+				isSuccess = true,
+				message = message,
+				launchResult = launchResult,
+			),
+		)
 
-    // Pass the new launchResult to the BuildResult constructor
-    act.notifyBuildResult(
-      BuildResult(
-        isSuccess = true,
-        message = message,
-        launchResult = launchResult
-      )
-    )
+		lastStatusLine = ""
+	}
 
-    lastStatusLine = ""
-  }
+	override fun onProgressEvent(event: ProgressEvent) {
+		checkActivity("onProgressEvent") ?: return
 
-  override fun onProgressEvent(event: ProgressEvent) {
-    checkActivity("onProgressEvent") ?: return
+		if (event is ProjectConfigurationStartEvent || event is TaskStartEvent) {
+			activity.setStatus(event.descriptor.displayName)
+		}
+	}
 
-    if (event is ProjectConfigurationStartEvent || event is TaskStartEvent) {
-      activity.setStatus(event.descriptor.displayName)
-    }
-  }
+	override fun onBuildFailed(tasks: List<String?>) {
+		val act = checkActivity("onBuildFailed") ?: return
 
-  override fun onBuildFailed(tasks: List<String?>) {
-    val act = checkActivity("onBuildFailed") ?: return
+		analyzeCurrentFile()
+		GeneralPreferences.isFirstBuild = false
+		act.editorViewModel.isBuildInProgress = false
+		act.flashError(R.string.build_status_failed)
 
-    analyzeCurrentFile()
-    GeneralPreferences.isFirstBuild = false
-    act.editorViewModel.isBuildInProgress = false
-    act.flashError(R.string.build_status_failed)
+		// B3 hand-back (ADFA-4128): even a FAILED build can have rewritten outputs of the
+		// modules that DID compile; a live quick-build session must re-seed either way.
+		act.onExternalGradleBuildFinished()
 
-    val message =
-      if (lastStatusLine.contains("BUILD FAILED")) lastStatusLine else "Build failed. Check build output for details."
+		val message =
+			if (lastStatusLine.contains("BUILD FAILED")) lastStatusLine else "Build failed. Check build output for details."
 
-    pluginBuildService?.notifyBuildFailed(message)
+		pluginBuildService?.notifyBuildFailed(message)
 
-    act.notifyBuildResult(BuildResult(isSuccess = false, message = message, launchResult = null))
+		act.notifyBuildResult(BuildResult(isSuccess = false, message = message, launchResult = null))
 
-    lastStatusLine = ""
-  }
+		lastStatusLine = ""
+	}
 
-  override fun onOutput(line: String?) {
-    val act = checkActivity("onOutput") ?: return
-    line?.let {
-      act.appendBuildOutput(it)
-      if (it.contains("BUILD SUCCESSFUL") || it.contains("BUILD FAILED")) {
-        act.setStatus(it)
-        lastStatusLine = it
-      }
-    }
-  }
+	override fun onOutput(line: String?) {
+		val act = checkActivity("onOutput") ?: return
+		line?.let {
+			act.appendBuildOutput(it)
+			if (it.contains("BUILD SUCCESSFUL") || it.contains("BUILD FAILED")) {
+				act.setStatus(it)
+				lastStatusLine = it
+			}
+		}
+	}
 
-  private fun analyzeCurrentFile() {
-    checkActivity("analyzeCurrentFile") ?: return
+	private fun analyzeCurrentFile() {
+		checkActivity("analyzeCurrentFile") ?: return
 
-    val editorView = _activity?.getCurrentEditor()
-    if (editorView != null) {
-      val editor = editorView.editor
-      editor?.analyze()
-    }
-  }
+		val editorView = activityOrNull?.getCurrentEditor()
+		if (editorView != null) {
+			val editor = editorView.editor
+			editor?.analyze()
+		}
+	}
 
-  private fun checkActivity(action: String): EditorHandlerActivity? {
-    if (!enabled) return null
+	private fun checkActivity(action: String): EditorHandlerActivity? {
+		if (!enabled) return null
 
-    return _activity.also {
-      if (it == null) {
-        log.warn("[{}] Activity reference has been destroyed!", action)
-        enabled = false
-      }
-    }
-  }
+		return activityOrNull.also {
+			if (it == null) {
+				log.warn("[{}] Activity reference has been destroyed!", action)
+				enabled = false
+			}
+		}
+	}
 }

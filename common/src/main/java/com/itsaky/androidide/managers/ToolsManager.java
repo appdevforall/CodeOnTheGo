@@ -107,7 +107,7 @@ public class ToolsManager {
 			// Load installed JDK distributions
 			IJdkDistributionProvider.getInstance().loadDistributions();
 
-			updateToolingJar(app.getAssets());
+			updateToolingJar(app);
 			extractLogSender(app);
 
 			writeNoMediaFile();
@@ -293,10 +293,21 @@ public class ToolsManager {
 	}
 
 	@WorkerThread
-	private static void updateToolingJar(AssetManager assets) {
+	private static void updateToolingJar(BaseApplication app) {
 		// Ensure relevant shared libraries are loaded
 		Brotli4jLoader.ensureAvailability();
 
+		final var toolingJarFile = Environment.TOOLING_API_JAR;
+		final var stampFile = new File(toolingJarFile.getParentFile(), toolingJarFile.getName() + ".stamp");
+		final var stamp = installedApkStamp(app);
+		if (toolingJarFile.isFile() && stamp != null && stamp.equals(readStampFile(stampFile))) {
+			// The jar from this exact APK install is already extracted; skip the copy.
+			// The stamp is written only after a complete extraction, so a partial
+			// copy from a killed process can never satisfy this check.
+			return;
+		}
+
+		final var assets = app.getAssets();
 		final var toolingJarName = "tooling-api-all.jar";
 		InputStream toolingJarStream;
 		try {
@@ -311,14 +322,23 @@ public class ToolsManager {
 		}
 
 		try {
-			final var toolingJarFile = Environment.TOOLING_API_JAR;
-			if (toolingJarFile.exists()) {
-				FileUtils.delete(toolingJarFile);
-			}
-
+			// Extract to a temp sibling, then rename into place. The tooling server
+			// starts concurrently with this extraction (both run at app init), and
+			// launching `java -jar` against a half-written jar kills project init
+			// ("An unexpected error occurred while trying to open file ..."), so a
+			// partial jar must never be visible at the final path. rename(2) within
+			// one directory atomically replaces the target on Linux.
+			final var tempFile = new File(toolingJarFile.getParentFile(), toolingJarFile.getName() + ".part");
 			Objects.requireNonNull(toolingJarFile.getParentFile()).mkdirs();
-			try (final var fos = new FileOutputStream(toolingJarFile)) {
+			try (final var fos = new FileOutputStream(tempFile)) {
 				IoUtilsKt.transferToStream(toolingJarStream, fos);
+			}
+			if (!tempFile.renameTo(toolingJarFile)) {
+				LOG.error("Failed to move extracted tooling API jar into place");
+				return;
+			}
+			if (stamp != null) {
+				FileIOUtils.writeFileFromString(stampFile, stamp);
 			}
 		} catch (Throwable err) {
 			LOG.error("Failed to copy tooling API jar", err);
@@ -328,6 +348,29 @@ public class ToolsManager {
 			} catch (IOException e) {
 				LOG.error("Failed to close tooling API jar stream", e);
 			}
+		}
+	}
+
+	/**
+	 * Identity of the installed APK for the extraction stamp: versionName plus the
+	 * package's lastUpdateTime, which changes on every (re)install - exactly when the
+	 * bundled jar can change. Null (extract unconditionally) if the lookup fails.
+	 */
+	private static String installedApkStamp(BaseApplication app) {
+		try {
+			final var info = app.getPackageManager().getPackageInfo(app.getPackageName(), 0);
+			return info.versionName + ":" + info.lastUpdateTime;
+		} catch (Throwable err) {
+			LOG.warn("Could not read package info for tooling jar stamp", err);
+			return null;
+		}
+	}
+
+	private static String readStampFile(File stampFile) {
+		try {
+			return stampFile.isFile() ? FileIOUtils.readFile2String(stampFile) : null;
+		} catch (Throwable err) {
+			return null;
 		}
 	}
 

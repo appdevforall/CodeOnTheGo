@@ -66,9 +66,12 @@ import com.itsaky.androidide.plugins.extensions.ProjectSearchExtension
 import com.itsaky.androidide.plugins.extensions.ProjectSearchRequest
 import com.itsaky.androidide.plugins.extensions.ProjectSearchResult
 import com.itsaky.androidide.plugins.extensions.ProjectSearchSection
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.projectDir
+import com.itsaky.androidide.quickbuild.QuickBuildBenchAutostart
+import com.itsaky.androidide.quickbuild.SameAppIdEntryUx
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.services.builder.GradleBuildService
@@ -92,10 +95,13 @@ import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
+import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
+import com.itsaky.androidide.utils.isAtLeastQ
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showOnUiThread
@@ -115,7 +121,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.adfa.constants.CONTENT_KEY
+import org.appdevforall.cotg.quickbuild.service.QuickBuildSessionManager
+import org.appdevforall.cotg.quickbuild.service.SameAppIdModeController
 import org.koin.android.ext.android.inject
+import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
@@ -237,11 +246,34 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 	}
 
+	/**
+	 * Low-spec device support (ADFA-4128 P1a.1): forward the framework signal so a live
+	 * Quick Build session can give back the compile daemon's heap under memory pressure.
+	 * See [QuickBuildSessionManager.onTrimMemory] for the per-level decision and the
+	 * (lazy, auto-healing) re-warm path - nothing else is required here.
+	 */
+	override fun onTrimMemory(level: Int) {
+		super.onTrimMemory(level)
+		quickBuildSessionManager()?.onTrimMemory(level)
+	}
+
 	private fun observeStates() {
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.STARTED) {
 				launch {
 					buildViewModel.buildState.collect { onBuildStateChanged(it) }
+				}
+				quickBuildSessionManager()?.let { quickBuild ->
+					// A2 (ADFA-4128): the toolbar icon reads the session status
+					// pull-style in prepare(); nothing else rebuilds the toolbar when
+					// e.g. a watcher-triggered build fails, so push every status
+					// change into a menu refresh or the ATTENTION icon never shows.
+					launch {
+						quickBuild.status.collect { invalidateOptionsMenu() }
+					}
+					launch {
+						quickBuild.userMessages.collect { flashError(it) }
+					}
 				}
 			}
 		}
@@ -280,10 +312,26 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	private fun installApk(state: BuildState.AwaitingInstall) {
+		// Same-app-id hand-back (ADFA-4128, design contract section 4): a Standard Run
+		// install over an active episode IS the restore. End the episode and stop the
+		// session BEFORE the install lands, and request a downgrade (API 29+) since the
+		// real app's versionCode sits below the pinned test versionCode.
+		val restore =
+			sameAppIdModeController()?.onStandardRunInstall(
+				downgradeAvailable = isAtLeastQ(),
+			)
+		if (restore?.episodeEnded == true) {
+			quickBuildSessionManager()?.restartSession()
+			// The symmetric clobber, documented to the user (contract section 3's
+			// "until a Standard Run reinstalls it" line is this - no second warning).
+			flashInfo(getString(string.quick_build_same_app_id_restored))
+		}
+
 		apkInstallationViewModel.installApk(
 			context = this,
 			apk = state.apkFile,
 			launchInDebugMode = state.launchInDebugMode,
+			requestDowngrade = restore?.requestDowngrade == true,
 		)
 
 		if (state.launchProfilerAfterInstall) {
@@ -294,6 +342,161 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				currentTab = BottomSheetViewModel.TAB_PROFILER,
 			)
 		}
+	}
+
+	/**
+	 * The Quick Build session manager (ADFA-4128), or null when the feature is off.
+	 * Gated exactly like the action's registration in EditorActivityActions - the
+	 * experiments flag only, no SDK check: Quick Build works from API 28 (plan B5's
+	 * degraded resource shim covers 28/29). Resolving the Koin singleton is cheap -
+	 * nothing spawns until the first quick build runs.
+	 *
+	 * Protected (not private): [EditorHandlerActivity]'s split-button dropdown (plan A2)
+	 * calls this too, to trigger a quick build / restart from the long-press menu.
+	 */
+	protected fun quickBuildSessionManager(): QuickBuildSessionManager? {
+		if (!FeatureFlags.isExperimentsEnabled) {
+			return null
+		}
+		return runCatching { GlobalContext.get().get<QuickBuildSessionManager>() }
+			.onFailure { logger.error("Quick Build session manager unavailable", it) }
+			.getOrNull()
+	}
+
+	/**
+	 * The same-app-id mode controller (ADFA-4128 Path B), or null when the feature is
+	 * off. Gated exactly like [quickBuildSessionManager].
+	 */
+	protected fun sameAppIdModeController(): SameAppIdModeController? {
+		if (!FeatureFlags.isExperimentsEnabled) {
+			return null
+		}
+		return runCatching { GlobalContext.get().get<SameAppIdModeController>() }
+			.onFailure { logger.error("Same-app-id mode controller unavailable", it) }
+			.getOrNull()
+	}
+
+	/** Whether same-app-id mode is on for this project (the dropdown's checked state). */
+	fun isSameAppIdModeEnabled(): Boolean = sameAppIdModeController()?.isModeEnabled() == true
+
+	/**
+	 * Same-app-id entry gate (ADFA-4128 Path B, design contract section 3): when the
+	 * per-project toggle is on but this episode's clobber warning has not been
+	 * confirmed (first session after enabling, or re-entry after a Standard Run
+	 * restore ended the episode), show the warning and run [onConfirmed] only on
+	 * accept. Otherwise [onConfirmed] runs immediately. The provisioner independently
+	 * refuses unconfirmed episodes (SameAppIdGuard); this is the UX in front of that
+	 * hard gate, so nothing builds or installs before the user says yes.
+	 */
+	fun ensureSameAppIdEntryConfirmed(onConfirmed: () -> Unit) {
+		val controller = sameAppIdModeController()
+		if (controller == null || !controller.needsEntryConfirmation()) {
+			onConfirmed()
+			return
+		}
+		startSameAppIdEntry(controller, onConfirmed)
+	}
+
+	/**
+	 * The dropdown's "Use real app ID" toggle. Off -> on runs the mode-entry flow
+	 * (clobber warning, or the signature-mismatch refusal); on -> off ends the episode
+	 * and stops any live session (a mode flip is a rebaseline boundary).
+	 */
+	fun toggleSameAppIdMode() {
+		val controller = sameAppIdModeController() ?: return
+		if (controller.isModeEnabled()) {
+			controller.disableMode()
+			flashInfo(getString(string.quick_build_same_app_id_disabled))
+		} else {
+			startSameAppIdEntry(controller, onConfirmed = null)
+		}
+	}
+
+	private fun startSameAppIdEntry(
+		controller: SameAppIdModeController,
+		onConfirmed: (() -> Unit)?,
+	) {
+		val realAppId = projectRealApplicationId()
+		if (realAppId == null) {
+			flashError(getString(string.quick_build_same_app_id_no_app_id))
+			return
+		}
+		// The project model exposes no versionCode; null floors to 1, and on the
+		// update path the installed app's versionCode + 1 dominates anyway
+		// (SameAppIdEntry.decide).
+		when (val request = controller.requestEntry(realAppId, projectVersionCode = null)) {
+			is SameAppIdModeController.EntryRequest.Refused ->
+				showSameAppIdRefusal(request.message)
+
+			is SameAppIdModeController.EntryRequest.ShowWarning ->
+				showSameAppIdClobberWarning(controller, request, onConfirmed)
+		}
+	}
+
+	private fun projectRealApplicationId(): String? {
+		val projectManager = IProjectManager.getInstance()
+		val module =
+			projectManager.getAndroidAppModules().firstOrNull()
+				?: projectManager.getAndroidModules().firstOrNull()
+				?: return null
+		return module
+			.getSelectedVariant()
+			?.mainArtifact
+			?.applicationId
+			?.takeIf { it.isNotBlank() }
+	}
+
+	/**
+	 * Contract section 3's destructive-styled dialog: explicit consequence list, shown
+	 * on every mode ENTRY, nothing runs before accept. Decline (button, back, or
+	 * outside touch) leaves everything untouched.
+	 */
+	private fun showSameAppIdClobberWarning(
+		controller: SameAppIdModeController,
+		request: SameAppIdModeController.EntryRequest.ShowWarning,
+		onConfirmed: (() -> Unit)?,
+	) {
+		val model = SameAppIdEntryUx.warningModel(request)
+		val message = SameAppIdEntryUx.formatMessage(model) { resId, appId -> getString(resId, appId) }
+		val dialog =
+			newMaterialDialogBuilder(this)
+				.setTitle(getString(model.titleRes, model.realApplicationId))
+				.setMessage(message)
+				.setPositiveButton(model.confirmRes) { d, _ ->
+					d.dismiss()
+					controller.confirmEntry()
+					onConfirmed?.invoke()
+				}.setNegativeButton(android.R.string.cancel) { d, _ ->
+					d.dismiss()
+					controller.declineEntry()
+				}.setOnCancelListener { controller.declineEntry() }
+				.show()
+		// Destructive styling: the confirm action replaces an installed app, so it must
+		// not read as the default affirmative.
+		dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(
+			resolveAttr(com.itsaky.androidide.resources.R.attr.colorError),
+		)
+	}
+
+	private fun showSameAppIdRefusal(message: String) {
+		newMaterialDialogBuilder(this)
+			.setTitle(string.quick_build_same_app_id_refused_title)
+			.setMessage(message)
+			.setPositiveButton(android.R.string.ok, null)
+			.show()
+	}
+
+	/**
+	 * B3 hand-back (ADFA-4128): called by [EditorBuildEventListener] whenever ANY
+	 * external Gradle build finishes - success OR failure, Run button or "Run Gradle
+	 * tasks". Even a failed build can have rewritten build/ outputs of the modules that
+	 * DID compile (paths the quick-build watcher deliberately does not watch), so a live
+	 * session re-seeds from current disk either way. Over-reseeding is safe: it only
+	 * marks the baseline untrusted. The session's own setup builds also land here, but
+	 * the reducer drops the event in Provisioning/Prewarming.
+	 */
+	fun onExternalGradleBuildFinished() {
+		quickBuildSessionManager()?.onStandardRunCompleted()
 	}
 
 	private fun showPluginInstallDialog(cgpFile: File) {
@@ -352,6 +555,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			// sometimes, when the IDE closed and reopened instantly, these values prevent initialization
 			// of the project
 			ProjectManagerImpl.getInstance().destroy()
+
+			// ADFA-4128 (WS-H): the Quick Build session manager is a process-wide Koin
+			// singleton that outlives this activity, and its provisioner reads
+			// IProjectManager.getInstance().projectDirPath fresh at build time rather
+			// than a snapshot. Without this, closing a project while its eager prewarm
+			// (or a live session) is still in flight lets that work silently keep
+			// running once projectPath flips to whatever project opens next - either
+			// racing the next project's own prewarm() into a permanent no-op (the
+			// reducer treats a second PrewarmRequested while already Prewarming as a
+			// no-op) or building against the wrong directory. restartSession() is a
+			// verified no-op when nothing is live (SessionReducerTest: "idle plus
+			// SessionRestartRequested is a no-op").
+			quickBuildSessionManager()?.restartSession()
 
 			editorViewModel.isInitializing = false
 			editorViewModel.isBuildInProgress = false
@@ -787,6 +1003,26 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		setStatus(getString(string.msg_project_initialized))
 		editorViewModel.isInitializing = false
 		invalidateOptionsMenu()
+
+		// Same-app-id episodes persist across CoGo restarts: re-arm the install guard
+		// from the persisted, already-confirmed episode before anything provisions.
+		sameAppIdModeController()?.restoreEpisode()
+
+		// B2 (ADFA-4128): eager quick-build setup build, AFTER the normal sync so it
+		// rides the warm Gradle daemon instead of fighting it. Fire-and-forget on the
+		// session manager's own thread; installs nothing until the first tap.
+		quickBuildSessionManager()?.prewarm()
+
+		// ADFA-4128 benchmark: if QuickBuildBenchActivity armed an autostart for THIS
+		// project, fire the first Quick Build now - the adb-driven stand-in for the human's
+		// lightning-bolt tap. Bench-flag only; claim() is a one-shot, matched by canonical path.
+		if (FeatureFlags.isQuickBuildBenchEnabled) {
+			val canonical =
+				runCatching { File(IProjectManager.getInstance().projectDirPath).canonicalPath }.getOrNull()
+			if (canonical != null && QuickBuildBenchAutostart.claim(canonical)) {
+				quickBuildSessionManager()?.onQuickBuildTapped()
+			}
+		}
 
 		if (mFindInProjectDialog?.isShowing == true) {
 			mFindInProjectDialog!!.dismiss()

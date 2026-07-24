@@ -35,6 +35,11 @@ object ContentReadWrite {
   /**
    * Write this [Content] to the given [File].
    *
+   * Writes IN PLACE — opens [file] directly and truncates + writes sequentially; this is
+   * NOT a temp-file-then-rename swap. A filesystem watcher observing a save from this
+   * method sees the target path itself change, never a sibling temp file (that pattern
+   * is specific to EXTERNAL tools like `sed -i` or `git checkout`).
+   *
    * @param progressConsumer A function which is invoked to notify about the write progress.
    */
   @JvmStatic
