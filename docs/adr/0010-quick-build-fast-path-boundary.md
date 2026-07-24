@@ -8,7 +8,7 @@
 
 Quick Build is a live-reload path for edit-run-edit iteration: an on-device watcher
 triggers an incremental compile + dex + relink, and the payload deploys into a running
-`<appId>.quickbuild` test app over a bound service — no reinstall, no full Gradle
+test app (installed under the project's real `applicationId`) over a bound service — no reinstall, no full Gradle
 invocation. This is fast (~1 s warm at p50, measured on a mid-spec phone with a minimal
 app; `results/phase1-gates-a56/` in the `CodeOnTheGo-build-benchmark` repo) precisely because it skips most of
 what a real Gradle build does. That's only safe for a bounded class of edits; anything wider needs
@@ -44,13 +44,17 @@ can't confidently route to the hot path takes the conservative branch (rebaselin
 build failure on either path renders an error overlay rather than leaving the last-good
 build looking current.
 
-**`<appId>.quickbuild` coexistence:** the test app runs under a suffixed package id, not
-the project's real `applicationId`. This gives free coexistence with a Standard Run of the
-same project (different package, isolated storage, no clobbering) and correct
-`${applicationId}`-based authorities (FileProvider, etc.). It also means anything bound to
-the *exact* real package id does not work under Quick Build: Firebase, Google Maps API
-keys, Google Sign-In/OAuth, FCM push, verified app links, Play billing. v1 accepts this —
-iterate UI/logic under Quick Build, verify service-bound features on a Standard Run.
+**Package identity (updated 2026-07-24 — supersedes the original `.quickbuild` suffix
+decision):** the test app now installs under the project's **real `applicationId`**, the
+same slot a Standard Run uses. There is no `.quickbuild` suffix and no separate mode.
+Because both build types share one slot, switching from one to the other overwrites the
+other, so CoGo **confirms the clobber** before installing (it reads the installed package's
+`appComponentFactory` to tell which build occupies the slot). This buys real
+package-bound behavior (Firebase, FCM into proxied services, Google Sign-In/OAuth against
+the debug cert, verified app links) — which uniform component proxying
+(`component-proxying-design.md`) makes honest — at the cost that Quick Build and Standard
+Run no longer coexist side by side. The original suffix decision and its rationale are kept
+below under Alternatives for the record.
 
 **Release bar (proposed, final call tracked in ADFA-4128):** ship behind the experiments
 flag when, on mid-spec devices, code + resource edits reload under 2 s p95, never-stale
@@ -68,9 +72,9 @@ build, and first-run install is hands-free except OS-mandated dialogs.
 **Negative / costs**
 - Any edit crossing the boundary (manifest, native, processor-input, deps) pays a full
   rebuild, which can surprise a user expecting instant reload.
-- The `.quickbuild` package split makes a whole class of external-service integration
-  untestable under Quick Build; users must remember to fall back to Standard Run for
-  those flows.
+- Sharing the real applicationId (2026-07-24) means Quick Build and Standard Run no longer
+  coexist: switching build type overwrites the other's installed app, so each switch is a
+  reinstall behind a confirm dialog (and possibly a Play Protect prompt).
 
 ## Alternatives considered
 
@@ -91,10 +95,12 @@ build, and first-run install is hands-free except OS-mandated dialogs.
   app (`quick-build/corpus/results/phase1-gates-a56/`), and hand-back could no longer
   leave both paths usable side by side. Component proxying has since widened to every
   manifest component (`quick-build/docs/component-proxying-design.md`), which makes the
-  harness genuinely stand in for the app — so per this entry's revisit clause, a same-id
-  mode is now **adopted as a per-project opt-in** (2026-07-20, behind the experiments
-  flag; `quick-build/docs/same-app-id-design.md`), gated on an explicit destructive-styled
-  clobber warning on every mode entry. The suffix remains the default posture of this ADR.
+  harness genuinely stand in for the app — so per this entry's revisit clause this
+  "run under the real id" approach, first adopted as a per-project opt-in (2026-07-20),
+  became the **only** behavior on **2026-07-24**: the `.quickbuild` suffix was removed
+  entirely and both build types install under the real id, gated by a destructive-styled
+  **confirm-on-switch** dialog when a Run would clobber the other build's app. See the
+  updated "Package identity" note under Decision above.
 
 ## Related
 

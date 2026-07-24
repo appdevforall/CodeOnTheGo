@@ -202,39 +202,6 @@ class QuickBuildJsonTest {
 	}
 
 	@Test
-	fun `setup json omits the same-app-id fields in suffix mode`() {
-		// Additive contract: a suffix-mode setup.json must look exactly like before Path B
-		// so old parsers (and the SetupInfo defaults) see nothing new.
-		val json = QuickBuildJson.setupJson(info, "/apk/app-debug.apk")
-
-		val parsed = JsonSlurper().parseText(json) as Map<*, *>
-		assertThat(parsed.containsKey("sameAppId")).isFalse()
-		assertThat(parsed.containsKey("versionCode")).isFalse()
-		assertThat(parsed["schema"]).isEqualTo(QuickBuildJson.SCHEMA_VERSION)
-	}
-
-	@Test
-	fun `setup json carries sameAppId and the pinned versionCode when set`() {
-		val sameIdInfo = info.copy(testAppId = "com.example.app")
-
-		val json =
-			QuickBuildJson.setupJson(
-				sameIdInfo,
-				"/apk/app-debug.apk",
-				sameAppId = true,
-				versionCode = 12346,
-			)
-
-		val parsed = JsonSlurper().parseText(json) as Map<*, *>
-		// String values per the design contract (same-app-id-design.md section 6); the
-		// schema field stays at its current value - additive, no bump.
-		assertThat(parsed["sameAppId"]).isEqualTo("true")
-		assertThat(parsed["versionCode"]).isEqualTo("12346")
-		assertThat(parsed["schema"]).isEqualTo(QuickBuildJson.SCHEMA_VERSION)
-		assertThat(parsed["testAppId"]).isEqualTo("com.example.app")
-	}
-
-	@Test
 	fun `parseManifestInfo rejects json without a testAppId`() {
 		val error =
 			assertThrows<IllegalArgumentException> {

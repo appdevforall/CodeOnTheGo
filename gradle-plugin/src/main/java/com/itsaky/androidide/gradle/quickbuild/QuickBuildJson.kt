@@ -62,9 +62,6 @@ object QuickBuildJson {
 	 * @param supertypes per-userClass user-side superclass chains (project-compiled classes
 	 *   only), merged into each `components` entry - the deploy policy's restart closure
 	 *   comes from these.
-	 * @param sameAppId true for a same-app-id (Path B) setup build; testAppId then equals
-	 *   the real applicationId.
-	 * @param versionCode the versionCode CoGo pinned for the same-app-id episode, or null.
 	 * @param annotationProcessors coordinates on the variant's `ksp`/`kapt`/
 	 *   `annotationProcessor` configurations. Empty means the quick path never has to
 	 *   worry about stale generated code; non-empty switches CoGo's classifier into
@@ -101,8 +98,6 @@ object QuickBuildJson {
 		payloadJars: List<String> = emptyList(),
 		composeEnabled: Boolean = false,
 		supertypes: Map<String, List<String>> = emptyMap(),
-		sameAppId: Boolean = false,
-		versionCode: Int? = null,
 		annotationProcessors: List<String> = emptyList(),
 		sourceRoots: List<String> = emptyList(),
 		stableIdsPath: String? = null,
@@ -140,13 +135,6 @@ object QuickBuildJson {
 				"stableIdsPath" to stableIdsPath,
 				"libraryResourcePaths" to libraryResourcePaths,
 			)
-		// Same-app-id mode fields are ADDITIVE and absent in suffix mode - no schema bump,
-		// old parsers ignore them. String values per the design contract
-		// (quick-build/docs/same-app-id-design.md, section 6).
-		if (sameAppId) {
-			map["sameAppId"] = "true"
-		}
-		versionCode?.let { map["versionCode"] = it.toString() }
 		return pretty(map)
 	}
 

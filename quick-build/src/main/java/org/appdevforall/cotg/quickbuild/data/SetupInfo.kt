@@ -14,7 +14,7 @@ import java.io.File
  * the primary names are listed first per field.
  */
 data class SetupInfo(
-	/** The generated test app's applicationId (`<user appId>.quickbuild`). */
+	/** The generated test app's applicationId - the project's real applicationId. */
 	val testAppPackage: String,
 	/**
 	 * Fully-qualified user entry activity carried in every deploy metadata. Null when
@@ -58,17 +58,6 @@ data class SetupInfo(
 	 * empty for pre-v2 baselines. Feeds the restart closure and the relaunch target.
 	 */
 	val components: List<ComponentInfo> = emptyList(),
-	/**
-	 * True when the setup build ran in same-app-id mode (Path B): [testAppPackage] then
-	 * IS the real applicationId. Additive field, absent in suffix-mode setup.json; the
-	 * plugin writes it as the STRING "true", so parsing accepts both forms.
-	 */
-	val sameAppId: Boolean = false,
-	/**
-	 * The pinned versionCode the setup build applied (same-app-id episodes only);
-	 * written as a numeric string. Null when absent.
-	 */
-	val versionCode: Int? = null,
 	/**
 	 * KSP/kapt/annotationProcessor coordinates the setup build saw. Empty (or absent, on
 	 * an older setup.json) means no processors, and the classifier stays in its original
@@ -170,8 +159,6 @@ data class SetupInfo(
 						.getAsJsonArray("components")
 						?.mapNotNull { element -> (element as? JsonObject)?.let(::parseComponent) }
 						?: emptyList(),
-				sameAppId = obj.flexibleBoolean("sameAppId"),
-				versionCode = obj.flexibleInt("versionCode"),
 				annotationProcessors = obj.stringArray("annotationProcessors"),
 				sourceRoots = obj.stringArray("sourceRoots").map { resolve(it, baseDir) },
 				stableIdsFile = obj.firstString("stableIdsPath")?.let { resolve(it, baseDir) },
@@ -186,31 +173,31 @@ data class SetupInfo(
 				?.filter { it.isNotBlank() }
 				?: emptyList()
 
-		/**
-		 * A boolean the plugin may write as a JSON boolean or the string "true" (the
-		 * setup.json convention is string values); anything else reads as false.
-		 */
-		private fun JsonObject.flexibleBoolean(key: String): Boolean {
-			val value = get(key)?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive ?: return false
-			return if (value.isBoolean) value.asBoolean else value.asString.equals("true", ignoreCase = true)
-		}
-
-		/** An int written as a JSON number or a numeric string; null when absent/malformed. */
-		private fun JsonObject.flexibleInt(key: String): Int? {
-			val value = get(key)?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive ?: return null
-			return if (value.isNumber) value.asInt else value.asString.toIntOrNull()
-		}
-
 		/** One `components` entry; null (skipped, logged) when malformed or of an unknown type. */
 		private fun parseComponent(obj: JsonObject): ComponentInfo? {
 			val typeName = obj.firstString("type") ?: return null
 			val kind =
 				when (typeName) {
-					"activity" -> ComponentKind.ACTIVITY
-					"service" -> ComponentKind.SERVICE
-					"receiver" -> ComponentKind.RECEIVER
-					"provider" -> ComponentKind.PROVIDER
-					"application" -> ComponentKind.APPLICATION
+					"activity" -> {
+						ComponentKind.ACTIVITY
+					}
+
+					"service" -> {
+						ComponentKind.SERVICE
+					}
+
+					"receiver" -> {
+						ComponentKind.RECEIVER
+					}
+
+					"provider" -> {
+						ComponentKind.PROVIDER
+					}
+
+					"application" -> {
+						ComponentKind.APPLICATION
+					}
+
 					else -> {
 						// A future schema's component type this build doesn't know. The
 						// schema version, not this parser, is the compatibility gate.

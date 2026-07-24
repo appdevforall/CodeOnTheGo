@@ -15,15 +15,10 @@ import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.data.DefaultQuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.SetupInfo
-import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
-import org.appdevforall.cotg.quickbuild.domain.SameAppIdGuard
-import org.appdevforall.cotg.quickbuild.domain.SameAppIdProvisionDecision
-import org.appdevforall.cotg.quickbuild.domain.SameAppIdProvisionGuard
-import org.appdevforall.cotg.quickbuild.domain.SameAppIdRefusalReason
+import org.appdevforall.cotg.quickbuild.domain.RealIdInstall
 import org.appdevforall.cotg.quickbuild.service.InstallOutcome
 import org.appdevforall.cotg.quickbuild.service.InstalledPackages
 import org.appdevforall.cotg.quickbuild.service.ProvisionOutcome
-import org.appdevforall.cotg.quickbuild.service.QuickBuildModeStore
 import org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner
 import org.appdevforall.cotg.quickbuild.service.RebaselineOutcome
 import org.appdevforall.cotg.quickbuild.service.TestAppInstaller
@@ -38,42 +33,32 @@ import java.io.File
  * which reuses CoGo's Run install pathway (plan B1) and skips the install entirely
  * when the device already runs those exact APK bytes.
  *
- * Same-app-id mode (Path B, `quick-build/docs/same-app-id-design.md`): when the
- * per-project toggle is on and the episode confirmed, the setup build additionally
- * gets `-Pcotg.quickbuild.sameAppId=true` and the episode's pinned
- * `-Pcotg.quickbuild.versionCodeOverride`. Before any install the provisioner runs the
- * [SameAppIdGuard] assertions and the authoritative signature check (built APK cert vs
- * installed real app cert) - a mismatch refuses loud, never uninstalls.
+ * The test app installs under the project's real applicationId (Quick Build and Standard
+ * Run share the one package slot). Before installing over an existing real-id package the
+ * provisioner runs an authoritative signature check (built APK cert vs installed cert): a
+ * mismatch means a third-party install of the same id is occupying the slot, so it refuses
+ * loud and never uninstalls (the user must remove it manually). The switch confirmation
+ * between build types is handled CoGo-side, before provisioning starts.
  */
 class GradleQuickBuildProvisioner(
 	private val context: Context,
 	private val paths: EnvironmentQuickBuildPaths,
 	private val installer: TestAppInstaller,
 	private val packages: InstalledPackages,
-	private val modeStore: QuickBuildModeStore,
-	private val guard: SameAppIdGuard,
-	private val metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop,
 	/** SHA-256 of an APK file's signing cert; app wiring uses PackageManager. */
 	private val apkCertSha256: (File) -> String? = { null },
 ) : QuickBuildProvisioner {
-	/** Snapshot of the persisted mode for ONE build, so toggle races cannot split it. */
-	private data class ModeSnapshot(
-		val sameAppId: Boolean,
-		val pinnedVersionCode: Int?,
-	)
-
 	override suspend fun provision(): ProvisionOutcome {
 		unsupportedProjectTypeFailure()?.let { return ProvisionOutcome.Failure(it) }
-		val mode = modeSnapshot()
-		preflightFailure(mode)?.let { return ProvisionOutcome.Failure(it) }
 
 		val setupResult =
-			runSetupBuild(mode) ?: return ProvisionOutcome.Failure("Quick Build setup build failed")
+			runSetupBuild() ?: return ProvisionOutcome.Failure("Quick Build setup build failed")
 		val (setup, projectRoot, moduleDir) = setupResult
 
-		QuickBuildProjectSupport.noLaunchableActivityMessage(setup.entryActivity)
+		QuickBuildProjectSupport
+			.noLaunchableActivityMessage(setup.entryActivity)
 			?.let { return ProvisionOutcome.Failure(it) }
-		installRefusal(mode, setup)?.let { return ProvisionOutcome.Failure(it) }
+		installRefusal(setup)?.let { return ProvisionOutcome.Failure(it) }
 
 		val uid =
 			when (val installed = installer.ensureInstalled(setup.apk, setup.testAppPackage)) {
@@ -105,27 +90,21 @@ class GradleQuickBuildProvisioner(
 			log.warn("Quick Build unsupported for this project type; skipping the warm setup build")
 			return
 		}
-		val mode = modeSnapshot()
-		if (mode.sameAppId && preflightFailure(mode) != null) {
-			log.warn("Same-app-id episode not confirmed; skipping the warm setup build")
-			return
-		}
-		if (runSetupBuild(mode) == null) {
+		if (runSetupBuild() == null) {
 			log.warn("Eager quick-build setup build did not complete; the first tap retries")
 		}
 	}
 
 	override suspend fun rebaseline(): RebaselineOutcome {
 		unsupportedProjectTypeFailure()?.let { return RebaselineOutcome.Failure(it) }
-		val mode = modeSnapshot()
-		preflightFailure(mode)?.let { return RebaselineOutcome.Failure(it) }
 
 		val setupResult =
-			runSetupBuild(mode) ?: return RebaselineOutcome.Failure("Re-baseline build failed")
+			runSetupBuild() ?: return RebaselineOutcome.Failure("Re-baseline build failed")
 
-		QuickBuildProjectSupport.noLaunchableActivityMessage(setupResult.setup.entryActivity)
+		QuickBuildProjectSupport
+			.noLaunchableActivityMessage(setupResult.setup.entryActivity)
 			?.let { return RebaselineOutcome.Failure(it) }
-		installRefusal(mode, setupResult.setup)?.let { return RebaselineOutcome.Failure(it) }
+		installRefusal(setupResult.setup)?.let { return RebaselineOutcome.Failure(it) }
 
 		// The installer skips when the rebuilt APK is byte-identical to what is
 		// installed (common when a gradle edit did not change the test app), so a
@@ -134,8 +113,11 @@ class GradleQuickBuildProvisioner(
 			val installed =
 				installer.ensureInstalled(setupResult.setup.apk, setupResult.setup.testAppPackage)
 		) {
-			is InstallOutcome.Failed -> RebaselineOutcome.Failure(installed.message)
-			is InstallOutcome.Installed ->
+			is InstallOutcome.Failed -> {
+				RebaselineOutcome.Failure(installed.message)
+			}
+
+			is InstallOutcome.Installed -> {
 				RebaselineOutcome.Success(
 					setup = setupResult.setup,
 					layout =
@@ -148,14 +130,9 @@ class GradleQuickBuildProvisioner(
 							libraryResourceFlats = setupResult.setup.libraryResourceFlats,
 						),
 				)
+			}
 		}
 	}
-
-	private fun modeSnapshot(): ModeSnapshot =
-		ModeSnapshot(
-			sameAppId = modeStore.isSameAppIdEnabled(),
-			pinnedVersionCode = modeStore.pinnedVersionCode(),
-		)
 
 	/**
 	 * Quick Build can't provision a plugin project (its artifact is a `.cgp`, not a
@@ -168,65 +145,32 @@ class GradleQuickBuildProvisioner(
 		)
 
 	/**
-	 * Same-app-id checks that must pass BEFORE the setup build (contract section 2).
-	 * Pure decision in [SameAppIdProvisionGuard.preflight]; null = proceed.
+	 * The authoritative safety check between the setup build and the install: if a package
+	 * already occupies the real applicationId and its signing cert differs from the freshly
+	 * built test APK's, it was not built by this device's CoGo - refuse loud rather than
+	 * clobber a third-party install whose data an update cannot preserve. No installed app,
+	 * or a matching cert (CoGo's own Quick Build or Standard Run build), proceeds. Null =
+	 * install may proceed.
 	 */
-	private fun preflightFailure(mode: ModeSnapshot): String? =
-		SameAppIdProvisionGuard.preflight(mode.sameAppId, mode.pinnedVersionCode, guard)
-
-	/**
-	 * Same-app-id checks between the setup build and the install (contract sections 2 +
-	 * 7). This method does only the I/O - reading the installed and built signing certs,
-	 * emitting refusal analytics, logging; the decision itself lives in the JVM-tested
-	 * [SameAppIdProvisionGuard.installGate]. Null = install may proceed.
-	 */
-	private fun installRefusal(
-		mode: ModeSnapshot,
-		setup: SetupInfo,
-	): String? {
-		val realAppId =
-			if (setup.sameAppId) {
-				setup.testAppPackage
-			} else {
-				setup.testAppPackage.removeSuffix(SameAppIdGuard.TEST_APP_ID_SUFFIX)
-			}
-		// Certs are read only on the same-app-id update path, where the real app exists.
-		val realAppInstalled = mode.sameAppId && packages.uid(realAppId) != null
-		val installedCert = if (realAppInstalled) packages.signingCertSha256(realAppId) else null
-		val builtCert = if (realAppInstalled) apkCertSha256(setup.apk) else null
-
-		val decision =
-			SameAppIdProvisionGuard.installGate(
-				modeSameAppId = mode.sameAppId,
-				pinnedVersionCode = mode.pinnedVersionCode,
-				setupSameAppId = setup.sameAppId,
-				setupVersionCode = setup.versionCode,
-				testAppPackage = setup.testAppPackage,
+	private fun installRefusal(setup: SetupInfo): String? {
+		val realAppId = setup.testAppPackage
+		if (packages.uid(realAppId) == null) return null
+		val installedCert = packages.signingCertSha256(realAppId)
+		val builtCert = apkCertSha256(setup.apk)
+		return RealIdInstall
+			.signatureRefusal(
 				realApplicationId = realAppId,
-				realAppInstalled = realAppInstalled,
+				realAppInstalled = true,
 				installedCertSha256 = installedCert,
 				builtCertSha256 = builtCert,
-				guard = guard,
-			)
-		return when (decision) {
-			is SameAppIdProvisionDecision.Proceed -> null
-			is SameAppIdProvisionDecision.Refuse -> {
-				if (decision.signatureMismatch) {
-					log.warn(
-						"Same-app-id signature mismatch for {}: installed={}, built={}",
-						realAppId,
-						installedCert,
-						builtCert,
-					)
-					try {
-						metrics.onSameAppIdRefused(SameAppIdRefusalReason.SIGNATURE_MISMATCH)
-					} catch (e: Throwable) {
-						log.warn("Quick Build metrics sink failed", e)
-					}
-				}
-				decision.message
+			)?.also {
+				log.warn(
+					"Refusing to install the Quick Build test app over {}: installed cert {} != built cert {}",
+					realAppId,
+					installedCert,
+					builtCert,
+				)
 			}
-		}
 	}
 
 	private data class SetupResult(
@@ -236,7 +180,7 @@ class GradleQuickBuildProvisioner(
 	)
 
 	/** Runs the setup build and parses setup.json; null (with a log) on any failure. */
-	private suspend fun runSetupBuild(mode: ModeSnapshot): SetupResult? {
+	private suspend fun runSetupBuild(): SetupResult? {
 		try {
 			QuickBuildArtifactStager.stage(context, paths)
 
@@ -259,19 +203,11 @@ class GradleQuickBuildProvisioner(
 					}
 
 			val gradleArgs =
-				buildList {
-					add("-P${GradlePluginConfig.PROPERTY_QUICK_BUILD_ENABLED}=true")
-					add(
-						"-P${GradlePluginConfig.PROPERTY_QUICK_BUILD_RUNTIME_AAR}=" +
-							paths.runtimeAar.absolutePath,
-					)
-					if (mode.sameAppId) {
-						add("-P${GradlePluginConfig.PROPERTY_QUICK_BUILD_SAME_APP_ID}=true")
-						mode.pinnedVersionCode?.let {
-							add("-P${GradlePluginConfig.PROPERTY_QUICK_BUILD_VERSION_CODE_OVERRIDE}=$it")
-						}
-					}
-				}
+				listOf(
+					"-P${GradlePluginConfig.PROPERTY_QUICK_BUILD_ENABLED}=true",
+					"-P${GradlePluginConfig.PROPERTY_QUICK_BUILD_RUNTIME_AAR}=" +
+						paths.runtimeAar.absolutePath,
+				)
 			val message =
 				TaskExecutionMessage(
 					tasks = listOf(QuickBuildTaskPaths.assembleDebug(module.path)),

@@ -13,8 +13,6 @@ import com.itsaky.androidide.gradle.quickbuild.QuickBuildPayloadTransformTask
 import com.itsaky.androidide.gradle.quickbuild.QuickBuildSetupReportTask
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_RUNTIME_AAR
-import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_SAME_APP_ID
-import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_VERSION_CODE_OVERRIDE
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -35,11 +33,9 @@ import java.io.FileNotFoundException
  * true. For every debuggable application variant it:
  *
  * - injects the quick-build runtime AAR into the runtime classpath (LogSender pattern);
- * - suffixes the application id with `.quickbuild` so test app and real app coexist -
- *   unless the opt-in same-app-id mode (Path B) is on via
- *   [PROPERTY_QUICK_BUILD_SAME_APP_ID], in which case the suffix is skipped, the
- *   authority rewrite collapses to verbatim by construction (test id == real id) and the
- *   pinned [PROPERTY_QUICK_BUILD_VERSION_CODE_OVERRIDE] is applied to every output;
+ * - builds the test app under the project's real applicationId (Quick Build and Standard
+ *   Run share the one package slot; switching build type is a confirmed clobber, handled
+ *   CoGo-side);
  * - rewrites the merged manifest: proxy component names + the runtime's
  *   appComponentFactory (everything else - permissions, icon, label, filters - kept);
  * - diverts all project-scope classes out of the APK and into the baseline payload dex,
@@ -49,9 +45,6 @@ import java.io.FileNotFoundException
 class QuickBuildPlugin : Plugin<Project> {
 	companion object {
 		private val logger = Logging.getLogger(QuickBuildPlugin::class.java)
-
-		/** Suffix that keeps the test app installable next to the user's real app. */
-		const val TEST_APP_ID_SUFFIX = ".quickbuild"
 
 		/** The runtime's factory; instantiates components from the current payload generation. */
 		const val APP_COMPONENT_FACTORY =
@@ -82,30 +75,6 @@ class QuickBuildPlugin : Plugin<Project> {
 		 * (ADFA-4128 Bug 8).
 		 */
 		internal const val COMPILED_DEPENDENCIES_RESOURCES_ARTIFACT_TYPE = "android-compiled-dependencies-resources"
-
-		/**
-		 * Parses [PROPERTY_QUICK_BUILD_VERSION_CODE_OVERRIDE]. Null when unset; a set value
-		 * must be a positive integer, otherwise the setup build fails loud - silently
-		 * dropping the pin could install a downgrade-rejected or ratcheted test app over the
-		 * user's real app in same-app-id mode.
-		 */
-		internal fun resolveVersionCodeOverride(raw: Any?): Int? {
-			if (raw == null) return null
-			val value = raw.toString().toIntOrNull()
-			if (value == null || value <= 0) {
-				throw GradleException(
-					"'$PROPERTY_QUICK_BUILD_VERSION_CODE_OVERRIDE' must be a positive integer, got '$raw'",
-				)
-			}
-			return value
-		}
-
-		/**
-		 * Parses [PROPERTY_QUICK_BUILD_SAME_APP_ID]. Only the literal string "true" (the
-		 * `-P` convention CoGo writes) opts in; anything else - unset, "false", a typo -
-		 * keeps the default suffix-mode posture, never same-app-id by accident.
-		 */
-		internal fun resolveSameAppId(raw: Any?): Boolean = raw?.toString() == "true"
 	}
 
 	override fun apply(target: Project) {
@@ -133,14 +102,6 @@ class QuickBuildPlugin : Plugin<Project> {
 			throw GradleException("Quick Build runtime AAR at '${runtimeAar.absolutePath}' is not a file")
 		}
 
-		// Same-app-id mode (Path B, design contract quick-build/docs/same-app-id-design.md):
-		// skip the suffix so the test app installs under the real applicationId. The
-		// authority rewrite needs no mode branch - with test id == real id it collapses to
-		// verbatim by construction. CoGo pins the versionCode for the whole mode episode.
-		val sameAppId = resolveSameAppId(target.findProperty(PROPERTY_QUICK_BUILD_SAME_APP_ID))
-		val versionCodeOverride =
-			resolveVersionCodeOverride(target.findProperty(PROPERTY_QUICK_BUILD_VERSION_CODE_OVERRIDE))
-
 		val components = target.extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
 
 		// Detected in finalizeDsl (user DSL is final there, before variants lock).
@@ -150,13 +111,6 @@ class QuickBuildPlugin : Plugin<Project> {
 		components.finalizeDsl { extension ->
 			composeEnabled = extension.buildFeatures.compose == true ||
 				target.pluginManager.hasPlugin("org.jetbrains.kotlin.plugin.compose")
-			if (!sameAppId) {
-				extension.buildTypes.forEach { buildType ->
-					if (buildType.isDebuggable) {
-						buildType.applicationIdSuffix = buildType.applicationIdSuffix.orEmpty() + TEST_APP_ID_SUFFIX
-					}
-				}
-			}
 		}
 
 		// sdkComponents.bootClasspath must not be read here: the getter resolves eagerly
@@ -175,8 +129,6 @@ class QuickBuildPlugin : Plugin<Project> {
 					variant,
 					runtimeAar,
 					bootClasspath,
-					sameAppId,
-					versionCodeOverride,
 				) { composeEnabled }
 			}
 		}
@@ -187,8 +139,6 @@ class QuickBuildPlugin : Plugin<Project> {
 		variant: ApplicationVariant,
 		runtimeAar: File,
 		bootClasspath: org.gradle.api.provider.Provider<List<org.gradle.api.file.RegularFile>>,
-		sameAppId: Boolean,
-		versionCodeOverride: Int?,
 		composeEnabled: () -> Boolean,
 	) {
 		logger.lifecycle(
@@ -201,13 +151,6 @@ class QuickBuildPlugin : Plugin<Project> {
 			dependencies.add(project.dependencies.create(project.fileTree(runtimeAar)))
 		}
 
-		// Same-app-id mode: every setup/rebaseline build of the episode carries the same
-		// pinned versionCode, so an update-install over the real app never downgrades and
-		// rebaselines never ratchet.
-		versionCodeOverride?.let { pinned ->
-			variant.outputs.forEach { output -> output.versionCode.set(pinned) }
-		}
-
 		val buildDirectory = project.layout.buildDirectory
 		val variantDir = "quickbuild/${variant.name}"
 
@@ -217,11 +160,6 @@ class QuickBuildPlugin : Plugin<Project> {
 				QuickBuildGenerateSourcesTask::class.java,
 			) { task ->
 				task.applicationId.set(variant.applicationId)
-				// This plugin appended the suffix itself, so stripping it recovers the id
-				// the user's real app installs under - the authority-rewrite anchor.
-				task.realApplicationId.set(
-					variant.applicationId.map { it.removeSuffix(TEST_APP_ID_SUFFIX) },
-				)
 				task.appComponentFactory.set(APP_COMPONENT_FACTORY)
 				task.proxySources.set(buildDirectory.dir("$variantDir/proxy-sources"))
 				task.manifestInfoFile.set(buildDirectory.file("$variantDir/manifest-info.json"))
@@ -306,10 +244,12 @@ class QuickBuildPlugin : Plugin<Project> {
 				// time, which forces the generated roots' producer providers before those tasks
 				// run and fails the store (ADFA-4128 Bug 1). A file collection stores lazily and
 				// carries the producer task dependencies; the report resolves paths at execution.
-				variant.sources.java?.all?.let { task.sourceRootDirs.from(it) }
-				variant.sources.kotlin?.all?.let { task.sourceRootDirs.from(it) }
-				task.sameAppId.set(sameAppId)
-				versionCodeOverride?.let { task.versionCodeOverride.set(it) }
+				variant.sources.java
+					?.all
+					?.let { task.sourceRootDirs.from(it) }
+				variant.sources.kotlin
+					?.all
+					?.let { task.sourceRootDirs.from(it) }
 				// AGP's own STABLE_RESOURCE_IDS_FILE for this variant, if any - conventionally
 				// intermediates/stable_resource_ids_file/<variantName>/<taskName>/stableIds.txt.
 				// The task-name subfolder isn't part of any public API, so the report task

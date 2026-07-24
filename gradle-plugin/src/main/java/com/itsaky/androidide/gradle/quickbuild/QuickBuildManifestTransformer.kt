@@ -94,15 +94,10 @@ class ManifestTransformResult(
  *
  * @property proxyPackage package for generated proxies, e.g. `com.example.app.quickbuild.proxies`.
  * @property appComponentFactory FQN of the runtime's AppComponentFactory.
- * @property realApplicationId the USER app's applicationId (no `.quickbuild` suffix);
- *   used to recognize app-owned provider authorities. Empty disables authority rewrite.
- * @property testApplicationId the suffixed test-app id authorities are rewritten to.
  */
 class QuickBuildManifestTransformer(
 	private val proxyPackage: String,
 	private val appComponentFactory: String,
-	private val realApplicationId: String = "",
-	private val testApplicationId: String = "",
 ) {
 	companion object {
 		const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
@@ -335,7 +330,7 @@ class QuickBuildManifestTransformer(
 				type = ComponentType.PROVIDER,
 				userClass = userClass,
 				proxyClass = proxyClass,
-				authorities = rewriteAuthorities(provider),
+				authorities = readAuthorities(provider),
 			)
 		}
 	}
@@ -364,11 +359,10 @@ class QuickBuildManifestTransformer(
 		val name = application.getAttributeNS(ANDROID_NS, "name")
 		if (name.isBlank()) return null
 		val userClass = resolveClassName(name, manifestPackage)
-		// Keep the USER class but write it fully qualified: the test APK installs under
-		// the suffixed .quickbuild applicationId, so a shorthand name left verbatim would
-		// re-resolve against the wrong package at runtime and instantiateApplication would
-		// be handed a class that exists nowhere. (Merged manifests normally carry FQNs
-		// already; this mirrors the FQN rewrite every proxied component gets.)
+		// Keep the USER class but write it fully qualified, mirroring the FQN rewrite every
+		// proxied component gets: instantiateApplication resolves this name against the payload
+		// dex, so a shorthand left verbatim is fragile. Merged manifests normally carry FQNs
+		// already; this makes it unconditional.
 		application.setAttributeNS(ANDROID_NS, "android:name", userClass)
 		return ProxiedComponent(
 			type = ComponentType.APPLICATION,
@@ -378,37 +372,15 @@ class QuickBuildManifestTransformer(
 	}
 
 	/**
-	 * Rewrites app-owned authorities to the test-app id so both apps can be installed at
-	 * once. Ordering matters: the plugin applies the `.quickbuild` suffix via
-	 * `applicationIdSuffix` BEFORE the manifest merges, so AGP's `${applicationId}`
-	 * placeholder already resolves to the SUFFIXED test-app id here - those authorities
-	 * are already correct and must pass verbatim (re-prefixing them would double the
-	 * suffix and break `getPackageName() + ".x"` lookups at runtime). Only authorities
-	 * hardcoded to the REAL applicationId (equal to it, or under `<appId>.`) move to the
-	 * test-app id. Authorities that embed neither id stay verbatim - rewriting those
-	 * would silently break user code querying the literal string, while leaving them
-	 * fails LOUD at install time (INSTALL_FAILED_CONFLICTING_PROVIDER) if the real app
-	 * is also installed.
+	 * The provider's declared authorities, split on `;`. The test app installs under the
+	 * project's real applicationId, so `${applicationId}`-derived authorities already resolve
+	 * correctly and need no rewrite - they pass through verbatim (recorded here only so the
+	 * setup report can carry them).
 	 */
-	private fun rewriteAuthorities(provider: Element): List<String> {
+	private fun readAuthorities(provider: Element): List<String> {
 		val raw = provider.getAttributeNS(ANDROID_NS, "authorities")
 		if (raw.isBlank()) return emptyList()
-		val rewritten =
-			raw.split(';').map { authority ->
-				when {
-					realApplicationId.isEmpty() || testApplicationId.isEmpty() -> authority
-					authority == testApplicationId ||
-						authority.startsWith("$testApplicationId.") -> authority
-
-					authority == realApplicationId -> testApplicationId
-					authority.startsWith("$realApplicationId.") ->
-						testApplicationId + authority.removePrefix(realApplicationId)
-
-					else -> authority
-				}
-			}
-		provider.setAttributeNS(ANDROID_NS, "android:authorities", rewritten.joinToString(";"))
-		return rewritten
+		return raw.split(';').filter { it.isNotBlank() }
 	}
 
 	private fun requireComponentName(

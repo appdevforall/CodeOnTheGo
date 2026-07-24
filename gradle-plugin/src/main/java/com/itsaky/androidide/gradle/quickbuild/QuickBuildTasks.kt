@@ -49,13 +49,9 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 	@get:InputFile
 	abstract val mergedManifest: RegularFileProperty
 
-	/** Final (suffixed) application id of the test app. */
+	/** The test app's application id - the project's real applicationId (no suffix). */
 	@get:Input
 	abstract val applicationId: Property<String>
-
-	/** The USER app's applicationId; provider authorities under it move to the test-app id. */
-	@get:Input
-	abstract val realApplicationId: Property<String>
 
 	/** FQN of the quick-build runtime's AppComponentFactory. */
 	@get:Input
@@ -82,8 +78,6 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 			QuickBuildManifestTransformer(
 				proxyPackage = "$appId.proxies",
 				appComponentFactory = appComponentFactory.get(),
-				realApplicationId = realApplicationId.get(),
-				testApplicationId = appId,
 			)
 
 		val result =
@@ -361,14 +355,16 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 
 		val dexFiles = dexDir.listFiles { file -> file.extension == "dex" }.orEmpty().sortedBy { it.name }
 		when {
-			dexFiles.isEmpty() ->
+			dexFiles.isEmpty() -> {
 				throw GradleException("Quick Build: d8 produced no dex for the baseline payload")
+			}
 
-			dexFiles.size > 1 ->
+			dexFiles.size > 1 -> {
 				throw GradleException(
 					"Quick Build: the baseline payload needs ${dexFiles.size} dex files, but v1 " +
 						"supports a single gen-0.dex; the project's own classes exceed the method budget",
 				)
+			}
 		}
 		dexFiles.single().copyTo(File(assetsRoot, "quickbuild/gen-0.dex").apply { parentFile.mkdirs() })
 	}
@@ -519,15 +515,6 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 	@get:PathSensitive(PathSensitivity.ABSOLUTE)
 	abstract val sourceRootDirs: ConfigurableFileCollection
 
-	/** True for a same-app-id (Path B) setup build; echoed into setup.json. */
-	@get:Input
-	abstract val sameAppId: Property<Boolean>
-
-	/** The versionCode CoGo pinned for this same-app-id episode; echoed into setup.json. */
-	@get:Input
-	@get:Optional
-	abstract val versionCodeOverride: Property<Int>
-
 	/**
 	 * Directory to probe for AGP's stable-ids file (`InternalArtifactType.STABLE_RESOURCE_IDS_FILE`,
 	 * written by `process<Variant>Resources` as `stableIds.txt`) - conventionally
@@ -648,10 +635,12 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 				payloadJars = payloadJars,
 				composeEnabled = composeEnabled.getOrElse(false),
 				supertypes = supertypes,
-				sameAppId = sameAppId.getOrElse(false),
-				versionCode = versionCodeOverride.orNull,
 				annotationProcessors = annotationProcessors.getOrElse(emptyList()),
-				sourceRoots = sourceRootDirs.files.map { it.absolutePath }.distinct().sorted(),
+				sourceRoots =
+					sourceRootDirs.files
+						.map { it.absolutePath }
+						.distinct()
+						.sorted(),
 				stableIdsPath = stableIdsPath,
 				libraryResourcePaths = libraryResourcePaths,
 			),

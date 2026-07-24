@@ -6,7 +6,6 @@ import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.E2eTimeline
 import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
-import org.appdevforall.cotg.quickbuild.domain.SameAppIdRefusalReason
 import org.slf4j.LoggerFactory
 
 /**
@@ -50,14 +49,6 @@ class CompositeQuickBuildMetricsSink(
 		isSuccess: Boolean,
 		durationMillis: Long,
 	) = fanOut { it.onRebaseline(isSuccess, durationMillis) }
-
-	override fun onSameAppIdEntered(updateInstall: Boolean) = fanOut { it.onSameAppIdEntered(updateInstall) }
-
-	override fun onSameAppIdClobberConfirmed() = fanOut { it.onSameAppIdClobberConfirmed() }
-
-	override fun onSameAppIdRefused(reason: SameAppIdRefusalReason) = fanOut { it.onSameAppIdRefused(reason) }
-
-	override fun onSameAppIdRestored(downgradeUsed: Boolean) = fanOut { it.onSameAppIdRestored(downgradeUsed) }
 
 	companion object {
 		private val log = LoggerFactory.getLogger(CompositeQuickBuildMetricsSink::class.java)

@@ -53,15 +53,15 @@ class QuickBuildAction(
 		// or fail the build action (REVIEW.md section 11).
 		runCatching { GlobalContext.get().get<IAnalyticsManager>().trackFeatureUsed(FEATURE_NAME) }
 			.onFailure { log.warn("Quick Build analytics unavailable", it) }
-		// Same-app-id entry gate (Path B, contract section 3): a tap with the mode
-		// toggle on but no confirmed episode (first session after enabling, or
-		// re-entry after a Standard Run restore) must pass the clobber warning before
-		// anything builds or installs. The activity owns the dialog; the tap proceeds
-		// only on accept. Hop to the UI thread - actions run on a default dispatcher.
+		// Confirm-on-switch gate (ADFA-4128): Quick Build installs the test app under the
+		// project's real applicationId. If the Standard Run build currently occupies that
+		// id, a tap replaces it, so the activity confirms the clobber first and the build
+		// proceeds only on accept. The activity owns the dialog; hop to the UI thread -
+		// actions run on a default dispatcher.
 		val activity = data.getActivity()
 		if (activity != null) {
 			activity.runOnUiThread {
-				activity.ensureSameAppIdEntryConfirmed { sessionManager.onQuickBuildTapped() }
+				activity.ensureQuickBuildClobberConfirmed { sessionManager.onQuickBuildTapped() }
 			}
 			return true
 		}
@@ -114,7 +114,9 @@ class QuickBuildAction(
 				// Neutral, matching the framework default (ActionItem.createColorFilter) -
 				// the outline shape alone signals "in progress" for this tone.
 				QuickBuildTone.READY -> R.attr.colorSuccess
+
 				QuickBuildTone.BUILDING -> R.attr.colorOnSurface
+
 				QuickBuildTone.ATTENTION -> R.attr.colorError
 			}
 	}

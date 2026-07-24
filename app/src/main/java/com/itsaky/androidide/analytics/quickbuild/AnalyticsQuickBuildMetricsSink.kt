@@ -7,7 +7,6 @@ import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.E2eTimeline
 import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
-import org.appdevforall.cotg.quickbuild.domain.SameAppIdRefusalReason
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -129,44 +128,6 @@ class AnalyticsQuickBuildMetricsSink(
 		)
 	}
 
-	override fun onSameAppIdEntered(updateInstall: Boolean) {
-		analytics.trackMetric(
-			QuickBuildSameIdEnteredMetric(
-				qbSessionId = sessionId,
-				updateInstall = updateInstall,
-				projectHash = projectHash(),
-			),
-		)
-	}
-
-	override fun onSameAppIdClobberConfirmed() {
-		analytics.trackMetric(
-			QuickBuildSameIdClobberConfirmedMetric(
-				qbSessionId = sessionId,
-				projectHash = projectHash(),
-			),
-		)
-	}
-
-	override fun onSameAppIdRefused(reason: SameAppIdRefusalReason) {
-		analytics.trackMetric(
-			QuickBuildSameIdRefusedMetric(
-				reason = reason.name.lowercase(),
-				projectHash = projectHash(),
-			),
-		)
-	}
-
-	override fun onSameAppIdRestored(downgradeUsed: Boolean) {
-		analytics.trackMetric(
-			QuickBuildSameIdRestoredMetric(
-				qbSessionId = sessionId,
-				downgradeUsed = downgradeUsed,
-				projectHash = projectHash(),
-			),
-		)
-	}
-
 	private fun projectHash(): Long = projectPath().hashCode().toLong()
 
 	private fun newSessionId(): String =
@@ -218,9 +179,13 @@ class AnalyticsQuickBuildMetricsSink(
 			// The restart flavor is distinct so the tuning data separates cheap hot
 			// swaps from full process restarts (design contract section 4).
 			is BuildOutcome.Success -> if (restarted) "deployed_restart" else "deployed"
+
 			is BuildOutcome.CompileError -> "compile_error"
+
 			is BuildOutcome.DeployFailure -> "deploy_failure"
+
 			is BuildOutcome.InfrastructureFailure -> "infrastructure"
+
 			is BuildOutcome.RequiresRebaseline -> "requires_rebaseline"
 		}
 }

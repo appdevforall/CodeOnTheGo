@@ -38,6 +38,8 @@ class TestAppInstallerTest {
 		override fun versionCode(packageName: String): Long? = null
 
 		override fun signingCertSha256(packageName: String): String? = null
+
+		override fun appComponentFactory(packageName: String): String? = null
 	}
 
 	private val packages = FakePackages()

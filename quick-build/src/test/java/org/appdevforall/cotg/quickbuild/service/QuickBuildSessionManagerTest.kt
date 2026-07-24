@@ -35,7 +35,7 @@ class QuickBuildSessionManagerTest {
 	private val deploy = FakeDeploy()
 	private val connections = TestAppConnections()
 	private val store = MemoryGenerationStore()
-	private val modeStore = FakeQuickBuildModeStore()
+	private val historyStore = FakeQuickBuildHistoryStore()
 	private val userMessages = mutableListOf<String>()
 
 	/** Requests seen by the scripted executor, with per-request scripted outcomes. */
@@ -205,7 +205,7 @@ class QuickBuildSessionManagerTest {
 			provisioner = provisioner,
 			connections = connections,
 			paths = FakePaths(projectRoot),
-			modeStore = modeStore,
+			historyStore = historyStore,
 			dispatcher = StandardTestDispatcher(testScheduler),
 			generationStoreFactory = { store },
 			executorFactory = { setup, _, tracker ->
@@ -240,7 +240,10 @@ class QuickBuildSessionManagerTest {
 	 * [to] arrives as a create/modify (MOVED_TO) and the source [from] as a deletion
 	 * (MOVED_FROM), coalesced into ONE burst (see AndroidProjectWatcher's DELETE_MASK).
 	 */
-	private fun QuickBuildSessionManager.renamed(from: File, to: File) {
+	private fun QuickBuildSessionManager.renamed(
+		from: File,
+		to: File,
+	) {
 		watcher?.emit(modified = setOf(to), removed = setOf(from))
 	}
 
@@ -1031,7 +1034,7 @@ class QuickBuildSessionManagerTest {
 	@Test
 	fun `prewarm is a no-op for a project that has never used Quick Build`() =
 		runTest {
-			modeStore.setHasUsedQuickBuild(false)
+			historyStore.setHasUsedQuickBuild(false)
 			val manager = createManager()
 
 			manager.prewarm()
@@ -1042,29 +1045,15 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `prewarm runs for a never-used project when same-app-id mode is enabled`() =
-		runTest {
-			modeStore.setHasUsedQuickBuild(false)
-			modeStore.setSameAppIdEnabled(true)
-			val manager = createManager()
-
-			manager.prewarm()
-			advanceUntilIdle()
-
-			assertThat(prewarmCount).isEqualTo(1)
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
-		}
-
-	@Test
 	fun `tapping Quick Build marks the project as used, so the next open prewarms`() =
 		runTest {
-			modeStore.setHasUsedQuickBuild(false)
+			historyStore.setHasUsedQuickBuild(false)
 			val manager = createManager()
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
-			assertThat(modeStore.hasUsedQuickBuild()).isTrue()
+			assertThat(historyStore.hasUsedQuickBuild()).isTrue()
 		}
 
 	@Test

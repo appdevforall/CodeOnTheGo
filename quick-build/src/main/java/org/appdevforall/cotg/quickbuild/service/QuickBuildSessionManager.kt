@@ -72,7 +72,7 @@ class QuickBuildSessionManager(
 	private val connections: TestAppConnections,
 	private val paths: QuickBuildPaths,
 	/** Gates eager prewarm on project history (plan P7) and records first use. */
-	private val modeStore: QuickBuildModeStore,
+	private val historyStore: QuickBuildHistoryStore,
 	dispatcher: CoroutineDispatcher,
 	private val generationStoreFactory: (File) -> GenerationStore = {
 		FileGenerationStore.forProject(it)
@@ -246,7 +246,7 @@ class QuickBuildSessionManager(
 	 */
 	fun onQuickBuildTapped() {
 		scope.launch {
-			modeStore.setHasUsedQuickBuild(true)
+			historyStore.setHasUsedQuickBuild(true)
 			dispatch(SessionEvent.QuickBuildTapped)
 		}
 	}
@@ -259,13 +259,11 @@ class QuickBuildSessionManager(
 	 *
 	 * Gated on project history (plan P7): a project that has never tapped Quick Build
 	 * gets no eager warm-up, since there's no signal it ever will (real battery cost on
-	 * the low-end target hardware for a feature that's never used). The carve-out is
-	 * same-app-id mode - enabling it is a strong signal the project is Quick-Build-first
-	 * even before the very first tap, so it prewarms too. First-ever use per project
-	 * pays the cold setup cost once; every later project open is warm.
+	 * the low-end target hardware for a feature that's never used). First-ever use per
+	 * project pays the cold setup cost once; every later project open is warm.
 	 */
 	fun prewarm() {
-		if (!modeStore.hasUsedQuickBuild() && !modeStore.isSameAppIdEnabled()) {
+		if (!historyStore.hasUsedQuickBuild()) {
 			return
 		}
 		scope.launch { dispatch(SessionEvent.PrewarmRequested) }
@@ -417,20 +415,34 @@ class QuickBuildSessionManager(
 				val epoch = sessionEpoch
 				sessionWork = scope.launch { provision(epoch) }
 			}
-			SessionEffect.StartPrewarm -> sessionWork = scope.launch { runPrewarm() }
-			SessionEffect.TriggerQuickBuild ->
+
+			SessionEffect.StartPrewarm -> {
+				sessionWork = scope.launch { runPrewarm() }
+			}
+
+			SessionEffect.TriggerQuickBuild -> {
 				scope.launch { live?.orchestrator?.onQuickBuildRequested() }
+			}
+
 			SessionEffect.RunFullGradleRebaseline -> {
 				val epoch = sessionEpoch
 				sessionWork = scope.launch { rebaseline(epoch) }
 			}
-			SessionEffect.ReseedBaseline -> scope.launch { reseedBaseline() }
-			SessionEffect.RespawnDaemon -> scope.launch { respawnDaemon() }
+
+			SessionEffect.ReseedBaseline -> {
+				scope.launch { reseedBaseline() }
+			}
+
+			SessionEffect.RespawnDaemon -> {
+				scope.launch { respawnDaemon() }
+			}
+
 			is SessionEffect.SurfaceProvisioningError -> {
 				log.error("Quick-build provisioning failed: {}", effect.message)
 				surfaceUserMessage(effect.message)
 				teardown()
 			}
+
 			SessionEffect.TeardownSession -> {
 				log.info("Quick-build session restarted by user request")
 				teardown()
@@ -470,7 +482,10 @@ class QuickBuildSessionManager(
 		}
 
 		when (outcome) {
-			is ProvisionOutcome.Failure -> dispatch(SessionEvent.ProvisioningFailed(outcome.message))
+			is ProvisionOutcome.Failure -> {
+				dispatch(SessionEvent.ProvisioningFailed(outcome.message))
+			}
+
 			is ProvisionOutcome.Success -> {
 				connections.beginSession(outcome.setup.testAppPackage, outcome.testAppUid)
 
@@ -494,10 +509,14 @@ class QuickBuildSessionManager(
 						session.watcher.start(::onWatcherBatch)
 						dispatch(SessionEvent.ProvisioningSucceeded(tracker.current))
 					}
-					is DaemonReply.BuildFailed ->
+
+					is DaemonReply.BuildFailed -> {
 						dispatch(SessionEvent.ProvisioningFailed("Daemon rejected configuration"))
-					is DaemonReply.Failed ->
+					}
+
+					is DaemonReply.Failed -> {
 						dispatch(SessionEvent.ProvisioningFailed(started.message))
+					}
 				}
 			}
 		}
@@ -625,6 +644,7 @@ class QuickBuildSessionManager(
 					dispatch(SessionEvent.BuildStarted)
 					notifyBuilding()
 				}
+
 				is OrchestratorEvent.BuildSucceeded -> {
 					report { metrics.onBuildFinished(event.buildId, event.result) }
 					live?.let {
@@ -638,6 +658,7 @@ class QuickBuildSessionManager(
 						),
 					)
 				}
+
 				is OrchestratorEvent.BuildFailed -> {
 					report { metrics.onBuildFinished(event.buildId, event.outcome) }
 					val outcome = event.outcome
@@ -655,6 +676,7 @@ class QuickBuildSessionManager(
 						dispatch(SessionEvent.BuildFailed(outcome.toSessionFailure()))
 					}
 				}
+
 				is OrchestratorEvent.InvalidationRequired -> {
 					report { metrics.onInvalidation(event.reason) }
 					dispatch(SessionEvent.InvalidationDetected(event.reason))
@@ -743,6 +765,7 @@ class QuickBuildSessionManager(
 				session.orchestrator.onBaselineReset()
 				dispatch(SessionEvent.ProvisioningSucceeded(session.tracker.current))
 			}
+
 			is RebaselineOutcome.Failure -> {
 				session.orchestrator.onRebaselineFailed()
 				dispatch(SessionEvent.ProvisioningFailed(outcome.message))
@@ -781,6 +804,7 @@ class QuickBuildSessionManager(
 				// the next build recompiles everything rather than serving stale code.
 				session.orchestrator.onFilesChanged(ChangedFiles.Unknown)
 			}
+
 			else -> {
 				val message = (started as? DaemonReply.Failed)?.message ?: "unknown failure"
 				log.error("Daemon respawn failed: {}", message)
@@ -818,10 +842,14 @@ class QuickBuildSessionManager(
 	private fun BuildOutcome.toSessionFailure(): SessionFailure =
 		when (this) {
 			is BuildOutcome.CompileError -> SessionFailure.CompileError(diagnostics)
+
 			is BuildOutcome.DeployFailure -> SessionFailure.DeployError(message)
+
 			is BuildOutcome.InfrastructureFailure -> SessionFailure.DeployError(message)
+
 			// Handled as an invalidation before this mapping; keep it total anyway.
 			is BuildOutcome.RequiresRebaseline -> SessionFailure.DeployError(detail)
+
 			// Success never reaches BuildFailed; keep the mapping total anyway.
 			is BuildOutcome.Success -> SessionFailure.DeployError("unexpected success in failure path")
 		}

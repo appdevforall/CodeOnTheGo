@@ -589,9 +589,8 @@ open class EditorHandlerActivity :
 	 * re-execute the same [ActionItem]s the toolbar's own taps do, so B3's rebaseline-on-
 	 * return hand-back (wired at the Run button's install callback) fires the same way no
 	 * matter which entry point started the build. "Restart session" is the escape hatch
-	 * for a stuck daemon/test app; "Use real app ID" toggles same-app-id mode (Path B)
-	 * through [toggleSameAppIdMode]'s warning flow; "Help" reuses the tooltip already
-	 * wired via [QuickBuildAction.retrieveTooltipTag] (E3).
+	 * for a stuck daemon/test app; "Help" reuses the tooltip already wired via
+	 * [QuickBuildAction.retrieveTooltipTag] (E3).
 	 */
 	private fun showQuickBuildDropdownMenu(
 		anchor: View,
@@ -600,8 +599,6 @@ open class EditorHandlerActivity :
 		val registry = getInstance() as DefaultActionsRegistry
 		val popup = PopupMenu(this, anchor)
 		popup.menuInflater.inflate(R.menu.menu_quick_build, popup.menu)
-		// Same-app-id mode toggle (Path B): reflect the per-project persisted state.
-		popup.menu.findItem(R.id.action_quick_build_same_app_id)?.isChecked = isSameAppIdModeEnabled()
 		popup.setOnMenuItemClickListener { item ->
 			when (item.itemId) {
 				R.id.action_quick_build -> {
@@ -623,14 +620,6 @@ open class EditorHandlerActivity :
 					true
 				}
 
-				R.id.action_quick_build_same_app_id -> {
-					// Off -> on shows the destructive clobber warning before anything
-					// builds or installs; on -> off ends the episode and stops the
-					// session (ProjectHandlerActivity owns the flow).
-					toggleSameAppIdMode()
-					true
-				}
-
 				R.id.action_quick_build_help -> {
 					TooltipManager.showIdeCategoryTooltip(
 						context = this,
@@ -640,7 +629,9 @@ open class EditorHandlerActivity :
 					true
 				}
 
-				else -> false
+				else -> {
+					false
+				}
 			}
 		}
 		popup.show()
@@ -672,23 +663,69 @@ open class EditorHandlerActivity :
 		}
 		val resId =
 			when (action.id) {
-				QuickRunAction.ID -> string.cd_toolbar_quick_run
-				QuickBuildAction.ID -> string.cd_quick_build
-				"ide.editor.syncProject" -> string.cd_toolbar_sync_project
-				"ide.editor.build.debug" -> string.cd_toolbar_start_debugger
-				"ide.editor.build.runTasks" -> string.cd_toolbar_run_gradle_tasks
-				"ide.editor.code.text.undo" -> string.cd_toolbar_undo
-				"ide.editor.code.text.redo" -> string.cd_toolbar_redo
-				"ide.editor.files.saveAll" -> string.cd_toolbar_save
-				"ide.editor.previewLayout" -> string.cd_toolbar_preview_layout
-				"ide.editor.find" -> string.cd_toolbar_find
-				"ide.editor.find.inFile" -> string.cd_toolbar_find_in_file
-				"ide.editor.find.inProject" -> string.cd_toolbar_find_in_project
-				"ide.editor.launchInstalledApp" -> string.cd_toolbar_launch_app
-				"ide.editor.service.logreceiver.disconnectSenders" ->
+				QuickRunAction.ID -> {
+					string.cd_toolbar_quick_run
+				}
+
+				QuickBuildAction.ID -> {
+					string.cd_quick_build
+				}
+
+				"ide.editor.syncProject" -> {
+					string.cd_toolbar_sync_project
+				}
+
+				"ide.editor.build.debug" -> {
+					string.cd_toolbar_start_debugger
+				}
+
+				"ide.editor.build.runTasks" -> {
+					string.cd_toolbar_run_gradle_tasks
+				}
+
+				"ide.editor.code.text.undo" -> {
+					string.cd_toolbar_undo
+				}
+
+				"ide.editor.code.text.redo" -> {
+					string.cd_toolbar_redo
+				}
+
+				"ide.editor.files.saveAll" -> {
+					string.cd_toolbar_save
+				}
+
+				"ide.editor.previewLayout" -> {
+					string.cd_toolbar_preview_layout
+				}
+
+				"ide.editor.find" -> {
+					string.cd_toolbar_find
+				}
+
+				"ide.editor.find.inFile" -> {
+					string.cd_toolbar_find_in_file
+				}
+
+				"ide.editor.find.inProject" -> {
+					string.cd_toolbar_find_in_project
+				}
+
+				"ide.editor.launchInstalledApp" -> {
+					string.cd_toolbar_launch_app
+				}
+
+				"ide.editor.service.logreceiver.disconnectSenders" -> {
 					string.cd_toolbar_disconnect_log_senders
-				"ide.editor.generatexml" -> string.cd_toolbar_image_to_layout
-				else -> null
+				}
+
+				"ide.editor.generatexml" -> {
+					string.cd_toolbar_image_to_layout
+				}
+
+				else -> {
+					null
+				}
 			}
 		return if (resId != null) getString(resId) else action.label
 	}

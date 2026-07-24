@@ -133,45 +133,6 @@ class SetupInfoTest {
 	}
 
 	@Test
-	fun `suffix-mode setup json defaults to sameAppId off with no versionCode`() {
-		val info = SetupInfo.parse(json(), baseDir)
-
-		assertThat(info).isNotNull()
-		assertThat(info!!.sameAppId).isFalse()
-		assertThat(info.versionCode).isNull()
-	}
-
-	@Test
-	fun `same-app-id fields parse from the plugin's string values`() {
-		// The plugin writes STRING values ("true", "12346") - the setup.json convention.
-		val info =
-			SetupInfo.parse(json(""","sameAppId": "true", "versionCode": "12346""""), baseDir)
-
-		assertThat(info).isNotNull()
-		assertThat(info!!.sameAppId).isTrue()
-		assertThat(info.versionCode).isEqualTo(12346)
-	}
-
-	@Test
-	fun `same-app-id fields also accept native JSON types`() {
-		val info = SetupInfo.parse(json(""","sameAppId": true, "versionCode": 7"""), baseDir)
-
-		assertThat(info).isNotNull()
-		assertThat(info!!.sameAppId).isTrue()
-		assertThat(info.versionCode).isEqualTo(7)
-	}
-
-	@Test
-	fun `malformed same-app-id values degrade to mode off`() {
-		val info =
-			SetupInfo.parse(json(""","sameAppId": "yes", "versionCode": "soon""""), baseDir)
-
-		assertThat(info).isNotNull()
-		assertThat(info!!.sameAppId).isFalse()
-		assertThat(info.versionCode).isNull()
-	}
-
-	@Test
 	fun `annotation processors and source roots parse through`() {
 		val info =
 			SetupInfo.parse(

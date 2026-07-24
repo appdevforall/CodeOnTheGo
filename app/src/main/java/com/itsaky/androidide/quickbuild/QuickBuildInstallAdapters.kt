@@ -68,6 +68,13 @@ class AndroidInstalledPackages(
 		} catch (e: PackageManager.NameNotFoundException) {
 			null
 		}
+
+	override fun appComponentFactory(packageName: String): String? =
+		try {
+			context.packageManager.getApplicationInfo(packageName, 0).appComponentFactory
+		} catch (e: PackageManager.NameNotFoundException) {
+			null
+		}
 }
 
 /**
@@ -135,11 +142,21 @@ class InstallationEventFlow {
 		val code = extras.getInt(PackageInstaller.EXTRA_STATUS, Int.MIN_VALUE)
 		val status =
 			when {
-				code == PackageInstaller.STATUS_SUCCESS -> InstallBroadcast.Status.SUCCESS
-				code == PackageInstaller.STATUS_PENDING_USER_ACTION ->
+				code == PackageInstaller.STATUS_SUCCESS -> {
+					InstallBroadcast.Status.SUCCESS
+				}
+
+				code == PackageInstaller.STATUS_PENDING_USER_ACTION -> {
 					InstallBroadcast.Status.PENDING_USER_ACTION
-				code >= PackageInstaller.STATUS_FAILURE -> InstallBroadcast.Status.FAILURE
-				else -> InstallBroadcast.Status.OTHER
+				}
+
+				code >= PackageInstaller.STATUS_FAILURE -> {
+					InstallBroadcast.Status.FAILURE
+				}
+
+				else -> {
+					InstallBroadcast.Status.OTHER
+				}
 			}
 		_broadcasts.tryEmit(
 			InstallBroadcast(

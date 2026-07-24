@@ -10,10 +10,9 @@ import java.io.File
 class QuickBuildManifestTransformerTest {
 	private val proxyPackage = "com.example.app.quickbuild.proxies"
 	private val factory = "com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory"
-	private val realAppId = "com.example.app"
 	private val testAppId = "com.example.app.quickbuild"
 
-	private fun transformer() = QuickBuildManifestTransformer(proxyPackage, factory, realAppId, testAppId)
+	private fun transformer() = QuickBuildManifestTransformer(proxyPackage, factory)
 
 	private fun manifest(
 		body: String,
@@ -374,7 +373,7 @@ class QuickBuildManifestTransformerTest {
 	}
 
 	@Test
-	fun `rewrites provider name and app-id authorities, keeping permissions verbatim`() {
+	fun `rewrites provider name to the proxy and passes authorities plus permissions verbatim`() {
 		val result =
 			transformer().transform(
 				manifest(
@@ -392,12 +391,13 @@ class QuickBuildManifestTransformerTest {
 
 		val provider = result.components.single { it.type == ComponentType.PROVIDER }
 		assertThat(provider.proxyClass).isEqualTo("$proxyPackage.Proxy0Provider")
-		assertThat(provider.authorities).containsExactly("com.example.app.quickbuild.data")
+		assertThat(provider.authorities).containsExactly("com.example.app.data")
 
 		val element = result.document.getElementsByTagName("provider").item(0) as Element
 		val ns = QuickBuildManifestTransformer.ANDROID_NS
 		assertThat(element.getAttributeNS(ns, "name")).isEqualTo("$proxyPackage.Proxy0Provider")
-		assertThat(element.getAttributeNS(ns, "authorities")).isEqualTo("com.example.app.quickbuild.data")
+		// The transformer no longer sets the authorities attribute; the merged value stays.
+		assertThat(element.getAttributeNS(ns, "authorities")).isEqualTo("com.example.app.data")
 		assertThat(element.getAttributeNS(ns, "exported")).isEqualTo("false")
 		assertThat(element.getAttributeNS(ns, "grantUriPermissions")).isEqualTo("true")
 		assertThat(element.getAttributeNS(ns, "readPermission")).isEqualTo("com.example.app.READ")
@@ -405,65 +405,32 @@ class QuickBuildManifestTransformerTest {
 	}
 
 	@Test
-	fun `rewrites an authority equal to the app id and leaves hardcoded ones verbatim`() {
+	fun `passes a mix of app-id, third-party and prefix-sharing authorities verbatim, in order`() {
+		// The test app installs under the project's REAL applicationId, so authorities are
+		// already correct as merged - the transformer records them unchanged and never sets
+		// the authorities attribute. App-owned, third-party, and merely-prefix-sharing
+		// authorities all pass through identically.
 		val result =
 			transformer().transform(
 				manifest(
 					"""
 					<provider android:name="com.example.app.DataProvider"
-						android:authorities="com.example.app;org.thirdparty.search;com.example.app.files" />
+						android:authorities="com.example.app;org.thirdparty.search;com.example.app.files;com.example.appstore.data" />
 					""".trimIndent(),
 				).byteInputStream(),
 			)
 
-		// Hardcoded authorities stay verbatim: rewriting would silently break user code
-		// querying the literal string; leaving them fails LOUD at install time instead.
 		assertThat(result.components.single { it.type == ComponentType.PROVIDER }.authorities)
 			.containsExactly(
-				"com.example.app.quickbuild",
+				"com.example.app",
 				"org.thirdparty.search",
-				"com.example.app.quickbuild.files",
+				"com.example.app.files",
+				"com.example.appstore.data",
 			).inOrder()
-	}
-
-	@Test
-	fun `passes an already-suffixed authority verbatim - no double suffix`() {
-		// The plugin applies .quickbuild via applicationIdSuffix BEFORE the manifest
-		// merges, so AGP resolves the standard ${applicationId}.fileprovider pattern
-		// to the SUFFIXED id. Re-prefixing it would produce
-		// com.example.app.quickbuild.quickbuild.fileprovider and break
-		// getPackageName() + ".fileprovider" lookups at runtime.
-		val result =
-			transformer().transform(
-				manifest(
-					"""
-					<provider android:name="com.example.app.DataProvider"
-						android:authorities="com.example.app.quickbuild.fileprovider;com.example.app.quickbuild" />
-					""".trimIndent(),
-				).byteInputStream(),
-			)
-
-		assertThat(result.components.single { it.type == ComponentType.PROVIDER }.authorities)
-			.containsExactly(
-				"com.example.app.quickbuild.fileprovider",
-				"com.example.app.quickbuild",
-			).inOrder()
-	}
-
-	@Test
-	fun `does not rewrite an authority that only shares the app-id prefix textually`() {
-		val result =
-			transformer().transform(
-				manifest(
-					"""
-					<provider android:name="com.example.app.DataProvider"
-						android:authorities="com.example.appstore.data" />
-					""".trimIndent(),
-				).byteInputStream(),
-			)
-
-		assertThat(result.components.single { it.type == ComponentType.PROVIDER }.authorities)
-			.containsExactly("com.example.appstore.data")
+		// The merged authorities attribute is left in place, untouched.
+		val element = result.document.getElementsByTagName("provider").item(0) as Element
+		assertThat(element.getAttributeNS(QuickBuildManifestTransformer.ANDROID_NS, "authorities"))
+			.isEqualTo("com.example.app;org.thirdparty.search;com.example.app.files;com.example.appstore.data")
 	}
 
 	@Test
@@ -810,100 +777,5 @@ class QuickBuildManifestTransformerTest {
 			}
 		assertThat(error).hasMessageThat().contains("com.example.app.P")
 		assertThat(error).hasMessageThat().contains("multiprocess")
-	}
-
-	// Same-app-id mode (Path B): test id == real id. The transformer takes NO mode flag -
-	// the authority rewrite must collapse to verbatim purely by construction.
-
-	private fun sameIdTransformer() =
-		QuickBuildManifestTransformer(
-			proxyPackage = "$realAppId.proxies",
-			appComponentFactory = factory,
-			realApplicationId = realAppId,
-			testApplicationId = realAppId,
-		)
-
-	@Test
-	fun `same-id mode passes every authority verbatim - the rewrite collapses by construction`() {
-		// With the ids equal, the "already under the test-app id" case swallows what
-		// suffix mode would rewrite; ${applicationId}-derived authorities resolved by AGP
-		// to the real id are already correct. Neither-id authorities keep leave-verbatim.
-		val result =
-			sameIdTransformer().transform(
-				manifest(
-					"""
-					<provider android:name="com.example.app.DataProvider"
-						android:authorities="com.example.app;com.example.app.files;org.thirdparty.search" />
-					""".trimIndent(),
-					packageName = realAppId,
-				).byteInputStream(),
-			)
-
-		assertThat(result.components.single { it.type == ComponentType.PROVIDER }.authorities)
-			.containsExactly("com.example.app", "com.example.app.files", "org.thirdparty.search")
-			.inOrder()
-		val element = result.document.getElementsByTagName("provider").item(0) as Element
-		assertThat(element.getAttributeNS(QuickBuildManifestTransformer.ANDROID_NS, "authorities"))
-			.isEqualTo("com.example.app;com.example.app.files;org.thirdparty.search")
-	}
-
-	@Test
-	fun `same-id mode produces the identical proxy set as suffix mode`() {
-		val body =
-			launcherActivity + "\n" +
-				"""
-				<service android:name="com.example.app.SyncService" android:foregroundServiceType="dataSync" />
-				<receiver android:name="com.example.app.BootReceiver" />
-				<provider android:name="com.example.app.DataProvider" android:authorities="com.example.app.data" />
-				""".trimIndent()
-		val appAttrs = """android:name="com.example.app.App""""
-
-		val suffixResult =
-			transformer().transform(manifest(body, applicationAttrs = appAttrs).byteInputStream())
-		val sameIdResult =
-			sameIdTransformer().transform(
-				manifest(body, packageName = realAppId, applicationAttrs = appAttrs).byteInputStream(),
-			)
-
-		// Only the proxy PACKAGE differs (it derives from the applicationId); types, user
-		// classes, proxy simple names, launcher flags and the entry activity are identical.
-		fun shape(components: List<ProxiedComponent>) =
-			components.map {
-				listOf(
-					it.type,
-					it.userClass,
-					it.proxyClass?.substringAfterLast('.'),
-					it.isLauncher,
-					it.foregroundServiceType,
-				)
-			}
-		assertThat(shape(sameIdResult.components)).isEqualTo(shape(suffixResult.components))
-		assertThat(sameIdResult.entryActivity).isEqualTo(suffixResult.entryActivity)
-		assertThat(sameIdResult.components.map { it.proxyClass?.substringBeforeLast('.') }.toSet())
-			.containsExactly("$realAppId.proxies", null)
-
-		// Suffix mode rewrites the app-owned authority; same-id keeps it under the real id.
-		assertThat(suffixResult.components.single { it.type == ComponentType.PROVIDER }.authorities)
-			.containsExactly("$testAppId.data")
-		assertThat(sameIdResult.components.single { it.type == ComponentType.PROVIDER }.authorities)
-			.containsExactly("$realAppId.data")
-	}
-
-	@Test
-	fun `same-id mode still swaps the appComponentFactory and neutralizes backup`() {
-		val result =
-			sameIdTransformer().transform(
-				manifest(
-					launcherActivity,
-					packageName = realAppId,
-					applicationAttrs = """android:allowBackup="true" android:backupAgent=".Agent"""",
-				).byteInputStream(),
-			)
-
-		val application = result.document.getElementsByTagName("application").item(0) as Element
-		val ns = QuickBuildManifestTransformer.ANDROID_NS
-		assertThat(application.getAttributeNS(ns, "appComponentFactory")).isEqualTo(factory)
-		assertThat(application.getAttributeNS(ns, "allowBackup")).isEqualTo("false")
-		assertThat(application.hasAttributeNS(ns, "backupAgent")).isFalse()
 	}
 }

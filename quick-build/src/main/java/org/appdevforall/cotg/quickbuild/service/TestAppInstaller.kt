@@ -31,10 +31,18 @@ interface InstalledPackages {
 
 	/**
 	 * Lowercase hex SHA-256 of the package's current signing certificate, or null when
-	 * not installed or unreadable. Null reads as "cannot verify" - same-app-id mode
-	 * then refuses rather than guessing (design contract, section 2).
+	 * not installed or unreadable. Null reads as "cannot verify" - the provisioner then
+	 * refuses to clobber the occupant rather than guessing (see [RealIdInstall.signatureRefusal]).
 	 */
 	fun signingCertSha256(packageName: String): String?
+
+	/**
+	 * The installed package's `android:appComponentFactory` (ApplicationInfo.appComponentFactory,
+	 * API 28+), or null when not installed or none is declared. A Quick Build test app carries
+	 * the runtime factory here, which is how [RealIdInstall] tells it apart from the user's
+	 * Standard-Run build under the same applicationId.
+	 */
+	fun appComponentFactory(packageName: String): String?
 }
 
 /**
@@ -132,11 +140,15 @@ class TestAppInstaller(
 					select<InstallOutcome> {
 						verdict.onAwait { broadcast ->
 							when (broadcast.status) {
-								InstallBroadcast.Status.SUCCESS -> resolveUid(packageName)
-								else ->
+								InstallBroadcast.Status.SUCCESS -> {
+									resolveUid(packageName)
+								}
+
+								else -> {
 									InstallOutcome.Failed(
 										broadcast.message ?: "Test app installation failed",
 									)
+								}
 							}
 						}
 						stampChanged.onAwait { resolveUid(packageName) }

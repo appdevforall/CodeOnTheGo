@@ -13,7 +13,7 @@ import com.itsaky.androidide.quickbuild.CompositeQuickBuildMetricsSink
 import com.itsaky.androidide.quickbuild.EnvironmentQuickBuildPaths
 import com.itsaky.androidide.quickbuild.GradleQuickBuildProvisioner
 import com.itsaky.androidide.quickbuild.InstallationEventFlow
-import com.itsaky.androidide.quickbuild.PreferencesQuickBuildModeStore
+import com.itsaky.androidide.quickbuild.PreferencesQuickBuildHistoryStore
 import com.itsaky.androidide.utils.ApkInstaller
 import com.itsaky.androidide.utils.FeatureFlags
 import kotlinx.coroutines.CoroutineScope
@@ -24,18 +24,16 @@ import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.data.DaemonProcessClient
 import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
-import org.appdevforall.cotg.quickbuild.domain.SameAppIdGuard
 import org.appdevforall.cotg.quickbuild.service.DeployChannel
 import org.appdevforall.cotg.quickbuild.service.DeploySender
 import org.appdevforall.cotg.quickbuild.service.InstalledPackages
-import org.appdevforall.cotg.quickbuild.service.QuickBuildModeStore
+import org.appdevforall.cotg.quickbuild.service.QuickBuildClobberCheck
+import org.appdevforall.cotg.quickbuild.service.QuickBuildHistoryStore
 import org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner
 import org.appdevforall.cotg.quickbuild.service.QuickBuildSessionManager
-import org.appdevforall.cotg.quickbuild.service.SameAppIdModeController
 import org.appdevforall.cotg.quickbuild.service.TestAppConnections
 import org.appdevforall.cotg.quickbuild.service.TestAppInstaller
 import org.koin.android.ext.koin.androidContext
-import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import java.util.concurrent.Executors
 
@@ -63,40 +61,16 @@ val quickBuildModule =
 
 		single<InstalledPackages> { AndroidInstalledPackages(androidContext()) }
 
-		single<QuickBuildModeStore> {
-			PreferencesQuickBuildModeStore(
+		single<QuickBuildHistoryStore> {
+			PreferencesQuickBuildHistoryStore(
 				context = androidContext(),
 				projectPath = { runCatching { IProjectManager.getInstance().projectDirPath }.getOrNull() },
 			)
 		}
 
-		// One guard instance for the whole graph: the controller mints the episode
-		// token that the provisioner's install assertions consult.
-		single { SameAppIdGuard() }
-
-		single {
-			val installedPackages = get<InstalledPackages>()
-			SameAppIdModeController(
-				store = get(),
-				packages = installedPackages,
-				guard = get(),
-				metrics = get(),
-				// Entry-time best effort: the suffix-mode sibling test app (if
-				// installed) was signed by the same on-device debug keystore. The
-				// provisioner re-verifies against the built APK before any install.
-				cogoCertSha256 = { realAppId ->
-					installedPackages.signingCertSha256(
-						realAppId + SameAppIdGuard.TEST_APP_ID_SUFFIX,
-					)
-				},
-				// A mode flip is a rebaseline boundary: stop any live session; the next
-				// start provisions from scratch under the new package identity. Lazy
-				// lookup avoids a construction cycle with the session manager.
-				onModeChanged = {
-					runCatching { GlobalContext.get().get<QuickBuildSessionManager>().restartSession() }
-				},
-			)
-		}
+		// Confirm-on-switch check: reads which build (Quick Build test app vs Standard Run)
+		// currently occupies the real applicationId, so the UI can warn before a clobber.
+		single { QuickBuildClobberCheck(get<InstalledPackages>()) }
 
 		single {
 			val context = androidContext()
@@ -121,9 +95,6 @@ val quickBuildModule =
 				paths = get<EnvironmentQuickBuildPaths>(),
 				installer = get<TestAppInstaller>(),
 				packages = get(),
-				modeStore = get(),
-				guard = get(),
-				metrics = get(),
 				apkCertSha256 = { apk -> ApkSigningCert.sha256(context, apk) },
 			)
 		}
@@ -154,7 +125,7 @@ val quickBuildModule =
 				provisioner = get(),
 				connections = get(),
 				paths = get<EnvironmentQuickBuildPaths>(),
-				modeStore = get(),
+				historyStore = get(),
 				// The orchestrator's ordering guarantee requires a single-threaded
 				// dispatcher (see BuildOrchestrator KDoc); a dedicated thread keeps
 				// session work off Main and off the shared pools.
