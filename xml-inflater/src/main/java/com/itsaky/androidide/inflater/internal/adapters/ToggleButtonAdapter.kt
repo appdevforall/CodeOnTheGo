@@ -18,12 +18,12 @@
 package com.itsaky.androidide.inflater.internal.adapters
 
 import android.widget.ToggleButton
-import com.blankj.utilcode.util.ReflectUtils.reflect
 import com.itsaky.androidide.annotations.inflater.ViewAdapter
 import com.itsaky.androidide.inflater.AttributeHandlerScope
 import com.itsaky.androidide.inflater.models.UiWidget
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.utils.ReflectUtils.Companion.reflect
 
 /**
  * Attribute adapter for [ToggleButton].
@@ -32,21 +32,19 @@ import com.itsaky.androidide.resources.R.string
  */
 @ViewAdapter(ToggleButton::class)
 open class ToggleButtonAdapter<T : ToggleButton> : CompoundButtonAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("disabledAlpha") { reflect(view).field("mDisabledAlpha", parseFloat(value, 0.5f)) }
+		create("textOff") { view.textOff = parseString(value) }
+		create("textOn") { view.textOn = parseString(value) }
+	}
 
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("disabledAlpha") { reflect(view).field("mDisabledAlpha", parseFloat(value, 0.5f)) }
-    create("textOff") { view.textOff = parseString(value) }
-    create("textOn") { view.textOn = parseString(value) }
-  }
-
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(
-        ToggleButton::class.java,
-        string.widget_togglebutton,
-        drawable.ic_widget_toggle_button
-      )
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(
+				ToggleButton::class.java,
+				string.widget_togglebutton,
+				drawable.ic_widget_toggle_button,
+			),
+		)
 }
