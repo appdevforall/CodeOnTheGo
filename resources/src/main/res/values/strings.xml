@@ -1236,11 +1236,11 @@
 	<string name="back_to_cogo">Back to Code on the Go</string>
 
 	<!-- URL Consent Dialog -->
-	<string name="url_consent_title">Open External Link?</string>
+	<string name="url_consent_title">Open external link?</string>
 	<string name="url_consent_message">You are about to leave Code on the Go to open an external link:\n\n%s\n\nDo you want to continue?</string>
-	<string name="url_consent_cancel">Cancel</string>
-	<string name="url_consent_proceed">Proceed</string>
-	<string name="url_consent_dont_ask">Don\'t Ask Again</string>
+	<string name="url_consent_cancel">No</string>
+	<string name="url_consent_proceed">Yes</string>
+	<string name="url_consent_dont_ask">Don\'t ask again</string>
 
 	<!-- Documentation urls -->
 	<string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>
