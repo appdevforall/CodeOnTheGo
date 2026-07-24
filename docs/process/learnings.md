@@ -7,6 +7,18 @@
 ## Git / GitHub
 - Before pushing a follow-up commit to a community PR, check `gh pr view <n> --json headRepositoryOwner` — the PR head is usually on the contributor's **fork**, so a same-named push to `origin` doesn't touch the PR and just creates a confusing dead branch that has to be deleted.
 
+## Android / Kotlin
+- `Handler.removeCallbacks(Runnable)` only removes callbacks posted by that *exact* `Handler` instance, not just the same `Looper` — `Handler(Looper.getMainLooper()).removeCallbacks(x)` won't cancel something posted via a *different* `Handler` bound to the same looper. Any post/cancel pair needs to share one `Handler` instance (see `TaskExecutor.mainThreadHandler`, added when replacing blankj's `ThreadUtils.getMainHandler()`).
+
+## Reverse-engineering a library before porting it
+- When writing a same-name drop-in for a third-party utility (to remove the dependency without changing call-site behavior), don't guess its semantics from memory/docs — extract the AAR's `classes.jar` and run `javap -c` against the actual bytecode to confirm exact chaining/wrapping behavior, especially for fluent/reflection-style APIs where a subtle mismatch (e.g., wrapping a field's *declared* type vs. its *runtime* class) changes behavior at existing call sites.
+
+## MockK
+- Migrating a mocked call from a Java static method (`mockkStatic(SomeClass::class)`) to a Kotlin top-level extension function requires `mockkStatic("com.package.FileNameKt")` (the compiled JVM facade class name) instead — `mockkStatic(ExtensionReceiver::class)` doesn't work for extension functions.
+
+## Measuring a real before/after delta
+- To measure an actual size/perf delta for a change (not just estimate it), use `git worktree add <path> <base-commit>`, build there, and diff the artifacts — avoids disturbing the current working tree or stashing.
+
 ## Kotlin LSP test harness
 - Disposing the `KtLspTestEnvironment` in a unit test (`env.close()`, or `Disposer.dispose(env.project)`) throws `AssertionError: Write access is allowed inside write-action only`. IntelliJ requires model teardown to run inside a write action. This is why `KtLspTestRule`'s teardown has `env.close()` commented out as "fails in test cases". To dispose deterministically in a test, wrap it: `ApplicationManager.getApplication().runWriteAction { env.close() }`.
 - The index/compilation environment lifecycle is racy: background `IndexWorker` coroutines call `PsiManager.findFile(project)` and will crash with `Project is already disposed` if the project is disposed before the workers are stopped. Always stop & join `KtSymbolIndex.close()` (and cancel related scopes) before `Disposer.dispose(...)`.
