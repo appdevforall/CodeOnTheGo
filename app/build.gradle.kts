@@ -126,6 +126,8 @@ android {
 			// Bundled .proto well-known-type sources from protobuf jars; nothing imports them at build time.
 			excludes += "google/protobuf/**"
 			excludes += "src/google/protobuf/**"
+			// httpclient's public-suffix cookie-domain data; unused, no code touches Apache HttpClient directly.
+			excludes += "mozilla/public-suffix-list.txt"
 
 			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
 			pickFirsts += "kotlin/reflect/reflect.kotlin_builtins"
