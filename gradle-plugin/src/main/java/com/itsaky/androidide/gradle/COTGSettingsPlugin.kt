@@ -23,15 +23,13 @@ class COTGSettingsPlugin : Plugin<Settings> {
 		}
 
 		logger.info("Plugin instance: ${System.identityHashCode(this)}")
-		// Add our local maven repo, always.
-		val allLocalRepos = mutableListOf(MAVEN_LOCAL_REPOSITORY)
 
-		// Then check if we need to add additional repos, based on whether
-		// we're in a test environment
 		val (isTestEnv, mavenLocalRepos) = getTestEnvProps(target.startParameter)
-		if (isTestEnv) {
-			allLocalRepos += mavenLocalRepos
-		}
+
+		// The bundled repo lives at a device-only path, so a host test env supplies its own
+		// repos instead - requiring the device path there would fail every host build.
+		val allLocalRepos =
+			if (isTestEnv) mavenLocalRepos else listOf(MAVEN_LOCAL_REPOSITORY)
 
 		target.addLocalRepos(allLocalRepos)
 	}

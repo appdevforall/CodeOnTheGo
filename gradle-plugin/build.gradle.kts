@@ -17,7 +17,6 @@
 
 @file:Suppress("UnstableApiUsage")
 
-import com.itsaky.androidide.build.config.AGP_VERSION_MINIMUM
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.ProjectConfig
 
@@ -28,8 +27,34 @@ plugins {
 
 description = "Gradle Plugin for projects that are built with AndroidIDE"
 
+// The functional tests run a real Gradle build against this repo's own plugins, so those
+// have to be staged into build-local maven repos first, and their locations handed to the
+// harness through repos.txt. Wired here rather than in build-logic because a
+// projectsEvaluated sweep silently misses projects under configure-on-demand.
+val mavenLocalStagingProjects = listOf(":logsender", ":logger", ":build-info")
+
 tasks.named<Test>("test") {
 	useJUnitPlatform()
+
+	val stagedRepos =
+		mavenLocalStagingProjects.map { path ->
+			dependsOn("$path:publishAllPublicationsToBuildMavenLocalRepository")
+			project(path)
+				.layout.buildDirectory
+				.dir("maven-local")
+				.get()
+				.asFile.absolutePath
+		}
+	val reposFile =
+		layout.buildDirectory
+			.file("maven-local/repos.txt")
+			.get()
+			.asFile
+
+	doFirst {
+		reposFile.parentFile.mkdirs()
+		reposFile.writeText(stagedRepos.joinToString(separator = File.pathSeparator))
+	}
 }
 
 configurations {
@@ -52,8 +77,12 @@ dependencies {
 	implementation(projects.gradlePluginConfig)
 	implementation(projects.buildInfo)
 
-	// use the AGP APIs from the minimum supported AGP version
-	add("androidBuildTool", "com.android.tools.build:gradle:${AGP_VERSION_MINIMUM}")
+	// Quick Build (ADFA-4128) needs the ScopedArtifacts API (AGP 7.4+) and the D8 API
+	// shipped inside AGP's builder artifact, so this module compiles against the repo's
+	// AGP instead of AGP_VERSION_MINIMUM. Projects on older AGPs are unaffected at
+	// runtime: QuickBuildPlugin's classes load only when quick build is enabled, and the
+	// other plugins stick to APIs that exist since the minimum supported version.
+	add("androidBuildTool", libs.android.gradle.plugin)
 
 	testImplementation(gradleTestKit())
 	testImplementation(libs.tests.junit.jupiter)

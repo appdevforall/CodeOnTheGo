@@ -135,6 +135,9 @@ spotless {
 			"LayoutEditor/**/*",
 			"subprojects/aaptcompiler/src/*/java/com/android/**/*",
 			"subprojects/builder-model-impl/src/*/java/com/android/**/*",
+			// Corpus fixtures mirror upstream apps' own formatting; reformatting them
+			// breaks the mined-edit patches that must apply onto these exact bytes.
+			"quick-build/corpus/**/*",
 			"subprojects/flashbar/**/*",
 			"subprojects/xml-dom/**/*",
 			"termux/**/*",
