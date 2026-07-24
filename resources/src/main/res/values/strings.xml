@@ -895,6 +895,7 @@
 	<string name="plugin_manager_summary">Manage IDE plugins and extensions</string>
 	<string name="plugins">Plugins</string>
 	<string name="no_plugins_installed">No plugins installed</string>
+	<string name="no_plugins_installed_hint">Tap the + button to install your first plugin</string>
 	<string name="install_plugin">Install Plugin</string>
 	<string name="plugin_installed">Plugin installed successfully</string>
 	<string name="plugin_install_failed">Failed to install plugin</string>
