@@ -18,8 +18,8 @@ package com.itsaky.androidide.tasks
 
 import android.app.ProgressDialog
 import android.content.Context
+import android.os.Handler
 import android.os.Looper
-import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.common.R
 import org.slf4j.LoggerFactory
 import java.util.concurrent.Callable
@@ -43,7 +43,7 @@ object TaskExecutor {
 					log.error("An error occurred while executing Callable in background thread.", th)
 					return@supplyAsync null
 				}
-			}.whenComplete { result, _ -> ThreadUtils.runOnUiThread { callback?.complete(result) } }
+			}.whenComplete { result, _ -> runOnUiThread { callback?.complete(result) } }
 	}
 
 	@JvmOverloads
@@ -61,7 +61,7 @@ object TaskExecutor {
 					throw CompletionException(th)
 				}
 			}.whenComplete { result, throwable ->
-				ThreadUtils.runOnUiThread { callback?.complete(result, throwable) }
+				runOnUiThread { callback?.complete(result, throwable) }
 			}
 	}
 
@@ -104,10 +104,18 @@ fun <R : Any?> executeAsyncProvideError(
 	callback: (R?, Throwable?) -> Unit,
 ): CompletableFuture<R?> = TaskExecutor.executeAsyncProvideError(callable, callback)
 
+/**
+ * Shared [Handler] bound to the main looper. Exposed (rather than creating a new [Handler] per
+ * call) so that code posting delayed work and later cancelling it via [Handler.removeCallbacks]
+ * goes through the same instance - `removeCallbacks` only removes callbacks posted by the exact
+ * same [Handler].
+ */
+val mainThreadHandler: Handler by lazy { Handler(Looper.getMainLooper()) }
+
 fun runOnUiThread(action: () -> Unit) {
 	if (Looper.getMainLooper().isCurrentThread) {
 		action()
 	} else {
-		ThreadUtils.runOnUiThread(action)
+		mainThreadHandler.post(action)
 	}
 }

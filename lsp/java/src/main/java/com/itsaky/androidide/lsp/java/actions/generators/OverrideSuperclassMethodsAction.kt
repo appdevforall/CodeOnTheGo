@@ -18,7 +18,6 @@ package com.itsaky.androidide.lsp.java.actions.generators
 
 import android.content.Context
 import android.view.View
-import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
@@ -43,6 +42,7 @@ import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.widget.CodeEditor
@@ -66,307 +66,321 @@ import java.util.concurrent.CompletableFuture
  * @author Akash Yadav
  */
 class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
+	override val titleTextRes: Int = R.string.action_override_superclass_methods
+	override val id: String = "ide.editor.lsp.java.generator.overrideSuperclassMethods"
+	override var label: String = ""
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_OVERRIDE_SUPER
+	private var position: Long = -1
 
-    override val titleTextRes: Int = R.string.action_override_superclass_methods
-    override val id: String = "ide.editor.lsp.java.generator.overrideSuperclassMethods"
-    override var label: String = ""
-    override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_OVERRIDE_SUPER
-    private var position: Long = -1
+	companion object {
+		private val log = LoggerFactory.getLogger(OverrideSuperclassMethodsAction::class.java)
+	}
 
-    companion object {
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-        private val log = LoggerFactory.getLogger(OverrideSuperclassMethodsAction::class.java)
-    }
+		if (
+			!visible ||
+			!data.hasRequiredData(
+				com.itsaky.androidide.models.Range::class.java,
+				CodeEditor::class.java,
+			)
+		) {
+			markInvisible()
+			return
+		}
 
-    override fun prepare(data: ActionData) {
-        super.prepare(data)
+		visible = true
+		enabled = true
+	}
 
-        if (
-            !visible ||
-            !data.hasRequiredData(
-                com.itsaky.androidide.models.Range::class.java,
-                CodeEditor::class.java
-            )
-        ) {
-            markInvisible()
-            return
-        }
+	override suspend fun execAction(data: ActionData): Any {
+		val range = data[com.itsaky.androidide.models.Range::class.java]!!
+		val compiler =
+			JavaCompilerProvider.get(
+				IProjectManager.getInstance().findModuleForFile(data.requireFile(), false)
+					?: return Any(),
+			)
+		val file = data.requirePath()
 
-        visible = true
-        enabled = true
-    }
+		return compiler.compile(file).get { task ->
+			// 1-based line and column index
+			val startLine = range.start.line + 1
+			val startColumn = range.start.column + 1
+			val endLine = range.end.line + 1
+			val endColumn = range.end.column + 1
+			val lines = task.root().lineMap
+			val start = lines.getPosition(startLine.toLong(), startColumn.toLong())
+			val end = lines.getPosition(endLine.toLong(), endColumn.toLong())
 
-    override suspend fun execAction(data: ActionData): Any {
-        val range = data[com.itsaky.androidide.models.Range::class.java]!!
-        val compiler =
-            JavaCompilerProvider.get(
-                IProjectManager.getInstance().findModuleForFile(data.requireFile(), false)
-                    ?: return Any()
-            )
-        val file = data.requirePath()
+			if (start == (-1).toLong() || end == (-1).toLong()) {
+				return@get false
+			}
 
-        return compiler.compile(file).get { task ->
-            // 1-based line and column index
-            val startLine = range.start.line + 1
-            val startColumn = range.start.column + 1
-            val endLine = range.end.line + 1
-            val endColumn = range.end.column + 1
-            val lines = task.root().lineMap
-            val start = lines.getPosition(startLine.toLong(), startColumn.toLong())
-            val end = lines.getPosition(endLine.toLong(), endColumn.toLong())
+			this.position = start
+			val typeFinder = FindTypeDeclarationAt(task.task)
+			var type = typeFinder.scan(task.root(file), start)
+			if (type == null) {
+				type = typeFinder.scan(task.root(file), end)
+				position = end
+			}
 
-            if (start == (-1).toLong() || end == (-1).toLong()) {
-                return@get false
-            }
+			if (type == null) {
+				return@get false
+			}
 
-            this.position = start
-            val typeFinder = FindTypeDeclarationAt(task.task)
-            var type = typeFinder.scan(task.root(file), start)
-            if (type == null) {
-                type = typeFinder.scan(task.root(file), end)
-                position = end
-            }
+			val overridable = mutableListOf<MethodPtr>()
+			val trees = Trees.instance(task.task)
+			val elements = task.task.elements
+			val classPath = typeFinder.path
+			val element = trees.getElement(classPath) as TypeElement
 
-            if (type == null) {
-                return@get false
-            }
+			for (member in elements.getAllMembers(element)) {
+				if (member.modifiers.contains(Modifier.FINAL) || member.kind != ElementKind.METHOD) {
+					continue
+				}
 
-            val overridable = mutableListOf<MethodPtr>()
-            val trees = Trees.instance(task.task)
-            val elements = task.task.elements
-            val classPath = typeFinder.path
-            val element = trees.getElement(classPath) as TypeElement
+				val method = member as ExecutableElement
+				val methodSource = member.getEnclosingElement() as TypeElement
+				if (
+					methodSource.qualifiedName.contentEquals("java.lang.Object") || methodSource == element
+				) {
+					continue
+				}
 
-            for (member in elements.getAllMembers(element)) {
-                if (member.modifiers.contains(Modifier.FINAL) || member.kind != ElementKind.METHOD) {
-                    continue
-                }
+				val pointer = MethodPtr(task.task, method)
+				overridable.add(pointer)
+			}
 
-                val method = member as ExecutableElement
-                val methodSource = member.getEnclosingElement() as TypeElement
-                if (
-                    methodSource.qualifiedName.contentEquals("java.lang.Object") || methodSource == element
-                ) {
-                    continue
-                }
+			return@get overridable
+		}
+	}
 
-                val pointer = MethodPtr(task.task, method)
-                overridable.add(pointer)
-            }
+	@Suppress("UNCHECKED_CAST")
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result !is List<*> || result.isEmpty() || position < 0) {
+			log.warn("Unable to find any overridable method")
+			flashError(data[Context::class.java]!!.getString(R.string.msg_no_overridable_methods))
+			return
+		}
 
-            return@get overridable
-        }
-    }
+		val methods = (result as List<MethodPtr>).sortedBy { it.methodName }
+		val checkedMethods = mutableListOf<MethodPtr>()
+		val names = mapMethodPointers(methods)
+		val builder = newDialogBuilder(data)
+		val context = data[Context::class.java]!!
+		builder.setTitle(data[Context::class.java]!!.getString(R.string.msg_select_methods))
+		builder.setMultiChoiceItems(names, BooleanArray(names.size)) { _, which, isChecked ->
+			checkedMethods.apply {
+				if (isChecked) {
+					add(methods[which])
+				} else {
+					remove(methods[which])
+				}
+			}
+		}
+		builder.setPositiveButton(android.R.string.ok) { dialog, _ ->
+			dialog.dismiss()
 
-    @Suppress("UNCHECKED_CAST")
-    override fun postExec(data: ActionData, result: Any) {
-        if (result !is List<*> || result.isEmpty() || position < 0) {
-            log.warn("Unable to find any overridable method")
-            flashError(data[Context::class.java]!!.getString(R.string.msg_no_overridable_methods))
-            return
-        }
+			if (checkedMethods.isEmpty()) {
+				flashError(data[Context::class.java]!!.getString(R.string.msg_no_methods_selected))
+				return@setPositiveButton
+			}
 
-        val methods = (result as List<MethodPtr>).sortedBy { it.methodName }
-        val checkedMethods = mutableListOf<MethodPtr>()
-        val names = mapMethodPointers(methods)
-        val builder = newDialogBuilder(data)
-        val context = data[Context::class.java]!!
-        builder.setTitle(data[Context::class.java]!!.getString(R.string.msg_select_methods))
-        builder.setMultiChoiceItems(names, BooleanArray(names.size)) { _, which, isChecked ->
-            checkedMethods.apply {
-                if (isChecked) {
-                    add(methods[which])
-                } else {
-                    remove(methods[which])
-                }
-            }
-        }
-        builder.setPositiveButton(android.R.string.ok) { dialog, _ ->
-            dialog.dismiss()
+			CompletableFuture
+				.runAsync { overrideMethods(data, checkedMethods) }
+				.whenComplete { _, error ->
+					if (error != null) {
+						log.error("An error occurred overriding methods")
 
-            if (checkedMethods.isEmpty()) {
-                flashError(data[Context::class.java]!!.getString(R.string.msg_no_methods_selected))
-                return@setPositiveButton
-            }
+						runOnUiThread {
+							flashError(
+								context.getString(R.string.msg_cannot_override_methods),
+							)
+						}
+					}
+				}
+		}
+		builder.setNegativeButton(android.R.string.cancel, null)
 
-            CompletableFuture.runAsync { overrideMethods(data, checkedMethods) }
-                .whenComplete {
-                        _, error,
-                    ->
-                    if (error != null) {
-                        log.error("An error occurred overriding methods")
+		val dialog = builder.create()
 
-                        ThreadUtils.runOnUiThread {
-                            flashError(
-                                context.getString(R.string.msg_cannot_override_methods)
-                            )
-                        }
-                    }
-                }
-        }
-        builder.setNegativeButton(android.R.string.cancel, null)
+		val listView = dialog.listView
+		listView.setOnItemLongClickListener { _, view, position, _ ->
+			showTooltip(context, view, tooltipTag)
+			true
+		}
 
-        val dialog = builder.create()
+		dialog.setOnShowListener {
+			val root = dialog.window?.decorView ?: return@setOnShowListener
 
-        val listView = dialog.listView
-        listView.setOnItemLongClickListener { _, view, position, _ ->
-            showTooltip(context, view, tooltipTag)
-            true
-        }
+			root.applyLongPressRecursively {
+				showTooltip(context, root, tooltipTag)
+				true
+			}
+		}
+		dialog.show()
+	}
 
-        dialog.setOnShowListener {
-            val root = dialog.window?.decorView ?: return@setOnShowListener
+	private fun showTooltip(
+		context: Context,
+		anchor: View,
+		toolTip: String,
+	) {
+		TooltipManager.showIdeCategoryTooltip(context, anchor, toolTip)
+	}
 
-            root.applyLongPressRecursively {
-                showTooltip(context, root, tooltipTag)
-                true
-            }
-        }
-        dialog.show()
-    }
+	private fun overrideMethods(
+		data: ActionData,
+		checkedMethods: MutableList<MethodPtr>,
+	) {
+		val compiler =
+			JavaCompilerProvider.get(
+				IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return,
+			)
+		val file = data.requirePath()
 
-    private fun showTooltip(context: Context, anchor: View, toolTip: String) {
-        TooltipManager.showIdeCategoryTooltip(context, anchor, toolTip)
-    }
+		compiler.compile(file).run { task ->
+			val types = task.task.types
+			val trees = Trees.instance(task.task)
+			val sb = StringBuilder()
+			val imports = mutableSetOf<String>()
 
-    private fun overrideMethods(data: ActionData, checkedMethods: MutableList<MethodPtr>) {
-        val compiler =
-            JavaCompilerProvider.get(
-                IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return
-            )
-        val file = data.requirePath()
+			val typeFinder = FindTypeDeclarationAt(task.task)
+			val classTree = typeFinder.scan(task.root(), position)
+			val thisClass = trees.getElement(typeFinder.path) as TypeElement
+			val indent =
+				EditHelper.indent(task.task, task.root(), classTree) + EditorPreferences.tabSize
+			val fileImports =
+				task
+					.root(file)
+					.imports
+					.map { it.qualifiedIdentifier.toString() }
+					.toSet()
+			val filePackage =
+				task
+					.root(file)
+					.`package`.packageName
+					.toString()
 
-        compiler.compile(file).run { task ->
-            val types = task.task.types
-            val trees = Trees.instance(task.task)
-            val sb = StringBuilder()
-            val imports = mutableSetOf<String>()
+			for (pointer in checkedMethods) {
+				val superMethod =
+					FindHelper.findMethod(
+						task,
+						pointer.className,
+						pointer.methodName,
+						pointer.erasedParameterTypes,
+					) ?: continue
 
-            val typeFinder = FindTypeDeclarationAt(task.task)
-            val classTree = typeFinder.scan(task.root(), position)
-            val thisClass = trees.getElement(typeFinder.path) as TypeElement
-            val indent =
-                EditHelper.indent(task.task, task.root(), classTree) + EditorPreferences.tabSize
-            val fileImports =
-                task.root(file).imports.map { it.qualifiedIdentifier.toString() }.toSet()
-            val filePackage = task.root(file).`package`.packageName.toString()
+				val thisDeclaredType = thisClass.asType() as DeclaredType
+				val executableType =
+					types.asMemberOf(thisDeclaredType, superMethod) as ExecutableType
+				val source = findSource(compiler, task, superMethod)
+				val method =
+					if (source != null) {
+						JavaParserUtils.printMethod(superMethod, executableType, source)
+					} else {
+						JavaParserUtils.printMethod(superMethod, executableType, superMethod)
+					}
 
-            for (pointer in checkedMethods) {
-                val superMethod =
-                    FindHelper.findMethod(
-                        task,
-                        pointer.className,
-                        pointer.methodName,
-                        pointer.erasedParameterTypes
-                    ) ?: continue
+				val newImports = JavaParserUtils.collectImports(executableType)
+				sb.append("\n")
+				sb.append(method.toString())
+				sb.replace(Regex(Regex.escape("\n")), "\n${indentationString(indent)}")
+				sb.append("\n")
 
-                val thisDeclaredType = thisClass.asType() as DeclaredType
-                val executableType =
-                    types.asMemberOf(thisDeclaredType, superMethod) as ExecutableType
-                val source = findSource(compiler, task, superMethod)
-                val method =
-                    if (source != null) {
-                        JavaParserUtils.printMethod(superMethod, executableType, source)
-                    } else {
-                        JavaParserUtils.printMethod(superMethod, executableType, superMethod)
-                    }
+				newImports.removeIf {
+					it.startsWith("java.lang.") || it.startsWith(filePackage) ||
+						fileImports.contains(
+							it,
+						)
+				}
 
-                val newImports = JavaParserUtils.collectImports(executableType)
-                sb.append("\n")
-                sb.append(method.toString())
-                sb.replace(Regex(Regex.escape("\n")), "\n${indentationString(indent)}")
-                sb.append("\n")
+				imports.addAll(newImports)
+			}
 
-                newImports.removeIf {
-                    it.startsWith("java.lang.") || it.startsWith(filePackage) || fileImports.contains(
-                        it
-                    )
-                }
+			runOnUiThread {
+				performEdits(
+					data,
+					sb,
+					imports,
+					EditHelper.insertAtEndOfClass(task.task, task.root(file), classTree),
+				)
+			}
+		}
+	}
 
-                imports.addAll(newImports)
-            }
+	private fun performEdits(
+		data: ActionData,
+		sb: StringBuilder,
+		imports: MutableSet<String>,
+		position: Position,
+	) {
+		val compiler =
+			JavaCompilerProvider.get(
+				IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return,
+			)
+		val editor = data[CodeEditor::class.java]!!
+		val file = data.requirePath()
+		val text = editor.text
 
-            ThreadUtils.runOnUiThread {
-                performEdits(
-                    data,
-                    sb,
-                    imports,
-                    EditHelper.insertAtEndOfClass(task.task, task.root(file), classTree)
-                )
-            }
-        }
-    }
+		text.beginBatchEdit()
 
-    private fun performEdits(
-        data: ActionData,
-        sb: StringBuilder,
-        imports: MutableSet<String>,
-        position: Position,
-    ) {
-        val compiler =
-            JavaCompilerProvider.get(
-                IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return
-            )
-        val editor = data[CodeEditor::class.java]!!
-        val file = data.requirePath()
-        val text = editor.text
+		text.insert(position.line, position.column, sb)
 
-        text.beginBatchEdit()
+		for (name in imports) {
+			val rewrite = AddImport(file, name)
+			val edits = rewrite.rewrite(compiler)[file]
+			if (edits.isNullOrEmpty()) {
+				continue
+			}
 
-        text.insert(position.line, position.column, sb)
+			for (edit in edits) {
+				if (edit.range.start == edit.range.end) {
+					text.insert(edit.range.start.line, edit.range.start.column, edit.newText)
+				} else {
+					text.replace(
+						edit.range.start.line,
+						edit.range.start.column,
+						edit.range.end.line,
+						edit.range.end.column,
+						edit.newText,
+					)
+				}
+			}
+		}
 
-        for (name in imports) {
-            val rewrite = AddImport(file, name)
-            val edits = rewrite.rewrite(compiler)[file]
-            if (edits.isNullOrEmpty()) {
-                continue
-            }
+		text.endBatchEdit()
+		editor.formatCodeAsync()
+	}
 
-            for (edit in edits) {
-                if (edit.range.start == edit.range.end) {
-                    text.insert(edit.range.start.line, edit.range.start.column, edit.newText)
-                } else {
-                    text.replace(
-                        edit.range.start.line,
-                        edit.range.start.column,
-                        edit.range.end.line,
-                        edit.range.end.column,
-                        edit.newText
-                    )
-                }
-            }
-        }
+	private fun mapMethodPointers(methods: List<MethodPtr>): Array<CharSequence> =
+		methods
+			.map { Arrays.toString(it.simplifiedErasedParameterTypes) }
+			.map {
+				val arr = it.toCharArray()
+				arr[0] = '('
+				arr[arr.size - 1] = ')'
 
-        text.endBatchEdit()
-        editor.formatCodeAsync()
-    }
+				String(arr)
+			}.mapIndexed { index, params -> "${methods[index].methodName}$params" }
+			.toTypedArray()
 
-    private fun mapMethodPointers(methods: List<MethodPtr>): Array<CharSequence> {
-        return methods
-            .map { Arrays.toString(it.simplifiedErasedParameterTypes) }
-            .map {
-                val arr = it.toCharArray()
-                arr[0] = '('
-                arr[arr.size - 1] = ')'
-
-                String(arr)
-            }
-            .mapIndexed { index, params -> "${methods[index].methodName}$params" }
-            .toTypedArray()
-    }
-
-    private fun findSource(
-        compiler: CompilerProvider,
-        task: CompileTask,
-        method: ExecutableElement,
-    ): MethodTree? {
-        val superClass = method.enclosingElement as TypeElement
-        val superClassName = superClass.qualifiedName.toString()
-        val methodName = method.simpleName.toString()
-        val erasedParameterTypes = FindHelper.erasedParameterTypes(task, method)
-        val sourceFile: Optional<JavaFileObject> = compiler.findAnywhere(superClassName)
-        if (!sourceFile.isPresent) return null
-        val parse: ParseTask = compiler.parse(sourceFile.get())
-        return FindHelper.findMethod(parse, superClassName, methodName, erasedParameterTypes)
-    }
+	private fun findSource(
+		compiler: CompilerProvider,
+		task: CompileTask,
+		method: ExecutableElement,
+	): MethodTree? {
+		val superClass = method.enclosingElement as TypeElement
+		val superClassName = superClass.qualifiedName.toString()
+		val methodName = method.simpleName.toString()
+		val erasedParameterTypes = FindHelper.erasedParameterTypes(task, method)
+		val sourceFile: Optional<JavaFileObject> = compiler.findAnywhere(superClassName)
+		if (!sourceFile.isPresent) return null
+		val parse: ParseTask = compiler.parse(sourceFile.get())
+		return FindHelper.findMethod(parse, superClassName, methodName, erasedParameterTypes)
+	}
 }

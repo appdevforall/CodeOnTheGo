@@ -68,7 +68,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.constant.MemoryConstants
 import com.blankj.utilcode.util.ConvertUtils.byte2MemorySize
 import com.blankj.utilcode.util.FileUtils
-import com.blankj.utilcode.util.ThreadUtils
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
@@ -118,6 +117,7 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.services.debug.DebuggerService
 import com.itsaky.androidide.tasks.cancelIfActive
+import com.itsaky.androidide.tasks.mainThreadHandler
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
 import com.itsaky.androidide.ui.SwipeRevealLayout
@@ -471,7 +471,7 @@ abstract class BaseEditorActivity :
 
 		runCatching { onBackPressedCallback.remove() }
 		runCatching { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) }
-		optionsMenuInvalidator?.also { ThreadUtils.getMainHandler().removeCallbacks(it) }
+		optionsMenuInvalidator?.also { mainThreadHandler.removeCallbacks(it) }
 		optionsMenuInvalidator = null
 
 		apkInstallationViewModel.destroy(this)
@@ -984,7 +984,7 @@ abstract class BaseEditorActivity :
 	}
 
 	override fun invalidateOptionsMenu() {
-		val mainHandler = ThreadUtils.getMainHandler()
+		val mainHandler = mainThreadHandler
 		optionsMenuInvalidator?.also {
 			mainHandler.removeCallbacks(it)
 			mainHandler.postDelayed(it, OPTIONS_MENU_INVALIDATION_DELAY)
@@ -1440,7 +1440,7 @@ abstract class BaseEditorActivity :
 			bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_EXPANDED
 		) {
 			bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_EXPANDED)
-			ThreadUtils.runOnUiThreadDelayed({
+			mainThreadHandler.postDelayed({
 				bottomSheetViewModel.setSheetState(STATE_COLLAPSED)
 				app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
 			}, 1500)

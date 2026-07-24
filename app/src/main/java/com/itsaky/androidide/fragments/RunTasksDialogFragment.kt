@@ -34,7 +34,6 @@ import androidx.core.view.updateMargins
 import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
 import androidx.transition.TransitionManager
-import com.blankj.utilcode.util.ThreadUtils
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.transition.MaterialSharedAxis
@@ -52,6 +51,7 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.executeAsync
+import com.itsaky.androidide.tasks.mainThreadHandler
 import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.doOnApplyWindowInsets
@@ -157,8 +157,8 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 					}
 
 				override fun afterTextChanged(s: Editable?) {
-					ThreadUtils.getMainHandler().removeCallbacks(searchRunner)
-					ThreadUtils.runOnUiThreadDelayed(searchRunner, SEARCH_DELAY)
+					mainThreadHandler.removeCallbacks(searchRunner)
+					mainThreadHandler.postDelayed(searchRunner, SEARCH_DELAY)
 				}
 			},
 		)

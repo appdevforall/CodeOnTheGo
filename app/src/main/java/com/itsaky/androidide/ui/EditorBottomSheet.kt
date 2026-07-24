@@ -43,7 +43,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.transition.TransitionManager
 import com.blankj.utilcode.util.KeyboardUtils
-import com.blankj.utilcode.util.ThreadUtils.runOnUiThread
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.tabs.TabLayout.OnTabSelectedListener
 import com.google.android.material.tabs.TabLayout.Tab
@@ -61,6 +60,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DiagnosticsFormatter
 import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
