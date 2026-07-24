@@ -241,7 +241,6 @@
   <string name="idepref_buildnrun_summary">Настройте сборку Gradle.</string>
   <string name="configure">Настройки</string>
   <string name="about">О приложении</string>
-  <string name="idepref_github_summary">Code on the Go - проект с открытым исходным кодом!</string>
   <string name="idepref_channel_summary">Узнавайте о новых обновлениях!</string>
   <string name="idepref_group_summary">Сообщайте об ошибках, предлагайте новые функции и обсуждайте нововведения здесь.</string>
   <string name="idepref_changelog_summary">Что нового в этой версии?</string>
@@ -342,12 +341,6 @@
   <string name="close_without_saving">Закрыть без сохранения файлов</string>
   <string name="save_and_close">Сохранить файлы и закрыть проект</string>
   <!-- GIT -->
-  <string name="git_clone">Клонировать</string>
-  <string name="git_clone_repo">Клонировать репозиторий Git</string>
-  <string name="git_clone_repo_url">URL репозитория</string>
-  <string name="git_clone_in_progress">Клонирования репозитория</string>
-  <string name="git_clone_success">Клонирование Git успешно завершено</string>
-  <string name="git_clone_failed">Ошибка клонирования репозитория Git</string>
   <string name="msg_select_attr">Выберите атрибут из списка ниже</string>
   <string name="action_show_hierarchy">Показать иерархию разметки</string>
   <string name="idepref_editor_colorScheme">Цветовая схема</string>
