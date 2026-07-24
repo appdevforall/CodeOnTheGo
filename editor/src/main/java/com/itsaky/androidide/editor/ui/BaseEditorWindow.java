@@ -19,7 +19,6 @@ package com.itsaky.androidide.editor.ui;
 
 import static android.view.View.MeasureSpec.AT_MOST;
 import static android.view.View.MeasureSpec.makeMeasureSpec;
-import static com.blankj.utilcode.util.SizeUtils.dp2px;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;
@@ -40,82 +39,83 @@ import io.github.rosemoe.sora.widget.base.EditorPopupWindow;
  */
 public abstract class BaseEditorWindow extends AbstractPopupWindow {
 
-  protected final TextView text;
+	private static int getFeatureFlags() {
+		return FEATURE_SCROLL_AS_CONTENT | FEATURE_SHOW_OUTSIDE_VIEW_ALLOWED;
+	}
 
-  /**
-   * Create a popup window for editor
-   *
-   * @param editor The editor
-   * @see #FEATURE_SCROLL_AS_CONTENT
-   * @see #FEATURE_SHOW_OUTSIDE_VIEW_ALLOWED
-   * @see #FEATURE_HIDE_WHEN_FAST_SCROLL
-   */
-  public BaseEditorWindow(@NonNull IDEEditor editor) {
-    super(editor, getFeatureFlags());
+	protected final TextView text;
 
-    this.text = onCreateTextView(editor);
-    setContentView(onCreateContentView(editor.getContext()));
-  }
+	/**
+	 * Create a popup window for editor
+	 *
+	 * @param editor
+	 *            The editor
+	 * @see #FEATURE_SCROLL_AS_CONTENT
+	 * @see #FEATURE_SHOW_OUTSIDE_VIEW_ALLOWED
+	 * @see #FEATURE_HIDE_WHEN_FAST_SCROLL
+	 */
+	public BaseEditorWindow(@NonNull IDEEditor editor) {
+		super(editor, getFeatureFlags());
 
-  private static int getFeatureFlags() {
-    return FEATURE_SCROLL_AS_CONTENT | FEATURE_SHOW_OUTSIDE_VIEW_ALLOWED;
-  }
+		this.text = onCreateTextView(editor);
+		setContentView(onCreateContentView(editor.getContext()));
+	}
 
-  protected View onCreateContentView(@NonNull Context context) {
-    return this.text;
-  }
+	public void displayWindow() {
+		final var dp16 = ContextUtilsKt.dpToPx(getEditor().getContext(), 16f);
+		final int width = getEditor().getWidth() - dp16;
+		final int height = getEditor().getHeight() - dp16;
+		final var widthMeasureSpec = makeMeasureSpec(width, AT_MOST);
+		final var heightMeasureSpec = makeMeasureSpec(height, AT_MOST);
+		this.getRootView().measure(widthMeasureSpec, heightMeasureSpec);
+		this.setSize(this.getRootView().getMeasuredWidth(), this.getRootView().getMeasuredHeight());
 
-  protected TextView onCreateTextView(@NonNull IDEEditor editor) {
-    final var context = editor.getContext();
-    final var dp4 = dp2px(4);
-    final var dp8 = dp4 * 2;
+		final var line = getEditor().getCursor().getLeftLine();
+		final var column = getEditor().getCursor().getLeftColumn();
+		int x = (int) ((getEditor().getOffset(line, column) - (getWidth() / 2)));
+		int y = (int) (getEditor().getRowHeight() * line) - getEditor().getOffsetY() - getHeight() - 5;
+		setLocationAbsolutely(x, y);
+		show();
+	}
 
-    final var text = new TextView(context);
-    text.setBackground(createBackground(context));
-    text.setTextColor(ContextUtilsKt.resolveAttr(context, R.attr.colorOnPrimaryContainer));
-    text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-    text.setClickable(false);
-    text.setFocusable(false);
-    text.setPaddingRelative(dp8, dp4, dp8, dp4);
-    text.setLayoutParams(
-      new ViewGroup.LayoutParams(
-        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-    return text;
-  }
+	@NonNull
+	@Override
+	public IDEEditor getEditor() {
+		return (IDEEditor) super.getEditor();
+	}
 
-  protected Drawable createBackground(final Context context) {
-    GradientDrawable background = new GradientDrawable();
-    background.setShape(GradientDrawable.RECTANGLE);
-    background.setColor(ContextUtilsKt.resolveAttr(context, R.attr.colorSurface));
-    background.setStroke(dp2px(1f), ContextUtilsKt.resolveAttr(context, R.attr.colorOutline));
-    background.setCornerRadius(8);
-    return background;
-  }
+	protected Drawable createBackground(final Context context) {
+		GradientDrawable background = new GradientDrawable();
+		background.setShape(GradientDrawable.RECTANGLE);
+		background.setColor(ContextUtilsKt.resolveAttr(context, R.attr.colorSurface));
+		background.setStroke(ContextUtilsKt.dpToPx(context, 1f), ContextUtilsKt.resolveAttr(context, R.attr.colorOutline));
+		background.setCornerRadius(8);
+		return background;
+	}
 
-  public void displayWindow() {
-    final var dp16 = dp2px(16f);
-    final int width = getEditor().getWidth() - dp16;
-    final int height = getEditor().getHeight() - dp16;
-    final var widthMeasureSpec = makeMeasureSpec(width, AT_MOST);
-    final var heightMeasureSpec = makeMeasureSpec(height, AT_MOST);
-    this.getRootView().measure(widthMeasureSpec, heightMeasureSpec);
-    this.setSize(this.getRootView().getMeasuredWidth(), this.getRootView().getMeasuredHeight());
+	protected View getRootView() {
+		return this.text;
+	}
 
-    final var line = getEditor().getCursor().getLeftLine();
-    final var column = getEditor().getCursor().getLeftColumn();
-    int x = (int) ((getEditor().getOffset(line, column) - (getWidth() / 2)));
-    int y = (int) (getEditor().getRowHeight() * line) - getEditor().getOffsetY() - getHeight() - 5;
-    setLocationAbsolutely(x, y);
-    show();
-  }
+	protected View onCreateContentView(@NonNull Context context) {
+		return this.text;
+	}
 
-  protected View getRootView() {
-    return this.text;
-  }
+	protected TextView onCreateTextView(@NonNull IDEEditor editor) {
+		final var context = editor.getContext();
+		final var dp4 = ContextUtilsKt.dpToPx(context, 4);
+		final var dp8 = dp4 * 2;
 
-  @NonNull
-  @Override
-  public IDEEditor getEditor() {
-    return (IDEEditor) super.getEditor();
-  }
+		final var text = new TextView(context);
+		text.setBackground(createBackground(context));
+		text.setTextColor(ContextUtilsKt.resolveAttr(context, R.attr.colorOnPrimaryContainer));
+		text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+		text.setClickable(false);
+		text.setFocusable(false);
+		text.setPaddingRelative(dp8, dp4, dp8, dp4);
+		text.setLayoutParams(
+				new ViewGroup.LayoutParams(
+						ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+		return text;
+	}
 }

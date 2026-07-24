@@ -34,7 +34,6 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import androidx.transition.ChangeBounds
 import androidx.transition.TransitionManager
-import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
@@ -55,6 +54,7 @@ import com.itsaky.androidide.lsp.models.DiagnosticsInSelection
 import com.itsaky.androidide.lsp.util.DiagnosticUtil
 import com.itsaky.androidide.lsp.xml.XMLLanguageServer
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.resolveAttr
 import io.github.rosemoe.sora.event.HandleStateChangeEvent
 import io.github.rosemoe.sora.event.ScrollEvent
@@ -90,7 +90,7 @@ open class EditorActionsMenu(
 
 	private val contentHeight by lazy {
 		// approximated size is around 56dp
-		SizeUtils.dp2px(56f)
+		editor.context.dpToPx(56f)
 	}
 
 	private val menu: MenuBuilder = MenuBuilder(editor.context)
@@ -111,8 +111,8 @@ open class EditorActionsMenu(
 					ViewGroup.LayoutParams.WRAP_CONTENT,
 				)
 
-			setFadingEdgeLength(SizeUtils.dp2px(42f))
-			setPaddingRelative(paddingStart, paddingTop, SizeUtils.dp2px(16f), paddingBottom)
+			setFadingEdgeLength(context.dpToPx(42f))
+			setPaddingRelative(paddingStart, paddingTop, context.dpToPx(16f), paddingBottom)
 		}
 
 		popup.contentView = this.list
@@ -198,9 +198,9 @@ open class EditorActionsMenu(
 	protected open fun applyBackground() {
 		val drawable = GradientDrawable()
 		drawable.shape = GradientDrawable.RECTANGLE
-		drawable.cornerRadius = SizeUtils.dp2px(28f).toFloat() // Recommeneded size is 28dp
+		drawable.cornerRadius = editor.context.dpToPx(28f).toFloat() // Recommeneded size is 28dp
 		drawable.color = ColorStateList.valueOf(editor.context.resolveAttr(R.attr.colorSurface))
-		drawable.setStroke(SizeUtils.dp2px(1f), editor.context.resolveAttr(R.attr.colorOutline))
+		drawable.setStroke(editor.context.dpToPx(1f), editor.context.resolveAttr(R.attr.colorOutline))
 		list.background = drawable
 	}
 
@@ -275,9 +275,9 @@ open class EditorActionsMenu(
 		} else {
 			var x = (handleLeftX - (width / 2f)).toInt()
 			if (x <= 0) {
-				x = (handleRightX + SizeUtils.dp2px(10f)).toInt()
+				x = (handleRightX + editor.context.dpToPx(10f)).toInt()
 			} else if (x >= editor.width) {
-				x = editor.width - SizeUtils.dp2px(10f)
+				x = editor.width - editor.context.dpToPx(10f)
 			}
 			x
 		}
@@ -369,13 +369,13 @@ open class EditorActionsMenu(
 		measureActionsList()
 
 		val height = list.measuredHeight
-		val width = min(editor.width - SizeUtils.dp2px(32f), list.measuredWidth)
+		val width = min(editor.width - editor.context.dpToPx(32f), list.measuredWidth)
 		setSize(width, height)
 		super.show()
 	}
 
 	private fun measureActionsList() {
-		val dp8 = SizeUtils.dp2px(8f)
+		val dp8 = editor.context.dpToPx(8f)
 		val dp16 = dp8 * 2
 		this.list.measure(
 			MeasureSpec.makeMeasureSpec(editor.width - dp16 * 2, MeasureSpec.AT_MOST),

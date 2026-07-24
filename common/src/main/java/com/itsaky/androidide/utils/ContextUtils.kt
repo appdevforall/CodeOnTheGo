@@ -33,43 +33,53 @@ import kotlin.system.exitProcess
  * Check if the given accessibility service is enabled.
  */
 inline fun <reified T> Context.isAccessibilityEnabled(): Boolean {
-  try {
-    val enabled = Settings.Secure.getInt(contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED)
-    if (enabled != 1) return false
+	try {
+		val enabled = Settings.Secure.getInt(contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED)
+		if (enabled != 1) return false
 
-    val name = ComponentName(applicationContext, T::class.java)
-    val services = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-    return services?.contains(name.flattenToString()) ?: false
-  } catch (e: Settings.SettingNotFoundException) {
-    return false
-  }
+		val name = ComponentName(applicationContext, T::class.java)
+		val services = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+		return services?.contains(name.flattenToString()) ?: false
+	} catch (e: Settings.SettingNotFoundException) {
+		return false
+	}
 }
 
-fun Context.isSystemInDarkMode(): Boolean {
-  return this.resources.configuration.isSystemInDarkMode()
-}
+fun Context.isSystemInDarkMode(): Boolean = this.resources.configuration.isSystemInDarkMode()
 
-fun Configuration.isSystemInDarkMode(): Boolean {
-  return (uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-}
+fun Configuration.isSystemInDarkMode(): Boolean = (uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
 @JvmOverloads
-fun Context.resolveAttr(id: Int, resolveRefs: Boolean = true): Int {
-  return theme.resolveAttr(id, resolveRefs)
-}
+fun Context.resolveAttr(
+	id: Int,
+	resolveRefs: Boolean = true,
+): Int = theme.resolveAttr(id, resolveRefs)
 
 @JvmOverloads
-fun Theme.resolveAttr(id: Int, resolveRefs: Boolean = true): Int =
-  TypedValue().let {
-    resolveAttribute(id, it, resolveRefs)
-    it.data
-  }
+fun Theme.resolveAttr(
+	id: Int,
+	resolveRefs: Boolean = true,
+): Int =
+	TypedValue().let {
+		resolveAttribute(id, it, resolveRefs)
+		it.data
+	}
 
 fun Activity.restartApp() {
-    val intent = packageManager.getLaunchIntentForPackage(packageName)
-    intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-    intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
-    startActivity(intent)
-    finishAffinity()
-    exitProcess(0)
+	val intent = packageManager.getLaunchIntentForPackage(packageName)
+	intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+	intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+	startActivity(intent)
+	finishAffinity()
+	exitProcess(0)
 }
+
+/**
+ * Converts a dp value to pixels, using this context's display metrics.
+ */
+fun Context.dpToPx(dp: Float): Int = (dp * resources.displayMetrics.density + 0.5f).toInt()
+
+/**
+ * Converts an sp value to pixels, using this context's display metrics.
+ */
+fun Context.spToPx(sp: Float): Int = (sp * resources.displayMetrics.scaledDensity + 0.5f).toInt()

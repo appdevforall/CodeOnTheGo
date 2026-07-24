@@ -68,7 +68,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.constant.MemoryConstants
 import com.blankj.utilcode.util.ConvertUtils.byte2MemorySize
 import com.blankj.utilcode.util.FileUtils
-import com.blankj.utilcode.util.SizeUtils
 import com.blankj.utilcode.util.ThreadUtils
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.data.Entry
@@ -135,6 +134,7 @@ import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
 import com.itsaky.androidide.utils.applyImmersiveModeInsets
 import com.itsaky.androidide.utils.applyResponsiveAppBarInsets
 import com.itsaky.androidide.utils.applyRootSystemInsetsAsPadding
+import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.getOrStoreInitialPadding
@@ -191,7 +191,7 @@ abstract class BaseEditorActivity :
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
 	private var fullscreenManager: FullscreenManager? = null
-	private val topEdgeThreshold by lazy { SizeUtils.dp2px(TOP_EDGE_SWIPE_THRESHOLD_DP) }
+	private val topEdgeThreshold by lazy { dpToPx(TOP_EDGE_SWIPE_THRESHOLD_DP) }
 
 	var isDestroying = false
 		protected set
@@ -408,8 +408,8 @@ abstract class BaseEditorActivity :
 	protected var optionsMenuInvalidator: Runnable? = null
 
 	private var gestureDetector: GestureDetector? = null
-	private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
-	private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
+	private val flingDistanceThreshold by lazy { dpToPx(100f) }
+	private val flingVelocityThreshold by lazy { dpToPx(100f) }
 
 	private var editorAppBarInsetTop: Int = 0
 
