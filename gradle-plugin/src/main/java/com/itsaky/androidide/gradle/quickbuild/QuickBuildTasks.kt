@@ -321,7 +321,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 				.filter { it.isFile && it.extension == "java" }
 				.toList()
 		if (proxyJavaFiles.isNotEmpty()) {
-			checkProxiability(proxyJavaFiles, runtimeClassesJars)
+			checkProxiability(proxyJavaFiles, payloadRoot, runtimeClassesJars)
 			compileProxies(
 				proxyJavaFiles,
 				classpath =
@@ -385,20 +385,29 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 	 * entry rather than a silent auto-skip here).
 	 *
 	 * Maps each proxy source file back to its target userClass via [manifestInfoFile] (the
-	 * same intermediate [QuickBuildGenerateSourcesTask] wrote), then resolves it against the
-	 * same library search path ([runtimeClassesJars] plus [compileClasspath]) the real
-	 * compile below will use. A class the resolver can't find there is assumed
-	 * project-owned (see that resolver's KDoc) and is never flagged - a genuinely
-	 * unresolvable class still fails at the javac compile immediately below, unchanged from
-	 * before this check existed.
+	 * same intermediate [QuickBuildGenerateSourcesTask] wrote). [payloadRoot] (the divert
+	 * task's diverted project classes) is read via [SupertypeResolver.supertypeIndex] into
+	 * a project-owned class-name set - checked FIRST via
+	 * [ComponentProxiabilityResolver.resolveWithProjectOverride], so it always wins over
+	 * [runtimeClassesJars] + [compileClasspath]: a mixed Kotlin/Java module's compile
+	 * classpath can expose a RAW (pre-[ClassOpener]) copy of the project's own class
+	 * alongside the divert task's opened copy, and every ordinary Kotlin class is `final`
+	 * in that raw form - without the project-owned override this flagged a real corpus
+	 * app's own `MainActivity` as unproxiable (ADFA-4128 regression). A class genuinely
+	 * absent from BOTH the project set and the library search path is still assumed
+	 * project-owned by [ComponentProxiabilityResolver.resolve] and would fail at the javac
+	 * compile immediately below if it's actually not, unchanged from before this check
+	 * existed.
 	 */
 	private fun checkProxiability(
 		proxyJavaFiles: List<File>,
+		payloadRoot: File,
 		runtimeClassesJars: List<File>,
 	) {
 		val manifestInfo = QuickBuildJson.parseManifestInfo(manifestInfoFile.get().asFile.readText())
 		val userClassByProxyClass =
 			manifestInfo.components.mapNotNull { component -> component.proxyClass?.let { it to component.userClass } }.toMap()
+		val projectClasses = SupertypeResolver.supertypeIndex(payloadRoot).keys
 		val resolver = ComponentProxiabilityResolver.forSetupBuild(runtimeClassesJars + compileClasspath.files)
 		val proxySourcesRoot = proxySources.get().asFile
 		for (proxyFile in proxyJavaFiles) {
@@ -409,7 +418,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 					.removeSuffix(".java")
 					.replace(File.separatorChar, '.')
 			val userClass = userClassByProxyClass[proxyClassName] ?: continue
-			val resolution = resolver.resolve(userClass)
+			val resolution = ComponentProxiabilityResolver.resolveWithProjectOverride(userClass, projectClasses, resolver)
 			if (resolution is ComponentProxiabilityResolver.Resolution.Skip) {
 				throw GradleException(
 					"Quick Build: '$userClass' cannot be proxied (${resolution.reason}); add it to " +

@@ -60,6 +60,43 @@ class ComponentProxiabilityResolverTest {
 	}
 
 	@Test
+	fun `resolveWithProjectOverride treats a project-owned class as Proxiable even when a raw final copy also resolves on the library search path`() {
+		// The exact mixed-language regression (ADFA-4128): a Kotlin user Activity is
+		// final by default in its raw compiled bytecode. ClassOpener only strips
+		// ACC_FINAL from the divert task's OWN opened output - a mixed Kotlin/Java
+		// module's compile classpath can ALSO expose a second, raw copy of the same
+		// class, and resolver.resolve() alone would see THAT copy and report final.
+		// Project membership must win regardless of what the resolver would say.
+		val userClass = "org.appdevforall.cotg.corpus.mixedlang.ui.MainActivity"
+		val rawFinalCopy = classBytes(Opcodes.ACC_PUBLIC or Opcodes.ACC_FINAL, userClass)
+		val resolver = ComponentProxiabilityResolver { rawFinalCopy }
+
+		val resolution =
+			ComponentProxiabilityResolver.resolveWithProjectOverride(
+				userClass,
+				projectClasses = setOf(userClass),
+				resolver = resolver,
+			)
+
+		assertThat(resolution).isEqualTo(ComponentProxiabilityResolver.Resolution.Proxiable)
+	}
+
+	@Test
+	fun `resolveWithProjectOverride still defers to the resolver for a class not in projectClasses`() {
+		val bytes = classBytes(Opcodes.ACC_PUBLIC or Opcodes.ACC_FINAL, "androidx.room.MultiInstanceInvalidationService")
+		val resolver = ComponentProxiabilityResolver { bytes }
+
+		val resolution =
+			ComponentProxiabilityResolver.resolveWithProjectOverride(
+				"androidx.room.MultiInstanceInvalidationService",
+				projectClasses = emptySet(),
+				resolver = resolver,
+			)
+
+		assertThat(resolution).isInstanceOf(ComponentProxiabilityResolver.Resolution.Skip::class.java)
+	}
+
+	@Test
 	fun `forSetupBuild finds a class in a directory search-path entry`(
 		@TempDir tempDir: File,
 	) {

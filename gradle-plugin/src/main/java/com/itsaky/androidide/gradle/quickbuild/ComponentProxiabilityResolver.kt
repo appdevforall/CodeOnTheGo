@@ -13,22 +13,23 @@ import java.util.jar.JarFile
  * `MultiInstanceInvalidationService` is `final` too, and nothing named it until it broke a
  * real project's setup build with `error: cannot inherit from final`.
  *
- * - A component class [libraryClassBytes] cannot find on the setup build's library search
- *   path (the variant compile classpath plus the extracted runtime AAR jars) is assumed
- *   project-owned: the pre-generalization default for every component this resolver isn't
- *   built to reason about. This is deliberate, not an oversight: [QuickBuildGenerateSourcesTask]
- *   runs BEFORE compilation in AGP's pipeline (manifest processing gates resource
- *   processing, which gates compilation), so there is no cycle-free way to check a
- *   component's class against the project's OWN compiled output at this point - trying to
- *   wire that dependency in creates a real Gradle task cycle (`generate` -> divert's
- *   payload classes -> compile -> resources -> manifest -> `generate`). A genuinely
- *   unresolvable component (neither project source nor on this search path) still fails
- *   loud at the real proxy compile (`QuickBuildPayloadDexTask`) exactly as before this
- *   resolver existed - unchanged, not regressed.
  * - A class [libraryClassBytes] DOES find is a library class: proxiable only if it is not
  *   `final` (read via [ClassOpener.isFinal] - the class file's access flags, never a
  *   loaded `Class`). This is the generalization that matters: Room's service is genuinely
  *   present on the compile classpath (Room is a real dependency), just `final`.
+ * - A component class [libraryClassBytes] cannot find at all is assumed project-owned and
+ *   is always [Resolution.Proxiable].
+ *
+ * [resolveWithProjectOverride] is the caller-facing entry point that ALSO takes a
+ * project-owned class-name set and checks it FIRST, unconditionally winning over whatever
+ * [libraryClassBytes] would say: a mixed Kotlin/Java module's compile classpath can expose
+ * a RAW (pre-[ClassOpener]) copy of the project's own class alongside the divert task's
+ * opened copy, and that raw copy reports `final` for every ordinary Kotlin class (Kotlin
+ * classes are final by default) - `resolve()` alone would then wrongly flag the user's own
+ * `MainActivity` as unproxiable (regressed a real corpus app: ADFA-4128). Project
+ * membership must always win, because [ClassOpener] strips `final` from the divert task's
+ * own output before the real compile, regardless of what a second, unrelated copy on the
+ * classpath looks like.
  *
  * Pure logic - no Gradle types - so it unit-tests against fixture class bytes and fake
  * lookups, without a real classpath or Gradle test fixture.
@@ -70,10 +71,26 @@ class ComponentProxiabilityResolver(
 		 * for each component's class - directories are probed by relative path, jars by zip
 		 * entry name. Mirrors the exact classpath the real proxy compile uses (variant
 		 * compile classpath plus the extracted runtime AAR jars), so a class this resolver
-		 * finds `final` really would fail `cannot inherit from final` if proxied.
+		 * finds `final` really would fail `cannot inherit from final` if proxied. Always
+		 * pair this with [resolveWithProjectOverride] rather than calling [resolve]
+		 * directly - see the class KDoc for why.
 		 */
 		fun forSetupBuild(librarySearchPath: List<File>): ComponentProxiabilityResolver =
 			ComponentProxiabilityResolver(libraryClassBytes = { className -> findClassBytes(className, librarySearchPath) })
+
+		/**
+		 * [userClass] is [Resolution.Proxiable] unconditionally when it's in
+		 * [projectClasses] (e.g. the key set of [SupertypeResolver.supertypeIndex] over the
+		 * divert task's diverted classes) - checked BEFORE ever consulting [resolver], so a
+		 * raw pre-open copy the compile classpath might also expose (the mixed-language
+		 * shape described in the class KDoc) can never override project ownership.
+		 * Otherwise defers to `resolver.resolve(userClass)`.
+		 */
+		fun resolveWithProjectOverride(
+			userClass: String,
+			projectClasses: Set<String>,
+			resolver: ComponentProxiabilityResolver,
+		): Resolution = if (userClass in projectClasses) Resolution.Proxiable else resolver.resolve(userClass)
 
 		private fun findClassBytes(
 			binaryClassName: String,
