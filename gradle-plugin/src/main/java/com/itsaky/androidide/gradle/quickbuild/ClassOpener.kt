@@ -11,6 +11,13 @@ import org.objectweb.asm.Opcodes
  * finality at runtime, so the opened classes are also what ships in the payload dex.
  */
 object ClassOpener {
+	/**
+	 * True if the class file declares ACC_FINAL. Reads only the class header (ASM's
+	 * [ClassReader.access] convenience accessor) - never loads the class - so this is safe
+	 * to call on an arbitrary library class file from a compile classpath jar.
+	 */
+	fun isFinal(classBytes: ByteArray): Boolean = ClassReader(classBytes).access and Opcodes.ACC_FINAL != 0
+
 	fun stripFinalModifier(classBytes: ByteArray): ByteArray {
 		val reader = ClassReader(classBytes)
 		val writer = ClassWriter(0)

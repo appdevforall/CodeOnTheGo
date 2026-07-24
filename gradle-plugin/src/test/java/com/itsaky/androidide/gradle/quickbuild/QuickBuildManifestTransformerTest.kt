@@ -579,6 +579,32 @@ class QuickBuildManifestTransformerTest {
 	}
 
 	@Test
+	fun `leaves Room's final MultiInstanceInvalidationService under its real name, unproxied`() {
+		// final - a generated `Proxy<N>Service extends` it can't even compile ("cannot
+		// inherit from final"), which broke a real project's setup build (ADFA-4128,
+		// generalizing Bug 7's Compose PreviewActivity fix to any final library class -
+		// see QuickBuildManifestTransformer.UNPROXIABLE_LIBRARY_COMPONENTS' KDoc for why
+		// this is a named exception rather than an auto-detected one).
+		val result =
+			transformer().transform(
+				manifest(
+					launcherActivity + "\n" +
+						"""<service android:name="androidx.room.MultiInstanceInvalidationService" />""",
+				).byteInputStream(),
+			)
+
+		assertThat(result.components.none { it.userClass == "androidx.room.MultiInstanceInvalidationService" })
+			.isTrue()
+		// The real launcher activity still proxies normally, numbered from zero - the
+		// excluded service must not consume a proxy-index slot.
+		assertThat(result.activities.single().proxyClass).isEqualTo("$proxyPackage.Proxy0Activity")
+
+		val element = result.document.getElementsByTagName("service").item(0) as Element
+		assertThat(element.getAttributeNS(QuickBuildManifestTransformer.ANDROID_NS, "name"))
+			.isEqualTo("androidx.room.MultiInstanceInvalidationService")
+	}
+
+	@Test
 	fun `a normal receiver alongside ProfileInstallReceiver still proxies, numbered from zero`() {
 		val result =
 			transformer().transform(

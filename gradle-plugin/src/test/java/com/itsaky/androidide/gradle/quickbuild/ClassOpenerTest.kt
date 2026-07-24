@@ -40,4 +40,18 @@ class ClassOpenerTest {
 		assertThat(ClassReader(opened).className).isEqualTo("com/example/app/MainActivity")
 		assertThat(ClassReader(opened).superName).isEqualTo("java/lang/Object")
 	}
+
+	@Test
+	fun `isFinal is true for a final class`() {
+		val bytes = classBytes(Opcodes.ACC_PUBLIC or Opcodes.ACC_SUPER or Opcodes.ACC_FINAL)
+
+		assertThat(ClassOpener.isFinal(bytes)).isTrue()
+	}
+
+	@Test
+	fun `isFinal is false for a non-final class`() {
+		val bytes = classBytes(Opcodes.ACC_PUBLIC or Opcodes.ACC_SUPER)
+
+		assertThat(ClassOpener.isFinal(bytes)).isFalse()
+	}
 }

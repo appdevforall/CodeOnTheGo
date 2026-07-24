@@ -20,6 +20,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.FileCollection
 import org.gradle.api.logging.Logging
 import java.io.File
@@ -258,17 +259,12 @@ class QuickBuildPlugin : Plugin<Project> {
 			) { task ->
 				task.payloadClasses.set(divert.flatMap { it.payloadClasses })
 				task.proxySources.set(generate.flatMap { it.proxySources })
+				task.manifestInfoFile.set(generate.flatMap { it.manifestInfoFile })
 				task.compileClasspath.from(variant.compileClasspath)
-				task.runtimeAar.from(runtimeAar)
 				// Components are proxied uniformly, including ones whose class arrives on
 				// the RUNTIME-only classpath (CoGo's injected LogSender service): javac
 				// needs the superclass, so the injected AAR joins the proxy classpath.
-				project.findProperty(PROPERTY_LOG_SENDER_AAR)?.let { aarPath ->
-					val logsenderAar = File(aarPath.toString())
-					if (logsenderAar.isFile) {
-						task.runtimeAar.from(logsenderAar)
-					}
-				}
+				task.runtimeAar.addRuntimeAars(project, runtimeAar)
 				task.bootClasspath.from(bootClasspath)
 				task.minApiLevel.set(maxOf(variant.minSdk.apiLevel, MIN_PAYLOAD_API))
 				task.proxyClasses.set(buildDirectory.dir("$variantDir/proxy-classes"))
@@ -363,6 +359,26 @@ class QuickBuildPlugin : Plugin<Project> {
 					.joinToString(":")
 			}.distinct()
 			.sorted()
+
+	/**
+	 * Wires the quick-build runtime AAR, plus CoGo's injected LogSender AAR when
+	 * configured - the runtime-only classpath a component's class can resolve from even
+	 * though it never appears on the variant compile classpath (the LogSender service is
+	 * the one shipping case). Extracted from [QuickBuildPayloadDexTask]'s inline wiring so
+	 * it reads as one named step rather than a nested `findProperty` block.
+	 */
+	private fun ConfigurableFileCollection.addRuntimeAars(
+		project: Project,
+		runtimeAar: File,
+	) {
+		from(runtimeAar)
+		project.findProperty(PROPERTY_LOG_SENDER_AAR)?.let { aarPath ->
+			val logsenderAar = File(aarPath.toString())
+			if (logsenderAar.isFile) {
+				from(logsenderAar)
+			}
+		}
+	}
 
 	private fun ApplicationVariant.withRuntimeConfiguration(action: Configuration.() -> Unit) {
 		if (this is ApplicationVariantImpl) {

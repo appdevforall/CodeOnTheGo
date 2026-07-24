@@ -206,27 +206,44 @@ decisions, each with its why and cost:
   generation, which the gen-0 baseline (built by Gradle, not by the executor) does not
   provide at session start; tracked as a followup. Genuine incremental edits are
   unaffected — the daemon reports only the classes it actually recompiled.
-- **A manifest component whose class is not on the compile classpath, or is a `final`
-  library class, fails the setup build — unless it's one of the three NAMED exceptions
-  below.** Every manifest component is proxied uniformly by a generated
-  `extends <userClass>` subclass compiled in the setup build. Two shapes break that
-  compile: (a) a component class present only at RUNTIME is not on the setup build's
-  compile classpath, so the proxy's `extends` cannot resolve (`cannot find symbol`); (b) a
-  `final` library component class cannot be extended (`ClassOpener` strips `final` only
-  from project-dir classes, not library jars). Both fail LOUD at setup time (never
-  stale), but Quick Build cannot start on such an app even when the user never edits those
-  components — use a Standard Run. The CoGo-injected LogSender service is the one
-  runtime-only case handled by adding its AAR to the proxy compile classpath (rather than
-  excluding it — CoGo wants it live); generalizing beyond that and the three named
-  exclusions below (resolve every component from the runtime classpath, or auto-detect
-  any final/unresolvable library class instead of naming each one) is a tracked followup.
-  Nested user component classes are handled: their binary name (`Outer$Inner`) is emitted
-  as the canonical `Outer.Inner` in the proxy source.
-- **Three named exceptions to "every component is proxied"**
+- **A component whose class turns out to be `final`, or unresolvable, on the real proxy
+  compile's classpath now fails with ONE clear line naming the class and the fix, instead
+  of a multi-line javac diagnostic dump** (`QuickBuildPayloadDexTask.checkProxiability`,
+  ADFA-4128). `ComponentProxiabilityResolver` reads the ACTUAL class file (never loads the
+  class - just the ACC_FINAL access flag, via `ClassOpener.isFinal`) for every component
+  not already excluded by name, searching the exact library path the real proxy compile
+  uses (variant compile classpath + the extracted runtime/LogSender AAR jars), and fails
+  the setup build BEFORE the doomed javac attempt if a class is found there AND `final` -
+  generalizing the DETECTION side of Bug 7's Compose `PreviewActivity` fix (Room's
+  manifest-merged `MultiInstanceInvalidationService`, also `final`, was the case that had
+  no name to hardcode against until a real project's setup build broke on it with `error:
+  cannot inherit from final`). This is DETECTION only, not silent auto-skip: the actual
+  fix for a newly-discovered final/unresolvable library class is still to add its name to
+  `UNPROXIABLE_LIBRARY_COMPONENTS` below (the error message says so) - a genuinely SAFE
+  auto-skip would need to decide "proxy or not" back at `QuickBuildGenerateSourcesTask`
+  (the only task whose output feeds the packaged APK's real manifest), but that task runs
+  BEFORE compilation in AGP's pipeline (manifest processing gates resource processing,
+  which gates compilation), so it cannot safely consult the variant's own compile
+  classpath or compiled classes - both were tried and each produces a real Gradle
+  task-graph cycle (`generateQuickBuildSources` → [divert's payload classes, or the
+  variant compile classpath] → compile → resources → manifest →
+  `generateQuickBuildSources`). Silently skipping a component from that EARLIER task
+  without classpath knowledge risks the opposite failure mode - wrongly leaving a genuine
+  USER component under its real manifest name, which `divert` has already removed from
+  the APK, crashing with `ClassNotFoundException` at runtime instead of failing the build
+  loud. Auto-skip therefore remains a tracked followup, blocked on finding a cycle-free
+  way to read the variant's classpath at manifest-generation time. A class the resolver
+  can't find on its search path is assumed project-owned and never flagged - a genuinely
+  missing class still fails the setup build at the real proxy compile immediately after,
+  unchanged from before this check existed. The CoGo-injected LogSender service is the
+  one runtime-only case this same search path handles by design (its AAR joins it,
+  exactly like the real compile's own classpath), so a class resolvable only through it is
+  never mistaken for a library class this check can't see.
+- **Four named exceptions to "every component is proxied"**
   (`QuickBuildManifestTransformer`, `UNPROXIABLE_LIBRARY_COMPONENTS`) keep their real
   manifest name instead of failing the setup build — none of them is ever recompiled by
-  the daemon, so the swap-via-proxy machinery buys nothing; left under their real name
-  they instantiate through the framework's default `AppComponentFactory` path exactly
+  the daemon, so the swap-via-proxy machinery buys nothing here; left under their real
+  name they instantiate through the framework's default `AppComponentFactory` path exactly
   like any other Android app (`LoaderRouter` falls back to the default loader for a class
   it can't find in the payload dex, which none of these ever are):
   - `androidx.startup.InitializationProvider` (fixed, ADFA-4128 Bug 4) — resolvable on
@@ -249,6 +266,10 @@ decisions, each with its why and cost:
     by name is the cheap fix; it doesn't self-lookup, so proxying it would be harmless if
     it compiled — unlike LogSender, nothing needs it live, so exclusion beats classpath
     surgery here.
+  - `androidx.room.MultiInstanceInvalidationService` (fixed, ADFA-4128, generalizing Bug
+    7) — `final`, exactly like `PreviewActivity` above, but discovered via a live app's
+    setup build crash rather than a template. Every Room project using multi-instance
+    invalidation tracking pulls this in.
 
   See `docs/component-proxying-design.md` section 2 for the full rationale per entry.
 

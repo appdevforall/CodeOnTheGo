@@ -244,6 +244,14 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 	@get:PathSensitive(PathSensitivity.RELATIVE)
 	abstract val proxySources: DirectoryProperty
 
+	/**
+	 * The manifest-info intermediate [QuickBuildGenerateSourcesTask] also writes - read here
+	 * only to map a proxy source file back to its target userClass, for
+	 * [checkProxiability]'s pre-compile diagnostic.
+	 */
+	@get:InputFile
+	abstract val manifestInfoFile: RegularFileProperty
+
 	@get:Classpath
 	abstract val compileClasspath: ConfigurableFileCollection
 
@@ -313,6 +321,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 				.filter { it.isFile && it.extension == "java" }
 				.toList()
 		if (proxyJavaFiles.isNotEmpty()) {
+			checkProxiability(proxyJavaFiles, runtimeClassesJars)
 			compileProxies(
 				proxyJavaFiles,
 				classpath =
@@ -366,6 +375,49 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 
 	/** Extracts classes.jar from each [runtimeAar] into the task temp dir (javac and D8 cannot read AARs). */
 	private fun extractRuntimeClasses(): List<File> = RuntimeClassesExtractor.extract(runtimeAar.files, temporaryDir)
+
+	/**
+	 * Fails loud, with one clear line naming the component and why, BEFORE the real proxy
+	 * compile below attempts a doomed `extends` - instead of javac's multi-line "cannot
+	 * inherit from final ..." diagnostic dump (ADFA-4128, generalizing Bug 7's detection:
+	 * see [ComponentProxiabilityResolver]'s KDoc for why the DECISION to skip a component
+	 * still has to be a named [QuickBuildManifestTransformer.UNPROXIABLE_LIBRARY_COMPONENTS]
+	 * entry rather than a silent auto-skip here).
+	 *
+	 * Maps each proxy source file back to its target userClass via [manifestInfoFile] (the
+	 * same intermediate [QuickBuildGenerateSourcesTask] wrote), then resolves it against the
+	 * same library search path ([runtimeClassesJars] plus [compileClasspath]) the real
+	 * compile below will use. A class the resolver can't find there is assumed
+	 * project-owned (see that resolver's KDoc) and is never flagged - a genuinely
+	 * unresolvable class still fails at the javac compile immediately below, unchanged from
+	 * before this check existed.
+	 */
+	private fun checkProxiability(
+		proxyJavaFiles: List<File>,
+		runtimeClassesJars: List<File>,
+	) {
+		val manifestInfo = QuickBuildJson.parseManifestInfo(manifestInfoFile.get().asFile.readText())
+		val userClassByProxyClass =
+			manifestInfo.components.mapNotNull { component -> component.proxyClass?.let { it to component.userClass } }.toMap()
+		val resolver = ComponentProxiabilityResolver.forSetupBuild(runtimeClassesJars + compileClasspath.files)
+		val proxySourcesRoot = proxySources.get().asFile
+		for (proxyFile in proxyJavaFiles) {
+			val proxyClassName =
+				proxyFile
+					.relativeTo(proxySourcesRoot)
+					.path
+					.removeSuffix(".java")
+					.replace(File.separatorChar, '.')
+			val userClass = userClassByProxyClass[proxyClassName] ?: continue
+			val resolution = resolver.resolve(userClass)
+			if (resolution is ComponentProxiabilityResolver.Resolution.Skip) {
+				throw GradleException(
+					"Quick Build: '$userClass' cannot be proxied (${resolution.reason}); add it to " +
+						"QuickBuildManifestTransformer.UNPROXIABLE_LIBRARY_COMPONENTS to keep it under its real manifest name",
+				)
+			}
+		}
+	}
 
 	private fun compileProxies(
 		sources: List<File>,

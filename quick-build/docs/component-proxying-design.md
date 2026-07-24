@@ -70,12 +70,21 @@ compiled in the setup build; for most library components the superclass resolves
 the compile classpath, but two shapes break that compile and fail the setup build loud
 (never stale, but Quick Build cannot start): a component class present only on the
 RUNTIME classpath (`extends` cannot resolve) and a `final` library class (cannot be
-extended). See README "Known limitations"; generalizing beyond the three NAMED
-exceptions below (resolve from the runtime classpath, or detect + skip any final/
-unresolvable library class automatically instead of naming each one) is a tracked
-followup. Nested user component classes ARE handled — the binary name `Outer$Inner` is
-emitted as the canonical `Outer.Inner` in the proxy source. Proxy names are
-manifest-order per type: `Proxy<N>Service`, `Proxy<N>Receiver`, `Proxy<N>Provider`
+extended). See README "Known limitations". `ComponentProxiabilityResolver`
+(`QuickBuildPayloadDexTask.checkProxiability`) generalizes the DETECTION of the `final`/
+unresolvable shape - it reads a component's actual class file off the real proxy
+compile's classpath and fails the setup build with one clear, actionable line before the
+doomed javac attempt, instead of a raw multi-line diagnostic - but the SKIP itself still
+has to be a NAMED exception below, because the only task that can affect the packaged
+manifest (`QuickBuildGenerateSourcesTask`) runs before compilation in AGP's pipeline and
+cannot safely read the variant's classpath or compiled classes without a real Gradle
+task-graph cycle (tried both; each cycles back through `generateQuickBuildSources`
+itself). Auto-skip (resolve from the runtime classpath, or detect + skip any final/
+unresolvable library class automatically instead of naming each one) remains a tracked
+followup, blocked on finding a cycle-free way to know the variant's classpath at
+manifest-generation time. Nested user component classes ARE handled — the binary name
+`Outer$Inner` is emitted as the canonical `Outer.Inner` in the proxy source. Proxy names
+are manifest-order per type: `Proxy<N>Service`, `Proxy<N>Receiver`, `Proxy<N>Provider`
 (companion of the existing `Proxy<N>Activity`).
 
 **Named exceptions to the uniform rule** (`QuickBuildManifestTransformer`,
@@ -115,6 +124,12 @@ nothing at build time.
   it compiled; excluding it is just the cheaper fix). A classpath fix (resolve every
   component from the runtime classpath generally) would obsolete this entry along with
   the LogSender special-case below, but isn't built yet.
+- `androidx.room.MultiInstanceInvalidationService` (ADFA-4128, generalizing Bug 7): also
+  `final`, same shape as `PreviewActivity` above (`Proxy<N>Service extends` it fails
+  `cannot inherit from final`) — but discovered via a real project's live setup-build
+  crash rather than a template, since it's Room's own manifest-merged service rather
+  than a Compose/androidx-tooling one. Any Room project using multi-instance
+  invalidation tracking pulls this in.
 
 | Component | Rewritten | Verbatim | Unsupported for v1 -> setup build fails with a named diagnostic |
 |---|---|---|---|

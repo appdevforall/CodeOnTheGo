@@ -78,7 +78,13 @@ class ManifestTransformResult(
  * KDoc) keep their real manifest name. Some resolve their OWN component by hardcoded name
  * at runtime, so renaming them breaks that lookup; others simply cannot be turned into an
  * `extends`-style proxy at all (a `final` library class, or one that doesn't resolve on
- * this setup build's compile classpath).
+ * this setup build's compile classpath). [ComponentProxiabilityResolver] reads a
+ * component's actual class file to detect the latter shape in general, but is wired in at
+ * [QuickBuildPayloadDexTask] (the real proxy compile), not here - see its KDoc for why
+ * this task cannot safely consult the compile classpath itself (a real Gradle task-graph
+ * cycle: manifest processing precedes compilation in AGP's pipeline, so a task that
+ * PRODUCES the merged manifest can't also depend on classes/classpath info that requires
+ * compilation to have already happened).
  *
  * Attribute combinations the test app cannot host yet (android:process on any component,
  * isolated services, multiprocess providers) throw with the component named - the setup
@@ -154,12 +160,24 @@ class QuickBuildManifestTransformer(
 		 *   correctness one - if a future setup-build classpath change makes it resolve,
 		 *   proxying it would still be harmless, but excluding it is simpler than chasing
 		 *   per-project classpath differences.
+		 * - `androidx.room.MultiInstanceInvalidationService` - `final`, exactly like
+		 *   `PreviewActivity` above: `Proxy<N>Service extends
+		 *   androidx.room.MultiInstanceInvalidationService` fails `cannot inherit from
+		 *   final` (live app crash, generalizing ADFA-4128 Bug 7). Every Room project that
+		 *   uses multi-instance invalidation tracking pulls this in. `ComponentProxiabilityResolver`
+		 *   (see its KDoc and [QuickBuildPayloadDexTask]) reads a component's class file to
+		 *   detect this shape from ANY library, not just this one - but a task that
+		 *   produces the merged manifest cannot safely consult the compile classpath (a
+		 *   real Gradle task-graph cycle, see that resolver's KDoc), so a newly-discovered
+		 *   final library class is added here by name, same as the other entries, rather
+		 *   than auto-skipped at manifest-generation time.
 		 */
 		private val UNPROXIABLE_LIBRARY_COMPONENTS =
 			setOf(
 				"androidx.startup.InitializationProvider",
 				"androidx.compose.ui.tooling.PreviewActivity",
 				"androidx.profileinstaller.ProfileInstallReceiver",
+				"androidx.room.MultiInstanceInvalidationService",
 			)
 	}
 
