@@ -23,10 +23,14 @@ import java.nio.file.Path
 
 private val logger = LoggerFactory.getLogger("KotlinDiagnosticProvider")
 
-internal data class KotlinDiagnosticExtra(
+internal data class KotlinDiagnosticExtra<out ActionT : DiagnosticAction>(
 	val compilationEnv: CompilationEnvironment,
-	val action: DiagnosticAction,
+	val action: ActionT,
 )
+
+@Suppress("UNCHECKED_CAST")
+internal inline fun <reified T : DiagnosticAction> KotlinDiagnosticExtra<*>?.asAction(): KotlinDiagnosticExtra<T>? =
+	if (this?.action is T) this as KotlinDiagnosticExtra<T> else null
 
 internal sealed interface DiagnosticAction {
 	data object None : DiagnosticAction
@@ -98,9 +102,19 @@ private fun doAnalyze(
 							// the KaLifetimeOwner diagnostic escape (see KotlinDiagnosticExtra).
 							val action =
 								when (diagnostic) {
-									is KaFirDiagnostic.UnresolvedReference -> DiagnosticAction.ResolveReference(diagnostic.reference)
-									is KaFirDiagnostic.UnsafeCall -> DiagnosticAction.NullSafetyFix
-									else -> DiagnosticAction.None
+									is KaFirDiagnostic.UnresolvedReference -> {
+										DiagnosticAction.ResolveReference(
+											diagnostic.reference,
+										)
+									}
+
+									is KaFirDiagnostic.UnsafeCall -> {
+										DiagnosticAction.NullSafetyFix
+									}
+
+									else -> {
+										DiagnosticAction.None
+									}
 								}
 
 							add(
