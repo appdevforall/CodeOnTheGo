@@ -27,7 +27,6 @@ import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.Insets
 import androidx.core.view.updatePaddingRelative
-import com.blankj.utilcode.util.ClipboardUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
@@ -41,6 +40,7 @@ import com.itsaky.androidide.models.SimpleIconTitleDescriptionItem
 import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.BuildInfoUtils
 import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.utils.copyToClipboard
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.resolveAttr
@@ -86,7 +86,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
 				ideVersion.isFocusable = true
 				ideVersion.setBackgroundResource(R.drawable.bg_ripple)
 				ideVersion.setOnClickListener {
-					ClipboardUtils.copyText(BuildInfoUtils.getBuildInfoHeader())
+					this@AboutActivity.copyToClipboard(BuildInfoUtils.getBuildInfoHeader())
 					flashSuccess(R.string.copied)
 				}
 

@@ -20,13 +20,19 @@ package com.itsaky.androidide.utils
 import android.app.Activity
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.Resources.Theme
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.provider.Settings
 import android.util.TypedValue
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import kotlin.system.exitProcess
 
 /**
@@ -83,3 +89,32 @@ fun Context.dpToPx(dp: Float): Int = (dp * resources.displayMetrics.density + 0.
  * Converts an sp value to pixels, using this context's display metrics.
  */
 fun Context.spToPx(sp: Float): Int = (sp * resources.displayMetrics.scaledDensity + 0.5f).toInt()
+
+/**
+ * Copies [text] to the system clipboard, under the given [label].
+ */
+fun Context.copyToClipboard(
+	text: CharSequence,
+	label: CharSequence = "",
+) {
+	val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+	cm.setPrimaryClip(ClipData.newPlainText(label, text))
+}
+
+/**
+ * Checks whether this device currently has network connectivity with internet access.
+ */
+fun Context.isNetworkConnected(): Boolean {
+	val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+	val network = cm.activeNetwork ?: return false
+	val capabilities = cm.getNetworkCapabilities(network) ?: return false
+	return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+}
+
+/**
+ * Checks whether the soft (on-screen) keyboard is currently visible in this activity's window.
+ */
+fun Activity.isSoftInputVisible(): Boolean {
+	val insets = ViewCompat.getRootWindowInsets(window.decorView) ?: return false
+	return insets.isVisible(WindowInsetsCompat.Type.ime())
+}

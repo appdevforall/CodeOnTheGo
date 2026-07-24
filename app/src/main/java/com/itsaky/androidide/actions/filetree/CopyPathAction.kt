@@ -18,11 +18,11 @@
 package com.itsaky.androidide.actions.filetree
 
 import android.content.Context
-import com.blankj.utilcode.util.ClipboardUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.copyToClipboard
 import com.itsaky.androidide.utils.flashSuccess
 
 /**
@@ -30,16 +30,17 @@ import com.itsaky.androidide.utils.flashSuccess
  *
  * @author Akash Yadav
  */
-class CopyPathAction(context: Context, override val order: Int) :
-  BaseFileTreeAction(context, labelRes = R.string.copy_path, iconRes = R.drawable.ic_copy) {
+class CopyPathAction(
+	context: Context,
+	override val order: Int,
+) : BaseFileTreeAction(context, labelRes = R.string.copy_path, iconRes = R.drawable.ic_copy) {
+	override val id: String = "ide.editor.fileTree.copyPath"
 
-  override val id: String = "ide.editor.fileTree.copyPath"
-  override fun retrieveTooltipTag(isAlternateContext: Boolean): String =
-    TooltipTag.PROJECT_ITEM_COPYPATH
+	override fun retrieveTooltipTag(isAlternateContext: Boolean): String = TooltipTag.PROJECT_ITEM_COPYPATH
 
-  override suspend fun execAction(data: ActionData) {
-    val file = data.requireFile()
-    ClipboardUtils.copyText("[AndroidIDE] Copied File Path", file.absolutePath)
-    flashSuccess(R.string.copied)
-  }
+	override suspend fun execAction(data: ActionData) {
+		val file = data.requireFile()
+		data[Context::class.java]!!.copyToClipboard(file.absolutePath, label = "[AndroidIDE] Copied File Path")
+		flashSuccess(R.string.copied)
+	}
 }
