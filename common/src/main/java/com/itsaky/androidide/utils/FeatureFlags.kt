@@ -15,6 +15,7 @@ private data class FlagsCache(
 	val reprieveEnabled: Boolean = false,
 	val pardonEnabled: Boolean = false,
 	val leakCanaryDumpInhibited: Boolean = false,
+	val quickBuildBenchEnabled: Boolean = false,
 ) {
 	companion object {
 		/**
@@ -31,6 +32,7 @@ object FeatureFlags {
 	private const val REPRIEVE_FILE_NAME = "CodeOnTheGo.a3s19"
 	private const val PARDON_FILE_NAME = "CodeOnTheGo.a2s2"
 	private const val LEAKCANARY_FILE_NAME = "CodeOnTheGo.lc"
+	private const val QUICK_BUILD_BENCH_FILE_NAME = "CodeOnTheGo.qbbench"
 
 	private val logger = LoggerFactory.getLogger(FeatureFlags::class.java)
 
@@ -77,6 +79,14 @@ object FeatureFlags {
 		get() = flags.leakCanaryDumpInhibited
 
 	/**
+	 * Whether the Quick Build benchmark hooks are enabled (CodeOnTheGo.qbbench present in
+	 * Downloads). Gates the adb-triggerable bench activity and the JSON-lines event file
+	 * (ADFA-4128); always paired with [isExperimentsEnabled]. Off in shipping builds.
+	 */
+	val isQuickBuildBenchEnabled: Boolean
+		get() = flags.quickBuildBenchEnabled
+
+	/**
 	 * Initialize feature flag values. This is thread-safe and idempotent i.e.
 	 * subsequent calls do not access disk.
 	 */
@@ -100,6 +110,7 @@ object FeatureFlags {
 							reprieveEnabled = checkFlag(REPRIEVE_FILE_NAME),
 							pardonEnabled = checkFlag(PARDON_FILE_NAME),
 							leakCanaryDumpInhibited = checkFlag(LEAKCANARY_FILE_NAME),
+							quickBuildBenchEnabled = checkFlag(QUICK_BUILD_BENCH_FILE_NAME),
 						)
 					}.getOrElse { error ->
 						logger.error("Failed to load feature flags. Falling back to default values.", error)
