@@ -242,7 +242,6 @@
   <string name="idepref_buildnrun_summary">تكوين بناء Gradle.</string>
   <string name="configure">تهيئة</string>
   <string name="about">عن التطبيق</string>
-  <string name="idepref_github_summary">Code on the Go مفتوح المصدر!</string>
   <string name="idepref_channel_summary">اشترك للحصول على أحدث تحديثات.</string>
   <string name="idepref_group_summary">مناقشة الميزات، الأخطاء والتحسينات هنا.</string>
   <string name="idepref_changelog_summary">ما الجديد في هذا الإصدار؟ </string>
@@ -340,12 +339,6 @@
   <string name="msg_tasks_to_run">سيتم تشغيل المهام التالية، بالترتيب. انقر فوق الزر \'تشغيل\' مرة أخرى للتأكيد.\n\n%1$s</string>
   <string name="msg_loading_tasks">جارٍ تحميل المهام...</string>
   <!-- GIT -->
-  <string name="git_clone">نسخ</string>
-  <string name="git_clone_repo">نسخ مشروع Git</string>
-  <string name="git_clone_repo_url">رابط المشروع</string>
-  <string name="git_clone_in_progress">نسخ مشروع Git...</string>
-  <string name="git_clone_success">تم نسخ مشروع Git بنجاح</string>
-  <string name="git_clone_failed">فشل في استنساخ مشروع git</string>
   <string name="msg_select_attr">حدد سمة من القائمة أدناه</string>
   <string name="action_show_hierarchy">عرض التسلسل الهرمي للتخطيط</string>
   <string name="idepref_editor_colorScheme">نظام الألوان</string>

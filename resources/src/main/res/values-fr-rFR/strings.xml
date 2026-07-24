@@ -243,7 +243,6 @@ Dernier projet ouvert : \n%s</string>
   <string name="idepref_buildnrun_summary">Configure the Gradle build.</string>
   <string name="configure">Configure</string>
   <string name="about">À propos</string>
-  <string name="idepref_github_summary">Code on the Go est open source !</string>
   <string name="idepref_channel_summary">Subscribe for latest updates.</string>
   <string name="idepref_group_summary">Discuss featues, bugs and improvements here.</string>
   <string name="idepref_changelog_summary">What\'s new in this version?</string>
@@ -341,12 +340,6 @@ Dernier projet ouvert : \n%s</string>
   <string name="msg_tasks_to_run">The following tasks will be run, in order. Click the \'Run\' button again to confirm.\n\n%1$s</string>
   <string name="msg_loading_tasks">Loading tasks...</string>
   <!-- GIT -->
-  <string name="git_clone">Clone</string>
-  <string name="git_clone_repo">Clone git repository</string>
-  <string name="git_clone_repo_url">Repository URL</string>
-  <string name="git_clone_in_progress">Cloning repository</string>
-  <string name="git_clone_success">Git clone successful</string>
-  <string name="git_clone_failed">Failed to clone git repository</string>
   <string name="msg_select_attr">Select an attribute from the below list</string>
   <string name="action_show_hierarchy">Show layout hierarchy</string>
   <string name="idepref_editor_colorScheme">Color Scheme</string>

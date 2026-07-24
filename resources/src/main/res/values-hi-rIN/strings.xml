@@ -241,7 +241,6 @@
   <string name="idepref_buildnrun_summary">ग्रेडल बिल्ड को कॉन्फ़िगर करें।</string>
   <string name="configure">कॉन्फ़िगर</string>
   <string name="about">विवरण</string>
-  <string name="idepref_github_summary">Code on the Go ओपन सोर्स है!</string>
   <string name="idepref_channel_summary">नवीनतम अपडेट के लिए सदस्यता लें |</string>
   <string name="idepref_group_summary">सुविधाओं, बगों और सुधारों पर यहां चर्चा करें।</string>
   <string name="idepref_changelog_summary">इस वर्शन में क्या नया है?</string>
@@ -339,12 +338,6 @@
   <string name="msg_tasks_to_run">क्रमानुसार निम्न कार्य चलाये जायेंगे। पुष्टि करने के लिए \'चलाएं\' बटन पर फिर से क्लिक करें.\n\n%1$s</string>
   <string name="msg_loading_tasks">टास्क लोड हो रहे हैं...</string>
   <!-- GIT -->
-  <string name="git_clone">क्लोन</string>
-  <string name="git_clone_repo">Git रिपॉजिटरी क्लोन करें</string>
-  <string name="git_clone_repo_url">रिपॉजिटरी URL</string>
-  <string name="git_clone_in_progress">रिपॉजिटरी क्लोन हो रही है</string>
-  <string name="git_clone_success">Git क्लोन सफल हुआ</string>
-  <string name="git_clone_failed">Git रिपॉजिटरी क्लोन करने में विफल</string>
   <string name="msg_select_attr">नीचे दी गई सूची से एक एट्रिब्यूट का चयन करें</string>
   <string name="action_show_hierarchy">लेआउट हायरार्की दिखाएं</string>
   <string name="idepref_editor_colorScheme">कलर स्कीम</string>
