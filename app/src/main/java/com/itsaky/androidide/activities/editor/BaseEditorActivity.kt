@@ -67,7 +67,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.constant.MemoryConstants
 import com.blankj.utilcode.util.ConvertUtils.byte2MemorySize
-import com.blankj.utilcode.util.FileUtils
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
@@ -124,6 +123,7 @@ import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils

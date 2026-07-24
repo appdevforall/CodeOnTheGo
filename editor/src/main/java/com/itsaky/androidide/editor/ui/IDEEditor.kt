@@ -30,7 +30,6 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
-import com.blankj.utilcode.util.FileUtils
 import com.itsaky.androidide.editor.R
 import com.itsaky.androidide.editor.R.string
 import com.itsaky.androidide.editor.adapters.CompletionListAdapter
@@ -82,6 +81,7 @@ import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.DocumentUtils
+import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.event.ContentChangeEvent
