@@ -196,6 +196,9 @@ class BuildOutputFragment :
 		// Avoid forcing the activityViewModels lazy init (which calls requireActivity())
 		// when the fragment is detached, otherwise an IllegalStateException is thrown.
 		if (!isAdded || activity == null) return
+		while (logChannel.tryReceive().isSuccess) {
+			// Drain and discard any pending log lines queued prior to clear
+		}
 		buildOutputViewModel.clear()
 		super.clearOutput()
 	}

@@ -145,6 +145,7 @@ class BuildOutputViewModel(
 	 */
 	fun clear() {
 		lock.withLock {
+			filterText.value = ""
 			cachedContentSnapshot = ""
 			try {
 				if (sessionFile.exists()) {
