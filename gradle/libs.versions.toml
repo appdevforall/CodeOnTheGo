@@ -13,7 +13,6 @@ constraintlayout = "2.1.4"
 coreKtx = "1.12.0"
 coreKtxVersion = "1.17.0"
 desugar_jdk_libs = "2.1.5"
-googleGenai = "1.16.0"
 fragment = "1.8.8"
 gradle-tooling = "8.6"
 gson = "2.10.1"
@@ -124,7 +123,6 @@ composite-treeview = { module = "com.itsaky.androidide.build:treeview" }
 
 # Room
 desugar_jdk_libs-v215 = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
-google-genai = { module = "com.google.genai:google-genai", version.ref = "googleGenai" }
 gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koinAndroid" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
