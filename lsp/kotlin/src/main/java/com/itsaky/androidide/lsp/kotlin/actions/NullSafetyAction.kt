@@ -16,6 +16,7 @@ import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -72,6 +73,7 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 				nullSafetyVariants(qe)
 			}
 		}.getOrElse { e ->
+			if (e is CancellationException) throw e
 			logger.warn("Failed to compute null-safety fixes", e)
 			emptyList()
 		}
