@@ -43,6 +43,11 @@ open class BaseApplication : Application() {
 
 	/**
 	 * The currently visible (resumed) activity, if any.
+	 *
+	 * `IDEApplication` (in the `app` module) overrides this with its own pre-existing
+	 * Pre/Post-callback-based tracker, which wins at runtime. This base implementation only
+	 * exists so `common`-module code (which can't depend on `app`) has a foreground-activity
+	 * source to call - e.g. FlashbarUtils' `withActivity`.
 	 */
 	open val foregroundActivity: Activity?
 		get() = _foregroundActivity
