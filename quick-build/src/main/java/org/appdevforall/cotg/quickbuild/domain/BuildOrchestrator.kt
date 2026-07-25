@@ -260,6 +260,7 @@ class BuildOrchestrator(
 					// Saves that landed mid-build start the coalesced follow-up now.
 					maybeStartBuildLocked(events, autoFollowUp = true)
 				}
+
 				else -> {
 					val newSavesArrivedMidBuild = !pending.isEmpty || pendingForced
 					pending = flight.batch + pending

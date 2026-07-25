@@ -108,6 +108,7 @@ class DaemonService(
 					diagnostics = result.warnings,
 				)
 			}
+
 			is IncrementalCompiler.Result.Failed -> {
 				log("compile failed: ${result.diagnostics.size} diagnostics in ${durationMillis}ms")
 				DaemonResponse.failure(request.id, result.diagnostics)
@@ -128,6 +129,7 @@ class DaemonService(
 					mapOf("dexFile" to result.dexFile.absolutePath, "durationMillis" to durationMillis),
 				)
 			}
+
 			is DexTool.Result.Failed -> {
 				log("dex failed: ${result.message}")
 				DaemonResponse.failure(request.id, result.message)
@@ -160,6 +162,7 @@ class DaemonService(
 					mapOf("resourcesArsc" to result.resourceApk.absolutePath, "durationMillis" to durationMillis),
 				)
 			}
+
 			is Aapt2Link.Result.Failed -> {
 				log("relink failed: ${result.diagnostics.size} diagnostics")
 				DaemonResponse.failure(request.id, result.diagnostics)

@@ -209,11 +209,17 @@ class SessionReducer {
 		event: SessionEvent,
 	): SessionTransition =
 		when (event) {
-			SessionEvent.QuickBuildTapped ->
+			SessionEvent.QuickBuildTapped -> {
 				SessionTransition(QuickBuildSessionState.Provisioning, listOf(SessionEffect.StartProvisioning))
-			SessionEvent.PrewarmRequested ->
+			}
+
+			SessionEvent.PrewarmRequested -> {
 				SessionTransition(QuickBuildSessionState.Prewarming(), listOf(SessionEffect.StartPrewarm))
-			else -> SessionTransition(state)
+			}
+
+			else -> {
+				SessionTransition(state)
+			}
 		}
 
 	private fun reducePrewarming(
@@ -223,9 +229,11 @@ class SessionReducer {
 		when (event) {
 			// The tap must not race the warm build (one Gradle build at a time through
 			// the tooling server); it queues and fires on PrewarmFinished.
-			SessionEvent.QuickBuildTapped ->
+			SessionEvent.QuickBuildTapped -> {
 				SessionTransition(QuickBuildSessionState.Prewarming(tapQueued = true))
-			SessionEvent.PrewarmFinished ->
+			}
+
+			SessionEvent.PrewarmFinished -> {
 				if (state.tapQueued) {
 					SessionTransition(
 						QuickBuildSessionState.Provisioning,
@@ -234,7 +242,11 @@ class SessionReducer {
 				} else {
 					SessionTransition(QuickBuildSessionState.Idle)
 				}
-			else -> SessionTransition(state)
+			}
+
+			else -> {
+				SessionTransition(state)
+			}
 		}
 
 	private fun reduceProvisioning(
@@ -242,14 +254,20 @@ class SessionReducer {
 		event: SessionEvent,
 	): SessionTransition =
 		when (event) {
-			is SessionEvent.ProvisioningSucceeded ->
+			is SessionEvent.ProvisioningSucceeded -> {
 				SessionTransition(QuickBuildSessionState.Ready(event.generation))
-			is SessionEvent.ProvisioningFailed ->
+			}
+
+			is SessionEvent.ProvisioningFailed -> {
 				SessionTransition(
 					QuickBuildSessionState.Idle,
 					listOf(SessionEffect.SurfaceProvisioningError(event.message)),
 				)
-			else -> SessionTransition(state)
+			}
+
+			else -> {
+				SessionTransition(state)
+			}
 		}
 
 	/** Shared by [QuickBuildSessionState.Ready] and [QuickBuildSessionState.Deployed]. */
@@ -259,27 +277,41 @@ class SessionReducer {
 		event: SessionEvent,
 	): SessionTransition =
 		when (event) {
-			SessionEvent.QuickBuildTapped ->
+			SessionEvent.QuickBuildTapped -> {
 				SessionTransition(state, listOf(SessionEffect.TriggerQuickBuild))
-			SessionEvent.BuildStarted ->
+			}
+
+			SessionEvent.BuildStarted -> {
 				SessionTransition(QuickBuildSessionState.Building(generation))
-			is SessionEvent.InvalidationDetected ->
+			}
+
+			is SessionEvent.InvalidationDetected -> {
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(event.reason, generation),
 					listOf(SessionEffect.RunFullGradleRebaseline),
 				)
-			SessionEvent.DaemonDied ->
+			}
+
+			SessionEvent.DaemonDied -> {
 				SessionTransition(
 					QuickBuildSessionState.Degraded(generation),
 					listOf(SessionEffect.RespawnDaemon),
 				)
-			is SessionEvent.TestAppCrashed ->
+			}
+
+			is SessionEvent.TestAppCrashed -> {
 				SessionTransition(
 					QuickBuildSessionState.Ready(generation, SessionFailure.TestAppCrash(event.summary)),
 				)
-			SessionEvent.ExternalBuildCompleted ->
+			}
+
+			SessionEvent.ExternalBuildCompleted -> {
 				SessionTransition(state, listOf(SessionEffect.ReseedBaseline))
-			else -> SessionTransition(state)
+			}
+
+			else -> {
+				SessionTransition(state)
+			}
 		}
 
 	private fun reduceBuilding(
@@ -287,30 +319,44 @@ class SessionReducer {
 		event: SessionEvent,
 	): SessionTransition =
 		when (event) {
-			is SessionEvent.BuildSucceeded ->
+			is SessionEvent.BuildSucceeded -> {
 				SessionTransition(
 					QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted),
 				)
-			is SessionEvent.BuildFailed ->
+			}
+
+			is SessionEvent.BuildFailed -> {
 				SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration, event.failure))
-			is SessionEvent.InvalidationDetected ->
+			}
+
+			is SessionEvent.InvalidationDetected -> {
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration),
 					listOf(SessionEffect.RunFullGradleRebaseline),
 				)
-			SessionEvent.DaemonDied ->
+			}
+
+			SessionEvent.DaemonDied -> {
 				SessionTransition(
 					QuickBuildSessionState.Degraded(state.deployedGeneration),
 					listOf(SessionEffect.RespawnDaemon),
 				)
-			is SessionEvent.TestAppCrashed ->
+			}
+
+			is SessionEvent.TestAppCrashed -> {
 				// The old generation crashed while the next build runs; stay Building.
 				SessionTransition(state)
-			SessionEvent.ExternalBuildCompleted ->
+			}
+
+			SessionEvent.ExternalBuildCompleted -> {
 				// The in-flight build may have read half-rewritten inputs; the re-seed
 				// coalesces into the follow-up build, which recompiles everything.
 				SessionTransition(state, listOf(SessionEffect.ReseedBaseline))
-			else -> SessionTransition(state)
+			}
+
+			else -> {
+				SessionTransition(state)
+			}
 		}
 
 	private fun reduceInvalidated(
@@ -318,9 +364,13 @@ class SessionReducer {
 		event: SessionEvent,
 	): SessionTransition =
 		when (event) {
-			SessionEvent.RebaselineStarted ->
+			SessionEvent.RebaselineStarted -> {
 				SessionTransition(QuickBuildSessionState.Provisioning)
-			else -> SessionTransition(state)
+			}
+
+			else -> {
+				SessionTransition(state)
+			}
 		}
 
 	private fun reduceDegraded(
@@ -328,10 +378,15 @@ class SessionReducer {
 		event: SessionEvent,
 	): SessionTransition =
 		when (event) {
-			SessionEvent.DaemonRespawned ->
+			SessionEvent.DaemonRespawned -> {
 				SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration))
-			SessionEvent.DaemonDied -> SessionTransition(state)
-			is SessionEvent.InvalidationDetected ->
+			}
+
+			SessionEvent.DaemonDied -> {
+				SessionTransition(state)
+			}
+
+			is SessionEvent.InvalidationDetected -> {
 				// Dropping this would strand the session: the orchestrator reports an
 				// invalidation ONCE, so a gradle/manifest edit landing while Degraded
 				// would otherwise never rebaseline and no build would ever run again.
@@ -341,8 +396,14 @@ class SessionReducer {
 					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration),
 					listOf(SessionEffect.RunFullGradleRebaseline),
 				)
-			SessionEvent.ExternalBuildCompleted ->
+			}
+
+			SessionEvent.ExternalBuildCompleted -> {
 				SessionTransition(state, listOf(SessionEffect.ReseedBaseline))
-			else -> SessionTransition(state)
+			}
+
+			else -> {
+				SessionTransition(state)
+			}
 		}
 }

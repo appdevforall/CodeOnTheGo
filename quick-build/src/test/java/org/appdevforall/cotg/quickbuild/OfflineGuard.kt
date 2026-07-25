@@ -70,14 +70,23 @@ internal object OfflineGuard {
 		if (segments.contains(".cache")) return false // jacoco/expanded-zip agent classes
 		return when {
 			// JVM module: build/classes/{kotlin,java}/main/...
-			segments.size >= 3 && segments[0] == "classes" && segments[2] == "main" -> true
+			segments.size >= 3 && segments[0] == "classes" && segments[2] == "main" -> {
+				true
+			}
+
 			// Android Kotlin: build/tmp/kotlin-classes/<variant>/...
-			segments.size >= 3 && segments[0] == "tmp" && segments[1] == "kotlin-classes" ->
+			segments.size >= 3 && segments[0] == "tmp" && segments[1] == "kotlin-classes" -> {
 				!isTestVariant(segments[2])
+			}
+
 			// Android Java: build/intermediates/javac/<variant>/.../classes/...
-			segments.size >= 3 && segments[0] == "intermediates" && segments[1] == "javac" ->
+			segments.size >= 3 && segments[0] == "intermediates" && segments[1] == "javac" -> {
 				!isTestVariant(segments[2])
-			else -> false
+			}
+
+			else -> {
+				false
+			}
 		}
 	}
 

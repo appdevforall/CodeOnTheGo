@@ -15,11 +15,7 @@ import java.util.Collections;
 /**
  * Owner of the payload's resource + asset overrides.
  *
- * Resources are applied per {@link ResourceSwapStrategy} (plan B5). The payload fd in
- * both paths below is the WHOLE relinked resource apk from {@code Aapt2Link}
- * (resources.arsc plus every compiled resource file), not a bare table - a bare table
- * cannot back a file-typed resource (a layout, a drawable XML, an adaptive-icon mipmap
- * XML); see {@code Aapt2Link}'s KDoc for the ADFA-4128 Bug 5 this fixes.
+ * Resources are applied per {@link ResourceSwapStrategy} (plan B5). The payload fd in both paths below is the WHOLE relinked resource apk from {@code Aapt2Link} (resources.arsc plus every compiled resource file), not a bare table - a bare table cannot back a file-typed resource (a layout, a drawable XML, an adaptive-icon mipmap XML); see {@code Aapt2Link}'s KDoc for the ADFA-4128 Bug 5 this fixes.
  *
  * API 30+ ({@code RESOURCES_LOADER}): one long-lived {@link ResourcesLoader} whose provider is swapped per payload, loaded with {@link ResourcesProvider#loadFromApk} (not {@code loadFromTable} - that variant explicitly does not serve file-based resources). One loader (not one per generation) because a loader already attached to a Resources object propagates provider changes - every activity attaches the loader once at creation and then follows every future generation for free.
  *
@@ -71,9 +67,7 @@ final class ResourceStore {
 	}
 
 	/**
-	 * Swaps in a new resource table (an fd to the relinked resource apk - resources.arsc
-	 * plus every compiled resource file, not a bare table; see class doc). Closes the
-	 * fd; throws on failure so the deploy path can roll the whole payload back.
+	 * Swaps in a new resource table (an fd to the relinked resource apk - resources.arsc plus every compiled resource file, not a bare table; see class doc). Closes the fd; throws on failure so the deploy path can roll the whole payload back.
 	 */
 	void applyTable(ParcelFileDescriptor tableFd, long generation, Context appContext)
 			throws IOException {
@@ -140,11 +134,7 @@ final class ResourceStore {
 	}
 
 	/**
-	 * API 28/29 path: persist the received apk bytes as-is (already a valid apk/zip - no
-	 * re-wrapping needed, see class doc), addAssetPath it into the application
-	 * AssetManager, flush caches. The deploy's activity recreate then re-resolves from
-	 * the new table. Any failure throws, so the deploy rolls back and the host is told -
-	 * a resource change never silently leaves the app on stale resources.
+	 * API 28/29 path: persist the received apk bytes as-is (already a valid apk/zip - no re-wrapping needed, see class doc), addAssetPath it into the application AssetManager, flush caches. The deploy's activity recreate then re-resolves from the new table. Any failure throws, so the deploy rolls back and the host is told - a resource change never silently leaves the app on stale resources.
 	 */
 	private void applyTableLegacy(ParcelFileDescriptor tableFd, long generation,
 			Context appContext) throws IOException {
@@ -166,10 +156,7 @@ final class ResourceStore {
 	}
 
 	/**
-	 * API 30+ path: swap the provider inside the process-wide loader. loadFromApk (not
-	 * loadFromTable - see class doc) so file-backed resources resolve from the same apk
-	 * as the table. TargetApi because lint cannot see the SDK guard (strategy is
-	 * RESOURCES_LOADER only when SDK >= 30).
+	 * API 30+ path: swap the provider inside the process-wide loader. loadFromApk (not loadFromTable - see class doc) so file-backed resources resolve from the same apk as the table. TargetApi because lint cannot see the SDK guard (strategy is RESOURCES_LOADER only when SDK >= 30).
 	 */
 	@TargetApi(30)
 	private void applyTableWithLoader(ParcelFileDescriptor tableFd) throws IOException {

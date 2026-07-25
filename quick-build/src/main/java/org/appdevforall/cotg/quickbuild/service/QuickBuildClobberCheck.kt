@@ -17,7 +17,7 @@ class QuickBuildClobberCheck(
 	fun quickBuildNeedsConfirm(realApplicationId: String): Boolean =
 		RealIdInstall.quickBuildNeedsClobberConfirm(
 			realAppInstalled = packages.uid(realApplicationId) != null,
-			installedAppComponentFactory = packages.appComponentFactory(realApplicationId),
+			installedFactory = packages.appComponentFactory(realApplicationId),
 		)
 
 	/** True when a Standard Run for [realApplicationId] would clobber a Quick Build test app. */

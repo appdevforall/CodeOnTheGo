@@ -60,7 +60,7 @@ class ComponentProxiabilityResolverTest {
 	}
 
 	@Test
-	fun `resolveWithProjectOverride treats a project-owned class as Proxiable even when a raw final copy also resolves on the library search path`() {
+	fun `resolveWithProjectOverride keeps a project class Proxiable despite a raw final copy on the classpath`() {
 		// The exact mixed-language regression (ADFA-4128): a Kotlin user Activity is
 		// final by default in its raw compiled bytecode. ClassOpener only strips
 		// ACC_FINAL from the divert task's OWN opened output - a mixed Kotlin/Java

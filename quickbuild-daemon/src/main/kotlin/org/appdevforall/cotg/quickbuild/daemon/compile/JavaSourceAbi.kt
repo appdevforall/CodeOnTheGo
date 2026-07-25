@@ -134,8 +134,11 @@ object JavaSourceAbi {
 		for (member in members) {
 			when (member) {
 				is ClassTree -> member.render(out, names, qualified)
+
 				is MethodTree -> out.append(member.renderSignature(qualified)).append('\n')
+
 				is VariableTree -> out.append(member.renderSignature(qualified, constantByDefault)).append('\n')
+
 				// Initializer blocks and empty declarations carry no ABI.
 				else -> Unit
 			}

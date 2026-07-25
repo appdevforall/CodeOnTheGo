@@ -27,8 +27,7 @@ object RealIdInstall {
 		"com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory"
 
 	/** True when the package installed under the real id is a Quick Build test app. */
-	fun isQuickBuildTestApp(installedAppComponentFactory: String?): Boolean =
-		installedAppComponentFactory == QUICK_BUILD_APP_COMPONENT_FACTORY
+	fun isQuickBuildTestApp(installedFactory: String?): Boolean = installedFactory == QUICK_BUILD_APP_COMPONENT_FACTORY
 
 	/**
 	 * Whether tapping Quick Build should confirm a clobber first. Confirm only when a
@@ -37,15 +36,14 @@ object RealIdInstall {
 	 */
 	fun quickBuildNeedsClobberConfirm(
 		realAppInstalled: Boolean,
-		installedAppComponentFactory: String?,
-	): Boolean = realAppInstalled && !isQuickBuildTestApp(installedAppComponentFactory)
+		installedFactory: String?,
+	): Boolean = realAppInstalled && !isQuickBuildTestApp(installedFactory)
 
 	/**
 	 * Whether a Standard Run should confirm a clobber first. Confirm only when a Quick Build
 	 * test app occupies the slot; over a normal app (or nothing) Standard Run behaves as always.
 	 */
-	fun standardRunNeedsClobberConfirm(installedAppComponentFactory: String?): Boolean =
-		isQuickBuildTestApp(installedAppComponentFactory)
+	fun standardRunNeedsClobberConfirm(installedFactory: String?): Boolean = isQuickBuildTestApp(installedFactory)
 
 	/**
 	 * The provisioner's authoritative safety check before installing the test app over an

@@ -63,7 +63,10 @@ object DaemonMain {
 							DaemonResponse.failure(parsed.id, "malformed request: ${parsed.message}"),
 						)
 					}
-					is ParseResult.Parsed -> router.route(parsed.request)
+
+					is ParseResult.Parsed -> {
+						router.route(parsed.request)
+					}
 				}
 
 			output.write(ProtocolCodec.encode(routed.response))

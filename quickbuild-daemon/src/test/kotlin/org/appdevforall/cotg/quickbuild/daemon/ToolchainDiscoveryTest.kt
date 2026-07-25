@@ -12,8 +12,7 @@ class ToolchainDiscoveryTest {
 	private fun discoveryWithSdkRoot(): ToolchainDiscovery =
 		ToolchainDiscovery(env = { name -> if (name == "ANDROID_HOME") sdkRoot.absolutePath else null })
 
-	private fun buildToolsVersion(version: String): File =
-		File(sdkRoot, "build-tools/$version").apply { mkdirs() }
+	private fun buildToolsVersion(version: String): File = File(sdkRoot, "build-tools/$version").apply { mkdirs() }
 
 	private fun platform(apiLevel: String): File = File(sdkRoot, "platforms/android-$apiLevel").apply { mkdirs() }
 

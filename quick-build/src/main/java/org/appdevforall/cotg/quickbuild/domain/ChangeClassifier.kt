@@ -32,13 +32,17 @@ class ChangeClassifier(
 	fun classify(changes: ChangedFiles): BuildRoute {
 		val known =
 			when (changes) {
-				ChangedFiles.Unknown ->
+				ChangedFiles.Unknown -> {
 					return if (annotationImpact.active) {
 						BuildRoute.FullGradleBuild(InvalidationReason.ANNOTATION_PROCESSOR_INPUT_CHANGED)
 					} else {
 						BuildRoute.CodeAndResources
 					}
-				is ChangedFiles.Known -> changes
+				}
+
+				is ChangedFiles.Known -> {
+					changes
+				}
 			}
 
 		if (known.isEmpty) {
@@ -58,15 +62,29 @@ class ChangeClassifier(
 		// ([QuickBuildSessionManager.onWatcherBatch]), so only recognized ones arrive here.
 		for (file in known.files + known.removed) {
 			when (kindOf(file)) {
-				FileKind.GRADLE_CONFIG ->
+				FileKind.GRADLE_CONFIG -> {
 					return BuildRoute.FullGradleBuild(InvalidationReason.GRADLE_CONFIG_CHANGED)
-				FileKind.MANIFEST ->
+				}
+
+				FileKind.MANIFEST -> {
 					return BuildRoute.FullGradleBuild(InvalidationReason.MANIFEST_CHANGED)
-				FileKind.UNSUPPORTED ->
+				}
+
+				FileKind.UNSUPPORTED -> {
 					return BuildRoute.FullGradleBuild(InvalidationReason.UNSUPPORTED_FILE_CHANGED)
-				FileKind.CODE -> codeFiles += file
-				FileKind.RESOURCE -> hasResources = true
-				FileKind.ASSET -> hasAssets = true
+				}
+
+				FileKind.CODE -> {
+					codeFiles += file
+				}
+
+				FileKind.RESOURCE -> {
+					hasResources = true
+				}
+
+				FileKind.ASSET -> {
+					hasAssets = true
+				}
 			}
 		}
 

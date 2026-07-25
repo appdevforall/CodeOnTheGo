@@ -46,20 +46,40 @@ sealed interface QuickBuildStatus {
 	companion object {
 		fun from(state: QuickBuildSessionState): QuickBuildStatus =
 			when (state) {
-				QuickBuildSessionState.Idle -> Hidden
+				QuickBuildSessionState.Idle -> {
+					Hidden
+				}
+
 				// A background warm-up the user never asked for stays invisible; a tap
 				// that queued mid-warm reads as provisioning already underway.
-				is QuickBuildSessionState.Prewarming ->
+				is QuickBuildSessionState.Prewarming -> {
 					if (state.tapQueued) Provisioning else Hidden
-				QuickBuildSessionState.Provisioning -> Provisioning
-				is QuickBuildSessionState.Ready ->
+				}
+
+				QuickBuildSessionState.Provisioning -> {
+					Provisioning
+				}
+
+				is QuickBuildSessionState.Ready -> {
 					state.lastFailure?.let { Failed(state.generation, it) }
 						?: UpToDate(state.generation, buildDurationMillis = null)
-				is QuickBuildSessionState.Building -> Building(state.deployedGeneration)
-				is QuickBuildSessionState.Deployed ->
+				}
+
+				is QuickBuildSessionState.Building -> {
+					Building(state.deployedGeneration)
+				}
+
+				is QuickBuildSessionState.Deployed -> {
 					UpToDate(state.generation, state.buildDurationMillis, state.restarted)
-				is QuickBuildSessionState.Invalidated -> NeedsFullBuild(state.reason, state.deployedGeneration)
-				is QuickBuildSessionState.Degraded -> Reconnecting(state.deployedGeneration)
+				}
+
+				is QuickBuildSessionState.Invalidated -> {
+					NeedsFullBuild(state.reason, state.deployedGeneration)
+				}
+
+				is QuickBuildSessionState.Degraded -> {
+					Reconnecting(state.deployedGeneration)
+				}
 			}
 	}
 }

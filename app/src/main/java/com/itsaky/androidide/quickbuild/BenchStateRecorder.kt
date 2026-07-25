@@ -35,10 +35,15 @@ class BenchStateRecorder(
 	private fun generationOf(state: QuickBuildSessionState): Long? =
 		when (state) {
 			is QuickBuildSessionState.Ready -> state.generation
+
 			is QuickBuildSessionState.Building -> state.deployedGeneration
+
 			is QuickBuildSessionState.Deployed -> state.generation
+
 			is QuickBuildSessionState.Invalidated -> state.deployedGeneration
+
 			is QuickBuildSessionState.Degraded -> state.deployedGeneration
+
 			QuickBuildSessionState.Idle,
 			is QuickBuildSessionState.Prewarming,
 			QuickBuildSessionState.Provisioning,

@@ -92,17 +92,19 @@ object SourceAnnotationScanner {
 			val c = text[i]
 			val next = if (i + 1 < n) text[i + 1] else '\u0000'
 			when (state) {
-				State.CODE ->
+				State.CODE -> {
 					when {
 						c == '/' && next == '/' -> {
 							while (i < n && text[i] != '\n') i++
 							continue
 						}
+
 						c == '/' && next == '*' -> {
 							state = State.BLOCK_COMMENT
 							i += 2
 							continue
 						}
+
 						c == '"' && next == '"' && i + 2 < n && text[i + 2] == '"' -> {
 							state = State.RAW_STRING
 							code.append("\"\"\"")
@@ -110,6 +112,7 @@ object SourceAnnotationScanner {
 							i += 3
 							continue
 						}
+
 						c == '"' || c == '\'' -> {
 							state = State.STRING
 							quote = c
@@ -118,12 +121,15 @@ object SourceAnnotationScanner {
 							i++
 							continue
 						}
+
 						else -> {
 							code.append(c)
 							mask.append(c)
 							i++
 						}
 					}
+				}
+
 				State.BLOCK_COMMENT -> {
 					// Newlines survive so line numbering (and thus the fingerprint's line
 					// structure) is not disturbed by a multi-line comment.
@@ -138,23 +144,31 @@ object SourceAnnotationScanner {
 					}
 					i++
 				}
+
 				State.STRING -> {
 					code.append(c)
 					mask.append(if (c == '\n') '\n' else MASKED)
 					when {
 						// A line break inside a single-quoted literal means the literal was
 						// never closed: bail rather than guess where it ended.
-						c == '\n' -> return null
+						c == '\n' -> {
+							return null
+						}
+
 						c == '\\' && i + 1 < n -> {
 							code.append(text[i + 1])
 							mask.append(MASKED)
 							i += 2
 							continue
 						}
-						c == quote -> state = State.CODE
+
+						c == quote -> {
+							state = State.CODE
+						}
 					}
 					i++
 				}
+
 				State.RAW_STRING -> {
 					if (c == '"' && next == '"' && i + 2 < n && text[i + 2] == '"') {
 						state = State.CODE
@@ -204,6 +218,7 @@ object SourceAnnotationScanner {
 						seenOpen++
 						if (opensFunction && seenOpen == opens) bodyDepth = depth
 					}
+
 					'}' -> {
 						if (bodyDepth == depth) bodyDepth = -1
 						depth--
@@ -288,7 +303,10 @@ object SourceAnnotationScanner {
 		var i = open
 		while (i < text.length) {
 			when (text[i]) {
-				'(' -> depth++
+				'(' -> {
+					depth++
+				}
+
 				')' -> {
 					depth--
 					if (depth == 0) return i

@@ -39,15 +39,31 @@ class RequestRouter(
 
 	fun route(request: DaemonRequest): Routed =
 		when (request) {
-			is ShutdownRequest -> Routed.ReplyThenExit(DaemonResponse.ok(request.id))
-			is PingRequest ->
+			is ShutdownRequest -> {
+				Routed.ReplyThenExit(DaemonResponse.ok(request.id))
+			}
+
+			is PingRequest -> {
 				Routed.Reply(
 					DaemonResponse.ok(request.id, mapOf("protocolVersion" to DaemonResponse.PROTOCOL_VERSION)),
 				)
-			is ConfigureRequest -> Routed.Reply(guarded(request.id) { handlers.configure(request) })
-			is CompileRequest -> Routed.Reply(guarded(request.id) { handlers.compile(request) })
-			is DexRequest -> Routed.Reply(guarded(request.id) { handlers.dex(request) })
-			is RelinkRequest -> Routed.Reply(guarded(request.id) { handlers.relink(request) })
+			}
+
+			is ConfigureRequest -> {
+				Routed.Reply(guarded(request.id) { handlers.configure(request) })
+			}
+
+			is CompileRequest -> {
+				Routed.Reply(guarded(request.id) { handlers.compile(request) })
+			}
+
+			is DexRequest -> {
+				Routed.Reply(guarded(request.id) { handlers.dex(request) })
+			}
+
+			is RelinkRequest -> {
+				Routed.Reply(guarded(request.id) { handlers.relink(request) })
+			}
 		}
 
 	private inline fun guarded(

@@ -45,17 +45,17 @@ class BuildStatusTest {
 	}
 
 	@Test
-	void parsesBuildOk() {
-		BuildStatus status = BuildStatus.parse("{\"kind\": \"build_ok\"}");
-		assertThat(status.kind).isEqualTo(BuildStatus.KIND_BUILD_OK);
-	}
-
-	@Test
 	void parsesBuilding() {
 		BuildStatus status = BuildStatus.parse(
 				"{\"kind\": \"building\", \"runningGeneration\": \"5\"}");
 		assertThat(status.kind).isEqualTo(BuildStatus.KIND_BUILDING);
 		assertThat(status.runningGeneration).isEqualTo(5L);
+	}
+
+	@Test
+	void parsesBuildOk() {
+		BuildStatus status = BuildStatus.parse("{\"kind\": \"build_ok\"}");
+		assertThat(status.kind).isEqualTo(BuildStatus.KIND_BUILD_OK);
 	}
 
 	@Test

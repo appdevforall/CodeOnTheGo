@@ -304,7 +304,12 @@ class Aapt2LinkTest {
 
 		// Baseline: without any library resources, the parent style doesn't exist -
 		// reproduces Bug 8.
-		val unfixed = link.relink(listOf(resDir), File(tempDir, "AndroidManifestTheme.xml"), File(workDir, "unfixed").apply { mkdirs() })
+		val unfixed =
+			link.relink(
+				listOf(resDir),
+				File(tempDir, "AndroidManifestTheme.xml"),
+				File(workDir, "unfixed").apply { mkdirs() },
+			)
 		assertThat(unfixed).isInstanceOf(Aapt2Link.Result.Failed::class.java)
 		assertThat((unfixed as Aapt2Link.Result.Failed).diagnostics.any { it.message.contains("Theme.FakeLibrary.Base") }).isTrue()
 
@@ -321,8 +326,14 @@ class Aapt2LinkTest {
 		)
 		val libraryCompileDir = File(tempDir, "library-compiled").apply { mkdirs() }
 		val compileResult =
-			ProcessBuilder(TestSdk.aapt2()!!.absolutePath, "compile", "--dir", libraryRes.absolutePath, "-o", libraryCompileDir.absolutePath)
-				.redirectErrorStream(true)
+			ProcessBuilder(
+				TestSdk.aapt2()!!.absolutePath,
+				"compile",
+				"--dir",
+				libraryRes.absolutePath,
+				"-o",
+				libraryCompileDir.absolutePath,
+			).redirectErrorStream(true)
 				.start()
 		val compileOutput = compileResult.inputStream.bufferedReader().readText()
 		assertThat(compileResult.waitFor()).isEqualTo(0)
@@ -367,8 +378,14 @@ class Aapt2LinkTest {
 		)
 		val staleCompileDir = File(tempDir, "stale-compiled").apply { mkdirs() }
 		val compileResult =
-			ProcessBuilder(TestSdk.aapt2()!!.absolutePath, "compile", "--dir", staleRes.absolutePath, "-o", staleCompileDir.absolutePath)
-				.redirectErrorStream(true)
+			ProcessBuilder(
+				TestSdk.aapt2()!!.absolutePath,
+				"compile",
+				"--dir",
+				staleRes.absolutePath,
+				"-o",
+				staleCompileDir.absolutePath,
+			).redirectErrorStream(true)
 				.start()
 		assertThat(compileResult.waitFor()).isEqualTo(0)
 		val staleFlat = staleCompileDir.listFiles { file -> file.name.endsWith(".flat") }!!.single()
@@ -382,7 +399,12 @@ class Aapt2LinkTest {
 			ProcessBuilder(TestSdk.aapt2()!!.absolutePath, "dump", "resources", apk.absolutePath)
 				.redirectErrorStream(true)
 				.start()
-				.let { it.inputStream.bufferedReader().readText().also { _ -> it.waitFor() } }
+				.let {
+					it.inputStream
+						.bufferedReader()
+						.readText()
+						.also { _ -> it.waitFor() }
+				}
 		assertThat(dumped).contains("FRESH_EDIT")
 		assertThat(dumped).doesNotContain("STALE_BASELINE")
 	}

@@ -61,13 +61,15 @@ class QuickBuildBenchActivity : Activity() {
 		// timeout) without paying a force-stop + full project re-open.
 		// A still-armed autostart means the project never finished initializing - in that
 		// case fall through to re-arm + re-open instead of tapping an uninitialized project.
-		val current = runCatching {
-			File(ProjectManagerImpl.getInstance().projectDirPath).canonicalFile.path
-		}.getOrNull()
-		if (current == project.path && QuickBuildBenchAutostart.pendingProjectPath == null) {
-			val manager = runCatching {
-				GlobalContext.get().get<QuickBuildSessionManager>()
+		val current =
+			runCatching {
+				File(ProjectManagerImpl.getInstance().projectDirPath).canonicalFile.path
 			}.getOrNull()
+		if (current == project.path && QuickBuildBenchAutostart.pendingProjectPath == null) {
+			val manager =
+				runCatching {
+					GlobalContext.get().get<QuickBuildSessionManager>()
+				}.getOrNull()
 			if (manager != null) {
 				log.info("Bench re-trigger for already-open {}", project.path)
 				manager.onQuickBuildTapped()

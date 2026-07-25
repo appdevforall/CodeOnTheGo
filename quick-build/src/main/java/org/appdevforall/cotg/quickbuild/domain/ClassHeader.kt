@@ -41,16 +41,34 @@ data class ClassHeader(
 			while (index < constantCount) {
 				val tag = input.readUnsignedByte()
 				when (tag) {
-					1 -> utf8[index] = input.readUTF()
-					7 -> classNameIndex[index] = input.readUnsignedShort()
-					8, 16, 19, 20 -> input.skipBytes(2)
-					15 -> input.skipBytes(3)
-					3, 4, 9, 10, 11, 12, 17, 18 -> input.skipBytes(4)
+					1 -> {
+						utf8[index] = input.readUTF()
+					}
+
+					7 -> {
+						classNameIndex[index] = input.readUnsignedShort()
+					}
+
+					8, 16, 19, 20 -> {
+						input.skipBytes(2)
+					}
+
+					15 -> {
+						input.skipBytes(3)
+					}
+
+					3, 4, 9, 10, 11, 12, 17, 18 -> {
+						input.skipBytes(4)
+					}
+
 					5, 6 -> {
 						input.skipBytes(8)
 						index++ // longs/doubles occupy two constant-pool slots
 					}
-					else -> return null
+
+					else -> {
+						return null
+					}
 				}
 				index++
 			}

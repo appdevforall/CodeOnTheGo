@@ -25,8 +25,7 @@ class ToolchainDiscovery(
 
 	fun resolveAapt2(): Resolution = resolveFromBuildTools("aapt2", "build-tools/<version>/aapt2") { File(it, "aapt2") }
 
-	fun resolveD8Jar(): Resolution =
-		resolveFromBuildTools("d8Jar", "build-tools/<version>/lib/d8.jar") { File(it, "lib/d8.jar") }
+	fun resolveD8Jar(): Resolution = resolveFromBuildTools("d8Jar", "build-tools/<version>/lib/d8.jar") { File(it, "lib/d8.jar") }
 
 	fun resolveAndroidJar(): Resolution {
 		val androidHome = androidHomeValue() ?: return Resolution.Missing(unsetAndroidHome("androidJar"))

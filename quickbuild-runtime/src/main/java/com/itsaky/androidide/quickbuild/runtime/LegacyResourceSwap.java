@@ -15,11 +15,7 @@ import java.lang.reflect.Method;
  *
  * Degraded relative to the loader path, by design: added paths cannot be removed, so each generation appends one more package (bounded by session length, reset by process restart), and a Resources object whose AssetManager is not shared with the application's only picks the table up when {@link ResourceStore#attachTo} reaches it.
  *
- * Before ADFA-4128 Bug 5's fix this method wrapped a BARE arsc byte array into a
- * synthetic single-entry zip - which meant file-backed resources (layouts, drawable
- * XMLs) had no zip entry to resolve against and crashed on first access. The payload is
- * now the full relinked apk from {@code Aapt2Link} (already a proper apk/zip), so the
- * write is a straight byte copy.
+ * Before ADFA-4128 Bug 5's fix this method wrapped a BARE arsc byte array into a synthetic single-entry zip - which meant file-backed resources (layouts, drawable XMLs) had no zip entry to resolve against and crashed on first access. The payload is now the full relinked apk from {@code Aapt2Link} (already a proper apk/zip), so the write is a straight byte copy.
  *
  * Plain java.io and JVM-unit-tested; the reflective calls can only be exercised on a real 28/29 device.
  */
@@ -52,12 +48,10 @@ final class LegacyResourceSwap {
 	}
 
 	/**
-	 * Writes {@code apk} (the relinked resource apk stream from {@code Aapt2Link} -
-	 * resources.arsc plus every compiled resource file) into {@code
+	 * Writes {@code apk} (the relinked resource apk stream from {@code Aapt2Link} - resources.arsc plus every compiled resource file) into {@code
 	 *
 	<dir>
-	 * /gen-<generation>.zip}. The stream is already a valid apk/zip, so this is a plain
-	 * byte copy - no re-wrapping (see class doc). The caller owns (and closes) the stream.
+	 * /gen-<generation>.zip}. The stream is already a valid apk/zip, so this is a plain byte copy - no re-wrapping (see class doc). The caller owns (and closes) the stream.
 	 */
 	static File writeResourceApk(InputStream apk, File dir, long generation) throws IOException {
 		byte[] bytes = Streams.readFully(apk);

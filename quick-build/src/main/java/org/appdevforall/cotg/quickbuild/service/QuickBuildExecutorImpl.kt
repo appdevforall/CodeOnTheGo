@@ -104,13 +104,20 @@ class QuickBuildExecutorImpl(
 	private fun notifyTestApp(outcome: BuildOutcome) {
 		try {
 			when (outcome) {
-				is BuildOutcome.CompileError ->
+				is BuildOutcome.CompileError -> {
 					deploy.notifyBuildStatus(BuildStatusJson.buildFailed(outcome.diagnostics))
-				is BuildOutcome.Success -> deploy.notifyBuildStatus(BuildStatusJson.buildOk())
+				}
+
+				is BuildOutcome.Success -> {
+					deploy.notifyBuildStatus(BuildStatusJson.buildOk())
+				}
+
 				// Deploy/infrastructure failures surface in CoGo's own status UI; the test
 				// app cannot say anything more truthful than what it already shows. A
 				// RequiresRebaseline surfaces through the session's fallback flow.
-				else -> Unit
+				else -> {
+					Unit
+				}
 			}
 		} catch (e: Exception) {
 			// Best-effort messaging must never rewrite a real outcome (a throw here
@@ -182,20 +189,34 @@ class QuickBuildExecutorImpl(
 			BuildRoute.CodeOnly -> {
 				val dex = compileAndDex(request.changes, timeline)
 				when (dex) {
-					is Step.Fail -> dex.outcome
-					is Step.Ok ->
+					is Step.Fail -> {
+						dex.outcome
+					}
+
+					is Step.Ok -> {
 						deployDecided(dex.decision, dex.file, null, assets, "code", startedAt, timeline)
+					}
 				}
 			}
 
 			BuildRoute.ResourcesOnly -> {
 				// Resource-only deploys never restart: no code moved.
 				when (val arsc = relink()) {
-					is Step.Fail -> arsc.outcome
-					is Step.Ok ->
+					is Step.Fail -> {
+						arsc.outcome
+					}
+
+					is Step.Ok -> {
 						deployPayload(
-							generations.next(), null, arsc.file, assets, "resources", startedAt, timeline,
+							generations.next(),
+							null,
+							arsc.file,
+							assets,
+							"resources",
+							startedAt,
+							timeline,
 						)
+					}
 				}
 			}
 
@@ -225,11 +246,12 @@ class QuickBuildExecutorImpl(
 				}
 			}
 
-			is BuildRoute.FullGradleBuild ->
+			is BuildRoute.FullGradleBuild -> {
 				// Contract: the orchestrator never routes this here. Refuse honestly.
 				BuildOutcome.InfrastructureFailure(
 					"FullGradleBuild route must not reach the quick path",
 				)
+			}
 		}
 	}
 
@@ -245,26 +267,41 @@ class QuickBuildExecutorImpl(
 		val allSources = layout.allSources()
 		val changedSources =
 			when (changes) {
-				ChangedFiles.Unknown -> allSources
-				is ChangedFiles.Known ->
+				ChangedFiles.Unknown -> {
+					allSources
+				}
+
+				is ChangedFiles.Known -> {
 					changes.files.filter { it.extension == "kt" || it.extension == "java" }
+				}
 			}
 		// Removed sources are gone from disk (so out of allSources); pass them separately so
 		// the incremental compiler deletes their outputs and recompiles dependents. Unknown
 		// reseeds the whole world, so it carries no removed set.
 		val removedSources =
 			when (changes) {
-				ChangedFiles.Unknown -> emptyList()
-				is ChangedFiles.Known ->
+				ChangedFiles.Unknown -> {
+					emptyList()
+				}
+
+				is ChangedFiles.Known -> {
 					changes.removed.filter { it.extension == "kt" || it.extension == "java" }
+				}
 			}
 
 		val compiled =
 			when (val reply = daemon.compile(allSources, changedSources, removedSources)) {
-				is DaemonReply.Ok -> reply.value
-				is DaemonReply.BuildFailed -> return Step.Fail(BuildOutcome.CompileError(reply.diagnostics))
-				is DaemonReply.Failed ->
+				is DaemonReply.Ok -> {
+					reply.value
+				}
+
+				is DaemonReply.BuildFailed -> {
+					return Step.Fail(BuildOutcome.CompileError(reply.diagnostics))
+				}
+
+				is DaemonReply.Failed -> {
 					return Step.Fail(BuildOutcome.InfrastructureFailure(reply.message, reply.daemonDied))
+				}
 			}
 
 		val decision = decideDeploy(compiled.classesDir, compiled.changedClassFiles)
@@ -276,9 +313,14 @@ class QuickBuildExecutorImpl(
 				timeline.markCompileDone(clock())
 				Step.Ok(reply.value, decision)
 			}
-			is DaemonReply.BuildFailed -> Step.Fail(BuildOutcome.CompileError(reply.diagnostics))
-			is DaemonReply.Failed ->
+
+			is DaemonReply.BuildFailed -> {
+				Step.Fail(BuildOutcome.CompileError(reply.diagnostics))
+			}
+
+			is DaemonReply.Failed -> {
 				Step.Fail(BuildOutcome.InfrastructureFailure(reply.message, reply.daemonDied))
+			}
 		}
 	}
 
@@ -309,12 +351,19 @@ class QuickBuildExecutorImpl(
 					layout.libraryResourceFlats(),
 				)
 		) {
-			is DaemonReply.Ok -> Step.Ok(reply.value, DeployDecision.Recreate)
+			is DaemonReply.Ok -> {
+				Step.Ok(reply.value, DeployDecision.Recreate)
+			}
+
 			// aapt2 errors are the user's resources failing to build - a compile error
 			// in the domain's sense, with aapt2's diagnostics attached.
-			is DaemonReply.BuildFailed -> Step.Fail(BuildOutcome.CompileError(reply.diagnostics))
-			is DaemonReply.Failed ->
+			is DaemonReply.BuildFailed -> {
+				Step.Fail(BuildOutcome.CompileError(reply.diagnostics))
+			}
+
+			is DaemonReply.Failed -> {
 				Step.Fail(BuildOutcome.InfrastructureFailure(reply.message, reply.daemonDied))
+			}
 		}
 
 	/** Dispatches a code-bearing deploy on the policy's decision. */
@@ -328,15 +377,20 @@ class QuickBuildExecutorImpl(
 		timeline: Timeline,
 	): BuildOutcome =
 		when (decision) {
-			DeployDecision.Recreate ->
+			DeployDecision.Recreate -> {
 				deployPayload(generations.next(), dexFile, arscFile, assets, reason, startedAt, timeline)
-			is DeployDecision.Restart ->
+			}
+
+			is DeployDecision.Restart -> {
 				deployRestart(decision, dexFile, arscFile, assets, reason, startedAt, timeline)
-			is DeployDecision.Rebaseline ->
+			}
+
+			is DeployDecision.Rebaseline -> {
 				// Deploying anyway would hot-swap on a runtime that cannot restart,
 				// leaving a live service/provider on stale code. Refuse before the deploy;
 				// the session manager routes this into the rebaseline fallback.
 				BuildOutcome.RequiresRebaseline(InvalidationReason.OUTDATED_BASELINE, decision.detail)
+			}
 		}
 
 	private suspend fun deployPayload(
@@ -358,7 +412,10 @@ class QuickBuildExecutorImpl(
 				reportTimeline(timeline.completed(generation, clock()))
 				BuildOutcome.Success(generation, clock() - startedAt)
 			}
-			else -> failureOf(result, generation)
+
+			else -> {
+				failureOf(result, generation)
+			}
 		}
 	}
 
@@ -393,7 +450,7 @@ class QuickBuildExecutorImpl(
 		val result =
 			deploy.deploy(generation, dexFile, arscFile, assets?.zip, metadata(reason, assets, restart = true))
 		when (result) {
-			is DeployResult.Reloaded ->
+			is DeployResult.Reloaded -> {
 				if (!deploy.awaitDisconnect(restartDisconnectTimeoutMillis)) {
 					// The runtime acked but kept running: it predates restart support and
 					// hot-swapped instead - a live service may now be stale. Rebaseline
@@ -404,8 +461,15 @@ class QuickBuildExecutorImpl(
 							"(runtime predates restart support)",
 					)
 				}
-			DeployResult.Disconnected -> Unit
-			else -> return failureOf(result, generation)
+			}
+
+			DeployResult.Disconnected -> {
+				Unit
+			}
+
+			else -> {
+				return failureOf(result, generation)
+			}
 		}
 
 		val packageName = testAppPackage
@@ -423,12 +487,14 @@ class QuickBuildExecutorImpl(
 		}
 		val reconnectGeneration = deploy.awaitReconnect(restartReconnectTimeoutMillis)
 		return when {
-			reconnectGeneration == null ->
+			reconnectGeneration == null -> {
 				BuildOutcome.DeployFailure(
 					"Test app was relaunched for ${restart.componentClass} but did not " +
 						"reconnect within $restartReconnectTimeoutMillis ms; open it manually",
 				)
-			reconnectGeneration < generation ->
+			}
+
+			reconnectGeneration < generation -> {
 				// The payload did not survive the process death: the fresh process booted
 				// an older generation. A rebaseline rebuilds + reinstalls from current
 				// sources, which converges every component honestly.
@@ -437,6 +503,8 @@ class QuickBuildExecutorImpl(
 					"test app relaunched at generation $reconnectGeneration instead of " +
 						"$generation (restart payload did not persist)",
 				)
+			}
+
 			else -> {
 				// t3: the relaunched process reconnected AT the deployed generation - the
 				// restart swap is verifiably live (a slower t3 than a hot swap: full process
@@ -471,22 +539,34 @@ class QuickBuildExecutorImpl(
 		generation: Long,
 	): BuildOutcome =
 		when (result) {
-			is DeployResult.Crashed ->
+			is DeployResult.Crashed -> {
 				BuildOutcome.DeployFailure(
 					"Generation $generation crashed in the test app: ${result.stackSummary}",
 				)
-			DeployResult.NotConnected ->
+			}
+
+			DeployResult.NotConnected -> {
 				BuildOutcome.DeployFailure("Test app is not connected")
-			DeployResult.Disconnected ->
+			}
+
+			DeployResult.Disconnected -> {
 				BuildOutcome.DeployFailure("Test app disconnected during deploy")
-			is DeployResult.TimedOut ->
+			}
+
+			is DeployResult.TimedOut -> {
 				BuildOutcome.DeployFailure(
 					"Test app did not confirm generation $generation within ${result.timeoutMillis} ms",
 				)
-			is DeployResult.Failed -> BuildOutcome.DeployFailure(result.message)
-			is DeployResult.Reloaded ->
+			}
+
+			is DeployResult.Failed -> {
+				BuildOutcome.DeployFailure(result.message)
+			}
+
+			is DeployResult.Reloaded -> {
 				// Callers handle Reloaded before mapping failures; keep the mapping total.
 				BuildOutcome.DeployFailure("unexpected Reloaded in failure mapping")
+			}
 		}
 
 	private sealed interface Step {

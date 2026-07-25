@@ -64,11 +64,21 @@ object ProxySourceGenerator {
 				.append(userSourceName)
 				.append(" {\n")
 			when (type) {
-				ComponentType.ACTIVITY -> appendActivityBody()
-				ComponentType.SERVICE -> appendServiceBody()
-				ComponentType.RECEIVER, ComponentType.PROVIDER -> Unit
-				ComponentType.APPLICATION ->
+				ComponentType.ACTIVITY -> {
+					appendActivityBody()
+				}
+
+				ComponentType.SERVICE -> {
+					appendServiceBody()
+				}
+
+				ComponentType.RECEIVER, ComponentType.PROVIDER -> {
+					Unit
+				}
+
+				ComponentType.APPLICATION -> {
 					throw IllegalArgumentException("the Application gets no proxy")
+				}
 			}
 			append("}\n")
 		}

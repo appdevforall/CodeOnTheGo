@@ -157,7 +157,10 @@ class QuickBuildExecutorImplTest {
 		runTest {
 			val stableIds =
 				File(projectRoot, "app/build/intermediates/stable_resource_ids_file/debug/processDebugResources/stableIds.txt")
-					.apply { parentFile!!.mkdirs(); writeText("demo:string/app_name = 0x7f010000") }
+					.apply {
+						parentFile!!.mkdirs()
+						writeText("demo:string/app_name = 0x7f010000")
+					}
 			val executorWithStableIds =
 				QuickBuildExecutorImpl(
 					daemon = daemon,
@@ -183,7 +186,10 @@ class QuickBuildExecutorImplTest {
 			// dependency-resource units must reach the daemon on every relink.
 			val libraryResource =
 				File(projectRoot, "app/build/intermediates/merged_res/debug/values_values.arsc.flat")
-					.apply { parentFile!!.mkdirs(); writeText("") }
+					.apply {
+						parentFile!!.mkdirs()
+						writeText("")
+					}
 			val executorWithLibraryResources =
 				QuickBuildExecutorImpl(
 					daemon = daemon,
@@ -458,7 +464,10 @@ class QuickBuildExecutorImplTest {
 	/** Returns 10, 20, 30, ... on each call - so t0<t1<t2<t3 are distinguishable. */
 	private fun steppingClock(): () -> Long {
 		var t = 0L
-		return { t += 10; t }
+		return {
+			t += 10
+			t
+		}
 	}
 
 	private fun timingExecutor(emitted: MutableList<E2eTimeline>): QuickBuildExecutorImpl =
@@ -576,13 +585,23 @@ class QuickBuildExecutorImplTest {
 
 		override fun onSessionStarted() = Unit
 
-		override fun onBuildStarted(buildId: Long, route: BuildRoute, changes: ChangedFiles) = Unit
+		override fun onBuildStarted(
+			buildId: Long,
+			route: BuildRoute,
+			changes: ChangedFiles,
+		) = Unit
 
-		override fun onBuildFinished(buildId: Long, outcome: BuildOutcome) = Unit
+		override fun onBuildFinished(
+			buildId: Long,
+			outcome: BuildOutcome,
+		) = Unit
 
 		override fun onInvalidation(reason: InvalidationReason) = Unit
 
-		override fun onRebaseline(isSuccess: Boolean, durationMillis: Long) = Unit
+		override fun onRebaseline(
+			isSuccess: Boolean,
+			durationMillis: Long,
+		) = Unit
 
 		override fun onReloadTimeline(timeline: E2eTimeline) {
 			timelines += timeline
@@ -643,13 +662,23 @@ class QuickBuildExecutorImplTest {
 				object : org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink {
 					override fun onSessionStarted() = Unit
 
-					override fun onBuildStarted(buildId: Long, route: BuildRoute, changes: ChangedFiles) = Unit
+					override fun onBuildStarted(
+						buildId: Long,
+						route: BuildRoute,
+						changes: ChangedFiles,
+					) = Unit
 
-					override fun onBuildFinished(buildId: Long, outcome: BuildOutcome) = Unit
+					override fun onBuildFinished(
+						buildId: Long,
+						outcome: BuildOutcome,
+					) = Unit
 
 					override fun onInvalidation(reason: InvalidationReason) = Unit
 
-					override fun onRebaseline(isSuccess: Boolean, durationMillis: Long) = Unit
+					override fun onRebaseline(
+						isSuccess: Boolean,
+						durationMillis: Long,
+					) = Unit
 
 					override fun onReloadTimeline(timeline: E2eTimeline): Unit = throw RuntimeException("sink boom")
 				}

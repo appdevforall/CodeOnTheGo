@@ -23,7 +23,7 @@ class RealIdInstallTest {
 		assertThat(
 			RealIdInstall.quickBuildNeedsClobberConfirm(
 				realAppInstalled = false,
-				installedAppComponentFactory = null,
+				installedFactory = null,
 			),
 		).isFalse()
 	}
@@ -33,7 +33,7 @@ class RealIdInstallTest {
 		assertThat(
 			RealIdInstall.quickBuildNeedsClobberConfirm(
 				realAppInstalled = true,
-				installedAppComponentFactory = ourFactory,
+				installedFactory = ourFactory,
 			),
 		).isFalse()
 	}
@@ -44,13 +44,13 @@ class RealIdInstallTest {
 		assertThat(
 			RealIdInstall.quickBuildNeedsClobberConfirm(
 				realAppInstalled = true,
-				installedAppComponentFactory = null,
+				installedFactory = null,
 			),
 		).isTrue()
 		assertThat(
 			RealIdInstall.quickBuildNeedsClobberConfirm(
 				realAppInstalled = true,
-				installedAppComponentFactory = "com.example.OtherFactory",
+				installedFactory = "com.example.OtherFactory",
 			),
 		).isTrue()
 	}

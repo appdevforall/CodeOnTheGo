@@ -89,7 +89,8 @@ class BenchStateRecorderTest {
 
 			val o = objects()
 			assertThat(o.map { it.getString("state") })
-				.containsExactly("Idle", "Provisioning", "Ready", "Building", "Deployed").inOrder()
+				.containsExactly("Idle", "Provisioning", "Ready", "Building", "Deployed")
+				.inOrder()
 			assertThat(o[2].getLong("generation")).isEqualTo(2)
 			assertThat(o[3].getLong("generation")).isEqualTo(2)
 			assertThat(o[4].getLong("generation")).isEqualTo(3)

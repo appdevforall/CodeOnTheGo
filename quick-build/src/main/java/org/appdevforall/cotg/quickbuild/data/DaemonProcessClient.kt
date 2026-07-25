@@ -113,9 +113,14 @@ class DaemonProcessClient(
 				configured = true
 				DaemonReply.Ok(Unit)
 			}
-			is DaemonReply.BuildFailed ->
+
+			is DaemonReply.BuildFailed -> {
 				DaemonReply.Failed("Daemon rejected configuration", daemonDied = false)
-			is DaemonReply.Failed -> configureReply
+			}
+
+			is DaemonReply.Failed -> {
+				configureReply
+			}
 		}
 	}
 
@@ -320,8 +325,14 @@ class DaemonProcessClient(
 						?: return DaemonReply.Failed("Daemon reply missing '$field' and no outDir configured")
 				DaemonReply.Ok(file)
 			}
-			is DaemonReply.BuildFailed -> this
-			is DaemonReply.Failed -> this
+
+			is DaemonReply.BuildFailed -> {
+				this
+			}
+
+			is DaemonReply.Failed -> {
+				this
+			}
 		}
 
 	private fun <T, R> DaemonReply<T>.mapOk(transform: (T) -> R): DaemonReply<R> =

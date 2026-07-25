@@ -20,7 +20,6 @@ package com.itsaky.androidide.managers;
 import static org.adfa.constants.ConstantsKt.V7_KEY;
 import static org.adfa.constants.ConstantsKt.V8_KEY;
 
-import android.content.res.AssetManager;
 import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.annotation.WorkerThread;
@@ -244,9 +243,30 @@ public class ToolsManager {
 		return sb.toString();
 	}
 
+	/**
+	 * Identity of the installed APK for the extraction stamp: versionName plus the package's lastUpdateTime, which changes on every (re)install - exactly when the bundled jar can change. Null (extract unconditionally) if the lookup fails.
+	 */
+	private static String installedApkStamp(BaseApplication app) {
+		try {
+			final var info = app.getPackageManager().getPackageInfo(app.getPackageName(), 0);
+			return info.versionName + ":" + info.lastUpdateTime;
+		} catch (Throwable err) {
+			LOG.warn("Could not read package info for tooling jar stamp", err);
+			return null;
+		}
+	}
+
 	@NonNull
 	private static String readInitScript() {
 		return ResourceUtils.readAssets2String(getCommonAsset("androidide.init.gradle"));
+	}
+
+	private static String readStampFile(File stampFile) {
+		try {
+			return stampFile.isFile() ? FileIOUtils.readFile2String(stampFile) : null;
+		} catch (Throwable err) {
+			return null;
+		}
 	}
 
 	private static boolean shouldExtractScheme(final BaseApplication app, final File dir,
@@ -348,29 +368,6 @@ public class ToolsManager {
 			} catch (IOException e) {
 				LOG.error("Failed to close tooling API jar stream", e);
 			}
-		}
-	}
-
-	/**
-	 * Identity of the installed APK for the extraction stamp: versionName plus the
-	 * package's lastUpdateTime, which changes on every (re)install - exactly when the
-	 * bundled jar can change. Null (extract unconditionally) if the lookup fails.
-	 */
-	private static String installedApkStamp(BaseApplication app) {
-		try {
-			final var info = app.getPackageManager().getPackageInfo(app.getPackageName(), 0);
-			return info.versionName + ":" + info.lastUpdateTime;
-		} catch (Throwable err) {
-			LOG.warn("Could not read package info for tooling jar stamp", err);
-			return null;
-		}
-	}
-
-	private static String readStampFile(File stampFile) {
-		try {
-			return stampFile.isFile() ? FileIOUtils.readFile2String(stampFile) : null;
-		} catch (Throwable err) {
-			return null;
 		}
 	}
 

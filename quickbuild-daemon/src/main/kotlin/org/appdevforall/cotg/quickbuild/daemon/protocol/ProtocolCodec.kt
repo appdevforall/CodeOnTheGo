@@ -32,7 +32,7 @@ object ProtocolCodec {
 
 		return try {
 			when (val op = root.stringOrNull("op")) {
-				"configure" ->
+				"configure" -> {
 					ParseResult.Parsed(
 						ConfigureRequest(
 							id = id,
@@ -46,7 +46,9 @@ object ProtocolCodec {
 							compilerPlugins = root.optionalStringList("compilerPlugins"),
 						),
 					)
-				"compile" ->
+				}
+
+				"compile" -> {
 					ParseResult.Parsed(
 						CompileRequest(
 							id = id,
@@ -55,11 +57,15 @@ object ProtocolCodec {
 							removedFiles = root.optionalStringList("removedFiles"),
 						),
 					)
-				"dex" ->
+				}
+
+				"dex" -> {
 					ParseResult.Parsed(
 						DexRequest(id = id, classesDirs = root.requireStringList("classesDirs")),
 					)
-				"relink" ->
+				}
+
+				"relink" -> {
 					ParseResult.Parsed(
 						RelinkRequest(
 							id = id,
@@ -69,10 +75,23 @@ object ProtocolCodec {
 							libraryResources = root.optionalStringList("libraryResources"),
 						),
 					)
-				"ping" -> ParseResult.Parsed(PingRequest(id))
-				"shutdown" -> ParseResult.Parsed(ShutdownRequest(id))
-				null -> ParseResult.Malformed(id, "missing 'op'")
-				else -> ParseResult.Malformed(id, "unknown op '$op'")
+				}
+
+				"ping" -> {
+					ParseResult.Parsed(PingRequest(id))
+				}
+
+				"shutdown" -> {
+					ParseResult.Parsed(ShutdownRequest(id))
+				}
+
+				null -> {
+					ParseResult.Malformed(id, "missing 'op'")
+				}
+
+				else -> {
+					ParseResult.Malformed(id, "unknown op '$op'")
+				}
 			}
 		} catch (e: MissingFieldException) {
 			ParseResult.Malformed(id, e.message ?: "malformed request")
@@ -86,14 +105,23 @@ object ProtocolCodec {
 		root.addProperty("ok", response.ok)
 		for ((key, value) in response.values) {
 			when (value) {
-				is Number -> root.addProperty(key, value)
-				is Boolean -> root.addProperty(key, value)
+				is Number -> {
+					root.addProperty(key, value)
+				}
+
+				is Boolean -> {
+					root.addProperty(key, value)
+				}
+
 				is Collection<*> -> {
 					val array = JsonArray()
 					value.forEach { array.add(it.toString()) }
 					root.add(key, array)
 				}
-				else -> root.addProperty(key, value.toString())
+
+				else -> {
+					root.addProperty(key, value.toString())
+				}
 			}
 		}
 		if (response.diagnostics.isNotEmpty()) {

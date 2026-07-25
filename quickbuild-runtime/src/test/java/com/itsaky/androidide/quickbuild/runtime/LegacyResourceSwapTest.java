@@ -12,11 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The JVM-testable half of the API 28/29 shim: persisting the relinked resource apk to
- * a file addAssetPath can mount. Before ADFA-4128 Bug 5's fix this wrapped a bare arsc
- * byte array into a synthetic single-entry zip (see git history) - the payload is now
- * the full relinked apk already, so writing it is a plain byte copy. The reflective
- * addAssetPath / cache flush can only run on a real device.
+ * The JVM-testable half of the API 28/29 shim: persisting the relinked resource apk to a file addAssetPath can mount. Before ADFA-4128 Bug 5's fix this wrapped a bare arsc byte array into a synthetic single-entry zip (see git history) - the payload is now the full relinked apk already, so writing it is a plain byte copy. The reflective addAssetPath / cache flush can only run on a real device.
  */
 class LegacyResourceSwapTest {
 
