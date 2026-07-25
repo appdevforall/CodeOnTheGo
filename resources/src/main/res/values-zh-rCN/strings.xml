@@ -241,7 +241,6 @@
   <string name="idepref_buildnrun_summary">Gradle 构建配置。</string>
   <string name="configure">配置</string>
   <string name="about">关于</string>
-  <string name="idepref_github_summary">Code on the Go 是开源的！</string>
   <string name="idepref_channel_summary">订阅以获取最新更新</string>
   <string name="idepref_group_summary">在这里讨论功能、错误和改进。</string>
   <string name="idepref_changelog_summary">此版本有什么新内容?</string>
@@ -339,12 +338,6 @@
   <string name="msg_tasks_to_run">将按顺序运行以下任务，再次单击“运行”按钮进行确认。\n\n%1$s</string>
   <string name="msg_loading_tasks">正在加载任务…</string>
   <!-- GIT -->
-  <string name="git_clone">克隆</string>
-  <string name="git_clone_repo">克隆 git 仓库</string>
-  <string name="git_clone_repo_url">存储库 URL</string>
-  <string name="git_clone_in_progress">克隆存储库</string>
-  <string name="git_clone_success">git 克隆成功</string>
-  <string name="git_clone_failed">无法克隆 git 存储库</string>
   <string name="msg_select_attr">从下面的列表中选择一个属性</string>
   <string name="action_show_hierarchy">显示布局层次</string>
   <string name="idepref_editor_colorScheme">配色方案</string>
