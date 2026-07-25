@@ -26,7 +26,6 @@ import org.jetbrains.kotlin.com.intellij.openapi.util.TextRange
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtFile
-import org.slf4j.LoggerFactory
 import java.nio.file.Path
 
 class ImplementMembersAction : BaseKotlinCodeAction() {
@@ -34,10 +33,6 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_OVERRIDE_SUPER
 	override val id: String = "ide.editor.lsp.kt.implementMembers"
 	override var label: String = ""
-
-	companion object {
-		private val logger = LoggerFactory.getLogger(ImplementMembersAction::class.java)
-	}
 
 	// Intentionally no prepare() visibility gate: the action is visible on any Kotlin file (BaseKotlinCodeAction
 	// only checks the file type) and simply produces no edit when the enclosing class/object has nothing to

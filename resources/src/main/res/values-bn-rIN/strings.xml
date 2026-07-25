@@ -242,7 +242,6 @@
   <string name="idepref_buildnrun_summary">Gradle বিল্ড কনফিগার করুন।</string>
   <string name="configure">কনফিগার করুন</string>
   <string name="about">সম্বন্ধে</string>
-  <string name="idepref_github_summary">Code on the Go হল ওপেন সোর্স!</string>
   <string name="idepref_channel_summary">সাম্প্রতিক আপডেটের জন্য সাবস্ক্রাইব করুন।</string>
   <string name="idepref_group_summary">এখানে বৈশিষ্ট্য, বাগ এবং উন্নতি নিয়ে আলোচনা করুন৷</string>
   <string name="idepref_changelog_summary">এই সংস্করণে নতুন কি আছে?</string>
@@ -340,12 +339,6 @@
   <string name="msg_tasks_to_run">নিম্নলিখিত প্রক্রিয়া গুলি চালানো হবে, ক্রমানুসারে। নিশ্চিত করার জন্য \'Run\' বাটনটিতে আবার ক্লিক করুন.\n\n%1$s</string>
   <string name="msg_loading_tasks">প্রক্রিয়া লোড করা হচ্ছে...</string>
   <!-- GIT -->
-  <string name="git_clone">ক্লোন</string>
-  <string name="git_clone_repo">গিট রেপোসিটরি ক্লোন করুন</string>
-  <string name="git_clone_repo_url">রেপোসিটরি URL</string>
-  <string name="git_clone_in_progress">রেপোসিটরি ক্লোন করা হচ্ছে</string>
-  <string name="git_clone_success">গিট ক্লোন সফল হয়েছে</string>
-  <string name="git_clone_failed">গিট রেপোসিটরি ক্লোন করতে ব্যর্থ</string>
   <string name="msg_select_attr">নীচের লিস্ট থেকে অ্যাট্রিবিউট নির্বাচন করুন</string>
   <string name="action_show_hierarchy">লেআউট-এর শ্রেণিবিন্যাস দেখান</string>
   <string name="idepref_editor_colorScheme">কালার স্কিম</string>
