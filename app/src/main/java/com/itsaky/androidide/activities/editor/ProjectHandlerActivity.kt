@@ -70,6 +70,7 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.projectDir
+import com.itsaky.androidide.quickbuild.BenchEventsFile
 import com.itsaky.androidide.quickbuild.QuickBuildBenchAutostart
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.resources.R.string
@@ -278,6 +279,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	private fun onBuildStateChanged(state: BuildState) {
+		val isBenchStandardResult = benchStandardBuildEnded(state)
 		editorViewModel.isBuildInProgress = (state is BuildState.InProgress)
 		when (state) {
 			is BuildState.Idle -> {
@@ -297,8 +299,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			}
 
 			is BuildState.AwaitingInstall -> {
-				installApk(state)
-				buildViewModel.installationAttempted()
+				if (isBenchStandardResult) {
+					// Bench standard build: the measurement ends at the build result, and
+					// an unattended bench run must not pop the install dialog.
+					buildViewModel.installationAttempted()
+				} else {
+					installApk(state)
+					buildViewModel.installationAttempted()
+				}
 			}
 
 			is BuildState.AwaitingPluginInstall -> {
@@ -361,6 +369,90 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 		return runCatching { GlobalContext.get().get<QuickBuildSessionManager>() }
 			.onFailure { logger.error("Quick Build session manager unavailable", it) }
+			.getOrNull()
+	}
+
+	/**
+	 * ADFA-4128 benchmark: a bench re-open of the ALREADY-OPEN project arrives here
+	 * (single-top editor), not through project init. Claim + fire, mirroring the
+	 * [onProjectInitialized] claim site. While the project is still initializing the
+	 * latch is left armed - the init-path claim will consume it. The standard-mode path
+	 * exists so the harness can measure a post-edit INCREMENTAL standard build on the
+	 * warm Gradle daemon (a force-stop + fresh open would cold-start the daemon).
+	 */
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		if (!FeatureFlags.isQuickBuildBenchEnabled || editorViewModel.isInitializing) return
+		val canonical =
+			runCatching { File(IProjectManager.getInstance().projectDirPath).canonicalPath }.getOrNull()
+				?: return
+		when (QuickBuildBenchAutostart.claim(canonical)) {
+			QuickBuildBenchAutostart.MODE_QUICK_BUILD -> quickBuildSessionManager()?.onQuickBuildTapped()
+			QuickBuildBenchAutostart.MODE_STANDARD -> fireBenchStandardBuild()
+			else -> Unit
+		}
+	}
+
+	/**
+	 * Start time of an in-flight bench standard build ([fireBenchStandardBuild]), or null
+	 * when none is running. Written on the project-init path, read on the build-state
+	 * collector - hence volatile.
+	 */
+	@Volatile
+	private var benchStandardBuildStartMs: Long? = null
+
+	/**
+	 * Bench standard-mode autostart ([QuickBuildBenchAutostart.MODE_STANDARD]): fires the
+	 * standard Run build exactly as the toolbar action would for a single-application
+	 * project, stamping bench events around it so the harness reads the build duration.
+	 * The post-build install is suppressed in [onBuildStateChanged] - the measurement ends
+	 * at the build result, and an unattended run must not pop an install dialog.
+	 */
+	private fun fireBenchStandardBuild() {
+		val module = IProjectManager.getInstance().getAndroidAppModules().firstOrNull()
+		val variant = module?.getSelectedVariant()
+		if (module == null || variant == null) {
+			logger.warn("Bench standard build: no application module/variant to build")
+			return
+		}
+		benchStandardBuildStartMs = System.currentTimeMillis()
+		benchEventsFile()?.append("standard_build_started") {
+			put("project", IProjectManager.getInstance().projectDirPath)
+			put("module", module.path)
+			put("variant", variant.name)
+		}
+		buildViewModel.runQuickBuild(module, variant, launchInDebugMode = false)
+	}
+
+	/**
+	 * Emits the bench standard build's terminal event and clears the latch. Returns true
+	 * iff [state] is the terminal result of an in-flight bench standard build - the caller
+	 * uses that to suppress the install this state would normally trigger. [BuildState] is
+	 * a distinct-until-changed StateFlow, so the pre-fire Idle can never re-emit; any
+	 * non-InProgress state seen while the latch is armed IS the result.
+	 */
+	private fun benchStandardBuildEnded(state: BuildState): Boolean {
+		val startMs = benchStandardBuildStartMs ?: return false
+		if (state is BuildState.InProgress) return false
+		benchStandardBuildStartMs = null
+		val isSuccess =
+			state is BuildState.AwaitingInstall ||
+				state is BuildState.Success ||
+				state is BuildState.AwaitingPluginInstall
+		benchEventsFile()?.append("standard_build_finished") {
+			put("isSuccess", isSuccess)
+			put("durationMs", System.currentTimeMillis() - startMs)
+		}
+		return true
+	}
+
+	/** The bench JSON-lines event writer, or null when bench flags are off. */
+	private fun benchEventsFile(): BenchEventsFile? {
+		if (!FeatureFlags.isQuickBuildBenchEnabled) {
+			return null
+		}
+		return runCatching { GlobalContext.get().get<BenchEventsFile>() }
+			.onFailure { logger.error("Bench events file unavailable", it) }
 			.getOrNull()
 	}
 
@@ -957,20 +1049,30 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		editorViewModel.isInitializing = false
 		invalidateOptionsMenu()
 
+		// ADFA-4128 benchmark: if QuickBuildBenchActivity armed an autostart for THIS
+		// project, claim it now - the adb-driven stand-in for the human's tap. Bench-flag
+		// only; claim() is a one-shot, matched by canonical path. Claimed BEFORE prewarm so
+		// a standard-mode bench build runs alone on the daemon instead of racing the eager
+		// setup build.
+		val benchMode =
+			if (FeatureFlags.isQuickBuildBenchEnabled) {
+				runCatching { File(IProjectManager.getInstance().projectDirPath).canonicalPath }
+					.getOrNull()
+					?.let(QuickBuildBenchAutostart::claim)
+			} else {
+				null
+			}
+
 		// B2 (ADFA-4128): eager quick-build setup build, AFTER the normal sync so it
 		// rides the warm Gradle daemon instead of fighting it. Fire-and-forget on the
 		// session manager's own thread; installs nothing until the first tap.
-		quickBuildSessionManager()?.prewarm()
+		if (benchMode != QuickBuildBenchAutostart.MODE_STANDARD) {
+			quickBuildSessionManager()?.prewarm()
+		}
 
-		// ADFA-4128 benchmark: if QuickBuildBenchActivity armed an autostart for THIS
-		// project, fire the first Quick Build now - the adb-driven stand-in for the human's
-		// lightning-bolt tap. Bench-flag only; claim() is a one-shot, matched by canonical path.
-		if (FeatureFlags.isQuickBuildBenchEnabled) {
-			val canonical =
-				runCatching { File(IProjectManager.getInstance().projectDirPath).canonicalPath }.getOrNull()
-			if (canonical != null && QuickBuildBenchAutostart.claim(canonical)) {
-				quickBuildSessionManager()?.onQuickBuildTapped()
-			}
+		when (benchMode) {
+			QuickBuildBenchAutostart.MODE_QUICK_BUILD -> quickBuildSessionManager()?.onQuickBuildTapped()
+			QuickBuildBenchAutostart.MODE_STANDARD -> fireBenchStandardBuild()
 		}
 
 		if (mFindInProjectDialog?.isShowing == true) {

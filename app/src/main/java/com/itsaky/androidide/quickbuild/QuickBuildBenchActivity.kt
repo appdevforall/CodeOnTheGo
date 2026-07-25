@@ -55,30 +55,46 @@ class QuickBuildBenchActivity : Activity() {
 			return
 		}
 
+		val mode = intent?.getStringExtra(EXTRA_MODE) ?: QuickBuildBenchAutostart.MODE_QUICK_BUILD
+		if (mode != QuickBuildBenchAutostart.MODE_QUICK_BUILD &&
+			mode != QuickBuildBenchAutostart.MODE_STANDARD
+		) {
+			log.warn("Rejected quick-build bench open: unknown mode {}", mode)
+			return
+		}
+
 		// Idempotent re-trigger: if this exact project is already the open, initialized
 		// project, there is no re-initialization to hook - tap Quick Build directly. The
 		// harness relies on this to retry a session (e.g. after an install-confirm
-		// timeout) without paying a force-stop + full project re-open.
+		// timeout) without paying a force-stop + full project re-open, and to fire the
+		// setup build right after a bench standard build (the marginal-cost measurement).
 		// A still-armed autostart means the project never finished initializing - in that
 		// case fall through to re-arm + re-open instead of tapping an uninitialized project.
+		// A standard-mode re-trigger also goes through arm + re-open: the single-top editor
+		// receives it in onNewIntent and fires the build on the WARM daemon - this is how
+		// the harness measures a post-edit INCREMENTAL standard build (a force-stop would
+		// kill the daemon and contaminate the measurement).
 		val current =
 			runCatching {
 				File(ProjectManagerImpl.getInstance().projectDirPath).canonicalFile.path
 			}.getOrNull()
 		if (current == project.path && QuickBuildBenchAutostart.pendingProjectPath == null) {
-			val manager =
-				runCatching {
-					GlobalContext.get().get<QuickBuildSessionManager>()
-				}.getOrNull()
-			if (manager != null) {
-				log.info("Bench re-trigger for already-open {}", project.path)
-				manager.onQuickBuildTapped()
-				return
+			if (mode == QuickBuildBenchAutostart.MODE_QUICK_BUILD) {
+				val manager =
+					runCatching {
+						GlobalContext.get().get<QuickBuildSessionManager>()
+					}.getOrNull()
+				if (manager != null) {
+					log.info("Bench re-trigger for already-open {}", project.path)
+					manager.onQuickBuildTapped()
+					return
+				}
 			}
 		}
 
 		// Arm the editor's one-shot autostart BEFORE opening, so the tap fires as soon as
 		// this project initializes (see ProjectHandlerActivity).
+		QuickBuildBenchAutostart.pendingMode = mode
 		QuickBuildBenchAutostart.pendingProjectPath = project.path
 
 		ProjectManagerImpl.getInstance().projectPath = project.path
@@ -100,6 +116,14 @@ class QuickBuildBenchActivity : Activity() {
 	companion object {
 		const val ACTION_BENCH_OPEN_PROJECT = "com.itsaky.androidide.quickbuild.action.BENCH_OPEN_PROJECT"
 		const val EXTRA_PROJECT_PATH = "com.itsaky.androidide.quickbuild.extra.PROJECT_PATH"
+
+		/**
+		 * Which build the autostart fires once the project initializes:
+		 * [QuickBuildBenchAutostart.MODE_QUICK_BUILD] (default) or
+		 * [QuickBuildBenchAutostart.MODE_STANDARD] (standard Run, for the cold
+		 * standard-vs-setup build comparison). Unknown values reject the intent.
+		 */
+		const val EXTRA_MODE = "com.itsaky.androidide.quickbuild.extra.MODE"
 
 		private val log = LoggerFactory.getLogger(QuickBuildBenchActivity::class.java)
 	}
