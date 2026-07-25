@@ -39,8 +39,8 @@ interface QuickBuildDaemon {
 		removedFiles: List<File> = emptyList(),
 	): DaemonReply<CompileOutput>
 
-	/** Dex the given class dirs. @return the produced `classes.dex`. */
-	suspend fun dex(classesDirs: List<File>): DaemonReply<File>
+	/** Dex the given class dirs. @return the produced `classes.dex` plus step timings. */
+	suspend fun dex(classesDirs: List<File>): DaemonReply<DexOutput>
 
 	/**
 	 * aapt2 relink of the project resources.
@@ -68,7 +68,7 @@ interface QuickBuildDaemon {
 		manifest: File,
 		stableIdsFile: File? = null,
 		libraryResources: List<File> = emptyList(),
-	): DaemonReply<File>
+	): DaemonReply<RelinkOutput>
 
 	/** Liveness probe; false when the daemon is missing or unresponsive. */
 	suspend fun ping(): Boolean
@@ -91,10 +91,35 @@ interface QuickBuildDaemon {
  *   '/'-separated relative to [classesDir] — the deploy policy's recompiled-set
  *   signal. Null when the daemon did not report the field (a pre-signal daemon);
  *   the policy then decides conservatively (restart over stale).
+ * @property kotlinMillis wall time of the daemon's Kotlin pass; null when unreported
+ *   (a pre-timing daemon). Same null convention for every step-timing field below.
+ * @property javaMillis wall time of the daemon's javac pass.
  */
 data class CompileOutput(
 	val classesDir: File,
 	val changedClassFiles: List<String>?,
+	val kotlinMillis: Long? = null,
+	val javaMillis: Long? = null,
+)
+
+/**
+ * A successful `dex` op's output: the produced `classes.dex` plus the daemon's step
+ * timings (null when unreported by a pre-timing daemon).
+ */
+data class DexOutput(
+	val dexFile: File,
+	val stripMillis: Long? = null,
+	val d8Millis: Long? = null,
+)
+
+/**
+ * A successful `relink` op's output: the full relinked resource apk plus the daemon's
+ * step timings (null when unreported by a pre-timing daemon).
+ */
+data class RelinkOutput(
+	val resourceApk: File,
+	val aapt2CompileMillis: Long? = null,
+	val aapt2LinkMillis: Long? = null,
 )
 
 /** Everything the daemon needs to know once per session (`configure` op). */

@@ -20,8 +20,14 @@ class DexTool(
 	private val minApi: Int,
 ) : AutoCloseable {
 	sealed interface Result {
+		/**
+		 * @property stripMillis wall time of the ACC_FINAL-stripping mirror pass.
+		 * @property d8Millis wall time of the d8 invocation itself.
+		 */
 		data class Success(
 			val dexFile: File,
+			val stripMillis: Long = 0,
+			val d8Millis: Long = 0,
 		) : Result
 
 		data class Failed(
@@ -41,15 +47,19 @@ class DexTool(
 		outDir: File,
 	): Result {
 		outDir.mkdirs()
+		val stripStartedAt = System.currentTimeMillis()
 		val classFiles = openClasses(classesDirs, File(outDir, "opened-classes"))
+		val stripMillis = System.currentTimeMillis() - stripStartedAt
 		if (classFiles.isEmpty()) {
 			return Result.Failed("no .class files found under: ${classesDirs.joinToString()}")
 		}
 		return try {
+			val d8StartedAt = System.currentTimeMillis()
 			runD8(classFiles, outDir.toPath())
+			val d8Millis = System.currentTimeMillis() - d8StartedAt
 			val dexFile = File(outDir, "classes.dex")
 			if (dexFile.isFile) {
-				Result.Success(dexFile)
+				Result.Success(dexFile, stripMillis = stripMillis, d8Millis = d8Millis)
 			} else {
 				Result.Failed("d8 reported success but produced no classes.dex in $outDir")
 			}

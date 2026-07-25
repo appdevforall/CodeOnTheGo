@@ -82,8 +82,14 @@ class Aapt2Link(
 	private val androidJar: File,
 ) {
 	sealed interface Result {
+		/**
+		 * @property compileMillis wall time of the per-dir `aapt2 compile` loop.
+		 * @property linkMillis wall time of the `aapt2 link` run.
+		 */
 		data class Success(
 			val resourceApk: File,
+			val compileMillis: Long = 0,
+			val linkMillis: Long = 0,
 		) : Result
 
 		data class Failed(
@@ -117,6 +123,7 @@ class Aapt2Link(
 		compiledDir.deleteRecursively()
 		compiledDir.mkdirs()
 
+		val compileStartedAt = System.currentTimeMillis()
 		for (resDir in resDirs) {
 			val compileResult =
 				run(listOf(aapt2.absolutePath, "compile", "--dir", resDir.absolutePath, "-o", compiledDir.absolutePath))
@@ -124,18 +131,21 @@ class Aapt2Link(
 				return Result.Failed(parseDiagnostics(compileResult.output, "aapt2 compile failed"))
 			}
 		}
+		val compileMillis = System.currentTimeMillis() - compileStartedAt
 
 		val flatFiles = compiledDir.listFiles { file -> file.name.endsWith(".flat") }.orEmpty()
 		val linkedApk = File(workDir, "linked-res.apk")
 		linkedApk.delete()
 		val linkArguments = buildLinkArguments(linkedApk, manifest, flatFiles.toList(), stableIds, libraryResources)
+		val linkStartedAt = System.currentTimeMillis()
 		val linkResult = run(linkArguments)
+		val linkMillis = System.currentTimeMillis() - linkStartedAt
 		if (linkResult.exitCode != 0) {
 			return Result.Failed(parseDiagnostics(linkResult.output, "aapt2 link failed"))
 		}
 
 		return try {
-			Result.Success(verifyHasTable(linkedApk))
+			Result.Success(verifyHasTable(linkedApk), compileMillis = compileMillis, linkMillis = linkMillis)
 		} catch (e: Exception) {
 			Result.Failed(
 				listOf(Diagnostic(Diagnostic.Severity.ERROR, "linked apk has no resources.arsc: ${e.message}")),

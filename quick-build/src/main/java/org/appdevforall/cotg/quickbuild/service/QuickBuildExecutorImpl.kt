@@ -172,7 +172,7 @@ class QuickBuildExecutorImpl(
 					// generation without shipping the classes it claims - a stale-code lie.
 					val dex = compileAndDex(ChangedFiles.Unknown, timeline)
 					if (dex is Step.Fail) return dex.outcome
-					val arsc = relink()
+					val arsc = relink(timeline)
 					if (arsc is Step.Fail) return arsc.outcome
 					deployDecided(
 						(dex as Step.Ok).decision,
@@ -201,7 +201,7 @@ class QuickBuildExecutorImpl(
 
 			BuildRoute.ResourcesOnly -> {
 				// Resource-only deploys never restart: no code moved.
-				when (val arsc = relink()) {
+				when (val arsc = relink(timeline)) {
 					is Step.Fail -> {
 						arsc.outcome
 					}
@@ -223,7 +223,7 @@ class QuickBuildExecutorImpl(
 			BuildRoute.CodeAndResources -> {
 				val dex = compileAndDex(request.changes, timeline)
 				if (dex is Step.Fail) return dex.outcome
-				val arsc = relink()
+				val arsc = relink(timeline)
 				if (arsc is Step.Fail) return arsc.outcome
 				deployDecided(
 					(dex as Step.Ok).decision,
@@ -303,6 +303,7 @@ class QuickBuildExecutorImpl(
 					return Step.Fail(BuildOutcome.InfrastructureFailure(reply.message, reply.daemonDied))
 				}
 			}
+		timeline.recordCompileSteps(compiled.kotlinMillis, compiled.javaMillis)
 
 		val decision = decideDeploy(compiled.classesDir, compiled.changedClassFiles)
 
@@ -311,7 +312,8 @@ class QuickBuildExecutorImpl(
 				// t1: classes are compiled + dexed (the deployable dex exists). On-device
 				// dexing dominates the build, so it belongs inside compileMillis, not after.
 				timeline.markCompileDone(clock())
-				Step.Ok(reply.value, decision)
+				timeline.recordDexSteps(reply.value.stripMillis, reply.value.d8Millis)
+				Step.Ok(reply.value.dexFile, decision)
 			}
 
 			is DaemonReply.BuildFailed -> {
@@ -341,7 +343,7 @@ class QuickBuildExecutorImpl(
 		return policy.decide(changedClassFiles)
 	}
 
-	private suspend fun relink(): Step =
+	private suspend fun relink(timeline: Timeline): Step =
 		when (
 			val reply =
 				daemon.relink(
@@ -352,7 +354,8 @@ class QuickBuildExecutorImpl(
 				)
 		) {
 			is DaemonReply.Ok -> {
-				Step.Ok(reply.value, DeployDecision.Recreate)
+				timeline.recordRelinkSteps(reply.value.aapt2CompileMillis, reply.value.aapt2LinkMillis)
+				Step.Ok(reply.value.resourceApk, DeployDecision.Recreate)
 			}
 
 			// aapt2 errors are the user's resources failing to build - a compile error
@@ -594,6 +597,7 @@ class QuickBuildExecutorImpl(
 	) {
 		private var compileDone: Long? = null
 		private var deploySent: Long = trigger
+		private var steps = E2eTimeline.StepTimings()
 
 		fun markCompileDone(now: Long) {
 			compileDone = now
@@ -601,6 +605,27 @@ class QuickBuildExecutorImpl(
 
 		fun markDeploySent(now: Long) {
 			deploySent = now
+		}
+
+		fun recordCompileSteps(
+			kotlinMillis: Long?,
+			javaMillis: Long?,
+		) {
+			steps = steps.copy(kotlinMillis = kotlinMillis, javaMillis = javaMillis)
+		}
+
+		fun recordDexSteps(
+			stripMillis: Long?,
+			d8Millis: Long?,
+		) {
+			steps = steps.copy(stripMillis = stripMillis, d8Millis = d8Millis)
+		}
+
+		fun recordRelinkSteps(
+			aapt2CompileMillis: Long?,
+			aapt2LinkMillis: Long?,
+		) {
+			steps = steps.copy(aapt2CompileMillis = aapt2CompileMillis, aapt2LinkMillis = aapt2LinkMillis)
 		}
 
 		fun completed(
@@ -613,6 +638,7 @@ class QuickBuildExecutorImpl(
 				compileDone = compileDone ?: deploySent,
 				deploySent = deploySent,
 				reloadLive = reloadLive,
+				steps = steps.takeUnless { it.isEmpty() },
 			)
 	}
 

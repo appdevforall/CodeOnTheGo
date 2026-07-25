@@ -76,6 +76,39 @@ class BenchQuickBuildMetricsSinkTest {
 		assertThat(o.getLong("deploySent")).isEqualTo(1_650)
 		assertThat(o.getLong("reloadLive")).isEqualTo(1_720)
 		assertThat(o.getLong("totalMs")).isEqualTo(720)
+		// No steps reported: none of the sub-step fields appear.
+		assertThat(o.has("kotlinMs")).isFalse()
+		assertThat(o.has("d8Ms")).isFalse()
+	}
+
+	@Test
+	fun `reload_timeline carries reported sub-step timings and omits unreported ones`() {
+		sink.onReloadTimeline(
+			E2eTimeline(
+				generation = 43,
+				trigger = 1_000,
+				compileDone = 1_600,
+				deploySent = 1_650,
+				reloadLive = 1_720,
+				steps =
+					E2eTimeline.StepTimings(
+						kotlinMillis = 400,
+						javaMillis = null,
+						stripMillis = 20,
+						d8Millis = 150,
+						aapt2CompileMillis = null,
+						aapt2LinkMillis = null,
+					),
+			),
+		)
+
+		val o = last()
+		assertThat(o.getLong("kotlinMs")).isEqualTo(400)
+		assertThat(o.getLong("stripMs")).isEqualTo(20)
+		assertThat(o.getLong("d8Ms")).isEqualTo(150)
+		assertThat(o.has("javacMs")).isFalse()
+		assertThat(o.has("aapt2CompileMs")).isFalse()
+		assertThat(o.has("aapt2LinkMs")).isFalse()
 	}
 
 	@Test

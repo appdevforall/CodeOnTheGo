@@ -3,8 +3,10 @@ package org.appdevforall.cotg.quickbuild.service
 import org.appdevforall.cotg.quickbuild.data.CompileOutput
 import org.appdevforall.cotg.quickbuild.data.DaemonConfig
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
+import org.appdevforall.cotg.quickbuild.data.DexOutput
 import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
 import org.appdevforall.cotg.quickbuild.data.QuickBuildPaths
+import org.appdevforall.cotg.quickbuild.data.RelinkOutput
 import org.appdevforall.cotg.quickbuild.domain.GenerationStore
 import java.io.File
 
@@ -30,8 +32,8 @@ class FakeDaemon : QuickBuildDaemon {
 	var startReply: DaemonReply<Unit> = DaemonReply.Ok(Unit)
 	var compileReply: DaemonReply<CompileOutput> =
 		DaemonReply.Ok(CompileOutput(File("/fake/classes"), changedClassFiles = emptyList()))
-	var dexReply: DaemonReply<File> = DaemonReply.Ok(File("/fake/classes.dex"))
-	var relinkReply: DaemonReply<File> = DaemonReply.Ok(File("/fake/resources.arsc"))
+	var dexReply: DaemonReply<DexOutput> = DaemonReply.Ok(DexOutput(File("/fake/classes.dex")))
+	var relinkReply: DaemonReply<RelinkOutput> = DaemonReply.Ok(RelinkOutput(File("/fake/resources.arsc")))
 
 	var deathListener: ((Int) -> Unit)? = null
 		private set
@@ -54,7 +56,7 @@ class FakeDaemon : QuickBuildDaemon {
 		return compileReply
 	}
 
-	override suspend fun dex(classesDirs: List<File>): DaemonReply<File> {
+	override suspend fun dex(classesDirs: List<File>): DaemonReply<DexOutput> {
 		dexCalls += classesDirs
 		return dexReply
 	}
@@ -64,7 +66,7 @@ class FakeDaemon : QuickBuildDaemon {
 		manifest: File,
 		stableIdsFile: File?,
 		libraryResources: List<File>,
-	): DaemonReply<File> {
+	): DaemonReply<RelinkOutput> {
 		relinkCalls += RelinkCall(resDirs, manifest, stableIdsFile, libraryResources)
 		return relinkReply
 	}

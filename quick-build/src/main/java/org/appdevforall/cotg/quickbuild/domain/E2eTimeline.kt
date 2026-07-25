@@ -30,7 +30,30 @@ data class E2eTimeline(
 	val compileDone: Long,
 	val deploySent: Long,
 	val reloadLive: Long,
+	/**
+	 * Per-tool step durations inside [compileMillis]/[stageMillis], as the daemon reported
+	 * them (see the `quickbuild-daemon` tool wrappers). Null when no step reported a
+	 * duration (a pre-timing daemon, or a route that ran no tools); each field is null when
+	 * that step did not run. Deliberately NOT part of [format]/[parse] - the five-stamp log
+	 * line is a frozen harness contract; step timings travel only through the structured
+	 * metrics sinks (the bench `reload_timeline` event).
+	 */
+	val steps: StepTimings? = null,
 ) {
+	/** One build's per-tool durations; every field nullable = "that step did not run/report". */
+	data class StepTimings(
+		val kotlinMillis: Long? = null,
+		val javaMillis: Long? = null,
+		val stripMillis: Long? = null,
+		val d8Millis: Long? = null,
+		val aapt2CompileMillis: Long? = null,
+		val aapt2LinkMillis: Long? = null,
+	) {
+		fun isEmpty(): Boolean =
+			kotlinMillis == null && javaMillis == null && stripMillis == null &&
+				d8Millis == null && aapt2CompileMillis == null && aapt2LinkMillis == null
+	}
+
 	/** Trigger -> compiled+dexed (or relinked, for a no-compile route). */
 	val compileMillis: Long get() = compileDone - trigger
 

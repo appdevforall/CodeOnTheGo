@@ -93,7 +93,10 @@ class DaemonService(
 		val durationMillis = System.currentTimeMillis() - startedAt
 		return when (result) {
 			is IncrementalCompiler.Result.Success -> {
-				log("compile ok: ${request.changedFiles.size} changed of ${request.allSources.size} in ${durationMillis}ms")
+				log(
+					"compile ok: ${request.changedFiles.size} changed of ${request.allSources.size} " +
+						"in ${durationMillis}ms (kotlin=${result.kotlinMillis}ms java=${result.javaMillis}ms)",
+				)
 				DaemonResponse(
 					id = request.id,
 					ok = true,
@@ -101,6 +104,8 @@ class DaemonService(
 						mapOf(
 							"classesDir" to result.classesDir.absolutePath,
 							"durationMillis" to durationMillis,
+							"kotlinMillis" to result.kotlinMillis,
+							"javaMillis" to result.javaMillis,
 							// Relative .class paths this run emitted; the CoGo-side
 							// deploy policy intersects them with the component closure.
 							"classesChanged" to result.changedClassFiles,
@@ -123,10 +128,15 @@ class DaemonService(
 		return when (val result = session.dexTool.dex(request.classesDirs.map(::File), outDir)) {
 			is DexTool.Result.Success -> {
 				val durationMillis = System.currentTimeMillis() - startedAt
-				log("dex ok: ${result.dexFile} in ${durationMillis}ms")
+				log("dex ok: ${result.dexFile} in ${durationMillis}ms (strip=${result.stripMillis}ms d8=${result.d8Millis}ms)")
 				DaemonResponse.ok(
 					request.id,
-					mapOf("dexFile" to result.dexFile.absolutePath, "durationMillis" to durationMillis),
+					mapOf(
+						"dexFile" to result.dexFile.absolutePath,
+						"durationMillis" to durationMillis,
+						"stripMillis" to result.stripMillis,
+						"d8Millis" to result.d8Millis,
+					),
 				)
 			}
 
@@ -153,13 +163,21 @@ class DaemonService(
 		val durationMillis = System.currentTimeMillis() - startedAt
 		return when (result) {
 			is Aapt2Link.Result.Success -> {
-				log("relink ok: ${result.resourceApk} in ${durationMillis}ms")
+				log(
+					"relink ok: ${result.resourceApk} in ${durationMillis}ms " +
+						"(aapt2compile=${result.compileMillis}ms link=${result.linkMillis}ms)",
+				)
 				// Wire field name kept as "resourcesArsc" for protocol stability even
 				// though the payload is now the full relinked apk, not a bare table -
 				// see Aapt2Link's KDoc (ADFA-4128 Bug 5).
 				DaemonResponse.ok(
 					request.id,
-					mapOf("resourcesArsc" to result.resourceApk.absolutePath, "durationMillis" to durationMillis),
+					mapOf(
+						"resourcesArsc" to result.resourceApk.absolutePath,
+						"durationMillis" to durationMillis,
+						"aapt2CompileMillis" to result.compileMillis,
+						"aapt2LinkMillis" to result.linkMillis,
+					),
 				)
 			}
 

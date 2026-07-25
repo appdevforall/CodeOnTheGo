@@ -49,6 +49,16 @@ class BenchQuickBuildMetricsSink(
 			put("deploySent", timeline.deploySent)
 			put("reloadLive", timeline.reloadLive)
 			put("totalMs", timeline.totalMillis)
+			// Per-tool step durations (additive fields; absent when the step didn't run).
+			// This JSON event - not any log line - is the harness's sub-step contract.
+			timeline.steps?.let { steps ->
+				steps.kotlinMillis?.let { put("kotlinMs", it) }
+				steps.javaMillis?.let { put("javacMs", it) }
+				steps.stripMillis?.let { put("stripMs", it) }
+				steps.d8Millis?.let { put("d8Ms", it) }
+				steps.aapt2CompileMillis?.let { put("aapt2CompileMs", it) }
+				steps.aapt2LinkMillis?.let { put("aapt2LinkMs", it) }
+			}
 		}
 	}
 

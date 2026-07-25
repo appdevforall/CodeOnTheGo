@@ -145,34 +145,60 @@ class DaemonProcessClient(
 		val changed =
 			(response?.get("classesChanged") as? JsonArray)
 				?.mapNotNull { it.takeIf(com.google.gson.JsonElement::isJsonPrimitive)?.asString }
-		return reply.mapFile("classesDir") { File(it, "classes") }.mapOk { CompileOutput(it, changed) }
+		return reply.mapFile("classesDir") { File(it, "classes") }.mapOk {
+			CompileOutput(
+				it,
+				changed,
+				kotlinMillis = response.longOrNull("kotlinMillis"),
+				javaMillis = response.longOrNull("javaMillis"),
+			)
+		}
 	}
 
-	override suspend fun dex(classesDirs: List<File>): DaemonReply<File> =
-		request("dex") {
-			add("classesDirs", classesDirs.toJsonPaths())
-		}.mapFile("dexFile") { File(it, "classes.dex") }
+	override suspend fun dex(classesDirs: List<File>): DaemonReply<DexOutput> {
+		val reply =
+			request("dex") {
+				add("classesDirs", classesDirs.toJsonPaths())
+			}
+		val response = (reply as? DaemonReply.Ok)?.value
+		return reply.mapFile("dexFile") { File(it, "classes.dex") }.mapOk {
+			DexOutput(
+				it,
+				stripMillis = response.longOrNull("stripMillis"),
+				d8Millis = response.longOrNull("d8Millis"),
+			)
+		}
+	}
 
 	override suspend fun relink(
 		resDirs: List<File>,
 		manifest: File,
 		stableIdsFile: File?,
 		libraryResources: List<File>,
-	): DaemonReply<File> =
-		request("relink") {
-			add("resDirs", resDirs.toJsonPaths())
-			addProperty("manifest", manifest.absolutePath)
-			stableIdsFile?.let { addProperty("stableIds", it.absolutePath) }
-			if (libraryResources.isNotEmpty()) {
-				add("libraryResources", libraryResources.toJsonPaths())
+	): DaemonReply<RelinkOutput> {
+		val reply =
+			request("relink") {
+				add("resDirs", resDirs.toJsonPaths())
+				addProperty("manifest", manifest.absolutePath)
+				stableIdsFile?.let { addProperty("stableIds", it.absolutePath) }
+				if (libraryResources.isNotEmpty()) {
+					add("libraryResources", libraryResources.toJsonPaths())
+				}
 			}
+		val response = (reply as? DaemonReply.Ok)?.value
+		// Wire field name is "resourcesArsc" for protocol stability, but the file it
+		// names is the FULL relinked resource apk (resources.arsc plus every
+		// compiled resource file), not a bare table - see Aapt2Link's KDoc
+		// (ADFA-4128 Bug 5). Fallback path matches the daemon's actual conventional
+		// output location (DaemonService's relink workDir).
+		return reply.mapFile("resourcesArsc") { File(it, "res/linked-res.apk") }.mapOk {
+			RelinkOutput(
+				it,
+				aapt2CompileMillis = response.longOrNull("aapt2CompileMillis"),
+				aapt2LinkMillis = response.longOrNull("aapt2LinkMillis"),
+			)
 		}
-			// Wire field name is "resourcesArsc" for protocol stability, but the file it
-			// names is the FULL relinked resource apk (resources.arsc plus every
-			// compiled resource file), not a bare table - see Aapt2Link's KDoc
-			// (ADFA-4128 Bug 5). Fallback path matches the daemon's actual conventional
-			// output location (DaemonService's relink workDir).
-			.mapFile("resourcesArsc") { File(it, "res/linked-res.apk") }
+	}
 
 	override suspend fun ping(): Boolean = request("ping") {} is DaemonReply.Ok
 
@@ -334,6 +360,14 @@ class DaemonProcessClient(
 				this
 			}
 		}
+
+	/** Optional numeric field: null when absent or non-primitive (a pre-timing daemon). */
+	private fun JsonObject?.longOrNull(field: String): Long? =
+		this
+			?.get(field)
+			?.takeIf { it.isJsonPrimitive }
+			?.runCatching { asLong }
+			?.getOrNull()
 
 	private fun <T, R> DaemonReply<T>.mapOk(transform: (T) -> R): DaemonReply<R> =
 		when (this) {

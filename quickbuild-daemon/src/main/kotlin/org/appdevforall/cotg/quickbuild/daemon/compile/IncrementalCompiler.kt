@@ -62,11 +62,15 @@ class IncrementalCompiler(
 		 *   as '/'-separated paths relative to [classesDir]. Feeds the CoGo-side deploy
 		 *   policy (restart vs recreate), so it must never under-report: computed by
 		 *   diffing a pre/post snapshot of the output tree on (size, nanosecond mtime).
+		 * @property kotlinMillis wall time of the BTA Kotlin pass (0 when no Kotlin sources).
+		 * @property javaMillis wall time of the javac pass (0 when no Java sources).
 		 */
 		data class Success(
 			val classesDir: File,
 			val warnings: List<Diagnostic>,
 			val changedClassFiles: List<String>,
+			val kotlinMillis: Long = 0,
+			val javaMillis: Long = 0,
 		) : Result
 
 		data class Failed(
@@ -136,7 +140,9 @@ class IncrementalCompiler(
 		deleteRemovedJavaOutputs(removedFiles)
 		val before = snapshotClassOutputs()
 		val logger = CollectingLogger()
+		val kotlinStartedAt = System.currentTimeMillis()
 		val kotlinResult = compileKotlin(allSources, changedFiles, removedFiles, logger)
+		val kotlinMillis = System.currentTimeMillis() - kotlinStartedAt
 		lastCompileLog = logger.lines
 		if (kotlinResult != CompilationResult.COMPILATION_SUCCESS) {
 			val diagnostics = logger.errors.map { KotlincDiagnosticsParser.parse(it, Diagnostic.Severity.ERROR) }
@@ -148,6 +154,7 @@ class IncrementalCompiler(
 		}
 
 		val javaSources = allSources.filter { it.extension == "java" }
+		val javaStartedAt = System.currentTimeMillis()
 		val javaDiagnostics =
 			if (javaSources.isEmpty()) {
 				JavaCompileStep.Result(success = true, diagnostics = emptyList())
@@ -158,6 +165,7 @@ class IncrementalCompiler(
 					outputDir = classesDir.toFile(),
 				)
 			}
+		val javaMillis = if (javaSources.isEmpty()) 0 else System.currentTimeMillis() - javaStartedAt
 		val warnings = logger.warnings.map { KotlincDiagnosticsParser.parse(it, Diagnostic.Severity.WARNING) }
 		if (!javaDiagnostics.success) {
 			return Result.Failed(javaDiagnostics.diagnostics + warnings)
@@ -171,6 +179,8 @@ class IncrementalCompiler(
 			classesDir = classesDir.toFile(),
 			warnings = warnings + javaDiagnostics.diagnostics,
 			changedClassFiles = changedClassOutputs(before),
+			kotlinMillis = kotlinMillis,
+			javaMillis = javaMillis,
 		)
 	}
 

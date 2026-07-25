@@ -3,8 +3,11 @@ package org.appdevforall.cotg.quickbuild.service
 import com.google.common.truth.Truth.assertThat
 import com.google.gson.JsonParser
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.cotg.quickbuild.data.CompileOutput
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.DefaultQuickBuildProjectLayout
+import org.appdevforall.cotg.quickbuild.data.DexOutput
+import org.appdevforall.cotg.quickbuild.data.RelinkOutput
 import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.BuildRequest
@@ -500,6 +503,45 @@ class QuickBuildExecutorImplTest {
 			assertThat(emitted).containsExactly(E2eTimeline(1, 5, 20, 30, 40))
 			assertThat(emitted.single().compileMillis).isEqualTo(15) // trigger(5) -> compiled+dexed(20)
 			assertThat(emitted.single().reloadMillis).isEqualTo(10) // deploySent(30) -> live(40)
+		}
+
+	@Test
+	fun `daemon step timings thread through to the emitted timeline`() =
+		runTest {
+			daemon.compileReply =
+				DaemonReply.Ok(
+					CompileOutput(
+						File("/fake/classes"),
+						changedClassFiles = emptyList(),
+						kotlinMillis = 400,
+						javaMillis = 50,
+					),
+				)
+			daemon.dexReply = DaemonReply.Ok(DexOutput(File("/fake/classes.dex"), stripMillis = 20, d8Millis = 150))
+			daemon.relinkReply =
+				DaemonReply.Ok(RelinkOutput(File("/fake/resources.arsc"), aapt2CompileMillis = 80, aapt2LinkMillis = 120))
+			val emitted = mutableListOf<E2eTimeline>()
+			val executor = timingExecutor(emitted)
+
+			executor.execute(
+				timedRequest(
+					BuildRoute.CodeAndResources,
+					ChangedFiles.Known(setOf(sourceFile, resFile)),
+					triggeredAtMillis = 5,
+				),
+			)
+
+			assertThat(emitted.single().steps)
+				.isEqualTo(
+					E2eTimeline.StepTimings(
+						kotlinMillis = 400,
+						javaMillis = 50,
+						stripMillis = 20,
+						d8Millis = 150,
+						aapt2CompileMillis = 80,
+						aapt2LinkMillis = 120,
+					),
+				)
 		}
 
 	@Test
