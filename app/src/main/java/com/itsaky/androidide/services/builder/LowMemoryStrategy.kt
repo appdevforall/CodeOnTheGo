@@ -9,7 +9,9 @@ import kotlin.math.min
  */
 object LowMemoryStrategy : GradleTuningStrategy {
 	const val GRADLE_MEM_TO_XMX_FACTOR = 0.33
-	const val GRADLE_METASPACE_MB = 192
+
+	// See BalancedStrategy.GRADLE_METASPACE_MB: 192m Metaspace-OOMs real builds.
+	const val GRADLE_METASPACE_MB = 384
 	const val GRADLE_CODE_CACHE_MB = 128
 
 	const val GRADLE_MEM_PER_WORKER = 512

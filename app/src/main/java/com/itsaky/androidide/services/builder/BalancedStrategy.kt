@@ -9,7 +9,11 @@ import kotlin.math.min
  */
 object BalancedStrategy : GradleTuningStrategy {
 	const val GRADLE_MEM_TO_XMX_FACTOR = 0.35
-	const val GRADLE_METASPACE_MB = 192
+
+	// 192m starved the daemon on 3-4GB devices: AGP + Kotlin class metadata alone
+	// exceeds it, so :app:assembleDebug dies in OutOfMemoryError: Metaspace before
+	// the build completes (reproduced on a 3.6GB C107). 384 matches HighPerformance.
+	const val GRADLE_METASPACE_MB = 384
 	const val GRADLE_CODE_CACHE_MB = 128
 
 	const val GRADLE_MEM_PER_WORKER = 512
