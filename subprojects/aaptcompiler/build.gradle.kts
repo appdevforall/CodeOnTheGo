@@ -40,7 +40,9 @@ dependencies {
 	implementation(projects.logger)
 
 	api(libs.aapt2.annotations)
-	api(libs.aapt2.common)
+	api(libs.aapt2.common) {
+		exclude(group = "net.java.dev.jna")
+	}
 	api(libs.composite.layoutlibApi)
 
 	api(projects.subprojects.aapt2Proto)

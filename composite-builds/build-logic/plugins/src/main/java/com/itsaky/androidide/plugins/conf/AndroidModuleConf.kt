@@ -97,7 +97,6 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 						"META-INF/CHANGES",
 						"META-INF/README.md",
 						"META-INF/LICENSE-notice.md",
-						"com/sun/jna/**",
 					),
 				)
 				pickFirsts.addAll(

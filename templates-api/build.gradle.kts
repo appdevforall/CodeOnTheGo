@@ -35,7 +35,9 @@ dependencies {
 	api(projects.subprojects.xmlDom)
 	api(projects.subprojects.xmlUtils)
 
-	api(libs.aapt2.common)
+	api(libs.aapt2.common) {
+		exclude(group = "net.java.dev.jna")
+	}
 	api(libs.androidx.annotation)
 	api(libs.androidx.appcompat)
 	api(libs.google.material)
