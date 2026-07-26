@@ -740,6 +740,26 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `a rebaseline tears the daemon down for the Gradle build and restarts it on the new config`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(daemon.startConfigs).hasSize(1)
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			// Torn down at rebaseline start (the daemon's ~0.5GB must not coexist with
+			// the Gradle build's peak on low-RAM devices), restarted on success against
+			// the re-read setup - and left RUNNING for the session that continues.
+			assertThat(daemon.shutdownCount).isEqualTo(1)
+			assertThat(daemon.startConfigs).hasSize(2)
+			assertThat(daemon.isRunning).isTrue()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
 	fun `a RequiresRebaseline outcome routes into the rebaseline fallback`() =
 		runTest {
 			val manager = createManager()
@@ -993,7 +1013,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `daemon death degrades, respawns and re-seeds with Unknown`() =
+	fun `daemon death with nothing pending respawns and re-warms via a deploy-nothing seed`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1004,12 +1024,13 @@ class QuickBuildSessionManagerTest {
 
 			// Respawned: configure ran twice (provision + respawn)...
 			assertThat(daemon.startConfigs).hasSize(2)
-			// ...and the re-seed forced a full recompile via Unknown.
-			val request = executed.single()
-			assertThat(request.changes).isEqualTo(ChangedFiles.Unknown)
-			assertThat(request.route).isEqualTo(BuildRoute.CodeAndResources)
-			// The re-seed build deployed generation 1.
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+			// ...and with nothing pending the re-warm is a SEED (one per daemon life:
+			// provisioning's + the respawn's) - no user build, no deploy, the test app
+			// keeps running its current generation untouched.
+			assertThat(executed).isEmpty()
+			assertThat(seeds).hasSize(2)
+			assertThat(seeds.last().changes).isEqualTo(ChangedFiles.Unknown)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
 	@Test

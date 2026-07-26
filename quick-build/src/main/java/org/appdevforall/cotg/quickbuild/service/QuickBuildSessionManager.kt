@@ -749,6 +749,15 @@ class QuickBuildSessionManager(
 		session.orchestrator.onRebaselineStarted()
 		dispatch(SessionEvent.RebaselineStarted)
 
+		// Free the daemon's ~0.5GB for the Gradle build that is about to peak - on the
+		// 3-4GB target class the two must not coexist. Costless: the daemon's IC state
+		// is untrustworthy after a rebaseline anyway (regenerated inputs it never saw),
+		// and it was going to be re-seeded from scratch regardless; on success it
+		// restarts below with the NEW setup's config (the survivor used to keep serving
+		// the OLD configure's classpath - correct only via BTA's full-recompile
+		// fallback).
+		daemon.shutdown()
+
 		val startedAtNanos = System.nanoTime()
 		val outcome =
 			try {
@@ -784,6 +793,17 @@ class QuickBuildSessionManager(
 				session.layout = outcome.layout
 				session.executor.delegate = buildExecutor(outcome.setup, outcome.layout, session.tracker)
 				session.annotationImpact.delegate = annotationImpact(outcome.setup, outcome.layout)
+				// Restart the daemon torn down above, against the NEW setup's config.
+				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.setup))) {
+					is DaemonReply.Ok -> Unit
+					else -> {
+						val message = (started as? DaemonReply.Failed)?.message ?: "daemon rejected configuration"
+						log.error("Daemon restart after rebaseline failed: {}", message)
+						session.orchestrator.onRebaselineFailed()
+						dispatch(SessionEvent.ProvisioningFailed(message))
+						return
+					}
+				}
 				// The freshly installed baseline boots gen 0 again; the fingerprint gate
 				// in its runtime discarded any older persisted payload.
 				session.lastDeployedGeneration = -1L
@@ -825,9 +845,11 @@ class QuickBuildSessionManager(
 		when (val started = daemon.start(daemonConfig(session.layout, session.setup))) {
 			is DaemonReply.Ok -> {
 				dispatch(SessionEvent.DaemonRespawned)
-				// A fresh daemon has no trustworthy IC state: re-seed with Unknown so
-				// the next build recompiles everything rather than serving stale code.
-				session.orchestrator.onFilesChanged(ChangedFiles.Unknown)
+				// A fresh daemon has no trustworthy IC state. With nothing pending this
+				// re-warms via a deploy-nothing Seed (the test app keeps running its
+				// current generation untouched); with pending work it marks the baseline
+				// dirty so the next build recompiles everything and deploys.
+				session.orchestrator.onDaemonReplaced()
 			}
 
 			else -> {

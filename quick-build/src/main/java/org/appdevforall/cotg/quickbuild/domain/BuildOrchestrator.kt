@@ -129,6 +129,28 @@ class BuildOrchestrator(
 	}
 
 	/**
+	 * A fresh daemon process replaced a dead one (crash, trim-memory teardown, or a
+	 * deliberate restart). Its IC universe is empty, but the WATCHER never stopped, so
+	 * the pending set is still trustworthy. With nothing pending, a [BuildRoute.Seed]
+	 * re-warms the new daemon without deploying - the test app already runs the last
+	 * deployed generation, and a deploy would restart it for no visible change (the
+	 * pre-seed recovery did exactly that). With real work pending (or a superseded
+	 * in-flight build whose batch is about to union back), the whole baseline is marked
+	 * dirty instead: the next build recompiles everything AND deploys, as before.
+	 */
+	suspend fun onDaemonReplaced() {
+		withEvents { events ->
+			if (inFlight == null && pending.isEmpty && !pendingForced) {
+				pendingSeed = true
+			} else {
+				markBatchArrivalLocked()
+				pending = pending + ChangedFiles.Unknown
+			}
+			maybeStartBuildLocked(events)
+		}
+	}
+
+	/**
 	 * An external full Gradle build (a Standard Run) completed while this session is
 	 * live: generated inputs and classpath jars under build/ may have moved beneath the
 	 * daemon, which the watcher cannot see. Marks the whole baseline dirty WITHOUT

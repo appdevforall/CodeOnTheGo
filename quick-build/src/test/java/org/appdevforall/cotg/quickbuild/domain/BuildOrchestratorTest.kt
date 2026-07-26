@@ -693,6 +693,62 @@ class BuildOrchestratorTest {
 		}
 
 	@Test
+	fun `daemon replacement with nothing pending re-warms via a deploy-nothing seed`() =
+		runTest {
+			val executor = GatedExecutor()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			orchestrator.onDaemonReplaced()
+			runCurrent()
+
+			assertThat(executor.requests).hasSize(1)
+			assertThat(executor.requests[0].route).isEqualTo(BuildRoute.Seed)
+			assertThat(executor.requests[0].changes).isEqualTo(ChangedFiles.Unknown)
+		}
+
+	@Test
+	fun `daemon replacement with pending saves marks the baseline dirty and deploys`() =
+		runTest {
+			val executor = GatedExecutor()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			// Save lands while the daemon is dead (watcher outlives it), then the respawn.
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(0, compileError()) // dead daemon's build failed; batch unioned back
+			runCurrent()
+			orchestrator.onDaemonReplaced()
+			runCurrent()
+
+			// A REAL deploying build over everything, not a seed.
+			val replay = executor.requests.last()
+			assertThat(replay.route).isEqualTo(BuildRoute.CodeAndResources)
+			assertThat(replay.changes).isEqualTo(ChangedFiles.Unknown)
+		}
+
+	@Test
+	fun `daemon replacement during a superseded in-flight build defers to the union`() =
+		runTest {
+			val executor = GatedExecutor()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			// Daemon died mid-build; respawn lands BEFORE the failure result does.
+			orchestrator.onDaemonReplaced()
+			runCurrent()
+			assertThat(executor.requests).hasSize(1)
+
+			executor.finish(0, BuildOutcome.InfrastructureFailure("daemon died", daemonDied = true))
+			runCurrent()
+
+			// The follow-up carries the batch + the Unknown mark - full recompile, deploys.
+			assertThat(executor.requests).hasSize(2)
+			assertThat(executor.requests[1].changes).isEqualTo(ChangedFiles.Unknown)
+			assertThat(executor.requests[1].route).isEqualTo(BuildRoute.CodeAndResources)
+		}
+
+	@Test
 	fun `a failed seed leaves nothing pending and does not auto-retry`() =
 		runTest {
 			val executor = GatedExecutor()
