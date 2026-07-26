@@ -3,6 +3,7 @@ package org.appdevforall.cotg.quickbuild.service
 import android.content.ComponentCallbacks2
 import com.google.common.truth.Truth.assertThat
 import com.google.gson.JsonParser
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -40,6 +41,13 @@ class QuickBuildSessionManagerTest {
 
 	/** Requests seen by the scripted executor, with per-request scripted outcomes. */
 	private val executed = mutableListOf<BuildRequest>()
+
+	/**
+	 * Background seed builds ([BuildRoute.Seed]) recorded separately: they are a
+	 * post-provisioning warm-up, not user work, so keeping them out of [executed]
+	 * preserves every "the user's save produced exactly these builds" assertion.
+	 */
+	private val seeds = mutableListOf<BuildRequest>()
 
 	/** SetupInfo of every executor the manager built (provision + each rebaseline). */
 	private val factorySetups = mutableListOf<SetupInfo>()
@@ -101,6 +109,7 @@ class QuickBuildSessionManagerTest {
 
 	/** Set to make the scripted executor await mid-build, so a test can observe Building. */
 	private var executionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+	private var seedGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
 	/** Captures the watcher the manager builds so a test can push change batches. */
 	private var watcher: FakeWatcher? = null
@@ -212,6 +221,14 @@ class QuickBuildSessionManagerTest {
 				factorySetups += setup
 				object : QuickBuildExecutor {
 					override suspend fun execute(request: BuildRequest): BuildOutcome {
+						if (request.route is BuildRoute.Seed) {
+							// Mirror the real executor's seed contract: compile-only,
+							// nothing deployed, generation unmoved, scripted outcomes
+							// (which script USER builds) untouched.
+							seeds += request
+							seedGate?.await()
+							return BuildOutcome.Success(tracker.current, 5)
+						}
 						executed += request
 						executionGate?.await()
 						return scriptedOutcomes.removeFirstOrNull()
@@ -261,6 +278,48 @@ class QuickBuildSessionManagerTest {
 			assertThat(connections.expectedPackage).isEqualTo("com.example.quickbuild")
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 			assertThat(manager.status.value).isEqualTo(QuickBuildStatus.UpToDate(0, null))
+		}
+
+	@Test
+	fun `provisioning fires exactly one background seed that ends back in Ready`() =
+		runTest {
+			val manager = createManager()
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			val seed = seeds.single()
+			assertThat(seed.route).isEqualTo(BuildRoute.Seed)
+			assertThat(seed.changes).isEqualTo(ChangedFiles.Unknown)
+			assertThat(seed.forced).isFalse()
+			// The seed deployed nothing: generation unmoved, no Deployed state lingering.
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			assertThat(manager.status.value).isEqualTo(QuickBuildStatus.UpToDate(0, null))
+			// User-build bookkeeping untouched.
+			assertThat(executed).isEmpty()
+		}
+
+	@Test
+	fun `a save during the seed queues and builds right after it - never lost, never overlapped`() =
+		runTest {
+			val manager = createManager()
+			val gate = CompletableDeferred<Unit>()
+			seedGate = gate
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(seeds).hasSize(1)
+			assertThat(executed).isEmpty()
+
+			manager.save(File(projectRoot, "app/src/main/java/com/example/A.kt"))
+			advanceUntilIdle()
+			// Single-flight: the save waits for the in-flight seed.
+			assertThat(executed).isEmpty()
+
+			gate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(executed).hasSize(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
 		}
 
 	@Test
@@ -755,6 +814,12 @@ class QuickBuildSessionManagerTest {
 				.containsExactly(
 					"invalidated:GRADLE_CONFIG_CHANGED",
 					"rebaseline:true",
+					// The rebaseline re-enters Ready via ProvisioningSucceeded, which fires
+					// a fresh background seed: the full Gradle build may have moved inputs
+					// (or respawned the daemon), so re-seeding the IC universe afterwards
+					// is deliberate, and its metrics are visible like any build's.
+					"started:Seed:0",
+					"finished:Success",
 				).inOrder()
 		}
 

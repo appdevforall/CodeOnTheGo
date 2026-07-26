@@ -77,11 +77,15 @@ class BuildOrchestrator(
 	/** Diagnostics of the last CompileError, for the duplicate-follow-up guard. */
 	private var lastCompileDiagnostics: List<BuildDiagnostic>? = null
 
+	/** Requested background IC seed (post-provisioning); dropped once any real build runs. */
+	private var pendingSeed = false
+
 	private data class InFlightBuild(
 		val buildId: Long,
 		val batch: ChangedFiles,
 		val forced: Boolean,
 		val autoFollowUp: Boolean,
+		val route: BuildRoute,
 	)
 
 	/** A watcher/editor save event. [ChangedFiles.Unknown] forces a full recompile. */
@@ -101,6 +105,25 @@ class BuildOrchestrator(
 		withEvents { events ->
 			markBatchArrivalLocked()
 			pendingForced = true
+			maybeStartBuildLocked(events)
+		}
+	}
+
+	/**
+	 * Background IC seed (session manager, right after provisioning goes live): build the
+	 * daemon's incremental universe now so the first save doesn't pay the compiler
+	 * warm-up. Lowest priority by construction: any real pending work (or a save that
+	 * lands before the seed starts) makes the seed redundant - the daemon's first real
+	 * build compiles the full source set anyway - so it is silently dropped, never queued
+	 * behind user work.
+	 */
+	suspend fun onSeedRequested() {
+		withEvents { events ->
+			// A build already in flight makes the seed moot (the daemon's first real
+			// build compiles the full source set) - drop it now rather than queue it
+			// behind work it can only duplicate.
+			if (inFlight != null) return@withEvents
+			pendingSeed = true
 			maybeStartBuildLocked(events)
 		}
 	}
@@ -196,7 +219,13 @@ class BuildOrchestrator(
 		// Gradle build against a half-reseeded baseline. Saves keep accumulating and
 		// build on onBaselineReset.
 		if (awaitingAbsorption != null) return
-		if (pending.isEmpty && !pendingForced) return
+		if (pending.isEmpty && !pendingForced) {
+			if (pendingSeed) startSeedBuildLocked(events)
+			return
+		}
+		// Any real build compiles the daemon's full source set on its first run, so a
+		// still-pending seed is redundant the moment user work exists.
+		pendingSeed = false
 
 		val route = classifier.classify(pending)
 		if (route is BuildRoute.FullGradleBuild) {
@@ -215,7 +244,7 @@ class BuildOrchestrator(
 		pending = ChangedFiles.Known.EMPTY
 		pendingForced = false
 		val buildId = nextBuildId++
-		inFlight = InFlightBuild(buildId, batch, forced, autoFollowUp)
+		inFlight = InFlightBuild(buildId, batch, forced, autoFollowUp, route)
 		events += OrchestratorEvent.BuildStarted(buildId, route, batch)
 
 		val request =
@@ -226,6 +255,37 @@ class BuildOrchestrator(
 				forced = forced,
 				triggeredAtMillis = triggeredAtMillis,
 			)
+		launchBuild(buildId, request)
+	}
+
+	/**
+	 * The seed's batch is EMPTY (it represents no user changes): a failed seed unions
+	 * nothing back into pending, and the next real save recovers naturally because the
+	 * daemon's first real build compiles the full source set regardless. The request's
+	 * changes are [ChangedFiles.Unknown] so the executor compiles everything.
+	 */
+	private fun startSeedBuildLocked(events: MutableList<OrchestratorEvent>) {
+		pendingSeed = false
+		val buildId = nextBuildId++
+		val route = BuildRoute.Seed
+		inFlight =
+			InFlightBuild(buildId, ChangedFiles.Known.EMPTY, forced = false, autoFollowUp = false, route = route)
+		events += OrchestratorEvent.BuildStarted(buildId, route, ChangedFiles.Known.EMPTY)
+		val request =
+			BuildRequest(
+				buildId = buildId,
+				changes = ChangedFiles.Unknown,
+				route = route,
+				forced = false,
+				triggeredAtMillis = now(),
+			)
+		launchBuild(buildId, request)
+	}
+
+	private fun launchBuild(
+		buildId: Long,
+		request: BuildRequest,
+	) {
 		scope.launch {
 			val outcome =
 				try {
@@ -256,7 +316,7 @@ class BuildOrchestrator(
 			when (outcome) {
 				is BuildOutcome.Success -> {
 					lastCompileDiagnostics = null
-					events += OrchestratorEvent.BuildSucceeded(buildId, outcome)
+					events += OrchestratorEvent.BuildSucceeded(buildId, outcome, flight.route)
 					// Saves that landed mid-build start the coalesced follow-up now.
 					maybeStartBuildLocked(events, autoFollowUp = true)
 				}
@@ -272,7 +332,7 @@ class BuildOrchestrator(
 					if (diagnostics != null) {
 						lastCompileDiagnostics = diagnostics
 					}
-					events += OrchestratorEvent.BuildFailed(buildId, outcome, unchanged)
+					events += OrchestratorEvent.BuildFailed(buildId, outcome, unchanged, flight.route)
 
 					if (newSavesArrivedMidBuild) {
 						// A mid-build save may be the fix; rebuild from the accumulated set.
@@ -294,6 +354,8 @@ sealed interface OrchestratorEvent {
 	data class BuildSucceeded(
 		val buildId: Long,
 		val result: BuildOutcome.Success,
+		/** What the build was for — a [BuildRoute.Seed] success deployed nothing. */
+		val route: BuildRoute,
 	) : OrchestratorEvent
 
 	/**
@@ -305,6 +367,8 @@ sealed interface OrchestratorEvent {
 		val buildId: Long,
 		val outcome: BuildOutcome,
 		val diagnosticsUnchanged: Boolean = false,
+		/** What the build was for — a [BuildRoute.Seed] failure is not user-visible. */
+		val route: BuildRoute,
 	) : OrchestratorEvent
 
 	/** The changed-set needs a real Gradle build; the session manager owns the fallback. */

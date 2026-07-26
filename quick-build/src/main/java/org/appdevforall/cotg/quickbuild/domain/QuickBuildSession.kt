@@ -106,6 +106,16 @@ sealed interface SessionEvent {
 		val failure: SessionFailure,
 	) : SessionEvent
 
+	/**
+	 * The background IC-seed build finished (success or a silently-logged failure).
+	 * Nothing deployed, the generation did not move: Building returns to Ready at the
+	 * deployed generation with no failure surfaced - a seed problem is invisible by
+	 * design (the setup build just compiled the same sources green; the next real save
+	 * surfaces anything real). Daemon death during a seed does NOT arrive here - it
+	 * stays on the [DaemonDied] recovery path.
+	 */
+	data object SeedFinished : SessionEvent
+
 	data class InvalidationDetected(
 		val reason: InvalidationReason,
 	) : SessionEvent
@@ -141,6 +151,14 @@ sealed interface SessionEffect {
 
 	/** Ask the orchestrator to build now (explicit tap while a session is live). */
 	data object TriggerQuickBuild : SessionEffect
+
+	/**
+	 * Ask the orchestrator for the background IC seed ([BuildRoute.Seed]) the moment a
+	 * session goes live: pay the daemon's first-compile warm-up (kotlinc JIT + classpath
+	 * snapshot + IC-cache build - measured 12-14s on an 8GB device, 37-50s on 3.6GB even
+	 * for small Kotlin apps) in the provisioning tail instead of on the user's first save.
+	 */
+	data object StartBackgroundSeed : SessionEffect
 
 	/** Route to the real Gradle build; on completion the session re-baselines. */
 	data object RunFullGradleRebaseline : SessionEffect
@@ -255,7 +273,10 @@ class SessionReducer {
 	): SessionTransition =
 		when (event) {
 			is SessionEvent.ProvisioningSucceeded -> {
-				SessionTransition(QuickBuildSessionState.Ready(event.generation))
+				SessionTransition(
+					QuickBuildSessionState.Ready(event.generation),
+					listOf(SessionEffect.StartBackgroundSeed),
+				)
 			}
 
 			is SessionEvent.ProvisioningFailed -> {
@@ -327,6 +348,12 @@ class SessionReducer {
 
 			is SessionEvent.BuildFailed -> {
 				SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration, event.failure))
+			}
+
+			SessionEvent.SeedFinished -> {
+				// The seed deployed nothing: back to Ready at the unchanged generation,
+				// no failure surfaced (see the event's contract).
+				SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration))
 			}
 
 			is SessionEvent.InvalidationDetected -> {

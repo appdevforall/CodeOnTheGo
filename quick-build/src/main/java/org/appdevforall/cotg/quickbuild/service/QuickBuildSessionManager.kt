@@ -25,6 +25,7 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.SetupInfo
 import org.appdevforall.cotg.quickbuild.domain.BuildOrchestrator
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
+import org.appdevforall.cotg.quickbuild.domain.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.BuildRequest
 import org.appdevforall.cotg.quickbuild.domain.ChangeClassifier
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
@@ -424,6 +425,12 @@ class QuickBuildSessionManager(
 				scope.launch { live?.orchestrator?.onQuickBuildRequested() }
 			}
 
+			SessionEffect.StartBackgroundSeed -> {
+				// live is assigned before ProvisioningSucceeded is dispatched (see
+				// startProvisioning), so the orchestrator is always there to take this.
+				scope.launch { live?.orchestrator?.onSeedRequested() }
+			}
+
 			SessionEffect.RunFullGradleRebaseline -> {
 				val epoch = sessionEpoch
 				sessionWork = scope.launch { rebaseline(epoch) }
@@ -642,11 +649,21 @@ class QuickBuildSessionManager(
 				is OrchestratorEvent.BuildStarted -> {
 					report { metrics.onBuildStarted(event.buildId, event.route, event.changes) }
 					dispatch(SessionEvent.BuildStarted)
-					notifyBuilding()
+					if (event.route !is BuildRoute.Seed) {
+						// A seed compiles the sources the test app ALREADY runs; telling
+						// it "one generation behind, building" would be a lie.
+						notifyBuilding()
+					}
 				}
 
 				is OrchestratorEvent.BuildSucceeded -> {
 					report { metrics.onBuildFinished(event.buildId, event.result) }
+					if (event.route is BuildRoute.Seed) {
+						// Nothing deployed, generation unmoved: no Deployed state, no
+						// lastDeployedGeneration bump.
+						dispatch(SessionEvent.SeedFinished)
+						return@launch
+					}
 					live?.let {
 						it.lastDeployedGeneration = maxOf(it.lastDeployedGeneration, event.result.generation)
 					}
@@ -671,7 +688,15 @@ class QuickBuildSessionManager(
 						report { metrics.onInvalidation(outcome.reason) }
 						dispatch(SessionEvent.InvalidationDetected(outcome.reason))
 					} else if (outcome is BuildOutcome.InfrastructureFailure && outcome.daemonDied) {
+						// Includes a daemon death mid-seed: the normal respawn recovery
+						// re-seeds with ChangedFiles.Unknown, so no seed-specific path.
 						dispatch(SessionEvent.DaemonDied)
+					} else if (event.route is BuildRoute.Seed) {
+						// A failed seed is invisible by design: the setup build just
+						// compiled these sources green, and the next real save compiles
+						// the full source set anyway. Log for diagnosis, surface nothing.
+						log.warn("Background seed build failed (not surfaced): {}", outcome)
+						dispatch(SessionEvent.SeedFinished)
 					} else {
 						dispatch(SessionEvent.BuildFailed(outcome.toSessionFailure()))
 					}

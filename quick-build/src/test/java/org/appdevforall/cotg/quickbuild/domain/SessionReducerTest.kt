@@ -24,11 +24,29 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `provisioning succeeded becomes ready with no failure`() {
+	fun `provisioning succeeded becomes ready and starts the background seed`() {
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Provisioning, SessionEvent.ProvisioningSucceeded(1))
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1, lastFailure = null))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartBackgroundSeed))
+	}
+
+	@Test
+	fun `seed finished returns building to ready at the unchanged generation`() {
+		val transition =
+			reducer.reduce(QuickBuildSessionState.Building(deployedGeneration = 4), SessionEvent.SeedFinished)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(4, lastFailure = null))
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
+	fun `seed finished is a no-op outside building`() {
+		val ready = QuickBuildSessionState.Ready(2)
+		val transition = reducer.reduce(ready, SessionEvent.SeedFinished)
+
+		assertThat(transition.state).isEqualTo(ready)
 		assertThat(transition.effects).isEmpty()
 	}
 

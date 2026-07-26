@@ -104,6 +104,23 @@ class QuickBuildExecutorImplTest {
 		}
 
 	@Test
+	fun `seed route compiles everything and dexes but deploys NOTHING at an unmoved generation`() =
+		runTest {
+			val outcome = executor.execute(request(BuildRoute.Seed, ChangedFiles.Unknown))
+
+			assertThat(outcome).isEqualTo(BuildOutcome.Success(0, 0))
+			// The whole source set goes through the compiler (IC-cache seed)...
+			assertThat(daemon.compileCalls).hasSize(1)
+			assertThat(daemon.compileCalls[0].second).containsExactly(sourceFile)
+			// ...d8 warms too...
+			assertThat(daemon.dexCalls).hasSize(1)
+			// ...but nothing reaches the device: no deploy, no relink, generation unmoved.
+			assertThat(deploy.calls).isEmpty()
+			assertThat(daemon.relinkCalls).isEmpty()
+			assertThat(tracker.current).isEqualTo(0)
+		}
+
+	@Test
 	fun `a removed source is threaded into the compiler's removedFiles, not its changed set`() =
 		runTest {
 			val removedSource = File(projectRoot, "app/src/main/java/com/example/Gone.kt")
@@ -604,6 +621,18 @@ class QuickBuildExecutorImplTest {
 
 			timingExecutor(emitted).execute(
 				timedRequest(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)), triggeredAtMillis = 5),
+			)
+
+			assertThat(emitted).isEmpty()
+		}
+
+	@Test
+	fun `a seed build emits no timeline - nothing reloaded`() =
+		runTest {
+			val emitted = mutableListOf<E2eTimeline>()
+
+			timingExecutor(emitted).execute(
+				timedRequest(BuildRoute.Seed, ChangedFiles.Unknown, triggeredAtMillis = 5),
 			)
 
 			assertThat(emitted).isEmpty()

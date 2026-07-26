@@ -625,4 +625,94 @@ class BuildOrchestratorTest {
 			assertThat(executor.requests).hasSize(2)
 			assertThat(executor.requests[1].changes).isEqualTo(ChangedFiles.Unknown)
 		}
+
+	@Test
+	fun `seed request with nothing pending starts a seed build compiling everything`() =
+		runTest {
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onSeedRequested()
+			runCurrent()
+
+			assertThat(executor.requests).hasSize(1)
+			assertThat(executor.requests[0].route).isEqualTo(BuildRoute.Seed)
+			assertThat(executor.requests[0].changes).isEqualTo(ChangedFiles.Unknown)
+			assertThat(executor.requests[0].forced).isFalse()
+			assertThat(events).containsExactly(
+				OrchestratorEvent.BuildStarted(1L, BuildRoute.Seed, ChangedFiles.Known.EMPTY),
+			)
+
+			executor.finish(0, success(generation = 0))
+			runCurrent()
+			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
+			assertThat(succeeded.route).isEqualTo(BuildRoute.Seed)
+		}
+
+	@Test
+	fun `a save that lands before the seed starts drops the seed - the real build seeds implicitly`() =
+		runTest {
+			val executor = GatedExecutor()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			// The save's build is in flight; the seed request arrives late.
+			orchestrator.onSeedRequested()
+			executor.finish(0, success(generation = 1))
+			runCurrent()
+
+			// No second build: the save's build already compiled the full source set
+			// (daemon first-build contract), so the seed would be pure waste.
+			assertThat(executor.requests).hasSize(1)
+			assertThat(executor.requests[0].route).isEqualTo(BuildRoute.CodeOnly)
+		}
+
+	@Test
+	fun `a save landing mid-seed queues and builds right after the seed finishes`() =
+		runTest {
+			val executor = GatedExecutor()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			orchestrator.onSeedRequested()
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+
+			// Single-flight: the save waits for the seed, never overlaps it.
+			assertThat(executor.requests).hasSize(1)
+			assertThat(executor.cancellations).isEqualTo(0)
+
+			executor.finish(0, success(generation = 0))
+			runCurrent()
+
+			assertThat(executor.requests).hasSize(2)
+			assertThat(executor.requests[1].route).isEqualTo(BuildRoute.CodeOnly)
+			assertThat(executor.requests[1].changes).isEqualTo(known(srcA))
+		}
+
+	@Test
+	fun `a failed seed leaves nothing pending and does not auto-retry`() =
+		runTest {
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onSeedRequested()
+			runCurrent()
+			executor.finish(0, compileError())
+			runCurrent()
+
+			// No retry loop for a background warm-up...
+			assertThat(executor.requests).hasSize(1)
+			val failed = events.filterIsInstance<OrchestratorEvent.BuildFailed>().single()
+			assertThat(failed.route).isEqualTo(BuildRoute.Seed)
+
+			// ...and the next real save builds exactly its own batch (nothing leaked in).
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+			assertThat(executor.requests).hasSize(2)
+			assertThat(executor.requests[1].changes).isEqualTo(known(srcB))
+		}
 }

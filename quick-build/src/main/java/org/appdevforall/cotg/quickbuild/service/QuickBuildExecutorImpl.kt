@@ -145,6 +145,16 @@ class QuickBuildExecutorImpl(
 		val startedAt = clock()
 		val timeline = Timeline(request.triggeredAtMillis)
 
+		if (request.route is BuildRoute.Seed) {
+			// Background IC seed: compile + dex everything once (kotlinc JIT, classpath
+			// snapshot, IC caches, d8 warm-up) but deploy NOTHING - the test app already
+			// runs exactly these sources, and the generation must not move. No timeline
+			// is reported: nothing reloaded, so there is no save->live to measure.
+			val dex = compileAndDex(ChangedFiles.Unknown, timeline)
+			if (dex is Step.Fail) return dex.outcome
+			return BuildOutcome.Success(generations.current, clock() - startedAt)
+		}
+
 		val known = request.changes as? ChangedFiles.Known
 		// A removed asset must reach the packager too: it names the entry in the payload's
 		// changedAssets so the runtime drops it (absence is the removal signal, AssetPackager).
@@ -251,6 +261,11 @@ class QuickBuildExecutorImpl(
 				BuildOutcome.InfrastructureFailure(
 					"FullGradleBuild route must not reach the quick path",
 				)
+			}
+
+			BuildRoute.Seed -> {
+				// Handled by the early branch above; unreachable, kept for exhaustiveness.
+				BuildOutcome.InfrastructureFailure("Seed route fell through the seed branch")
 			}
 		}
 	}

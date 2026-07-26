@@ -30,6 +30,16 @@ sealed interface BuildRoute {
 
 	/** Empty known changed-set: nothing to rebuild (a forced tap may still redeploy). */
 	data object NoOp : BuildRoute
+
+	/**
+	 * Background warm-up right after provisioning: compile + dex the whole module once so
+	 * the daemon pays kotlinc JIT, the classpath-snapshot seed, and the IC-cache build
+	 * before the user's first save instead of on it. Deploys nothing - the test app
+	 * already runs exactly these sources (the setup build just produced them), so a
+	 * deploy would only restart it for no visible change. Never produced by the
+	 * classifier; only [BuildOrchestrator.onSeedRequested] constructs it.
+	 */
+	data object Seed : BuildRoute
 }
 
 /** Why a quick-build session baseline can no longer absorb edits on the fast path. */
