@@ -80,6 +80,7 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_UNUSED_IMPORTS = "editor.codeactions.unusedimports"
 	const val EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS = "editor.codeactions.organizeimports"
 	const val EDITOR_CODE_ACTIONS_KT_FIX_IMPORTS = "editor.codeactions.kotlin.fiximports"
+	const val EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH = "editor.codeactions.kotlin.trycatch"
 
 	const val EXIT_TO_MAIN = "exit.to.main"
 
