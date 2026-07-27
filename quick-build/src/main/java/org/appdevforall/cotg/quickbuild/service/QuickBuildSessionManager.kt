@@ -44,6 +44,7 @@ import org.appdevforall.cotg.quickbuild.domain.SessionEvent
 import org.appdevforall.cotg.quickbuild.domain.SessionFailure
 import org.appdevforall.cotg.quickbuild.domain.SessionReducer
 import org.appdevforall.cotg.quickbuild.domain.WatchFilter
+import org.appdevforall.cotg.quickbuild.domain.WatcherBatchReconciler
 import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationBaseline
 import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpact
 import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpactAnalyzer
@@ -366,37 +367,15 @@ class QuickBuildSessionManager(
 	 * Hopped onto [dispatcher]; the orchestrator + classifier decide the route (quick build
 	 * vs. rebaseline) and handle concurrency with any in-flight build.
 	 *
-	 * Reconciles the batch into the modified/removed split the pipeline builds against:
-	 * - A modified path that still EXISTS is a live edit/create -> kept as modified.
-	 * - A modified path that has since VANISHED but has a recognized project-file shape is a
-	 *   deletion the modify channel caught (a `git checkout` MOVED_TO whose target was then
-	 *   dropped) -> reclassified as a removal, so it takes the same removed-sources path a
-	 *   poll-detected deletion does, rather than being compiled as a (gone) source.
-	 * - A path in the watcher's removed set with a recognized shape is a real deletion ->
-	 *   kept as a removal.
-	 * - A vanished path with NO recognized shape is pure noise (an external atomic-rename
-	 *   tool's sibling temp, `sedXXXXXX`, or a `patch` dropping the delete detector caught)
-	 *   -> dropped, exactly as bug11 drops a vanished modified temp; without this a stray
-	 *   temp would poison the whole batch to a spurious
-	 *   [org.appdevforall.cotg.quickbuild.domain.BuildRoute.FullGradleBuild].
-	 *
-	 * A genuinely persisting unclassifiable file (a real java-resource) is left in the
-	 * modified set and still reaches the classifier, preserving its honest Gradle fallback.
+	 * The modified-vs-removed reconciliation itself is domain logic
+	 * ([WatcherBatchReconciler]); this shell only supplies the `File.isFile` probe and
+	 * dispatches the reconciled batch.
 	 */
 	private fun onWatcherBatch(batch: ChangedFiles.Known) {
-		val modified = HashSet<File>()
-		val removed = HashSet<File>()
-		batch.removed.filterTo(removed, ChangeClassifier::hasRecognizedShape)
-		for (file in batch.files) {
-			when {
-				file.isFile -> modified.add(file)
-				ChangeClassifier.hasRecognizedShape(file) -> removed.add(file)
-				// else: unrecognized vanished temp -> drop as noise (bug11 semantics).
-			}
-		}
-		if (modified.isEmpty() && removed.isEmpty()) return
+		val reconciled = WatcherBatchReconciler.reconcile(batch, File::isFile)
+		if (reconciled.isEmpty) return
 		scope.launch {
-			live?.orchestrator?.onFilesChanged(ChangedFiles.Known(modified, removed))
+			live?.orchestrator?.onFilesChanged(reconciled)
 		}
 	}
 
