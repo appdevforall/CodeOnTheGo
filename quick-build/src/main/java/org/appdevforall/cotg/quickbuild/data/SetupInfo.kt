@@ -89,8 +89,24 @@ data class SetupInfo(
 	 */
 	val libraryResourceFlats: List<File> = emptyList(),
 ) {
+	/**
+	 * True when this baseline carries [components] and its baked runtime understands
+	 * restart deploys ([schema] >= [COMPONENT_SCHEMA_VERSION]); the deploy policy's
+	 * skew guard keys on this.
+	 */
+	val supportsComponentInfo: Boolean
+		get() = schema >= COMPONENT_SCHEMA_VERSION
+
 	companion object {
 		private val log = LoggerFactory.getLogger(SetupInfo::class.java)
+
+		/**
+		 * The setup.json schema version that introduced `components` + runtime restart
+		 * support. Must stay in step with the writer side's
+		 * `QuickBuildJson.SCHEMA_VERSION` (gradle-plugin quickbuild/QuickBuildJson.kt) -
+		 * bump the two together when the schema changes.
+		 */
+		const val COMPONENT_SCHEMA_VERSION = 2
 
 		/**
 		 * @param baseDir directory relative paths in the JSON resolve against

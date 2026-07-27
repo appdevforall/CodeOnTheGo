@@ -590,7 +590,7 @@ class QuickBuildSessionManager(
 						// Pre-v2 setup.json (no schema/components) = a baseline whose
 						// runtime ignores restart deploys; the policy then routes
 						// restart-requiring builds to a rebaseline (skew guard).
-						componentInfoAvailable = setup.schema >= COMPONENT_SCHEMA_VERSION,
+						componentInfoAvailable = setup.supportsComponentInfo,
 					),
 				testAppPackage = setup.testAppPackage,
 				launcherActivity =
@@ -882,8 +882,5 @@ class QuickBuildSessionManager(
 
 	private companion object {
 		private val log = LoggerFactory.getLogger(QuickBuildSessionManager::class.java)
-
-		/** setup.json schema that introduced `components` + runtime restart support. */
-		private const val COMPONENT_SCHEMA_VERSION = 2
 	}
 }

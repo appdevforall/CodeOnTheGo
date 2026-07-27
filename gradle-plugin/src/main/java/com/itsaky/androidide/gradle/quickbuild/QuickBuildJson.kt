@@ -23,6 +23,9 @@ object QuickBuildJson {
 	 * Marks schema v2 (component proxying): its absence tells CoGo the installed baseline
 	 * predates services/providers/restart, so restart-requiring deploys must rebaseline
 	 * instead of hot-swapping stale.
+	 *
+	 * Must stay in step with the reader side's `SetupInfo.COMPONENT_SCHEMA_VERSION`
+	 * (quick-build data/SetupInfo.kt) - bump the two together when the schema changes.
 	 */
 	const val SCHEMA_VERSION = 2
 
