@@ -60,4 +60,89 @@ class BuildOutputFilterTest {
 			BuildOutputViewModel.filterLines(content, "> Task"),
 		)
 	}
+
+	@Test
+	fun `empty query with default toggles returns prefixed content unchanged`() {
+		val content = prefix() + "> Task :a\n" + prefix() + "BUILD SUCCESSFUL\n"
+		assertSame(content, BuildOutputViewModel.filterLines(content, ""))
+	}
+
+	@Test
+	fun `filtering does not add blank lines to newline-terminated content`() {
+		val content = "> Task :a\nnoise\n"
+		assertEquals(
+			"> Task :a\nnoise\n",
+			BuildOutputViewModel.filterLines(content, "", showTimestamps = false, showDeltas = true),
+		)
+	}
+
+	@Test
+	fun `prefix round-trips through display stripping`() {
+		val line = prefix() + "> Task :app:build"
+		assertEquals(
+			"> Task :app:build",
+			BuildOutputViewModel.formatLineForDisplay(line, showTimestamps = false, showDeltas = false),
+		)
+	}
+
+	@Test
+	fun `hiding only timestamps keeps the delta part`() {
+		val line = prefix(totalDeltaMs = 65_123, stepDeltaMs = 42) + "task output"
+		val displayed =
+			BuildOutputViewModel.formatLineForDisplay(line, showTimestamps = false, showDeltas = true)
+		assertEquals("[+01:05.123] (Δ42ms) task output", displayed)
+	}
+
+	@Test
+	fun `hiding only deltas keeps the timestamp part`() {
+		val line = prefix() + "task output"
+		val displayed =
+			BuildOutputViewModel.formatLineForDisplay(line, showTimestamps = true, showDeltas = false)
+		assertEquals(line.substringBefore("] ") + "] task output", displayed)
+	}
+
+	@Test
+	fun `prefix of builds longer than 99 minutes still strips`() {
+		val line = prefix(totalDeltaMs = 100 * 60_000L + 7_412) + "> Task :app:lint"
+		assertEquals(
+			"> Task :app:lint",
+			BuildOutputViewModel.formatLineForDisplay(line, showTimestamps = false, showDeltas = false),
+		)
+	}
+
+	@Test
+	fun `timestamp-shaped text inside a message body is preserved`() {
+		val line = prefix() + "Test run started [10:22:31.004] on device"
+		val displayed =
+			BuildOutputViewModel.formatLineForDisplay(line, showTimestamps = false, showDeltas = false)
+		assertEquals("Test run started [10:22:31.004] on device", displayed)
+	}
+
+	@Test
+	fun `unprefixed lines are returned unchanged when toggles are off`() {
+		val line = "some output containing [10:22:31.004] and (x42ms)"
+		assertSame(
+			line,
+			BuildOutputViewModel.formatLineForDisplay(line, showTimestamps = false, showDeltas = false),
+		)
+	}
+
+	@Test
+	fun `query matches the displayed text, not the hidden prefix`() {
+		val content = prefix(stepDeltaMs = 42) + "compileKotlin\n"
+		assertEquals(
+			"",
+			BuildOutputViewModel.filterLines(content, "42ms", showTimestamps = false, showDeltas = false),
+		)
+		assertEquals(
+			"compileKotlin\n",
+			BuildOutputViewModel.filterLines(content, "compile", showTimestamps = false, showDeltas = false),
+		)
+	}
+
+	private fun prefix(
+		nowMs: Long = 1_722_000_000_000L,
+		totalDeltaMs: Long = 65_123L,
+		stepDeltaMs: Long = 42L,
+	): String = BuildOutputViewModel.formatLinePrefix(nowMs, totalDeltaMs, stepDeltaMs)
 }

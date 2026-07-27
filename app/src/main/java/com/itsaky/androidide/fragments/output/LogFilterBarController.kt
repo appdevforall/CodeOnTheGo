@@ -35,7 +35,7 @@ import java.util.EnumSet
  *   metadata, like the build output, only get the text filter).
  * @param onFilterChanged Called with the enabled levels and the (untrimmed) filter text.
  */
-class LogFilterBarController @JvmOverloads constructor(
+class LogFilterBarController(
 	private val binding: LayoutLogFilterBarBinding,
 	coroutineScope: CoroutineScope,
 	showLevelChips: Boolean,

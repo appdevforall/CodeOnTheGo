@@ -62,6 +62,9 @@ class BuildOutputFragment :
 	// so a re-render never misses or duplicates a concurrently flushed batch.
 	private val editorContentMutex = Mutex()
 
+	// Bumped on every wholesale content replacement (filtered re-render or clear) so an
+	// in-flight batch flush drained before the replacement can detect it and drop itself.
+	@Volatile
 	private var editorContentGeneration = 0
 
 	override fun onViewCreated(
@@ -71,6 +74,7 @@ class BuildOutputFragment :
 		super.onViewCreated(view, savedInstanceState)
 		editor?.tag = TooltipTag.PROJECT_BUILD_OUTPUT
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_buildoutput))
+		setLineNumbersEnabled(buildOutputViewModel.showLineNumbers.value)
 		setupSearchLayout()
 
 		viewLifecycleOwner.lifecycleScope.launch {
@@ -129,12 +133,10 @@ class BuildOutputFragment :
 		searchLayout?.beginSearchMode()
 	}
 
-	/**
-	 * Dynamically toggles gutter line numbers in the Build Output editor.
-	 */
 	fun setLineNumbersEnabled(enabled: Boolean) {
 		val ed = editor ?: return
 		ed.setLineNumberEnabled(enabled)
+		// Zero the divider with the gutter, otherwise a stray 2dp rule remains.
 		ed.setDividerWidth((if (enabled) SizeUtils.dp2px(2f) else 0).toFloat())
 	}
 
@@ -173,10 +175,11 @@ class BuildOutputFragment :
 			showOptionChips = true,
 			initialText = buildOutputViewModel.filterText.value,
 			initialLevels = LogFilter.ALL_LEVELS,
-			initialLineNumbersEnabled = editor?.isLineNumberEnabled ?: true,
+			initialLineNumbersEnabled = buildOutputViewModel.showLineNumbers.value,
 			initialTimestampsEnabled = buildOutputViewModel.showTimestamps.value,
 			initialDeltasEnabled = buildOutputViewModel.showDeltas.value,
 			onLineNumbersToggled = { enabled ->
+				buildOutputViewModel.showLineNumbers.value = enabled
 				setLineNumbersEnabled(enabled)
 			},
 			onTimestampsToggled = { enabled ->
@@ -192,12 +195,13 @@ class BuildOutputFragment :
 
 	private suspend fun restoreWindowFromViewModel() {
 		val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
-		val content = BuildOutputViewModel.filterLines(
-			window,
-			buildOutputViewModel.filterText.value,
-			buildOutputViewModel.showTimestamps.value,
-			buildOutputViewModel.showDeltas.value,
-		)
+		val content =
+			BuildOutputViewModel.filterLines(
+				window,
+				buildOutputViewModel.filterText.value,
+				buildOutputViewModel.showTimestamps.value,
+				buildOutputViewModel.showDeltas.value,
+			)
 		if (content.isEmpty()) return
 		withContext(Dispatchers.Main) {
 			val editor = this@BuildOutputFragment.editor ?: return@withContext
@@ -235,10 +239,12 @@ class BuildOutputFragment :
 		// Avoid forcing the activityViewModels lazy init (which calls requireActivity())
 		// when the fragment is detached, otherwise an IllegalStateException is thrown.
 		if (!isAdded || activity == null) return
-		while (true) {
-			val result = logChannel.tryReceive()
-			if (!result.isSuccess) break
+		while (logChannel.tryReceive().isSuccess) {
+			// Discard: these lines belong to the session being cleared.
 		}
+		// Invalidate in-flight flushes before deleting content, so a batch drained from the
+		// channel earlier cannot re-seed the cleared session.
+		editorContentGeneration++
 		buildOutputViewModel.clear()
 		super.clearOutput()
 	}
@@ -291,13 +297,14 @@ class BuildOutputFragment :
 	private suspend fun processLogs() =
 		with(StringBuilder()) {
 			for (firstLine in logChannel) {
+				val generationAtDrain = editorContentGeneration
 				append(firstLine.ensureNewline())
 				logChannel.drainTo(this)
 
 				if (isNotEmpty()) {
 					val batchText = toString()
 					clear()
-					flushToEditor(batchText)
+					flushToEditor(batchText, generationAtDrain)
 				}
 			}
 		}
@@ -309,8 +316,14 @@ class BuildOutputFragment :
 	 * Uses [IDEEditor.awaitLayout] to guarantee the editor has physical dimensions (width > 0)
 	 * before attempting to insert text, preventing the Sora library's `ArrayIndexOutOfBoundsException`.
 	 */
-	private suspend fun flushToEditor(text: String) {
+	private suspend fun flushToEditor(
+		text: String,
+		generation: Int,
+	) {
 		editorContentMutex.withLock {
+			// A clear (new build) after this batch was drained invalidates it.
+			if (generation != editorContentGeneration) return
+
 			buildOutputViewModel.append(text)
 
 			// The session file always gets the full text; the editor only shows matching lines
@@ -332,16 +345,18 @@ class BuildOutputFragment :
 							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
 						}
 					if (layoutCompleted != null) {
-						appendBatch(visibleText)
-						emptyStateViewModel.setEmpty(false)
+						// clearOutput() (main thread, mutex-free) may have run since the file append.
+						if (generation == editorContentGeneration) {
+							appendBatch(visibleText)
+							emptyStateViewModel.setEmpty(false)
+						}
 					} else {
 						// Timeout: defer append until layout is ready (same as restoreWindowFromViewModel)
-						val generationAtFlush = editorContentGeneration
 						viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
 							editor?.run {
 								awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
 								editorContentMutex.withLock {
-									if (editorContentGeneration == generationAtFlush) {
+									if (editorContentGeneration == generation) {
 										appendBatch(visibleText)
 										emptyStateViewModel.setEmpty(false)
 									}
