@@ -110,8 +110,26 @@ class DaemonProcessClient(
 			}
 		return when (configureReply) {
 			is DaemonReply.Ok -> {
-				configured = true
-				DaemonReply.Ok(Unit)
+				val daemonVersion =
+					configureReply.value
+						.get("protocolVersion")
+						?.takeIf { it.isJsonPrimitive }
+						?.runCatching { asInt }
+						?.getOrNull()
+				if (daemonVersion != EXPECTED_PROTOCOL_VERSION) {
+					// Fail loudly on drift instead of silently misreading a changed wire
+					// shape. A missing field fails too: the daemon has stamped it into
+					// every configure success since the protocol existed, so absence
+					// means "not our daemon".
+					DaemonReply.Failed(
+						"Daemon protocol version mismatch: daemon reported " +
+							"${daemonVersion ?: "no protocolVersion"}, this client expects " +
+							"$EXPECTED_PROTOCOL_VERSION",
+					)
+				} else {
+					configured = true
+					DaemonReply.Ok(Unit)
+				}
 			}
 
 			is DaemonReply.BuildFailed -> {
@@ -380,6 +398,15 @@ class DaemonProcessClient(
 
 	companion object {
 		private val log = LoggerFactory.getLogger(DaemonProcessClient::class.java)
+
+		/**
+		 * The wire-protocol version this client speaks. Must match the daemon's
+		 * `DaemonResponse.PROTOCOL_VERSION` (quickbuild-daemon protocol/DaemonProtocol.kt),
+		 * which the daemon stamps into ping/configure success responses; [start] rejects a
+		 * configure reply whose version differs (or is absent) so drift fails loudly at
+		 * session start instead of surfacing as misparsed replies mid-build.
+		 */
+		const val EXPECTED_PROTOCOL_VERSION = 1
 
 		/** Compile of a large changeset can be slow on low-spec; be generous. */
 		const val DEFAULT_REQUEST_TIMEOUT_MILLIS = 300_000L
