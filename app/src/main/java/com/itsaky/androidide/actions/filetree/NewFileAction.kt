@@ -44,6 +44,7 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.showWithLongPressTooltip
 import com.unnamed.b.atv.model.TreeNode
 import jdkx.lang.model.SourceVersion
+import kotlinx.coroutines.CancellationException
 import org.greenrobot.eventbus.EventBus
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
@@ -91,6 +92,8 @@ class NewFileAction(
 		val node = data.getTreeNode()
 		try {
 			createNewFile(context, node, file, false)
+		} catch (e: CancellationException) {
+			throw e
 		} catch (e: Exception) {
 			log.error("Failed to create new file", e)
 			flashError(e.cause?.message ?: e.message)
@@ -192,6 +195,8 @@ class NewFileAction(
 			dialogInterface.dismiss()
 			try {
 				doCreateSourceFile(binding, file, context, node)
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Failed to create source file", e)
 				flashError(e.cause?.message ?: e.message)
@@ -460,6 +465,8 @@ class NewFileAction(
 
 			try {
 				createFile(node, folder, name, content)
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Failed to create file", e)
 				flashError(e.cause?.message ?: e.message)

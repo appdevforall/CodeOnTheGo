@@ -20,6 +20,7 @@ package com.itsaky.androidide.utils
 import com.itsaky.androidide.app.BaseApplication
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.IOException
 
 object ResourceUtils {
 	private val logger = LoggerFactory.getLogger(ResourceUtils::class.java)
@@ -50,7 +51,7 @@ object ResourceUtils {
 				}
 				true
 			}
-		} catch (e: Exception) {
+		} catch (e: IOException) {
 			logger.warn("Failed to copy asset '{}' to '{}'", assetPath, destPath, e)
 			false
 		}
@@ -65,7 +66,7 @@ object ResourceUtils {
 			BaseApplication.baseInstance.assets
 				.open(assetPath)
 				.use { it.readBytes().toString(Charsets.UTF_8) }
-		} catch (e: Exception) {
+		} catch (e: IOException) {
 			logger.warn("Failed to read asset '{}'", assetPath, e)
 			""
 		}

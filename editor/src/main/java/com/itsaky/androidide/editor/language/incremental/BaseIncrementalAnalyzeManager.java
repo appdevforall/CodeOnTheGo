@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Stack;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import kotlin.Pair;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
@@ -387,8 +386,11 @@ public abstract class BaseIncrementalAnalyzeManager extends
 			start.add(token);
 			end.add(token);
 			final var type = token.getType();
-			if (IntStream.of(getCodeBlockTokens()).anyMatch(t -> t == type)) {
-				st.hasBraces = true;
+			for (final var blockToken : blockTokens) {
+				if (blockToken == type) {
+					st.hasBraces = true;
+					break;
+				}
 			}
 
 			if (start.remainingCapacity() == 0 && isIncompleteTokenStart(start)) {

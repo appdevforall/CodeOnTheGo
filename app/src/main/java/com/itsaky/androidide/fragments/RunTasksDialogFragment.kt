@@ -71,6 +71,13 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 	private lateinit var run: LayoutRunTaskBinding
 	private val viewModel: RunTasksViewModel by viewModels()
 
+	private val searchRunner =
+		Runnable {
+			viewModel.query = run.searchInput.editText
+				?.text
+				?.toString() ?: ""
+		}
+
 	companion object {
 		private val log = LoggerFactory.getLogger(RunTasksDialogFragment::class.java)
 
@@ -149,13 +156,6 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 
 		run.searchInput.editText?.addTextChangedListener(
 			object : SingleTextWatcher() {
-				val searchRunner =
-					Runnable {
-						viewModel.query = run.searchInput.editText
-							?.text
-							?.toString() ?: ""
-					}
-
 				override fun afterTextChanged(s: Editable?) {
 					mainThreadHandler.removeCallbacks(searchRunner)
 					mainThreadHandler.postDelayed(searchRunner, SEARCH_DELAY)
@@ -243,6 +243,11 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 
 			run.tasks.adapter = RunTasksListAdapter(viewModel.tasks, onCheckChanged)
 		}
+	}
+
+	override fun onDestroyView() {
+		mainThreadHandler.removeCallbacks(searchRunner)
+		super.onDestroyView()
 	}
 
 	private fun getWindowHeight(): Int {

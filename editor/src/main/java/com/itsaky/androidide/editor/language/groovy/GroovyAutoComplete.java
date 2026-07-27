@@ -351,8 +351,10 @@ public class GroovyAutoComplete {
 		if (prefix == null || prefix.toString().trim().isEmpty()) {
 			return;
 		}
+		final var lowerPrefix = prefix.toLowerCase(Locale.ROOT);
+
 		for (String artifact : ANDROIDX_ARTIFACTS) {
-			if (!artifact.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))) {
+			if (!artifact.toLowerCase(Locale.ROOT).startsWith(lowerPrefix)) {
 				continue;
 			}
 			final var completionItem = createCompletionItem(artifact);
@@ -361,7 +363,7 @@ public class GroovyAutoComplete {
 		}
 
 		for (String config : CONFIGURATIONS) {
-			if (!config.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))) {
+			if (!config.toLowerCase(Locale.ROOT).startsWith(lowerPrefix)) {
 				continue;
 			}
 			final var completionItem = createCompletionItem(config);
@@ -370,7 +372,7 @@ public class GroovyAutoComplete {
 		}
 
 		for (String other : OTHERS) {
-			if (!other.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))) {
+			if (!other.toLowerCase(Locale.ROOT).startsWith(lowerPrefix)) {
 				continue;
 			}
 			final var completionItem = createCompletionItem(other);

@@ -72,15 +72,21 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			return
 		}
 
-		_isLoaded.set(true)
-
 		logger.info("Loading credential protected storage context components...")
-		application = app
 
 		if (!isCredentialStorageReady(app)) {
 			logger.error("Credential protected storage is not ready. Skipping credential protected initialization.")
 			return
 		}
+
+		if (!_isLoaded.compareAndSet(false, true)) {
+			// Another call already claimed initialization (e.g. a concurrent retry after
+			// user unlock); avoid running the rest of this method twice.
+			logger.warn("Attempt to perform multiple loads of the application. Ignoring.")
+			return
+		}
+
+		application = app
 
 		initializeWorkManagerSafely(app)
 
@@ -138,9 +144,11 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 	}
 
 	private fun initializeWorkManagerSafely(app: IDEApplication) {
-		runCatching {
+		try {
 			WorkManager.getInstance(app)
-		}.onFailure { error ->
+		} catch (error: IllegalStateException) {
+			// WorkManager.getInstance throws IllegalStateException if WorkManager is not
+			// initialized properly (e.g. WorkManagerInitializer disabled/misconfigured).
 			logger.error("Failed to get WorkManager instance after storage validation", error)
 			Sentry.captureException(error)
 		}

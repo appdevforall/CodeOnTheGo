@@ -45,7 +45,6 @@ import com.itsaky.androidide.lsp.java.visitors.FindCompletionsAt;
 import com.itsaky.androidide.lsp.models.CompletionParams;
 import com.itsaky.androidide.lsp.models.CompletionResult;
 import com.itsaky.androidide.utils.DocumentUtils;
-import com.itsaky.androidide.utils.ReflectUtils;
 import io.github.rosemoe.sora.lang.completion.snippet.CodeSnippet;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -250,33 +249,29 @@ public class CompletionProvider extends AbstractServiceProvider implements IComp
 	private CompletionResult doComplete(final Path file, final String contents, final long cursor,
 			final String partial, final boolean endsWithParen,
 			final CompileTask task, final TreePath path) {
-		final Class<? extends IJavaCompletionProvider> klass;
+		final IJavaCompletionProvider provider;
 
 		abortCompletionIfCancelled();
 		switch (path.getLeaf().getKind()) {
 		case IDENTIFIER:
-			klass = IdentifierCompletionProvider.class;
+			provider = new IdentifierCompletionProvider(file, cursor, compiler, getSettings());
 			break;
 		case MEMBER_SELECT:
-			klass = MemberSelectCompletionProvider.class;
+			provider = new MemberSelectCompletionProvider(file, cursor, compiler, getSettings());
 			break;
 		case MEMBER_REFERENCE:
-			klass = MemberReferenceCompletionProvider.class;
+			provider = new MemberReferenceCompletionProvider(file, cursor, compiler, getSettings());
 			break;
 		case SWITCH:
-			klass = SwitchConstantCompletionProvider.class;
+			provider = new SwitchConstantCompletionProvider(file, cursor, compiler, getSettings());
 			break;
 		case IMPORT:
-			klass = ImportCompletionProvider.class;
+			provider = new ImportCompletionProvider(file, cursor, compiler, getSettings());
 			break;
 		default:
-			klass = KeywordCompletionProvider.class;
+			provider = new KeywordCompletionProvider(file, cursor, compiler, getSettings());
 			break;
 		}
-
-		final IJavaCompletionProvider provider = ReflectUtils.reflect(klass)
-				.newInstance(file, cursor, compiler, getSettings())
-				.get();
 
 		if (provider instanceof ImportCompletionProvider) {
 			((ImportCompletionProvider) provider).setImportPath(

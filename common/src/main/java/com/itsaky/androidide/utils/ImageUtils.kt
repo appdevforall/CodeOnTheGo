@@ -20,9 +20,12 @@ package com.itsaky.androidide.utils
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.File
+import java.io.IOException
 import java.io.RandomAccessFile
 
+/** Bitmap/image helpers, including magic-number based image type detection. */
 object ImageUtils {
+	/** Image formats recognized by [getImageType]'s header sniffing. */
 	enum class ImageType(
 		val value: String,
 	) {
@@ -64,7 +67,7 @@ object ImageUtils {
 		val read =
 			try {
 				RandomAccessFile(file, "r").use { it.read(header) }
-			} catch (e: Exception) {
+			} catch (e: IOException) {
 				return ImageType.TYPE_UNKNOWN
 			}
 		if (read < 4) return ImageType.TYPE_UNKNOWN
@@ -78,7 +81,9 @@ object ImageUtils {
 
 			byteAt(0) == 0x47 && byteAt(1) == 0x49 && byteAt(2) == 0x46 -> ImageType.TYPE_GIF
 
-			(byteAt(0) == 0x49 && byteAt(1) == 0x49) || (byteAt(0) == 0x4D && byteAt(1) == 0x4D) -> ImageType.TYPE_TIFF
+			// TIFF magic is the byte-order marker (II/MM) followed by 42 encoded in that order.
+			(byteAt(0) == 0x49 && byteAt(1) == 0x49 && byteAt(2) == 0x2A && byteAt(3) == 0x00) ||
+				(byteAt(0) == 0x4D && byteAt(1) == 0x4D && byteAt(2) == 0x00 && byteAt(3) == 0x2A) -> ImageType.TYPE_TIFF
 
 			byteAt(0) == 0x42 && byteAt(1) == 0x4D -> ImageType.TYPE_BMP
 

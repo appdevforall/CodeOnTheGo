@@ -375,7 +375,7 @@ open class IDEEditor
 				return
 			}
 
-			log.info(String.format("Executing command '%s' for completion item.", command.title))
+			log.info("Executing command '${command.title}' for completion item.")
 			when (command.command) {
 				Command.TRIGGER_COMPLETION -> {
 					val completion = getComponent(EditorAutoCompletion::class.java)

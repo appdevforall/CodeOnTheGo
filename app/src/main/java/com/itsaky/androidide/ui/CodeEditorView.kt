@@ -82,6 +82,7 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.io.File
+import java.util.Locale
 import kotlin.math.abs
 
 private const val MIN_FONT_SIZE = EditorPreferences.FONT_SIZE_MIN
@@ -514,6 +515,7 @@ class CodeEditorView(
 				builder.appendLine()
 				builder.appendLine(
 					String.format(
+						Locale.ROOT,
 						"%-10s %-10s %-6s %-8s %-20s %s",
 						"Length",
 						"Compressed",
@@ -547,6 +549,7 @@ class CodeEditorView(
 						}
 					builder.appendLine(
 						String.format(
+							Locale.ROOT,
 							"%-10s %-10s %-6s %-8s %-20s %s",
 							sizeStr,
 							compressedStr,
@@ -567,6 +570,7 @@ class CodeEditorView(
 					}
 				builder.appendLine(
 					String.format(
+						Locale.ROOT,
 						"%-10d %-10d %-6s %s",
 						totalSize,
 						totalCompressed,

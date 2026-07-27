@@ -26,6 +26,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RENAME_DIALOG
 import com.itsaky.androidide.models.ProjectFile
 import com.itsaky.androidide.tasks.executeAsync
+import com.itsaky.androidide.tasks.executeAsyncProvideError
 import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
@@ -208,12 +209,7 @@ class RecentProjectsAdapter(
 				.setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
 				.setPositiveButton(R.string.yes) { _, _ ->
 					onRemoveProjectClick(project)
-					executeAsync({ FileUtils.delete(project.path) }) {
-						val deleted = it ?: false
-						if (!deleted) {
-							return@executeAsync
-						}
-					}
+					executeAsync { FileUtils.delete(project.path) }
 				}.create()
 
 		val contentView = dialog.window?.decorView
@@ -255,14 +251,15 @@ class RecentProjectsAdapter(
 					.trim()
 			val oldPath = project.path
 			val newPath = oldPath.substringBeforeLast("/") + "/" + newName
-			try {
-				project.rename(newPath)
+			executeAsyncProvideError({ project.rename(newPath) }) { _, error ->
+				if (error != null) {
+					logger.error("Failed to rename project", error)
+					flashError(R.string.rename_failed)
+					return@executeAsyncProvideError
+				}
 				flashSuccess(R.string.renamed)
 				onFileRenamed(RenamedFile(oldName, newName, oldPath, newPath))
 				notifyItemChanged(position)
-			} catch (e: Exception) {
-				logger.error("Failed to rename project", e)
-				flashError(R.string.rename_failed)
 			}
 		}
 

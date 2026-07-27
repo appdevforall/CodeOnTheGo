@@ -3,6 +3,7 @@ package com.itsaky.androidide.actions
 import com.itsaky.androidide.actions.observers.FileActionObserver
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.utils.FileIOUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -32,7 +33,10 @@ class FileActionManager {
 						EventBus.getDefault().post(FileCreationEvent(targetFile))
 						Result.success(targetFile)
 					}
-				} catch (e: Exception) {
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: IllegalArgumentException) {
+					// StringEscapeUtils.unescapeJava rejects malformed escape sequences this way.
 					Result.failure(e)
 				}
 

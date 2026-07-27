@@ -1,6 +1,7 @@
 package com.itsaky.androidide.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.itsaky.androidide.R
 import com.itsaky.androidide.git.core.GitCredentialsManager
@@ -51,7 +52,7 @@ class CloneRepositoryViewModelTest {
 	fun setup() {
 		// Stub the connectivity check so cloneRepository() proceeds to the
 		// GitRepositoryManager call these tests are actually exercising.
-		mockkStatic("com.itsaky.androidide.utils.ContextUtilsKt")
+		mockkStatic(Context::isNetworkConnected)
 		every { context.isNetworkConnected() } returns true
 
 		mockkObject(GitRepositoryManager)
@@ -206,6 +207,18 @@ class CloneRepositoryViewModelTest {
 				)
 			}
 		}
+
+	@Test
+	fun `cloneRepository when offline sets error state with retry`() {
+		every { context.isNetworkConnected() } returns false
+
+		viewModel.cloneRepository("https://github.com/username/newproject.git", tempFolder.newFolder("OfflineProject").absolutePath)
+
+		val state = viewModel.uiState.value
+		assertTrue(state is CloneRepoUiState.Error)
+		assertEquals(R.string.no_internet_connection, (state as CloneRepoUiState.Error).errorResId)
+		assertTrue(state.canRetry)
+	}
 
 	@Test
 	fun `cloneRepository fails if destination directory does not exist after clone`() =

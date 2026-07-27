@@ -405,6 +405,13 @@ abstract class BaseEditorActivity :
 
 	protected var optionsMenuInvalidator: Runnable? = null
 
+	// Collapses the bottom sheet after its initial onboarding "peek" on first launch.
+	private val bottomSheetOnboardingCollapseRunnable =
+		Runnable {
+			bottomSheetViewModel.setSheetState(STATE_COLLAPSED)
+			app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
+		}
+
 	private var gestureDetector: GestureDetector? = null
 	private val flingDistanceThreshold by lazy { dpToPx(100f) }
 	private val flingVelocityThreshold by lazy { dpToPx(100f) }
@@ -471,6 +478,7 @@ abstract class BaseEditorActivity :
 		runCatching { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) }
 		optionsMenuInvalidator?.also { mainThreadHandler.removeCallbacks(it) }
 		optionsMenuInvalidator = null
+		mainThreadHandler.removeCallbacks(bottomSheetOnboardingCollapseRunnable)
 
 		apkInstallationViewModel.destroy(this)
 
@@ -1438,10 +1446,8 @@ abstract class BaseEditorActivity :
 			bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_EXPANDED
 		) {
 			bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_EXPANDED)
-			mainThreadHandler.postDelayed({
-				bottomSheetViewModel.setSheetState(STATE_COLLAPSED)
-				app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
-			}, 1500)
+			mainThreadHandler.removeCallbacks(bottomSheetOnboardingCollapseRunnable)
+			mainThreadHandler.postDelayed(bottomSheetOnboardingCollapseRunnable, 1500)
 		}
 
 		binding.contentCard.progress = 0f

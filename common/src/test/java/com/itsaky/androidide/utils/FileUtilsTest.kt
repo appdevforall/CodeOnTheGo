@@ -45,6 +45,18 @@ class FileUtilsTest {
 	}
 
 	@Test
+	fun `isUtf8 accepts a file whose header ends mid multi-byte sequence`() {
+		val file = tempFolder.newFile("truncated-multibyte.bin")
+		val asciiPrefix = ByteArray(22) { 'a'.code.toByte() }
+		// Euro sign (E2 82 AC) straddles the 24-byte sample boundary: only its first
+		// two bytes fall inside the header, so bytes 0-23 end mid-sequence.
+		val euroSign = byteArrayOf(0xE2.toByte(), 0x82.toByte(), 0xAC.toByte())
+		file.writeBytes(asciiPrefix + euroSign)
+
+		assertThat(FileUtils.isUtf8(file)).isTrue()
+	}
+
+	@Test
 	fun `isUtf8 rejects a file with invalid bytes in its header`() {
 		val file = tempFolder.newFile("invalid-header.bin")
 		file.writeBytes(byteArrayOf(0xFF.toByte(), 0xFE.toByte()))
@@ -57,5 +69,19 @@ class FileUtilsTest {
 		val file = tempFolder.newFile("empty.txt")
 
 		assertThat(FileUtils.isUtf8(file)).isFalse()
+	}
+
+	@Test
+	fun `readFile2String returns file contents`() {
+		val file = tempFolder.newFile("readable.txt").apply { writeText("hello") }
+
+		assertThat(FileIOUtils.readFile2String(file)).isEqualTo("hello")
+	}
+
+	@Test
+	fun `readFile2String returns null instead of throwing when the read fails`() {
+		val directory = tempFolder.newFolder("not-a-file")
+
+		assertThat(FileIOUtils.readFile2String(directory)).isNull()
 	}
 }

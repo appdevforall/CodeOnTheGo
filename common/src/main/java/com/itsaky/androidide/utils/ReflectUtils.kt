@@ -20,6 +20,7 @@ package com.itsaky.androidide.utils
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 
 /**
  * A small fluent reflection helper, covering the subset of behavior this codebase relies on:
@@ -80,6 +81,25 @@ class ReflectUtils private constructor(
 		throw ReflectException(NoSuchFieldException("No field '$name' found on $type or its superclasses"))
 	}
 
+	/**
+	 * Best-effort mirror of blankj's final-field handling: clears the `FINAL` bit on [field] so
+	 * [Field.set] can write to it. Silently gives up if the runtime blocks this (e.g. Android's
+	 * hidden-API restrictions on newer API levels) - [Field.set] then fails with its normal
+	 * [IllegalAccessException] on a final field, same as if this method didn't exist.
+	 */
+	private fun stripFinalModifier(field: Field) {
+		if (field.modifiers and Modifier.FINAL == 0) {
+			return
+		}
+		try {
+			val modifiersField = Field::class.java.getDeclaredField("modifiers")
+			modifiersField.isAccessible = true
+			modifiersField.setInt(field, field.modifiers and Modifier.FINAL.inv())
+		} catch (e: Exception) {
+			// Not available on this runtime - fall through and let Field.set fail normally.
+		}
+	}
+
 	private fun findMethod(
 		name: String,
 		argTypes: List<Class<*>?>,
@@ -103,17 +123,19 @@ class ReflectUtils private constructor(
 		throw ReflectException(NoSuchMethodException("No constructor found on $type matching $argTypes"))
 	}
 
+	/** Instantiates via a matching constructor, wrapping the new instance. Throws [ReflectException] on failure. */
 	fun newInstance(vararg args: Any?): ReflectUtils =
 		try {
 			val constructor = findConstructor(args.map { it?.javaClass })
 			constructor.isAccessible = true
-			reflect(constructor.newInstance(*args) ?: return ReflectUtils(Any::class.java, null))
+			reflect(constructor.newInstance(*args))
 		} catch (e: ReflectException) {
 			throw e
 		} catch (e: Exception) {
 			throw ReflectException(e)
 		}
 
+	/** Reads a field by name (searching up the class hierarchy), wrapping its value. Throws [ReflectException] if not found. */
 	fun field(name: String): ReflectUtils =
 		try {
 			val f = findField(name)
@@ -125,6 +147,7 @@ class ReflectUtils private constructor(
 			throw ReflectException(e)
 		}
 
+	/** Sets a field by name and returns this wrapper for chaining. Throws [ReflectException] if not found. */
 	fun field(
 		name: String,
 		value: Any?,
@@ -132,6 +155,7 @@ class ReflectUtils private constructor(
 		try {
 			val f = findField(name)
 			f.isAccessible = true
+			stripFinalModifier(f)
 			f.set(target, value)
 			this
 		} catch (e: ReflectException) {
@@ -140,6 +164,12 @@ class ReflectUtils private constructor(
 			throw ReflectException(e)
 		}
 
+	/**
+	 * Invokes a method by name with the given arguments. Returns a wrapper around the result, or
+	 * this same wrapper (unchanged) when the method is void or returns null, so calls can be
+	 * chained regardless of return type. Throws [ReflectException] if no matching method is found
+	 * or invocation fails.
+	 */
 	fun method(
 		name: String,
 		vararg args: Any?,
@@ -159,6 +189,7 @@ class ReflectUtils private constructor(
 			throw ReflectException(e)
 		}
 
+	/** Returns the wrapped target, unchecked-cast to [T]; throws [ClassCastException] on a mismatched type parameter. */
 	@Suppress("UNCHECKED_CAST")
 	fun <T> get(): T = target as T
 }

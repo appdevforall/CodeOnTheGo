@@ -36,6 +36,7 @@ import java.io.File
 
 class GitBottomSheetViewModel(
 	private val credentialsManager: GitCredentialsManager,
+	private val isNetworkConnected: () -> Boolean = { BaseApplication.baseInstance.isNetworkConnected() },
 ) : ViewModel() {
 	private val log = LoggerFactory.getLogger(GitBottomSheetViewModel::class.java)
 
@@ -181,7 +182,7 @@ class GitBottomSheetViewModel(
 
 		viewModelScope.launch {
 			try {
-				if (!BaseApplication.baseInstance.isNetworkConnected()) {
+				if (!isNetworkConnected()) {
 					_pushState.value = PushUiState.Error(errorResId = R.string.no_internet_connection)
 					return@launch
 				}
@@ -263,7 +264,7 @@ class GitBottomSheetViewModel(
 
 		viewModelScope.launch {
 			try {
-				if (!BaseApplication.baseInstance.isNetworkConnected()) {
+				if (!isNetworkConnected()) {
 					_pullState.value = PullUiState.Error(errorResId = R.string.no_internet_connection)
 					return@launch
 				}

@@ -34,7 +34,11 @@ import android.provider.Settings
 import android.util.TypedValue
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import org.slf4j.LoggerFactory
 import kotlin.system.exitProcess
+
+@PublishedApi
+internal val logger = LoggerFactory.getLogger("ContextUtils")
 
 /**
  * Check if the given accessibility service is enabled.
@@ -48,6 +52,7 @@ inline fun <reified T> Context.isAccessibilityEnabled(): Boolean {
 		val services = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
 		return services?.contains(name.flattenToString()) ?: false
 	} catch (e: Settings.SettingNotFoundException) {
+		logger.warn("Failed to check if accessibility service is enabled", e)
 		return false
 	}
 }
@@ -120,6 +125,7 @@ fun Context.getAppVersionCode(): Int =
 	try {
 		packageManager.getPackageInfo(packageName, 0).versionCode
 	} catch (e: PackageManager.NameNotFoundException) {
+		logger.warn("Failed to get app version code", e)
 		-1
 	}
 

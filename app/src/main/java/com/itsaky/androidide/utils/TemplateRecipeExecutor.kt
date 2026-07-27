@@ -65,8 +65,10 @@ class TemplateRecipeExecutor(
 		path: String,
 		dest: File,
 	) {
-		openAsset(path).use {
-			it.copyTo(dest.outputStream())
+		openAsset(path).use { input ->
+			dest.outputStream().use { output ->
+				input.copyTo(output)
+			}
 		}
 	}
 

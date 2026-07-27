@@ -56,8 +56,12 @@ public class VectorMasterDrawable extends Drawable {
 	}
 
 	@NonNull
-	public static VectorMasterDrawable fromXMLFile(File file) throws XmlPullParserException {
+	public static VectorMasterDrawable fromXMLFile(File file)
+			throws XmlPullParserException, IOException {
 		final var source = FileIOUtils.readFile2String(file);
+		if (source == null) {
+			throw new IOException("Failed to read vector file: " + file);
+		}
 		return VectorMasterDrawable.fromXML(source);
 	}
 

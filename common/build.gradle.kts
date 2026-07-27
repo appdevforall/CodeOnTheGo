@@ -45,6 +45,7 @@ dependencies {
 	testImplementation(projects.testing.common)
 	testImplementation(libs.tests.kotlinx.coroutines)
 	testImplementation(libs.tests.google.truth)
+	testImplementation(libs.tests.mockk)
 	androidTestImplementation(projects.testing.android)
 
 	// brotli4j

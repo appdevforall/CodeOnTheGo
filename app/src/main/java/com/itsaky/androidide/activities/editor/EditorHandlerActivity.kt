@@ -38,6 +38,7 @@ import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.tabs.TabLayout
 import com.google.gson.Gson
+import com.google.gson.JsonSyntaxException
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
@@ -100,6 +101,7 @@ import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.forEachViewRecursively
 import com.itsaky.androidide.utils.hasVisibleDialog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -429,7 +431,9 @@ open class EditorHandlerActivity :
 
 				// Clear the preference so it's only loaded once per cold restore
 				withContext(Dispatchers.IO) { prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null) }
-			} catch (err: Throwable) {
+			} catch (err: CancellationException) {
+				throw err
+			} catch (err: JsonSyntaxException) {
 				log.error("Failed to reopen recently opened files", err)
 			}
 		}
@@ -466,7 +470,9 @@ open class EditorHandlerActivity :
 				}
 
 				withContext(Dispatchers.IO) { prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, null) }
-			} catch (e: Exception) {
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: JsonSyntaxException) {
 				Log.e("EditorHandlerActivity", "Failed to restore plugin tabs", e)
 			}
 		}
