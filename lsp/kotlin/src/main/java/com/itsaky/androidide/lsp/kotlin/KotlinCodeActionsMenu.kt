@@ -12,7 +12,7 @@ import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
 import com.itsaky.androidide.lsp.kotlin.actions.SurroundWithTryCatchAction
 
 object KotlinCodeActionsMenu : IActionsMenuProvider {
-	private const val KT_LANG = "kt"
+	internal const val KT_LANG = "kt"
 	private val KT_EXTS = listOf("kt", "kts")
 	private const val KT_LINE_COMMENT_TOKEN = "//"
 

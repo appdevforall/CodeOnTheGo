@@ -23,10 +23,14 @@ import kotlinx.coroutines.withContext
 import java.nio.file.Path
 
 class AddImportAction : BaseKotlinCodeAction() {
-	override var titleTextRes: Int = R.string.action_import_classes
-	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_ADD_IMPORT
+	companion object {
+		const val ID = "ide.editor.lsp.kt.diagnostics.addImport"
+	}
 
-	override val id: String = "ide.editor.lsp.kt.diagnostics.addImport"
+	override var titleTextRes: Int = R.string.action_import_classes
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPORT_CLASSES
+
+	override val id: String = ID
 	override var label: String = ""
 
 	override fun prepare(data: ActionData) {

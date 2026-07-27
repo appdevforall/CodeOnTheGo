@@ -37,10 +37,15 @@ class CommentLineAction(
 	private val lineCommentToken: String,
 	tag: String,
 ) : EditorActionItem {
+	companion object {
+		/** The id is per-language, since one instance is registered per language. */
+		fun idFor(lang: String) = "ide.editor.lsp.$lang.commentLine"
+	}
+
 	constructor(lang: String, extension: String, lineCommentToken: String, tag: String) :
 		this(lang, listOf(extension), lineCommentToken, tag)
 
-	override val id: String = "ide.editor.lsp.$lang.commentLine"
+	override val id: String = idFor(lang)
 	override var label: String = ""
 
 	override var visible = true

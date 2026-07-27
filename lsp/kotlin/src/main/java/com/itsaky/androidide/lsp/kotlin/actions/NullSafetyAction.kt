@@ -32,8 +32,12 @@ import kotlinx.coroutines.withContext
  * are out of scope here.
  */
 class NullSafetyAction : BaseKotlinCodeAction() {
+	companion object {
+		const val ID = "ide.editor.lsp.kt.diagnostics.nullSafety"
+	}
+
 	override var titleTextRes: Int = R.string.action_null_safety_fixes
-	override val id: String = "ide.editor.lsp.kt.diagnostics.nullSafety"
+	override val id: String = ID
 	override var label: String = ""
 	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX
 

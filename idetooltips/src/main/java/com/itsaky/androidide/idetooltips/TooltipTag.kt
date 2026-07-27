@@ -84,7 +84,7 @@ object TooltipTag {
 	// so the tooltip can describe the Kotlin behaviour (see ADFA-4730).
 	const val EDITOR_CODE_ACTIONS_KT_COMMENT = "editor.codeactions.kotlin.comment"
 	const val EDITOR_CODE_ACTIONS_KT_UNCOMMENT = "editor.codeactions.kotlin.uncomment"
-	const val EDITOR_CODE_ACTIONS_KT_ADD_IMPORT = "editor.codeactions.kotlin.addimport"
+	const val EDITOR_CODE_ACTIONS_KT_IMPORT_CLASSES = "editor.codeactions.kotlin.importclasses"
 	const val EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS = "editor.codeactions.kotlin.organizeimports"
 	const val EDITOR_CODE_ACTIONS_KT_OVERRIDE_SUPER = "editor.codeactions.kotlin.overridesuper"
 	const val EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX = "editor.codeactions.kotlin.nullsafetyfix"
