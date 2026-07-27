@@ -136,7 +136,7 @@ object FileIOUtils {
 			file.writeText(content)
 			true
 		} catch (e: IOException) {
-			logger.warn("Failed to write file: {}", file, e)
+			logger.warn("Failed to write file (error: {})", e.javaClass.simpleName)
 			false
 		}
 }

@@ -88,41 +88,51 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 		application = app
 
-		initializeWorkManagerSafely(app)
+		try {
+			initializeWorkManagerSafely(app)
 
-		Environment.init(app)
+			Environment.init(app)
 
-		FeatureFlags.initialize()
-		LeakCanaryConfig.applyFromFeatureFlags()
+			FeatureFlags.initialize()
+			LeakCanaryConfig.applyFromFeatureFlags()
 
-		EventBus.getDefault().register(this)
-
-		// Load termux application
-		TermuxApplicationLoader.load(app)
-
-		if (DevOpsPreferences.dumpLogs) {
-			startLogcatReader()
-		}
-
-		withContext(Dispatchers.Main) {
-			AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
-
-			if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
-				DynamicColors.applyToActivitiesIfAvailable(app)
+			if (!EventBus.getDefault().isRegistered(this)) {
+				EventBus.getDefault().register(this)
 			}
-		}
 
-		initializePluginSystem()
-		installPluginCrashLooperGuard()
+			// Load termux application
+			TermuxApplicationLoader.load(app)
 
-		app.coroutineScope.launch(Dispatchers.IO) {
-			// color schemes are stored in files
-			// initialize scheme provider on the IO dispatcher
-			IDEColorSchemeProvider.init()
-		}
+			if (DevOpsPreferences.dumpLogs) {
+				startLogcatReader()
+			}
 
-		if (!VMUtils.isJvm || VMUtils.isInstrumentedTest) {
-			ToolsManager.init(app, null)
+			withContext(Dispatchers.Main) {
+				AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+
+				if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
+					DynamicColors.applyToActivitiesIfAvailable(app)
+				}
+			}
+
+			initializePluginSystem()
+			installPluginCrashLooperGuard()
+
+			app.coroutineScope.launch(Dispatchers.IO) {
+				// color schemes are stored in files
+				// initialize scheme provider on the IO dispatcher
+				IDEColorSchemeProvider.init()
+			}
+
+			if (!VMUtils.isJvm || VMUtils.isInstrumentedTest) {
+				ToolsManager.init(app, null)
+			}
+		} catch (e: Throwable) {
+			// Un-claim the load on failure/cancellation so a later retry (e.g. after user
+			// unlock) can attempt initialization again instead of being stuck "loaded" with
+			// some components never actually initialized.
+			_isLoaded.set(false)
+			throw e
 		}
 	}
 
