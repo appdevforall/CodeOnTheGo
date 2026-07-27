@@ -7,6 +7,7 @@ import org.appdevforall.cotg.quickbuild.data.AssetPackager
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
+import org.appdevforall.cotg.quickbuild.data.RelinkInputs
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.BuildRequest
 import org.appdevforall.cotg.quickbuild.domain.BuildRoute
@@ -362,10 +363,12 @@ class QuickBuildExecutorImpl(
 		when (
 			val reply =
 				daemon.relink(
-					layout.resDirs(),
-					testAppManifest ?: layout.manifest(),
-					layout.stableIdsFile(),
-					layout.libraryResourceFlats(),
+					RelinkInputs(
+						resDirs = layout.resDirs(),
+						manifest = testAppManifest ?: layout.manifest(),
+						stableIdsFile = layout.stableIdsFile(),
+						libraryResources = layout.libraryResourceFlats(),
+					),
 				)
 		) {
 			is DaemonReply.Ok -> {

@@ -6,6 +6,7 @@ import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.DexOutput
 import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
 import org.appdevforall.cotg.quickbuild.data.QuickBuildPaths
+import org.appdevforall.cotg.quickbuild.data.RelinkInputs
 import org.appdevforall.cotg.quickbuild.data.RelinkOutput
 import org.appdevforall.cotg.quickbuild.domain.GenerationStore
 import java.io.File
@@ -18,16 +19,8 @@ class FakeDaemon : QuickBuildDaemon {
 	/** Removed-sources arg of each `compile`, recorded separately for Bug-12 assertions. */
 	val compileRemovedFiles = mutableListOf<List<File>>()
 	val dexCalls = mutableListOf<List<File>>()
-	val relinkCalls = mutableListOf<RelinkCall>()
+	val relinkCalls = mutableListOf<RelinkInputs>()
 	var shutdownCount = 0
-
-	/** One recorded `relink` call - a data class (not a Triple) so it can carry libraryResources too. */
-	data class RelinkCall(
-		val resDirs: List<File>,
-		val manifest: File,
-		val stableIdsFile: File?,
-		val libraryResources: List<File>,
-	)
 
 	var startReply: DaemonReply<Unit> = DaemonReply.Ok(Unit)
 	var compileReply: DaemonReply<CompileOutput> =
@@ -61,13 +54,8 @@ class FakeDaemon : QuickBuildDaemon {
 		return dexReply
 	}
 
-	override suspend fun relink(
-		resDirs: List<File>,
-		manifest: File,
-		stableIdsFile: File?,
-		libraryResources: List<File>,
-	): DaemonReply<RelinkOutput> {
-		relinkCalls += RelinkCall(resDirs, manifest, stableIdsFile, libraryResources)
+	override suspend fun relink(inputs: RelinkInputs): DaemonReply<RelinkOutput> {
+		relinkCalls += inputs
 		return relinkReply
 	}
 

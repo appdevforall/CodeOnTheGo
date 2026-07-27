@@ -188,19 +188,14 @@ class DaemonProcessClient(
 		}
 	}
 
-	override suspend fun relink(
-		resDirs: List<File>,
-		manifest: File,
-		stableIdsFile: File?,
-		libraryResources: List<File>,
-	): DaemonReply<RelinkOutput> {
+	override suspend fun relink(inputs: RelinkInputs): DaemonReply<RelinkOutput> {
 		val reply =
 			request("relink") {
-				add("resDirs", resDirs.toJsonPaths())
-				addProperty("manifest", manifest.absolutePath)
-				stableIdsFile?.let { addProperty("stableIds", it.absolutePath) }
-				if (libraryResources.isNotEmpty()) {
-					add("libraryResources", libraryResources.toJsonPaths())
+				add("resDirs", inputs.resDirs.toJsonPaths())
+				addProperty("manifest", inputs.manifest.absolutePath)
+				inputs.stableIdsFile?.let { addProperty("stableIds", it.absolutePath) }
+				if (inputs.libraryResources.isNotEmpty()) {
+					add("libraryResources", inputs.libraryResources.toJsonPaths())
 				}
 			}
 		val response = (reply as? DaemonReply.Ok)?.value

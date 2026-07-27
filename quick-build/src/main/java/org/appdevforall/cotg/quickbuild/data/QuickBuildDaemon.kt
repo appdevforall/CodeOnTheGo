@@ -43,32 +43,14 @@ interface QuickBuildDaemon {
 	suspend fun dex(classesDirs: List<File>): DaemonReply<DexOutput>
 
 	/**
-	 * aapt2 relink of the project resources.
+	 * aapt2 relink of the project resources; see [RelinkInputs] for the input contract.
 	 *
-	 * @param stableIdsFile AGP's stable-ids mapping from the setup build's real resource
-	 *   processing ([QuickBuildProjectLayout.stableIdsFile]), if any. Pins the relink's
-	 *   resource ids to the baseline's so a relink of the project's own res/ (a strict
-	 *   subset of what the real build merged in) can't shift a resource's numeric id out
-	 *   from under the manifest the setup build already compiled (ADFA-4128 Bug 6). Null
-	 *   is a supported, backward-compatible fallback to the pre-fix (unstable) relink.
-	 * @param libraryResources pre-compiled `.flat` resource units from the setup build's
-	 *   real AGP resource processing ([QuickBuildProjectLayout.libraryResourceFlats]) -
-	 *   the project's own merged_res closure plus every resource-providing AAR's
-	 *   compiled file resources. Lets a relink resolve a resource a dependency AAR
-	 *   provides (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`), which the
-	 *   project's own res/ never declares (ADFA-4128 Bug 8). Empty is a supported,
-	 *   backward-compatible fallback to the pre-fix behavior (project res/ only).
 	 * @return the full relinked resource apk (resources.arsc plus every compiled
 	 *   resource file - layouts, drawable XMLs, adaptive-icon XMLs, ...), not a bare
 	 *   extracted table. A bare table cannot back a file-typed resource; see
 	 *   `Aapt2Link`'s KDoc (ADFA-4128 Bug 5).
 	 */
-	suspend fun relink(
-		resDirs: List<File>,
-		manifest: File,
-		stableIdsFile: File? = null,
-		libraryResources: List<File> = emptyList(),
-	): DaemonReply<RelinkOutput>
+	suspend fun relink(inputs: RelinkInputs): DaemonReply<RelinkOutput>
 
 	/** Liveness probe; false when the daemon is missing or unresponsive. */
 	suspend fun ping(): Boolean
@@ -110,6 +92,36 @@ data class DexOutput(
 	val dexFile: File,
 	val stripMillis: Long? = null,
 	val d8Millis: Long? = null,
+)
+
+/**
+ * The `relink` op's inputs, bundled into one value so the executor -> facade -> client
+ * chain stops accreting positional parameters (07-23 ARCH-REVIEW). Pure carrier: the
+ * wire format is unchanged - [DaemonProcessClient] still serializes each field as its
+ * own protocol key.
+ *
+ * @property resDirs the project's own `res/` directories to recompile + relink.
+ * @property manifest the manifest to link against - the setup build's TRANSFORMED
+ *   manifest when available, else the project's raw one.
+ * @property stableIdsFile AGP's stable-ids mapping from the setup build's real resource
+ *   processing ([QuickBuildProjectLayout.stableIdsFile]), if any. Pins the relink's
+ *   resource ids to the baseline's so a relink of the project's own res/ (a strict
+ *   subset of what the real build merged in) can't shift a resource's numeric id out
+ *   from under the manifest the setup build already compiled (ADFA-4128 Bug 6). Null
+ *   is a supported, backward-compatible fallback to the pre-fix (unstable) relink.
+ * @property libraryResources pre-compiled `.flat` resource units from the setup build's
+ *   real AGP resource processing ([QuickBuildProjectLayout.libraryResourceFlats]) -
+ *   the project's own merged_res closure plus every resource-providing AAR's
+ *   compiled file resources. Lets a relink resolve a resource a dependency AAR
+ *   provides (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`), which the
+ *   project's own res/ never declares (ADFA-4128 Bug 8). Empty is a supported,
+ *   backward-compatible fallback to the pre-fix behavior (project res/ only).
+ */
+data class RelinkInputs(
+	val resDirs: List<File>,
+	val manifest: File,
+	val stableIdsFile: File? = null,
+	val libraryResources: List<File> = emptyList(),
 )
 
 /**
