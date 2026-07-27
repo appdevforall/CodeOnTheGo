@@ -29,8 +29,8 @@ import org.jetbrains.kotlin.psi.KtFile
 import java.nio.file.Path
 
 class ImplementMembersAction : BaseKotlinCodeAction() {
-	override var titleTextRes: Int = R.string.action_override_superclass_methods
-	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_OVERRIDE_SUPER
+	override var titleTextRes: Int = R.string.action_implement_members
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_OVERRIDE_SUPER
 	override val id: String = "ide.editor.lsp.kt.implementMembers"
 	override var label: String = ""
 
