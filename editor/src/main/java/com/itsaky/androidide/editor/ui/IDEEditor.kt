@@ -979,7 +979,7 @@ open class IDEEditor
 			EventBus.getDefault().register(this)
 		}
 
-		// --- Inline suggestions (ghost text) ------------------------------------
+		// Inline suggestions (ghost text)
 
 		/** [GhostTextRenderer] extends [TracingEditorRenderer], so this keeps the block-line
 		 * data-race guards while also drawing inline ghost text. */
