@@ -24,7 +24,7 @@ sequenceDiagram
         S->>T: payload fds over uid-checked AIDL
         Note over T: swap InMemoryDexClassLoader +<br/>resource table, recreate activities<br/>(service/provider/Application edit -> persist + process restart)
     else full-Gradle route (manifest, deps, native, processor input)
-        O->>O: rebaseline: real setup build;<br/>reinstall only if app bytes changed
+        O->>O: rebaseline: real setup build<br/>(reinstall only if app bytes changed)
     end
 ```
 
