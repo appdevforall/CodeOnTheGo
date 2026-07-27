@@ -36,197 +36,198 @@ import kotlin.math.min
  *
  * @author Akash Yadav
  */
-class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(editor) {
+class EditorCompletionWindow(
+	val editor: IDEEditor,
+) : EditorAutoCompletion(editor) {
+	private var listView: ListView? = null
+	private val items: MutableList<CompletionItem> = mutableListOf()
 
-    private var listView: ListView? = null
-    private val items: MutableList<CompletionItem> = mutableListOf()
+	/**
+	 * A scheduled-but-not-yet-started completion request, kept so a newer keystroke can cancel it.
+	 * See [requireCompletion].
+	 */
+	private var pendingCompletion: Runnable? = null
 
-    /**
-     * A scheduled-but-not-yet-started completion request, kept so a newer keystroke can cancel it.
-     * See [requireCompletion].
-     */
-    private var pendingCompletion: Runnable? = null
+	companion object {
+		private val log = LoggerFactory.getLogger(EditorCompletionWindow::class.java)
 
-    companion object {
+		/** Quiet period for coalescing a keystroke burst: analysis runs only after typing pauses this long. */
+		private const val COMPLETION_DEBOUNCE_MS = 80L
+	}
 
-        private val log = LoggerFactory.getLogger(EditorCompletionWindow::class.java)
+	init {
+		setLayout(EditorCompletionLayout())
+		setEnabledAnimation(true)
+	}
 
-        /** Quiet period for coalescing a keystroke burst: analysis runs only after typing pauses this long. */
-        private const val COMPLETION_DEBOUNCE_MS = 80L
-    }
+	override fun isShowing(): Boolean {
+		@Suppress("UNNECESSARY_SAFE_CALL", "USELESS_ELVIS")
+		return popup?.isShowing ?: false
+	}
 
-    init {
-        setLayout(EditorCompletionLayout())
-        setEnabledAnimation(true)
-    }
+	override fun setLayout(layout: CompletionLayout) {
+		super.setLayout(layout)
+		(layout.completionList as? ListView)?.let {
+			listView = it
+			it.adapter = this.adapter
+			it.setOnItemLongClickListener { _, view, position, _ ->
 
-    override fun isShowing(): Boolean {
-        @Suppress("UNNECESSARY_SAFE_CALL", "USELESS_ELVIS")
-        return popup?.isShowing ?: false
-    }
+				val category =
+					when (editor.file?.extension) {
+						"java" -> TooltipCategory.CATEGORY_JAVA
+						"kt" -> TooltipCategory.CATEGORY_KOTLIN
+						"xml" -> TooltipCategory.CATEGORY_XML
+						else -> TooltipCategory.CATEGORY_IDE
+					}
 
-    override fun setLayout(layout: CompletionLayout) {
-        super.setLayout(layout)
-        (layout.completionList as? ListView)?.let {
-            listView = it
-            it.adapter = this.adapter
-            it.setOnItemLongClickListener { _, view, position, _ ->
+				val completionItem =
+					items[position] as? com.itsaky.androidide.lsp.models.CompletionItem
+				val completionData = completionItem?.data
 
-                val category = when (editor.file?.extension) {
-                    "java" -> TooltipCategory.CATEGORY_JAVA
-                    "kt" -> TooltipCategory.CATEGORY_KOTLIN
-                    "xml" -> TooltipCategory.CATEGORY_XML
-                    else -> TooltipCategory.CATEGORY_IDE
-                }
+				val tag =
+					if (completionData == null) {
+						val label = completionItem?.ideLabel ?: ""
+						val attrName = if (label.contains(':')) label.substringAfterLast(':') else label
+						attrName.ifEmpty { null }
+					} else {
+						DocumentationReferenceProvider.getTag(completionData)
+					}
 
-                val completionItem =
-                    items[position] as? com.itsaky.androidide.lsp.models.CompletionItem
-                val completionData = completionItem?.data
+				// Dismiss the completion window before showing tooltip
+				hide()
 
-                val tag = if (completionData == null) {
-                    val label = completionItem?.ideLabel ?: ""
-                    val attrName = if (label.contains(':')) label.substringAfterLast(':') else label
-                    attrName.ifEmpty { null }
-                } else {
-                    DocumentationReferenceProvider.getTag(completionData)
-                }
+				Log.d("EditorCompletionWindow", "Showing tooltip for tag: $tag category: $category")
+				TooltipManager.showTooltip(
+					context = editor.context,
+					anchorView = editor,
+					category = category,
+					tag = tag ?: "",
+				)
+				true
+			}
+		}
+	}
 
-                // Dismiss the completion window before showing tooltip
-                hide()
+	override fun select(pos: Int): Boolean {
+		if (pos > adapter!!.count) {
+			return false
+		}
+		return try {
+			super.select(pos)
+		} catch (e: Throwable) {
+			log.warn("Unable to select completion item at {}", pos, e)
+			false
+		}
+	}
 
-                Log.d("EditorCompletionWindow", "Showing tooltip for tag: $tag category: $category")
-                TooltipManager.showTooltip(
-                    context = editor.context,
-                    anchorView = editor,
-                    category = category,
-                    tag = tag ?: "",
-                )
-                true
-            }
-        }
-    }
+	override fun select(): Boolean =
+		try {
+			super.select()
+		} catch (e: Throwable) {
+			log.warn("Unable to select completion item", e)
+			false
+		}
 
-    override fun select(pos: Int): Boolean {
-        if (pos > adapter!!.count) {
-            return false
-        }
-        return try {
-            super.select(pos)
-        } catch (e: Throwable) {
-            log.warn("Unable to select completion item at {}", pos, e)
-            false
-        }
-    }
+	override fun cancelCompletion() {
+		// Drop any request that was scheduled but hasn't started yet.
+		pendingCompletion?.let { editor.handler.removeCallbacks(it) }
+		pendingCompletion = null
+		if (completionThread != null) {
+			ProgressManager.instance.cancel(completionThread)
+		}
+		super.cancelCompletion()
+	}
 
-    override fun select(): Boolean {
-        return try {
-            super.select()
-        } catch (e: Throwable) {
-            log.warn("Unable to select completion item", e)
-            false
-        }
-    }
+	/** Whether completion may run now; hides the window when the cursor is selected or otherwise not applicable. */
+	private fun canStartCompletion(): Boolean {
+		if (cancelShowUp || !isEnabled || !editor.isAttachedToWindow) {
+			return false
+		}
+		if (editor.text.cursor.isSelected || checkNoCompletion()) {
+			hide()
+			return false
+		}
+		return true
+	}
 
-    override fun cancelCompletion() {
-        // Drop any request that was scheduled but hasn't started yet.
-        pendingCompletion?.let { editor.handler.removeCallbacks(it) }
-        pendingCompletion = null
-        if (completionThread != null) {
-            ProgressManager.instance.cancel(completionThread)
-        }
-        super.cancelCompletion()
-    }
+	/**
+	 * Coalesces a keystroke burst into one completion for the latest cursor position, keeping at most one
+	 * analysis in flight. This prevents the CompletionThread/allocation pile-up that saturated the heap and
+	 * froze the editor during fast typing.
+	 */
+	override fun requireCompletion() {
+		if (!canStartCompletion()) {
+			return
+		}
 
-    /** Whether completion may run now; hides the window when the cursor is selected or otherwise not applicable. */
-    private fun canStartCompletion(): Boolean {
-        if (cancelShowUp || !isEnabled || !editor.isAttachedToWindow) {
-            return false
-        }
-        if (editor.text.cursor.isSelected || checkNoCompletion()) {
-            hide()
-            return false
-        }
-        return true
-    }
+		// cancelCompletion() clears any in-flight and pending request, so we then schedule exactly one.
+		cancelCompletion()
 
-    /**
-     * Coalesces a keystroke burst into one completion for the latest cursor position, keeping at most one
-     * analysis in flight. This prevents the CompletionThread/allocation pile-up that saturated the heap and
-     * froze the editor during fast typing.
-     */
-    override fun requireCompletion() {
-        if (!canStartCompletion()) {
-            return
-        }
+		val request = Runnable { startCompletion() }
+		pendingCompletion = request
+		editor.handler.postDelayed(request, COMPLETION_DEBOUNCE_MS)
+	}
 
-        // cancelCompletion() clears any in-flight and pending request, so we then schedule exactly one.
-        cancelCompletion()
+	/** Runs on the UI thread. */
+	private fun startCompletion() {
+		pendingCompletion = null
 
-        val request = Runnable { startCompletion() }
-        pendingCompletion = request
-        editor.handler.postDelayed(request, COMPLETION_DEBOUNCE_MS)
-    }
+		// Editor state may have changed during the debounce delay; re-check the guards.
+		if (!canStartCompletion()) {
+			return
+		}
 
-    /** Runs on the UI thread. */
-    private fun startCompletion() {
-        pendingCompletion = null
+		requestTime = System.nanoTime()
+		currentSelection = -1
 
-        // Editor state may have changed during the debounce delay; re-check the guards.
-        if (!canStartCompletion()) {
-            return
-        }
+		publisher =
+			IDECompletionPublisher(
+				editor.handler,
+				{
+					val items = publisher.items
 
-        requestTime = System.nanoTime()
-        currentSelection = -1
+					this.items.apply {
+						clear()
+						addAll(items)
+					}
 
-        publisher =
-            IDECompletionPublisher(
-                editor.handler,
-                {
-                    val items = publisher.items
+					if (lastAttachedItems == null || lastAttachedItems.get() != items) {
+						adapter.attachValues(this, items)
+						adapter.notifyDataSetInvalidated()
+						lastAttachedItems = WeakReference(items)
+					} else {
+						adapter.notifyDataSetChanged()
+					}
 
-                    this.items.apply {
-                        clear()
-                        addAll(items)
-                    }
+					val newHeight = (adapter!!.itemHeight * adapter!!.count).toFloat()
+					if (newHeight == 0F) {
+						hide()
+					}
 
-                    if (lastAttachedItems == null || lastAttachedItems.get() != items) {
-                        adapter.attachValues(this, items)
-                        adapter.notifyDataSetInvalidated()
-                        lastAttachedItems = WeakReference(items)
-                    } else {
-                        adapter.notifyDataSetChanged()
-                    }
+					editor
+						.getComponent(EditorAutoCompletion::class.java)
+						.updateCompletionWindowPosition()
+					setSize(width, min(newHeight, maxHeight.toFloat()).toInt())
+					if (!isShowing) {
+						show()
+					}
 
-                    val newHeight = (adapter!!.itemHeight * adapter!!.count).toFloat()
-                    if (newHeight == 0F) {
-                        hide()
-                    }
+					if (adapter!!.count >= 1 &&
+						KeyboardUtils.isHardKeyboardConnected(context)
+					) {
+						currentSelection = 0
+					}
+				},
+				editor.editorLanguage.interruptionLevel,
+			)
 
-                    editor.getComponent(EditorAutoCompletion::class.java)
-                        .updateCompletionWindowPosition()
-                    setSize(width, min(newHeight, maxHeight.toFloat()).toInt())
-                    if (!isShowing) {
-                        show()
-                    }
+		publisher.setUpdateThreshold(1)
 
-                    if (adapter!!.count >= 1
-                        && KeyboardUtils.isHardKeyboardConnected(context)
-                    ) {
-                        currentSelection = 0
-                    }
-                },
-                editor.editorLanguage.interruptionLevel
-            )
+		completionThread = CompletionThread(requestTime, publisher)
+		completionThread.name = "CompletionThread-$requestTime"
 
-        publisher.setUpdateThreshold(1)
+		setLoading(true)
 
-        completionThread = CompletionThread(requestTime, publisher)
-        completionThread.name = "CompletionThread-$requestTime"
-
-        setLoading(true)
-
-        completionThread.start()
-    }
-
+		completionThread.start()
+	}
 }

@@ -18,7 +18,6 @@ import org.jetbrains.kotlin.com.intellij.openapi.progress.util.AbstractProgressI
 internal class CancelCheckerProgressIndicator(
 	private val checker: ICancelChecker,
 ) : AbstractProgressIndicatorBase() {
-
 	override fun isCanceled(): Boolean = super.isCanceled() || checker.isCancelled()
 
 	override fun checkCanceled() {

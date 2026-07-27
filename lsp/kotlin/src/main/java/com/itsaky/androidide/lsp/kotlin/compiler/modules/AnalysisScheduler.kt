@@ -21,7 +21,9 @@ import kotlin.concurrent.withLock
  * [DIAGNOSTICS]/[INDEXING], whose preempted work is re-queued — there same-priority preemption would
  * livelock, two contenders endlessly re-queuing and re-preempting each other.
  */
-internal enum class AnalysisPriority(val supersedesSamePriority: Boolean) {
+internal enum class AnalysisPriority(
+	val supersedesSamePriority: Boolean,
+) {
 	INDEXING(supersedesSamePriority = false),
 	DIAGNOSTICS(supersedesSamePriority = false),
 	INTERACTIVE(supersedesSamePriority = true),
@@ -33,8 +35,7 @@ internal enum class AnalysisPriority(val supersedesSamePriority: Boolean) {
  * cleanly through the existing cancellation-aware `catch` blocks; callers that want the preempted work
  * to run later catch this specific type and re-schedule it.
  */
-internal class AnalysisPreemptedException :
-	CancellationException("analysis preempted by a higher-priority request")
+internal class AnalysisPreemptedException : CancellationException("analysis preempted by a higher-priority request")
 
 /**
  * An [ICancelChecker] that adds a cooperative *preemption* signal on top of an existing [delegate]
@@ -50,7 +51,6 @@ internal class AnalysisPreemptedException :
 internal class ScheduledCancelChecker(
 	private val delegate: ICancelChecker,
 ) : ICancelChecker {
-
 	@Volatile
 	private var preempted = false
 
@@ -112,7 +112,6 @@ internal class ScheduledCancelChecker(
  * Access it through [withAnalysisLock] / [analyzeMaybeDangling] rather than directly.
  */
 internal object AnalysisScheduler {
-
 	/** Upper bound on how long a queued requester waits before re-checking its cancellation. */
 	private const val WAIT_POLL_MILLIS = 25L
 
@@ -139,7 +138,11 @@ internal object AnalysisScheduler {
 	 * this completion. This stops superseded completions from piling up holding heavy state (KtFile copies,
 	 * symbol lists), which on-device saturated the heap and triggered multi-second GC stalls.
 	 */
-	fun acquire(priority: AnalysisPriority, cancelChecker: ICancelChecker, onPreempt: () -> Unit) {
+	fun acquire(
+		priority: AnalysisPriority,
+		cancelChecker: ICancelChecker,
+		onPreempt: () -> Unit,
+	) {
 		mutex.withLock {
 			val me = Thread.currentThread()
 			if (holderThread === me) {
@@ -156,8 +159,10 @@ internal object AnalysisScheduler {
 
 					val hp = holderPriority
 					if (holderThread != null && hp != null && !holderPreempted &&
-						(hp.ordinal < priority.ordinal ||
-							(hp == priority && priority.supersedesSamePriority))
+						(
+							hp.ordinal < priority.ordinal ||
+								(hp == priority && priority.supersedesSamePriority)
+						)
 					) {
 						// Signal the holder to bail (once): either it is strictly lower priority, or a
 						// newer same-priority request supersedes it (completion only).

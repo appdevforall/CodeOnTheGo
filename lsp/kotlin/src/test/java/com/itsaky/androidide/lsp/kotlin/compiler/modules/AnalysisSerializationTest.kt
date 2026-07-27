@@ -4,11 +4,11 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.progress.ICancelChecker
-import org.jetbrains.kotlin.com.intellij.openapi.progress.ProgressManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.jetbrains.kotlin.com.intellij.openapi.progress.ProgressManager
 import org.junit.Test
 import java.util.Collections
 import java.util.concurrent.CancellationException
@@ -38,96 +38,99 @@ import kotlin.math.max
  * preemption, and reentrancy behaviour.
  */
 class AnalysisSerializationTest : KtLspTest() {
-
 	@Test
-	fun `concurrent analyzeMaybeDangling never throws lifetime exception`(): Unit = runBlocking {
-		val files = (0 until 8).map { i ->
-			createSourceFile(
-				"Concurrent$i.kt",
-				"""
-				class Klass$i {
-					fun member$i(p: Int): Int = p + $i
-					val prop$i: String = "v$i"
+	fun `concurrent analyzeMaybeDangling never throws lifetime exception`(): Unit =
+		runBlocking {
+			val files =
+				(0 until 8).map { i ->
+					createSourceFile(
+						"Concurrent$i.kt",
+						"""
+						class Klass$i {
+							fun member$i(p: Int): Int = p + $i
+							val prop$i: String = "v$i"
+						}
+
+						fun topLevel$i() = $i
+						""".trimIndent(),
+					)
 				}
 
-				fun topLevel$i() = $i
-				""".trimIndent()
-			)
-		}
+			val errors = Collections.synchronizedList(mutableListOf<Throwable>())
 
-		val errors = Collections.synchronizedList(mutableListOf<Throwable>())
-
-		// Many short, overlapping analyses on a high-parallelism dispatcher to reproduce the race.
-		coroutineScope {
-			repeat(240) { iter ->
-				launch(Dispatchers.IO) {
-					val file = files[iter % files.size]
-					try {
-						env.project.read {
-							analyzeMaybeDangling(
-								file,
-								AnalysisPriority.DIAGNOSTICS,
-								ScheduledCancelChecker(ICancelChecker.NOOP),
-							) {
-								// Touching declaration symbols is what triggered the lifetime check.
-								file.declarations.forEach { dcl ->
-									dcl.symbol
+			// Many short, overlapping analyses on a high-parallelism dispatcher to reproduce the race.
+			coroutineScope {
+				repeat(240) { iter ->
+					launch(Dispatchers.IO) {
+						val file = files[iter % files.size]
+						try {
+							env.project.read {
+								analyzeMaybeDangling(
+									file,
+									AnalysisPriority.DIAGNOSTICS,
+									ScheduledCancelChecker(ICancelChecker.NOOP),
+								) {
+									// Touching declaration symbols is what triggered the lifetime check.
+									file.declarations.forEach { dcl ->
+										dcl.symbol
+									}
 								}
 							}
+						} catch (t: Throwable) {
+							errors.add(t)
 						}
-					} catch (t: Throwable) {
-						errors.add(t)
 					}
 				}
 			}
-		}
 
-		assertThat(errors).isEmpty()
-	}
+			assertThat(errors).isEmpty()
+		}
 
 	@Test
-	fun `analyzeMaybeDangling serializes overlapping analyses`(): Unit = runBlocking {
-		val files = (0 until 8).map { i ->
-			createSourceFile("Serialized$i.kt", "class S$i { fun f$i() = $i }")
-		}
+	fun `analyzeMaybeDangling serializes overlapping analyses`(): Unit =
+		runBlocking {
+			val files =
+				(0 until 8).map { i ->
+					createSourceFile("Serialized$i.kt", "class S$i { fun f$i() = $i }")
+				}
 
-		val inFlight = AtomicInteger(0)
-		val maxObserved = AtomicInteger(0)
-		val errors = Collections.synchronizedList(mutableListOf<Throwable>())
+			val inFlight = AtomicInteger(0)
+			val maxObserved = AtomicInteger(0)
+			val errors = Collections.synchronizedList(mutableListOf<Throwable>())
 
-		coroutineScope {
-			repeat(64) { iter ->
-				launch(Dispatchers.IO) {
-					val file = files[iter % files.size]
-					try {
-						env.project.read {
-							analyzeMaybeDangling(
-								file,
-								AnalysisPriority.DIAGNOSTICS,
-								ScheduledCancelChecker(ICancelChecker.NOOP),
-							) {
-								val concurrent = inFlight.incrementAndGet()
-								maxObserved.updateAndGet { max(it, concurrent) }
-								try {
-									file.declarations.forEach { it.symbol }
-									// Widen the window so any real overlap is observed.
-									Thread.sleep(2)
-								} finally {
-									inFlight.decrementAndGet()
+			coroutineScope {
+				repeat(64) { iter ->
+					launch(Dispatchers.IO) {
+						val file = files[iter % files.size]
+						try {
+							env.project.read {
+								analyzeMaybeDangling(
+									file,
+									AnalysisPriority.DIAGNOSTICS,
+									ScheduledCancelChecker(ICancelChecker.NOOP),
+								) {
+									val concurrent = inFlight.incrementAndGet()
+									maxObserved.updateAndGet { max(it, concurrent) }
+									try {
+										file.declarations.forEach { it.symbol }
+										// Widen the window so any real overlap is observed.
+										Thread.sleep(2)
+									} finally {
+										inFlight.decrementAndGet()
+									}
 								}
 							}
+						} catch (t: Throwable) {
+							errors.add(t)
 						}
-					} catch (t: Throwable) {
-						errors.add(t)
 					}
 				}
 			}
-		}
 
-		assertThat(errors).isEmpty()
-		// The shared analysis lock must prevent two analyses from running at once.
-		assertThat(maxObserved.get()).isEqualTo(1)
-	}
+			assertThat(errors).isEmpty()
+			// The shared analysis lock must prevent two analyses from running at once.
+			assertThat(maxObserved.get()).isEqualTo(1)
+		}
 
 	@Test(timeout = 10_000)
 	fun `reentrant withAnalysisLock on the same thread does not deadlock`() {
@@ -148,28 +151,30 @@ class AnalysisSerializationTest : KtLspTest() {
 		val higherRan = AtomicBoolean(false)
 
 		// Low-priority (indexing) holder runs a long, cooperatively-cancellable analysis.
-		val lower = Thread {
-			try {
-				withAnalysisLock(AnalysisPriority.INDEXING, holderChecker) {
-					holding.countDown()
-					repeat(2_000) {
-						holderChecker.abortIfCancelled()
-						Thread.sleep(5)
+		val lower =
+			Thread {
+				try {
+					withAnalysisLock(AnalysisPriority.INDEXING, holderChecker) {
+						holding.countDown()
+						repeat(2_000) {
+							holderChecker.abortIfCancelled()
+							Thread.sleep(5)
+						}
 					}
+				} catch (e: AnalysisPreemptedException) {
+					preempted.set(true)
 				}
-			} catch (e: AnalysisPreemptedException) {
-				preempted.set(true)
 			}
-		}
 		lower.start()
 		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
 
 		// A completion request must preempt the in-progress indexing.
-		val higher = Thread {
-			withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
-				higherRan.set(true)
+		val higher =
+			Thread {
+				withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+					higherRan.set(true)
+				}
 			}
-		}
 		higher.start()
 		higher.join(5_000)
 		lower.join(5_000)
@@ -191,28 +196,30 @@ class AnalysisSerializationTest : KtLspTest() {
 		val preempted = AtomicBoolean(false)
 		val ranToCompletion = AtomicBoolean(false)
 
-		val lower = Thread {
-			try {
-				withAnalysisLock(AnalysisPriority.INDEXING, holderChecker) {
-					holding.countDown()
-					repeat(2_000) {
-						// Compiler-level checkpoint only — no abortIfCancelled() here.
-						ProgressManager.checkCanceled()
-						Thread.sleep(5)
+		val lower =
+			Thread {
+				try {
+					withAnalysisLock(AnalysisPriority.INDEXING, holderChecker) {
+						holding.countDown()
+						repeat(2_000) {
+							// Compiler-level checkpoint only — no abortIfCancelled() here.
+							ProgressManager.checkCanceled()
+							Thread.sleep(5)
+						}
+						ranToCompletion.set(true)
 					}
-					ranToCompletion.set(true)
+				} catch (e: AnalysisPreemptedException) {
+					preempted.set(true)
 				}
-			} catch (e: AnalysisPreemptedException) {
-				preempted.set(true)
 			}
-		}
 		lower.start()
 		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
 
 		// A completion request preempts the in-progress (indexing) analysis.
-		val higher = Thread {
-			withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {}
-		}
+		val higher =
+			Thread {
+				withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {}
+			}
 		higher.start()
 		higher.join(5_000)
 		lower.join(5_000)
@@ -237,28 +244,29 @@ class AnalysisSerializationTest : KtLspTest() {
 
 		// Run inside a real analyze under the read lock: this also guards against a read/write-lock
 		// upgrade deadlock regression (withAnalysisLock runs under the shared read lock).
-		val worker = Thread {
-			try {
-				env.project.read {
-					analyzeMaybeDangling(
-						file,
-						AnalysisPriority.INTERACTIVE,
-						ScheduledCancelChecker(delegate),
-					) {
-						holding.countDown()
-						repeat(2_000) {
-							// Compiler-level checkpoint only — mirrors FIR resolution, which never calls
-							// the LSP-level abortIfCancelled().
-							ProgressManager.checkCanceled()
-							Thread.sleep(5)
+		val worker =
+			Thread {
+				try {
+					env.project.read {
+						analyzeMaybeDangling(
+							file,
+							AnalysisPriority.INTERACTIVE,
+							ScheduledCancelChecker(delegate),
+						) {
+							holding.countDown()
+							repeat(2_000) {
+								// Compiler-level checkpoint only — mirrors FIR resolution, which never calls
+								// the LSP-level abortIfCancelled().
+								ProgressManager.checkCanceled()
+								Thread.sleep(5)
+							}
+							ranToCompletion.set(true)
 						}
-						ranToCompletion.set(true)
 					}
+				} catch (t: Throwable) {
+					caught.set(t)
 				}
-			} catch (t: Throwable) {
-				caught.set(t)
 			}
-		}
 		worker.start()
 		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
 
@@ -292,26 +300,28 @@ class AnalysisSerializationTest : KtLspTest() {
 		val waiterEntered = AtomicBoolean(false)
 
 		// A completion holder keeps the lock until released.
-		val holder = Thread {
-			withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
-				holding.countDown()
-				release.await()
+		val holder =
+			Thread {
+				withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+					holding.countDown()
+					release.await()
+				}
 			}
-		}
 		holder.start()
 		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
 
 		// A lower-priority (diagnostics) requester must wait behind the completion holder (it does not
 		// preempt). It is cancelled while waiting and must bail from acquire() promptly.
-		val waiter = Thread {
-			try {
-				withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(waiterDelegate)) {
-					waiterEntered.set(true)
+		val waiter =
+			Thread {
+				try {
+					withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(waiterDelegate)) {
+						waiterEntered.set(true)
+					}
+				} catch (t: Throwable) {
+					waiterThrew.set(t)
 				}
-			} catch (t: Throwable) {
-				waiterThrew.set(t)
 			}
-		}
 		waiter.start()
 
 		// Let it enter the wait loop, then cancel it.
@@ -337,21 +347,23 @@ class AnalysisSerializationTest : KtLspTest() {
 		val lowerEntered = AtomicBoolean(false)
 
 		// High-priority (completion) holder holds the lock until released.
-		val higher = Thread {
-			withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
-				holding.countDown()
-				release.await()
+		val higher =
+			Thread {
+				withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+					holding.countDown()
+					release.await()
+				}
 			}
-		}
 		higher.start()
 		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
 
 		// A diagnostics request is strictly lower priority: it must not preempt completion.
-		val lower = Thread {
-			withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(ICancelChecker.NOOP)) {
-				lowerEntered.set(true)
+		val lower =
+			Thread {
+				withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+					lowerEntered.set(true)
+				}
 			}
-		}
 		lower.start()
 
 		// Give the lower-priority request time to (incorrectly) barge in.
@@ -374,28 +386,30 @@ class AnalysisSerializationTest : KtLspTest() {
 		val newerRan = AtomicBoolean(false)
 
 		// An in-flight completion runs a long, cooperatively-cancellable analysis.
-		val older = Thread {
-			try {
-				withAnalysisLock(AnalysisPriority.INTERACTIVE, holderChecker) {
-					holding.countDown()
-					repeat(2_000) {
-						holderChecker.abortIfCancelled()
-						Thread.sleep(5)
+		val older =
+			Thread {
+				try {
+					withAnalysisLock(AnalysisPriority.INTERACTIVE, holderChecker) {
+						holding.countDown()
+						repeat(2_000) {
+							holderChecker.abortIfCancelled()
+							Thread.sleep(5)
+						}
 					}
+				} catch (e: AnalysisPreemptedException) {
+					preempted.set(true)
 				}
-			} catch (e: AnalysisPreemptedException) {
-				preempted.set(true)
 			}
-		}
 		older.start()
 		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
 
 		// A newer completion request (user typed on) must supersede the in-flight one.
-		val newer = Thread {
-			withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
-				newerRan.set(true)
+		val newer =
+			Thread {
+				withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+					newerRan.set(true)
+				}
 			}
-		}
 		newer.start()
 		newer.join(5_000)
 		older.join(5_000)
@@ -411,22 +425,24 @@ class AnalysisSerializationTest : KtLspTest() {
 		val secondEntered = AtomicBoolean(false)
 
 		// A diagnostics holder holds the lock until released.
-		val first = Thread {
-			withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(ICancelChecker.NOOP)) {
-				holding.countDown()
-				release.await()
+		val first =
+			Thread {
+				withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+					holding.countDown()
+					release.await()
+				}
 			}
-		}
 		first.start()
 		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
 
 		// A second diagnostics request is the same priority but must NOT supersede the holder
 		// (only completion supersedes same-priority work); it waits until the holder releases.
-		val second = Thread {
-			withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(ICancelChecker.NOOP)) {
-				secondEntered.set(true)
+		val second =
+			Thread {
+				withAnalysisLock(AnalysisPriority.DIAGNOSTICS, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+					secondEntered.set(true)
+				}
 			}
-		}
 		second.start()
 
 		// Give the second request time to (incorrectly) barge in.

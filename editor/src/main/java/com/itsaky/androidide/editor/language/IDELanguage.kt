@@ -42,23 +42,27 @@ import java.nio.file.Paths
  * @author Akash Yadav
  */
 abstract class IDELanguage : Language {
-
 	private var formatter: Formatter? = null
 
 	protected open val languageServer: ILanguageServer?
 		get() = null
 
-	open fun getTabSize(): Int {
-		return EditorPreferences.tabSize
-	}
+	open fun getTabSize(): Int = EditorPreferences.tabSize
 
 	open fun addBreakpoint(line: Int) {}
+
 	open fun addBreakpoints(lines: Iterable<Int>) = lines.forEach(::addBreakpoint)
+
 	open fun removeBreakpoint(line: Int) {}
+
 	open fun removeBreakpoints(lines: Iterable<Int>) = lines.forEach(::removeBreakpoint)
+
 	open fun removeAllBreakpoints() {}
+
 	open fun toggleBreakpoint(line: Int) {}
+
 	open fun highlightLine(line: Int) {}
+
 	open fun unhighlightLines() {}
 
 	@Throws(CompletionCancelledException::class)
@@ -66,7 +70,7 @@ abstract class IDELanguage : Language {
 		content: ContentReference,
 		position: CharPosition,
 		publisher: CompletionPublisher,
-		extraArguments: Bundle
+		extraArguments: Bundle,
 	) {
 		val completionThread = Thread.currentThread()
 		try {
@@ -80,7 +84,7 @@ abstract class IDELanguage : Language {
 		} finally {
 			ProgressManager.instance.unregister(completionThread)
 			Lookup.getDefault().unregister(
-				ICancelChecker::class.java
+				ICancelChecker::class.java,
 			)
 		}
 	}
@@ -90,7 +94,7 @@ abstract class IDELanguage : Language {
 		position: CharPosition,
 		publisher: CompletionPublisher,
 		cancelChecker: CompletionCancelChecker,
-		extraArguments: Bundle
+		extraArguments: Bundle,
 	) {
 		val server = languageServer ?: return
 		val path = extraArguments.getString(IEditor.KEY_FILE, null)
@@ -114,32 +118,21 @@ abstract class IDELanguage : Language {
 	 * @param c The character to check.
 	 * @return `true` if the character is completion char, `false` otherwise.
 	 */
-	protected open fun checkIsCompletionChar(c: Char): Boolean {
-		return false
-	}
+	protected open fun checkIsCompletionChar(c: Char): Boolean = false
 
-	override fun useTab(): Boolean {
-		return !EditorPreferences.useSoftTab
-	}
+	override fun useTab(): Boolean = !EditorPreferences.useSoftTab
 
-	override fun getFormatter(): Formatter {
-		return formatter ?: LSPFormatter(languageServer).also { formatter = it }
-	}
+	override fun getFormatter(): Formatter = formatter ?: LSPFormatter(languageServer).also { formatter = it }
 
 	override fun getIndentAdvance(
 		content: ContentReference,
 		line: Int,
-		column: Int
-	): Int {
-		return getIndentAdvance(content.getLine(line).substring(0, column))
-	}
+		column: Int,
+	): Int = getIndentAdvance(content.getLine(line).substring(0, column))
 
-	open fun getIndentAdvance(line: String): Int {
-		return 0
-	}
+	open fun getIndentAdvance(line: String): Int = 0
 
 	companion object {
-
 		private val log = LoggerFactory.getLogger(IDELanguage::class.java)
 	}
 }

@@ -79,11 +79,13 @@ private fun doAnalyze(
 	// to re-schedule this run once the higher-priority work finishes.
 	val checker = ScheduledCancelChecker(cancelChecker)
 
-	val diagnostics = env.project.read {
-		buildList {
-			PsiTreeUtil.collectElementsOfType(ktFile, PsiErrorElement::class.java)
-				.forEach { errorElement ->
-					checker.abortIfCancelled()
+	val diagnostics =
+		env.project.read {
+			buildList {
+				PsiTreeUtil
+					.collectElementsOfType(ktFile, PsiErrorElement::class.java)
+					.forEach { errorElement ->
+						checker.abortIfCancelled()
 						add(
 							diagnosticItem(
 								file = ktFile,

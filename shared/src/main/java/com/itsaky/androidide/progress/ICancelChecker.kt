@@ -27,103 +27,101 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @author Akash Yadav
  */
 interface ICancelChecker {
+	/**
+	 * Cancel this process.
+	 */
+	fun cancel()
 
-  /**
-   * Cancel this process.
-   */
-  fun cancel()
+	/**
+	 * Check whether this process has been cancelled or not.
+	 *
+	 * @return Whether the process has been cancelled.
+	 */
+	fun isCancelled(): Boolean
 
-  /**
-   * Check whether this process has been cancelled or not.
-   *
-   * @return Whether the process has been cancelled.
-   */
-  fun isCancelled(): Boolean
+	/**
+	 * Throw [CancellationException] if this process has been cancelled.
+	 */
+	@Throws(CancellationException::class)
+	fun abortIfCancelled()
 
-  /**
-   * Throw [CancellationException] if this process has been cancelled.
-   */
-  @Throws(CancellationException::class)
-  fun abortIfCancelled()
+	/**
+	 * Register [listener] to fire when this process is cancelled, so a consumer can react immediately
+	 * instead of polling [isCancelled]. Fires synchronously now if already cancelled, and at most once.
+	 *
+	 * This default only fires when already cancelled; an implementation that can transition to cancelled
+	 * after registration (e.g. [Default]) must override to fire on the transition.
+	 */
+	fun invokeOnCancel(listener: () -> Unit) {
+		if (isCancelled()) {
+			listener()
+		}
+	}
 
-  /**
-   * Register [listener] to fire when this process is cancelled, so a consumer can react immediately
-   * instead of polling [isCancelled]. Fires synchronously now if already cancelled, and at most once.
-   *
-   * This default only fires when already cancelled; an implementation that can transition to cancelled
-   * after registration (e.g. [Default]) must override to fire on the transition.
-   */
-  fun invokeOnCancel(listener: () -> Unit) {
-    if (isCancelled()) {
-      listener()
-    }
-  }
+	/**
+	 * Unregister a [listener] previously passed to [invokeOnCancel]. Removal is by reference identity,
+	 * so callers must pass the *same* lambda instance. No-op if the listener was never registered or
+	 * has already fired (listeners fire at most once and are dropped on firing).
+	 *
+	 * The default retains no listeners, so this does nothing; an implementation that stores listeners
+	 * (e.g. [Default]) must override to drop [listener].
+	 */
+	fun removeOnCancel(listener: () -> Unit) {}
 
-  /**
-   * Unregister a [listener] previously passed to [invokeOnCancel]. Removal is by reference identity,
-   * so callers must pass the *same* lambda instance. No-op if the listener was never registered or
-   * has already fired (listeners fire at most once and are dropped on firing).
-   *
-   * The default retains no listeners, so this does nothing; an implementation that stores listeners
-   * (e.g. [Default]) must override to drop [listener].
-   */
-  fun removeOnCancel(listener: () -> Unit) {}
+	open class Default(
+		cancelled: Boolean = false,
+	) : ICancelChecker {
+		private val cancelled = AtomicBoolean(cancelled)
+		private val onCancelListeners = CopyOnWriteArrayList<() -> Unit>()
 
-  open class Default(cancelled: Boolean = false) : ICancelChecker {
+		override fun cancel() {
+			if (cancelled.compareAndSet(false, true)) {
+				onCancelListeners.forEach { it() }
+				onCancelListeners.clear()
+			}
+		}
 
-    private val cancelled = AtomicBoolean(cancelled)
-    private val onCancelListeners = CopyOnWriteArrayList<() -> Unit>()
+		override fun isCancelled(): Boolean = cancelled.get()
 
-    override fun cancel() {
-      if (cancelled.compareAndSet(false, true)) {
-        onCancelListeners.forEach { it() }
-        onCancelListeners.clear()
-      }
-    }
+		override fun abortIfCancelled() {
+			if (isCancelled()) {
+				throw CancellationException()
+			}
+		}
 
-    override fun isCancelled(): Boolean {
-      return cancelled.get()
-    }
+		override fun invokeOnCancel(listener: () -> Unit) {
+			if (isCancelled()) {
+				listener()
+				return
+			}
+			onCancelListeners.add(listener)
+			// Guard the race where cancel() ran between the check above and the add: if we now observe
+			// cancellation, run the listener ourselves (removing it so cancel() can't also run it).
+			if (isCancelled() && onCancelListeners.remove(listener)) {
+				listener()
+			}
+		}
 
-    override fun abortIfCancelled() {
-      if (isCancelled()) {
-        throw CancellationException()
-      }
-    }
+		override fun removeOnCancel(listener: () -> Unit) {
+			onCancelListeners.remove(listener)
+		}
+	}
 
-    override fun invokeOnCancel(listener: () -> Unit) {
-      if (isCancelled()) {
-        listener()
-        return
-      }
-      onCancelListeners.add(listener)
-      // Guard the race where cancel() ran between the check above and the add: if we now observe
-      // cancellation, run the listener ourselves (removing it so cancel() can't also run it).
-      if (isCancelled() && onCancelListeners.remove(listener)) {
-        listener()
-      }
-    }
+	companion object {
+		/**
+		 * A no-op cancel checker. The task is never cancelled.
+		 */
+		@JvmField
+		val NOOP =
+			object : Default(false) {
+				// Never transitions to cancelled, so retaining listeners would only leak them.
+				override fun invokeOnCancel(listener: () -> Unit) = Unit
+			}
 
-    override fun removeOnCancel(listener: () -> Unit) {
-      onCancelListeners.remove(listener)
-    }
-  }
-
-  companion object {
-
-    /**
-     * A no-op cancel checker. The task is never cancelled.
-     */
-    @JvmField
-    val NOOP = object : Default(false) {
-      // Never transitions to cancelled, so retaining listeners would only leak them.
-      override fun invokeOnCancel(listener: () -> Unit) = Unit
-    }
-
-    /**
-     * An already cancelled cancel checker.
-     */
-    @JvmField
-    val CANCELLED = Default(true)
-  }
+		/**
+		 * An already cancelled cancel checker.
+		 */
+		@JvmField
+		val CANCELLED = Default(true)
+	}
 }

@@ -1,13 +1,13 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.modules
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.analysis.api.analyzeCopy
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaDanglingFileResolutionMode
 import org.jetbrains.kotlin.analysis.api.projectStructure.copyOrigin
 import org.jetbrains.kotlin.analysis.api.projectStructure.isDangling
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
 import org.jetbrains.kotlin.com.intellij.openapi.progress.ProcessCanceledException
 import org.jetbrains.kotlin.com.intellij.openapi.progress.ProgressManager
 import org.jetbrains.kotlin.com.intellij.openapi.util.Key
@@ -76,7 +76,8 @@ internal inline fun <R> withAnalysisLock(
 		val holder = arrayOfNulls<Any?>(1)
 		try {
 			AnalysisThreadContext.installJob(job).use {
-				ProgressManager.getInstance()
+				ProgressManager
+					.getInstance()
 					.executeProcessUnderProgress({ holder[0] = action() }, indicator)
 			}
 		} catch (e: ProcessCanceledException) {

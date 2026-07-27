@@ -26,100 +26,99 @@ import java.util.concurrent.atomic.AtomicInteger
  * abort an in-flight `analyze` the moment cancellation happens instead of polling.
  */
 class ICancelCheckerTest {
+	@Test
+	fun `invokeOnCancel fires when cancel is called`() {
+		val checker = ICancelChecker.Default()
+		val fired = AtomicInteger(0)
 
-  @Test
-  fun `invokeOnCancel fires when cancel is called`() {
-    val checker = ICancelChecker.Default()
-    val fired = AtomicInteger(0)
+		checker.invokeOnCancel { fired.incrementAndGet() }
+		assertThat(fired.get()).isEqualTo(0)
 
-    checker.invokeOnCancel { fired.incrementAndGet() }
-    assertThat(fired.get()).isEqualTo(0)
+		checker.cancel()
+		assertThat(fired.get()).isEqualTo(1)
+	}
 
-    checker.cancel()
-    assertThat(fired.get()).isEqualTo(1)
-  }
+	@Test
+	fun `invokeOnCancel fires immediately when already cancelled`() {
+		val checker = ICancelChecker.Default(cancelled = true)
+		val fired = AtomicInteger(0)
 
-  @Test
-  fun `invokeOnCancel fires immediately when already cancelled`() {
-    val checker = ICancelChecker.Default(cancelled = true)
-    val fired = AtomicInteger(0)
+		checker.invokeOnCancel { fired.incrementAndGet() }
 
-    checker.invokeOnCancel { fired.incrementAndGet() }
+		assertThat(fired.get()).isEqualTo(1)
+	}
 
-    assertThat(fired.get()).isEqualTo(1)
-  }
+	@Test
+	fun `invokeOnCancel fires at most once across repeated cancel calls`() {
+		val checker = ICancelChecker.Default()
+		val fired = AtomicInteger(0)
 
-  @Test
-  fun `invokeOnCancel fires at most once across repeated cancel calls`() {
-    val checker = ICancelChecker.Default()
-    val fired = AtomicInteger(0)
+		checker.invokeOnCancel { fired.incrementAndGet() }
+		checker.cancel()
+		checker.cancel()
+		checker.cancel()
 
-    checker.invokeOnCancel { fired.incrementAndGet() }
-    checker.cancel()
-    checker.cancel()
-    checker.cancel()
+		assertThat(fired.get()).isEqualTo(1)
+	}
 
-    assertThat(fired.get()).isEqualTo(1)
-  }
+	@Test
+	fun `multiple listeners all fire on cancel`() {
+		val checker = ICancelChecker.Default()
+		val fired = AtomicInteger(0)
 
-  @Test
-  fun `multiple listeners all fire on cancel`() {
-    val checker = ICancelChecker.Default()
-    val fired = AtomicInteger(0)
+		checker.invokeOnCancel { fired.incrementAndGet() }
+		checker.invokeOnCancel { fired.incrementAndGet() }
 
-    checker.invokeOnCancel { fired.incrementAndGet() }
-    checker.invokeOnCancel { fired.incrementAndGet() }
+		checker.cancel()
 
-    checker.cancel()
+		assertThat(fired.get()).isEqualTo(2)
+	}
 
-    assertThat(fired.get()).isEqualTo(2)
-  }
+	@Test
+	fun `removeOnCancel drops the listener so it does not fire`() {
+		val checker = ICancelChecker.Default()
+		val fired = AtomicInteger(0)
+		val listener: () -> Unit = { fired.incrementAndGet() }
 
-  @Test
-  fun `removeOnCancel drops the listener so it does not fire`() {
-    val checker = ICancelChecker.Default()
-    val fired = AtomicInteger(0)
-    val listener: () -> Unit = { fired.incrementAndGet() }
+		checker.invokeOnCancel(listener)
+		checker.removeOnCancel(listener)
+		checker.cancel()
 
-    checker.invokeOnCancel(listener)
-    checker.removeOnCancel(listener)
-    checker.cancel()
+		assertThat(fired.get()).isEqualTo(0)
+	}
 
-    assertThat(fired.get()).isEqualTo(0)
-  }
+	@Test
+	fun `removeOnCancel only drops the given listener`() {
+		val checker = ICancelChecker.Default()
+		val fired = AtomicInteger(0)
+		val removed: () -> Unit = { fired.incrementAndGet() }
 
-  @Test
-  fun `removeOnCancel only drops the given listener`() {
-    val checker = ICancelChecker.Default()
-    val fired = AtomicInteger(0)
-    val removed: () -> Unit = { fired.incrementAndGet() }
+		checker.invokeOnCancel(removed)
+		checker.invokeOnCancel { fired.incrementAndGet() }
+		checker.removeOnCancel(removed)
+		checker.cancel()
 
-    checker.invokeOnCancel(removed)
-    checker.invokeOnCancel { fired.incrementAndGet() }
-    checker.removeOnCancel(removed)
-    checker.cancel()
+		assertThat(fired.get()).isEqualTo(1)
+	}
 
-    assertThat(fired.get()).isEqualTo(1)
-  }
+	@Test
+	fun `NOOP invokeOnCancel is a no-op`() {
+		val fired = AtomicInteger(0)
 
-  @Test
-  fun `NOOP invokeOnCancel is a no-op`() {
-    val fired = AtomicInteger(0)
+		// NOOP is a shared singleton that never cancels: registering must be a no-op so captured listeners
+		// don't accumulate forever. We deliberately don't call NOOP.cancel() — flipping the shared
+		// singleton would corrupt every other user of it.
+		ICancelChecker.NOOP.invokeOnCancel { fired.incrementAndGet() }
 
-    // NOOP is a shared singleton that never cancels: registering must be a no-op so captured listeners
-    // don't accumulate forever. We deliberately don't call NOOP.cancel() — flipping the shared
-    // singleton would corrupt every other user of it.
-    ICancelChecker.NOOP.invokeOnCancel { fired.incrementAndGet() }
+		assertThat(fired.get()).isEqualTo(0)
+	}
 
-    assertThat(fired.get()).isEqualTo(0)
-  }
+	@Test
+	fun `CANCELLED fires immediately`() {
+		val fired = AtomicInteger(0)
 
-  @Test
-  fun `CANCELLED fires immediately`() {
-    val fired = AtomicInteger(0)
+		ICancelChecker.CANCELLED.invokeOnCancel { fired.incrementAndGet() }
 
-    ICancelChecker.CANCELLED.invokeOnCancel { fired.incrementAndGet() }
-
-    assertThat(fired.get()).isEqualTo(1)
-  }
+		assertThat(fired.get()).isEqualTo(1)
+	}
 }

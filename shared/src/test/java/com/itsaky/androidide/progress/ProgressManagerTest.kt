@@ -21,37 +21,36 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class ProgressManagerTest {
+	@Test
+	fun `cancel flips a registered checker`() {
+		// Regression for ADFA-4174: cancel(thread) must flip the *registered* checker so a caller polling
+		// it observes the cancellation. Previously cancel() stored a throwaway Default and the registered
+		// checker never became cancelled.
+		val checker = ICancelChecker.Default()
+		val thread = Thread.currentThread()
 
-  @Test
-  fun `cancel flips a registered checker`() {
-    // Regression for ADFA-4174: cancel(thread) must flip the *registered* checker so a caller polling
-    // it observes the cancellation. Previously cancel() stored a throwaway Default and the registered
-    // checker never became cancelled.
-    val checker = ICancelChecker.Default()
-    val thread = Thread.currentThread()
+		ProgressManager.instance.register(thread, checker)
+		try {
+			assertThat(checker.isCancelled()).isFalse()
 
-    ProgressManager.instance.register(thread, checker)
-    try {
-      assertThat(checker.isCancelled()).isFalse()
+			ProgressManager.instance.cancel(thread)
 
-      ProgressManager.instance.cancel(thread)
+			assertThat(checker.isCancelled()).isTrue()
+		} finally {
+			ProgressManager.instance.unregister(thread)
+		}
+	}
 
-      assertThat(checker.isCancelled()).isTrue()
-    } finally {
-      ProgressManager.instance.unregister(thread)
-    }
-  }
+	@Test
+	fun `unregister detaches the checker so cancel no longer affects it`() {
+		val checker = ICancelChecker.Default()
+		val thread = Thread.currentThread()
 
-  @Test
-  fun `unregister detaches the checker so cancel no longer affects it`() {
-    val checker = ICancelChecker.Default()
-    val thread = Thread.currentThread()
+		ProgressManager.instance.register(thread, checker)
+		ProgressManager.instance.unregister(thread)
 
-    ProgressManager.instance.register(thread, checker)
-    ProgressManager.instance.unregister(thread)
+		ProgressManager.instance.cancel(thread)
 
-    ProgressManager.instance.cancel(thread)
-
-    assertThat(checker.isCancelled()).isFalse()
-  }
+		assertThat(checker.isCancelled()).isFalse()
+	}
 }

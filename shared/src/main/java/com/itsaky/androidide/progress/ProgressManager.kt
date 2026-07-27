@@ -25,11 +25,9 @@ import java.util.concurrent.CancellationException
  * @author Akash Yadav
  */
 class ProgressManager private constructor() {
-
 	private val threads = WeakHashMap<Thread, ICancelChecker>()
 
 	companion object {
-
 		val instance by lazy {
 			ProgressManager()
 		}
@@ -51,7 +49,10 @@ class ProgressManager private constructor() {
 	 * targeted prior work on this thread, so it is not carried forward to the incoming [checker]. A
 	 * caller that needs a cancel-before-register signal to survive must not rely on this method.
 	 */
-	fun register(thread: Thread, checker: ICancelChecker) {
+	fun register(
+		thread: Thread,
+		checker: ICancelChecker,
+	) {
 		synchronized(threads) {
 			threads[thread] = checker
 		}
