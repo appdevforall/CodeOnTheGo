@@ -6,6 +6,7 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.index.findSymbolBySimpleName
 import com.itsaky.androidide.lsp.kotlin.diagnostic.DiagnosticAction
 import com.itsaky.androidide.lsp.kotlin.utils.insertImport
@@ -19,7 +20,7 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import java.nio.file.Path
 
 class AddImportAction : BaseKotlinCodeAction() {
 	override var titleTextRes: Int = R.string.action_import_classes
@@ -47,26 +48,41 @@ class AddImportAction : BaseKotlinCodeAction() {
 		}
 	}
 
-	override suspend fun execAction(data: ActionData): Map<JvmSymbol, List<TextEdit>> {
+	override suspend fun execAction(data: ActionData): Map<String, List<TextEdit>> {
 		val (_, extra) =
 			data.findDiagnosticExtra<DiagnosticAction.ResolveReference>()
 				?: return emptyMap()
 
 		val (env, action) = extra
-		val file = data.requireFile()
-		val nioPath = file.toPath()
+		val nioPath = data.requireFile().toPath()
+		return withContext(Dispatchers.IO) {
+			computeImportCandidates(env, nioPath, action.referenceName)
+		}
+	}
+
+	/**
+	 * Resolves [referenceName] to the importable classifiers known to [env], each mapped to the edits
+	 * that import it into the file at [nioPath]. Keyed by fully-qualified name, which is what
+	 * [postExec] shows in the chooser -- so two index entries for the same class collapse into one
+	 * entry instead of duplicating it.
+	 *
+	 * Blocking: does the `getCurrentKtFile` `.get()` and a SQLite-backed index query, so callers must
+	 * stay off the main thread ([execAction] wraps it in [Dispatchers.IO]).
+	 */
+	internal fun computeImportCandidates(
+		env: AbstractCompilationEnvironment,
+		nioPath: Path,
+		referenceName: String,
+	): Map<String, List<TextEdit>> {
 		val ktFile =
-			withContext(Dispatchers.IO) {
-				env.ktSymbolIndex
-					.getCurrentKtFile(nioPath)
-					.get()
-			}
-				?: return emptyMap()
+			env.ktSymbolIndex
+				.getCurrentKtFile(nioPath)
+				.get() ?: return emptyMap()
 
 		return env.ktSymbolIndex
-			.findSymbolBySimpleName(action.referenceName, limit = 0)
+			.findSymbolBySimpleName(referenceName, limit = 0)
 			.filter { it.kind.isClassifier }
-			.associateWith { symbol -> insertImport(ktFile, symbol.fqName) }
+			.associate { it.fqName to insertImport(ktFile, it.fqName) }
 	}
 
 	override fun postExec(
@@ -80,7 +96,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 		}
 
 		@Suppress("UNCHECKED_CAST")
-		result as Map<JvmSymbol, List<TextEdit>>
+		result as Map<String, List<TextEdit>>
 
 		if (result.isEmpty()) {
 			logger.warn("No classifiers to import.")
@@ -99,9 +115,9 @@ class AddImportAction : BaseKotlinCodeAction() {
 		val nioPath = file.toPath()
 		val actions =
 			result
-				.map { (symbol, edits) ->
+				.map { (fqName, edits) ->
 					CodeActionItem(
-						title = symbol.fqName,
+						title = fqName,
 						changes = listOf(DocumentChange(file = nioPath, edits = edits)),
 						kind = CodeActionKind.QuickFix,
 						command = Command.CMD_FORMAT_CODE,
