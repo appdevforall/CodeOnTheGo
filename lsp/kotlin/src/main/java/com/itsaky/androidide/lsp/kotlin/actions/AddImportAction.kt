@@ -28,7 +28,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 	}
 
 	override var titleTextRes: Int = R.string.action_import_classes
-	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPORT_CLASSES
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPORT_CLASS
 
 	override val id: String = ID
 	override var label: String = ""

@@ -32,7 +32,7 @@ class KotlinCodeActionTooltipTagTest {
 			mapOf(
 				CommentLineAction.idFor(KT_LANG) to TooltipTag.EDITOR_CODE_ACTIONS_KT_COMMENT,
 				UncommentLineAction.idFor(KT_LANG) to TooltipTag.EDITOR_CODE_ACTIONS_KT_UNCOMMENT,
-				AddImportAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPORT_CLASSES,
+				AddImportAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPORT_CLASS,
 				OrganizeImportsAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS,
 				NullSafetyAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX,
 				ImplementMembersAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPLEMENT_MEMBERS,
