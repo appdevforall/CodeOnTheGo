@@ -9,6 +9,7 @@ import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
 import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
 import com.itsaky.androidide.lsp.kotlin.actions.NullSafetyAction
 import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
+import com.itsaky.androidide.lsp.kotlin.actions.SurroundWithTryCatchAction
 
 object KotlinCodeActionsMenu : IActionsMenuProvider {
 	private const val KT_LANG = "kt"
@@ -31,6 +32,7 @@ object KotlinCodeActionsMenu : IActionsMenuProvider {
 			),
 			AddImportAction(),
 			OrganizeImportsAction(),
+			SurroundWithTryCatchAction(),
 			NullSafetyAction(),
 			ImplementMembersAction(),
 		)
