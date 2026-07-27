@@ -5,6 +5,10 @@ package org.appdevforall.cotg.quickbuild.daemon.protocol
  * line-delimited JSON request at a time over stdin, one JSON response line over stdout.
  * These types are pure data so the codec and router unit-test on the JVM without any
  * process plumbing.
+ *
+ * Lives in :quickbuild-protocol so the daemon (:quickbuild-daemon) and CoGo's client
+ * (:quick-build DaemonProcessClient) compile against one definition of the wire shape
+ * instead of two conventions pinned only by the README.
  */
 sealed interface DaemonRequest {
 	val id: Long

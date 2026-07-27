@@ -75,6 +75,10 @@ tasks.withType<Test> {
 }
 
 dependencies {
+	// The wire DTOs/constants, shared with CoGo's client so both sides compile
+	// against one protocol definition. api: the router/handler signatures expose them.
+	api(projects.quickbuildProtocol)
+
 	implementation(libs.kotlin.buildToolsApi)
 	implementation(libs.google.gson)
 	// ACC_FINAL stripping on recompiled payload classes (proxies extend user classes).

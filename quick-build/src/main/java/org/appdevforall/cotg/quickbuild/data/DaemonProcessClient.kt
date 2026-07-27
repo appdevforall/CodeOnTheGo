@@ -12,6 +12,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.appdevforall.cotg.quickbuild.daemon.protocol.DaemonResponse
 import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
 import org.slf4j.LoggerFactory
 import java.io.BufferedWriter
@@ -395,13 +396,15 @@ class DaemonProcessClient(
 		private val log = LoggerFactory.getLogger(DaemonProcessClient::class.java)
 
 		/**
-		 * The wire-protocol version this client speaks. Must match the daemon's
-		 * `DaemonResponse.PROTOCOL_VERSION` (quickbuild-daemon protocol/DaemonProtocol.kt),
-		 * which the daemon stamps into ping/configure success responses; [start] rejects a
-		 * configure reply whose version differs (or is absent) so drift fails loudly at
-		 * session start instead of surfacing as misparsed replies mid-build.
+		 * The wire-protocol version this client speaks - the shared
+		 * [DaemonResponse.PROTOCOL_VERSION] (:quickbuild-protocol), which the daemon
+		 * stamps into ping/configure success responses; [start] rejects a configure
+		 * reply whose version differs (or is absent) so drift fails loudly at session
+		 * start instead of surfacing as misparsed replies mid-build. A STAGED daemon
+		 * jar can still be older than this client, which is exactly what the check
+		 * catches - sharing the constant only removes the copy-drift failure mode.
 		 */
-		const val EXPECTED_PROTOCOL_VERSION = 1
+		const val EXPECTED_PROTOCOL_VERSION = DaemonResponse.PROTOCOL_VERSION
 
 		/** Compile of a large changeset can be slow on low-spec; be generous. */
 		const val DEFAULT_REQUEST_TIMEOUT_MILLIS = 300_000L

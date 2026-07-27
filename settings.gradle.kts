@@ -140,6 +140,7 @@ include(
 	":profiler",
 	":quick-build",
 	":quickbuild-daemon",
+	":quickbuild-protocol",
 	":quickbuild-runtime",
 	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",

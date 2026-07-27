@@ -28,6 +28,8 @@ tasks.withType<Test> {
 dependencies {
 	implementation(projects.logger)
 	implementation(projects.eventbusEvents)
+	// Wire DTOs/constants shared with the daemon (single protocol definition).
+	implementation(projects.quickbuildProtocol)
 
 	implementation(libs.common.kotlin.coroutines.android)
 	implementation(libs.google.gson)
