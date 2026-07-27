@@ -124,7 +124,7 @@
 
 	<!-- Project -->
 	<string name="title_first_build">正在设置你的项目</string>
-	<string name="msg_first_build">Code on the Go 正在初始化你的项目，请耐心等待！\n\n设置完成后，屏幕底部将显示"项目已初始化"</string>
+	<string name="msg_first_build">Code on the Go 正在初始化你的项目，请耐心等待！\n\n设置完成后，屏幕底部将显示“项目已初始化”</string>
 	<string name="create_project">创建新项目</string>
 	<string name="minimum_sdk">最低 SDK</string>
 	<string name="new_project">新建项目</string>
@@ -366,7 +366,7 @@
 
 	<!-- Crash Screen -->
 	<string name="msg_ide_crashed">Code on the Go 崩溃了</string>
-	<string name="msg_crash_info">发生内部错误\n\n有助于我们修复问题的详细信息已保存，并将在你的设备下次联网时安全发送\n\n按"确定"后应用将关闭，任何未保存的更改可能会丢失 请重新启动应用以继续 \n\n如果错误再次发生，请尝试重启设备 如果问题仍然存在，请%1$s</string>
+	<string name="msg_crash_info">发生内部错误\n\n有助于我们修复问题的详细信息已保存，并将在你的设备下次联网时安全发送\n\n按“确定”后应用将关闭，任何未保存的更改可能会丢失 请重新启动应用以继续 \n\n如果错误再次发生，请尝试重启设备 如果问题仍然存在，请%1$s</string>
 	<string name="contact_support_team">联系我们的支持团队 </string>
 	<string name="crash_email_subject">应用崩溃报告</string>
 	<string name="crash_email_body">构建编号 - %1$s\n\n请描述应用崩溃时你在做什么：\n\n</string>
@@ -484,7 +484,7 @@
 	<string name="xml_formatting_options">XML 格式化选项</string>
 	<string name="xml_formatting_options_summary">设置 XML 文件的格式化偏好 </string>
 	<string name="idepref_customFont_title">使用自定义字体</string>
-	<string name="idepref_customFont_summary">启用后，将使用 "/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf" 作为编辑器字体 </string>
+	<string name="idepref_customFont_summary">启用后，将使用 “/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf” 作为编辑器字体 </string>
 	<string name="msg_installing_apk">正在安装 APK…</string>
 	<string name="msg_action_open_application">你的应用已安装 是否要启动该应用？</string>
 	<string name="msg_action_open_title_application">应用已安装</string>
@@ -501,7 +501,7 @@
 	<string name="msg_package_is_to_long">包名过长</string>
 	<string name="msg_package_not_valid_char_1">字符 \'_\' 不能作为包名段的首字符</string>
 	<string name="msg_package_not_use_digit_first">数字不能作为包名段的首字符</string>
-	<string name="msg_package_not_valid_char_2">字符 "%1$s" 在 Android 应用包名中不允许使用 </string>
+	<string name="msg_package_not_valid_char_2">字符 “%1$s” 在 Android 应用包名中不允许使用 </string>
 	<string name="msg_package_mus_have_dot">包名必须至少包含一个 \'.\' 分隔符 </string>
 
 	<string name="action_import_classes">导入类</string>
@@ -549,7 +549,7 @@
 	<string name="hint_search_tasks">搜索任务…</string>
 	<string name="msg_err_select_tasks">请选择要运行的任务</string>
 	<string name="title_confirmation">确认</string>
-	<string name="msg_tasks_to_run">以下任务将按顺序运行 请再次点击"运行"按钮确认 \n\n%1$s</string>
+	<string name="msg_tasks_to_run">以下任务将按顺序运行 请再次点击“运行”按钮确认 \n\n%1$s</string>
 	<string name="msg_loading_tasks">正在加载任务…</string>
 
 	<string name="ui_category_widgets" translatable="false">Widgets</string>
@@ -731,7 +731,7 @@
 	<string name="msg_project_cache_read_failure">读取项目缓存失败</string>
 	<string name="msg_font_copy_failed">无法保存字体文件 请重试 </string>
 	<string name="msg_files_being_saved">文件保存操作正在进行中！</string>
-	<string name="msg_undock_save_failed">无法保存"%1$s" 取消停靠 </string>
+	<string name="msg_undock_save_failed">无法保存“%1$s” 取消停靠 </string>
 	<string name="title_install_tools">安装开发工具</string>
 	<string name="subtitle_install_tools">\n要安装构建 Android 项目所需的工具，请点击屏幕右下角的按钮\n</string>
 	<string name="msg_install_tools"> </string>
@@ -747,7 +747,7 @@
 	<string name="permission_overlay_unsupported_hint">此设备不支持浮动调试器 </string>
 	<string name="permission_overlay_restricted_settings_hint">如果无法启用此权限，请显示 Code on the Go 的应用信息，点击三点菜单，然后启用受限设置 </string>
 	<string name="permission_overlay_restricted_dialog_title">启用受限设置</string>
-	<string name="permission_overlay_restricted_dialog_message">Android 已关闭"在其他应用上层显示"开关，因为 Code on the Go 是从应用商店外部安装的 要开启它：</string>
+	<string name="permission_overlay_restricted_dialog_message">Android 已关闭“在其他应用上层显示”开关，因为 Code on the Go 是从应用商店外部安装的 要开启它：</string>
 	<string name="permission_overlay_open_app_info">打开应用信息</string>
 	<string name="permission_title_notifications">通知</string>
 	<string name="permission_desc_notifications">允许 Code on the Go 显示通知 </string>
@@ -821,7 +821,7 @@
 	<string name="debugger_error_errno_econnrefused">Code On the Go 的网络访问被系统屏蔽 该应用不允许使用网络，或服务不可用 </string>
 	<string name="debugger_error_debugger_startup_failure">无法启动 Code On the Go 调试器 </string>
 	<string name="debugger_not_ready">调试器尚未准备好进行调试会话 </string>
-	<string name="debugger_error_suggestion_network_restriction">请确保 Code On the Go 有权限访问本地网络 可以在设备的设置中进入 Code On the Go 的"应用信息"界面，检查"数据使用"下是否允许网络访问（具体名称可能因设备而异） \n\n如果允许网络访问但问题仍然存在，请附上日志提交错误报告 </string>
+	<string name="debugger_error_suggestion_network_restriction">请确保 Code On the Go 有权限访问本地网络 可以在设备的设置中进入 Code On the Go 的“应用信息”界面，检查“数据使用”下是否允许网络访问（具体名称可能因设备而异） \n\n如果允许网络访问但问题仍然存在，请附上日志提交错误报告 </string>
 
 	<string name="err_no_activity_to_handle_action">没有 Activity 可以处理操作 %1$s</string>
 
@@ -844,7 +844,7 @@
 	<string name="msg_skipped_invalid_projects">部分文件夹已被跳过，因为它们不是有效的 Android 项目文件夹 </string>
 	<string name="msg_cannot_access_folder">无法访问文件夹 %1$s 请检查存储权限 </string>
 	<string name="msg_no_subfolders">文件夹 %1$s 不包含任何子文件夹 </string>
-	<string name="msg_create_new_project_instruction">点击"新建项目"按钮创建一个新项目 </string>
+	<string name="msg_create_new_project_instruction">点击“新建项目”按钮创建一个新项目 </string>
 	<string name="date">%1$s：%2$s</string>
 	<string name="date_created_label">创建时间</string>
 	<string name="date_modified_label">修改时间</string>
@@ -901,8 +901,8 @@
 
 	<!-- Plugin crash dialog -->
 	<string name="title_plugin_crashed">插件崩溃</string>
-	<string name="msg_plugin_crash">"%1$s"已崩溃（第 %2$d/3 次） </string>
-	<string name="msg_plugin_crash_disabled">"%1$s"因反复崩溃已被禁用 </string>
+	<string name="msg_plugin_crash">“%1$s”已崩溃（第 %2$d/3 次） </string>
+	<string name="msg_plugin_crash_disabled">“%1$s”因反复崩溃已被禁用 </string>
 	<string name="msg_plugin_crash_dev_hint">如果你是插件开发者，请点击信息图标查看崩溃日志 </string>
 	<string name="cd_plugin_crash_view_logs">查看崩溃日志</string>
 	<string name="title_plugin_crash_log">崩溃日志：%1$s</string>
