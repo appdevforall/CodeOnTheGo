@@ -35,7 +35,7 @@ class KotlinCodeActionTooltipTagTest {
 				AddImportAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPORT_CLASSES,
 				OrganizeImportsAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS,
 				NullSafetyAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX,
-				ImplementMembersAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_OVERRIDE_SUPER,
+				ImplementMembersAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPLEMENT_MEMBERS,
 				SurroundWithTryCatchAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH,
 			)
 		assertEquals(expected, actualTags)

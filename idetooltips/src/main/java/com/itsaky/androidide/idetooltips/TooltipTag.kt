@@ -86,7 +86,7 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_KT_UNCOMMENT = "editor.codeactions.kotlin.uncomment"
 	const val EDITOR_CODE_ACTIONS_KT_IMPORT_CLASSES = "editor.codeactions.kotlin.importclasses"
 	const val EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS = "editor.codeactions.kotlin.organizeimports"
-	const val EDITOR_CODE_ACTIONS_KT_OVERRIDE_SUPER = "editor.codeactions.kotlin.overridesuper"
+	const val EDITOR_CODE_ACTIONS_KT_IMPLEMENT_MEMBERS = "editor.codeactions.kotlin.implementmembers"
 	const val EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX = "editor.codeactions.kotlin.nullsafetyfix"
 	const val EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH = "editor.codeactions.kotlin.trycatch"
 
