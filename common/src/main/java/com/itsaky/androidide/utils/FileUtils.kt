@@ -22,6 +22,8 @@ import java.io.FileFilter
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 
+private const val UTF8_SNIFF_LENGTH = 24
+
 object FileUtils {
 	@JvmStatic
 	fun isUtf8(file: File): Boolean {
@@ -34,7 +36,12 @@ object FileUtils {
 		decoder.onUnmappableCharacter(CodingErrorAction.REPORT)
 
 		return try {
-			file.inputStream().use { input -> decoder.decode(ByteBuffer.wrap(input.readBytes())) }
+			val header = ByteArray(UTF8_SNIFF_LENGTH)
+			val read = file.inputStream().use { it.read(header) }
+			if (read <= 0) {
+				return false
+			}
+			decoder.decode(ByteBuffer.wrap(header, 0, read))
 			true
 		} catch (e: Exception) {
 			false
@@ -74,7 +81,10 @@ object FileUtils {
 	fun rename(
 		file: File,
 		newName: String,
-	): Boolean = file.renameTo(File(file.parentFile, newName))
+	): Boolean {
+		val newFile = File(file.parentFile, newName)
+		return !newFile.exists() && file.renameTo(newFile)
+	}
 
 	@JvmStatic
 	fun getFileExtension(file: File): String = file.extension
