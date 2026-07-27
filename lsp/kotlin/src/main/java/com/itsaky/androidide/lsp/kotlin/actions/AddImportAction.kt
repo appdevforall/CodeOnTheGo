@@ -24,7 +24,7 @@ import java.nio.file.Path
 
 class AddImportAction : BaseKotlinCodeAction() {
 	override var titleTextRes: Int = R.string.action_import_classes
-	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_FIX_IMPORTS
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_ADD_IMPORT
 
 	override val id: String = "ide.editor.lsp.kt.diagnostics.addImport"
 	override var label: String = ""

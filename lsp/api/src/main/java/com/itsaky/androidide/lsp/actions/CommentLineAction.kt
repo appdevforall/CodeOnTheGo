@@ -26,7 +26,6 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.actions.requireEditor
 import com.itsaky.androidide.actions.requireFile
-import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import io.github.rosemoe.sora.text.batchEdit
 import java.io.File
@@ -36,10 +35,11 @@ class CommentLineAction(
 	lang: String,
 	private val targetFileExtensions: List<String>,
 	private val lineCommentToken: String,
+	tag: String,
 ) : EditorActionItem {
+	constructor(lang: String, extension: String, lineCommentToken: String, tag: String) :
+		this(lang, listOf(extension), lineCommentToken, tag)
 
-	constructor(lang: String, extension: String, lineCommentToken: String) :
-			this(lang, listOf(extension), lineCommentToken)
 	override val id: String = "ide.editor.lsp.$lang.commentLine"
 	override var label: String = ""
 
@@ -48,7 +48,10 @@ class CommentLineAction(
 	override var icon: Drawable? = null
 	override var location: ActionItem.Location = ActionItem.Location.EDITOR_CODE_ACTIONS
 	override var requiresUIThread: Boolean = true
-	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_COMMENT
+
+	// Required, not defaulted: one instance is registered per language, and a default would let a
+	// new language silently inherit another language's tooltip.
+	override var tooltipTag: String = tag
 
 	override fun prepare(data: ActionData) {
 		super.prepare(data)

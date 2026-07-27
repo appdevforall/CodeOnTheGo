@@ -79,7 +79,15 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_GEN_TO_STRING_DIALOG = "editor.codeactions.gentostring.dialog"
 	const val EDITOR_CODE_ACTIONS_UNUSED_IMPORTS = "editor.codeactions.unusedimports"
 	const val EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS = "editor.codeactions.organizeimports"
-	const val EDITOR_CODE_ACTIONS_KT_FIX_IMPORTS = "editor.codeactions.kotlin.fiximports"
+
+	// Kotlin code actions. Tags are per-language even where the action exists in both languages,
+	// so the tooltip can describe the Kotlin behaviour (see ADFA-4730).
+	const val EDITOR_CODE_ACTIONS_KT_COMMENT = "editor.codeactions.kotlin.comment"
+	const val EDITOR_CODE_ACTIONS_KT_UNCOMMENT = "editor.codeactions.kotlin.uncomment"
+	const val EDITOR_CODE_ACTIONS_KT_ADD_IMPORT = "editor.codeactions.kotlin.addimport"
+	const val EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS = "editor.codeactions.kotlin.organizeimports"
+	const val EDITOR_CODE_ACTIONS_KT_OVERRIDE_SUPER = "editor.codeactions.kotlin.overridesuper"
+	const val EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX = "editor.codeactions.kotlin.nullsafetyfix"
 
 	const val EXIT_TO_MAIN = "exit.to.main"
 

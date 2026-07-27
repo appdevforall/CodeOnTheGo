@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin
 
 import com.itsaky.androidide.actions.ActionItem
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.actions.CommentLineAction
 import com.itsaky.androidide.lsp.actions.IActionsMenuProvider
 import com.itsaky.androidide.lsp.actions.UncommentLineAction
@@ -16,8 +17,18 @@ object KotlinCodeActionsMenu : IActionsMenuProvider {
 
 	override val actions: List<ActionItem> =
 		listOf(
-			CommentLineAction(KT_LANG, KT_EXTS, KT_LINE_COMMENT_TOKEN),
-			UncommentLineAction(KT_LANG, KT_EXTS, KT_LINE_COMMENT_TOKEN),
+			CommentLineAction(
+				KT_LANG,
+				KT_EXTS,
+				KT_LINE_COMMENT_TOKEN,
+				TooltipTag.EDITOR_CODE_ACTIONS_KT_COMMENT,
+			),
+			UncommentLineAction(
+				KT_LANG,
+				KT_EXTS,
+				KT_LINE_COMMENT_TOKEN,
+				TooltipTag.EDITOR_CODE_ACTIONS_KT_UNCOMMENT,
+			),
 			AddImportAction(),
 			OrganizeImportsAction(),
 			NullSafetyAction(),
