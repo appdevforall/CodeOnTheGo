@@ -7,17 +7,26 @@ green=$(tput setaf 2)
 reset=$(tput sgr0)
 
 ##### SPOTLESS HOOK START #####
-SPOTLESS_EXECUTOR="$(git rev-parse --show-toplevel)/gradlew"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+SPOTLESS_EXECUTOR="$REPO_ROOT/gradlew"
 [ -f "$SPOTLESS_EXECUTOR" ] || {
 	echo "${red}[!] Gradle wrapper script '$SPOTLESS_EXECUTOR' not found.${reset}"
 	echo "${red}[!] Cannot run Spotless checks.${reset}"
 	exit 1
 }
 
+# Run Gradle through flox for the project toolchain (see CLAUDE.md). Fall back
+# to a bare wrapper call if flox isn't installed so the hook still runs.
+if command -v flox >/dev/null 2>&1; then
+	GRADLE=(flox activate -d "$REPO_ROOT/flox/local" -- "$SPOTLESS_EXECUTOR")
+else
+	GRADLE=("$SPOTLESS_EXECUTOR")
+fi
+
 echo "[*] Running 'spotlessCheck'"
-if ! $SPOTLESS_EXECUTOR spotlessCheck ; then
+if ! "${GRADLE[@]}" spotlessCheck ; then
 	echo 1>&2 "[!] Spotless found problems, running spotlessApply"
-	$SPOTLESS_EXECUTOR spotlessApply && {
+	"${GRADLE[@]}" spotlessApply && {
 		echo "${red}[!] Formatting errors have been fixed automatically.${reset}"
 		echo "${red}[!] Please stage and commit the changes before running 'git push' again.${reset}"
 	} || {

@@ -215,12 +215,12 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
         return -1;
 
     JNINativeMethod methods_PairingContext[] = {
-            {"nativeConstructor", "(Z[B)J",  (void *) PairingContext_Constructor},
-            {"nativeMsg",         "(J)[B",   (void *) PairingContext_Msg},
-            {"nativeInitCipher",  "(J[B)Z",  (void *) PairingContext_InitCipher},
-            {"nativeEncrypt",     "(J[B)[B", (void *) PairingContext_Encrypt},
-            {"nativeDecrypt",     "(J[B)[B", (void *) PairingContext_Decrypt},
-            {"nativeDestroy",     "(J)V",    (void *) PairingContext_Destroy},
+            {(char *) "nativeConstructor", (char *) "(Z[B)J",  (void *) PairingContext_Constructor},
+            {(char *) "nativeMsg",         (char *) "(J)[B",   (void *) PairingContext_Msg},
+            {(char *) "nativeInitCipher",  (char *) "(J[B)Z",  (void *) PairingContext_InitCipher},
+            {(char *) "nativeEncrypt",     (char *) "(J[B)[B", (void *) PairingContext_Encrypt},
+            {(char *) "nativeDecrypt",     (char *) "(J[B)[B", (void *) PairingContext_Decrypt},
+            {(char *) "nativeDestroy",     (char *) "(J)V",    (void *) PairingContext_Destroy},
     };
 
     env->RegisterNatives(env->FindClass("moe/shizuku/manager/adb/PairingContext"), methods_PairingContext,

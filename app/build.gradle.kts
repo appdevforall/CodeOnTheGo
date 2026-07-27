@@ -1,8 +1,6 @@
 @file:Suppress("UnstableApiUsage")
 
-import ch.qos.logback.core.util.EnvUtil
 import com.itsaky.androidide.build.config.BuildConfig
-import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
 import org.json.JSONObject
@@ -10,6 +8,7 @@ import java.io.BufferedOutputStream
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -24,7 +23,6 @@ import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
-import kotlin.reflect.jvm.javaMethod
 
 plugins {
 	id("com.android.application")
@@ -57,7 +55,6 @@ apply {
 
 buildscript {
 	dependencies {
-		classpath(libs.logging.logback.core)
 		classpath(libs.composite.desugaringCore)
 		classpath(libs.org.json)
 	}
@@ -121,6 +118,18 @@ android {
 			excludes += "META-INF/DEPENDENCIES"
 			excludes += "META-INF/gradle/incremental.annotation.processors"
 
+			// Beider-Morse phonetic rule data (commons-codec); unused, no code calls the phonetic encoders.
+			excludes += "org/apache/commons/codec/language/bm/**"
+			// JLine console resources bundled in the Kotlin analysis-api jar; used headlessly, no REPL/console.
+			excludes += "org/jetbrains/kotlin/org/jline/**"
+			// IntelliJ plugin K2-mode compatibility manifest; meaningless outside a real IntelliJ session.
+			excludes += "pluginsCompatibleWithK2Mode.txt"
+			// Bundled .proto well-known-type sources from protobuf jars; nothing imports them at build time.
+			excludes += "google/protobuf/**"
+			excludes += "src/google/protobuf/**"
+			// httpclient's public-suffix cookie-domain data; unused, no code touches Apache HttpClient directly.
+			excludes += "mozilla/public-suffix-list.txt"
+
 			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
 			pickFirsts += "kotlin/reflect/reflect.kotlin_builtins"
 			pickFirsts += "kotlin/kotlin.kotlin_builtins"
@@ -160,20 +169,9 @@ kapt { arguments { arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.AppE
 
 desugaring {
 	replacements {
-		includePackage(
-			"org.eclipse.jgit",
-			"ch.qos.logback.classic.util",
-		)
+		includePackage("org.eclipse.jgit")
 
 		applyJavaIOReplacements()
-
-		// EnvUtil.logbackVersion() uses newer Java APIs like Class.getModule() which is not available
-		// on Android. We replace the method usage with DesugarEnvUtil.logbackVersion() which
-		// always returns null
-		replaceMethod(
-			EnvUtil::logbackVersion.javaMethod!!,
-			DesugarEnvUtil::logbackVersion.javaMethod!!,
-		)
 	}
 }
 
@@ -330,7 +328,6 @@ dependencies {
 	// Sentry Android SDK (core + replay for quality configuration); our GlitchTip client.
 	implementation(libs.sentry.core)
 	implementation(libs.sentry.android.core)
-	implementation(libs.sentry.logback)
 
 	// Firebase Analytics
 	implementation(platform(libs.firebase.bom))
@@ -339,7 +336,6 @@ dependencies {
 	// Lifecycle Process for app lifecycle tracking
 	implementation(libs.androidx.lifecycle.process)
 	implementation(libs.androidx.lifecycle.runtime.ktx)
-	implementation(libs.google.genai)
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
 
 	// Pebble template engine
@@ -416,10 +412,62 @@ tasks.register<Zip>("createPluginArtifactsZip") {
 	destinationDirectory.set(rootProject.file("assets"))
 }
 
+// Packages the on-device installer payload (assets-<arch>.zip) consumed by
+// SplitAssetsInstaller on debug builds. Entry names must match the installer
+// contract in AssetsInstallationHelper.expectedEntries.
+fun createAssetsZip(arch: String) {
+	val outputDir =
+		project.layout.buildDirectory
+			.dir("outputs/assets")
+			.get()
+			.asFile
+	if (!outputDir.exists()) {
+		outputDir.mkdirs()
+	}
+	val zipFile = outputDir.resolve("assets-$arch.zip")
+
+	val sourceDir = project.rootDir.resolve("assets")
+	val bootstrapName = "bootstrap-$arch.zip"
+	val androidSdkName = "android-sdk-$arch.zip"
+	ZipOutputStream(zipFile.outputStream()).use { zipOut ->
+		arrayOf(
+			androidSdkName,
+			"localMvnRepository.zip",
+			"gradle-8.14.3-bin.zip",
+			"gradle-api-8.14.3.jar.zip",
+			"documentation.db",
+			bootstrapName,
+			"plugin-artifacts.zip",
+			"core.cgt",
+		).forEach { fileName ->
+			val filePath = sourceDir.resolve(fileName)
+			if (!filePath.exists()) {
+				throw FileNotFoundException(filePath.absolutePath)
+			}
+
+			project.logger.lifecycle("Zipping $fileName from ${filePath.absolutePath}")
+			val entryName =
+				when (fileName) {
+					bootstrapName -> "bootstrap.zip"
+					androidSdkName -> "android-sdk.zip"
+					else -> fileName
+				}
+
+			zipOut.putNextEntry(ZipEntry(entryName))
+			filePath.inputStream().use { input -> input.copyTo(zipOut) }
+			zipOut.closeEntry()
+		}
+	}
+	project.logger.lifecycle("Created ${zipFile.name} at ${zipFile.parentFile.absolutePath}")
+}
+
 tasks.register("assembleV8Assets") {
 	dependsOn("createPluginArtifactsZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
+	}
+	doLast {
+		createAssetsZip("arm64-v8a")
 	}
 }
 
@@ -427,6 +475,9 @@ tasks.register("assembleV7Assets") {
 	dependsOn("createPluginArtifactsZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
+	}
+	doLast {
+		createAssetsZip("armeabi-v7a")
 	}
 }
 
