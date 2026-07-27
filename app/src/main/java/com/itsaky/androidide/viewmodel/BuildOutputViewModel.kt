@@ -48,6 +48,12 @@ class BuildOutputViewModel(
 	 */
 	val filterText = MutableStateFlow("")
 
+	/** Toggle for showing wall-clock timestamps `[HH:mm:ss.SSS]` in editor view. */
+	val showTimestamps = MutableStateFlow(true)
+
+	/** Toggle for showing total and step time deltas `[+mm:ss.SSS] (ΔXms)` in editor view. */
+	val showDeltas = MutableStateFlow(true)
+
 	/**
 	 * Thread-safe snapshot of content for synchronous [getShareableContent] without blocking.
 	 * Updated on [append] and [clear]; primed on restore via [setCachedSnapshot].
@@ -181,19 +187,40 @@ class BuildOutputViewModel(
 	}
 
 	companion object {
+		private val TIMESTAMP_REGEX = Regex("""\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s*""")
+		private val DELTA_REGEX = Regex("""\[\+\d{2}:\d{2}\.\d{3}\]\s*\([\Delta\u0394]\d+ms\)\s*""")
+
+		fun formatLineForDisplay(
+			line: String,
+			showTimestamps: Boolean,
+			showDeltas: Boolean,
+		): String {
+			var result = line
+			if (!showTimestamps) {
+				result = result.replace(TIMESTAMP_REGEX, "")
+			}
+			if (!showDeltas) {
+				result = result.replace(DELTA_REGEX, "")
+			}
+			return result
+		}
+
 		/**
-		 * Returns only the lines of [content] containing [query] (case-insensitive), each terminated
-		 * with a newline. Returns [content] unchanged when [query] is empty.
+		 * Returns only the lines of [content] containing [query] (case-insensitive), formatted according
+		 * to [showTimestamps] and [showDeltas], each terminated with a newline.
 		 */
 		fun filterLines(
 			content: String,
 			query: String,
+			showTimestamps: Boolean = true,
+			showDeltas: Boolean = true,
 		): String {
-			if (query.isEmpty() || content.isEmpty()) return content
+			if (content.isEmpty()) return content
 			return buildString {
-				for (line in content.lineSequence()) {
-					if (line.contains(query, ignoreCase = true)) {
-						append(line).append('\n')
+				for (rawLine in content.lineSequence()) {
+					if (query.isEmpty() || rawLine.contains(query, ignoreCase = true)) {
+						val displayLine = formatLineForDisplay(rawLine, showTimestamps, showDeltas)
+						append(displayLine).append('\n')
 					}
 				}
 			}

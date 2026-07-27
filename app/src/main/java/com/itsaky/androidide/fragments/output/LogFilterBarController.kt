@@ -35,12 +35,19 @@ import java.util.EnumSet
  *   metadata, like the build output, only get the text filter).
  * @param onFilterChanged Called with the enabled levels and the (untrimmed) filter text.
  */
-class LogFilterBarController(
+class LogFilterBarController @JvmOverloads constructor(
 	private val binding: LayoutLogFilterBarBinding,
 	coroutineScope: CoroutineScope,
 	showLevelChips: Boolean,
+	showOptionChips: Boolean = false,
 	initialText: String,
 	initialLevels: Set<ILogger.Level>,
+	initialLineNumbersEnabled: Boolean = true,
+	initialTimestampsEnabled: Boolean = true,
+	initialDeltasEnabled: Boolean = true,
+	private val onLineNumbersToggled: ((Boolean) -> Unit)? = null,
+	private val onTimestampsToggled: ((Boolean) -> Unit)? = null,
+	private val onDeltasToggled: ((Boolean) -> Unit)? = null,
 	private val onFilterChanged: (levels: Set<ILogger.Level>, text: String) -> Unit,
 ) {
 	companion object {
@@ -59,7 +66,30 @@ class LogFilterBarController(
 	private var textDebounceJob: Job? = null
 
 	init {
-		binding.levelChipsScroll.isVisible = showLevelChips
+		binding.levelChipsScroll.isVisible = showLevelChips || showOptionChips
+
+		chipsByLevel.values.forEach { chip ->
+			chip.isVisible = showLevelChips
+		}
+
+		binding.chipLineNumbers.isVisible = showOptionChips
+		binding.chipLineNumbers.isChecked = initialLineNumbersEnabled
+		binding.chipLineNumbers.setOnCheckedChangeListener { _, isChecked ->
+			onLineNumbersToggled?.invoke(isChecked)
+		}
+
+		binding.chipTimestamps.isVisible = showOptionChips
+		binding.chipTimestamps.isChecked = initialTimestampsEnabled
+		binding.chipTimestamps.setOnCheckedChangeListener { _, isChecked ->
+			onTimestampsToggled?.invoke(isChecked)
+		}
+
+		binding.chipDeltas.isVisible = showOptionChips
+		binding.chipDeltas.isChecked = initialDeltasEnabled
+		binding.chipDeltas.setOnCheckedChangeListener { _, isChecked ->
+			onDeltasToggled?.invoke(isChecked)
+		}
+
 		binding.filterInput.setText(initialText)
 		chipsByLevel.forEach { (level, chip) ->
 			chip.isChecked = level in initialLevels

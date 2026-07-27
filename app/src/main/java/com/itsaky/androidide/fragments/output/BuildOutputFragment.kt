@@ -21,6 +21,7 @@ import android.view.View
 import android.widget.LinearLayout
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
+import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutLogFilterBarBinding
 import com.itsaky.androidide.editor.ui.EditorSearchLayout
@@ -33,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -79,21 +81,31 @@ class BuildOutputFragment :
 				buildOutputViewModel.setCachedSnapshot(content)
 			}
 			launch {
-				buildOutputViewModel.filterText.drop(1).collectLatest { query ->
-					renderFiltered(query)
+				combine(
+					buildOutputViewModel.filterText,
+					buildOutputViewModel.showTimestamps,
+					buildOutputViewModel.showDeltas,
+				) { query, ts, deltas ->
+					Triple(query, ts, deltas)
+				}.drop(1).collectLatest { (query, ts, deltas) ->
+					renderFiltered(query, ts, deltas)
 				}
 			}
 		}
 	}
 
-	/** Re-renders the editor window from the session file, filtered by [query]. */
-	private suspend fun renderFiltered(query: String) {
+	/** Re-renders the editor window from the session file, filtered by [query] and visibility options. */
+	private suspend fun renderFiltered(
+		query: String = buildOutputViewModel.filterText.value,
+		showTimestamps: Boolean = buildOutputViewModel.showTimestamps.value,
+		showDeltas: Boolean = buildOutputViewModel.showDeltas.value,
+	) {
 		editorContentMutex.withLock {
 			editorContentGeneration++
 			val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
 			val filtered =
 				withContext(Dispatchers.Default) {
-					BuildOutputViewModel.filterLines(window, query)
+					BuildOutputViewModel.filterLines(window, query, showTimestamps, showDeltas)
 				}
 			withContext(Dispatchers.Main) {
 				editor?.setText(filtered)
@@ -115,6 +127,15 @@ class BuildOutputFragment :
 
 	override fun beginSearch() {
 		searchLayout?.beginSearchMode()
+	}
+
+	/**
+	 * Dynamically toggles gutter line numbers in the Build Output editor.
+	 */
+	fun setLineNumbersEnabled(enabled: Boolean) {
+		val ed = editor ?: return
+		ed.setLineNumberEnabled(enabled)
+		ed.setDividerWidth((if (enabled) SizeUtils.dp2px(2f) else 0).toFloat())
 	}
 
 	override fun toggleFilterBar() {
@@ -149,8 +170,21 @@ class BuildOutputFragment :
 			binding = barBinding,
 			coroutineScope = viewLifecycleOwner.lifecycleScope,
 			showLevelChips = false,
+			showOptionChips = true,
 			initialText = buildOutputViewModel.filterText.value,
 			initialLevels = LogFilter.ALL_LEVELS,
+			initialLineNumbersEnabled = editor?.isLineNumberEnabled ?: true,
+			initialTimestampsEnabled = buildOutputViewModel.showTimestamps.value,
+			initialDeltasEnabled = buildOutputViewModel.showDeltas.value,
+			onLineNumbersToggled = { enabled ->
+				setLineNumbersEnabled(enabled)
+			},
+			onTimestampsToggled = { enabled ->
+				buildOutputViewModel.showTimestamps.value = enabled
+			},
+			onDeltasToggled = { enabled ->
+				buildOutputViewModel.showDeltas.value = enabled
+			},
 		) { _, text ->
 			buildOutputViewModel.filterText.value = text.trim()
 		}.also { filterBar = it }
@@ -158,7 +192,12 @@ class BuildOutputFragment :
 
 	private suspend fun restoreWindowFromViewModel() {
 		val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
-		val content = BuildOutputViewModel.filterLines(window, buildOutputViewModel.filterText.value)
+		val content = BuildOutputViewModel.filterLines(
+			window,
+			buildOutputViewModel.filterText.value,
+			buildOutputViewModel.showTimestamps.value,
+			buildOutputViewModel.showDeltas.value,
+		)
 		if (content.isEmpty()) return
 		withContext(Dispatchers.Main) {
 			val editor = this@BuildOutputFragment.editor ?: return@withContext
@@ -196,8 +235,9 @@ class BuildOutputFragment :
 		// Avoid forcing the activityViewModels lazy init (which calls requireActivity())
 		// when the fragment is detached, otherwise an IllegalStateException is thrown.
 		if (!isAdded || activity == null) return
-		while (logChannel.tryReceive().isSuccess) {
-			// Drain and discard any pending log lines queued prior to clear
+		while (true) {
+			val result = logChannel.tryReceive()
+			if (!result.isSuccess) break
 		}
 		buildOutputViewModel.clear()
 		super.clearOutput()
@@ -275,7 +315,12 @@ class BuildOutputFragment :
 
 			// The session file always gets the full text; the editor only shows matching lines
 			val visibleText =
-				BuildOutputViewModel.filterLines(text, buildOutputViewModel.filterText.value)
+				BuildOutputViewModel.filterLines(
+					text,
+					buildOutputViewModel.filterText.value,
+					buildOutputViewModel.showTimestamps.value,
+					buildOutputViewModel.showDeltas.value,
+				)
 			if (visibleText.isEmpty()) {
 				return
 			}

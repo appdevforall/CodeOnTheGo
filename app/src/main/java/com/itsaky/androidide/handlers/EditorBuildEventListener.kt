@@ -46,9 +46,11 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 
 private var lastStatusLine: String = ""
 
+var showTimestamps: Boolean = true
+var showDeltas: Boolean = true
+
 private var buildStartTimeMs: Long = 0L
 private var lastOutputTimeMs: Long = 0L
-private var lineCounter: Int = 1
 
 private val timestampFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
@@ -114,7 +116,6 @@ override fun prepareBuild(buildInfo: BuildInfo) {
 private fun resetBuildTimers() {
 	buildStartTimeMs = System.currentTimeMillis()
 	lastOutputTimeMs = buildStartTimeMs
-	lineCounter = 1
 }
 
 override fun onBuildSuccessful(tasks: List<String?>) {
@@ -210,18 +211,15 @@ private fun formatOutput(raw: String): String {
 	if (i == lines.lastIndex && l.isEmpty() && lines.size > 1) {
 		continue
 	}
-	val lineNo = lineCounter++
-	builder.append(
-		String.format(
-		Locale.US,
-		"%5d | [%s] [%s] (%s) %s",
-		lineNo,
-		timeStr,
-		totalDeltaStr,
-		stepDeltaStr,
-		l
-		)
-	)
+	val prefix = buildString {
+		if (showTimestamps) {
+			append("[").append(timeStr).append("] ")
+		}
+		if (showDeltas) {
+			append("[").append(totalDeltaStr).append("] (").append(stepDeltaStr).append(") ")
+		}
+	}
+	builder.append(prefix).append(l)
 	if (i < lines.size - 1 || raw.endsWith("\n")) {
 		builder.append("\n")
 	}
