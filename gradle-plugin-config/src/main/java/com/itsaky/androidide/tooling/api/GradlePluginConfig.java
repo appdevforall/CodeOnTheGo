@@ -30,6 +30,11 @@ public final class GradlePluginConfig {
 	public static final String PROPERTY_JDWP_ENABLED = "cotg.jdwp.enabled";
 
 	/**
+	 * Property used by the Gradle plugin to determine whether the final APK should be profileable (so it can be profiled with simpleperf via the shell). When {@code true}, the plugin ensures the merged manifest declares {@code <profileable android:shell="true"/>}.
+	 */
+	public static final String PROPERTY_PROFILEABLE_ENABLED = "cotg.profileable.enabled";
+
+	/**
 	 * Property to enable or disable <code>LogSender</code> in the project. Value can be <code>true</code> or <code>false</code>.
 	 */
 	public static final String PROPERTY_LOG_SENDER_ENABLED = "androidide.logsender.isEnabled";

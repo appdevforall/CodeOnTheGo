@@ -1585,7 +1585,7 @@ public class JavaTokenizer extends UnicodeReader {
          * @deprecated  This method is associated with text blocks, a preview language feature.
          *              Text blocks and/or this method may be changed or removed in a future release.
          */
-//        @Deprecated(forRemoval=true, since="13")
+        @Deprecated
         public static String stripIndent(String str) {
             int length = str.length();
             if (length == 0) {
@@ -1702,6 +1702,7 @@ public class JavaTokenizer extends UnicodeReader {
          * @deprecated  This method is associated with text blocks, a preview language feature.
          *              Text blocks and/or this method may be changed or removed in a future release.
          */
+        @Deprecated
         public static String translateEscapes(String str) {
             if (str.isEmpty()) {
                 return "";

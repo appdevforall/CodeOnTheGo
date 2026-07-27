@@ -78,7 +78,7 @@ We render content in WebViews (tooltips, markdown preview, APK viewer) and run a
 ### 6. Android component & data exposure
 - **Exported components** — `activity`/`service`/`receiver`/`provider` with `android:exported="true"` and no permission is a standard finding. Export only what must be, and protect it with a signature-level permission. Validate all incoming `Intent` extras (intent-redirection / spoofing).
 - **PendingIntent** — must be `FLAG_IMMUTABLE` unless mutability is genuinely required.
-- **Insecure storage** — no `MODE_WORLD_READABLE/WRITEABLE`; don't put sensitive data on external/shared storage; don't log file contents, tokens, or PII (scanners flag `Log`/print of tainted data, and it also leaks into Sentry/analytics).
+- **Insecure storage** — no `MODE_WORLD_READABLE/WRITEABLE`; don't put sensitive data on external/shared storage; don't log file contents, tokens, or PII (scanners flag `Log`/print of tainted data, and it also leaks into GlitchTip/analytics).
 - **Manifest hygiene** — `android:allowBackup` and `android:debuggable` are flagged for sensitive apps; set deliberately.
 - Request the minimum permissions; over-requesting is flagged.
 

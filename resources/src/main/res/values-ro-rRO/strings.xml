@@ -242,7 +242,6 @@
   <string name="idepref_buildnrun_summary">Configure the Gradle build.</string>
   <string name="configure">Configure</string>
   <string name="about">About</string>
-  <string name="idepref_github_summary">Code on the Go is open source!</string>
   <string name="idepref_channel_summary">Subscribe for latest updates.</string>
   <string name="idepref_group_summary">Discuss featues, bugs and improvements here.</string>
   <string name="idepref_changelog_summary">What\'s new in this version?</string>
@@ -340,12 +339,6 @@
   <string name="msg_tasks_to_run">Următoarele activități vor fi rulate, în ordine. Faceți clic pe butonul \'Rulare\' pentru confirmare.\n\n%1$s</string>
   <string name="msg_loading_tasks">Încarc sarcinile…</string>
   <!-- GIT -->
-  <string name="git_clone">Clonare</string>
-  <string name="git_clone_repo">CClonează repozitoriu Git</string>
-  <string name="git_clone_repo_url">URL repozitoriu</string>
-  <string name="git_clone_in_progress">Clonează repozitoriu</string>
-  <string name="git_clone_success">Clona Git cu succes</string>
-  <string name="git_clone_failed">Nu a reușit să cloneze depozitul git</string>
   <string name="msg_select_attr">Selectați un atribut din lista de mai jos</string>
   <string name="action_show_hierarchy">Arată ierarhia layout-ului</string>
   <string name="idepref_editor_colorScheme">Schema de culori</string>

@@ -52,6 +52,9 @@ class ProjectActionsToolbar @JvmOverloads constructor(
             }
             contentDescription = hint
             setImageDrawable(icon)
+            // Start animation for animated drawables (e.g. AnimatedVectorDrawable used by a
+            // plugin's dynamic toolbar icon). No-op for ordinary static drawables.
+            (icon as? android.graphics.drawable.Animatable)?.start()
             addCircleRipple()
             // Set layout params for width and height
             layoutParams = LinearLayout.LayoutParams(

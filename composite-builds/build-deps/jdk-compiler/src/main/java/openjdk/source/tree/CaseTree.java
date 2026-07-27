@@ -55,6 +55,7 @@ public interface CaseTree extends Tree {
      * @return the expression for the case, or null
      * @deprecated Please use {@link #getExpressions()}.
      */
+    @Deprecated
     ExpressionTree getExpression();
 
     /**

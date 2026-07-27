@@ -5,6 +5,7 @@ package com.itsaky.androidide.plugins.manager.services
 import android.app.Activity
 import android.content.Intent
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.plugins.manager.ui.PluginToolbarHost
 import com.itsaky.androidide.plugins.services.IdeUIService
 
 /**
@@ -43,5 +44,11 @@ class IdeUIServiceImpl(
             activity.startActivity(intent)
             true
         }.getOrDefault(false)
+    }
+
+    override fun refreshToolbarActions() {
+        // Only the editor screen hosts the plugin toolbar. When some other (or no)
+        // activity is foreground this is simply a no-op.
+        (getCurrentActivity() as? PluginToolbarHost)?.refreshPluginToolbarActions()
     }
 }

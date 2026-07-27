@@ -5,8 +5,10 @@ import android.os.StatFs
 import androidx.annotation.WorkerThread
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
-import com.itsaky.androidide.utils.useEntriesEach
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment.DEFAULT_ROOT
+import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.useEntriesEach
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -22,8 +24,6 @@ import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.slf4j.LoggerFactory
-import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.flashError
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -43,8 +43,8 @@ import kotlin.math.pow
 typealias AssetsInstallerProgressConsumer = (AssetsInstallationHelper.Progress) -> Unit
 
 object AssetsInstallationHelper {
-    private const val STATUS_INSTALLING = "Installing"
-    private const val STATUS_FINISHED = "FINISHED"
+	private const val STATUS_INSTALLING = "Installing"
+	private const val STATUS_FINISHED = "FINISHED"
 
 	sealed interface Result {
 		data object Success : Result
@@ -52,7 +52,7 @@ object AssetsInstallationHelper {
 		data class Failure(
 			val cause: Throwable?,
 			val errorMessage: String? = cause?.message,
-			val shouldReportToSentry: Boolean = true
+			val shouldReportToGlitchTip: Boolean = true,
 		) : Result
 	}
 
@@ -60,8 +60,8 @@ object AssetsInstallationHelper {
 		val message: String,
 	)
 
-    const val PLUGIN_ARTIFACTS_ZIP = "plugin-artifacts.zip"
-    private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
+	const val PLUGIN_ARTIFACTS_ZIP = "plugin-artifacts.zip"
+	private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
 	private val ASSETS_INSTALLER = AssetsInstaller.CURRENT_INSTALLER
 	const val BOOTSTRAP_ENTRY_NAME = "bootstrap.zip"
 
@@ -83,14 +83,15 @@ object AssetsInstallationHelper {
 
 				val isMissingAsset = generateSequence(e) { it.cause }.any { it is FileNotFoundException }
 				val cause = if (isMissingAsset) MissingAssetsEntryException(e) else e
-				val msg = if (isMissingAsset) {
-					context.getString(R.string.err_missing_or_corrupt_assets, context.getString(R.string.app_name))
-				} else {
-					e.message ?: context.getString(R.string.error_installation_failed)
-				}
+				val msg =
+					if (isMissingAsset) {
+						context.getString(R.string.err_missing_or_corrupt_assets, context.getString(R.string.app_name))
+					} else {
+						e.message ?: context.getString(R.string.error_installation_failed)
+					}
 				logger.error("Failed to install assets", e)
 				onProgress(Progress(msg))
-				return@withContext Result.Failure(cause, errorMessage = msg, shouldReportToSentry = !isMissingAsset)
+				return@withContext Result.Failure(cause, errorMessage = msg, shouldReportToGlitchTip = !isMissingAsset)
 			}
 
 			return@withContext Result.Success
@@ -113,8 +114,8 @@ object AssetsInstallationHelper {
 				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
 				BOOTSTRAP_ENTRY_NAME,
 				GRADLE_API_NAME_JAR_ZIP,
-                PLUGIN_ARTIFACTS_ZIP,
-                TEMPLATE_CORE_ARCHIVE,
+				PLUGIN_ARTIFACTS_ZIP,
+				TEMPLATE_CORE_ARCHIVE,
 			)
 
 		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())
@@ -130,7 +131,7 @@ object AssetsInstallationHelper {
 				true
 			} catch (e: FileNotFoundException) {
 				logger.error("ZIP file not found: {}", e.message)
-                flashError("File not found - ${e.message}")
+				flashError("File not found - ${e.message}")
 				false
 			} catch (e: ZipException) {
 				logger.error("Invalid ZIP format: {}", e.message)
@@ -147,9 +148,10 @@ object AssetsInstallationHelper {
 		}
 
 		try {
-			val entrySizes: Map<String, Long> = expectedEntries.associateWith { entry ->
-				ASSETS_INSTALLER.expectedSize(entry)
-			}
+			val entrySizes: Map<String, Long> =
+				expectedEntries.associateWith { entry ->
+					ASSETS_INSTALLER.expectedSize(entry)
+				}
 
 			val totalSize = entrySizes.values.sum()
 
@@ -175,14 +177,18 @@ object AssetsInstallationHelper {
 				launch {
 					var previousSnapshot = ""
 					while (isActive) {
-						val installedSize = entryStatusMap
-							.filterValues { it == STATUS_FINISHED }
-							.keys
-							.sumOf { entrySizes[it] ?: 0 }
+						val installedSize =
+							entryStatusMap
+								.filterValues { it == STATUS_FINISHED }
+								.keys
+								.sumOf { entrySizes[it] ?: 0 }
 
-						val percent = if (totalSize > 0) {
-							(installedSize * 100.0 / totalSize)
-						} else 0.0
+						val percent =
+							if (totalSize > 0) {
+								(installedSize * 100.0 / totalSize)
+							} else {
+								0.0
+							}
 
 						val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
@@ -239,15 +245,15 @@ object AssetsInstallationHelper {
 		Files.createDirectories(destDir)
 		// Normalize and make destDir absolute for secure path validation
 		val normalizedDestDir = destDir.toAbsolutePath().normalize()
-		
+
 		ZipInputStream(srcStream.buffered()).useEntriesEach { zipInput, entry ->
 			// Validate entry name doesn't contain dangerous patterns
 			if (entry.name.contains("..") || entry.name.startsWith("/") || entry.name.startsWith("\\")) {
 				throw IllegalStateException("Zip entry contains dangerous path components: ${entry.name}")
 			}
-			
+
 			val destFile = normalizedDestDir.resolve(entry.name).normalize()
-			
+
 			// Use Path.startsWith() for proper path validation instead of string comparison
 			if (!destFile.startsWith(normalizedDestDir)) {
 				// DO NOT allow extraction to outside of the target dir
@@ -264,32 +270,29 @@ object AssetsInstallationHelper {
 		}
 	}
 
-    private fun getAvailableStorage(path: File): Long {
-        return try {
-            val stat = StatFs(path.absolutePath)
-            stat.availableBytes
-        } catch (e: Exception) {
-            logger.warn("Failed to get available storage for {}: {}", path, e.message)
-            -1L
-        }
-    }
+	private fun getAvailableStorage(path: File): Long =
+		try {
+			val stat = StatFs(path.absolutePath)
+			stat.availableBytes
+		} catch (e: Exception) {
+			logger.warn("Failed to get available storage for {}: {}", path, e.message)
+			-1L
+		}
 
-    private fun formatBytes(bytes: Long): String {
-        val unit = 1024
-        if (bytes < unit) return "$bytes B"
-        val exp = (Math.log(bytes.toDouble()) / Math.log(unit.toDouble())).toInt()
-        val pre = "KMGTPE"[exp - 1]
-        return String.format(
-            Locale.getDefault(), // use device locale
-            "%.1f %sB",
-            bytes / unit.toDouble().pow(exp.toDouble()),
-            pre
-        )
-    }
+	private fun formatBytes(bytes: Long): String {
+		val unit = 1024
+		if (bytes < unit) return "$bytes B"
+		val exp = (Math.log(bytes.toDouble()) / Math.log(unit.toDouble())).toInt()
+		val pre = "KMGTPE"[exp - 1]
+		return String.format(
+			Locale.getDefault(), // use device locale
+			"%.1f %sB",
+			bytes / unit.toDouble().pow(exp.toDouble()),
+			pre,
+		)
+	}
 
-    private fun formatPercent(value: Double): String {
-        return String.format(Locale.getDefault(), "%.1f%%", value)
-    }
+	private fun formatPercent(value: Double): String = String.format(Locale.getDefault(), "%.1f%%", value)
 
 	private fun checkStorageAccessibility(
 		context: Context,
@@ -310,7 +313,7 @@ object AssetsInstallationHelper {
 			return Result.Failure(
 				IllegalStateException(errorMsg),
 				errorMsg,
-				false
+				false,
 			)
 		}
 		return null

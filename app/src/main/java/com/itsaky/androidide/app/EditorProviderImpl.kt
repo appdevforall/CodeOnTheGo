@@ -7,12 +7,17 @@ import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
+import com.itsaky.androidide.editor.ui.IDEEditor
+import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
 import com.itsaky.androidide.plugins.services.CursorPosition
 import com.itsaky.androidide.plugins.services.SelectionRange
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.widget.CodeEditor
 import kotlinx.coroutines.launch
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.lang.ref.WeakReference
@@ -36,6 +41,8 @@ class EditorProviderImpl(
     private val activityRef = WeakReference(activity)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val fileCallbacks = java.util.concurrent.CopyOnWriteArrayList<(File?) -> Unit>()
+    private val contentCallbacks =
+        java.util.concurrent.CopyOnWriteArrayList<(String, Int, Int, String) -> Unit>()
 
     private val internalListener: (File?) -> Unit = { file ->
         fileCallbacks.forEach { cb ->
@@ -48,16 +55,47 @@ class EditorProviderImpl(
 
     init {
         EditorEvents.addFileChangeListener(internalListener)
+        // Content changes reach us via the editor's existing DocumentChangeEvent (posted to the
+        // global EventBus on every edit); we fan them out to plugin-registered callbacks.
+        EventBus.getDefault().register(this)
     }
 
     /**
-     * Detaches from EditorEvents and clears any plugin-registered callbacks. Called by
-     * the activity in `onDestroy`.
+     * Detaches from EditorEvents / EventBus and clears any plugin-registered callbacks. Called
+     * by the activity in `onDestroy`.
      */
     fun dispose() {
         EditorEvents.removeFileChangeListener(internalListener)
+        EventBus.getDefault().unregister(this)
         fileCallbacks.clear()
+        contentCallbacks.clear()
         activityRef.clear()
+    }
+
+    /**
+     * Bridges the editor's per-keystroke [DocumentChangeEvent] to the plugin content-change
+     * contract `(fileContent, cursorLine, cursorColumn, language)`. Line/column are 0-indexed,
+     * matching what plugins expect. Runs on the main thread so the editor cursor is current.
+     */
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun onDocumentChange(event: DocumentChangeEvent) {
+        if (contentCallbacks.isEmpty()) return
+        val file = event.file.toFile()
+        // Only fan out changes for the focused file; ghost text can only target the visible editor.
+        if (file.absolutePath != getCurrentFile()?.absolutePath) return
+        val editor = activity()?.getEditorForFile(file)?.editor
+        val content = event.newText ?: editor?.text?.toString() ?: return
+        // Prefer the live cursor; fall back to the change's end position (also 0-indexed).
+        val cursor = editor?.cursor
+        val line = cursor?.leftLine ?: event.changeRange.end.line
+        val column = cursor?.leftColumn ?: event.changeRange.end.column
+        val language = languageIdForFile(file) ?: file.extension.lowercase()
+        contentCallbacks.forEach { cb ->
+            try {
+                cb(content, line, column, language)
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun activity(): EditorHandlerActivity? = activityRef.get()?.takeIf { !it.isDestroyed }
@@ -284,6 +322,28 @@ class EditorProviderImpl(
 
     override fun removeFileChangeCallback(callback: (File?) -> Unit) {
         fileCallbacks.remove(callback)
+    }
+
+    override fun addContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {
+        contentCallbacks.addIfAbsent(callback)
+    }
+
+    override fun removeContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {
+        contentCallbacks.remove(callback)
+    }
+
+    // --- Inline suggestions -------------------------------------------------
+
+    override fun showInlineSuggestion(pluginId: String, text: String) {
+        mainHandler.post {
+            (inspectableEditor() as? IDEEditor)?.showInlineSuggestion(pluginId, text)
+        }
+    }
+
+    override fun dismissInlineSuggestion(pluginId: String) {
+        mainHandler.post {
+            (inspectableEditor() as? IDEEditor)?.dismissInlineSuggestion(pluginId)
+        }
     }
 
     // --- Helpers ------------------------------------------------------------

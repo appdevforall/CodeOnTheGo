@@ -81,11 +81,11 @@ public abstract class NonEditableEditorFragment extends
 	public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
 		super.onViewCreated(view, savedInstanceState);
 		getEmptyStateViewModel().setEmptyMessage(createEmptyStateMessage());
-		final var editor = getBinding().getRoot();
+		final var editor = getBinding().editor;
 		editor.setEditable(false);
 		editor.setDividerWidth(0);
 		editor.setEditorLanguage(new EmptyLanguage());
-		editor.setWordwrap(false);
+		editor.setWordwrap(true);
 		editor.setUndoEnabled(false);
 		editor.setTypefaceLineNumber(TypefaceUtilsKt.jetbrainsMono());
 		editor.setTypefaceText(TypefaceUtilsKt.jetbrainsMono());

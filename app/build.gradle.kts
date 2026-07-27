@@ -1,30 +1,28 @@
 @file:Suppress("UnstableApiUsage")
 
-import ch.qos.logback.core.util.EnvUtil
 import com.itsaky.androidide.build.config.BuildConfig
-import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
 import org.json.JSONObject
-import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
-import java.io.FileInputStream
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.Closeable
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
-import java.nio.file.attribute.FileTime
 import java.security.MessageDigest
-import java.util.Locale
 import java.util.Properties
 import java.util.zip.CRC32
 import java.util.zip.Deflater
 import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
+import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
-import kotlin.reflect.jvm.javaMethod
 
 plugins {
 	id("com.android.application")
@@ -33,6 +31,7 @@ plugins {
 	id("kotlin-parcelize")
 	id("androidx.navigation.safeargs.kotlin")
 	id("com.itsaky.androidide.desugaring")
+	// Sentry gradle plugin; the SDK it wires up reports to our GlitchTip backend.
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
 }
@@ -56,7 +55,6 @@ apply {
 
 buildscript {
 	dependencies {
-		classpath(libs.logging.logback.core)
 		classpath(libs.composite.desugaringCore)
 		classpath(libs.org.json)
 	}
@@ -120,6 +118,18 @@ android {
 			excludes += "META-INF/DEPENDENCIES"
 			excludes += "META-INF/gradle/incremental.annotation.processors"
 
+			// Beider-Morse phonetic rule data (commons-codec); unused, no code calls the phonetic encoders.
+			excludes += "org/apache/commons/codec/language/bm/**"
+			// JLine console resources bundled in the Kotlin analysis-api jar; used headlessly, no REPL/console.
+			excludes += "org/jetbrains/kotlin/org/jline/**"
+			// IntelliJ plugin K2-mode compatibility manifest; meaningless outside a real IntelliJ session.
+			excludes += "pluginsCompatibleWithK2Mode.txt"
+			// Bundled .proto well-known-type sources from protobuf jars; nothing imports them at build time.
+			excludes += "google/protobuf/**"
+			excludes += "src/google/protobuf/**"
+			// httpclient's public-suffix cookie-domain data; unused, no code touches Apache HttpClient directly.
+			excludes += "mozilla/public-suffix-list.txt"
+
 			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
 			pickFirsts += "kotlin/reflect/reflect.kotlin_builtins"
 			pickFirsts += "kotlin/kotlin.kotlin_builtins"
@@ -136,6 +146,9 @@ android {
 		}
 
 		jniLibs {
+			// Debug default: uncompressed libs, loaded straight from the APK. Bundled-assets
+			// variants (release/instrumentation) override this to true in AndroidModuleConf.kt
+			// so their libs ship deflate-compressed and extract at install time (ADFA-2306).
 			useLegacyPackaging = false
 		}
 	}
@@ -147,28 +160,18 @@ android {
 	}
 }
 
+// Sentry gradle plugin config (crash reporting to GlitchTip).
 sentry {
-      includeProguardMapping = false
+	includeProguardMapping = false
 }
 
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.AppEventsIndex") } }
 
 desugaring {
 	replacements {
-		includePackage(
-			"org.eclipse.jgit",
-			"ch.qos.logback.classic.util",
-		)
+		includePackage("org.eclipse.jgit")
 
 		applyJavaIOReplacements()
-
-		// EnvUtil.logbackVersion() uses newer Java APIs like Class.getModule() which is not available
-		// on Android. We replace the method usage with DesugarEnvUtil.logbackVersion() which
-		// always returns null
-		replaceMethod(
-			EnvUtil::logbackVersion.javaMethod!!,
-			DesugarEnvUtil::logbackVersion.javaMethod!!,
-		)
 	}
 }
 
@@ -293,6 +296,7 @@ dependencies {
 	implementation(projects.idetooltips)
 	implementation(projects.floatingWindow)
 	implementation(projects.gitCore)
+	implementation(projects.profiler)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -321,10 +325,9 @@ dependencies {
 	implementation(libs.koin.android)
 	implementation(libs.androidx.security.crypto)
 
-	// Sentry Android SDK (core + replay for quality configuration)
+	// Sentry Android SDK (core + replay for quality configuration); our GlitchTip client.
 	implementation(libs.sentry.core)
 	implementation(libs.sentry.android.core)
-	implementation(libs.sentry.logback)
 
 	// Firebase Analytics
 	implementation(platform(libs.firebase.bom))
@@ -333,11 +336,10 @@ dependencies {
 	// Lifecycle Process for app lifecycle tracking
 	implementation(libs.androidx.lifecycle.process)
 	implementation(libs.androidx.lifecycle.runtime.ktx)
-	implementation(libs.google.genai)
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
 
-    // Pebble template engine
-    implementation("io.pebbletemplates:pebble:4.1.1")
+	// Pebble template engine
+	implementation("io.pebbletemplates:pebble:4.1.1")
 }
 
 tasks.register("downloadDocDb") {
@@ -386,7 +388,6 @@ tasks.register("downloadDocDb") {
 	}
 }
 
-
 tasks.register("copyPluginApiJarToAssets") {
 	dependsOn(":plugin-api:createPluginApiJar")
 	val sourceFile = project(":plugin-api").layout.buildDirectory.file("libs/plugin-api-1.0.0.jar")
@@ -411,10 +412,62 @@ tasks.register<Zip>("createPluginArtifactsZip") {
 	destinationDirectory.set(rootProject.file("assets"))
 }
 
+// Packages the on-device installer payload (assets-<arch>.zip) consumed by
+// SplitAssetsInstaller on debug builds. Entry names must match the installer
+// contract in AssetsInstallationHelper.expectedEntries.
+fun createAssetsZip(arch: String) {
+	val outputDir =
+		project.layout.buildDirectory
+			.dir("outputs/assets")
+			.get()
+			.asFile
+	if (!outputDir.exists()) {
+		outputDir.mkdirs()
+	}
+	val zipFile = outputDir.resolve("assets-$arch.zip")
+
+	val sourceDir = project.rootDir.resolve("assets")
+	val bootstrapName = "bootstrap-$arch.zip"
+	val androidSdkName = "android-sdk-$arch.zip"
+	ZipOutputStream(zipFile.outputStream()).use { zipOut ->
+		arrayOf(
+			androidSdkName,
+			"localMvnRepository.zip",
+			"gradle-8.14.3-bin.zip",
+			"gradle-api-8.14.3.jar.zip",
+			"documentation.db",
+			bootstrapName,
+			"plugin-artifacts.zip",
+			"core.cgt",
+		).forEach { fileName ->
+			val filePath = sourceDir.resolve(fileName)
+			if (!filePath.exists()) {
+				throw FileNotFoundException(filePath.absolutePath)
+			}
+
+			project.logger.lifecycle("Zipping $fileName from ${filePath.absolutePath}")
+			val entryName =
+				when (fileName) {
+					bootstrapName -> "bootstrap.zip"
+					androidSdkName -> "android-sdk.zip"
+					else -> fileName
+				}
+
+			zipOut.putNextEntry(ZipEntry(entryName))
+			filePath.inputStream().use { input -> input.copyTo(zipOut) }
+			zipOut.closeEntry()
+		}
+	}
+	project.logger.lifecycle("Created ${zipFile.name} at ${zipFile.parentFile.absolutePath}")
+}
+
 tasks.register("assembleV8Assets") {
 	dependsOn("createPluginArtifactsZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
+	}
+	doLast {
+		createAssetsZip("arm64-v8a")
 	}
 }
 
@@ -422,6 +475,9 @@ tasks.register("assembleV7Assets") {
 	dependsOn("createPluginArtifactsZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
+	}
+	doLast {
+		createAssetsZip("armeabi-v7a")
 	}
 }
 
@@ -431,15 +487,32 @@ tasks.register("assembleAssets") {
 
 tasks.register("recompressApk") {
 	doLast {
-		val abi: String = extensions.extraProperties["abi"].toString()
-		val buildName: String = extensions.extraProperties["buildName"].toString()
-		val noCompressExtensions =
-			if (extensions.extraProperties.has("noCompressExtensions")) {
-				@Suppress("UNCHECKED_CAST")
-				val result = extensions.extraProperties["noCompressExtensions"] as? Set<String>
-				result ?: emptySet()
+		// abi/buildName are set by the assemble finalizers below; the project
+		// properties allow a standalone run against an already-built APK:
+		//   ./gradlew :app:recompressApk -PrecompressAbi=v8 -PrecompressBuildName=release
+		val extraProps = extensions.extraProperties
+		val abi: String =
+			if (extraProps.has("abi")) {
+				extraProps["abi"].toString()
 			} else {
-				emptySet()
+				project.findProperty("recompressAbi")?.toString()
+					?: error("recompressApk: set -PrecompressAbi=v7|v8")
+			}
+		val buildName: String =
+			if (extraProps.has("buildName")) {
+				extraProps["buildName"].toString()
+			} else {
+				project.findProperty("recompressBuildName")?.toString()
+					?: error("recompressApk: set -PrecompressBuildName=debug|release")
+			}
+		val noCompressExtensions =
+			if (extraProps.has("noCompressExtensions")) {
+				@Suppress("UNCHECKED_CAST")
+				(extraProps["noCompressExtensions"] as? Set<String>).orEmpty()
+			} else if (buildName == "debug") {
+				noCompressDebug
+			} else {
+				noCompressRelease
 			}
 
 		project.logger.lifecycle("Calling recompressApk abi:$abi buildName:$buildName")
@@ -475,7 +548,15 @@ val noCompress =
 // Debug APKs DEFLATE jar assets (tooling-api-all.jar, cogo-plugin.jar) for
 // ~75% size reduction (ADFA-4188). Release keeps jars STORED because
 // tooling-api-all.jar ships as a brotli-encoded .jar.br.
-val noCompressDebug = noCompress - "jar"
+//
+// "so" stays DEFLATED in both lists (ADFA-2306 release, ADFA-4729 CI debug): the app
+// manifest hard-codes extractNativeLibs="true", so the installer extracts libs to
+// nativeLibraryDir at install time and AGP already packages them deflate-compressed
+// (~5.9 MB smaller per APK). Re-storing them here would silently undo that, which is
+// exactly what happened to CI debug APKs before ADFA-4729. Local debug builds never
+// run this task and get AGP's deflated packaging as-is.
+val noCompressDebug = noCompress - "jar" - "so"
+val noCompressRelease = noCompress - "so"
 
 afterEvaluate {
 	tasks.named("assembleV8Release").configure {
@@ -485,7 +566,7 @@ afterEvaluate {
 			tasks.named("recompressApk").configure {
 				extensions.extraProperties["abi"] = "v8"
 				extensions.extraProperties["buildName"] = "release"
-				extensions.extraProperties["noCompressExtensions"] = noCompress
+				extensions.extraProperties["noCompressExtensions"] = noCompressRelease
 			}
 		}
 
@@ -501,7 +582,7 @@ afterEvaluate {
 			tasks.named("recompressApk").configure {
 				extensions.extraProperties["abi"] = "v7"
 				extensions.extraProperties["buildName"] = "release"
-				extensions.extraProperties["noCompressExtensions"] = noCompress
+				extensions.extraProperties["noCompressExtensions"] = noCompressRelease
 			}
 		}
 
@@ -565,14 +646,266 @@ fun recompressApk(
 			.asFile
 	project.logger.lifecycle("Recompressing APK Dir: ${apkDir.path}")
 
+	// advzip runs for release APKs and on CI (including CI debug); a dev
+	// invoking recompressApk locally against a debug APK skips it. Local debug
+	// assembles never run this task at all (ADFA-1167).
+	val useAdvzip = buildName == "release" || isCiCd
+
+	// 7z-level deflate (-3) by default; -Pzopfli (-4) buys only ~50 KB more per
+	// release APK at ~4x the CPU time (ADFA-1167).
+	val advzipArgs =
+		if (project.hasProperty("zopfli")) {
+			listOf("-4", "-i", "5")
+		} else {
+			listOf("-3")
+		}
+
 	apkDir.walk().filter { it.extension == "apk" }.forEach { apkFile ->
 		project.logger.lifecycle("Recompressing APK: ${apkFile.name}")
 		val tempZipFile = File(apkFile.parentFile, "${apkFile.name}.tmp")
-		recompressZip(apkFile, tempZipFile, noCompressExtensions)
+		recompressZip(apkFile, tempZipFile, noCompressExtensions, if (useAdvzip) advzipArgs else null)
 		signApk(tempZipFile)
-		if (apkFile.delete()) {
-			tempZipFile.renameTo(apkFile)
+		Files.move(
+			tempZipFile.toPath(),
+			apkFile.toPath(),
+			StandardCopyOption.REPLACE_EXISTING,
+		)
+	}
+}
+
+// Raw (still-compressed) entry data plus the metadata needed to write it into
+// a zip without recompressing it.
+class RecompressedData(
+	val method: Int,
+	val crc: Long,
+	val data: ByteArray,
+)
+
+fun findAdvzip(): File? {
+	System.getenv("ADVZIP")?.let { override ->
+		return File(override).takeIf { it.canExecute() }
+	}
+	val dirs =
+		System.getenv("PATH").orEmpty().split(File.pathSeparator) +
+			listOf("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin")
+	return dirs.map { File(it, "advzip") }.firstOrNull { it.canExecute() }
+}
+
+// Preallocation hint for deflateBest's output buffer: assume roughly 3:1
+// compression, plus slack so empty/tiny inputs don't start at zero capacity.
+// The buffer grows as needed; these only avoid early re-allocations.
+val assumedDeflateRatio = 3
+val deflateOutputSlackBytes = 64
+
+fun deflateBest(data: ByteArray): RecompressedData {
+	val deflater = Deflater(Deflater.BEST_COMPRESSION, true)
+	deflater.setInput(data)
+	deflater.finish()
+	val out = ByteArrayOutputStream(data.size / assumedDeflateRatio + deflateOutputSlackBytes)
+	val buf = ByteArray(DEFAULT_BUFFER_SIZE)
+	while (!deflater.finished()) {
+		out.write(buf, 0, deflater.deflate(buf))
+	}
+	deflater.end()
+	val crc = CRC32().apply { update(data) }.value
+	return RecompressedData(ZipEntry.DEFLATED, crc, out.toByteArray())
+}
+
+fun leU16(
+	bytes: ByteArray,
+	offset: Int,
+): Int = (bytes[offset].toInt() and 0xFF) or ((bytes[offset + 1].toInt() and 0xFF) shl 8)
+
+fun leU32(
+	bytes: ByteArray,
+	offset: Int,
+): Long = leU16(bytes, offset).toLong() or (leU16(bytes, offset + 2).toLong() shl 16)
+
+// java.util.zip has no API to read entry data without inflating it, so walk
+// the central directory by hand.
+fun readRawZipEntries(zipFile: File): Map<String, RecompressedData> {
+	val bytes = zipFile.readBytes()
+	var eocd = bytes.size - 22
+	while (eocd >= 0 && leU32(bytes, eocd) != 0x06054b50L) {
+		eocd--
+	}
+	require(eocd >= 0) { "EOCD not found in ${zipFile.name}" }
+	val count = leU16(bytes, eocd + 10)
+	var pos = leU32(bytes, eocd + 16).toInt()
+	val result = LinkedHashMap<String, RecompressedData>(count * 2)
+	repeat(count) {
+		require(leU32(bytes, pos) == 0x02014b50L) { "bad central directory record in ${zipFile.name}" }
+		val method = leU16(bytes, pos + 10)
+		val crc = leU32(bytes, pos + 16)
+		val compressedSize = leU32(bytes, pos + 20).toInt()
+		val nameLen = leU16(bytes, pos + 28)
+		val extraLen = leU16(bytes, pos + 30)
+		val commentLen = leU16(bytes, pos + 32)
+		val headerOffset = leU32(bytes, pos + 42).toInt()
+		val name = String(bytes, pos + 46, nameLen, Charsets.UTF_8)
+		val dataOffset = headerOffset + 30 + leU16(bytes, headerOffset + 26) + leU16(bytes, headerOffset + 28)
+		result[name] = RecompressedData(method, crc, bytes.copyOfRange(dataOffset, dataOffset + compressedSize))
+		pos += 46 + nameLen + extraLen + commentLen
+	}
+	return result
+}
+
+// Compresses all entries in one advzip run (a per-file invocation would pay
+// process startup ~2000 times). Returns null on failure so the caller can
+// fall back to Deflater.
+fun advzipCompress(
+	entries: Map<String, ByteArray>,
+	workDir: File,
+	advzip: File,
+	advzipArgs: List<String>,
+): Map<String, RecompressedData>? {
+	val workZip = File.createTempFile("advzip-work", ".zip", workDir)
+	try {
+		ZipOutputStream(BufferedOutputStream(FileOutputStream(workZip))).use { zos ->
+			for ((name, data) in entries) {
+				// STORED: advzip recompresses every entry anyway, so don't
+				// waste time deflating here.
+				val entry = ZipEntry(name)
+				entry.method = ZipEntry.STORED
+				entry.size = data.size.toLong()
+				entry.crc = CRC32().apply { update(data) }.value
+				entry.time = 0L
+				zos.putNextEntry(entry)
+				zos.write(data)
+				zos.closeEntry()
+			}
 		}
+
+		val process =
+			ProcessBuilder(listOf(advzip.absolutePath, "-z", "-q") + advzipArgs + workZip.absolutePath)
+				.redirectErrorStream(true)
+				.start()
+		val output = process.inputStream.bufferedReader().readText()
+		if (process.waitFor() != 0) {
+			project.logger.warn("advzip failed, falling back to Deflater: $output")
+			return null
+		}
+		return readRawZipEntries(workZip)
+	} finally {
+		workZip.delete()
+	}
+}
+
+// Minimal zip writer that can emit pre-compressed (raw deflate) entry data,
+// which ZipOutputStream cannot. Timestamps are zeroed for deterministic
+// output (-X); STORED entry data is 4-byte aligned via zero-padded extra
+// fields (zipalign parity, so the runtime can mmap uncompressed assets).
+// No zip64 support: APKs stay under 4 GiB / 65535 entries.
+class RawZipWriter(
+	file: File,
+) : Closeable {
+	private class CentralRecord(
+		val nameBytes: ByteArray,
+		val method: Int,
+		val crc: Long,
+		val compressedSize: Long,
+		val size: Long,
+		val headerOffset: Long,
+	)
+
+	private val out = BufferedOutputStream(FileOutputStream(file))
+	private val central = mutableListOf<CentralRecord>()
+	private var offset = 0L
+
+	private fun u16(value: Int) {
+		out.write(value and 0xFF)
+		out.write((value ushr 8) and 0xFF)
+		offset += 2
+	}
+
+	private fun u32(value: Long) {
+		require(value in 0..0xFFFFFFFFL) { "zip64 required but not supported (value $value)" }
+		for (shift in 0..24 step 8) {
+			out.write(((value ushr shift) and 0xFF).toInt())
+		}
+		offset += 4
+	}
+
+	private fun raw(bytes: ByteArray) {
+		out.write(bytes)
+		offset += bytes.size
+	}
+
+	fun addEntry(
+		name: String,
+		method: Int,
+		crc: Long,
+		size: Long,
+		compressedSize: Long,
+		data: InputStream,
+	) {
+		require(central.size < 0xFFFF) { "too many zip entries" }
+		val nameBytes = name.toByteArray(Charsets.UTF_8)
+		// Zero-padded extra field so STORED data starts on a 4-byte boundary
+		val padding =
+			if (method == ZipEntry.STORED) {
+				((4 - (offset + 30 + nameBytes.size) % 4) % 4).toInt()
+			} else {
+				0
+			}
+		central.add(CentralRecord(nameBytes, method, crc, compressedSize, size, offset))
+		u32(0x04034b50L)
+		u16(20) // version needed to extract
+		u16(0x800) // general purpose flags: UTF-8 names
+		u16(method)
+		u16(0) // dos time
+		u16(0) // dos date
+		u32(crc)
+		u32(compressedSize)
+		u32(size)
+		u16(nameBytes.size)
+		u16(padding) // extra field length
+		raw(nameBytes)
+		raw(ByteArray(padding))
+		var copied = 0L
+		val buf = ByteArray(DEFAULT_BUFFER_SIZE)
+		while (true) {
+			val n = data.read(buf)
+			if (n < 0) break
+			out.write(buf, 0, n)
+			copied += n
+		}
+		offset += copied
+		require(copied == compressedSize) { "entry $name: wrote $copied bytes, expected $compressedSize" }
+	}
+
+	override fun close() {
+		val cdStart = offset
+		for (record in central) {
+			u32(0x02014b50L)
+			u16(20) // version made by
+			u16(20) // version needed to extract
+			u16(0x800)
+			u16(record.method)
+			u16(0) // dos time
+			u16(0) // dos date
+			u32(record.crc)
+			u32(record.compressedSize)
+			u32(record.size)
+			u16(record.nameBytes.size)
+			u16(0) // extra field length
+			u16(0) // comment length
+			u16(0) // disk number
+			u16(0) // internal attributes
+			u32(0L) // external attributes
+			u32(record.headerOffset)
+			raw(record.nameBytes)
+		}
+		val cdSize = offset - cdStart
+		u32(0x06054b50L)
+		u16(0)
+		u16(0)
+		u16(central.size)
+		u16(central.size)
+		u32(cdSize)
+		u32(cdStart)
+		u16(0)
+		out.close()
 	}
 }
 
@@ -580,43 +913,66 @@ fun recompressZip(
 	inputZip: File,
 	outputZip: File,
 	noCompressExtensions: Set<String>,
+	advzipArgs: List<String>?,
 ) {
-	ZipInputStream(BufferedInputStream(FileInputStream(inputZip))).use { zis ->
-		ZipOutputStream(BufferedOutputStream(FileOutputStream(outputZip))).use { zos ->
-			zos.setLevel(Deflater.BEST_COMPRESSION)
+	fun extensionOf(name: String) = name.substringAfterLast('.', "").lowercase()
 
-			var entry = zis.nextEntry
-			while (entry != null) {
-				if (!entry.isDirectory) {
-					val extension = entry.name.substringAfterLast('.', "").lowercase()
-					val newEntry = ZipEntry(entry.name)
+	ZipFile(inputZip).use { zip ->
+		val entries =
+			zip
+				.entries()
+				.asSequence()
+				.filter { !it.isDirectory }
+				.toList()
 
-					// Remove timestamps for deterministic output (-X)
-					newEntry.time = 0L
-					try {
-						newEntry.creationTime = FileTime.fromMillis(0)
-						newEntry.lastModifiedTime = FileTime.fromMillis(0)
-						newEntry.lastAccessTime = FileTime.fromMillis(0)
-					} catch (_: Throwable) {
-					}
+		val deflatable = LinkedHashMap<String, ByteArray>()
+		for (entry in entries) {
+			if (extensionOf(entry.name) !in noCompressExtensions) {
+				deflatable[entry.name] = zip.getInputStream(entry).readBytes()
+			}
+		}
 
-					// Force STORE method for no-compress extensions
-					if (extension in noCompressExtensions) {
-						val byteArray = zis.readBytes()
-						newEntry.method = ZipEntry.STORED
-						newEntry.size = byteArray.size.toLong()
-						newEntry.crc = CRC32().apply { update(byteArray) }.value
-						zos.putNextEntry(newEntry)
-						zos.write(byteArray)
-					} else {
-						newEntry.method = ZipEntry.DEFLATED
-						zos.putNextEntry(newEntry)
-						zis.copyTo(zos)
-					}
-
-					zos.closeEntry()
+		// advzip's 7z/zopfli deflate shaves ~4% off the deflated payload
+		// (~2 MB per release APK) over Deflater BEST_COMPRESSION (ADFA-1167).
+		// Without advzip, fall back to Deflater: same output as before
+		// ADFA-1167. advzipArgs == null means advzip is intentionally skipped.
+		val advzip = if (advzipArgs != null) findAdvzip() else null
+		val advzipped =
+			if (advzip != null && advzipArgs != null) {
+				project.logger.lifecycle(
+					"Compressing ${deflatable.size} entries with advzip ${advzipArgs.joinToString(" ")}: ${advzip.path}",
+				)
+				advzipCompress(deflatable, outputZip.parentFile, advzip, advzipArgs)
+			} else {
+				if (advzipArgs != null) {
+					project.logger.lifecycle(
+						"advzip not found; using Deflater BEST_COMPRESSION " +
+							"(install advancecomp or set ADVZIP for a ~2 MB smaller APK)",
+					)
 				}
-				entry = zis.nextEntry
+				null
+			}
+
+		RawZipWriter(outputZip).use { writer ->
+			for (entry in entries) {
+				if (extensionOf(entry.name) in noCompressExtensions) {
+					// Force STORE for no-compress extensions, streaming
+					// straight from the source zip
+					zip.getInputStream(entry).use { input ->
+						writer.addEntry(entry.name, ZipEntry.STORED, entry.crc, entry.size, entry.size, input)
+					}
+				} else {
+					val data = deflatable.getValue(entry.name)
+					val compressed = advzipped?.get(entry.name) ?: deflateBest(data)
+					writer.addEntry(
+						entry.name,
+						compressed.method,
+						compressed.crc,
+						data.size.toLong(),
+						compressed.data.size.toLong(),
+						ByteArrayInputStream(compressed.data),
+					)
+				}
 			}
 		}
 	}
@@ -736,12 +1092,12 @@ val debugAssets =
 			"localMvnRepository.zip",
 			"debug",
 		),
-        Asset(
-          "assets/core.cgt",
-          "https://appdevforall.org/dev-assets/debug/core.cgt",
-          "core.cgt",
-          "debug",
-        ),
+		Asset(
+			"assets/core.cgt",
+			"https://appdevforall.org/dev-assets/debug/core.cgt",
+			"core.cgt",
+			"debug",
+		),
 	)
 
 val releaseAssets =
@@ -794,12 +1150,12 @@ val releaseAssets =
 			"v8/bootstrap.zip.br",
 			"release",
 		),
-        Asset(
-          "assets/release/common/data/common/core.cgt.br",
-          "https://appdevforall.org/dev-assets/release/core.cgt.br",
-          "core.cgt.br",
-          "release",
-        ),
+		Asset(
+			"assets/release/common/data/common/core.cgt.br",
+			"https://appdevforall.org/dev-assets/release/core.cgt.br",
+			"core.cgt.br",
+			"release",
+		),
 	)
 
 fun assetsBatch(
@@ -864,12 +1220,11 @@ fun assetsFileDownload(
 		conn.setRequestProperty("Connection", "keep-alive")
 		conn.instanceFollowRedirects = true
 		conn.connectTimeout = 10_000
-		conn.readTimeout = 10_000
+		conn.readTimeout = 60_000
 
 		try {
 			val status = conn.responseCode
 			if (status == HttpURLConnection.HTTP_OK) {
-				// Stream the response body into the target file
 				conn.inputStream.use { input ->
 					target.outputStream().use { output ->
 						input.copyTo(output)
@@ -877,8 +1232,7 @@ fun assetsFileDownload(
 				}
 				project.logger.lifecycle("Downloaded ${asset.url} → ${target.absolutePath}")
 			} else {
-				project.logger.warn("Failed to download ${asset.url} (HTTP $status: ${conn.responseMessage})")
-				project.logger.warn("Build will continue without this asset - some functionality may be unavailable")
+				throw GradleException("Failed to download ${asset.url} (HTTP $status: ${conn.responseMessage})")
 			}
 		} finally {
 			conn.disconnect()
@@ -886,104 +1240,79 @@ fun assetsFileDownload(
 	}
 }
 
-fun assetsFileChecksum(asset: Asset): String? {
-	return if (isCiCd) {
-		val stagedChecksum = stagedChecksumFor(asset, rootProject.projectDir)
-		if (stagedChecksum.exists()) {
-			stagedChecksum.readText().trim()
-		} else {
-			throw GradleException("Failed to find checksum in ${stagedChecksum.absolutePath}")
-		}
-	} else {
-		val checksumUrl = asset.url + ".md5"
-		val conn = URL(checksumUrl).openConnection() as HttpURLConnection
-		conn.requestMethod = "GET"
-		conn.setRequestProperty("User-Agent", "Mozilla/5.0")
-		conn.instanceFollowRedirects = true
-		conn.connectTimeout = 10_000
-		conn.readTimeout = 10_000
-
-		return try {
-			val status = conn.responseCode
-
-			if (status == HttpURLConnection.HTTP_OK) {
-				val checksum = conn.inputStream.bufferedReader().use { it.readText().trim() }
-				// Validate MD5 format (32 hex characters) to detect HTML responses from Cloudflare
-				if (checksum.matches(Regex("^[a-fA-F0-9]{32}$"))) {
-					checksum
-				} else {
-					project.logger.warn("Invalid checksum format from $checksumUrl (got: ${checksum.take(50)}...)")
-					project.logger.warn("Server likely returning HTML instead of checksum - skipping")
-					null
-				}
-			} else {
-				// Workaround for HTTP 415 errors from asset server
-				project.logger.warn("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
-				null
-			}
-		} finally {
-			conn.disconnect()
+fun fileMd5(file: File): String {
+	val digest = MessageDigest.getInstance("MD5")
+	file.inputStream().use { input ->
+		val buffer = ByteArray(8192)
+		var read: Int
+		while (input.read(buffer).also { read = it } > 0) {
+			digest.update(buffer, 0, read)
 		}
 	}
+	return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+fun assetsFileChecksum(asset: Asset): String {
+	val checksum =
+		if (isCiCd) {
+			val stagedChecksum = stagedChecksumFor(asset, rootProject.projectDir)
+			if (!stagedChecksum.exists()) {
+				throw GradleException("Failed to find checksum in ${stagedChecksum.absolutePath}")
+			}
+			stagedChecksum.readText().trim()
+		} else {
+			val checksumUrl = asset.url + ".md5"
+			val conn = URL(checksumUrl).openConnection() as HttpURLConnection
+			conn.requestMethod = "GET"
+			conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+			conn.instanceFollowRedirects = true
+			conn.connectTimeout = 10_000
+			conn.readTimeout = 10_000
+
+			try {
+				val status = conn.responseCode
+				if (status != HttpURLConnection.HTTP_OK) {
+					throw GradleException("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
+				}
+				conn.inputStream.bufferedReader().use { it.readText().trim() }
+			} finally {
+				conn.disconnect()
+			}
+		}
+
+	if (!checksum.matches(Regex("^[a-fA-F0-9]{32}$"))) {
+		throw GradleException(
+			"Invalid MD5 checksum for ${asset.remotePath} (got: '${checksum.take(
+				50,
+			)}') - the server may be returning an error page instead of the checksum",
+		)
+	}
+	return checksum.lowercase()
 }
 
 fun assetsDownload(
 	assets: List<Asset>,
 	projectDir: File,
 ) {
-	val checksumDir = File(projectDir, ".checksum")
-	checksumDir.mkdirs()
-
 	assets.forEach { asset ->
 		val target = File(projectDir, asset.localPath)
 		target.parentFile.mkdirs()
 
-		// Path for checksum file
-		val canonicalName = asset.localPath.replace("/", "_")
-		val checksumFile = File(checksumDir, "${asset.variant}-$canonicalName.md5")
-
-		// Load previous checksum (empty string if missing)
-		val previousChecksum: String =
-			if (checksumFile.exists()) {
-				checksumFile.readText()
-			} else {
-				""
-			}
-
 		val remoteChecksum = assetsFileChecksum(asset)
 
-		val needsDownload = (previousChecksum != remoteChecksum) || previousChecksum.isEmpty()
-
-		if (needsDownload) {
-			project.logger.lifecycle("Downloading ${asset.url} → ${asset.localPath}")
-
-			assetsFileDownload(asset, File(rootProject.projectDir, asset.localPath))
-
-			// Only verify checksum if download succeeded
-			if (target.exists()) {
-				// Recompute checksum after download
-				val digest = MessageDigest.getInstance("MD5")
-				target.inputStream().use { input ->
-					val buffer = ByteArray(8192)
-					var read: Int
-					while (input.read(buffer).also { read = it } > 0) {
-						digest.update(buffer, 0, read)
-					}
-				}
-				val newChecksum = digest.digest().joinToString("") { "%02x".format(it) }
-				if (!remoteChecksum.isNullOrEmpty() && newChecksum != remoteChecksum) {
-					project.logger.warn("Checksum mismatch for ${asset.localPath} (expected $remoteChecksum, got $newChecksum)")
-					project.logger.warn("This may indicate asset server issues - build will continue with downloaded file")
-				}
-
-				checksumFile.writeText(newChecksum)
-				project.logger.lifecycle("Updated checksum stored: ${checksumFile.absolutePath}")
-			} else {
-				project.logger.warn("Download failed for ${asset.localPath} - skipping checksum verification")
-				project.logger.warn("Build will continue - some functionality may be unavailable")
-			}
-		} else {
+		if (target.exists() && fileMd5(target) == remoteChecksum) {
 			project.logger.lifecycle("File ${asset.localPath} is up-to-date (checksum matches).")
+			return@forEach
+		}
+
+		project.logger.lifecycle("Downloading ${asset.url} → ${asset.localPath}")
+		assetsFileDownload(asset, target)
+
+		val newChecksum = fileMd5(target)
+		if (newChecksum != remoteChecksum) {
+			throw GradleException(
+				"Checksum mismatch for ${asset.localPath} (expected $remoteChecksum, got $newChecksum)",
+			)
 		}
 	}
 }

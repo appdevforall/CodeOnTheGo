@@ -5,6 +5,7 @@ package com.itsaky.androidide.plugins.manager.services
 import android.util.Log
 import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.services.CursorPosition
+import com.itsaky.androidide.plugins.services.EditorContentChangeListener
 import com.itsaky.androidide.plugins.services.FileChangeListener
 import com.itsaky.androidide.plugins.services.IdeEditorService
 import com.itsaky.androidide.plugins.services.SelectionRange
@@ -56,9 +57,14 @@ class IdeEditorServiceImpl(
         fun replaceRange(file: File, range: SelectionRange, newText: String): Boolean = false
         fun addFileChangeCallback(callback: (File?) -> Unit) {}
         fun removeFileChangeCallback(callback: (File?) -> Unit) {}
+        fun addContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {}
+        fun removeContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {}
+        fun showInlineSuggestion(pluginId: String, text: String) {}
+        fun dismissInlineSuggestion(pluginId: String) {}
     }
 
     private val fileChangeListeners = CopyOnWriteArrayList<FileChangeListener>()
+    private val contentChangeListeners = CopyOnWriteArrayList<EditorContentChangeListener>()
 
     private val internalFileChangeCallback: (File?) -> Unit = { file ->
         fileChangeListeners.forEach { listener ->
@@ -69,13 +75,25 @@ class IdeEditorServiceImpl(
         }
     }
 
+    private val internalContentChangeCallback: (String, Int, Int, String) -> Unit = { content, line, col, lang ->
+        contentChangeListeners.forEach { listener ->
+            try {
+                listener.onContentChanged(content, line, col, lang)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     init {
         editorProvider.addFileChangeCallback(internalFileChangeCallback)
+        editorProvider.addContentChangeCallback(internalContentChangeCallback)
     }
 
     fun dispose() {
         editorProvider.removeFileChangeCallback(internalFileChangeCallback)
+        editorProvider.removeContentChangeCallback(internalContentChangeCallback)
         fileChangeListeners.clear()
+        contentChangeListeners.clear()
     }
 
     override fun getCurrentFile(): File? {
@@ -261,6 +279,24 @@ class IdeEditorServiceImpl(
 
     override fun removeFileChangeListener(listener: FileChangeListener) {
         fileChangeListeners.remove(listener)
+    }
+
+    override fun addContentChangeListener(listener: EditorContentChangeListener) {
+        contentChangeListeners.addIfAbsent(listener)
+    }
+
+    override fun removeContentChangeListener(listener: EditorContentChangeListener) {
+        contentChangeListeners.remove(listener)
+    }
+
+    override fun showInlineSuggestion(text: String) {
+        // Tag the suggestion with this plugin's id so concurrent plugins don't clobber or dismiss
+        // each other's ghost text. The public IdeEditorService signature is unchanged.
+        editorProvider.showInlineSuggestion(pluginId, text)
+    }
+
+    override fun dismissInlineSuggestion() {
+        editorProvider.dismissInlineSuggestion(pluginId)
     }
 
     private fun requireRead() {

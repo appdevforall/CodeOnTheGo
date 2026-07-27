@@ -29,7 +29,7 @@ import androidx.work.Configuration
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
-import com.itsaky.androidide.handlers.SentryDiagnosticsContext
+import com.itsaky.androidide.handlers.GlitchTipDiagnosticsContext
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.utils.RecyclableObjectPool
@@ -85,9 +85,9 @@ class IDEApplication :
 			) {
 				if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
 					runCatching { unregisterReceiver(this) }
-					// Stamp the unlock time so Sentry's boot_mode context reflects the
+					// Stamp the unlock time so GlitchTip's boot_mode context reflects the
 					// live state and can report the direct-boot locked duration.
-					SentryDiagnosticsContext.onUserUnlocked()
+					GlitchTipDiagnosticsContext.onUserUnlocked()
 					coroutineScope.launch(Dispatchers.Default) {
 						logger.info("Device unlocked! Loading all components...")
 						CredentialProtectedApplicationLoader.load(this@IDEApplication)
@@ -99,8 +99,8 @@ class IDEApplication :
 	companion object {
 		private val logger = LoggerFactory.getLogger(IDEApplication::class.java)
 
-		const val SENTRY_ENV_DEV = "development"
-		const val SENTRY_ENV_PROD = "production"
+		const val GLITCHTIP_ENV_DEV = "development"
+		const val GLITCHTIP_ENV_PROD = "production"
 
 		@JvmStatic
 		@SuppressLint("StaticFieldLeak")
@@ -202,7 +202,7 @@ class IDEApplication :
 	}
 
 	override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder().build()
+		get() = Configuration.Builder().build()
 
 	private fun ensureKoinStarted() {
 		runCatching { GlobalContext.get() }.getOrNull()?.let { return }
@@ -243,7 +243,10 @@ class IDEApplication :
 		}
 	}
 
-	private fun isFinalizerWatchdogTimeout(thread: Thread, exception: Throwable): Boolean {
+	private fun isFinalizerWatchdogTimeout(
+		thread: Thread,
+		exception: Throwable,
+	): Boolean {
 		if (exception !is java.util.concurrent.TimeoutException) return false
 		return thread.name.contains("FinalizerWatchdogDaemon") ||
 			exception.stackTrace.any { it.className.contains("Daemons\$FinalizerWatchdogDaemon") }

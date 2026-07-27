@@ -23,6 +23,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -523,12 +524,6 @@ constructor(
     final override fun <T : EditorBuiltinComponent?> getComponent(clazz: Class<T>): T & Any =
         super.getComponent(clazz)
 
-    /** Uses [TracingEditorRenderer], which guards block-line drawing against the
-     * styles.blocks data race that otherwise crashes onDraw. */
-    override fun onCreateRenderer(): EditorRenderer {
-        return TracingEditorRenderer(editor = this)
-    }
-
     override fun release() {
         ensureWindowsDismissed()
 
@@ -940,6 +935,9 @@ constructor(
             }
 
             refreshModifiedState()
+            // A pending inline suggestion is anchored to the pre-edit cursor position; any edit
+            // invalidates it. The plugin re-issues one after its debounce.
+            dismissInlineSuggestion()
             file ?: return@subscribeEvent
 
             editorScope.launch {
@@ -954,6 +952,9 @@ constructor(
                 return@subscribeEvent
             }
 
+            // Moving the cursor away from the anchor makes ghost text meaningless.
+            dismissInlineSuggestion()
+
             if (_diagnosticWindow?.isShowing == true) {
                 _diagnosticWindow?.dismiss()
             }
@@ -965,6 +966,62 @@ constructor(
         }
 
         EventBus.getDefault().register(this)
+    }
+
+    // --- Inline suggestions (ghost text) ------------------------------------
+
+    /** [GhostTextRenderer] extends [TracingEditorRenderer], so this keeps the block-line
+     * data-race guards while also drawing inline ghost text. */
+    override fun onCreateRenderer(): EditorRenderer = GhostTextRenderer(this)
+
+    private val ghostRenderer: GhostTextRenderer?
+        get() = renderer as? GhostTextRenderer
+
+    /**
+     * Shows [text] as dimmed inline ghost text anchored at the current cursor position, owned by
+     * [pluginId]. Called by the host editor provider when a plugin returns an inline suggestion.
+     * The suggestion is tagged with its owner so a later [dismissInlineSuggestion] from a different
+     * plugin can't clear it. No-op if the editor is released or has no cursor.
+     */
+    fun showInlineSuggestion(pluginId: String, text: String) {
+        if (isReleased || text.isEmpty()) return
+        val renderer = ghostRenderer ?: return
+        val cursor = cursor ?: return
+        renderer.setSuggestion(text, cursor.leftLine, cursor.leftColumn, pluginId)
+        invalidate()
+    }
+
+    /** Removes the showing ghost text only if it is owned by [pluginId]. */
+    fun dismissInlineSuggestion(pluginId: String) {
+        val renderer = ghostRenderer ?: return
+        if (renderer.clearSuggestionFor(pluginId)) {
+            invalidate()
+        }
+    }
+
+    /**
+     * Unconditionally removes any showing ghost text, regardless of owner. Used for IDE-internal
+     * invalidation (an edit or cursor move makes the anchored suggestion meaningless).
+     */
+    fun dismissInlineSuggestion() {
+        val renderer = ghostRenderer ?: return
+        if (renderer.hasSuggestion) {
+            renderer.clearSuggestion()
+            invalidate()
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        // Accept a showing suggestion on Tab: commit it at the cursor and consume the key.
+        if (keyCode == KeyEvent.KEYCODE_TAB && ghostRenderer?.hasSuggestion == true) {
+            val suggestion = ghostRenderer?.takeSuggestion()
+            invalidate()
+            if (!suggestion.isNullOrEmpty()) {
+                commitText(suggestion)
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     private fun handleCustomTextReplacement(event: ContentChangeEvent) {

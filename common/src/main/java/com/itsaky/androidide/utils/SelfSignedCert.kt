@@ -1,0 +1,231 @@
+@file:JvmName("SelfSignedCertUtils")
+
+package com.itsaky.androidide.utils
+
+import java.io.ByteArrayOutputStream
+import java.math.BigInteger
+import java.security.KeyPair
+import java.security.Signature
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+
+/**
+ * Generates a self-signed X.509 v3 certificate using only standard Java SE / Android APIs -
+ * no BouncyCastle required. Encodes the DER structure manually.
+ *
+ * Supports a simple distinguished name with C, O, and CN components; empty values are encoded
+ * as empty strings (not omitted). Throws [IllegalArgumentException] for any other attribute
+ * type or a malformed "key=value" component.
+ */
+fun generateSelfSignedCert(
+	keyPair: KeyPair,
+	dn: String,
+	serial: BigInteger,
+	notBefore: Date,
+	notAfter: Date,
+): X509Certificate {
+	val tbs = buildTbsCertificate(keyPair.public.encoded, dn, serial, notBefore, notAfter)
+	val sig = Signature.getInstance("SHA256WithRSA")
+	sig.initSign(keyPair.private)
+	sig.update(tbs)
+	val sigBytes = sig.sign()
+
+	val certDer = derSeq(tbs + sha256WithRsaAlgId() + derBitString(sigBytes))
+	return CertificateFactory
+		.getInstance("X.509")
+		.generateCertificate(certDer.inputStream()) as X509Certificate
+}
+
+private fun buildTbsCertificate(
+	spkiBytes: ByteArray,
+	dn: String,
+	serial: BigInteger,
+	notBefore: Date,
+	notAfter: Date,
+): ByteArray {
+	val version = derContextTagged(0, derInteger(BigInteger.valueOf(2))) // v3
+	val serialNum = derInteger(serial)
+	val sigAlg = sha256WithRsaAlgId()
+	val issuer = encodeDn(dn)
+	val validity = derSeq(derTime(notBefore) + derTime(notAfter))
+	val subject = issuer // self-signed
+	val spki = spkiBytes // already DER-encoded by JCA
+
+	return derSeq(version + serialNum + sigAlg + issuer + validity + subject + spki)
+}
+
+// Distinguished Name encoding
+// Parses "C=XX, O=Foo, CN=Bar"-style strings.
+
+// OIDs for common attribute types
+private val OID_COMMON_NAME = oidBytes(2, 5, 4, 3)
+private val OID_ORGANIZATION = oidBytes(2, 5, 4, 10)
+private val OID_COUNTRY = oidBytes(2, 5, 4, 6)
+
+private fun encodeDn(dn: String): ByteArray {
+	val rdns = mutableListOf<ByteArray>()
+	for (part in splitDnParts(dn)) {
+		val eq = part.indexOf('=')
+		require(eq >= 0) { "Malformed DN component: \"$part\"" }
+		val key = part.substring(0, eq).trim().uppercase()
+		val value = part.substring(eq + 1).trim()
+
+		// RFC 5280 App. A pins countryName to PrintableString; other attributes may be UTF8String.
+		val (oidBytes, encodedValue) =
+			when (key) {
+				"CN" -> OID_COMMON_NAME to derUtf8String(value)
+				"O" -> OID_ORGANIZATION to derUtf8String(value)
+				"C" -> OID_COUNTRY to derPrintableString(value)
+				else -> throw IllegalArgumentException("Unsupported DN attribute type: \"$key\"")
+			}
+		val attrType = derSeq(oidBytes + encodedValue)
+		rdns += derSet(attrType)
+	}
+	return derSeq(rdns.fold(ByteArray(0)) { acc, b -> acc + b })
+}
+
+// Splits on unescaped commas per RFC 4514 (a backslash escapes the following character).
+private fun splitDnParts(dn: String): List<String> {
+	val parts = mutableListOf<String>()
+	val current = StringBuilder()
+	var i = 0
+	while (i < dn.length) {
+		val c = dn[i]
+		when {
+			c == '\\' && i + 1 < dn.length -> {
+				current.append(dn[i + 1])
+				i += 2
+			}
+
+			c == ',' -> {
+				parts += current.toString()
+				current.setLength(0)
+				i++
+			}
+
+			else -> {
+				current.append(c)
+				i++
+			}
+		}
+	}
+	parts += current.toString()
+	return parts
+}
+
+// Algorithm identifier: SHA256WithRSA (OID 1.2.840.113549.1.1.11) + NULL
+
+private val SHA256_WITH_RSA_OID = oidBytes(1, 2, 840, 113549, 1, 1, 11)
+
+private fun sha256WithRsaAlgId(): ByteArray = derSeq(SHA256_WITH_RSA_OID + byteArrayOf(0x05, 0x00)) // NULL
+
+private fun derSeq(content: ByteArray): ByteArray = tlv(0x30, content)
+
+private fun derSet(content: ByteArray): ByteArray = tlv(0x31, content)
+
+private fun derBitString(bytes: ByteArray): ByteArray = tlv(0x03, byteArrayOf(0x00) + bytes)
+
+private fun derUtf8String(s: String): ByteArray = tlv(0x0C, s.toByteArray(Charsets.UTF_8))
+
+// X.680 Section 41: PrintableString is restricted to A-Za-z0-9 and a handful of punctuation.
+private val PRINTABLE_STRING_CHARS = (('A'..'Z') + ('a'..'z') + ('0'..'9') + " '()+,-./:=?".toList()).toSet()
+
+private fun derPrintableString(s: String): ByteArray {
+	require(s.all { it in PRINTABLE_STRING_CHARS }) { "\"$s\" is not a valid PrintableString" }
+	return tlv(0x13, s.toByteArray(Charsets.US_ASCII))
+}
+
+private fun derInteger(value: BigInteger): ByteArray =
+	// BigInteger.toByteArray() already prepends a 0x00 sign byte for positive integers whose
+	// high bit would otherwise be set - exactly what DER requires.
+	tlv(0x02, value.toByteArray())
+
+private fun derContextTagged(
+	tag: Int,
+	content: ByteArray,
+): ByteArray = tlv(0xA0 or tag, content)
+
+private fun derTime(date: Date): ByteArray {
+	// Calendar.getInstance(TimeZone) without a Locale picks up the default locale's calendar
+	// *system* (e.g. a Thai default locale returns a Buddhist calendar, year = Gregorian + 543),
+	// not just digit formatting - Locale.ROOT forces the Gregorian calendar.
+	val cal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"), Locale.ROOT)
+	cal.time = date
+	val year = cal.get(Calendar.YEAR)
+	val fullYear =
+		String.format(
+			Locale.ROOT,
+			"%04d%02d%02d%02d%02d%02dZ",
+			year,
+			cal.get(Calendar.MONTH) + 1,
+			cal.get(Calendar.DAY_OF_MONTH),
+			cal.get(Calendar.HOUR_OF_DAY),
+			cal.get(Calendar.MINUTE),
+			cal.get(Calendar.SECOND),
+		)
+	// UTCTime's 2-digit year can only unambiguously represent 1950-2049; GeneralizedTime otherwise.
+	return if (year < 1950 || year >= 2050) {
+		tlv(0x18, fullYear.toByteArray(Charsets.US_ASCII))
+	} else {
+		tlv(0x17, fullYear.substring(2).toByteArray(Charsets.US_ASCII))
+	}
+}
+
+private fun oidBytes(vararg arcs: Int): ByteArray {
+	val out = ByteArrayOutputStream()
+	// First two arcs are combined: first*40 + second
+	out.write(encodeBase128(arcs[0] * 40 + arcs[1]))
+	for (i in 2 until arcs.size) {
+		out.write(encodeBase128(arcs[i]))
+	}
+	return tlv(0x06, out.toByteArray())
+}
+
+private fun encodeBase128(value: Int): ByteArray {
+	if (value == 0) return byteArrayOf(0)
+	val buf = ByteArray(5)
+	var v = value
+	var pos = 4
+	while (v > 0) {
+		buf[pos--] = (v and 0x7F).toByte()
+		v = v ushr 7
+	}
+	val start = pos + 1
+	val result = ByteArray(5 - start)
+	for (i in result.indices) {
+		result[i] = if (i < result.size - 1) (buf[start + i].toInt() or 0x80).toByte() else buf[start + i]
+	}
+	return result
+}
+
+private fun tlv(
+	tag: Int,
+	content: ByteArray,
+): ByteArray {
+	val out = ByteArrayOutputStream()
+	out.write(tag)
+	val len = content.size
+	if (len < 0x80) {
+		out.write(len)
+	} else {
+		val lenBytes = encodeLength(len)
+		out.write(0x80 or lenBytes.size)
+		out.write(lenBytes)
+	}
+	out.write(content)
+	return out.toByteArray()
+}
+
+// Minimal big-endian byte encoding of a non-negative length, for DER's long-form length octets.
+private fun encodeLength(len: Int): ByteArray {
+	val bytes = mutableListOf<Byte>()
+	var l = len
+	while (l > 0) {
+		bytes.add(0, (l and 0xFF).toByte())
+		l = l ushr 8
+	}
+	return bytes.toByteArray()
+}

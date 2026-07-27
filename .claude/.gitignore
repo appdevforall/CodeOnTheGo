@@ -3,6 +3,8 @@ settings.local.json
 
 # Claude Code worktrees
 worktrees/
+# Local plan/scratch artifacts, if any
+/plans/
 
 # Session/runtime artifacts
 projects/

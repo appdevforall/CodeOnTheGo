@@ -21,7 +21,7 @@ import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
  * so the toolbar fully removes it (instead of greying it) when not applicable.
  */
 class PluginToolbarActionItem(
-    context: Context,
+    private val context: Context,
     private val toolbarAction: ToolbarAction,
     val pluginId: String
 ) : EditorActivityAction() {
@@ -55,6 +55,13 @@ class PluginToolbarActionItem(
         runCatching {
             enabled = toolbarAction.isEnabledProvider?.invoke() ?: toolbarAction.isEnabled
             visible = toolbarAction.isVisibleProvider?.invoke() ?: toolbarAction.isVisible
+            // Re-resolve the icon on every rebuild when the plugin drives it dynamically.
+            // When iconProvider is null the icon stays as resolved in init (static behavior).
+            if (visible) {
+                toolbarAction.iconProvider?.invoke()?.let { resId ->
+                    PluginDrawableResolver.resolve(resId, pluginId, context)?.let { icon = it }
+                }
+            }
         }.onFailure { e ->
             // A throwing/disposed plugin must never keep a stale icon on the toolbar.
             Log.w("PluginToolbarActionItem", "prepare failed for '${toolbarAction.id}'", e)
