@@ -69,6 +69,14 @@ buildscript {
 	}
 }
 
+// Modules whose unit tests are known to fail, muted so the rest of the suite can gate the
+// build. These were hidden until `ignoreFailures` stopped being applied to every module.
+// Remove an entry once its tests are fixed:
+//   :gradle-plugin      AndroidIDEInitScriptPluginTest, AndroidIDEPluginTest (7 of 7 fail)
+//   :lsp:java           JavaCompilerProviderTest, AddImportTest
+//   :termux:termux-app  TermuxServiceShellManagerNpeTest
+val modulesWithFailingTests = setOf(":gradle-plugin", ":lsp:java", ":termux:termux-app")
+
 subprojects {
 	plugins.apply("jacoco")
 
@@ -80,8 +88,12 @@ subprojects {
 	FDroidConfig.load(project)
 
 	tasks.withType<Test> {
-		// Continue even if tests fail, so coverage data is written
-		ignoreFailures = true
+		ignoreFailures = project.path in modulesWithFailingTests
+
+		// Gradle's default test-worker heap is 512m, too small for the Robolectric +
+		// Kotlin Analysis API suites (:lsp:kotlin peaks near 240m and keeps growing).
+		// Keep it explicit so the suites fail on a real regression, not on the default.
+		maxHeapSize = "1g"
 
 		// Backstop: kill any individual Test task that runs longer than 10 minutes.
 		// Prevents a single hung test JVM (e.g. the Tooling API child) from burning
@@ -107,6 +119,13 @@ subprojects {
 			"--add-opens=java.base/java.util=ALL-UNNAMED",
 			"--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
 			"--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
+			// An OutOfMemoryError inside a test deadlocks Gradle's TestWorker: the
+			// OOM unwinds the runQueue.take() loop, whose finally needs the TestWorker
+			// monitor that the in-flight stop() already holds while blocked on
+			// runQueue.put() (capacity 1). The worker then never exits and the build
+			// hangs. Exiting on the first OOM turns that hang into a task failure.
+			"-XX:+ExitOnOutOfMemoryError",
+			"-XX:+HeapDumpOnOutOfMemoryError",
 		)
 
 		// Attach jacoco agent

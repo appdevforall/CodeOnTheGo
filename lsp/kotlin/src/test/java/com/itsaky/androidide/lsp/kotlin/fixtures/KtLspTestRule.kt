@@ -1,6 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.fixtures
 
-import com.itsaky.androidide.lsp.kotlin.compiler.write
+import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -32,11 +32,12 @@ internal class KtLspTestRule(
 
 						statement?.evaluate()
 					} finally {
-						if (::env.isInitialized) {
-							env.project.write {
-								// TODO: This fails in test cases, ignored for now
-								// env.close()
-							}
+						if (::env.isInitialized && !env.project.isDisposed) {
+							// Disposing the project model requires an IntelliJ write action; our own
+							// project.write lock does not supply one, which is why this used to fail.
+							// Without disposal every test leaks a whole KotlinCoreApplicationEnvironment
+							// (refcounted, process-wide static) and the suite OOMs part-way through.
+							ApplicationManager.getApplication().runWriteAction { env.close() }
 						}
 					}
 				}
