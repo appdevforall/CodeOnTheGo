@@ -9,7 +9,7 @@
 - Quick Build works on the C107 (3.6 GB): **~2.9x** faster than the standard build, saving **+15.1 s** on the median app's warm edit — a bigger absolute saving than the A56 gets.
 - The floor sits between 1.9 GB and 3.6 GB:
   - C107, 3.6 GB — works
-  - itel A667L, 1.9 GB — walled: never provisions, never finishes a build
+  - itel A667L, 1.9 GB — walled: never provisions, never finishes a build. The only app attempted there was **pure Java** (`hello-java`, 3 `.java` files, zero Kotlin), so the wall is not the cost of loading the Kotlin toolchain
   - incar Q8, 1.46 GB — already thrashing with CoGo open and idle, before anything starts building
 - **The wall is not Quick Build's.** What fails at 1.9 GB is the standard Gradle build that provisions it; Quick Build adds no failures of its own on any tier we measured. No amount of Quick Build work moves the floor.
 - The one lever that could `[inferred]`: serve provisioning without a full on-device Gradle build. The Quick Build hot loop is a much smaller runtime than the Gradle daemon that dies.
@@ -24,7 +24,7 @@
 - Pass criteria: the standard build reaches `standard_build_finished`; Quick Build reaches Ready and lands a save->live edit.
 - Speedup is the per-app median over 18 apps, repeated measurements of the same edit collapsed first — methodology owned by [`benchmarking.md`](benchmarking.md).
 - C107 figures are post-fix: before commit `6d198f576` the low tiers capped the daemon at `MaxMetaspaceSize=192m` and `:app:assembleDebug` died in `OutOfMemoryError: Metaspace`; at 384m it builds green `[measured on c107]`.
-- itel: stock runs, plus a debloat experiment — 16 packages disabled (Bryan-approved, snapshot kept, fully restored afterward), screen off, 900 s window `[measured on itel, debloated + screen-off; do not compare naively against stock runs]`.
+- itel: **one app only** — `hello-java`, the pure-Java template. Stock runs, plus a debloat experiment — 16 packages disabled (Bryan-approved, snapshot kept, fully restored afterward), screen off, 900 s window `[measured on itel, debloated + screen-off; do not compare naively against stock runs]`.
 - Q8: idle profile only, on CoGo's onboarding screen. No build attempted — its carousel ignores programmatic taps, so setup needs a human touching the screen.
 
 ## The floor, in one table
