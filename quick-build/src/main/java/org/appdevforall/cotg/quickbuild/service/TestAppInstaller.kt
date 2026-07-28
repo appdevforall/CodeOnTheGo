@@ -70,6 +70,17 @@ sealed interface InstallOutcome {
 	data class Failed(
 		val message: String,
 	) : InstallOutcome
+
+	/**
+	 * The install started but no verdict (broadcast or lastUpdateTime change) arrived
+	 * within the timeout - in practice an install-confirmation dialog nobody tapped
+	 * (or, with the host app backgrounded, one that never even appeared). Distinct
+	 * from [Failed]: nothing is broken - the built APK is fine and simply retrying
+	 * the install re-prompts, so callers can offer a retry instead of failing hard.
+	 */
+	data class ConfirmationTimedOut(
+		val message: String,
+	) : InstallOutcome
 }
 
 /**
@@ -157,7 +168,7 @@ class TestAppInstaller(
 			verdict.cancel()
 			stampChanged.cancel()
 			outcome
-				?: InstallOutcome.Failed(
+				?: InstallOutcome.ConfirmationTimedOut(
 					"Test app install was not confirmed within ${timeoutMillis / 1000}s",
 				)
 		}

@@ -170,6 +170,83 @@ class SessionReducerTest {
 	}
 
 	@Test
+	fun `an unconfirmed rebaseline install parks in invalidated awaiting retry - not idle`() {
+		// The stranded-session fix: the rebaseline built fine, only the reinstall
+		// confirmation timed out. No effect fires (an automatic retry would re-prompt
+		// forever); the session waits for the user's tap instead of dying to Idle.
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Provisioning,
+				SessionEvent.RebaselineInstallNotConfirmed(deployedGeneration = 2),
+			)
+
+		assertThat(transition.state)
+			.isEqualTo(
+				QuickBuildSessionState.Invalidated(
+					InvalidationReason.INSTALL_NOT_CONFIRMED,
+					2,
+					awaitingRetry = true,
+				),
+			)
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
+	fun `invalidated awaiting retry plus QuickBuildTapped retries the rebaseline once`() {
+		val parked =
+			QuickBuildSessionState.Invalidated(
+				InvalidationReason.INSTALL_NOT_CONFIRMED,
+				2,
+				awaitingRetry = true,
+			)
+
+		val transition = reducer.reduce(parked, SessionEvent.QuickBuildTapped)
+
+		// awaitingRetry drops with the effect, so a second tap before RebaselineStarted
+		// cannot double-run the Gradle build.
+		assertThat(transition.state).isEqualTo(parked.copy(awaitingRetry = false))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
+	}
+
+	@Test
+	fun `invalidated with a rebaseline in flight ignores QuickBuildTapped`() {
+		val invalidated = QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1)
+
+		val transition = reducer.reduce(invalidated, SessionEvent.QuickBuildTapped)
+
+		assertThat(transition.state).isEqualTo(invalidated)
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
+	fun `retried rebaseline start moves the parked session to provisioning`() {
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Invalidated(InvalidationReason.INSTALL_NOT_CONFIRMED, 2),
+				SessionEvent.RebaselineStarted,
+			)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning)
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
+	fun `invalidated awaiting retry plus SessionRestartRequested still tears down`() {
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Invalidated(
+					InvalidationReason.INSTALL_NOT_CONFIRMED,
+					2,
+					awaitingRetry = true,
+				),
+				SessionEvent.SessionRestartRequested,
+			)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle)
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownSession))
+	}
+
+	@Test
 	fun `ready plus DaemonDied degrades and respawns`() {
 		val transition = reducer.reduce(QuickBuildSessionState.Ready(1), SessionEvent.DaemonDied)
 

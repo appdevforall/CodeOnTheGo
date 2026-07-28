@@ -143,8 +143,8 @@ class TestAppInstallerTest {
 
 			// Ignored: we time out instead of misreporting the other app's failure.
 			val outcome = result.await()
-			assertThat(outcome).isInstanceOf(InstallOutcome.Failed::class.java)
-			assertThat((outcome as InstallOutcome.Failed).message).contains("not confirmed")
+			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationTimedOut::class.java)
+			assertThat((outcome as InstallOutcome.ConfirmationTimedOut).message).contains("not confirmed")
 		}
 
 	@Test
@@ -196,14 +196,30 @@ class TestAppInstallerTest {
 		}
 
 	@Test
-	fun `timeout produces a visible failure, never a false success`() =
+	fun `timeout produces a distinguishable ConfirmationTimedOut, never a false success`() =
 		runTest {
 			val result = async { installer(timeoutMillis = 10_000L).ensureInstalled(apk, PKG) }
 			advanceUntilIdle()
 
+			// Distinct from Failed: nothing is broken, a retry re-prompts - callers
+			// (the rebaseline path) park the session for retry instead of failing hard.
 			val outcome = result.await()
-			assertThat(outcome).isInstanceOf(InstallOutcome.Failed::class.java)
-			assertThat((outcome as InstallOutcome.Failed).message).contains("not confirmed")
+			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationTimedOut::class.java)
+			assertThat((outcome as InstallOutcome.ConfirmationTimedOut).message).contains("not confirmed")
+		}
+
+	@Test
+	fun `a real failure broadcast is Failed, not ConfirmationTimedOut`() =
+		runTest {
+			// Guards the distinction the retry path relies on: an actual installer
+			// verdict must never be presented as a retryable unconfirmed prompt.
+			val result = async { installer(timeoutMillis = 10_000L).ensureInstalled(apk, PKG) }
+			runCurrent()
+
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.FAILURE, "rejected"))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Failed("rejected"))
 		}
 
 	@Test

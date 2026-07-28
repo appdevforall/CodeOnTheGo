@@ -83,4 +83,14 @@ enum class InvalidationReason {
 	 * Rebaselining regenerates setup.json and reinstalls the test app.
 	 */
 	OUTDATED_BASELINE,
+
+	/**
+	 * A rebaseline built a good APK but its OS install-confirmation was never given
+	 * (dialog left untapped until the installer's timeout). The baseline is still
+	 * stale - the session parks in `Invalidated(awaitingRetry = true)` and the next
+	 * Quick Build tap re-runs the rebaseline, which re-prompts. Unlike the other
+	 * reasons this one is not detected from a file change; the session manager
+	 * raises it itself on `RebaselineOutcome.InstallNotConfirmed`.
+	 */
+	INSTALL_NOT_CONFIRMED,
 }

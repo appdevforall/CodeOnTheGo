@@ -63,6 +63,11 @@ class GradleQuickBuildProvisioner(
 		val uid =
 			when (val installed = installer.ensureInstalled(setup.apk, setup.testAppPackage)) {
 				is InstallOutcome.Failed -> return ProvisionOutcome.Failure(installed.message)
+
+				// From Idle the next tap re-provisions (fast: tasks up-to-date), so the
+				// existing failure surface already IS the retry offer here.
+				is InstallOutcome.ConfirmationTimedOut -> return ProvisionOutcome.Failure(installed.message)
+
 				is InstallOutcome.Installed -> installed.uid
 			}
 
@@ -115,6 +120,13 @@ class GradleQuickBuildProvisioner(
 		) {
 			is InstallOutcome.Failed -> {
 				RebaselineOutcome.Failure(installed.message)
+			}
+
+			is InstallOutcome.ConfirmationTimedOut -> {
+				// The rebuilt APK is good; only the user's confirmation is missing. Keep
+				// that distinguishable so the session can offer a retry instead of dying
+				// to Idle (the stranded-session failure the multi-module verify found).
+				RebaselineOutcome.InstallNotConfirmed(installed.message)
 			}
 
 			is InstallOutcome.Installed -> {

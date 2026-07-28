@@ -797,6 +797,24 @@ class QuickBuildSessionManager(
 				session.orchestrator.onRebaselineFailed()
 				dispatch(SessionEvent.ProvisioningFailed(outcome.message))
 			}
+
+			is RebaselineOutcome.InstallNotConfirmed -> {
+				// The Gradle build was fine; only the reinstall confirmation is missing
+				// (dialog left untapped - the stranded-session finding from the
+				// multi-module device verify). Park recoverable instead of dying to
+				// Idle. Deliberately NOT onRebaselineFailed(): the orchestrator keeps
+				// holding the absorbed batch, so quick builds stay suspended while the
+				// daemon is down (a fast-path save here would only fail against the
+				// dead daemon); the retry's onRebaselineStarted re-holds pending on
+				// top, and every held file is on disk for its Gradle build to absorb.
+				log.warn("Rebaseline reinstall not confirmed; awaiting a retry tap: {}", outcome.message)
+				surfaceUserMessage("${outcome.message}. Tap Quick Build to retry.")
+				dispatch(
+					SessionEvent.RebaselineInstallNotConfirmed(
+						session.lastDeployedGeneration.takeIf { it >= 0 } ?: session.tracker.current,
+					),
+				)
+			}
 		}
 	}
 

@@ -874,6 +874,95 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `an unconfirmed rebaseline install parks the session for retry instead of dying to Idle`() =
+		runTest {
+			// The multi-module verify's stranded-session failure: the rebaseline's Gradle
+			// build succeeded but nobody tapped the reinstall dialog, so the installer
+			// timed out. The session must stay recoverable, not drop to Idle.
+			rebaselineOutcome = { RebaselineOutcome.InstallNotConfirmed("install was not confirmed") }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Invalidated(
+						InvalidationReason.INSTALL_NOT_CONFIRMED,
+						0,
+						awaitingRetry = true,
+					),
+				)
+			// The user is told what happened and how to recover.
+			assertThat(userMessages).contains("install was not confirmed. Tap Quick Build to retry.")
+			// Parked, not torn down: the daemon stays down (it was shut down for the
+			// Gradle build and there is no new baseline to restart it against yet).
+			assertThat(daemon.isRunning).isFalse()
+			assertThat(daemon.startConfigs).hasSize(1)
+		}
+
+	@Test
+	fun `tapping Quick Build after an unconfirmed install retries the rebaseline and recovers`() =
+		runTest {
+			var confirmed = false
+			rebaselineOutcome = {
+				if (confirmed) {
+					defaultRebaselineSuccess()
+				} else {
+					RebaselineOutcome.InstallNotConfirmed("install was not confirmed")
+				}
+			}
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			assertThat(rebaselineCount).isEqualTo(1)
+
+			// The user "confirms this time": the retried install goes through.
+			confirmed = true
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			assertThat(rebaselineCount).isEqualTo(2)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			// The daemon restarted against the retried rebaseline's setup.
+			assertThat(daemon.isRunning).isTrue()
+			assertThat(daemon.startConfigs).hasSize(2)
+		}
+
+	@Test
+	fun `saves while parked for retry accumulate for the retried rebaseline - no dead-daemon build`() =
+		runTest {
+			var confirmed = false
+			rebaselineOutcome = {
+				if (confirmed) defaultRebaselineSuccess() else RebaselineOutcome.InstallNotConfirmed("not confirmed")
+			}
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			// A source save while parked must NOT start a quick build: the daemon is
+			// down, and the orchestrator still holds the rebaseline's absorbed batch.
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(executed).isEmpty()
+
+			// The retried rebaseline absorbs the parked save (the file is on disk for
+			// its Gradle build); the session comes back Ready without a quick build.
+			confirmed = true
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(executed).isEmpty()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
 	fun `a rebaseline rebuilds the executor from the re-read setup`() =
 		runTest {
 			// The rebaseline regenerates setup.json; here it comes back schema v2 (e.g.

@@ -47,10 +47,17 @@ sealed interface QuickBuildSessionState {
 		val restarted: Boolean = false,
 	) : QuickBuildSessionState
 
-	/** The baseline is stale (manifest/gradle/external build); needs a full Gradle build. */
+	/**
+	 * The baseline is stale (manifest/gradle/external build); needs a full Gradle build.
+	 * [awaitingRetry] true = the rebaseline already ran but its reinstall was never
+	 * confirmed ([SessionEvent.RebaselineInstallNotConfirmed]); no rebaseline is in
+	 * flight, and the next Quick Build tap retries it (re-prompting the install)
+	 * instead of the session having died to [Idle].
+	 */
 	data class Invalidated(
 		val reason: InvalidationReason,
 		val deployedGeneration: Long,
+		val awaitingRetry: Boolean = false,
 	) : QuickBuildSessionState
 
 	/** The compile daemon died; respawn + re-seed in progress. */
@@ -122,6 +129,17 @@ sealed interface SessionEvent {
 
 	/** The full Gradle re-baseline build has been kicked off. */
 	data object RebaselineStarted : SessionEvent
+
+	/**
+	 * The rebaseline's Gradle build succeeded but the test-app reinstall was never
+	 * confirmed (install dialog left untapped until the installer timed out). The
+	 * session is NOT dead: it parks in [QuickBuildSessionState.Invalidated] with
+	 * `awaitingRetry = true`, where the next Quick Build tap re-runs the rebaseline
+	 * and re-prompts. [deployedGeneration] is the generation the test app still runs.
+	 */
+	data class RebaselineInstallNotConfirmed(
+		val deployedGeneration: Long,
+	) : SessionEvent
 
 	/**
 	 * A full Gradle build ran OUTSIDE the session (a Standard Run) and completed. The
@@ -286,6 +304,19 @@ class SessionReducer {
 				)
 			}
 
+			is SessionEvent.RebaselineInstallNotConfirmed -> {
+				// The rebaseline built fine; only the install confirmation is missing.
+				// Park recoverable (no effect - a retry loop would re-prompt forever):
+				// the next tap retries, "Restart session" still tears down.
+				SessionTransition(
+					QuickBuildSessionState.Invalidated(
+						InvalidationReason.INSTALL_NOT_CONFIRMED,
+						event.deployedGeneration,
+						awaitingRetry = true,
+					),
+				)
+			}
+
 			else -> {
 				SessionTransition(state)
 			}
@@ -393,6 +424,21 @@ class SessionReducer {
 		when (event) {
 			SessionEvent.RebaselineStarted -> {
 				SessionTransition(QuickBuildSessionState.Provisioning)
+			}
+
+			SessionEvent.QuickBuildTapped -> {
+				if (state.awaitingRetry) {
+					// Retry the parked rebaseline (its reinstall was never confirmed).
+					// awaitingRetry drops immediately so a second tap before
+					// RebaselineStarted lands cannot double-run the Gradle build.
+					SessionTransition(
+						state.copy(awaitingRetry = false),
+						listOf(SessionEffect.RunFullGradleRebaseline),
+					)
+				} else {
+					// A rebaseline is already in flight; the tap has nothing to add.
+					SessionTransition(state)
+				}
 			}
 
 			else -> {

@@ -63,4 +63,16 @@ sealed interface RebaselineOutcome {
 	data class Failure(
 		val message: String,
 	) : RebaselineOutcome
+
+	/**
+	 * The rebaseline's Gradle build succeeded and produced a good APK, but the OS
+	 * install-confirmation was never given ([InstallOutcome.ConfirmationTimedOut] -
+	 * e.g. the dialog was left untapped for the whole timeout). Distinct from
+	 * [Failure] because nothing needs fixing: re-running the rebaseline (tasks come
+	 * back up-to-date, so it is cheap) simply re-prompts, and the session manager
+	 * parks the session in a retryable state instead of tearing it down.
+	 */
+	data class InstallNotConfirmed(
+		val message: String,
+	) : RebaselineOutcome
 }
