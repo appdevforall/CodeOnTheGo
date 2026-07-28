@@ -16,20 +16,19 @@ We've identified five issues that can improve performance, roughly sorted in dec
 
 ## Scope and provenance
 
-Status: sequenced plan, nothing here is committed.
-
-Read this first for *what to do in what order*. The root cause and method behind item 1 are in the sora deep-dive run; the filesystem mechanism and its CoGo-wide scope are in [`docs/on-device-storage-performance.md`](../../docs/on-device-storage-performance.md); javac detail is in [`incremental-javac-design.md`](incremental-javac-design.md) (superseded on framing only — its options and test plan stand). This doc does not restate them.
-
-Provenance is mandatory:
-
-- `[measured on a56]` = Samsung A56.
-- `[measured on c107]` = the C107, 3.6 GB — the lowest tier on which any on-device Gradle build completes. Not to be confused with the 1.9 GB itel A667L or the 1.46 GB incar Q8, neither of which finishes a build at all; [`low-spec-devices.md`](low-spec-devices.md) owns the device roster.
-- `[measured on host]` = Mac Mini.
-- `[inferred]` and `[unmeasured]` mean what they say. Untagged prose is code reading.
-
-Evidence: `quick-build/corpus/results/20260728T172912Z-sora-deepdive/`. A56, CoGo `C-d-0728-1026` / `C-d-0728-1044` from `5d2d94a78`. Device rows are n=1 for variant A and n=2 for variant B — effects far outside the visible spread, not distributions.
+Sequenced plan, nothing committed. Measured on the A56 unless a claim is tagged otherwise; evidence in `quick-build/corpus/results/20260728T172912Z-sora-deepdive/` (n=1 before the change, n=2 after). Background this doc does not restate: [`docs/on-device-storage-performance.md`](../../docs/on-device-storage-performance.md) and [`incremental-javac-design.md`](incremental-javac-design.md).
 
 ## Where a warm edit goes today
+
+The stages, in the order they run:
+
+- **javac** — compiles *all* the project's `.java` sources in-process (`-proc:none`), after Kotlin and against the Kotlin output; it is not incremental today.
+- **kotlinc** — the Kotlin Build Tools API incremental compile, given an explicit changed set: just the edited `.kt` files normally, every Kotlin source when a Java ABI moved.
+- **strip** — rewrites a mirror of every `.class` with `ACC_FINAL` cleared, because the generated proxy activities extend the user's classes and the dex verifier rejects a final superclass. It deletes and re-creates the whole tree each time, which is why it dominates on FUSE.
+- **d8** — dexes the stripped tree into one `classes.dex`, all classes every time.
+- **policy+walks** — two `Files.walk` passes over the class tree (before and after the compile) to diff mtimes into a changed-class set, plus the deploy policy that ASM-parses those class headers to decide restart / recreate / rebaseline.
+
+Two caveats on that last column: it sums a daemon-side span with a host-side one, and the walk time is already inside the compile RPC — so it is not additive with `total` the way the other columns are.
 
 The reference workload is `sora-editor-full` (292 sources: 218 `.java` + 74 `.kt`, producing 464 class files / 1.46 MB of bytecode) — the corpus's worst Quick Build case and the only one where Quick Build lost to a standard build. Warm edit, ms `[measured on a56]`:
 
@@ -39,7 +38,7 @@ The reference workload is `sora-editor-full` (292 sources: 218 `.java` + 74 `.kt
 | Kotlin body     | 14922 | 2849  | 3447    | 4659  | 2421 | 1058         |
 | Java ABI change | 28055 | 2677  | 16377   | 4776  | 2268 | 1465         |
 
-## The sequence
+## Details on Optimization Opportunities
 
 Ordered by measured payoff per unit of risk.
 
@@ -131,7 +130,7 @@ Recorded so nobody re-derives them. Evidence: `quick-build/corpus/results/202607
 - *"The Java-ABI gate fails open, silently recompiling all Kotlin on a Java edit."* The gate is healthy — a Java body edit measured `nKotlinToCompile=0` `[measured on a56]`. The 74-file Kotlin recompile is real, but only on a genuine ABI change, which is item 4's documented design.
 - *"Non-incremental dexing is the dominant cost."* Half right. Dex **is** 48-60% of the edit, but most of that was the strip pass's file I/O, not dexing compute — strip fell 20x when only the filesystem changed.
 
-**A correction to [`incremental-javac-design.md`](incremental-javac-design.md).** Its options A+B are still right — they are items 3a and 3b — but its framing was wrong, and it is worth knowing why:
+**A correction to **[**`incremental-javac-design.md`**](incremental-javac-design.md)**.** Its options A+B are still right — they are items 3a and 3b — but its framing was wrong, and it is worth knowing why:
 
 - It calls javac "the bottleneck". javac is **19-27%** of a warm edit before the storage fix and 25-36% after.
 - It only looked *inside* `compileMs`, where javac is 55-61% on the small Java apps it sampled — and `compileMs` in those rows **excludes dex**. The dex half was the larger half, and the filesystem cost underneath both was invisible to every field the note had.

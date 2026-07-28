@@ -1,67 +1,42 @@
-# Decision: Five defects found on device make Quick Build stall, go dead, or go quiet — which do we fix before users see it?
+# Decision: Review five user-facing defects found during testing
 
 ## Summary
 
-- Device testing on 2026-07-25..28 surfaced **five user-facing defects** in Quick Build. **None is fixed.** Each is tracked as an ADFA-4128 task (#87-#91).
-- Three of them hit a normal user in an ordinary session, and in each case the product then explains it wrongly or not at all:
-  - **Defect 1 (#87)** — a one-line edit in a Room/KSP project triggers a full ~200 s rebaseline and a reinstall prompt.
-  - **Defect 2 (#88)** — after that reinstall, every save fails "Test app is not connected" until the user relaunches their app.
-  - **Defect 5 (#90)** — a backgrounded rebaseline waits 180 s in silence, then says the user failed to confirm a dialog they were never shown.
-- The other two are worse-than-designed but survivable: **defect 3 (#89)** — a failed respawn parks the session in `Degraded`, where tapping Quick Build does nothing at all — and **defect 4 (#91)** — the user's own app crash is misattributed to deploy infrastructure.
-- Neither speed nor correctness is at stake. Quick Build is a median ~2.3x faster than an incremental standard build across 21 apps `[measured on a56]`, and **the never-stale invariant holds in all five** — nobody ends up running stale code. What the user loses is trust: a fast path that went slow, went dead, or went quiet.
-- **Decision: which of these five do we fix before users see Quick Build?**
-  - Proposed: ship-block on **1, 2, and the fast-fail half of 5**; the rest go to v1.1. That buys back 180 s of dead silence, a ~200 s escalation on a one-line edit, and a fast path that stays dead after every reinstall — the three failures a user would read as "Quick Build is unreliable", and they would not be wrong.
-
-**Status**: five user-facing defects surfaced by device testing 2026-07-25..28, none fixed, all tracked (tasks #87-#91). This doc is the decision input for what blocks a v1.
+- Device testing on 2026-07-25..28 surfaced **five user-facing defects**. **None is fixed.** Each is tracked as an ADFA-4128 task (#87-#91). The table below is the decision content; the sections after it are the evidence for each row.
+- **Neither speed nor correctness is at stake.** The never-stale invariant holds in all five — nobody ends up running stale code. What the user loses is trust: a fast path that went slow, went dead, or went quiet.
+- **Decision: which of these block v1?** Proposed, revised after Bryan's 2026-07-28 review: block on **#88 and #90** — the two that hit every user on every rebaseline. **#87, #89 and #91 go to v1.1.**
 
 **Provenance**: `[measured on a56]` = Samsung A56, dates as noted. Untagged prose is code reading against the working tree at `75483b6eb`.
 
 ## The five gaps, and whether they block v1
 
-| # | Task | What breaks | Frequency | Severity | Blocks v1? |
-|---|---|---|---|---|---|
-| 1 | #87 | A one-line edit in a Room/KSP project triggers a full ~200 s rebaseline + reinstall | High in annotation-processor projects; 3/3 when attempted | High | **Yes** |
-| 2 | #88 | After any rebaseline reinstall, every save fails "Test app is not connected" until the user relaunches their app | Deterministic | High | **Yes** |
-| 3 | #89 | A failed respawn parks the session in `Degraded`, where tapping Quick Build does nothing at all | Unknown, probably low `[inferred]` | High when it happens | No |
-| 4 | #91 | The user's app crashes on its own; CoGo says nothing and then misattributes it to deploy infrastructure | As often as user code crashes | Moderate | No |
-| 5 | #90 | A backgrounded rebaseline waits 180 s in silence, then shows a message that is wrong about what happened | Every backgrounded rebaseline that reinstalls | High on the wait | **The fast-fail half** |
+Sorted in descending priority. **Blocks v1 is TBD on every row** — that is the call this doc is asking the team to make; the summary carries the proposal.
 
-## Why 1, 2, and 5's fast-fail are ship-blocking
+| Task | What breaks                                                  | Frequency                                                    | Severity             | Blocks v1?        |
+| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ | -------------------- | ----------------- |
+| #88  | After any rebaseline reinstall, every save fails "Test app is not connected" until the user relaunches their app | Deterministic — every rebaseline reinstall, and rebaseline reaches every user | High                 | TBDRecommend: yes |
+| #90  | A backgrounded rebaseline waits 180 s in silence, then shows a message that is wrong about what happened | Every backgrounded rebaseline that reinstalls — and a rebaseline runs long enough that backgrounding is normal | High on the wait     | TBDRecommend: yes |
+| #89  | A failed respawn parks the session in `Degraded`, where tapping Quick Build does nothing at all | Code reading only, no device repro; probably low `[inferred]` | High when it happens | TBD               |
+| #91  | The user's app crashes on its own; CoGo says nothing and then misattributes it to deploy infrastructure | Code reading only, `[unmeasured]` on device; as often as user code crashes | Moderate             | TBD               |
+| #87  | A one-line edit in a Room/KSP project triggers a full ~200 s rebaseline + reinstall | Only in projects using annotation processors — a minority, and QB has no real support for them yet; 3/3 when attempted | High                 | TBD               |
 
-The reasoning is the same for all three:
+## Why #88 and #90 are proposed as blocking
 
-- Each converts the feature's core promise into its opposite.
-- Each does so on a path a normal user hits in an ordinary session.
-- In each case the product then explains it wrongly or not at all.
+Both land on a path every user takes — a rebaseline — and in both the product then explains it wrongly or not at all. #88 is deterministic on every rebaseline reinstall. #90 costs 180 s of silence, and a rebaseline runs long enough that backgrounding is the normal thing to do, not the edge case.
 
 A user meeting any of these concludes Quick Build is unreliable, and they would not be wrong.
 
-## Why 3, 4, and the rest of 5 are not
+## Why #87, #89 and #91 do not
 
-- **Defect 3** has no device reproduction and needs a race to strand the session.
-- **Defect 4** is a wrong message rather than a stall, and fixing 2 removes most of its user-visible effect.
-- **A notification-based install confirm** (defect 5, option 2) is the right end state, but it is new surface area with OEM variance — v1.1, not a v1 gate.
-
-## Fix order: by user cost times frequency, not effort
-
-1. **5's fast-fail** — removes 180 s of dead silence; small and self-contained.
-2. **2's launch-and-retry** — deterministic today, and the same mechanism covers 4's symptom.
-3. **1's reclassification** — largest win, but needs care around the `Unknown` semantics.
-4. **3.**
-5. **The rest of 4.**
-
-## What this list does not claim: speed and correctness are fine
-
-Two things this list deliberately does **not** claim to be ship-blocking:
-
-- **Performance.** Quick Build is a median ~2.3x faster than an incremental standard build across 21 apps `[measured on a56]` — see [`benchmarking.md`](benchmarking.md).
-- **Correctness.** The never-stale invariant holds in all five — nobody ends up running stale code. What they end up with is a fast path that went slow, went dead, or went quiet.
+- **#87** needs an annotation processor to fire at all — a minority of projects, and Quick Build has no real support for them yet, so the escalation is rarer than the 3/3 reproduction suggests and lands where expectations are already low.
+- **#89** has no device reproduction and needs a race to strand the session. **#91** is a wrong message rather than a stall, and fixing #88 removes most of its user-visible effect.
+- Within **#90**, the v1 fix is the fast-fail (option 1). The notification-based confirm (option 2) is the right end state but is new surface area with OEM variance — v1.1.
 
 ## None of these is in the README's "Known limitations (v1)" list
 
 That list is honest about what Quick Build deliberately does not do. These five are cases where it behaves *worse than its own design intends*, which a user reads as bugs rather than boundaries.
 
-## 1. A body-only edit escalates to a full rebaseline and a reinstall
+## #87 — A body-only edit escalates to a full rebaseline and a reinstall
 
 **Task #87.**
 
@@ -93,14 +68,14 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 **Options.**
 
-| # | Option | Cost / caveat |
-|---|---|---|
-| 1 | Reclassify from the preserved set instead of `Unknown` | The correct fix and small, but it must distinguish "we lost the daemon" from "we lost track of the files", which today are the same `Unknown`; an unenumerable change genuinely must still escalate. |
-| 2 | Split the sentinel: a distinct `DaemonRestarted` marker forcing a full *compile* without a Gradle *rebaseline* | More explicit, slightly more code. |
-| 3 | Keep the daemon alive more often (partly landed) | Reduces frequency, does not fix the escalation. |
-| 4 | Document it | Defensible only if the escalation were rare, and it is not. |
+| #   | Option                                                       | Cost / caveat                                                |
+| --- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 1   | Reclassify from the preserved set instead of `Unknown`       | The correct fix and small, but it must distinguish "we lost the daemon" from "we lost track of the files", which today are the same `Unknown`; an unenumerable change genuinely must still escalate. |
+| 2   | Split the sentinel: a distinct `DaemonRestarted` marker forcing a full *compile* without a Gradle *rebaseline* | More explicit, slightly more code.                           |
+| 3   | Keep the daemon alive more often (partly landed)             | Reduces frequency, does not fix the escalation.              |
+| 4   | Document it                                                  | Defensible only if the escalation were rare, and it is not.  |
 
-## 2. After a rebaseline reinstall, the fast path is dead until the user relaunches
+## #88 — After a rebaseline reinstall, the fast path is dead until the user relaunches
 
 **Task #88.**
 
@@ -132,13 +107,13 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 **Options.**
 
-| # | Option | Cost / caveat |
-|---|---|---|
-| 1 | Relaunch automatically after a successful rebaseline reinstall | Smallest change, but it pulls the app to the foreground unasked. |
-| 2 | **Recover at deploy time: on `NotConnected`, launch and retry once** | Fixes this *and* defect 4's symptom with one mechanism, and only acts when the app is actually needed; needs a bounded retry. |
-| 3 | Fix the message and offer a Launch affordance | Honest and cheap, but leaves an interruption the product does not need. |
+| #   | Option                                                       | Cost / caveat                                                |
+| --- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 1   | Relaunch automatically after a successful rebaseline reinstall | Smallest change, but it pulls the app to the foreground unasked. |
+| 2   | **Recover at deploy time: on ****`NotConnected`****, launch and retry once** | Fixes this *and* defect 4's symptom with one mechanism, and only acts when the app is actually needed; needs a bounded retry. |
+| 3   | Fix the message and offer a Launch affordance                | Honest and cheap, but leaves an interruption the product does not need. |
 
-## 3. A failed respawn parks the session in `Degraded`, where the tap does nothing
+## #89 — A failed respawn parks the session in `Degraded`, where the tap does nothing
 
 **Task #89. Code-substantiated only — no device reproduction.**
 
@@ -175,14 +150,14 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 **Options.**
 
-| # | Option | Cost / caveat |
-|---|---|---|
-| 1 | Give `Degraded` a `QuickBuildTapped` arm re-issuing `RespawnDaemon` | A few lines plus a reducer test; needs a guard against stacking respawns. |
-| 2 | Say something: a message on discard, and text for `Reconnecting` | — |
-| 3 | Serialize the daemon lifecycle with a mutex so shutdown and respawn cannot interleave | Bigger, but addresses the cause. |
-| 4 | A bounded retry (two attempts, then park with a message) | Keeps the reasoning behind today's deliberate no-auto-retry while removing the dead end. |
+| #   | Option                                                       | Cost / caveat                                                |
+| --- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 1   | Give `Degraded` a `QuickBuildTapped` arm re-issuing `RespawnDaemon` | A few lines plus a reducer test; needs a guard against stacking respawns. |
+| 2   | Say something: a message on discard, and text for `Reconnecting` | —                                                            |
+| 3   | Serialize the daemon lifecycle with a mutex so shutdown and respawn cannot interleave | Bigger, but addresses the cause.                             |
+| 4   | A bounded retry (two attempts, then park with a message)     | Keeps the reasoning behind today's deliberate no-auto-retry while removing the dead end. |
 
-## 4. An organic test-app crash never reaches the crash surface
+## #91 — An organic test-app crash never reaches the crash surface
 
 **Task #91.**
 
@@ -194,7 +169,7 @@ That list is honest about what Quick Build deliberately does not do. These five 
 **Mechanism.**
 
 - The runtime reports a crash only while a reload is in flight: `QuickBuildRuntime.java:306` gates on `pendingReloadGeneration >= 0`, which is set only inside `handlePayload` (`:205`) and cleared on the first resumed frame (`:235`). Between builds it is `-1`, there is no `else`, and the throwable passes to the previous handler.
-- **The death *is* detected — it is just routed nowhere:** `TestAppConnections.onDisconnected()` emits `TargetReport.Disconnected`, but the session manager's collector (`QuickBuildSessionManager.kt:235`) only tests for `TargetReport.Crashed` and drops everything else.
+- **The death *****is***** detected — it is just routed nowhere:** `TestAppConnections.onDisconnected()` emits `TargetReport.Disconnected`, but the session manager's collector (`QuickBuildSessionManager.kt:235`) only tests for `TargetReport.Crashed` and drops everything else.
 
 **Worth knowing for the fix.** Even when `TestAppCrashed` *does* fire, the summary is never shown — it reaches `Ready(lastFailure = TestAppCrash(...))` and then the same red icon, with no `surfaceUserMessage` on that path. **The entire user-visible consequence of a crash today is an icon colour.**
 
@@ -205,14 +180,14 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 **Options.**
 
-| # | Option | Cost / caveat |
-|---|---|---|
-| 1 | Route `Disconnected` to the session as a `TargetDisconnected` event | Small, fixes the lie, does not recover the stack. |
-| 2 | Report crashes unconditionally from the runtime with a sentinel generation | Gets the real summary across, but the reducer must not treat an organic crash as a *reload* failure, which is a different and stronger claim. |
-| 3 | Surface the summary at all | — |
-| 4 | Fold into defect 2's option 2 | Costs not explaining which happened. |
+| #   | Option                                                       | Cost / caveat                                                |
+| --- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 1   | Route `Disconnected` to the session as a `TargetDisconnected` event | Small, fixes the lie, does not recover the stack.            |
+| 2   | Report crashes unconditionally from the runtime with a sentinel generation | Gets the real summary across, but the reducer must not treat an organic crash as a *reload* failure, which is a different and stronger claim. |
+| 3   | Surface the summary at all                                   | —                                                            |
+| 4   | Fold into defect 2's option 2                                | Costs not explaining which happened.                         |
 
-## 5. The install-confirm UX: 180 s of silence, then a misleading message
+## #90 — The install-confirm UX: 180 s of silence, then a misleading message
 
 **Task #90.**
 
@@ -242,7 +217,7 @@ That list is honest about what Quick Build deliberately does not do. These five 
 - dialog shown and cancelled;
 - dialog never launched — in this one the sentence is simply untrue.
 
-**What the 2026-07-27 fix (`fe949a9f0`) does and does not do.**
+**What the 2026-07-27 fix (****`fe949a9f0`****) does and does not do.**
 
 - It adds `SessionEvent.HostForegrounded` and re-runs the whole Gradle rebaseline on the next resume.
 - It does **not** touch the install path at all.
@@ -251,11 +226,11 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 **Evidence, and its limits.** Three device runs, task #80 `[measured on a56, 2026-07-28]`.
 
-| what | value |
-|---|---|
-| Park captured with rendered flashbar text | `20260728T051050Z-task80-retry-ui-verify` |
-| Cost of the park | `rebaseline ok=false durationMillis=193782` — **193.8 s of dead time before the user is told anything** |
-| Recovery | 7.6 s (`20260728T055942Z-task80-foreground-retry-run2`) |
+| what                                      | value                                                        |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| Park captured with rendered flashbar text | `20260728T051050Z-task80-retry-ui-verify`                    |
+| Cost of the park                          | `rebaseline ok=false durationMillis=193782` — **193.8 s of dead time before the user is told anything** |
+| Recovery                                  | 7.6 s (`20260728T055942Z-task80-foreground-retry-run2`)      |
 
 **What run 2 did not verify, and this matters:**
 
@@ -264,10 +239,10 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 **Options.**
 
-| # | Option | Cost / caveat |
-|---|---|---|
-| 1 | **Fail fast and say the truth** — the installer already receives the broadcast, so stop discarding it, park immediately with "Your app needs a reinstall — return to CoGo to confirm", and skip the 180 s wait entirely | **Highest value per line in this document.** |
-| 2 | Notification-based confirm | The right end state; costs a notification channel, POST_NOTIFICATIONS handling, and a fresh set of OEM behaviours to test. |
-| 3 | Retry the confirm without re-running Gradle | Needs the install session to be re-openable rather than re-created. |
-| 4 | Add a max-attempts guard | Small and independent. |
-| 5 | Correct the five wrong comments | So the next person does not chase an Android platform behaviour that is not the problem. |
+| #   | Option                                                       | Cost / caveat                                                |
+| --- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 1   | **Fail fast and say the truth** — the installer already receives the broadcast, so stop discarding it, park immediately with "Your app needs a reinstall — return to CoGo to confirm", and skip the 180 s wait entirely | **Highest value per line in this document.**                 |
+| 2   | Notification-based confirm                                   | The right end state; costs a notification channel, POST_NOTIFICATIONS handling, and a fresh set of OEM behaviours to test. |
+| 3   | Retry the confirm without re-running Gradle                  | Needs the install session to be re-openable rather than re-created. |
+| 4   | Add a max-attempts guard                                     | Small and independent.                                       |
+| 5   | Correct the five wrong comments                              | So the next person does not chase an Android platform behaviour that is not the problem. |

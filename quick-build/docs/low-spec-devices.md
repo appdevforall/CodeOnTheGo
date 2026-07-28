@@ -1,4 +1,4 @@
-# Backlog Item - General Bug: Standard and Quick Build both work at 3.6 GB but not at 1.9GB and below.  Worth fixing?
+# Backlog Item - General Bug: Standard and Quick Build both work at 3.6 GB RAM but not at 1.9GB and below.
 
 **Provenance**: `[measured on a56]` (Samsung A56, mid-tier), `[measured on c107]` (C107, 3.6 GB), `[measured on itel]` (itel A667L, 1.9 GB), `[measured on Q8]` (incar Q8, 1.46 GB), `[inferred]`, `[unmeasured]`.
 

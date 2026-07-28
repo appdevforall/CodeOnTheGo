@@ -1,4 +1,4 @@
-# Information: How the Quick Build speedup was measured, and which number to quote
+# Information: How the Quick Build speedup was measured
 
 ## Summary
 
@@ -26,9 +26,9 @@
   - Below 3.6 GB of RAM nothing builds at all by either route, which makes that
 
     tier a standard-build problem rather than a Quick Build one.
-- **Takeaway: quote the per-app reading — ~2.3x on the A56 (21 apps) and ~2.9x on
+- **Takeaway: the per-app reading is ~2.3x on the A56 (21 apps) and ~2.9x on
 
-  the C107 (18 apps) — and always quote it with its denominator.** The circulated "2.5x on the A56" is the per-edit reading; the circulated "2.7x on the C107" does not reproduce under any reading.
+  the C107 (18 apps) ; every reading below carries its own denominator.** The circulated "2.5x on the A56" is the per-edit reading; the circulated "2.7x on the C107" does not reproduce under any reading.
 
 ## How to read this page
 
@@ -47,7 +47,7 @@
 
   `corpus/results/analysis/{edits,apps}.csv` by `harness/export_csv.py`. Every number below was recomputed from those two tables on 2026-07-28; the recompute is `[measured on host]` over device data.
 
-## Which number to quote, and why the circulated ones differ
+## The three readings, and why the circulated numbers differ
 
 All three readings come from the same rows `[measured on a56]` / `[measured on c107]`:
 

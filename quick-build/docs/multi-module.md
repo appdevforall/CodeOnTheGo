@@ -27,10 +27,10 @@ What to take instead:
 
 Why the storage work wins if only one thing lands. Level 2 competes with the measured performance work in [`perf-roadmap.md`](perf-roadmap.md), and that work is better-evidenced — moving the daemon scratch tree off emulated storage measured -45% on **both** apps it was tried on `[measured on a56]`:
 
-| App | Sources | Before | After |
-| --- | --- | --- | --- |
-| `sora-editor-full` | 292 | 14.7 s | 8.1 s |
-| `medium-kotlin` | 28 | 2.5 s | 1.4 s |
+| App                | Sources | Before | After |
+| ------------------ | ------- | ------ | ----- |
+| `sora-editor-full` | 292     | 14.7 s | 8.1 s |
+| `medium-kotlin`    | 28      | 2.5 s  | 1.4 s |
 
 - One edit each, n=1 before and n=2 after, A56 only.
 - Two apps an order of magnitude apart landing on the same 45%, with an independent mechanism measurement behind it, is a strong signal — but it is two apps, not "every warm edit on every app size".
@@ -68,11 +68,11 @@ Routing:
 - `ChangeClassifier` routes any watched code/resource/asset change **outside** the fast-path scope to `BuildRoute.FullGradleBuild` with `InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED`.
 - An empty fast-path scope disables the boundary entirely, which is how single-module projects keep their previous behaviour.
 
-| Edit | Route | Cost |
-| --- | --- | --- |
-| App-module code / resources / assets | fast path | 2.55 s save->live `[measured on a56]` |
-| Any other module's code / resources | rebaseline (full Gradle setup build) | 25 s edit->Ready, including the reinstall `[measured on a56]` |
-| Any module's `build.gradle[.kts]`, `settings.gradle`, version catalog | rebaseline | as above |
+| Edit                                                         | Route                                | Cost                                                         |
+| ------------------------------------------------------------ | ------------------------------------ | ------------------------------------------------------------ |
+| App-module code / resources / assets                         | fast path                            | 2.55 s save->live `[measured on a56]`                        |
+| Any other module's code / resources                          | rebaseline (full Gradle setup build) | 25 s edit->Ready, including the reinstall `[measured on a56]` |
+| Any module's `build.gradle[.kts]`, `settings.gradle`, version catalog | rebaseline                           | as above                                                     |
 
 The scan errs toward watching **more** than it needs, deliberately:
 
@@ -84,15 +84,15 @@ The scan errs toward watching **more** than it needs, deliberately:
 
 `20260728T044815Z-watchscope-verify2-run4`, all checks PASS `[measured on a56]`. The project carries visible `APP-Vn` / `LIB-Vn` UI markers so staleness is observable on screen rather than inferred from logs:
 
-| Check | Result |
-| --- | --- |
-| Two-module project provisions | Ready gen=0 in 67 s |
-| Baseline UI | `APP-V1`, `LIB-V1` |
-| Library edit is seen | `invalidation reason=NON_APP_MODULE_SOURCE_CHANGED` |
-| Library edit rebaselines | `rebaseline ok=true`, edit->Ready 25 s |
-| Library edit reaches the app | `APP-V1`, `LIB-V2` |
-| App edit fast-paths | `reload_timeline gen=1`, save->live 2550 ms |
-| App edit reaches the app | `APP-V2`, `LIB-V2` |
+| Check                         | Result                                              |
+| ----------------------------- | --------------------------------------------------- |
+| Two-module project provisions | Ready gen=0 in 67 s                                 |
+| Baseline UI                   | `APP-V1`, `LIB-V1`                                  |
+| Library edit is seen          | `invalidation reason=NON_APP_MODULE_SOURCE_CHANGED` |
+| Library edit rebaselines      | `rebaseline ok=true`, edit->Ready 25 s              |
+| Library edit reaches the app  | `APP-V1`, `LIB-V2`                                  |
+| App edit fast-paths           | `reload_timeline gen=1`, save->live 2550 ms         |
+| App edit reaches the app      | `APP-V2`, `LIB-V2`                                  |
 
 - The never-stale invariant holds in both directions: the library edit visibly landed, and the app edit did not lose it.
 - Protocol note for future readers: a successful rebaseline **resets the generation counter to 0** `[measured on a56]`, and post-rebaseline reloads resume at gen=1. Any consumer assuming monotonically increasing generations across a rebaseline will break.
@@ -127,11 +127,11 @@ Scope and mitigations:
 
 From [`commit-survey.md`](commit-survey.md) `[measured on host]`: 60 of 99 surveyed real Android repos are multi-module, holding ~60% of surveyed commits (1,878 classified). The design doc's value table splits those as:
 
-| Category | Share | Status today |
-| --- | --- | --- |
-| 1 — existing machinery (no-op commits 25.3%, app-module code 11.1%) | 36.4% | **already works** |
+| Category                                                     | Share | Status today                   |
+| ------------------------------------------------------------ | ----- | ------------------------------ |
+| 1 — existing machinery (no-op commits 25.3%, app-module code 11.1%) | 36.4% | **already works**              |
 | 2 — added by Level 2 (library code 20.8%, multi-module saves 10.9%, code+resources 4.8%, resource values 0.7%, assets 0.2%) | 37.4% | correct today, but rebaselines |
-| 3 — still a full build (gradle/manifest/processor 24.7%, resource shape changes 1.4%) | 26.1% | unchanged by Level 2 |
+| 3 — still a full build (gradle/manifest/processor 24.7%, resource shape changes 1.4%) | 26.1% | unchanged by Level 2           |
 
 Read with the correction applied:
 
