@@ -21,15 +21,24 @@ Across 99 repos and 3,126 human-authored commits `[measured on host]`:
 | strict per-file | **41.3%** quick-buildable (1,292) | the device sees every file in the repo |
 | device watch scope | **72.4%** (2,262) | the device sees only `<module>/src/**` plus gradle config — which is what actually ships |
 | of which sound | **70.8%** | excluding 49 commits (1.6%) that would fast-path past a real build input |
-| multi-module | 60.6% of repos, 60.1% of commits | 60 of 99 repos have more than one module |
+| multi-module | 60.6% of repos, 60.1% of commits | 60 of 99 repos have more than one module — by the survey's definition, not the shipped one |
+
+**The 72.4% is already stale by a computable amount.** The app-module boundary
+rule that landed after this run takes it to **~49.9%**, and the
+"actually reloads something" share from 49.5% to **~27.0%** — arithmetic and its
+limits in "Sizing the app-module-boundary correction" below. Do not quote 72.4%
+without that correction attached.
 
 **72.4% does not mean 72% of commits hot-reload your change.** 970 commits flip
 from fallback to fast path once you account for what the watcher cannot see, but
 **708 of those 970 flip to `NoOp`** — their only changed files are invisible, so
 on a device nothing happens at all. The genuinely useful flips are 176
 `CodeOnly`, 59 `CodeAndResources`, 25 `ResourcesOnly`, 2 `AssetsOnly`. The fair
-split of all 3,126 commits: **49.5% take a route that actually reloads something,
-22.7% are device no-ops, 27.6% still fall back.**
+split of all 3,126 commits: **49.5% take a route that actually reloads something
+(1,547), 22.9% are device no-ops (715), 27.6% still fall back (864).** The no-op
+bucket is the 708 flips plus the 7 commits the strict reading already scored
+`NoOp`; an earlier revision omitted those 7 from the bucket while subtracting
+them from the reload bucket, so its three shares summed to 99.8%.
 
 Per-repo variation is enormous — median 42.3% quick-buildable, interquartile
 range 12.9%-60.0%, with repos at both 0% and 100%. The headline is a population
@@ -62,7 +71,37 @@ fallback that the survey scores as fast-path:
   rebaselines, because the quick path incrementally compiles only the app module.
   It landed 2026-07-27 17:53 PDT, **after** the 06:02 UTC survey run. This bites
   hardest in the 60 multi-module repos: every commit the survey counts as
-  code-in-a-library-module would rebaseline on today's build.
+  code-in-a-library-module would rebaseline on today's build. Unlike the
+  annotation rule, this one's effect is **arithmetically computable** from the
+  artifacts already on disk — see below.
+
+### Sizing the app-module-boundary correction
+
+[`multi-module.md`](multi-module.md)'s category 2 is exactly the set this rule
+moves: commits that are correct today but would now rebaseline. It is **37.4% of
+the 1,878 multi-module commits = 702 commits**. Subtracting them from the
+survey's own totals `[measured on host, arithmetic on host]`:
+
+| reading | as surveyed | with the rule applied |
+|---|---|---|
+| watch-scope fast path | 72.4% (2,262) | **49.9% (1,560)** |
+| of which actually reloads something | 49.5% (1,547) | **27.0% (845)** |
+
+That is a **bound, not a point estimate**, and it is loose in both directions.
+Loose high: the shipped `fastPathScope()` is `app/src` where the app module is
+*the directory literally named `app`*, and a multi-module repo with no such
+directory gets an **empty** fast-path scope, which disables the boundary
+entirely and leaves those commits on their old route. The survey records no
+module names, so how many of the 60 repos that describes is `[unmeasured]`.
+Loose low: category 2's own split between app-module and library-module code is
+itself an assumption of the design doc's value table, not a measurement.
+
+The `annotationImpact` bias cannot be sized the same way and is currently
+**unbounded**: it is content-aware, it fires only in projects carrying a KSP or
+kapt processor, and neither the survey nor the multi-module artifact records
+which repos those are. Bounding it needs one cheap addition to the next run — a
+per-repo "declares a KSP/kapt plugin" flag, readable from the same repo trees the
+module scan already walks — which would at least cap the affected share.
 
 Three further optimistic biases: commit file lists are capped by the GitHub REST
 API at 300 files and a hidden gradle file past the cap could only move a commit
@@ -173,8 +212,22 @@ watch scope is the reading that describes shipped behaviour.
 
 60 of 99 repos have more than one module (module dirs = parents of a non-root
 `build.gradle[.kts]`, minus any whose top-level segment is `buildSrc`,
-`build-logic`, `build_logic` or `gradle`, and minus dot-dirs), holding 1,878 of
-3,126 commits. Within them, under watch-scope semantics: 599 commits are code in
+`build-logic`, `build_logic` or `gradle`, and minus dot-dirs; "multi-module"
+means two or more such dirs), holding 1,878 of 3,126 commits.
+
+**That is not the definition the feature uses**, so 60-of-99 is not a measurement
+of how many repos Quick Build would treat as multi-module. The shipped
+`QuickBuildProjectLayout.moduleDirs()` differs on four axes: it counts the
+project **root** as a module if the root holds a `build.gradle[.kts]`, it always
+includes the app module dir whether or not one exists, it does **not** exclude
+`buildSrc` / `build-logic` / `gradle`, and it bounds the walk at
+`MODULE_SCAN_MAX_DEPTH = 4` while skipping `build/` and hidden dirs — where the
+survey has no depth bound at all. The first three push the shipped count *up*
+relative to the survey and the depth bound pushes it *down*, so the direction of
+the net error is not even known. Recomputing under the shipped definition needs
+the `.cache/repo-trees` snapshots, which are not retained in the repo, so it is
+`[unmeasured]` until the survey is re-run. Same caveat applies to every
+multi-module share below and in [`multi-module.md`](multi-module.md). Within them, under watch-scope semantics: 599 commits are code in
 one module, 153 code across multiple modules, 91 code plus resources in one
 module, 52 code plus resources across modules, 41 resources only, 4 assets only;
 463 stay fallback and 475 are invisible no-ops. **Only 376 commits (20% of the
@@ -185,8 +238,11 @@ inside them. Design detail: [`multi-module.md`](multi-module.md).
 This is the reading most affected by the app-module boundary rule that landed
 after the run: on today's build an edit to a library module's `src` rebaselines
 rather than fast-paths, so some share of those 599 single-module and 153
-cross-module code commits would not take a fast path at all. How large a share is
-`[unmeasured]` until the survey is re-run.
+cross-module code commits would not take a fast path at all. The design doc's
+value table splits that share as its category 2, **37.4% of the 1,878 = 702
+commits**, which is what "Sizing the app-module-boundary correction" above
+subtracts. That split is an assumption of the value table, not a measurement, so
+the corrected headline is a bound rather than a number.
 
 ## Making this a real metric
 
