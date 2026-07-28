@@ -286,6 +286,27 @@ class QuickBuildSessionManager(
 	}
 
 	/**
+	 * Call when CoGo's UI stops being visible (the app forwards ProcessLifecycleOwner's
+	 * ON_STOP). Same decision and in-flight-build deferral as a >=RUNNING_CRITICAL
+	 * [onTrimMemory]: a backgrounded host has no visible reload to protect, so the
+	 * daemon's heap goes back to the OS and the next build lazily re-warms it.
+	 *
+	 * This explicit signal exists because the framework's TRIM_MEMORY_UI_HIDDEN never
+	 * reaches CoGo: AOSP dispatches UI_HIDDEN only to processes whose procState has
+	 * dropped to IMPORTANT_BACKGROUND or below (AppProfiler.updateLowMemStateLSP), and
+	 * CoGo's GradleBuildService is a foreground service that pins the backgrounded
+	 * process above that window. Verified on device (A56/Android 16): HOME delivered no
+	 * trim callback at all, while an explicit `am send-trim-memory RUNNING_CRITICAL`
+	 * tore the daemon down through [onTrimMemory] just fine.
+	 */
+	fun onHostBackgrounded() {
+		scope.launch {
+			pendingLowMemoryTeardown = true
+			shrinkDaemonForMemory()
+		}
+	}
+
+	/**
 	 * Eager warm-up (plan B2): call at project open, AFTER the normal Gradle sync
 	 * completes, with the experimental flag on. Runs the setup build in the background
 	 * so the first tap pays only install + bind; installs nothing. No-op unless Idle.
@@ -345,6 +366,12 @@ class QuickBuildSessionManager(
 	 * numbers the levels so a plain `>=` against `RUNNING_CRITICAL` is exactly this check
 	 * (`RUNNING_MODERATE`=5 < `RUNNING_LOW`=10 < `RUNNING_CRITICAL`=15 < `UI_HIDDEN`=20 <
 	 * ... < `COMPLETE`=80).
+	 *
+	 * Delivery caveat (task #62, device-verified): in CoGo, `UI_HIDDEN` never actually
+	 * arrives on backgrounding - the foreground GradleBuildService keeps the process's
+	 * procState above the window AOSP dispatches it to - so the app calls
+	 * [onHostBackgrounded] from a process-lifecycle observer instead. The `>=` here
+	 * keeps this path correct wherever the framework DOES deliver a trim.
 	 *
 	 * A build already in flight is never interrupted: forcibly killing the daemon
 	 * mid-compile would abort a request that may be seconds from finishing, only to redo

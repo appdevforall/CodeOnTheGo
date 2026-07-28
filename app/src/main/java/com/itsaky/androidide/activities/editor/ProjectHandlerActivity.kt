@@ -30,7 +30,10 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.appcompat.app.AlertDialog
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.SizeUtils
@@ -219,8 +222,26 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		openHelpActivity()
 	}
 
+	/**
+	 * App-level UI-hidden signal for Quick Build (ADFA-4128 task #62): tears the compile
+	 * daemon down when CoGo stops being visible. ProcessLifecycleOwner's ON_STOP - not
+	 * this activity's own onStop (fires on every in-app activity switch, where the user
+	 * is still in CoGo) and not onTrimMemory(UI_HIDDEN) (never delivered here: the
+	 * foreground GradleBuildService keeps the backgrounded process above the procState
+	 * window AOSP dispatches UI_HIDDEN to). Registered in [onCreate], removed in
+	 * [preDestroy].
+	 */
+	private val quickBuildUiHiddenObserver =
+		object : DefaultLifecycleObserver {
+			override fun onStop(owner: LifecycleOwner) {
+				quickBuildSessionManager()?.onHostBackgrounded()
+			}
+		}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		ProcessLifecycleOwner.get().lifecycle.addObserver(quickBuildUiHiddenObserver)
 
 		editorViewModel._isSyncNeeded.observe(this) { isSyncNeeded ->
 			if (!isSyncNeeded) {
@@ -249,7 +270,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * Low-spec device support (ADFA-4128 P1a.1): forward the framework signal so a live
 	 * Quick Build session can give back the compile daemon's heap under memory pressure.
 	 * See [QuickBuildSessionManager.onTrimMemory] for the per-level decision and the
-	 * (lazy, auto-healing) re-warm path - nothing else is required here.
+	 * (lazy, auto-healing) re-warm path. This covers genuine pressure trims only; the
+	 * backgrounding teardown comes from [quickBuildUiHiddenObserver], because UI_HIDDEN
+	 * is never delivered to this process (see the observer's KDoc).
 	 */
 	override fun onTrimMemory(level: Int) {
 		super.onTrimMemory(level)
@@ -637,6 +660,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	override fun preDestroy() {
+		ProcessLifecycleOwner.get().lifecycle.removeObserver(quickBuildUiHiddenObserver)
+
 		syncNotificationFlashbar?.dismiss()
 		syncNotificationFlashbar = null
 

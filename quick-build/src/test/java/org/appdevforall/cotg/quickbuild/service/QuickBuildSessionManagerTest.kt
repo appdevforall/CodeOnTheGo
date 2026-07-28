@@ -1979,6 +1979,59 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `onHostBackgrounded tears down an idle daemon`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(daemon.isRunning).isTrue()
+
+			manager.onHostBackgrounded()
+			advanceUntilIdle()
+
+			assertThat(daemon.shutdownCount).isEqualTo(1)
+			assertThat(daemon.isRunning).isFalse()
+		}
+
+	@Test
+	fun `onHostBackgrounded with no live session is a safe no-op`() =
+		runTest {
+			val manager = createManager()
+
+			manager.onHostBackgrounded()
+			advanceUntilIdle()
+
+			assertThat(daemon.shutdownCount).isEqualTo(0)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+		}
+
+	@Test
+	fun `onHostBackgrounded during a build defers the teardown until the build completes`() =
+		runTest {
+			executionGate = kotlinx.coroutines.CompletableDeferred()
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isInstanceOf(QuickBuildSessionState.Building::class.java)
+
+			manager.onHostBackgrounded()
+			advanceUntilIdle()
+
+			// Must not tear down mid-compile: the build is still in flight.
+			assertThat(daemon.shutdownCount).isEqualTo(0)
+			assertThat(daemon.isRunning).isTrue()
+
+			executionGate!!.complete(Unit)
+			advanceUntilIdle()
+
+			assertThat(daemon.shutdownCount).isEqualTo(1)
+			assertThat(daemon.isRunning).isFalse()
+		}
+
+	@Test
 	fun `a Quick Build after a low-memory teardown re-warms the daemon and still succeeds`() =
 		runTest {
 			val manager = createManager()
