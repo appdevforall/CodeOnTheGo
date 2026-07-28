@@ -293,27 +293,6 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * Call when CoGo's UI stops being visible (the app forwards ProcessLifecycleOwner's
-	 * ON_STOP). Same decision and in-flight-build deferral as a >=RUNNING_CRITICAL
-	 * [onTrimMemory]: a backgrounded host has no visible reload to protect, so the
-	 * daemon's heap goes back to the OS and the next build lazily re-warms it.
-	 *
-	 * This explicit signal exists because the framework's TRIM_MEMORY_UI_HIDDEN never
-	 * reaches CoGo: AOSP dispatches UI_HIDDEN only to processes whose procState has
-	 * dropped to IMPORTANT_BACKGROUND or below (AppProfiler.updateLowMemStateLSP), and
-	 * CoGo's GradleBuildService is a foreground service that pins the backgrounded
-	 * process above that window. Verified on device (A56/Android 16): HOME delivered no
-	 * trim callback at all, while an explicit `am send-trim-memory RUNNING_CRITICAL`
-	 * tore the daemon down through [onTrimMemory] just fine.
-	 */
-	fun onHostBackgrounded() {
-		scope.launch {
-			pendingLowMemoryTeardown = true
-			shrinkDaemonForMemory()
-		}
-	}
-
-	/**
 	 * Eager warm-up (plan B2): call at project open, AFTER the normal Gradle sync
 	 * completes, with the experimental flag on. Runs the setup build in the background
 	 * so the first tap pays only install + bind; installs nothing. No-op unless Idle.
@@ -365,20 +344,19 @@ class QuickBuildSessionManager(
 	 * OS usually recovers from without ever killing the process, and tearing the daemon
 	 * down pays a full re-baseline's cost (every rebaseline is a real Gradle build) for
 	 * pressure that may pass in seconds. `RUNNING_CRITICAL` is documented as "about to be
-	 * killed" - the point where giving the memory back is worth that cost. Everything
-	 * from `UI_HIDDEN` upward (the backgrounded-process levels) tears down too: once CoGo
-	 * is no longer visible, Quick Build's whole value (seeing an edit reload while you're
-	 * looking at it) is moot until the user returns, so a background low-spec device gets
-	 * more value from the freed RAM than from a warm daemon nobody can see. Android
-	 * numbers the levels so a plain `>=` against `RUNNING_CRITICAL` is exactly this check
-	 * (`RUNNING_MODERATE`=5 < `RUNNING_LOW`=10 < `RUNNING_CRITICAL`=15 < `UI_HIDDEN`=20 <
-	 * ... < `COMPLETE`=80).
+	 * killed" - the point where giving the memory back is worth that cost.
 	 *
-	 * Delivery caveat (task #62, device-verified): in CoGo, `UI_HIDDEN` never actually
-	 * arrives on backgrounding - the foreground GradleBuildService keeps the process's
-	 * procState above the window AOSP dispatches it to - so the app calls
-	 * [onHostBackgrounded] from a process-lifecycle observer instead. The `>=` here
-	 * keeps this path correct wherever the framework DOES deliver a trim.
+	 * [ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN] is explicitly NOT a teardown, even
+	 * though Android numbers it (20) above `RUNNING_CRITICAL` (15): it means "your UI
+	 * went away", not "memory is short". Backgrounding CoGo is the MIDDLE of the Quick
+	 * Build loop, not the end of it - the user switches to their running test app to look
+	 * at the edit they just made, then comes back to edit again. Tearing the daemon down
+	 * there costs a respawn plus a re-seed on the very next edit and breaks the flow the
+	 * feature exists for. So Quick Build's daemon follows the same policy as CoGo's
+	 * standard Gradle build daemon: it sticks around across backgrounding and is reclaimed
+	 * by memory pressure (or its idle timeout), never by the user looking at their app.
+	 * The cached-process levels above it (`BACKGROUND`=40, `MODERATE`=60, `COMPLETE`=80)
+	 * DO tear down - those only arrive when the system is genuinely short on memory.
 	 *
 	 * A build already in flight is never interrupted: forcibly killing the daemon
 	 * mid-compile would abort a request that may be seconds from finishing, only to redo
@@ -406,6 +384,12 @@ class QuickBuildSessionManager(
 	private suspend fun handleTrimMemory(level: Int) {
 		if (level < ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) {
 			log.debug("Quick Build: onTrimMemory({}) below the shrink threshold; no-op", level)
+			return
+		}
+		if (level == ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+			// Not memory pressure - the user just switched away (typically to their own
+			// test app, mid-loop). Keep the daemon warm; see this function's KDoc.
+			log.debug("Quick Build: onTrimMemory(UI_HIDDEN); keeping the daemon warm")
 			return
 		}
 		pendingLowMemoryTeardown = true

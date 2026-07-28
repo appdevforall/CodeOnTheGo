@@ -1930,16 +1930,33 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `onTrimMemory at UI_HIDDEN also tears down - CoGo backgrounded has no visible reload to protect`() =
+	fun `onTrimMemory at UI_HIDDEN keeps the daemon warm - backgrounding is mid-loop, not pressure`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
+			// The user switched to their running test app to look at the edit they just
+			// made; they are coming back to edit again. UI_HIDDEN is not memory pressure.
 			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN)
 			advanceUntilIdle()
 
+			assertThat(daemon.shutdownCount).isEqualTo(0)
+			assertThat(daemon.isRunning).isTrue()
+		}
+
+	@Test
+	fun `onTrimMemory at BACKGROUND tears down - a cached-process trim is real pressure`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)
+			advanceUntilIdle()
+
 			assertThat(daemon.shutdownCount).isEqualTo(1)
+			assertThat(daemon.isRunning).isFalse()
 		}
 
 	@Test
@@ -1994,59 +2011,6 @@ class QuickBuildSessionManagerTest {
 
 			// The deferred teardown applied the moment the build's own transition landed.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
-			assertThat(daemon.shutdownCount).isEqualTo(1)
-			assertThat(daemon.isRunning).isFalse()
-		}
-
-	@Test
-	fun `onHostBackgrounded tears down an idle daemon`() =
-		runTest {
-			val manager = createManager()
-			manager.onQuickBuildTapped()
-			advanceUntilIdle()
-			assertThat(daemon.isRunning).isTrue()
-
-			manager.onHostBackgrounded()
-			advanceUntilIdle()
-
-			assertThat(daemon.shutdownCount).isEqualTo(1)
-			assertThat(daemon.isRunning).isFalse()
-		}
-
-	@Test
-	fun `onHostBackgrounded with no live session is a safe no-op`() =
-		runTest {
-			val manager = createManager()
-
-			manager.onHostBackgrounded()
-			advanceUntilIdle()
-
-			assertThat(daemon.shutdownCount).isEqualTo(0)
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
-		}
-
-	@Test
-	fun `onHostBackgrounded during a build defers the teardown until the build completes`() =
-		runTest {
-			executionGate = kotlinx.coroutines.CompletableDeferred()
-			val manager = createManager()
-			manager.onQuickBuildTapped()
-			advanceUntilIdle()
-
-			manager.save(sourceFile)
-			advanceUntilIdle()
-			assertThat(manager.state.value).isInstanceOf(QuickBuildSessionState.Building::class.java)
-
-			manager.onHostBackgrounded()
-			advanceUntilIdle()
-
-			// Must not tear down mid-compile: the build is still in flight.
-			assertThat(daemon.shutdownCount).isEqualTo(0)
-			assertThat(daemon.isRunning).isTrue()
-
-			executionGate!!.complete(Unit)
-			advanceUntilIdle()
-
 			assertThat(daemon.shutdownCount).isEqualTo(1)
 			assertThat(daemon.isRunning).isFalse()
 		}
