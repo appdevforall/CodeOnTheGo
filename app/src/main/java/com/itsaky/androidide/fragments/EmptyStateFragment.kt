@@ -38,6 +38,9 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	@Volatile
 	private var cachedIsEmpty: Boolean = true
 
+	@Volatile
+	private var cachedIsSourceEmpty: Boolean = true
+
 	open val currentEditor: IDEEditor? get() = null
 
 	/**
@@ -69,12 +72,26 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 			}
 		}
 
-	internal val isEmptyFlow: StateFlow<Boolean>?
+	/**
+	 * Whether the underlying data source has no content at all, independent of any filter UI.
+	 * This is the signal to gate content-dependent actions (share, clear, search, filter) on;
+	 * [isEmpty] only says which layout the [android.widget.ViewFlipper] shows.
+	 */
+	internal val isSourceEmptyFlow: StateFlow<Boolean>?
 		get() {
 			return if (isAdded && !isDetached) {
-				emptyStateViewModel.isEmpty
+				emptyStateViewModel.isSourceEmpty
 			} else {
 				null
+			}
+		}
+
+	internal val isSourceEmpty: Boolean
+		get() {
+			return if (isAdded && !isDetached) {
+				emptyStateViewModel.isSourceEmpty.value.also { cachedIsSourceEmpty = it }
+			} else {
+				cachedIsSourceEmpty
 			}
 		}
 
@@ -91,6 +108,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 		set(value) {
 			// Always update cache to preserve intended state even when detached
 			cachedIsEmpty = value
+			cachedIsSourceEmpty = value
 			// Update ViewModel only when attached
 			if (isAdded && !isDetached) {
 				emptyStateViewModel.setEmpty(value)
@@ -103,13 +121,19 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	 * Empty state is set to `true` only when the underlying data source has no content AT ALL
 	 * and no filter / filter bar is active. When an active filter query returns zero matches for
 	 * non-empty source history, empty state remains `false` so the content layout (with the filter bar)
-	 * stays visible.
+	 * stays visible. [isSourceEmpty] is tracked separately so action buttons can still be gated
+	 * on actual content.
 	 */
 	fun updateEmptyState(
 		isSourceEmpty: Boolean,
 		isFilterActive: Boolean,
 	) {
-		isEmpty = isSourceEmpty && !isFilterActive
+		val isEmpty = isSourceEmpty && !isFilterActive
+		cachedIsEmpty = isEmpty
+		cachedIsSourceEmpty = isSourceEmpty
+		if (isAdded && !isDetached) {
+			emptyStateViewModel.setEmptyState(isEmpty = isEmpty, isSourceEmpty = isSourceEmpty)
+		}
 	}
 
 	override fun onCreateView(
@@ -143,10 +167,13 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 		}
 
 		// Sync ViewModel with cache when view is created (in case cache was updated while detached)
-		// Read cached value into local variable to ensure atomic read
+		// Read cached values into local variables to ensure atomic reads
 		val cachedValue = cachedIsEmpty
-		if (emptyStateViewModel.isEmpty.value != cachedValue) {
-			emptyStateViewModel.setEmpty(cachedValue)
+		val cachedSourceValue = cachedIsSourceEmpty
+		if (emptyStateViewModel.isEmpty.value != cachedValue ||
+			emptyStateViewModel.isSourceEmpty.value != cachedSourceValue
+		) {
+			emptyStateViewModel.setEmptyState(isEmpty = cachedValue, isSourceEmpty = cachedSourceValue)
 		}
 
 		viewLifecycleScope.launch {

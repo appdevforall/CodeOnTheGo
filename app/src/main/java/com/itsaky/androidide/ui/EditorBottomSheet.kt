@@ -244,8 +244,8 @@ class EditorBottomSheet
 								// since the share started.
 								shareJob = null
 								val current = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
-								val isCurrentEmpty = (current as? EmptyStateFragment<*>)?.isEmpty == true
-								updateActionButtonsEnabledState(isEmpty = isCurrentEmpty)
+								val isCurrentEmpty = (current as? EmptyStateFragment<*>)?.isSourceEmpty == true
+								updateActionButtonsEnabledState(isSourceEmpty = isCurrentEmpty)
 							}
 						}
 					}
@@ -704,13 +704,13 @@ class EditorBottomSheet
 			currentObservedFragment = fragment
 
 			if (fragment !is EmptyStateFragment<*> || !fragment.isAdded || fragment.isDetached || fragment.host == null) {
-				updateActionButtonsEnabledState(isEmpty = false)
+				updateActionButtonsEnabledState(isSourceEmpty = false)
 				return
 			}
 
 			val flow =
-				fragment.isEmptyFlow ?: run {
-					updateActionButtonsEnabledState(isEmpty = false)
+				fragment.isSourceEmptyFlow ?: run {
+					updateActionButtonsEnabledState(isSourceEmpty = false)
 					return
 				}
 
@@ -718,17 +718,19 @@ class EditorBottomSheet
 			fragmentEmptyStateJob =
 				activity.lifecycleScope.launch {
 					activity.repeatOnLifecycle(Lifecycle.State.STARTED) {
-						flow.collectLatest { isEmpty ->
+						flow.collectLatest { isSourceEmpty ->
 							if (fragment.isAdded && !fragment.isDetached) {
-								updateActionButtonsEnabledState(isEmpty = isEmpty)
+								updateActionButtonsEnabledState(isSourceEmpty = isSourceEmpty)
 							}
 						}
 					}
 				}
 		}
 
-		private fun updateActionButtonsEnabledState(isEmpty: Boolean) {
-			val hasContent = !isEmpty
+		// Gates on source content, not the fragment's isEmpty: that flag stays false while a
+		// filter UI is active even when there is nothing to share, clear, or search.
+		private fun updateActionButtonsEnabledState(isSourceEmpty: Boolean) {
+			val hasContent = !isSourceEmpty
 			val isSharing = shareJob?.isActive == true
 			val canShareOrClear = hasContent && !isSharing
 			binding.searchOutputAction.isEnabled = hasContent
