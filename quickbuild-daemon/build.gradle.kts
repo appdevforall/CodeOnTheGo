@@ -72,6 +72,20 @@ tasks.withType<Test> {
 			listOf("-Dquickbuild.test.composePluginJar=${composeCompilerPlugin.singleFile.absolutePath}")
 		},
 	)
+
+	// Fail-if-skipped switch for the toolchain-gated tests (aapt2/d8/Compose - the
+	// ADFA-4128 bug 5/6/8 regression coverage). Opt in with REQUIRE_BUILD_TOOLCHAIN=1
+	// (env) or -PrequireBuildToolchain: TestSdk then throws from its @EnabledIf
+	// predicates when the toolchain is absent, failing the tests instead of skipping.
+	// Also undo the root build's ignoreFailures=true (set for coverage collection) so
+	// the failure actually fails the build - without that, CI would stay green.
+	val requireToolchain =
+		providers.environmentVariable("REQUIRE_BUILD_TOOLCHAIN").orNull == "1" ||
+			providers.gradleProperty("requireBuildToolchain").isPresent
+	systemProperty("quickbuild.test.requireToolchain", requireToolchain.toString())
+	if (requireToolchain) {
+		ignoreFailures = false
+	}
 }
 
 dependencies {

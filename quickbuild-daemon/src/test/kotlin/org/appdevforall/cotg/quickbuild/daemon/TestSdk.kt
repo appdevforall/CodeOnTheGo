@@ -6,8 +6,29 @@ import java.io.File
  * Locates a host Android SDK for the d8/aapt2 tests. Those tests are assumption-guarded
  * (`@EnabledIf`) because CI/dev hosts without an SDK can't run them - the daemon itself
  * never uses this; on device the paths arrive in the configure request.
+ *
+ * Fail-if-skipped switch: setting `REQUIRE_BUILD_TOOLCHAIN=1` (env) or
+ * `-PrequireBuildToolchain` (both wired to the `quickbuild.test.requireToolchain` system
+ * property by build.gradle.kts) turns an absent toolchain from a silent skip into a hard
+ * failure - the `@EnabledIf` predicate throws, which JUnit reports as a test error. CI
+ * sets it so the aapt2/d8/Compose regression tests (ADFA-4128 bugs 5/6/8) can never be
+ * skipped without going red.
  */
 object TestSdk {
+	private fun toolchainRequired(): Boolean = System.getProperty("quickbuild.test.requireToolchain").toBoolean()
+
+	private fun requireOrSkip(
+		available: Boolean,
+		what: String,
+	): Boolean {
+		check(available || !toolchainRequired()) {
+			"REQUIRE_BUILD_TOOLCHAIN is set but the $what is unavailable on this host - " +
+				"these tests must run, not skip (SDK roots tried: ANDROID_HOME, ANDROID_SDK_ROOT, " +
+				"~/Android/Sdk, ~/Library/Android/sdk; Compose jars are staged by the build)."
+		}
+		return available
+	}
+
 	private val sdkRoot: File? by lazy {
 		sequenceOf(
 			System.getenv("ANDROID_HOME"),
@@ -38,10 +59,10 @@ object TestSdk {
 			?.takeIf { it.isFile }
 
 	@JvmStatic
-	fun dexToolchainAvailable(): Boolean = d8Jar() != null && androidJar() != null
+	fun dexToolchainAvailable(): Boolean = requireOrSkip(d8Jar() != null && androidJar() != null, "d8/android.jar toolchain")
 
 	@JvmStatic
-	fun aapt2ToolchainAvailable(): Boolean = aapt2() != null && androidJar() != null
+	fun aapt2ToolchainAvailable(): Boolean = requireOrSkip(aapt2() != null && androidJar() != null, "aapt2/android.jar toolchain")
 
 	/** The kotlin-stdlib jar the test JVM itself runs against; compile-test classpath. */
 	fun kotlinStdlib(): File =
@@ -58,7 +79,8 @@ object TestSdk {
 	fun composeRuntimeJar(): File? = fileProperty("quickbuild.test.composeRuntimeJar")
 
 	@JvmStatic
-	fun composeToolchainAvailable(): Boolean = composePluginJar() != null && composeRuntimeJar() != null
+	fun composeToolchainAvailable(): Boolean =
+		requireOrSkip(composePluginJar() != null && composeRuntimeJar() != null, "staged Compose compiler/runtime")
 
 	private fun fileProperty(name: String): File? = System.getProperty(name)?.let(::File)?.takeIf { it.isFile }
 }
