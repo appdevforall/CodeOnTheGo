@@ -6,13 +6,13 @@ Quick Build is already a median **~2.3x** faster than an incremental standard bu
 
 We've identified five issues that can improve performance, roughly sorted in decreasing ROI:
 
-| #   | Fix                                               | Payoff per warm edit                 | Effort | Risk |
-| --- | ------------------------------------------------- | ------------------------------------ | ------ | ---- |
-| 1   | Move the daemon scratch tree off emulated storage | **-45%** (both apps measured)        | S      | M    |
-| 2a  | Reuse the javac file manager                      | ~0.5-1.0 s `[inferred]`              | S      | L    |
-| 2b  | Per-changed-file javac                            | ~1.5-3.2 s more `[inferred]`         | M      | M    |
-| 3   | Incremental dexing                                | 2.1-4.6 s                            | L      | M    |
-| 4   | Narrow "Java ABI moved -> recompile all Kotlin"   | 14.9 s, but only on ABI-change edits | L      | M    |
+| # | Fix | Affects | Payoff per warm edit | Effort | Risk |
+|---|---|---|---|---|---|
+| 1 | Move the daemon scratch tree off emulated storage | All apps | **-45%** (both apps measured) | S | M |
+| 2a | Reuse the javac file manager | Apps with Java | ~0.5-1.0 s `[inferred]` | S | L |
+| 2b | Per-changed-file javac | Apps with Java | ~1.5-3.2 s more `[inferred]` | M | M |
+| 3 | Incremental dexing | All apps | 2.1-4.6 s | L | M |
+| 4 | Narrow "Java ABI moved -> recompile all Kotlin" | Mixed Java + Kotlin | 14.9 s, but only on ABI-change edits | L | M |
 
 ## Scope and provenance
 
