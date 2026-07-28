@@ -1,6 +1,5 @@
 package com.itsaky.androidide.lsp.kotlin.utils
 
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.lsp.models.TextEdit
@@ -14,24 +13,20 @@ import org.junit.Test
 class NullSafetyFixTest : KtLspTest() {
 	/** The [start, end) source offsets of the sole UNSAFE_CALL diagnostic in [ktFile]. */
 	private fun unsafeCallRange(ktFile: KtFile): Pair<Int, Int> =
-		env.project.read {
-			analyzeMaybeDangling(ktFile) {
-				ktFile
-					.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
-					.filter { it.factoryName == UNSAFE_CALL_FACTORY }
-					.map { it.psi.textRange.startOffset to it.psi.textRange.endOffset }
-					.single()
-			}
+		analyzeMaybeDanglingForTest(ktFile) {
+			ktFile
+				.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+				.filter { it.factoryName == UNSAFE_CALL_FACTORY }
+				.map { it.psi.textRange.startOffset to it.psi.textRange.endOffset }
+				.single()
 		}
 
 	/** The null-safety marker the diagnostic provider would store for each diagnostic in [ktFile]. */
 	private fun nullSafetyMarkers(ktFile: KtFile): List<String?> =
-		env.project.read {
-			analyzeMaybeDangling(ktFile) {
-				ktFile
-					.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
-					.map { nullSafetyFactoryFor(it.factoryName) }
-			}
+		analyzeMaybeDanglingForTest(ktFile) {
+			ktFile
+				.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+				.map { nullSafetyFactoryFor(it.factoryName) }
 		}
 
 	/** Applies a single-edit variant to [source] and returns the rewritten text. */
