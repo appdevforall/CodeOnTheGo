@@ -54,6 +54,12 @@ internal class KtLspTestEnvironment(
 	private val extraLibraryJars: List<Path> = emptyList(),
 	languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
 	jdkRelease: Int = checkNotNull(System.getProperty("java.specification.version")).toInt(),
+	// false (the historical default here) makes KtPsiFactory produce non-physical files: virtualFile
+	// is null and PsiDocumentManager can't find a Document for them, unlike production
+	// (CompilationEnvironment leaves this at the AbstractCompilationEnvironment default of true).
+	// Tests that open a document and drive resolution/ranges through it (the live-document path)
+	// need true to be representative; everything else keeps the historical false.
+	enableParserEventSystem: Boolean = false,
 ) : AbstractCompilationEnvironment(
 		name = "test",
 		kind = CompilationKind.Default,
@@ -62,7 +68,7 @@ internal class KtLspTestEnvironment(
 		jdkRelease = jdkRelease,
 		languageVersion = languageVersion,
 		applicationEnvironmentMode = KotlinCoreApplicationEnvironmentMode.UnitTest,
-		enableParserEventSystem = false,
+		enableParserEventSystem = enableParserEventSystem,
 	) {
 	/**
 	 * One root per spec, in spec order. Declared before the `init` block below: `initialize()`

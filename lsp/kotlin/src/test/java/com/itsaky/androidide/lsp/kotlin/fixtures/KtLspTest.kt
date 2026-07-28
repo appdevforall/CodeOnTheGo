@@ -28,9 +28,16 @@ abstract class KtLspTest {
 	internal open val moduleSpecs: List<TestSourceModuleSpec> =
 		listOf(TestSourceModuleSpec("src"))
 
+	/**
+	 * See [KtLspTestEnvironment]'s parameter of the same name. Override to `true` only for tests that
+	 * open a document and drive resolution/ranges through the live KtFile it produces - the default
+	 * `false` makes such files non-physical, which production never hits.
+	 */
+	internal open val enableParserEventSystem: Boolean = false
+
 	@get:Rule
 	@PublishedApi
-	internal val lspTestRule = KtLspTestRule { moduleSpecs }
+	internal val lspTestRule = KtLspTestRule({ moduleSpecs }, { enableParserEventSystem })
 
 	internal val env: KtLspTestEnvironment
 		get() = lspTestRule.env

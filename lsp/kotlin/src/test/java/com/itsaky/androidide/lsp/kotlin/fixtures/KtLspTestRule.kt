@@ -10,11 +10,14 @@ import org.junit.runners.model.Statement
  * @param moduleSpecs Supplied as a lambda, not a value: JUnit evaluates rules after the test class
  *   is fully constructed, so this defers reading a subclass's `moduleSpecs` override until it has
  *   actually been initialized.
+ * @param enableParserEventSystem See [KtLspTestEnvironment]'s parameter of the same name. Also a
+ *   lambda, for the same construction-order reason as [moduleSpecs].
  */
 internal class KtLspTestRule(
 	private val moduleSpecs: () -> List<TestSourceModuleSpec> = {
 		listOf(TestSourceModuleSpec("src"))
 	},
+	private val enableParserEventSystem: () -> Boolean = { false },
 ) : TestRule {
 	val tempDir = TemporaryFolder()
 	lateinit var env: KtLspTestEnvironment
@@ -28,7 +31,12 @@ internal class KtLspTestRule(
 			object : Statement() {
 				override fun evaluate() {
 					try {
-						env = KtLspTestEnvironment(tempDir.root.toPath(), moduleSpecs())
+						env =
+							KtLspTestEnvironment(
+								tempDir.root.toPath(),
+								moduleSpecs(),
+								enableParserEventSystem = enableParserEventSystem(),
+							)
 
 						statement?.evaluate()
 					} finally {

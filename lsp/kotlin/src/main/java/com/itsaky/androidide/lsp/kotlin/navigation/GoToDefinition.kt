@@ -5,6 +5,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedExcept
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.rangeOf
@@ -21,11 +22,13 @@ import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.sourcePsiSafe
+import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.com.intellij.openapi.util.TextRange
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.com.intellij.psi.PsiNameIdentifierOwner
 import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.psi.KtElement
+import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPropertyAccessor
 import org.slf4j.LoggerFactory
 
@@ -113,10 +116,13 @@ private fun KaSession.locationOf(symbol: KaSymbol): Location? {
 }
 
 /**
- * [element]'s reference resolved directly through PSI rather than a [KaSymbol]. A label names the
- * labelled loop or lambda itself, not a declaration, so there is no symbol to go through; the raw
- * resolve still stays inside the current source (labels cannot cross files), so no workspace-source
- * filter is needed here the way [locationOf] needs one for symbols.
+ * [element]'s reference resolved directly through PSI rather than a [KaSymbol]. This fallback runs
+ * whenever [symbolsAt] came back empty - a label (which names the labelled loop or lambda itself, not
+ * a declaration with a symbol) is the common case, but any other empty resolution takes the same path,
+ * including one that resolves into a binary. No separate workspace-source filter is needed here: unlike
+ * [locationOf], which tests symbol origin, this relies on [locationOfPsi] itself rejecting anything
+ * whose containing file has neither a live-document `backingFilePath` (only ever set for a workspace
+ * source open in the editor) nor a file-protocol virtual file - a jar-backed target fails both.
  */
 private fun rawReferenceLocation(element: KtElement): Location? =
 	runCatching { element.mainReference?.resolve() }
@@ -128,15 +134,25 @@ private fun rawReferenceLocation(element: KtElement): Location? =
 			null
 		}?.let(::locationOfPsi)
 
-/** [declaration]'s [Location], or null when it is not a workspace source. */
+/**
+ * [declaration]'s [Location], or null when it is not a workspace source.
+ *
+ * The open-document case is the common one: the file the user is looking at is a live [KtFile] built
+ * by `KtSymbolIndex.refreshToCurrent` from the editor buffer, whose `virtualFile` is a non-physical
+ * `LightVirtualFile` (protocol `"mock"` in production, null under Robolectric) rather than the on-disk
+ * file - so it must be tried through [backingFilePath] first, falling back to the VFS only for
+ * declarations reached without going through the live-document cache.
+ */
 private fun locationOfPsi(declaration: PsiElement): Location? {
 	val target = (declaration as? KtPropertyAccessor)?.property ?: declaration
 	val psiFile = target.containingFile ?: return null
-	val virtualFile = psiFile.virtualFile ?: return null
-	if (virtualFile.fileSystem.protocol != "file") {
-		return null
-	}
-	val path = runCatching { virtualFile.toNioPath() }.getOrNull() ?: return null
+	val ktFile = psiFile as? KtFile
+	val path =
+		(ktFile?.backingFilePath ?: ktFile?.originalKtFile?.backingFilePath)
+			?: psiFile.virtualFile
+				?.takeIf { it.fileSystem.protocol == "file" }
+				?.let { runCatching { it.toNioPath() }.getOrNull() }
+			?: return null
 
 	val nameIdentifier = (target as? PsiNameIdentifierOwner)?.nameIdentifier
 	val range =

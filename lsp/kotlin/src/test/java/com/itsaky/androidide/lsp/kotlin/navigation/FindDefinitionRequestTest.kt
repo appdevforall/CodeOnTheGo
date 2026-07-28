@@ -1,15 +1,43 @@
 package com.itsaky.androidide.lsp.kotlin.navigation
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
+import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.lsp.models.DefinitionParams
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.progress.ICancelChecker
+import com.itsaky.androidide.projects.FileManager
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Test
 import java.nio.file.Path
 
 class FindDefinitionRequestTest : KtLspTest() {
+	// The live-document regression test below drives resolution and range computation through a
+	// KtFile built by KtSymbolIndex.refreshToCurrent (KtPsiFactory.createFile), not through
+	// createSourceFile's on-disk file. That file is only a faithful stand-in for production's live
+	// document if it is physical the way production's is - see KtLspTestEnvironment's parameter of
+	// the same name.
+	override val enableParserEventSystem = true
+
+	private val openedPaths = mutableListOf<Path>()
+
+	@After
+	fun closeDocs() {
+		openedPaths.forEach { FileManager.onDocumentClose(DocumentCloseEvent(it)) }
+		openedPaths.clear()
+	}
+
+	/** Registers [path] as an active document at version 1 with [content], as the editor does. */
+	private fun openDocument(
+		path: Path,
+		content: String,
+	) {
+		FileManager.onDocumentOpen(DocumentOpenEvent(path, content, 1))
+		openedPaths.add(path)
+	}
+
 	private fun requestAt(
 		file: Path,
 		text: String,
@@ -80,5 +108,30 @@ class FindDefinitionRequestTest : KtLspTest() {
 		// cancellation - with the ambiguous "target()" marker this would have passed for the wrong
 		// reason, by landing on the declaration's own name.
 		assertThat(result.locations).isEmpty()
+	}
+
+	@Test
+	fun `a same-file target found through the active document still resolves`() {
+		// Every other test in this file leaves the file un-opened, so getCurrentKtFile takes the
+		// disk fallback - a real CoreLocalFileSystem-backed KtFile whose virtualFile has protocol
+		// "file". That's exactly the path the production bug (ADFA-4823 finding 1) does NOT hit:
+		// opening the file makes getCurrentKtFile refresh a live KtFile instead
+		// (KtSymbolIndex.refreshToCurrent), whose virtualFile is a non-physical LightVirtualFile -
+		// locationOfPsi must resolve a path from backingFilePath instead, which is exactly what this
+		// test exercises.
+		val text = "fun target() {}\nfun caller() { target() }"
+		val ktFile = createSourceFile("Live.kt", text)
+		val path = Path.of(ktFile.virtualFile.path)
+		openDocument(path, text)
+
+		// "{ target(" not "target()": the bare form matches the declaration first.
+		val result = requestAt(path, text, "{ target()", delta = 3)
+
+		assertThat(result.locations).hasSize(1)
+		assertThat(result.locations[0].file).isEqualTo(path)
+		assertThat(
+			result.locations[0]
+				.range.start.index,
+		).isEqualTo(text.indexOf("fun target") + 4)
 	}
 }
