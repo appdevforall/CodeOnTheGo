@@ -183,6 +183,10 @@ abstract class LogViewModel : ViewModel() {
 		}
 	}
 
+	/** Whether the retained log buffer contains no entries. O(1) check. */
+	val isBufferEmpty: Boolean
+		get() = buffer.isEmpty
+
 	/** The full retained history, ignoring the active filter. */
 	fun snapshotUnfiltered(): String = buffer.snapshotAll()
 }

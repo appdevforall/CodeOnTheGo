@@ -66,7 +66,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 			}
 		}
 
-	val isEmptyFlow: StateFlow<Boolean>?
+	internal val isEmptyFlow: StateFlow<Boolean>?
 		get() {
 			return if (isAdded && !isDetached) {
 				emptyStateViewModel.isEmpty
@@ -75,7 +75,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 			}
 		}
 
-	var isEmpty: Boolean
+	internal var isEmpty: Boolean
 		get() {
 			return if (isAdded && !isDetached) {
 				// Update cache when attached and return current value
@@ -93,6 +93,21 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 				emptyStateViewModel.setEmpty(value)
 			}
 		}
+
+	/**
+	 * Centralized empty-state updater for log and output fragments.
+	 *
+	 * Empty state is set to `true` only when the underlying data source has no content AT ALL
+	 * and no filter / filter bar is active. When an active filter query returns zero matches for
+	 * non-empty source history, empty state remains `false` so the content layout (with the filter bar)
+	 * stays visible.
+	 */
+	fun updateEmptyState(
+		isSourceEmpty: Boolean,
+		isFilterActive: Boolean,
+	) {
+		isEmpty = isSourceEmpty && !isFilterActive
+	}
 
 	override fun onCreateView(
 		inflater: LayoutInflater,

@@ -63,6 +63,7 @@ class BuildOutputFragment :
 
 	private var editorContentGeneration = 0
 	private var wasLastFilteredResultEmpty = false
+	private var hasInitialContentRendered = false
 
 	override fun onViewCreated(
 		view: View,
@@ -99,11 +100,15 @@ class BuildOutputFragment :
 				}
 			withContext(Dispatchers.Main) {
 				editor?.setText(filtered)
-				val windowIsBlank = window.isBlank()
-				val filteredIsBlank = filtered.isBlank()
+				val isSourceEmpty = window.isBlank()
+				val isFilteredEmpty = filtered.isBlank()
 				val isFilterActive = buildOutputViewModel.filterText.value.isNotEmpty() || filterBar != null
-				emptyStateViewModel.setEmpty(windowIsBlank && !isFilterActive)
-				if (!windowIsBlank && filteredIsBlank) {
+				updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
+
+				if (!hasInitialContentRendered) {
+					hasInitialContentRendered = true
+					wasLastFilteredResultEmpty = isFilteredEmpty
+				} else if (!isSourceEmpty && isFilteredEmpty) {
 					if (!wasLastFilteredResultEmpty) {
 						flashInfo(R.string.msg_no_filter_matches)
 					}
@@ -173,13 +178,15 @@ class BuildOutputFragment :
 		val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
 		val query = buildOutputViewModel.filterText.value
 		val content = BuildOutputViewModel.filterLines(window, query)
-		val windowIsBlank = window.isBlank()
+		val isSourceEmpty = window.isBlank()
+		val isFilteredEmpty = content.isBlank()
 		val isFilterActive = query.isNotEmpty() || filterBar != null
 
 		withContext(Dispatchers.Main) {
-			emptyStateViewModel.setEmpty(windowIsBlank && !isFilterActive)
-			if (!windowIsBlank && content.isBlank()) {
-				wasLastFilteredResultEmpty = true
+			updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
+			hasInitialContentRendered = true
+			wasLastFilteredResultEmpty = isFilteredEmpty
+			if (!isSourceEmpty && isFilteredEmpty) {
 				editor?.setText("")
 				onContentReplaced()
 			}
@@ -190,19 +197,24 @@ class BuildOutputFragment :
 			val editor = this@BuildOutputFragment.editor ?: return@withContext
 			val layoutCompleted =
 				withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-					editor.awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+					editor.awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
 				}
 			if (layoutCompleted != null) {
 				editor.appendBatch(content)
-				emptyStateViewModel.setEmpty(false)
+				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 			} else {
 				// Timeout: defer append until layout is ready so content is not lost
+				val generationAtRestore = editorContentGeneration
 				val job =
 					viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
 						editor.run {
-							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
-							appendBatch(content)
-							emptyStateViewModel.setEmpty(false)
+							awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
+							editorContentMutex.withLock {
+								if (editorContentGeneration == generationAtRestore) {
+									appendBatch(content)
+									updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+								}
+							}
 						}
 					}
 				job.join()
@@ -223,6 +235,7 @@ class BuildOutputFragment :
 		// when the fragment is detached, otherwise an IllegalStateException is thrown.
 		if (!isAdded || activity == null) return
 		wasLastFilteredResultEmpty = false
+		hasInitialContentRendered = false
 		buildOutputViewModel.clear()
 		super.clearOutput()
 	}
@@ -296,8 +309,9 @@ class BuildOutputFragment :
 	private suspend fun flushToEditor(text: String) {
 		editorContentMutex.withLock {
 			buildOutputViewModel.append(text)
+			val isFilterActive = buildOutputViewModel.filterText.value.isNotEmpty() || filterBar != null
 			withContext(Dispatchers.Main) {
-				emptyStateViewModel.setEmpty(false)
+				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 			}
 
 			// The session file always gets the full text; the editor only shows matching lines
@@ -311,21 +325,21 @@ class BuildOutputFragment :
 				editor?.run {
 					val layoutCompleted =
 						withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+							awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
 						}
 					if (layoutCompleted != null) {
 						appendBatch(visibleText)
-						emptyStateViewModel.setEmpty(false)
+						updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 					} else {
 						// Timeout: defer append until layout is ready (same as restoreWindowFromViewModel)
 						val generationAtFlush = editorContentGeneration
 						viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
 							editor?.run {
-								awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+								awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
 								editorContentMutex.withLock {
 									if (editorContentGeneration == generationAtFlush) {
 										appendBatch(visibleText)
-										emptyStateViewModel.setEmpty(false)
+										updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 									}
 								}
 							}

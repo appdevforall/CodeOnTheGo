@@ -143,9 +143,11 @@ abstract class LogViewFragment<V : LogViewModel> :
 	}
 
 	private var wasLastFilteredResultEmpty = false
+	private var hasInitialContentRendered = false
 
 	override fun clearOutput() {
 		wasLastFilteredResultEmpty = false
+		hasInitialContentRendered = false
 		viewModel.clear()
 		_binding?.editor?.setText("")?.also {
 			emptyStateViewModel.setEmpty(true)
@@ -261,11 +263,15 @@ abstract class LogViewFragment<V : LogViewModel> :
 	private fun setText(text: String) {
 		val editor = _binding?.editor ?: return
 		editor.setText(text)
-		val isUnfilteredBlank = viewModel.snapshotUnfiltered().isBlank()
-		val isFilteredBlank = text.isBlank()
+		val isSourceEmpty = viewModel.isBufferEmpty
+		val isFilteredEmpty = text.isBlank()
 		val isFilterActive = viewModel.filter.value != LogFilter.NONE || filterBar != null
-		emptyStateViewModel.setEmpty(isUnfilteredBlank && !isFilterActive)
-		if (!isUnfilteredBlank && isFilteredBlank) {
+		updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
+
+		if (!hasInitialContentRendered) {
+			hasInitialContentRendered = true
+			wasLastFilteredResultEmpty = isFilteredEmpty
+		} else if (!isSourceEmpty && isFilteredEmpty) {
 			if (!wasLastFilteredResultEmpty) {
 				flashInfo(R.string.msg_no_filter_matches)
 			}

@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.fragments.output
 
+import android.content.Context
+import android.view.inputmethod.InputMethodManager
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import com.itsaky.androidide.databinding.LayoutLogFilterBarBinding
@@ -77,10 +79,16 @@ class LogFilterBarController(
 	}
 
 	fun toggle() {
-		binding.root.isVisible = !binding.root.isVisible
+		if (binding.root.isVisible) {
+			hide()
+		} else {
+			binding.root.isVisible = true
+		}
 	}
 
 	fun hide() {
+		val imm = binding.root.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+		imm?.hideSoftInputFromWindow(binding.filterInput.windowToken, 0)
 		binding.root.isVisible = false
 	}
 

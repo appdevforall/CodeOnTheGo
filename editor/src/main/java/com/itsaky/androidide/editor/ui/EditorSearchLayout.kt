@@ -26,6 +26,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.PopupMenu
 import android.widget.PopupWindow
@@ -281,6 +282,8 @@ class EditorSearchLayout(
 	private fun onSearchActionClick(v: View) {
 		val searcher = editor.searcher
 		if (v.id == findInFileBinding.close.id) {
+			val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+			imm?.hideSoftInputFromWindow(findInFileBinding.searchInput.windowToken, 0)
 			if (this.searchInputTextWatcher == null) {
 				return
 			}
@@ -294,13 +297,13 @@ class EditorSearchLayout(
 			return
 		}
 		if (v.id == findInFileBinding.prev.id) {
-			if (!searcher.gotoPrevious()) {
+			if (!searcher.gotoPrevious() && searcher.isSearchCompleteWithNoMatches()) {
 				flashInfo(R.string.msg_no_search_matches)
 			}
 			return
 		}
 		if (v.id == findInFileBinding.next.id) {
-			if (!searcher.gotoNext()) {
+			if (!searcher.gotoNext() && searcher.isSearchCompleteWithNoMatches()) {
 				flashInfo(R.string.msg_no_search_matches)
 			}
 			return

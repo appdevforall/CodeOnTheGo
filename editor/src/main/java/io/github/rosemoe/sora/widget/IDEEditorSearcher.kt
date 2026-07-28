@@ -76,4 +76,44 @@ open class IDEEditorSearcher(editor: IDEEditor) : EditorSearcher(editor) {
   private fun markSearching() {
     isSearching = true
   }
+
+  fun isSearchCompleteWithNoMatches(): Boolean {
+    if (!hasQuery()) return false
+    try {
+      if (!isResultValid()) {
+        return false
+      }
+      val hasMatchMethod =
+        try {
+          EditorSearcher::class.java.getMethod("hasMatch")
+        } catch (_: Throwable) {
+          null
+        }
+      if (hasMatchMethod != null) {
+        val hasMatch = hasMatchMethod.invoke(this) as? Boolean ?: true
+        return !hasMatch
+      }
+      val lastResultsField =
+        try {
+          EditorSearcher::class.java.getDeclaredField("lastResults").apply { isAccessible = true }
+        } catch (_: Throwable) {
+          null
+        }
+      if (lastResultsField != null) {
+        val results = lastResultsField.get(this) ?: return false
+        val isEmptyMethod =
+          try {
+            results.javaClass.getMethod("isEmpty")
+          } catch (_: Throwable) {
+            null
+          }
+        if (isEmptyMethod != null) {
+          return isEmptyMethod.invoke(results) as? Boolean ?: false
+        }
+      }
+    } catch (_: Throwable) {
+      // Fallback
+    }
+    return false
+  }
 }
