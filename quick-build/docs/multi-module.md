@@ -8,63 +8,80 @@ Provenance tags are mandatory: `[measured on a56]`, `[measured on host]`,
 `[inferred]`, `[unmeasured]`. Untagged prose is code reading.
 
 Evidence: `quick-build/corpus/results/20260728T044815Z-watchscope-verify2-run4/`
-(the clean full pass) and `…/20260728T011901Z-watchscope-verify` (the first run,
+(the clean full pass) and `.../20260728T011901Z-watchscope-verify` (the first run,
 which failed on the install prompt). A56, CoGo dev build `C-d-0727-1820`.
+
+## Recommendation: no-go this cycle
+
+Multi-module projects **work correctly today** — that is the correction below, and
+it removes the correctness argument for Level 2 entirely. What remains is a
+latency win on ~37% of multi-module commits, resting on `[inferred]` ratios and a
+commit-level proxy.
+
+Take L2.0 (the differential-correctness harness, which stands alone — it
+retroactively protects single-module Quick Build too) plus the analytics, and
+revisit with field data. Level 2 competes with the measured performance work in
+[`perf-roadmap.md`](perf-roadmap.md), and that work is better-evidenced: moving
+the daemon scratch tree off emulated storage is a measured -45% on **every** warm
+edit on every app size `[measured on a56]`, against Level 2's `[inferred]` win on
+a survey-estimated share of commits. If only one lands this cycle, the storage fix
+has the stronger evidence.
+
+The cheap third option, if the team defers: ship the analytics first — log how
+often users actually hit a non-app-module edit and which case it is. Today's
+shares come from GitHub repos, not CoGo users, and CoGo's users may not write
+multi-module apps at all. One release of field data would replace the weakest
+input in the whole value case, for a day of work rather than three weeks.
 
 ## The correction
 
 The 07-22 status said multi-module projects were **rejected at Quick Build
-setup**. That is not what the code does and not what the device does. A
-two-module project (`:app` + `:lib`) provisions and Quick-Builds fine —
-`Ready gen=0` in 67 s, and an app-module edit hot-reloads in 2.55 s
-`[measured on a56]`.
+setup**. That is not what the code does and not what the device does. A two-module
+project (`:app` + `:lib`) provisions and Quick-Builds fine — `Ready gen=0` in 67 s,
+and an app-module edit hot-reloads in 2.55 s `[measured on a56]`.
 
-The real gap was worse than a rejection, and quieter: **library-module edits
-were invisible to the watcher.** The watcher only watched the app module's
-`src`, so a save in `:lib` fired no event at all — no build, no reload, no
-fallback, no error. The running app kept serving the old library code while the
-editor showed the new source. That is a silent-stale bug, which is the one
-failure class the whole feature is built to prevent, not a missing capability.
+The real gap was worse than a rejection, and quieter: **library-module edits were
+invisible to the watcher.** The watcher only watched the app module's `src`, so a
+save in `:lib` fired no event at all — no build, no reload, no fallback, no error.
+The running app kept serving the old library code while the editor showed the new
+source. That is a silent-stale bug, the one failure class the whole feature exists
+to prevent, not a missing capability. A rejection would have been the safe version
+of this; nobody would have been misled.
 
-A rejection would have been the safe version of this. Nobody would have been
-misled.
-
-That is now fixed (commit `cc9bedea7`) and device-verified. The framing
-correction matters for the go/no-go below: Level 2 is a **latency**
-improvement on edits that already behave correctly, not a correctness unblock.
+Fixed in `cc9bedea7` and device-verified. The correction matters for the go/no-go:
+Level 2 is a **latency** improvement on edits that already behave correctly, not a
+correctness unblock.
 
 ## What happens today, precisely
 
 Three scopes, in `data/QuickBuildProjectLayout.kt`:
 
 - **Watched roots** — every module's `src`. Modules are discovered by a shallow
-  filesystem walk from the project root (`moduleDirs()`): any directory holding
-  a `build.gradle` or `build.gradle.kts`, skipping `build/` and hidden dirs,
-  bounded at `MODULE_SCAN_MAX_DEPTH = 4`.
+  filesystem walk from the project root (`moduleDirs()`): any directory holding a
+  `build.gradle[.kts]`, skipping `build/` and hidden dirs, bounded at
+  `MODULE_SCAN_MAX_DEPTH = 4`.
 - **Watched files** — `settings.gradle[.kts]`, `gradle.properties`,
   `gradle/libs.versions.toml`, plus every module's `build.gradle[.kts]`.
-- **Fast-path scope** (`fastPathScope()`) — `app/src` only. The app module is
-  the directory literally named `app`.
+- **Fast-path scope** (`fastPathScope()`) — `app/src` only. The app module is the
+  directory literally named `app`.
 
-`ChangeClassifier` then routes any watched code/resource/asset change that falls
-**outside** the fast-path scope to `BuildRoute.FullGradleBuild` with
+`ChangeClassifier` routes any watched code/resource/asset change **outside** the
+fast-path scope to `BuildRoute.FullGradleBuild` with
 `InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED`. An empty fast-path scope
 disables the boundary entirely, which is how single-module projects keep their
-previous behavior.
-
-So the current contract is:
+previous behaviour.
 
 | Edit | Route | Cost |
 |---|---|---|
-| App-module code / resources / assets | fast path | 2.55 s save→live `[measured on a56]` |
-| Any other module's code / resources | rebaseline (full Gradle setup build) | 25 s edit→Ready, including the reinstall `[measured on a56]` |
+| App-module code / resources / assets | fast path | 2.55 s save->live `[measured on a56]` |
+| Any other module's code / resources | rebaseline (full Gradle setup build) | 25 s edit->Ready, including the reinstall `[measured on a56]` |
 | Any module's `build.gradle[.kts]`, `settings.gradle`, version catalog | rebaseline | as above |
 
 The module scan deliberately errs toward watching **more** than it needs.
 Over-inclusion is harmless — a stray module's edit merely rebaselines — while
-under-inclusion resurrects the silent-drop bug. The depth-4 bound is the one
-place that can still under-include: a `:a:b:c:d`-deep module path watches less
-of its tail, and those edits fall back to the periodic mtime sweep. Rare shape,
+under-inclusion resurrects the silent-drop bug. The depth-4 bound is the one place
+that can still under-include: a `:a:b:c:d`-deep module path watches less of its
+tail, and those edits fall back to the periodic mtime sweep. Rare shape,
 `[unmeasured]` in the wild.
 
 ## Device verification
@@ -78,51 +95,47 @@ observable on screen rather than inferred from logs:
 | Two-module project provisions | Ready gen=0 in 67 s |
 | Baseline UI | `APP-V1`, `LIB-V1` |
 | Library edit is seen | `invalidation reason=NON_APP_MODULE_SOURCE_CHANGED` |
-| Library edit rebaselines | `rebaseline ok=true`, edit→Ready 25 s |
+| Library edit rebaselines | `rebaseline ok=true`, edit->Ready 25 s |
 | Library edit reaches the app | `APP-V1`, `LIB-V2` |
-| App edit fast-paths | `reload_timeline gen=1`, save→live 2550 ms |
+| App edit fast-paths | `reload_timeline gen=1`, save->live 2550 ms |
 | App edit reaches the app | `APP-V2`, `LIB-V2` |
 
 The never-stale invariant holds in both directions: the library edit visibly
 landed, and the app edit did not lose it.
 
+One protocol note for future readers: a successful rebaseline **resets the
+generation counter to 0** `[measured on a56]`, and post-rebaseline reloads resume
+at gen=1. Any consumer assuming monotonically increasing generations across a
+rebaseline will break.
+
 ## The caveat on the rebaseline path
 
-The first run of this verification **failed** on B1, and the reason turned out
-to be more interesting than a missing tap.
+The first verification run **failed**, and for a more interesting reason than a
+missing tap. A rebaseline reinstall needs the user to confirm an Android install
+dialog, and if CoGo is backgrounded — exactly where the user is if they are
+looking at their running app — no dialog appears, the installer times out at
+180 s, and the edit is silently lost. A dialog-tapping harness cannot rescue this;
+there is nothing to tap `[measured on a56]`.
 
-A rebaseline reinstall needs the user to confirm an Android install dialog. If
-CoGo's main process is backgrounded at that moment — which is exactly where the
-user is if they are looking at their running app — Android never delivers the
-`PENDING_USER_ACTION` broadcast, so **no dialog ever appears**. The installer
-timed out at 180 s and the session dropped to Idle with the edit silently lost.
-A dialog-tapping harness cannot rescue this; there is nothing to tap
-`[measured on a56; the attribution to Android's background-broadcast policy is
-[inferred]]`.
+This is not multi-module-specific — it is the install-confirm gap owned by
+[`reliability-gaps.md`](reliability-gaps.md) defect 5, which also corrects the
+mechanism (the broadcast is deferred, not dropped; the failure is on our side).
+But multi-module makes it a **per-edit** concern rather than once-per-session,
+because every library edit rebaselines. That is a real argument for Level 2 that
+the latency numbers alone understate.
 
-Two commits address it: `0ea640921` parks the session recoverable instead of
-dying to Idle, and `fe949a9f0` re-prompts when CoGo next comes to the
-foreground. With CoGo foregrounded — the realistic arrangement, since a user
-saving a library edit is inside CoGo — the dialog appears ~15 s after the edit
-and one tap confirms `[measured on a56]`.
-
-This is not multi-module-specific; it is the same interactive-install gap that
-sits on first provisioning. But multi-module makes it a **per-edit** concern
-rather than a once-per-session one, because every library edit rebaselines.
-That is a real argument for Level 2 that the latency numbers alone understate.
-
-One protocol note for future readers: a successful rebaseline **resets the
-generation counter to 0** `[measured on a56]`. Post-rebaseline reloads resume at
-gen=1. Any consumer assuming monotonically increasing generations across a
-rebaseline will break.
+Two commits soften it: `0ea640921` parks the session recoverable instead of dying
+to Idle, and `fe949a9f0` re-prompts when CoGo next comes to the foreground. With
+CoGo foregrounded the dialog appears ~15 s after the edit and one tap confirms
+`[measured on a56]`.
 
 ## What Level 2 would add
 
 The design is written and reviewed; it is not restated here. See
-**`docs/product/plans/2026-07-27_ADFA-4128_qb-multimodule/level2-design.md`**
-in the wrapper repo (with the fuller prior revision archived beside it as
-`level2-design-v2-full-archive.md`). Its §4 is the implementation directive if
-the team says go; §4.10 has the staging table and the L2.2 decision gate.
+`docs/product/plans/2026-07-27_ADFA-4128_qb-multimodule/level2-design.md` in the
+wrapper repo (fuller prior revision archived beside it). Its §4 is the
+implementation directive if the team says go; §4.10 has the staging table and the
+L2.2 decision gate.
 
 In one line: emit the module dependency graph from the setup build, run one
 incremental-compile session per module, recompile the edited module and its
@@ -130,17 +143,17 @@ dependents in dependency order, keep the edited module's resources live in the
 relink, and merge everything into one hot-apply. The test app and the reload
 protocol do not change — modules are a build-time concept only.
 
-**Two corrections the design doc needs.** Its §3 says "today Quick Build rejects
-multi-module projects at setup, so without this design their share is 0%." That
-is the claim this device run overturned, and it is load-bearing for how the
-value table reads. (Its §2 already says the watcher sees every module "since
-Level 1", so the doc contradicts itself on this point.)
+**A correction the design doc needs.** Its §3 says "today Quick Build rejects
+multi-module projects at setup, so without this design their share is 0%." That is
+the claim this device run overturned, and it is load-bearing for how the value
+table reads. Its §2 already says the watcher sees every module "since Level 1", so
+the doc contradicts itself on the point.
 
 ## What the survey says it is worth
 
-From the commit survey `[measured on host]`: 61% of 99 surveyed real Android
-repos (60) are multi-module, holding 60% of surveyed commits and 1,878
-classified commits. The design doc's value table splits those 1,878 as:
+From [`commit-survey.md`](commit-survey.md) `[measured on host]`: 60 of 99
+surveyed real Android repos are multi-module, holding ~60% of surveyed commits
+(1,878 classified). The design doc's value table splits those as:
 
 | Category | Share | Status today |
 |---|---|---|
@@ -149,55 +162,30 @@ classified commits. The design doc's value table splits those 1,878 as:
 | 3 — still a full build (gradle/manifest/processor 24.7%, resource shape changes 1.4%) | 26.1% | unchanged by Level 2 |
 
 Read with the correction applied, the marginal value of Level 2 is **category 2
-alone: ~37% of multi-module commits**, moving from a ~25 s rebaseline with an
-install prompt to a projected ~2-3 s hot reload. Category 1's 36.4% is already
-delivered, not unblocked by Level 2 — the design doc credits it to Level 2 and
-should not.
+alone: ~37% of multi-module commits** — about 22% of all surveyed commits
+`[measured on host, inferred combination]` — moving from a ~25 s rebaseline with
+an install prompt to a projected ~2-3 s hot reload `[inferred]`. Category 1's
+36.4% is already delivered; the design doc credits it to Level 2 and should not.
 
 Both the shares and the ratios carry real caveats. The shares are commit-level
 proxies classified from changed-file lists by directory-name heuristics, not
-observed developer behavior. The ratios are `[inferred]` — anchored to measured
-single-module numbers, with nothing measured on a real modular app. The design
-doc's own §4.10 makes measuring them the L2.2 gate, which is the right shape.
+observed developer behaviour, and the commit survey's own numbers are a ceiling
+(its classifier predates the app-module boundary rule). The ratios are
+`[inferred]`, anchored to measured single-module numbers with nothing measured on
+a real modular app. The design doc's §4.10 makes measuring them the L2.2 gate,
+which is the right shape.
 
-## Go / no-go
+## The rest of the case, for the record
 
-**What is settled.** Multi-module projects work correctly today. There is no
-correctness argument for Level 2 anymore, and no user is currently being lied
-to by their running app. Deferring costs nothing in safety.
-
-**What Level 2 buys.** ~37% of multi-module commits, which is ~22% of all
-surveyed commits `[measured on host, inferred combination]`, go from a ~25 s
-rebaseline-plus-install-prompt to a projected ~2-3 s reload `[inferred]`. The
-install prompt is arguably the bigger half of that: a 25 s wait that also
-demands a tap, on every library edit, is a materially different product from
-one that does not. Multi-module is also the shape CoGo itself has (~88
-modules), so the team cannot dogfood Quick Build on its own codebase until this
-lands.
+**What Level 2 buys beyond latency.** The install prompt is arguably the bigger
+half: a 25 s wait that also demands a tap, on every library edit, is a materially
+different product from one that does not. Multi-module is also the shape CoGo
+itself has (~88 modules), so the team cannot dogfood Quick Build on its own
+codebase until this lands.
 
 **What it costs.** ~1 week of agent wall-clock plus 8-12 h of Bryan driving,
-roughly 2-3 calendar weeks at current pace `[assumed]`. The standing costs are
-the ones worth arguing about, not the build time: a differential-correctness
-harness plus a CI job to maintain, and a standing dependency on the team-owned
-project-model builders — which means shared-model changes must consider Quick
-Build from then on. That last item needs team sign-off regardless of risk
-appetite.
-
-**The honest ordering question.** Level 2 competes with the measured
-performance work in [`perf-roadmap.md`](perf-roadmap.md), and that work is
-better-evidenced: moving the daemon scratch tree off emulated storage is a
-measured -45% on **every** warm edit on every app size `[measured on a56]`,
-against Level 2's `[inferred]` win on a survey-estimated share of commits. If
-only one lands this cycle, the storage fix has the stronger evidence behind it.
-
-**A cheap third option.** If the team defers, ship the analytics first
-(backlog #13): log how often users actually hit a non-app-module edit and which
-case it is. Today's shares come from GitHub repos, not from CoGo users, and
-CoGo's users may not write multi-module apps at all — the design doc flags this
-uncertainty in its own opening paragraph. One release of field data would
-replace the weakest input in the whole value case, and it is a day of work
-rather than three weeks.
-
-**Recommendation:** no-go this cycle; take L2.0 (the correctness harness) and
-the analytics, and revisit with field data. The harness stands alone regardless
-— it retroactively protects single-module Quick Build too.
+roughly 2-3 calendar weeks at current pace `[assumed]`. The standing costs matter
+more than the build time: a differential-correctness harness plus a CI job to
+maintain, and a standing dependency on the team-owned project-model builders,
+which means shared-model changes must consider Quick Build from then on. That last
+item needs team sign-off regardless of risk appetite.
