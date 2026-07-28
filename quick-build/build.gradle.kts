@@ -29,6 +29,36 @@ tasks.withType<Test> {
 	useJUnitPlatform()
 }
 
+// DoD coverage gate: >=90% line+branch on non-UI (domain/data) code.
+// The root build attaches the jacoco agent to every Test task; for Android modules
+// the exec lands at build/outputs/unit_test_code_coverage/<variant>UnitTest/, NOT
+// build/jacoco/ -- a JacocoReport pointed at build/jacoco/ silently SKIPs and the
+// gate is never measured (see docs/process learnings, ADFA-3834).
+tasks.register<JacocoReport>("jacocoTestReport") {
+	group = "verification"
+	description = "JaCoCo line+branch coverage for the v8Debug unit tests."
+	dependsOn("testV8DebugUnitTest")
+
+	reports {
+		xml.required.set(true)
+		html.required.set(true)
+	}
+
+	// The javac output holds only generated code (AIDL stubs + BuildConfig), so the
+	// hand-written surface is exactly the Kotlin classes.
+	classDirectories.setFrom(
+		fileTree(layout.buildDirectory.dir("tmp/kotlin-classes/v8Debug")) {
+			exclude("**/BuildConfig*")
+		},
+	)
+	sourceDirectories.setFrom(files("src/main/java"))
+	executionData.setFrom(
+		layout.buildDirectory.file(
+			"outputs/unit_test_code_coverage/v8DebugUnitTest/testV8DebugUnitTest.exec",
+		),
+	)
+}
+
 dependencies {
 	implementation(projects.logger)
 	implementation(projects.eventbusEvents)

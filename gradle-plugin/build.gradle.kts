@@ -129,3 +129,16 @@ tasks.named<Jar>("jar") {
 	archiveClassifier.set("") // Removes the default "all" classifier
 	archiveVersion.set("")
 }
+
+// DoD coverage gate: >=90% line+branch. This JVM module keeps the default
+// build/jacoco/test.exec location; the report only needs xml enabled (for
+// tooling to read the percentages) and the explicit test dependency so
+// `:gradle-plugin:jacocoTestReport` is runnable on its own. Test failures do
+// not block it: the root build sets ignoreFailures on every Test task.
+tasks.named<JacocoReport>("jacocoTestReport") {
+	dependsOn(tasks.named("test"))
+	reports {
+		xml.required.set(true)
+		html.required.set(true)
+	}
+}
