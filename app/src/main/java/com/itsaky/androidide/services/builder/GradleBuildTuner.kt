@@ -170,6 +170,16 @@ object GradleBuildTuner {
 				// Daemon
 				if (!gradle.daemonEnabled) add("--no-daemon")
 
+				// Daemon idle timeout. An idle daemon keeps its full heap, so
+				// low-memory tiers expire it sooner to give memory back (e.g.
+				// to the quick-build daemon). Passed as a command-line -D
+				// system property, which overrides gradle.properties; it only
+				// takes effect for daemons started after the value changes
+				// (idle timeout is fixed at daemon startup).
+				if (gradle.daemonEnabled) {
+					add("-Dorg.gradle.daemon.idletimeout=${gradle.daemonIdleTimeoutMs}")
+				}
+
 				// Worker count
 				add("--max-workers=${gradle.maxWorkers}")
 

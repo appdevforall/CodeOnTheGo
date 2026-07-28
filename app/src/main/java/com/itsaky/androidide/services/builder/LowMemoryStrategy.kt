@@ -14,6 +14,12 @@ object LowMemoryStrategy : GradleTuningStrategy {
 	const val GRADLE_METASPACE_MB = 384
 	const val GRADLE_CODE_CACHE_MB = 128
 
+	// Short idle timeout: on <=3GB devices an idle Gradle daemon's heap is the
+	// difference between the quick-build daemon (and the IDE itself) staying
+	// resident or getting lmkd-killed. 15 min keeps the daemon warm across an
+	// edit-build cycle but frees the memory soon after the user stops building.
+	const val GRADLE_DAEMON_IDLE_TIMEOUT_MS = 15 * 60 * 1000
+
 	const val GRADLE_MEM_PER_WORKER = 512
 	const val GRADLE_WORKERS_MAX = 2
 
@@ -40,6 +46,7 @@ object LowMemoryStrategy : GradleTuningStrategy {
 		val gradleDaemon =
 			GradleDaemonConfig(
 				daemonEnabled = true,
+				daemonIdleTimeoutMs = GRADLE_DAEMON_IDLE_TIMEOUT_MS,
 				jvm =
 					JvmConfig(
 						xmxMb = gradleXmx,
