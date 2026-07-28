@@ -14,10 +14,6 @@ We've identified five issues that can improve performance, roughly sorted in dec
 | 3   | Incremental dexing                                | 2.1-4.6 s                            | L      | M    |
 | 4   | Narrow "Java ABI moved -> recompile all Kotlin"   | 14.9 s, but only on ABI-change edits | L      | M    |
 
-There was one other issue that we don't know root cause for yet:
-
-- C107 performance decreased over time for later benchmark runsUnconfirmed hypothesis -- maybe we were running into Java heap issues?
-
 ## Scope and provenance
 
 Status: sequenced plan, nothing here is committed.
@@ -125,25 +121,6 @@ Task #104.
 ### 5. Stop re-stripping unchanged classes
 
 Largely subsumed by item 1 — strip falls from 4.7-5.5 s to 0.17-0.33 s once off emulated storage `[measured on a56]`. Still the right shape (strip is a pure function of the input bytes, so an unchanged class never needs re-stripping), and it shares its cache key with item 3, so fold it into that work rather than scheduling it separately. `DexTool.openClasses` (`DexTool.kt:119-123`) `deleteRecursively()`s the strip mirror and rewrites every class, changed or not, once per build.
-
-## Open investigation: the C107 residual
-
-Not a fix — a thing we do not understand, and the only measured evidence that the A56 story is incomplete.
-
-- **On the A56 the accounting closes.** The four shipped analytics fields plus the four added for the deep-dive account for **91-93%** of a warm sora edit; the residual is 1.1-1.9 s across the three measured edits, all of it scan, tree walks, and deploy policy — a fixed 7-9% `[measured on a56]`.
-- **On the C107 it does not, and the evidence is two different apps** — an earlier revision of this paragraph welded them into one sentence:
-  - `medium-kotlin` leaves a large share of `compileMs` unattributed on its later builds. Across the four rows carrying sub-step timings the unaccounted share is 1%, 3%, 59% and 36%, or 17% pooled over the app `[measured on c107]`. The circulated "52%" does not reproduce from those rows under any grouping tried.
-  - `sora-editor-full` got *slower* across a C107 session — 188.8 s then 236.3 s — where the same app on the A56 got faster, 53.6 s then 16.5 s `[measured on c107]` / `[measured on a56]`. A fixed per-operation tax does not compound; something there accumulates.
-- **Rule out the cheap explanation first.** The 07-25 C107 report notes that builds queued behind an in-flight build start ~1 ms after the previous deploy, so their `trigger->compileDone` includes queue wait, and concludes that is most of `medium-kotlin`'s residual. Whether that overlaps the unattributed share turns on whether `compileMs` includes queue wait — settle that before spending on the heap hypothesis, because a harness artefact and a daemon-heap problem call for very different work.
-- **The leading candidate is JVM heap, and it is a hypothesis, not a finding.**
-  - The daemon spawns as a plain `java -jar daemon.jar` with **no ****`-Xmx`**** and no ****`MaxMetaspaceSize`** (`DaemonProcessClient.kt:83-97`), and the same code `environment().clear()`s before spawning, so `JAVA_TOOL_OPTIONS` cannot supply them either.
-  - The JVM therefore takes ergonomic defaults from physical RAM: on the A56 that measures **MaxHeapSize 1.81 GB, G1, metaspace unlimited** `[measured on a56]`.
-  - The same ergonomics on a ~2 GB device give roughly a quarter of that `[inferred]`, against a workload — kotlinc plus its incremental caches, ASM over 464 classes, d8 — that fits comfortably in 1.8 GB and grows as a session accumulates state. That shape fits a slowdown that compounds edit over edit rather than a constant tax. It is consistent, and it is unproven.
-- **What settles it:** one C107 run. Log GC time and heap high-water from the daemon, or set an explicit `-Xmx` and re-measure. Either outcome is useful — if heap is not it, the residual is somewhere none of the current instrumentation looks, and that is a bigger finding.
-
-Item 1's storage finding does **not** explain this. It should be expected to reproduce on the C107 and be worse there, but that is `[inferred]` — the C107 was not re-measured — and a fixed per-file toll cannot produce a session that degrades.
-
-Task #105.
 
 ## What this roadmap does not cover
 
