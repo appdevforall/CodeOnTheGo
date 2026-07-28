@@ -33,6 +33,9 @@ class FakeDaemon : QuickBuildDaemon {
 
 	override var isRunning: Boolean = false
 
+	/** Null by default, matching a daemon that reports no filesystem for its scratch tree. */
+	override var scratchFsType: String? = null
+
 	/**
 	 * When set, the NEXT [start] parks here after recording its config, consuming the
 	 * gate - later starts pass through. Lets a race test hold a respawn mid-start while

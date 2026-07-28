@@ -12,7 +12,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.appdevforall.cotg.quickbuild.daemon.protocol.CompileStats
 import org.appdevforall.cotg.quickbuild.daemon.protocol.DaemonResponse
+import org.appdevforall.cotg.quickbuild.daemon.protocol.DexStats
+import org.appdevforall.cotg.quickbuild.daemon.protocol.ResponseKeys
 import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
 import org.slf4j.LoggerFactory
 import java.io.BufferedWriter
@@ -55,6 +58,10 @@ class DaemonProcessClient(
 
 	@Volatile private var configured = false
 
+	@Volatile
+	override var scratchFsType: String? = null
+		private set
+
 	override val isRunning: Boolean
 		get() = configured && process?.isAlive == true
 
@@ -66,6 +73,9 @@ class DaemonProcessClient(
 		shutdown()
 		this.config = config
 		this.shutdownRequested = false
+		// Belongs to the session being replaced; a failed configure must not leave the
+		// previous daemon's filesystem stamped on the next session's timings.
+		this.scratchFsType = null
 
 		val proc =
 			try {
@@ -113,7 +123,7 @@ class DaemonProcessClient(
 			is DaemonReply.Ok -> {
 				val daemonVersion =
 					configureReply.value
-						.get("protocolVersion")
+						.get(ResponseKeys.PROTOCOL_VERSION)
 						?.takeIf { it.isJsonPrimitive }
 						?.runCatching { asInt }
 						?.getOrNull()
@@ -128,6 +138,11 @@ class DaemonProcessClient(
 							"$EXPECTED_PROTOCOL_VERSION",
 					)
 				} else {
+					scratchFsType =
+						configureReply.value
+							.get(ResponseKeys.SCRATCH_FS_TYPE)
+							?.takeIf { it.isJsonPrimitive }
+							?.asString
 					configured = true
 					DaemonReply.Ok(Unit)
 				}
@@ -170,6 +185,7 @@ class DaemonProcessClient(
 				changed,
 				kotlinMillis = response.longOrNull("kotlinMillis"),
 				javaMillis = response.longOrNull("javaMillis"),
+				stats = CompileStats.fromValues { key -> response.longOrNull(key) },
 			)
 		}
 	}
@@ -185,6 +201,7 @@ class DaemonProcessClient(
 				it,
 				stripMillis = response.longOrNull("stripMillis"),
 				d8Millis = response.longOrNull("d8Millis"),
+				stats = DexStats.fromValues { key -> response.longOrNull(key) },
 			)
 		}
 	}

@@ -3,6 +3,8 @@ package org.appdevforall.cotg.quickbuild.service
 import com.google.common.truth.Truth.assertThat
 import com.google.gson.JsonParser
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.cotg.quickbuild.daemon.protocol.CompileStats
+import org.appdevforall.cotg.quickbuild.daemon.protocol.DexStats
 import org.appdevforall.cotg.quickbuild.data.CompileOutput
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.DefaultQuickBuildProjectLayout
@@ -552,10 +554,136 @@ class QuickBuildExecutorImplTest {
 
 			executor.execute(timedRequest(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)), triggeredAtMillis = 5))
 
-			// Clock order: startedAt=10, compileDone=20, deploySent=30, reloadLive=40.
-			assertThat(emitted).containsExactly(E2eTimeline(1, 5, 20, 30, 40))
-			assertThat(emitted.single().compileMillis).isEqualTo(15) // trigger(5) -> compiled+dexed(20)
-			assertThat(emitted.single().reloadMillis).isEqualTo(10) // deploySent(30) -> live(40)
+			// Clock order: startedAt=10, then the four span boundaries (20 scan start, 30
+			// scan done, 40 compile done, 50 policy done, 60 dex done = compileDone),
+			// deploySent=70, reloadLive=80.
+			val t = emitted.single()
+			assertThat(t.generation).isEqualTo(1)
+			assertThat(t.trigger).isEqualTo(5)
+			assertThat(t.compileDone).isEqualTo(60)
+			assertThat(t.deploySent).isEqualTo(70)
+			assertThat(t.reloadLive).isEqualTo(80)
+			assertThat(t.compileMillis).isEqualTo(55) // trigger(5) -> compiled+dexed(60)
+			assertThat(t.reloadMillis).isEqualTo(10) // deploySent(70) -> live(80)
+		}
+
+	@Test
+	fun `the host spans partition the build and abut with no gap of their own`() =
+		runTest {
+			val emitted = mutableListOf<E2eTimeline>()
+
+			timingExecutor(emitted).execute(
+				timedRequest(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)), triggeredAtMillis = 5),
+			)
+
+			// Each span is one 10 ms clock tick with the stepping clock, and consecutive
+			// spans share a boundary read - so they cover [20, 60] exactly.
+			val spans = emitted.single().spans!!
+			assertThat(spans.scanMillis).isEqualTo(10)
+			assertThat(spans.compileRpcMillis).isEqualTo(10)
+			assertThat(spans.policyMillis).isEqualTo(10)
+			assertThat(spans.dexRpcMillis).isEqualTo(10)
+			assertThat(spans.relinkRpcMillis).isNull() // no resources on this route
+			assertThat(spans.totalMillis).isEqualTo(40)
+		}
+
+	@Test
+	fun `the residual names the time no span measured, and it stays small`() =
+		runTest {
+			val emitted = mutableListOf<E2eTimeline>()
+
+			timingExecutor(emitted).execute(
+				timedRequest(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)), triggeredAtMillis = 5),
+			)
+
+			val t = emitted.single()
+			// total 75 = spans 40 + reload 10 + 25 of un-timed edges: the trigger->scan lead
+			// (asset packaging) and the dex->deploy tail. Every millisecond is either inside
+			// a named span or inside the residual - never silently attributed elsewhere.
+			assertThat(t.totalMillis).isEqualTo(75)
+			assertThat(t.accountedMillis).isEqualTo(50)
+			assertThat(t.unaccountedMillis).isEqualTo(25)
+			assertThat(t.accountedMillis + t.unaccountedMillis).isEqualTo(t.totalMillis)
+		}
+
+	@Test
+	fun `a resources route accounts through its relink span`() =
+		runTest {
+			val emitted = mutableListOf<E2eTimeline>()
+
+			timingExecutor(emitted).execute(
+				timedRequest(BuildRoute.ResourcesOnly, ChangedFiles.Known(setOf(resFile)), triggeredAtMillis = 5),
+			)
+
+			val t = emitted.single()
+			assertThat(t.spans!!.relinkRpcMillis).isEqualTo(10)
+			assertThat(t.spans!!.compileRpcMillis).isNull() // nothing compiled
+			assertThat(t.accountedMillis + t.unaccountedMillis).isEqualTo(t.totalMillis)
+		}
+
+	@Test
+	fun `daemon counts and the scratch filesystem ride along with the timing`() =
+		runTest {
+			daemon.scratchFsType = "fuse"
+			daemon.compileReply =
+				DaemonReply.Ok(
+					CompileOutput(
+						File("/fake/classes"),
+						changedClassFiles = emptyList(),
+						stats =
+							CompileStats(
+								preSnapMillis = 120,
+								postSnapMillis = 130,
+								javaAbiSnapMillis = 540,
+								allSources = 292,
+								kotlinToCompile = 74,
+								javaSources = 218,
+								changedClasses = 323,
+								compileOrdinal = 3,
+							),
+					),
+				)
+			daemon.dexReply =
+				DaemonReply.Ok(
+					DexOutput(File("/fake/classes.dex"), stats = DexStats(classFiles = 464, classBytes = 1_530_112)),
+				)
+			val emitted = mutableListOf<E2eTimeline>()
+
+			timingExecutor(emitted).execute(
+				timedRequest(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)), triggeredAtMillis = 5),
+			)
+
+			val t = emitted.single()
+			assertThat(t.counts)
+				.isEqualTo(
+					E2eTimeline.BuildCounts(
+						allSources = 292,
+						kotlinCompiled = 74,
+						javaSources = 218,
+						changedClasses = 323,
+						classFiles = 464,
+						classBytes = 1_530_112,
+						compileOrdinal = 3,
+					),
+				)
+			assertThat(t.steps!!.preSnapMillis).isEqualTo(120)
+			assertThat(t.steps!!.postSnapMillis).isEqualTo(130)
+			assertThat(t.steps!!.javaAbiSnapMillis).isEqualTo(540)
+			assertThat(t.scratchFsType).isEqualTo("fuse")
+		}
+
+	@Test
+	fun `a daemon reporting no stats leaves the counts absent rather than zeroed`() =
+		runTest {
+			val emitted = mutableListOf<E2eTimeline>()
+
+			timingExecutor(emitted).execute(
+				timedRequest(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)), triggeredAtMillis = 5),
+			)
+
+			// A zero-filled row would read as "measured, and the build did nothing".
+			assertThat(emitted.single().counts).isNull()
+			assertThat(emitted.single().scratchFsType).isNull()
 		}
 
 	@Test
@@ -607,11 +735,14 @@ class QuickBuildExecutorImplTest {
 				timedRequest(BuildRoute.ResourcesOnly, ChangedFiles.Known(setOf(resFile)), triggeredAtMillis = 5),
 			)
 
-			// No markCompileDone call: startedAt=10, deploySent=20, reloadLive=30.
+			// No markCompileDone call: startedAt=10, relink spans [20,30], deploySent=40,
+			// reloadLive=50. compileDone falls back to deploySent.
 			val t = emitted.single()
-			assertThat(t).isEqualTo(E2eTimeline(1, 5, 20, 20, 30))
+			assertThat(t.compileDone).isEqualTo(40)
+			assertThat(t.deploySent).isEqualTo(40)
+			assertThat(t.reloadLive).isEqualTo(50)
 			assertThat(t.stageMillis).isEqualTo(0)
-			assertThat(t.compileMillis).isEqualTo(15) // relink + package land in compileMillis here
+			assertThat(t.compileMillis).isEqualTo(35) // relink + package land in compileMillis here
 		}
 
 	@Test
@@ -642,10 +773,13 @@ class QuickBuildExecutorImplTest {
 					timedRequest(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)), triggeredAtMillis = 5),
 				)
 
-			// durationMillis = 50-10 with the stepping clock (5 clock calls this path).
-			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 40, restarted = true))
-			// startedAt=10, compileDone=20, deploySent=30, reloadLive=40 (after the verified reconnect).
-			assertThat(emitted).containsExactly(E2eTimeline(1, 5, 20, 30, 40))
+			// Clock: startedAt=10, span boundaries 20..60 (compileDone=60), deploySent=70,
+			// reloadLive=80 (after the verified reconnect), durationMillis read at 90.
+			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 80, restarted = true))
+			val t = emitted.single()
+			assertThat(t.compileDone).isEqualTo(60)
+			assertThat(t.deploySent).isEqualTo(70)
+			assertThat(t.reloadLive).isEqualTo(80)
 		}
 
 	@Test
@@ -736,8 +870,9 @@ class QuickBuildExecutorImplTest {
 			executor.execute(timedRequest(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)), triggeredAtMillis = 5))
 
 			// The analytics channel and the log line get the SAME timeline (no parallel path).
-			assertThat(metrics.timelines).containsExactly(E2eTimeline(1, 5, 20, 30, 40))
+			assertThat(metrics.timelines).hasSize(1)
 			assertThat(metrics.timelines).isEqualTo(emitted)
+			assertThat(metrics.timelines.single().trigger).isEqualTo(5)
 		}
 
 	@Test

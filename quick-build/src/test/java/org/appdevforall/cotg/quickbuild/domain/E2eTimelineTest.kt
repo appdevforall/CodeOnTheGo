@@ -61,4 +61,132 @@ class E2eTimelineTest {
 	fun `parse returns null on an unrelated line`() {
 		assertThat(E2eTimeline.parse("I QuickBuildSessionManager: Test app connected at generation 4")).isNull()
 	}
+
+	@Test
+	fun `a build whose spans cover every step leaves no residual`() {
+		// The healthy shape, and the one the sora-editor-full device rows showed: the host
+		// spans partition [trigger, deploySent] and reload covers the rest.
+		// 40 + 500 + 30 + 80 = 650 = deploySent - trigger; reload = 70.
+		val timeline =
+			sample.copy(
+				spans =
+					E2eTimeline.HostSpans(
+						scanMillis = 40,
+						compileRpcMillis = 500,
+						policyMillis = 30,
+						dexRpcMillis = 80,
+					),
+			)
+
+		assertThat(timeline.accountedMillis).isEqualTo(720)
+		assertThat(timeline.unaccountedMillis).isEqualTo(0)
+	}
+
+	@Test
+	fun `an untimed step shows up as residual rather than inflating a measured span`() {
+		// The regression this field exists to catch: something inside the build takes 200 ms
+		// and nothing measures it. Every named span keeps its own honest value; the gap is
+		// what grows.
+		val timeline =
+			sample.copy(
+				spans =
+					E2eTimeline.HostSpans(
+						scanMillis = 40,
+						compileRpcMillis = 300,
+						policyMillis = 30,
+						dexRpcMillis = 80,
+					),
+			)
+
+		assertThat(timeline.unaccountedMillis).isEqualTo(200)
+		assertThat(timeline.accountedMillis).isEqualTo(520)
+	}
+
+	@Test
+	fun `a relink route accounts through the relink span, not through stage`() {
+		// A resources-only build never marks compileDone, so its relink lands in
+		// compileMillis rather than stageMillis. The accounting must not care which side of
+		// that boundary the work fell on - only that a span measured it.
+		val resourcesOnly =
+			E2eTimeline(
+				generation = 8,
+				trigger = 1_000,
+				compileDone = 1_650,
+				deploySent = 1_650,
+				reloadLive = 1_720,
+				spans = E2eTimeline.HostSpans(relinkRpcMillis = 650),
+			)
+
+		assertThat(resourcesOnly.stageMillis).isEqualTo(0)
+		assertThat(resourcesOnly.compileMillis).isEqualTo(650)
+		assertThat(resourcesOnly.unaccountedMillis).isEqualTo(0)
+	}
+
+	@Test
+	fun `daemon-internal step timings never count toward the accounted total`() {
+		// kotlin/javac/strip/d8 and the snapshot phases run INSIDE the compile and dex RPCs.
+		// Adding them would double-count and drive the residual negative, hiding a real gap.
+		val timeline =
+			sample.copy(
+				spans =
+					E2eTimeline.HostSpans(
+						scanMillis = 40,
+						compileRpcMillis = 500,
+						policyMillis = 30,
+						dexRpcMillis = 80,
+					),
+				steps =
+					E2eTimeline.StepTimings(
+						kotlinMillis = 300,
+						javaMillis = 100,
+						stripMillis = 40,
+						d8Millis = 35,
+						preSnapMillis = 20,
+						postSnapMillis = 25,
+						javaAbiSnapMillis = 50,
+					),
+			)
+
+		assertThat(timeline.accountedMillis).isEqualTo(720)
+		assertThat(timeline.unaccountedMillis).isEqualTo(0)
+	}
+
+	@Test
+	fun `no measured spans claims no residual`() {
+		// A pre-instrumentation daemon measures nothing. Reporting the whole build as
+		// "unaccounted" would be a false alarm, not an honest gap.
+		assertThat(sample.spans).isNull()
+		assertThat(sample.unaccountedMillis).isEqualTo(0)
+		assertThat(sample.accountedMillis).isEqualTo(70)
+	}
+
+	@Test
+	fun `walkMillis sums the two output-tree snapshots and stays null when neither ran`() {
+		assertThat(E2eTimeline.StepTimings(preSnapMillis = 120, postSnapMillis = 130).walkMillis)
+			.isEqualTo(250)
+		assertThat(E2eTimeline.StepTimings(preSnapMillis = 120).walkMillis).isEqualTo(120)
+		assertThat(E2eTimeline.StepTimings(kotlinMillis = 5).walkMillis).isNull()
+	}
+
+	@Test
+	fun `the new groups are absent-aware so an unreported group stays null`() {
+		assertThat(E2eTimeline.HostSpans().isEmpty()).isTrue()
+		assertThat(E2eTimeline.HostSpans(scanMillis = 1).isEmpty()).isFalse()
+		assertThat(E2eTimeline.BuildCounts().isEmpty()).isTrue()
+		assertThat(E2eTimeline.BuildCounts(compileOrdinal = 1).isEmpty()).isFalse()
+		assertThat(E2eTimeline.StepTimings().isEmpty()).isTrue()
+		assertThat(E2eTimeline.StepTimings(javaAbiSnapMillis = 1).isEmpty()).isFalse()
+	}
+
+	@Test
+	fun `the five-stamp log line stays frozen as the new fields arrive`() {
+		// The harness greps this line; adding telemetry must not change it.
+		val rich =
+			sample.copy(
+				spans = E2eTimeline.HostSpans(scanMillis = 40),
+				counts = E2eTimeline.BuildCounts(allSources = 292, compileOrdinal = 2),
+				scratchFsType = "fuse",
+			)
+		assertThat(rich.format()).isEqualTo(sample.format())
+	}
 }

@@ -1,5 +1,7 @@
 package org.appdevforall.cotg.quickbuild.data
 
+import org.appdevforall.cotg.quickbuild.daemon.protocol.CompileStats
+import org.appdevforall.cotg.quickbuild.daemon.protocol.DexStats
 import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
 import java.io.File
 
@@ -15,6 +17,19 @@ import java.io.File
 interface QuickBuildDaemon {
 	/** True while the daemon process is alive and configured. */
 	val isRunning: Boolean
+
+	/**
+	 * Filesystem type of the daemon's scratch tree (`ext4`, `f2fs`, `fuse`, ...) as the
+	 * daemon reported it at `configure`; null before a successful configure, or from a
+	 * daemon predating the field. Session-constant, so it is read once per build rather
+	 * than threaded through every reply.
+	 *
+	 * It travels with the build timing because it is the strongest single predictor of
+	 * that timing - the daemon's per-file work costs ~52x more on Android's FUSE-backed
+	 * emulated storage than on the app's own filesystem (ADFA-4128 deep-dive).
+	 */
+	val scratchFsType: String?
+		get() = null
 
 	/**
 	 * Spawn (or respawn) the daemon process and send `configure`. A running daemon is
@@ -76,22 +91,29 @@ interface QuickBuildDaemon {
  * @property kotlinMillis wall time of the daemon's Kotlin pass; null when unreported
  *   (a pre-timing daemon). Same null convention for every step-timing field below.
  * @property javaMillis wall time of the daemon's javac pass.
+ * @property stats the phases [kotlinMillis]/[javaMillis] do not cover (output-tree
+ *   snapshots, the Java-ABI re-parse) plus this build's counts; null from a daemon that
+ *   predates them.
  */
 data class CompileOutput(
 	val classesDir: File,
 	val changedClassFiles: List<String>?,
 	val kotlinMillis: Long? = null,
 	val javaMillis: Long? = null,
+	val stats: CompileStats? = null,
 )
 
 /**
  * A successful `dex` op's output: the produced `classes.dex` plus the daemon's step
  * timings (null when unreported by a pre-timing daemon).
+ *
+ * @property stats how many classes / bytes the pass moved; null when unreported.
  */
 data class DexOutput(
 	val dexFile: File,
 	val stripMillis: Long? = null,
 	val d8Millis: Long? = null,
+	val stats: DexStats? = null,
 )
 
 /**

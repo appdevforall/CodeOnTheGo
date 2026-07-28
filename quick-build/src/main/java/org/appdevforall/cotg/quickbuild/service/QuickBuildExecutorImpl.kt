@@ -3,6 +3,8 @@ package org.appdevforall.cotg.quickbuild.service
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import kotlinx.coroutines.CancellationException
+import org.appdevforall.cotg.quickbuild.daemon.protocol.CompileStats
+import org.appdevforall.cotg.quickbuild.daemon.protocol.DexStats
 import org.appdevforall.cotg.quickbuild.data.AssetPackager
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
@@ -150,7 +152,7 @@ class QuickBuildExecutorImpl(
 
 	private suspend fun executeInner(request: BuildRequest): BuildOutcome {
 		val startedAt = clock()
-		val timeline = Timeline(request.triggeredAtMillis)
+		val timeline = Timeline(request.triggeredAtMillis) { daemon.scratchFsType }
 
 		if (request.route is BuildRoute.Seed) {
 			// Background IC seed: compile + dex everything once (kotlinc JIT, classpath
@@ -286,7 +288,13 @@ class QuickBuildExecutorImpl(
 		changes: ChangedFiles,
 		timeline: Timeline,
 	): Step {
+		// One clock read per step BOUNDARY, not per step: the spans then abut exactly, so
+		// they partition [scanStartedAt, dexDoneAt] with no gap of their own making. Any
+		// residual left over is real un-timed work, which is the whole point.
+		val scanStartedAt = clock()
 		val allSources = layout.allSources()
+		val scanDoneAt = clock()
+		timeline.recordScan(scanDoneAt - scanStartedAt)
 		val changedSources =
 			when (changes) {
 				ChangedFiles.Unknown -> {
@@ -311,30 +319,38 @@ class QuickBuildExecutorImpl(
 				}
 			}
 
+		val compileReply = daemon.compile(allSources, changedSources, removedSources)
+		val compileDoneAt = clock()
+		timeline.recordCompileRpc(compileDoneAt - scanDoneAt)
 		val compiled =
-			when (val reply = daemon.compile(allSources, changedSources, removedSources)) {
+			when (compileReply) {
 				is DaemonReply.Ok -> {
-					reply.value
+					compileReply.value
 				}
 
 				is DaemonReply.BuildFailed -> {
-					return Step.Fail(BuildOutcome.CompileError(reply.diagnostics))
+					return Step.Fail(BuildOutcome.CompileError(compileReply.diagnostics))
 				}
 
 				is DaemonReply.Failed -> {
-					return Step.Fail(BuildOutcome.InfrastructureFailure(reply.message, reply.daemonDied))
+					return Step.Fail(BuildOutcome.InfrastructureFailure(compileReply.message, compileReply.daemonDied))
 				}
 			}
-		timeline.recordCompileSteps(compiled.kotlinMillis, compiled.javaMillis)
+		timeline.recordCompileSteps(compiled.kotlinMillis, compiled.javaMillis, compiled.stats)
 
 		val decision = decideDeploy(compiled.classesDir, compiled.changedClassFiles)
+		val policyDoneAt = clock()
+		timeline.recordPolicy(policyDoneAt - compileDoneAt)
 
-		return when (val reply = daemon.dex(listOfNotNull(compiled.classesDir, proxyClassesDir))) {
+		val dexReply = daemon.dex(listOfNotNull(compiled.classesDir, proxyClassesDir))
+		val dexDoneAt = clock()
+		timeline.recordDexRpc(dexDoneAt - policyDoneAt)
+		return when (val reply = dexReply) {
 			is DaemonReply.Ok -> {
 				// t1: classes are compiled + dexed (the deployable dex exists). On-device
 				// dexing dominates the build, so it belongs inside compileMillis, not after.
-				timeline.markCompileDone(clock())
-				timeline.recordDexSteps(reply.value.stripMillis, reply.value.d8Millis)
+				timeline.markCompileDone(dexDoneAt)
+				timeline.recordDexSteps(reply.value.stripMillis, reply.value.d8Millis, reply.value.stats)
 				Step.Ok(reply.value.dexFile, decision)
 			}
 
@@ -365,18 +381,19 @@ class QuickBuildExecutorImpl(
 		return policy.decide(changedClassFiles)
 	}
 
-	private suspend fun relink(timeline: Timeline): Step =
-		when (
-			val reply =
-				daemon.relink(
-					RelinkInputs(
-						resDirs = layout.resDirs(),
-						manifest = testAppManifest ?: layout.manifest(),
-						stableIdsFile = layout.stableIdsFile(),
-						libraryResources = layout.libraryResourceFlats(),
-					),
-				)
-		) {
+	private suspend fun relink(timeline: Timeline): Step {
+		val startedAt = clock()
+		val reply =
+			daemon.relink(
+				RelinkInputs(
+					resDirs = layout.resDirs(),
+					manifest = testAppManifest ?: layout.manifest(),
+					stableIdsFile = layout.stableIdsFile(),
+					libraryResources = layout.libraryResourceFlats(),
+				),
+			)
+		timeline.recordRelinkRpc(clock() - startedAt)
+		return when (reply) {
 			is DaemonReply.Ok -> {
 				timeline.recordRelinkSteps(reply.value.aapt2CompileMillis, reply.value.aapt2LinkMillis)
 				Step.Ok(reply.value.resourceApk, DeployDecision.Recreate)
@@ -392,6 +409,7 @@ class QuickBuildExecutorImpl(
 				Step.Fail(BuildOutcome.InfrastructureFailure(reply.message, reply.daemonDied))
 			}
 		}
+	}
 
 	/** Dispatches a code-bearing deploy on the policy's decision. */
 	private suspend fun deployDecided(
@@ -618,10 +636,13 @@ class QuickBuildExecutorImpl(
 	 */
 	private class Timeline(
 		private val trigger: Long,
+		private val scratchFsType: () -> String?,
 	) {
 		private var compileDone: Long? = null
 		private var deploySent: Long = trigger
 		private var steps = E2eTimeline.StepTimings()
+		private var spans = E2eTimeline.HostSpans()
+		private var counts = E2eTimeline.BuildCounts()
 
 		fun markCompileDone(now: Long) {
 			compileDone = now
@@ -631,18 +652,56 @@ class QuickBuildExecutorImpl(
 			deploySent = now
 		}
 
+		fun recordScan(millis: Long) {
+			spans = spans.copy(scanMillis = millis)
+		}
+
+		fun recordCompileRpc(millis: Long) {
+			spans = spans.copy(compileRpcMillis = millis)
+		}
+
+		fun recordPolicy(millis: Long) {
+			spans = spans.copy(policyMillis = millis)
+		}
+
+		fun recordDexRpc(millis: Long) {
+			spans = spans.copy(dexRpcMillis = millis)
+		}
+
+		fun recordRelinkRpc(millis: Long) {
+			spans = spans.copy(relinkRpcMillis = millis)
+		}
+
 		fun recordCompileSteps(
 			kotlinMillis: Long?,
 			javaMillis: Long?,
+			stats: CompileStats?,
 		) {
-			steps = steps.copy(kotlinMillis = kotlinMillis, javaMillis = javaMillis)
+			steps =
+				steps.copy(
+					kotlinMillis = kotlinMillis,
+					javaMillis = javaMillis,
+					preSnapMillis = stats?.preSnapMillis,
+					postSnapMillis = stats?.postSnapMillis,
+					javaAbiSnapMillis = stats?.javaAbiSnapMillis,
+				)
+			counts =
+				counts.copy(
+					allSources = stats?.allSources,
+					kotlinCompiled = stats?.kotlinToCompile,
+					javaSources = stats?.javaSources,
+					changedClasses = stats?.changedClasses,
+					compileOrdinal = stats?.compileOrdinal,
+				)
 		}
 
 		fun recordDexSteps(
 			stripMillis: Long?,
 			d8Millis: Long?,
+			stats: DexStats?,
 		) {
 			steps = steps.copy(stripMillis = stripMillis, d8Millis = d8Millis)
+			counts = counts.copy(classFiles = stats?.classFiles, classBytes = stats?.classBytes)
 		}
 
 		fun recordRelinkSteps(
@@ -663,6 +722,9 @@ class QuickBuildExecutorImpl(
 				deploySent = deploySent,
 				reloadLive = reloadLive,
 				steps = steps.takeUnless { it.isEmpty() },
+				spans = spans.takeUnless { it.isEmpty() },
+				counts = counts.takeUnless { it.isEmpty() },
+				scratchFsType = scratchFsType(),
 			)
 	}
 
