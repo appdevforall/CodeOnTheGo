@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.kotlin.actions
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.get
 import com.itsaky.androidide.actions.requireFile
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
@@ -22,10 +23,13 @@ import java.nio.file.Path
 
 class OrganizeImportsAction : BaseKotlinCodeAction() {
 	override var titleTextRes: Int = R.string.action_organize_imports
-	override val id: String = "ide.editor.lsp.kt.organizeImports"
+	override val id: String = ID
 	override var label: String = ""
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS
 
 	companion object {
+		const val ID = "ide.editor.lsp.kt.organizeImports"
+
 		private val logger = LoggerFactory.getLogger(OrganizeImportsAction::class.java)
 	}
 
