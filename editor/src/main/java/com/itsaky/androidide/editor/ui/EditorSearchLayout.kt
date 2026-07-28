@@ -26,7 +26,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.PopupMenu
 import android.widget.PopupWindow
@@ -39,6 +38,7 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.resources.databinding.SearchOptionsPopupMenuBinding
+import com.itsaky.androidide.utils.KeyboardUtils
 import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashInfo
@@ -282,8 +282,7 @@ class EditorSearchLayout(
 	private fun onSearchActionClick(v: View) {
 		val searcher = editor.searcher
 		if (v.id == findInFileBinding.close.id) {
-			val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-			imm?.hideSoftInputFromWindow(findInFileBinding.searchInput.windowToken, 0)
+			KeyboardUtils.hideSoftInput(findInFileBinding.searchInput)
 			if (this.searchInputTextWatcher == null) {
 				return
 			}

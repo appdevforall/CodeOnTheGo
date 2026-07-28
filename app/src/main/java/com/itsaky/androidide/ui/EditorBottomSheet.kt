@@ -238,7 +238,13 @@ class EditorBottomSheet
 							}
 						} finally {
 							if (isAttachedToWindow) {
-								val isCurrentEmpty = (fragment as? EmptyStateFragment<*>)?.isEmpty == true
+								// The share job is still active while its own finally runs, so it must be
+								// cleared first or updateActionButtonsEnabledState would keep the share and
+								// clear actions disabled. Also re-read the current tab: it may have changed
+								// since the share started.
+								shareJob = null
+								val current = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
+								val isCurrentEmpty = (current as? EmptyStateFragment<*>)?.isEmpty == true
 								updateActionButtonsEnabledState(isEmpty = isCurrentEmpty)
 							}
 						}

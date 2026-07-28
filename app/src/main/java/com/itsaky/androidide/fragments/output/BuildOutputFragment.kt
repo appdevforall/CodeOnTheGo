@@ -62,8 +62,11 @@ class BuildOutputFragment :
 	private val editorContentMutex = Mutex()
 
 	private var editorContentGeneration = 0
-	private var wasLastFilteredResultEmpty = false
-	private var hasInitialContentRendered = false
+	private val noMatchTracker = FilterNoMatchTracker()
+
+	// Reads view state (bar visibility), so evaluate it on the main thread.
+	private val isFilterActive: Boolean
+		get() = buildOutputViewModel.filterText.value.isNotEmpty() || filterBar?.isVisible == true
 
 	override fun onViewCreated(
 		view: View,
@@ -101,20 +104,9 @@ class BuildOutputFragment :
 			withContext(Dispatchers.Main) {
 				editor?.setText(filtered)
 				val isSourceEmpty = window.isBlank()
-				val isFilteredEmpty = filtered.isBlank()
-				val isFilterActive = buildOutputViewModel.filterText.value.isNotEmpty() || filterBar != null
 				updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
-
-				if (!hasInitialContentRendered) {
-					hasInitialContentRendered = true
-					wasLastFilteredResultEmpty = isFilteredEmpty
-				} else if (!isSourceEmpty && isFilteredEmpty) {
-					if (!wasLastFilteredResultEmpty) {
-						flashInfo(R.string.msg_no_filter_matches)
-					}
-					wasLastFilteredResultEmpty = true
-				} else {
-					wasLastFilteredResultEmpty = false
+				if (noMatchTracker.onRender(isSourceEmpty = isSourceEmpty, isFilteredEmpty = filtered.isBlank())) {
+					flashInfo(R.string.msg_no_filter_matches)
 				}
 				onContentReplaced()
 			}
@@ -169,6 +161,13 @@ class BuildOutputFragment :
 			showLevelChips = false,
 			initialText = buildOutputViewModel.filterText.value,
 			initialLevels = LogFilter.ALL_LEVELS,
+			onVisibilityChanged = {
+				// The cached snapshot is an O(1) stand-in for the session file's emptiness.
+				updateEmptyState(
+					isSourceEmpty = buildOutputViewModel.getCachedContentSnapshot().isEmpty(),
+					isFilterActive = isFilterActive,
+				)
+			},
 		) { _, text ->
 			buildOutputViewModel.filterText.value = text.trim()
 		}.also { filterBar = it }
@@ -180,12 +179,10 @@ class BuildOutputFragment :
 		val content = BuildOutputViewModel.filterLines(window, query)
 		val isSourceEmpty = window.isBlank()
 		val isFilteredEmpty = content.isBlank()
-		val isFilterActive = query.isNotEmpty() || filterBar != null
 
 		withContext(Dispatchers.Main) {
 			updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
-			hasInitialContentRendered = true
-			wasLastFilteredResultEmpty = isFilteredEmpty
+			noMatchTracker.prime(isFilteredEmpty)
 			if (!isSourceEmpty && isFilteredEmpty) {
 				editor?.setText("")
 				onContentReplaced()
@@ -234,10 +231,12 @@ class BuildOutputFragment :
 		// Avoid forcing the activityViewModels lazy init (which calls requireActivity())
 		// when the fragment is detached, otherwise an IllegalStateException is thrown.
 		if (!isAdded || activity == null) return
-		wasLastFilteredResultEmpty = false
-		hasInitialContentRendered = false
+		noMatchTracker.reset()
 		buildOutputViewModel.clear()
 		super.clearOutput()
+		// super sets the empty state unconditionally; re-apply the invariant so an
+		// active filter keeps the content layout (and the filter bar) reachable.
+		updateEmptyState(isSourceEmpty = true, isFilterActive = isFilterActive)
 	}
 
 	/** Returns the shareable build output, or an empty string when the fragment is detached. */
@@ -309,19 +308,16 @@ class BuildOutputFragment :
 	private suspend fun flushToEditor(text: String) {
 		editorContentMutex.withLock {
 			buildOutputViewModel.append(text)
-			val isFilterActive = buildOutputViewModel.filterText.value.isNotEmpty() || filterBar != null
-			withContext(Dispatchers.Main) {
-				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
-			}
 
 			// The session file always gets the full text; the editor only shows matching lines
 			val visibleText =
 				BuildOutputViewModel.filterLines(text, buildOutputViewModel.filterText.value)
-			if (visibleText.isEmpty()) {
-				return
-			}
 
 			withContext(Dispatchers.Main) {
+				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+				if (visibleText.isEmpty()) {
+					return@withContext
+				}
 				editor?.run {
 					val layoutCompleted =
 						withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {

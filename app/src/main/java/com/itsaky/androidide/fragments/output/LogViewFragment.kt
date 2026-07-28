@@ -131,6 +131,9 @@ abstract class LogViewFragment<V : LogViewModel> :
 			showLevelChips = true,
 			initialText = currentFilter.text,
 			initialLevels = currentFilter.enabledLevels,
+			onVisibilityChanged = {
+				updateEmptyState(isSourceEmpty = viewModel.isBufferEmpty, isFilterActive = isFilterActive)
+			},
 		) { levels, text ->
 			viewModel.setFilter(LogFilter(levels, text.trim()))
 		}.also { filterBar = it }
@@ -142,15 +145,18 @@ abstract class LogViewFragment<V : LogViewModel> :
 		return "${BasicBuildInfo.shareableBuildInfo()}${System.lineSeparator()}$logText"
 	}
 
-	private var wasLastFilteredResultEmpty = false
-	private var hasInitialContentRendered = false
+	private val noMatchTracker = FilterNoMatchTracker()
+
+	// Reads view state (bar visibility), so evaluate it on the main thread.
+	private val isFilterActive: Boolean
+		get() = viewModel.filter.value != LogFilter.NONE || filterBar?.isVisible == true
 
 	override fun clearOutput() {
-		wasLastFilteredResultEmpty = false
-		hasInitialContentRendered = false
+		noMatchTracker.reset()
 		viewModel.clear()
 		_binding?.editor?.setText("")?.also {
-			emptyStateViewModel.setEmpty(true)
+			// An active filter keeps the content layout (and the filter bar) reachable.
+			updateEmptyState(isSourceEmpty = true, isFilterActive = isFilterActive)
 		}
 	}
 
@@ -264,20 +270,9 @@ abstract class LogViewFragment<V : LogViewModel> :
 		val editor = _binding?.editor ?: return
 		editor.setText(text)
 		val isSourceEmpty = viewModel.isBufferEmpty
-		val isFilteredEmpty = text.isBlank()
-		val isFilterActive = viewModel.filter.value != LogFilter.NONE || filterBar != null
 		updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
-
-		if (!hasInitialContentRendered) {
-			hasInitialContentRendered = true
-			wasLastFilteredResultEmpty = isFilteredEmpty
-		} else if (!isSourceEmpty && isFilteredEmpty) {
-			if (!wasLastFilteredResultEmpty) {
-				flashInfo(R.string.msg_no_filter_matches)
-			}
-			wasLastFilteredResultEmpty = true
-		} else {
-			wasLastFilteredResultEmpty = false
+		if (noMatchTracker.onRender(isSourceEmpty = isSourceEmpty, isFilteredEmpty = text.isBlank())) {
+			flashInfo(R.string.msg_no_filter_matches)
 		}
 		onContentReplaced()
 	}
