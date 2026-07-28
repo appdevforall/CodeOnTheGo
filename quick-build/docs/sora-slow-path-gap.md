@@ -69,6 +69,12 @@ faster" effect.
 
 ## The mechanism
 
+The filesystem side of this is a CoGo-wide property, not a Quick Build one —
+see [`docs/on-device-storage-performance.md`](../../docs/on-device-storage-performance.md)
+for the mechanism, where every CoGo component stores its data, and the open
+question about project `build/` directories.
+
+
 `QuickBuildSessionManager.daemonConfig` sets
 `outDir = File(layout.projectRoot, ".androidide/quickbuild/out")`, and
 `layout.projectRoot` is under `/storage/emulated/0/CodeOnTheGoProjects/`. So
