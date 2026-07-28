@@ -1,7 +1,7 @@
 # Why Quick Build was slower than a standard build on sora-editor-full
 
-Status: root-caused and measured 2026-07-28. The top fix is **not committed** — see
-"Fix 1" for what shipping it responsibly still needs.
+Status: root-caused and measured 2026-07-28. The fix is **not committed** — what
+shipping it needs is item 1 of [`perf-roadmap.md`](perf-roadmap.md).
 
 Provenance tags are mandatory: `[measured on a56]`, `[measured on c107]`,
 `[measured on host]`, `[inferred]`. Untagged prose is code reading.
@@ -19,15 +19,16 @@ every save; Gradle, rewriting only what changed, does not.
 
 Moving the scratch tree to app-private storage cuts a warm sora edit
 **14.7 s -> 8.1 s (-45%)** and `medium-kotlin` **2.5 s -> 1.4 s (-45%)**. Against
-the 11.9 s standard incremental build, Quick Build goes from **0.81x (losing) to
-1.45x (winning)** `[measured on a56, n=2 sora / n=1 medium]`.
+the 11.9 s standard incremental build, sora's Java body edit goes from **0.81x
+(losing) to 1.47x (winning)** `[measured on a56, n=2 sora / n=1 medium]`.
 
 **And the famous "53 s" was never a per-edit cost.** Both 53 s figures are *edit
 index 1* — the session's first build. That session's first warm edit was 16.5 s.
 On today's build the equivalent full build still costs ~51 s but runs as a
-background Seed during provisioning, before the user can save; the first
-user-visible edit is now **8.2 s** `[measured on a56]`. The framing that started
-this investigation compared a cold build against a warm one.
+background Seed during provisioning, before the user can save. The first
+user-visible edit then measures **14.7 s** on today's shipping build, and
+**8.2 s** with the storage fix `[measured on a56]`. The framing that started this
+investigation compared a cold build against a warm one.
 
 ## The measured breakdown
 
@@ -69,28 +70,22 @@ faster" effect.
 
 ## The mechanism
 
-The filesystem side of this is a CoGo-wide property, not a Quick Build one —
-see [`docs/on-device-storage-performance.md`](../../docs/on-device-storage-performance.md)
-for the mechanism, where every CoGo component stores its data, and the open
-question about project `build/` directories.
-
-
 `QuickBuildSessionManager.daemonConfig` sets
 `outDir = File(layout.projectRoot, ".androidide/quickbuild/out")`, and
 `layout.projectRoot` is under `/storage/emulated/0/CodeOnTheGoProjects/`. So
 `classes/`, `ic/`, `cp-snap/`, `opened-classes/` and `dex/` all sit on emulated
 storage — a FUSE view where every open/write/mkdir is a userspace round trip.
-
-Same 464 files / 1.46 MB / 40 dirs, `cp -r`, best of 3 `[measured on a56]`:
-
-| filesystem | time |
-|---|---|
-| `/data/local/tmp` (app-side ext4/f2fs) | **192 ms** |
-| `/storage/emulated/0` (emulated, FUSE) | **9985 ms** |
+The same 464 files / 1.46 MB / 40 dirs copy in **192 ms** on `/data/local/tmp`
+and **9985 ms** on `/storage/emulated/0` `[measured on a56]`.
 
 `DexTool.openClasses` `deleteRecursively()`s the strip mirror and rewrites every
 class — changed or not — once per build, which is why strip alone was 4.7-5.5 s.
 The deploy policy and both tree walks pay the same tax on reads.
+
+This filesystem property is CoGo-wide, not a Quick Build one — the mechanism,
+where every CoGo component stores its data, and the open question about project
+`build/` directories are in
+[`docs/on-device-storage-performance.md`](../../docs/on-device-storage-performance.md).
 
 ## Why Quick Build lost to Gradle, in order of size
 
@@ -105,7 +100,11 @@ The deploy policy and both tree walks pay the same tax on reads.
 4. For `03-java-abi-change` only: a moved Java ABI forces a full 74-file Kotlin
    recompile (14.9 s), by the deliberately blunt rule in
    `IncrementalCompiler.kotlinFilesToCompile`. This edit stays below 1x even
-   after fix 1.
+   after the storage fix.
+
+The sequenced fixes, with effort, risk and the test that proves each, are in
+[`perf-roadmap.md`](perf-roadmap.md). So is the still-open c107 residual, which
+these A56 numbers do **not** explain.
 
 ## Two hypotheses this killed
 
@@ -119,7 +118,7 @@ were wrong:
 - **"Non-incremental dexing is the dominant cost."** Half right. Dex *is* 48-60%
   of the edit, but most of that was the strip pass's file I/O, not dexing
   compute — strip fell 20x when only the filesystem changed. d8 itself remains
-  3.7-3.9 s of the post-fix 8.1 s, which is fix 3, not fix 1.
+  3.7-3.9 s of the post-fix 8.1 s.
 
 ## Correction to `incremental-javac-design.md`
 
@@ -137,57 +136,11 @@ Its premise is half right and its framing is wrong.
 - Its device-scaling factor was also off: it inferred ~40x host from 4-file c107
   rows; the A56 measures **7-14x** at N=218 `[inferred]`.
 
-Its options A+B remain worth doing — they are just fix 2, not fix 1.
-
-## Ranked fixes
-
-1. **Move the daemon scratch tree off emulated storage.** Measured **-45%** on
-   every warm sora edit and on medium-kotlin. Largest payoff, smallest diff (the
-   experiment was 8 lines). **Not committed**, because shipping it needs three
-   things this session did not build: a cleanup policy for stale per-project work
-   dirs (they would otherwise accumulate in app-private storage forever, which
-   matters on the 1.5 GB tier), a check of the rebaseline/teardown paths that may
-   assume the out dir sits under the project root, and unit tests. The
-   experimental patch keyed a scratch dir on `hashCode()` of the project path —
-   good enough to measure, not to ship.
-2. **Incremental javac** (the design note's options A + B). 2.1-4.2 s per edit,
-   ~30% of what remains after fix 1.
-3. **Incremental dexing.** 2.1-4.6 s per edit — the largest remaining item on a
-   Java body edit after fix 1 (3.7-3.9 s of 8.1 s). D8 supports per-class output
-   plus a merge step. Needs care about merge correctness under the never-stale
-   invariant.
-4. **Narrow the "Java ABI moved -> recompile all Kotlin" rule.** 14.9 s of the
-   22.9 s ABI-change edit; moves only that edit class, but it is the worst one
-   left.
-5. **Stop re-stripping unchanged classes.** Largely subsumed by fix 1 (strip
-   falls to 0.17-0.33 s off emulated storage), but still the right shape: strip
-   is a pure function of the input bytes.
+Its options A+B remain worth doing — they are just the roadmap's item 2, not
+item 1.
 
 Incidental: **daemon IPC is free** — host-observed RPC minus daemon-observed
 duration is 20-60 ms on multi-second calls `[measured on a56]`.
-
-## Still open on the c107
-
-The A56 numbers do **not** explain the c107. On the A56 the four shipped fields
-plus the four added ones account for 91% of a warm sora edit (residual ~1.35 s of
-14.7 s, all of it scan + tree walks + deploy policy) `[measured on a56]`. But the
-c107's `medium-kotlin` row leaves **52%** of `compileMs` unattributed, and the
-c107 got *worse* across a session (188 s then 236 s) where the A56 got better
-(53.6 s then 16.5 s). Something is happening there that is absent here.
-
-The leading candidate is JVM heap. The daemon spawns as plain
-`java -jar daemon.jar` — no `-Xmx`, no `MaxMetaspaceSize` — and
-`DaemonProcessClient` clears the inherited environment, so `JAVA_TOOL_OPTIONS`
-cannot supply them either. The JVM therefore picks ergonomic defaults from
-physical RAM: on the A56 that measures **MaxHeapSize 1.81 GB, G1, metaspace
-unlimited** `[measured on a56]`. The same ergonomics on a ~2 GB device give
-roughly a quarter of that `[inferred]`, against a workload (kotlinc + its
-incremental caches + ASM over 464 classes + d8) that comfortably fits 1.8 GB and
-grows as a session accumulates state — which fits a slowdown that compounds
-edit over edit rather than a constant tax.
-
-That is a hypothesis, not a finding. It falls to a single c107 run: log GC time
-and heap high-water from the daemon, or set an explicit `-Xmx` and re-measure.
 
 ## The analytics lesson
 
@@ -197,7 +150,7 @@ half. That is how a careful design note reached a wrong conclusion from real
 device data. The durable fix is not more fields but an explicit **unaccounted
 residual** in the analytics event: when a future change adds an expensive
 un-timed step, the residual grows and the next reader sees it instead of
-misattributing the cost. Tracked separately; see the analytics task.
+misattributing the cost.
 
 ## Limits of these numbers
 
@@ -209,12 +162,13 @@ misattributing the cost. Tracked separately; see the analytics task.
 - The 11909 ms standard-build reference was measured 2026-07-25 on CoGo
   `C-d-0725-0049`; it is a cross-version comparison.
 - A56 only. The c107 is 4-13x slower and was not re-measured; the filesystem
-  finding should be expected to reproduce there but is `[inferred]` until run,
-  and it does not explain the c107's separate residual (see "Still open").
+  finding should be expected to reproduce there but is `[inferred]` until run.
 
 ## Scope note
 
-This was never a v1 blocker: on the same A56, Quick Build is a median **2.5x
-faster** than an incremental standard build across 21 apps `[measured on a56]`.
-Fix 1 widens the set of projects Quick Build helps — and, being a ~45% win on
-*every* app measured including the small one, it is not just a large-project fix.
+This was never a v1 blocker: on the same A56, Quick Build is a median **~2.3x**
+faster than an incremental standard build across 21 apps `[measured on a56]` —
+see [`benchmarking.md`](benchmarking.md) for why that per-app reading is the one
+to quote. The storage fix widens the set of projects Quick Build helps, and being
+a ~45% win on *every* app measured including the small one, it is not just a
+large-project fix.
