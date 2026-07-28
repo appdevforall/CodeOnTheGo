@@ -86,10 +86,12 @@ enum class InvalidationReason {
 
 	/**
 	 * A rebaseline built a good APK but its OS install-confirmation was never given
-	 * (dialog left untapped until the installer's timeout). The baseline is still
-	 * stale - the session parks in `Invalidated(awaitingRetry = true)` and the next
-	 * Quick Build tap re-runs the rebaseline, which re-prompts. Unlike the other
-	 * reasons this one is not detected from a file change; the session manager
+	 * (dialog left untapped until the installer's timeout - or, with CoGo backgrounded,
+	 * never even shown: Android does not deliver the PENDING_USER_ACTION broadcast to a
+	 * backgrounded app). The baseline is still stale - the session parks in
+	 * `Invalidated(awaitingRetry = true)` and the next Quick Build tap OR CoGo's next
+	 * return to the foreground re-runs the rebaseline, which re-prompts. Unlike the
+	 * other reasons this one is not detected from a file change; the session manager
 	 * raises it itself on `RebaselineOutcome.InstallNotConfirmed`.
 	 */
 	INSTALL_NOT_CONFIRMED,

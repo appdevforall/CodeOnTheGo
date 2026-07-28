@@ -254,6 +254,20 @@ class QuickBuildSessionManager(
 	}
 
 	/**
+	 * Call when CoGo's editor returns to the foreground. Recovers the one park that a
+	 * tap cannot be expected to fix unprompted: a rebaseline whose reinstall timed out
+	 * while CoGo was BACKGROUNDED never showed a confirm dialog at all (Android does not
+	 * deliver the PENDING_USER_ACTION broadcast to a backgrounded app), so the user saw
+	 * nothing fail. Re-running the rebaseline now - with CoGo foreground - makes the
+	 * prompt actually appear. Dispatch is a no-op in every state except
+	 * [QuickBuildSessionState.Invalidated] with `awaitingRetry = true`, so calling this
+	 * from every editor onResume is safe and cheap.
+	 */
+	fun onHostForegrounded() {
+		scope.launch { dispatch(SessionEvent.HostForegrounded) }
+	}
+
+	/**
 	 * Eager warm-up (plan B2): call at project open, AFTER the normal Gradle sync
 	 * completes, with the experimental flag on. Runs the setup build in the background
 	 * so the first tap pays only install + bind; installs nothing. No-op unless Idle.

@@ -51,8 +51,8 @@ sealed interface QuickBuildSessionState {
 	 * The baseline is stale (manifest/gradle/external build); needs a full Gradle build.
 	 * [awaitingRetry] true = the rebaseline already ran but its reinstall was never
 	 * confirmed ([SessionEvent.RebaselineInstallNotConfirmed]); no rebaseline is in
-	 * flight, and the next Quick Build tap retries it (re-prompting the install)
-	 * instead of the session having died to [Idle].
+	 * flight, and the next Quick Build tap or [SessionEvent.HostForegrounded] retries
+	 * it (re-prompting the install) instead of the session having died to [Idle].
 	 */
 	data class Invalidated(
 		val reason: InvalidationReason,
@@ -134,12 +134,25 @@ sealed interface SessionEvent {
 	 * The rebaseline's Gradle build succeeded but the test-app reinstall was never
 	 * confirmed (install dialog left untapped until the installer timed out). The
 	 * session is NOT dead: it parks in [QuickBuildSessionState.Invalidated] with
-	 * `awaitingRetry = true`, where the next Quick Build tap re-runs the rebaseline
-	 * and re-prompts. [deployedGeneration] is the generation the test app still runs.
+	 * `awaitingRetry = true`, where the next Quick Build tap or [HostForegrounded]
+	 * re-runs the rebaseline and re-prompts. [deployedGeneration] is the generation
+	 * the test app still runs.
 	 */
 	data class RebaselineInstallNotConfirmed(
 		val deployedGeneration: Long,
 	) : SessionEvent
+
+	/**
+	 * CoGo's editor came (back) to the foreground. Only meaningful to a session parked
+	 * in [QuickBuildSessionState.Invalidated] with `awaitingRetry = true`: when the
+	 * unconfirmed reinstall timed out while CoGo was BACKGROUNDED (e.g. the user was in
+	 * the test app), the OS never even delivered the PENDING_USER_ACTION broadcast, so
+	 * no confirm dialog appeared and there was nothing to tap. Re-prompting the moment
+	 * the user returns is the recovery for that case - re-running the rebaseline now
+	 * (with CoGo foreground) makes the dialog actually appear. Every other state
+	 * ignores this event.
+	 */
+	data object HostForegrounded : SessionEvent
 
 	/**
 	 * A full Gradle build ran OUTSIDE the session (a Standard Run) and completed. The
@@ -426,17 +439,21 @@ class SessionReducer {
 				SessionTransition(QuickBuildSessionState.Provisioning)
 			}
 
-			SessionEvent.QuickBuildTapped -> {
+			SessionEvent.QuickBuildTapped, SessionEvent.HostForegrounded -> {
 				if (state.awaitingRetry) {
 					// Retry the parked rebaseline (its reinstall was never confirmed).
-					// awaitingRetry drops immediately so a second tap before
+					// HostForegrounded is a retry trigger too: when the timeout hit with
+					// CoGo backgrounded, the confirm dialog never appeared at all (the
+					// PENDING_USER_ACTION broadcast is not delivered to a backgrounded
+					// app), so the user's return IS the first chance to re-prompt.
+					// awaitingRetry drops immediately so a second trigger before
 					// RebaselineStarted lands cannot double-run the Gradle build.
 					SessionTransition(
 						state.copy(awaitingRetry = false),
 						listOf(SessionEffect.RunFullGradleRebaseline),
 					)
 				} else {
-					// A rebaseline is already in flight; the tap has nothing to add.
+					// A rebaseline is already in flight; the trigger has nothing to add.
 					SessionTransition(state)
 				}
 			}

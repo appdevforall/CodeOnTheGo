@@ -627,6 +627,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		editorViewModel.isBuildInProgress = service?.isBuildInProgress == true
 		editorViewModel.isInitializing = initializingFuture?.isDone == false
 
+		// ADFA-4128: a rebaseline reinstall that timed out while CoGo was backgrounded
+		// never showed its confirm dialog (the PENDING_USER_ACTION broadcast is not
+		// delivered to a backgrounded app); returning here is the first chance to
+		// re-prompt. No-op unless the session is parked awaiting that retry.
+		quickBuildSessionManager()?.onHostForegrounded()
+
 		invalidateOptionsMenu()
 	}
 

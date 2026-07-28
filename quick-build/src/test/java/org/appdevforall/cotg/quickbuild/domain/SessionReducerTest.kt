@@ -209,6 +209,56 @@ class SessionReducerTest {
 	}
 
 	@Test
+	fun `invalidated awaiting retry plus HostForegrounded retries the rebaseline once`() {
+		// The backgrounded-CoGo case: the reinstall timed out with no dialog ever shown
+		// (PENDING_USER_ACTION is not delivered to a backgrounded app), so the user's
+		// return to CoGo must re-prompt without requiring a tap they don't know to make.
+		val parked =
+			QuickBuildSessionState.Invalidated(
+				InvalidationReason.INSTALL_NOT_CONFIRMED,
+				2,
+				awaitingRetry = true,
+			)
+
+		val transition = reducer.reduce(parked, SessionEvent.HostForegrounded)
+
+		assertThat(transition.state).isEqualTo(parked.copy(awaitingRetry = false))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
+	}
+
+	@Test
+	fun `invalidated with a rebaseline in flight ignores HostForegrounded`() {
+		// After the retry fires (awaitingRetry dropped), a second onResume - e.g. the
+		// user dismissing the re-prompted install dialog - must not double-run Gradle.
+		val inFlight =
+			QuickBuildSessionState.Invalidated(
+				InvalidationReason.INSTALL_NOT_CONFIRMED,
+				2,
+				awaitingRetry = false,
+			)
+
+		val transition = reducer.reduce(inFlight, SessionEvent.HostForegrounded)
+
+		assertThat(transition.state).isEqualTo(inFlight)
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
+	fun `HostForegrounded is a no-op in non-parked states`() {
+		for (state in listOf(
+			QuickBuildSessionState.Idle,
+			QuickBuildSessionState.Provisioning,
+			QuickBuildSessionState.Ready(1),
+			QuickBuildSessionState.Building(1),
+			QuickBuildSessionState.Deployed(1, buildDurationMillis = 100),
+		)) {
+			val transition = reducer.reduce(state, SessionEvent.HostForegrounded)
+			assertThat(transition.state).isEqualTo(state)
+			assertThat(transition.effects).isEmpty()
+		}
+	}
+
+	@Test
 	fun `invalidated with a rebaseline in flight ignores QuickBuildTapped`() {
 		val invalidated = QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1)
 

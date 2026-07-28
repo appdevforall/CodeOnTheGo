@@ -935,6 +935,55 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `CoGo returning to the foreground after an unconfirmed install retries the rebaseline`() =
+		runTest {
+			// The backgrounded-CoGo case (corpus run 20260728T044815Z): the reinstall
+			// timed out with NO dialog ever shown - Android does not deliver the
+			// PENDING_USER_ACTION broadcast to a backgrounded app. The user's return to
+			// CoGo must re-prompt on its own; they never saw anything to tap.
+			var foregrounded = false
+			rebaselineOutcome = {
+				if (foregrounded) {
+					defaultRebaselineSuccess()
+				} else {
+					RebaselineOutcome.InstallNotConfirmed("install was not confirmed")
+				}
+			}
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			assertThat(rebaselineCount).isEqualTo(1)
+
+			// The user comes back to CoGo: the editor's onResume forwards this.
+			foregrounded = true
+			manager.onHostForegrounded()
+			advanceUntilIdle()
+
+			assertThat(rebaselineCount).isEqualTo(2)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			assertThat(daemon.isRunning).isTrue()
+		}
+
+	@Test
+	fun `onHostForegrounded is a no-op when the session is not parked`() =
+		runTest {
+			// Every editor onResume calls this; a live session must be untouched by it.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val before = manager.state.value
+			assertThat(before).isEqualTo(QuickBuildSessionState.Ready(0))
+
+			manager.onHostForegrounded()
+			advanceUntilIdle()
+
+			assertThat(manager.state.value).isEqualTo(before)
+			assertThat(rebaselineCount).isEqualTo(0)
+		}
+
+	@Test
 	fun `saves while parked for retry accumulate for the retried rebaseline - no dead-daemon build`() =
 		runTest {
 			var confirmed = false
