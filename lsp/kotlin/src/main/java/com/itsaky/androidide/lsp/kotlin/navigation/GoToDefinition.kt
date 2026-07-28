@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.navigation
 
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
 import com.itsaky.androidide.lsp.kotlin.utils.rangeOf
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
 import com.itsaky.androidide.models.Location
@@ -79,6 +80,11 @@ private fun KaSession.symbolsAt(element: KtElement): List<KaSymbol> =
 			?.ifEmpty { null }
 			?: listOfNotNull(element.resolveToCall()?.successfulFunctionCallOrNull()?.symbol)
 	}.getOrElse {
+		// A cancellation is not a resolution failure. CancelCheckerProgressIndicator throws
+		// ProcessCanceledException from inside FIR resolution so analysis can abort mid-analyze;
+		// swallowing it here would turn a preemption into "definition not found" and leave the
+		// coarse cancelChecker calls as the only place cancellation can take effect.
+		if (it.isAnalysisCancellation()) throw it
 		logger.debug("Resolution failed for '{}'", element.text, it)
 		emptyList()
 	}
@@ -106,6 +112,9 @@ private fun KaSession.locationOf(symbol: KaSymbol): Location? {
 private fun rawReferenceLocation(element: KtElement): Location? =
 	runCatching { element.mainReference?.resolve() }
 		.getOrElse {
+			// See the matching comment in symbolsAt: a cancellation must propagate, not be reported
+			// as "nothing resolved".
+			if (it.isAnalysisCancellation()) throw it
 			logger.debug("Raw resolution failed for '{}'", element.text, it)
 			null
 		}?.let(::locationOfPsi)

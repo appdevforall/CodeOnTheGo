@@ -153,7 +153,12 @@ class GoToDefinitionTest : KtLspTest() {
 	@Test
 	fun `label navigates to the labelled expression`() {
 		val text = "fun caller() {\n\touter@ for (i in 1..2) { break@outer }\n}"
-		assertThat(locationsAt("Label.kt", text, "break@outer", 7)).hasSize(1)
+		val locations = locationsAt("Label.kt", text, "break@outer", 7)
+		assertThat(locations).hasSize(1)
+		// The labelled for-loop has no name identifier, so the range collapses to the loop's start.
+		val forStart = text.indexOf("for (")
+		assertThat(locations[0].range.start.index).isEqualTo(forStart)
+		assertThat(locations[0].range.end.index).isEqualTo(forStart)
 	}
 
 	@Test
