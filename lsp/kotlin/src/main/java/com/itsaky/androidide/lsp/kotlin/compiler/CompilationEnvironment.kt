@@ -3,8 +3,10 @@ package com.itsaky.androidide.lsp.kotlin.compiler
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AbstractKtModule
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.AnalysisApiServiceProviders
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.LspAnalysisApiServiceRegistrar
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
@@ -45,6 +47,7 @@ import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironment
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironmentMode
 import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
@@ -77,7 +80,10 @@ internal class CompilationEnvironment(
 					// Defense in depth: swallow (but log) non-cancellation failures from the
 					// debounce worker so a ClosedReceiveChannelException can never crash the app.
 					if (t !is CancellationException) {
-						logger.warn("Uncaught exception in compilation environment coroutine", t)
+						logger.warn(
+							"Uncaught exception in compilation environment coroutine",
+							t,
+						)
 					}
 				},
 		),
@@ -185,9 +191,15 @@ internal class CompilationEnvironment(
 				scope = coroutineScope,
 				debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
 			) { path, cancelChecker ->
-				val result = collectDiagnosticsFor(path, cancelChecker)
-				withContext(Dispatchers.Main.immediate) {
-					languageClient?.publishDiagnostics(result)
+				try {
+					val result = collectDiagnosticsFor(path, cancelChecker)
+					withContext(Dispatchers.Main.immediate) {
+						languageClient?.publishDiagnostics(result)
+					}
+				} catch (e: AnalysisPreemptedException) {
+					// Preempted by completion; re-schedule so diagnostics still run once it finishes.
+					logger.debug("diagnostics for {} preempted; rescheduling", path)
+					fileAnalyzer.schedule(path)
 				}
 			}
 
@@ -220,7 +232,6 @@ internal class CompilationEnvironment(
 	}
 
 	fun onFileOpen(path: Path) {
-		// "Open" is now owned by FileManager; the first request/analysis parses lazily via the cache.
 		fileAnalyzer.schedule(path)
 	}
 
