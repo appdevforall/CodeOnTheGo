@@ -160,6 +160,29 @@ Its options A+B remain worth doing — they are just fix 2, not fix 1.
 Incidental: **daemon IPC is free** — host-observed RPC minus daemon-observed
 duration is 20-60 ms on multi-second calls `[measured on a56]`.
 
+## Still open on the c107
+
+The A56 numbers do **not** explain the c107. On the A56 the four shipped fields
+plus the four added ones account for 91% of a warm sora edit (residual ~1.35 s of
+14.7 s, all of it scan + tree walks + deploy policy) `[measured on a56]`. But the
+c107's `medium-kotlin` row leaves **52%** of `compileMs` unattributed, and the
+c107 got *worse* across a session (188 s then 236 s) where the A56 got better
+(53.6 s then 16.5 s). Something is happening there that is absent here.
+
+The leading candidate is JVM heap. The daemon spawns as plain
+`java -jar daemon.jar` — no `-Xmx`, no `MaxMetaspaceSize` — and
+`DaemonProcessClient` clears the inherited environment, so `JAVA_TOOL_OPTIONS`
+cannot supply them either. The JVM therefore picks ergonomic defaults from
+physical RAM: on the A56 that measures **MaxHeapSize 1.81 GB, G1, metaspace
+unlimited** `[measured on a56]`. The same ergonomics on a ~2 GB device give
+roughly a quarter of that `[inferred]`, against a workload (kotlinc + its
+incremental caches + ASM over 464 classes + d8) that comfortably fits 1.8 GB and
+grows as a session accumulates state — which fits a slowdown that compounds
+edit over edit rather than a constant tax.
+
+That is a hypothesis, not a finding. It falls to a single c107 run: log GC time
+and heap high-water from the daemon, or set an explicit `-Xmx` and re-measure.
+
 ## The analytics lesson
 
 The shipped fields (`kotlinMs`, `javacMs`, `stripMs`, `d8Ms`) sum to about
@@ -180,7 +203,8 @@ misattributing the cost. Tracked separately; see the analytics task.
 - The 11909 ms standard-build reference was measured 2026-07-25 on CoGo
   `C-d-0725-0049`; it is a cross-version comparison.
 - A56 only. The c107 is 4-13x slower and was not re-measured; the filesystem
-  finding should be expected to reproduce there but is `[inferred]` until run.
+  finding should be expected to reproduce there but is `[inferred]` until run,
+  and it does not explain the c107's separate residual (see "Still open").
 
 ## Scope note
 
