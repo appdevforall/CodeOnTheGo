@@ -143,11 +143,11 @@ dependents in dependency order, keep the edited module's resources live in the
 relink, and merge everything into one hot-apply. The test app and the reload
 protocol do not change — modules are a build-time concept only.
 
-**A correction the design doc needs.** Its §3 says "today Quick Build rejects
-multi-module projects at setup, so without this design their share is 0%." That is
-the claim this device run overturned, and it is load-bearing for how the value
-table reads. Its §2 already says the watcher sees every module "since Level 1", so
-the doc contradicts itself on the point.
+**A correction now applied to the design doc.** It used to say "today Quick Build
+rejects multi-module projects at setup, so without this design their share is 0%"
+— the claim this device run overturned, and load-bearing for how its value table
+read. It now credits only category 2 to the design and defers to this page for
+device evidence.
 
 ## What the survey says it is worth
 
@@ -165,7 +165,7 @@ Read with the correction applied, the marginal value of Level 2 is **category 2
 alone: ~37% of multi-module commits** — about 22% of all surveyed commits
 `[measured on host, inferred combination]` — moving from a ~25 s rebaseline with
 an install prompt to a projected ~2-3 s hot reload `[inferred]`. Category 1's
-36.4% is already delivered; the design doc credits it to Level 2 and should not.
+36.4% is already delivered and is not Level 2's to claim.
 
 Both the shares and the ratios carry real caveats. The shares are commit-level
 proxies classified from changed-file lists by directory-name heuristics, not
