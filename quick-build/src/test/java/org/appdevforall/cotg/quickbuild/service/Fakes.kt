@@ -33,8 +33,19 @@ class FakeDaemon : QuickBuildDaemon {
 
 	override var isRunning: Boolean = false
 
+	/**
+	 * When set, the NEXT [start] parks here after recording its config, consuming the
+	 * gate - later starts pass through. Lets a race test hold a respawn mid-start while
+	 * something else (a rebaseline, a teardown) takes the daemon down.
+	 */
+	var startGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
 	override suspend fun start(config: DaemonConfig): DaemonReply<Unit> {
 		startConfigs += config
+		startGate?.let { gate ->
+			startGate = null
+			gate.await()
+		}
 		if (startReply is DaemonReply.Ok) isRunning = true
 		return startReply
 	}

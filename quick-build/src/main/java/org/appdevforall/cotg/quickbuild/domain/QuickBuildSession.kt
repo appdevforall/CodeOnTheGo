@@ -528,8 +528,10 @@ class SessionReducer {
 				// Dropping this would strand the session: the orchestrator reports an
 				// invalidation ONCE, so a gradle/manifest edit landing while Degraded
 				// would otherwise never rebaseline and no build would ever run again.
-				// The rebaseline needs Gradle, not the daemon - safe to run while a
-				// respawn is still in flight.
+				// The rebaseline needs Gradle, not the daemon - and the shell's
+				// daemonEpoch guard discards the in-flight respawn the rebaseline's
+				// daemon teardown supersedes, so the two cannot race (2026-07-26
+				// review finding 2).
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration),
 					listOf(SessionEffect.RunFullGradleRebaseline),

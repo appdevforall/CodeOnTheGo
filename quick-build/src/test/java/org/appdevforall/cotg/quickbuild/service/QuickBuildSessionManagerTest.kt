@@ -106,6 +106,7 @@ class QuickBuildSessionManagerTest {
 	private var prewarmError: Throwable? = null
 	private var provisionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 	private var provisionSurvivesCancel = false
+	private var rebaselineGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
 	/** Set to make the scripted executor await mid-build, so a test can observe Building. */
 	private var executionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
@@ -199,6 +200,7 @@ class QuickBuildSessionManagerTest {
 
 				override suspend fun rebaseline(): RebaselineOutcome {
 					rebaselineCount++
+					rebaselineGate?.await()
 					return rebaselineOutcome()
 				}
 
@@ -839,6 +841,113 @@ class QuickBuildSessionManagerTest {
 			assertThat(daemon.startConfigs).hasSize(2)
 			assertThat(daemon.isRunning).isTrue()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	// Review finding (2026-07-26 #2): rebaseline calls daemon.shutdown() and can race an
+	// in-flight respawn. The daemonEpoch guard must discard the superseded respawn.
+	@Test
+	fun `a respawn superseded by a completed rebaseline is discarded and leaves the new daemon alone`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// Daemon dies; the auto-respawn parks inside daemon.start.
+			val respawnGate = CompletableDeferred<Unit>()
+			daemon.startGate = respawnGate
+			daemon.die(exitCode = 137)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Degraded(0))
+			assertThat(daemon.startConfigs).hasSize(2) // provision + parked respawn
+
+			// A gradle edit lands while Degraded: the rebaseline tears the daemon down
+			// and restarts it on the new config while the respawn is STILL in flight.
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			assertThat(daemon.startConfigs).hasSize(3) // + the rebaseline's restart
+			assertThat(daemon.isRunning).isTrue()
+			val shutdownsBefore = daemon.shutdownCount
+			val seedsBefore = seeds.size
+
+			// The parked respawn finally completes - AFTER the rebaseline already owns a
+			// fresh daemon. It must discard itself: no DaemonRespawned, no orchestrator
+			// poke (a spurious seed), and no touching the rebaseline's NEW daemon.
+			respawnGate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(daemon.isRunning).isTrue()
+			assertThat(daemon.shutdownCount).isEqualTo(shutdownsBefore)
+			assertThat(seeds).hasSize(seedsBefore)
+			assertThat(executed).isEmpty()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
+	fun `a respawn completing mid-rebaseline stops its zombie daemon instead of racing the Gradle build`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			val respawnGate = CompletableDeferred<Unit>()
+			daemon.startGate = respawnGate
+			daemon.die(exitCode = 137)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Degraded(0))
+
+			// The rebaseline tears the daemon down, then parks inside its Gradle build.
+			val rebGate = CompletableDeferred<Unit>()
+			rebaselineGate = rebGate
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			assertThat(daemon.shutdownCount).isEqualTo(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Provisioning)
+
+			// The parked respawn completes while the Gradle build still runs: its daemon
+			// must NOT coexist with the build (the shutdown above freed that memory on
+			// purpose) - the discarded respawn stops the zombie it just started.
+			respawnGate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(daemon.isRunning).isFalse()
+			assertThat(daemon.shutdownCount).isEqualTo(2)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Provisioning)
+
+			// The rebaseline then finishes normally against its own fresh daemon.
+			rebGate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(daemon.isRunning).isTrue()
+			assertThat(daemon.startConfigs).hasSize(3)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
+	fun `a respawn superseded by a session restart is discarded and leaves the daemon down`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val seedsBefore = seeds.size
+
+			val respawnGate = CompletableDeferred<Unit>()
+			daemon.startGate = respawnGate
+			daemon.die(exitCode = 137)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Degraded(0))
+
+			// "Restart session" tears everything down while the respawn is in flight.
+			manager.restartSession()
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+
+			// The parked respawn completes into a torn-down session: it must not
+			// resurrect an orphan daemon, nor poke the dead session's orchestrator.
+			respawnGate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(daemon.isRunning).isFalse()
+			assertThat(seeds).hasSize(seedsBefore)
+			assertThat(executed).isEmpty()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 		}
 
 	@Test

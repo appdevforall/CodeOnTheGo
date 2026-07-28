@@ -165,6 +165,24 @@ class QuickBuildSessionManager(
 	/** The in-flight provision/prewarm/rebaseline; cancelled by [teardown]. */
 	private var sessionWork: Job? = null
 
+	/**
+	 * Counts intentional daemon lifecycle transitions: every `daemon.start`/`daemon.shutdown`
+	 * this manager initiates outside the respawn path (provisioning start + its undo,
+	 * rebaseline teardown + restart, session teardown, low-memory shrink).
+	 *
+	 * [respawnDaemon] captures it at effect time and re-checks after its `daemon.start`
+	 * returns: any change means an intentional shutdown superseded the respawn mid-flight
+	 * (2026-07-26 review finding 2 - a rebaseline's `daemon.shutdown()` racing an in-flight
+	 * respawn), so the respawn discards its result instead of dispatching
+	 * [SessionEvent.DaemonRespawned] and poking the orchestrator. EXACTLY one transition
+	 * since capture is the superseding shutdown itself, so a daemon the stale start brought
+	 * up is a zombie only the respawn knows about - it stops it (the daemon must not coexist
+	 * with the rebaseline's Gradle build, nor outlive a teardown). More than one means a
+	 * successor flow already started a fresh daemon the stale respawn must not touch.
+	 * Only touched on [dispatcher].
+	 */
+	private var daemonEpoch = 0L
+
 	private class LiveSession(
 		/** Mutable: a rebaseline regenerates setup.json and must move this snapshot. */
 		var setup: SetupInfo,
@@ -373,6 +391,7 @@ class QuickBuildSessionManager(
 		pendingLowMemoryTeardown = false
 		if (!daemon.isRunning) return
 		log.info("Quick Build: tearing down the compile daemon for low memory; the next build re-warms it")
+		daemonEpoch++
 		daemon.shutdown()
 	}
 
@@ -434,7 +453,8 @@ class QuickBuildSessionManager(
 			}
 
 			SessionEffect.RespawnDaemon -> {
-				scope.launch { respawnDaemon() }
+				val epoch = daemonEpoch
+				scope.launch { respawnDaemon(epoch) }
 			}
 
 			is SessionEffect.SurfaceProvisioningError -> {
@@ -489,12 +509,14 @@ class QuickBuildSessionManager(
 			is ProvisionOutcome.Success -> {
 				connections.beginSession(outcome.setup.testAppPackage, outcome.testAppUid)
 
+				daemonEpoch++
 				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.setup))) {
 					is DaemonReply.Ok -> {
 						if (startEpoch != sessionEpoch) {
 							// Restart raced the daemon start: undo, don't go live.
 							log.info("Session restarted during daemon start; shutting down")
 							connections.endSession()
+							daemonEpoch++
 							scope.launch { daemon.shutdown() }
 							return
 						}
@@ -752,7 +774,9 @@ class QuickBuildSessionManager(
 		// and it was going to be re-seeded from scratch regardless; on success it
 		// restarts below with the NEW setup's config (the survivor used to keep serving
 		// the OLD configure's classpath - correct only via BTA's full-recompile
-		// fallback).
+		// fallback). The epoch bump discards a daemon respawn still in flight (a
+		// rebaseline can start from Degraded); see [daemonEpoch].
+		daemonEpoch++
 		daemon.shutdown()
 
 		val startedAtNanos = System.nanoTime()
@@ -791,6 +815,7 @@ class QuickBuildSessionManager(
 				session.executor.delegate = buildExecutor(outcome.setup, outcome.layout, session.tracker)
 				session.annotationImpact.delegate = annotationImpact(outcome.setup, outcome.layout)
 				// Restart the daemon torn down above, against the NEW setup's config.
+				daemonEpoch++
 				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.setup))) {
 					is DaemonReply.Ok -> {
 						Unit
@@ -858,9 +883,30 @@ class QuickBuildSessionManager(
 			setup.proxyClassesDir?.isDirectory != false &&
 			setup.transformedManifest?.isFile != false
 
-	private suspend fun respawnDaemon() {
+	private suspend fun respawnDaemon(startEpoch: Long) {
 		val session = live ?: return
-		when (val started = daemon.start(daemonConfig(session.layout, session.setup))) {
+		if (startEpoch != daemonEpoch) {
+			// An intentional daemon transition already superseded this respawn before it
+			// even started; the successor flow owns the daemon lifecycle.
+			log.info("Quick-build daemon respawn superseded before start; discarding")
+			return
+		}
+		val started = daemon.start(daemonConfig(session.layout, session.setup))
+		if (startEpoch != daemonEpoch) {
+			// An intentional shutdown (rebaseline teardown, session teardown, low-memory
+			// shrink) landed while this respawn's start was in flight (2026-07-26 review
+			// finding 2). The superseding flow owns the daemon lifecycle now: dispatching
+			// DaemonRespawned or poking the orchestrator here would corrupt it. See
+			// [daemonEpoch] for the exactly-one-transition cleanup rule.
+			if (started is DaemonReply.Ok && daemonEpoch == startEpoch + 1) {
+				log.info("Quick-build daemon respawn outlived an intentional shutdown; stopping its daemon")
+				daemon.shutdown()
+			} else {
+				log.info("Quick-build daemon respawn outlived a daemon restart; discarding")
+			}
+			return
+		}
+		when (started) {
 			is DaemonReply.Ok -> {
 				dispatch(SessionEvent.DaemonRespawned)
 				// A fresh daemon has no trustworthy IC state. With nothing pending this
@@ -891,6 +937,7 @@ class QuickBuildSessionManager(
 	 */
 	private fun teardown() {
 		sessionEpoch++
+		daemonEpoch++
 		sessionWork?.cancel()
 		sessionWork = null
 		live?.watcher?.stop()
