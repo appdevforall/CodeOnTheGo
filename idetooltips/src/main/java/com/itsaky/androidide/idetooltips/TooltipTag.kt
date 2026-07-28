@@ -28,6 +28,7 @@ object TooltipTag {
 	const val OUTPUT_SHARE_EXTERNAL = "output.share.external"
 	const val OUTPUT_SEARCH = "output.search"
 	const val OUTPUT_FILTER = "output.filter"
+	const val OUTPUT_WORD_WRAP = "output.wordwrap"
 	const val PROJECT_BUILD_OUTPUT = "project.buildoutput"
 	const val PROJECT_GRADLE_TASKS = "project.gradle.tasks"
 	const val PROJECT_RUN_GRADLE_TASKS = "project.run.gradle.tasks"
@@ -79,6 +80,8 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_GEN_TO_STRING_DIALOG = "editor.codeactions.gentostring.dialog"
 	const val EDITOR_CODE_ACTIONS_UNUSED_IMPORTS = "editor.codeactions.unusedimports"
 	const val EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS = "editor.codeactions.organizeimports"
+	const val EDITOR_CODE_ACTIONS_KT_FIX_IMPORTS = "editor.codeactions.kotlin.fiximports"
+	const val EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH = "editor.codeactions.kotlin.trycatch"
 
 	const val EXIT_TO_MAIN = "exit.to.main"
 
