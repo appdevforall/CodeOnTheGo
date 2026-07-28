@@ -31,6 +31,7 @@ import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.psi.KtFile
 import java.nio.file.Path
+import kotlin.io.path.createDirectories
 import kotlin.io.path.name
 import kotlin.io.path.pathString
 import kotlin.io.path.writeText
@@ -39,47 +40,58 @@ import org.jetbrains.kotlin.analysis.api.analyze as ktAnalyze
 /**
  * A self-contained Kotlin Analysis API environment for use in plain JVM unit tests.
  *
- * @param sourceRoots Directories containing Kotlin/Java source files for the test.
+ * @param baseDir Directory the per-module source roots are created under.
+ * @param moduleSpecs Source modules to create, including any dependencies between them.
  * @param extraLibraryJars Additional JARs to add as library modules.
  * @param languageVersion Kotlin language version; defaults to [DEFAULT_LANGUAGE_VERSION].
  * @param jdkRelease JDK release version; defaults to the host JVM's feature version.
  */
 @OptIn(K1Deprecation::class, KaImplementationDetail::class)
 internal class KtLspTestEnvironment(
-	val sourceRoots: List<Path>,
+	baseDir: Path,
+	val moduleSpecs: List<TestSourceModuleSpec> = listOf(TestSourceModuleSpec("src")),
 	private val extraLibraryJars: List<Path> = emptyList(),
 	languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
 	jdkRelease: Int = checkNotNull(System.getProperty("java.specification.version")).toInt(),
 ) : AbstractCompilationEnvironment(
-	name = "test",
-	kind = CompilationKind.Default,
-	intellijPluginRoot = findIntellijPluginRoot(),
-	jdkHome = Path.of(System.getProperty("java.home")),
-	jdkRelease = jdkRelease,
-	languageVersion = languageVersion,
-	applicationEnvironmentMode = KotlinCoreApplicationEnvironmentMode.UnitTest,
-	enableParserEventSystem = false,
-) {
+		name = "test",
+		kind = CompilationKind.Default,
+		intellijPluginRoot = findIntellijPluginRoot(),
+		jdkHome = Path.of(System.getProperty("java.home")),
+		jdkRelease = jdkRelease,
+		languageVersion = languageVersion,
+		applicationEnvironmentMode = KotlinCoreApplicationEnvironmentMode.UnitTest,
+		enableParserEventSystem = false,
+	) {
+	/**
+	 * One root per spec, in spec order. Declared before the `init` block below: `initialize()`
+	 * builds the modules and would otherwise read these before they are assigned.
+	 */
+	val sourceRoots: List<Path> =
+		moduleSpecs.map { spec -> baseDir.resolve(spec.dirName).createDirectories() }
+
+	private val rootByModule: Map<String, Path> =
+		moduleSpecs.map { it.name }.zip(sourceRoots).toMap()
+
 	private lateinit var localFileSystem: CoreLocalFileSystem
 
 	init {
 		initialize(::buildModules, ::buildKtSymbolIndex)
 	}
 
-	override fun createServiceRegistrars(): List<AnalysisApiSimpleServiceRegistrar> {
-		return listOf(
+	override fun createServiceRegistrars(): List<AnalysisApiSimpleServiceRegistrar> =
+		listOf(
 			LspAnalysisApiServiceRegistrar(
-				provider = AnalysisApiServiceProviders.Production
-					.toBuilder()
-					.apply {
-						appService(KotlinAnalysisPermissionOptions::class, replace = true) {
-							AnalysisPermissionOptions(defaultIsAnalysisAllowedOnEdt = true)
-						}
-					}
-					.build()
-			)
+				provider =
+					AnalysisApiServiceProviders.Production
+						.toBuilder()
+						.apply {
+							appService(KotlinAnalysisPermissionOptions::class, replace = true) {
+								AnalysisPermissionOptions(defaultIsAnalysisAllowedOnEdt = true)
+							}
+						}.build(),
+			),
 		)
-	}
 
 	override fun postInit(libraryRoots: List<JavaRoot>) {
 		super.postInit(libraryRoots)
@@ -90,44 +102,40 @@ internal class KtLspTestEnvironment(
 		project: MockProject,
 		applicationEnv: KotlinCoreApplicationEnvironment,
 	): List<KtModule> {
-		val jdkModule = buildKtLibraryModule(project, applicationEnv) {
-			id = "jdk"
-			isSdk = true
-			addContentRoot(jdkHome)
-		}
-
-		val stdlibModule = findKotlinStdlibJar()?.let { jar ->
+		val jdkModule =
 			buildKtLibraryModule(project, applicationEnv) {
-				id = jar.pathString
-				addContentRoot(jar)
-				addDependency(jdkModule)
+				id = "jdk"
+				isSdk = true
+				addContentRoot(jdkHome)
 			}
-		}
 
-		val extraLibModules = extraLibraryJars.map { jar ->
-			buildKtLibraryModule(project, applicationEnv) {
-				id = jar.pathString
-				addContentRoot(jar)
-				addDependency(jdkModule)
-				stdlibModule?.let { addDependency(it) }
+		val stdlibModule =
+			findKotlinStdlibJar()?.let { jar ->
+				buildKtLibraryModule(project, applicationEnv) {
+					id = jar.pathString
+					addContentRoot(jar)
+					addDependency(jdkModule)
+				}
 			}
-		}
 
-		val sourceDeps: List<KtModule> = buildList {
-			add(jdkModule)
-			stdlibModule?.let { add(it) }
-			addAll(extraLibModules)
-		}
+		val extraLibModules =
+			extraLibraryJars.map { jar ->
+				buildKtLibraryModule(project, applicationEnv) {
+					id = jar.pathString
+					addContentRoot(jar)
+					addDependency(jdkModule)
+					stdlibModule?.let { addDependency(it) }
+				}
+			}
 
-		val sourceModules = sourceRoots.mapIndexed { i, root ->
-			TestKtSourceModule(
-				project = project,
-				name = "test-source-$i",
-				roots = setOf(root),
-				dependencies = sourceDeps,
-				languageVersion = languageVersion,
-			)
-		}
+		val sourceDeps: List<KtModule> =
+			buildList {
+				add(jdkModule)
+				stdlibModule?.let { add(it) }
+				addAll(extraLibModules)
+			}
+
+		val sourceModules = buildSourceModules(project, sourceDeps)
 
 		return buildList {
 			addAll(sourceModules)
@@ -137,15 +145,55 @@ internal class KtLspTestEnvironment(
 		}
 	}
 
+	/**
+	 * Builds one [TestKtSourceModule] per spec, in dependency order - a module's dependencies are
+	 * constructor arguments, so they must exist first.
+	 */
+	private fun buildSourceModules(
+		project: MockProject,
+		libraryDeps: List<KtModule>,
+	): List<TestKtSourceModule> {
+		val specByName = moduleSpecs.associateBy { it.name }
+		require(specByName.size == moduleSpecs.size) {
+			"Duplicate module names in $moduleSpecs"
+		}
+
+		val built = LinkedHashMap<String, TestKtSourceModule>()
+
+		fun build(
+			name: String,
+			path: List<String>,
+		) {
+			if (built.containsKey(name)) return
+			check(name !in path) {
+				"Cyclic test module dependency: ${(path + name).joinToString(" -> ")}"
+			}
+			val spec = specByName[name] ?: error("Unknown test source module '$name'")
+			spec.dependsOn.forEach { build(it, path + name) }
+			built[name] =
+				TestKtSourceModule(
+					project = project,
+					name = spec.name,
+					roots = setOf(checkNotNull(rootByModule[name])),
+					dependencies = libraryDeps + spec.dependsOn.map { checkNotNull(built[it]) },
+					languageVersion = languageVersion,
+				)
+		}
+
+		moduleSpecs.forEach { build(it.name, emptyList()) }
+		return built.values.toList()
+	}
+
 	private fun buildKtSymbolIndex(
 		modules: List<KtModule>,
 		libraryRoots: List<JavaRoot>,
 	): KtSymbolIndex {
 		val inMemoryJvmBackingIndex = InMemoryIndex(JvmSymbolDescriptor)
-		val inMemoryJvmSymbolIndex = object : JvmSymbolIndex(inMemoryJvmBackingIndex, BackgroundIndexer(inMemoryJvmBackingIndex)) {
-			// ensure we're not filtering out anything
-			override fun isActive(sourceId: String) = true
-		}
+		val inMemoryJvmSymbolIndex =
+			object : JvmSymbolIndex(inMemoryJvmBackingIndex, BackgroundIndexer(inMemoryJvmBackingIndex)) {
+				// ensure we're not filtering out anything
+				override fun isActive(sourceId: String) = true
+			}
 
 		val inMemoryFileMetaBackingIndex = InMemoryIndex(KtFileMetadataDescriptor)
 		val inMemoryFileMetaIndex = KtFileMetadataIndex(inMemoryFileMetaBackingIndex)
@@ -161,20 +209,28 @@ internal class KtLspTestEnvironment(
 	}
 
 	/**
-	 * Writes [content] to [relativePath] under the first source root, refreshes
-	 * the VFS, and returns the corresponding [KtFile].
+	 * Writes [content] to [relativePath] under the first module's source root, refreshes the VFS,
+	 * and returns the corresponding [KtFile].
 	 */
 	fun createSourceFile(
 		relativePath: String,
 		content: String,
+	): KtFile = createSourceFile(moduleSpecs.first().name, relativePath, content)
+
+	/** As above, but under the source root of the module named [moduleName]. */
+	fun createSourceFile(
+		moduleName: String,
+		relativePath: String,
+		content: String,
 	): KtFile {
-		require(sourceRoots.isNotEmpty()) { "No source roots configured" }
-		val file = sourceRoots.first().resolve(relativePath)
+		val root = rootByModule[moduleName] ?: error("No test source module named '$moduleName'")
+		val file = root.resolve(relativePath)
 		file.parent.toFile().mkdirs()
 		file.writeText(content)
 
-		val vf = localFileSystem.refreshAndFindFileByPath(file.pathString)
-			?: error("VFS cannot find newly created file: $file")
+		val vf =
+			localFileSystem.refreshAndFindFileByPath(file.pathString)
+				?: error("VFS cannot find newly created file: $file")
 
 		modules.filterIsInstance<TestKtSourceModule>().forEach { it.invalidateSearchScope() }
 
@@ -187,8 +243,10 @@ internal class KtLspTestEnvironment(
 	/**
 	 * Runs [action] inside a [KaSession] for [file], acquiring the project read lock first.
 	 */
-	inline fun <R> analyze(file: KtFile, crossinline action: KaSession.() -> R): R =
-		project.read { ktAnalyze(file, action) }
+	inline fun <R> analyze(
+		file: KtFile,
+		crossinline action: KaSession.() -> R,
+	): R = project.read { ktAnalyze(file, action) }
 }
 
 /**
@@ -204,39 +262,45 @@ internal class KtLspTestEnvironment(
 private fun findIntellijPluginRoot(): Path {
 	// Primary: scan the classpath for the well-known cached names.
 	val classPath = System.getProperty("java.class.path") ?: ""
-	classPath.split(java.io.File.pathSeparator)
+	classPath
+		.split(java.io.File.pathSeparator)
 		.map { Path.of(it) }
 		.firstOrNull {
 			// named 'kt-android.jar' when added by external assets plugins
 			it.name == "kt-android.jar" ||
 
-					// for local builds, named 'analysis-api-standalone-embeddable-for-ide-X.X.X-SNAPSHOT.jar'
-					it.name.matches("analysis-api-standalone-embeddable-for-ide.*\\.jar".toRegex())
-		}
-		?.let { return it }
+				// for local builds, named 'analysis-api-standalone-embeddable-for-ide-X.X.X-SNAPSHOT.jar'
+				it.name.matches("analysis-api-standalone-embeddable-for-ide.*\\.jar".toRegex())
+		}?.let { return it }
 
 	// Fallback to reflection. This works on a plain JVM where the classloader exposes
 	// the code source, but may not work under Robolectric.
 	return try {
-		val location = StandaloneProjectFactory::class.java.protectionDomain
-			?.codeSource?.location
-			?: error("code source is null")
+		val location =
+			StandaloneProjectFactory::class.java.protectionDomain
+				?.codeSource
+				?.location
+				?: error("code source is null")
 		val path = Path.of(location.toURI())
 		check(path.name.endsWith(".jar")) { "resolved to directory, not a JAR: $path" }
 		path
 	} catch (e: Exception) {
 		error(
 			"Cannot locate kt-android.jar on the test classpath. " +
-					"Ensure the subprojects.kotlinAnalysisApi dependency is included in testImplementation. " +
-					"Also verify that the JAR file name matches expected names. " +
-					"(reflection fallback also failed: ${e.message})"
+				"Ensure the subprojects.kotlinAnalysisApi dependency is included in testImplementation. " +
+				"Also verify that the JAR file name matches expected names. " +
+				"(reflection fallback also failed: ${e.message})",
 		)
 	}
 }
 
-private fun findKotlinStdlibJar(): Path? = try {
-	val location = KotlinVersion::class.java.protectionDomain?.codeSource?.location ?: return null
-	Path.of(location.toURI()).takeIf { it.name.endsWith(".jar") }
-} catch (_: Exception) {
-	null
-}
+private fun findKotlinStdlibJar(): Path? =
+	try {
+		val location =
+			KotlinVersion::class.java.protectionDomain
+				?.codeSource
+				?.location ?: return null
+		Path.of(location.toURI()).takeIf { it.name.endsWith(".jar") }
+	} catch (_: Exception) {
+		null
+	}
