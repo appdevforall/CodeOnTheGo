@@ -40,6 +40,7 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.resources.databinding.SearchOptionsPopupMenuBinding
 import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.applyLongPressRecursively
+import com.itsaky.androidide.utils.flashInfo
 import io.github.rosemoe.sora.widget.EditorSearcher.SearchOptions
 import java.util.regex.Pattern
 import java.util.regex.PatternSyntaxException
@@ -293,11 +294,15 @@ class EditorSearchLayout(
 			return
 		}
 		if (v.id == findInFileBinding.prev.id) {
-			searcher.gotoPrevious()
+			if (!searcher.gotoPrevious()) {
+				flashInfo(R.string.msg_no_search_matches)
+			}
 			return
 		}
 		if (v.id == findInFileBinding.next.id) {
-			searcher.gotoNext()
+			if (!searcher.gotoNext()) {
+				flashInfo(R.string.msg_no_search_matches)
+			}
 			return
 		}
 		if (v.id == findInFileBinding.replace.id) {

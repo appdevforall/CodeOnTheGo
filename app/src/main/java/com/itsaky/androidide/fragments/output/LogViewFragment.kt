@@ -38,6 +38,7 @@ import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.utils.BasicBuildInfo
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.jetbrainsMono
 import com.itsaky.androidide.utils.viewLifecycleScope
@@ -257,7 +258,12 @@ abstract class LogViewFragment<V : LogViewModel> :
 	private fun setText(text: String) {
 		val editor = _binding?.editor ?: return
 		editor.setText(text)
-		emptyStateViewModel.setEmpty(text.isBlank() && viewModel.snapshotUnfiltered().isBlank())
+		val isUnfilteredBlank = viewModel.snapshotUnfiltered().isBlank()
+		val isFilteredBlank = text.isBlank()
+		emptyStateViewModel.setEmpty(isFilteredBlank && isUnfilteredBlank)
+		if (!isUnfilteredBlank && isFilteredBlank) {
+			flashInfo(R.string.msg_no_filter_matches)
+		}
 		onContentReplaced()
 	}
 

@@ -28,6 +28,7 @@ import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.utils.BasicBuildInfo
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -97,7 +98,12 @@ class BuildOutputFragment :
 				}
 			withContext(Dispatchers.Main) {
 				editor?.setText(filtered)
-				emptyStateViewModel.setEmpty(filtered.isBlank() && window.isBlank())
+				val windowIsBlank = window.isBlank()
+				val filteredIsBlank = filtered.isBlank()
+				emptyStateViewModel.setEmpty(filteredIsBlank && windowIsBlank)
+				if (!windowIsBlank && filteredIsBlank) {
+					flashInfo(R.string.msg_no_filter_matches)
+				}
 				onContentReplaced()
 			}
 		}
