@@ -25,8 +25,8 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.SetupInfo
 import org.appdevforall.cotg.quickbuild.domain.BuildOrchestrator
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
-import org.appdevforall.cotg.quickbuild.domain.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.BuildRequest
+import org.appdevforall.cotg.quickbuild.domain.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.ChangeClassifier
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.ComponentKind
@@ -774,7 +774,10 @@ class QuickBuildSessionManager(
 				session.annotationImpact.delegate = annotationImpact(outcome.setup, outcome.layout)
 				// Restart the daemon torn down above, against the NEW setup's config.
 				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.setup))) {
-					is DaemonReply.Ok -> Unit
+					is DaemonReply.Ok -> {
+						Unit
+					}
+
 					else -> {
 						val message = (started as? DaemonReply.Failed)?.message ?: "daemon rejected configuration"
 						log.error("Daemon restart after rebaseline failed: {}", message)
