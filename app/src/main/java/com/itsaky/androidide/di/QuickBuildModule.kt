@@ -141,6 +141,12 @@ val quickBuildModule =
 				// Monotonic device clock for the e2e timing line (ADFA-4128); the module
 				// default is JVM currentTimeMillis for unit tests.
 				nowMillis = SystemClock::elapsedRealtime,
+				// Bench A/B seam: CodeOnTheGo.qbnoseed suppresses the post-provisioning
+				// background seed, but only when the bench flag is also on - shipping
+				// builds (no qbbench) always seed.
+				backgroundSeedEnabled = {
+					!(FeatureFlags.isQuickBuildBenchEnabled && FeatureFlags.isQuickBuildSeedDisabled)
+				},
 			).also { manager ->
 				if (FeatureFlags.isQuickBuildBenchEnabled) {
 					// ADFA-4128 harness: a second, read-only collector on the existing state

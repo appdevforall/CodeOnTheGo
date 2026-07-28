@@ -151,6 +151,8 @@ adb shell am start-activity \
 
 Two collectors write it, both running as *second* listeners beside CoGo's shipping analytics sink (via `CompositeQuickBuildMetricsSink`, which guards each delegate so instrumentation can never perturb a build): `BenchStateRecorder` writes a `state` line on every session-state change, and `BenchQuickBuildMetricsSink` mirrors each metrics callback — the load-bearing one is `reload_timeline`, which carries the whole save-to-live loop the benchmark reads.
 
+A third, optional flag — `CodeOnTheGo.qbnoseed` in `Download/`, inert unless the bench flag is also on — suppresses the post-provisioning background IC seed, so an A/B benchmark can run a seed-off arm against the same installed build (flip the flag file + restart CoGo instead of rebuilding). Shipping builds (no `qbbench`) always seed.
+
 Files: `app/src/main/java/com/itsaky/androidide/quickbuild/Bench*.kt` + `QuickBuildBench*.kt`; the flags live in `:common`'s `utils/FeatureFlags.kt`.
 
 ## One install slot (real applicationId) + confirm-on-switch

@@ -181,7 +181,9 @@ class QuickBuildSessionManagerTest {
 		return RebaselineOutcome.Success(setup = provision.setup, layout = provision.layout)
 	}
 
-	private fun TestScope.createManager(): QuickBuildSessionManager {
+	private fun TestScope.createManager(
+		backgroundSeedEnabled: () -> Boolean = { true },
+	): QuickBuildSessionManager {
 		val provisioner =
 			object : QuickBuildProvisioner {
 				override suspend fun provision(): ProvisionOutcome {
@@ -246,6 +248,7 @@ class QuickBuildSessionManagerTest {
 			onUserMessage = { userMessages += it },
 			watcherFactory = { _, _, filter, _ -> FakeWatcher(filter).also { watcher = it } },
 			metrics = recordingMetrics,
+			backgroundSeedEnabled = backgroundSeedEnabled,
 		)
 	}
 
@@ -304,6 +307,25 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.status.value).isEqualTo(QuickBuildStatus.UpToDate(0, null))
 			// User-build bookkeeping untouched.
 			assertThat(executed).isEmpty()
+		}
+
+	@Test
+	fun `bench seam off - provisioning lands Ready with no seed, and a later save still builds`() =
+		runTest {
+			val manager = createManager(backgroundSeedEnabled = { false })
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// No seed was requested; the session simply stays Ready at the base generation.
+			assertThat(seeds).isEmpty()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+
+			// The seam only skips the warm-up: real user work is untouched.
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(executed).hasSize(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
 		}
 
 	@Test

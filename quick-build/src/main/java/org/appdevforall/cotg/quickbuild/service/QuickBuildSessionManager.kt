@@ -96,6 +96,13 @@ class QuickBuildSessionManager(
 	 */
 	private val launcher: TestAppLauncher = TestAppLauncher { _, _ -> false },
 	/**
+	 * Bench seam (ADFA-4128): gates the background IC seed fired when provisioning
+	 * succeeds, so a seed-off arm of an A/B run needs a flag file, not a rebuild. Read
+	 * at effect time, per session. Always true outside bench runs; the daemon-respawn
+	 * re-warm seed is deliberately NOT gated (it repairs a dead daemon, not a cold one).
+	 */
+	private val backgroundSeedEnabled: () -> Boolean = { true },
+	/**
 	 * Monotonic clock shared by the e2e timeline's t0 (orchestrator trigger stamp) and its
 	 * t1-t3 (executor stamps), so all four are comparable (see
 	 * [org.appdevforall.cotg.quickbuild.domain.E2eTimeline]). Defaults to
@@ -465,9 +472,13 @@ class QuickBuildSessionManager(
 			}
 
 			SessionEffect.StartBackgroundSeed -> {
-				// live is assigned before ProvisioningSucceeded is dispatched (see
-				// startProvisioning), so the orchestrator is always there to take this.
-				scope.launch { live?.orchestrator?.onSeedRequested() }
+				if (backgroundSeedEnabled()) {
+					// live is assigned before ProvisioningSucceeded is dispatched (see
+					// startProvisioning), so the orchestrator is always there to take this.
+					scope.launch { live?.orchestrator?.onSeedRequested() }
+				} else {
+					log.info("Background seed disabled (bench seam); session stays Ready unseeded")
+				}
 			}
 
 			SessionEffect.RunFullGradleRebaseline -> {
