@@ -74,10 +74,27 @@ data class QuickBuildCompletedMetric(
 
 /**
  * The end-to-end live-reload loop for one generation: the user-perceived save->live time
- * ([totalMs]) AND the per-stage split (ADFA-4128 e2e-timing). Keyed by (qbSessionId,
+ * ([totalMs]), the per-stage split (ADFA-4128 e2e-timing), and - since the
+ * sora-editor-full deep-dive - a breakdown that actually adds up. Keyed by (qbSessionId,
  * generation) - the same generation the completed event reports - so the timing joins to
  * route/outcome without carrying either here. All stamps are device-local
- * `elapsedRealtime` deltas; no paths or file names leave the device.
+ * `elapsedRealtime` deltas; everything else is a counter. No paths, file names, or source
+ * content leave the device.
+ *
+ * Why the breakdown grew: the shipped fields accounted for about HALF a warm edit. The
+ * missing half - source scan, Java-ABI snapshot, two output-tree walks, the deploy-policy
+ * class-header pass - is where the dominant real cost lives (per-file I/O on FUSE-backed
+ * emulated storage), and its invisibility led a design note to name javac "the
+ * bottleneck" when javac is 19-27% of a warm edit. [unaccountedMs] is the guard against a
+ * repeat: it is whatever no span measured, so a future un-timed step grows a visible
+ * number instead of quietly inflating its neighbour.
+ *
+ * Bundle size is deliberate. Firebase caps a custom event at [MAX_EVENT_PARAMS]
+ * parameters, and [com.itsaky.androidide.analytics.AnalyticsManager.trackMetric] adds a
+ * `timestamp` on top of these, so the worst-case route must stay under that cap - a test
+ * enforces it. The finer daemon-internal timings (the aapt2 pair, the two walks
+ * separately) live in the bench `reload_timeline` event, which has no such limit; here
+ * they are summed or omitted.
  */
 data class QuickBuildReloadTimingMetric(
 	val qbSessionId: String,
@@ -91,6 +108,29 @@ data class QuickBuildReloadTimingMetric(
 	/** Deploy sent -> confirmed live: binder round-trip + the test app's reload. */
 	val reloadMs: Long,
 	val projectHash: Long,
+	/** Host spans partitioning the build half; null when unmeasured. */
+	val scanMs: Long? = null,
+	val compileRpcMs: Long? = null,
+	val policyMs: Long? = null,
+	val dexRpcMs: Long? = null,
+	val relinkRpcMs: Long? = null,
+	/** [totalMs] minus every measured span - see the class doc. Null when nothing was measured. */
+	val unaccountedMs: Long? = null,
+	/** Tool timings nested inside the spans above; null when the step did not run. */
+	val kotlinMs: Long? = null,
+	val javacMs: Long? = null,
+	val stripMs: Long? = null,
+	val d8Ms: Long? = null,
+	/** The two output-tree walks, summed (they are reported separately to the bench event). */
+	val walkMs: Long? = null,
+	val javaAbiSnapMs: Long? = null,
+	/** Scale of the build, for reading a slow row. */
+	val kotlinCompiled: Int? = null,
+	val changedClasses: Int? = null,
+	/** 1 = the daemon session's cold build; above 1 = a warm edit. */
+	val compileOrdinal: Long? = null,
+	/** Filesystem of the daemon scratch tree - the top predictor of every duration here. */
+	val scratchFs: String? = null,
 ) : Metric {
 	override val eventName = "quick_build_reload_timing"
 
@@ -103,7 +143,31 @@ data class QuickBuildReloadTimingMetric(
 			putLong("stage_ms", stageMs)
 			putLong("reload_ms", reloadMs)
 			putLong("project_hash", projectHash)
+			scanMs?.let { putLong("scan_ms", it) }
+			compileRpcMs?.let { putLong("compile_rpc_ms", it) }
+			policyMs?.let { putLong("policy_ms", it) }
+			dexRpcMs?.let { putLong("dex_rpc_ms", it) }
+			relinkRpcMs?.let { putLong("relink_rpc_ms", it) }
+			unaccountedMs?.let { putLong("unaccounted_ms", it) }
+			kotlinMs?.let { putLong("kotlin_ms", it) }
+			javacMs?.let { putLong("javac_ms", it) }
+			stripMs?.let { putLong("strip_ms", it) }
+			d8Ms?.let { putLong("d8_ms", it) }
+			walkMs?.let { putLong("walk_ms", it) }
+			javaAbiSnapMs?.let { putLong("java_abi_snap_ms", it) }
+			kotlinCompiled?.let { putInt("n_kotlin_compiled", it) }
+			changedClasses?.let { putInt("n_changed_classes", it) }
+			compileOrdinal?.let { putLong("compile_ordinal", it) }
+			scratchFs?.let { putString("scratch_fs", it) }
 		}
+
+	companion object {
+		/**
+		 * Firebase's hard cap on parameters per custom event. `trackMetric` adds one
+		 * (`timestamp`) after [asBundle], so the bundle itself must stay strictly below it.
+		 */
+		const val MAX_EVENT_PARAMS = 25
+	}
 }
 
 /** The changed-set forced the session off the fast path (route = FullGradleBuild). */

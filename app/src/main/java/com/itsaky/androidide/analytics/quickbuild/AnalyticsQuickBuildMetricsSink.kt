@@ -110,6 +110,24 @@ class AnalyticsQuickBuildMetricsSink(
 				stageMs = timeline.stageMillis,
 				reloadMs = timeline.reloadMillis,
 				projectHash = projectHash(),
+				scanMs = timeline.spans?.scanMillis,
+				compileRpcMs = timeline.spans?.compileRpcMillis,
+				policyMs = timeline.spans?.policyMillis,
+				dexRpcMs = timeline.spans?.dexRpcMillis,
+				relinkRpcMs = timeline.spans?.relinkRpcMillis,
+				// Only claimed when spans were measured; without them "unaccounted" would
+				// read as the whole build rather than as a gap.
+				unaccountedMs = timeline.spans?.let { timeline.unaccountedMillis },
+				kotlinMs = timeline.steps?.kotlinMillis,
+				javacMs = timeline.steps?.javaMillis,
+				stripMs = timeline.steps?.stripMillis,
+				d8Ms = timeline.steps?.d8Millis,
+				walkMs = timeline.steps?.walkMillis,
+				javaAbiSnapMs = timeline.steps?.javaAbiSnapMillis,
+				kotlinCompiled = timeline.counts?.kotlinCompiled,
+				changedClasses = timeline.counts?.changedClasses,
+				compileOrdinal = timeline.counts?.compileOrdinal,
+				scratchFs = timeline.scratchFsType,
 			),
 		)
 	}

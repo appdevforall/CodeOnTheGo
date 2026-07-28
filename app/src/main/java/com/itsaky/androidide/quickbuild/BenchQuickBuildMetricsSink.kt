@@ -58,7 +58,31 @@ class BenchQuickBuildMetricsSink(
 				steps.d8Millis?.let { put("d8Ms", it) }
 				steps.aapt2CompileMillis?.let { put("aapt2CompileMs", it) }
 				steps.aapt2LinkMillis?.let { put("aapt2LinkMs", it) }
+				steps.preSnapMillis?.let { put("preSnapMs", it) }
+				steps.postSnapMillis?.let { put("postSnapMs", it) }
+				steps.javaAbiSnapMillis?.let { put("javaAbiSnapMs", it) }
 			}
+			// The host spans that partition the build, and the residual they leave. The
+			// residual is the point: it is what a future un-timed step shows up in.
+			timeline.spans?.let { spans ->
+				spans.scanMillis?.let { put("scanMs", it) }
+				spans.compileRpcMillis?.let { put("compileRpcMs", it) }
+				spans.policyMillis?.let { put("policyMs", it) }
+				spans.dexRpcMillis?.let { put("dexRpcMs", it) }
+				spans.relinkRpcMillis?.let { put("relinkRpcMs", it) }
+				put("accountedMs", timeline.accountedMillis)
+				put("unaccountedMs", timeline.unaccountedMillis)
+			}
+			timeline.counts?.let { counts ->
+				counts.allSources?.let { put("nAllSources", it) }
+				counts.kotlinCompiled?.let { put("nKotlinCompiled", it) }
+				counts.javaSources?.let { put("nJavaSources", it) }
+				counts.changedClasses?.let { put("nChangedClasses", it) }
+				counts.classFiles?.let { put("nClassFiles", it) }
+				counts.classBytes?.let { put("classBytes", it) }
+				counts.compileOrdinal?.let { put("compileOrdinal", it) }
+			}
+			timeline.scratchFsType?.let { put("scratchFs", it) }
 		}
 	}
 
