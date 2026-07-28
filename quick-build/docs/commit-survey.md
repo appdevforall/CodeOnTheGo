@@ -98,8 +98,9 @@ The roster (`harness/pr-survey-repos.txt`) is a seed list plus a `gh search
 repos --topic android` sweep over Kotlin and Java, sorted by last update; each
 candidate is verified to have a root `settings.gradle[.kts]` and `gradlew`
 before it is kept. The survey then walks each repo's **default branch** and
-takes the most recent 40 commits (median 37 per repo; 44 repos hit the cap; one
-repo had no default-branch commits and drops out of the 99). Commits, not PRs —
+takes the most recent 40 commits (median 37 per repo; 44 repos hit the cap). The
+roster holds 100 repos; one produced no default-branch commits, leaving 99.
+Commits, not PRs —
 a PR squashes many edits and is a worse proxy for a save than a commit is.
 
 **Bots are excluded, and it changes the answer.** 482 of 3,608 scanned commits

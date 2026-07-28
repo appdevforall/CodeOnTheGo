@@ -170,9 +170,10 @@ state, per app, median `[measured on a56]` / `[measured on c107]`:
 | total, Quick Build path | 75 s | 339 s |
 
 So Quick Build's first-run pathway is about **1.3x slower** than getting a first
-standard build (25 apps on the A56, 21 on the C107). It repays that within a
-handful of edits on the A56 and within two or three on the C107, but it is a
-real up-front cost and it is paid before the user has seen anything run.
+standard build (25 apps on the A56, 21 on the C107). At the median per-edit
+saving it repays that in roughly five edits on the A56 and four on the C107
+`[inferred]` — but it is a real up-front cost, and it is paid before the user
+has seen anything run at all.
 
 **Rebaseline is effectively unmeasured.** A structural change (manifest, gradle
 files, dependencies) drops out of the hot loop and rebuilds the baseline. The
