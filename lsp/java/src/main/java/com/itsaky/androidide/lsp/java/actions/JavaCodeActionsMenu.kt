@@ -18,13 +18,14 @@
 package com.itsaky.androidide.lsp.java.actions
 
 import com.itsaky.androidide.actions.ActionItem
-import com.itsaky.androidide.lsp.actions.IActionsMenuProvider
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.actions.CommentLineAction
+import com.itsaky.androidide.lsp.actions.IActionsMenuProvider
+import com.itsaky.androidide.lsp.actions.UncommentLineAction
 import com.itsaky.androidide.lsp.java.actions.common.FindReferencesAction
 import com.itsaky.androidide.lsp.java.actions.common.GoToDefinitionAction
 import com.itsaky.androidide.lsp.java.actions.common.OrganizeImportsAction
 import com.itsaky.androidide.lsp.java.actions.common.RemoveUnusedImportsAction
-import com.itsaky.androidide.lsp.actions.UncommentLineAction
 import com.itsaky.androidide.lsp.java.actions.diagnostics.AddImportAction
 import com.itsaky.androidide.lsp.java.actions.diagnostics.AddThrowsAction
 import com.itsaky.androidide.lsp.java.actions.diagnostics.AutoFixImportsAction
@@ -47,15 +48,19 @@ import com.itsaky.androidide.lsp.java.actions.generators.OverrideSuperclassMetho
  * @author Akash Yadav
  */
 object JavaCodeActionsMenu : IActionsMenuProvider {
-
 	private const val LANG = "java"
 	private const val EXT = "java"
 	private const val LINE_COMMENT_TOKEN = "//"
 
 	override val actions: List<ActionItem> =
 		listOf(
-			CommentLineAction(LANG, EXT, LINE_COMMENT_TOKEN),
-			UncommentLineAction(LANG, EXT, LINE_COMMENT_TOKEN),
+			CommentLineAction(LANG, EXT, LINE_COMMENT_TOKEN, TooltipTag.EDITOR_CODE_ACTIONS_COMMENT),
+			UncommentLineAction(
+				LANG,
+				EXT,
+				LINE_COMMENT_TOKEN,
+				TooltipTag.EDITOR_CODE_ACTIONS_UNCOMMENT,
+			),
 			GoToDefinitionAction(),
 			FindReferencesAction(),
 			AddImportAction(),
@@ -75,6 +80,6 @@ object JavaCodeActionsMenu : IActionsMenuProvider {
 			GenerateConstructorAction(),
 			GenerateToStringMethodAction(),
 			RemoveUnusedImportsAction(),
-			OrganizeImportsAction()
+			OrganizeImportsAction(),
 		)
 }

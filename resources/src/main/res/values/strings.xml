@@ -512,6 +512,7 @@
 	<string name="action_generate_setters_getters">Generate setters/getters</string>
 	<string name="action_add_throws">Add \'throws\'</string>
 	<string name="action_comment_line">Comment line</string>
+	<string name="action_surround_with_try_catch">Surround with try/catch</string>
 	<string name="action_create_missing_method">Create missing method</string>
 	<string name="action_convert_to_block">Convert to block</string>
 	<string name="action_generate_constructor">Generate constructor</string>
@@ -1025,6 +1026,10 @@
 	<!-- Drawer toggle content descriptions -->
 	<string name="cd_drawer_open">Open project menu</string>
 	<string name="cd_drawer_close">Close project menu</string>
+
+	<!-- Output actions content descriptions -->
+	<string name="cd_enable_word_wrap">Enable word wrap</string>
+	<string name="cd_disable_word_wrap">Disable word wrap</string>
 
 	<string name="unknown_error">"An unknown error occurred."</string>
 	<string name="build_in_progress_warning">A build is already in progress. Ignoring new request.</string>

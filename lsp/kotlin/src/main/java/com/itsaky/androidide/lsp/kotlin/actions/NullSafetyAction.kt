@@ -5,6 +5,7 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.actions.requireFile
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.diagnostic.DiagnosticAction
 import com.itsaky.androidide.lsp.kotlin.utils.NullSafetyKind
@@ -31,9 +32,14 @@ import kotlinx.coroutines.withContext
  * are out of scope here.
  */
 class NullSafetyAction : BaseKotlinCodeAction() {
+	companion object {
+		const val ID = "ide.editor.lsp.kt.diagnostics.nullSafety"
+	}
+
 	override var titleTextRes: Int = R.string.action_null_safety_fixes
-	override val id: String = "ide.editor.lsp.kt.diagnostics.nullSafety"
+	override val id: String = ID
 	override var label: String = ""
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX
 
 	override fun prepare(data: ActionData) {
 		super.prepare(data)
