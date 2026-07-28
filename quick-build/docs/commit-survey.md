@@ -1,7 +1,8 @@
 # The commit survey: how it works and what it found
 
-Status: complete, reproducible, and a proxy rather than a metric. Read the
-caveat before the numbers.
+Status: complete, reproducible, and a proxy rather than a metric. Its classifier
+has also fallen behind the shipped one since the run, so every percentage here is
+an upper bound. Read the caveat before the numbers.
 
 Provenance: every number here is `[measured on host]` — a static classification
 of GitHub commit metadata, run on the Mac Mini. Nothing in this doc was measured
@@ -33,12 +34,30 @@ data. "72% of developer edits hot-reload" is not.
 ## How a commit is classified
 
 The classifier is a Python mirror of the shipped Kotlin one
-(`quick-build/.../domain/ChangeClassifier.kt`), rule for rule, with each rule
-citing the Kotlin line it mirrors. That is possible because the Kotlin
-classifier is purely path-based — it never reads file content — so the mirror
-is exact rather than approximate. `pr_quickbuild_survey.py --selftest` checks it
-against the cases in `ChangeClassifierTest`; it passes 39 of 39
-`[measured on host]`.
+(`quick-build/.../domain/ChangeClassifier.kt`), rule for rule.
+`pr_quickbuild_survey.py --selftest` checks it against the cases in
+`ChangeClassifierTest`; it passes 39 of 39 `[measured on host]`.
+
+**The mirror covers the path-shape rules only, and the Kotlin classifier has
+since grown two rules outside that shape.** Both send commits to fallback that
+the survey scores as fast-path, so both make every number below optimistic:
+
+- `annotationImpact.escalation(...)` (`ChangeClassifier.kt:111`) — on a project
+  with a KSP/kapt processor, a code change that could have moved generated code
+  escalates to a Gradle rebaseline. This is content-aware, so no path-only mirror
+  can model it. It landed 2026-07-24, **before** this survey run, and the survey
+  does not account for it.
+- `fastPathRoots` / `NON_APP_MODULE_SOURCE_CHANGED` (`ChangeClassifier.kt:78-82`)
+  — any code, resource or asset edit outside the app module's `src` root
+  rebaselines, because the quick path incrementally compiles only the app module.
+  It landed 2026-07-27 17:53 PDT, **after** the 2026-07-27 06:02 UTC survey run.
+  This one bites hardest in the 60 multi-module repos: every commit the survey
+  counts as code-in-a-library-module would rebaseline on today's build.
+
+The script's own docstring still claims "there is no content-dependent decision
+to conservatively approximate", and its cited Kotlin line numbers are stale.
+Re-running the survey against the current classifier is owed before any of these
+percentages is quoted again.
 
 Each changed path maps to one file kind, by path shape only:
 
@@ -74,13 +93,17 @@ Conservative (calls fallback where the device might cope):
   behaviour at all, and on-device most of them are not even visible to the
   watcher — which is the entire gap between the strict and watch-scope readings
   below.
-- Commit file lists are capped by the GitHub REST API at 300 files; a commit at
-  the cap is flagged `truncated`. A hidden gradle file past the cap could only
-  move a commit from fast-path to fallback, so truncation biases toward
-  optimism, and the flag lets it be audited.
 
 Optimistic (calls fast-path where the shipped implementation might not be):
 
+- The two unmirrored Kotlin rules above (annotation-processor escalation and the
+  app-module boundary), which the survey does not model at all.
+- Commit file lists are capped by the GitHub REST API at 300 files. A hidden
+  gradle file past the cap could only move a commit from fast-path to fallback.
+  The survey records a `truncated` flag per commit, but **nothing reads it** — no
+  aggregation excludes or corrects a truncated commit, so the bias is
+  unmitigated. (The PR code path paginates properly; only the commit path is
+  capped.)
 - It classifies **routes**, not outcomes. A commit routed `CodeOnly` still has
   to compile, dex, and reload successfully on a real device; the corpus sweeps
   show real `CompileError` and `DeployFailure` rates that this survey does not
@@ -100,9 +123,12 @@ The roster (`harness/pr-survey-repos.txt`) is a seed list plus a `gh search
 repos --topic android` sweep over Kotlin and Java, sorted by last update; each
 candidate is verified to have a root `settings.gradle[.kts]` and `gradlew`
 before it is kept. The survey then walks each repo's **default branch** and
-takes the most recent 40 commits (median 37 per repo; 44 repos hit the cap). The
-roster holds 100 repos; one produced no default-branch commits, leaving 99.
-Commits, not PRs —
+takes the most recent 40 commits. The roster holds 100 repos; one produced no
+default-branch commits, leaving 99. Most repos were at the cap: 3,608 commits
+scanned across 99 repos. (The per-repo counts that survive to the output — median
+37, 44 repos at exactly 40 — are *post*-bot-exclusion, so a capped repo with any
+bot commits shows fewer than 40 and those two figures undercount how many repos
+hit the scan cap.) Commits, not PRs —
 a PR squashes many edits and is a worse proxy for a save than a commit is.
 
 **Bots are excluded, and it changes the answer.** 482 of 3,608 scanned commits
@@ -163,7 +189,8 @@ be quoted as "72.4%, of which 1.6 points are unsound".
 
 **Multi-module: 60.6% of repos, 60.1% of commits.** 60 of 99 repos have more
 than one module (module dirs = parents of a non-root `build.gradle[.kts]`, minus
-`buildSrc` / `build-logic` / `gradle`), and 1,878 of 3,126 commits land in them.
+any whose *top-level* path segment is `buildSrc`, `build-logic`, `build_logic` or
+`gradle`, and minus dot-dirs), and 1,878 of 3,126 commits land in them.
 Within those repos, under watch-scope semantics: 599 commits are code in one
 module, 153 are code across multiple modules, 91 code plus resources in one
 module, 52 code plus resources across modules, 41 resources only, 4 assets only;
@@ -171,6 +198,12 @@ module, 52 code plus resources across modules, 41 resources only, 4 assets only;
 multi-module set) touch more than one module. So multi-module support matters
 for the majority of real repos, but cross-module edits are a minority of the
 edits inside them `[measured on host]`.
+
+This reading is the one most affected by the app-module boundary rule that
+landed after the run: on today's build, an edit to a library module's `src`
+rebaselines rather than fast-paths, so some share of those 599 single-module and
+153 cross-module code commits would not take a fast path at all. How large a
+share is `[unmeasured]` until the survey is re-run.
 
 ## What still cannot quick-build
 
@@ -217,3 +250,8 @@ Until that exists, quote this survey for what it supports: the ranking of gaps
 (build config first, manifest second, everything else a long tail), the fact
 that most real repos are multi-module, and the fact that roughly 1.6% of commits
 would take a fast path the shipped watcher cannot fully justify.
+
+Owed before the percentages are quoted again: re-run against the current
+classifier, which now has two rules the mirror does not model, and refresh the
+script's stale docstring and Kotlin line references while doing it. Every number
+above is a ceiling, not an estimate.
