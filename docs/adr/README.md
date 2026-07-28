@@ -23,3 +23,4 @@ Format is lightweight **MADR / Nygard**: Context → Decision → Consequences �
 | [0007](0007-strictmode-whitelist-engine.md) | Enforce StrictMode via a custom whitelist engine | Proposed |
 | [0008](0008-retain-androidide-namespace.md) | Retain the `com.itsaky.androidide` namespace after rebrand | Proposed |
 | [0009](0009-jetpack-compose-for-new-ui.md) | Build new UI in Jetpack Compose, not XML Views | Proposed |
+| [0010](0010-navigation-resolves-via-analysis-api.md) | Kotlin navigation resolves via the Analysis API, not the symbol index | Proposed |
