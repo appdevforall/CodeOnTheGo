@@ -39,8 +39,11 @@ error is to pair one reading's value with the other's denominator ("2.5x across
 | per-edit (median across warm edit keys) | 2.48x, 55 keys | 3.32x, 49 keys |
 | pooled (device-wide median save-to-live vs device-wide median incremental standard) | 2.27x | 2.48x |
 
-The circulated "2.7x on the C107" does not reproduce under the method above; the
-closest is 2.49x.
+The circulated "2.7x on the C107" comes from the per-app calculation *without*
+collapsing repeated measurements of the same edit first (2.69x). That is a
+defensible variant, but collapsing is the better default — it stops an app with
+many repeats of one edit from dominating its own median — so the number to quote
+is 2.49x. See [`low-spec-devices.md`](low-spec-devices.md) for the C107 in depth.
 
 Per-app spread is wide and the ranking is stable across devices
 `[measured on a56, c107]`:
