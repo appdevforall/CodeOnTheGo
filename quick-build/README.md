@@ -1,6 +1,6 @@
 # Quick Build (ADFA-4128)
 
-Live-reload for user projects: tap the lightning-bolt button once and CoGo installs a generated **test app**; from then on every save hot-reloads with no reinstall. A typical warm save-to-live is ~1-3.5 s. The daemon's cold compile (~12 s on a mid-spec phone) is paid by a background **seed** build in the provisioning tail, so the first save is warm too (~1.6-2.6 s measured; before the seed it landed on the user's first save). Invariant: **the test app never silently runs stale code** — every edit either hot-reloads or visibly falls back to a real Gradle build.
+Live-reload for user projects: tap the lightning-bolt button once and CoGo installs a generated **test app**; from then on every save hot-reloads with no reinstall. A typical warm save-to-live is ~1-3.5 s. The daemon's cold compile (~12 s on a mid-spec phone) is paid by a background **seed** build in the provisioning tail, so the first save is warm too. A matched seed-on/seed-off A/B on the A56 (3 trials per arm, one build, `hello-kotlin`) puts the first save at **1.9 s seeded vs 11.5 s unseeded** — 6.1x, almost all of it cold `kotlinc` — with tap-to-Ready unchanged, since the seed starts after `Ready`. Invariant: **the test app never silently runs stale code** — every edit either hot-reloads or visibly falls back to a real Gradle build.
 
 The whole loop runs ON DEVICE: edit -> watch -> compile -> dex -> deploy -> reload all happen on the phone inside/alongside CoGo. No desktop component is part of the feature.
 
@@ -151,7 +151,7 @@ adb shell am start-activity \
 
 Two collectors write it, both running as *second* listeners beside CoGo's shipping analytics sink (via `CompositeQuickBuildMetricsSink`, which guards each delegate so instrumentation can never perturb a build): `BenchStateRecorder` writes a `state` line on every session-state change, and `BenchQuickBuildMetricsSink` mirrors each metrics callback — the load-bearing one is `reload_timeline`, which carries the whole save-to-live loop the benchmark reads.
 
-A third, optional flag — `CodeOnTheGo.qbnoseed` in `Download/`, inert unless the bench flag is also on — suppresses the post-provisioning background IC seed, so an A/B benchmark can run a seed-off arm against the same installed build (flip the flag file + restart CoGo instead of rebuilding). Shipping builds (no `qbbench`) always seed.
+A third, optional flag — `CodeOnTheGo.qbnoseed` in `Download/`, inert unless the bench flag is also on — suppresses the post-provisioning background IC seed, so an A/B benchmark can run a seed-off arm against the same installed build (flip the flag file + restart CoGo instead of rebuilding). Shipping builds (no `qbbench`) always seed. The matched A/B this flag exists for is quoted at the top of this file; its driver and raw data live in the benchmark repo at `corpus/results/20260728T153938Z-seed-ab/`.
 
 Files: `app/src/main/java/com/itsaky/androidide/quickbuild/Bench*.kt` + `QuickBuildBench*.kt`; the flags live in `:common`'s `utils/FeatureFlags.kt`.
 
