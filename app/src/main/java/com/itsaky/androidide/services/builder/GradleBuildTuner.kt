@@ -116,12 +116,9 @@ object GradleBuildTuner {
 			when {
 				isLowMemDevice -> LowMemoryStrategy to SelectionReason.LowMemDevice
 				totalMemMb <= LOW_MEM_THRESHOLD_MB -> LowMemoryStrategy to SelectionReason.LowMemThreshold
-
 				isThermallyConstrained && hasPreviousConfig -> ThermalSafeStrategy(previousConfig) to SelectionReason.ThermalWithPrevious
 				isThermallyConstrained && !hasPreviousConfig -> BalancedStrategy to SelectionReason.ThermalWithoutPrevious
-
 				meetsHighPerfMem && meetsHighPerfCores -> HighPerformanceStrategy to SelectionReason.HighPerf
-
 				else -> BalancedStrategy to SelectionReason.BalancedFallback
 			}
 
@@ -252,8 +249,14 @@ object GradleBuildTuner {
 
 			// GC strategy
 			when (val gc = jvm.gcType) {
-				GcType.Default -> Unit
-				GcType.Serial -> add("-XX:+UseSerialGC")
+				GcType.Default -> {
+					Unit
+				}
+
+				GcType.Serial -> {
+					add("-XX:+UseSerialGC")
+				}
+
 				is GcType.Generational -> {
 					add("-XX:+UseG1GC")
 
