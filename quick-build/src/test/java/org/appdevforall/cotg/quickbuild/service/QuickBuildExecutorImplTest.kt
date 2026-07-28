@@ -120,6 +120,42 @@ class QuickBuildExecutorImplTest {
 			assertThat(tracker.current).isEqualTo(0)
 		}
 
+	// Review gap (2026-07-26 #69): the seed is invisible by contract - the test app
+	// already runs exactly the sources it compiles - so its overlay must not flash
+	// "build ok" for a build the user never triggered.
+	@Test
+	fun `a seed success stays silent on the test-app status channel`() =
+		runTest {
+			val outcome = executor.execute(request(BuildRoute.Seed, ChangedFiles.Unknown))
+
+			assertThat(outcome).isEqualTo(BuildOutcome.Success(0, 0))
+			assertThat(deploy.statusCalls).isEmpty()
+		}
+
+	@Test
+	fun `a seed compile error stays silent on the test-app status channel but keeps the real outcome`() =
+		runTest {
+			val diagnostics =
+				listOf(
+					BuildDiagnostic(
+						severity = BuildDiagnostic.Severity.ERROR,
+						message = "unresolved reference",
+						file = sourceFile.path,
+						line = 1,
+					),
+				)
+			daemon.compileReply = DaemonReply.BuildFailed(diagnostics)
+
+			val outcome = executor.execute(request(BuildRoute.Seed, ChangedFiles.Unknown))
+
+			// The orchestrator still needs the honest outcome (it routes recovery),
+			// but the test-app overlay must not flash "build failed" for sources the
+			// app is running fine - the setup build compiled them green moments ago.
+			assertThat(outcome).isEqualTo(BuildOutcome.CompileError(diagnostics))
+			assertThat(deploy.statusCalls).isEmpty()
+			assertThat(deploy.calls).isEmpty()
+		}
+
 	@Test
 	fun `a removed source is threaded into the compiler's removedFiles, not its changed set`() =
 		runTest {

@@ -88,7 +88,13 @@ class QuickBuildExecutorImpl(
 ) : QuickBuildExecutor {
 	override suspend fun execute(request: BuildRequest): BuildOutcome =
 		try {
-			executeInner(request).also(::notifyTestApp)
+			val outcome = executeInner(request)
+			// A seed compiles the sources the test app ALREADY runs and deploys
+			// nothing: flashing build-ok/build-failed on its overlay would announce
+			// a build the user never triggered (2026-07-26 review). Stay silent;
+			// the outcome still flows to the orchestrator for recovery routing.
+			if (request.route !is BuildRoute.Seed) notifyTestApp(outcome)
+			outcome
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Throwable) {
