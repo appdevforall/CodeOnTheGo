@@ -5,13 +5,13 @@
 - **Ticket:** ADFA-4128, task 60.
 - **Scope:** the daemon's `.java` compile pass. The Kotlin pass, dex, and relink are
   out of scope except where they gate a javac decision.
-- **Read [`sora-slow-path-gap.md`](sora-slow-path-gap.md) first.** That scope line is
-  also this note's limitation: `compileMillis` is stamped after dexing, so javac is
-  roughly one sixth of the bucket this note tries to explain, and the measured
-  slow case (~53 s on sora-editor-full) is dominated by costs outside that scope —
-  most likely non-incremental dexing plus a Java-ABI gate that fails open and
-  silently forces a full Kotlin recompile. Land the fixes in that document's order,
-  not this one's, unless the pending measurement says otherwise.
+- **Read [`sora-slow-path-gap.md`](sora-slow-path-gap.md) first — it corrects this note.**
+  Device measurement (2026-07-28, A56) found javac is **19-27%** of a warm edit, not
+  the bottleneck: this note only looked inside `compileMs`, which excludes dex. The
+  dominant cost is per-file I/O on FUSE-backed emulated storage, where the daemon's
+  scratch tree lives (~50x penalty; moving it is a measured -45% per edit). This
+  note's core claim — javac recompiles all sources every edit, ~3 s on the A56 — is
+  correct and its options A+B are still worth doing, ranked #2 there rather than #1.
 
 Claim provenance is tagged throughout: `[measured on host]` = Mac Mini, Zulu JDK 17.0.12;
 `[measured on a56]` / `[measured on c107]` = the 2026-07-24 device e2e sweep

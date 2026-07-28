@@ -1,185 +1,190 @@
-# Gap: why Quick Build is slower than a standard build on sora-editor-full
+# Why Quick Build was slower than a standard build on sora-editor-full
 
-Status: open gap, not scheduled. Written 2026-07-28 so the analysis is not lost.
-One decisive measurement is still outstanding (see "What would settle it").
+Status: root-caused and measured 2026-07-28. The top fix is **not committed** — see
+"Fix 1" for what shipping it responsibly still needs.
 
-Provenance tags are mandatory here: `[measured on a56]`, `[measured on c107]`,
-`[measured on host]`, `[inferred]`. Untagged prose is framing, not a claim.
+Provenance tags are mandatory: `[measured on a56]`, `[measured on c107]`,
+`[measured on host]`, `[inferred]`. Untagged prose is code reading.
 
-## The problem
+Evidence: `quick-build/corpus/results/20260728T172912Z-sora-deepdive/`
+(per-step tables, both variants' logcat, the microbenchmark). A56, CoGo builds
+`C-d-0728-1026` / `C-d-0728-1044` from `5d2d94a78` plus scratch instrumentation.
 
-`sora-editor-full` is the corpus app where Quick Build loses worst to a plain
-incremental Gradle build. It is the real sora-editor `:editor` module: 287 mixed
-Kotlin/Java sources with bidirectional Kotlin <-> Java references.
+## Headline
 
-| device | QB save->live | standard incremental | ratio |
+The daemon's compile/dex scratch tree lives on Android's **FUSE-backed emulated
+storage**, where per-file I/O costs ~50x what it costs on app-private storage.
+Quick Build rewrites the whole class tree every build, so it pays that tax on
+every save; Gradle, rewriting only what changed, does not.
+
+Moving the scratch tree to app-private storage cuts a warm sora edit
+**14.7 s -> 8.1 s (-45%)** and `medium-kotlin` **2.5 s -> 1.4 s (-45%)**. Against
+the 11.9 s standard incremental build, Quick Build goes from **0.81x (losing) to
+1.45x (winning)** `[measured on a56, n=2 sora / n=1 medium]`.
+
+**And the famous "53 s" was never a per-edit cost.** Both 53 s figures are *edit
+index 1* — the session's first build. That session's first warm edit was 16.5 s.
+On today's build the equivalent full build still costs ~51 s but runs as a
+background Seed during provisioning, before the user can save; the first
+user-visible edit is now **8.2 s** `[measured on a56]`. The framing that started
+this investigation compared a cold build against a warm one.
+
+## The measured breakdown
+
+`total` = `reloadLive - trigger` from CoGo's own `reload_timeline`; `acct` = the
+independent sum of measured spans. **`acct` reconciles to `total` within 5 ms on
+all 13 rows**, so nothing hides in an unmeasured gap. Times in ms
+`[measured on a56]`.
+
+Variant A — scratch under the project root (today's shipping behaviour):
+
+```
+app/gen     total  scan compile  kotlin  javac abiSnp walks policy   dex  strip    d8   acct
+sora/g1     14718   246    4912     659   3983    621   268    615  8819   5492  3104  14716
+sora/g2     14922   260    6545    3447   2849    453   248    810  7222   4659  2421  14920
+sora/g3     28055   242   19293   16377   2677    407   237   1228  7209   4776  2268  28053
+```
+
+- **g1** (one-line Java body edit): the dex step is **8.8 s — 60% of the edit** —
+  and inside it the ACC_FINAL **strip pass is 5.5 s, larger than d8 itself
+  (3.1 s)**. javac is 4.0 s (27%). Kotlin is 0.7 s with `nKotlinToCompile=0`.
+- **g2** (Kotlin body edit): javac still ran over all 218 Java sources for a
+  `.kt`-only change (2.8 s).
+- **g3** (Java ABI change): kotlinc 16.4 s, because a moved Java ABI forces a
+  recompile of all 74 Kotlin sources by design (`nKotlinToCompile=74`).
+
+Variant B — identical code, scratch on app-private storage:
+
+| step (sora) | A (emulated) | B (app-private) | change |
 |---|---|---|---|
-| A56 | 53.6 s / 53.0 s / 16.5 s / 29.9 s across edits | 11.9 s | ~0.4x (QB ~4.5x slower) |
-| C107 | 188 s / 236 s / 97 s | 53.6 s | ~0.5x |
+| strip | 4659-5492 | 168-332 | **~20x faster** |
+| deploy policy | 615-1228 | 64-111 | **~10x faster** |
+| output-tree walks | 237-268 | 26-54 | **~6x faster** |
+| kotlinc (1 file) | 3447 | 3264-3352 | ~3% (noise) |
+| d8 | 2421 | 2128-2478 | ~0% (noise) |
 
-`[measured on a56]`, `[measured on c107]`. Caveat: these rows predate the
-per-edit attribution fix (task #57), which found 21% of recorded edits were
-joined to the wrong build, so individual values may be off. The gap is far too
-large to be an artifact, but do not quote a specific millisecond figure from
-this table without re-measuring.
+That split is the proof: only the per-file open/read/write steps collapse, while
+the compute-bound steps are unchanged. It is not a general "everything got
+faster" effect.
 
-Two facts narrow the search a lot:
+## The mechanism
 
-- The cost is in compile, not delivery: `qbCompileMs` is 53,508 of 53,650 ms
-  `[measured on a56]`.
-- It is not a fallback. Every edit routed `CodeOnly` — the fast path itself is
-  slow, Quick Build is not silently degrading to a rebaseline `[measured on a56]`.
+`QuickBuildSessionManager.daemonConfig` sets
+`outDir = File(layout.projectRoot, ".androidide/quickbuild/out")`, and
+`layout.projectRoot` is under `/storage/emulated/0/CodeOnTheGoProjects/`. So
+`classes/`, `ic/`, `cp-snap/`, `opened-classes/` and `dex/` all sit on emulated
+storage — a FUSE view where every open/write/mkdir is a userspace round trip.
 
-## Why the existing javac design note does not explain it
+Same 464 files / 1.46 MB / 40 dirs, `cp -r`, best of 3 `[measured on a56]`:
 
-`incremental-javac-design.md` blames javac being handed all sources with a fresh
-`StandardJavaFileManager` each compile. That cost is real but small, and the note
-cannot account for the number:
+| filesystem | time |
+|---|---|
+| `/data/local/tmp` (app-side ext4/f2fs) | **192 ms** |
+| `/storage/emulated/0` (emulated, FUSE) | **9985 ms** |
 
-- Its own host micro-benchmark measures all-sources javac at ~308 ms for 214
-  files `[measured on host]`. Even a 20x device penalty is ~6 s against 53 s.
-- The deeper issue is a framing error. The 53 s is
-  `E2eTimeline.compileMillis` = `compileDone - trigger`, and `markCompileDone` is
-  stamped **after the dex step** (`QuickBuildExecutorImpl.kt:336`). So the bucket
-  holds six things — source-tree walk, Kotlin compile, javac, the deploy-policy
-  class-header pass, the ACC_FINAL strip, and d8 — and the note analyses one of
-  them.
-- The note's own device data shows the hole: on C107 `medium-kotlin`,
-  kotlin 4093 + javac 0 + strip 929 + d8 940 = 5962 ms against a reported
-  `compileMs` of 12495 `[measured on c107]`. **52% of compile time is
-  unattributed even on a small app.**
+`DexTool.openClasses` `deleteRecursively()`s the strip mirror and rewrites every
+class — changed or not — once per build, which is why strip alone was 4.7-5.5 s.
+The deploy policy and both tree walks pay the same tax on reads.
 
-Correcting that note is part of closing this gap.
+## Why Quick Build lost to Gradle, in order of size
 
-## What actually happens on one save
+1. **A filesystem penalty Gradle avoids.** Gradle's build dir is on the same
+   storage, but its incremental tasks rewrite only changed classes; Quick Build's
+   strip pass rewrites **all 464** every build and the deploy policy re-reads
+   **323**. Quick Build turned a one-line edit into a whole-module I/O pass.
+2. **javac is not incremental** — all 218 `.java` sources through a fresh
+   `StandardJavaFileManager` every build, 2.1-4.2 s regardless of the edit.
+3. **d8 is not incremental** — all 464 classes dexed from scratch, 2.1-4.6 s,
+   where Gradle dexes per-class and merges.
+4. For `03-java-abi-change` only: a moved Java ABI forces a full 74-file Kotlin
+   recompile (14.9 s), by the deliberately blunt rule in
+   `IncrementalCompiler.kotlinFilesToCompile`. This edit stays below 1x even
+   after fix 1.
 
-For a one-line Java method-body edit, 14 of 17 pipeline steps scale with **total
-project size** rather than with what changed; only coalescing and change
-classification scale with the edit `[inferred, from code]`. The same is true of a
-Kotlin edit, which still pays the full 214-file javac, the full Java-ABI parse,
-and the full class-header pass, because none of those are conditioned on what
-changed. That is why the Kotlin body edit (34.8 s) measures *slower* than the
-Java ABI change (29.9 s) on this app `[measured on a56]`.
+## Two hypotheses this killed
 
-The costs that scale with project size, ranked by plausible contribution
-`[inferred, from code]`:
+Worth recording, because both were plausible from code reading alone and both
+were wrong:
 
-1. **d8 is fully non-incremental.** `DexTool.kt:73-101` hands d8 every class in
-   the tree and re-reads the ~27 MB `android.jar` on every save. No
-   `setIntermediate(true)`, no per-class dex cache, no merge step.
-2. **The ACC_FINAL strip mirror is rebuilt from zero every save.**
-   `DexTool.kt:108-126` calls `deleteRecursively()` on the mirror, then re-reads
-   and ASM round-trips every `.class` (`FinalStripper.kt`).
-3. **javac over all `.java` sources with a fresh file manager**
-   (`IncrementalCompiler.kt:156`, `JavaCompileStep.kt:39`) — the note's cost.
-4. **The deploy-policy class-header pass** (`QuickBuildExecutorImpl.kt:330,351-366`,
-   `ClassHeader.kt:33-71`) parses the full constant pool of every *changed* class
-   — and because javac rewrites every Java-derived class each save, "changed"
-   means the whole Java half. One project-size cost manufactures another.
-5. **`snapshotClassOutputs()` runs twice per compile** (`IncrementalCompiler.kt:141,181`)
-   — two full stat sweeps of the output tree.
-6. **`JavaSourceAbi.snapshot()` re-parses all `.java` and builds a *second* file
-   manager** (`JavaSourceAbi.kt:54-76`), so `android.jar` is indexed twice per save.
-7. **Whole-tree walks outside the daemon**: `layout.allSources()` per build, plus
-   the watcher's 2 s poll sweep (`AndroidProjectWatcher.kt:159-165,253`) — roughly
-   26 extra full-tree stats during a 53 s build.
+- **"The Java-ABI gate fails open, silently recompiling all Kotlin on a Java
+  edit."** The gate is healthy: a Java body edit measured `nKotlinToCompile=0`
+  `[measured on a56]`. The 74-file Kotlin recompile is real but only on a genuine
+  ABI change, which is the documented design.
+- **"Non-incremental dexing is the dominant cost."** Half right. Dex *is* 48-60%
+  of the edit, but most of that was the strip pass's file I/O, not dexing
+  compute — strip fell 20x when only the filesystem changed. d8 itself remains
+  3.7-3.9 s of the post-fix 8.1 s, which is fix 3, not fix 1.
 
-## The two candidates
+## Correction to `incremental-javac-design.md`
 
-**A. The dex stage is the floor.** Always present, no failure required.
-Extrapolating items 1-6 against the C107 breakdown lands around 25-30 s of
-C107-scale work `[inferred]` — real, but short of 53 s on the *faster* A56.
+Its premise is half right and its framing is wrong.
 
-**B. A Java edit can force a full Kotlin recompile, silently.** This is the
-cliff, and it fits the shape of the data (2-4 s on small apps, 53 s here) in a
-way a slope does not.
+- **Right:** javac really does recompile all 218 sources every edit, costing
+  2.1-4.2 s per warm edit `[measured on a56]` — its host-curve extrapolation of
+  "~3 s per edit" was a good prediction.
+- **Wrong:** it calls javac "the bottleneck." javac is **19-27%** of a warm edit
+  before the filesystem fix and 26-35% after. The note only looked *inside*
+  `compileMs` — where javac is 55-61% on the small Java apps it sampled — and
+  `compileMs` in those c107 rows **excludes dex**. The dex half was the larger
+  half, and the filesystem cost underneath both halves was invisible to every
+  field it had.
+- Its device-scaling factor was also off: it inferred ~40x host from 4-file c107
+  rows; the A56 measures **7-14x** at N=218 `[inferred]`.
 
-`IncrementalCompiler.kt:341-356` gates Kotlin work on a Java ABI diff. Designed
-behavior is right: a Java *body* edit does not move the ABI fingerprint, so only
-genuinely-changed Kotlin files recompile. But **the gate fails open** — if
-`JavaSourceAbi.snapshot()` returns null it returns *every* Kotlin source as
-changed, and the Kotlin compiler recompiles all 74 files with no error, no
-warning, and no user-visible signal.
+Its options A+B remain worth doing — they are just fix 2, not fix 1.
 
-`snapshot()` has two silent-null paths (`JavaSourceAbi.kt:71-75`): an exception
-catch, and a size check. The size check is the suspicious one, because the map is
-keyed by a URI round-trip — `File(unit.sourceFile.toUri()).absolutePath`
-(`JavaSourceAbi.kt:67`). On Android that is exactly where path identity breaks:
-`/sdcard` vs `/storage/emulated/0`, or any symlinked project root, yields a key
-that does not match the input path, one entry goes missing, the size check fails,
-and the gate fails open **on every save, forever**.
+## Ranked fixes
 
-Best current read: **A is the floor, B is why the number is 53 s rather than
-~25 s.** They are not exclusive; expect both `[inferred]`.
+1. **Move the daemon scratch tree off emulated storage.** Measured **-45%** on
+   every warm sora edit and on medium-kotlin. Largest payoff, smallest diff (the
+   experiment was 8 lines). **Not committed**, because shipping it needs three
+   things this session did not build: a cleanup policy for stale per-project work
+   dirs (they would otherwise accumulate in app-private storage forever, which
+   matters on the 1.5 GB tier), a check of the rebaseline/teardown paths that may
+   assume the out dir sits under the project root, and unit tests. The
+   experimental patch keyed a scratch dir on `hashCode()` of the project path —
+   good enough to measure, not to ship.
+2. **Incremental javac** (the design note's options A + B). 2.1-4.2 s per edit,
+   ~30% of what remains after fix 1.
+3. **Incremental dexing.** 2.1-4.6 s per edit — the largest remaining item on a
+   Java body edit after fix 1 (3.7-3.9 s of 8.1 s). D8 supports per-class output
+   plus a merge step. Needs care about merge correctness under the never-stale
+   invariant.
+4. **Narrow the "Java ABI moved -> recompile all Kotlin" rule.** 14.9 s of the
+   22.9 s ABI-change edit; moves only that edit class, but it is the worst one
+   left.
+5. **Stop re-stripping unchanged classes.** Largely subsumed by fix 1 (strip
+   falls to 0.17-0.33 s off emulated storage), but still the right shape: strip
+   is a pure function of the input bytes.
 
-## Why we cannot currently tell which
+Incidental: **daemon IPC is free** — host-observed RPC minus daemon-observed
+duration is 20-60 ms on multi-second calls `[measured on a56]`.
 
-`IncrementalCompiler` computes exactly the diagnostic that would answer this —
-`lastJavaAbiChange` (line 104) and `lastCompileLog` (line 96) — and
-`DaemonService.compile` (`DaemonService.kt:84-122`) never reads either. The
-signal is generated and discarded.
+## The analytics lesson
 
-Compounding it: per-step timings exist in only 13 of 466 rows in the whole
-benchmark dataset, all from one C107 run. There are none on the A56 and none for
-sora on any device, so no breakdown of these 53 s has ever been recorded.
+The shipped fields (`kotlinMs`, `javacMs`, `stripMs`, `d8Ms`) sum to about
+**half** of a warm edit, and the dominant cost lived entirely in the unmeasured
+half. That is how a careful design note reached a wrong conclusion from real
+device data. The durable fix is not more fields but an explicit **unaccounted
+residual** in the analytics event: when a future change adds an expensive
+un-timed step, the residual grows and the next reader sees it instead of
+misattributing the cost. Tracked separately; see the analytics task.
 
-## What would settle it
+## Limits of these numbers
 
-Ranked by information per unit of effort. Items 1-2 are already computed and
-returned by the daemon and were merely recorded as null in the A56 sweep — this
-is likely a reporting fix, not new instrumentation.
-
-1. **`kotlinMillis` for a one-line Java method-body edit on this app**
-   (`DaemonService.kt:107`). Near zero kills candidate B; seconds-to-tens
-   confirms it. Single highest-value measurement.
-2. **`stripMillis` + `d8Millis` for the same edit** (`DaemonService.kt:136-137`)
-   — sizes candidate A directly.
-3. **The residual**: `compileMillis - (kotlin + javac + strip + d8)`. A large
-   residual means the cost is in the un-timed steps (tree walks, the two
-   snapshot sweeps, the ABI parse, the class-header pass).
-4. **Actual `.class` count in the output tree** — items 1, 2, 4, 5 scale on that,
-   not on source count; with inner classes and Kotlin lambdas it is likely 2-4x
-   the 287 sources, which changes every extrapolation above.
-5. **Whether `JavaSourceAbi.snapshot()` returns null on device.** One log line at
-   `IncrementalCompiler.kt:351`. If null, log `result.size` vs
-   `javaSources.size` plus one example key of each form, to separate the
-   path-identity theory from the exception path.
-
-## Related finding: the daemon runs with no heap flags
-
-`DaemonProcessClient.kt:73-88` spawns the compile daemon with **no `-Xmx`, no
-`-XX:MaxMetaspaceSize`, no heap flags at all**. On a low-RAM device the heap
-fills across successive compiles and GC cost grows superlinearly.
-
-This is the leading explanation for the otherwise-backwards C107 numbers — 188 s
-then 236 s, i.e. the *second* edit slower — while the A56 improved across edits
-(53.6 s then 16.5 s) as the preserved caches predict `[inferred]`. Other
-candidates for that inconsistency: whether the background seed completed before
-edit 1 (`BuildOrchestrator.kt:125` drops a seed request when a build is in
-flight), a daemon respawn between edits (which resets the in-memory `javaAbi` and
-guarantees a full-Kotlin compile next save), and the double-fire watcher bug
-(task #83).
-
-## Proposed fix order (when this is scheduled)
-
-1. **Make dexing incremental.** `IncrementalCompiler.kt:208-212` already computes
-   the changed-class set and throws it away. Stop wiping the mirror, strip only
-   classes whose (size, mtime) moved, give d8 `setIntermediate(true)` plus a
-   per-class dex cache and a merge step. Largest structural win, needs no new
-   information.
-2. **Instrument, then defend, the Java-ABI gate.** Plumb `lastJavaAbiChange` and
-   `kotlinMillis` into the daemon response so a full-Kotlin compile is never
-   silent again; key `JavaSourceAbi` on a canonical path instead of a URI
-   round-trip; make the null path log loudly rather than fail open quietly.
-3. **The javac note's options B then A** (reuse the file manager, narrow javac's
-   input). Worth doing, but a smaller win than that note implies.
-
-Item 4 in the ranked list mostly disappears on its own once javac stops rewriting
-every class, because the changed set feeding it collapses to what really changed.
+- n=1 for variant A, n=2 for variant B on sora; n=1 for medium-kotlin per
+  variant. The effect is far outside the run-to-run spread and has an independent
+  mechanism measurement behind it, but these are not distributions.
+- d8 is the noisiest step (2.1-4.6 s across otherwise-identical runs) — do not
+  read small d8 deltas as signal.
+- The 11909 ms standard-build reference was measured 2026-07-25 on CoGo
+  `C-d-0725-0049`; it is a cross-version comparison.
+- A56 only. The c107 is 4-13x slower and was not re-measured; the filesystem
+  finding should be expected to reproduce there but is `[inferred]` until run.
 
 ## Scope note
 
-This gap is about the *large mixed-language* case. It is not the common case: on
-the same A56, Quick Build is a median 2.5x faster than an incremental standard
-build across 21 apps `[measured on a56]`. Fixing it widens the set of real-world
-projects Quick Build helps rather than hurts; it does not block the v1 story.
+This was never a v1 blocker: on the same A56, Quick Build is a median **2.5x
+faster** than an incremental standard build across 21 apps `[measured on a56]`.
+Fix 1 widens the set of projects Quick Build helps — and, being a ~45% win on
+*every* app measured including the small one, it is not just a large-project fix.
