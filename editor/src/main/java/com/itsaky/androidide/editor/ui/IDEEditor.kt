@@ -979,7 +979,7 @@ open class IDEEditor
 			EventBus.getDefault().register(this)
 		}
 
-		// --- Inline suggestions (ghost text) ------------------------------------
+		// Inline suggestions (ghost text)
 
 		/** [GhostTextRenderer] extends [TracingEditorRenderer], so this keeps the block-line
 		 * data-race guards while also drawing inline ghost text. */
@@ -1025,18 +1025,54 @@ open class IDEEditor
 			}
 		}
 
+		/**
+		 * Commits any showing ghost text at the cursor and clears it. Returns true if a suggestion was
+		 * accepted; false means there was nothing to accept and the caller should fall back to its
+		 * normal Tab behaviour. Shared by the hardware Tab key and the symbol bar's tab button, which
+		 * is the only way to reach Tab on a phone.
+		 */
+		fun acceptInlineSuggestion(): Boolean {
+			if (isReleased) return false
+			val renderer = ghostRenderer ?: return false
+			if (!renderer.hasSuggestion) return false
+			val suggestion = renderer.takeSuggestion()
+			if (suggestion.isNullOrEmpty()) {
+				invalidate()
+				return false
+			}
+			commitText(suggestion)
+			invalidate()
+			return true
+		}
+
+		/**
+		 * Runs the Tab action for input sources that don't go through the key event pipeline (the
+		 * symbol bar). Precedence mirrors the hardware Tab key: ghost text, then snippet tab stop, then
+		 * indent/commit.
+		 */
+		fun dispatchTab() {
+			if (isReleased) return
+			if (acceptInlineSuggestion()) return
+
+			val controller = snippetController
+			if (controller.isInSnippet()) {
+				controller.shiftToNextTabStop()
+				return
+			}
+
+			indentOrCommitTab()
+		}
+
 		override fun onKeyDown(
 			keyCode: Int,
 			event: KeyEvent,
 		): Boolean {
-			// Accept a showing suggestion on Tab: commit it at the cursor and consume the key.
-			if (keyCode == KeyEvent.KEYCODE_TAB && ghostRenderer?.hasSuggestion == true) {
-				val suggestion = ghostRenderer?.takeSuggestion()
-				invalidate()
-				if (!suggestion.isNullOrEmpty()) {
-					commitText(suggestion)
-					return true
-				}
+			// Accept a showing suggestion on an unmodified Tab: commit it at the cursor and consume the
+			// key. Modified Tabs fall through to the editor's own bindings (Shift+Tab unindents or
+			// walks back a snippet tab stop; Alt/Ctrl+Tab are ignored), as does a plain Tab with no
+			// suggestion, so the completion window keeps its Tab-to-select.
+			if (keyCode == KeyEvent.KEYCODE_TAB && event.hasNoModifiers() && acceptInlineSuggestion()) {
+				return true
 			}
 			return super.onKeyDown(keyCode, event)
 		}
