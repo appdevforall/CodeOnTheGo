@@ -8,6 +8,7 @@ import java.io.BufferedOutputStream
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -411,10 +412,62 @@ tasks.register<Zip>("createPluginArtifactsZip") {
 	destinationDirectory.set(rootProject.file("assets"))
 }
 
+// Packages the on-device installer payload (assets-<arch>.zip) consumed by
+// SplitAssetsInstaller on debug builds. Entry names must match the installer
+// contract in AssetsInstallationHelper.expectedEntries.
+fun createAssetsZip(arch: String) {
+	val outputDir =
+		project.layout.buildDirectory
+			.dir("outputs/assets")
+			.get()
+			.asFile
+	if (!outputDir.exists()) {
+		outputDir.mkdirs()
+	}
+	val zipFile = outputDir.resolve("assets-$arch.zip")
+
+	val sourceDir = project.rootDir.resolve("assets")
+	val bootstrapName = "bootstrap-$arch.zip"
+	val androidSdkName = "android-sdk-$arch.zip"
+	ZipOutputStream(zipFile.outputStream()).use { zipOut ->
+		arrayOf(
+			androidSdkName,
+			"localMvnRepository.zip",
+			"gradle-8.14.3-bin.zip",
+			"gradle-api-8.14.3.jar.zip",
+			"documentation.db",
+			bootstrapName,
+			"plugin-artifacts.zip",
+			"core.cgt",
+		).forEach { fileName ->
+			val filePath = sourceDir.resolve(fileName)
+			if (!filePath.exists()) {
+				throw FileNotFoundException(filePath.absolutePath)
+			}
+
+			project.logger.lifecycle("Zipping $fileName from ${filePath.absolutePath}")
+			val entryName =
+				when (fileName) {
+					bootstrapName -> "bootstrap.zip"
+					androidSdkName -> "android-sdk.zip"
+					else -> fileName
+				}
+
+			zipOut.putNextEntry(ZipEntry(entryName))
+			filePath.inputStream().use { input -> input.copyTo(zipOut) }
+			zipOut.closeEntry()
+		}
+	}
+	project.logger.lifecycle("Created ${zipFile.name} at ${zipFile.parentFile.absolutePath}")
+}
+
 tasks.register("assembleV8Assets") {
 	dependsOn("createPluginArtifactsZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
+	}
+	doLast {
+		createAssetsZip("arm64-v8a")
 	}
 }
 
@@ -422,6 +475,9 @@ tasks.register("assembleV7Assets") {
 	dependsOn("createPluginArtifactsZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
+	}
+	doLast {
+		createAssetsZip("armeabi-v7a")
 	}
 }
 
