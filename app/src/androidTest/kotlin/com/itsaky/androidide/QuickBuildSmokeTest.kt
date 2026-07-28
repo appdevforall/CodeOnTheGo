@@ -6,9 +6,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.activities.SplashActivity
-import com.itsaky.androidide.helper.clickFirstAccessibilityNodeByText
+import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.helper.ensureOnHomeScreenBeforeCreateProject
+import com.itsaky.androidide.helper.isExperimentsFlagSet
 import com.itsaky.androidide.helper.selectProjectTemplate
+import com.itsaky.androidide.helper.setAccessibilityEditText
 import com.itsaky.androidide.helper.setExperimentsFlagForTest
 import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
 import com.itsaky.androidide.projects.IProjectManager
@@ -17,6 +19,10 @@ import com.itsaky.androidide.quickbuild.QuickBuildJumpActivity
 import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
 import com.itsaky.androidide.screens.ProjectSettingsScreen.setProjectName
+import com.itsaky.androidide.screens.QuickBuildScreen.assertQuickBuildButtonShown
+import com.itsaky.androidide.screens.QuickBuildScreen.dismissFirstBuildNoticeIfShown
+import com.itsaky.androidide.screens.QuickBuildScreen.dismissQuickBuildDropdown
+import com.itsaky.androidide.screens.QuickBuildScreen.longPressOpensQuickBuildDropdown
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -31,16 +37,16 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 private const val EDITOR_OPEN_TIMEOUT_MS = 60_000L
-private const val DIALOG_TIMEOUT_MS = 3_000L
-private const val MENU_TIMEOUT_MS = 5_000L
+private const val PACKAGE_FIELD_TIMEOUT_MS = 3_000L
 private const val JUMP_EVENT_TIMEOUT_S = 5L
 
 /**
  * Kaspresso smoke for the Quick Build surfaces added by ADFA-4128 (plan A2/E3/A1): the
- * lightning-bolt toolbar action, its long-press split-button dropdown, and the
- * QuickBuildJumpActivity trampoline the test app's error overlay fires. Exercises the
- * surfaces only - it never starts a quick-build session (that needs an installed test
- * app + warm daemon; covered by the on-device QA walk).
+ * lightning-bolt toolbar action (via [com.itsaky.androidide.screens.QuickBuildScreen]),
+ * its long-press split-button dropdown, and the QuickBuildJumpActivity trampoline the
+ * test app's error overlay fires. Exercises the surfaces only - it never starts a
+ * quick-build session (that needs an installed test app + warm daemon; covered by the
+ * on-device QA walk).
  *
  * Runs after [EndToEndTest] in [OrderedTestSuite]: assumes onboarding is complete.
  */
@@ -49,13 +55,23 @@ class QuickBuildSmokeTest : TestCase() {
 	private val targetContext
 		get() = InstrumentationRegistry.getInstrumentation().targetContext
 
+	private var hadExperimentsFlag = false
+
 	@Test
 	fun test_quickBuildSurfaces() =
 		before {
-			// The toolbar action only registers when experiments are enabled.
+			// The toolbar action only registers when experiments are enabled. Snapshot
+			// the pre-test flag state so the after-block restores it - a dev device may
+			// legitimately have experiments enabled outside this test.
+			hadExperimentsFlag = isExperimentsFlagSet()
 			setExperimentsFlagForTest(true)
+			// On an already-provisioned device, OnboardingActivity skips its async
+			// JDK-distribution reload in test mode (onResume), so isSetupCompleted()
+			// would stay false and the app would park on the welcome slide forever.
+			// Load synchronously up front; harmless when run after EndToEndTest.
+			IJdkDistributionProvider.getInstance().loadDistributions()
 		}.after {
-			setExperimentsFlagForTest(false)
+			setExperimentsFlagForTest(hadExperimentsFlag)
 		}.run {
 			step("Launch app") {
 				ActivityScenario.launch(SplashActivity::class.java)
@@ -68,57 +84,23 @@ class QuickBuildSmokeTest : TestCase() {
 				clickCreateProjectHomeScreen()
 			}
 			selectProjectTemplate("Select Empty Activity template", R.string.template_empty)
-			setProjectName("QuickBuildSmoke")
+			// qb- prefix: on-device automation may only create qb-* project dirs.
+			setProjectName("qb-smoke")
+			step("Fix the auto-derived package name (hyphen is not a valid package char)") {
+				// appNameToPackageName derives "com.example.qb-smoke", which fails the
+				// PACKAGE constraint and silently blocks the Create button. Overwrite it.
+				val d = device.uiDevice
+				val derived = d.findObject(UiSelector().text("com.example.qb-smoke"))
+				check(derived.waitForExists(PACKAGE_FIELD_TIMEOUT_MS)) { "Auto-derived package field not found" }
+				setAccessibilityEditText("com.example.qb-smoke", "com.example.qbsmoke", "package name")
+				d.waitForIdle()
+			}
 			clickCreateProjectProjectSettings()
 
-			step("Editor shows the Quick Build toolbar button") {
-				val d = device.uiDevice
-				// Dismiss the first-build notice if it appears.
-				val okBtn = d.findObject(UiSelector().text("OK").className("android.widget.Button"))
-				if (okBtn.waitForExists(DIALOG_TIMEOUT_MS)) {
-					clickFirstAccessibilityNodeByText("OK")
-					d.waitForIdle()
-				}
-				// cd_quick_build is the button's contentDescription (REVIEW.md section 8).
-				val quickBuild =
-					d.findObject(
-						UiSelector().description(targetContext.getString(R.string.cd_quick_build)),
-					)
-				assertTrue(
-					"Quick Build toolbar button not found (experiments flag on, editor open)",
-					quickBuild.waitForExists(EDITOR_OPEN_TIMEOUT_MS),
-				)
-			}
-
-			step("Long-press opens the split-button dropdown") {
-				val d = device.uiDevice
-				val quickBuild =
-					d.findObject(
-						UiSelector().description(targetContext.getString(R.string.cd_quick_build)),
-					)
-				quickBuild.longClick()
-
-				listOf(
-					targetContext.getString(R.string.quick_build_action_label),
-					targetContext.getString(R.string.quick_build_menu_standard_run),
-					targetContext.getString(R.string.quick_build_menu_restart_session),
-					targetContext.getString(R.string.help),
-				).forEach { title ->
-					assertTrue(
-						"Dropdown item '$title' not shown after long-press",
-						d.findObject(UiSelector().text(title)).waitForExists(MENU_TIMEOUT_MS),
-					)
-				}
-
-				d.pressBack()
-				assertTrue(
-					"Dropdown did not dismiss on back",
-					d
-						.findObject(
-							UiSelector().text(targetContext.getString(R.string.quick_build_menu_standard_run)),
-						).waitUntilGone(MENU_TIMEOUT_MS),
-				)
-			}
+			dismissFirstBuildNoticeIfShown()
+			assertQuickBuildButtonShown(EDITOR_OPEN_TIMEOUT_MS)
+			longPressOpensQuickBuildDropdown()
+			dismissQuickBuildDropdown()
 
 			step("Jump trampoline rejects a file outside the project") {
 				val latch = CountDownLatch(1)

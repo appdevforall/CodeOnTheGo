@@ -9,6 +9,13 @@ import org.junit.Assert.assertEquals
 private const val EXPERIMENTS_FLAG_PATH = "/sdcard/Download/CodeOnTheGo.exp"
 
 /**
+ * Whether the experiments sentinel file currently exists on disk. Lets a test snapshot
+ * the pre-test state and restore it in its after-block instead of unconditionally
+ * deleting the flag (which strips it from a dev device that had it enabled).
+ */
+fun isExperimentsFlagSet(): Boolean = java.io.File(EXPERIMENTS_FLAG_PATH).exists()
+
+/**
  * Flips [FeatureFlags.isExperimentsEnabled] for a test. The flag is a sentinel file in
  * Downloads that [FeatureFlags.initialize] reads exactly once per process, so this
  * (un)creates the file via shell (independent of the app's storage permission) and then
