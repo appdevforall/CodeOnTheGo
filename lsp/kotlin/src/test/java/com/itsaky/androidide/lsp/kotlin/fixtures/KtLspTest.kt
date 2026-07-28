@@ -49,6 +49,21 @@ abstract class KtLspTest {
 		action: KaSession.() -> R,
 	): R = env.analyze(file, action)
 
+	/**
+	 * Runs [action] in a dangling-aware analysis session for [ktFile], the way an interactive request
+	 * (completion, code action) does. Tests have no upstream cancellation source, hence [ICancelChecker.NOOP].
+	 */
+	internal fun <R> analyzeMaybeDanglingForTest(
+		ktFile: KtFile,
+		action: KaSession.() -> R,
+	): R =
+		env.project.read {
+			analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, noopCancelChecker(), action)
+		}
+
+	/** A fresh scheduler-aware checker with no upstream cancellation source, for call sites that require one. */
+	internal fun noopCancelChecker(): ScheduledCancelChecker = ScheduledCancelChecker(ICancelChecker.NOOP)
+
 	/** Resolves [call] to a function call and runs [action] inside the analyze block. */
 	protected fun <R> analyzeMaybeDanglingForTest(
 		call: KtCallElement,
@@ -65,11 +80,9 @@ abstract class KtLspTest {
 		// does in production.
 		val ktFile = call.containingKtFile
 		runBlocking { env.ktSymbolIndex.fileIndex.upsert(ktFile.toMetadata(env.project, isIndexed = false)) }
-		return env.project.read {
-			analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
-				val resolved = call.resolveToCall()?.successfulFunctionCallOrNull()
-				action(resolved)
-			}
+		return analyzeMaybeDanglingForTest(ktFile) {
+			val resolved = call.resolveToCall()?.successfulFunctionCallOrNull()
+			action(resolved)
 		}
 	}
 }
