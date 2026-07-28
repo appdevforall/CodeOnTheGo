@@ -19,9 +19,16 @@ this answers "what happened when we did".
 | Device | RAM | Quick Build | Standard Gradle build | Verdict |
 |---|---|---|---|---|
 | A56 | 8 GB | works | works | reference |
-| C107 | 3.6 GB | provisions; 68-70 of 97 edits measured | 30/30 cold, 21/30 marginal | **works** `[measured on c107]` |
+| C107 | 3.6 GB | reaches Ready on 21/30 apps; 68-70 of 97 edits measured | builds 21/30 apps, cold and incremental | **works** `[measured on c107]` |
 | itel A667L | 1.9 GB | never provisions | never finishes | **walled** `[measured on itel]` |
 | incar Q8 | 1.46 GB | not reached | not reached | **below floor at idle** `[measured on Q8]` |
+
+The two C107 columns are the **same 21 apps**: every app that reaches Quick Build
+Ready also builds by the standard route, and the 9 that do not reach Ready are
+exactly the 9 CoGo cannot build at all there `[measured on c107]`. Quick Build
+adds no failures of its own on this tier. (An earlier revision of this table read
+"30/30 cold, 21/30 marginal"; the 30/30 was wrong, and the 21/30 was a Quick
+Build setup count printed under the standard-build column.)
 
 Both Quick Build provisioning and a plain `:app:assembleDebug` die on the itel for
 the same reason, because both run the same CoGo-sized Gradle daemon. Nothing in
@@ -29,26 +36,48 @@ Quick Build's own hot loop is implicated.
 
 ## The C107 works, and the absolute win is bigger there
 
-Quote **~2.5x** for the C107, per [`benchmarking.md`](benchmarking.md), which owns
-the speedup methodology: that is the per-app median with repeated measurements of
-the same edit collapsed first (2.49x over 18 apps). Without that collapse the same
-per-app calculation gives 2.69x, which is where the circulated "2.7x" comes from —
-a defensible variant, but not the one the set quotes, because collapsing stops an
-app with many repeats of one edit from dominating its own median.
+Quote **~2.9x** for the C107, per [`benchmarking.md`](benchmarking.md), which owns
+the speedup methodology: that is the per-app median over 18 apps, with repeated
+measurements of the same edit collapsed first. The circulated "2.7x" does not
+reproduce from the CSVs under any reading; the nearest is the same per-app
+calculation without collapsing repeats, 2.75x. An earlier revision of this page
+quoted 2.49x, which does not reproduce either.
 
-The ratio barely moves against the A56's ~2.3x. What changes is the **absolute**
-saving, which grows from ~3 s to ~15 s per edit. That is the number that matters
-for the product: on the tier CoGo actually targets, Quick Build turns a wait you
-leave the phone for into one you sit through.
+Carry the caveat with it: **34% of the C107's measured edits are
+attribution-suspect**, against 7% on the A56. Per-app medians are the reading that
+survives that best, and per-edit C107 numbers should not be quoted without it —
+see benchmarking.md, "How much of this to believe".
 
-Three build costs on the C107, same corpus `[measured on c107]`:
+The ratio does move against the A56's ~2.3x, but the **absolute** saving is the
+number that matters for the product: the median app saves +2.7 s per warm edit on
+the A56 and **+15.1 s on the C107** `[measured on a56, c107]`. On the tier CoGo
+actually targets, Quick Build turns a wait you leave the phone for into one you
+sit through.
 
-| Cost | median | min | max | n |
+Four build costs on the C107, same corpus. Every cell is a **median over apps**
+of that app's own median, and min/max are across apps, so all four rows are
+comparable to each other `[measured on c107]`:
+
+| Cost | median | min app | max app | apps |
 |---|---|---|---|---|
-| Quick Build save->live | 11.3 s | 0.45 s | 236 s | 68/97 |
-| Incremental standard build (warm daemon) | 25.4 s | 10.3 s | 53.6 s | 30/30 |
-| Cold standard build (full Run) | 131 s | 82 s | 543 s | 30/30 |
-| Marginal Quick Build setup (project already built) | 92 s | 77 s | 162 s | 21/30 |
+| Quick Build save->live, warm edits | 10.1 s | 2.1 s | 53.3 s | 18 |
+| Incremental standard build (warm daemon) | 26.6 s | 19.2 s | 53.6 s | 21 |
+| Cold standard build (full Run) | 133 s | 82 s | 357 s | 21 |
+| Marginal Quick Build setup (project already built) | 92 s | 77 s | 162 s | 21 |
+
+Those four medians do **not** divide into the 2.9x headline, and should not be
+made to: the headline is the median of each app's *own* ratio, which is the right
+statistic when the standard-build baseline varies 3x across apps.
+
+Three corrections to the earlier version of that table, all from re-deriving it.
+The standard-build rows said `30/30`, but only 21 of 30 apps complete a standard
+build on the C107 — the 9 that fail were contributing their *failed* builds'
+durations, which is where the old `10.3 s` incremental minimum, the `543 s` cold
+maximum and the `131 s` cold median came from. The old Quick Build row (`11.3 s`,
+`68/97`) was one sweep rather than the pooled corpus. And it pooled cold first
+edits with warm ones; pooled across everything the C107 measured, the row-level
+median is 10.3 s and the per-app median 11.8 s, both above the 10.1 s warm figure
+the speedup is built on.
 
 **Essentially all of the Quick Build latency is compile** `[measured on c107]`:
 compile 10.3 s median, stage (deploy handoff) 13 ms, apply (live reload) 89 ms.
@@ -150,11 +179,21 @@ taps or swipes, so completing setup needs a human touching the screen.
 ## Two open items
 
 **1. The C107's unattributed compile time, which compounds.** On the A56 the
-measured spans account for 91% of a warm edit and the ~9% residual is *fixed*. The
-C107's `medium-kotlin` row leaves **52% of `compileMs` unattributed**, and it got
-*worse* across a session — 188 s then 236 s — where the A56 got better, 53.6 s then
-16.5 s `[measured on c107]` / `[measured on a56]`. A fixed per-operation tax cannot
-compound; something there accumulates. The leading hypothesis is the daemon's JVM
+measured spans account for 91-93% of a warm edit and the 7-9% residual is *fixed*.
+On the C107 two separate observations point the same way, and they are **two
+different apps** — an earlier revision of this page welded them into one sentence:
+
+- `medium-kotlin`'s later builds leave a large share of `compileMs`
+  unattributed. Only 13 rows in the whole corpus carry sub-step timings, all from
+  one C107 sweep, and across `medium-kotlin`'s four the unaccounted share of
+  `compileMs` is 1%, 3%, 59% and 36% — 17% pooled over the app
+  `[measured on c107]`. The circulated "52%" does not reproduce from those rows
+  under any grouping tried; quote the per-row figures or the 17% pooled.
+- `sora-editor-full` got *slower* across a C107 session — 188.8 s then 236.3 s —
+  where the same app on the A56 got faster, 53.6 s then 16.5 s
+  `[measured on c107]` / `[measured on a56]`.
+
+A fixed per-operation tax cannot compound; something there accumulates. The leading hypothesis is the daemon's JVM
 heap, argued in full in [`perf-roadmap.md`](perf-roadmap.md); task #105.
 
 **This needs reconciling before anyone acts on it.** The 07-25 C107 report offers
@@ -181,7 +220,8 @@ cannot produce a session that degrades.
 
 ## What this means for the product
 
-- **Quick Build is worth shipping on the C107 tier.** ~2.5x, ~15 s saved per edit,
+- **Quick Build is worth shipping on the C107 tier.** ~2.9x over 18 apps, +15.1 s
+  saved on the median app's warm edit,
   on the hardware class the mission targets `[measured on c107]`.
 - **Nothing Quick Build can do reaches 1.9 GB today**, because the standard setup
   build cannot run there. Raising Quick Build's reachable device range is a

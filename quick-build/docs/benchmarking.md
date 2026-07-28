@@ -71,12 +71,13 @@ the headline means. `readyou` is **not** one of them: it measures 1.20x on the
 A56 — Quick Build wins on its median, though on only two warm keys that disagree
 5x (0.39x and 2.02x), so its "median" is really the mean of two numbers.
 
-The C107 wins are larger because its standard builds are much slower (25.4 s
+The C107 wins are larger because its standard builds are much slower (26.6 s
 median incremental, 133 s cold) while the Quick Build hot loop degrades less
-steeply (8.0 s median warm save-to-live) `[measured on c107]`. All four are
-medians over apps. Beware a widely-quoted "10 s" for the C107 hot loop: that is
-the median over *all* measured edits including each session's cold first edit,
-not the warm number the speedup is computed from.
+steeply (10.1 s median warm save-to-live) `[measured on c107]`. All three are
+medians over apps of each app's own median; over warm edit *keys* instead, the
+hot loop reads 8.0 s. A widely-quoted "10.3 s" for the C107 hot loop is a third
+thing again — the row-level median over all measured edits, cold first edits
+included. The three differ by 30%, so say which one you mean.
 
 The `sora-editor-full` loss is root-caused, and the corpus number overstates it: a
 dedicated instrumented re-run measures a warm edit at 14.7 s against an 11.9 s
