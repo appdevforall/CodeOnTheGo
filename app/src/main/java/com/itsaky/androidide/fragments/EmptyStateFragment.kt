@@ -32,7 +32,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	protected val emptyStateViewModel by viewModels<EmptyStateFragmentViewModel>()
 
 	private var gestureDetector: GestureDetector? = null
-	
+
 	// Cache the last known empty state to avoid returning incorrect default when detached
 	// Volatile ensures thread-safe visibility and atomicity for boolean reads/writes
 	@Volatile
@@ -44,10 +44,13 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	 * Called when a long press is detected on the fragment's root view.
 	 * Subclasses must implement this to define the action (e.g., show a tooltip).
 	 */
-	open fun onFragmentLongPressed(x: Float = -1f, y: Float = -1f) {
+	open fun onFragmentLongPressed(
+		x: Float = -1f,
+		y: Float = -1f,
+	) {
 		currentEditor?.let { editor ->
-    	if (x >= 0 && y >= 0) {
-    		editor.setSelectionFromPoint(x, y)
+			if (x >= 0 && y >= 0) {
+				editor.setSelectionFromPoint(x, y)
 			}
 		}
 		onFragmentLongPressed()
@@ -181,5 +184,4 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 			tag = tooltipTag,
 		)
 	}
-
 }

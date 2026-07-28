@@ -25,95 +25,99 @@ import com.itsaky.androidide.editor.ui.IDEEditor
  *
  * @author Akash Yadav
  */
-open class IDEEditorSearcher(editor: IDEEditor) : EditorSearcher(editor) {
+open class IDEEditorSearcher(
+	editor: IDEEditor,
+) : EditorSearcher(editor) {
+	var isSearching = false
+		private set
 
-  var isSearching = false
-    private set
+	protected fun getEditor(): CodeEditor {
+		try {
+			val field = EditorSearcher::class.java.getDeclaredField("editor")
+			field.isAccessible = true
+			return field.get(this) as CodeEditor
+		} catch (error: Throwable) {
+			throw RuntimeException("Unable get instance of editor", error)
+		}
+	}
 
-  protected fun getEditor(): CodeEditor {
-    try {
-      val field = EditorSearcher::class.java.getDeclaredField("editor")
-      field.isAccessible = true
-      return field.get(this) as CodeEditor
-    } catch (error: Throwable) {
-      throw RuntimeException("Unable get instance of editor", error)
-    }
-  }
+	fun updateSearchOptions(searchOptions: SearchOptions) {
+		this.searchOptions = searchOptions
+	}
 
-  fun updateSearchOptions(searchOptions: SearchOptions) {
-    this.searchOptions = searchOptions
-  }
+	override fun replaceAll(
+		replacement: String,
+		whenFinished: Runnable?,
+	) {
+		markSearching()
+		super.replaceAll(replacement, whenFinished)
+	}
 
-  override fun replaceAll(replacement: String, whenFinished: Runnable?) {
-    markSearching()
-    super.replaceAll(replacement, whenFinished)
-  }
+	override fun replaceThis(replacement: String) {
+		markSearching()
+		super.replaceThis(replacement)
+	}
 
-  override fun replaceThis(replacement: String) {
-    markSearching()
-    super.replaceThis(replacement)
-  }
+	override fun gotoNext(): Boolean {
+		markSearching()
+		return super.gotoNext()
+	}
 
-  override fun gotoNext(): Boolean {
-    markSearching()
-    return super.gotoNext()
-  }
+	override fun gotoPrevious(): Boolean {
+		markSearching()
+		return super.gotoPrevious()
+	}
 
-  override fun gotoPrevious(): Boolean {
-    markSearching()
-    return super.gotoPrevious()
-  }
+	override fun stopSearch() {
+		isSearching = false
+		super.stopSearch()
+	}
 
-  override fun stopSearch() {
-    isSearching = false
-    super.stopSearch()
-  }
+	fun onClose() {
+		isSearching = false
+	}
 
-  fun onClose() {
-    isSearching = false
-  }
+	private fun markSearching() {
+		isSearching = true
+	}
 
-  private fun markSearching() {
-    isSearching = true
-  }
-
-  fun isSearchCompleteWithNoMatches(): Boolean {
-    if (!hasQuery()) return false
-    try {
-      if (!isResultValid()) {
-        return false
-      }
-      val hasMatchMethod =
-        try {
-          EditorSearcher::class.java.getMethod("hasMatch")
-        } catch (_: Throwable) {
-          null
-        }
-      if (hasMatchMethod != null) {
-        val hasMatch = hasMatchMethod.invoke(this) as? Boolean ?: true
-        return !hasMatch
-      }
-      val lastResultsField =
-        try {
-          EditorSearcher::class.java.getDeclaredField("lastResults").apply { isAccessible = true }
-        } catch (_: Throwable) {
-          null
-        }
-      if (lastResultsField != null) {
-        val results = lastResultsField.get(this) ?: return false
-        val isEmptyMethod =
-          try {
-            results.javaClass.getMethod("isEmpty")
-          } catch (_: Throwable) {
-            null
-          }
-        if (isEmptyMethod != null) {
-          return isEmptyMethod.invoke(results) as? Boolean ?: false
-        }
-      }
-    } catch (_: Throwable) {
-      // Fallback
-    }
-    return false
-  }
+	fun isSearchCompleteWithNoMatches(): Boolean {
+		if (!hasQuery()) return false
+		try {
+			if (!isResultValid()) {
+				return false
+			}
+			val hasMatchMethod =
+				try {
+					EditorSearcher::class.java.getMethod("hasMatch")
+				} catch (_: Throwable) {
+					null
+				}
+			if (hasMatchMethod != null) {
+				val hasMatch = hasMatchMethod.invoke(this) as? Boolean ?: true
+				return !hasMatch
+			}
+			val lastResultsField =
+				try {
+					EditorSearcher::class.java.getDeclaredField("lastResults").apply { isAccessible = true }
+				} catch (_: Throwable) {
+					null
+				}
+			if (lastResultsField != null) {
+				val results = lastResultsField.get(this) ?: return false
+				val isEmptyMethod =
+					try {
+						results.javaClass.getMethod("isEmpty")
+					} catch (_: Throwable) {
+						null
+					}
+				if (isEmptyMethod != null) {
+					return isEmptyMethod.invoke(results) as? Boolean ?: false
+				}
+			}
+		} catch (_: Throwable) {
+			// Fallback
+		}
+		return false
+	}
 }

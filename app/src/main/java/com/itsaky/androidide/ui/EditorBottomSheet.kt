@@ -702,10 +702,11 @@ class EditorBottomSheet
 				return
 			}
 
-			val flow = fragment.isEmptyFlow ?: run {
-				updateActionButtonsEnabledState(isEmpty = false)
-				return
-			}
+			val flow =
+				fragment.isEmptyFlow ?: run {
+					updateActionButtonsEnabledState(isEmpty = false)
+					return
+				}
 
 			val activity = context as FragmentActivity
 			fragmentEmptyStateJob =
