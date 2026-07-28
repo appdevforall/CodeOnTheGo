@@ -1,7 +1,5 @@
 package com.itsaky.androidide.lsp.kotlin.utils
 
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
@@ -17,15 +15,13 @@ class AbstractMemberStubsTest : KtLspTest() {
 		className: String,
 	): List<String> {
 		val ktFile = createSourceFile("Sample.kt", content)
-		return env.project.read {
-			analyzeMaybeDangling(ktFile) {
-				val decl =
-					PsiTreeUtil
-						.collectElementsOfType(ktFile, KtClassOrObject::class.java)
-						.first { it.name == className }
-				val symbol = decl.symbol as KaClassSymbol
-				membersToImplement(symbol).mapNotNull { renderOverrideStub(it, "\t", "\t") }
-			}
+		return analyzeMaybeDanglingForTest(ktFile) {
+			val decl =
+				PsiTreeUtil
+					.collectElementsOfType(ktFile, KtClassOrObject::class.java)
+					.first { it.name == className }
+			val symbol = decl.symbol as KaClassSymbol
+			membersToImplement(symbol).mapNotNull { renderOverrideStub(it, "\t", "\t") }
 		}
 	}
 
