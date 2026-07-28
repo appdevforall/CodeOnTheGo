@@ -64,7 +64,10 @@ class AndroidProjectWatcher(
 					.consumeAsFlow()
 					.filter { filter.isRelevant(it.file) }
 					.coalesceChanges(quietMillis, maxMillis)
-					.collect(onBatch)
+					.collect { batch ->
+						restampSettled(batch)
+						onBatch(batch)
+					}
 			}
 
 		watchedRoots.filter(File::isDirectory).forEach { root ->
@@ -169,9 +172,10 @@ class AndroidProjectWatcher(
 	 * inotify DELETE can be dropped. [reportDeletion] removes each from the map and emits a
 	 * [WatchEvent.Removed] (whichever of inotify/poll observes the vanish first wins - the
 	 * other then sees nothing to remove). Snapshot the current paths BEFORE diffing, since
-	 * [report] mutates the same map it walks.
+	 * [report] mutates the same map it walks. Internal so unit tests can drive one sweep
+	 * deterministically instead of racing the timer.
 	 */
-	private fun sweep() {
+	internal fun sweep() {
 		val current = HashSet<String>()
 		forEachWatchedFile { file ->
 			current.add(file.absolutePath)
@@ -183,14 +187,39 @@ class AndroidProjectWatcher(
 	}
 
 	/**
+	 * Re-record each delivered file's fingerprint at batch-SETTLE time. The stamp taken
+	 * inside an inotify callback can be stale by the time the batch flushes: `adb push`
+	 * rewrites the file's mtime (utimensat, no masked event) AFTER the CLOSE_WRITE that
+	 * fingerprinted it, and a MODIFY handler can read mid-write attrs. The next poll sweep
+	 * would then see a stamp "change" for content this batch already delivered and re-emit
+	 * it as a phantom second batch - one save became two builds, and a manifest edit became
+	 * two invalidations/rebaselines (the phantom lands mid-rebaseline and re-classifies
+	 * after the baseline reset). Settle time - at least [quietMillis] after the last event -
+	 * is when the attrs are final, so the recorded fingerprint matches what the poll will
+	 * read. A REAL later write is still never missed: its inotify event emits
+	 * unconditionally, and if that event is dropped its settled stamp differs from the one
+	 * recorded here, so the poll fires as before. A file already gone at settle is skipped -
+	 * the deletion path owns removing its fingerprint.
+	 */
+	private fun restampSettled(batch: ChangedFiles.Known) {
+		batch.files.forEach { file ->
+			if (file.isFile) {
+				fingerprints[file.absolutePath] = file.lastModified() xor file.length()
+			}
+		}
+	}
+
+	/**
 	 * The single choke point for a live file from both inotify and the poll - files only (a
 	 * directory is never a compile input, and routing one to the classifier would wrongly
 	 * trip a full rebaseline). Records [file]'s current fingerprint either way; only the
 	 * poll gates emission on it (see [fingerprints] for why inotify must not). Deletions
 	 * take the separate [reportDeletion] path - a gone file has no stamp to fingerprint and
 	 * must reach the pipeline as a [WatchEvent.Removed], not be dropped here by `!isFile`.
+	 * Internal so unit tests can simulate an inotify delivery (FileObserver is inert on the
+	 * JVM).
 	 */
-	private fun report(
+	internal fun report(
 		file: File,
 		fromPoll: Boolean,
 	) {

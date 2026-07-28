@@ -10,6 +10,10 @@ android {
 
 	buildFeatures.aidl = true
 
+	// AndroidProjectWatcherTest constructs the real watcher on the JVM: FileObserver's
+	// stubs then no-op (inotify inert) while the poll/coalesce pipeline runs for real.
+	testOptions.unitTests.isReturnDefaultValues = true
+
 	sourceSets {
 		named("main") {
 			// The deploy-channel AIDL lives in :quickbuild-runtime (the test-app side).
