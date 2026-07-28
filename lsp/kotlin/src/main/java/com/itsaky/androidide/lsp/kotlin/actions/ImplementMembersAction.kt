@@ -7,6 +7,8 @@ import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.membersToImplement
@@ -19,6 +21,7 @@ import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.tasks.createJobCancelChecker
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaSymbolModality
@@ -48,7 +51,8 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 		val nioPath = data.requireFile().toPath()
 		val offset = data.requireEditor().cursor.left
 		val env = server.compilationEnvironmentFor(nioPath) ?: return emptyList()
-		return computeImplementMembersEdit(env, nioPath, offset)
+		// Ties the analysis to this action's coroutine: cancelling the action aborts the queued analysis.
+		return computeImplementMembersEdit(env, nioPath, offset, ScheduledCancelChecker(createJobCancelChecker()))
 	}
 
 	/**
@@ -66,12 +70,13 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 		env: AbstractCompilationEnvironment,
 		nioPath: Path,
 		offset: Int,
+		cancelChecker: ScheduledCancelChecker,
 	): List<TextEdit> =
 		runCatching {
 			val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return emptyList()
 			env.project.read {
 				val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
-				analyzeMaybeDangling(ktFile) {
+				analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
 					val classSymbol = classOrObject.symbol as? KaClassSymbol ?: return@analyzeMaybeDangling emptyList()
 					if (!isImplementable(classSymbol)) return@analyzeMaybeDangling emptyList()
 
