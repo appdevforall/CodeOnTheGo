@@ -28,9 +28,10 @@ import com.vanniktech.maven.publish.SonatypeHost.Companion.S01
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.publish.PublishingExtension
+import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
 import org.gradle.api.tasks.Delete
 import org.gradle.kotlin.dsl.configure
-import org.gradle.kotlin.dsl.create
+import org.gradle.kotlin.dsl.register
 import org.gradle.kotlin.dsl.withType
 import org.gradle.plugins.signing.Sign
 
@@ -112,13 +113,19 @@ private fun Project.configureMavenLocal() {
 		}
 	}
 
-	tasks.create<Delete>("deleteBuildMavenLocal") {
-		delete(mavenLocalPath)
-	}
+	val deleteBuildMavenLocal =
+		tasks.register<Delete>("deleteBuildMavenLocal") {
+			delete(mavenLocalPath)
+		}
 
-	afterEvaluate {
-		tasks.getByName("publishAllPublicationsToBuildMavenLocalRepository") {
-			dependsOn(tasks.getByName("deleteBuildMavenLocal"))
+	// The delete must be a dependency of every per-publication publish task writing
+	// into this repo, not only of the publishAll* aggregate: an aggregate-only edge
+	// leaves the scheduler free to run the delete after an individual publish under
+	// parallel execution, wiping freshly staged artifacts before consumers (the
+	// :gradle-plugin:test functional builds) resolve from them.
+	tasks.withType<PublishToMavenRepository>().configureEach {
+		if (name.endsWith("ToBuildMavenLocalRepository")) {
+			dependsOn(deleteBuildMavenLocal)
 		}
 	}
 }
