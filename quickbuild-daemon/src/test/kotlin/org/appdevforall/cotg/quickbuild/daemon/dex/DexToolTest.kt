@@ -47,6 +47,22 @@ class DexToolTest {
 	}
 
 	@Test
+	fun `reports how many classes and bytes the pass moved`() {
+		// The strip pass rewrites the WHOLE tree every build, so these counts - not the
+		// edit's size - are what its cost scales with, and they are what makes a slow
+		// stripMillis readable.
+		val classesDir = compileTinyClass()
+		val classFile = File(classesDir, "demo/Tiny.class")
+
+		DexTool(TestSdk.d8Jar()!!, TestSdk.androidJar()!!, minApi = 30).use { tool ->
+			val result = tool.dex(listOf(classesDir), File(tempDir, "dex")) as DexTool.Result.Success
+
+			assertThat(result.stats.classFiles).isEqualTo(1)
+			assertThat(result.stats.classBytes).isEqualTo(classFile.length())
+		}
+	}
+
+	@Test
 	fun `empty classes dirs fail with a message, not a throw`() {
 		val emptyDir = File(tempDir, "empty").apply { mkdirs() }
 

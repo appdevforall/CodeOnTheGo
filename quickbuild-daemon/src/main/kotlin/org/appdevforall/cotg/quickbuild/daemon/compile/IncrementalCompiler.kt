@@ -1,5 +1,6 @@
 package org.appdevforall.cotg.quickbuild.daemon.compile
 
+import org.appdevforall.cotg.quickbuild.daemon.protocol.CompileStats
 import org.appdevforall.cotg.quickbuild.daemon.protocol.Diagnostic
 import org.jetbrains.kotlin.buildtools.api.CompilationResult
 import org.jetbrains.kotlin.buildtools.api.CompilationService
@@ -64,6 +65,10 @@ class IncrementalCompiler(
 		 *   diffing a pre/post snapshot of the output tree on (size, nanosecond mtime).
 		 * @property kotlinMillis wall time of the BTA Kotlin pass (0 when no Kotlin sources).
 		 * @property javaMillis wall time of the javac pass (0 when no Java sources).
+		 * @property stats the phases [kotlinMillis]/[javaMillis] do NOT cover - the two
+		 *   output-tree walks and the Java-ABI re-parse - plus this build's source and
+		 *   output counts. Together they close the compile op's measurement gap; see
+		 *   [CompileStats].
 		 */
 		data class Success(
 			val classesDir: File,
@@ -71,6 +76,7 @@ class IncrementalCompiler(
 			val changedClassFiles: List<String>,
 			val kotlinMillis: Long = 0,
 			val javaMillis: Long = 0,
+			val stats: CompileStats = CompileStats(),
 		) : Result
 
 		data class Failed(
@@ -103,6 +109,17 @@ class IncrementalCompiler(
 	 */
 	var lastJavaAbiChange: Set<String> = emptySet()
 		private set
+
+	/**
+	 * Phase timings/counts [compileKotlin] and [kotlinFilesToCompile] measure on the way
+	 * past; [compile] folds them into the returned [CompileStats]. Same intra-call handoff
+	 * shape as [lastJavaAbiChange] - the compiler runs one compile at a time by contract.
+	 */
+	private var javaAbiSnapMillis: Long = 0
+	private var kotlinToCompileCount: Int = 0
+
+	/** Compiles served since construction; a `configure` builds a fresh compiler. */
+	private var compileCount: Long = 0
 
 	/** Last SUCCESSFUL compile's `.java` ABI; null when unknown and Kotlin must be recompiled whole. */
 	private var javaAbi: Map<File, JavaSourceAbi.FileAbi>? = null
@@ -138,7 +155,12 @@ class IncrementalCompiler(
 		// changed output. (Removed `.kt` outputs are handled by the BTA engine via
 		// SourcesChanges.Known below.)
 		deleteRemovedJavaOutputs(removedFiles)
+		compileCount++
+		javaAbiSnapMillis = 0
+		kotlinToCompileCount = 0
+		val preSnapStartedAt = System.currentTimeMillis()
 		val before = snapshotClassOutputs()
+		val preSnapMillis = System.currentTimeMillis() - preSnapStartedAt
 		val logger = CollectingLogger()
 		val kotlinStartedAt = System.currentTimeMillis()
 		val kotlinResult = compileKotlin(allSources, changedFiles, removedFiles, logger)
@@ -175,12 +197,26 @@ class IncrementalCompiler(
 		// the Java side as changed relative to the last good state - committing here rather
 		// than where the snapshot is taken is what makes that true.
 		javaAbi = pendingJavaAbi
+		val postSnapStartedAt = System.currentTimeMillis()
+		val changedClassFiles = changedClassOutputs(before)
+		val postSnapMillis = System.currentTimeMillis() - postSnapStartedAt
 		return Result.Success(
 			classesDir = classesDir.toFile(),
 			warnings = warnings + javaDiagnostics.diagnostics,
-			changedClassFiles = changedClassOutputs(before),
+			changedClassFiles = changedClassFiles,
 			kotlinMillis = kotlinMillis,
 			javaMillis = javaMillis,
+			stats =
+				CompileStats(
+					preSnapMillis = preSnapMillis,
+					postSnapMillis = postSnapMillis,
+					javaAbiSnapMillis = javaAbiSnapMillis,
+					allSources = allSources.size,
+					kotlinToCompile = kotlinToCompileCount,
+					javaSources = javaSources.size,
+					changedClasses = changedClassFiles.size,
+					compileOrdinal = compileCount,
+				),
 		)
 	}
 
@@ -346,13 +382,24 @@ class IncrementalCompiler(
 		lastJavaAbiChange = emptySet()
 		val kotlinChanged = changedFiles.filter { it.extension != "java" }
 		val previous = javaAbi
+		val snapshotStartedAt = System.currentTimeMillis()
 		val current = JavaSourceAbi.snapshot(javaSources)
+		javaAbiSnapMillis = System.currentTimeMillis() - snapshotStartedAt
 		pendingJavaAbi = current
-		if (previous == null || current == null) return kotlinSources
-		val changedTypes = JavaSourceAbi.changedTypeNames(previous, current)
-		if (changedTypes.isEmpty()) return kotlinChanged
-		lastJavaAbiChange = changedTypes
-		return kotlinSources
+		val toCompile =
+			when {
+				previous == null || current == null -> {
+					kotlinSources
+				}
+
+				else -> {
+					val changedTypes = JavaSourceAbi.changedTypeNames(previous, current)
+					lastJavaAbiChange = changedTypes
+					if (changedTypes.isEmpty()) kotlinChanged else kotlinSources
+				}
+			}
+		kotlinToCompileCount = toCompile.size
+		return toCompile
 	}
 
 	/** Collects compiler output per channel; errors feed structured diagnostics. */

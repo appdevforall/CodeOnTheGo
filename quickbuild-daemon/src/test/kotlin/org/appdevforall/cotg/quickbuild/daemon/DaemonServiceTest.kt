@@ -2,10 +2,12 @@ package org.appdevforall.cotg.quickbuild.daemon
 
 import com.google.common.truth.Truth.assertThat
 import org.appdevforall.cotg.quickbuild.daemon.protocol.CompileRequest
+import org.appdevforall.cotg.quickbuild.daemon.protocol.CompileStats
 import org.appdevforall.cotg.quickbuild.daemon.protocol.ConfigureRequest
 import org.appdevforall.cotg.quickbuild.daemon.protocol.DaemonResponse
 import org.appdevforall.cotg.quickbuild.daemon.protocol.DexRequest
 import org.appdevforall.cotg.quickbuild.daemon.protocol.RelinkRequest
+import org.appdevforall.cotg.quickbuild.daemon.protocol.ResponseKeys
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -97,6 +99,99 @@ class DaemonServiceTest {
 
 		assertThat(response.ok).isTrue()
 		assertThat(response.values["protocolVersion"]).isEqualTo(DaemonResponse.PROTOCOL_VERSION)
+	}
+
+	@Test
+	fun `configure reports the scratch tree's filesystem`() {
+		// Session-constant context for every later timing: per-file work costs ~52x more on
+		// FUSE-backed emulated storage than on a real one (ADFA-4128 deep-dive).
+		val stdlib = TestSdk.kotlinStdlib()
+		val response =
+			service.configure(
+				ConfigureRequest(
+					id = 1,
+					projectRoot = tempDir.absolutePath,
+					classpath = listOf(stdlib.absolutePath),
+					outDir = File(tempDir, "out").absolutePath,
+					aapt2 = stdlib.absolutePath,
+					d8Jar = stdlib.absolutePath,
+					androidJar = stdlib.absolutePath,
+				),
+			)
+
+		assertThat(response.ok).isTrue()
+		val fsType = response.values[ResponseKeys.SCRATCH_FS_TYPE] as String
+		// The value is host-dependent (apfs here, f2fs/fuse on device); what must hold is
+		// that a real type was resolved rather than the unknown fallback.
+		assertThat(fsType).isNotEmpty()
+		assertThat(fsType).isNotEqualTo("unknown")
+	}
+
+	@Test
+	fun `compile reports the phases kotlinMillis and javaMillis do not cover`() {
+		val stdlib = TestSdk.kotlinStdlib()
+		service.configure(
+			ConfigureRequest(
+				id = 1,
+				projectRoot = tempDir.absolutePath,
+				classpath = listOf(stdlib.absolutePath),
+				outDir = File(tempDir, "out").absolutePath,
+				aapt2 = stdlib.absolutePath,
+				d8Jar = stdlib.absolutePath,
+				androidJar = stdlib.absolutePath,
+			),
+		)
+		val source = File(tempDir, "Hello.kt").apply { writeText("package demo\n\nfun hello() = \"hi\"\n") }
+
+		val first = service.compile(CompileRequest(2, listOf(source.absolutePath), listOf(source.absolutePath)))
+		source.writeText("package demo\n\nfun hello() = \"hello\"\n")
+		val second = service.compile(CompileRequest(3, listOf(source.absolutePath), listOf(source.absolutePath)))
+
+		val firstStats = CompileStats.fromValues { key -> (first.values[key] as? Number)?.toLong() }!!
+		assertThat(firstStats.allSources).isEqualTo(1)
+		assertThat(firstStats.javaSources).isEqualTo(0)
+		assertThat(firstStats.kotlinToCompile).isEqualTo(1)
+		assertThat(firstStats.changedClasses).isEqualTo(1)
+		// The cold build of the session - the distinction that keeps a first build from
+		// being read as a per-edit cost.
+		assertThat(firstStats.compileOrdinal).isEqualTo(1)
+		assertThat(firstStats.preSnapMillis).isAtLeast(0)
+		assertThat(firstStats.postSnapMillis).isAtLeast(0)
+
+		val secondStats = CompileStats.fromValues { key -> (second.values[key] as? Number)?.toLong() }!!
+		assertThat(secondStats.compileOrdinal).isEqualTo(2)
+	}
+
+	@Test
+	fun `a fresh configure restarts the compile ordinal`() {
+		// A respawn re-pays the cold cost, so its next compile is a cold build again.
+		val stdlib = TestSdk.kotlinStdlib()
+		val configure = {
+			service.configure(
+				ConfigureRequest(
+					id = 1,
+					projectRoot = tempDir.absolutePath,
+					classpath = listOf(stdlib.absolutePath),
+					outDir = File(tempDir, "out").absolutePath,
+					aapt2 = stdlib.absolutePath,
+					d8Jar = stdlib.absolutePath,
+					androidJar = stdlib.absolutePath,
+				),
+			)
+		}
+		val source = File(tempDir, "Hello.kt").apply { writeText("package demo\n\nfun hello() = \"hi\"\n") }
+		val compile = { id: Long ->
+			service.compile(CompileRequest(id, listOf(source.absolutePath), listOf(source.absolutePath)))
+		}
+
+		configure()
+		compile(2)
+		compile(3)
+		configure()
+		val afterReconfigure = compile(4)
+
+		val stats = CompileStats.fromValues { key -> (afterReconfigure.values[key] as? Number)?.toLong() }!!
+		assertThat(stats.compileOrdinal).isEqualTo(1)
 	}
 
 	@Test

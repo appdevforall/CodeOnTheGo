@@ -128,9 +128,161 @@ data class Diagnostic(
 }
 
 /**
+ * Well-known response value keys that do not belong to a stats group. Named here so the
+ * daemon that writes them and the client that reads them compile against one definition.
+ */
+object ResponseKeys {
+	/** Stamped into `ping`/`configure` success; see [DaemonResponse.PROTOCOL_VERSION]. */
+	const val PROTOCOL_VERSION = "protocolVersion"
+
+	/**
+	 * Filesystem type of the daemon's work directory, as `configure` observed it (e.g.
+	 * `ext4`, `f2fs`, `fuse`). Session-constant and low-cardinality. It is here because
+	 * it is the single strongest predictor of build time on device: the same 464-file
+	 * class tree copies in 192 ms on the app's own filesystem and 9985 ms on Android's
+	 * FUSE-backed emulated storage - 52x (ADFA-4128 sora-editor-full deep-dive). Without
+	 * it, a field timing row cannot be interpreted at all.
+	 */
+	const val SCRATCH_FS_TYPE = "scratchFsType"
+}
+
+/**
+ * The phase counters a `compile` op measures inside itself - the spans that the
+ * `kotlinMillis`/`javaMillis` pair does NOT cover.
+ *
+ * These exist because those two fields account for only about half of a warm edit: the
+ * rest is the output-tree snapshots, the Java-ABI re-parse, and the source I/O around
+ * them, all of which are per-file filesystem work and all of which were invisible. A
+ * design note read the old fields and concluded javac was "the bottleneck" when javac is
+ * 19-27% of a warm edit (ADFA-4128 sora-editor-full deep-dive, section 5).
+ *
+ * Every field is a counter or a duration. Nothing here is derived from a path, a name, or
+ * source content.
+ *
+ * @property preSnapMillis walking the output tree before the compile, to diff against.
+ * @property postSnapMillis the same walk after, which yields the changed-class set.
+ * @property javaAbiSnapMillis re-parsing every `.java` source's declarations to decide
+ *   whether a Java ABI moved (which forces a full Kotlin recompile).
+ * @property allSources size of the source set handed to the compiler.
+ * @property kotlinToCompile Kotlin sources this build actually recompiled - the number
+ *   that explains a slow row (an ABI-changing Java edit recompiles all of them).
+ * @property javaSources `.java` sources, all of which javac recompiles every build.
+ * @property changedClasses `.class` files this build emitted or rewrote.
+ * @property compileOrdinal 1-based index of this compile within the daemon session. `1`
+ *   is the session's cold build - it seeds the incremental caches and pays kotlinc's
+ *   warm-up, and reading one as a warm edit is what made a 53 s first build look like a
+ *   per-edit cost. Everything above 1 is a warm build.
+ */
+data class CompileStats(
+	val preSnapMillis: Long = 0,
+	val postSnapMillis: Long = 0,
+	val javaAbiSnapMillis: Long = 0,
+	val allSources: Int = 0,
+	val kotlinToCompile: Int = 0,
+	val javaSources: Int = 0,
+	val changedClasses: Int = 0,
+	val compileOrdinal: Long = 0,
+) {
+	fun toValues(): Map<String, Any> =
+		mapOf(
+			KEY_PRE_SNAP_MILLIS to preSnapMillis,
+			KEY_POST_SNAP_MILLIS to postSnapMillis,
+			KEY_JAVA_ABI_SNAP_MILLIS to javaAbiSnapMillis,
+			KEY_ALL_SOURCES to allSources,
+			KEY_KOTLIN_TO_COMPILE to kotlinToCompile,
+			KEY_JAVA_SOURCES to javaSources,
+			KEY_CHANGED_CLASSES to changedClasses,
+			KEY_COMPILE_ORDINAL to compileOrdinal,
+		)
+
+	companion object {
+		const val KEY_PRE_SNAP_MILLIS = "preSnapMillis"
+		const val KEY_POST_SNAP_MILLIS = "postSnapMillis"
+		const val KEY_JAVA_ABI_SNAP_MILLIS = "javaAbiSnapMillis"
+		const val KEY_ALL_SOURCES = "nAllSources"
+		const val KEY_KOTLIN_TO_COMPILE = "nKotlinToCompile"
+		const val KEY_JAVA_SOURCES = "nJavaSources"
+		const val KEY_CHANGED_CLASSES = "nChangedClasses"
+		const val KEY_COMPILE_ORDINAL = "compileOrdinal"
+
+		private val KEYS =
+			listOf(
+				KEY_PRE_SNAP_MILLIS,
+				KEY_POST_SNAP_MILLIS,
+				KEY_JAVA_ABI_SNAP_MILLIS,
+				KEY_ALL_SOURCES,
+				KEY_KOTLIN_TO_COMPILE,
+				KEY_JAVA_SOURCES,
+				KEY_CHANGED_CLASSES,
+				KEY_COMPILE_ORDINAL,
+			)
+
+		/**
+		 * Reads the stats back out of a response. [lookup] returns null for a key the
+		 * response does not carry, so a daemon predating these fields yields null here
+		 * rather than a zero-filled row that would read as "measured, and it was free".
+		 * An individually missing key defaults to 0 - forward compatibility for a future
+		 * daemon that drops one.
+		 */
+		fun fromValues(lookup: (String) -> Long?): CompileStats? {
+			if (KEYS.none { lookup(it) != null }) return null
+			return CompileStats(
+				preSnapMillis = lookup(KEY_PRE_SNAP_MILLIS) ?: 0,
+				postSnapMillis = lookup(KEY_POST_SNAP_MILLIS) ?: 0,
+				javaAbiSnapMillis = lookup(KEY_JAVA_ABI_SNAP_MILLIS) ?: 0,
+				allSources = lookup(KEY_ALL_SOURCES)?.toInt() ?: 0,
+				kotlinToCompile = lookup(KEY_KOTLIN_TO_COMPILE)?.toInt() ?: 0,
+				javaSources = lookup(KEY_JAVA_SOURCES)?.toInt() ?: 0,
+				changedClasses = lookup(KEY_CHANGED_CLASSES)?.toInt() ?: 0,
+				compileOrdinal = lookup(KEY_COMPILE_ORDINAL) ?: 0,
+			)
+		}
+	}
+}
+
+/**
+ * What a `dex` op processed. The dex step rewrites and re-dexes the WHOLE class tree on
+ * every build, changed or not, so these two numbers - not the changed-file count - are
+ * what its cost scales with.
+ *
+ * @property classFiles `.class` files read, stripped and dexed.
+ * @property classBytes their total size in bytes.
+ */
+data class DexStats(
+	val classFiles: Int = 0,
+	val classBytes: Long = 0,
+) {
+	fun toValues(): Map<String, Any> =
+		mapOf(
+			KEY_CLASS_FILES to classFiles,
+			KEY_CLASS_BYTES to classBytes,
+		)
+
+	companion object {
+		const val KEY_CLASS_FILES = "nClassFiles"
+		const val KEY_CLASS_BYTES = "classBytes"
+
+		/** Same absent-vs-zero convention as [CompileStats.fromValues]. */
+		fun fromValues(lookup: (String) -> Long?): DexStats? {
+			val files = lookup(KEY_CLASS_FILES)
+			val bytes = lookup(KEY_CLASS_BYTES)
+			if (files == null && bytes == null) return null
+			return DexStats(classFiles = files?.toInt() ?: 0, classBytes = bytes ?: 0)
+		}
+	}
+}
+
+/**
  * A single response line. [values] carries the op-specific scalar fields serialized
  * flat into the response object (e.g. `classesDir`, `dexFile`, `resourcesArsc`,
  * `durationMillis`) so the wire shape matches the README's `{"id", "ok", ...}`.
+ *
+ * Extending a response is ADDITIVE and does NOT bump [DaemonResponse.PROTOCOL_VERSION]:
+ * a new key is invisible to an older client (it reads the keys it knows), and an absent
+ * key reads back as null on a newer client (see [CompileStats.fromValues]). The version
+ * is a hard gate - [org.appdevforall.cotg.quickbuild.daemon.protocol.DaemonResponse.PROTOCOL_VERSION]
+ * mismatch aborts the session - and a STAGED daemon jar can lag the client, so bumping it
+ * for a new optional field would break the very pairing the additive shape supports.
  */
 data class DaemonResponse(
 	val id: Long,

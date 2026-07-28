@@ -1,5 +1,6 @@
 package org.appdevforall.cotg.quickbuild.daemon.dex
 
+import org.appdevforall.cotg.quickbuild.daemon.protocol.DexStats
 import java.io.File
 import java.lang.reflect.InvocationTargetException
 import java.net.URLClassLoader
@@ -23,11 +24,15 @@ class DexTool(
 		/**
 		 * @property stripMillis wall time of the ACC_FINAL-stripping mirror pass.
 		 * @property d8Millis wall time of the d8 invocation itself.
+		 * @property stats what the pass processed. Both steps run over the WHOLE class
+		 *   tree every build, so these counts - not the edit's size - are what their cost
+		 *   scales with, and they are what makes a slow [stripMillis] readable.
 		 */
 		data class Success(
 			val dexFile: File,
 			val stripMillis: Long = 0,
 			val d8Millis: Long = 0,
+			val stats: DexStats = DexStats(),
 		) : Result
 
 		data class Failed(
@@ -48,8 +53,9 @@ class DexTool(
 	): Result {
 		outDir.mkdirs()
 		val stripStartedAt = System.currentTimeMillis()
-		val classFiles = openClasses(classesDirs, File(outDir, "opened-classes"))
+		val opened = openClasses(classesDirs, File(outDir, "opened-classes"))
 		val stripMillis = System.currentTimeMillis() - stripStartedAt
+		val classFiles = opened.paths
 		if (classFiles.isEmpty()) {
 			return Result.Failed("no .class files found under: ${classesDirs.joinToString()}")
 		}
@@ -59,7 +65,12 @@ class DexTool(
 			val d8Millis = System.currentTimeMillis() - d8StartedAt
 			val dexFile = File(outDir, "classes.dex")
 			if (dexFile.isFile) {
-				Result.Success(dexFile, stripMillis = stripMillis, d8Millis = d8Millis)
+				Result.Success(
+					dexFile,
+					stripMillis = stripMillis,
+					d8Millis = d8Millis,
+					stats = DexStats(classFiles = classFiles.size, classBytes = opened.bytes),
+				)
 			} else {
 				Result.Failed("d8 reported success but produced no classes.dex in $outDir")
 			}
@@ -108,22 +119,31 @@ class DexTool(
 	private fun openClasses(
 		classesDirs: List<File>,
 		openedRoot: File,
-	): List<Path> {
+	): Opened {
 		openedRoot.deleteRecursively()
 		val opened = LinkedHashMap<Path, Path>()
+		var bytes = 0L
 		for (dir in classesDirs.filter { it.isDirectory }) {
 			val base = dir.toPath()
 			Files.walk(base).use { stream ->
 				stream.filter { it.extension == "class" }.forEach { classFile ->
 					val target = openedRoot.toPath().resolve(base.relativize(classFile))
 					Files.createDirectories(target.parent)
-					Files.write(target, FinalStripper.strip(Files.readAllBytes(classFile)))
+					val original = Files.readAllBytes(classFile)
+					bytes += original.size
+					Files.write(target, FinalStripper.strip(original))
 					opened[base.relativize(classFile)] = target
 				}
 			}
 		}
-		return opened.values.toList()
+		return Opened(opened.values.toList(), bytes)
 	}
+
+	/** What one [openClasses] pass mirrored: the stripped copies, and the bytes it moved. */
+	private data class Opened(
+		val paths: List<Path>,
+		val bytes: Long,
+	)
 
 	override fun close() {
 		loader.close()

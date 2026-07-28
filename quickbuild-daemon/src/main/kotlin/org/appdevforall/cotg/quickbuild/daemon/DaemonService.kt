@@ -9,6 +9,7 @@ import org.appdevforall.cotg.quickbuild.daemon.protocol.DaemonResponse
 import org.appdevforall.cotg.quickbuild.daemon.protocol.DexRequest
 import org.appdevforall.cotg.quickbuild.daemon.protocol.Diagnostic
 import org.appdevforall.cotg.quickbuild.daemon.protocol.RelinkRequest
+import org.appdevforall.cotg.quickbuild.daemon.protocol.ResponseKeys
 import org.appdevforall.cotg.quickbuild.daemon.res.Aapt2Link
 import java.io.File
 import java.nio.file.Files
@@ -74,12 +75,35 @@ class DaemonService(
 				outDir = outDir,
 			)
 		val durationMillis = System.currentTimeMillis() - startedAt
-		log("configured: project=${request.projectRoot} classpath=${request.classpath.size} entries, snapshots in ${durationMillis}ms")
+		val fsType = scratchFilesystemType(outDir)
+		log(
+			"configured: project=${request.projectRoot} classpath=${request.classpath.size} entries, " +
+				"snapshots in ${durationMillis}ms, scratch fs=$fsType",
+		)
 		return DaemonResponse.ok(
 			request.id,
-			mapOf("durationMillis" to durationMillis, "protocolVersion" to DaemonResponse.PROTOCOL_VERSION),
+			mapOf(
+				"durationMillis" to durationMillis,
+				ResponseKeys.PROTOCOL_VERSION to DaemonResponse.PROTOCOL_VERSION,
+				ResponseKeys.SCRATCH_FS_TYPE to fsType,
+			),
 		)
 	}
+
+	/**
+	 * The work directory's filesystem type (`ext4`, `f2fs`, `fuse`, ...). Reported once per
+	 * session because it dominates every per-file step: the same class tree costs 52x more
+	 * to rewrite on Android's FUSE-backed emulated storage than on the app's own filesystem
+	 * (ADFA-4128 deep-dive). A timing row without it is uninterpretable.
+	 *
+	 * Best-effort: any failure reports `unknown` rather than failing a configure over
+	 * telemetry.
+	 */
+	private fun scratchFilesystemType(outDir: File): String =
+		runCatching { Files.getFileStore(outDir.toPath()).type() }
+			.getOrNull()
+			?.takeIf { it.isNotBlank() }
+			?: "unknown"
 
 	override fun compile(request: CompileRequest): DaemonResponse {
 		val session = session ?: return notConfigured(request.id)
@@ -95,7 +119,10 @@ class DaemonService(
 			is IncrementalCompiler.Result.Success -> {
 				log(
 					"compile ok: ${request.changedFiles.size} changed of ${request.allSources.size} " +
-						"in ${durationMillis}ms (kotlin=${result.kotlinMillis}ms java=${result.javaMillis}ms)",
+						"in ${durationMillis}ms (kotlin=${result.kotlinMillis}ms java=${result.javaMillis}ms " +
+						"preSnap=${result.stats.preSnapMillis}ms postSnap=${result.stats.postSnapMillis}ms " +
+						"abiSnap=${result.stats.javaAbiSnapMillis}ms ktToCompile=${result.stats.kotlinToCompile} " +
+						"ordinal=${result.stats.compileOrdinal})",
 				)
 				DaemonResponse(
 					id = request.id,
@@ -109,7 +136,7 @@ class DaemonService(
 							// Relative .class paths this run emitted; the CoGo-side
 							// deploy policy intersects them with the component closure.
 							"classesChanged" to result.changedClassFiles,
-						),
+						) + result.stats.toValues(),
 					diagnostics = result.warnings,
 				)
 			}
@@ -128,7 +155,10 @@ class DaemonService(
 		return when (val result = session.dexTool.dex(request.classesDirs.map(::File), outDir)) {
 			is DexTool.Result.Success -> {
 				val durationMillis = System.currentTimeMillis() - startedAt
-				log("dex ok: ${result.dexFile} in ${durationMillis}ms (strip=${result.stripMillis}ms d8=${result.d8Millis}ms)")
+				log(
+					"dex ok: ${result.dexFile} in ${durationMillis}ms (strip=${result.stripMillis}ms " +
+						"d8=${result.d8Millis}ms over ${result.stats.classFiles} classes / ${result.stats.classBytes} bytes)",
+				)
 				DaemonResponse.ok(
 					request.id,
 					mapOf(
@@ -136,7 +166,7 @@ class DaemonService(
 						"durationMillis" to durationMillis,
 						"stripMillis" to result.stripMillis,
 						"d8Millis" to result.d8Millis,
-					),
+					) + result.stats.toValues(),
 				)
 			}
 

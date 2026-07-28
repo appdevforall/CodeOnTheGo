@@ -232,6 +232,74 @@ class ProtocolCodecTest {
 	}
 
 	@Test
+	fun `compile stats survive the wire and read back identically`() {
+		val stats =
+			CompileStats(
+				preSnapMillis = 120,
+				postSnapMillis = 130,
+				javaAbiSnapMillis = 540,
+				allSources = 292,
+				kotlinToCompile = 74,
+				javaSources = 218,
+				changedClasses = 323,
+				compileOrdinal = 3,
+			)
+
+		val root =
+			JsonParser
+				.parseString(ProtocolCodec.encode(DaemonResponse.ok(1, stats.toValues())))
+				.asJsonObject
+
+		assertThat(CompileStats.fromValues { key -> root.get(key)?.asLong }).isEqualTo(stats)
+	}
+
+	@Test
+	fun `dex stats survive the wire and read back identically`() {
+		val stats = DexStats(classFiles = 464, classBytes = 1_530_112)
+
+		val root =
+			JsonParser
+				.parseString(ProtocolCodec.encode(DaemonResponse.ok(1, stats.toValues())))
+				.asJsonObject
+
+		assertThat(DexStats.fromValues { key -> root.get(key)?.asLong }).isEqualTo(stats)
+	}
+
+	@Test
+	fun `stats read back as null from a daemon that predates them`() {
+		// The version-safety property: an OLDER daemon answering a NEWER client omits these
+		// keys entirely. That must read as "not measured", not as a zero-filled row claiming
+		// every phase was free.
+		val root =
+			JsonParser
+				.parseString(ProtocolCodec.encode(DaemonResponse.ok(1, mapOf("classesDir" to "/out/classes"))))
+				.asJsonObject
+
+		assertThat(CompileStats.fromValues { key -> root.get(key)?.asLong }).isNull()
+		assertThat(DexStats.fromValues { key -> root.get(key)?.asLong }).isNull()
+	}
+
+	@Test
+	fun `a partially reported stats group fills the gaps rather than vanishing`() {
+		// The other direction: a FUTURE daemon that drops a key still reports what it has.
+		val partial = mapOf<String, Any>(CompileStats.KEY_COMPILE_ORDINAL to 5L)
+
+		val stats = CompileStats.fromValues { key -> (partial[key] as? Long) }
+
+		assertThat(stats).isNotNull()
+		assertThat(stats!!.compileOrdinal).isEqualTo(5)
+		assertThat(stats.preSnapMillis).isEqualTo(0)
+	}
+
+	@Test
+	fun `adding response fields does not move the protocol version`() {
+		// Version is a hard session gate and a staged daemon jar can lag the client, so an
+		// additive optional field must NOT bump it - the additive shape is what lets the two
+		// sides drift safely.
+		assertThat(DaemonResponse.PROTOCOL_VERSION).isEqualTo(1)
+	}
+
+	@Test
 	fun `encoded response is a single line even with newlines in messages`() {
 		val encoded =
 			ProtocolCodec.encode(
