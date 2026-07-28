@@ -25,9 +25,19 @@ import java.io.File
  * The one content-aware step is [annotationImpact]: on a project with a KSP/kapt processor,
  * a changed source that could have moved generated code escalates to a Gradle rebaseline.
  * Default [AnnotationImpact.Inactive] keeps a processor-free project exactly as it was.
+ *
+ * [fastPathRoots] are the app module's fast-path source scope (its `src` root). The quick
+ * path incrementally compiles ONLY the app module against a frozen dependency classpath, so
+ * a code/resource/asset change in ANOTHER Gradle module (a library/feature module) cannot be
+ * absorbed - it routes to [BuildRoute.FullGradleBuild] ([InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED]).
+ * Empty [fastPathRoots] disables the boundary (single-module projects, and the pure-shape
+ * unit tests), preserving pre-multi-module behavior. Watching those other modules at all is
+ * the session/layer's job (so the edit is SEEN and rebaselined, not silently dropped); the
+ * classifier's job is only to route a seen out-of-module change honestly.
  */
 class ChangeClassifier(
 	private val annotationImpact: AnnotationImpact = AnnotationImpact.Inactive,
+	private val fastPathRoots: List<File> = emptyList(),
 ) {
 	fun classify(changes: ChangedFiles): BuildRoute {
 		val known =
@@ -61,7 +71,17 @@ class ChangeClassifier(
 		// rebaseline. Removals with no recognized shape are dropped upstream
 		// ([QuickBuildSessionManager.onWatcherBatch]), so only recognized ones arrive here.
 		for (file in known.files + known.removed) {
-			when (kindOf(file)) {
+			val kind = kindOf(file)
+			// A code/resource/asset change outside the app module's fast-path scope belongs
+			// to another Gradle module the quick path can't incrementally build - rebaseline
+			// rather than fast-compile it against the app module (or silently drop it). Empty
+			// fastPathRoots = no boundary (single-module fallback / pure-shape unit tests).
+			if (kind == FileKind.CODE || kind == FileKind.RESOURCE || kind == FileKind.ASSET) {
+				if (fastPathRoots.isNotEmpty() && fastPathRoots.none { isUnder(file, it) }) {
+					return BuildRoute.FullGradleBuild(InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED)
+				}
+			}
+			when (kind) {
 				FileKind.GRADLE_CONFIG -> {
 					return BuildRoute.FullGradleBuild(InvalidationReason.GRADLE_CONFIG_CHANGED)
 				}
@@ -138,6 +158,23 @@ class ChangeClassifier(
 				return FileKind.CODE
 			}
 			return FileKind.UNSUPPORTED
+		}
+
+		/**
+		 * True when [file] is [dir] or lives underneath it. Walks the parent chain by
+		 * equality (like [hasSegment]) so it works for both the absolute paths the watcher
+		 * emits and the relative paths unit tests use, as long as both sides share a base.
+		 */
+		private fun isUnder(
+			file: File,
+			dir: File,
+		): Boolean {
+			var current: File? = file
+			while (current != null) {
+				if (current == dir) return true
+				current = current.parentFile
+			}
+			return false
 		}
 
 		/** True when [segment] appears as a whole path segment of [file]'s parent chain. */

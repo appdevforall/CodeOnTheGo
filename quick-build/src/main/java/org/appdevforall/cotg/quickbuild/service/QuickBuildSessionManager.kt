@@ -519,7 +519,7 @@ class QuickBuildSessionManager(
 		val orchestrator =
 			BuildOrchestrator(
 				executor = executor,
-				classifier = ChangeClassifier(annotationImpact),
+				classifier = ChangeClassifier(annotationImpact, layout.fastPathScope()),
 				scope = scope,
 				// Same monotonic timebase the executor stamps t1-t3 with, so the e2e
 				// timeline's t0 (trigger) is comparable to the rest (see E2eTimeline).

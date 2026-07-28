@@ -57,6 +57,15 @@ interface QuickBuildProjectLayout {
 
 	/** Exact files watched outside the roots (gradle config; changes invalidate). */
 	fun watchedFiles(): List<File>
+
+	/**
+	 * The app module's source scope the quick path can incrementally build. A watched
+	 * code/resource/asset change OUTSIDE this scope is another module's and must rebaseline
+	 * (see [org.appdevforall.cotg.quickbuild.domain.ChangeClassifier]). Distinct from
+	 * [watchedRoots], which spans EVERY module's `src` (so a library edit is seen, not
+	 * silently dropped) - only the app module's slice of that is fast-path-eligible.
+	 */
+	fun fastPathScope(): List<File>
 }
 
 /**
@@ -108,17 +117,54 @@ class DefaultQuickBuildProjectLayout(
 
 	override fun libraryResourceFlats(): List<File> = libraryResourceFlats
 
-	override fun watchedRoots(): List<File> = listOf(File(appModuleDir, "src"))
+	// Watch EVERY module's src (not just the app module's): in a multi-module project a
+	// feature/library edit must be SEEN so it rebaselines, instead of firing no event and
+	// being silently not reloaded. The classifier still fast-paths only [fastPathScope]
+	// (the app module); other-module edits route to a full build.
+	override fun watchedRoots(): List<File> = moduleDirs().map { File(it, "src") }
 
 	override fun watchedFiles(): List<File> =
 		listOf(
-			File(projectRoot, "build.gradle"),
-			File(projectRoot, "build.gradle.kts"),
 			File(projectRoot, "settings.gradle"),
 			File(projectRoot, "settings.gradle.kts"),
 			File(projectRoot, "gradle.properties"),
 			File(projectRoot, "gradle/libs.versions.toml"),
-			File(appModuleDir, "build.gradle"),
-			File(appModuleDir, "build.gradle.kts"),
-		)
+		) +
+			moduleDirs().flatMap {
+				listOf(File(it, "build.gradle"), File(it, "build.gradle.kts"))
+			}
+
+	override fun fastPathScope(): List<File> = listOf(File(appModuleDir, "src"))
+
+	/**
+	 * Every Gradle module dir (a dir holding a `build.gradle[.kts]`), always including the
+	 * app module, discovered by a shallow filesystem walk. Skips `build/` intermediates and
+	 * hidden dirs; bounded depth keeps the one-time session-start scan cheap even on a
+	 * deeply-nested reactor. Over-inclusion is harmless (a non-existent `src` is filtered by
+	 * the watcher; a stray module's edit merely rebaselines); under-inclusion would resurrect
+	 * the silent-drop bug, so this errs toward watching more.
+	 */
+	private fun moduleDirs(): List<File> {
+		val dirs = LinkedHashSet<File>()
+		dirs.add(appModuleDir)
+		projectRoot
+			.walkTopDown()
+			.maxDepth(MODULE_SCAN_MAX_DEPTH)
+			.onEnter { it.name != "build" && !it.name.startsWith(".") }
+			.forEach {
+				if (it.isDirectory &&
+					(File(it, "build.gradle").isFile || File(it, "build.gradle.kts").isFile)
+				) {
+					dirs.add(it)
+				}
+			}
+		return dirs.toList()
+	}
+
+	private companion object {
+		// `:a:b:c:d`-deep module paths are rare; deeper reactors just watch a bit less of
+		// their tail (still correct - those edits fall to the periodic mtime sweep / are
+		// out of the single-module fast path anyway).
+		const val MODULE_SCAN_MAX_DEPTH = 4
+	}
 }

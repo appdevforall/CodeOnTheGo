@@ -239,6 +239,63 @@ class ChangeClassifierTest {
 		assertThat(classifier.classify(ChangedFiles.Known.EMPTY)).isEqualTo(BuildRoute.NoOp)
 	}
 
+	// --- multi-module boundary (Level 1): the fast path builds only the app module ---
+
+	private val moduleAware = ChangeClassifier(fastPathRoots = listOf(File("app/src")))
+
+	private fun classifyScoped(vararg paths: String): BuildRoute = moduleAware.classify(ChangedFiles.Known(paths.map(::File).toSet()))
+
+	@Test
+	fun `app-module code inside the fast-path scope stays a code build`() {
+		assertThat(classifyScoped("app/src/main/java/com/example/A.kt"))
+			.isEqualTo(BuildRoute.CodeOnly)
+	}
+
+	@Test
+	fun `library-module code outside the scope rebaselines`() {
+		assertThat(classifyScoped("feature-login/src/main/java/com/example/Login.kt"))
+			.isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED))
+	}
+
+	@Test
+	fun `library-module resource outside the scope rebaselines`() {
+		assertThat(classifyScoped("core-ui/src/main/res/values/colors.xml"))
+			.isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED))
+	}
+
+	@Test
+	fun `library-module asset outside the scope rebaselines`() {
+		assertThat(classifyScoped("data/src/main/assets/seed.json"))
+			.isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED))
+	}
+
+	@Test
+	fun `an app edit beside a library edit rebaselines - never fast-path a partial changeset`() {
+		assertThat(
+			classifyScoped(
+				"app/src/main/java/com/example/A.kt",
+				"feature-login/src/main/java/com/example/Login.kt",
+			),
+		).isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED))
+	}
+
+	@Test
+	fun `a removed library-module source rebaselines`() {
+		assertThat(
+			moduleAware.classify(
+				ChangedFiles.Known(files = emptySet(), removed = setOf(File("feature-login/src/main/java/com/example/Gone.kt"))),
+			),
+		).isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED))
+	}
+
+	@Test
+	fun `empty fast-path roots disables the boundary - single-module behavior is unchanged`() {
+		// The default classifier (no fastPathRoots) must treat any src code as a code build,
+		// preserving pre-multi-module semantics for single-module projects and shape tests.
+		assertThat(classify("feature-login/src/main/java/com/example/Login.kt"))
+			.isEqualTo(BuildRoute.CodeOnly)
+	}
+
 	private fun classifierWith(
 		active: Boolean,
 		escalates: Boolean,

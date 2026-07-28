@@ -111,4 +111,55 @@ class DefaultQuickBuildProjectLayoutTest {
 		// Watching build/ would feed the loop its own output.
 		assertThat(layout.watchedRoots()).containsExactly(File(root, "app/src"))
 	}
+
+	@Test
+	fun `watchedRoots spans every module's src so a library edit is seen`() {
+		write("app/build.gradle.kts")
+		write("feature-login/build.gradle.kts")
+		write("core/ui/build.gradle")
+
+		val roots = DefaultQuickBuildProjectLayout(root).watchedRoots()
+
+		assertThat(roots).containsExactly(
+			File(root, "app/src"),
+			File(root, "feature-login/src"),
+			File(root, "core/ui/src"),
+		)
+	}
+
+	@Test
+	fun `watchedFiles includes every module's build script plus root gradle config`() {
+		write("app/build.gradle.kts")
+		write("feature-login/build.gradle")
+
+		val watched = DefaultQuickBuildProjectLayout(root).watchedFiles()
+
+		assertThat(watched).containsAtLeast(
+			File(root, "settings.gradle.kts"),
+			File(root, "gradle/libs.versions.toml"),
+			File(root, "app/build.gradle.kts"),
+			File(root, "feature-login/build.gradle"),
+		)
+	}
+
+	@Test
+	fun `module discovery skips build intermediates and hidden dirs`() {
+		write("app/build.gradle.kts")
+		// A stray build script under build/ or a hidden dir must NOT become a watched module.
+		write("app/build/generated/some-tool/build.gradle")
+		write(".gradle/tmp/build.gradle")
+
+		val roots = DefaultQuickBuildProjectLayout(root).watchedRoots()
+
+		assertThat(roots).containsExactly(File(root, "app/src"))
+	}
+
+	@Test
+	fun `fastPathScope is only the app module even in a multi-module project`() {
+		write("app/build.gradle.kts")
+		write("feature-login/build.gradle.kts")
+
+		assertThat(DefaultQuickBuildProjectLayout(root).fastPathScope())
+			.containsExactly(File(root, "app/src"))
+	}
 }

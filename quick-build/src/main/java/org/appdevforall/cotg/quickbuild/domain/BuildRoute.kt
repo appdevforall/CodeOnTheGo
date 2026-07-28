@@ -53,6 +53,17 @@ enum class InvalidationReason {
 	 */
 	UNSUPPORTED_FILE_CHANGED,
 
+	/**
+	 * A code/resource/asset file changed OUTSIDE the app module's fast-path source scope -
+	 * i.e. in another Gradle module. The quick path incrementally compiles only the app
+	 * module against a frozen dependency classpath (that module's compiled output + merged
+	 * resources are baked into the setup baseline), so it cannot absorb a library-module
+	 * source or resource edit. Falling back to a full build keeps the never-stale
+	 * invariant; the alternative - the pre-Level-1 behavior - was to not watch other
+	 * modules at all, so a library edit fired no event and was SILENTLY not reloaded.
+	 */
+	NON_APP_MODULE_SOURCE_CHANGED,
+
 	/** A full Gradle build ran outside the session and moved the baseline. */
 	EXTERNAL_FULL_BUILD,
 
