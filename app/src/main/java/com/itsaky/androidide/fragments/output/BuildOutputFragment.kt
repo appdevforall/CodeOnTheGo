@@ -62,6 +62,7 @@ class BuildOutputFragment :
 	private val editorContentMutex = Mutex()
 
 	private var editorContentGeneration = 0
+	private var wasLastFilteredResultEmpty = false
 
 	override fun onViewCreated(
 		view: View,
@@ -100,9 +101,15 @@ class BuildOutputFragment :
 				editor?.setText(filtered)
 				val windowIsBlank = window.isBlank()
 				val filteredIsBlank = filtered.isBlank()
-				emptyStateViewModel.setEmpty(filteredIsBlank && windowIsBlank)
+				val isFilterActive = buildOutputViewModel.filterText.value.isNotEmpty() || filterBar != null
+				emptyStateViewModel.setEmpty(windowIsBlank && !isFilterActive)
 				if (!windowIsBlank && filteredIsBlank) {
-					flashInfo(R.string.msg_no_filter_matches)
+					if (!wasLastFilteredResultEmpty) {
+						flashInfo(R.string.msg_no_filter_matches)
+					}
+					wasLastFilteredResultEmpty = true
+				} else {
+					wasLastFilteredResultEmpty = false
 				}
 				onContentReplaced()
 			}
@@ -164,7 +171,20 @@ class BuildOutputFragment :
 
 	private suspend fun restoreWindowFromViewModel() {
 		val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
-		val content = BuildOutputViewModel.filterLines(window, buildOutputViewModel.filterText.value)
+		val query = buildOutputViewModel.filterText.value
+		val content = BuildOutputViewModel.filterLines(window, query)
+		val windowIsBlank = window.isBlank()
+		val isFilterActive = query.isNotEmpty() || filterBar != null
+
+		withContext(Dispatchers.Main) {
+			emptyStateViewModel.setEmpty(windowIsBlank && !isFilterActive)
+			if (!windowIsBlank && content.isBlank()) {
+				wasLastFilteredResultEmpty = true
+				editor?.setText("")
+				onContentReplaced()
+			}
+		}
+
 		if (content.isEmpty()) return
 		withContext(Dispatchers.Main) {
 			val editor = this@BuildOutputFragment.editor ?: return@withContext
@@ -202,6 +222,7 @@ class BuildOutputFragment :
 		// Avoid forcing the activityViewModels lazy init (which calls requireActivity())
 		// when the fragment is detached, otherwise an IllegalStateException is thrown.
 		if (!isAdded || activity == null) return
+		wasLastFilteredResultEmpty = false
 		buildOutputViewModel.clear()
 		super.clearOutput()
 	}
@@ -275,6 +296,9 @@ class BuildOutputFragment :
 	private suspend fun flushToEditor(text: String) {
 		editorContentMutex.withLock {
 			buildOutputViewModel.append(text)
+			withContext(Dispatchers.Main) {
+				emptyStateViewModel.setEmpty(false)
+			}
 
 			// The session file always gets the full text; the editor only shows matching lines
 			val visibleText =
