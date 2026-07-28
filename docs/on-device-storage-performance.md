@@ -1,7 +1,7 @@
 # On-device storage performance: emulated storage is ~50x slower per file
 
 Status: measured finding, no decision taken. One fix is scoped
-(ADFA-4128 task #101); a larger question about project `build/` directories is
+(ADFA-4128 task #101); a larger question about project build directories is
 open and deliberately not decided here.
 
 Provenance: `[measured on a56]` = Samsung A56, 2026-07-28. Everything else is
@@ -57,7 +57,7 @@ low-end hardware where the extra CPU is scarcest — exactly our target devices.
 | Bundled toolchain / Termux prefix | `<filesDir>/usr` | f2fs | fast |
 | Plugin unpack targets | host `filesDir` | f2fs | fast |
 | **User project sources** | `/storage/emulated/0/CodeOnTheGoProjects/…` | FUSE | slow |
-| **Project `build/` output** | same, under the project | FUSE | slow |
+| **Project build output** | same, under the project | FUSE | slow |
 | **Quick Build daemon scratch tree** | same, under the project | FUSE | slow |
 
 The pattern is already mostly right: everything CoGo owns internally lives on
@@ -76,7 +76,7 @@ app-private storage, changing nothing else `[measured on a56]`:
 
 | workload | before | after |
 |---|---|---|
-| `sora-editor-full` warm edit (287 sources) | 14.7 s | **8.1 s (-45%)** |
+| `sora-editor-full` warm edit (292 sources) | 14.7 s | **8.1 s (-45%)** |
 | `medium-kotlin` warm edit (28 sources) | 2.5 s | **1.4 s (-45%)** |
 | strip pass | 4.7-5.5 s | 0.17-0.33 s (~20x) |
 | deploy-policy class-header pass | 0.6-1.2 s | 0.06-0.11 s (~10x) |
@@ -85,10 +85,11 @@ app-private storage, changing nothing else `[measured on a56]`:
 
 The controls are what make this a filesystem finding rather than a general
 speedup: only the per-file I/O steps moved. Note the small app benefits by the
-same **45%** — this is not a large-project problem.
+same **45%** — this is not a large-project problem. Per-step detail:
+[`quick-build/docs/sora-slow-path-gap.md`](../quick-build/docs/sora-slow-path-gap.md).
 
 **Unmeasured, and the bigger question: the standard Gradle build.** Project
-`build/` directories are on FUSE too, so every standard build pays the same toll
+build directories are on FUSE too, so every standard build pays the same toll
 on its class output, dex, and AAPT2 intermediates. It pays *less* than Quick
 Build did, because AGP's incremental tasks rewrite only what changed rather than
 the whole tree — but "less" is `[unmeasured]`. Given the corpus's on-device
@@ -114,7 +115,7 @@ explain.
    under the project, a collision-safe directory key, and tests.
    Tracked as ADFA-4128 task #101.
 
-2. **Move project `build/` directories off emulated storage.** Potentially a
+2. **Move project build directories off emulated storage.** Potentially a
    much broader win — it would touch every standard build, not just Quick
    Build — but it is a genuine product tradeoff, not a free optimization:
    - build outputs stop being visible to the user's file manager and over MTP;
@@ -124,14 +125,17 @@ explain.
    - CoGo takes on lifecycle responsibility for output dirs it did not own
      before (orphan cleanup on project delete/rename, storage accounting);
    - APK/artifact export paths would need an explicit copy-out step.
-   **Measure the exposure before deciding.** A standard-build A/B with `build/`
-   relocated, on one mid and one low device, would size the prize; today the
-   number is unknown.
+
+   **Measure the exposure before deciding.** A standard-build A/B with the build
+   directory relocated, on one mid and one low device, would size the prize;
+   today the number is unknown. Task #106.
 
 3. **Write less, regardless of filesystem.** Incremental dexing and not
-   re-stripping unchanged classes (ADFA-4128 tasks #102, #103) reduce the file
+   re-stripping unchanged classes (both ADFA-4128 task #102) reduce the file
    count itself. These compound with option 1 and are the only ones that also
-   help if a future Android makes this path slower again.
+   help if a future Android makes this path slower again. Sequencing, effort and
+   risk for all of these:
+   [`quick-build/docs/perf-roadmap.md`](../quick-build/docs/perf-roadmap.md).
 
 ## What to take away
 
