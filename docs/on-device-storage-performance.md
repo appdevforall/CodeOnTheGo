@@ -1,8 +1,21 @@
-# On-device storage performance: emulated storage is ~50x slower per file
+# Decision: Slow emulated storage (FUSE) slows down Quick Build (and likely standard build too)
 
-Status: measured finding, no decision taken. One fix is scoped (ADFA-4128 task #101); a larger question about project build directories is open and deliberately not decided here.
+**Status**: measured finding, no decision taken. One fix is scoped (ADFA-4128 task #101); a larger question about project build directories is open and deliberately not decided here.
 
-Provenance: `[measured on a56]` = Samsung A56, 2026-07-28. Everything else is either code reading or explicitly tagged `[inferred]` / `[unmeasured]`.
+**Provenance**: `[measured on a56]` = Samsung A56, 2026-07-28. Everything else is either code reading or explicitly tagged `[inferred]` / `[unmeasured]`.
+
+## Summary
+
+`written by Bryan`, rest of this doc was written by Claude
+
+- File operations via `FUSE` in user space (e.g. to the project folder) are about 50x slower than `f2fs` ops in the app private storage.
+- The following processes currently use `FUSE` and get slowed down
+  - Quick Build scratch files
+  - Gradle project build output
+  - User project sources
+- For some of these, we should probably keep them in `FUSE`, if the user needs MTP access to be able to work with the files over USB
+- **Decision: Do we want to move some of the processes above to app private-storage?****(and perhaps have a policy for temp file cleanup) **
+  - Would give a 1.8x speedup in Quick Build incremental build time(measured on 2 apps: a large one (Sora editor, 292 sources) and a small one (28 sources). Both gained the same 1.8x, so this is not only a large-project fix) 
 
 ## The two filesystems
 
@@ -13,7 +26,13 @@ A CoGo device has two storage worlds, and the difference is not a tuning paramet
 /storage/emulated  fuse   (/dev/fuse, userspace daemon)
 ```
 
-On `/data`, `open()` enters the kernel, hits the f2fs driver, returns. On `/storage/emulated`, the kernel cannot answer: it packages the request, wakes a **userspace process** (MediaProvider / ExternalStorageProvider), waits for the reply, copies it back. Every `open`, `create`, `write`, `close`, `stat` and `mkdir` is a round trip out to userspace, with context switches and buffer copies at each hop. Android layers more work on that path — per-app permission attribution, case-insensitivity emulation, media-scanner bookkeeping for MTP visibility.
+- On `/data`, `open()` enters the kernel, hits the f2fs driver, returns. 
+- On `/storage/emulated`, the kernel cannot answer: 
+  - it packages the request
+  - wakes a **userspace process** (MediaProvider / ExternalStorageProvider)
+  - waits for the reply, copies it back. 
+  - Every `open`, `create`, `write`, `close`, `stat` and `mkdir` is a round trip out to userspace, with context switches and buffer copies at each hop. 
+  - Android layers more work on that path — per-app permission attribution, case-insensitivity emulation, media-scanner bookkeeping for MTP visibility.
 
 The overhead is roughly **fixed per operation**, so the workload shape decides everything:
 
