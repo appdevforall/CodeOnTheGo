@@ -29,9 +29,13 @@ import org.jetbrains.kotlin.psi.KtFile
 import java.nio.file.Path
 
 class ImplementMembersAction : BaseKotlinCodeAction() {
+	companion object {
+		const val ID = "ide.editor.lsp.kt.implementMembers"
+	}
+
 	override var titleTextRes: Int = R.string.action_implement_members
-	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_OVERRIDE_SUPER
-	override val id: String = "ide.editor.lsp.kt.implementMembers"
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPLEMENT_MEMBERS
+	override val id: String = ID
 	override var label: String = ""
 
 	// Intentionally no prepare() visibility gate: the action is visible on any Kotlin file (BaseKotlinCodeAction
