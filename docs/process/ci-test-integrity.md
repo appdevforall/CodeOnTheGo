@@ -1,78 +1,92 @@
-# Backlog Item - General Bug: Almost no unit tests run in CI, and the ones that do cannot fail a build
+# Backlog Item - General Bug: A failing unit test cannot fail any CoGo build, and the PR path never compiles test code
 
-**Ready to file.** Project ADFA · type Bug · component CI/build. Verified against `stage` at
-`75483b6eb` and against 40 real workflow runs, 2026-07-28.
+**Ready to file.** Project ADFA · type Bug · component CI / build. CoGo-wide, not ADFA-4128 —
+that work is where this was noticed. Verified against `origin/stage` at `4ab4e5634`, 2026-07-28.
 
 ## Summary
 
-- **The root build suppresses every unit-test failure.** `build.gradle.kts:72-84` sets
-  `ignoreFailures = true` on every Gradle `Test` task in every module, unconditionally —
-  no property or env gate. A module whose tests all fail still reports success.
-- **Almost nothing runs the tests anyway.** The only workflow that runs any test is the
-  nightly `analyze.yml`, and it runs exactly one module: `:quickbuild-daemon:test`, plus
-  `sonarqube`. **No push and no PR runs any unit test at all.**
-- **That same module is the only one that opts back out of the suppression** — and only
-  when `REQUIRE_BUILD_TOOLCHAIN=1`. Every other module's tests are both un-run and
-  un-failable.
-- **The nightly is not a usable signal either.** 21 of the last 40 scheduled runs failed
-  (2026-06-19 → 2026-07-28) — a 52% failure rate, from causes unrelated to tests. A job
-  that is red half the time is a job nobody reads.
-- **Net effect:** a change breaking unit tests in any module except `:quickbuild-daemon`
-  can be pushed, reviewed and merged with every check green — and no scheduled job would
-  catch it either, because nothing runs those tests.
+- **`ignoreFailures = true` is set on every Gradle `Test` task in every module, unconditionally**
+  (`build.gradle.kts:80-83`, inside `subprojects {}`, no property or env gate). It has been there
+  since `e799f575c` "integrate jacoco (#679)", 2025-11-29. There is **no opt-out anywhere on stage**.
+- **This is not theoretical.** Nightly run **28852596391** ran three modules with a failing test —
+  `:termux:termux-app`, `:lsp:java`, `:lsp:xml` — and finished `BUILD SUCCESSFUL in 13m 37s` with
+  the workflow concluding **success**.
+- **No push- or PR-triggered workflow compiles or runs unit tests**, and `stage` has **no required
+  status checks** — its only ruleset carries `deletion`, `non_fast_forward`, `required_signatures`.
+- **The consequence is already live: test sources have not compiled on stage for 21 consecutive
+  days.** Every nightly since 2026-07-08 fails on `:plugin-manager:compileV8DebugUnitTestKotlin`
+  and `:lsp:kotlin:compileV8DebugUnitTestKotlin`. `ignoreFailures` covers test *execution*, not
+  test *compilation* — so this is the one class of test breakage that can still fail a build, and
+  it only fails the job nobody watches.
+- **Decision: do we make unit-test failures able to fail a build, and add a PR check that at least
+  compiles test sources?**
 
-## What is actually configured
+## What is true, and what is not
+
+Two things that sound like this bug but are false, listed so the ticket is not dismissed on them:
+
+- **"Tests never run."** False. The nightly runs **56 modules'** unit tests, pulled in transitively:
+  `sonarqube dependsOn jacocoAggregateReport` (`build.gradle.kts:416-418`), which `dependsOn` each
+  module's `testV8DebugUnitTest` (`:420-428`). The wiring has been intact since `857f006be`
+  (2026-01-06). The accurate statement is **tests run nightly but cannot fail the build, and never
+  run on the PR path.**
+- **"The 90% coverage gate never executes."** False on two counts. CoGo's own bar is **≥50% line
+  and branch** (`REVIEW.md:103`); 90% is a wrapper-repo convention, not this team's.
+
+## Findings
 
 | # | Finding | Where |
 |---|---|---|
-| 1 | `ignoreFailures = true` on every Test task, unconditional | `build.gradle.kts:72-84` |
-| 2 | Sole exception: `:quickbuild-daemon:test`, only under `REQUIRE_BUILD_TOOLCHAIN=1` | `quickbuild-daemon/build.gradle.kts:80-88` |
-| 3 | Nightly runs only `:quickbuild-daemon:test` + `sonarqube`, with `--continue` | `analyze.yml:113` |
-| 4 | Nightly is the only workflow running any test; `schedule`-triggered | `analyze.yml:11-13` |
-| 5 | The only push-triggered workflow runs zero tests | `debug.yml` |
-| 6 | `:gradle-plugin:test` runs in no workflow; its documented 90% coverage gate has never executed | `gradle-plugin/build.gradle.kts:138-145` |
-| 7 | Nothing parses test XML — no reporter action, no gate | `analyze.yml` |
-| 8 | `jacocoAggregateReport` is v8Debug-only in both directions, so 27 plain-JVM modules contribute neither coverage nor class files | `build.gradle.kts:429-433`, `:458-468`, `:476-483` |
+| 1 | `ignoreFailures = true` on every Test task, unconditional, since 2025-11-29 | `build.gradle.kts:80-83`, `e799f575c` |
+| 2 | Failing tests + green build + green workflow, in production | run `28852596391` (log lines 295056, 296370, 296383, 422211) |
+| 3 | Only push-triggered workflow runs `apiCheck`, `spotlessCheck`, `assembleV8Debug` — no tests | `debug.yml:9-14`, `:198`, `:202`, `:214` |
+| 4 | No required status checks on `stage`; ruleset "CoGo" (4152190) has none | `repos/.../rules/branches/stage` returns `[]` |
+| 5 | Test **compilation** has failed every nightly since 2026-07-08 — 21 consecutive runs | `plugin-manager/src/test/kotlin/.../PluginManagerIntegrationTest.kt`, `lsp/kotlin/src/test/java/.../AddImportActionTest.kt` |
+| 6 | Coverage aggregation is AGP-`v8Debug`-only, so ~29 subprojects contribute **zero coverage** | `build.gradle.kts:427`, `:450-461`, `:476-478` |
+| 7 | `:plugin-api` contributes **no test task at all** to the graph, unlike the other 56 Android modules | run `30341039093` task graph |
+| 8 | Nothing parses test XML — no reporter action, no gate | all 12 workflows |
+| 9 | `instrumentation-test.yml` is also red 10/10 (2026-07-19..07-28) | scheduled runs |
 
-## Evidence from real runs
-
-`gh run list --workflow=analyze.yml --limit 40`, all `schedule`-triggered:
-
-| Window | Runs | Failed | Succeeded |
-|---|---|---|---|
-| 2026-06-19 → 2026-07-28 | 40 | **21** | 19 |
-
-Sampled failures all die in the same step (`Build and analyze`, exit code 1) from causes
-unrelated to unit tests. The run logs also show the JaCoCo aggregate path missing —
-*"No files were found with the provided path: build/reports/jacoco/jacocoAggregateReport/"* —
-which is finding 8 showing up in production.
-
-**So "the nightly would catch it" does not hold** — not because the nightly passes when
-tests fail, but because it never runs those tests, and its own signal is too noisy to act on.
+Finding 6 in detail: the aggregate report's `dependsOn`, `executionData` and `classDirectories` all
+name only `v8Debug` AGP paths. Plain-JVM modules emit `classes/{java,kotlin}/main`, which never
+matches — so six JVM modules with real test suites (`:gradle-plugin`, `:lexers`, `:logger`,
+`:lookup`, `:shared`, `:subprojects:tooling-api-impl`) plus `:plugin-api` report nothing. They are
+still *statically analyzed* by Sonar (`build.gradle.kts:344-345` puts their `main` classes in
+`sonar.java.binaries`) — they just have no coverage. `REVIEW.md`'s "prove it with
+`jacocoAggregateReport`" is unmeasurable for them.
 
 ## Why it went unnoticed
 
-- A build green because failures are suppressed looks exactly like a build green because
-  everything passes.
-- The suppression is unconditional, so no local mode shows a developer the difference.
-- The workflow a developer watches on a PR branch runs no tests at all.
-- The one job that does run a test is red half the time for other reasons.
+- A build green because failures are suppressed looks exactly like a build green because everything
+  passes, and the suppression is unconditional, so no local mode shows a developer the difference.
+- The checks a developer watches on a PR run no tests, and nothing is *required* anyway.
+- The one job that would notice is a nightly that has been red for three weeks.
 
-## Suggested first step — no code change
+## Suggested first steps
 
-Run the suite once with failures honoured and publish the list.
+1. **Fix the two uncompilable test sources.** Nothing else can be measured until the nightly is
+   green again.
+2. **Run the suite once with failures honoured and publish the list.** How much has slipped through
+   is `[unmeasured]`; that number is the input to every option (gate on PR, gate nightly,
+   fix-then-gate, or accept and document).
+3. **Add a PR check that at least compiles test sources.** Cheap, and it would have caught finding 5
+   on the day it landed.
 
-How much has slipped through is `[unmeasured]` — nobody has run with `ignoreFailures = false`
-to see what is currently red. That one run turns a theoretical exposure into a concrete
-backlog, and its size is the input to every option (gate on PR, gate nightly, fix-then-gate,
-or accept and document).
-
-## Scope note
-
-CoGo-wide CI, **not** ADFA-4128 — that work is where this was noticed, not what it is about.
-Ironically, `:quickbuild-daemon:test` opting out of the suppression, and the fail-if-skipped
-guard around it, were added by that ticket and are the only reason any unit test runs in CI
-today.
-
-The suppression itself is one line and well-intentioned: it exists so JaCoCo still writes its
+The suppression itself is one line and well-intentioned — it exists so JaCoCo still writes its
 `.exec` when a test fails. Any fix needs to keep that property.
+
+## Open questions — not verified
+
+- **Why `:plugin-api` and `:logsender` contribute no test task.** Symptom confirmed, mechanism not.
+  The plausible cause is a `tasks.findByName(...)` lazy-realization race at `build.gradle.kts:427`
+  (a task not yet registered resolves to null and is silently dropped), which would make the
+  dependsOn set nondeterministic — a sharper bug than "v8Debug-only". **Do not assert this without
+  testing it.**
+- **The commit that broke test compilation.** It landed between 2026-07-07 08:30 and 2026-07-08
+  08:03. `cc2f5925a` (ADFA-4582) is the best fit for the `plugin-manager` half; the `lsp:kotlin`
+  half does not trace cleanly to the same window.
+- **The cause of 19 of the 21 failed runs.** GitHub returns HTTP 410 for logs older than ~07-25.
+  All 21 failed at the same step; only 2 had readable errors. "All 21 have the same cause" is
+  `[inferred]`, not measured.
+- **Whether tests run anywhere outside `.github/workflows/`** (a pre-push hook, a self-hosted job).
+  Only the GitHub workflows were checked.
