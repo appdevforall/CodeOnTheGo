@@ -151,6 +151,19 @@ adb shell am start-activity \
 
 Two collectors write it, both running as *second* listeners beside CoGo's shipping analytics sink (via `CompositeQuickBuildMetricsSink`, which guards each delegate so instrumentation can never perturb a build): `BenchStateRecorder` writes a `state` line on every session-state change, and `BenchQuickBuildMetricsSink` mirrors each metrics callback — the load-bearing one is `reload_timeline`, which carries the whole save-to-live loop the benchmark reads.
 
+`reload_timeline` breaks the loop down into spans that **add up**. Five host spans partition the build half (`scanMs`, `compileRpcMs`, `policyMs`, `dexRpcMs`, `relinkRpcMs`); the daemon's own timings (`kotlinMs`, `javacMs`, `stripMs`, `d8Ms`, `preSnapMs`, `postSnapMs`, `javaAbiSnapMs`, the aapt2 pair) nest *inside* those, so they are reported but never summed. On top of them:
+
+```
+accountedMs   = scanMs + compileRpcMs + policyMs + dexRpcMs + relinkRpcMs + reloadMs
+unaccountedMs = totalMs - accountedMs
+```
+
+**`unaccountedMs`**** is the point.** Near zero is healthy — on the deep-dive's 13 device rows the spans reconciled to the total within 5 ms. A residual that grows means a step is running that nothing times, and the next reader *sees the gap* instead of misattributing that cost to whatever is measured next door. Its known contributors even when healthy are small: changed-asset packaging, and the payload bookkeeping before the deploy hand-off. A build that measured no spans reports **no** residual rather than blaming the whole build.
+
+Each line also carries the daemon's counts (`nAllSources`, `nKotlinCompiled`, `nJavaSources`, `nChangedClasses`, `nClassFiles`, `classBytes`), `compileOrdinal`, and `scratchFs` — see "Per-build statistics" under the daemon protocol for what those two mean and why a timing row is hard to read without them.
+
+CoGo's shipping Firebase event (`quick_build_reload_timing`) carries the same partition and residual, minus the fields that do not fit Firebase's 25-parameter cap: the aapt2 split (bounded by the reported relink span) and the two output-tree walks as separate numbers (summed into `walk_ms`). A unit test enforces the cap, because exceeding it makes Firebase drop parameters silently — the same invisible loss the residual exists to prevent.
+
 A third, optional flag — `CodeOnTheGo.qbnoseed` in `Download/`, inert unless the bench flag is also on — suppresses the post-provisioning background IC seed, so an A/B benchmark can run a seed-off arm against the same installed build (flip the flag file + restart CoGo instead of rebuilding). Shipping builds (no `qbbench`) always seed. The matched A/B this flag exists for is quoted at the top of this file; its driver and raw data live in the benchmark repo at `corpus/results/20260728T153938Z-seed-ab/`.
 
 Files: `app/src/main/java/com/itsaky/androidide/quickbuild/Bench*.kt` + `QuickBuildBench*.kt`; the flags live in `:common`'s `utils/FeatureFlags.kt`.
@@ -220,6 +233,30 @@ Every `ping` and successful `configure` response carries a `protocolVersion` int
 ```json
 {"id": 5, "ok": true, "protocolVersion": 1}
 ```
+
+**Adding a response field is additive and does NOT bump ****`protocolVersion`****.** The version is a hard session gate — a mismatch aborts `configure` — and a *staged* daemon jar can lag the client that talks to it, so bumping it for a new optional field would break exactly the pairing the additive shape supports. An older daemon simply omits the key; a newer one adds one the older client ignores. Absent optional numeric keys read back as **null, never 0**, so "not measured" never masquerades as "measured, and it was free" (`CompileStats.fromValues`).
+
+### Per-build statistics (`compile`, `dex`, `configure`)
+
+The build ops report what they did, not just how long the two compilers took. Motivation: `kotlinMillis`/`javaMillis`/`stripMillis`/`d8Millis` account for roughly **half** a warm edit — the rest is the output-tree snapshots, the Java-ABI re-parse, and the per-file I/O around them — and that gap led a design note to name javac "the bottleneck" when javac is 19-27% of a warm edit (`corpus/results/20260728T172912Z-sora-deepdive/DEVICE-FINDINGS.md`).
+
+```json
+{"id": 2, "ok": true, "classesDir": "...", "classesChanged": ["..."],
+ "kotlinMillis": 659, "javaMillis": 3983,
+ "preSnapMillis": 120, "postSnapMillis": 130, "javaAbiSnapMillis": 621,
+ "nAllSources": 292, "nKotlinToCompile": 0, "nJavaSources": 218,
+ "nChangedClasses": 323, "compileOrdinal": 2}
+{"id": 3, "ok": true, "dexFile": "...", "stripMillis": 5492, "d8Millis": 3104,
+ "nClassFiles": 464, "classBytes": 1530112}
+{"id": 1, "ok": true, "protocolVersion": 1, "scratchFsType": "f2fs"}
+```
+
+Two of these are context, not cost, and both are load-bearing when reading a timing row:
+
+- **`compileOrdinal`** — 1-based compile index within the daemon session. `1` is the cold build that seeds the IC caches and pays kotlinc's warm-up; reading one as a warm edit is what made a 53 s first build look like a per-edit cost. A fresh `configure` (including a respawn) restarts the count, which is correct: a respawn re-pays that cost.
+- **`scratchFsType`** — the filesystem `outDir` lives on. The same 464-file class tree copies in 192 ms on the app's own filesystem and 9985 ms on Android's FUSE-backed emulated storage. A duration without it cannot be compared across devices or configurations.
+
+Counters and durations only — no paths, names, or source content — so the same fields are safe to forward to analytics.
 
 BTA incremental-compilation (IC) gotchas (re-derived from the ADFA-4128 spike, load-bearing): `SourcesChanges.Known` required (`ToBeCalculated` falls back to full compile); the shrunk snapshot — the BTA's compact record of classpath ABI that incremental invalidation reads — MUST be exactly `<rootProjectDir>/shrunk-classpath-snapshot.bin`; runtime needs `kotlinx-coroutines-core-jvm` + `trove4j`; pass ALL sources as changed on the first build to seed the IC caches; only set `assureNoClasspathSnapshotsChanges(true)` after the shrunk snapshot exists.
 
