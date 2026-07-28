@@ -19,6 +19,7 @@ package com.itsaky.androidide.actions.filetree
 
 import android.content.Context
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
@@ -40,7 +41,7 @@ class CopyPathAction(
 
 	override suspend fun execAction(data: ActionData) {
 		val file = data.requireFile()
-		data[Context::class.java]!!.copyToClipboard(file.absolutePath, label = "[AndroidIDE] Copied File Path")
+		data.requireContext().copyToClipboard(file.absolutePath, label = "[AndroidIDE] Copied File Path")
 		flashSuccess(R.string.copied)
 	}
 }
