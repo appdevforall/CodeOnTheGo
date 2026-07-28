@@ -1,11 +1,20 @@
 package com.itsaky.androidide.lsp.kotlin.navigation
 
+import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
+import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.rangeOf
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
+import com.itsaky.androidide.lsp.models.DefinitionParams
+import com.itsaky.androidide.lsp.models.DefinitionResult
 import com.itsaky.androidide.models.Location
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.progress.ICancelChecker
+import kotlinx.coroutines.future.await
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.components.containingDeclaration
 import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
@@ -146,4 +155,62 @@ private fun locationOfPsi(declaration: PsiElement): Location? {
 	}
 
 	return Location(path, range)
+}
+
+/**
+ * Computes the definition result for [params].
+ *
+ * Mirrors `doSignatureHelp`: the live-PSI await happens outside `project.read`, because the refresh
+ * it waits on needs `project.write` and awaiting it under the read lock would deadlock. Every
+ * failure short of cancellation collapses to an empty result, which the editor renders as
+ * "Definition not found".
+ */
+context(env: AbstractCompilationEnvironment)
+internal suspend fun findDefinitionAt(params: DefinitionParams): DefinitionResult {
+	logger.debug("findDefinitionAt requested for file={} position={}", params.file, params.position)
+
+	if (params.cancelChecker.isCancelled()) {
+		logger.debug("Definition request for {} was cancelled before processing", params.file)
+		return DefinitionResult.empty()
+	}
+
+	// Safe to await a (possibly blocking) refresh here: this runs outside any project.read/write
+	// block, so it can't deadlock against the refresh's project.write. Refreshed to the open
+	// document's current version, so the caret offset and the PSI it indexes into come from the same
+	// text - a stale snapshot points at the wrong element.
+	val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).await()
+	if (ktFile == null) {
+		logger.warn("File {} cannot be loaded for definition lookup", params.file)
+		return DefinitionResult.empty()
+	}
+
+	// Navigation is user-initiated: run at INTERACTIVE priority so it preempts background
+	// diagnostics/indexing and is discarded when a newer interactive request wins. params.cancelChecker
+	// is request-scoped (CancellableRequestParams), so wrap it directly.
+	val cancelChecker = ScheduledCancelChecker(params.cancelChecker)
+
+	return try {
+		val offset = params.position.requireIndex()
+		cancelChecker.abortIfCancelled()
+		val locations =
+			env.project.read {
+				val element = referenceAtCaret(ktFile, offset) ?: return@read emptyList()
+				analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
+					definitionLocations(element, cancelChecker)
+				}
+			}
+		logger.debug("Definition result for {}: {} location(s)", params.file, locations.size)
+		DefinitionResult(locations)
+	} catch (e: Throwable) {
+		if (e.isAnalysisCancellation()) {
+			logger.debug(
+				"Definition lookup for {} cancelled (preempted={})",
+				params.file,
+				e is AnalysisPreemptedException,
+			)
+			return DefinitionResult.empty()
+		}
+		logger.warn("Definition lookup failed for {}", params.file, e)
+		DefinitionResult.empty()
+	}
 }
