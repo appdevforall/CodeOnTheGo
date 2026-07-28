@@ -1,22 +1,22 @@
-# Decision: On a large project a Quick Build save takes ~15 s and loses to a standard build — which fixes do we commit to?
+# Backlog Discussion: Known Performance Issues (for prioritiziation / followup tickets)
 
 ## Summary
 
-- Quick Build is already a median **~2.3x** faster than an incremental standard build across 21 corpus apps `[measured on a56]`. **None of the work below is a v1 blocker.**
-- But on the worst case — `sora-editor-full`, 292 sources — a warm edit costs **14.7 s** and Quick Build **loses** to a standard build (0.81x). This work widens the set of projects Quick Build helps and closes the cases where it loses.
-- No single compiler is the bottleneck. On a Java body edit the largest line is the ACC_FINAL strip pass, which does no compilation at all — it is file I/O against FUSE-backed storage.
-- Four fixes are measured and sequenced. Items 1-3 compound; item 4 moves only one edit class.
-- One item here is not a fix but an unknown: the **C107 residual grows across a session**, and nothing above explains it — a fixed per-operation toll cannot compound.
-- **Decision: do we take item 1 now, and how far down the list do we go?**
-  - Item 1 alone flips sora's Java body edit from **0.81x (losing) to 1.47x (winning)**. The measuring patch was 8 lines; the real cost is a cleanup policy and a lifecycle audit, not the move.
-  - Item 4 may not be worth doing at all: that edit class stays **below** a standard build even after the fix (0.42x today, 0.52x after item 1).
+Quick Build is already a median **~2.3x** faster than an incremental standard build across 21 corpus apps `[measured on a56]`.  And this ignores any manual installation prompts that come up in the standard build.
 
-| # | Fix | Payoff per warm edit | Effort / Risk |
-|---|---|---|---|
-| 1 | Move the daemon scratch tree off emulated storage | **-45%** (both apps measured) | S / M |
-| 2 | Incremental javac | 2.1-4.2 s | S then M / L-M then M |
-| 3 | Incremental dexing | 2.1-4.6 s | L / M |
-| 4 | Narrow "Java ABI moved -> recompile all Kotlin" | 14.9 s, but only on ABI-change edits | M-L / M |
+We've identified five issues that can improve performance, roughly sorted in decreasing ROI:
+
+| #   | Fix                                               | Payoff per warm edit                 | Effort | Risk |
+| --- | ------------------------------------------------- | ------------------------------------ | ------ | ---- |
+| 1   | Move the daemon scratch tree off emulated storage | **-45%** (both apps measured)        | S      | M    |
+| 2a  | Reuse the javac file manager                      | ~0.5-1.0 s `[inferred]`              | S      | L    |
+| 2b  | Per-changed-file javac                            | ~1.5-3.2 s more `[inferred]`         | M      | M    |
+| 3   | Incremental dexing                                | 2.1-4.6 s                            | L      | M    |
+| 4   | Narrow "Java ABI moved -> recompile all Kotlin"   | 14.9 s, but only on ABI-change edits | L      | M    |
+
+There was one other issue that we don't know root cause for yet:
+
+- C107 performance decreased over time for later benchmark runsUnconfirmed hypothesis -- maybe we were running into Java heap issues?
 
 ## Scope and provenance
 
@@ -69,16 +69,16 @@ Ordered by measured payoff per unit of risk.
 
 Task #101.
 
-### 2. Incremental javac
+### 2a + 2b. Incremental javac
 
-**Payoff: 2.1-4.2 s per edit** `[measured on a56]`
+**Payoff: 2.1-4.2 s per edit, pooled across post-fix sora rows** `[measured on a56]`
 
 - Roughly 30% of what remains after item 1, and it applies to every edit in a Java-bearing module regardless of what changed.
-- Host micro-benchmark at sora's real shape (214 `.java`): all-sources + fresh file manager 308 ms, single-source + reused file manager 7 ms — a **15x** gap on the body-edit path `[measured on host]`.
+- Host micro-benchmark at sora's real shape (214 `.java`): all-sources + fresh file manager 308 ms, single-source + fresh file manager 20 ms — a 15x gap on the body-edit path; reusing the file manager takes the single-source path to 7 ms `[measured on host]`.
 
 **Why.** `IncrementalCompiler.kt` passes `allSources`, not `changedFiles`, to `JavaCompileStep.compile()`, so javac recompiles the module's whole Java half on every edit; javac has no incremental mode of its own. Separately, `JavaCompileStep.kt:39` builds and closes a `StandardJavaFileManager` per compile, so the zip index of `android.jar` (27 MB) and every AAR `classes.jar` is re-scanned every edit even though the session classpath is fixed by construction.
 
-**Effort: S then M. Risk: L-M then M.** Land the file-manager reuse (option B) first: small, independently worth ~24% of the all-sources path `[measured on host]`, and its risk surface (cache staleness) is disjoint from the per-file change's (stale bytecode), so bugs stay attributable. Then per-changed-file javac (option A), whose failure mode is stale bytecode — the invariant the whole feature rests on — so its guards must be conservative-by-default and the fallback wired before the fast path.
+These are two separate changes and should be scheduled as such, because their risk surfaces are disjoint — landing them apart keeps bugs attributable. 2a, reusing the javac file manager, is Effort S / Risk L: independently worth ~24% of the all-sources path `[measured on host]`, and its failure mode is cache staleness, which is contained and cheap to test. 2b, per-changed-file javac, is Effort M / Risk M: the bulk of the win and the delicate one, because its failure mode is stale bytecode — the invariant the whole feature rests on — so its guards must be conservative-by-default and the fallback wired before the fast path. Land 2a first: it is small, it banks a real win, and it stands on its own if 2b is later deferred or reverted.
 
 **What must be true first.** Two guards, per [`incremental-javac-design.md`](incremental-javac-design.md) §3A:
 
@@ -93,7 +93,7 @@ Task #103.
 
 ### 3. Incremental dexing
 
-**Payoff: 2.1-4.6 s per edit** `[measured on a56]`, and after item 1 it is the largest remaining line on a Java body edit — 3.7-3.9 s of the 8.1 s edit.
+**Payoff: 2.1-4.6 s per edit** `[measured on a56]`, pooled across all post-fix sora rows. After item 1 it is the largest remaining line on a Java body edit specifically — 3.7-3.9 s of that 8.1 s edit, measured on the g1 rows alone.
 
 **Why.** Every build dexes all 464 classes from scratch. Gradle's `dexBuilder` dexes per-class and merges, so its one-file edit re-dexes one class. D8 supports the same per-class output plus a merge step.
 
@@ -114,7 +114,7 @@ Task #102.
 
 **Why.** `IncrementalCompiler.kotlinFilesToCompile` (`IncrementalCompiler.kt:377`) recompiles every Kotlin source whenever any `.java` ABI moves. This is deliberate, not a bug, and its KDoc states the reason: the Build Tools API engine has no dependency tracking over non-classpath Java sources, and the two cheap approximations both leave stale bytecode (there is no way to inject a non-classpath ABI change into the engine's lookup caches, and seeding from Kotlin files that lexically name the changed type misses indirect dependents — a `typealias` re-exports the type under a name whose own ABI does not move).
 
-**Effort: M/L. Risk: M.** The approach is a javac `TaskListener` dependency graph recorded at `ANALYZE` during the seeding compile, persisted, then used to recompile only the dependent closure. A graph that under-approximates is directly a stale-bytecode bug.
+**Effort: L. Risk: M.** The approach is a javac `TaskListener` dependency graph recorded at `ANALYZE` during the seeding compile, persisted, then used to recompile only the dependent closure. A graph that under-approximates is directly a stale-bytecode bug.
 
 **What must be true first.** Do this last. It is blocked on the same BTA limitation its own KDoc documents, it moves one edit class rather than all of them, and its target should be a number measured *after* items 1-3 land — today we do not know the post-fix split between javac and Kotlin inside that 22.9 s.
 
