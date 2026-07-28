@@ -257,7 +257,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 	private fun setText(text: String) {
 		val editor = _binding?.editor ?: return
 		editor.setText(text)
-		emptyStateViewModel.setEmpty(text.isBlank())
+		emptyStateViewModel.setEmpty(text.isBlank() && viewModel.snapshotUnfiltered().isBlank())
 		onContentReplaced()
 	}
 

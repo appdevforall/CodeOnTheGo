@@ -97,7 +97,7 @@ class BuildOutputFragment :
 				}
 			withContext(Dispatchers.Main) {
 				editor?.setText(filtered)
-				emptyStateViewModel.setEmpty(filtered.isBlank())
+				emptyStateViewModel.setEmpty(filtered.isBlank() && window.isBlank())
 				onContentReplaced()
 			}
 		}
