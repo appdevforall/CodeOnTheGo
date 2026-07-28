@@ -23,7 +23,7 @@ and loses on two apps. It costs more up front: reaching a working session takes
 builds at all, by either route, which makes that tier a standard-build problem
 rather than a Quick Build one.
 
-**The number to quote is ~2.3x on the A56 and ~2.5x on the C107** — the per-app
+**The number to quote is ~2.3x on the A56 and ~2.9x on the C107** — the per-app
 reading, which weights each app once. Quote it with its denominator: *21 apps on
 the A56, 18 on the C107.*
 
@@ -35,28 +35,48 @@ error is to pair one reading's value with the other's denominator ("2.5x across
 
 | reading | A56 | C107 |
 |---|---|---|
-| **per-app** (median across apps of each app's median warm edit) | **2.25x, 21 apps** | **2.49x, 18 apps** |
+| **per-app** (median across apps of each app's median warm edit ratio) | **2.25x, 21 apps** | **2.89x, 18 apps** |
 | per-edit (median across warm edit keys) | 2.48x, 55 keys | 3.32x, 49 keys |
-| pooled (device-wide median save-to-live vs device-wide median incremental standard) | 2.27x | 2.48x |
+| pooled (median warm save-to-live vs median incremental standard, each taken device-wide) | 2.75x | 3.18x |
 
-The circulated "2.7x on the C107" comes from the per-app calculation *without*
-collapsing repeated measurements of the same edit first (2.69x). That is a
-defensible variant, but collapsing is the better default — it stops an app with
-many repeats of one edit from dominating its own median — so the number to quote
-is 2.49x. See [`low-spec-devices.md`](low-spec-devices.md) for the C107 in depth.
+The exact recipe, so any of the three can be reproduced: collapse repeats of the
+same `(app, editId, device)` to their median; drop `05-manifest` (those edits
+never reached the watcher) and any save-to-live outside 200 ms - 60 s; keep keys
+whose lowest `editIndex` is > 1; join each key to the median
+`stdIncrementalMs` for its own `(app, device)`. That is `harness/gen_artifact.py`'s
+method, and it is the one all three rows above use.
+
+The circulated **"2.7x on the C107" does not reproduce** under any of the
+readings above. The nearest is the per-app calculation *without* collapsing
+repeats first, which gives 2.75x — a defensible variant, but not the default,
+because collapsing stops an app with many repeats of one edit from dominating its
+own median. The C107 number to quote is **2.89x**. (An earlier revision of this
+page put the per-app C107 figure at 2.49x; that value does not reproduce either,
+and 2.89x replaces it.) See [`low-spec-devices.md`](low-spec-devices.md) for the
+C107 in depth — and note that a third of the C107's measured edits are
+attribution-suspect, so every C107 per-edit number carries the caveat in
+"How much of this to believe".
 
 Per-app spread is wide and the ranking is stable across devices
 `[measured on a56, c107]`:
 
 | | A56 | C107 |
 |---|---|---|
-| best | antennapod-model 4.5x, resources-heavy 4.3x, kiss 4.2x | antennapod-model 11.0x, kiss 9.1x, hello-kotlin 6.2x |
-| median app | medium-kotlin 2.25x | mixed-lang-cyclic 2.5x |
-| slower than standard | sora-editor-full 2.7x slower, assets-app 1.9x slower, readyou 1.5x slower | assets-app 1.3x slower, native-app 1.6x slower |
+| best | antennapod-model 4.5x, mixed-lang-cyclic 4.5x, resources-heavy 4.3x | antennapod-model 11.0x, kiss 9.1x, hello-kotlin 6.2x |
+| median app | medium-kotlin 2.25x (11th of 21) | findroid 3.26x / mixed-lang-cyclic 2.52x (9th and 10th of 18, so the median is their mean, 2.89x) |
+| slower than standard | sora-editor-full 2.7x slower, assets-app 1.7x slower | assets-app 1.2x slower, native-app 1.6x slower |
 
-The C107 wins are larger because its standard builds are much slower (25 s median
-incremental, 133 s cold) while the Quick Build hot loop degrades less steeply
-(10 s median) `[measured on c107]`.
+Exactly two apps per device sit below 1x, which is what "loses on two apps" in
+the headline means. `readyou` is **not** one of them: it measures 1.20x on the
+A56 — Quick Build wins on its median, though on only two warm keys that disagree
+5x (0.39x and 2.02x), so its "median" is really the mean of two numbers.
+
+The C107 wins are larger because its standard builds are much slower (25.4 s
+median incremental, 133 s cold) while the Quick Build hot loop degrades less
+steeply (8.0 s median warm save-to-live) `[measured on c107]`. All four are
+medians over apps. Beware a widely-quoted "10 s" for the C107 hot loop: that is
+the median over *all* measured edits including each session's cold first edit,
+not the warm number the speedup is computed from.
 
 The `sora-editor-full` loss is root-caused, and the corpus number overstates it: a
 dedicated instrumented re-run measures a warm edit at 14.7 s against an 11.9 s
@@ -148,8 +168,10 @@ The speedup above is the inner loop only. Three costs sit outside it.
 | total, Quick Build path | 75 s | 339 s |
 
 So the first-run pathway is about **1.3x slower** than getting a first standard
-build (25 apps on the A56, 21 on the C107). At the median per-edit saving it
-repays that in roughly five edits on the A56 and four on the C107 `[inferred]` —
+build — 1.29x on the A56 across 25 apps, 1.25x on the C107 across 21. At the
+median per-edit saving (+2.7 s on the A56, +15.1 s on the C107, medians across
+the same apps) it repays that in roughly six edits on the A56 and four on the
+C107 `[inferred]` —
 but it is a real up-front cost, and it is paid before the user has seen anything
 run at all.
 
@@ -168,8 +190,18 @@ framing that reached the team overstated this. On the C107, 9 of 30 never reache
 Ready and none of those nine build by the standard route either
 `[measured on c107]`.
 
+A caveat that travels with every "median incremental standard build" figure on
+this page: the join takes each app's median `stdIncrementalMs` **without**
+checking `stdIncrementalOk`, so it includes durations recorded for standard
+builds that failed. On the C107 that is 9 of 30 apps and pulls the device-wide
+median from 26.6 s (21 apps that actually build) to 25.4 s. It changes no
+speedup, because none of those 9 apps has a joined Quick Build edit on either
+device — but quote 26.6 s when the claim is "what an incremental standard build
+costs on the C107", and 25.4 s only when reproducing the join.
+
 Coverage per sweep, for scale: 70/92 and 78/97 edits measured on the A56; 70/97
-and 68/97 on the C107. The 101 GAP rows across all runs are dominated by
+and 68/97 on the C107, plus a third, partial C107 sweep at 17/20. The 101 GAP
+rows across all runs are dominated by
 provisioning failures ("test app install not confirmed", 46 rows) and per-edit
 `CompileError` / `DeployFailure` (35 rows).
 
@@ -210,21 +242,38 @@ pivot.
 
 Filtering is not neutral, and not in the direction you would guess. Suspect rows
 skew **slow** (C107 median 11.9 s suspect vs 9.6 s clean), so dropping them moves
-the per-app headline **up**: A56 2.25x -> 2.85x, C107 2.49x -> 4.12x, and the
-C107's sub-1x tail disappears. The bug is depressing the measured advantage, not
-inflating it. That is not licence to quote the filtered number — filtering removes
-a third of the C107's data and the residue is not a random sample of it. The clean
-fix is re-running the sweeps.
+the per-app headline **up**: A56 2.25x -> 2.85x (still 21 apps), C107 2.89x ->
+3.80x, and the C107's sub-1x tail disappears. The bug is depressing the measured
+advantage, not inflating it. That is not licence to quote the filtered number —
+filtering removes a third of the C107's data, takes its denominator from 18 apps
+to 12, and the residue is not a random sample of it. The clean fix is re-running
+the sweeps.
 
-**Repeat agreement is good except exactly where it matters.** 59 of 88 warm edit
-keys were measured more than once; median spread between repeats is 1.04x, p90
-1.29x `[measured on a56, c107]`. But the three keys above 3x are
+**Repeat agreement is poor on the raw data and good only after filtering.** State
+which, because the two answers are not close `[measured on a56, c107]`:
+
+| | all rows | suspect rows dropped |
+|---|---|---|
+| warm edit keys | 104 | 88 |
+| measured more than once | 93 | 59 |
+| median spread between repeats | 1.10x | 1.04x |
+| p90 spread | 4.19x | 1.29x |
+| keys disagreeing by more than 3x | 11 | 3 |
+
+The filtered column is the one that was circulated as "repeat agreement is good",
+and it is the same filter this page says not to apply to headline numbers. On the
+raw data a p90 of 4.19x means one warm key in ten disagrees with itself by more
+than 4x.
+
+The three keys that survive filtering and still disagree by more than 3x are
 `assets-app/03-asset-plus-code` (8.6x: 1.4 s vs 12.1 s),
 `sora-editor-lib/02-sample-app-ui` (4.8x) and
 `sora-editor-full/02-kotlin-body-edit` (3.2x: 53.0 s vs 16.5 s) — and two of those
-three apps *are* the "Quick Build loses" tail on the A56. None is flagged suspect.
-So the least reproducible part of the dataset is the part the loss story rests on,
-and the suspect flag does not catch it.
+three apps *are* the "Quick Build loses" tail on the A56. So the least
+reproducible part of the dataset is the part the loss story rests on, and the
+suspect flag does not catch it. The other eight (worst:
+`mixed-lang-cyclic/02-java-method-body` on the C107, 26x — 1.8 s vs 47.4 s) are
+flagged suspect, which is the flag working.
 
 **Only 13 of 466 rows carry per-step timings, all from one C107 run.** The
 `kotlinMs` / `javacMs` / `stripMs` / `d8Ms` columns exist on paper for the whole
