@@ -1,5 +1,10 @@
 # Low-spec device farm runbook (ADFA-4128 P1a)
 
+> This is the **protocol** — how to provision a farm device and run the benchmark.
+> For what the runs actually found (the 3.6 GB / 1.9 GB / 1.46 GB floor bracket, the
+> Metaspace fix, the per-tier daemon idle timeouts, and the two open items), see
+> [`low-spec-devices.md`](low-spec-devices.md).
+
 - **Status:** Prep-only tonight (2026-07-21) — no Tailscale access to the farm until Bryan
   sorts it with David. Everything below is push-button for that session: run these two
   scripts against each farm device, read the output, judge pass/fail per the bar below.
