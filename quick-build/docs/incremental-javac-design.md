@@ -5,7 +5,7 @@
 - **Ticket:** ADFA-4128, task 60.
 - **Scope:** the daemon's `.java` compile pass. The Kotlin pass, dex, and relink are
   out of scope except where they gate a javac decision.
-- **Read [`sora-slow-path-gap.md`](sora-slow-path-gap.md) first — it corrects this note.**
+- **Read `quick-build/corpus/results/20260728T172912Z-sora-deepdive/` first — it corrects this note.**
   Device measurement (2026-07-28, A56) found javac is **19-27%** of a warm edit, not
   the bottleneck: this note only looked inside `compileMs`, which excludes dex. The
   dominant cost is per-file I/O on FUSE-backed emulated storage, where the daemon's
