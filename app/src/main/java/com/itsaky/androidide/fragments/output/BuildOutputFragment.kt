@@ -62,6 +62,11 @@ class BuildOutputFragment :
 	// so a re-render never misses or duplicates a concurrently flushed batch.
 	private val editorContentMutex = Mutex()
 
+	// Bumped only when a build session is cleared (new build) so live streaming logs
+	// are never dropped from the disk session file during filter re-renders.
+	@Volatile
+	private var sessionGeneration = 0
+
 	// Bumped on every wholesale content replacement (filtered re-render or clear) so an
 	// in-flight batch flush drained before the replacement can detect it and drop itself.
 	@Volatile
@@ -244,6 +249,7 @@ class BuildOutputFragment :
 		}
 		// Invalidate in-flight flushes before deleting content, so a batch drained from the
 		// channel earlier cannot re-seed the cleared session.
+		sessionGeneration++
 		editorContentGeneration++
 		buildOutputViewModel.clear()
 		super.clearOutput()
@@ -297,14 +303,15 @@ class BuildOutputFragment :
 	private suspend fun processLogs() =
 		with(StringBuilder()) {
 			for (firstLine in logChannel) {
-				val generationAtDrain = editorContentGeneration
+				val sessionGenAtDrain = sessionGeneration
+				val editorGenAtDrain = editorContentGeneration
 				append(firstLine.ensureNewline())
 				logChannel.drainTo(this)
 
 				if (isNotEmpty()) {
 					val batchText = toString()
 					clear()
-					flushToEditor(batchText, generationAtDrain)
+					flushToEditor(batchText, sessionGenAtDrain, editorGenAtDrain)
 				}
 			}
 		}
@@ -318,11 +325,12 @@ class BuildOutputFragment :
 	 */
 	private suspend fun flushToEditor(
 		text: String,
-		generation: Int,
+		sessionGen: Int,
+		editorGen: Int,
 	) {
 		editorContentMutex.withLock {
-			// A clear (new build) after this batch was drained invalidates it.
-			if (generation != editorContentGeneration) return
+			// A clear (new build) after this batch was drained invalidates session append.
+			if (sessionGen != sessionGeneration) return
 
 			buildOutputViewModel.append(text)
 
@@ -345,8 +353,8 @@ class BuildOutputFragment :
 							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
 						}
 					if (layoutCompleted != null) {
-						// clearOutput() (main thread, mutex-free) may have run since the file append.
-						if (generation == editorContentGeneration) {
+						// clearOutput() or renderFiltered() may have run since the file append.
+						if (editorGen == editorContentGeneration) {
 							appendBatch(visibleText)
 							emptyStateViewModel.setEmpty(false)
 						}
@@ -356,7 +364,7 @@ class BuildOutputFragment :
 							editor?.run {
 								awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
 								editorContentMutex.withLock {
-									if (editorContentGeneration == generation) {
+									if (editorGen == editorContentGeneration) {
 										appendBatch(visibleText)
 										emptyStateViewModel.setEmpty(false)
 									}
