@@ -17,6 +17,7 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.EmptyStateFragmentViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,7 +66,10 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 			}
 		}
 
-	internal var isEmpty: Boolean
+	val isEmptyFlow: StateFlow<Boolean>
+		get() = emptyStateViewModel.isEmpty
+
+	var isEmpty: Boolean
 		get() {
 			return if (isAdded && !isDetached) {
 				// Update cache when attached and return current value

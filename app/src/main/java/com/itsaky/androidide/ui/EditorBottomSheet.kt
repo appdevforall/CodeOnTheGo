@@ -55,6 +55,7 @@ import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
+import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.fragments.output.SearchableOutputFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.fragments.output.WrappableOutputFragment
@@ -127,6 +128,7 @@ class EditorBottomSheet
 		private val buildOutputViewModel by (context as FragmentActivity).viewModels<BuildOutputViewModel>()
 		private lateinit var mediator: TabLayoutMediator
 		private var shareJob: Job? = null
+		private var fragmentEmptyStateJob: Job? = null
 
 		// BottomSheetBehavior repositions the sheet after layout without triggering onSlide,
 		// so refresh the FABs afterward
@@ -305,6 +307,8 @@ class EditorBottomSheet
 		override fun onDetachedFromWindow() {
 			shareJob?.cancel()
 			shareJob = null
+			fragmentEmptyStateJob?.cancel()
+			fragmentEmptyStateJob = null
 			if (this::mediator.isInitialized) {
 				mediator.detach()
 			}
@@ -678,6 +682,34 @@ class EditorBottomSheet
 				}
 				updateWordWrapButtonState(isEnabled)
 			}
+
+			observeCurrentFragmentEmptyState(currentFragment)
+		}
+
+		private fun observeCurrentFragmentEmptyState(fragment: Fragment?) {
+			fragmentEmptyStateJob?.cancel()
+			if (fragment !is EmptyStateFragment<*>) {
+				updateActionButtonsEnabledState(isEmpty = false)
+				return
+			}
+
+			val activity = context as? FragmentActivity ?: return
+			fragmentEmptyStateJob =
+				activity.lifecycleScope.launch {
+					activity.repeatOnLifecycle(Lifecycle.State.STARTED) {
+						fragment.isEmptyFlow.collectLatest { isEmpty ->
+							updateActionButtonsEnabledState(isEmpty = isEmpty)
+						}
+					}
+				}
+		}
+
+		private fun updateActionButtonsEnabledState(isEmpty: Boolean) {
+			val hasContent = !isEmpty
+			binding.searchOutputAction.isEnabled = hasContent
+			binding.filterOutputAction.isEnabled = hasContent
+			binding.shareOutputAction.isEnabled = hasContent
+			binding.clearOutputAction.isEnabled = hasContent
 		}
 
 		// The bottom-anchored FAB goes off-screen when the bottom sheet is collapsed.
