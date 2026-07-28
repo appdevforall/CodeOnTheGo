@@ -322,6 +322,88 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
 		}
 
+	// Review finding (2026-07-26 #3): the seed compiles what the test app already runs
+	// and deploys nothing - it must not present as a blocking Building for its whole
+	// 12-50s window.
+	@Test
+	fun `the background seed does not present as Building - status stays up to date`() =
+		runTest {
+			val manager = createManager()
+			val gate = CompletableDeferred<Unit>()
+			seedGate = gate
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// The seed is in flight (gated), yet the surface reads up to date.
+			assertThat(seeds).hasSize(1)
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Building(0, seeding = true))
+			assertThat(manager.status.value).isEqualTo(QuickBuildStatus.UpToDate(0, null))
+
+			gate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	// Review finding (2026-07-26 #3): a forced-redeploy tap during the seed must not
+	// vanish - the seed deploys nothing, so nothing else would satisfy it.
+	@Test
+	fun `a tap during the seed queues and forces a build right after it`() =
+		runTest {
+			val manager = createManager()
+			val gate = CompletableDeferred<Unit>()
+			seedGate = gate
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(seeds).hasSize(1)
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			// Single-flight: the tap waits for the in-flight seed.
+			assertThat(executed).isEmpty()
+
+			gate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(executed).hasSize(1)
+			assertThat(executed.single().forced).isTrue()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+		}
+
+	// Review finding (2026-07-26 #1): a crash of the running generation during the seed
+	// window surfaces like any other test-app crash instead of being swallowed by the
+	// seed's silent SeedFinished -> Ready path.
+	@Test
+	fun `a test-app crash during the seed surfaces as a session failure`() =
+		runTest {
+			val manager = createManager()
+			val gate = CompletableDeferred<Unit>()
+			seedGate = gate
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(seeds).hasSize(1)
+
+			connections.report(TargetReport.Crashed(0, "NPE in onCreate"))
+			advanceUntilIdle()
+			// Surfaced immediately, not deferred to the end of the seed window.
+			assertThat(manager.status.value)
+				.isEqualTo(
+					QuickBuildStatus.Failed(0, SessionFailure.TestAppCrash("NPE in onCreate")),
+				)
+
+			gate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Ready(
+						0,
+						lastFailure = SessionFailure.TestAppCrash("NPE in onCreate"),
+					),
+				)
+		}
+
 	@Test
 	fun `a non-compose project configures the daemon without compiler plugins`() =
 		runTest {

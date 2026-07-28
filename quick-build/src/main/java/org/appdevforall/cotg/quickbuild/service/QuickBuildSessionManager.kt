@@ -641,10 +641,14 @@ class QuickBuildSessionManager(
 			when (event) {
 				is OrchestratorEvent.BuildStarted -> {
 					report { metrics.onBuildStarted(event.buildId, event.route, event.changes) }
-					dispatch(SessionEvent.BuildStarted)
-					if (event.route !is BuildRoute.Seed) {
-						// A seed compiles the sources the test app ALREADY runs; telling
-						// it "one generation behind, building" would be a lie.
+					if (event.route is BuildRoute.Seed) {
+						// A seed compiles the sources the test app ALREADY runs and
+						// deploys nothing; telling either surface "one generation
+						// behind, building" would be a lie. SeedStarted keeps the IDE
+						// status on "up to date" (Building(seeding = true)).
+						dispatch(SessionEvent.SeedStarted)
+					} else {
+						dispatch(SessionEvent.BuildStarted)
 						notifyBuilding()
 					}
 				}

@@ -35,10 +35,73 @@ class SessionReducerTest {
 	@Test
 	fun `seed finished returns building to ready at the unchanged generation`() {
 		val transition =
-			reducer.reduce(QuickBuildSessionState.Building(deployedGeneration = 4), SessionEvent.SeedFinished)
+			reducer.reduce(
+				QuickBuildSessionState.Building(deployedGeneration = 4, seeding = true),
+				SessionEvent.SeedFinished,
+			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(4, lastFailure = null))
 		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
+	fun `seed started moves ready into a seeding building state`() {
+		val transition =
+			reducer.reduce(QuickBuildSessionState.Ready(4), SessionEvent.SeedStarted)
+
+		assertThat(transition.state)
+			.isEqualTo(QuickBuildSessionState.Building(4, seeding = true))
+		assertThat(transition.effects).isEmpty()
+	}
+
+	// Review finding (2026-07-26 #3): a forced-redeploy tap during a seed must not
+	// vanish - a seed deploys nothing, so nothing else will satisfy it.
+	@Test
+	fun `a tap during the seed triggers a build instead of being dropped`() {
+		val seeding = QuickBuildSessionState.Building(4, seeding = true)
+		val transition = reducer.reduce(seeding, SessionEvent.QuickBuildTapped)
+
+		assertThat(transition.state).isEqualTo(seeding)
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TriggerQuickBuild))
+	}
+
+	@Test
+	fun `a tap during a real build stays a no-op - the in-flight deploy satisfies it`() {
+		val building = QuickBuildSessionState.Building(4)
+		val transition = reducer.reduce(building, SessionEvent.QuickBuildTapped)
+
+		assertThat(transition.state).isEqualTo(building)
+		assertThat(transition.effects).isEmpty()
+	}
+
+	// Review finding (2026-07-26 #1): a crash of the RUNNING generation during the seed
+	// window must surface like it does outside it - the seed's silent-outcome contract
+	// covers seed results, not crashes.
+	@Test
+	fun `a test-app crash during the seed is carried and surfaced when the seed finishes`() {
+		val seeding = QuickBuildSessionState.Building(4, seeding = true)
+		val crashed = reducer.reduce(seeding, SessionEvent.TestAppCrashed("NPE in onCreate"))
+
+		assertThat(crashed.state)
+			.isEqualTo(
+				QuickBuildSessionState.Building(
+					4,
+					seeding = true,
+					pendingCrash = SessionFailure.TestAppCrash("NPE in onCreate"),
+				),
+			)
+		assertThat(crashed.effects).isEmpty()
+
+		val finished = reducer.reduce(crashed.state, SessionEvent.SeedFinished)
+
+		assertThat(finished.state)
+			.isEqualTo(
+				QuickBuildSessionState.Ready(
+					4,
+					lastFailure = SessionFailure.TestAppCrash("NPE in onCreate"),
+				),
+			)
+		assertThat(finished.effects).isEmpty()
 	}
 
 	@Test

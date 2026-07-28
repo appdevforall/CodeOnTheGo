@@ -30,9 +30,22 @@ sealed interface QuickBuildSessionState {
 		val lastFailure: SessionFailure? = null,
 	) : QuickBuildSessionState
 
-	/** A quick build is running; the test app still runs [deployedGeneration]. */
+	/**
+	 * A quick build is running; the test app still runs [deployedGeneration].
+	 *
+	 * [seeding] true = the in-flight build is the background IC seed ([BuildRoute.Seed]):
+	 * it compiles the sources the test app ALREADY runs and deploys nothing, so the status
+	 * surface must not present it as a blocking "Building" (the app is genuinely up to
+	 * date), and a Quick Build tap must trigger a real build instead of being dropped (a
+	 * real build satisfies a mid-build tap by deploying; a seed never deploys).
+	 * [pendingCrash] carries a test-app crash observed mid-seed so [SessionEvent.SeedFinished]
+	 * lands it as [Ready.lastFailure] instead of swallowing it — the seed's "surface
+	 * nothing" contract covers seed OUTCOMES, not crashes of the running generation.
+	 */
 	data class Building(
 		val deployedGeneration: Long,
+		val seeding: Boolean = false,
+		val pendingCrash: SessionFailure.TestAppCrash? = null,
 	) : QuickBuildSessionState
 
 	/**
@@ -102,6 +115,14 @@ sealed interface SessionEvent {
 
 	data object BuildStarted : SessionEvent
 
+	/**
+	 * The background IC seed started ([BuildRoute.Seed]). A distinct event, not a flag on
+	 * [BuildStarted]: the session enters [QuickBuildSessionState.Building] with
+	 * `seeding = true` so the status surface keeps reading "up to date" (nothing will
+	 * deploy) and taps/crashes during the seed are handled honestly (see [Building]).
+	 */
+	data object SeedStarted : SessionEvent
+
 	data class BuildSucceeded(
 		val generation: Long,
 		val durationMillis: Long,
@@ -116,10 +137,12 @@ sealed interface SessionEvent {
 	/**
 	 * The background IC-seed build finished (success or a silently-logged failure).
 	 * Nothing deployed, the generation did not move: Building returns to Ready at the
-	 * deployed generation with no failure surfaced - a seed problem is invisible by
+	 * deployed generation with no seed OUTCOME surfaced - a seed problem is invisible by
 	 * design (the setup build just compiled the same sources green; the next real save
-	 * surfaces anything real). Daemon death during a seed does NOT arrive here - it
-	 * stays on the [DaemonDied] recovery path.
+	 * surfaces anything real). A test-app crash observed DURING the seed is not a seed
+	 * outcome: it lands as [QuickBuildSessionState.Ready.lastFailure] via
+	 * [QuickBuildSessionState.Building.pendingCrash]. Daemon death during a seed does NOT
+	 * arrive here - it stays on the [DaemonDied] recovery path.
 	 */
 	data object SeedFinished : SessionEvent
 
@@ -350,6 +373,10 @@ class SessionReducer {
 				SessionTransition(QuickBuildSessionState.Building(generation))
 			}
 
+			SessionEvent.SeedStarted -> {
+				SessionTransition(QuickBuildSessionState.Building(generation, seeding = true))
+			}
+
 			is SessionEvent.InvalidationDetected -> {
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(event.reason, generation),
@@ -394,10 +421,23 @@ class SessionReducer {
 				SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration, event.failure))
 			}
 
+			SessionEvent.QuickBuildTapped -> {
+				if (state.seeding) {
+					// A seed deploys nothing, so the tap would otherwise vanish. The
+					// orchestrator queues it (pendingForced) and builds right after the
+					// seed - single-flight preserved, tap never dropped.
+					SessionTransition(state, listOf(SessionEffect.TriggerQuickBuild))
+				} else {
+					// The in-flight real build deploys anyway and satisfies the tap.
+					SessionTransition(state)
+				}
+			}
+
 			SessionEvent.SeedFinished -> {
-				// The seed deployed nothing: back to Ready at the unchanged generation,
-				// no failure surfaced (see the event's contract).
-				SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration))
+				// The seed deployed nothing: back to Ready at the unchanged generation.
+				// No seed OUTCOME is surfaced (see the event's contract), but a crash of
+				// the running generation observed mid-seed lands now.
+				SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration, state.pendingCrash))
 			}
 
 			is SessionEvent.InvalidationDetected -> {
@@ -415,8 +455,16 @@ class SessionReducer {
 			}
 
 			is SessionEvent.TestAppCrashed -> {
-				// The old generation crashed while the next build runs; stay Building.
-				SessionTransition(state)
+				if (state.seeding) {
+					// A seed ends in Ready with no failure, which would swallow this
+					// crash of the CURRENTLY RUNNING generation (nothing new is coming
+					// to supersede it). Carry it; SeedFinished surfaces it.
+					SessionTransition(state.copy(pendingCrash = SessionFailure.TestAppCrash(event.summary)))
+				} else {
+					// The old generation crashed while the next build runs; stay
+					// Building - the imminent deploy supersedes the crashed code.
+					SessionTransition(state)
+				}
 			}
 
 			SessionEvent.ExternalBuildCompleted -> {
