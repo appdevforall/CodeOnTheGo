@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.DefaultQuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.ProjectWatcher
 import org.appdevforall.cotg.quickbuild.data.SetupInfo
@@ -97,6 +98,9 @@ class QuickBuildSessionManagerTest {
 			}
 		}
 	private val scriptedOutcomes = ArrayDeque<BuildOutcome>()
+
+	/** Scripted outcomes for SEED builds only; empty = every seed succeeds unmoved. */
+	private val seedOutcomes = ArrayDeque<BuildOutcome>()
 	private var provisionCount = 0
 	private var rebaselineCount = 0
 	private var prewarmCount = 0
@@ -229,7 +233,8 @@ class QuickBuildSessionManagerTest {
 							// (which script USER builds) untouched.
 							seeds += request
 							seedGate?.await()
-							return BuildOutcome.Success(tracker.current, 5)
+							return seedOutcomes.removeFirstOrNull()
+								?: BuildOutcome.Success(tracker.current, 5)
 						}
 						executed += request
 						executionGate?.await()
@@ -404,6 +409,40 @@ class QuickBuildSessionManagerTest {
 						lastFailure = SessionFailure.TestAppCrash("NPE in onCreate"),
 					),
 				)
+		}
+
+	// Review gap (2026-07-26 #69): the daemon dying DURING the seed must surface as
+	// Degraded and recover through the normal respawn, never end in SeedFinished's
+	// silent "up to date" over a dead daemon.
+	@Test
+	fun `a daemon death during the seed degrades, respawns and re-seeds the fresh daemon`() =
+		runTest {
+			val manager = createManager()
+			val gate = CompletableDeferred<Unit>()
+			seedGate = gate
+			seedOutcomes +=
+				BuildOutcome.InfrastructureFailure("daemon connection lost", daemonDied = true)
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(seeds).hasSize(1)
+
+			// Hold the respawn's start so the honest Degraded window is observable.
+			val respawnGate = CompletableDeferred<Unit>()
+			daemon.startGate = respawnGate
+			gate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Degraded(0))
+
+			respawnGate.complete(Unit)
+			advanceUntilIdle()
+			// The fresh daemon re-warmed via a second deploy-nothing seed; nothing
+			// user-visible happened: no user build, no deploy, generation unmoved.
+			assertThat(daemon.startConfigs).hasSize(2)
+			assertThat(seeds).hasSize(2)
+			assertThat(executed).isEmpty()
+			assertThat(deploy.calls).isEmpty()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
 	@Test
@@ -843,6 +882,40 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
+	// Review gap (2026-07-26 #69): the test above reuses an identical setup/layout, so
+	// restarting on the stale provisioning-time config would also pass it. Here the
+	// rebaseline moves BOTH - the restarted daemon must reflect the new facts.
+	@Test
+	fun `the rebaseline's daemon restart uses the re-read setup and layout, not the provisioning-time config`() =
+		runTest {
+			// The gradle edit that forced the rebaseline added a dependency jar and
+			// enabled Compose; the regenerated setup/layout carry both.
+			val newJar = File(projectRoot, "libs/new-dep.jar")
+			rebaselineOutcome = {
+				val base = defaultRebaselineSuccess()
+				base.copy(
+					setup = base.setup.copy(composeEnabled = true),
+					layout = DefaultQuickBuildProjectLayout(projectRoot, classpath = listOf(newJar)),
+				)
+			}
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(daemon.startConfigs.single().classpath).isEmpty()
+			assertThat(daemon.startConfigs.single().compilerPlugins).isEmpty()
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			// Restarted against the NEW config - otherwise every quick build after
+			// the rebaseline compiles on the old classpath without the Compose plugin.
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			assertThat(daemon.startConfigs).hasSize(2)
+			val restarted = daemon.startConfigs.last()
+			assertThat(restarted.classpath).containsExactly(newJar)
+			assertThat(restarted.compilerPlugins).isNotEmpty()
+		}
+
 	// Review finding (2026-07-26 #2): rebaseline calls daemon.shutdown() and can race an
 	// in-flight respawn. The daemonEpoch guard must discard the superseded respawn.
 	@Test
@@ -1062,6 +1135,72 @@ class QuickBuildSessionManagerTest {
 
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 			assertThat(userMessages).contains("manifest does not build")
+		}
+
+	// Review gap (2026-07-26 #69): pin the failed rebaseline's DAEMON state and the
+	// clean re-tap - the session must die clean, not linger wedged and daemon-less.
+	@Test
+	fun `a failed rebaseline leaves the daemon down and a tap re-provisions a fresh session`() =
+		runTest {
+			var failRebaseline = true
+			rebaselineOutcome = {
+				if (failRebaseline) {
+					RebaselineOutcome.Failure("manifest does not build")
+				} else {
+					defaultRebaselineSuccess()
+				}
+			}
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			// The daemon was shut down for the Gradle build and there is no new
+			// baseline to restart it against: it stays down, torn down with the session.
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+			assertThat(daemon.isRunning).isFalse()
+			assertThat(daemon.startConfigs).hasSize(1)
+
+			// The next tap re-provisions from scratch - not wedged.
+			failRebaseline = false
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(provisionCount).isEqualTo(2)
+			assertThat(daemon.isRunning).isTrue()
+			assertThat(daemon.startConfigs).hasSize(2)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	// Review finding (2026-07-26 #4): the Gradle rebaseline SUCCEEDED but the daemon
+	// restart after it fails. Traced safe at review time but unpinned - the session
+	// must tear down to Idle (never park daemon-less) and a tap must re-provision.
+	@Test
+	fun `a daemon restart failure after a successful rebaseline tears down to Idle and a tap re-provisions`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+
+			daemon.startReply = DaemonReply.Failed("daemon JVM would not start")
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			// The rebaseline itself succeeded; only the restart failed. The failure
+			// surfaces and the session dies clean instead of wedging half-alive.
+			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+			assertThat(userMessages).contains("daemon JVM would not start")
+			assertThat(daemon.isRunning).isFalse()
+
+			// The next tap re-provisions from scratch and works again.
+			daemon.startReply = DaemonReply.Ok(Unit)
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(provisionCount).isEqualTo(2)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
 	@Test

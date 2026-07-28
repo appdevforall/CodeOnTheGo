@@ -771,4 +771,41 @@ class BuildOrchestratorTest {
 			assertThat(executor.requests).hasSize(2)
 			assertThat(executor.requests[1].changes).isEqualTo(known(srcB))
 		}
+
+	// Review gap (2026-07-26 #69): a rebaseline landing mid-seed supersedes it - the
+	// seed's late result must be discarded, and it must NOT re-queue after the reset
+	// (the rebaseline's own Gradle build just recompiled the world).
+	@Test
+	fun `a seed superseded by a rebaseline is discarded and does not restart after the reset`() =
+		runTest {
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onSeedRequested()
+			runCurrent()
+			assertThat(executor.requests.single().route).isEqualTo(BuildRoute.Seed)
+
+			// A gradle/manifest edit forced a rebaseline while the seed compiles.
+			orchestrator.onRebaselineStarted()
+			events.clear()
+			executor.finish(0, success(generation = 0))
+			runCurrent()
+			// The superseded seed's result is discarded: no Succeeded/Failed escapes
+			// (a SeedFinished here would flip the session out of its rebaseline flow).
+			assertThat(events).isEmpty()
+
+			orchestrator.onBaselineReset()
+			runCurrent()
+			// Nothing pending, and the dead seed was not resurrected.
+			assertThat(executor.requests).hasSize(1)
+			assertThat(events).isEmpty()
+
+			// The session then builds normally again, with exactly the new batch.
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			assertThat(executor.requests).hasSize(2)
+			assertThat(executor.requests[1].changes).isEqualTo(known(srcA))
+			assertThat(executor.requests[1].route).isEqualTo(BuildRoute.CodeOnly)
+		}
 }
