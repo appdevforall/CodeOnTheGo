@@ -26,7 +26,6 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.actions.requireEditor
 import com.itsaky.androidide.actions.requireFile
-import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import io.github.rosemoe.sora.text.batchEdit
 import java.io.File
@@ -36,12 +35,17 @@ class UncommentLineAction(
 	lang: String,
 	private val targetFileExtensions: List<String>,
 	private val lineCommentToken: String,
+	tag: String,
 ) : EditorActionItem {
+	companion object {
+		/** The id is per-language, since one instance is registered per language. */
+		fun idFor(lang: String) = "ide.editor.lsp.$lang.uncommentLine"
+	}
 
-	constructor(lang: String, extension: String, lineCommentToken: String) :
-			this(lang, listOf(extension), lineCommentToken)
+	constructor(lang: String, extension: String, lineCommentToken: String, tag: String) :
+		this(lang, listOf(extension), lineCommentToken, tag)
 
-	override val id: String = "ide.editor.lsp.$lang.uncommentLine"
+	override val id: String = idFor(lang)
 	override var label: String = ""
 
 	override var visible = true
@@ -49,8 +53,10 @@ class UncommentLineAction(
 	override var icon: Drawable? = null
 	override var location: ActionItem.Location = ActionItem.Location.EDITOR_CODE_ACTIONS
 	override var requiresUIThread: Boolean = true
-	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_UNCOMMENT
 
+	// Required, not defaulted: one instance is registered per language, and a default would let a
+	// new language silently inherit another language's tooltip.
+	override var tooltipTag: String = tag
 
 	override fun prepare(data: ActionData) {
 		super.prepare(data)
