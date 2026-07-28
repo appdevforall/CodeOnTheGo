@@ -1,23 +1,22 @@
-# Decision: Four measured fixes would roughly halve a Quick Build edit — which do we commit to?
+# Decision: On a large project a Quick Build save takes ~15 s and loses to a standard build — which fixes do we commit to?
 
 ## Summary
 
 - Quick Build is already a median **~2.3x** faster than an incremental standard build across 21 corpus apps `[measured on a56]`. **None of the work below is a v1 blocker.**
 - But on the worst case — `sora-editor-full`, 292 sources — a warm edit costs **14.7 s** and Quick Build **loses** to a standard build (0.81x). This work widens the set of projects Quick Build helps and closes the cases where it loses.
 - No single compiler is the bottleneck. On a Java body edit the largest line is the ACC_FINAL strip pass, which does no compilation at all — it is file I/O against FUSE-backed storage.
-- Four fixes are measured and sequenced. Items 1-3 compound; item 4 moves only one edit class:
-
-  | # | Fix | Payoff per warm edit | Effort / Risk |
-  |---|---|---|---|
-  | 1 | Move the daemon scratch tree off emulated storage | **-45%** (both apps measured) | S / M |
-  | 2 | Incremental javac | 2.1-4.2 s | S then M / L-M then M |
-  | 3 | Incremental dexing | 2.1-4.6 s | L / M |
-  | 4 | Narrow "Java ABI moved -> recompile all Kotlin" | 14.9 s, but only on ABI-change edits | M-L / M |
-
+- Four fixes are measured and sequenced. Items 1-3 compound; item 4 moves only one edit class.
 - One item here is not a fix but an unknown: the **C107 residual grows across a session**, and nothing above explains it — a fixed per-operation toll cannot compound.
 - **Decision: do we take item 1 now, and how far down the list do we go?**
   - Item 1 alone flips sora's Java body edit from **0.81x (losing) to 1.47x (winning)**. The measuring patch was 8 lines; the real cost is a cleanup policy and a lifecycle audit, not the move.
   - Item 4 may not be worth doing at all: that edit class stays **below** a standard build even after the fix (0.42x today, 0.52x after item 1).
+
+| # | Fix | Payoff per warm edit | Effort / Risk |
+|---|---|---|---|
+| 1 | Move the daemon scratch tree off emulated storage | **-45%** (both apps measured) | S / M |
+| 2 | Incremental javac | 2.1-4.2 s | S then M / L-M then M |
+| 3 | Incremental dexing | 2.1-4.6 s | L / M |
+| 4 | Narrow "Java ABI moved -> recompile all Kotlin" | 14.9 s, but only on ABI-change edits | M-L / M |
 
 ## Scope and provenance
 
@@ -108,7 +107,7 @@ Task #102.
 
 ### 4. Narrow the "Java ABI moved -> recompile all Kotlin" rule
 
-**Payoff: 14.9 s of the post-storage-fix 22.9 s `03-java-abi-change` edit** `[measured on a56]`
+**Payoff: 14.9 s of the post-storage-fix 22.9 s ****`03-java-abi-change`**** edit** `[measured on a56]`
 
 - Say which 22.9 s: that edit costs **28.1 s today** (the 28055 ms in the table above, variant A) and 22.9 s after item 1 lands.
 - Against the 11.9 s standard build that is 0.42x today and still 0.52x after item 1 — the only measured edit class that stays below a standard build either way.
@@ -137,7 +136,7 @@ Not a fix — a thing we do not understand, and the only measured evidence that 
   - `sora-editor-full` got *slower* across a C107 session — 188.8 s then 236.3 s — where the same app on the A56 got faster, 53.6 s then 16.5 s `[measured on c107]` / `[measured on a56]`. A fixed per-operation tax does not compound; something there accumulates.
 - **Rule out the cheap explanation first.** The 07-25 C107 report notes that builds queued behind an in-flight build start ~1 ms after the previous deploy, so their `trigger->compileDone` includes queue wait, and concludes that is most of `medium-kotlin`'s residual. Whether that overlaps the unattributed share turns on whether `compileMs` includes queue wait — settle that before spending on the heap hypothesis, because a harness artefact and a daemon-heap problem call for very different work.
 - **The leading candidate is JVM heap, and it is a hypothesis, not a finding.**
-  - The daemon spawns as a plain `java -jar daemon.jar` with **no `-Xmx` and no `MaxMetaspaceSize`** (`DaemonProcessClient.kt:83-97`), and the same code `environment().clear()`s before spawning, so `JAVA_TOOL_OPTIONS` cannot supply them either.
+  - The daemon spawns as a plain `java -jar daemon.jar` with **no ****`-Xmx`**** and no ****`MaxMetaspaceSize`** (`DaemonProcessClient.kt:83-97`), and the same code `environment().clear()`s before spawning, so `JAVA_TOOL_OPTIONS` cannot supply them either.
   - The JVM therefore takes ergonomic defaults from physical RAM: on the A56 that measures **MaxHeapSize 1.81 GB, G1, metaspace unlimited** `[measured on a56]`.
   - The same ergonomics on a ~2 GB device give roughly a quarter of that `[inferred]`, against a workload — kotlinc plus its incremental caches, ASM over 464 classes, d8 — that fits comfortably in 1.8 GB and grows as a session accumulates state. That shape fits a slowdown that compounds edit over edit rather than a constant tax. It is consistent, and it is unproven.
 - **What settles it:** one C107 run. Log GC time and heap high-water from the daemon, or set an explicit `-Xmx` and re-measure. Either outcome is useful — if heap is not it, the residual is somewhere none of the current instrumentation looks, and that is a bigger finding.
@@ -150,6 +149,6 @@ Task #105.
 
 - **The standard Gradle build's exposure to the same filesystem toll.** Project `build/` directories are on emulated storage too, and how much a standard build pays for that is `[unmeasured]`. Moving them is a genuine product tradeoff, not a free optimization; the option list and its costs are in [`docs/on-device-storage-performance.md`](../../docs/on-device-storage-performance.md). Task #106.
 - **The low tiers generally.** Every number above is the A56. The C107 and the 1.9 GB tier are 4-13x slower overall and were not re-measured.
-- **`readyou`.** A pure-Kotlin 6-file module measuring gen1 13.7 s / gen2 15.2 s before dropping to 2.9 s `[measured on a56]`. No javac, no large class tree — none of the items above explain it. Separate investigation, task #96.
+- **`readyou`****.** A pure-Kotlin 6-file module measuring gen1 13.7 s / gen2 15.2 s before dropping to 2.9 s `[measured on a56]`. No javac, no large class tree — none of the items above explain it. Separate investigation, task #96.
 
 Two facts worth not re-deriving, both evidenced in [`sora-slow-path-gap.md`](sora-slow-path-gap.md): **daemon IPC is free** (20-60 ms on multi-second calls `[measured on a56]`), and **the "53 s per edit" figure was never a per-edit cost** — it was the session's first build, which today runs as a background Seed before the user can save.
