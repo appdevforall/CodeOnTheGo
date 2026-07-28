@@ -217,8 +217,9 @@ gaps in this page. And this sweep tested *templates* — freshly generated,
 single-module, small. The 30-app real-world corpus is where the harder cases
 live, and it is a separate result.
 
-What this sweep does establish is that the failure mode has changed. Every bug
-here was found by walking a user's actual first five minutes, and six of the
-seven were invisible to the JVM test suite because they only exist once code
-loads from a payload dex on a real device. That is the argument for keeping the
-device walk in the loop, not the argument that it is finished.
+What this sweep does establish is where the remaining risk lives. Every bug
+here was found by walking a user's actual first five minutes, and the most
+damaging ones — 4, 5, 6 and 9, all of them crashes — only exist once code loads
+from a payload dex into a running app, which is precisely what a JVM test
+cannot stage. That is the argument for keeping the device walk in the loop, not
+the argument that it is finished.
