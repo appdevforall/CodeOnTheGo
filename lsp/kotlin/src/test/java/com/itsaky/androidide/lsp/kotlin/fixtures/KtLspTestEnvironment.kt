@@ -27,6 +27,7 @@ import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironmentMod
 import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.local.CoreLocalFileSystem
+import org.jetbrains.kotlin.com.intellij.psi.PsiFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.psi.KtFile
@@ -222,7 +223,22 @@ internal class KtLspTestEnvironment(
 		moduleName: String,
 		relativePath: String,
 		content: String,
-	): KtFile {
+	): KtFile =
+		createFile(moduleName, relativePath, content) as? KtFile
+			?: error("Not a Kotlin file: $relativePath")
+
+	/**
+	 * Writes [content] to [relativePath] under the source root of the module named [moduleName],
+	 * refreshes the VFS, and returns the corresponding [PsiFile].
+	 *
+	 * Use this for `.java` sources, which are part of a Kotlin source module's content scope but have
+	 * no [KtFile]. Kotlin callers want [createSourceFile], which narrows the result.
+	 */
+	fun createFile(
+		moduleName: String,
+		relativePath: String,
+		content: String,
+	): PsiFile {
 		val root = rootByModule[moduleName] ?: error("No test source module named '$moduleName'")
 		val file = root.resolve(relativePath)
 		file.parent.toFile().mkdirs()
@@ -235,7 +251,7 @@ internal class KtLspTestEnvironment(
 		modules.filterIsInstance<TestKtSourceModule>().forEach { it.invalidateSearchScope() }
 
 		return project.read {
-			PsiManager.getInstance(project).findFile(vf) as? KtFile
+			PsiManager.getInstance(project).findFile(vf)
 				?: error("PSI file not found for: $file")
 		}
 	}
