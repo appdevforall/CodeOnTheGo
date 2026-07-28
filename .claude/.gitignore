@@ -1,8 +1,14 @@
-# Local, personal Claude Code settings — should not be shared
+# Local, machine-specific settings (not shared)
 settings.local.json
 
+# Claude Code worktrees
+worktrees/
 # Local plan/scratch artifacts, if any
 /plans/
 
-# Local git worktrees — must never be committed
-/worktrees/
+# Session/runtime artifacts
+projects/
+todos/
+shell-snapshots/
+statsig/
+.credentials.json

@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
@@ -101,6 +103,11 @@ internal suspend fun indexSourceFile(
 	symbolsIndex: JvmSymbolIndex,
 	cancelChecker: ICancelChecker,
 ) {
+	// Indexing runs at the lowest priority, yielding to completion and diagnostics. Wrapping the checker
+	// lets the scheduler preempt an in-progress pass; the preemption surfaces as AnalysisPreemptedException
+	// at the abortIfCancelled() checkpoints below, which IndexWorker catches to re-queue the file.
+	val checker = cancelChecker as? ScheduledCancelChecker ?: ScheduledCancelChecker(cancelChecker)
+
 	// Defensive backstop: this runs on the debounced/async index scope, so a disposal path that
 	// didn't first drain & join the workers could otherwise touch PSI on a disposed project and
 	// throw "Project is already disposed" (APPDEVFORALL-17R). Cheap fast-path before the reads below.
@@ -114,7 +121,7 @@ internal suspend fun indexSourceFile(
 			ktFile.toMetadata(project, isIndexed = true)
 		} ?: return
 	val existingFile = fileIndex.get(newFile.filePath)
-	cancelChecker.abortIfCancelled()
+	checker.abortIfCancelled()
 
 	if (KtFileMetadata.shouldBeSkipped(existingFile, newFile) && existingFile?.isIndexed == true) {
 		return
@@ -123,7 +130,7 @@ internal suspend fun indexSourceFile(
 	// Remove stale symbols written during the previous indexing pass.
 	if (existingFile?.isIndexed == true) {
 		symbolsIndex.removeBySource(newFile.filePath)
-		cancelChecker.abortIfCancelled()
+		checker.abortIfCancelled()
 	}
 
 	// Defense in depth: analyzeDeclaration already swallows per-declaration analysis failures, but a
@@ -141,14 +148,14 @@ internal suspend fun indexSourceFile(
 				if (project.isDisposed) return@read emptyList()
 
 				val list = mutableListOf<JvmSymbol>()
-				analyzeMaybeDangling(ktFile) {
+				analyzeMaybeDangling(ktFile, AnalysisPriority.INDEXING, checker) {
 					val session = this
 					ktFile.accept(
 						object : KtTreeVisitorVoid() {
 							override fun visitDeclaration(dcl: KtDeclaration) {
-								cancelChecker.abortIfCancelled()
+								checker.abortIfCancelled()
 								val symbol = with(session) { analyzeDeclaration(newFile.filePath, dcl) }
-								cancelChecker.abortIfCancelled()
+								checker.abortIfCancelled()
 								symbol?.let { list.add(it) }
 								super.visitDeclaration(dcl)
 							}

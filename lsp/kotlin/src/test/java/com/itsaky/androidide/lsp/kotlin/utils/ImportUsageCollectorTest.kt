@@ -1,7 +1,5 @@
 package com.itsaky.androidide.lsp.kotlin.utils
 
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import org.jetbrains.kotlin.psi.KtFile
 import org.junit.Assert.assertFalse
@@ -9,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ImportUsageCollectorTest : KtLspTest() {
-	private fun usageOf(ktFile: KtFile): ImportUsage = env.project.read { analyzeMaybeDangling(ktFile) { collectImportUsage(ktFile) } }
+	private fun usageOf(ktFile: KtFile): ImportUsage = analyzeMaybeDanglingForTest(ktFile) { collectImportUsage(ktFile) }
 
 	@Test
 	fun `type reference is recorded as used`() {
