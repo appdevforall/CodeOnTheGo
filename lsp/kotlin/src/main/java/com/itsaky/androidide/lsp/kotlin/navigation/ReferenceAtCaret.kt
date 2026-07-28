@@ -32,11 +32,13 @@ private val NAVIGABLE_TOKENS: Set<IElementType> =
 	)
 
 /**
- * Levels walked from the caret's leaf token up to the element that resolves. Two is enough for every
- * reference kind: a name's reference sits on its parent, and a convention host at most one above
- * that. The cap is what stops a caret on a declaration's own name from climbing out of the
- * declaration into an enclosing call - in `run { fun inner() {} }`, a caret on `inner` must find
- * nothing rather than navigate to `run`.
+ * Levels walked from the caret's leaf token up to the element that resolves. Two is what the
+ * reference kinds actually need: a name's reference sits on its parent, and a convention host at
+ * most one above that (the call-paren case needs both levels). The cap just bounds the walk so it
+ * cannot wander arbitrarily far into an unrelated enclosing element; it is not what stops a caret on
+ * a declaration's own name from resolving to an enclosing call - in `run { fun inner() {} }`, a
+ * caret on `inner` finds nothing because none of the intervening ancestors are resolvable, several
+ * levels before the cap would even matter.
  */
 private const val MAX_CLIMB = 2
 

@@ -21,7 +21,10 @@ class GoToDefinitionAction : BaseKotlinCodeAction() {
 	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_GOTO_DEF
 
 	// execAction only starts the editor's own background request, so it must not be moved off the
-	// UI thread. Nothing here or in prepare() touches the project lock, the index or the disk.
+	// UI thread. Nothing here or in prepare() touches the project lock, the index, or an analysis
+	// session - but super.prepare() -> BaseKotlinCodeAction.prepare -> isKotlinFile() does stat the
+	// file (Files.exists + Files.isDirectory) on the UI thread. Pre-existing, shared by every
+	// Kotlin/Java code action, and out of scope here.
 	override var requiresUIThread: Boolean = true
 
 	override fun prepare(data: ActionData) {

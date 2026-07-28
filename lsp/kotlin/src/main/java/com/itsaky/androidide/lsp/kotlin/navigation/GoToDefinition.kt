@@ -180,6 +180,10 @@ private fun locationOfPsi(declaration: PsiElement): Location? {
  * it waits on needs `project.write` and awaiting it under the read lock would deadlock. Every
  * failure short of cancellation collapses to an empty result, which the editor renders as
  * "Definition not found".
+ *
+ * The context is [AbstractCompilationEnvironment] rather than the concrete `CompilationEnvironment`
+ * so the test environment, which subclasses [AbstractCompilationEnvironment] directly, can drive this
+ * entry point.
  */
 context(env: AbstractCompilationEnvironment)
 internal suspend fun findDefinitionAt(params: DefinitionParams): DefinitionResult {
@@ -200,20 +204,35 @@ internal suspend fun findDefinitionAt(params: DefinitionParams): DefinitionResul
 		return DefinitionResult.empty()
 	}
 
-	// Navigation is user-initiated: run at INTERACTIVE priority so it preempts background
-	// diagnostics/indexing and is discarded when a newer interactive request wins. params.cancelChecker
-	// is request-scoped (CancellableRequestParams), so wrap it directly.
-	val cancelChecker = ScheduledCancelChecker(params.cancelChecker)
-
 	return try {
 		val offset = params.position.requireIndex()
-		cancelChecker.abortIfCancelled()
-		val locations =
-			env.project.read {
+
+		// Navigation is user-initiated: run at INTERACTIVE priority so it preempts background
+		// diagnostics/indexing and is discarded when a newer interactive request wins.
+		// params.cancelChecker is request-scoped (CancellableRequestParams), so wrap it directly.
+		//
+		// INTERACTIVE.supersedesSamePriority is true, so a concurrent completion/signature-help
+		// request can preempt this lookup even though the user's own request is still alive - unlike
+		// a genuine cancellation, that coroutine survives, so surfacing an empty result would be a lie
+		// ("Definition not found" for a reference that resolves fine). One retry, with a fresh
+		// checker, covers it without turning this into a retry loop.
+		fun attempt(): List<Location> {
+			val cancelChecker = ScheduledCancelChecker(params.cancelChecker)
+			cancelChecker.abortIfCancelled()
+			return env.project.read {
 				val element = referenceAtCaret(ktFile, offset) ?: return@read emptyList()
 				analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
 					definitionLocations(element, cancelChecker)
 				}
+			}
+		}
+
+		val locations =
+			try {
+				attempt()
+			} catch (e: AnalysisPreemptedException) {
+				logger.debug("Definition lookup for {} preempted; retrying once", params.file)
+				attempt()
 			}
 		logger.debug("Definition result for {}: {} location(s)", params.file, locations.size)
 		DefinitionResult(locations)

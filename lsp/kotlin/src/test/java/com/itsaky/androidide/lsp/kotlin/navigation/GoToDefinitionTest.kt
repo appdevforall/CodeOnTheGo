@@ -200,6 +200,8 @@ class GoToDefinitionTest : KtLspTest() {
 				"class Delegate {\n\toperator fun getValue(thisRef: Any?, property: KProperty<*>): Int = 1\n}\n" +
 				"val number: Int by Delegate()"
 		val locations = locationsAt("Delegate.kt", text, " by Delegate", 1)
+		// setValue/provideDelegate may also resolve here as compiler details; assert getValue is
+		// present rather than pinning an exact count.
 		assertThat(locations).isNotEmpty()
 		val getValueName = text.indexOf("getValue", text.indexOf("fun getValue"))
 		assertThat(locations.map { it.range.start.index }).contains(getValueName)
@@ -261,20 +263,30 @@ class GoToDefinitionTest : KtLspTest() {
 	}
 
 	@Test
-	fun `overloads yield deduplicated locations, each on a declaration, in offset order`() {
+	fun `for loop over a workspace iterator yields three deduplicated locations in offset order`() {
+		// A resolvable call like `target(1)` resolves to exactly one symbol, so a test built on it
+		// never exercises distinctBy/sortedWith in definitionLocations - R5/AC7's actual
+		// multi-candidate case needs several *simultaneous* candidates. A for-loop's `in` resolves to
+		// iterator/hasNext/next together (KtForLoopInReference); giving the iterator a workspace
+		// return type - instead of the stdlib Iterator, as in the test above - keeps all three as
+		// workspace sources instead of two being filtered out.
 		val text =
-			"fun target(value: Int) {}\nfun target(value: String) {}\nfun caller() { target(1) }"
-		val locations = locationsAt("Overloads.kt", text, "target(1)", 1)
+			"class WorkspaceIterator {\n" +
+				"\toperator fun hasNext(): Boolean = false\n" +
+				"\toperator fun next(): Int = 0\n" +
+				"}\n" +
+				"class Items {\n" +
+				"\toperator fun iterator(): WorkspaceIterator = WorkspaceIterator()\n" +
+				"}\n" +
+				"fun caller(items: Items) { for (i in items) {} }"
+		val locations = locationsAt("WorkspaceFor.kt", text, "in items", 1)
 
-		// How many overloads resolveToSymbols() returns for a resolvable call is a compiler detail,
-		// so assert the properties R5 actually requires instead of a count: every location is one of
-		// the two declarations, none repeats, and they ascend by offset.
-		val firstDecl = text.indexOf("target", text.indexOf("fun target"))
-		val secondDecl = text.indexOf("target", text.indexOf("fun target", firstDecl + 1))
+		val hasNextDecl = text.indexOf("hasNext", text.indexOf("fun hasNext"))
+		val nextDecl = text.indexOf("next", text.indexOf("fun next"))
+		val iteratorDecl = text.indexOf("iterator", text.indexOf("fun iterator"))
 		val offsets = locations.map { it.range.start.index }
 
-		assertThat(locations).isNotEmpty()
-		assertThat(listOf(firstDecl, secondDecl)).containsAtLeastElementsIn(offsets)
+		assertThat(offsets).containsExactly(hasNextDecl, nextDecl, iteratorDecl)
 		assertThat(offsets).containsNoDuplicates()
 		assertThat(offsets).isInOrder()
 	}

@@ -22,10 +22,11 @@ internal interface KtModule : KaModule {
 /**
  * Whether this module holds sources rather than binaries.
  *
- * Asks the Analysis API's own question ([KaSourceModule]) rather than naming one concrete class: a
- * nominal `is KtSourceModule` check silently classified every other source-module implementation as a
- * library, which left `javaSourceRoots` empty in `AbstractCompilationEnvironment.initialize` and so
- * never put workspace `.java` roots on the Java classpath.
+ * Asks the Analysis API's own question ([KaSourceModule]) rather than naming one concrete class.
+ * `KtSourceModule` is the only production `KaSourceModule`, so a nominal `is KtSourceModule` check
+ * agreed with this one in production; it only disagreed for `TestKtSourceModule`, which it
+ * misclassified as a library. This fixes that test fixture's classification and hardens the
+ * predicate against future source-module implementations, rather than fixing a shipped regression.
  */
 internal val KtModule.isSourceModule: Boolean
 	get() = this is KaSourceModule
