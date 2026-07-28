@@ -129,6 +129,7 @@ class EditorBottomSheet
 		private lateinit var mediator: TabLayoutMediator
 		private var shareJob: Job? = null
 		private var fragmentEmptyStateJob: Job? = null
+		private var currentObservedFragment: Fragment? = null
 
 		// BottomSheetBehavior repositions the sheet after layout without triggering onSlide,
 		// so refresh the FABs afterward
@@ -237,8 +238,8 @@ class EditorBottomSheet
 							}
 						} finally {
 							if (isAttachedToWindow) {
-								binding.shareOutputAction.isEnabled = true
-								binding.clearOutputAction.isEnabled = true
+								val isCurrentEmpty = (fragment as? EmptyStateFragment<*>)?.isEmpty == true
+								updateActionButtonsEnabledState(isEmpty = isCurrentEmpty)
 							}
 						}
 					}
@@ -307,6 +308,7 @@ class EditorBottomSheet
 		override fun onDetachedFromWindow() {
 			shareJob?.cancel()
 			shareJob = null
+			currentObservedFragment = null
 			fragmentEmptyStateJob?.cancel()
 			fragmentEmptyStateJob = null
 			if (this::mediator.isInitialized) {
@@ -687,18 +689,32 @@ class EditorBottomSheet
 		}
 
 		private fun observeCurrentFragmentEmptyState(fragment: Fragment?) {
+			if (fragment === currentObservedFragment && fragmentEmptyStateJob?.isActive == true) {
+				return
+			}
+
 			fragmentEmptyStateJob?.cancel()
-			if (fragment !is EmptyStateFragment<*>) {
+			fragmentEmptyStateJob = null
+			currentObservedFragment = fragment
+
+			if (fragment !is EmptyStateFragment<*> || !fragment.isAdded || fragment.isDetached || fragment.host == null) {
 				updateActionButtonsEnabledState(isEmpty = false)
 				return
 			}
 
-			val activity = context as? FragmentActivity ?: return
+			val flow = fragment.isEmptyFlow ?: run {
+				updateActionButtonsEnabledState(isEmpty = false)
+				return
+			}
+
+			val activity = context as FragmentActivity
 			fragmentEmptyStateJob =
 				activity.lifecycleScope.launch {
 					activity.repeatOnLifecycle(Lifecycle.State.STARTED) {
-						fragment.isEmptyFlow.collectLatest { isEmpty ->
-							updateActionButtonsEnabledState(isEmpty = isEmpty)
+						flow.collectLatest { isEmpty ->
+							if (fragment.isAdded && !fragment.isDetached) {
+								updateActionButtonsEnabledState(isEmpty = isEmpty)
+							}
 						}
 					}
 				}
@@ -706,10 +722,12 @@ class EditorBottomSheet
 
 		private fun updateActionButtonsEnabledState(isEmpty: Boolean) {
 			val hasContent = !isEmpty
+			val isSharing = shareJob?.isActive == true
+			val canShareOrClear = hasContent && !isSharing
 			binding.searchOutputAction.isEnabled = hasContent
 			binding.filterOutputAction.isEnabled = hasContent
-			binding.shareOutputAction.isEnabled = hasContent
-			binding.clearOutputAction.isEnabled = hasContent
+			binding.shareOutputAction.isEnabled = canShareOrClear
+			binding.clearOutputAction.isEnabled = canShareOrClear
 		}
 
 		// The bottom-anchored FAB goes off-screen when the bottom sheet is collapsed.

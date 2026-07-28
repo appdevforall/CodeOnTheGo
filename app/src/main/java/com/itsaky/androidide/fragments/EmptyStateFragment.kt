@@ -66,8 +66,14 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 			}
 		}
 
-	val isEmptyFlow: StateFlow<Boolean>
-		get() = emptyStateViewModel.isEmpty
+	val isEmptyFlow: StateFlow<Boolean>?
+		get() {
+			return if (isAdded && !isDetached) {
+				emptyStateViewModel.isEmpty
+			} else {
+				null
+			}
+		}
 
 	var isEmpty: Boolean
 		get() {
