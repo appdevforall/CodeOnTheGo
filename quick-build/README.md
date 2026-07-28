@@ -1,8 +1,11 @@
 # Quick Build (ADFA-4128)
 
-Live-reload for user projects: tap the lightning-bolt button once and CoGo installs a generated **test app**; from then on every save hot-reloads with no reinstall. A typical warm save-to-live is ~1-3.5 s. The daemon's cold compile (~12 s on a mid-spec phone) is paid by a background **seed** build in the provisioning tail, so the first save is warm too. A matched seed-on/seed-off A/B on the A56 (3 trials per arm, one build, `hello-kotlin`) puts the first save at **1.9 s seeded vs 11.5 s unseeded** — 6.1x, almost all of it cold `kotlinc` — with tap-to-Ready unchanged, since the seed starts after `Ready`. Invariant: **the test app never silently runs stale code** — every edit either hot-reloads or visibly falls back to a real Gradle build.
+Live-reload for user projects. Tap the lightning-bolt button once and CoGo installs a generated **test app**; from then on every save hot-reloads it, with no reinstall.
 
-The whole loop runs ON DEVICE: edit -> watch -> compile -> dex -> deploy -> reload all happen on the phone inside/alongside CoGo. No desktop component is part of the feature.
+- **A typical save is ~1-3.5 s.**
+- **The invariant: the test app never silently runs stale code.** Every edit either hot-reloads or visibly falls back to a real Gradle build.
+- **The whole loop runs on device** — edit -> watch -> compile -> dex -> deploy -> reload all happen on the phone, inside or alongside CoGo. No desktop component is part of the feature.
+- **The first save is warm because of a background seed.** The daemon's cold compile (~12 s on a mid-spec phone) is paid by a **seed** build fired when you open the project, so the tools are warm before you save. A matched seed-on/seed-off A/B (A56, 3 trials per arm, one build, `hello-kotlin`) puts the first save at **1.9 s seeded vs 11.5 s unseeded** — 6.1x, almost all of it cold `kotlinc`. Tap-to-Ready is unchanged, because the seed starts after `Ready`.
 
 The repo-level boundary decision — a **bounded, never-stale fast path beside authoritative Gradle, correct on the covered edit classes rather than universally** — is [ADR 0010](../docs/adr/0010-quick-build-fast-path-boundary.md). Design history lives in Jira ticket ADFA-4128.
 
@@ -30,18 +33,10 @@ sequenceDiagram
 
 Terms used throughout:
 
-- **Setup build** — a real Gradle build, run once per baseline, that produces the
-
-  installable test app (`:gradle-plugin` `QuickBuildPlugin`).
-- **Payload** — the compiled user code (and, for a resource edit, the relinked resource
-
-  table) sent to the already-running test app for one reload, without a reinstall.
-- **Generation** — a monotonically increasing counter naming each payload; the test app
-
-  always runs one specific generation.
-- **Rebaseline** — falling back to a fresh setup build when fast-path state can't be
-
-  trusted; it reseeds the baseline and discards persisted payloads. It also tears the daemon down for its duration (freeing the daemon's RAM for the Gradle peak) and restarts it against the new setup's config.
+- **Setup build** — a real Gradle build, run once per baseline, that produces the installable test app (`:gradle-plugin` `QuickBuildPlugin`).
+- **Payload** — the compiled user code (and, for a resource edit, the relinked resource table) sent to the already-running test app for one reload, without a reinstall.
+- **Generation** — a monotonically increasing counter naming each payload; the test app always runs one specific generation.
+- **Rebaseline** — falling back to a fresh setup build when fast-path state can't be trusted; it reseeds the baseline and discards persisted payloads. It also tears the daemon down for its duration (freeing the daemon's RAM for the Gradle peak) and restarts it against the new setup's config.
 - **Seed** — a background build (`BuildRoute.Seed`, never produced by the classifier) that warms the daemon's incremental-compile caches and **deploys nothing**: generation unmoved, no reload. Fired after provisioning reaches `Ready`, after every rebaseline, and after a daemon respawn with nothing pending; lowest-priority — dropped when real work is pending or in flight, and a save arriving mid-seed queues behind it. Not in the diagram above because it is not triggered by a save.
 
 A compile error takes neither branch: no payload is produced, the test app keeps running the last good generation, and `onBuildStatus` drives its error overlay. **Hand-back** is bidirectional: an invalidated session falls back to a real Gradle build, and any completed Standard Gradle build (CoGo's normal Run-button build) reseeds a live session's baseline.
@@ -61,27 +56,13 @@ A compile error takes neither branch: no payload is produced, the test app keeps
 
 The test-app APK contains the runtime AAR, the user's library dependencies and resources — but **no user classes**. User classes + generated proxy activities travel ONLY in the payload dex:
 
-- The setup build compiles user sources + proxies to `classes.dex` and bakes it into the
-
-  APK as `assets/quickbuild/gen-0.dex` (the baseline payload).
-- The runtime declares an `android:appComponentFactory` that instantiates activities
-
-  through the CURRENT generation's `InMemoryDexClassLoader` (parent = the base APK's classloader — the "shell" loader, which has the libraries but no user classes; framework/androidx resolve from it, user classes exist only in the payload, so parent-first delegation cannot serve a stale copy).
-- A deploy hands over new fds; reload = swap the payload classloader (+ a resource-table
-
-  swap: `ResourcesLoader`/`ResourcesProvider.loadFromApk` on API 30+, a degraded `addAssetPath` shim on 28/29 — see `ResourceSwapStrategy`) and recreate the activity stack. Recreated activities are instantiated from the new loader — that is what makes reload real. The resource payload is the FULL relinked resource apk (resources.arsc plus every compiled resource file), not a bare extracted table — a bare table cannot back a file-typed resource like a drawable XML or an adaptive-icon mipmap XML. (An early arsc-only relink crashed reloads resolving the launcher icon; see Known limitations, "a successful relink can still crash the app".)
-- Generated `Proxy<N><Type>` classes (`Proxy0Activity`, `Proxy0Service`, ...) extend the
-
-  user classes and give the manifest stable component names while the user's class hierarchy stays swappable (both live in the payload dex). Manifest carries superset permissions + the user's icon/label; the test app installs under the project's REAL `applicationId` — one install slot shared with Standard Run, confirmed on switch (see "One install slot" below). A custom `Application` gets no proxy (nothing addresses it by manifest name) but routes through the payload loader too.
-- `Context#getClassLoader()` is fixed to the base APK's classloader at LoadedApk-attach
-
-  time regardless of which loader instantiated the object, so it never sees a payload-only class on its own — the `AppComponentFactory` picks the payload loader for INSTANTIATION only. Every activity proxy therefore also overrides `getClassLoader()` (via `QuickBuildClassLoaders.forActivity`) so by-name resolution through `context.getClassLoader()` — androidx `FragmentFactory` resolving a `<fragment>` tag or a Navigation-Component destination, `LayoutInflater` resolving a custom view — sees the payload loader too. (Without this, BottomNav/Navigation-Drawer templates crashed on first launch with `Fragment$InstantiationException` because the default `FragmentFactory` resolved against the shell loader.)
-- Services, providers and a custom `Application` swap via **process restart**, never
-
-  hot-swap of a live instance: a deploy whose recompiled set hits their restart closure (`domain/DeployPolicy.kt`) ships with `"restart": "true"` metadata; the runtime persists the payload, acks and exits, and CoGo relaunches the launcher proxy. Every accepted deploy also persists app-privately (`PayloadPersistence`), so a killed-and-relaunched process boots the NEWEST generation instead of the baked gen-0 baseline — without that, providers/Application (instantiated before the binder connects) would silently pin to baseline code. The store is fingerprint-keyed to the baseline dex; a rebaseline discards it.
-- Scope: debug builds + D8 only; components declaring `android:process`, isolated services
-
-  or multiprocess providers fail the setup build loudly (Standard Run instead). Device floor: **API 28+** — 30+ gets the full-fidelity `ResourcesLoader` resource swap; 28/29 take a degraded `addAssetPath` path (`ResourceSwapStrategy` in the runtime; unit-tested, not yet device-verified). The payload dex targets min-api 30 (`QuickBuildPlugin.MIN_PAYLOAD_API`) to skip desugaring; the dex format it emits (039) loads on 28+.
+- The setup build compiles user sources + proxies to `classes.dex` and bakes it into the APK as `assets/quickbuild/gen-0.dex` (the baseline payload).
+- The runtime declares an `android:appComponentFactory` that instantiates activities through the CURRENT generation's `InMemoryDexClassLoader` (parent = the base APK's classloader — the "shell" loader, which has the libraries but no user classes; framework/androidx resolve from it, user classes exist only in the payload, so parent-first delegation cannot serve a stale copy).
+- A deploy hands over new fds; reload = swap the payload classloader (+ a resource-table swap: `ResourcesLoader`/`ResourcesProvider.loadFromApk` on API 30+, a degraded `addAssetPath` shim on 28/29 — see `ResourceSwapStrategy`) and recreate the activity stack. Recreated activities are instantiated from the new loader — that is what makes reload real. The resource payload is the FULL relinked resource apk (resources.arsc plus every compiled resource file), not a bare extracted table — a bare table cannot back a file-typed resource like a drawable XML or an adaptive-icon mipmap XML. (An early arsc-only relink crashed reloads resolving the launcher icon; see Known limitations, "a successful relink can still crash the app".)
+- Generated `Proxy<N><Type>` classes (`Proxy0Activity`, `Proxy0Service`, ...) extend the user classes and give the manifest stable component names while the user's class hierarchy stays swappable (both live in the payload dex). Manifest carries superset permissions + the user's icon/label; the test app installs under the project's REAL `applicationId` — one install slot shared with Standard Run, confirmed on switch (see "One install slot" below). A custom `Application` gets no proxy (nothing addresses it by manifest name) but routes through the payload loader too.
+- `Context#getClassLoader()` is fixed to the base APK's classloader at LoadedApk-attach time regardless of which loader instantiated the object, so it never sees a payload-only class on its own — the `AppComponentFactory` picks the payload loader for INSTANTIATION only. Every activity proxy therefore also overrides `getClassLoader()` (via `QuickBuildClassLoaders.forActivity`) so by-name resolution through `context.getClassLoader()` — androidx `FragmentFactory` resolving a `<fragment>` tag or a Navigation-Component destination, `LayoutInflater` resolving a custom view — sees the payload loader too. (Without this, BottomNav/Navigation-Drawer templates crashed on first launch with `Fragment$InstantiationException` because the default `FragmentFactory` resolved against the shell loader.)
+- Services, providers and a custom `Application` swap via **process restart**, never hot-swap of a live instance: a deploy whose recompiled set hits their restart closure (`domain/DeployPolicy.kt`) ships with `"restart": "true"` metadata; the runtime persists the payload, acks and exits, and CoGo relaunches the launcher proxy. Every accepted deploy also persists app-privately (`PayloadPersistence`), so a killed-and-relaunched process boots the NEWEST generation instead of the baked gen-0 baseline — without that, providers/Application (instantiated before the binder connects) would silently pin to baseline code. The store is fingerprint-keyed to the baseline dex; a rebaseline discards it.
+- Scope: debug builds + D8 only; components declaring `android:process`, isolated services or multiprocess providers fail the setup build loudly (Standard Run instead). Device floor: **API 28+** — 30+ gets the full-fidelity `ResourcesLoader` resource swap; 28/29 take a degraded `addAssetPath` path (`ResourceSwapStrategy` in the runtime; unit-tested, not yet device-verified). The payload dex targets min-api 30 (`QuickBuildPlugin.MIN_PAYLOAD_API`) to skip desugaring; the dex format it emits (039) loads on 28+.
 
 ## Session model
 
@@ -262,26 +243,16 @@ BTA incremental-compilation (IC) gotchas (re-derived from the ADFA-4128 spike, l
 
 ## Tap-to-jump + return gesture
 
-- Overlay tap on a build failure -> explicit intent
-
-  `com.itsaky.androidide.quickbuild.action.JUMP_TO_ERROR` (extras: FILE, LINE, COLUMN; 1-based) to CoGo's `QuickBuildJumpActivity` trampoline, which validates the file against the open project, posts `QuickBuildErrorJumpEvent`, and finishes — revealing the editor, which opens the file at the error line.
-- 3-finger tap anywhere in the test app returns to CoGo: the generated proxy activities'
-
-  `dispatchTouchEvent` feeds `QuickBuildGestures` (observation only — every event still reaches the app via `super`, so normal 1-2 finger input is never consumed or delayed). A one-time hint banner on first launch makes the gesture discoverable.
+- Overlay tap on a build failure -> explicit intent `com.itsaky.androidide.quickbuild.action.JUMP_TO_ERROR` (extras: FILE, LINE, COLUMN; 1-based) to CoGo's `QuickBuildJumpActivity` trampoline, which validates the file against the open project, posts `QuickBuildErrorJumpEvent`, and finishes — revealing the editor, which opens the file at the error line.
+- 3-finger tap anywhere in the test app returns to CoGo: the generated proxy activities' `dispatchTouchEvent` feeds `QuickBuildGestures` (observation only — every event still reaches the app via `super`, so normal 1-2 finger input is never consumed or delayed). A one-time hint banner on first launch makes the gesture discoverable.
 
 ## Compose projects
 
 When the user project uses Jetpack Compose, hot compiles need the Compose compiler plugin or every `@Composable` body miscompiles to a plain function. The wiring:
 
-- `QuickBuildPlugin` detects Compose in `finalizeDsl` (`buildFeatures.compose` or the
-
-  `org.jetbrains.kotlin.plugin.compose` plugin) and writes `composeEnabled` into `setup.json`.
-- CoGo stages `compose-compiler-plugin.jar` next to the daemon jar (it rides
-
-  `quickbuild-daemon.zip`; see `:app`'s `quickBuildDaemonZip`). The jar is `kotlin-compose-compiler-plugin-embeddable`, version-matched to the DAEMON's bundled compiler — deliberately NOT the project's own Compose compiler artifact, which tracks the project's (possibly older) Kotlin.
-- On `composeEnabled`, the session manager passes that jar via `configure.compilerPlugins`;
-
-  the daemon turns each entry into `-Xplugin=` on the BTA incremental compile. The compose runtime classes needed on the compile classpath already arrive via `setup.json`'s `classpath` (the variant compile classpath).
+- `QuickBuildPlugin` detects Compose in `finalizeDsl` (`buildFeatures.compose` or the `org.jetbrains.kotlin.plugin.compose` plugin) and writes `composeEnabled` into `setup.json`.
+- CoGo stages `compose-compiler-plugin.jar` next to the daemon jar (it rides `quickbuild-daemon.zip`; see `:app`'s `quickBuildDaemonZip`). The jar is `kotlin-compose-compiler-plugin-embeddable`, version-matched to the DAEMON's bundled compiler — deliberately NOT the project's own Compose compiler artifact, which tracks the project's (possibly older) Kotlin.
+- On `composeEnabled`, the session manager passes that jar via `configure.compilerPlugins`; the daemon turns each entry into `-Xplugin=` on the BTA incremental compile. The compose runtime classes needed on the compile classpath already arrive via `setup.json`'s `classpath` (the variant compile classpath).
 
 Verified host-side (corpus app `compose-kotlin` + daemon unit tests; full-corpus run `corpus/results/20260719T181349Z/`): the transform runs under the BTA incremental path, recompile sets stay minimal, and the compiler's runtime-version check accepts even the old `androidx.compose.runtime:runtime:1.3.0` the offline `localMvnRepository` bundles.
 
@@ -289,42 +260,18 @@ Verified host-side (corpus app `compose-kotlin` + daemon unit tests; full-corpus
 
 Each entry is limitation + user-visible impact + status; mechanism and fix-path detail live in the linked ADR / ticket / code / design docs.
 
-- **Gradle 9+ projects don't start.** The setup build fails before Quick Build runs — CoGo's
-
-  init-script plugin injection throws `UnknownPluginException` under Gradle 9.x. Status: a `gradle-plugin` defect, not quick-build-specific; tracked. Evidence: benchmark repo `corpus/README.md`, sora-editor finding 1.
-- **Bidirectional Kotlin <-> Java modules can't fast-compile.** A real reference cycle across
-
-  the language boundary fails the daemon's two-pass (Kotlin then Java) compile, so those edits rebaseline. Common in mature codebases. Status: inherent to the split compile; tracked. Evidence: `corpus/README.md`, sora-editor finding 2.
-- **kapt/KSP-input edits rebaseline** (Room etc.). Editing annotation-processor input (e.g. a
-
-  `@Dao`) takes a real build; editing a Composable or ViewModel in the same app stays on the fast path (`domain/annotations/AnnotationImpact.kt` enumerates what's safe). Status: the ADR 0010 boundary; running the processors in the daemon would close it (`docs/ksp-kapt-feasibility.md`).
-- **Cert-pinned services need their console updated.** The test app runs under the real
-
-  `applicationId` (see "One install slot"), so package-bound services — Firebase init, FCM push, verified app links — reach it; but a service restricting API keys or OAuth clients to a specific signing SHA (Maps keys, Sign-In) rejects this device's CoGo debug cert until the user registers that SHA in the service's console. Status: inherent to building with a local debug cert; user-fixable per service.
-- **API 28/29 resource swaps take a degraded path.** Resource reloads on 28/29 use an
-
-  `addAssetPath` shim that is unit-tested but not yet device-verified. Status: tracked. See Test-app architecture.
-- **The hot relink resolves library resources from the setup build's snapshot.** The relink
-
-  feeds the setup build's compiled library resource units (`.flat` files) to `aapt2 link` as overlays (`libraryResources` on the relink op), so library-provided references — Material3 themes, a library manifest ref — resolve. Two residual cases: CoGo's LogSenderPlugin manifest injection is inlined at setup time (`QuickBuildManifestTransformer`), and a library resource that did not exist at baseline time (new dependency) still needs the rebaseline that a gradle edit forces anyway. Status: fixed for baseline-known resources.
-- **A failed relink wedges the session.** The dirty resource delta never clears, so
-
-  subsequent edits re-fail until a gradle-file touch forces a rebaseline (~7-8 s warm / ~17 s first-hit). Never-stale holds and the overlay surfaces each failure. Status: auto-rebaseline on repeated identical relink failure is the tracked followup.
-- **A crashing reload has no self-healing.** If a reload crashes the test app on
-
-  `recreate()`, the crash repeats on every reload until the session is reset — there is no auto-rebaseline on a crash loop. Both known triggers are fixed: the arsc-only relink (fixed — full resource-apk payload) and the type-index shift (fixed — `aapt2 link --stable-ids` fed from AGP's `stable_resource_ids_file`; device-verified trigger at `corpus/results/20260723T111950Z-bug5-verify/`). The remaining gap is the recovery machinery itself. Mechanism history: `docs/relink-poisoning-notes.md`.
-- **A live service/provider calls OLD copies of recompiled helper classes until its next
-
-  restart.** A helper-only edit (a class the component *uses*, not the service/provider/Application itself or a supertype in its restart closure) leaves a bounded staleness window. Status: the restart closure (`domain/DeployPolicy.kt`) covers the component's own code + supertypes; a tightening ("restart on any code deploy while a tracked service is live", which `ServiceTracker` enables) is behind a flag, priced by metrics. Detail: `docs/component-proxying-design.md` section 4.
-- **Forced-tap and daemon-respawn rebuilds over-restart component apps.** A forced "catch up"
-
-  tap or a daemon respawn full-recompiles every source, so an app with a service, provider or custom `Application` gets an unnecessary process restart (losing in-app state) even when those classes are byte-identical to what's running. Status: the never-stale-safe direction; a sound downgrade needs per-component byte fingerprints the gen-0 baseline lacks; tracked. Genuine incremental edits are unaffected.
-- **A ****`final`**** or unresolvable library component fails the setup build with one clear line.**
-
-  Instead of a multi-line javac dump, `QuickBuildPayloadDexTask.checkProxiability` (via `ComponentProxiabilityResolver`, reading the class file's `ACC_FINAL` flag, never loading the class) names the offending class and the fix. Impact: a newly-discovered such class must be added by name to `UNPROXIABLE_LIBRARY_COMPONENTS` (the error says so). Status: this is DETECTION only — safe auto-skip is blocked on a Gradle task-graph cycle at manifest-generation time; tracked. Detail: `docs/component-proxying-design.md` section 2.
-- **Four library components are never proxied**, kept under their real manifest name:
-
-  `androidx.startup.InitializationProvider`, `androidx.compose.ui.tooling.PreviewActivity`, `androidx.profileinstaller.ProfileInstallReceiver`, `androidx.room.MultiInstanceInvalidationService`. Impact: none in normal use — they're never recompiled by the daemon, so proxying buys nothing, and each had blocked some project class (androidx-based, Compose, Room) until excluded. Status: fixed. Rationale per entry: `docs/component-proxying-design.md` section 2.
+- **Gradle 9+ projects don't start.** The setup build fails before Quick Build runs — CoGo's init-script plugin injection throws `UnknownPluginException` under Gradle 9.x. Status: a `gradle-plugin` defect, not quick-build-specific; tracked. Evidence: benchmark repo `corpus/README.md`, sora-editor finding 1.
+- **Bidirectional Kotlin <-> Java modules can't fast-compile.** A real reference cycle across the language boundary fails the daemon's two-pass (Kotlin then Java) compile, so those edits rebaseline. Common in mature codebases. Status: inherent to the split compile; tracked. Evidence: `corpus/README.md`, sora-editor finding 2.
+- **kapt/KSP-input edits rebaseline** (Room etc.). Editing annotation-processor input (e.g. a `@Dao`) takes a real build; editing a Composable or ViewModel in the same app stays on the fast path (`domain/annotations/AnnotationImpact.kt` enumerates what's safe). Status: the ADR 0010 boundary; running the processors in the daemon would close it (`docs/ksp-kapt-feasibility.md`).
+- **Cert-pinned services need their console updated.** The test app runs under the real `applicationId` (see "One install slot"), so package-bound services — Firebase init, FCM push, verified app links — reach it; but a service restricting API keys or OAuth clients to a specific signing SHA (Maps keys, Sign-In) rejects this device's CoGo debug cert until the user registers that SHA in the service's console. Status: inherent to building with a local debug cert; user-fixable per service.
+- **API 28/29 resource swaps take a degraded path.** Resource reloads on 28/29 use an `addAssetPath` shim that is unit-tested but not yet device-verified. Status: tracked. See Test-app architecture.
+- **The hot relink resolves library resources from the setup build's snapshot.** The relink feeds the setup build's compiled library resource units (`.flat` files) to `aapt2 link` as overlays (`libraryResources` on the relink op), so library-provided references — Material3 themes, a library manifest ref — resolve. Two residual cases: CoGo's LogSenderPlugin manifest injection is inlined at setup time (`QuickBuildManifestTransformer`), and a library resource that did not exist at baseline time (new dependency) still needs the rebaseline that a gradle edit forces anyway. Status: fixed for baseline-known resources.
+- **A failed relink wedges the session.** The dirty resource delta never clears, so subsequent edits re-fail until a gradle-file touch forces a rebaseline (~7-8 s warm / ~17 s first-hit). Never-stale holds and the overlay surfaces each failure. Status: auto-rebaseline on repeated identical relink failure is the tracked followup.
+- **A crashing reload has no self-healing.** If a reload crashes the test app on `recreate()`, the crash repeats on every reload until the session is reset — there is no auto-rebaseline on a crash loop. Both known triggers are fixed: the arsc-only relink (fixed — full resource-apk payload) and the type-index shift (fixed — `aapt2 link --stable-ids` fed from AGP's `stable_resource_ids_file`; device-verified trigger at `corpus/results/20260723T111950Z-bug5-verify/`). The remaining gap is the recovery machinery itself. Mechanism history: `docs/relink-poisoning-notes.md`.
+- **A live service/provider calls OLD copies of recompiled helper classes until its next restart.** A helper-only edit (a class the component *uses*, not the service/provider/Application itself or a supertype in its restart closure) leaves a bounded staleness window. Status: the restart closure (`domain/DeployPolicy.kt`) covers the component's own code + supertypes; a tightening ("restart on any code deploy while a tracked service is live", which `ServiceTracker` enables) is behind a flag, priced by metrics. Detail: `docs/component-proxying-design.md` section 4.
+- **Forced-tap and daemon-respawn rebuilds over-restart component apps.** A forced "catch up" tap or a daemon respawn full-recompiles every source, so an app with a service, provider or custom `Application` gets an unnecessary process restart (losing in-app state) even when those classes are byte-identical to what's running. Status: the never-stale-safe direction; a sound downgrade needs per-component byte fingerprints the gen-0 baseline lacks; tracked. Genuine incremental edits are unaffected.
+- **A ****`final`**** or unresolvable library component fails the setup build with one clear line.** Instead of a multi-line javac dump, `QuickBuildPayloadDexTask.checkProxiability` (via `ComponentProxiabilityResolver`, reading the class file's `ACC_FINAL` flag, never loading the class) names the offending class and the fix. Impact: a newly-discovered such class must be added by name to `UNPROXIABLE_LIBRARY_COMPONENTS` (the error says so). Status: this is DETECTION only — safe auto-skip is blocked on a Gradle task-graph cycle at manifest-generation time; tracked. Detail: `docs/component-proxying-design.md` section 2.
+- **Four library components are never proxied**, kept under their real manifest name: `androidx.startup.InitializationProvider`, `androidx.compose.ui.tooling.PreviewActivity`, `androidx.profileinstaller.ProfileInstallReceiver`, `androidx.room.MultiInstanceInvalidationService`. Impact: none in normal use — they're never recompiled by the daemon, so proxying buys nothing, and each had blocked some project class (androidx-based, Compose, Room) until excluded. Status: fixed. Rationale per entry: `docs/component-proxying-design.md` section 2.
 
 ## Verifying changes
 
@@ -335,18 +282,8 @@ Each entry is limitation + user-visible impact + status; mechanism and fix-path 
 > only through the declared interface (compile-daemon protocol + the flag-gated automation
 > interface); see "Driving and observing a session from outside" and "Daemon protocol" above.
 
-- **JVM suites**: `:quick-build:test`, `:quickbuild-daemon:test`, `:quickbuild-runtime:test`,
-
-  plus the setup-build tests in `:gradle-plugin`. The root build sets `ignoreFailures = true` on test tasks — read the test-report XML/HTML under `<module>/build/test-results/`, don't trust `BUILD SUCCESSFUL`.
-- **Classification changes**: `ChangeClassifierTest.kt` in `:quick-build` is the route
-
-  contract — a changeset routed wrong breaks the never-stale invariant, so new file patterns need cases there first.
-- **Compile-pipeline changes**: run the host corpus matrix (`corpus/README.md`) and commit
-
-  the results dir. Correctness = the two oracles (recompiled-class bounds + output equivalence), not timings.
-- **A new edit class or route needs all three**: a classifier test, a corpus edit declaring
-
-  `expected.route`, and — if it produces a deploy — an on-device walk that checks the overlay/fallback behavior, not just the happy path. Route execution (mapping a `BuildRoute` to daemon ops + a deploy) lives in `service/QuickBuildExecutorImpl.kt` — a genuinely new route touches it too.
-- **Latency claims cite a results dir** under `corpus/results/`, or say "not yet measured".
-
-  The intro headline is the latest full-corpus end-to-end run on a mid-spec phone (Samsung A56, CoGo `C-d-0724-0315`; results dir `20260724T073925Z-e2e-bench` in the benchmark repo): 70 of 97 real-app edits were measured end-to-end, the other 27 documented there as named gaps.
+- **JVM suites**: `:quick-build:test`, `:quickbuild-daemon:test`, `:quickbuild-runtime:test`, plus the setup-build tests in `:gradle-plugin`. The root build sets `ignoreFailures = true` on test tasks — read the test-report XML/HTML under `<module>/build/test-results/`, don't trust `BUILD SUCCESSFUL`.
+- **Classification changes**: `ChangeClassifierTest.kt` in `:quick-build` is the route contract — a changeset routed wrong breaks the never-stale invariant, so new file patterns need cases there first.
+- **Compile-pipeline changes**: run the host corpus matrix (`corpus/README.md`) and commit the results dir. Correctness = the two oracles (recompiled-class bounds + output equivalence), not timings.
+- **A new edit class or route needs all three**: a classifier test, a corpus edit declaring `expected.route`, and — if it produces a deploy — an on-device walk that checks the overlay/fallback behavior, not just the happy path. Route execution (mapping a `BuildRoute` to daemon ops + a deploy) lives in `service/QuickBuildExecutorImpl.kt` — a genuinely new route touches it too.
+- **Latency claims cite a results dir** under `corpus/results/`, or say "not yet measured". The intro headline is the latest full-corpus end-to-end run on a mid-spec phone (Samsung A56, CoGo `C-d-0724-0315`; results dir `20260724T073925Z-e2e-bench` in the benchmark repo): 70 of 97 real-app edits were measured end-to-end, the other 27 documented there as named gaps.
