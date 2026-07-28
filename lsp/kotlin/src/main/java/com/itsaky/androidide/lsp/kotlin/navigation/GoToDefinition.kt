@@ -71,6 +71,11 @@ private fun KaSession.symbolsAt(element: KtElement): List<KaSymbol> =
 		element.mainReference
 			?.resolveToSymbols()
 			?.toList()
+			// A destructuring entry (`val (first, second) = p`) is simultaneously a declaration and
+			// a convention reference: resolveToSymbols() legitimately returns both the entry's own
+			// local variable symbol and the componentN function it calls. Drop the self-symbol so
+			// this reads as R2's "no self-jump" rule rather than a stray extra candidate.
+			?.filterNot { it.sourcePsiSafe<PsiElement>() === element }
 			?.ifEmpty { null }
 			?: listOfNotNull(element.resolveToCall()?.successfulFunctionCallOrNull()?.symbol)
 	}.getOrElse {

@@ -155,4 +155,65 @@ class GoToDefinitionTest : KtLspTest() {
 		val text = "fun caller() {\n\touter@ for (i in 1..2) { break@outer }\n}"
 		assertThat(locationsAt("Label.kt", text, "break@outer", 7)).hasSize(1)
 	}
+
+	@Test
+	fun `operator navigates to the operator function`() {
+		val text =
+			"class P {\n\toperator fun plus(other: P): P = this\n}\nfun caller(a: P, b: P) = a + b"
+		assertNavigatesTo(locationsAt("Op.kt", text, "a + b", 2), text, "fun plus", "plus")
+	}
+
+	@Test
+	fun `index access navigates to the get function`() {
+		val text = "class Box {\n\toperator fun get(index: Int): Int = index\n}\nfun caller(b: Box) = b[0]"
+		assertNavigatesTo(locationsAt("Get.kt", text, "b[0]", 1), text, "fun get", "get")
+	}
+
+	@Test
+	fun `invoke navigates to the invoke function`() {
+		val text = "class Runner {\n\toperator fun invoke(): Int = 1\n}\nfun caller(r: Runner) = r()"
+		assertNavigatesTo(locationsAt("Invoke.kt", text, "r()", 1), text, "fun invoke", "invoke")
+	}
+
+	@Test
+	fun `destructuring entry navigates to its component function`() {
+		val text =
+			"class P {\n\toperator fun component1(): Int = 1\n\toperator fun component2(): Int = 2\n}\n" +
+				"fun caller(p: P) { val (first, second) = p }"
+		assertNavigatesTo(
+			locationsAt("Destructure.kt", text, "(first, second)", 1),
+			text,
+			"fun component1",
+			"component1",
+		)
+	}
+
+	@Test
+	fun `property delegate navigates to its getValue`() {
+		val text =
+			"import kotlin.reflect.KProperty\n" +
+				"class Delegate {\n\toperator fun getValue(thisRef: Any?, property: KProperty<*>): Int = 1\n}\n" +
+				"val number: Int by Delegate()"
+		val locations = locationsAt("Delegate.kt", text, " by Delegate", 1)
+		assertThat(locations).isNotEmpty()
+		val getValueName = text.indexOf("getValue", text.indexOf("fun getValue"))
+		assertThat(locations.map { it.range.start.index }).contains(getValueName)
+	}
+
+	@Test
+	fun `for loop navigates to its iterator convention members`() {
+		val text =
+			"class Items {\n\toperator fun iterator(): Iterator<Int> = listOf(1).iterator()\n}\n" +
+				"fun caller(items: Items) { for (i in items) {} }"
+		val locations = locationsAt("For.kt", text, "in items", 1)
+		val iteratorName = text.indexOf("iterator", text.indexOf("fun iterator"))
+		// hasNext/next come from the stdlib Iterator and are dropped as non-workspace sources.
+		assertThat(locations.map { it.range.start.index }).contains(iteratorName)
+	}
+
+	@Test
+	fun `KDoc link navigates to the linked declaration`() {
+		val text = "class Greeter\n\n/** See [Greeter]. */\nfun caller() {}"
+		assertNavigatesTo(locationsAt("KDoc.kt", text, "[Greeter]", 1), text, "class Greeter", "Greeter")
+	}
 }
