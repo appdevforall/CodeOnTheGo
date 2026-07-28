@@ -216,4 +216,80 @@ class GoToDefinitionTest : KtLspTest() {
 		val text = "class Greeter\n\n/** See [Greeter]. */\nfun caller() {}"
 		assertNavigatesTo(locationsAt("KDoc.kt", text, "[Greeter]", 1), text, "class Greeter", "Greeter")
 	}
+
+	@Test
+	fun `inter-file reference opens the sibling file`() {
+		createSourceFile("app", "app/Greeter.kt", "package app\n\nclass Greeter")
+		val text = "package app\n\nfun make(): Greeter? = null"
+		val locations = locationsAt("app/Sibling.kt", text, ": Greeter", 2)
+		assertThat(locations).hasSize(1)
+		assertThat(locations[0].file.fileName.toString()).isEqualTo("Greeter.kt")
+	}
+
+	@Test
+	fun `inter-module reference opens the dependency module's file`() {
+		createSourceFile("lib", "lib/Greeter.kt", "package lib\n\nclass Greeter")
+		val text = "package app\n\nimport lib.Greeter\n\nfun make(): Greeter? = null"
+		val locations = locationsAt("app/CrossModule.kt", text, ": Greeter", 2)
+		assertThat(locations).hasSize(1)
+		assertThat(locations[0].file.fileName.toString()).isEqualTo("Greeter.kt")
+		assertThat(
+			locations[0]
+				.file.parent.fileName
+				.toString(),
+		).isEqualTo("lib")
+	}
+
+	@Test
+	fun `a workspace Java class is a valid target`() {
+		env.createFile("lib", "lib/JavaGreeter.java", "package lib;\npublic class JavaGreeter {}")
+		val text = "package app\n\nimport lib.JavaGreeter\n\nfun make(): JavaGreeter? = null"
+		val locations = locationsAt("app/FromJava.kt", text, ": JavaGreeter", 2)
+		assertThat(locations).hasSize(1)
+		assertThat(locations[0].file.fileName.toString()).isEqualTo("JavaGreeter.java")
+	}
+
+	@Test
+	fun `a stdlib reference yields nothing`() {
+		val text = "fun caller() = listOf(1)"
+		assertThat(locationsAt("Stdlib.kt", text, "listOf(1)", 1)).isEmpty()
+	}
+
+	@Test
+	fun `overloads yield deduplicated locations, each on a declaration, in offset order`() {
+		val text =
+			"fun target(value: Int) {}\nfun target(value: String) {}\nfun caller() { target(1) }"
+		val locations = locationsAt("Overloads.kt", text, "target(1)", 1)
+
+		// How many overloads resolveToSymbols() returns for a resolvable call is a compiler detail,
+		// so assert the properties R5 actually requires instead of a count: every location is one of
+		// the two declarations, none repeats, and they ascend by offset.
+		val firstDecl = text.indexOf("target", text.indexOf("fun target"))
+		val secondDecl = text.indexOf("target", text.indexOf("fun target", firstDecl + 1))
+		val offsets = locations.map { it.range.start.index }
+
+		assertThat(locations).isNotEmpty()
+		assertThat(listOf(firstDecl, secondDecl)).containsAtLeastElementsIn(offsets)
+		assertThat(offsets).containsNoDuplicates()
+		assertThat(offsets).isInOrder()
+	}
+
+	// R6's collapse-to-start-offset branch is covered by `explicit constructor call navigates to
+	// that constructor` above: a KtPrimaryConstructor has no name identifier. Do not add a second
+	// test for the same branch.
+
+	@Test
+	fun `a cancelled request resolves nothing`() {
+		val text = "fun target() {}\nfun caller() { target() }"
+		val file = createSourceFile("app", "Cancelled.kt", text)
+		val offset = text.indexOf("target()", startIndex = text.indexOf("caller")) + 1
+		val locations =
+			analyze(file) {
+				val element = referenceAtCaret(file, offset) ?: return@analyze emptyList()
+				runCatching {
+					definitionLocations(element, ICancelChecker.CANCELLED)
+				}.getOrElse { emptyList() }
+			}
+		assertThat(locations).isEmpty()
+	}
 }
