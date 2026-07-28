@@ -15,7 +15,7 @@ class ImplementMembersEndToEndTest : KtLspTest() {
 	): List<TextEdit> {
 		createSourceFile("Main.kt", content)
 		val mainPath = env.sourceRoots.first().resolve("Main.kt")
-		return ImplementMembersAction().computeImplementMembersEdit(env, mainPath, caret)
+		return ImplementMembersAction().computeImplementMembersEdit(env, mainPath, caret, noopCancelChecker())
 	}
 
 	/** Applies a single edit's newText over its [TextEdit.range] index span, returning the resulting text. */
