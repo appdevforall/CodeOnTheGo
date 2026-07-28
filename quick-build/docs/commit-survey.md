@@ -36,7 +36,9 @@ The classifier is a Python mirror of the shipped Kotlin one
 (`quick-build/.../domain/ChangeClassifier.kt`), rule for rule, with each rule
 citing the Kotlin line it mirrors. That is possible because the Kotlin
 classifier is purely path-based — it never reads file content — so the mirror
-is exact rather than approximate.
+is exact rather than approximate. `pr_quickbuild_survey.py --selftest` checks it
+against the cases in `ChangeClassifierTest`; it passes 39 of 39
+`[measured on host]`.
 
 Each changed path maps to one file kind, by path shape only:
 
