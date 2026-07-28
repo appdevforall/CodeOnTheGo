@@ -181,9 +181,7 @@ class QuickBuildSessionManagerTest {
 		return RebaselineOutcome.Success(setup = provision.setup, layout = provision.layout)
 	}
 
-	private fun TestScope.createManager(
-		backgroundSeedEnabled: () -> Boolean = { true },
-	): QuickBuildSessionManager {
+	private fun TestScope.createManager(backgroundSeedEnabled: () -> Boolean = { true }): QuickBuildSessionManager {
 		val provisioner =
 			object : QuickBuildProvisioner {
 				override suspend fun provision(): ProvisionOutcome {
