@@ -49,6 +49,27 @@ pluginBuilder {
 }
 ```
 
+### Depending on the plugin API
+
+The IDE-side API your plugin compiles against ships as a Maven **coordinate**,
+injected into the on-device local Maven repository during onboarding — so it
+resolves offline, with no `libs/*.jar` to commit:
+
+```kotlin
+dependencies {
+    compileOnly("com.itsaky.androidide:plugin-api:1.0.0")
+}
+```
+
+`plugin-api:1.0.0` is a single jar bundling the API surface plugins compile
+against — the `:plugin-api` module plus `common`, `eventbus-events`, and
+`idetooltips`. The builder plugin applied above resolves the same way, from the
+injected `com.itsaky.androidide.plugins.build` `1.0.0` marker.
+
+> The in-app plugin-project detector still recognizes a project by a
+> `libs/plugin-api.jar` on disk; dropping that on-disk requirement so a
+> coordinate-only plugin is recognized is tracked in ADFA-4913.
+
 ## AndroidManifest meta-data reference
 
 All plugin metadata is declared as `<meta-data>` tags inside
