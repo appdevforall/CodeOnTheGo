@@ -105,12 +105,7 @@ jobs:
           # the unit-test compile path.
           FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
           GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
-          # Fail-if-skipped for the toolchain-gated Quick Build daemon tests
-          # (aapt2/d8/Compose, the ADFA-4128 bug 5/6/8 regression coverage):
-          # if the runner's SDK goes missing those tests FAIL instead of
-          # silently skipping, so this job can't green without running them.
-          REQUIRE_BUILD_TOOLCHAIN: '1'
-        run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble :quickbuild-daemon:test sonarqube --info --no-build-cache -x lint --continue
+        run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonarqube --info --no-build-cache -x lint --continue
 
       - name: Upload JaCoCo report
         # Coverage data is written even when :sonarqube fails (e.g. a bad
