@@ -152,33 +152,43 @@ open class EditorActionsMenu(
 		getInstance().unregisterActionExecListener(this)
 	}
 
+	private fun shouldSuppressActionsMenu(): Boolean {
+		val searcher = editor.searcher
+		return searcher.isSearching || searcher.hasQuery()
+	}
+
 	protected open fun onSelectionChanged(event: SelectionChangeEvent) {
-		if (touchHandler.hasAnyHeldHandle()) {
+		if (touchHandler.hasAnyHeldHandle()) return
+
+		if (shouldSuppressActionsMenu()) {
+			dismiss()
 			return
 		}
+
 		if (event.isSelected) {
 			editor.post { displayWindow(isShowing) }
 			mLastPosition = -1
-		} else {
-			var show = false
-			if (
-				event.cause == SelectionChangeEvent.CAUSE_TAP &&
+			return
+		}
+
+		val shouldShow =
+			event.cause == SelectionChangeEvent.CAUSE_TAP &&
 				event.left.index == mLastPosition &&
 				!isShowing &&
 				!editor.text.isInBatchEdit
-			) {
-				editor.post(::displayWindow)
-				show = true
-			} else {
-				dismiss()
-			}
-			mLastPosition =
-				if (event.cause == SelectionChangeEvent.CAUSE_TAP && !show) {
-					event.left.index
-				} else {
-					-1
-				}
+
+		if (shouldShow) {
+			editor.post(::displayWindow)
+		} else {
+			dismiss()
 		}
+
+		mLastPosition =
+			if (event.cause == SelectionChangeEvent.CAUSE_TAP && !shouldShow) {
+				event.left.index
+			} else {
+				-1
+			}
 	}
 
 	protected open fun onScrollEvent() {
@@ -209,7 +219,7 @@ open class EditorActionsMenu(
 			return
 		}
 		dismiss()
-		if (!editor.cursor.isSelected) {
+		if (!editor.cursor.isSelected || shouldSuppressActionsMenu()) {
 			return
 		}
 		editor.postDelayed(
@@ -243,6 +253,11 @@ open class EditorActionsMenu(
 
 	@JvmOverloads
 	open fun displayWindow(update: Boolean = false) {
+		if (shouldSuppressActionsMenu()) {
+			dismiss()
+
+			return
+		}
 		var top: Int
 		val cursor = editor.cursor
 		top =
