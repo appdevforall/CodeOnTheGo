@@ -5,6 +5,39 @@
 # META-INF/analysis-api/*.xml) and java.util.ServiceLoader entries
 # (META-INF/services/*) bundled inside the jar, so R8 can't trace them from
 # bytecode reachability alone.
+#
+# This list is generated, not hand-picked. It was produced by scanning the
+# jar's own descriptors rather than guessing at attribute names, so it
+# survives IntelliJ bean types that don't use "implementationClass":
+#
+#   1. Build the module once so the jar is cached, then extract its
+#      descriptors (path/URL come from this module's build.gradle.kts):
+#        JAR=build/externalAssetsCache/kt-android.jar
+#        unzip -o "$JAR" 'META-INF/services/*' 'META-INF/Core.xml' \
+#          'META-INF/CoreImpl.xml' 'META-INF/JavaPsiPlugin.xml' \
+#          'META-INF/analysis-api/*.xml' 'META-INF/extensions/*.xml' \
+#          'intellij.java.frontback.psi*.xml' -d /tmp/kt-xml
+#   2. For every META-INF/services/<Interface> file, keep the interface
+#      name (the filename) and every implementation class listed inside.
+#   3. For every extracted .xml file, scan each quoted attribute value and
+#      keep tokens shaped like a FQCN (dot-separated, >=3 segments, last
+#      segment starts uppercase). Scanning all attributes rather than only
+#      "implementationClass"/"serviceImplementation" is what catches
+#      extension points that name their impl attribute after their own
+#      bean class.
+#   4. Dedupe, sort, emit "-keep class <FQCN> { *; }" per entry. XML has no
+#      way to distinguish "." from "$" in a nested class name, so diff any
+#      new entries containing a package segment that repeats a class name
+#      pattern (e.g. "Foo.Bar" where Foo is itself a class) and fix those to
+#      "Foo$Bar" by hand, as was needed for
+#      org.jetbrains.kotlin.diagnostics.rendering.DefaultErrorMessages$Extension.
+#
+# To re-run after a Kotlin Analysis API / IntelliJ platform version bump:
+# regenerate against the new jar, diff the new FQCN list against the
+# "-keep class" lines below, add new entries, and double-check any entry
+# that disappeared actually left the new jar's descriptors before removing
+# it. Rebuild a release APK afterward to confirm the shrink still succeeds
+# (see ADFA-3604 for the dex-size baseline this was meant to preserve).
 
 -keep class com.intellij.DynamicBundle$LanguageBundleEP { *; }
 -keep class com.intellij.codeInsight.CustomExceptionHandler { *; }
