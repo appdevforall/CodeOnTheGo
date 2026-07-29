@@ -100,6 +100,16 @@ subprojects {
 		// the entire CI job budget.
 		timeout.set(Duration.ofMinutes(10))
 
+		// A test worker's default working dir is the module directory, so an unpathed
+		// -XX:+HeapDumpOnOutOfMemoryError drops a heap dump of up to maxHeapSize into the source
+		// tree, untracked and not gitignored. Keep dumps under build/ instead, one per task.
+		val heapDumpFile =
+			layout.buildDirectory
+				.file("test-heapdumps/$name.hprof")
+				.get()
+				.asFile
+		doFirst { heapDumpFile.parentFile.mkdirs() }
+
 		// JPMS opens required by the unit-test stack on JDK 17+:
 		//   - jdk.unsupported/sun.misc: HiddenApiBypass.<clinit> reflectively
 		//     resolves sun.misc.Unsafe; without this the IDEApplication
@@ -126,6 +136,7 @@ subprojects {
 			// hangs. Exiting on the first OOM turns that hang into a task failure.
 			"-XX:+ExitOnOutOfMemoryError",
 			"-XX:+HeapDumpOnOutOfMemoryError",
+			"-XX:HeapDumpPath=${heapDumpFile.absolutePath}",
 		)
 
 		// Attach jacoco agent
