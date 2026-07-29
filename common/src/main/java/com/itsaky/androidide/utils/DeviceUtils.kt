@@ -37,7 +37,7 @@ object DeviceUtils {
 
 	fun getManufacturer(): String = Build.MANUFACTURER
 
-	fun getModel(): String = Build.MODEL?.trim()?.replace("\\s*".toRegex(), "") ?: ""
+	fun getModel(): String = Build.MODEL?.replace("\\s*".toRegex(), "") ?: ""
 
 	/**
 	 * Heuristic check for whether the app is running on an emulator, based on common

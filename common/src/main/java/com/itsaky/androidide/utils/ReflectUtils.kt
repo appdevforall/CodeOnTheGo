@@ -123,28 +123,30 @@ class ReflectUtils private constructor(
 		throw ReflectException(NoSuchMethodException("No constructor found on $type matching $argTypes"))
 	}
 
-	/** Instantiates via a matching constructor, wrapping the new instance. Throws [ReflectException] on failure. */
-	fun newInstance(vararg args: Any?): ReflectUtils =
+	/** Runs [block], passing through any [ReflectException] and wrapping every other exception in one. */
+	private inline fun <T> wrapErrors(block: () -> T): T =
 		try {
-			val constructor = findConstructor(args.map { it?.javaClass })
-			constructor.isAccessible = true
-			reflect(constructor.newInstance(*args))
+			block()
 		} catch (e: ReflectException) {
 			throw e
 		} catch (e: Exception) {
 			throw ReflectException(e)
 		}
 
+	/** Instantiates via a matching constructor, wrapping the new instance. Throws [ReflectException] on failure. */
+	fun newInstance(vararg args: Any?): ReflectUtils =
+		wrapErrors {
+			val constructor = findConstructor(args.map { it?.javaClass })
+			constructor.isAccessible = true
+			reflect(constructor.newInstance(*args))
+		}
+
 	/** Reads a field by name (searching up the class hierarchy), wrapping its value. Throws [ReflectException] if not found. */
 	fun field(name: String): ReflectUtils =
-		try {
+		wrapErrors {
 			val f = findField(name)
 			f.isAccessible = true
 			ReflectUtils(f.type, f.get(target))
-		} catch (e: ReflectException) {
-			throw e
-		} catch (e: Exception) {
-			throw ReflectException(e)
 		}
 
 	/** Sets a field by name and returns this wrapper for chaining. Throws [ReflectException] if not found. */
@@ -152,16 +154,12 @@ class ReflectUtils private constructor(
 		name: String,
 		value: Any?,
 	): ReflectUtils =
-		try {
+		wrapErrors {
 			val f = findField(name)
 			f.isAccessible = true
 			stripFinalModifier(f)
 			f.set(target, value)
 			this
-		} catch (e: ReflectException) {
-			throw e
-		} catch (e: Exception) {
-			throw ReflectException(e)
 		}
 
 	/**
@@ -174,7 +172,7 @@ class ReflectUtils private constructor(
 		name: String,
 		vararg args: Any?,
 	): ReflectUtils =
-		try {
+		wrapErrors {
 			val m = findMethod(name, args.map { it?.javaClass })
 			m.isAccessible = true
 			val result = m.invoke(target, *args)
@@ -183,10 +181,6 @@ class ReflectUtils private constructor(
 			} else {
 				reflect(result)
 			}
-		} catch (e: ReflectException) {
-			throw e
-		} catch (e: Exception) {
-			throw ReflectException(e)
 		}
 
 	/** Returns the wrapped target, unchecked-cast to [T]; throws [ClassCastException] on a mismatched type parameter. */

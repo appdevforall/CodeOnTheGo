@@ -28,8 +28,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.Resources.Theme
+import android.graphics.Rect
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 import android.provider.Settings
 import android.util.TypedValue
 import androidx.core.view.ViewCompat
@@ -131,8 +133,25 @@ fun Context.getAppVersionCode(): Int =
 
 /**
  * Checks whether the soft (on-screen) keyboard is currently visible in this activity's window.
+ *
+ * `WindowInsetsCompat`'s IME visibility bit is only reliable from API 30 onward; below that
+ * (down to `MIN_SDK = 28`) it can misreport, so we fall back to a decor visible-frame heuristic
+ * that works regardless of API level or the window's soft-input-adjust mode.
  */
 fun Activity.isSoftInputVisible(): Boolean {
-	val insets = ViewCompat.getRootWindowInsets(window.decorView) ?: return false
-	return insets.isVisible(WindowInsetsCompat.Type.ime())
+	if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+		val insets = ViewCompat.getRootWindowInsets(window.decorView) ?: return false
+		return insets.isVisible(WindowInsetsCompat.Type.ime())
+	}
+	return isSoftInputVisibleByDecorFrame()
+}
+
+private fun Activity.isSoftInputVisibleByDecorFrame(): Boolean {
+	val decorView = window.decorView
+	val visibleFrame = Rect()
+	decorView.getWindowVisibleDisplayFrame(visibleFrame)
+	val heightDiff = decorView.height - visibleFrame.height()
+	// A keyboard eats a large chunk of the screen; smaller diffs come from status/nav bar
+	// insets rather than the IME, so require the gap to be a meaningful fraction of the screen.
+	return heightDiff > decorView.height / 4
 }

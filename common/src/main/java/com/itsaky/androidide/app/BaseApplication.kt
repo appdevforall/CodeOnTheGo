@@ -21,7 +21,6 @@ import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
-import android.os.Bundle
 import androidx.core.os.UserManagerCompat
 import com.itsaky.androidide.managers.NoopSharedPreferencesImpl
 import com.itsaky.androidide.managers.PreferenceManager
@@ -30,7 +29,6 @@ import org.slf4j.LoggerFactory
 
 open class BaseApplication : Application() {
 	private var _prefManager: PreferenceManager? = null
-	private var _foregroundActivity: Activity? = null
 
 	val isUserUnlocked: Boolean
 		get() = UserManagerCompat.isUserUnlocked(this)
@@ -44,13 +42,13 @@ open class BaseApplication : Application() {
 	/**
 	 * The currently visible (resumed) activity, if any.
 	 *
-	 * `IDEApplication` (in the `app` module) overrides this with its own pre-existing
-	 * Pre/Post-callback-based tracker, which wins at runtime. This base implementation only
-	 * exists so `common`-module code (which can't depend on `app`) has a foreground-activity
-	 * source to call - e.g. FlashbarUtils' `withActivity`.
+	 * `IDEApplication` (in the `app` module) overrides this with its own tracker. This base
+	 * implementation only exists so `common`-module code (which can't depend on `app`) has a
+	 * foreground-activity source to call - e.g. FlashbarUtils' `withActivity` - and defaults to
+	 * `null` since the base class has no subclass that needs it populated.
 	 */
 	open val foregroundActivity: Activity?
-		get() = _foregroundActivity
+		get() = null
 
 	init {
 		_baseInstance = this
@@ -60,35 +58,6 @@ open class BaseApplication : Application() {
 		super.onCreate()
 		_prefManager = PreferenceManager(getSafeContext())
 		JavaCharacter.initMap()
-		registerActivityLifecycleCallbacks(
-			object : Application.ActivityLifecycleCallbacks {
-				override fun onActivityCreated(
-					activity: Activity,
-					savedInstanceState: Bundle?,
-				) = Unit
-
-				override fun onActivityStarted(activity: Activity) = Unit
-
-				override fun onActivityResumed(activity: Activity) {
-					_foregroundActivity = activity
-				}
-
-				override fun onActivityPaused(activity: Activity) {
-					if (_foregroundActivity === activity) {
-						_foregroundActivity = null
-					}
-				}
-
-				override fun onActivityStopped(activity: Activity) = Unit
-
-				override fun onActivitySaveInstanceState(
-					activity: Activity,
-					outState: Bundle,
-				) = Unit
-
-				override fun onActivityDestroyed(activity: Activity) = Unit
-			},
-		)
 	}
 
 	@JvmOverloads

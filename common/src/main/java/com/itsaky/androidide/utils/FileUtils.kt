@@ -27,7 +27,16 @@ import java.nio.charset.CodingErrorAction
 
 private const val UTF8_SNIFF_LENGTH = 24
 
-/** File helpers not tied to reading/writing content (see [FileIOUtils] for that). */
+/**
+ * File helpers not tied to reading/writing content (see [FileIOUtils] for that).
+ *
+ * Overlaps in purpose with the pre-existing [FileUtil] (singular) - that class predates this
+ * blankj-utilcode replacement and has its own `readFile`/`writeFile`/`makeDir`/`moveFile`/
+ * `deleteFile`, with different failure contracts (e.g. [FileUtil.readFile] returns `""` on a
+ * missing file, where [FileIOUtils.readFile2String] returns `null`). Prefer this
+ * `FileUtils`/[FileIOUtils] pair for new code; [FileUtil] remains for its existing call sites and
+ * bitmap-decoding helpers ([FileUtil.decodeSampleBitmapFromPath], [FileUtil.getScaledBitmap]).
+ */
 object FileUtils {
 	/**
 	 * Sniffs whether [file] looks like valid UTF-8 by decoding only its first
