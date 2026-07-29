@@ -67,13 +67,15 @@ buildscript {
 	}
 }
 
-// Modules whose unit tests are known to fail, muted so the rest of the suite can gate the
-// build. These were hidden until `ignoreFailures` stopped being applied to every module.
-// Remove an entry once its tests are fixed:
-//   :gradle-plugin      AndroidIDEInitScriptPluginTest, AndroidIDEPluginTest (7 of 7 fail)
-//   :lsp:java           JavaCompilerProviderTest, AddImportTest
-//   :termux:termux-app  TermuxServiceShellManagerNpeTest
-val modulesWithFailingTests = setOf(":gradle-plugin", ":lsp:java", ":termux:termux-app")
+// `jacocoAggregateReport` dependsOn every subproject's `testV8DebugUnitTest` and `sonarqube`
+// dependsOn that, so a hard test failure skips both - even under `--continue` - and the analysis
+// run uploads an empty coverage artifact with no Sonar analysis at all. That, not any individual
+// module's broken suite, is the only reason `ignoreFailures` exists here: keep test failures
+// non-fatal when the analysis chain is what was asked for, and let every ordinary build gate on them.
+val analysisRun =
+	gradle.startParameter.taskNames.any {
+		it.substringAfterLast(':') in setOf("sonar", "sonarqube", "jacocoAggregateReport")
+	}
 
 subprojects {
 	plugins.apply("jacoco")
@@ -86,7 +88,7 @@ subprojects {
 	FDroidConfig.load(project)
 
 	tasks.withType<Test> {
-		ignoreFailures = project.path in modulesWithFailingTests
+		ignoreFailures = analysisRun
 
 		// Gradle's default test-worker heap is 512m, too small for the Robolectric +
 		// Kotlin Analysis API suites (:lsp:kotlin peaks near 240m and keeps growing).
