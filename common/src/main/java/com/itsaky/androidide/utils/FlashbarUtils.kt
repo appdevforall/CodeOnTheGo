@@ -19,7 +19,7 @@ package com.itsaky.androidide.utils
 
 import android.app.Activity
 import androidx.annotation.StringRes
-import com.blankj.utilcode.util.ActivityUtils
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.flashbar.Flashbar
 
 fun flashbarBuilder(): Flashbar.Builder? = withActivity { flashbarBuilder() }
@@ -72,7 +72,7 @@ fun flashInfo(
 suspend fun flashProgress(configure: (Flashbar.Builder.() -> Unit)? = null): Flashbar? = withActivity { flashProgress(configure) }
 
 private inline fun <T> withActivity(action: Activity.() -> T?): T? =
-	ActivityUtils.getTopActivity()?.action()
+	BaseApplication.baseInstance.foregroundActivity?.action()
 		?: run {
 			ILogger.ROOT.warn("Cannot show flashbar message. Cannot get top activity.")
 			null

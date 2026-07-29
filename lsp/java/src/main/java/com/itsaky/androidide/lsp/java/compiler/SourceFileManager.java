@@ -21,7 +21,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 
 import androidx.annotation.NonNull;
-import com.blankj.utilcode.util.CloseUtils;
 import com.itsaky.androidide.javac.config.JavacConfigProvider;
 import com.itsaky.androidide.javac.services.fs.AndroidFsProviderImpl;
 import com.itsaky.androidide.projects.api.AndroidModule;
@@ -68,7 +67,11 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 
 	public static void clearCache() {
 		for (final SourceFileManager fileManager : cachedFileManagers.values()) {
-			CloseUtils.closeIO(fileManager);
+			try {
+				fileManager.close();
+			} catch (IOException e) {
+				LOG.warn("Failed to close SourceFileManager", e);
+			}
 		}
 
 		cachedFileManagers.clear();
@@ -140,7 +143,8 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 			for (SourceClassTrie.SourceNode node : classes) {
 				final Path path = node.getFile();
 				if (path.getFileName().toString().equals(simpleClassName + kind.extension)) {
-				    if (!Files.exists(path)) return null;
+					if (!Files.exists(path))
+						return null;
 
 					return new SourceFileObject(path);
 				}
@@ -215,8 +219,9 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 	}
 
 	private JavaFileObject asJavaFileObject(SourceClassTrie.SourceNode node) {
-	    final Path path = node.getFile();
-	    if (!Files.exists(path)) return null;
+		final Path path = node.getFile();
+		if (!Files.exists(path))
+			return null;
 
 		// TODO erase method bodies of files that are not open
 		return new SourceFileObject(node.getFile());
