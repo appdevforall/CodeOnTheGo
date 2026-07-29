@@ -124,11 +124,33 @@ android {
 			excludes += "org/jetbrains/kotlin/org/jline/**"
 			// IntelliJ plugin K2-mode compatibility manifest; meaningless outside a real IntelliJ session.
 			excludes += "pluginsCompatibleWithK2Mode.txt"
-			// Bundled .proto well-known-type sources from protobuf jars; nothing imports them at build time.
-			excludes += "google/protobuf/**"
-			excludes += "src/google/protobuf/**"
+			// Raw .proto sources: protobuf well-known types from protobuf jars, plus our own
+			// project-models/aapt2-proto/profiler/jvm-symbol-models modules, which the protobuf
+			// gradle plugin bundles into "resources" by default. Only protoc/codegen reads these
+			// at build time; nothing imports them across module boundaries, so they don't belong
+			// in the shipped APK.
+			excludes += "**/*.proto"
+			// protobuf edition feature-default descriptors, used by protoc/codegen, not the lite runtime.
+			excludes += "**/java_features_proto-descriptor-set.proto.bin"
 			// httpclient's public-suffix cookie-domain data; unused, no code touches Apache HttpClient directly.
 			excludes += "mozilla/public-suffix-list.txt"
+			// Apache httpclient/httpcore version metadata, used only to build a default User-Agent string.
+			excludes += "org/apache/http/client/version.properties"
+			excludes += "org/apache/http/version.properties"
+			// Version metadata for transitive google-http-client/google-auth-library deps.
+			excludes += "com/google/api/client/http/google-http-client.properties"
+			excludes += "com/google/auth/oauth2/google-auth-library.properties"
+			// Version metadata for the shaded OpenTelemetry API in the Kotlin compiler embeddable jar.
+			excludes += "org/jetbrains/kotlin/io/opentelemetry/**/version.properties"
+			// unbescape's own version metadata; unused at runtime.
+			excludes += "org/unbescape/unbescape.properties"
+			// Shaded log4j NOTICE from the Kotlin compiler embeddable jar.
+			excludes += "org/jetbrains/kotlin/org/apache/log4j/NOTICE"
+			// IntelliJ platform plugin descriptors for the frontback PSI module; meaningless outside a real IntelliJ session.
+			excludes += "intellij.java.frontback.psi.xml"
+			excludes += "intellij.java.frontback.psi.impl.xml"
+			// jgit's OSGi bundle localization data; unused outside an OSGi runtime.
+			excludes += "OSGI-INF/l10n/plugin.properties"
 
 			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
 			pickFirsts += "kotlin/reflect/reflect.kotlin_builtins"
@@ -200,7 +222,6 @@ dependencies {
 
 	implementation(platform(libs.sora.bom))
 	implementation(libs.common.editor)
-	implementation(libs.common.utilcode)
 	implementation(libs.common.glide)
 	implementation(libs.common.jsoup)
 	implementation(libs.common.kotlin.coroutines.android)

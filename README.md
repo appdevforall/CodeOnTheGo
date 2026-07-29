@@ -1,7 +1,9 @@
  <p align="center">
   <img src="./images/ADFA_logo.png" alt="Code On The Go" width="80" height="80"/>
 </p>
-
+<p align="center">
+  💖 <strong>If you believe in our mission or just love our tools, please <a href="https://github.com/sponsors/appdevforall">sponsor our work</a>.</strong> 💖
+</p>
 <h2 align="center"><b>Code On The Go</b></h2>
 <p align="center">
  Code on the Go is an IDE that lets you build Android apps on Android phones, without needing a traditional computer or Internet access. Code on the Go is a project of App Dev for All, a philanthropic venture focused on lowering the barriers to Android app development. </p>
@@ -13,8 +15,8 @@
 
 <p align="center">
   <a href="https://github.com/appdevforall/CodeOnTheGo/issues">Report a bug or request a feature</a> &nbsp; &#8226; &nbsp;
-  <a href="https://t.me/CodeOnTheGoOfficial">Telegram channel</a>&nbsp; &#8226; &nbsp;
-  <a href="https://t.me/CodeOnTheGoDiscussions">Telegram discussions</a>
+   <a href="https://github.com/appdevforall/CodeOnTheGo/discussions">Join our support and discussions forum</a>&nbsp; &#8226; &nbsp;
+   <a href="https://t.me/CodeOnTheGoOfficial">Telegram channel</a>
 </p>
 
 ## Code on the Go and AndroidIDE
