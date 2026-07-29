@@ -1606,20 +1606,23 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `prewarm is a no-op for a project that has never used Quick Build`() =
+	fun `prewarm runs even on a project that has never used Quick Build`() =
 		runTest {
+			// The old behaviour skipped the warm-up until Quick Build had been tapped once
+			// on the project, which made the FIRST tap on every new project pay the whole
+			// cold setup cost (~97 s on an a56 for a small app). If the feature is enabled,
+			// warm it -- the flag is the only gate.
 			historyStore.setHasUsedQuickBuild(false)
 			val manager = createManager()
 
 			manager.prewarm()
 			advanceUntilIdle()
 
-			assertThat(prewarmCount).isEqualTo(0)
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+			assertThat(prewarmCount).isEqualTo(1)
 		}
 
 	@Test
-	fun `tapping Quick Build marks the project as used, so the next open prewarms`() =
+	fun `tapping Quick Build still records that the project used it`() =
 		runTest {
 			historyStore.setHasUsedQuickBuild(false)
 			val manager = createManager()

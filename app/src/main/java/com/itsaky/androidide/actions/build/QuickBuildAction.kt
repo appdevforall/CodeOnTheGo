@@ -60,6 +60,19 @@ class QuickBuildAction(
 		// actions run on a default dispatcher.
 		val activity = data.getActivity()
 		if (activity != null) {
+			// Flush unsaved editor buffers BEFORE triggering the build. The Quick Build
+			// watcher is filesystem-based, so an unflushed buffer means the build silently
+			// uses stale on-disk content while the editor shows the user's edit -- the app
+			// then disagrees with the screen at the exact moment the user asked to build,
+			// until some later save happens to flush it. The Standard Run path saves too
+			// (AbstractModuleAssemblerAction), so not saving here was an inconsistency
+			// between the two build paths rather than a deliberate choice.
+			// Awaited, not fire-and-forget: the tap must build what the user sees.
+			runCatching { activity.saveAllResult() }
+				.onFailure {
+					log.error("Quick Build: could not save open files; not building stale state", it)
+				}
+				.getOrNull() ?: return false
 			activity.runOnUiThread {
 				activity.ensureQuickBuildClobberConfirmed { sessionManager.onQuickBuildTapped() }
 			}

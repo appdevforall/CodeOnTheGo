@@ -15,6 +15,7 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.BuildViewModel
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 
 /**
  * @author Akash Yadav
@@ -83,15 +84,28 @@ abstract class AbstractModuleAssemblerAction(
 		val activity = data.requireActivity()
 		val resolvedVariant = resolveBuildVariant(data, module, variant) ?: return
 		val buildViewModel: BuildViewModel by activity.viewModels()
+		// Save, THEN build -- the build must be of what the user sees. Previously the save
+		// was launched into actionScope and the build started immediately without awaiting
+		// it, so the two raced: a Gradle build normally takes long enough to reach
+		// compilation that the save wins, but nothing guaranteed it. The same race is
+		// plainly visible on the Quick Build path, which is fast enough to lose it (an
+		// unsaved edit was silently built from stale on-disk content), so it is fixed
+		// there too -- see QuickBuildAction.
 		actionScope.launch {
-			activity.saveAllResult()
+			runCatching { activity.saveAllResult() }
+				.onFailure { logger.error("Save before build failed; building on-disk state", it) }
+			buildViewModel.runQuickBuild(
+				module,
+				resolvedVariant,
+				launchInDebugMode = id == DebugAction.ID,
+				launchProfilerAfterInstall = id == ProfilerAction.ID,
+				gradleArgs = gradleArgs,
+			)
 		}
-		buildViewModel.runQuickBuild(
-			module,
-			resolvedVariant,
-			launchInDebugMode = id == DebugAction.ID,
-			launchProfilerAfterInstall = id == ProfilerAction.ID,
-			gradleArgs = gradleArgs,
-		)
 	}
+
+	private companion object {
+		private val logger = LoggerFactory.getLogger(AbstractModuleAssemblerAction::class.java)
+	}
+
 }
