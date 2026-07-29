@@ -13,6 +13,35 @@
   not need `provision_device.py`, which exists for devices that have never run the
   quick-build harness before.
 
+## Farm devices do not have reliable network — provision dependencies offline
+
+**Do not assume a farm device can reach the internet.** The C107 could not resolve
+`dl.google.com` during the 2026-07-25 sweep, and the failure is silent until a build dies:
+
+```
+Could not resolve org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1
+  ... java.net.UnknownHostException: dl.google.com
+```
+
+What it cost us, so the next person does not re-learn it:
+
+- **5 corpus apps never provisioned on the C107** — `architecture-samples`, `jcomposecogo`,
+  `notes`, `seal`, `streetcomplete-lib` — all on two missing artifacts
+  (`kotlinx-coroutines-core:1.8.1`, `kotlinx-serialization-core:1.6.3`)
+  `[measured on c107]`.
+- That produced **12 of the 15 device-asymmetric benchmark gaps**, which read for days as
+  "Quick Build is weaker on the low tier". It was not: the *plain standard Gradle build* of
+  the same apps fails identically on the same device, so Quick Build was never the
+  differentiator `[measured on c107]`.
+- The apps that fail this way are indistinguishable from a real low-tier failure in the
+  result files unless you cross-check `standardBuildOk` for the same app and device. **Do
+  that cross-check before reporting any app as a device-tier failure.**
+
+So: **every artifact a corpus app needs must be vendored offline before the run**, the same
+way CoGo's own bundled repo works. Do not rely on the device fetching anything. Also worth
+recording per run whether the device had network at all — no run currently captures it,
+which is why this took a catalogue pass to pin down.
+
 ## Scripts
 
 Both live in `quick-build/corpus/harness/`, run with plain `python3` (stdlib only, plus
