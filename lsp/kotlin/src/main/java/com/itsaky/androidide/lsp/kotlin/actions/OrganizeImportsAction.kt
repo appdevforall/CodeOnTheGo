@@ -3,8 +3,11 @@ package com.itsaky.androidide.lsp.kotlin.actions
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.get
 import com.itsaky.androidide.actions.requireFile
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.collectImportUsage
@@ -17,15 +20,19 @@ import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.tasks.createJobCancelChecker
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 
 class OrganizeImportsAction : BaseKotlinCodeAction() {
 	override var titleTextRes: Int = R.string.action_organize_imports
-	override val id: String = "ide.editor.lsp.kt.organizeImports"
+	override val id: String = ID
 	override var label: String = ""
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS
 
 	companion object {
+		const val ID = "ide.editor.lsp.kt.organizeImports"
+
 		private val logger = LoggerFactory.getLogger(OrganizeImportsAction::class.java)
 	}
 
@@ -33,7 +40,8 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 		val server = data.get<KotlinLanguageServer>() ?: return emptyList()
 		val nioPath = data.requireFile().toPath()
 		val env = server.compilationEnvironmentFor(nioPath) ?: return emptyList()
-		return computeOrganizeEdit(env, nioPath)
+		// Ties the analysis to this action's coroutine: cancelling the action aborts the queued analysis.
+		return computeOrganizeEdit(env, nioPath, ScheduledCancelChecker(createJobCancelChecker()))
 	}
 
 	/**
@@ -49,12 +57,13 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 	internal fun computeOrganizeEdit(
 		env: AbstractCompilationEnvironment,
 		nioPath: Path,
+		cancelChecker: ScheduledCancelChecker,
 	): List<TextEdit> =
 		runCatching {
 			val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return emptyList()
 			if (ktFile.importDirectives.isEmpty()) return emptyList()
 			env.project.read {
-				val usage = analyzeMaybeDangling(ktFile) { collectImportUsage(ktFile) }
+				val usage = analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) { collectImportUsage(ktFile) }
 				val newText = organizedImportBlock(ktFile, usage) ?: return@read emptyList()
 				val range = ktFile.importList?.textRange?.toRange(ktFile) ?: return@read emptyList()
 				if (range == Range.NONE) return@read emptyList()

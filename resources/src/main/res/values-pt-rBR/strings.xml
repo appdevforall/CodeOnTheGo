@@ -242,7 +242,6 @@
   <string name="idepref_buildnrun_summary">Configurar a compilação do Gradle.</string>
   <string name="configure">Configurações</string>
   <string name="about">Sobre</string>
-  <string name="idepref_github_summary">Code on the Go é de código aberto!</string>
   <string name="idepref_channel_summary">Inscreva-se para receber as últimas atualizações.</string>
   <string name="idepref_group_summary">Discuta aqui recursos, bugs e melhorias.</string>
   <string name="idepref_changelog_summary">O que há de novo nesta versão?</string>
@@ -340,12 +339,6 @@
   <string name="msg_tasks_to_run">As seguintes tarefas serão executadas, em ordem. Clique no botão \'Executar\' novamente para confirmar.\n\n%1$s</string>
   <string name="msg_loading_tasks">Carregando tarefas...</string>
   <!-- GIT -->
-  <string name="git_clone">Clonar</string>
-  <string name="git_clone_repo">Clonar repositório git</string>
-  <string name="git_clone_repo_url">URL do repositório</string>
-  <string name="git_clone_in_progress">Clonando repositório</string>
-  <string name="git_clone_success">Git clonado com sucesso</string>
-  <string name="git_clone_failed">Falha ao clonar repositório git</string>
   <string name="msg_select_attr">Selecione um atributo da lista abaixo</string>
   <string name="action_show_hierarchy">Mostrar hierarquia do layout</string>
   <string name="idepref_editor_colorScheme">Esquema de cores</string>

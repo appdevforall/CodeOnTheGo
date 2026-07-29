@@ -42,6 +42,7 @@ import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import io.github.rosemoe.sora.widget.EditorSearcher.SearchOptions
 import java.util.regex.Pattern
+import java.util.regex.PatternSyntaxException
 
 /**
  * The search layout in [IDEEditor].
@@ -49,251 +50,302 @@ import java.util.regex.Pattern
  * @author Akash Yadav
  */
 @SuppressLint("ViewConstructor") // Always created dynamically
-class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(context) {
-  private val collapsedSheetMargin =
-    context.resources.getDimensionPixelSize(R.dimen.editor_sheet_peek_height)
+class EditorSearchLayout(
+	context: Context,
+	val editor: IDEEditor,
+	showReplaceAction: Boolean = true,
+	applyCollapsedSheetMargin: Boolean = true,
+) : FrameLayout(context) {
+	// Hosts above the collapsed bottom sheet need a margin so the action row stays visible;
+	// hosts inside the sheet itself don't.
+	private val collapsedSheetMargin =
+		if (applyCollapsedSheetMargin) {
+			context.resources.getDimensionPixelSize(R.dimen.editor_sheet_peek_height)
+		} else {
+			0
+		}
 
-  var onSearchModeChanged: ((isActive: Boolean) -> Unit)? = null
+	var onSearchModeChanged: ((isActive: Boolean) -> Unit)? = null
 
-  private var searchInputTextWatcher: TextWatcher? = null
-  private var searchOptions = SearchOptions(true, false)
-  private val findInFileBinding: LayoutFindInFileBinding = LayoutFindInFileBinding.inflate(LayoutInflater.from(context))
-    private val optionsMenu: PopupMenu
+	private var searchInputTextWatcher: TextWatcher? = null
+	private var searchOptions = SearchOptions(true, false)
+	private val findInFileBinding: LayoutFindInFileBinding = LayoutFindInFileBinding.inflate(LayoutInflater.from(context))
+	private val optionsMenu: PopupMenu
 
-  init {
-      findInFileBinding.prev.setOnClickListener(::onSearchActionClick)
-    findInFileBinding.next.setOnClickListener(::onSearchActionClick)
-    findInFileBinding.replace.setOnClickListener(::onSearchActionClick)
-    findInFileBinding.close.setOnClickListener(::onSearchActionClick)
-      findInFileBinding.root.applyLongPressRecursively {
-          TooltipManager.showIdeCategoryTooltip(
-              context = this.context,
-              anchorView = this,
-              tag = TooltipTag.DIALOG_FIND_IN_FILE
-          )
-          true
-      }
+	init {
+		findInFileBinding.prev.setOnClickListener(::onSearchActionClick)
+		findInFileBinding.next.setOnClickListener(::onSearchActionClick)
+		findInFileBinding.replace.setOnClickListener(::onSearchActionClick)
+		findInFileBinding.close.setOnClickListener(::onSearchActionClick)
+		if (!showReplaceAction) {
+			// Read-only hosts (log/output views) cannot replace text
+			findInFileBinding.replace.visibility = GONE
+		}
+		findInFileBinding.root.applyLongPressRecursively {
+			TooltipManager.showIdeCategoryTooltip(
+				context = this.context,
+				anchorView = this,
+				tag = TooltipTag.DIALOG_FIND_IN_FILE,
+			)
+			true
+		}
 
-    optionsMenu = PopupMenu(context, findInFileBinding.moreOptions, Gravity.TOP)
-    optionsMenu.menu.add(0, 0, 0, R.string.msg_ignore_case).apply {
-      isCheckable = true
-      isChecked = true
-    }
+		optionsMenu = PopupMenu(context, findInFileBinding.moreOptions, Gravity.TOP)
+		optionsMenu.menu.add(0, 0, 0, R.string.msg_ignore_case).apply {
+			isCheckable = true
+			isChecked = true
+		}
 
-    optionsMenu.menu.add(0, 1, 0, R.string.msg_use_regex).apply {
-      isCheckable = true
-      isChecked = false
-    }
+		optionsMenu.menu.add(0, 1, 0, R.string.msg_use_regex).apply {
+			isCheckable = true
+			isChecked = false
+		}
 
-    optionsMenu.setOnMenuItemClickListener {
-      return@setOnMenuItemClickListener if (it.isCheckable) {
-        it.isChecked = !it.isChecked
+		optionsMenu.setOnMenuItemClickListener {
+			return@setOnMenuItemClickListener if (it.isCheckable) {
+				it.isChecked = !it.isChecked
 
-        val caseInsensitive = searchOptions.caseInsensitive
-        val regex = searchOptions.type == SearchOptions.TYPE_REGULAR_EXPRESSION
-        searchOptions =
-          when (it.itemId) {
-            0 -> SearchOptions(it.isChecked, regex)
-            1 -> SearchOptions(caseInsensitive, it.isChecked)
-            else -> searchOptions
-          }
-        editor.searcher.updateSearchOptions(searchOptions)
+				val caseInsensitive = searchOptions.caseInsensitive
+				val regex = searchOptions.type == SearchOptions.TYPE_REGULAR_EXPRESSION
+				searchOptions =
+					when (it.itemId) {
+						0 -> SearchOptions(it.isChecked, regex)
+						1 -> SearchOptions(caseInsensitive, it.isChecked)
+						else -> searchOptions
+					}
+				editor.searcher.updateSearchOptions(searchOptions)
 
-        true
-      } else false
-    }
+				true
+			} else {
+				false
+			}
+		}
 
-    findInFileBinding.root.visibility = GONE
-    findInFileBinding.moreOptions.apply {
-      setOnClickListener {
-          showPopupMenu(findInFileBinding.moreOptions)
-      }
-      setOnLongClickListener {
-        TooltipManager.showIdeCategoryTooltip(
-          context = this@EditorSearchLayout.context,
-          anchorView = this,
-          tag = TooltipTag.DIALOG_FIND_IN_FILE_OPTIONS
-        )
-        true
-      }
-    }
-    ViewCompat.setOnApplyWindowInsetsListener(findInFileBinding.root) { _, insets ->
-      updateActionsBottomMargin(insets.isVisible(WindowInsetsCompat.Type.ime()))
-      insets
-    }
+		findInFileBinding.root.visibility = GONE
+		findInFileBinding.moreOptions.apply {
+			setOnClickListener {
+				showPopupMenu(findInFileBinding.moreOptions)
+			}
+			setOnLongClickListener {
+				TooltipManager.showIdeCategoryTooltip(
+					context = this@EditorSearchLayout.context,
+					anchorView = this,
+					tag = TooltipTag.DIALOG_FIND_IN_FILE_OPTIONS,
+				)
+				true
+			}
+		}
+		ViewCompat.setOnApplyWindowInsetsListener(findInFileBinding.root) { _, insets ->
+			updateActionsBottomMargin(insets.isVisible(WindowInsetsCompat.Type.ime()))
+			insets
+		}
 
-    addView(
-      findInFileBinding.root,
-      LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
-    )
-  }
+		addView(
+			findInFileBinding.root,
+			LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT),
+		)
+	}
 
-    private fun showPopupMenu(anchorView: View) {
-        val binding =
-            SearchOptionsPopupMenuBinding.inflate(LayoutInflater.from(context), null, false)
+	private fun showPopupMenu(anchorView: View) {
+		val binding =
+			SearchOptionsPopupMenuBinding.inflate(LayoutInflater.from(context), null, false)
 
-        val popupWindow = PopupWindow(
-            binding.root,
-            LayoutParams.WRAP_CONTENT,
-            LayoutParams.WRAP_CONTENT,
-        ).apply {
-            elevation = 2f
-            isOutsideTouchable = true
-            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
-        }
+		val popupWindow =
+			PopupWindow(
+				binding.root,
+				LayoutParams.WRAP_CONTENT,
+				LayoutParams.WRAP_CONTENT,
+			).apply {
+				elevation = 2f
+				isOutsideTouchable = true
+				softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+			}
 
-        val tooltipListener = OnLongClickListener { view ->
-            TooltipManager.showIdeCategoryTooltip(
-                context = view.context,
-                anchorView = view,
-                tag = TooltipTag.DIALOG_FIND_IN_FILE_OPTIONS
-            )
-            popupWindow.dismiss()
-            true
-        }
+		val tooltipListener =
+			OnLongClickListener { view ->
+				TooltipManager.showIdeCategoryTooltip(
+					context = view.context,
+					anchorView = view,
+					tag = TooltipTag.DIALOG_FIND_IN_FILE_OPTIONS,
+				)
+				popupWindow.dismiss()
+				true
+			}
 
-        binding.layoutSearchOptions.setOnLongClickListener(tooltipListener)
+		binding.layoutSearchOptions.setOnLongClickListener(tooltipListener)
 
-        val caseInsensitive = searchOptions.caseInsensitive
-        val regex = searchOptions.type == SearchOptions.TYPE_REGULAR_EXPRESSION
+		val caseInsensitive = searchOptions.caseInsensitive
+		val regex = searchOptions.type == SearchOptions.TYPE_REGULAR_EXPRESSION
 
-        fun onIgnoreCaseToggled() {
-            binding.checkboxIgnoreCase.isChecked = !binding.checkboxIgnoreCase.isChecked
-            searchOptions = SearchOptions(binding.checkboxIgnoreCase.isChecked, regex)
-            editor.searcher.updateSearchOptions(searchOptions)
-            popupWindow.dismiss()
-        }
+		fun onIgnoreCaseToggled() {
+			binding.checkboxIgnoreCase.isChecked = !binding.checkboxIgnoreCase.isChecked
+			searchOptions = SearchOptions(binding.checkboxIgnoreCase.isChecked, regex)
+			editor.searcher.updateSearchOptions(searchOptions)
+			popupWindow.dismiss()
+		}
 
-        fun handleIgnoreCaseCheckedChange(isChecked: Boolean) {
-            searchOptions = SearchOptions(isChecked, regex)
-            editor.searcher.updateSearchOptions(searchOptions)
-            popupWindow.dismiss()
-        }
+		fun handleIgnoreCaseCheckedChange(isChecked: Boolean) {
+			searchOptions = SearchOptions(isChecked, regex)
+			editor.searcher.updateSearchOptions(searchOptions)
+			popupWindow.dismiss()
+		}
 
-        binding.layoutIgnoreCase.apply {
-            setOnClickListener { onIgnoreCaseToggled() }
-            setOnLongClickListener(tooltipListener)
-        }
+		binding.layoutIgnoreCase.apply {
+			setOnClickListener { onIgnoreCaseToggled() }
+			setOnLongClickListener(tooltipListener)
+		}
 
-        binding.checkboxIgnoreCase.apply {
-            isChecked = caseInsensitive
-            setOnCheckedChangeListener { _, isChecked -> handleIgnoreCaseCheckedChange(isChecked) }
-            setOnLongClickListener(tooltipListener)
-        }
+		binding.checkboxIgnoreCase.apply {
+			isChecked = caseInsensitive
+			setOnCheckedChangeListener { _, isChecked -> handleIgnoreCaseCheckedChange(isChecked) }
+			setOnLongClickListener(tooltipListener)
+		}
 
-        fun onUseRegexToggled() {
-            binding.checkboxUseRegex.isChecked = !binding.checkboxUseRegex.isChecked
-            searchOptions = SearchOptions(caseInsensitive, binding.checkboxUseRegex.isChecked)
-            editor.searcher.updateSearchOptions(searchOptions)
-            popupWindow.dismiss()
-        }
+		fun onUseRegexToggled() {
+			binding.checkboxUseRegex.isChecked = !binding.checkboxUseRegex.isChecked
+			searchOptions = SearchOptions(caseInsensitive, binding.checkboxUseRegex.isChecked)
+			editor.searcher.updateSearchOptions(searchOptions)
+			popupWindow.dismiss()
+		}
 
-        fun handleRegexCheckedChange(isChecked: Boolean) {
-            searchOptions = SearchOptions(caseInsensitive, isChecked)
-            editor.searcher.updateSearchOptions(searchOptions)
-            popupWindow.dismiss()
-        }
+		fun handleRegexCheckedChange(isChecked: Boolean) {
+			searchOptions = SearchOptions(caseInsensitive, isChecked)
+			editor.searcher.updateSearchOptions(searchOptions)
+			popupWindow.dismiss()
+		}
 
-        binding.layoutUseRegex.apply {
-            setOnClickListener { onUseRegexToggled() }
-            setOnLongClickListener(tooltipListener)
-        }
+		binding.layoutUseRegex.apply {
+			setOnClickListener { onUseRegexToggled() }
+			setOnLongClickListener(tooltipListener)
+		}
 
-        binding.checkboxUseRegex.apply {
-            isChecked = regex
-            setOnCheckedChangeListener { _, isChecked -> handleRegexCheckedChange(isChecked) }
-            setOnLongClickListener(tooltipListener)
-        }
+		binding.checkboxUseRegex.apply {
+			isChecked = regex
+			setOnCheckedChangeListener { _, isChecked -> handleRegexCheckedChange(isChecked) }
+			setOnLongClickListener(tooltipListener)
+		}
 
-        popupWindow.showAsDropDown(anchorView, 0, -anchorView.height)
-    }
+		popupWindow.showAsDropDown(anchorView, 0, -anchorView.height)
+	}
 
-  fun beginSearchMode() {
-    searchInputTextWatcher = SearchInputTextChangeListener(editor)
-    findInFileBinding.searchInput.addTextChangedListener(searchInputTextWatcher)
-    findInFileBinding.searchInput.setOnEditorActionListener { _, actionId, _ ->
-      if (actionId == EditorInfo.IME_ACTION_NEXT) {
-        onSearchActionClick(findInFileBinding.next)
-      }
-      false
-    }
-    findInFileBinding.root.visibility = VISIBLE
-    onSearchModeChanged?.invoke(true)
+	fun beginSearchMode() {
+		searchInputTextWatcher = SearchInputTextChangeListener(editor)
+		findInFileBinding.searchInput.addTextChangedListener(searchInputTextWatcher)
+		findInFileBinding.searchInput.setOnEditorActionListener { _, actionId, _ ->
+			if (actionId == EditorInfo.IME_ACTION_NEXT) {
+				onSearchActionClick(findInFileBinding.next)
+			}
+			false
+		}
+		findInFileBinding.root.visibility = VISIBLE
+		onSearchModeChanged?.invoke(true)
 
-    findInFileBinding.searchInput.requestFocus()
-    findInFileBinding.searchInput.post {
-      ViewCompat.getWindowInsetsController(findInFileBinding.searchInput)?.show(WindowInsetsCompat.Type.ime())
-    }
-  }
+		findInFileBinding.searchInput.requestFocus()
+		findInFileBinding.searchInput.post {
+			ViewCompat.getWindowInsetsController(findInFileBinding.searchInput)?.show(WindowInsetsCompat.Type.ime())
+		}
+	}
 
-  private fun onSearchActionClick(v: View) {
-    val searcher = editor.searcher
-    if (v.id == findInFileBinding.close.id) {
-      if (this.searchInputTextWatcher == null) {
-        return
-      }
-      findInFileBinding.searchInput.removeTextChangedListener(this.searchInputTextWatcher)
-      findInFileBinding.root.visibility = GONE
-      this.searchInputTextWatcher = null
-      searcher.onClose()
-      onSearchModeChanged?.invoke(false)
-    }
-    if (!searcher.hasQuery()) {
-      return
-    }
-    if (v.id == findInFileBinding.prev.id) {
-      searcher.gotoPrevious()
-      return
-    }
-    if (v.id == findInFileBinding.next.id) {
-      searcher.gotoNext()
-      return
-    }
-    if (v.id == findInFileBinding.replace.id) {
-      doReplace(editor)
-    }
-  }
+	fun isSearchModeActive(): Boolean = searchInputTextWatcher != null
 
-  inner class SearchInputTextChangeListener(val editor: IDEEditor?) : SingleTextWatcher() {
+	/**
+	 * Re-run the current query against the editor's (possibly changed) content,
+	 * or stop the search if there is no query.
+	 */
+	fun refreshSearch() {
+		if (!isSearchModeActive()) {
+			return
+		}
 
-    override fun onTextChanged(
-      s: CharSequence,
-      start: Int,
-      before: Int,
-      count: Int,
-    ) {
-      if (editor == null) {
-        return
-      }
-      if (TextUtils.isEmpty(s)) {
-        editor.searcher.stopSearch()
-        return
-      }
+		val query = findInFileBinding.searchInput.text?.toString() ?: ""
+		val isValidQuery =
+			query.isNotBlank() &&
+				(
+					searchOptions.type != SearchOptions.TYPE_REGULAR_EXPRESSION ||
+						try {
+							Pattern.compile(query)
+							true
+						} catch (_: PatternSyntaxException) {
+							false
+						}
+				)
 
-      // Handle bad regexp
-      val query =
-        s.toString().let {
-          if (searchOptions.type == SearchOptions.TYPE_REGULAR_EXPRESSION) {
-            try {
-              Pattern.compile(it)
-              it
-            } catch (_: Throwable) {
-              ""
-            }
-          } else {
-            it
-          }
-        }
+		if (isValidQuery) {
+			editor.searcher.search(query, searchOptions)
+		} else {
+			editor.searcher.stopSearch()
+		}
+	}
 
-      if (query.isNotBlank()) {
-        editor.searcher.search(query, searchOptions)
-      }
-    }
-  }
+	private fun onSearchActionClick(v: View) {
+		val searcher = editor.searcher
+		if (v.id == findInFileBinding.close.id) {
+			if (this.searchInputTextWatcher == null) {
+				return
+			}
+			findInFileBinding.searchInput.removeTextChangedListener(this.searchInputTextWatcher)
+			findInFileBinding.root.visibility = GONE
+			this.searchInputTextWatcher = null
+			searcher.onClose()
+			onSearchModeChanged?.invoke(false)
+		}
+		if (!searcher.hasQuery()) {
+			return
+		}
+		if (v.id == findInFileBinding.prev.id) {
+			searcher.gotoPrevious()
+			return
+		}
+		if (v.id == findInFileBinding.next.id) {
+			searcher.gotoNext()
+			return
+		}
+		if (v.id == findInFileBinding.replace.id) {
+			doReplace(editor)
+		}
+	}
 
-  private fun updateActionsBottomMargin(isImeVisible: Boolean) {
-    findInFileBinding.actionsContainer.updateLayoutParams<MarginLayoutParams> {
-      bottomMargin = if (isImeVisible) 0 else collapsedSheetMargin
-    }
-  }
+	inner class SearchInputTextChangeListener(
+		val editor: IDEEditor?,
+	) : SingleTextWatcher() {
+		override fun onTextChanged(
+			s: CharSequence,
+			start: Int,
+			before: Int,
+			count: Int,
+		) {
+			if (editor == null) {
+				return
+			}
+			if (TextUtils.isEmpty(s)) {
+				editor.searcher.stopSearch()
+				return
+			}
+
+			// Handle bad regexp
+			val query =
+				s.toString().let {
+					if (searchOptions.type == SearchOptions.TYPE_REGULAR_EXPRESSION) {
+						try {
+							Pattern.compile(it)
+							it
+						} catch (_: PatternSyntaxException) {
+							""
+						}
+					} else {
+						it
+					}
+				}
+
+			if (query.isNotBlank()) {
+				editor.searcher.search(query, searchOptions)
+			}
+		}
+	}
+
+	private fun updateActionsBottomMargin(isImeVisible: Boolean) {
+		findInFileBinding.actionsContainer.updateLayoutParams<MarginLayoutParams> {
+			bottomMargin = if (isImeVisible) 0 else collapsedSheetMargin
+		}
+	}
 }

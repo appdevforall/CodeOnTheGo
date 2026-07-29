@@ -241,7 +241,6 @@
   <string name="idepref_buildnrun_summary">Gradle-Build konfigurieren.</string>
   <string name="configure">Konfigurieren</string>
   <string name="about">Über</string>
-  <string name="idepref_github_summary">AndriodIDE ist Open Source!</string>
   <string name="idepref_channel_summary">Abonnieren sie für die neuesten Updates.</string>
   <string name="idepref_group_summary">Diskutieren Sie hier über Features, Bugs und Verbesserungen.</string>
   <string name="idepref_changelog_summary">Was ist neu in der Version?</string>
@@ -339,12 +338,6 @@
   <string name="msg_tasks_to_run">Die folgenden Aufgaben werden in der Reihenfolge ausgeführt. Zum Bestätigen erneut auf \'Ausführen\' klicken.\n\n%1$s</string>
   <string name="msg_loading_tasks">Aufgaben werden geladen...</string>
   <!-- GIT -->
-  <string name="git_clone">Klonen</string>
-  <string name="git_clone_repo">Repository klonen</string>
-  <string name="git_clone_repo_url">Repository URL</string>
-  <string name="git_clone_in_progress">Repository wird geklont</string>
-  <string name="git_clone_success">Git Klon erfolgreich</string>
-  <string name="git_clone_failed">Fehler beim Klonen des Git-Repositorys</string>
   <string name="msg_select_attr">Wählen Sie ein Attribut aus der folgenden Liste</string>
   <string name="action_show_hierarchy">Layout Hierarchie anzeigen</string>
   <string name="idepref_editor_colorScheme">Farbschema</string>

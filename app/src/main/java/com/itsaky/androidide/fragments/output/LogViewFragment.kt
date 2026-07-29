@@ -19,18 +19,24 @@ package com.itsaky.androidide.fragments.output
 
 import android.os.Bundle
 import android.view.View
+import android.widget.LinearLayout
 import androidx.annotation.UiThread
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.FragmentLogBinding
+import com.itsaky.androidide.databinding.LayoutLogFilterBarBinding
 import com.itsaky.androidide.editor.language.treesitter.LogLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguageProvider
 import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
+import com.itsaky.androidide.editor.ui.EditorSearchLayout
 import com.itsaky.androidide.editor.ui.IDEEditor
+import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.fragments.EmptyStateFragment
+import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.models.LogLine
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.jetbrainsMono
@@ -38,6 +44,9 @@ import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.LogViewModel
 import io.github.rosemoe.sora.widget.style.CursorAnimator
 import kotlinx.coroutines.launch
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 
 /**
@@ -47,7 +56,9 @@ import org.slf4j.LoggerFactory
  */
 abstract class LogViewFragment<V : LogViewModel> :
 	EmptyStateFragment<FragmentLogBinding>(R.layout.fragment_log, FragmentLogBinding::bind),
-	ShareableOutputFragment {
+	ShareableOutputFragment,
+	SearchableOutputFragment,
+	WrappableOutputFragment {
 	companion object {
 		private val log = LoggerFactory.getLogger(LogViewFragment::class.java)
 	}
@@ -56,7 +67,16 @@ abstract class LogViewFragment<V : LogViewModel> :
 
 	open val tooltipTag = ""
 
+	override fun setWordWrapEnabled(enabled: Boolean) {
+		_binding?.editor?.isWordwrap = enabled
+	}
+
+	override fun isWordWrapEnabled(): Boolean = _binding?.editor?.isWordwrap == true
+
 	abstract val viewModel: V
+
+	private var searchLayout: EditorSearchLayout? = null
+	private var filterBar: LogFilterBarController? = null
 
 	/**
 	 * Append a log line to the log view.
@@ -75,20 +95,54 @@ abstract class LogViewFragment<V : LogViewModel> :
 	abstract fun isSimpleFormattingEnabled(): Boolean
 
 	override fun onDestroyView() {
+		if (EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().unregister(this)
+		}
+		searchLayout = null
+		filterBar = null
 		_binding?.editor?.release()
 		super.onDestroyView()
 	}
 
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPreferenceChanged(event: PreferenceChangeEvent) {
+		if (event.key == EditorPreferences.OUTPUT_WORD_WRAP) {
+			setWordWrapEnabled(event.value as Boolean)
+		}
+	}
+
+	override fun beginSearch() {
+		searchLayout?.beginSearchMode()
+	}
+
+	override fun toggleFilterBar() {
+		val existing = filterBar
+		existing?.toggle() ?: createFilterBar()
+	}
+
+	private fun createFilterBar(): LogFilterBarController? {
+		val stub = _binding?.filterBarStub ?: return null
+		val barBinding = LayoutLogFilterBarBinding.bind(stub.inflate())
+		val currentFilter = viewModel.filter.value
+		return LogFilterBarController(
+			binding = barBinding,
+			coroutineScope = viewLifecycleScope,
+			showLevelChips = true,
+			initialText = currentFilter.text,
+			initialLevels = currentFilter.enabledLevels,
+		) { levels, text ->
+			viewModel.setFilter(LogFilter(levels, text.trim()))
+		}.also { filterBar = it }
+	}
+
 	override fun getShareableContent(): String {
-		val editorText =
-			this._binding
-				?.editor
-				?.text
-				?.toString() ?: ""
-		return "${BasicBuildInfo.shareableBuildInfo()}${System.lineSeparator()}$editorText"
+		// Share the full retained history, not the (possibly filtered) editor text
+		val logText = viewModel.snapshotUnfiltered()
+		return "${BasicBuildInfo.shareableBuildInfo()}${System.lineSeparator()}$logText"
 	}
 
 	override fun clearOutput() {
+		viewModel.clear()
 		_binding?.editor?.setText("")?.also {
 			emptyStateViewModel.setEmpty(true)
 		}
@@ -100,7 +154,12 @@ abstract class LogViewFragment<V : LogViewModel> :
 	) {
 		super.onViewCreated(view, savedInstanceState)
 
+		if (!EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().register(this)
+		}
+
 		setupEditor()
+		setupSearchLayout()
 
 		viewLifecycleScope.launch {
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -111,7 +170,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 		}
 	}
 
-	private suspend fun observeLogs(): Nothing {
+	private suspend fun observeLogs() {
 		// Wait for the editor's first layout pass. The sora-editor's
 		// LineBreakLayout populates its line-width tracker asynchronously after
 		// layout; appending before that races BlockIntList.set on an empty list.
@@ -121,6 +180,10 @@ abstract class LogViewFragment<V : LogViewModel> :
 
 		viewModel.uiEvents.collect { event ->
 			when (event) {
+				is LogViewModel.UiEvent.SetText -> {
+					setText(event.text)
+				}
+
 				is LogViewModel.UiEvent.Append -> {
 					append(event.text)
 					trimLinesAtStart()
@@ -129,12 +192,40 @@ abstract class LogViewFragment<V : LogViewModel> :
 		}
 	}
 
+	/** Called after the editor content has been replaced wholesale (e.g. on a filter change). */
+	private fun onContentReplaced() {
+		val searchLayout = this.searchLayout ?: return
+		if (searchLayout.isSearchModeActive()) {
+			searchLayout.refreshSearch()
+		} else {
+			_binding?.editor?.searcher?.stopSearch()
+		}
+	}
+
+	private fun setupSearchLayout() {
+		val searchLayout =
+			EditorSearchLayout(
+				context = requireContext(),
+				editor = binding.editor,
+				showReplaceAction = false,
+				applyCollapsedSheetMargin = false,
+			)
+		binding.root.addView(
+			searchLayout,
+			LinearLayout.LayoutParams(
+				LinearLayout.LayoutParams.MATCH_PARENT,
+				LinearLayout.LayoutParams.WRAP_CONTENT,
+			),
+		)
+		this.searchLayout = searchLayout
+	}
+
 	private fun setupEditor() {
 		val editor = this.binding.editor
 		editor.props.autoIndent = false
 		editor.isEditable = false
 		editor.dividerWidth = 0f
-		editor.isWordwrap = true
+		editor.isWordwrap = EditorPreferences.outputWordWrap
 		editor.isUndoEnabled = false
 		editor.typefaceLineNumber = jetbrainsMono()
 		editor.setTextSize(12f)
@@ -160,6 +251,14 @@ abstract class LogViewFragment<V : LogViewModel> :
 				}
 			}
 		}
+	}
+
+	@UiThread
+	private fun setText(text: String) {
+		val editor = _binding?.editor ?: return
+		editor.setText(text)
+		emptyStateViewModel.setEmpty(text.isBlank())
+		onContentReplaced()
 	}
 
 	@UiThread

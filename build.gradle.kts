@@ -17,7 +17,6 @@
 
 @file:Suppress("UnstableApiUsage")
 
-import com.diffplug.spotless.FormatterFunc
 import com.diffplug.spotless.LineEnding
 import com.diffplug.spotless.extra.wtp.EclipseWtpFormatterStep
 import com.itsaky.androidide.build.config.BuildConfig
@@ -30,7 +29,6 @@ import com.itsaky.androidide.plugins.conf.configureMavenPublish
 import org.gradle.api.logging.Logger
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import java.io.Serializable
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -96,11 +94,16 @@ subprojects {
 		//     setAccessible on java.lang.Class fields.
 		//   - java.base/java.io, java.util: needed by Robolectric/Gradle worker
 		//     reflection in the same test JVM.
+		//   - java.base/java.util.concurrent: the embedded IntelliJ scheduler
+		//     reflectively reads FutureTask.callable; without this its periodic
+		//     thread dies, disabling the cancellation poll that makes the Kotlin
+		//     Analysis API interruptible mid-`analyze`.
 		jvmArgs(
 			"--add-opens=java.base/java.lang=ALL-UNNAMED",
 			"--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
 			"--add-opens=java.base/java.io=ALL-UNNAMED",
 			"--add-opens=java.base/java.util=ALL-UNNAMED",
+			"--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
 			"--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
 		)
 
@@ -140,6 +143,48 @@ spotless {
 			"termux/**/*",
 		)
 
+	// Dirs to PRUNE during the walk. Passing a fileTree to target() bypasses
+	// Spotless's auto-prune of .git/.gradle/build, so restore them. flox is the
+	// ADFA-4816 fix: its /nix/store symlinks (millions of files) made
+	// spotlessCheck take 12+ minutes.
+	// Bare dir names required: Gradle prunes a subtree only when an exclude
+	// matches the dir node itself; `dir/**` matches contents and forces a
+	// descend-and-filter (no pruning).
+	val traversalExcludes =
+		arrayOf(
+			"flox",
+			"**/.flox",
+			"**/.git",
+			"**/.gradle",
+		)
+
+	// Gradle build-output dirs (root + subprojects), relative to rootDir. Not
+	// "**/build": source packages named `build` exist (e.g.
+	// app/src/main/java/.../actions/build) and would be dropped.
+	val buildOutputExcludes =
+		allprojects
+			.map {
+				it.layout.buildDirectory
+					.get()
+					.asFile
+					.relativeTo(rootDir)
+					.invariantSeparatorsPath
+			}.filter { it.isNotEmpty() && !it.startsWith("..") }
+			.toTypedArray()
+
+	// Target tree with the shared excludes applied; format-specific ones go in
+	// extraExcludes.
+	fun spotlessTarget(
+		vararg includes: String,
+		extraExcludes: Array<String> = emptyArray(),
+	) = fileTree(rootDir) {
+		include(*includes)
+		exclude(*commonTargetExcludes)
+		exclude(*traversalExcludes)
+		exclude(*buildOutputExcludes)
+		exclude(*extraExcludes)
+	}
+
 	// ALWAYS use line feeds (LF -- '\n')
 	lineEndings = LineEnding.UNIX
 
@@ -170,19 +215,13 @@ spotless {
 		removeUnusedImports()
 		forbidWildcardImports()
 
-		// custom rule to fix lambda formatting
-		custom(
-			"Lambda fix",
-			object : Serializable, FormatterFunc {
-				override fun apply(input: String): String =
-					input
-						.replace("} )", "})")
-						.replace("} ,", "},")
-			},
-		)
+		// Fix lambda formatting. Built-in replace() steps are equality-stable, so
+		// spotlessJava stays cacheable/up-to-date; a custom FormatterFunc is not and
+		// forces the Java format to re-run on every build.
+		replace("Lambda fix paren", "} )", "})")
+		replace("Lambda fix comma", "} ,", "},")
 
-		target("**/src/*/java/**/*.java")
-		targetExclude(*commonTargetExcludes)
+		target(spotlessTarget("**/src/*/java/**/*.java"))
 	}
 
 	kotlin {
@@ -197,10 +236,11 @@ spotless {
 		endWithNewline()
 
 		target(
-			"**/src/*/java/**/*.kt",
-			"**/src/*/kotlin/**/*.kt",
+			spotlessTarget(
+				"**/src/*/java/**/*.kt",
+				"**/src/*/kotlin/**/*.kt",
+			),
 		)
-		targetExclude(*commonTargetExcludes)
 
 		suppressLintsFor {
 			// suppress the 'file name <some-file> should conform PascalCase' errors
@@ -215,8 +255,7 @@ spotless {
 		trimTrailingWhitespace()
 		endWithNewline()
 
-		target("**/*.gradle.kts")
-		targetExclude(*commonTargetExcludes)
+		target(spotlessTarget("**/*.gradle.kts"))
 	}
 
 	format("xml") {
@@ -227,13 +266,13 @@ spotless {
 		trimTrailingWhitespace()
 		endWithNewline()
 
-		target("**/src/*/res/**/*.xml")
-		targetExclude(*commonTargetExcludes)
-
-		// Formatting strings.xml with Eclipse WTP causes the strings to be
-		// split into multiple lines, which is not what we want.
-		// Exclude strings.xml from this rule.
-		targetExclude("**/src/*/res/values*/strings.xml")
+		// Eclipse WTP splits strings.xml entries across lines, so exclude it.
+		target(
+			spotlessTarget(
+				"**/src/*/res/**/*.xml",
+				extraExcludes = arrayOf("**/src/*/res/values*/strings.xml"),
+			),
+		)
 	}
 
 	format("misc") {
@@ -241,8 +280,8 @@ spotless {
 		trimTrailingWhitespace()
 		endWithNewline()
 
-		target("**/.gitignore", "**/.gradle")
-		targetExclude(*commonTargetExcludes)
+		// Only .gitignore; `.gradle` is a cache dir, pruned via traversalExcludes.
+		target(spotlessTarget("**/.gitignore"))
 	}
 
 	shell {

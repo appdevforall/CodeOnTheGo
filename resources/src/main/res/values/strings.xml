@@ -94,6 +94,7 @@
 
 	<!-- Build Tools Installation -->
 	<string name="msg_no_references">No references found</string>
+	<string name="msg_no_imports_found">No imports found</string>
 	<string name="view_diags">Diagnostics</string>
 	<string name="title_installation_failed">Installation failed</string>
 	<string name="error_installation_failed">Failed to install assets</string>
@@ -511,6 +512,7 @@
 	<string name="action_generate_setters_getters">Generate setters/getters</string>
 	<string name="action_add_throws">Add \'throws\'</string>
 	<string name="action_comment_line">Comment line</string>
+	<string name="action_surround_with_try_catch">Surround with try/catch</string>
 	<string name="action_create_missing_method">Create missing method</string>
 	<string name="action_convert_to_block">Convert to block</string>
 	<string name="action_generate_constructor">Generate constructor</string>
@@ -535,6 +537,10 @@
 	<string name="action_generate_toString">Generate toString()</string>
 	<string name="action_remove_unused_imports">Remove unused imports</string>
 	<string name="action_organize_imports">Organize imports</string>
+	<string name="action_null_safety_fixes">Null-safety fixes</string>
+	<string name="action_null_safety_assert">Add non-null assertion (!!)</string>
+	<string name="action_null_safety_safe_call">Change to safe call (?.)</string>
+	<string name="action_null_safety_elvis">Add Elvis operator (?:)</string>
 	<string name="action_implement_members">Implement members</string>
 	<string name="msg_cannot_generate_toString">Unable to generate toString() implementation</string>
 	<string name="msg_toString_overridden">toString() is already overridden</string>
@@ -679,6 +685,19 @@
 	<string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
 	<string name="msg_emptyview_idelogs">Logs from the IDE are shown here.</string>
 	<string name="msg_emptyview_diagnostics">Open a file to show its diagnostic results</string>
+	<string name="log_filter_hint">Filter lines</string>
+	<string name="log_action_filter">Filter</string>
+	<string name="log_action_search">Search</string>
+	<string name="log_action_share">Share</string>
+	<string name="log_action_clear">Clear</string>
+	<string name="log_filter_hide">Hide filter bar</string>
+	<string name="log_filter_level_verbose">Verbose</string>
+	<string name="log_filter_level_debug">Debug</string>
+	<string name="log_filter_level_info">Info</string>
+	<string name="log_filter_level_warning">Warning</string>
+	<string name="log_filter_level_error">Error</string>
+	<string name="tooltip_search_output">Search in output</string>
+	<string name="tooltip_filter_output">Filter output</string>
 	<string name="msg_emptyview_buildoutput">"Build the application or run a task to see its build output here. "</string>
 	<string name="msg_codeaction_failed">Failed to perform code action</string>
 	<string name="idepref_devOptions_enableLogsender_title">Enable LogSender</string>
@@ -878,6 +897,7 @@
 	<string name="plugin_manager_summary">Manage IDE plugins and extensions</string>
 	<string name="plugins">Plugins</string>
 	<string name="no_plugins_installed">No plugins installed</string>
+	<string name="no_plugins_installed_hint">Tap the + button to install your first plugin</string>
 	<string name="install_plugin">Install Plugin</string>
 	<string name="plugin_installed">Plugin installed successfully</string>
 	<string name="plugin_install_failed">Failed to install plugin</string>
@@ -1006,6 +1026,10 @@
 	<!-- Drawer toggle content descriptions -->
 	<string name="cd_drawer_open">Open project menu</string>
 	<string name="cd_drawer_close">Close project menu</string>
+
+	<!-- Output actions content descriptions -->
+	<string name="cd_enable_word_wrap">Enable word wrap</string>
+	<string name="cd_disable_word_wrap">Disable word wrap</string>
 
 	<string name="unknown_error">"An unknown error occurred."</string>
 	<string name="build_in_progress_warning">A build is already in progress. Ignoring new request.</string>

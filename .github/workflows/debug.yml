@@ -204,6 +204,10 @@ jobs:
             exit 1
           }
 
+      - name: Install advancecomp (advzip, used by recompressApk)
+        run: |
+          command -v advzip || { sudo apt-get update && sudo apt-get install -y advancecomp; }
+
       - name: Assemble Universal APK
         run: |
           echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV

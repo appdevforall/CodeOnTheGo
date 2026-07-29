@@ -790,6 +790,7 @@
     <string name="plugin_manager_summary">Kelola plugin dan ekstensi IDE</string>
     <string name="plugins">Plugin</string>
     <string name="no_plugins_installed">Tidak ada plugin yang terinstal</string>
+    <string name="no_plugins_installed_hint">Ketuk tombol + untuk memasang plugin pertama Anda</string>
     <string name="install_plugin">Instal plugin</string>
     <string name="plugin_installed">Plugin berhasil diinstal</string>
     <string name="plugin_install_failed">Gagal menginstal plugin</string>
