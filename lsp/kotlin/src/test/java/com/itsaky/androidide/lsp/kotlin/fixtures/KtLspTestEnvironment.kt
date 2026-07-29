@@ -26,6 +26,7 @@ import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironment
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironmentMode
 import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
+import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.local.CoreLocalFileSystem
 import org.jetbrains.kotlin.com.intellij.psi.PsiFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
@@ -83,7 +84,16 @@ internal class KtLspTestEnvironment(
 	private lateinit var localFileSystem: CoreLocalFileSystem
 
 	init {
-		initialize(::buildModules, ::buildKtSymbolIndex)
+		try {
+			initialize(::buildModules, ::buildKtSymbolIndex)
+		} catch (failure: Throwable) {
+			// A throwing constructor never hands the instance to KtLspTestRule, so its finally has
+			// nothing to close and the refcounted, process-wide application environment leaks for the
+			// rest of the suite - one bad TestSourceModuleSpec would reproduce the suite-wide OOM.
+			// Release it here, where the half-built instance is still reachable.
+			runCatching { closeInWriteAction() }.exceptionOrNull()?.let(failure::addSuppressed)
+			throw failure
+		}
 	}
 
 	override fun createServiceRegistrars(): List<AnalysisApiSimpleServiceRegistrar> =
@@ -269,6 +279,14 @@ internal class KtLspTestEnvironment(
 		file: KtFile,
 		crossinline action: KaSession.() -> R,
 	): R = project.read { ktAnalyze(file, action) }
+}
+
+/**
+ * Disposes this environment. Disposing the project model requires an IntelliJ write action; our own
+ * `project.write` lock does not supply one, which is why plain `close()` used to fail here.
+ */
+internal fun KtLspTestEnvironment.closeInWriteAction() {
+	ApplicationManager.getApplication().runWriteAction { close() }
 }
 
 /**

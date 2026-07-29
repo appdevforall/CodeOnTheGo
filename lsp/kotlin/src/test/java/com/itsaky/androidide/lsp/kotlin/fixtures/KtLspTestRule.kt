@@ -1,6 +1,5 @@
 package com.itsaky.androidide.lsp.kotlin.fixtures
 
-import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -30,22 +29,37 @@ internal class KtLspTestRule(
 		tempDir.apply(
 			object : Statement() {
 				override fun evaluate() {
-					try {
-						env =
-							KtLspTestEnvironment(
-								tempDir.root.toPath(),
-								moduleSpecs(),
-								enableParserEventSystem = enableParserEventSystem(),
-							)
+					// Built before the try: a constructor throw closes itself (see KtLspTestEnvironment's
+					// init), so there is nothing here for a finally to clean up.
+					val environment =
+						KtLspTestEnvironment(
+							tempDir.root.toPath(),
+							moduleSpecs(),
+							enableParserEventSystem = enableParserEventSystem(),
+						)
+					env = environment
 
+					var failure: Throwable? = null
+					try {
 						statement?.evaluate()
+					} catch (e: Throwable) {
+						failure = e
+						throw e
 					} finally {
-						if (::env.isInitialized && !env.project.isDisposed) {
-							// Disposing the project model requires an IntelliJ write action; our own
-							// project.write lock does not supply one, which is why this used to fail.
-							// Without disposal every test leaks a whole KotlinCoreApplicationEnvironment
-							// (refcounted, process-wide static) and the suite OOMs part-way through.
-							ApplicationManager.getApplication().runWriteAction { env.close() }
+						// Without disposal every test leaks a whole KotlinCoreApplicationEnvironment
+						// (refcounted, process-wide static) and the suite OOMs part-way through. A throw
+						// from disposal must not replace the test's own failure, though - JUnit would then
+						// report the fixture instead of the assertion that actually broke.
+						val disposal =
+							runCatching {
+								if (!environment.project.isDisposed) {
+									environment.closeInWriteAction()
+								}
+							}.exceptionOrNull()
+						val pending = failure
+						if (disposal != null) {
+							if (pending == null) throw disposal
+							pending.addSuppressed(disposal)
 						}
 					}
 				}
