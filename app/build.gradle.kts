@@ -486,6 +486,49 @@ tasks.register<Jar>("assemblePluginApiFatJar") {
 	)
 }
 
+// Dependency-free POM for the fat plugin-api coordinate: it is compile-only/provided,
+// so it must NOT drag transitives that would need offline resolution.
+tasks.register("writePluginApiPom") {
+	val pomFile = layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.pom")
+	outputs.file(pomFile)
+	doLast {
+		pomFile.get().asFile.writeText(
+			"""<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>com.itsaky.androidide</groupId>
+	<artifactId>plugin-api</artifactId>
+	<version>1.0.0</version>
+	<packaging>jar</packaging>
+</project>
+""",
+		)
+	}
+}
+
+// Assembles the shippable Maven layout: the fat plugin-api coordinate + the
+// builder impl/POM/marker published by the plugin-builder included build.
+tasks.register<Zip>("createPluginMavenRepoZip") {
+	dependsOn("assemblePluginApiFatJar", "writePluginApiPom")
+	dependsOn(
+		gradle
+			.includedBuild("plugin-builder")
+			.task(":publishAllPublicationsToPluginMavenRepoRepository"),
+	)
+
+	archiveFileName.set("plugin-maven-repo.zip")
+	destinationDirectory.set(rootProject.file("assets"))
+
+	into("com/itsaky/androidide/plugin-api/1.0.0") {
+		from(layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.jar"))
+		from(layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.pom"))
+	}
+	// Builder tree is already in Maven layout (com/itsaky/androidide/plugins/...).
+	from(rootProject.file("plugin-api/plugin-builder/build/plugin-maven-repo"))
+}
+
 // Packages the on-device installer payload (assets-<arch>.zip) consumed by
 // SplitAssetsInstaller on debug builds. Entry names must match the installer
 // contract in AssetsInstallationHelper.expectedEntries.
