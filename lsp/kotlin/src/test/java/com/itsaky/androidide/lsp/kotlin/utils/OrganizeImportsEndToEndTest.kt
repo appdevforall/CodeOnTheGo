@@ -31,7 +31,7 @@ class OrganizeImportsEndToEndTest : KtLspTest() {
 		val mainPath = env.sourceRoots.first().resolve("Main.kt")
 
 		// Drive the action's real plumbing: fetch-before-read ordering + full guard chain.
-		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath)
+		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, noopCancelChecker())
 
 		assertEquals(1, edits.size)
 		assertEquals("import lib.Used", edits.single().newText)
@@ -63,7 +63,7 @@ class OrganizeImportsEndToEndTest : KtLspTest() {
 			""".trimIndent(),
 		)
 		val mainPath = env.sourceRoots.first().resolve("Main.kt")
-		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath)
+		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, noopCancelChecker())
 		// Already organized -> no edit. A dropped import would produce a rewrite that removes it.
 		assertTrue("constructor-only import must survive", edits.isEmpty())
 	}
@@ -86,7 +86,7 @@ class OrganizeImportsEndToEndTest : KtLspTest() {
 			""".trimIndent(),
 		)
 		val mainPath = env.sourceRoots.first().resolve("Main.kt")
-		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath)
+		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, noopCancelChecker())
 		assertTrue("annotation-only import must survive", edits.isEmpty())
 	}
 
@@ -109,7 +109,7 @@ class OrganizeImportsEndToEndTest : KtLspTest() {
 			""".trimIndent(),
 		)
 		val mainPath = env.sourceRoots.first().resolve("Main.kt")
-		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath)
+		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, noopCancelChecker())
 		assertTrue("typealias-only import used as constructor must survive", edits.isEmpty())
 	}
 }

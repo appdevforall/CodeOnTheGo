@@ -75,6 +75,10 @@ these in `PluginLoader.getPluginMetadata()`
 \* The loader supplies a default if the tag is absent, so the install
 won't fail, but the plugin will be hard to identify in the UI.
 
+To choose `plugin.min_ide_version`, see the
+[Plugin API Changelog](PLUGIN_API_CHANGELOG.md) — it maps each plugin
+capability to the `YY.WW` release that first shipped it.
+
 Example (adapted from `apk-viewer-plugin/src/main/AndroidManifest.xml`):
 
 ```xml

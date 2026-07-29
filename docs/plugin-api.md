@@ -53,10 +53,11 @@ These look source-compatible but break already-built `.cgp` plugins:
 
 ## Follow-ups
 
-- **No automated binary-compatibility checking yet.** `:plugin-api` has no API dump / validator (e.g. Kotlin's binary-compatibility-validator with checked-in `.api` files). Adding one would turn "know when you're breaking the API" from reviewer discipline into a CI gate — worth doing when the API firms up.
+- **Binary-compatibility checking is in place (since 26.28).** `:plugin-api` now ships a checked-in ABI dump (`plugin-api/api/plugin-api.api`) enforced by Kotlin's binary-compatibility-validator, so a public-API change shows up as a diff and can gate CI. Members annotated `@InternalPluginApi` are excluded. Still open: a formal compatibility *guarantee* (the policy above) once the API firms up.
 
 ## Related
 
 - [PLUGIN_AUTHORING.md](PLUGIN_AUTHORING.md) — the author-facing how-to (layout, manifest, icons, building/installing).
+- [PLUGIN_API_CHANGELOG.md](PLUGIN_API_CHANGELOG.md) — which `YY.WW` release first shipped each capability (for choosing `plugin.min_ide_version`).
 - [REVIEW.md](../REVIEW.md) §13 — reviewing a change's impact on plugins.
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — where `:plugin-api` / `:plugin-manager` sit in the module map.

@@ -332,6 +332,7 @@ public class Shizuku {
 	 *             <p>
 	 *             This method is planned to be removed from Shizuku API 14.
 	 */
+	@Deprecated
 	public static ShizukuRemoteProcess newProcess(@NonNull String[] cmd, @Nullable String[] env, @Nullable String dir) {
 		try {
 			return new ShizukuRemoteProcess(requireService().newProcess(cmd, env, dir));
