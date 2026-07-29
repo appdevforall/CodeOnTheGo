@@ -51,11 +51,16 @@ and leaves the fragile harvest pipeline untouched.
    `createPluginApiJar` Copy task (L48-53); `1.0.0` exists only as a rename string. It has
    **no** group/version/publishing. Physically merging other modules *into* this module
    would pollute its locked API surface — so we merge at the **packaging** layer instead.
-2. **`common`, `eventbus-events`, `idetooltips`** are `com.android.library` modules that
-   apply `com.android.library` directly (not the flavor-injecting `AndroidModuleConf`
-   convention), so — like plugin-api — they are **flavorless**: their compiled classes land
-   at the same `intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar` path.
-   None has group/version/publishing.
+2. **`common`, `eventbus-events`, `idetooltips`** are `com.android.library` modules. Unlike
+   plugin-api, `configureAndroidModule` (`AndroidModuleConf.kt:232-249`, applied to every
+   Android library **except** `:plugin-api`) injects `v7`/`v8` product flavors, so their
+   compiled classes land at flavor-qualified paths
+   (`intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar`, task
+   `assembleV8Release`). The fat jar harvests the **v8** flavor for these three — their
+   classes are ABI-neutral API (the only flavor difference is `BuildConfig.ABI_*` strings,
+   which plugins never compile against), so one v8 harvest is safe for the single shared
+   asset. plugin-api stays flavorless (`.../release/syncReleaseLibJars/classes.jar`). None
+   of the three has group/version/publishing.
 3. **Neither `plugin-api` nor `plugin-builder` applies `maven-publish`.** `plugin-builder`
    is a separate **included build**, consumed via `gradle.includedBuild("plugin-builder")`.
 4. **POM transitives cut both ways:** the builder's POM *must* carry its config-time deps
@@ -86,9 +91,12 @@ from the existing `aar_main_jar` intermediate — **no** new files in those modu
 All new logic lives in `app/build.gradle.kts`, plus one publishing block in
 `plugin-api/plugin-builder/build.gradle.kts`.
 
-1. **`assemblePluginApiFatJar`** (new `Jar` task): `dependsOn` `assembleRelease` of
-   plugin-api, common, eventbus-events, idetooltips; `from(zipTree(<each>/…/classes.jar))`;
-   `duplicatesStrategy = EXCLUDE`. Produces `plugin-api-1.0.0.jar` (fat).
+1. **`assemblePluginApiFatJar`** (new `Jar` task): `dependsOn` `:plugin-api:assembleRelease`
+   + `:common:assembleV8Release`, `:eventbus-events:assembleV8Release`,
+   `:idetooltips:assembleV8Release`; merges each module's `classes.jar` via
+   `from(zipTree(...))` (plugin-api at `.../release/syncReleaseLibJars/`, the other three at
+   `.../v8Release/syncV8ReleaseLibJars/`); `duplicatesStrategy = EXCLUDE`. Produces
+   `plugin-api-1.0.0.jar` (fat).
    - Per-module `.kotlin_module` files carry distinct names; `R`/`BuildConfig` live in
      distinct package namespaces — no collisions across first-party modules.
 2. **Static POM** for plugin-api: a dependency-free `packaging=jar` POM written into the
@@ -106,13 +114,26 @@ All new logic lives in `app/build.gradle.kts`, plus one publishing block in
 
 ### On-device merge (onboarding)
 
-- New constant `PLUGIN_MAVEN_REPO_ZIP = "plugin-maven-repo.zip"` in
-  `AssetsInstallationHelper` (+ `expectedEntries`).
-- `BundledAssetsInstaller` and `SplitAssetsInstaller`: a new branch that extracts
-  `plugin-maven-repo.zip` and **merges** (never wipes) into `Environment.LOCAL_MAVEN_DIR`,
-  reusing the existing brotli/zip-stream + path-traversal-guard pattern. Must run so the
-  `localMvnRepository.zip` branch does not wipe it (coordinates do not overlap; a
-  merge-after is safe — verify that branch's wipe behavior during implementation).
+**Verified hazard:** the generic archive branch **wipes** its destination first
+(`destDir.deleteRecursively()`, BundledAssetsInstaller.kt:61-63 / SplitAssetsInstaller.kt:
+68-70), and all entries install **concurrently** (`async` + `joinAll`,
+AssetsInstallationHelper.kt:160-174). A naive second entry targeting `LOCAL_MAVEN_DIR`
+would race the `localMvnRepository.zip` wipe and be destroyed.
+
+**Chosen mechanism — apply the overlay inside the existing localMvnRepository branch:**
+
+- Add a `PLUGIN_MAVEN_REPO_ZIP = "plugin-maven-repo.zip"` asset constant (+ the `.br`
+  variant name), and ship the asset (bundled common `.br` + inside the split
+  `assets-<arch>.zip`). **Do NOT** add it to `expectedEntries` — it must not be a separate
+  concurrent job.
+- In **both** installers, give `LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME` its own branch that:
+  (1) wipes + extracts the harvested `localMvnRepository.zip` into `LOCAL_MAVEN_DIR` as
+  today, then (2) in the **same** job, reads `plugin-maven-repo.zip` and extracts it into
+  the same dir via `AssetsInstallationHelper.extractZipToDir` (which creates dirs and
+  copies **without** wiping — a true merge). Bundled reads the `.br` common asset through
+  `BrotliInputStream`; split reads the `plugin-maven-repo.zip` entry from the already-open
+  `zipFile`. Because the overlay runs sequentially after the wipe within the one
+  localMvnRepository job, there is no race and no separate entry.
 - The existing `plugin-artifacts.zip → .cg/plugin-api/` branch is untouched (still feeds
   `isPluginProject`'s `libs/plugin-api.jar` check until ADFA-4913).
 
@@ -148,6 +169,7 @@ All new logic lives in `app/build.gradle.kts`, plus one publishing block in
 
 ## Files touched (net)
 
-`plugin-api/plugin-builder/build.gradle.kts`, `app/build.gradle.kts`,
-`AssetsInstallationHelper.kt`, `BundledAssetsInstaller.kt`, `SplitAssetsInstaller.kt`, one
+`plugin-api/plugin-builder/build.gradle.kts`, `app/build.gradle.kts`, the asset-name
+constants (`org/adfa/constants/constants.kt`), the common-asset brotli registration
+(`AndroidIDEAssetsPlugin`), `BundledAssetsInstaller.kt`, `SplitAssetsInstaller.kt`, one
 docs file. **Untouched:** plugin-api, common, eventbus-events, idetooltips modules.
