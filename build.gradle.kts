@@ -17,7 +17,6 @@
 
 @file:Suppress("UnstableApiUsage")
 
-import com.diffplug.spotless.FormatterFunc
 import com.diffplug.spotless.LineEnding
 import com.diffplug.spotless.extra.wtp.EclipseWtpFormatterStep
 import com.itsaky.androidide.build.config.BuildConfig
@@ -30,7 +29,6 @@ import com.itsaky.androidide.plugins.conf.configureMavenPublish
 import org.gradle.api.logging.Logger
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import java.io.Serializable
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -96,11 +94,16 @@ subprojects {
 		//     setAccessible on java.lang.Class fields.
 		//   - java.base/java.io, java.util: needed by Robolectric/Gradle worker
 		//     reflection in the same test JVM.
+		//   - java.base/java.util.concurrent: the embedded IntelliJ scheduler
+		//     reflectively reads FutureTask.callable; without this its periodic
+		//     thread dies, disabling the cancellation poll that makes the Kotlin
+		//     Analysis API interruptible mid-`analyze`.
 		jvmArgs(
 			"--add-opens=java.base/java.lang=ALL-UNNAMED",
 			"--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
 			"--add-opens=java.base/java.io=ALL-UNNAMED",
 			"--add-opens=java.base/java.util=ALL-UNNAMED",
+			"--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
 			"--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
 		)
 
@@ -215,16 +218,11 @@ spotless {
 		removeUnusedImports()
 		forbidWildcardImports()
 
-		// custom rule to fix lambda formatting
-		custom(
-			"Lambda fix",
-			object : Serializable, FormatterFunc {
-				override fun apply(input: String): String =
-					input
-						.replace("} )", "})")
-						.replace("} ,", "},")
-			},
-		)
+		// Fix lambda formatting. Built-in replace() steps are equality-stable, so
+		// spotlessJava stays cacheable/up-to-date; a custom FormatterFunc is not and
+		// forces the Java format to re-run on every build.
+		replace("Lambda fix paren", "} )", "})")
+		replace("Lambda fix comma", "} ,", "},")
 
 		target(spotlessTarget("**/src/*/java/**/*.java"))
 	}
