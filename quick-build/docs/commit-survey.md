@@ -208,5 +208,5 @@ Until that exists, quote this survey for what it supports:
 
 ## Where the code and outputs live
 
-- Scripts: `harness/pr_quickbuild_survey.py`, `harness/watch_scope_report.py`, `harness/multimodule_report.py` in the `test_app_corpus` repo.
+- Scripts: `harness/pr_quickbuild_survey.py`, `harness/watch_scope_report.py`, `harness/multimodule_report.py` in the `CodeOnTheGo-build-benchmark` repo.
 - Outputs: `results/commit-survey-latest/` and `results/multimodule-analysis/`.

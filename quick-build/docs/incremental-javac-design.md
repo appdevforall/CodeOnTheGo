@@ -15,7 +15,7 @@
 
 Claim provenance is tagged throughout: `[measured on host]` = Mac Mini, Zulu JDK 17.0.12;
 `[measured on a56]` / `[measured on c107]` = the 2026-07-24 device e2e sweep
-(`test_app_corpus/results/qb-report-review.html`); `[inferred]` = reasoning over those.
+(`CodeOnTheGo-build-benchmark/results/qb-report-review.html`); `[inferred]` = reasoning over those.
 Untagged sentences are code reading, which is verifiable from the file references.
 
 ## 1. The current invocation path

@@ -14,8 +14,10 @@
   - Gradle project build output
   - User project sources
 - For some of these, we should probably keep them in `FUSE`, if the user needs MTP access to be able to work with the files over USB
-- **Decision: Do we want to move some of the processes above to app private-storage?****(and perhaps have a policy for temp file cleanup) **
-  - Would give a 1.8x speedup in Quick Build incremental build time(measured on 2 apps: a large one (Sora editor, 292 sources) and a small one (28 sources). Both gained the same 1.8x, so this is not only a large-project fix)
+- **Decision: Do we want to move some of the processes above to app private-storage?**
+  - In tests on a few apps, moving to private storage would typically save about ~45% (1-2s) on Quick Build incremental build time on a Samsung A56 (more seconds on a slower phone)
+
+Rest was written by Claude but not edited very much...if you want more details see below.
 
 ## What was run
 

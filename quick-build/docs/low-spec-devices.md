@@ -6,7 +6,7 @@
 
 ## Summary
 
-- Quick Build works on the C107 (3.6 GB): **~2.9x** faster than the standard build, saving **+15.1 s** on the median app's warm edit — a bigger absolute saving than the A56 gets.
+- Quick Build works on the C107 (3.6 GB), and gains more there than on the A56: across the 19 edits measured on both tiers, the C107's speedup is higher on 19 of 19, by a median of 1.77x. It saves a median 17.5 s per edit against 3.1 s on the A56.
 - The floor sits between 1.9 GB and 3.6 GB:
   - C107, 3.6 GB — works
   - itel A667L, 1.9 GB — walled: never provisions, never finishes a build. The only app attempted there was **pure Java** (`hello-java`, 3 `.java` files, zero Kotlin), so the wall is not the cost of loading the Kotlin toolchain
@@ -22,7 +22,7 @@
 - Four devices against one 30-app corpus: A56 (8 GB) as reference, C107 3.6 GB, itel A667L 1.9 GB, incar Q8 1.46 GB.
 - Each C107 app was run both ways — standard Gradle build (cold full Run, then incremental against a warm daemon) and Quick Build (setup to Ready, then warm save->live edits).
 - Pass criteria: the standard build reaches `standard_build_finished`; Quick Build reaches Ready and lands a save->live edit.
-- Speedup is the per-app median over 18 apps, repeated measurements of the same edit collapsed first — methodology owned by [`benchmarking.md`](benchmarking.md).
+- Speedup is the median of per-edit ratios, each Quick Build save against the standard incremental build of the same edit on the same device and CoGo build — methodology owned by [`benchmarking.md`](benchmarking.md).
 - C107 figures are post-fix: before commit `6d198f576` the low tiers capped the daemon at `MaxMetaspaceSize=192m` and `:app:assembleDebug` died in `OutOfMemoryError: Metaspace`; at 384m it builds green `[measured on c107]`.
 - itel: **one app only** — `hello-java`, the pure-Java template. Stock runs, plus a debloat experiment — 16 packages disabled (Bryan-approved, snapshot kept, fully restored afterward), screen off, 900 s window `[measured on itel, debloated + screen-off; do not compare naively against stock runs]`.
 - Q8: idle profile only, on CoGo's onboarding screen. No build attempted — its carousel ignores programmatic taps, so setup needs a human touching the screen.
@@ -42,12 +42,12 @@
 
 ## The C107 wins by a bigger absolute margin than the A56
 
-| Device | Speedup | Saving on the median app's warm edit |
-| ------ | ------- | ------------------------------------ |
-| A56    | ~2.3x   | +2.7 s                               |
-| C107   | ~2.9x   | **+15.1 s**                          |
+| Device | Speedup                 | Saving on the median app's warm edit |
+| ------ | ----------------------- | ------------------------------------ |
+| A56    | 3.45x                   | +3.1 s                               |
+| C107   | 1.77x more than the A56 | +17.5 s                              |
 
-- **34% of the C107's measured edits are attribution-suspect**, against 7% on the A56 — per-app medians are the reading that survives that best, and per-edit C107 numbers should not be quoted without the caveat `[measured on c107]`.
+- No measured edit on either device is attribution-suspect on this build — 0 of 134 C107 rows and 0 of 213 A56 rows, down from 34% and 7% before the warm-up and attribution fixes landed [measured on c107] [measured on a56].
 
 ### Four build costs on the C107
 

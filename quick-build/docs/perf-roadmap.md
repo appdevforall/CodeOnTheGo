@@ -2,7 +2,7 @@
 
 ## Summary
 
-Quick Build is already a median **~2.3x** faster than an incremental standard build across 21 corpus apps `[measured on a56]`.  And this ignores any manual installation prompts that come up in the standard build.
+Quick Build is already a median ~3.45x faster than the incremental standard build of the same edit, over 78 edits across 23 corpus apps [measured on a56].  And this ignores any manual installation prompts that come up in the standard build.
 
 We've identified five issues that can improve performance, roughly sorted in decreasing ROI:
 

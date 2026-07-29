@@ -1,4 +1,4 @@
-# Information: Quick Build works on the templates users start from — except Room/KSP apps, which cannot build offline at all
+# Information: Quick Build works on the templates users start from — except Room/KSP apps, which cannot build offline
 
 ## Summary
 
@@ -15,8 +15,7 @@
 
 Status: every built-in CoGo template walked on device 2026-07-23.
 
-Provenance tags are mandatory: `[measured on a56]`, `[measured on host]`,
-`[inferred]`, `[unmeasured]`. Untagged prose is code reading.
+Provenance tags are mandatory: `[measured on a56]`, `[measured on host]`, `[inferred]`, `[unmeasured]`. Untagged prose is code reading.
 
 Evidence, in the benchmark repo:
 
@@ -36,41 +35,37 @@ Samsung A56 throughout.
 
 All 16 combinations were walked `[measured on a56]`:
 
-| Combination | Setup | Launch + edit |
-|---|---|---|
-| Basic K / J, Empty K / J, No AndroidX K / J, Tabbed K / J | pass | pass |
-| Bottom Nav K / J | pass | pass (crashed until Bug 9; verified 07-28) |
-| Nav Drawer K / J | pass | pass (crashed until Bug 9; verified 07-28) |
-| Compose K | pass (failed until Bug 7) | provisions + installs; **code-edit timing not captured** |
-| CodeOnTheGo Plugin | friendly refusal (Bug 3) | n/a by design — output is a `.cgp`, not an app |
-| **No Activity K / J** | **fail** | n/a by design — no launchable Activity |
+| Combination                                               | Setup                     | Launch + edit                                            |
+| --------------------------------------------------------- | ------------------------- | -------------------------------------------------------- |
+| Basic K / J, Empty K / J, No AndroidX K / J, Tabbed K / J | pass                      | pass                                                     |
+| Bottom Nav K / J                                          | pass                      | pass (crashed until Bug 9; verified 07-28)               |
+| Nav Drawer K / J                                          | pass                      | pass (crashed until Bug 9; verified 07-28)               |
+| Compose K                                                 | pass (failed until Bug 7) | provisions + installs; **code-edit timing not captured** |
+| CodeOnTheGo Plugin                                        | friendly refusal (Bug 3)  | n/a by design — output is a `.cgp`, not an app           |
+| **No Activity K / J**                                     | **fail**                  | n/a by design — no launchable Activity                   |
 
 Two honest caveats on that table:
 
 - Compose's save->live was never measured (device contamination plus a time cap).
 - The Plugin template counts as a pass because refusing correctly *is* the right behaviour, not because Quick Build runs on it.
 
-The seven viewBinding templates are exactly the seven Bug 1 broke, which is why
-that count keeps recurring.
+The seven viewBinding templates are exactly the seven Bug 1 broke, which is why that count keeps recurring.
 
 ## Where this started: Quick Build was unusable on almost every template
 
-Before the config-cache fix, the setup build failed on all seven viewBinding
-templates — 14 of the 16 combinations — so Quick Build was unusable on almost
-every app a user would create from a template. That was Bug 1, and it is the one
-David hit.
+Before the config-cache fix, the setup build failed on all seven viewBinding templates — 14 of the 16 combinations — so Quick Build was unusable on almost every app a user would create from a template. That was Bug 1, and it is the one David hit.
 
 ## Language is the dominant cost; the reload itself never is
 
 From the merged sweeps, 12 measured loops `[measured on a56]`:
 
-| Edit class | n | p50 | range |
-|---|---|---|---|
-| Resource (`values.xml`) | 2 | ~470 ms | 294-645 ms |
-| Code, warm, Java | 2 | ~676 ms | 575-777 ms |
-| Code, warm, Kotlin | 5 | ~1781 ms | 1318-2316 ms |
-| Code, first build of a session, Java | 1 | 2986 ms | — |
-| Code, first build of a session, Kotlin | 3 | ~11 s | 10.0-11.8 s |
+| Edit class                             | n   | p50      | range        |
+| -------------------------------------- | --- | -------- | ------------ |
+| Resource (`values.xml`)                | 2   | ~470 ms  | 294-645 ms   |
+| Code, warm, Java                       | 2   | ~676 ms  | 575-777 ms   |
+| Code, warm, Kotlin                     | 5   | ~1781 ms | 1318-2316 ms |
+| Code, first build of a session, Java   | 1   | 2986 ms  | —            |
+| Code, first build of a session, Kotlin | 3   | ~11 s    | 10.0-11.8 s  |
 
 - **Language is the dominant lever** — Kotlin costs ~2.6x Java warm, all of it kotlinc.
 - **Resource edits are the fastest class**, because an aapt2 relink beats a Kotlin compile; before Bugs 6 and 8 they were the class that crashed.
@@ -79,8 +74,7 @@ From the merged sweeps, 12 measured loops `[measured on a56]`:
 
 ## The seven bugs the walk found
 
-Numbering is the ticket's. Bugs 1-3 preceded the sweep; 4-10 are what walking the
-templates found. Each was checked against the branch, not against the status doc.
+Numbering is the ticket's. Bugs 1-3 preceded the sweep; 4-10 are what walking the templates found. Each was checked against the branch, not against the status doc.
 
 **Bug 4 — the generated test app crash-looped on launch.**
 
@@ -153,8 +147,7 @@ templates found. Each was checked against the branch, not against the status doc
 
 ## The one FAIL in the consolidated pass is a harness artefact
 
-The 07-28 consolidated run records 12 of 13 checks green, with `bug12-add-file`
-marked FAIL.
+The 07-28 consolidated run records 12 of 13 checks green, with `bug12-add-file` marked FAIL.
 
 - That is a **harness assertion, not a product failure**: `adb push` creates the file and then writes its content, and the two watcher events landed in separate coalescing batches, so the step produced two back-to-back `CodeOnly` builds where the driver asserted exactly one.
 - Both were incremental successes with zero invalidations and zero rebaselines.
@@ -163,8 +156,4 @@ marked FAIL.
 
 ## Why the device walk stays in the loop
 
-Every bug here was found by walking a user's actual first five minutes, and the
-most damaging ones — 4, 5, 6 and 9, all crashes — only exist once code loads from
-a payload dex into a running app, which is precisely what a JVM test cannot stage.
-That is the argument for keeping the device walk, not the argument that it is
-finished.
+Every bug here was found by walking a user's actual first five minutes, and the most damaging ones — 4, 5, 6 and 9, all crashes — only exist once code loads from a payload dex into a running app, which is precisely what a JVM test cannot stage. That is the argument for keeping the device walk, not the argument that it is finished.

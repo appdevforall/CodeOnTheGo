@@ -1,186 +1,65 @@
-# Information: How the Quick Build speedup was measured
+# Information: How Quick Build performs on real apps, and what it trades away
 
 ## Summary
 
-- Warm Quick Build beats a warm incremental standard build on most of the corpus:
-
-  **~2.3x on the A56, ~2.9x on the C107**. It loses on exactly two apps per device.
-- What that number covers:
-  - the inner loop only — one warm save-to-live against that same app's median
-
-    incremental standard build, on the same device;
-  - 21 apps on the A56 and 18 on the C107, out of a 30-app / 97-edit corpus;
-  - not covered: setup cost, rebaseline, the CoGo editor's own keystroke-to-disk
-
-    latency, and correctness of the reloaded app.
-- What makes the number non-obvious:
-  - Three defensible readings of the same rows disagree by enough to matter
-
-    (2.25x to 2.75x on the A56). The common error is pairing one reading's value with another reading's denominator.
-  - Quick Build is **~1.3x slower than a first standard build** to reach a working
-
-    session; it repays that in roughly four to six edits.
-  - A per-edit attribution bug (fixed 2026-07-26) makes every per-edit and
-
-    per-edit-class claim unusable until the affected sweeps are re-run.
-  - Below 3.6 GB of RAM nothing builds at all by either route, which makes that
-
-    tier a standard-build problem rather than a Quick Build one.
-- **Takeaway: the per-app reading is ~2.3x on the A56 (21 apps) and ~2.9x on
-
-  the C107 (18 apps) ; every reading below carries its own denominator.** The circulated "2.5x on the A56" is the per-edit reading; the circulated "2.7x on the C107" does not reproduce under any reading.
+- Quick Build is a new fast path for the on-device edit loop: a save recompiles only what changed and hot-reloads an already-running test app instead of running a Gradle build. The benchmark exists to answer what the design could not — is it actually faster than CoGo's standard incremental build, on real apps, on the hardware we ship to, and where does it stop working.
+- It is measured against the standard build on the same device, over a corpus of 30 apps and 97 scripted edits, on two device tiers: the Samsung A56 (8 GB class) and the C107 (3.6 GB).
+- **In the inner loop it wins: a warm save is 3.45x faster than the standard incremental build of the same edit** — median over 78 edits across 23 apps on the A56 `[measured on a56]`.
+- **The slower the device, the bigger the win.** On the 19 edits measured on both tiers, the C107's speedup exceeds the A56's on **19 of 19**, by a median of 1.77x `[measured on a56]` `[measured on c107]`.
+- Every tradeoff sits outside the inner loop:
+  - reaching a first working session costs a marginal 24 s on the A56 and 91 s on the C107, repaid after about 7 edits `[measured on a56]` `[measured on c107]`;
+  - a structural change (manifest, gradle files, dependencies) drops out of the fast path and rebaselines, which costs 11-14 s cold and ~5 s warm on the A56 and is `[unmeasured]` on the C107;
+  - below 3.6 GB of RAM nothing builds at all by either route, which makes the bottom two tiers a standard-build problem rather than a Quick Build one `[measured on itel]` `[measured on Q8]`.
+- It loses on **2 of 78 edits**, both on `sora-editor-full`, the largest app in the corpus.
 
 ## How to read this page
 
-- **Status:** the corpus sweeps are complete and the headline holds; a per-edit
+Provenance tags mark where every number came from, and never move:
 
-  attribution bug (fixed 2026-07-26) means the affected sweeps have not been re-run, so per-edit and per-edit-class claims are not yet trustworthy.
-- **Provenance tags are mandatory:**
-  - `[measured on a56]` = Samsung A56 (8 GB class)
-  - `[measured on c107]` = C107 (3.6 GB)
-  - `[measured on itel]` = itel A667L (1.9 GB)
-  - `[measured on Q8]` = incar Q8 (1.46 GB)
-  - `[measured on host]` = Mac Mini
-  - `[inferred]` / `[unmeasured]` mean what they say
-  - Untagged prose is method description, not a result.
-- **Evidence:** `corpus/results/*/` in the `test_app_corpus` repo, flattened into
+- `[measured on a56]` — Samsung A56 (8 GB class)
+- `[measured on c107]` — C107 (3.6 GB)
+- `[measured on itel]` — itel A667L (1.9 GB)
+- `[measured on Q8]` — incar Q8 (1.46 GB)
+- `[measured on host]` — Mac Mini
+- `[inferred]` / `[unmeasured]` mean what they say
+- untagged prose is method description, not a result
 
-  `corpus/results/analysis/{edits,apps}.csv` by `harness/export_csv.py`. Every number below was recomputed from those two tables on 2026-07-28; the recompute is `[measured on host]` over device data.
+Evidence: `corpus/results/*/` in the benchmark repo, flattened into `corpus/results/analysis/{edits,apps}.csv` by `harness/export_csv.py`. Every figure below is recomputed from those two tables; the recompute is `[measured on host]` over device data.
 
-## The three readings, and why the circulated numbers differ
+### The basis of every ratio on this page
 
-All three readings come from the same rows `[measured on a56]` / `[measured on c107]`:
+A speedup here is always **one warm Quick Build save divided by the standard incremental build of the same edit, on the same app, the same device, and the same CoGo build**, and the headline is the median of those per-edit ratios across the corpus. Five filters enforce it, and each one changes the answer:
 
-| reading                                                      | A56                | C107               |
-| ------------------------------------------------------------ | ------------------ | ------------------ |
-| **per-app** (median across apps of each app's median warm edit ratio) | **2.25x, 21 apps** | **2.89x, 18 apps** |
-| per-edit (median across warm edit keys)                      | 2.48x, 55 keys     | 3.32x, 49 keys     |
-| pooled (median warm save-to-live vs median incremental standard, each taken device-wide) | 2.75x              | 3.18x              |
+| filter | what it excludes | why |
+| --- | --- | --- |
+| One CoGo build | every build but `C-d-0728-1154` | Quick Build changed daily; a ratio spanning builds compares two products |
+| One measurement regime | all but the latest standard-build sweep per device | the standard-build harness changed mid-corpus; the two regimes disagree by a median 1.35x |
+| Successful standard builds | `stdIncrementalOk` false | a failed build's duration is a time-to-failure, not a denominator |
+| Edit-matched denominators | rows with no standard build of that exact edit | dividing by a different edit's build compares two different amounts of work |
+| Warm saves | nothing — the warm-up makes every measured save warm | a cold first compile is a different quantity |
 
-- The number to quote is the **per-app** reading, which weights each app once:
+The median is taken over **edits, not apps**. An app's edits span change categories, so any per-app figure mixes a method-body edit with an ABI change under one number.
 
-  ~2.3x on the A56 and ~2.9x on the C107, with its denominator — *21 apps on the A56, 18 on the C107*.
-- The circulated **"2.5x on the A56"** is a different reading — per **edit key**,
+## What the corpus is: 30 apps, 97 edits, replayed identically
 
-  not per app. Both are defensible; they disagree by enough to matter, and the common error is to pair one reading's value with the other's denominator ("2.5x across 21 apps"), which is neither.
-- The circulated **"2.7x on the C107" does not reproduce** under any of the
+A run is one unattended sweep of the whole corpus against one device (`harness/run_e2e_bench.py`). For each app it:
 
-  readings above.
-  - The nearest is the per-app calculation *without* collapsing repeats first,
+- pushes a wrapped project to the device;
+- opens it in CoGo through a flag-gated bench Activity that auto-starts a Quick Build session;
+- waits for Ready, then launches the test app;
+- applies one **discarded warm-up edit**, awaits its build, and reverts it, so the one-time cold-compiler cost is spent outside the measured set;
+- applies that app's prepared edits one at a time;
+- records every enumerated edit as either `MEASURED` or a named `GAP` — a silent skip is treated as a harness bug, not a missing row.
 
-    which gives 2.75x — a defensible variant, but not the default, because collapsing stops an app with many repeats of one edit from dominating its own median.
-  - The C107 number to quote is **2.89x**.
-  - An earlier revision of this page put the per-app C107 figure at 2.49x; that
+What is in the corpus:
 
-    value does not reproduce either, and 2.89x replaces it.
-  - See [`low-spec-devices.md`](low-spec-devices.md) for the C107 in depth — and
+- five synthetic shapes built for this work — `hello-java`, `medium-kotlin`, `fanout-kotlin`, `mixed-lang-cyclic`, `resources-heavy`;
+- the rest are real open-source Android apps pinned at a sha — `kiss`, `antennapod-model`, `seal`, `readyou`, `findroid`, `sora-editor-full`, `streetcomplete-lib`, and others;
+- an edit is a numbered directory under `corpus/apps/<app>/edits/` holding replacement file contents plus a `meta.json` declaring its edit class, the files it replaces, and the route it should take;
+- the same edit is replayed byte-identically on every device, so devices are comparable to each other;
+- there are 49 distinct edit classes, so most classes are represented by only one or two edits.
 
-    note that a third of the C107's measured edits are attribution-suspect, so every C107 per-edit number carries the caveat in "How much of this to believe".
-
-The exact recipe, so any of the three can be reproduced. This is `harness/gen_artifact.py`'s method, and it is the one all three rows above use:
-
-- collapse repeats of the same `(app, editId, device)` to their median;
-- drop `05-manifest` (those edits never reached the watcher) and any save-to-live
-
-  outside 200 ms - 60 s;
-- keep keys whose lowest `editIndex` is > 1;
-- join each key to the median `stdIncrementalMs` for its own `(app, device)`.
-
-## Where the win is biggest, and the two apps that lose
-
-Per-app spread is wide and the ranking is stable across devices `[measured on a56, c107]`:
-
-|                      | A56                                                          | C107                                                         |
-| -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| best                 | antennapod-model 4.5x, mixed-lang-cyclic 4.5x, resources-heavy 4.3x | antennapod-model 11.0x, kiss 9.1x, hello-kotlin 6.2x         |
-| median app           | medium-kotlin 2.25x (11th of 21)                             | findroid 3.26x / mixed-lang-cyclic 2.52x (9th and 10th of 18, so the median is their mean, 2.89x) |
-| slower than standard | sora-editor-full 2.7x slower, assets-app 1.7x slower         | assets-app 1.2x slower, native-app 1.6x slower               |
-
-- Exactly two apps per device sit below 1x, which is what "loses on two apps" in
-
-  the summary means.
-- `readyou` is **not** one of them: it measures 1.20x on the A56 — Quick Build
-
-  wins on its median, though on only two warm keys that disagree 5x (0.39x and 2.02x), so its "median" is really the mean of two numbers.
-
-The C107 wins are larger because its standard builds are much slower while the Quick Build hot loop degrades less steeply `[measured on c107]`:
-
-| C107 figure                          | value  | reading                                                      |
-| ------------------------------------ | ------ | ------------------------------------------------------------ |
-| median incremental standard build    | 26.6 s | median over apps of each app's own median                    |
-| median cold standard build           | 133 s  | median over apps of each app's own median                    |
-| median warm save-to-live (hot loop)  | 10.1 s | median over apps of each app's own median                    |
-| same hot loop, over warm edit *keys* | 8.0 s  |                                                              |
-| the widely-quoted "10.3 s"           | 10.3 s | row-level median over all measured edits, cold first edits included |
-
-The three hot-loop readings differ by 30%, so say which one you mean.
-
-The `sora-editor-full` loss is root-caused, and the corpus number overstates it `[measured on a56]`:
-
-- a dedicated instrumented re-run measures a warm edit at 14.7 s against an
-
-  11.9 s standard build (0.81x);
-- moving the daemon scratch tree off FUSE storage takes it to 8.1 s (1.47x,
-
-  winning);
-- the corpus's 32 s median for that app is the average of two runs of the same
-
-  edit that disagree 3.2x — see credibility, below;
-- detail: `quick-build/corpus/results/20260728T172912Z-sora-deepdive/` and
-
-  [`perf-roadmap.md`](perf-roadmap.md).
-
-## What a run measures, and what it leaves out
-
-- A **run** is one unattended sweep of the corpus against one device
-
-  (`harness/run_e2e_bench.py`). For each app it:
-  - pushes a wrapped project;
-  - opens it in CoGo through a flag-gated bench Activity that auto-starts a Quick
-
-    Build session;
-  - waits for Ready;
-  - launches the test app;
-  - applies that app's prepared edits one at a time.
-  - Every enumerated edit ends as `MEASURED` or as a named `GAP` — a silent skip
-
-    is treated as a harness bug.
-- The **corpus** is 30 apps and 97 edits:
-  - synthetic shapes built for this work (`hello-java`, `medium-kotlin`,
-
-    `fanout-kotlin`, `mixed-lang-cyclic`, `resources-heavy`);
-  - plus real open-source apps pinned at a sha (`kiss`, `antennapod-model`,
-
-    `seal`, `readyou`, `findroid`, `sora-editor-full`, `streetcomplete-lib`, ...);
-  - an **edit** is a numbered directory under `corpus/apps/<app>/edits/` holding
-
-    replacement file contents plus a `meta.json` declaring its `editClass`, the files it replaces, and the route it should take;
-  - there are 49 distinct edit classes, so most are represented by only one or
-
-    two edits.
-- The **measured span** is CoGo's own `reload_timeline` event: save-to-live is
-
-  `reloadLive - trigger`, from `elapsedRealtime` stamps emitted by the device.
-  - The harness never computes the headline from host wall clock, so host/device
-
-    clock skew cannot enter it.
-  - Not in that span: the CoGo editor itself (an `adb push` stands in for a save,
-
-    so keystroke-to-disk latency is `[unmeasured]`), anything after `reloadLive`, and correctness — the sweep scores latency, not whether the reloaded app behaves correctly.
-- The **standard-build comparison** is a separate bench kind
-
-  (`harness/run_stdbuild_bench.py`) reading `standard_build_finished.durationMs`.
-  - Each app is compared against **its own** incremental-standard median on the
-
-    **same** device, joined on (app, device).
-  - Only warm saves count (`editIndex > 1`): the first code edit of a pre-seed
-
-    session paid a ~12 s cold-kotlinc warm-up that today's background seed hides, so including it would understate shipped behaviour.
-  - Repeated measurements of the same edit are collapsed to their median, and
-
-    values outside a 200 ms - 60 s plausibility window are dropped.
-
-## Nothing builds below 3.6 GB, by either route
+Two device tiers carry the story, and two more mark the floor:
 
 | device      | RAM        | role                                     |
 | ----------- | ---------- | ---------------------------------------- |
@@ -189,224 +68,176 @@ The `sora-editor-full` loss is root-caused, and the corpus number overstates it 
 | itel A667L  | 1.9 GB     | the tier that does not                   |
 | incar Q8    | 1.46 GB    | below the floor before a build starts    |
 
-- The A56 is not the target device; it is the one fast enough to iterate on. The
+The A56 is not the target device; it is the one fast enough to iterate on. The C107 is the tier the product is actually for, which is why its numbers are reported alongside rather than in a footnote.
 
-  C107 is the tier the product is actually for, which is why its numbers are reported alongside rather than as a footnote.
-- The floor finding is the load-bearing result from the bottom two
+## What is timed, and what it is compared against
 
-  (`corpus/results/analysis/c107-lowend-report-2026-07-25.md`): **no on-device Gradle build of any kind completes at 1.9 GB** — not Quick Build provisioning, not a plain standard build `[measured on itel]`.
-  - A `hello-java` build taking 82 s on the C107 did not finish in 900 s on a
+- The measured span is CoGo's own `reload_timeline` event: save-to-live is `reloadLive - trigger`, from `elapsedRealtime` stamps emitted by the device. The headline is never computed from host wall clock, so host/device clock skew cannot enter it.
+- The standard-build comparison is a separate bench kind (`harness/run_stdbuild_bench.py`) reading `standard_build_finished.durationMs`. It applies the app's edits cumulatively and measures the incremental build of **every** edit, which is what makes an edit-matched denominator possible.
+- Repeats of the same (app, edit, device) within a run collapse to their median; across runs, the most recent run that measured a key supersedes earlier ones rather than blending with them.
+- Values outside a 200 ms - 240 s plausibility window are dropped. The ceiling only excludes the absurd — a java-ABI change on the largest corpus app legitimately takes ~100 s on the C107.
+- `05-manifest` edits are excluded because a manifest change is a **structural** change that deliberately leaves the fast path, so its cost is a different quantity from an inner-loop save. Folding a structural rebuild into a sub-second warm-edit median would describe neither.
 
-    debloated, screen-off itel, with ~8.8 min of that in Gradle startup and configuration alone.
-  - At 1.46 GB the device is below the floor at idle: 795 MB available with
+Three things are deliberately out of the timed span:
 
-    ~558 MB already in zram swap on CoGo's onboarding screen, before any build work `[measured on Q8]`.
-  - Debloating and the Metaspace fix that rescued the C107 both failed to move
+- the CoGo editor itself — an `adb push` stands in for a save, so keystroke-to-disk latency is `[unmeasured]`;
+- anything after `reloadLive`;
+- correctness — the sweep scores latency, not whether the reloaded app behaves correctly.
 
-    the 1.9 GB outcome.
-- So the 1.9 GB tier is a **standard-build** problem: the wall is the Gradle
+## Every unmeasured edit is a named gap, and runs are gated while they run
 
-  daemon that provisioning and a normal build share, not the Quick Build hot loop, which is a much smaller runtime.
-- Whether a prebaked baseline that skips the on-device Gradle build would let the
+A benchmark is only worth as much as its accounting of what it failed to measure, so the harness is built so that a missing measurement cannot pass as a smaller successful run.
 
-  hot loop run at 1.9 GB is `[inferred]` and untested — the one lever that could move the floor.
+- Every enumerated edit ends as `MEASURED` or as a `GAP` **carrying its reason** — an app that could not provision records the resolution error that stopped it. A silent skip is treated as a harness bug.
+- Each app also carries a named gap list, and every run reports `N measured / N gaps / N total` up front. An interrupted sweep therefore reads as exactly what it is.
+- **Contamination is tracked separately from gaps**, because a measurement can exist and still not be trustworthy. The harness records whether an install dialog or a Play Protect prompt appeared, whether the build queue had quiesced before the edit landed, and how many builds were observed during a single edit.
+- One derived check catches mis-attribution: if a recorded build span is longer than the wall-clock window the edit happened in, that build's watcher must have fired before the edit was saved, so the timing cannot belong to that edit. Those rows are flagged and filtered rather than used.
 
-## What Quick Build costs outside the inner loop
+Runs are also validated **while in flight** (`harness/validate_run.py`). The gate checks that the CoGo build is pinned, that the warm-up ran and reverted, that the warm-up stayed out of the measured set, that per-stage timings are present, that the flagged-row rate is under a limit, and that timings fall inside the plausibility window. Its exit status stops the run, so a broken sweep dies in minutes instead of after a night.
 
-The speedup above is the inner loop only. Three costs sit outside it.
+## The win depends on what you change
 
-**Setup is slower than a first standard build**, per app, median `[measured on a56]` / `[measured on c107]`:
+`[measured on a56]` `[measured on c107]`. The split is on what Quick Build has to do: a change inside a method body recompiles one file, while a change to a declaration other files can see forces its dependents to recompile.
 
-|                                    | A56  | C107  |
-| ---------------------------------- | ---- | ----- |
-| Gradle sync (shared by both paths) | 29 s | 147 s |
-| then: cold standard build          | 29 s | 133 s |
-| then: Quick Build setup to Ready   | 47 s | 198 s |
-| total, standard path               | 58 s | 277 s |
-| total, Quick Build path            | 75 s | 339 s |
+| category | A56 n | A56 median | A56 range | C107 n | C107 median |
+| --- | --- | --- | --- | --- | --- |
+| Code: body only | 26 | 3.34x | 0.80-22.65x | 7 | 6.20x |
+| Code: API/ABI change | 39 | 3.23x | 0.50-12.20x | 8 | 10.85x |
+| Resources | 9 | 4.44x | 3.06-5.49x | 1 | 6.29x |
+| Assets | 2 | 28.65x | 16.32-40.99x | 2 | 129.30x |
+| Mixed (code + resources/assets) | 2 | 6.93x | 3.24-10.63x | 1 | 18.84x |
 
-- The first-run pathway is about **1.3x slower** than getting a first standard
+- **Assets are a different kind of win.** An asset edit needs no compilation at all, so Quick Build finishes in ~0.08 s while a standard incremental build still runs a full Gradle build. The ratio is real, but it measures "Quick Build skips the build entirely", not a compiler speedup.
+- **An ABI change costs about the same as a body edit at the median, but its spread is far wider.** The cost is set by how many dependents must recompile — near-zero on a small app, large on a big one.
+- **Resources, Mixed, and every C107 cell are thin** (n=1 to 8). They show direction, not a distribution.
 
-  build — 1.29x on the A56 across 25 apps, 1.25x on the C107 across 21.
-- At the median per-edit saving (+2.7 s on the A56, +15.1 s on the C107, medians
+## The one app Quick Build loses on
 
-  across the same apps) it repays that in roughly six edits on the A56 and four on the C107 `[inferred]`.
-- But it is a real up-front cost, and it is paid before the user has seen
+`sora-editor-full`, the largest app in the corpus (292 sources), on the A56 `[measured on a56]`:
 
-  anything run at all.
+| edit | QB | standard incremental | ratio |
+| --- | --- | --- | --- |
+| `01-java-body-edit` | 11.0 s | 43.3 s | 3.94x |
+| `02-kotlin-body-edit` | 14.2 s | 11.4 s | **0.80x** |
+| `03-java-abi-change` | 30.9 s | 15.3 s | **0.50x** |
 
-**Rebaseline is effectively unmeasured.**
+- Those two are the only edits in the whole dataset slower than the standard build.
+- The loss is partly root-caused: moving the daemon's scratch tree off FUSE-backed storage takes a comparable warm edit from 14.7 s to 8.1 s, so the storage work plausibly converts this app `[measured on a56]`.
+- Detail: `corpus/results/20260728T172912Z-sora-deepdive/` and [`perf-roadmap.md`](perf-roadmap.md).
 
-- A structural change (manifest, gradle files, dependencies) drops out of the hot
+## The low tier gains more, because its standard builds degrade faster
 
-  loop and rebuilds the baseline.
-- The corpus recorded exactly **one** rebaseline per device, and neither
+The comparison holds the edit constant, over the 19 (app, edit) pairs measured on both devices `[measured on a56]` `[measured on c107]`:
 
-  succeeded (189 s on the A56, 215 s on the C107) `[measured on a56, c107]`.
-- That is not a distribution and not a success rate.
+| | value |
+| --- | --- |
+| C107 speedup exceeds A56 | **19 of 19 pairs** |
+| median per-edit C107/A56 ratio | **1.77x** |
+| same-pair A56 median | 5.21x |
+| same-pair C107 median | 10.55x |
 
-**The marginal-setup gap is one app, not five.**
+- Absolute costs behind that: the median matched edit takes 1.60 s by Quick Build against 4.94 s by standard build on the A56, and 3.79 s against 20.93 s on the C107.
+- **The C107's own corpus-wide median is not reported**, because its latest sweep aborted alphabetically at app 8 of 30 when the device rebooted into a locked state. The 6 apps it reached are small and exclude `sora-editor-full`, so a median over them would read high and would not be comparable to the A56's 23-app figure. Holding the edit constant is what makes the tier claim safe.
+- Per-tier depth, including where the C107's remaining latency goes, is in [`low-spec-devices.md`](low-spec-devices.md).
 
-- 5 of 30 apps never reached Ready on the A56 (`compose-kotlin`, `notes`,
+## Reaching a first working session costs more than a first standard build
 
-  `pedometer`, `qr-scanner`, `sudoku`) `[measured on a56]` — but four of those five also fail CoGo's *standard* build on the same device, so they are apps CoGo cannot build at all.
-- Only `notes` builds fine by the standard route and still never reached a Quick
+Per app, median `[measured on a56]` `[measured on c107]`. Each cell is an independent per-app median, so the columns do not sum — a total is the median of per-app totals, not the sum of the medians above it.
 
-  Build session. The framing that reached the team overstated this.
-- On the C107, 9 of 30 never reached Ready and none of those nine build by the
+|                                    | A56    | C107    |
+| ---------------------------------- | ------ | ------- |
+| Gradle sync (both paths pay it)    | 29.7 s | 151.1 s |
+| then: cold standard build          | 17.8 s | 115.3 s |
+| then: Quick Build setup to Ready   | 45.3 s | 203.6 s |
+| marginal cost of a Quick Build session on an already-built project | 24.2 s | 91.1 s |
 
-  standard route either `[measured on c107]`.
+- **Payback is about 7 edits on the A56** — the marginal setup cost divided by the per-edit saving, median over 22 apps `[measured on a56]`. The C107 computes to about 5 edits but over only 6 apps, so treat it as indicative `[measured on c107]`.
+- It is a real up-front cost, and it is paid before the user has seen anything run at all.
+- On `sora-editor-full` the per-edit gain is negative, so it never pays back.
 
-**A caveat that travels with every "median incremental standard build" figure on this page:**
+## Rebaseline is the one fallback, and only the A56 is measured
 
-- the join takes each app's median `stdIncrementalMs` **without** checking
+- A structural change — manifest, gradle files, dependencies — drops out of the hot loop and rebuilds the baseline.
+- On the A56, five apps rebaseline cleanly, 10 of 10 attempts `[measured on a56]`:
 
-  `stdIncrementalOk`, so it includes durations recorded for standard builds that failed;
-- on the C107 that is 9 of 30 apps and pulls the device-wide median from 26.6 s
+| app | first rebaseline | warm repeat |
+| --- | --- | --- |
+| `hello-kotlin` | 13.3 s | 5.0 s |
+| `medium-kotlin` | 13.1 s | 5.1 s |
+| `multi-activity-kotlin` | 12.5 s | 4.7 s |
+| `resources-heavy` | 10.7 s | 4.9 s |
+| `sora-editor-lib` | 13.8 s | 5.4 s |
 
-  (21 apps that actually build) to 25.4 s;
-- it changes no speedup, because none of those 9 apps has a joined Quick Build
+- Consistent within 1.3x across apps, and a warm repeat is roughly a third of the first — so the fallback costs about one cold standard build once, then about 5 s.
+- **The C107 arm is `[unmeasured]`**: every app in it failed to provision, because `adb push` is denied against a device that has rebooted into a locked state.
+- A rebaseline whose reinstall changes the app's bytes needs a human to confirm an OS install dialog, so install-bearing rebaselines are `[unmeasured]` on both tiers.
 
-  edit on either device — but quote 26.6 s when the claim is "what an incremental standard build costs on the C107", and 25.4 s only when reproducing the join.
+## Nothing builds below 3.6 GB, by either route
 
-**Coverage per sweep, for scale:**
+- The load-bearing result from the bottom two tiers: no on-device Gradle build of any kind completes at 1.9 GB — not Quick Build provisioning, not a plain standard build `[measured on itel]`.
+- A `hello-java` build taking 82 s on the C107 did not finish in 900 s on a debloated, screen-off itel, with ~8.8 min of that in Gradle startup and configuration alone `[measured on itel]`.
+- At 1.46 GB the device is below the floor at idle: 795 MB available with ~558 MB already in zram swap on CoGo's onboarding screen, before any build work `[measured on Q8]`.
+- Debloating and the Metaspace fix that rescued the C107 both failed to move the 1.9 GB outcome `[measured on itel]`.
+- So the 1.9 GB tier is a standard-build problem: the wall is the Gradle daemon that provisioning and a normal build share, not the Quick Build hot loop, which is a much smaller runtime.
+- Whether a prebaked baseline that skips the on-device Gradle build would let the hot loop run at 1.9 GB is `[inferred]` and untested — the one identified lever that could move the floor.
+- Full data and the per-device mechanism: [`low-spec-devices.md`](low-spec-devices.md).
 
-- 70/92 and 78/97 edits measured on the A56;
-- 70/97 and 68/97 on the C107, plus a third, partial C107 sweep at 17/20;
-- the 101 GAP rows across all runs are dominated by provisioning failures ("test
+## What this pass covered, and what it did not
 
-  app install not confirmed", 46 rows) and per-edit `CompileError` / `DeployFailure` (35 rows).
+- **23 of 30 apps yield A56 measurements.** Of the 7 that do not: 4 (`compose-kotlin`, `pedometer`, `qr-scanner`, `sudoku`) fail the plain standard Gradle build on both tiers and so are corpus-side rather than a Quick Build limit; 2 (`2048`, `ruler`) build by standard Gradle and reach a Quick Build session but fail at **deploy** on every edit; 1 (`notes`) declares `android:process=":remote"`, which Quick Build detects and rejects with an actionable message, as designed.
+- So "23 of 30" is not a statement that Quick Build failed on 7 apps.
+- **The C107 covers 6 apps in this regime**, for the reason given above. Its earlier, broader sweep is not combined with it.
 
-## How much of this to believe
+## Methodology: exactly what was run, and how
 
-One defect makes a whole class of claims unusable, and a second already caused a wrong conclusion in a design note.
+Every script lives in `harness/` in the benchmark repo (`appdevforall/CodeOnTheGo-build-benchmark`). Its `README.md` carries the same recipe with full flags; this section records what produced *these* numbers so a reader can tell measurement from inference.
 
-### The per-edit attribution bug (task #57)
+### The three arms, and why all three are needed
 
-- The old driver joined an edit to its build by generation ordering — take the
+A speedup ratio needs a numerator and a denominator measured on the same CoGo build, the same device, and the same app. They come from different scripts, which is the single easiest thing to get wrong.
 
-  first `reload_timeline` whose generation exceeds the last one used.
-- That holds only if one save produces exactly one build, and it does not: a
+| arm            | script                    | produces                                                     |
+| -------------- | ------------------------- | ------------------------------------------------------------ |
+| Quick Build    | `run_e2e_bench.py`        | warm save-to-live per edit, plus compile/stage/apply and the kotlin/javac/strip/d8/aapt2 sub-steps |
+| Standard build | `run_stdbuild_bench.py`   | cold standard build, warm **incremental** standard build for every edit, and marginal Quick Build setup |
+| Fallback       | `run_rebaseline_bench.py` | rebaseline duration, via two `gradle.properties` appends with the install dialog hunted |
 
-  multi-file edit pushes each file separately and re-fires the watcher, and even a single-file push has been observed firing twice 258 ms apart `[measured on a56]`.
-- The surplus build takes the next free generation, so the *next* edit picks it
+The e2e sweep alone cannot produce a ratio: it contains no standard-build timing at all.
 
-  up and every remaining edit of that app shifts by one.
-- It is a cascade, not a one-row slip: on one sweep, 5 of `sora-editor-lib`'s 7
+### The pass behind this page (2026-07-29)
 
-  rows moved when re-derived.
+All sweeps ran on one pinned CoGo build, **`C-d-0728-1154`**:
 
-What that does and does not damage (`docs/per-edit-attribution.md` in the corpus repo):
+- `run_e2e_bench.py` on the A56 (`RZGYC24640P`, plain adb) and on the C107 (`C107000001001112`, `ANDROID_ADB_SERVER_PORT=15037`), `--warmup` on, `--no-resume`.
+- `run_stdbuild_bench.py` on both devices, same flags, measuring every edit.
+- `run_rebaseline_bench.py` on both devices, five apps that reliably escalate.
+- `--wrapped-dir` pointed at the **full 31-app wrapped corpus**. Passing the wrong one silently yields a handful of apps and reads as a device failure.
 
-- The **population distribution barely moves** — re-deriving two runs with a
+Then, host-side only:
 
-  persisted event feed changes the p50 by 1-6% (2384 -> 2355 ms; 11276 -> 10843 ms) `[measured on a56, analysed on host]`. It is a shuffle within an app, not an inflation.
-- **Coverage was overstated, which is worse.** On one run, 15 edits reported as
+```
+python3 harness/export_csv.py
+python3 harness/validate_run.py <rundir> --checkpoint 3 --wrapped-dir <wrapped>/<app>
+python3 harness/gen_artifact.py --only-cogo C-d-0728-1154 --out web/qb-report-2026-07-29.html
+```
 
-  MEASURED had no build of their own — the number filed against them belonged to a neighbour. Pre-fix runs count gaps as successes.
-- **Every per-edit and per-edit-class claim is unsafe** until re-run, which is why
+`--only-cogo` is an allowlist: it states "this report *is* build X" and hard-fails if the build matches nothing. It pins the edit charts, setup cost, payback and rebaselines alike.
 
-  no edit-class breakdown appears in this doc.
+### Controls
 
-The regenerated tables carry an `attributionSuspect` column:
+- **One device at a time is preferred.** Concurrency does **not** measurably skew timings — save-to-live comes from CoGo's own device-side event feed, and the two devices share no compute; a same-build A/B on `service-app` put the concurrent and sequential numbers 1.02x apart. What it *does* cause is spurious `DeployFailure` gaps, because the shared host and adb path is what breaks. So concurrency buys wall-clock at the cost of gap-count accuracy, not timing accuracy.
+- **Standard-build cross-check:** for any app that never yields a Quick Build measurement, the plain Gradle build is run on the same device. It separates "Quick Build cannot do this" from "this app does not build at all".
+- **Mid-run gating:** `validate_run.py` checks attribution-suspect rate, warm-up leakage into measured edits, warm-up revert, and build pinning, so a bad sweep is killed in minutes rather than after a night of device time.
 
-- **63 of 365 MEASURED rows are flagged** (17.3%), but that denominator flatters
+## Limitations
 
-  it: of the 303 rows that actually carry a save-to-live, 63 are flagged (20.8%);
-- very unevenly spread — 11 of 148 on the A56 (7%) versus 52 of 155 on the C107
-
-  (34%). A third of the C107's measured edits are suspect;
-- filter `attributionSuspect = 1` before any per-edit pivot.
-
-Filtering is not neutral, and not in the direction you would guess:
-
-- suspect rows skew **slow** (C107 median 11.9 s suspect vs 9.6 s clean), so
-
-  dropping them moves the per-app headline **up**: A56 2.25x -> 2.85x (still 21 apps), C107 2.89x -> 3.80x, and the C107's sub-1x tail disappears;
-- the bug is depressing the measured advantage, not inflating it;
-- that is not licence to quote the filtered number — filtering removes a third of
-
-  the C107's data, takes its denominator from 18 apps to 12, and the residue is not a random sample of it;
-- the clean fix is re-running the sweeps.
-
-### Repeat agreement is poor on the raw data and good only after filtering
-
-State which, because the two answers are not close `[measured on a56, c107]`:
-
-|                                  | all rows | suspect rows dropped |
-| -------------------------------- | -------- | -------------------- |
-| warm edit keys                   | 104      | 88                   |
-| measured more than once          | 93       | 59                   |
-| median spread between repeats    | 1.10x    | 1.04x                |
-| p90 spread                       | 4.19x    | 1.29x                |
-| keys disagreeing by more than 3x | 11       | 3                    |
-
-- The filtered column is the one that was circulated as "repeat agreement is
-
-  good", and it is the same filter this page says not to apply to headline numbers.
-- On the raw data a p90 of 4.19x means one warm key in ten disagrees with itself
-
-  by more than 4x.
-- The three keys that survive filtering and still disagree by more than 3x:
-  - `assets-app/03-asset-plus-code` (8.6x: 1.4 s vs 12.1 s)
-  - `sora-editor-lib/02-sample-app-ui` (4.8x)
-  - `sora-editor-full/02-kotlin-body-edit` (3.2x: 53.0 s vs 16.5 s)
-- Two of those three apps *are* the "Quick Build loses" tail on the A56. So the
-
-  least reproducible part of the dataset is the part the loss story rests on, and the suspect flag does not catch it.
-- The other eight (worst: `mixed-lang-cyclic/02-java-method-body` on the C107,
-
-  26x — 1.8 s vs 47.4 s) are flagged suspect, which is the flag working.
-
-### Only 13 of 466 rows carry per-step timings, all from one C107 run
-
-- The `kotlinMs` / `javacMs` / `stripMs` / `d8Ms` columns exist on paper for the
-
-  whole corpus and are populated almost nowhere.
-- `incremental-javac-design.md` drew its "javac is the bottleneck" conclusion by
-
-  extrapolating from four of those rows.
-- A dedicated A56 deep-dive later showed javac is 19-27% of a warm edit and the
-
-  dominant cost was filesystem I/O none of the shipped fields could see `[measured on a56]`.
-- Full correction in `quick-build/corpus/results/20260728T172912Z-sora-deepdive/`.
-
-### What survives all of this
-
-- the device-wide distributions and per-app medians (many rows, barely move under
-
-  re-derivation, ranking reproduces across two devices and two sweeps each);
-- the floor finding (build outcomes and memory profiles, not per-edit joins);
-- the setup-cost comparison (from `apps.csv` state stamps, which the bug does not
-
-  touch);
-- the `sora-editor-full` regression and its root cause, measured by a separate
-
-  instrumented run.
-
-### What needs re-running before it can be quoted
-
-- any per-edit-class breakdown;
-- first-edit / cold-compile costs (`firstEditSaveToLiveMs`), precisely where a
-
-  fan-out splits a cold compile in two and reports the smaller half;
-- multi-file edit costs, reported from a partial build;
-- the two loss-tail apps on the A56, whose repeat spread is 3-9x.
-
-## Still owed
-
-- **Re-run the affected e2e sweeps** on the fixed driver (task #82). Everything in
-
-  the "needs re-running" list unblocks on this one job.
-- **Re-onboard the C107** — its bootstrap was wiped — and run a rebaseline bench
-
-  there (task #74). Rebaseline cost is currently one failed sample per device.
-- **The Oppo device** has never been benchmarked; it needs a release-CoGo
-
-  reinstall first (task #45, blocked on David).
-- **The 1.9 GB hot-loop question:** whether a prebaked baseline lets the hot loop
-
-  run where the Gradle setup build cannot. Untested, and the only identified path below the 3.6 GB floor.
-- **Standard-build FUSE exposure** (task #106). Project build directories sit on
-
-  the same slow filesystem the Quick Build scratch tree does; how much a standard build pays for it is `[unmeasured]`, and it would change the baseline every number here is measured against. See [`docs/on-device-storage-performance.md`](../../docs/on-device-storage-performance.md).
+- **The standard incremental build is not reproducible.** The same (app, edit) measured 14.07 s and 3.64 s two minutes apart, a 3.87x spread, with roughly one build per app picking up ~8 s of unexplained cost `[measured on a56]`. The interference is one-directional, so the corpus median is robust while any single per-edit ratio is not. The prewarm, memory pressure, and a plain configuration-cache miss are all refuted as causes.
+- **The C107 is a 6-app sample in this regime**, so it supports the paired tier comparison and not a corpus-wide low-end figure. More device time is owed.
+- Correctness is out of scope. The sweep scores latency; nothing here says the reloaded app behaves like a fully built one.
+- The editor's own keystroke-to-disk latency is `[unmeasured]` — the harness pushes files instead of typing.
+- Rebaseline is measured only on the A56, and only for the case that does not reinstall.
+- The two lowest tiers have only the floor result. Nothing about Quick Build's performance at 1.9 GB or below is measured, because nothing builds there.
+- One farm device (the Oppo) has never been benchmarked at all.
+- Project build directories sit on the same slow FUSE-backed filesystem the Quick Build scratch tree does, and how much a standard build pays for that is `[unmeasured]`. It would move the baseline every ratio here is measured against — see [`on-device-storage-performance.md`](../../docs/on-device-storage-performance.md).
+- How often the fast path applies to real-world edits is a separate question this benchmark does not answer; it is a static commit survey, in [`commit-survey.md`](commit-survey.md).
+- Known functional limits of the feature itself — the edit classes that always rebaseline, the API 28/29 resource path, cert-pinned services — are in [`README.md`](../README.md) under Known limitations, not here.
