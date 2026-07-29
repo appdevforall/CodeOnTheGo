@@ -37,6 +37,7 @@
 | incar Q8   | 1.46 GB | not reached                                             | not reached                             | **below floor at idle** `[measured on Q8]` |
 
 - The two C107 columns are the **same 21 apps**: every app that reaches Quick Build Ready also builds by the standard route, and the 9 that miss Ready are exactly the 9 CoGo cannot build there `[measured on c107]`.
+- The 9 C107 misses are **not a device-tier limit** — they are the benchmark corpus failing to provision dependencies. Five die on two artifacts (`kotlinx-coroutines-core:1.8.1`, `kotlinx-serialization-core:1.6.3`) that were never resolvable offline, and the C107 had no network (`UnknownHostException: dl.google.com`); the other four fail to build on the A56 too. Root-caused since: those are KMP coordinates publishing no jvm artifact, so the corpus staged the `-jvm` module but never the root the build file declares — 8 of 30 apps were affected, now fixed host-side `[measured on host]`. **So "21 of 30" describes our corpus, not the C107 and not Quick Build.**
 - On the itel, both Quick Build provisioning and a plain `:app:assembleDebug` die for the same reason: both run the same CoGo-sized Gradle daemon.
 
 ## The C107 wins by a bigger absolute margin than the A56
