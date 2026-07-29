@@ -555,6 +555,7 @@ fun createAssetsZip(arch: String) {
 			"documentation.db",
 			bootstrapName,
 			"plugin-artifacts.zip",
+			"plugin-maven-repo.zip",
 			"core.cgt",
 		).forEach { fileName ->
 			val filePath = sourceDir.resolve(fileName)
@@ -580,6 +581,7 @@ fun createAssetsZip(arch: String) {
 
 tasks.register("assembleV8Assets") {
 	dependsOn("createPluginArtifactsZip")
+	dependsOn("createPluginMavenRepoZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
 	}
@@ -590,6 +592,7 @@ tasks.register("assembleV8Assets") {
 
 tasks.register("assembleV7Assets") {
 	dependsOn("createPluginArtifactsZip")
+	dependsOn("createPluginMavenRepoZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
 	}
