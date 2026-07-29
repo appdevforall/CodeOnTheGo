@@ -1,28 +1,41 @@
 plugins {
-    `kotlin-dsl`
+	`kotlin-dsl`
+	`maven-publish`
 }
 
 group = "com.itsaky.androidide.plugins"
 version = "1.0.0"
 
 dependencies {
-    implementation("com.android.tools.build:gradle:8.8.2")
+	implementation("com.android.tools.build:gradle:8.8.2")
 }
 
 gradlePlugin {
-    plugins {
-        create("pluginBuilder") {
-            id = "com.itsaky.androidide.plugins.build"
-            implementationClass = "com.itsaky.androidide.plugins.build.PluginBuilder"
-            displayName = "Code on the Go Plugin Builder"
-            description = "Gradle plugin for building Code on the Go plugins"
-        }
-    }
+	plugins {
+		create("pluginBuilder") {
+			id = "com.itsaky.androidide.plugins.build"
+			implementationClass = "com.itsaky.androidide.plugins.build.PluginBuilder"
+			displayName = "Code on the Go Plugin Builder"
+			description = "Gradle plugin for building Code on the Go plugins"
+		}
+	}
 }
 
+publishing {
+	repositories {
+		maven {
+			name = "pluginMavenRepo"
+			url = uri(layout.buildDirectory.dir("plugin-maven-repo"))
+		}
+	}
+}
+
+// Ship POMs only (parity with the harvested repo); marker/plugin resolution works off POMs.
+tasks.withType<GenerateModuleMetadata>().configureEach { enabled = false }
+
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-    compilerOptions {
-        apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1)
-        languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1)
-    }
+	compilerOptions {
+		apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1)
+		languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1)
+	}
 }
