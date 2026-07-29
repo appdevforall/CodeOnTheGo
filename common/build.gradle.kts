@@ -15,7 +15,6 @@ dependencies {
 	api(platform(libs.sora.bom))
 	api(libs.common.editor)
 	api(libs.common.lang3)
-	api(libs.common.utilcode)
 	api(libs.composite.constants)
 	api(libs.google.guava)
 	api(libs.google.material)
@@ -46,6 +45,7 @@ dependencies {
 	testImplementation(projects.testing.common)
 	testImplementation(libs.tests.kotlinx.coroutines)
 	testImplementation(libs.tests.google.truth)
+	testImplementation(libs.tests.mockk)
 	androidTestImplementation(projects.testing.android)
 
 	// brotli4j

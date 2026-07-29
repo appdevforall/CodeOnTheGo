@@ -25,8 +25,6 @@ import android.content.Intent
 import android.os.IBinder
 import android.text.TextUtils
 import androidx.core.app.NotificationManagerCompat
-import com.blankj.utilcode.util.ResourceUtils
-import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.analytics.gradle.BuildCompletedMetric
@@ -70,6 +68,8 @@ import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.ResourceUtils
+import com.itsaky.androidide.utils.ZipUtils
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
@@ -344,7 +344,6 @@ class GradleBuildService :
 			'W' -> logger.warn(params.message)
 			'E' -> logger.error(params.message)
 			'I' -> logger.info(params.message)
-
 			else -> logger.trace(params.message)
 		}
 	}
@@ -552,7 +551,7 @@ class GradleBuildService :
 		try {
 			val projectDir = ProjectManagerImpl.getInstance().projectDir
 			val files = ZipUtils.unzipFile(extracted, projectDir)
-			if (files != null && files.isNotEmpty()) {
+			if (files.isNotEmpty()) {
 				return GradleWrapperCheckResult(true)
 			}
 		} catch (e: IOException) {

@@ -18,12 +18,12 @@
 package com.itsaky.androidide.uidesigner.utils
 
 import android.text.Editable
-import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.inflater.internal.ViewImpl
 import com.itsaky.androidide.lsp.util.setupLookupForCompletion
 import com.itsaky.androidide.lsp.xml.models.XMLServerSettings
 import com.itsaky.androidide.lsp.xml.providers.XmlCompletionProvider
 import com.itsaky.androidide.lsp.xml.providers.completion.AttrValueCompletionProvider
+import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.SingleTextWatcher
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -34,79 +34,76 @@ import java.io.File
  * @author Akash Yadav
  */
 internal class ValueCompletionProvider(
-  private val file: File,
-  private val view: ViewImpl,
-  private val attribute: com.itsaky.androidide.inflater.IAttribute,
-  private val onComplete: (List<String>) -> Unit
+	private val file: File,
+	private val view: ViewImpl,
+	private val attribute: com.itsaky.androidide.inflater.IAttribute,
+	private val onComplete: (List<String>) -> Unit,
 ) : SingleTextWatcher() {
+	private val completionProvider =
+		AttrValueCompletionProvider(XmlCompletionProvider(XMLServerSettings)).apply {
+			setNamespaces(view.findNamespaces().map { it.prefix to it.uri }.toSet())
+		}
 
-  private val completionProvider =
-    AttrValueCompletionProvider(XmlCompletionProvider(XMLServerSettings)).apply {
-      setNamespaces(view.findNamespaces().map { it.prefix to it.uri }.toSet())
-    }
+	private var completionThread: CompletionThread? = null
 
-  private var completionThread: CompletionThread? = null
+	override fun afterTextChanged(s: Editable?) {
+		if (completionThread?.isAlive == true) {
+			completionThread?.cancel()
+			completionThread = null
+		}
 
-  override fun afterTextChanged(s: Editable?) {
-    if (completionThread?.isAlive == true) {
-      completionThread?.cancel()
-      completionThread = null
-    }
+		setupLookupForCompletion(file)
+		val value = s?.toString() ?: ""
+		completionThread =
+			CompletionThread(completionProvider) { runOnUiThread { onComplete(it) } }
+				.apply {
+					this.attribute = this@ValueCompletionProvider.attribute
+					this.prefix = value
+					this.start()
+				}
+	}
 
-    setupLookupForCompletion(file)
-    val value = s?.toString() ?: ""
-    completionThread =
-      CompletionThread(completionProvider) { ThreadUtils.runOnUiThread { onComplete(it) } }
-        .apply {
-          this.attribute = this@ValueCompletionProvider.attribute
-          this.prefix = value
-          this.start()
-        }
-  }
+	class CompletionThread(
+		private val completionProvider: AttrValueCompletionProvider,
+		private val onComplete: (List<String>) -> Unit,
+	) : Thread("AttributeValueCompletionThread") {
+		var prefix: String = ""
+		var attribute: com.itsaky.androidide.inflater.IAttribute? = null
 
-  class CompletionThread(
-    private val completionProvider: AttrValueCompletionProvider,
-    private val onComplete: (List<String>) -> Unit
-  ) : Thread("AttributeValueCompletionThread") {
+		companion object {
+			private val log = LoggerFactory.getLogger(CompletionThread::class.java)
+		}
 
-    var prefix: String = ""
-    var attribute: com.itsaky.androidide.inflater.IAttribute? = null
+		fun cancel() {
+			interrupt()
+		}
 
-    companion object {
+		override fun run() {
+			val attribute =
+				this.attribute
+					?: run {
+						onComplete(emptyList())
+						return
+					}
 
-      private val log = LoggerFactory.getLogger(CompletionThread::class.java)
-    }
+			val ns = attribute.namespace?.prefix?.let { "$it:" } ?: ""
+			log.info("Complete attribute value: '{}{}'", ns, attribute.name)
 
-    fun cancel() {
-      interrupt()
-    }
+			val result =
+				completionProvider.completeValue(
+					namespace = attribute.namespace?.uri,
+					prefix = prefix,
+					attrName = attribute.name,
+					attrValue = prefix,
+				)
 
-    override fun run() {
-      val attribute =
-        this.attribute
-          ?: run {
-            onComplete(emptyList())
-            return
-          }
+			log.debug(
+				"Found {} items{}",
+				result.items.size,
+				if (result.isIncomplete) "(incomplete)" else "",
+			)
 
-      val ns = attribute.namespace?.prefix?.let { "${it}:" } ?: ""
-      log.info("Complete attribute value: '{}{}'", ns, attribute.name)
-
-      val result =
-        completionProvider.completeValue(
-          namespace = attribute.namespace?.uri,
-          prefix = prefix,
-          attrName = attribute.name,
-          attrValue = prefix
-        )
-
-      log.debug(
-        "Found {} items{}",
-        result.items.size,
-        if (result.isIncomplete) "(incomplete)" else "",
-      )
-
-      onComplete(result.items.map { it.ideLabel })
-    }
-  }
+			onComplete(result.items.map { it.ideLabel })
+		}
+	}
 }

@@ -6,7 +6,6 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
-import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutSearchResultGroupBinding
 import com.itsaky.androidide.databinding.LayoutSearchResultItemBinding
@@ -15,6 +14,7 @@ import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.syntax.highlighters.JavaHighlighter
+import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.EditorViewModel.SearchResultSection
 import org.slf4j.LoggerFactory
@@ -107,7 +107,7 @@ class SearchListAdapter(
 			try {
 				val scheme = SchemeAndroidIDE.newInstance(text.context)
 				val sb = JavaHighlighter().highlight(scheme, match.line, match.match)
-				ThreadUtils.runOnUiThread {
+				runOnUiThread {
 					if (text.tag === match) {
 						text.text = sb
 					}

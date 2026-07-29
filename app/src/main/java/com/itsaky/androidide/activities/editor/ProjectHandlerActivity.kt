@@ -33,7 +33,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.blankj.utilcode.util.SizeUtils
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
@@ -93,6 +92,7 @@ import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.RecursiveFileSearcher
+import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
@@ -844,7 +844,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			check.isChecked = true
 
 			val params = MarginLayoutParams(-2, -2)
-			params.bottomMargin = SizeUtils.dp2px(4f)
+			params.bottomMargin = dpToPx(4f)
 			binding.modulesContainer.addView(check, params)
 			srcDirs.add(src)
 		}

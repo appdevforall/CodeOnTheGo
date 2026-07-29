@@ -42,9 +42,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.transition.TransitionManager
-import com.blankj.utilcode.util.KeyboardUtils
-import com.blankj.utilcode.util.SizeUtils
-import com.blankj.utilcode.util.ThreadUtils.runOnUiThread
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.tabs.TabLayout.OnTabSelectedListener
 import com.google.android.material.tabs.TabLayout.Tab
@@ -64,11 +61,14 @@ import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DiagnosticsFormatter
 import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
+import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.isSoftInputVisible
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
@@ -416,7 +416,7 @@ class EditorBottomSheet
 				object : ViewTreeObserver.OnGlobalLayoutListener {
 					override fun onGlobalLayout() {
 						view.viewTreeObserver.removeOnGlobalLayoutListener(this)
-						anchorOffset = view.height + SizeUtils.dp2px(1f)
+						anchorOffset = view.height + view.context.dpToPx(1f)
 
 						behavior.peekHeight = collapsedHeight.roundToInt()
 						behavior.expandedOffset = anchorOffset
@@ -560,7 +560,7 @@ class EditorBottomSheet
 			)
 
 			val activity = context as Activity
-			if (KeyboardUtils.isSoftInputVisible(activity)) {
+			if (activity.isSoftInputVisible()) {
 				binding.headerContainer.displayedChild = CHILD_SYMBOL_INPUT
 			} else {
 				binding.headerContainer.displayedChild = CHILD_HEADER

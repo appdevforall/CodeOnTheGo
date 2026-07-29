@@ -65,11 +65,6 @@ import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.blankj.utilcode.constant.MemoryConstants
-import com.blankj.utilcode.util.ConvertUtils.byte2MemorySize
-import com.blankj.utilcode.util.FileUtils
-import com.blankj.utilcode.util.SizeUtils
-import com.blankj.utilcode.util.ThreadUtils
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
@@ -119,12 +114,14 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.services.debug.DebuggerService
 import com.itsaky.androidide.tasks.cancelIfActive
+import com.itsaky.androidide.tasks.mainThreadHandler
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
@@ -135,6 +132,7 @@ import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
 import com.itsaky.androidide.utils.applyImmersiveModeInsets
 import com.itsaky.androidide.utils.applyResponsiveAppBarInsets
 import com.itsaky.androidide.utils.applyRootSystemInsetsAsPadding
+import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.getOrStoreInitialPadding
@@ -191,7 +189,7 @@ abstract class BaseEditorActivity :
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
 	private var fullscreenManager: FullscreenManager? = null
-	private val topEdgeThreshold by lazy { SizeUtils.dp2px(TOP_EDGE_SWIPE_THRESHOLD_DP) }
+	private val topEdgeThreshold by lazy { dpToPx(TOP_EDGE_SWIPE_THRESHOLD_DP) }
 
 	var isDestroying = false
 		protected set
@@ -281,7 +279,7 @@ abstract class BaseEditorActivity :
 
 					dataset.entries.mapIndexed { index, entry ->
 						entry.y =
-							byte2MemorySize(proc.usageHistory[index], MemoryConstants.MB).toFloat()
+							(proc.usageHistory[index] / (1024.0 * 1024.0)).toFloat()
 					}
 
 					dataset.label = "%s - %.2fMB".format(proc.pname, dataset.entries.last().y)
@@ -407,9 +405,16 @@ abstract class BaseEditorActivity :
 
 	protected var optionsMenuInvalidator: Runnable? = null
 
+	// Collapses the bottom sheet after its initial onboarding "peek" on first launch.
+	private val bottomSheetOnboardingCollapseRunnable =
+		Runnable {
+			bottomSheetViewModel.setSheetState(STATE_COLLAPSED)
+			app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
+		}
+
 	private var gestureDetector: GestureDetector? = null
-	private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
-	private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
+	private val flingDistanceThreshold by lazy { dpToPx(100f) }
+	private val flingVelocityThreshold by lazy { dpToPx(100f) }
 
 	private var editorAppBarInsetTop: Int = 0
 
@@ -471,8 +476,9 @@ abstract class BaseEditorActivity :
 
 		runCatching { onBackPressedCallback.remove() }
 		runCatching { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) }
-		optionsMenuInvalidator?.also { ThreadUtils.getMainHandler().removeCallbacks(it) }
+		optionsMenuInvalidator?.also { mainThreadHandler.removeCallbacks(it) }
 		optionsMenuInvalidator = null
+		mainThreadHandler.removeCallbacks(bottomSheetOnboardingCollapseRunnable)
 
 		apkInstallationViewModel.destroy(this)
 
@@ -984,7 +990,7 @@ abstract class BaseEditorActivity :
 	}
 
 	override fun invalidateOptionsMenu() {
-		val mainHandler = ThreadUtils.getMainHandler()
+		val mainHandler = mainThreadHandler
 		optionsMenuInvalidator?.also {
 			mainHandler.removeCallbacks(it)
 			mainHandler.postDelayed(it, OPTIONS_MENU_INVALIDATION_DELAY)
@@ -1440,10 +1446,8 @@ abstract class BaseEditorActivity :
 			bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_EXPANDED
 		) {
 			bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_EXPANDED)
-			ThreadUtils.runOnUiThreadDelayed({
-				bottomSheetViewModel.setSheetState(STATE_COLLAPSED)
-				app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
-			}, 1500)
+			mainThreadHandler.removeCallbacks(bottomSheetOnboardingCollapseRunnable)
+			mainThreadHandler.postDelayed(bottomSheetOnboardingCollapseRunnable, 1500)
 		}
 
 		binding.contentCard.progress = 0f
