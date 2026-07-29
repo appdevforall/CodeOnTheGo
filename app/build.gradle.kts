@@ -433,6 +433,59 @@ tasks.register<Zip>("createPluginArtifactsZip") {
 	destinationDirectory.set(rootProject.file("assets"))
 }
 
+// Fat compile-only jar published as com.itsaky.androidide:plugin-api:1.0.0.
+// Merges the API surface plugins already compile against (plugin-api + common +
+// eventbus-events + idetooltips) into one coordinate. The three add-ons are
+// v7/v8-flavored (unlike plugin-api); their classes are ABI-neutral so v8 is used.
+tasks.register<Jar>("assemblePluginApiFatJar") {
+	dependsOn(
+		":plugin-api:assembleRelease",
+		":common:assembleV8Release",
+		":eventbus-events:assembleV8Release",
+		":idetooltips:assembleV8Release",
+	)
+	archiveFileName.set("plugin-api-1.0.0.jar")
+	destinationDirectory.set(layout.buildDirectory.dir("plugin-maven-repo-staging"))
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+	from(
+		zipTree(
+			project(":plugin-api")
+				.layout.buildDirectory
+				.file("intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar")
+				.get()
+				.asFile,
+		),
+	)
+	from(
+		zipTree(
+			project(":common")
+				.layout.buildDirectory
+				.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
+				.get()
+				.asFile,
+		),
+	)
+	from(
+		zipTree(
+			project(":eventbus-events")
+				.layout.buildDirectory
+				.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
+				.get()
+				.asFile,
+		),
+	)
+	from(
+		zipTree(
+			project(":idetooltips")
+				.layout.buildDirectory
+				.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
+				.get()
+				.asFile,
+		),
+	)
+}
+
 // Packages the on-device installer payload (assets-<arch>.zip) consumed by
 // SplitAssetsInstaller on debug builds. Entry names must match the installer
 // contract in AssetsInstallationHelper.expectedEntries.
