@@ -63,7 +63,7 @@
 	<string name="agent_hint_number">Masukkan angka</string>
 	<string name="agent_hint_param">Masukkan %1$s</string>
 	<string name="agent_hint_path_example">misalnya, app/src/main/AndroidManifest.xml</string>
-	<string name="agent_hint_search_pattern">Petunjuk pencarian...</string>
+	<string name="agent_hint_search_pattern">Pola pencarian...</string>
 	<string name="agent_images_selected">%1$d gambar dipilih.</string>
 	<string name="agent_required_fields_missing">Harap isi semua kolom yang wajib (ditandai dengan *).</string>
 	<string name="agent_select_tool_to_test">Pilih alat untuk diuji</string>
@@ -610,7 +610,7 @@
 	<string name="title_cpu_arch">Arsitektur CPU</string>
 	<string name="title_preview_data">Pratinjau data</string>
 	<string name="title_android_version">Versi Android</string>
-	<string name="btn_opt_in">Ikuti</string>
+	<string name="btn_opt_in">Setuju</string>
 	<string name="title_developer_options">Opsi Pengembang</string>
 	<string name="idepref_devOptions_summary">Opsi percobaan/debugging untuk Code on the Go</string>
 	<string name="idepref_group_debugging">Debugging</string>
@@ -668,7 +668,7 @@
 	<string name="msg_project_cache_read_failure">Gagal membaca cache proyek</string>
 	<string name="msg_font_copy_failed">Tidak dapat menyimpan file font. Silakan coba lagi.</string>
 	<string name="msg_files_being_saved">Operasi penyimpanan file sedang berlangsung</string>
-	<string name="msg_undock_save_failed">Tidak dapat menyimpan “%1$s”. Pembatalan pelepasan telah dibatalkan.</string>
+	<string name="msg_undock_save_failed">Tidak dapat menyimpan “%1$s”. Pelepasan dibatalkan.</string>
 	<string name="title_install_tools">Instal Alat Pengembangan</string>
 	<string name="subtitle_install_tools">\nUntuk menginstal alat yang diperlukan untuk mem-build proyek Android, ketuk tombol di kanan bawah layar\n</string>
 	<string name="greeting_title">Selamat datang</string>
@@ -1283,7 +1283,7 @@
 	<string name="profiler_cpu_total">Total %1$s (%2$s)</string>
 	<string name="profiler_cpu_tap_hint">Ketuk frame untuk melihat detailnya</string>
 	<string name="profiler_heap_metric_retained">Ukuran yang dipertahankan</string>
-	<string name="profiler_heap_metric_count">Contoh</string>
+	<string name="profiler_heap_metric_count">Instansi</string>
 	<string name="profiler_heap_view_table">Daftar class</string>
 	<string name="profiler_hide_framework_classes">Sembunyikan class framework</string>
 	<string name="profiler_heap_shallow">Dangkal %1$s</string>
