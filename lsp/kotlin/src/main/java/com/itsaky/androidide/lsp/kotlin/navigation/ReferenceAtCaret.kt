@@ -92,12 +92,17 @@ private fun navigableLeafAt(
 }
 
 /**
- * Either the element carries a name reference, or it is a convention host whose declaration is
- * found through a resolved-call lookup instead.
+ * Either the element is a convention host whose declaration is found through a resolved-call lookup,
+ * or it carries a name reference.
+ *
+ * The convention hosts are tested first because [mainReference] is not as null-safe as its type says:
+ * on a `KtReferenceExpression` it is `references.firstIsInstance()`, which throws when no
+ * `KtReference` is contributed. Reading it last, guarded, keeps a throw from aborting the whole climb
+ * and keeps the null-returning contract [referenceAtCaret] documents.
  */
 private fun KtElement.isResolvable(): Boolean =
-	mainReference != null ||
-		this is KtCallExpression ||
+	this is KtCallExpression ||
 		this is KtArrayAccessExpression ||
 		this is KtPropertyDelegate ||
-		this is KtForExpression
+		this is KtForExpression ||
+		runCatching { mainReference != null }.getOrDefault(false)

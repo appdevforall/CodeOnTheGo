@@ -194,16 +194,6 @@ internal suspend fun findDefinitionAt(params: DefinitionParams): DefinitionResul
 		return DefinitionResult.empty()
 	}
 
-	// Safe to await a (possibly blocking) refresh here: this runs outside any project.read/write
-	// block, so it can't deadlock against the refresh's project.write. Refreshed to the open
-	// document's current version, so the caret offset and the PSI it indexes into come from the same
-	// text - a stale snapshot points at the wrong element.
-	val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).await()
-	if (ktFile == null) {
-		logger.warn("File {} cannot be loaded for definition lookup", params.file)
-		return DefinitionResult.empty()
-	}
-
 	return try {
 		val offset = params.position.requireIndex()
 
@@ -216,7 +206,22 @@ internal suspend fun findDefinitionAt(params: DefinitionParams): DefinitionResul
 		// a genuine cancellation, that coroutine survives, so surfacing an empty result would be a lie
 		// ("Definition not found" for a reference that resolves fine). One retry, with a fresh
 		// checker, covers it without turning this into a retry loop.
-		fun attempt(): List<Location> {
+		suspend fun attempt(): List<Location> {
+			// Awaited per attempt, not once: whatever preempted the first attempt also refreshed the
+			// live PSI, unregistering the KtFile that attempt held, and analyzing it again would fail.
+			//
+			// Safe to await a (possibly blocking) refresh here: this runs outside any project.read/write
+			// block, so it can't deadlock against the refresh's project.write. Refreshed to the open
+			// document's current version, so the caret offset and the PSI it indexes into come from the
+			// same text - a stale snapshot points at the wrong element. (params.position is fixed by the
+			// request, so a retry after the user typed can still be one edit behind; that resolves to
+			// the wrong element or to nothing, never to a crash.)
+			val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).await()
+			if (ktFile == null) {
+				logger.warn("File {} cannot be loaded for definition lookup", params.file)
+				return emptyList()
+			}
+
 			val cancelChecker = ScheduledCancelChecker(params.cancelChecker)
 			cancelChecker.abortIfCancelled()
 			return env.project.read {
