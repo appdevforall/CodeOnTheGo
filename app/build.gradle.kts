@@ -492,7 +492,9 @@ tasks.register("writePluginApiPom") {
 	val pomFile = layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.pom")
 	outputs.file(pomFile)
 	doLast {
-		pomFile.get().asFile.writeText(
+		val file = pomFile.get().asFile
+		file.parentFile.mkdirs()
+		file.writeText(
 			"""<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
 		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
