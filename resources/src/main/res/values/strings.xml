@@ -893,8 +893,8 @@
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">Plugin Manager</string>
-	<string name="plugin_manager_title">Plugin Manager</string>
-	<string name="plugin_manager_summary">Manage IDE plugins and extensions</string>
+	<string name="plugin_manager_title">Extensions Manager</string>
+	<string name="plugin_manager_summary">Manage IDE plugins and templates</string>
 	<string name="plugins">Plugins</string>
 	<string name="no_plugins_installed">No plugins installed</string>
 	<string name="no_plugins_installed_hint">Tap the + button to install your first plugin</string>
