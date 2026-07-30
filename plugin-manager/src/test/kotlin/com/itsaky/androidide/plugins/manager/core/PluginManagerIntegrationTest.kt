@@ -1,153 +1,117 @@
 package com.itsaky.androidide.plugins.manager.core
 
-import com.itsaky.androidide.plugins.PluginLogger
+import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.ServiceRegistry
+import com.itsaky.androidide.plugins.extensions.IProject
 import com.itsaky.androidide.plugins.manager.context.ServiceRegistryImpl
-import com.itsaky.androidide.plugins.manager.services.FileServiceImpl
-import com.itsaky.androidide.plugins.manager.services.ProjectServiceImpl
-import com.itsaky.androidide.plugins.manager.services.ResourceServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
 import com.itsaky.androidide.plugins.services.IdeFileService
-import com.itsaky.androidide.plugins.services.IdeResourceService
-import org.junit.Test
-import org.junit.Assert.*
-import org.junit.Before
+import com.itsaky.androidide.plugins.services.IdeProjectService
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
 import java.io.File
 
 /**
- * Integration tests for PluginManager service registration and retrieval.
- * These tests verify that services are properly registered and can be retrieved
- * through the service registry, mimicking how PluginManager registers services.
+ * Integration tests for plugin service registration and retrieval, mirroring how
+ * PluginManager registers services into the [ServiceRegistry] and how plugins then
+ * resolve and use them.
  */
 class PluginManagerIntegrationTest {
+	private lateinit var tempProjectRoot: File
+	private lateinit var serviceRegistry: ServiceRegistry
 
-    private lateinit var tempProjectRoot: File
-    private lateinit var serviceRegistry: ServiceRegistry
+	@Before
+	fun setup() {
+		tempProjectRoot =
+			File.createTempFile("test_project_", "").apply {
+				delete()
+				mkdirs()
+			}
+		File(tempProjectRoot, "test.txt").writeText("Integration test content")
+		serviceRegistry = ServiceRegistryImpl()
+	}
 
-    @Before
-    fun setup() {
-        // Create a temporary project root directory
-        tempProjectRoot = File.createTempFile("test_project_", "").apply {
-            delete()
-            mkdirs()
-        }
+	@After
+	fun cleanup() {
+		tempProjectRoot.deleteRecursively()
+	}
 
-        // Create a build.gradle file for project service tests
-        val buildFile = File(tempProjectRoot, "build.gradle")
-        buildFile.writeText("""
-            plugins {
-                id 'java'
-            }
+	@Test
+	fun servicesCanBeRegisteredAndRetrieved() {
+		val fileService = fileService()
+		serviceRegistry.register(IdeFileService::class.java, fileService)
 
-            dependencies {
-            }
-        """.trimIndent())
+		val projectService =
+			IdeProjectServiceImpl(
+				pluginId = "test-plugin",
+				permissions = setOf(PluginPermission.FILESYSTEM_READ),
+				projectProvider = EmptyProjectProvider,
+			)
+		serviceRegistry.register(IdeProjectService::class.java, projectService)
 
-        // Create a test file with content
-        val testFile = File(tempProjectRoot, "test.txt")
-        testFile.writeText("Integration test content")
+		val resolvedFile = serviceRegistry.get(IdeFileService::class.java)
+		assertNotNull("IdeFileService should be registered and retrievable", resolvedFile)
+		assertSame("Retrieved service should be the same instance", fileService, resolvedFile)
 
-        // Initialize service registry
-        serviceRegistry = ServiceRegistryImpl()
-    }
+		val resolvedProject = serviceRegistry.get(IdeProjectService::class.java)
+		assertNotNull("IdeProjectService should be registered and retrievable", resolvedProject)
+		assertSame("Retrieved service should be the same instance", projectService, resolvedProject)
+	}
 
-    @After
-    fun cleanup() {
-        // Clean up temporary directory
-        if (tempProjectRoot.exists()) {
-            tempProjectRoot.deleteRecursively()
-        }
-    }
+	@Test
+	fun fileServiceIsFunctionalThroughRegistry() {
+		serviceRegistry.register(IdeFileService::class.java, fileService())
+		val service = serviceRegistry.get(IdeFileService::class.java)
+		assertNotNull("Service should be retrievable from registry", service)
 
-    /**
-     * Test that services can be registered and retrieved through the service registry.
-     * This simulates how PluginManager registers services in createPluginContext()
-     * (lines 1292-1323 of PluginManager.kt).
-     */
-    @Test
-    fun testServiceRegistration() {
-        // Simulate PluginManager's service registration for Phase 2 services
-        // This mirrors the code in PluginManager.createPluginContext() lines 1292-1323
+		val existing = File(tempProjectRoot, "test.txt")
+		assertEquals("Integration test content", service!!.readFile(existing))
 
-        // Register IdeFileService
-        val fileService = FileServiceImpl(tempProjectRoot)
-        serviceRegistry.register(IdeFileService::class.java, fileService)
+		val created = File(tempProjectRoot, "new_file.txt")
+		assertTrue("write should succeed", service.writeFile(created, "New content"))
+		assertEquals("New content", created.readText())
 
-        // Register IdeProjectService
-        val projectService = ProjectServiceImpl(tempProjectRoot)
-        serviceRegistry.register(IdeProjectService::class.java, projectService)
+		assertTrue("replace should succeed", service.replaceInFile(existing, "Integration", "Updated"))
+		assertEquals("Updated test content", existing.readText())
 
-        // Register IdeResourceService
-        val resourceService = ResourceServiceImpl(tempProjectRoot)
-        serviceRegistry.register(IdeResourceService::class.java, resourceService)
+		val names = service.listFiles(tempProjectRoot, recursive = false).map { it.name }
+		assertTrue("listing should contain test.txt", names.contains("test.txt"))
+		assertTrue("listing should contain new_file.txt", names.contains("new_file.txt"))
 
-        // Verify services can be retrieved through the registry
-        val retrievedFileService = serviceRegistry.get(IdeFileService::class.java)
-        assertNotNull("IdeFileService should be registered and retrievable", retrievedFileService)
-        assertSame("Retrieved service should be the same instance", fileService, retrievedFileService)
+		assertTrue("delete should succeed", service.delete(created))
+		assertFalse("deleted file should be gone", created.exists())
+	}
 
-        val retrievedProjectService = serviceRegistry.get(IdeProjectService::class.java)
-        assertNotNull("IdeProjectService should be registered and retrievable", retrievedProjectService)
-        assertSame("Retrieved service should be the same instance", projectService, retrievedProjectService)
+	@Test(expected = SecurityException::class)
+	fun fileServiceRejectsPathsOutsideProject() {
+		serviceRegistry.register(IdeFileService::class.java, fileService())
+		serviceRegistry.get(IdeFileService::class.java)!!.readFile(File("/etc/passwd"))
+	}
 
-        val retrievedResourceService = serviceRegistry.get(IdeResourceService::class.java)
-        assertNotNull("IdeResourceService should be registered and retrievable", retrievedResourceService)
-        assertSame("Retrieved service should be the same instance", resourceService, retrievedResourceService)
-    }
+	private fun fileService() =
+		IdeFileServiceImpl(
+			pluginId = "test-plugin",
+			permissions = setOf(PluginPermission.FILESYSTEM_WRITE),
+			pathValidator =
+				object : IdeFileServiceImpl.PathValidator {
+					override fun isPathAllowed(path: File) = path.absolutePath.startsWith(tempProjectRoot.absolutePath)
 
-    /**
-     * Test that FileService retrieved through the service registry is functional.
-     * This verifies the complete integration: registration -> retrieval -> usage.
-     */
-    @Test
-    fun testFileServiceIntegration() {
-        // Register the service (simulating PluginManager)
-        val fileService = FileServiceImpl(tempProjectRoot)
-        serviceRegistry.register(IdeFileService::class.java, fileService)
+					override fun getAllowedPaths() = listOf(tempProjectRoot.absolutePath)
+				},
+		)
 
-        // Retrieve service through the registry (how plugins would access it)
-        val retrievedService = serviceRegistry.get(IdeFileService::class.java)
-        assertNotNull("Service should be retrievable from registry", retrievedService)
+	private object EmptyProjectProvider : IdeProjectServiceImpl.ProjectProvider {
+		override fun getCurrentProject(): IProject? = null
 
-        // Test basic file operations through the retrieved service
+		override fun getAllProjects(): List<IProject> = emptyList()
 
-        // 1. Read existing file
-        val readResult = retrievedService!!.readFile("test.txt")
-        assertTrue("File read should succeed", readResult.success)
-        assertEquals("Integration test content", readResult.data)
-
-        // 2. Create new file
-        val createResult = retrievedService.createFile("new_file.txt", "New content")
-        assertTrue("File creation should succeed", createResult.success)
-        val newFile = File(tempProjectRoot, "new_file.txt")
-        assertTrue("New file should exist on disk", newFile.exists())
-        assertEquals("New content", newFile.readText())
-
-        // 3. Update existing file
-        val updateResult = retrievedService.updateFile("test.txt", "Updated content")
-        assertTrue("File update should succeed", updateResult.success)
-        val testFile = File(tempProjectRoot, "test.txt")
-        assertEquals("Updated content", testFile.readText())
-
-        // 4. List files
-        val listResult = retrievedService.listFiles(".", false)
-        assertTrue("File listing should succeed", listResult.success)
-        assertNotNull("File list should not be null", listResult.data)
-        val fileList = listResult.data!!
-        assertTrue("File list should contain test.txt", fileList.contains("test.txt"))
-        assertTrue("File list should contain new_file.txt", fileList.contains("new_file.txt"))
-
-        // 5. Delete file
-        val deleteResult = retrievedService.deleteFile("new_file.txt")
-        assertTrue("File deletion should succeed", deleteResult.success)
-        assertFalse("Deleted file should not exist", newFile.exists())
-
-        // 6. Verify security: path traversal prevention
-        val traversalResult = retrievedService.readFile("../outside.txt")
-        assertFalse("Path traversal should be prevented", traversalResult.success)
-        assertTrue(
-            "Error should mention path traversal",
-            traversalResult.error?.contains("Path traversal") == true
-        )
-    }
+		override fun getProjectByPath(path: File): IProject? = null
+	}
 }
