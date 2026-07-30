@@ -1043,6 +1043,7 @@
 	<string name="error_no_apk_in_output_listing">No APK found in output listing file.</string>
 	<string name="error_apk_not_exist">APK file specified does not exist: %1$s</string>
 	<string name="info_build_cancelled">Build was cancelled by the user.</string>
+	<string name="msg_build_slot_busy">Another build is finishing. Try again in a moment.</string>
 	<string name="error_quick_run_failed">Quick Run failed.</string>
 	<string name="status_building">Building…</string>
 	<string name="status_installing_plugin">Installing plugin…</string>

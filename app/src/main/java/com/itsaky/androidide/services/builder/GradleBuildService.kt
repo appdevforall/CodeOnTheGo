@@ -91,6 +91,7 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -109,6 +110,52 @@ class GradleBuildService :
 	private var isToolingServerStarted = false
 	override var isBuildInProgress = false
 		private set
+
+	/**
+	 * How many INTERNAL builds are running - builds the user never asked for that go through
+	 * the same [executeTasks] path as a Standard Run. Today that is Quick Build's
+	 * setup/prewarm/re-baseline build, which runs on every project open: without this it drove
+	 * the EDITOR's build UI for ~97 s (status line, the modal first-build notice, the bottom
+	 * sheet's output, and the Run button relabelled to "Cancel build" - where a tap cancelled
+	 * Quick Build's provisioning).
+	 *
+	 * A counter, not a boolean, so nesting can never leave it stuck on; a leak here would
+	 * silence the editor's build UI for the rest of the process, which looks exactly like a
+	 * working IDE until the next build produces no output. Callers must bracket with
+	 * try/finally.
+	 */
+	private val internalBuildDepth = AtomicInteger(0)
+
+	/**
+	 * The raw flag says the Gradle slot is busy; this one says the USER has a build running.
+	 * Every UI decider reads this; every concurrency guard keeps reading the raw flag.
+	 */
+	override val isUserVisibleBuildInProgress: Boolean
+		get() = isBuildInProgress && internalBuildDepth.get() == 0
+
+	/** Marks the start of an internal build; MUST be paired in a `finally`. */
+	fun beginInternalBuild() {
+		internalBuildDepth.incrementAndGet()
+	}
+
+	/** Marks the end of an internal build. Clamped at zero so an unpaired call cannot invert. */
+	fun endInternalBuild() {
+		if (internalBuildDepth.decrementAndGet() < 0) {
+			log.warn("endInternalBuild without a matching beginInternalBuild; clamping to zero")
+			internalBuildDepth.set(0)
+		}
+	}
+
+	/**
+	 * The editor's build listener, or null while an internal build is running. Every dispatch
+	 * to [eventListener] goes through here: keying off the BUILD would need per-build
+	 * identity, which [logOutput] and [onProgressEvent] simply do not carry.
+	 *
+	 * Only the LISTENER is suppressed. Analytics, the EventBus build events and the indexing
+	 * hand-off still fire for internal builds - they are not user-visible surfaces, and
+	 * consumers (e.g. the Kotlin language server) want them.
+	 */
+	private fun editorListener(): EventListener? = if (internalBuildDepth.get() > 0) null else eventListener
 
 	/**
 	 * We do not provide direct access to GradleBuildService instance to the
@@ -344,13 +391,12 @@ class GradleBuildService :
 			'W' -> logger.warn(params.message)
 			'E' -> logger.error(params.message)
 			'I' -> logger.info(params.message)
-
 			else -> logger.trace(params.message)
 		}
 	}
 
 	override fun logOutput(line: String) {
-		eventListener?.onOutput(line)
+		editorListener()?.onOutput(line)
 	}
 
 	override fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig> =
@@ -414,7 +460,7 @@ class GradleBuildService :
 					BuildStartedEvent(buildInfo),
 				)
 
-			eventListener?.prepareBuild(buildInfo)
+			editorListener()?.prepareBuild(buildInfo)
 
 			return@supplyAsync ClientGradleBuildConfig(
 				buildParams = buildParams,
@@ -425,14 +471,14 @@ class GradleBuildService :
 		updateNotification(getString(R.string.build_status_sucess), false)
 
 		dispatchBuildResult(result, true)
-		eventListener?.onBuildSuccessful(result.tasks)
+		editorListener()?.onBuildSuccessful(result.tasks)
 	}
 
 	override fun onBuildFailed(result: BuildResult) {
 		updateNotification(getString(R.string.build_status_failed), false)
 
 		dispatchBuildResult(result, false)
-		eventListener?.onBuildFailed(result.tasks)
+		editorListener()?.onBuildFailed(result.tasks)
 	}
 
 	private fun dispatchBuildResult(
@@ -467,7 +513,7 @@ class GradleBuildService :
 	}
 
 	override fun onProgressEvent(event: ProgressEvent) {
-		eventListener?.onProgressEvent(event)
+		editorListener()?.onProgressEvent(event)
 	}
 
 	private fun getGradleExtraArgs(
@@ -641,8 +687,8 @@ class GradleBuildService :
 					) {
 						BuildPreferences.isScanEnabled = false
 
-						eventListener?.onOutput(MESSAGE_SCAN_REQUIRES_PLUGIN)
-						eventListener?.onOutput(MESSAGE_OPTION_DISABLED)
+						editorListener()?.onOutput(MESSAGE_SCAN_REQUIRES_PLUGIN)
+						editorListener()?.onOutput(MESSAGE_OPTION_DISABLED)
 
 						throw ScanPluginMissingException(MESSAGE_EXCEPTION_SCAN_DISABLED)
 					}

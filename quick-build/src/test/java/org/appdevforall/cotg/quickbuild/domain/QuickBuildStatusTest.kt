@@ -12,8 +12,17 @@ class QuickBuildStatusTest {
 
 	@Test
 	fun `provisioning maps to provisioning`() {
-		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Provisioning))
+		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Provisioning()))
 			.isEqualTo(QuickBuildStatus.Provisioning)
+	}
+
+	@Test
+	fun `who asked for a provision does not change what the surface shows`() {
+		// userInitiated exists to decide where the user ENDS UP, not what the status line and
+		// the toolbar icon say. Leaking it into the derived status would also break the
+		// StateFlow conflation the toolbar repaint depends on.
+		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Provisioning(userInitiated = true)))
+			.isEqualTo(QuickBuildStatus.from(QuickBuildSessionState.Provisioning(userInitiated = false)))
 	}
 
 	@Test
@@ -116,7 +125,7 @@ class QuickBuildStatusTest {
 		val nonBuildingStates =
 			listOf(
 				QuickBuildSessionState.Idle,
-				QuickBuildSessionState.Provisioning,
+				QuickBuildSessionState.Provisioning(),
 				QuickBuildSessionState.Ready(3),
 				QuickBuildSessionState.Ready(3, lastFailure = failure),
 				QuickBuildSessionState.Building(3, seeding = true),

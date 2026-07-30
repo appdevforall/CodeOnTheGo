@@ -2,6 +2,7 @@ package org.appdevforall.cotg.quickbuild.domain
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -18,7 +19,9 @@ import org.slf4j.LoggerFactory
  *   build succeeds. A failed batch is unioned back into pending. (The prototype cleared
  *   before compiling and silently dropped edits on failure — regression-tested.)
  * - An empty known changed-set is not "unknown": no-op saves never trigger a recompile.
- * - A running compile is never cancelled; new work waits and coalesces.
+ * - A running compile is never cancelled by NEW WORK; it waits and coalesces. The one
+ *   exception is an explicit stop ([onCancelRequested]), which abandons the build but
+ *   still returns its batch to pending.
  * - Results are tagged with their build id; a result for a superseded build is discarded,
  *   never rendered.
  *
@@ -59,6 +62,16 @@ class BuildOrchestrator(
 	private val mutex = Mutex()
 	private var pending: ChangedFiles = ChangedFiles.Known.EMPTY
 	private var pendingForced = false
+
+	/**
+	 * Set by a Quick Build TAP, and by nothing else. Deliberately NOT folded into
+	 * [pendingForced]: `forced` is also set by the reconnect catch-up and is re-armed after
+	 * a failed build, so a stale reconnect or a save that retried a failed tap would carry
+	 * it - and this flag decides whether the user is yanked out of the editor into the test
+	 * app (Bryan's behaviours 2/3). A failed build therefore does NOT re-arm it: the tap was
+	 * answered (with an error), and the save that fixes the code is not a new ask.
+	 */
+	private var pendingUserInitiated = false
 	private var inFlight: InFlightBuild? = null
 	private var nextBuildId = 1L
 	private var invalidationReported = false
@@ -86,6 +99,13 @@ class BuildOrchestrator(
 		val forced: Boolean,
 		val autoFollowUp: Boolean,
 		val route: BuildRoute,
+		/**
+		 * Mutable because a tap landing MID-BUILD is satisfied by this build's deploy
+		 * rather than by a second one: the tap has nothing to add except the ask itself.
+		 */
+		var userInitiated: Boolean = false,
+		/** Cancellation handle for [onCancelRequested]; null for a seed (never cancelled). */
+		var job: Job? = null,
 	)
 
 	/** A watcher/editor save event. [ChangedFiles.Unknown] forces a full recompile. */
@@ -100,13 +120,95 @@ class BuildOrchestrator(
 	/**
 	 * An explicit Quick Build tap: build now even if nothing changed (redeploy).
 	 * A failed forced build re-arms the flag, so the eventual retry is also forced.
+	 *
+	 * @param userInitiated whether a HUMAN asked. The default is true because a tap is the
+	 *   only caller that should ever say so; the reconnect catch-up (a stale test app
+	 *   reporting an old generation) must pass false or it would drag the user into the
+	 *   test app for something they did not do.
+	 * @return true when the tap's answer is a deploy the caller should wait for (there are
+	 *   real changed files pending). False means this is a pure forced redeploy with nothing
+	 *   pending: the caller may act on the tap NOW rather than after a full recompile of
+	 *   everything (Bryan's behaviour 4).
 	 */
-	suspend fun onQuickBuildRequested() {
+	suspend fun onQuickBuildRequested(userInitiated: Boolean = true): Boolean {
+		var awaitsDeploy = false
 		withEvents { events ->
 			markBatchArrivalLocked()
 			pendingForced = true
+			// Only a tap with real work to wait for arms the on-deploy switch. With nothing
+			// pending the build is a pure forced redeploy, which the caller answers
+			// immediately instead (behaviour 4) - arming it here too would foreground the
+			// test app a second time when that redeploy landed.
+			awaitsDeploy = !pending.isEmpty
+			if (userInitiated && awaitsDeploy) pendingUserInitiated = true
 			maybeStartBuildLocked(events)
 		}
+		return awaitsDeploy
+	}
+
+	/**
+	 * A Quick Build tap landed while a REAL build was already in flight. That build deploys
+	 * anyway, so it satisfies the tap's build - but not its ask: without this the tap would
+	 * be dropped outright and a user who tapped during a save-triggered build would see
+	 * nothing happen. Marks the in-flight build as the tap's answer instead of forcing a
+	 * second full rebuild behind a build that was about to do the same work.
+	 *
+	 * @return false when there is nothing to mark - no build in flight (it finished between
+	 *   the decision and this call), or the in-flight build is the background seed, which
+	 *   deploys nothing and therefore cannot answer a tap. The caller must then fall back to
+	 *   a real request rather than let the tap vanish.
+	 */
+	suspend fun markInFlightUserInitiated(): Boolean =
+		mutex.withLock {
+			val flight = inFlight
+			if (flight == null || flight.route is BuildRoute.Seed) {
+				false
+			} else {
+				flight.userInitiated = true
+				true
+			}
+		}
+
+	/**
+	 * The user tapped the stop button (Bryan's behaviour 5). Abandons the in-flight
+	 * incremental build so nothing it produces is deployed or rendered, and returns its
+	 * batch to [pending] so the never-lose-pending invariant holds - the next save (or tap)
+	 * builds those files again.
+	 *
+	 * @return true when a build was actually abandoned; false when there was nothing to
+	 *   cancel (already finished, or the in-flight build is the background seed, which the
+	 *   user never asked for). The caller must not report a cancellation on false.
+	 *
+	 * Two honest limits, both narrow and both deliberate:
+	 * - The compile itself keeps running in the daemon: the daemon protocol has no cancel
+	 *   op, and the only real kill is destroying the process - which costs a respawn plus a
+	 *   full re-seed for a build the user is done with anyway. Cancelling the coroutine is
+	 *   what guarantees nothing DEPLOYS; the abandoned compile finishes unheard, so the
+	 *   next build may queue behind it.
+	 * - A stop that lands in the same scheduler turn as the deploy can report a cancel for
+	 *   a payload the test app already took. Nothing wrong is deployed either way; the
+	 *   status line is one generation behind until the next build.
+	 */
+	suspend fun onCancelRequested(): Boolean {
+		var cancelled = false
+		mutex.withLock {
+			val flight = inFlight ?: return@withLock
+			if (flight.route is BuildRoute.Seed) return@withLock
+			inFlight = null
+			// A stop withdraws the ask, so neither the abandoned build's forced flag nor a tap
+			// queued behind it may survive to redeploy on the user's behalf later. Cleared
+			// BEFORE the batch goes back, so the returning batch is stamped as the fresh batch
+			// it now is.
+			pendingForced = false
+			pendingUserInitiated = false
+			// The batch itself is NOT lost - it goes back so a later save rebuilds it.
+			markBatchArrivalLocked()
+			pending = flight.batch + pending
+			flight.job?.cancel()
+			cancelled = true
+		}
+		if (cancelled) log.info("Quick build cancelled by the user")
+		return cancelled
 	}
 
 	/**
@@ -262,11 +364,15 @@ class BuildOrchestrator(
 
 		val batch = pending
 		val forced = pendingForced
+		val userInitiated = pendingUserInitiated
 		val triggeredAtMillis = pendingSince
 		pending = ChangedFiles.Known.EMPTY
 		pendingForced = false
+		pendingUserInitiated = false
 		val buildId = nextBuildId++
-		inFlight = InFlightBuild(buildId, batch, forced, autoFollowUp, route)
+		val flight =
+			InFlightBuild(buildId, batch, forced, autoFollowUp, route, userInitiated = userInitiated)
+		inFlight = flight
 		events += OrchestratorEvent.BuildStarted(buildId, route, batch)
 
 		val request =
@@ -277,7 +383,10 @@ class BuildOrchestrator(
 				forced = forced,
 				triggeredAtMillis = triggeredAtMillis,
 			)
-		launchBuild(buildId, request)
+		// Assigned while still holding the lock, so a cancel can never see a null handle for
+		// a build that is already running. Safe from here: nothing suspends in between, and
+		// the launched coroutine cannot run before this frame yields.
+		flight.job = launchBuild(buildId, request)
 	}
 
 	/**
@@ -290,8 +399,9 @@ class BuildOrchestrator(
 		pendingSeed = false
 		val buildId = nextBuildId++
 		val route = BuildRoute.Seed
-		inFlight =
+		val flight =
 			InFlightBuild(buildId, ChangedFiles.Known.EMPTY, forced = false, autoFollowUp = false, route = route)
+		inFlight = flight
 		events += OrchestratorEvent.BuildStarted(buildId, route, ChangedFiles.Known.EMPTY)
 		val request =
 			BuildRequest(
@@ -301,13 +411,13 @@ class BuildOrchestrator(
 				forced = false,
 				triggeredAtMillis = now(),
 			)
-		launchBuild(buildId, request)
+		flight.job = launchBuild(buildId, request)
 	}
 
 	private fun launchBuild(
 		buildId: Long,
 		request: BuildRequest,
-	) {
+	): Job =
 		scope.launch {
 			val outcome =
 				try {
@@ -320,7 +430,6 @@ class BuildOrchestrator(
 				}
 			onBuildFinished(buildId, outcome)
 		}
-	}
 
 	private suspend fun onBuildFinished(
 		buildId: Long,
@@ -338,7 +447,13 @@ class BuildOrchestrator(
 			when (outcome) {
 				is BuildOutcome.Success -> {
 					lastCompileDiagnostics = null
-					events += OrchestratorEvent.BuildSucceeded(buildId, outcome, flight.route)
+					events +=
+						OrchestratorEvent.BuildSucceeded(
+							buildId,
+							outcome,
+							flight.route,
+							userInitiated = flight.userInitiated,
+						)
 					// Saves that landed mid-build start the coalesced follow-up now.
 					maybeStartBuildLocked(events, autoFollowUp = true)
 				}
@@ -347,6 +462,9 @@ class BuildOrchestrator(
 					val newSavesArrivedMidBuild = !pending.isEmpty || pendingForced
 					pending = flight.batch + pending
 					pendingForced = pendingForced || flight.forced
+					// pendingUserInitiated is deliberately NOT re-armed: the tap was already
+					// answered, with the failure. The save that fixes the code is not a new
+					// ask, so it must not drag the user out of the editor (see the field).
 
 					val diagnostics = (outcome as? BuildOutcome.CompileError)?.diagnostics
 					val unchanged =
@@ -378,6 +496,12 @@ sealed interface OrchestratorEvent {
 		val result: BuildOutcome.Success,
 		/** What the build was for — a [BuildRoute.Seed] success deployed nothing. */
 		val route: BuildRoute,
+		/**
+		 * True when a Quick Build TAP is what this build answers, so the deploy landing is
+		 * where the test app should be brought forward (Bryan's behaviour 2). False for a
+		 * build a file write triggered (behaviour 3).
+		 */
+		val userInitiated: Boolean = false,
 	) : OrchestratorEvent
 
 	/**

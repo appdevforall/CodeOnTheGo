@@ -5,6 +5,7 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.isPluginProject
+import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.tooling.api.GradlePluginConfig
 import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
@@ -227,7 +228,25 @@ class GradleQuickBuildProvisioner(
 					buildParams = GradleBuildParams(gradleArgs = gradleArgs),
 				)
 
-			val result = withContext(Dispatchers.IO) { buildService.executeTasks(message) }.await()
+			// The setup build goes through the SAME executeTasks path as the user's Standard
+			// Run, and GradleBuildService has ONE editor event listener - so without this
+			// bracket the prewarm drives the EDITOR's build UI on every project open: status
+			// line, the modal first-build notice (consuming the isFirstBuild flag the REAL
+			// first build should get), the build-output sheet, and the Run button relabelled
+			// to "Cancel build" for the whole window, where a tap cancels Quick Build's own
+			// provisioning. Bracketed here rather than re-gating prewarm: warming up whenever
+			// the feature is on is the point.
+			val gradleService = buildService as? GradleBuildService
+			gradleService?.beginInternalBuild()
+			// Ends only after the AWAIT, not after executeTasks returns: executeTasks hands
+			// back a future immediately and every listener callback arrives while it is
+			// pending, so releasing earlier would un-suppress the ones that matter most.
+			val result =
+				try {
+					withContext(Dispatchers.IO) { buildService.executeTasks(message) }.await()
+				} finally {
+					gradleService?.endInternalBuild()
+				}
 			if (result == null || !result.isSuccessful) {
 				log.error("Quick-build setup build failed: {}", result?.failure)
 				return null
@@ -260,6 +279,27 @@ class GradleQuickBuildProvisioner(
 		} catch (e: Throwable) {
 			log.error("Quick-build setup build failed", e)
 			return null
+		}
+	}
+
+	/**
+	 * Hands a cancellation to the Gradle build currently running through the tooling server.
+	 * Only ever called while this session owns the slot (see the port's KDoc) - the device has
+	 * a single cancellation token, so an unguarded call could kill a Standard Run.
+	 */
+	override fun cancelSetupBuild(): Boolean {
+		val buildService =
+			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+				?: return false
+		if (!buildService.isBuildInProgress) return false
+		return try {
+			buildService.cancelCurrentBuild()
+			true
+		} catch (e: Throwable) {
+			// A tooling server that is gone cannot be asked to cancel; the caller falls back
+			// to tearing the session down, so this is not worth surfacing.
+			log.warn("Could not cancel the Quick Build setup build", e)
+			false
 		}
 	}
 

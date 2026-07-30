@@ -120,6 +120,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.adfa.constants.CONTENT_KEY
+import org.appdevforall.cotg.quickbuild.domain.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.service.QuickBuildClobberCheck
 import org.appdevforall.cotg.quickbuild.service.QuickBuildSessionManager
 import org.koin.android.ext.android.inject
@@ -275,6 +276,17 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					}
 					launch {
 						quickBuild.userMessages.collect { flashError(it) }
+					}
+					launch {
+						// Neutral notices, deliberately NOT on the error channel: a build the
+						// user chose to stop is not a failure and must not read like one.
+						quickBuild.notices.collect { notice ->
+							when (notice) {
+								QuickBuildNotice.BUILD_CANCELLED -> {
+									flashInfo(getString(string.info_build_cancelled))
+								}
+							}
+						}
 					}
 				}
 			}
@@ -627,7 +639,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		val service =
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
-		editorViewModel.isBuildInProgress = service?.isBuildInProgress == true
+		// The USER-visible flag, not the raw one: Quick Build's setup build occupies the same
+		// Gradle slot on every project open, and latching the raw flag here left the editor
+		// stuck showing "building" (progress bar + cancel label) for a build nobody started -
+		// and, with its listener suppressed, nothing would ever clear it.
+		editorViewModel.isBuildInProgress = service?.isUserVisibleBuildInProgress == true
 		editorViewModel.isInitializing = initializingFuture?.isDone == false
 
 		// ADFA-4128: a rebaseline reinstall that timed out while CoGo was backgrounded

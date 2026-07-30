@@ -12,6 +12,7 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -71,6 +72,16 @@ abstract class AbstractCancellableRunAction(
 			return cancelBuild()
 		}
 
+		// An INTERNAL build (Quick Build's setup build) can own the single Gradle slot without
+		// driving the editor's build UI, so this button correctly still reads "Run" - but
+		// starting a second build would throw BuildInProgressException deep in the service and
+		// surface as a raw error string. Say what is actually happening instead. The RAW flag,
+		// on purpose: the slot really is busy even though the user has no build running.
+		if (buildService?.isBuildInProgress == true) {
+			data.getActivity()?.flashInfo(R.string.msg_build_slot_busy)
+			return false
+		}
+
 		return doExec(data)
 	}
 
@@ -113,10 +124,17 @@ abstract class AbstractCancellableRunAction(
 		protected val log: Logger =
 			LoggerFactory.getLogger(AbstractCancellableRunAction::class.java)
 
+		/**
+		 * Whether the USER has a build running - what the stop affordance, the progress bar
+		 * and the disabled-during-build actions key off. Reads
+		 * [BuildService.isUserVisibleBuildInProgress], not the raw flag, so Quick Build's own
+		 * setup build (same Gradle path, nobody asked for it) does not make this button claim
+		 * to cancel a build the user never started.
+		 */
 		fun EditorHandlerActivity?.isBuildInProgress(): Boolean {
 			val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 			return this?.editorViewModel?.let { it.isInitializing || it.isBuildInProgress } == true ||
-				buildService?.isBuildInProgress == true
+				buildService?.isUserVisibleBuildInProgress == true
 		}
 	}
 }

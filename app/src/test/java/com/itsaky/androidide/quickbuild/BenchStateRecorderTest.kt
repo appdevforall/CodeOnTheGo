@@ -39,7 +39,7 @@ class BenchStateRecorderTest {
 	fun `record maps state to its simple name and includes generation only where carried`() {
 		recorder.record(QuickBuildSessionState.Idle)
 		recorder.record(QuickBuildSessionState.Prewarming())
-		recorder.record(QuickBuildSessionState.Provisioning)
+		recorder.record(QuickBuildSessionState.Provisioning())
 		recorder.record(QuickBuildSessionState.Ready(generation = 5))
 		recorder.record(QuickBuildSessionState.Building(deployedGeneration = 5))
 		recorder.record(QuickBuildSessionState.Deployed(generation = 6, buildDurationMillis = 100))
@@ -81,7 +81,7 @@ class BenchStateRecorderTest {
 			val flow = MutableStateFlow<QuickBuildSessionState>(QuickBuildSessionState.Idle)
 			recorder.attach(flow, scope)
 
-			flow.value = QuickBuildSessionState.Provisioning
+			flow.value = QuickBuildSessionState.Provisioning()
 			flow.value = QuickBuildSessionState.Ready(generation = 2)
 			flow.value = QuickBuildSessionState.Building(deployedGeneration = 2)
 			flow.value = QuickBuildSessionState.Deployed(generation = 3, buildDurationMillis = 50)

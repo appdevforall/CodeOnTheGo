@@ -808,4 +808,239 @@ class BuildOrchestratorTest {
 			assertThat(executor.requests[1].changes).isEqualTo(known(srcA))
 			assertThat(executor.requests[1].route).isEqualTo(BuildRoute.CodeOnly)
 		}
+
+	// Bryan's button spec: the trigger SOURCE has to survive all the way to the deploy, and a
+	// stop has to abandon a build without losing its edits.
+
+	@Test
+	fun `a tap with pending work reports that its answer is the deploy, and tags that build`() =
+		runTest {
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			// A save landed but its build has not started yet (mid-rebaseline absorption is the
+			// real-world shape); the tap coalesces into it and must wait for the deploy.
+			orchestrator.onRebaselineStarted()
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			assertThat(executor.requests).isEmpty()
+
+			val awaitsDeploy = orchestrator.onQuickBuildRequested(userInitiated = true)
+			orchestrator.onBaselineReset()
+			runCurrent()
+			executor.finish(0, success(generation = 2))
+			runCurrent()
+
+			assertThat(awaitsDeploy).isTrue()
+			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
+			assertThat(succeeded.userInitiated).isTrue()
+		}
+
+	@Test
+	fun `a tap with nothing pending reports no deploy to wait for`() =
+		runTest {
+			// Behaviour 4's decision point. The build still runs (forced redeploy), but the
+			// caller must be told it has nothing worth waiting for.
+			val executor = GatedExecutor()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			val awaitsDeploy = orchestrator.onQuickBuildRequested(userInitiated = true)
+			runCurrent()
+
+			assertThat(awaitsDeploy).isFalse()
+			assertThat(executor.requests).hasSize(1)
+		}
+
+	@Test
+	fun `a build a save triggered is never tagged as user-initiated`() =
+		runTest {
+			// Behaviour 3, at the source: nothing about a watcher batch may set the flag that
+			// pulls the user out of the editor.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(0, success(generation = 1))
+			runCurrent()
+
+			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
+			assertThat(succeeded.userInitiated).isFalse()
+		}
+
+	@Test
+	fun `a non-user request must not tag its build, even though it is forced`() =
+		runTest {
+			// The reconnect catch-up is forced exactly like a tap, which is why "forced" is not
+			// a usable stand-in for "the user asked".
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(srcA))
+			orchestrator.onQuickBuildRequested(userInitiated = false)
+			runCurrent()
+			executor.finish(0, success(generation = 1))
+			runCurrent()
+
+			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
+			assertThat(succeeded.result.generation).isEqualTo(1)
+			assertThat(succeeded.userInitiated).isFalse()
+		}
+
+	@Test
+	fun `a failed user-initiated build does not re-tag the save that retries it`() =
+		runTest {
+			// The tap was already answered - with the compile error. The save that fixes the
+			// code is not a new ask, so it must not yank the user out of the editor.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			// Hold the batch so the tap lands BEFORE the build starts and really tags it.
+			orchestrator.onRebaselineStarted()
+			orchestrator.onFilesChanged(known(srcA))
+			orchestrator.onQuickBuildRequested(userInitiated = true)
+			orchestrator.onBaselineReset()
+			runCurrent()
+			assertThat(executor.requests).hasSize(1)
+
+			// A save lands mid-build so the failure triggers an immediate follow-up.
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+			executor.finish(0, compileError())
+			runCurrent()
+			assertThat(executor.requests).hasSize(2)
+			executor.finish(1, success(generation = 1))
+			runCurrent()
+
+			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
+			assertThat(succeeded.userInitiated).isFalse()
+			// The forced flag DOES survive a failure, unchanged - only the ask is one-shot.
+			assertThat(executor.requests[1].forced).isTrue()
+		}
+
+	@Test
+	fun `marking an in-flight build carries the ask without starting a second build`() =
+		runTest {
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+
+			assertThat(orchestrator.markInFlightUserInitiated()).isTrue()
+			executor.finish(0, success(generation = 1))
+			runCurrent()
+
+			assertThat(executor.requests).hasSize(1)
+			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
+			assertThat(succeeded.userInitiated).isTrue()
+		}
+
+	@Test
+	fun `marking refuses when there is no build to carry the ask`() =
+		runTest {
+			// Nothing in flight, and a seed in flight, both have to say no: a seed deploys
+			// nothing, so it can never be a tap's answer. The caller then falls back to a real
+			// request instead of dropping the tap.
+			val executor = GatedExecutor()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			assertThat(orchestrator.markInFlightUserInitiated()).isFalse()
+
+			orchestrator.onSeedRequested()
+			runCurrent()
+			assertThat(executor.requests.single().route).isEqualTo(BuildRoute.Seed)
+			assertThat(orchestrator.markInFlightUserInitiated()).isFalse()
+		}
+
+	@Test
+	fun `a cancelled build reports nothing and returns its batch to pending`() =
+		runTest {
+			// Behaviour 5, and the never-lose-pending invariant it must not break: the stopped
+			// edit is still owed a build, so the next save carries it too.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+
+			assertThat(orchestrator.onCancelRequested()).isTrue()
+			runCurrent()
+
+			// The abandoned build produced no outcome event at all: not a success, and not a
+			// failure either - a cancellation is neither.
+			assertThat(events.filterIsInstance<OrchestratorEvent.BuildSucceeded>()).isEmpty()
+			assertThat(events.filterIsInstance<OrchestratorEvent.BuildFailed>()).isEmpty()
+			assertThat(executor.cancellations).isEqualTo(1)
+
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+			assertThat(executor.requests).hasSize(2)
+			assertThat(executor.requests[1].changes).isEqualTo(known(srcA, srcB))
+		}
+
+	@Test
+	fun `a cancelled tap is withdrawn - the rebuild is not forced`() =
+		runTest {
+			// The user asked, then unasked. A forced flag surviving the cancel would make the
+			// next save redeploy at a fresh generation as if the tap still stood.
+			val executor = GatedExecutor()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			orchestrator.onFilesChanged(known(srcA))
+			orchestrator.onQuickBuildRequested(userInitiated = true)
+			runCurrent()
+			orchestrator.onCancelRequested()
+			runCurrent()
+
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+			assertThat(executor.requests).hasSize(2)
+			assertThat(executor.requests[1].forced).isFalse()
+		}
+
+	@Test
+	fun `cancelling refuses when nothing is running, and never touches the seed`() =
+		runTest {
+			val executor = GatedExecutor()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			assertThat(orchestrator.onCancelRequested()).isFalse()
+
+			orchestrator.onSeedRequested()
+			runCurrent()
+			assertThat(orchestrator.onCancelRequested()).isFalse()
+			// The seed keeps running: it is the daemon warm-up the next real save needs.
+			assertThat(executor.cancellations).isEqualTo(0)
+			executor.finish(0, success(generation = 0))
+			runCurrent()
+		}
+
+	@Test
+	fun `a build that is not stopped still deploys after a cancel of an earlier one`() =
+		runTest {
+			// The cancel must not wedge the orchestrator: clearing inFlight is what lets the
+			// next build start at all. Without it every later build would be suspended forever.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			orchestrator.onCancelRequested()
+			runCurrent()
+
+			orchestrator.onFilesChanged(known(srcC))
+			runCurrent()
+			executor.finish(1, success(generation = 1))
+			runCurrent()
+
+			assertThat(events.filterIsInstance<OrchestratorEvent.BuildSucceeded>()).hasSize(1)
+		}
 }

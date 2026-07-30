@@ -21,8 +21,21 @@ sealed interface QuickBuildSessionState {
 		val tapQueued: Boolean = false,
 	) : QuickBuildSessionState
 
-	/** Setup build + test-app install + daemon spawn in progress. */
-	data object Provisioning : QuickBuildSessionState
+	/**
+	 * Setup build + test-app install + daemon spawn in progress.
+	 *
+	 * [userInitiated] true = a Quick Build TAP is what started this, so the session going
+	 * live is the answer to the user asking - the test app is brought to the foreground on
+	 * [SessionEvent.ProvisioningSucceeded] (Bryan's behaviour 2). Nothing launches the test
+	 * app after its install otherwise, so without this a first tap would install the app,
+	 * warm the daemon and leave the user staring at the editor. False for a re-baseline
+	 * (also routed through this state): a rebaseline is a full Gradle build that a plain
+	 * save can trigger, and yanking the user out of the editor a minute later is not an
+	 * answer to anything they asked for.
+	 */
+	data class Provisioning(
+		val userInitiated: Boolean = false,
+	) : QuickBuildSessionState
 
 	/** Session live, no build running. [lastFailure] is surfaced until the next build. */
 	data class Ready(
@@ -99,6 +112,13 @@ sealed interface SessionFailure {
 sealed interface SessionEvent {
 	data object QuickBuildTapped : SessionEvent
 
+	/**
+	 * The user tapped the button while it was showing the stop affordance (Bryan's
+	 * behaviour 5). Only the states that actually own a build the user asked for act on
+	 * it; every other state ignores it, so the shell can dispatch it without checking.
+	 */
+	data object CancelRequested : SessionEvent
+
 	/** Project opened with the feature enabled: warm the setup build, defer the install. */
 	data object PrewarmRequested : SessionEvent
 
@@ -128,6 +148,13 @@ sealed interface SessionEvent {
 		val durationMillis: Long,
 		/** True when the deploy restarted the test-app process (component code changed). */
 		val restarted: Boolean = false,
+		/**
+		 * True when a Quick Build TAP is what this build answers, so the deploy landing is
+		 * the moment to bring the test app forward (Bryan's behaviour 2). False for a
+		 * build a file write triggered - a save is not the user asking to leave the editor
+		 * (behaviour 3) - and false for a tap the user then cancelled.
+		 */
+		val userInitiated: Boolean = false,
 	) : SessionEvent
 
 	data class BuildFailed(
@@ -203,8 +230,48 @@ sealed interface SessionEffect {
 	/** Run the setup build only - no install, no daemon (plan B2's eager warm-up). */
 	data object StartPrewarm : SessionEffect
 
-	/** Ask the orchestrator to build now (explicit tap while a session is live). */
-	data object TriggerQuickBuild : SessionEffect
+	/**
+	 * Ask the orchestrator to build now (explicit tap while a session is live).
+	 *
+	 * [userInitiated] carries WHO asked all the way to the deploy, which is what decides
+	 * whether the test app is brought forward (Bryan's behaviours 2/3/4). It is a separate
+	 * fact from [BuildRequest.forced]: `forced` is also set by the reconnect catch-up and
+	 * is re-armed after a failure, so reusing it would yank the user out of the editor on a
+	 * stale reconnect or on a save that retried a failed tap.
+	 */
+	data class TriggerQuickBuild(
+		val userInitiated: Boolean,
+	) : SessionEffect
+
+	/**
+	 * Bring the test app to the foreground: the answer to a TAP (behaviours 2 and 4).
+	 * Never emitted for a build a file write triggered - a save is not the user asking to
+	 * leave the editor (behaviour 3) - nor after a cancelled tap (behaviour 5).
+	 */
+	data object SwitchToTestApp : SessionEffect
+
+	/**
+	 * A tap landed while a real build was already in flight. That build deploys anyway, so it
+	 * satisfies the tap's BUILD - this only records that the tap happened, so the deploy
+	 * brings the test app forward. Distinct from [TriggerQuickBuild] on purpose: forcing a
+	 * second full rebuild behind a build that was about to do the same work would double the
+	 * cost for nothing.
+	 */
+	data object MarkBuildUserInitiated : SessionEffect
+
+	/**
+	 * Stop the in-flight incremental quick build (behaviour 5). The reducer has already
+	 * moved back to [QuickBuildSessionState.Ready] at the unchanged generation, so nothing
+	 * new deploys and the button returns to the bolt.
+	 */
+	data object CancelQuickBuild : SessionEffect
+
+	/**
+	 * Stop the out-of-process Gradle SETUP build (prewarm / provision / re-baseline)
+	 * (behaviour 5). Cancelling the awaiting coroutine alone leaves Gradle running to
+	 * completion, so this has to reach the tooling server's cancellation token.
+	 */
+	data object CancelSetupBuild : SessionEffect
 
 	/**
 	 * Ask the orchestrator for the background IC seed ([BuildRoute.Seed]) the moment a
@@ -282,7 +349,10 @@ class SessionReducer {
 	): SessionTransition =
 		when (event) {
 			SessionEvent.QuickBuildTapped -> {
-				SessionTransition(QuickBuildSessionState.Provisioning, listOf(SessionEffect.StartProvisioning))
+				SessionTransition(
+					QuickBuildSessionState.Provisioning(userInitiated = true),
+					listOf(SessionEffect.StartProvisioning),
+				)
 			}
 
 			SessionEvent.PrewarmRequested -> {
@@ -308,11 +378,22 @@ class SessionReducer {
 			SessionEvent.PrewarmFinished -> {
 				if (state.tapQueued) {
 					SessionTransition(
-						QuickBuildSessionState.Provisioning,
+						QuickBuildSessionState.Provisioning(userInitiated = true),
 						listOf(SessionEffect.StartProvisioning),
 					)
 				} else {
 					SessionTransition(QuickBuildSessionState.Idle)
+				}
+			}
+
+			SessionEvent.CancelRequested -> {
+				if (state.tapQueued) {
+					// The button only shows the stop affordance once a tap has queued (an
+					// unasked-for warm-up stays invisible), so a cancel here means: drop the
+					// queued tap AND stop the Gradle setup build it is waiting on.
+					SessionTransition(QuickBuildSessionState.Idle, listOf(SessionEffect.CancelSetupBuild))
+				} else {
+					SessionTransition(state)
 				}
 			}
 
@@ -322,14 +403,34 @@ class SessionReducer {
 		}
 
 	private fun reduceProvisioning(
-		state: QuickBuildSessionState,
+		state: QuickBuildSessionState.Provisioning,
 		event: SessionEvent,
 	): SessionTransition =
 		when (event) {
 			is SessionEvent.ProvisioningSucceeded -> {
 				SessionTransition(
 					QuickBuildSessionState.Ready(event.generation),
-					listOf(SessionEffect.StartBackgroundSeed),
+					// Behaviour 2: a TAP is what started this, and nothing else ever launches
+					// the freshly installed test app - so the session going live is where the
+					// tap gets its answer. A re-baseline routed through this state carries
+					// userInitiated = false and stays in the editor.
+					if (state.userInitiated) {
+						listOf(SessionEffect.StartBackgroundSeed, SessionEffect.SwitchToTestApp)
+					} else {
+						listOf(SessionEffect.StartBackgroundSeed)
+					},
+				)
+			}
+
+			SessionEvent.CancelRequested -> {
+				// There is no half-provisioned session worth keeping: stop the Gradle setup
+				// build and tear the rest down, which is also what makes a cancel mid-install
+				// safe (a late provisioning success is discarded by the epoch guard). The next
+				// tap re-provisions - the setup build's outputs are still on disk, so it is
+				// not the full cold cost again.
+				SessionTransition(
+					QuickBuildSessionState.Idle,
+					listOf(SessionEffect.CancelSetupBuild, SessionEffect.TeardownSession),
 				)
 			}
 
@@ -366,7 +467,7 @@ class SessionReducer {
 	): SessionTransition =
 		when (event) {
 			SessionEvent.QuickBuildTapped -> {
-				SessionTransition(state, listOf(SessionEffect.TriggerQuickBuild))
+				SessionTransition(state, listOf(SessionEffect.TriggerQuickBuild(userInitiated = true)))
 			}
 
 			SessionEvent.BuildStarted -> {
@@ -414,6 +515,9 @@ class SessionReducer {
 			is SessionEvent.BuildSucceeded -> {
 				SessionTransition(
 					QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted),
+					// Behaviour 2 vs 3: the deploy landing is where a TAP gets its answer, and
+					// where a save deliberately gets none - the user is still editing.
+					if (event.userInitiated) listOf(SessionEffect.SwitchToTestApp) else emptyList(),
 				)
 			}
 
@@ -426,10 +530,29 @@ class SessionReducer {
 					// A seed deploys nothing, so the tap would otherwise vanish. The
 					// orchestrator queues it (pendingForced) and builds right after the
 					// seed - single-flight preserved, tap never dropped.
-					SessionTransition(state, listOf(SessionEffect.TriggerQuickBuild))
+					SessionTransition(state, listOf(SessionEffect.TriggerQuickBuild(userInitiated = true)))
 				} else {
-					// The in-flight real build deploys anyway and satisfies the tap.
+					// The in-flight real build deploys anyway and satisfies the tap's build.
+					// It does NOT satisfy the ask, though: the tap used to be dropped here
+					// outright, so tapping during a save-triggered build did nothing the user
+					// could see. Record the ask on that build instead (behaviour 2).
+					SessionTransition(state, listOf(SessionEffect.MarkBuildUserInitiated))
+				}
+			}
+
+			SessionEvent.CancelRequested -> {
+				if (state.seeding) {
+					// The background seed is not the user's build: they never asked for it, it
+					// deploys nothing, and the button shows the bolt throughout - so there is
+					// nothing here to cancel.
 					SessionTransition(state)
+				} else {
+					// Behaviour 5: back to the bolt at the generation the test app still runs,
+					// with no failure recorded - the user chose this, it is not an error.
+					SessionTransition(
+						QuickBuildSessionState.Ready(state.deployedGeneration),
+						listOf(SessionEffect.CancelQuickBuild),
+					)
 				}
 			}
 
@@ -484,7 +607,10 @@ class SessionReducer {
 	): SessionTransition =
 		when (event) {
 			SessionEvent.RebaselineStarted -> {
-				SessionTransition(QuickBuildSessionState.Provisioning)
+				// Deliberately NOT user-initiated even when a tap triggered the retry: a
+				// rebaseline is a full Gradle build (~a minute), and a save can trigger one
+				// too, so completing it is not by itself a reason to leave the editor.
+				SessionTransition(QuickBuildSessionState.Provisioning())
 			}
 
 			SessionEvent.QuickBuildTapped, SessionEvent.HostForegrounded -> {

@@ -10,7 +10,7 @@ class SessionReducerTest {
 	fun `idle plus QuickBuildTapped starts provisioning`() {
 		val transition = reducer.reduce(QuickBuildSessionState.Idle, SessionEvent.QuickBuildTapped)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning)
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
 		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartProvisioning))
 	}
 
@@ -26,7 +26,7 @@ class SessionReducerTest {
 	@Test
 	fun `provisioning succeeded becomes ready and starts the background seed`() {
 		val transition =
-			reducer.reduce(QuickBuildSessionState.Provisioning, SessionEvent.ProvisioningSucceeded(1))
+			reducer.reduce(QuickBuildSessionState.Provisioning(), SessionEvent.ProvisioningSucceeded(1))
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1, lastFailure = null))
 		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartBackgroundSeed))
@@ -62,16 +62,8 @@ class SessionReducerTest {
 		val transition = reducer.reduce(seeding, SessionEvent.QuickBuildTapped)
 
 		assertThat(transition.state).isEqualTo(seeding)
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TriggerQuickBuild))
-	}
-
-	@Test
-	fun `a tap during a real build stays a no-op - the in-flight deploy satisfies it`() {
-		val building = QuickBuildSessionState.Building(4)
-		val transition = reducer.reduce(building, SessionEvent.QuickBuildTapped)
-
-		assertThat(transition.state).isEqualTo(building)
-		assertThat(transition.effects).isEmpty()
+		assertThat(transition.effects)
+			.isEqualTo(listOf(SessionEffect.TriggerQuickBuild(userInitiated = true)))
 	}
 
 	// Review finding (2026-07-26 #1): a crash of the RUNNING generation during the seed
@@ -116,7 +108,7 @@ class SessionReducerTest {
 	@Test
 	fun `provisioning failed returns to idle and surfaces the error`() {
 		val transition =
-			reducer.reduce(QuickBuildSessionState.Provisioning, SessionEvent.ProvisioningFailed("boom"))
+			reducer.reduce(QuickBuildSessionState.Provisioning(), SessionEvent.ProvisioningFailed("boom"))
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle)
 		assertThat(transition.effects)
@@ -126,9 +118,9 @@ class SessionReducerTest {
 	@Test
 	fun `provisioning ignores a QuickBuildTapped event`() {
 		val transition =
-			reducer.reduce(QuickBuildSessionState.Provisioning, SessionEvent.QuickBuildTapped)
+			reducer.reduce(QuickBuildSessionState.Provisioning(), SessionEvent.QuickBuildTapped)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning)
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
 		assertThat(transition.effects).isEmpty()
 	}
 
@@ -138,7 +130,8 @@ class SessionReducerTest {
 			reducer.reduce(QuickBuildSessionState.Ready(1), SessionEvent.QuickBuildTapped)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TriggerQuickBuild))
+		assertThat(transition.effects)
+			.isEqualTo(listOf(SessionEffect.TriggerQuickBuild(userInitiated = true)))
 	}
 
 	@Test
@@ -228,7 +221,7 @@ class SessionReducerTest {
 				SessionEvent.RebaselineStarted,
 			)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning)
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
 		assertThat(transition.effects).isEmpty()
 	}
 
@@ -239,7 +232,7 @@ class SessionReducerTest {
 		// forever); the session waits for the user's tap instead of dying to Idle.
 		val transition =
 			reducer.reduce(
-				QuickBuildSessionState.Provisioning,
+				QuickBuildSessionState.Provisioning(),
 				SessionEvent.RebaselineInstallNotConfirmed(deployedGeneration = 2),
 			)
 
@@ -310,7 +303,7 @@ class SessionReducerTest {
 	fun `HostForegrounded is a no-op in non-parked states`() {
 		for (state in listOf(
 			QuickBuildSessionState.Idle,
-			QuickBuildSessionState.Provisioning,
+			QuickBuildSessionState.Provisioning(),
 			QuickBuildSessionState.Ready(1),
 			QuickBuildSessionState.Building(1),
 			QuickBuildSessionState.Deployed(1, buildDurationMillis = 100),
@@ -339,7 +332,7 @@ class SessionReducerTest {
 				SessionEvent.RebaselineStarted,
 			)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning)
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
 		assertThat(transition.effects).isEmpty()
 	}
 
@@ -453,7 +446,7 @@ class SessionReducerTest {
 				SessionEvent.PrewarmFinished,
 			)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning)
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
 		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartProvisioning))
 	}
 
@@ -590,5 +583,134 @@ class SessionReducerTest {
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle)
 		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownSession))
+	}
+
+	// Bryan's button spec (2026-07-29). The reducer owns two of the five decisions: WHO the
+	// test app is brought forward for (behaviours 2/3), and what a stop does per state
+	// (behaviour 5). The other three are shape/timing and live in the shell and the action.
+
+	@Test
+	fun `a user-initiated provision brings the test app forward when the session goes live`() {
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Provisioning(userInitiated = true),
+				SessionEvent.ProvisioningSucceeded(1),
+			)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1))
+		assertThat(transition.effects)
+			.isEqualTo(listOf(SessionEffect.StartBackgroundSeed, SessionEffect.SwitchToTestApp))
+	}
+
+	@Test
+	fun `a rebaseline going live leaves the user in the editor`() {
+		// Provisioning is also the rebaseline's state, and a plain save can trigger one:
+		// finishing a minute-long Gradle build is not an answer to anything the user asked.
+		val transition =
+			reducer.reduce(QuickBuildSessionState.Provisioning(), SessionEvent.ProvisioningSucceeded(1))
+
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartBackgroundSeed))
+	}
+
+	@Test
+	fun `a deploy the user asked for switches to the test app`() {
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Building(1),
+				SessionEvent.BuildSucceeded(2, 800, userInitiated = true),
+			)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Deployed(2, 800))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.SwitchToTestApp))
+	}
+
+	@Test
+	fun `a deploy a file write triggered leaves the user in the editor`() {
+		// Behaviour 3: the same successful deploy, with nobody having asked for it.
+		val transition =
+			reducer.reduce(QuickBuildSessionState.Building(1), SessionEvent.BuildSucceeded(2, 800))
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Deployed(2, 800))
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
+	fun `a tap during a real build records the ask without forcing a second build`() {
+		// It used to be dropped outright ("the in-flight build deploys anyway"), which was
+		// true of the DEPLOY but lost the switch: a tap landing on a save-triggered build
+		// silently did nothing the user could see. Marking, not triggering: a second forced
+		// build behind one that already deploys is a full recompile for nothing.
+		val transition =
+			reducer.reduce(QuickBuildSessionState.Building(3), SessionEvent.QuickBuildTapped)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Building(3))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.MarkBuildUserInitiated))
+	}
+
+	@Test
+	fun `stopping a real build returns to ready with no failure recorded`() {
+		val transition =
+			reducer.reduce(QuickBuildSessionState.Building(4), SessionEvent.CancelRequested)
+
+		// Ready at the generation the test app still runs, lastFailure null: a cancellation
+		// the user chose must not render as the ATTENTION icon a broken build gets.
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(4, lastFailure = null))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.CancelQuickBuild))
+	}
+
+	@Test
+	fun `stopping does nothing during the background seed`() {
+		val seeding = QuickBuildSessionState.Building(4, seeding = true)
+
+		val transition = reducer.reduce(seeding, SessionEvent.CancelRequested)
+
+		assertThat(transition.state).isEqualTo(seeding)
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
+	fun `stopping during provisioning cancels the Gradle setup build and tears down`() {
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Provisioning(userInitiated = true),
+				SessionEvent.CancelRequested,
+			)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle)
+		// Order matters: the Gradle build has to be cancelled BEFORE the teardown cancels the
+		// coroutine that is awaiting it, or nothing would ever reach the cancellation token.
+		assertThat(transition.effects)
+			.isEqualTo(listOf(SessionEffect.CancelSetupBuild, SessionEffect.TeardownSession))
+	}
+
+	@Test
+	fun `stopping a queued tap during prewarm drops the tap and cancels the setup build`() {
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Prewarming(tapQueued = true),
+				SessionEvent.CancelRequested,
+			)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle)
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.CancelSetupBuild))
+	}
+
+	@Test
+	fun `stopping is a no-op in every state that does not own a build the user asked for`() {
+		// The button only shows the stop affordance in the states above, but the shell
+		// dispatches without checking - so every other state has to absorb it silently
+		// rather than, say, tearing a live session down.
+		for (state in listOf(
+			QuickBuildSessionState.Idle,
+			QuickBuildSessionState.Prewarming(tapQueued = false),
+			QuickBuildSessionState.Ready(1),
+			QuickBuildSessionState.Deployed(1, buildDurationMillis = 100),
+			QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1),
+			QuickBuildSessionState.Degraded(1),
+		)) {
+			val transition = reducer.reduce(state, SessionEvent.CancelRequested)
+			assertThat(transition.state).isEqualTo(state)
+			assertThat(transition.effects).isEmpty()
+		}
 	}
 }

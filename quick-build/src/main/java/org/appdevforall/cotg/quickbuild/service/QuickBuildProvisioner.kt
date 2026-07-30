@@ -32,6 +32,22 @@ interface QuickBuildProvisioner {
 	 * surfaced - the user did not ask for this build; a real tap reports real errors.
 	 */
 	suspend fun warmSetupBuild() {}
+
+	/**
+	 * Cancel the setup build currently running through the real Gradle path (Bryan's
+	 * behaviour 5, mid-setup). Cancelling the coroutine that awaits [provision] /
+	 * [warmSetupBuild] / [rebaseline] does NOT stop Gradle - the build runs out of process
+	 * behind a future - so a stop has to reach the tooling server's cancellation token.
+	 *
+	 * The caller must only invoke this when the session actually owns the Gradle slot
+	 * (prewarming / provisioning / re-baselining): the device has ONE cancellation token, so
+	 * issuing it blind could kill a Standard Run instead.
+	 *
+	 * @return true when a cancellation was handed to Gradle. False (the default) means the
+	 *   implementation cannot cancel - the caller must not claim it stopped anything Gradle
+	 *   is still doing.
+	 */
+	fun cancelSetupBuild(): Boolean = false
 }
 
 sealed interface ProvisionOutcome {

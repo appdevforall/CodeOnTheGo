@@ -21,6 +21,7 @@ import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildExecutor
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
+import org.appdevforall.cotg.quickbuild.domain.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildSessionState
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.domain.SessionFailure
@@ -120,6 +121,16 @@ class QuickBuildSessionManagerTest {
 	private var watcher: FakeWatcher? = null
 
 	/**
+	 * Every request to bring the test app to the foreground, as (package, launcherActivity).
+	 * Behaviours 2/3/4 are exactly "is this list empty, and when did it grow", so it is the
+	 * assertion surface for all three.
+	 */
+	private val launches = mutableListOf<Pair<String, String?>>()
+
+	/** How many times a stop reached the real Gradle setup-build cancellation. */
+	private var setupCancelCount = 0
+
+	/**
 	 * Stands in for [AndroidProjectWatcher]: mirrors its two observable behaviours -
 	 * it only forwards after [start] (a change before a live session is dropped), and it
 	 * applies the same [WatchFilter] so irrelevant paths (build intermediates) are ignored.
@@ -213,6 +224,11 @@ class QuickBuildSessionManagerTest {
 					prewarmGate?.await()
 					prewarmError?.let { throw it }
 				}
+
+				override fun cancelSetupBuild(): Boolean {
+					setupCancelCount++
+					return true
+				}
 			}
 		return QuickBuildSessionManager(
 			daemon = daemon,
@@ -247,7 +263,19 @@ class QuickBuildSessionManagerTest {
 			watcherFactory = { _, _, filter, _ -> FakeWatcher(filter).also { watcher = it } },
 			metrics = recordingMetrics,
 			backgroundSeedEnabled = backgroundSeedEnabled,
+			launcher =
+				TestAppLauncher { packageName, activityClass ->
+					launches += packageName to activityClass
+					true
+				},
 		)
+	}
+
+	/** Records the neutral notice flow for the whole test; see [QuickBuildNotice]. */
+	private fun TestScope.recordNotices(manager: QuickBuildSessionManager): List<QuickBuildNotice> {
+		val seen = mutableListOf<QuickBuildNotice>()
+		backgroundScope.launch { manager.notices.collect { seen += it } }
+		return seen
 	}
 
 	/** Simulate an on-device file change (from any source) landing on the watcher. */
@@ -995,7 +1023,7 @@ class QuickBuildSessionManagerTest {
 			manager.save(gradleFile)
 			advanceUntilIdle()
 			assertThat(daemon.shutdownCount).isEqualTo(1)
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Provisioning)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Provisioning())
 
 			// The parked respawn completes while the Gradle build still runs: its daemon
 			// must NOT coexist with the build (the shutdown above freed that memory on
@@ -1004,7 +1032,7 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			assertThat(daemon.isRunning).isFalse()
 			assertThat(daemon.shutdownCount).isEqualTo(2)
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Provisioning)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Provisioning())
 
 			// The rebaseline then finishes normally against its own fresh daemon.
 			rebGate.complete(Unit)
@@ -1790,7 +1818,8 @@ class QuickBuildSessionManagerTest {
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Provisioning)
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
 
 			manager.restartSession()
 			advanceUntilIdle()
@@ -2041,5 +2070,243 @@ class QuickBuildSessionManagerTest {
 			assertThat(daemon.startConfigs).hasSize(2)
 			assertThat(executed.last().changes).isEqualTo(ChangedFiles.Unknown)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+		}
+
+	// Bryan's button spec, behaviours 2-5. The governing principle: bringing the test app
+	// forward answers the USER asking. A tap asks; a save does not; a cancelled tap withdraws
+	// the ask. Each test below pins one of those clauses.
+
+	@Test
+	fun `the first tap brings the freshly installed test app to the foreground`() =
+		runTest {
+			// Behaviour 2 at its coldest: nothing else in the system ever launches the test
+			// app after its install, so if the session going live did not do it the user would
+			// tap, wait through the whole setup, and be left staring at the editor.
+			val manager = createManager()
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			assertThat(launches).containsExactly("com.example.quickbuild" to null)
+		}
+
+	@Test
+	fun `a save-triggered build never brings the test app forward`() =
+		runTest {
+			// Behaviour 3: the user is typing. A save is not a request to leave the editor.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val launchesAfterProvisioning = launches.size
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+			assertThat(launches).hasSize(launchesAfterProvisioning)
+		}
+
+	@Test
+	fun `a tap landing on a save-triggered build switches when THAT build deploys, without rebuilding`() =
+		runTest {
+			// Behaviour 2's hard case: the tap has no build of its own to wait for, because
+			// the in-flight one already deploys. It must neither vanish (no switch) nor force
+			// a duplicate full rebuild behind a build that was about to satisfy it.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val launchesBefore = launches.size
+			val gate = CompletableDeferred<Unit>()
+			executionGate = gate
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			// Still mid-build: no switch yet, and no second build queued behind this one.
+			assertThat(launches).hasSize(launchesBefore)
+			assertThat(executed).hasSize(1)
+
+			gate.complete(Unit)
+			advanceUntilIdle()
+
+			assertThat(launches).hasSize(launchesBefore + 1)
+			assertThat(executed).hasSize(1)
+		}
+
+	@Test
+	fun `a tap with nothing to build switches immediately instead of after the forced rebuild`() =
+		runTest {
+			// Behaviour 4. A tap with nothing pending is NOT cheap - it still recompiles and
+			// relinks everything at a fresh generation, because the runtime only accepts
+			// strictly-newer generations - so waiting for it would leave the user staring at
+			// the editor for seconds after asking to see their app.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val launchesBefore = launches.size
+			val gate = CompletableDeferred<Unit>()
+			executionGate = gate
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// The forced redeploy is still running, and the user is already in their app.
+			assertThat(executed.single().route).isEqualTo(BuildRoute.NoOp)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Building(0))
+			assertThat(launches).hasSize(launchesBefore + 1)
+
+			gate.complete(Unit)
+			advanceUntilIdle()
+			// And exactly once: the deploy must not foreground it a second time.
+			assertThat(launches).hasSize(launchesBefore + 1)
+		}
+
+	@Test
+	fun `a stale reconnect catch-up build does not drag the user into the test app`() =
+		runTest {
+			// The catch-up build is forced, exactly like a tap - which is why "the user asked"
+			// cannot be read off BuildRequest.forced. Nobody tapped anything here.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			val launchesBefore = launches.size
+
+			connections.onConnected(connectedAt(0))
+			advanceUntilIdle()
+
+			assertThat(executed).hasSize(2)
+			assertThat(launches).hasSize(launchesBefore)
+		}
+
+	@Test
+	fun `stopping a build reports a cancellation, deploys nothing and keeps the pending edits`() =
+		runTest {
+			// Behaviour 5. Three claims: nothing deploys, the report is a NOTICE rather than an
+			// error, and the never-lose-pending invariant survives - the cancelled edit is
+			// rebuilt by the next save rather than dropped.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+			val launchesBefore = launches.size
+			val gate = CompletableDeferred<Unit>()
+			executionGate = gate
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Building(0))
+
+			manager.onCancelRequested()
+			advanceUntilIdle()
+
+			// Back to the bolt at the generation the app still runs, with no failure: the
+			// user chose this, so it must not read as a broken build.
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			assertThat(manager.status.value).isEqualTo(QuickBuildStatus.UpToDate(0, null))
+			assertThat(notices).containsExactly(QuickBuildNotice.BUILD_CANCELLED)
+			assertThat(userMessages).isEmpty()
+
+			// Releasing the abandoned build must not resurrect its deploy.
+			gate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			assertThat(launches).hasSize(launchesBefore)
+
+			// The cancelled edit is still owed a build: the next save carries BOTH files.
+			executionGate = null
+			val other =
+				File(projectRoot, "app/src/main/java/com/example/Bar.kt").apply { writeText("class Bar") }
+			manager.save(other)
+			advanceUntilIdle()
+			assertThat((executed.last().changes as ChangedFiles.Known).files)
+				.containsExactly(sourceFile, other)
+		}
+
+	@Test
+	fun `stopping is a no-op during the background seed - the user never asked for it`() =
+		runTest {
+			// The seed deploys nothing and the button shows the bolt throughout, so there is
+			// no build here for the user to cancel. Cancelling it would also throw away the
+			// daemon warm-up the next real save is about to need.
+			val gate = CompletableDeferred<Unit>()
+			seedGate = gate
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Building(0, seeding = true))
+
+			manager.onCancelRequested()
+			advanceUntilIdle()
+
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Building(0, seeding = true))
+			assertThat(notices).isEmpty()
+
+			gate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
+	fun `stopping a queued tap during prewarm cancels the Gradle setup build and never provisions`() =
+		runTest {
+			// Behaviour 5 mid-SETUP. The setup build runs out of process behind a future, so
+			// abandoning the coroutine that awaits it would leave Gradle running while the
+			// button went idle - the cancel has to reach the tooling server.
+			val gate = CompletableDeferred<Unit>()
+			prewarmGate = gate
+			val manager = createManager()
+			manager.prewarm()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Prewarming(tapQueued = true))
+
+			manager.onCancelRequested()
+			advanceUntilIdle()
+
+			assertThat(setupCancelCount).isEqualTo(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+			assertThat(notices).containsExactly(QuickBuildNotice.BUILD_CANCELLED)
+
+			// The queued tap went with the cancel: the warm build finishing must not now
+			// provision something the user just stopped.
+			gate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(provisionCount).isEqualTo(0)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+		}
+
+	@Test
+	fun `stopping during provisioning cancels the setup build and tears the session down`() =
+		runTest {
+			val gate = CompletableDeferred<Unit>()
+			provisionGate = gate
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
+
+			manager.onCancelRequested()
+			advanceUntilIdle()
+
+			assertThat(setupCancelCount).isEqualTo(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+			assertThat(notices).containsExactly(QuickBuildNotice.BUILD_CANCELLED)
+
+			// A provision that outlives the stop must not install itself as a zombie session.
+			gate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+			assertThat(watcher).isNull()
 		}
 }

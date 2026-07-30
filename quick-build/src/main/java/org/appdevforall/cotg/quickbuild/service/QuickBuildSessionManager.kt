@@ -37,6 +37,7 @@ import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.OrchestratorEvent
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildExecutor
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
+import org.appdevforall.cotg.quickbuild.domain.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildSessionState
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.domain.SessionEffect
@@ -159,6 +160,21 @@ class QuickBuildSessionManager(
 			onBufferOverflow = BufferOverflow.DROP_OLDEST,
 		)
 
+	/**
+	 * Neutral notices for the host UI - things that are not failures and must not be
+	 * flashed as errors. Separate from [userMessages] precisely because that flow IS the
+	 * error channel: a cancellation the user asked for reading as a red error banner would
+	 * be the same dishonesty as a silent one.
+	 */
+	val notices: SharedFlow<QuickBuildNotice>
+		get() = _notices
+
+	private val _notices =
+		MutableSharedFlow<QuickBuildNotice>(
+			extraBufferCapacity = 4,
+			onBufferOverflow = BufferOverflow.DROP_OLDEST,
+		)
+
 	private var live: LiveSession? = null
 
 	/**
@@ -252,7 +268,10 @@ class QuickBuildSessionManager(
 						target.runningGeneration,
 						session.lastDeployedGeneration,
 					)
-					session.orchestrator.onQuickBuildRequested()
+					// NOT user-initiated: nobody tapped anything. Saying otherwise here would
+					// foreground the test app off a stale reconnect (behaviour 2's ask must
+					// come from a human).
+					session.orchestrator.onQuickBuildRequested(userInitiated = false)
 				}
 			}
 		}
@@ -276,6 +295,16 @@ class QuickBuildSessionManager(
 			historyStore.setHasUsedQuickBuild(true)
 			dispatch(SessionEvent.QuickBuildTapped)
 		}
+	}
+
+	/**
+	 * The stop button (Bryan's behaviour 5): the SAME toolbar button, tapped while it is
+	 * showing the standard build's stop icon. Dispatching is safe from any state - the
+	 * reducer only acts on the states that own a build the user asked for, so a tap that
+	 * raced the build's completion is a no-op rather than a spurious cancellation.
+	 */
+	fun onCancelRequested() {
+		scope.launch { dispatch(SessionEvent.CancelRequested) }
 	}
 
 	/**
@@ -449,8 +478,47 @@ class QuickBuildSessionManager(
 				sessionWork = scope.launch { runPrewarm() }
 			}
 
-			SessionEffect.TriggerQuickBuild -> {
-				scope.launch { live?.orchestrator?.onQuickBuildRequested() }
+			is SessionEffect.TriggerQuickBuild -> {
+				scope.launch { triggerQuickBuild(effect.userInitiated) }
+			}
+
+			SessionEffect.MarkBuildUserInitiated -> {
+				scope.launch {
+					val orchestrator = live?.orchestrator ?: return@launch
+					// The build can finish between the reducer's decision and this effect. Fall
+					// back to a real request rather than let the tap vanish - a tap that does
+					// nothing at all is the failure mode this whole path exists to remove.
+					if (!orchestrator.markInFlightUserInitiated()) triggerQuickBuild(userInitiated = true)
+				}
+			}
+
+			SessionEffect.SwitchToTestApp -> {
+				switchToTestApp()
+			}
+
+			SessionEffect.CancelQuickBuild -> {
+				scope.launch {
+					// Only report a cancellation that really happened: a stop that lost the
+					// race to the build's own completion cancelled nothing.
+					if (live?.orchestrator?.onCancelRequested() == true) {
+						surfaceNotice(QuickBuildNotice.BUILD_CANCELLED)
+					}
+				}
+			}
+
+			SessionEffect.CancelSetupBuild -> {
+				// Emitted only from Prewarming(tapQueued)/Provisioning, i.e. exactly when this
+				// session owns the device's single Gradle build slot - see the port's KDoc for
+				// why issuing it blind would be dangerous.
+				if (provisioner.cancelSetupBuild()) {
+					log.info("Quick Build setup build cancelled by the user")
+				} else {
+					// The Gradle build had already finished (the session is in its install or
+					// daemon-spawn tail). The TeardownSession effect that follows still stops
+					// the session, so the stop is honoured; nothing Gradle is doing is claimed.
+					log.info("No Quick Build setup build to cancel; tearing the session down instead")
+				}
+				surfaceNotice(QuickBuildNotice.BUILD_CANCELLED)
 			}
 
 			SessionEffect.StartBackgroundSeed -> {
@@ -487,6 +555,36 @@ class QuickBuildSessionManager(
 				log.info("Quick-build session restarted by user request")
 				teardown()
 			}
+		}
+	}
+
+	private suspend fun triggerQuickBuild(userInitiated: Boolean) {
+		val orchestrator = live?.orchestrator ?: return
+		val awaitsDeploy = orchestrator.onQuickBuildRequested(userInitiated)
+		// Behaviour 4: a tap with nothing pending still costs a full recompile + relink +
+		// deploy (the runtime only accepts strictly-newer generations, so a metadata-only
+		// replay cannot land), and the user must not stare at the editor through it. Answer
+		// the tap NOW and let the redeploy land behind them. The decision lives here rather
+		// than in the reducer because only the orchestrator knows what is pending.
+		if (userInitiated && !awaitsDeploy) switchToTestApp()
+	}
+
+	/**
+	 * Bring the test app to the foreground because the USER asked (behaviours 2 and 4).
+	 * Best-effort: a refusal is logged, never surfaced - the build itself already landed and
+	 * the user can open the app themselves, so a second banner would only add noise.
+	 */
+	private fun switchToTestApp() {
+		val session = live ?: return
+		// Same target the restart-deploy relaunch uses: the proxied launcher activity when
+		// one carries MAIN/LAUNCHER, else null so the launcher falls back to the package's
+		// default launch intent (which resolves an <activity-alias> launcher).
+		val launcherActivity =
+			session.setup.components
+				.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
+				?.proxyClass
+		if (!launcher.launch(session.setup.testAppPackage, launcherActivity)) {
+			log.warn("Could not bring the test app {} to the foreground", session.setup.testAppPackage)
 		}
 	}
 
@@ -711,6 +809,7 @@ class QuickBuildSessionManager(
 							event.result.generation,
 							event.result.durationMillis,
 							event.result.restarted,
+							userInitiated = event.userInitiated,
 						),
 					)
 				}
@@ -969,6 +1068,10 @@ class QuickBuildSessionManager(
 	private fun surfaceUserMessage(message: String) {
 		onUserMessage(message)
 		_userMessages.tryEmit(message)
+	}
+
+	private fun surfaceNotice(notice: QuickBuildNotice) {
+		_notices.tryEmit(notice)
 	}
 
 	private fun BuildOutcome.toSessionFailure(): SessionFailure =

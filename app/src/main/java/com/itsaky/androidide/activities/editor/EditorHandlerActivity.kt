@@ -109,6 +109,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
+import org.appdevforall.cotg.quickbuild.domain.QuickBuildTone
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
@@ -668,7 +669,14 @@ open class EditorHandlerActivity :
 				}
 
 				QuickBuildAction.ID -> {
-					string.cd_quick_build
+					// Behaviour 1: while a quick build runs this button IS the stop button, so
+					// the spoken label has to move with the icon - a screen reader announcing
+					// "Quick Build" over a stop affordance is a bug the user cannot see around.
+					if (QuickBuildAction.currentTone() == QuickBuildTone.BUILDING) {
+						string.cd_toolbar_cancel_build
+					} else {
+						string.cd_quick_build
+					}
 				}
 
 				"ide.editor.syncProject" -> {

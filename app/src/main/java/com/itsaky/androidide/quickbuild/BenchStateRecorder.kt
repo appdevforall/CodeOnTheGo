@@ -46,7 +46,7 @@ class BenchStateRecorder(
 
 			QuickBuildSessionState.Idle,
 			is QuickBuildSessionState.Prewarming,
-			QuickBuildSessionState.Provisioning,
+			is QuickBuildSessionState.Provisioning,
 			-> null
 		}
 }

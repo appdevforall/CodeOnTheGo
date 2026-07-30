@@ -56,7 +56,7 @@ sealed interface QuickBuildStatus {
 					if (state.tapQueued) Provisioning else Hidden
 				}
 
-				QuickBuildSessionState.Provisioning -> {
+				is QuickBuildSessionState.Provisioning -> {
 					Provisioning
 				}
 
