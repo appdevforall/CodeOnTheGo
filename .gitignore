@@ -137,6 +137,7 @@ tests/test-home
 # Plugin build artifacts
 plugin-api.jar
 plugin-artifacts.zip
+plugin-maven-repo.zip
 
 # Other IDEs
 .cursor/
