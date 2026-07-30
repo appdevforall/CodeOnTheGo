@@ -14,7 +14,7 @@
 - **Worktree:** work in `~/src/cogo/ADFA-4911` (branch `ADFA-4911-inject-plugin-jars-localmvn`); `app/google-services.json` already copied in.
 - **Coordinates:** `com.itsaky.androidide:plugin-api:1.0.0` (jar), `com.itsaky.androidide.plugins:plugin-builder:1.0.0`, marker `com.itsaky.androidide.plugins.build:com.itsaky.androidide.plugins.build.gradle.plugin:1.0.0`. Version `1.0.0` everywhere.
 - **Do NOT** add `plugin-maven-repo.zip` to `AssetsInstallationHelper.expectedEntries` — it must not become a concurrent install job (would race the `LOCAL_MAVEN_DIR` wipe). It is applied inside the `localMvnRepository` branch only.
-- **Do NOT** touch the `plugin-artifacts.zip → .cg/plugin-api/` flow (still feeds `isPluginProject` until ADFA-4913), the harvest pipeline, or the plugin-api / common / eventbus-events / idetooltips module build files.
+- **Do NOT** touch the `plugin-artifacts.zip → .cg/plugin-api/` flow (still feeds `isPluginProject` until ADFA-4913) or the harvest pipeline. The plugin-api / common / eventbus-events / idetooltips module build files **are** edited — pinned to Kotlin `languageVersion`/`apiVersion` 2.0 so their metadata is readable by the on-device Kotlin 1.9.22 compiler.
 - **Fat-jar harvest paths:** plugin-api `intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar`; the other three (v7/v8 flavored) `intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar`.
 - **Code style:** tabs, LF; run `spotlessApply` before any commit that touches Kotlin/gradle.kts. Branch name already matches `ADFA-#####`.
 - **Links:** the Maven POM `xmlns="http://maven.apache.org/POM/4.0.0"` is a standard XML **namespace identifier**, never dereferenced (no network) — it is required for a well-formed POM and is the one allowed http string.
@@ -46,7 +46,9 @@ group = "com.itsaky.androidide.plugins"
 version = "1.0.0"
 
 dependencies {
-	implementation("com.android.tools.build:gradle:8.8.2")
+	// compileOnly so the published POM stays dependency-free; the on-device build
+	// provides AGP (agp-tooling 8.11.0, as shipped in localMvnRepository).
+	compileOnly("com.android.tools.build:gradle:8.11.0")
 }
 
 gradlePlugin {
@@ -104,7 +106,7 @@ Expected files (no `.module`):
 - [ ] **Step 4: Verify the POMs carry the right dependencies**
 
 Run: `grep -A3 -i "artifactId" plugin-api/plugin-builder/build/plugin-maven-repo/com/itsaky/androidide/plugins/plugin-builder/1.0.0/plugin-builder-1.0.0.pom`
-Expected: the impl POM lists `com.android.tools.build:gradle` (config-time dep). The marker POM depends on `com.itsaky.androidide.plugins:plugin-builder:1.0.0`:
+Expected: the impl POM is **dependency-free** (AGP is `compileOnly`, so excluded from the published POM; the on-device build supplies it). The marker POM depends on `com.itsaky.androidide.plugins:plugin-builder:1.0.0`:
 Run: `grep -i "plugin-builder" plugin-api/plugin-builder/build/plugin-maven-repo/com/itsaky/androidide/plugins/build/*/1.0.0/*.pom`
 Expected: a `<dependency>` on `plugin-builder` `1.0.0`.
 

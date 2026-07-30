@@ -61,12 +61,16 @@ and leaves the fragile harvest pipeline untouched.
    which plugins never compile against), so one v8 harvest is safe for the single shared
    asset. plugin-api stays flavorless (`.../release/syncReleaseLibJars/classes.jar`). None
    of the three has group/version/publishing.
-3. **Neither `plugin-api` nor `plugin-builder` applies `maven-publish`.** `plugin-builder`
-   is a separate **included build**, consumed via `gradle.includedBuild("plugin-builder")`.
-4. **POM transitives cut both ways:** the builder's POM *must* carry its config-time deps
-   (Gradle runs the plugin); the compile-only API jar should have a **dependency-free** POM
-   so offline resolution does not chase transitives absent from `localMvnRepository`. This
-   matches today's reality — plugins already compile against flat jars with no transitives.
+3. **`plugin-builder` applies `maven-publish`** (to emit the impl POM + Gradle plugin
+   marker) and is a separate **included build**, consumed via
+   `gradle.includedBuild("plugin-builder")`. `plugin-api` does not publish — its fat jar
+   and POM are assembled in `app/build.gradle.kts`.
+4. **Both shipped POMs are dependency-free.** The compile-only API jar carries no
+   transitives; the builder declares AGP as `compileOnly` (provided on-device by
+   agp-tooling 8.11.0, as shipped in `localMvnRepository`), so it is excluded from the
+   published POM. Forcing AGP as a transitive would make the coordinate unresolvable
+   offline whenever the harvested AGP differs from a pinned version. This matches today's
+   reality — plugins already compile against flat jars with no transitives.
 5. In-repo example plugins use `compileOnly(project(":plugin-api"))`, not `libs/*.jar`; the
    five-flat-jars pattern lives in the external plugin-examples repo (ADFA-4908's concern).
 
@@ -169,7 +173,9 @@ would race the `localMvnRepository.zip` wipe and be destroyed.
 
 ## Files touched (net)
 
-`plugin-api/plugin-builder/build.gradle.kts`, `app/build.gradle.kts`, the asset-name
-constants (`org/adfa/constants/constants.kt`), the common-asset brotli registration
-(`AndroidIDEAssetsPlugin`), `BundledAssetsInstaller.kt`, `SplitAssetsInstaller.kt`, one
-docs file. **Untouched:** plugin-api, common, eventbus-events, idetooltips modules.
+`plugin-api/plugin-builder/build.gradle.kts`, `plugin-api/build.gradle.kts`,
+`common/build.gradle.kts`, `eventbus-events/build.gradle.kts`, `idetooltips/build.gradle.kts`
+(the last four: Kotlin `languageVersion`/`apiVersion` 2.0 pins), `app/build.gradle.kts`, the
+asset-name constants (`org/adfa/constants/constants.kt`), the common-asset brotli registration
+(`AndroidIDEAssetsPlugin`), `BundledAssetsInstaller.kt`, `SplitAssetsInstaller.kt`, docs.
+**Untouched:** the `plugin-artifacts.zip → .cg/plugin-api/` flow and the harvest pipeline.
