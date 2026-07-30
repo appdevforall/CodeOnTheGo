@@ -17,7 +17,6 @@
 package com.itsaky.androidide.lsp.java.actions.generators
 
 import android.content.Context
-import com.blankj.utilcode.util.ThreadUtils
 import com.github.javaparser.StaticJavaParser
 import com.github.javaparser.ast.Modifier
 import com.github.javaparser.ast.body.MethodDeclaration
@@ -39,6 +38,7 @@ import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.widget.CodeEditor
 import jdkx.lang.model.element.Modifier.FINAL
@@ -56,147 +56,159 @@ import java.util.concurrent.CompletableFuture
  * @author Akash Yadav
  */
 class GenerateSettersAndGettersAction : FieldBasedAction() {
+	override val id: String = "ide.editor.lsp.java.generator.settersAndGetters"
+	override var label: String = ""
 
-    override val id: String = "ide.editor.lsp.java.generator.settersAndGetters"
-    override var label: String = ""
+	override val titleTextRes: Int = R.string.action_generate_setters_getters
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_SETTER_GETTER
 
-    override val titleTextRes: Int = R.string.action_generate_setters_getters
-    override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_SETTER_GETTER
+	companion object {
+		private val log = LoggerFactory.getLogger(GenerateSettersAndGettersAction::class.java)
+	}
 
-    companion object {
+	private fun showErrorMessage(
+		error: Throwable,
+		context: Context?,
+	) {
+		log.error("Unable to generate setters and getters", error)
+		context ?: return
+		runOnUiThread {
+			flashError(context.getString(R.string.msg_cannot_generate_setters_getters))
+		}
+	}
 
-        private val log = LoggerFactory.getLogger(GenerateSettersAndGettersAction::class.java)
-    }
+	override fun onGetFields(
+		fields: List<String>,
+		data: ActionData,
+	) {
+		showFieldSelector(fields = fields, data = data, actionId = id, listener = { checkedNames ->
+			CompletableFuture
+				.runAsync { generateForFields(data, checkedNames) }
+				.whenComplete { _, error ->
+					if (error != null) {
+						showErrorMessage(error, data[Context::class.java])
+						return@whenComplete
+					}
+				}
+		})
+	}
 
-    private fun showErrorMessage(error: Throwable, context: Context?) {
-        log.error("Unable to generate setters and getters", error)
-        context ?: return
-        ThreadUtils.runOnUiThread {
-            flashError(context.getString(R.string.msg_cannot_generate_setters_getters))
-        }
-    }
+	private fun generateForFields(
+		data: ActionData,
+		names: MutableSet<String>,
+	) {
+		val compiler =
+			JavaCompilerProvider.get(
+				IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return,
+			)
+		val range = data[com.itsaky.androidide.models.Range::class.java]!!
+		val file = data.requirePath()
 
-    override fun onGetFields(fields: List<String>, data: ActionData) {
+		compiler.compile(file).run { task ->
+			withValidFields(data, task, file, range) { typeFinder, type, fields ->
+				fields.removeIf { !names.contains("${it.name}: ${it.type}") }
+				generateForFields(data, task, type, fields.map { TreePath(typeFinder.path, it) })
+			}
+		}
+	}
 
-        showFieldSelector(fields = fields, data = data, actionId = id, listener = { checkedNames ->
-            CompletableFuture.runAsync { generateForFields(data, checkedNames) }
-                .whenComplete {
-                        _, error,
-                    ->
-                    if (error != null) {
-                        showErrorMessage(error, data[Context::class.java])
-                        return@whenComplete
-                    }
-                }
-        })
-    }
+	private fun generateForFields(
+		data: ActionData,
+		task: CompileTask,
+		type: ClassTree,
+		paths: List<TreePath>,
+	) {
+		val file = data.requirePath()
+		val editor = data[CodeEditor::class.java]!!
+		val trees = Trees.instance(task.task)
+		val insert = EditHelper.insertAtEndOfClass(task.task, task.root(file), type)
+		val sb = StringBuilder()
 
-    private fun generateForFields(data: ActionData, names: MutableSet<String>) {
-        val compiler =
-            JavaCompilerProvider.get(
-                IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return
-            )
-        val range = data[com.itsaky.androidide.models.Range::class.java]!!
-        val file = data.requirePath()
+		for (path in paths) {
+			val element = trees.getElement(path) ?: continue
+			if (element !is VariableElement) {
+				continue
+			}
 
-        compiler.compile(file).run { task ->
-            withValidFields(data, task, file, range) { typeFinder, type, fields ->
-                fields.removeIf { !names.contains("${it.name}: ${it.type}") }
-                generateForFields(data, task, type, fields.map { TreePath(typeFinder.path, it) })
-            }
-        }
-    }
+			val leaf = path.leaf
+			val indent =
+				EditHelper.indent(task.task, task.root(file), leaf) + EditorPreferences.tabSize
+			sb.append(createGetter(element, indent))
+			if (!element.modifiers.contains(FINAL)) {
+				sb.append(createSetter(element, indent))
+			}
+		}
 
-    private fun generateForFields(
-        data: ActionData,
-        task: CompileTask,
-        type: ClassTree,
-        paths: List<TreePath>,
-    ) {
-        val file = data.requirePath()
-        val editor = data[CodeEditor::class.java]!!
-        val trees = Trees.instance(task.task)
-        val insert = EditHelper.insertAtEndOfClass(task.task, task.root(file), type)
-        val sb = StringBuilder()
+		runOnUiThread {
+			try {
+				editor.text.insert(insert.line, insert.column, sb)
+				editor.formatCodeAsync()
+			} catch (e: StringIndexOutOfBoundsException) {
+				showErrorMessage(e, data[Context::class.java])
+			}
+		}
+	}
 
-        for (path in paths) {
-            val element = trees.getElement(path) ?: continue
-            if (element !is VariableElement) {
-                continue
-            }
+	private fun createGetter(
+		variable: VariableElement,
+		indent: Int,
+	): String {
+		val name = variable.simpleName.toString()
+		val method =
+			createMethod(variable, "get", toType(variable.asType())) { _, body ->
+				body.addStatement(createReturnStmt(name))
+			}
+		var text = "\n" + JavaParserUtils.prettyPrint(method) { false }
+		text = text.replace("\n", "\n${indentationString(indent)}")
 
-            val leaf = path.leaf
-            val indent =
-                EditHelper.indent(task.task, task.root(file), leaf) + EditorPreferences.tabSize
-            sb.append(createGetter(element, indent))
-            if (!element.modifiers.contains(FINAL)) {
-                sb.append(createSetter(element, indent))
-            }
-        }
+		return text
+	}
 
-        ThreadUtils.runOnUiThread {
-            try {
-                editor.text.insert(insert.line, insert.column, sb)
-                editor.formatCodeAsync()
-            } catch (e: StringIndexOutOfBoundsException) {
-                showErrorMessage(e, data[Context::class.java])
-            }
-        }
-    }
+	private fun createReturnStmt(name: String) = StaticJavaParser.parseStatement("return this.$name;")
 
-    private fun createGetter(variable: VariableElement, indent: Int): String {
-        val name = variable.simpleName.toString()
-        val method =
-            createMethod(variable, "get", toType(variable.asType())) { _, body ->
-                body.addStatement(createReturnStmt(name))
-            }
-        var text = "\n" + JavaParserUtils.prettyPrint(method) { false }
-        text = text.replace("\n", "\n${indentationString(indent)}")
+	private fun createSetter(
+		variable: VariableElement,
+		indent: Int,
+	): String {
+		val name: String = variable.simpleName.toString()
+		val method =
+			createMethod(variable, "set", VoidType()) { method, body ->
+				method.addParameter(toType(variable.asType()), name)
+				body.addStatement(createAssignmentStmt(name))
+			}
 
-        return text
-    }
+		var text = "\n" + JavaParserUtils.prettyPrint(method) { false }
+		text = text.replace("\n", "\n${indentationString(indent)}")
 
-    private fun createReturnStmt(name: String) =
-        StaticJavaParser.parseStatement("return this.$name;")
+		return text
+	}
 
-    private fun createSetter(variable: VariableElement, indent: Int): String {
-        val name: String = variable.simpleName.toString()
-        val method =
-            createMethod(variable, "set", VoidType()) { method, body ->
-                method.addParameter(toType(variable.asType()), name)
-                body.addStatement(createAssignmentStmt(name))
-            }
+	private fun createMethod(
+		variable: VariableElement,
+		prefix: String,
+		returnType: Type,
+		vararg modifiers: Modifier.Keyword = arrayOf(Modifier.Keyword.PUBLIC),
+		block: (MethodDeclaration, BlockStmt) -> Unit,
+	): MethodDeclaration {
+		val name = variable.simpleName.toString()
+		val method = MethodDeclaration()
+		val body = method.createBody()
+		method.name = SimpleName(createName(name, prefix))
+		method.type = returnType
+		method.addModifier(*modifiers)
+		block(method, body)
+		return method
+	}
 
-        var text = "\n" + JavaParserUtils.prettyPrint(method) { false }
-        text = text.replace("\n", "\n${indentationString(indent)}")
+	private fun createAssignmentStmt(name: String) = StaticJavaParser.parseStatement("this.$name = $name;")
 
-        return text
-    }
-
-    private fun createMethod(
-        variable: VariableElement,
-        prefix: String,
-        returnType: Type,
-        vararg modifiers: Modifier.Keyword = arrayOf(Modifier.Keyword.PUBLIC),
-        block: (MethodDeclaration, BlockStmt) -> Unit
-    ): MethodDeclaration {
-        val name = variable.simpleName.toString()
-        val method = MethodDeclaration()
-        val body = method.createBody()
-        method.name = SimpleName(createName(name, prefix))
-        method.type = returnType
-        method.addModifier(*modifiers)
-        block(method, body)
-        return method
-    }
-
-    private fun createAssignmentStmt(name: String) =
-        StaticJavaParser.parseStatement("this.$name = $name;")
-
-    private fun createName(name: String, prefix: String): String {
-        val sb = StringBuilder(name)
-        sb.setCharAt(0, Character.toUpperCase(sb[0]))
-        sb.insert(0, prefix)
-        return sb.toString()
-    }
+	private fun createName(
+		name: String,
+		prefix: String,
+	): String {
+		val sb = StringBuilder(name)
+		sb.setCharAt(0, Character.toUpperCase(sb[0]))
+		sb.insert(0, prefix)
+		return sb.toString()
+	}
 }

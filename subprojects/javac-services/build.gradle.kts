@@ -17,7 +17,6 @@ android {
 
 dependencies {
 	implementation(libs.common.kotlin)
-	implementation(libs.common.utilcode)
 	implementation(libs.google.guava)
 	implementation(projects.common)
 	implementation(projects.logger)
