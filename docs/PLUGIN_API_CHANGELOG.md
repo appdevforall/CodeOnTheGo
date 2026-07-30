@@ -34,6 +34,16 @@ Legend: `added` = new capability, safe to adopt · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.31 — 2026-07-29
+- **tooling — Plugin API & builder resolvable by Maven coordinate on-device** _(ADFA-4911)_
+  The plugin API and the builder Gradle plugin are injected into the on-device
+  local Maven repository at onboarding, so a plugin resolves them by coordinate,
+  offline, without committing `libs/*.jar`:
+  `compileOnly("com.itsaky.androidide:plugin-api:1.0.0")` and
+  `plugins { id("com.itsaky.androidide.plugins.build") version "1.0.0" }`.
+  `plugin-api:1.0.0` bundles `:plugin-api` + `common` + `eventbus-events` +
+  `idetooltips`. (No-`libs/` project detection lands separately in ADFA-4913.)
+
 ### 26.30 — 2026-07-20
 - **added — Project-search providers** _(ADFA-4723, `88c20f3`)_ **[verified]**
   Plugins contribute their own project-search sources that render as dedicated
