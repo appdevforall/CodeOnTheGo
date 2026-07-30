@@ -284,14 +284,21 @@ class GradleQuickBuildProvisioner(
 
 	/**
 	 * Hands a cancellation to the Gradle build currently running through the tooling server.
-	 * Only ever called while this session owns the slot (see the port's KDoc) - the device has
-	 * a single cancellation token, so an unguarded call could kill a Standard Run.
+	 *
+	 * The device has a single cancellation token, so this refuses unless the in-flight build
+	 * is an INTERNAL one (Quick Build setup/prewarm/rebaseline). The caller only ever issues
+	 * this while the session owns the slot, but that invariant used to live in a comment - and
+	 * a comment cannot stop a stop-tap from killing the user's own Standard Run.
 	 */
 	override fun cancelSetupBuild(): Boolean {
 		val buildService =
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 				?: return false
 		if (!buildService.isBuildInProgress) return false
+		if (buildService.isUserVisibleBuildInProgress) {
+			log.warn("Refusing to cancel: the in-flight Gradle build is the user's, not Quick Build's")
+			return false
+		}
 		return try {
 			buildService.cancelCurrentBuild()
 			true
