@@ -49,6 +49,50 @@ pluginBuilder {
 }
 ```
 
+### Depending on the plugin API
+
+The IDE-side API your plugin compiles against ships as a Maven **coordinate**,
+injected into the on-device local Maven repository during onboarding — so it
+resolves offline, with no `libs/*.jar` to commit:
+
+```kotlin
+dependencies {
+    compileOnly("com.itsaky.androidide:plugin-api:1.0.0")
+}
+```
+
+`plugin-api:1.0.0` is a single jar bundling the API surface plugins compile
+against — the `:plugin-api` module plus `common`, `eventbus-events`, and
+`idetooltips`. The builder plugin applied above resolves the same way, from the
+injected `com.itsaky.androidide.plugins.build` `1.0.0` marker.
+
+#### Building on-device (offline) pins the AGP/Kotlin versions
+
+The `plugins {}` example above uses AGP `8.8.2` / Kotlin `2.1.21` — the versions the
+dev/CI repo resolves online. A plugin built **on-device** resolves AGP and the Kotlin
+Gradle plugin from the harvested on-device `localMvnRepository`, which currently ships
+only **AGP `8.11.0`** and **Kotlin `1.9.22`**. Request those versions for an on-device
+build, or offline resolution of the build plugins fails.
+
+Also declare AGP `apply false` in the **root** `build.gradle.kts` (as the standard CoGo
+project template does):
+
+```kotlin
+plugins {
+    id("com.android.application") apply false version "8.11.0"
+    id("com.android.library") apply false version "8.11.0"
+}
+```
+
+CoGo injects `LogSenderPlugin` (via its build init script) into every module; that
+plugin references AGP's `ApplicationVariant` and is loaded from the root buildscript
+classpath, so a root without AGP fails configuration with
+`NoClassDefFoundError: com/android/build/api/variant/ApplicationVariant`.
+
+> The in-app plugin-project detector still recognizes a project by a
+> `libs/plugin-api.jar` on disk; dropping that on-disk requirement so a
+> coordinate-only plugin is recognized is tracked in ADFA-4913.
+
 ## AndroidManifest meta-data reference
 
 All plugin metadata is declared as `<meta-data>` tags inside
