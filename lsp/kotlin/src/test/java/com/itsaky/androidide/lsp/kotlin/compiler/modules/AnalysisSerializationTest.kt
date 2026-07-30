@@ -38,7 +38,7 @@ import kotlin.math.max
  * preemption, and reentrancy behaviour.
  */
 class AnalysisSerializationTest : KtLspTest() {
-	@Test
+	@Test(timeout = 60_000)
 	fun `concurrent analyzeMaybeDangling never throws lifetime exception`(): Unit =
 		runBlocking {
 			val files =
@@ -86,7 +86,7 @@ class AnalysisSerializationTest : KtLspTest() {
 			assertThat(errors).isEmpty()
 		}
 
-	@Test
+	@Test(timeout = 60_000)
 	fun `analyzeMaybeDangling serializes overlapping analyses`(): Unit =
 		runBlocking {
 			val files =
