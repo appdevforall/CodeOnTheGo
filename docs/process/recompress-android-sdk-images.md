@@ -28,8 +28,10 @@ pngquant --quality=80-95 --strip --force --output out.png in.png
 **`pngquant` on this machine is a snap package** and can't read files outside
 its allowed roots — a path like `/tmp/.../scratchpad/foo.png` fails with
 `cannot open ... for reading` even though the file exists and is readable by
-the same user. Copy the input into `$HOME` first (same snap-confinement
-pattern as `jira-cli` — see the memory note on that). Confirmed savings for
+the same user. Snap confinement only grants read/write access under `$HOME`,
+`/media`, and a few other allowed roots, so copy the input into `$HOME` first
+(the same workaround applies to other snap-packaged CLI tools, e.g. `jira-cli`).
+Confirmed savings for
 ADFA-3771: `drawable-sw600dp-nodpi/default_wallpaper.png` 2.75MB → 844KB (69%),
 `drawable-sw720dp-nodpi/default_wallpaper.png` 3.94MB → 1.43MB (64%).
 
@@ -41,13 +43,16 @@ result.
 
 `zip` can replace a single entry in an existing archive without rewriting the
 whole thing, as long as the working directory mirrors the archive's internal
-path structure:
+path structure. Substitute `android-<N>` below with whichever platform
+directory (from `unzip -l`) actually contains the target asset — it's
+`android-36` for ADFA-3771's SDK level, but will differ for other assets or
+future SDK bumps:
 
 ```sh
-mkdir -p work/platforms/android-36/data/res/drawable-sw600dp-nodpi
-cp out.png work/platforms/android-36/data/res/drawable-sw600dp-nodpi/default_wallpaper.png
+mkdir -p work/platforms/android-<N>/data/res/drawable-sw600dp-nodpi
+cp out.png work/platforms/android-<N>/data/res/drawable-sw600dp-nodpi/default_wallpaper.png
 cd work
-zip ../assets/android-sdk-arm64-v8a.zip platforms/android-36/data/res/drawable-sw600dp-nodpi/default_wallpaper.png
+zip ../assets/android-sdk-arm64-v8a.zip platforms/android-<N>/data/res/drawable-sw600dp-nodpi/default_wallpaper.png
 ```
 
 Repeat for `android-sdk-armeabi-v7a.zip` — SDK platform resources are
