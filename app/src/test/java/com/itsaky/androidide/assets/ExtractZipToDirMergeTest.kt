@@ -1,10 +1,8 @@
 package com.itsaky.androidide.assets
 
-import io.mockk.mockkObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -13,11 +11,6 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 class ExtractZipToDirMergeTest {
-	@Before
-	fun setup() {
-		mockkObject(AssetsInstallationHelper)
-	}
-
 	// Real archives merged in production (e.g. plugin-maven-repo.zip, built by Gradle's
 	// Zip task -- verified via `unzip -l assets/plugin-maven-repo.zip`) always carry an
 	// explicit directory entry for every ancestor path. extractZipToDir relies on that
