@@ -9,7 +9,7 @@ wallpaper images at ~2.7MB and ~3.9MB).
 
 ## Finding an oversized asset
 
-```
+```sh
 unzip -l assets/android-sdk-arm64-v8a.zip | sort -n -k1 | tail -20
 ```
 
@@ -21,7 +21,7 @@ buy much. The real win is `pngquant`'s palette quantization, which is lossy but
 usually visually indistinguishable at these quality settings for
 photographic/gradient content like a wallpaper:
 
-```
+```sh
 pngquant --quality=80-95 --strip --force --output out.png in.png
 ```
 
@@ -43,7 +43,7 @@ result.
 whole thing, as long as the working directory mirrors the archive's internal
 path structure:
 
-```
+```sh
 mkdir -p work/platforms/android-36/data/res/drawable-sw600dp-nodpi
 cp out.png work/platforms/android-36/data/res/drawable-sw600dp-nodpi/default_wallpaper.png
 cd work
@@ -54,7 +54,7 @@ Repeat for `android-sdk-armeabi-v7a.zip` — SDK platform resources are
 architecture-independent, so both zips carry byte-identical copies of these
 files (verified via `md5sum` before touching either). Verify afterward:
 
-```
+```sh
 unzip -t assets/android-sdk-arm64-v8a.zip   # "No errors detected"
 ```
 
