@@ -35,7 +35,7 @@ class IdeFileServiceImplTest {
 			permissions = permissions,
 			pathValidator =
 				object : IdeFileServiceImpl.PathValidator {
-					override fun isPathAllowed(path: File) = path.absolutePath.startsWith(projectRoot.absolutePath)
+					override fun isPathAllowed(path: File) = path.isWithin(projectRoot)
 
 					override fun getAllowedPaths() = listOf(projectRoot.absolutePath)
 				},
@@ -110,7 +110,26 @@ class IdeFileServiceImplTest {
 	}
 
 	@Test(expected = SecurityException::class)
+	fun siblingPrefixPathThrowsSecurityException() {
+		// A sibling dir whose path is a string prefix of the root ("<root>-sibling") must be
+		// rejected -- naive absolutePath.startsWith() would wrongly accept it.
+		val sibling = File(projectRoot.parentFile, "${projectRoot.name}-sibling")
+		service().readFile(File(sibling, "secret.txt"))
+	}
+
+	@Test(expected = SecurityException::class)
+	fun traversalPathThrowsSecurityException() {
+		// A traversal that escapes the root ("<root>/../escape.txt") must be rejected -- naive
+		// absolutePath.startsWith() would wrongly accept it since ".." is not normalized.
+		service().readFile(File(projectRoot, "../escape.txt"))
+	}
+
+	@Test(expected = SecurityException::class)
 	fun missingWritePermissionThrowsSecurityException() {
 		service(permissions = emptySet()).readFile(File(projectRoot, "test.txt"))
 	}
+
+	// Canonical, component-wise containment: rejects sibling-prefix and traversal escapes that a
+	// naive absolutePath.startsWith() would wrongly accept.
+	private fun File.isWithin(root: File) = canonicalFile.toPath().startsWith(root.canonicalFile.toPath())
 }

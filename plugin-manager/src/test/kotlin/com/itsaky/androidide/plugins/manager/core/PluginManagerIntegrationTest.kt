@@ -101,7 +101,7 @@ class PluginManagerIntegrationTest {
 			permissions = setOf(PluginPermission.FILESYSTEM_WRITE),
 			pathValidator =
 				object : IdeFileServiceImpl.PathValidator {
-					override fun isPathAllowed(path: File) = path.absolutePath.startsWith(tempProjectRoot.absolutePath)
+					override fun isPathAllowed(path: File) = path.isWithin(tempProjectRoot)
 
 					override fun getAllowedPaths() = listOf(tempProjectRoot.absolutePath)
 				},
@@ -114,4 +114,8 @@ class PluginManagerIntegrationTest {
 
 		override fun getProjectByPath(path: File): IProject? = null
 	}
+
+	// Canonical, component-wise containment: rejects sibling-prefix and traversal escapes that a
+	// naive absolutePath.startsWith() would wrongly accept.
+	private fun File.isWithin(root: File) = canonicalFile.toPath().startsWith(root.canonicalFile.toPath())
 }
