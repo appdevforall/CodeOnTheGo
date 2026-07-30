@@ -1256,6 +1256,34 @@
 	<!-- Plugins -->
 	<string name="title_plugin_manager">Plugin Manager</string>
 
+	<!-- Templates tab of the Plugin/Template Manager screen -->
+	<string name="tab_plugins">Plugins</string>
+	<string name="tab_templates">Templates</string>
+	<string name="no_templates_found">No templates found</string>
+	<string name="no_templates_found_hint">Templates you download show up here for installing</string>
+	<string name="status_template_installed">Installed</string>
+	<string name="status_template_not_installed">Not installed</string>
+	<string name="template_provenance_bundled">Bundled</string>
+	<string name="template_provenance_plugin">From plugin</string>
+	<string name="template_provenance_user">Imported</string>
+	<string name="template_contains_count">Contains %1$d templates</string>
+	<string name="action_install_template">Install</string>
+	<string name="action_uninstall_template">Uninstall</string>
+	<string name="action_view_templates">View templates</string>
+	<string name="action_delete_template">Delete</string>
+	<string name="template_details">Details</string>
+	<string name="title_templates_in">Templates in %1$s</string>
+	<string name="title_delete_template">Delete template?</string>
+	<string name="msg_delete_template_confirm">This permanently deletes \'%1$s\' from Downloads.</string>
+	<string name="label_template_file">File</string>
+	<string name="label_template_status">Status</string>
+	<string name="label_template_location">Location</string>
+	<string name="label_template_version">Version</string>
+	<string name="label_template_description">Description</string>
+	<string name="label_template_optional_params">Optional parameters</string>
+	<string name="template_unnamed">(unnamed)</string>
+	<string name="msg_template_error_clip_label">Template error</string>
+
 	<string name="failed_to_save_bitmap_to_file">Failed to save bitmap to file</string>
 	<string name="pixel_copy_failed">PixelCopy failed</string>
 	<string name="failed_to_capture_or_save_screenshot">Failed to capture or save screenshot</string>
