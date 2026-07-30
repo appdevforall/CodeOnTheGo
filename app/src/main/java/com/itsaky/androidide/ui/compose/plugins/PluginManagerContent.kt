@@ -17,14 +17,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,7 +43,6 @@ import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils
-import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.errorIcon
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -57,7 +51,7 @@ import com.itsaky.androidide.utils.getFileName
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 
-private const val TAG = "PluginManagerScreen"
+private const val TAG = "PluginManagerContent"
 private const val PLUGIN_EXTENSION = ".cgp"
 
 private fun Uri.isSupportedPluginFile(activity: ComponentActivity): Boolean =
@@ -87,18 +81,23 @@ private sealed interface PluginManagerDialogState {
 }
 
 /**
- * Compose port of the legacy `PluginManagerActivity`/`activity_plugin_manager.xml` screen (ADR 0009).
- * Preserves every capability of the original: install (via SAF picker)/enable/disable/uninstall,
- * overwrite/signature-mismatch conflict handling, restart prompt, and the discover-plugins action.
+ * Plugins tab content (ADR 0009). Preserves every capability of the original
+ * `PluginManagerActivity`/`activity_plugin_manager.xml` screen: install (via SAF picker;
+ * the launcher lives here, the FAB that triggers it lives in
+ * [com.itsaky.androidide.ui.compose.ManagerScreen], which owns the shared Scaffold)/
+ * enable/disable/uninstall, overwrite/signature-mismatch conflict handling, restart prompt.
+ *
+ * Content-only (no Scaffold/TopAppBar/FAB): composed as one tab's body inside the shared manager
+ * screen alongside the Templates tab.
  *
  * The original wired the same long-press tooltip (`TooltipTag.PLUGIN_MANAGER`) to six separate
  * views. Since they all show identical content, this collapses to two anchor points here: each
  * list item (already handles its own tap-for-details gesture) and the screen's background/empty
  * state area - long-pressing anywhere else on the screen shows the same tooltip.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PluginManagerScreen(
+fun PluginManagerContent(
 	activity: ComponentActivity,
 	viewModel: PluginManagerViewModel,
 	modifier: Modifier = Modifier,
@@ -190,66 +189,26 @@ fun PluginManagerScreen(
 		}
 	}
 
-	Scaffold(
-		modifier = modifier,
-		topBar = {
-			TopAppBar(
-				title = { Text(stringResource(R.string.title_plugin_manager)) },
-				navigationIcon = {
-					IconButton(onClick = { activity.onBackPressedDispatcher.onBackPressed() }) {
-						Icon(
-							painter = painterResource(R.drawable.ic_back),
-							contentDescription = stringResource(android.R.string.cancel),
-						)
-					}
-				},
-				actions = {
-					IconButton(
-						onClick = {
-							UrlManager.openUrl(activity.getString(R.string.url_discover_plugins), null, activity)
-						},
-					) {
-						Icon(
-							painter = painterResource(R.drawable.ic_download),
-							contentDescription = stringResource(R.string.action_discover_plugins),
-						)
-					}
-				},
-			)
-		},
-		floatingActionButton = {
-			FloatingActionButton(
-				onClick = { viewModel.onEvent(PluginManagerUiEvent.OpenFilePicker) },
-			) {
-				Icon(
-					painter = painterResource(R.drawable.ic_add),
-					contentDescription = stringResource(R.string.cd_add),
-				)
-			}
-		},
-	) { padding ->
-		Box(
-			modifier =
-				Modifier
-					.padding(padding)
-					.fillMaxSize()
-					.pointerInput(Unit) { detectTapGestures(onLongPress = { showTooltip() }) },
-		) {
-			if (uiState.showEmptyState) {
-				PluginManagerEmptyState(modifier = Modifier.fillMaxSize())
-			} else {
-				LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-					items(uiState.plugins, key = { it.metadata.id }) { plugin ->
-						PluginListItem(
-							plugin = plugin,
-							onEnable = { viewModel.onEvent(PluginManagerUiEvent.EnablePlugin(plugin.metadata.id)) },
-							onDisable = { viewModel.onEvent(PluginManagerUiEvent.DisablePlugin(plugin.metadata.id)) },
-							onUninstall = { viewModel.onEvent(PluginManagerUiEvent.UninstallPlugin(plugin.metadata.id)) },
-							onDetails = { viewModel.onEvent(PluginManagerUiEvent.ShowPluginDetails(plugin)) },
-							onLongPressTooltip = { showTooltip() },
-							modifier = Modifier.padding(bottom = 8.dp),
-						)
-					}
+	Box(
+		modifier =
+			modifier
+				.fillMaxSize()
+				.pointerInput(Unit) { detectTapGestures(onLongPress = { showTooltip() }) },
+	) {
+		if (uiState.showEmptyState) {
+			PluginManagerEmptyState(modifier = Modifier.fillMaxSize())
+		} else {
+			LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+				items(uiState.plugins, key = { it.metadata.id }) { plugin ->
+					PluginListItem(
+						plugin = plugin,
+						onEnable = { viewModel.onEvent(PluginManagerUiEvent.EnablePlugin(plugin.metadata.id)) },
+						onDisable = { viewModel.onEvent(PluginManagerUiEvent.DisablePlugin(plugin.metadata.id)) },
+						onUninstall = { viewModel.onEvent(PluginManagerUiEvent.UninstallPlugin(plugin.metadata.id)) },
+						onDetails = { viewModel.onEvent(PluginManagerUiEvent.ShowPluginDetails(plugin)) },
+						onLongPressTooltip = { showTooltip() },
+						modifier = Modifier.padding(bottom = 8.dp),
+					)
 				}
 			}
 		}

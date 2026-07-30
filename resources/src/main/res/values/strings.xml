@@ -1256,7 +1256,8 @@
 	<!-- Plugins -->
 	<string name="title_plugin_manager">Plugin Manager</string>
 
-	<!-- Templates tab of the Plugin/Template Manager screen -->
+	<!-- Combined Plugin/Template Manager screen (ADFA-4928) -->
+	<string name="title_manager">Plugins &amp; Templates</string>
 	<string name="tab_plugins">Plugins</string>
 	<string name="tab_templates">Templates</string>
 	<string name="no_templates_found">No templates found</string>

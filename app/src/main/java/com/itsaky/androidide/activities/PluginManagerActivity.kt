@@ -9,10 +9,11 @@ import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
-import com.itsaky.androidide.ui.compose.plugins.PluginManagerScreen
+import com.itsaky.androidide.ui.compose.ManagerScreen
 import com.itsaky.androidide.ui.compose.theme.ManagerTheme
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
+import com.itsaky.androidide.viewmodels.TemplateManagerViewModel
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class PluginManagerActivity : EdgeToEdgeIDEActivity() {
@@ -23,7 +24,8 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
 	private var feedbackButtonManager: FeedbackButtonManager? = null
 
-	private val viewModel: PluginManagerViewModel by viewModel()
+	private val pluginViewModel: PluginManagerViewModel by viewModel()
+	private val templateViewModel: TemplateManagerViewModel by viewModel()
 
 	override fun bindLayout(): View {
 		_binding = ActivityPluginManagerBinding.inflate(layoutInflater)
@@ -36,7 +38,11 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
 			binding.composeView.setContent {
 				ManagerTheme {
-					PluginManagerScreen(activity = this, viewModel = viewModel)
+					ManagerScreen(
+						activity = this,
+						pluginViewModel = pluginViewModel,
+						templateViewModel = templateViewModel,
+					)
 				}
 			}
 
