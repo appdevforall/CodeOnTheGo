@@ -7,6 +7,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
@@ -271,10 +272,20 @@ class QuickBuildSessionManagerTest {
 		)
 	}
 
-	/** Records the neutral notice flow for the whole test; see [QuickBuildNotice]. */
+	/**
+	 * Records the neutral notice flow for the whole test; see [QuickBuildNotice].
+	 *
+	 * The collector MUST run on an [UnconfinedTestDispatcher]: [notices] is a zero-replay
+	 * SharedFlow, and on a StandardTestDispatcher the resumed collector is a background task
+	 * that [advanceUntilIdle] considers idle work - once nothing else is queued it returns
+	 * without ever running it, so an emission that really happened reads as "no notice".
+	 * Unconfined resumes the collector inside the emitter's own call stack instead.
+	 */
 	private fun TestScope.recordNotices(manager: QuickBuildSessionManager): List<QuickBuildNotice> {
 		val seen = mutableListOf<QuickBuildNotice>()
-		backgroundScope.launch { manager.notices.collect { seen += it } }
+		backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+			manager.notices.collect { seen += it }
+		}
 		return seen
 	}
 
