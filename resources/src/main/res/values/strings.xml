@@ -1089,6 +1089,14 @@
 	<string name="label_plugin_min_ide_version">Min IDE Version</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
+	<string name="msg_template_load_failed">Failed to load templates: %1$s</string>
+	<string name="msg_template_installed">Template installed successfully</string>
+	<string name="msg_template_install_failed">Failed to install template: %1$s</string>
+	<string name="msg_template_uninstalled">Template uninstalled successfully</string>
+	<string name="msg_template_uninstall_failed">Failed to uninstall template: %1$s</string>
+	<string name="msg_template_deleted">Deleted from Downloads</string>
+	<string name="msg_template_delete_failed">Failed to delete template: %1$s</string>
+
 	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->

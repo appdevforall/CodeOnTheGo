@@ -1,0 +1,121 @@
+package com.itsaky.androidide.templates.manager.parsing
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+
+// org.json.JSONObject needs Robolectric's shadow to run real logic instead of
+// android.jar's "not mocked" stub.
+@RunWith(RobolectricTestRunner::class)
+class CgtTemplateReaderTest {
+	/** Builds an in-memory .cgt (zip) from a map of entry path -> contents. */
+	private fun cgt(entries: Map<String, String>): ByteArrayInputStream {
+		val bytes = ByteArrayOutputStream()
+		ZipOutputStream(bytes).use { zip ->
+			for ((path, content) in entries) {
+				zip.putNextEntry(ZipEntry(path))
+				zip.write(content.toByteArray(Charsets.UTF_8))
+				zip.closeEntry()
+			}
+		}
+		return ByteArrayInputStream(bytes.toByteArray())
+	}
+
+	@Test
+	fun readsSingleTemplateMetadata() {
+		val input =
+			cgt(
+				mapOf(
+					"pkg/template/template.json" to
+						"""{"name":"Basic Activity","description":"Creates a new basic activity","version":"0.1"}""",
+				),
+			)
+		val result = CgtTemplateReader.readTemplates(input)
+		assertEquals(1, result.size)
+		assertEquals("Basic Activity", result[0].name)
+		assertEquals("Creates a new basic activity", result[0].description)
+		assertEquals("0.1", result[0].version)
+		assertTrue(result[0].optionalTags.isEmpty())
+	}
+
+	@Test
+	fun readsAllTemplatesInMultiTemplateArchive() {
+		val input =
+			cgt(
+				mapOf(
+					"a/template/template.json" to """{"name":"Empty","description":"e","version":"1.0"}""",
+					"b/template/template.json" to """{"name":"Login","description":"l","version":"1.1"}""",
+					"a/build.gradle.kts.peb" to "// not a template.json",
+				),
+			)
+		val result = CgtTemplateReader.readTemplates(input)
+		assertEquals(2, result.size)
+		assertEquals(setOf("Empty", "Login"), result.map { it.name }.toSet())
+	}
+
+	@Test
+	fun parsesOptionalParametersAsTagWithIdentifier() {
+		val input =
+			cgt(
+				mapOf(
+					"pkg/template/template.json" to
+						"""
+						{
+						"name":"T","description":"d","version":"1.0",
+						"parameters": { "optional": {
+							"language": {"identifier":"LANGUAGE"},
+							"minsdk": {"identifier":"MIN_SDK"}
+						} }
+						}
+						""".trimIndent(),
+				),
+			)
+		val tags = CgtTemplateReader.readTemplates(input).single().optionalTags
+		// org.json key iteration order isn't guaranteed, so compare as a set.
+		assertEquals(setOf("language (LANGUAGE)", "minsdk (MIN_SDK)"), tags.toSet())
+	}
+
+	@Test
+	fun handlesUnquotedInnerKeys_asShippedByCore() {
+		// The bundled core.cgt uses lenient JSON with unquoted inner keys; org.json accepts it.
+		val input =
+			cgt(
+				mapOf(
+					"BasicActivity/template/template.json" to
+						"""
+						{
+						"name":"Basic Activity","description":"d","version":"0.1",
+						"parameters": { "optional": { "language": {identifier: "LANGUAGE"} } }
+						}
+						""".trimIndent(),
+				),
+			)
+		val template = CgtTemplateReader.readTemplates(input).single()
+		assertEquals("Basic Activity", template.name)
+		assertEquals(listOf("language (LANGUAGE)"), template.optionalTags)
+	}
+
+	@Test
+	fun optionalTagWithoutIdentifierFallsBackToKey() {
+		val input =
+			cgt(
+				mapOf(
+					"pkg/template/template.json" to
+						"""{"name":"T","description":"d","version":"1.0","parameters":{"optional":{"flag":{}}}}""",
+				),
+			)
+		assertEquals(listOf("flag"), CgtTemplateReader.readTemplates(input).single().optionalTags)
+	}
+
+	@Test
+	fun returnsEmptyWhenNoTemplateJson() {
+		val input = cgt(mapOf("pkg/readme.txt" to "hello", "pkg/template/other.json" to "{}"))
+		assertTrue(CgtTemplateReader.readTemplates(input).isEmpty())
+	}
+}
