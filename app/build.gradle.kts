@@ -34,6 +34,7 @@ plugins {
 	// Sentry gradle plugin; the SDK it wires up reports to our GlitchTip backend.
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
+	alias(libs.plugins.kotlin.compose)
 }
 
 fun propOrEnv(name: String): String =
@@ -180,6 +181,10 @@ android {
 		targetCompatibility = JavaVersion.VERSION_17
 		isCoreLibraryDesugaringEnabled = true
 	}
+
+	buildFeatures {
+		compose = true
+	}
 }
 
 // Sentry gradle plugin config (crash reporting to GlitchTip).
@@ -262,6 +267,17 @@ dependencies {
 	implementation(libs.google.material)
 	implementation(libs.google.flexbox)
 	implementation(libs.libsu.core)
+
+	// Compose (plugin/template manager screen; ADR 0009)
+	implementation(platform(libs.compose.bom))
+	implementation(libs.compose.runtime)
+	implementation(libs.compose.ui)
+	implementation(libs.compose.foundation)
+	implementation(libs.compose.material3)
+	implementation(libs.compose.activity)
+	implementation(libs.compose.ui.tooling.preview)
+	implementation(libs.androidx.lifecycle.runtime.compose)
+	debugImplementation(libs.compose.ui.tooling)
 
 	// Kotlin
 	implementation(libs.androidx.core.ktx)
