@@ -910,6 +910,10 @@
 	<string name="plugin_details">Plugin Details</string>
 	<string name="plugin_permissions">Permissions</string>
 	<string name="plugin_dependencies">Dependencies</string>
+	<string name="by_author">by %1$s</string>
+	<string name="status_not_loaded">Not Loaded</string>
+	<string name="status_disabled">Disabled</string>
+	<string name="status_enabled">Enabled</string>
 
 	<!-- Plugin crash dialog -->
 	<string name="title_plugin_crashed">Plugin crashed</string>
@@ -1075,6 +1079,14 @@
 	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
 	<string name="action_discover_plugins">Discover plugins</string>
 	<string name="url_discover_plugins" translatable="false">https://www.appdevforall.org/contribute/</string>
+	<string name="title_uninstall_plugin">Uninstall Plugin</string>
+	<string name="msg_uninstall_plugin_confirm">Are you sure you want to uninstall \'%1$s\'?</string>
+	<string name="label_plugin_name">Name</string>
+	<string name="label_plugin_id">Plugin ID</string>
+	<string name="label_plugin_version">Version</string>
+	<string name="label_plugin_author">Author</string>
+	<string name="label_plugin_description">Description</string>
+	<string name="label_plugin_min_ide_version">Min IDE Version</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
