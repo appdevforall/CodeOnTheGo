@@ -133,9 +133,6 @@
 -keep class io.sentry.** { *; }
 -dontwarn io.sentry.**
 
-## Prevent R8 from moving what it thinks as unused classes
--dontshrink
-
 ## Plugin SPI
 ## Plugins are loaded dynamically via DexClassLoader, so R8 cannot see their
 ## implementations of these interfaces. Without these rules, R8 narrows the
