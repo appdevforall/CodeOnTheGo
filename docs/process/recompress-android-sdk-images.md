@@ -55,7 +55,8 @@ architecture-independent, so both zips carry byte-identical copies of these
 files (verified via `md5sum` before touching either). Verify afterward:
 
 ```sh
-unzip -t assets/android-sdk-arm64-v8a.zip   # "No errors detected"
+unzip -t assets/android-sdk-arm64-v8a.zip     # "No errors detected"
+unzip -t assets/android-sdk-armeabi-v7a.zip   # "No errors detected"
 ```
 
 ## Scope
