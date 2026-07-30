@@ -47,7 +47,7 @@ path structure:
 mkdir -p work/platforms/android-36/data/res/drawable-sw600dp-nodpi
 cp out.png work/platforms/android-36/data/res/drawable-sw600dp-nodpi/default_wallpaper.png
 cd work
-zip assets/android-sdk-arm64-v8a.zip platforms/android-36/data/res/drawable-sw600dp-nodpi/default_wallpaper.png
+zip ../assets/android-sdk-arm64-v8a.zip platforms/android-36/data/res/drawable-sw600dp-nodpi/default_wallpaper.png
 ```
 
 Repeat for `android-sdk-armeabi-v7a.zip` — SDK platform resources are
