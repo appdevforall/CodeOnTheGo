@@ -19,7 +19,6 @@ package com.itsaky.androidide.lsp.java.actions
 
 import android.content.Context
 import android.view.View
-import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
@@ -38,6 +37,7 @@ import com.itsaky.androidide.lsp.java.visitors.FindTypeDeclarationAt
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
@@ -145,7 +145,7 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
 	) {
 		val triple = findFields(task, file, range)
 		if (triple == null) {
-			ThreadUtils.runOnUiThread {
+			runOnUiThread {
 				val context = data[Context::class.java]
 				if (context != null) {
 					flashError(context.getString(R.string.msg_no_fields_found))

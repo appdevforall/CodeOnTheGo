@@ -40,8 +40,6 @@ dependencies {
 	implementation(libs.androidx.tracing)
 	implementation(libs.androidx.tracing.ktx)
 
-	implementation(libs.common.utilcode)
-
 	implementation(libs.google.material)
 
 	implementation(projects.actions)
