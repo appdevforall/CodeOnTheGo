@@ -132,12 +132,12 @@ class DeployPolicyTest {
 	}
 
 	@Test
-	fun `pre-v2 baseline - any code-bearing deploy routes to rebaseline`() {
+	fun `pre-v2 baseline - any code-bearing deploy routes to a proxy app rebuild`() {
 		val policy = DeployPolicy(emptyList(), componentInfoAvailable = false)
 
 		assertThat(policy.decide(listOf("com/example/Foo.class")))
-			.isInstanceOf(DeployDecision.Rebaseline::class.java)
-		assertThat(policy.decide(null)).isInstanceOf(DeployDecision.Rebaseline::class.java)
+			.isInstanceOf(DeployDecision.RebuildProxyApp::class.java)
+		assertThat(policy.decide(null)).isInstanceOf(DeployDecision.RebuildProxyApp::class.java)
 	}
 
 	@Test

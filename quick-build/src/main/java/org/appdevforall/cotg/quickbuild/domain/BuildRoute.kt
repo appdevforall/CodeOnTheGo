@@ -85,7 +85,7 @@ enum class InvalidationReason {
 	OUTDATED_BASELINE,
 
 	/**
-	 * A rebaseline built a good APK but its OS install-confirmation was never given -
+	 * A proxy app rebuild built a good APK but its OS install-confirmation was never given -
 	 * the dialog was cancelled or left untapped, or (with CoGo backgrounded) never even
 	 * shown: Android DEFERS the PENDING_USER_ACTION broadcast until the app is
 	 * foregrounded, and the dialog-owning subscriber (InstallationResultHandler) is
@@ -93,9 +93,9 @@ enum class InvalidationReason {
 	 * deferred delivery can land before it re-registers and nothing launches the
 	 * dialog. The baseline is still stale - the session parks in
 	 * `Invalidated(awaitingRetry = true)` and the next Quick Build tap OR CoGo's next
-	 * return to the foreground (bounded auto-retry) re-runs the rebaseline, which
+	 * return to the foreground (bounded auto-retry) re-runs the proxy app rebuild, which
 	 * re-prompts. Unlike the other reasons this one is not detected from a file change;
-	 * the session manager raises it itself on `RebaselineOutcome.InstallNotConfirmed`.
+	 * the session manager raises it itself on `ProxyAppRebuildOutcome.InstallNotConfirmed`.
 	 */
 	INSTALL_NOT_CONFIRMED,
 }

@@ -21,7 +21,7 @@ import org.appdevforall.cotg.quickbuild.service.InstallOutcome
 import org.appdevforall.cotg.quickbuild.service.InstalledPackages
 import org.appdevforall.cotg.quickbuild.service.ProvisionOutcome
 import org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner
-import org.appdevforall.cotg.quickbuild.service.RebaselineOutcome
+import org.appdevforall.cotg.quickbuild.service.ProxyAppRebuildOutcome
 import org.appdevforall.cotg.quickbuild.service.ProxyAppInstaller
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -53,7 +53,7 @@ class GradleQuickBuildProvisioner(
 		unsupportedProjectTypeFailure()?.let { return ProvisionOutcome.Failure(it) }
 
 		// A busy Gradle slot folds into the same failure as any other: from Idle the next tap
-		// re-provisions, so there is no parked state to defer into (unlike [rebaseline]).
+		// re-provisions, so there is no parked state to defer into (unlike [rebuildProxyApp]).
 		val buildResult =
 			runProxyAppBuild() as? ProxyAppBuildResult.Ready
 				?: return ProvisionOutcome.Failure("Quick Build proxy app build failed")
@@ -110,8 +110,8 @@ class GradleQuickBuildProvisioner(
 		}
 	}
 
-	override suspend fun rebaseline(): RebaselineOutcome {
-		unsupportedProjectTypeFailure()?.let { return RebaselineOutcome.Failure(it) }
+	override suspend fun rebuildProxyApp(): ProxyAppRebuildOutcome {
+		unsupportedProjectTypeFailure()?.let { return ProxyAppRebuildOutcome.Failure(it) }
 
 		val buildResult =
 			when (val built = runProxyAppBuild()) {
@@ -119,25 +119,25 @@ class GradleQuickBuildProvisioner(
 
 				// Nothing ran, so this is not a build failure: the session parks back and
 				// retries later WITHOUT spending its bounded auto-retry budget.
-				ProxyAppBuildResult.SlotBusy -> return RebaselineOutcome.BuildSlotBusy
+				ProxyAppBuildResult.SlotBusy -> return ProxyAppRebuildOutcome.BuildSlotBusy
 
-				ProxyAppBuildResult.Failed -> return RebaselineOutcome.Failure("Re-baseline build failed")
+				ProxyAppBuildResult.Failed -> return ProxyAppRebuildOutcome.Failure("Proxy app rebuild failed")
 			}
 
 		QuickBuildProjectSupport
 			.noLaunchableActivityMessage(buildResult.proxyApp.entryActivity)
-			?.let { return RebaselineOutcome.Failure(it) }
-		installRefusal(buildResult.proxyApp)?.let { return RebaselineOutcome.Failure(it) }
+			?.let { return ProxyAppRebuildOutcome.Failure(it) }
+		installRefusal(buildResult.proxyApp)?.let { return ProxyAppRebuildOutcome.Failure(it) }
 
 		// The installer skips when the rebuilt APK is byte-identical to what is
 		// installed (common when a gradle edit did not change the proxy app), so a
-		// rebaseline only re-prompts the user when the APK really changed.
+		// proxy app rebuild only re-prompts the user when the APK really changed.
 		return when (
 			val installed =
 				installer.ensureInstalled(buildResult.proxyApp.apk, buildResult.proxyApp.proxyAppPackage)
 		) {
 			is InstallOutcome.Failed -> {
-				RebaselineOutcome.Failure(installed.message)
+				ProxyAppRebuildOutcome.Failure(installed.message)
 			}
 
 			is InstallOutcome.ConfirmationNotGiven -> {
@@ -146,11 +146,11 @@ class GradleQuickBuildProvisioner(
 				// Keep that distinguishable so the session can offer a retry instead of
 				// dying to Idle (the stranded-session failure the multi-module verify
 				// found).
-				RebaselineOutcome.InstallNotConfirmed(installed.message)
+				ProxyAppRebuildOutcome.InstallNotConfirmed(installed.message)
 			}
 
 			is InstallOutcome.Installed -> {
-				RebaselineOutcome.Success(
+				ProxyAppRebuildOutcome.Success(
 					proxyApp = buildResult.proxyApp,
 					layout =
 						DefaultQuickBuildProjectLayout(
@@ -207,7 +207,7 @@ class GradleQuickBuildProvisioner(
 
 	/**
 	 * Outcome of one proxy-app-build attempt. [SlotBusy] is split out from [Failed] because the
-	 * caller's recovery differs: a rebaseline retry defers (nothing ran, so nothing is owed
+	 * caller's recovery differs: a proxy app rebuild retry defers (nothing ran, so nothing is owed
 	 * a retry charge or an error banner), while a real failure is reported.
 	 */
 	private sealed interface ProxyAppBuildResult {
@@ -327,7 +327,7 @@ class GradleQuickBuildProvisioner(
 	 * Hands a cancellation to the Gradle build currently running through the tooling server.
 	 *
 	 * The device has a single cancellation token, so this refuses unless the in-flight build
-	 * is an INTERNAL one (Quick Build provision/prewarm/rebaseline). The caller only ever issues
+	 * is an INTERNAL one (Quick Build provision/prewarm/proxy app rebuild). The caller only ever issues
 	 * this while the session owns the slot, but that invariant used to live in a comment - and
 	 * a comment cannot stop a stop-tap from killing the user's own Standard Run.
 	 */
@@ -369,7 +369,7 @@ class GradleQuickBuildProvisioner(
 		 * A [ProvisionOutcome.Failure] sends the session back to Idle, where returning to
 		 * CoGo is a no-op (there is no parked session for HostForegrounded to auto-retry) -
 		 * so the installer's DIALOG_NOT_SHOWN "return to CoGo to confirm" guidance is a
-		 * dead end on THIS path, unlike the rebaseline park where it is exactly right.
+		 * dead end on THIS path, unlike the proxy app rebuild park where it is exactly right.
 		 * Swap in tap guidance; DECLINED and TIMED_OUT already carry their own.
 		 */
 		fun initialProvisionMessage(outcome: InstallOutcome.ConfirmationNotGiven): String =

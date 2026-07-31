@@ -6,7 +6,7 @@ import com.itsaky.androidide.analytics.Metric
 /**
  * Firebase metrics for the Quick Build fast path (ADFA-4128), mirroring the Gradle
  * build metric family: started/completed pair + the fast-path-specific invalidation and
- * rebaseline events. Payloads are low-cardinality - routes and reasons are enum-derived
+ * proxy-app-rebuild events. Payloads are low-cardinality - routes and reasons are enum-derived
  * strings, projects are hashed like [com.itsaky.androidide.analytics.gradle.BuildStartedMetric],
  * no paths or file names ever leave the device.
  */
@@ -195,8 +195,8 @@ data class QuickBuildInvalidatedMetric(
 		}
 }
 
-/** A rebaseline (full setup rebuild) finished; the cost of every fallback route. */
-data class QuickBuildRebaselineMetric(
+/** A proxy app rebuild (full setup rebuild) finished; the cost of every fallback route. */
+data class QuickBuildProxyAppRebuildMetric(
 	val qbSessionId: String,
 	val isSuccess: Boolean,
 	val durationMs: Long,

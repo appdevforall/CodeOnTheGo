@@ -839,7 +839,7 @@ class QuickBuildExecutorImplTest {
 
 		override fun onInvalidation(reason: InvalidationReason) = Unit
 
-		override fun onRebaseline(
+		override fun onProxyAppRebuild(
 			isSuccess: Boolean,
 			durationMillis: Long,
 		) = Unit
@@ -917,7 +917,7 @@ class QuickBuildExecutorImplTest {
 
 					override fun onInvalidation(reason: InvalidationReason) = Unit
 
-					override fun onRebaseline(
+					override fun onProxyAppRebuild(
 						isSuccess: Boolean,
 						durationMillis: Long,
 					) = Unit
@@ -1068,7 +1068,7 @@ class QuickBuildExecutorImplTest {
 		}
 
 	@Test
-	fun `restart relaunch reconnecting at an older generation routes to rebaseline - the payload did not persist`() =
+	fun `restart relaunch reconnecting at an older generation routes to a proxy app rebuild - the payload did not persist`() =
 		runTest {
 			val launcher = FakeLauncher()
 			val executor = restartExecutor(launcher)
@@ -1080,8 +1080,8 @@ class QuickBuildExecutorImplTest {
 			val outcome =
 				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
 
-			assertThat(outcome).isInstanceOf(BuildOutcome.RequiresRebaseline::class.java)
-			assertThat((outcome as BuildOutcome.RequiresRebaseline).reason)
+			assertThat(outcome).isInstanceOf(BuildOutcome.RequiresProxyAppRebuild::class.java)
+			assertThat((outcome as BuildOutcome.RequiresProxyAppRebuild).reason)
 				.isEqualTo(InvalidationReason.OUTDATED_BASELINE)
 			assertThat(outcome.detail).contains("generation 0")
 		}
@@ -1102,7 +1102,7 @@ class QuickBuildExecutorImplTest {
 		}
 
 	@Test
-	fun `restart ack without a process exit routes to rebaseline - old runtime hot-swapped`() =
+	fun `restart ack without a process exit routes to a proxy app rebuild - old runtime hot-swapped`() =
 		runTest {
 			val launcher = FakeLauncher()
 			val executor = restartExecutor(launcher)
@@ -1112,8 +1112,8 @@ class QuickBuildExecutorImplTest {
 			val outcome =
 				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
 
-			assertThat(outcome).isInstanceOf(BuildOutcome.RequiresRebaseline::class.java)
-			assertThat((outcome as BuildOutcome.RequiresRebaseline).reason)
+			assertThat(outcome).isInstanceOf(BuildOutcome.RequiresProxyAppRebuild::class.java)
+			assertThat((outcome as BuildOutcome.RequiresProxyAppRebuild).reason)
 				.isEqualTo(InvalidationReason.OUTDATED_BASELINE)
 			assertThat(launcher.calls).isEmpty()
 		}
@@ -1133,7 +1133,7 @@ class QuickBuildExecutorImplTest {
 		}
 
 	@Test
-	fun `pre-v2 baseline refuses a code deploy BEFORE deploying - rebaseline instead`() =
+	fun `pre-v2 baseline refuses a code deploy BEFORE deploying - proxy app rebuild instead`() =
 		runTest {
 			val launcher = FakeLauncher()
 			val executor =
@@ -1147,7 +1147,7 @@ class QuickBuildExecutorImplTest {
 			val outcome =
 				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
 
-			assertThat(outcome).isInstanceOf(BuildOutcome.RequiresRebaseline::class.java)
+			assertThat(outcome).isInstanceOf(BuildOutcome.RequiresProxyAppRebuild::class.java)
 			assertThat(deploy.calls).isEmpty()
 			assertThat(tracker.current).isEqualTo(0)
 		}
@@ -1187,7 +1187,7 @@ class QuickBuildExecutorImplTest {
 	/**
 	 * Executor wired the way a real session is (launcher + package known) but with no
 	 * restart-forcing policy, so deploys hot-swap: the defect-#88 surface, where a
-	 * rebaseline reinstall killed the proxy app and the next deploy finds NotConnected.
+	 * proxy app rebuild reinstall killed the proxy app and the next deploy finds NotConnected.
 	 */
 	private fun relaunchExecutor(
 		launcher: FakeLauncher,
@@ -1231,7 +1231,7 @@ class QuickBuildExecutorImplTest {
 	fun `NotConnected RESTART deploy recovers too - relaunch, rebind, one retry, then the restart sequence`() =
 		runTest {
 			// The other half of the defect-88 surface: a service/receiver/provider edit
-			// after the rebaseline reinstall deploys through deployRestart, which must
+			// after the proxy app rebuild reinstall deploys through deployRestart, which must
 			// route through the same recovery as the hot-swap path.
 			val launcher = FakeLauncher()
 			val executor = restartExecutor(launcher)
@@ -1283,7 +1283,7 @@ class QuickBuildExecutorImplTest {
 				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
 
 			// A plain DeployFailure: the reducer keeps the session Ready on it (no
-			// teardown, no rebaseline), so the next save just tries again.
+			// teardown, no proxy app rebuild), so the next save just tries again.
 			assertThat(outcome).isInstanceOf(BuildOutcome.DeployFailure::class.java)
 			assertThat((outcome as BuildOutcome.DeployFailure).message).contains("Relaunch your app")
 			assertThat(deploy.calls).hasSize(2)

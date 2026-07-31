@@ -646,7 +646,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		editorViewModel.isBuildInProgress = service?.isUserVisibleBuildInProgress == true
 		editorViewModel.isInitializing = initializingFuture?.isDone == false
 
-		// ADFA-4128: a rebaseline reinstall that ran while CoGo was backgrounded never
+		// ADFA-4128: a proxy app rebuild reinstall that ran while CoGo was backgrounded never
 		// showed its confirm dialog - Android defers the PENDING_USER_ACTION broadcast
 		// until the app is foregrounded, and the dialog-owning subscriber
 		// (InstallationResultHandler via BaseEditorActivity) is EventBus lifecycle-bound

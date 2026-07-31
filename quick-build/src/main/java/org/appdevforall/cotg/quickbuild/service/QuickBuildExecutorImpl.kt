@@ -123,7 +123,7 @@ class QuickBuildExecutorImpl(
 
 				// Deploy/infrastructure failures surface in CoGo's own status UI; the proxy
 				// app cannot say anything more truthful than what it already shows. A
-				// RequiresRebaseline surfaces through the session's fallback flow.
+				// RequiresProxyAppRebuild surfaces through the session's fallback flow.
 				else -> {
 					Unit
 				}
@@ -430,11 +430,11 @@ class QuickBuildExecutorImpl(
 				deployRestart(decision, dexFile, arscFile, assets, reason, startedAt, timeline)
 			}
 
-			is DeployDecision.Rebaseline -> {
+			is DeployDecision.RebuildProxyApp -> {
 				// Deploying anyway would hot-swap on a runtime that cannot restart,
 				// leaving a live service/provider on stale code. Refuse before the deploy;
-				// the session manager routes this into the rebaseline fallback.
-				BuildOutcome.RequiresRebaseline(InvalidationReason.OUTDATED_BASELINE, decision.detail)
+				// the session manager routes this into the proxy app rebuild fallback.
+				BuildOutcome.RequiresProxyAppRebuild(InvalidationReason.OUTDATED_BASELINE, decision.detail)
 			}
 		}
 
@@ -498,9 +498,9 @@ class QuickBuildExecutorImpl(
 			is DeployResult.Reloaded -> {
 				if (!deploy.awaitDisconnect(restartDisconnectTimeoutMillis)) {
 					// The runtime acked but kept running: it predates restart support and
-					// hot-swapped instead - a live service may now be stale. Rebaseline
+					// hot-swapped instead - a live service may now be stale. A proxy app rebuild
 					// reinstalls a current runtime; honesty over silence.
-					return BuildOutcome.RequiresRebaseline(
+					return BuildOutcome.RequiresProxyAppRebuild(
 						InvalidationReason.OUTDATED_BASELINE,
 						"proxy app acknowledged a restart deploy but did not exit " +
 							"(runtime predates restart support)",
@@ -541,9 +541,9 @@ class QuickBuildExecutorImpl(
 
 			reconnectGeneration < generation -> {
 				// The payload did not survive the process death: the fresh process booted
-				// an older generation. A rebaseline rebuilds + reinstalls from current
+				// an older generation. A proxy app rebuild rebuilds + reinstalls from current
 				// sources, which converges every component honestly.
-				BuildOutcome.RequiresRebaseline(
+				BuildOutcome.RequiresProxyAppRebuild(
 					InvalidationReason.OUTDATED_BASELINE,
 					"proxy app relaunched at generation $reconnectGeneration instead of " +
 						"$generation (restart payload did not persist)",
@@ -561,14 +561,14 @@ class QuickBuildExecutorImpl(
 	}
 
 	/**
-	 * One deploy attempt with the defect-#88 recovery. A rebaseline reinstall kills the
+	 * One deploy attempt with the defect-#88 recovery. A proxy app rebuild reinstall kills the
 	 * proxy-app process, and only the proxy app can re-establish the AIDL connection (the
 	 * bind is outbound from its QuickBuildRuntime); without recovery every later deploy
 	 * fails NotConnected until the user opens the app by hand. On [DeployResult.NotConnected],
 	 * launch the app once via [launcher], wait a bounded [restartReconnectTimeoutMillis]
 	 * for the rebind, and retry the deploy exactly once - no loops, so a hard-broken app
 	 * costs one launch per deploy attempt, never a retry storm. Chosen over relaunching
-	 * right after the rebaseline itself (reliability doc option 2): this acts only when a
+	 * right after the proxy app rebuild itself (reliability doc option 2): this acts only when a
 	 * deploy actually needs the app and never steals the foreground unasked.
 	 */
 	private suspend fun deployRecovering(

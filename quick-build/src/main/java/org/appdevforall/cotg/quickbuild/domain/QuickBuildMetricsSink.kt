@@ -2,7 +2,7 @@ package org.appdevforall.cotg.quickbuild.domain
 
 /**
  * Port for per-build run statistics (ADFA-4128 tracking; David's ask on the design doc):
- * change-set size, route, run time, invalidations, rebaseline cost - the signals needed
+ * change-set size, route, run time, invalidations, proxy-app-rebuild cost - the signals needed
  * to tune the fast path on real data. The app layer wires an analytics-backed sink; the
  * domain only knows this interface so dependencies keep flowing down.
  *
@@ -43,8 +43,8 @@ interface QuickBuildMetricsSink {
 	 */
 	fun onReloadTimeline(timeline: E2eTimeline) {}
 
-	/** A rebaseline (full proxy app rebuild) finished; the cost of every fallback route. */
-	fun onRebaseline(
+	/** A proxy app rebuild (full proxy app rebuild) finished; the cost of every fallback route. */
+	fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
 	)
@@ -65,7 +65,7 @@ interface QuickBuildMetricsSink {
 
 		override fun onInvalidation(reason: InvalidationReason) = Unit
 
-		override fun onRebaseline(
+		override fun onProxyAppRebuild(
 			isSuccess: Boolean,
 			durationMillis: Long,
 		) = Unit

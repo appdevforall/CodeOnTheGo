@@ -58,7 +58,7 @@ import java.io.File
 /**
  * The shell around the domain session machine (plan 2.1): owns the [SessionReducer],
  * the per-session [BuildOrchestrator] + [GenerationTracker], and turns reducer effects
- * into real work (provisioning, daemon respawn, Gradle re-baseline).
+ * into real work (provisioning, daemon respawn, Gradle proxy app rebuild).
  *
  * Threading: EVERYTHING stateful runs on [dispatcher], which MUST be single-threaded -
  * the orchestrator's event-ordering guarantee requires it (see its KDoc). Effects are
@@ -184,45 +184,45 @@ class QuickBuildSessionManager(
 	private var live: LiveSession? = null
 
 	/**
-	 * Bumped by every [teardown]. In-flight provisioning/rebaseline work captures the
+	 * Bumped by every [teardown]. In-flight provisioning/proxy-app-rebuild work captures the
 	 * epoch at launch and discards its result when they differ: a provision completing
 	 * after "Restart session" must never install itself as a zombie session (watcher +
 	 * daemon live while the UI shows Idle). Only touched on [dispatcher].
 	 */
 	private var sessionEpoch = 0L
 
-	/** The in-flight provision/prewarm/rebaseline; cancelled by [teardown]. */
+	/** The in-flight provision/prewarm/proxy app rebuild; cancelled by [teardown]. */
 	private var sessionWork: Job? = null
 
 	/**
 	 * Counts intentional daemon lifecycle transitions: every `daemon.start`/`daemon.shutdown`
 	 * this manager initiates outside the respawn path (provisioning start + its undo,
-	 * rebaseline teardown + restart, session teardown, low-memory shrink).
+	 * proxy-app-rebuild teardown + restart, session teardown, low-memory shrink).
 	 *
 	 * [respawnDaemon] captures it at effect time and re-checks after its `daemon.start`
 	 * returns: any change means an intentional shutdown superseded the respawn mid-flight
-	 * (2026-07-26 review finding 2 - a rebaseline's `daemon.shutdown()` racing an in-flight
+	 * (2026-07-26 review finding 2 - a proxy app rebuild's `daemon.shutdown()` racing an in-flight
 	 * respawn), so the respawn discards its result instead of dispatching
 	 * [SessionEvent.DaemonRespawned] and poking the orchestrator. EXACTLY one transition
 	 * since capture is the superseding shutdown itself, so a daemon the stale start brought
 	 * up is a zombie only the respawn knows about - it stops it (the daemon must not coexist
-	 * with the rebaseline's Gradle build, nor outlive a teardown). More than one means a
+	 * with the proxy app rebuild's Gradle build, nor outlive a teardown). More than one means a
 	 * successor flow already started a fresh daemon the stale respawn must not touch.
 	 * Only touched on [dispatcher].
 	 */
 	private var daemonEpoch = 0L
 
 	private class LiveSession(
-		/** Mutable: a rebaseline regenerates setup.json and must move this snapshot. */
+		/** Mutable: a proxy app rebuild regenerates setup.json and must move this snapshot. */
 		var proxyApp: ProxyAppInfo,
 		var layout: QuickBuildProjectLayout,
 		val tracker: GenerationTracker,
 		val filter: WatchFilter,
 		val orchestrator: BuildOrchestrator,
 		val watcher: ProjectWatcher,
-		/** Seam the rebaseline swaps a fresh ProxyAppInfo-derived executor into. */
+		/** Seam the proxy app rebuild swaps a fresh ProxyAppInfo-derived executor into. */
 		val executor: SwitchableExecutor,
-		/** Seam the rebaseline swaps a fresh annotation baseline into. */
+		/** Seam the proxy app rebuild swaps a fresh annotation baseline into. */
 		val annotationImpact: SwitchableAnnotationImpact,
 	) {
 		/**
@@ -237,7 +237,7 @@ class QuickBuildSessionManager(
 
 	/**
 	 * Executor indirection for [LiveSession]: the orchestrator holds one executor for
-	 * its lifetime, but a rebaseline must rebuild the executor from the re-read
+	 * its lifetime, but a proxy app rebuild must rebuild the executor from the re-read
 	 * setup.json (new deploy-policy components, launcher/entry targets). Swapping the
 	 * delegate keeps the orchestrator - and its pending-changes bookkeeping - intact.
 	 */
@@ -335,13 +335,13 @@ class QuickBuildSessionManager(
 
 	/**
 	 * Call when CoGo's editor returns to the foreground. Recovers the one park that a
-	 * tap cannot be expected to fix unprompted: a rebaseline reinstall that ran while
+	 * tap cannot be expected to fix unprompted: a proxy app rebuild reinstall that ran while
 	 * CoGo was BACKGROUNDED never showed a confirm dialog - Android DEFERS the
 	 * PENDING_USER_ACTION broadcast until the app is foregrounded, and the dialog-owning
 	 * subscriber (InstallationResultHandler) is EventBus lifecycle-bound (registered
 	 * onStart, unregistered onStop), so the deferred delivery can land before it
 	 * re-registers and nothing launches the dialog. The user saw nothing fail.
-	 * Re-running the rebaseline now - with CoGo foreground - makes the prompt actually
+	 * Re-running the proxy app rebuild now - with CoGo foreground - makes the prompt actually
 	 * appear. Dispatch is a no-op in every state except
 	 * [QuickBuildSessionState.Invalidated] with `awaitingRetry = true` (and the reducer
 	 * bounds the auto-retries), so calling this from every editor onResume is safe and
@@ -371,7 +371,7 @@ class QuickBuildSessionManager(
 	 * Mode-switch hand-back (plan B3): call when a Standard Run's Gradle build completes
 	 * (e.g. from the A2 dropdown's "Standard Run", or the Run button's build-finished
 	 * hook). A live session re-seeds its incremental snapshot from current disk - a full
-	 * rebaseline when the external build clobbered the proxy app build artifacts, otherwise a fresh
+	 * proxy app rebuild when the external build clobbered the proxy app build artifacts, otherwise a fresh
 	 * incremental seed - so the next quick build is never stale. No session: no-op.
 	 */
 	fun onStandardRunCompleted() {
@@ -382,7 +382,7 @@ class QuickBuildSessionManager(
 	 * Restart action (plan A2 dropdown "Restart session"): tears down the current live
 	 * session and daemon and returns to Idle from whatever state the session is in. The
 	 * next tap re-provisions from scratch - the escape hatch for a daemon or proxy app
-	 * stuck past what a plain quick build or rebaseline can recover.
+	 * stuck past what a plain quick build or proxy app rebuild can recover.
 	 */
 	fun restartSession() {
 		scope.launch { dispatch(SessionEvent.SessionRestartRequested) }
@@ -399,7 +399,7 @@ class QuickBuildSessionManager(
 	 * [ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL] and above tear the daemon down.
 	 * `RUNNING_MODERATE`/`RUNNING_LOW` are no-ops - those fire on transient pressure the
 	 * OS usually recovers from without ever killing the process, and tearing the daemon
-	 * down pays a full re-baseline's cost (every rebaseline is a real Gradle build) for
+	 * down pays a full proxy app rebuild's cost (every proxy app rebuild is a real Gradle build) for
 	 * pressure that may pass in seconds. `RUNNING_CRITICAL` is documented as "about to be
 	 * killed" - the point where giving the memory back is worth that cost.
 	 *
@@ -473,7 +473,7 @@ class QuickBuildSessionManager(
 	/**
 	 * A coalesced batch of changes from the watcher (already filtered to relevant paths).
 	 * Hopped onto [dispatcher]; the orchestrator + classifier decide the route (quick build
-	 * vs. rebaseline) and handle concurrency with any in-flight build.
+	 * vs. proxy app rebuild) and handle concurrency with any in-flight build.
 	 *
 	 * The modified-vs-removed reconciliation itself is domain logic
 	 * ([WatcherBatchReconciler]); this shell only supplies the `File.isFile` probe and
@@ -561,9 +561,9 @@ class QuickBuildSessionManager(
 				}
 			}
 
-			SessionEffect.RunFullGradleRebaseline -> {
+			SessionEffect.RunProxyAppRebuild -> {
 				val epoch = sessionEpoch
-				sessionWork = scope.launch { rebaseline(epoch) }
+				sessionWork = scope.launch { rebuildProxyApp(epoch) }
 			}
 
 			SessionEffect.ReseedBaseline -> {
@@ -748,9 +748,9 @@ class QuickBuildSessionManager(
 	 * `ksp`/`kapt`/`annotationProcessor` dependency gets [AnnotationImpact.Inactive] and
 	 * behaves exactly as before; otherwise the classifier compares each edit against the
 	 * annotation input the proxy app build actually ran against, and only edits that could
-	 * have moved generated code pay a rebaseline.
+	 * have moved generated code pay a proxy app rebuild.
 	 *
-	 * Rebuilt on every re-baseline too (see [SwitchableAnnotationImpact]): the Gradle build
+	 * Rebuilt on every proxy app rebuild too (see [SwitchableAnnotationImpact]): the Gradle build
 	 * that just ran IS the new reference point.
 	 */
 	private fun annotationImpact(
@@ -766,7 +766,7 @@ class QuickBuildSessionManager(
 		return AnnotationImpactAnalyzer(profile, AnnotationBaseline.capture(layout.allSources(), profile))
 	}
 
-	/** ProxyAppInfo-derived executor; rebuilt (and swapped in) on every rebaseline. */
+	/** ProxyAppInfo-derived executor; rebuilt (and swapped in) on every proxy app rebuild. */
 	private fun buildExecutor(
 		proxyApp: ProxyAppInfo,
 		layout: QuickBuildProjectLayout,
@@ -794,7 +794,7 @@ class QuickBuildSessionManager(
 						components = proxyApp.components,
 						// Pre-v2 setup.json (no schema/components) = a baseline whose
 						// runtime ignores restart deploys; the policy then routes
-						// restart-requiring builds to a rebaseline (skew guard).
+						// restart-requiring builds to a proxy app rebuild (skew guard).
 						componentInfoAvailable = proxyApp.supportsComponentInfo,
 					),
 				proxyAppPackage = proxyApp.proxyAppPackage,
@@ -871,12 +871,12 @@ class QuickBuildSessionManager(
 				is OrchestratorEvent.BuildFailed -> {
 					report { metrics.onBuildFinished(event.buildId, event.outcome) }
 					val outcome = event.outcome
-					if (outcome is BuildOutcome.RequiresRebaseline) {
+					if (outcome is BuildOutcome.RequiresProxyAppRebuild) {
 						// The build was fine but the baseline cannot take the deploy (a
 						// restart-requiring change on a pre-restart baseline). Route into
-						// the existing rebaseline fallback; the orchestrator already put
-						// the changed set back into pending, so the rebaseline absorbs it.
-						log.info("Quick build routed to rebaseline: {}", outcome.detail)
+						// the existing proxy-app-rebuild fallback; the orchestrator already put
+						// the changed set back into pending, so the proxy app rebuild absorbs it.
+						log.info("Quick build routed to a proxy app rebuild: {}", outcome.detail)
 						report { metrics.onInvalidation(outcome.reason) }
 						dispatch(SessionEvent.InvalidationDetected(outcome.reason))
 					} else if (outcome is BuildOutcome.InfrastructureFailure && outcome.daemonDied) {
@@ -936,87 +936,87 @@ class QuickBuildSessionManager(
 		}
 	}
 
-	private suspend fun rebaseline(startEpoch: Long) {
+	private suspend fun rebuildProxyApp(startEpoch: Long) {
 		val session = live ?: return
-		// Captured BEFORE RebaselineStarted moves the session to Provisioning, which carries
+		// Captured BEFORE ProxyAppRebuildStarted moves the session to Provisioning, which carries
 		// neither the reason nor the deployed generation: a retry that never gets the Gradle
-		// slot has to park back exactly where it came from (see RebaselineDeferred).
+		// slot has to park back exactly where it came from (see ProxyAppRebuildDeferred).
 		val installRetryPark =
 			(_state.value as? QuickBuildSessionState.Invalidated)
 				?.takeIf { it.reason == InvalidationReason.INSTALL_NOT_CONFIRMED }
-		session.orchestrator.onRebaselineStarted()
-		dispatch(SessionEvent.RebaselineStarted)
+		session.orchestrator.onProxyAppRebuildStarted()
+		dispatch(SessionEvent.ProxyAppRebuildStarted)
 
 		// Free the daemon's ~0.5GB for the Gradle build that is about to peak - on the
 		// 3-4GB target class the two must not coexist. Costless: the daemon's IC state
-		// is untrustworthy after a rebaseline anyway (regenerated inputs it never saw),
+		// is untrustworthy after a proxy app rebuild anyway (regenerated inputs it never saw),
 		// and it was going to be re-seeded from scratch regardless; on success it
 		// restarts below with the NEW proxy app info's config (the survivor used to keep serving
 		// the OLD configure's classpath - correct only via BTA's full-recompile
 		// fallback). The epoch bump discards a daemon respawn still in flight (a
-		// rebaseline can start from Degraded); see [daemonEpoch].
+		// proxy app rebuild can start from Degraded); see [daemonEpoch].
 		daemonEpoch++
 		daemon.shutdown()
 
 		val startedAtNanos = System.nanoTime()
 		val outcome =
 			try {
-				provisioner.rebaseline()
+				provisioner.rebuildProxyApp()
 			} catch (e: kotlinx.coroutines.CancellationException) {
 				throw e
 			} catch (e: Throwable) {
-				log.error("Rebaseline threw instead of reporting an outcome", e)
-				RebaselineOutcome.Failure(e.message ?: e.javaClass.name)
+				log.error("Proxy app rebuild threw instead of reporting an outcome", e)
+				ProxyAppRebuildOutcome.Failure(e.message ?: e.javaClass.name)
 			}
-		if (outcome !is RebaselineOutcome.BuildSlotBusy || installRetryPark == null) {
+		if (outcome !is ProxyAppRebuildOutcome.BuildSlotBusy || installRetryPark == null) {
 			// Only a DEFERRED retry (slot busy while parked) skips metrics: it never ran,
-			// so reporting it would book a 0 ms failed rebaseline against the success rate
-			// for work that never happened. A FIRST rebaseline losing the slot IS surfaced
-			// to the user as a failed rebaseline, so it books like one.
+			// so reporting it would book a 0 ms failed proxy app rebuild against the success rate
+			// for work that never happened. A FIRST proxy app rebuild losing the slot IS surfaced
+			// to the user as a failed proxy app rebuild, so it books like one.
 			report {
-				metrics.onRebaseline(
-					isSuccess = outcome is RebaselineOutcome.Success,
+				metrics.onProxyAppRebuild(
+					isSuccess = outcome is ProxyAppRebuildOutcome.Success,
 					durationMillis = (System.nanoTime() - startedAtNanos) / 1_000_000,
 				)
 			}
 		}
 
 		if (startEpoch != sessionEpoch) {
-			// The session this rebaseline was for is gone; don't poke its orchestrator.
-			log.info("Quick-build rebaseline outlived a session restart; discarding")
+			// The session this proxy app rebuild was for is gone; don't poke its orchestrator.
+			log.info("Quick-build proxy app rebuild outlived a session restart; discarding")
 			return
 		}
 
 		when (outcome) {
-			is RebaselineOutcome.BuildSlotBusy -> {
+			is ProxyAppRebuildOutcome.BuildSlotBusy -> {
 				if (installRetryPark != null) {
 					// The retry never got the Gradle slot (typically CoGo's own project sync,
 					// which the invalidating gradle edit itself triggers). Park back WITHOUT
 					// spending the auto-retry budget. Do NOT re-state the park's install
 					// guidance here: its dominant text says "return to CoGo", and returning
 					// to CoGo is exactly what triggered this retry - say what is actually
-					// happening instead. "Re-baseline build failed" would be worse still, a
+					// happening instead. "Proxy app rebuild failed" would be worse still, a
 					// claim about a build that never ran.
-					log.info("Gradle slot busy; deferring the re-baseline retry without spending an auto-retry")
+					log.info("Gradle slot busy; deferring the proxy app rebuild retry without spending an auto-retry")
 					surfaceUserMessage(
 						"Waiting for the current Gradle build to finish - your app still " +
 							"needs a reinstall. Tap Quick Build to retry.",
 					)
-					dispatch(SessionEvent.RebaselineDeferred(installRetryPark.deployedGeneration))
+					dispatch(SessionEvent.ProxyAppRebuildDeferred(installRetryPark.deployedGeneration))
 				} else {
-					// A first rebaseline (not a parked retry) has no park to return to and no
+					// A first proxy app rebuild (not a parked retry) has no park to return to and no
 					// budget to protect; report it like any other proxy-app-build failure.
-					session.orchestrator.onRebaselineFailed()
-					dispatch(SessionEvent.ProvisioningFailed("Re-baseline build failed"))
+					session.orchestrator.onProxyAppRebuildFailed()
+					dispatch(SessionEvent.ProvisioningFailed("Proxy app rebuild failed"))
 				}
 			}
 
-			is RebaselineOutcome.Success -> {
-				// The rebaseline regenerated setup.json and reinstalled the proxy app:
+			is ProxyAppRebuildOutcome.Success -> {
+				// The proxy app rebuild regenerated setup.json and reinstalled the proxy app:
 				// every ProxyAppInfo-derived piece of the session (deploy-policy components,
 				// componentInfoAvailable, launcher/entry targets, classpath) must move to
 				// the new baseline, or the policy keeps routing on provisioning-time
-				// facts - e.g. a service the rebaseline just proxied would hot-swap and
+				// facts - e.g. a service the proxy app rebuild just proxied would hot-swap and
 				// silently leave its live instance stale.
 				session.proxyApp = outcome.proxyApp
 				session.layout = outcome.layout
@@ -1031,8 +1031,8 @@ class QuickBuildSessionManager(
 
 					else -> {
 						val message = (started as? DaemonReply.Failed)?.message ?: "daemon rejected configuration"
-						log.error("Daemon restart after rebaseline failed: {}", message)
-						session.orchestrator.onRebaselineFailed()
+						log.error("Daemon restart after a proxy app rebuild failed: {}", message)
+						session.orchestrator.onProxyAppRebuildFailed()
 						dispatch(SessionEvent.ProvisioningFailed(message))
 						return
 					}
@@ -1044,25 +1044,25 @@ class QuickBuildSessionManager(
 				dispatch(SessionEvent.ProvisioningSucceeded(session.tracker.current))
 			}
 
-			is RebaselineOutcome.Failure -> {
-				session.orchestrator.onRebaselineFailed()
+			is ProxyAppRebuildOutcome.Failure -> {
+				session.orchestrator.onProxyAppRebuildFailed()
 				dispatch(SessionEvent.ProvisioningFailed(outcome.message))
 			}
 
-			is RebaselineOutcome.InstallNotConfirmed -> {
+			is ProxyAppRebuildOutcome.InstallNotConfirmed -> {
 				// The Gradle build was fine; only the reinstall confirmation is missing
 				// (no dialog shown / cancelled / left untapped - the stranded-session
 				// finding from the multi-module device verify). Park recoverable instead
 				// of dying to Idle; the message already says how to recover for its
-				// specific case. Deliberately NOT onRebaselineFailed(): the orchestrator
+				// specific case. Deliberately NOT onProxyAppRebuildFailed(): the orchestrator
 				// keeps holding the absorbed batch, so quick builds stay suspended while
 				// the daemon is down (a fast-path save here would only fail against the
-				// dead daemon); the retry's onRebaselineStarted re-holds pending on
+				// dead daemon); the retry's onProxyAppRebuildStarted re-holds pending on
 				// top, and every held file is on disk for its Gradle build to absorb.
-				log.warn("Rebaseline reinstall not confirmed; awaiting a retry: {}", outcome.message)
+				log.warn("Proxy app rebuild reinstall not confirmed; awaiting a retry: {}", outcome.message)
 				surfaceUserMessage(outcome.message)
 				dispatch(
-					SessionEvent.RebaselineInstallNotConfirmed(
+					SessionEvent.ProxyAppRebuildInstallNotConfirmed(
 						session.lastDeployedGeneration.takeIf { it >= 0 } ?: session.tracker.current,
 					),
 				)
@@ -1082,7 +1082,7 @@ class QuickBuildSessionManager(
 		if (proxyAppArtifactsIntact(session.proxyApp)) {
 			session.orchestrator.onBaselineUntrusted()
 		} else {
-			log.warn("Proxy app build artifacts missing after an external build; forcing a rebaseline")
+			log.warn("Proxy app build artifacts missing after an external build; forcing a proxy app rebuild")
 			dispatch(SessionEvent.InvalidationDetected(InvalidationReason.EXTERNAL_FULL_BUILD))
 		}
 	}
@@ -1102,7 +1102,7 @@ class QuickBuildSessionManager(
 		}
 		val started = daemon.start(daemonConfig(session.layout, session.proxyApp))
 		if (startEpoch != daemonEpoch) {
-			// An intentional shutdown (rebaseline teardown, session teardown, low-memory
+			// An intentional shutdown (proxy-app-rebuild teardown, session teardown, low-memory
 			// shrink) landed while this respawn's start was in flight (2026-07-26 review
 			// finding 2). The superseding flow owns the daemon lifecycle now: dispatching
 			// DaemonRespawned or poking the orchestrator here would corrupt it. See
@@ -1136,7 +1136,7 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * Tears down the live session AND any in-flight provision/prewarm/rebaseline. The
+	 * Tears down the live session AND any in-flight provision/prewarm/proxy app rebuild. The
 	 * epoch bump + cancel pair is what makes "Restart session" safe mid-provisioning:
 	 * without it, a provision resuming after the restart would set [live], start its
 	 * watcher and build/deploy invisibly while the UI shows Idle - and the next tap's
@@ -1184,7 +1184,7 @@ class QuickBuildSessionManager(
 			is BuildOutcome.InfrastructureFailure -> SessionFailure.DeployError(message)
 
 			// Handled as an invalidation before this mapping; keep it total anyway.
-			is BuildOutcome.RequiresRebaseline -> SessionFailure.DeployError(detail)
+			is BuildOutcome.RequiresProxyAppRebuild -> SessionFailure.DeployError(detail)
 
 			// Success never reaches BuildFailed; keep the mapping total anyway.
 			is BuildOutcome.Success -> SessionFailure.DeployError("unexpected success in failure path")

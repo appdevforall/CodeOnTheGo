@@ -54,10 +54,10 @@ class QuickBuildSessionManagerTest {
 	 */
 	private val seeds = mutableListOf<BuildRequest>()
 
-	/** ProxyAppInfo of every executor the manager built (provision + each rebaseline). */
+	/** ProxyAppInfo of every executor the manager built (provision + each proxy app rebuild). */
 	private val factoryProxyApps = mutableListOf<ProxyAppInfo>()
 
-	/** Flat trace of metrics-sink calls, e.g. "started:CodeOnly:1", "rebaseline:true". */
+	/** Flat trace of metrics-sink calls, e.g. "started:CodeOnly:1", "proxyAppRebuild:true". */
 	private val metricsEvents = mutableListOf<String>()
 	private var metricsThrow = false
 
@@ -89,11 +89,11 @@ class QuickBuildSessionManagerTest {
 				record { "invalidated:$reason" }
 			}
 
-			override fun onRebaseline(
+			override fun onProxyAppRebuild(
 				isSuccess: Boolean,
 				durationMillis: Long,
 			) {
-				record { "rebaseline:$isSuccess" }
+				record { "proxyAppRebuild:$isSuccess" }
 			}
 
 			private fun record(event: () -> String) {
@@ -106,15 +106,15 @@ class QuickBuildSessionManagerTest {
 	/** Scripted outcomes for SEED builds only; empty = every seed succeeds unmoved. */
 	private val seedOutcomes = ArrayDeque<BuildOutcome>()
 	private var provisionCount = 0
-	private var rebaselineCount = 0
+	private var proxyAppRebuildCount = 0
 	private var prewarmCount = 0
 	private var provisionOutcome: (() -> ProvisionOutcome)? = null
-	private var rebaselineOutcome: () -> RebaselineOutcome = { defaultRebaselineSuccess() }
+	private var proxyAppRebuildOutcome: () -> ProxyAppRebuildOutcome = { defaultProxyAppRebuildSuccess() }
 	private var prewarmGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 	private var prewarmError: Throwable? = null
 	private var provisionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 	private var provisionSurvivesCancel = false
-	private var rebaselineGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+	private var proxyAppRebuildGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
 	/** Set to make the scripted executor await mid-build, so a test can observe Building. */
 	private var executionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
@@ -190,9 +190,9 @@ class QuickBuildSessionManagerTest {
 			layout = DefaultQuickBuildProjectLayout(projectRoot),
 		)
 
-	private fun defaultRebaselineSuccess(): RebaselineOutcome.Success {
+	private fun defaultProxyAppRebuildSuccess(): ProxyAppRebuildOutcome.Success {
 		val provision = defaultProvisionOutcome() as ProvisionOutcome.Success
-		return RebaselineOutcome.Success(proxyApp = provision.proxyApp, layout = provision.layout)
+		return ProxyAppRebuildOutcome.Success(proxyApp = provision.proxyApp, layout = provision.layout)
 	}
 
 	private fun TestScope.createManager(
@@ -219,10 +219,10 @@ class QuickBuildSessionManagerTest {
 					return provisionOutcome?.invoke() ?: defaultProvisionOutcome()
 				}
 
-				override suspend fun rebaseline(): RebaselineOutcome {
-					rebaselineCount++
-					rebaselineGate?.await()
-					return rebaselineOutcome()
+				override suspend fun rebuildProxyApp(): ProxyAppRebuildOutcome {
+					proxyAppRebuildCount++
+					proxyAppRebuildGate?.await()
+					return proxyAppRebuildOutcome()
 				}
 
 				override suspend fun prebuildProxyApp() {
@@ -726,7 +726,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a vanished external-tool temp file is dropped without poisoning the batch to a rebaseline`() =
+	fun `a vanished external-tool temp file is dropped without poisoning the batch to a proxy app rebuild`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -742,7 +742,7 @@ class QuickBuildSessionManagerTest {
 			manager.save(vanishedTemp, sourceFile)
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(0)
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
 			val request = executed.single()
 			assertThat(request.route).isEqualTo(BuildRoute.CodeOnly)
 			assertThat((request.changes as ChangedFiles.Known).files).containsExactly(sourceFile)
@@ -787,7 +787,7 @@ class QuickBuildSessionManagerTest {
 			manager.deleted(sourceFile)
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(0)
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
 			val request = executed.single()
 			assertThat(request.route).isEqualTo(BuildRoute.CodeOnly)
 			val changes = request.changes as ChangedFiles.Known
@@ -811,23 +811,23 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			assertThat(executed).isEmpty()
-			assertThat(rebaselineCount).isEqualTo(0)
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
 	@Test
-	fun `deleting a gradle file routes to a rebaseline`() =
+	fun `deleting a gradle file routes to a proxy app rebuild`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
 			// A removed build.gradle is a baseline-invalidating change (like a modified
-			// one): it must force the honest full Gradle rebaseline, not a quick build.
+			// one): it must force the honest full Gradle proxy app rebuild, not a quick build.
 			manager.deleted(gradleFile)
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 			assertThat(executed).isEmpty()
 		}
 
@@ -850,7 +850,7 @@ class QuickBuildSessionManagerTest {
 			manager.save(unsupported)
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 			assertThat(executed).isEmpty()
 		}
 
@@ -893,7 +893,7 @@ class QuickBuildSessionManagerTest {
 			manager.save(created)
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(0)
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
 			val request = executed.single()
 			assertThat(request.route).isEqualTo(BuildRoute.CodeOnly)
 			val changes = request.changes as ChangedFiles.Known
@@ -911,7 +911,7 @@ class QuickBuildSessionManagerTest {
 			// A file-manager rename `Foo.kt` -> `Bar.kt` or a move between src/ dirs (audit
 			// rows 25, 26): MOVED_TO on the destination + MOVED_FROM on the source, coalesced
 			// into one burst. The new file compiles and the old one feeds the removed-sources
-			// slot (its stale .class dropped) - a single CodeOnly build, never a rebaseline.
+			// slot (its stale .class dropped) - a single CodeOnly build, never a proxy app rebuild.
 			val renamedTo =
 				File(projectRoot, "app/src/main/java/com/example/Bar.kt").apply {
 					writeText("class Bar")
@@ -921,7 +921,7 @@ class QuickBuildSessionManagerTest {
 			manager.renamed(from = sourceFile, to = renamedTo)
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(0)
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
 			val request = executed.single()
 			assertThat(request.route).isEqualTo(BuildRoute.CodeOnly)
 			val changes = request.changes as ChangedFiles.Known
@@ -945,7 +945,7 @@ class QuickBuildSessionManagerTest {
 			manager.deleted(layout)
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(0)
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
 			val request = executed.single()
 			assertThat(request.route).isEqualTo(BuildRoute.ResourcesOnly)
 			val changes = request.changes as ChangedFiles.Known
@@ -954,7 +954,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `deleting the manifest routes to a rebaseline`() =
+	fun `deleting the manifest routes to a proxy app rebuild`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -962,14 +962,14 @@ class QuickBuildSessionManagerTest {
 
 			// A deleted AndroidManifest.xml (a branch switch that drops it - audit rows 11,
 			// 12 for the manifest case) is a baseline-invalidating change exactly like a
-			// modified manifest: it must force the honest full Gradle rebaseline, not a quick
+			// modified manifest: it must force the honest full Gradle proxy app rebuild, not a quick
 			// build off the removed set.
 			val manifest = File(projectRoot, "app/src/main/AndroidManifest.xml")
 
 			manager.deleted(manifest)
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 			assertThat(executed).isEmpty()
 		}
 
@@ -986,7 +986,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a gradle file save invalidates and runs the full rebaseline round trip`() =
+	fun `a gradle file save invalidates and runs the full proxy app rebuild round trip`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -995,15 +995,15 @@ class QuickBuildSessionManagerTest {
 			manager.save(gradleFile)
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 			// Quick path never ran for the gradle change.
 			assertThat(executed).isEmpty()
-			// Rebaseline succeeded: back to Ready at the unchanged generation.
+			// Proxy app rebuild succeeded: back to Ready at the unchanged generation.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
 	@Test
-	fun `a rebaseline tears the daemon down for the Gradle build and restarts it on the new config`() =
+	fun `a proxy app rebuild tears the daemon down for the Gradle build and restarts it on the new config`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1013,7 +1013,7 @@ class QuickBuildSessionManagerTest {
 			manager.save(gradleFile)
 			advanceUntilIdle()
 
-			// Torn down at rebaseline start (the daemon's ~0.5GB must not coexist with
+			// Torn down at proxy app rebuild start (the daemon's ~0.5GB must not coexist with
 			// the Gradle build's peak on low-RAM devices), restarted on success against
 			// the re-read proxy app info - and left RUNNING for the session that continues.
 			assertThat(daemon.shutdownCount).isEqualTo(1)
@@ -1024,15 +1024,15 @@ class QuickBuildSessionManagerTest {
 
 	// Review gap (2026-07-26 #69): the test above reuses an identical proxy app info/layout, so
 	// restarting on the stale provisioning-time config would also pass it. Here the
-	// rebaseline moves BOTH - the restarted daemon must reflect the new facts.
+	// proxy app rebuild moves BOTH - the restarted daemon must reflect the new facts.
 	@Test
-	fun `the rebaseline's daemon restart uses the re-read proxyApp and layout, not the provisioning-time config`() =
+	fun `the proxy app rebuild's daemon restart uses the re-read proxyApp and layout, not the provisioning-time config`() =
 		runTest {
-			// The gradle edit that forced the rebaseline added a dependency jar and
+			// The gradle edit that forced the proxy app rebuild added a dependency jar and
 			// enabled Compose; the regenerated proxy app info/layout carry both.
 			val newJar = File(projectRoot, "libs/new-dep.jar")
-			rebaselineOutcome = {
-				val base = defaultRebaselineSuccess()
+			proxyAppRebuildOutcome = {
+				val base = defaultProxyAppRebuildSuccess()
 				base.copy(
 					proxyApp = base.proxyApp.copy(composeEnabled = true),
 					layout = DefaultQuickBuildProjectLayout(projectRoot, classpath = listOf(newJar)),
@@ -1048,7 +1048,7 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			// Restarted against the NEW config - otherwise every quick build after
-			// the rebaseline compiles on the old classpath without the Compose plugin.
+			// the proxy app rebuild compiles on the old classpath without the Compose plugin.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 			assertThat(daemon.startConfigs).hasSize(2)
 			val restarted = daemon.startConfigs.last()
@@ -1056,10 +1056,10 @@ class QuickBuildSessionManagerTest {
 			assertThat(restarted.compilerPlugins).isNotEmpty()
 		}
 
-	// Review finding (2026-07-26 #2): rebaseline calls daemon.shutdown() and can race an
+	// Review finding (2026-07-26 #2): the proxy app rebuild calls daemon.shutdown() and can race an
 	// in-flight respawn. The daemonEpoch guard must discard the superseded respawn.
 	@Test
-	fun `a respawn superseded by a completed rebaseline is discarded and leaves the new daemon alone`() =
+	fun `a respawn superseded by a completed proxy app rebuild is discarded and leaves the new daemon alone`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1073,20 +1073,20 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Degraded(0))
 			assertThat(daemon.startConfigs).hasSize(2) // provision + parked respawn
 
-			// A gradle edit lands while Degraded: the rebaseline tears the daemon down
+			// A gradle edit lands while Degraded: the proxy app rebuild tears the daemon down
 			// and restarts it on the new config while the respawn is STILL in flight.
 			manager.save(gradleFile)
 			advanceUntilIdle()
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(daemon.startConfigs).hasSize(3) // + the rebaseline's restart
+			assertThat(daemon.startConfigs).hasSize(3) // + the proxy app rebuild's restart
 			assertThat(daemon.isRunning).isTrue()
 			val shutdownsBefore = daemon.shutdownCount
 			val seedsBefore = seeds.size
 
-			// The parked respawn finally completes - AFTER the rebaseline already owns a
+			// The parked respawn finally completes - AFTER the proxy app rebuild already owns a
 			// fresh daemon. It must discard itself: no DaemonRespawned, no orchestrator
-			// poke (a spurious seed), and no touching the rebaseline's NEW daemon.
+			// poke (a spurious seed), and no touching the proxy app rebuild's NEW daemon.
 			respawnGate.complete(Unit)
 			advanceUntilIdle()
 			assertThat(daemon.isRunning).isTrue()
@@ -1097,7 +1097,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a respawn completing mid-rebaseline stops its zombie daemon instead of racing the Gradle build`() =
+	fun `a respawn completing mid-rebuild stops its zombie daemon instead of racing the Gradle build`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1109,9 +1109,9 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Degraded(0))
 
-			// The rebaseline tears the daemon down, then parks inside its Gradle build.
+			// The proxy app rebuild tears the daemon down, then parks inside its Gradle build.
 			val rebGate = CompletableDeferred<Unit>()
-			rebaselineGate = rebGate
+			proxyAppRebuildGate = rebGate
 			manager.save(gradleFile)
 			advanceUntilIdle()
 			assertThat(daemon.shutdownCount).isEqualTo(1)
@@ -1126,7 +1126,7 @@ class QuickBuildSessionManagerTest {
 			assertThat(daemon.shutdownCount).isEqualTo(2)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Provisioning())
 
-			// The rebaseline then finishes normally against its own fresh daemon.
+			// The proxy app rebuild then finishes normally against its own fresh daemon.
 			rebGate.complete(Unit)
 			advanceUntilIdle()
 			assertThat(daemon.isRunning).isTrue()
@@ -1164,13 +1164,13 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a RequiresRebaseline outcome routes into the rebaseline fallback`() =
+	fun `a RequiresProxyAppRebuild outcome routes into the proxy app rebuild fallback`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 			scriptedOutcomes +=
-				BuildOutcome.RequiresRebaseline(
+				BuildOutcome.RequiresProxyAppRebuild(
 					InvalidationReason.OUTDATED_BASELINE,
 					"baseline predates component metadata",
 				)
@@ -1179,9 +1179,9 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			// The quick build ran once, refused to deploy, and the session fell back to
-			// the full rebaseline (which absorbs the pending change) instead of failing.
+			// the full proxy app rebuild (which absorbs the pending change) instead of failing.
 			assertThat(executed).hasSize(1)
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 			assertThat(metricsEvents).contains("invalidated:OUTDATED_BASELINE")
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
@@ -1224,7 +1224,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `an invalidating save reports invalidation and rebaseline metrics`() =
+	fun `an invalidating save reports invalidation and proxy app rebuild metrics`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1237,8 +1237,8 @@ class QuickBuildSessionManagerTest {
 			assertThat(metricsEvents)
 				.containsExactly(
 					"invalidated:GRADLE_CONFIG_CHANGED",
-					"rebaseline:true",
-					// The rebaseline re-enters Ready via ProvisioningSucceeded, which fires
+					"proxyAppRebuild:true",
+					// The proxy app rebuild re-enters Ready via ProvisioningSucceeded, which fires
 					// a fresh background seed: the full Gradle build may have moved inputs
 					// (or respawned the daemon), so re-seeding the IC universe afterwards
 					// is deliberate, and its metrics are visible like any build's. The count
@@ -1265,9 +1265,9 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a failed rebaseline surfaces the error`() =
+	fun `a failed proxy app rebuild surfaces the error`() =
 		runTest {
-			rebaselineOutcome = { RebaselineOutcome.Failure("manifest does not build") }
+			proxyAppRebuildOutcome = { ProxyAppRebuildOutcome.Failure("manifest does not build") }
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
@@ -1279,17 +1279,17 @@ class QuickBuildSessionManagerTest {
 			assertThat(userMessages).contains("manifest does not build")
 		}
 
-	// Review gap (2026-07-26 #69): pin the failed rebaseline's DAEMON state and the
+	// Review gap (2026-07-26 #69): pin the failed proxy app rebuild's DAEMON state and the
 	// clean re-tap - the session must die clean, not linger wedged and daemon-less.
 	@Test
-	fun `a failed rebaseline leaves the daemon down and a tap re-provisions a fresh session`() =
+	fun `a failed proxy app rebuild leaves the daemon down and a tap re-provisions a fresh session`() =
 		runTest {
-			var failRebaseline = true
-			rebaselineOutcome = {
-				if (failRebaseline) {
-					RebaselineOutcome.Failure("manifest does not build")
+			var failProxyAppRebuild = true
+			proxyAppRebuildOutcome = {
+				if (failProxyAppRebuild) {
+					ProxyAppRebuildOutcome.Failure("manifest does not build")
 				} else {
-					defaultRebaselineSuccess()
+					defaultProxyAppRebuildSuccess()
 				}
 			}
 			val manager = createManager()
@@ -1306,7 +1306,7 @@ class QuickBuildSessionManagerTest {
 			assertThat(daemon.startConfigs).hasSize(1)
 
 			// The next tap re-provisions from scratch - not wedged.
-			failRebaseline = false
+			failProxyAppRebuild = false
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 			assertThat(provisionCount).isEqualTo(2)
@@ -1315,11 +1315,11 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
-	// Review finding (2026-07-26 #4): the Gradle rebaseline SUCCEEDED but the daemon
+	// Review finding (2026-07-26 #4): the Gradle proxy app rebuild SUCCEEDED but the daemon
 	// restart after it fails. Traced safe at review time but unpinned - the session
 	// must tear down to Idle (never park daemon-less) and a tap must re-provision.
 	@Test
-	fun `a daemon restart failure after a successful rebaseline tears down to Idle and a tap re-provisions`() =
+	fun `a daemon restart failure after a successful proxy app rebuild tears down to Idle and a tap re-provisions`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1330,9 +1330,9 @@ class QuickBuildSessionManagerTest {
 			manager.save(gradleFile)
 			advanceUntilIdle()
 
-			// The rebaseline itself succeeded; only the restart failed. The failure
+			// The proxy app rebuild itself succeeded; only the restart failed. The failure
 			// surfaces and the session dies clean instead of wedging half-alive.
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 			assertThat(userMessages).contains("daemon JVM would not start")
 			assertThat(daemon.isRunning).isFalse()
@@ -1346,12 +1346,12 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `an unconfirmed rebaseline install parks the session for retry instead of dying to Idle`() =
+	fun `an unconfirmed proxy app rebuild install parks the session for retry instead of dying to Idle`() =
 		runTest {
-			// The multi-module verify's stranded-session failure: the rebaseline's Gradle
+			// The multi-module verify's stranded-session failure: the proxy app rebuild's Gradle
 			// build succeeded but nobody tapped the reinstall dialog, so the installer
 			// timed out. The session must stay recoverable, not drop to Idle.
-			rebaselineOutcome = { RebaselineOutcome.InstallNotConfirmed("install was not confirmed") }
+			proxyAppRebuildOutcome = { ProxyAppRebuildOutcome.InstallNotConfirmed("install was not confirmed") }
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
@@ -1359,7 +1359,7 @@ class QuickBuildSessionManagerTest {
 			manager.save(gradleFile)
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 			assertThat(manager.state.value)
 				.isEqualTo(
 					QuickBuildSessionState.Invalidated(
@@ -1379,14 +1379,14 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `tapping Quick Build after an unconfirmed install retries the rebaseline and recovers`() =
+	fun `tapping Quick Build after an unconfirmed install retries the proxy app rebuild and recovers`() =
 		runTest {
 			var confirmed = false
-			rebaselineOutcome = {
+			proxyAppRebuildOutcome = {
 				if (confirmed) {
-					defaultRebaselineSuccess()
+					defaultProxyAppRebuildSuccess()
 				} else {
-					RebaselineOutcome.InstallNotConfirmed("install was not confirmed")
+					ProxyAppRebuildOutcome.InstallNotConfirmed("install was not confirmed")
 				}
 			}
 			val manager = createManager()
@@ -1394,22 +1394,22 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			manager.save(gradleFile)
 			advanceUntilIdle()
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 
 			// The user "confirms this time": the retried install goes through.
 			confirmed = true
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(2)
+			assertThat(proxyAppRebuildCount).isEqualTo(2)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			// The daemon restarted against the retried rebaseline's proxy app info.
+			// The daemon restarted against the retried rebuild's proxy app info.
 			assertThat(daemon.isRunning).isTrue()
 			assertThat(daemon.startConfigs).hasSize(2)
 		}
 
 	@Test
-	fun `CoGo returning to the foreground after an unconfirmed install retries the rebaseline`() =
+	fun `CoGo returning to the foreground after an unconfirmed install retries the proxy app rebuild`() =
 		runTest {
 			// The backgrounded-CoGo case (corpus run 20260728T044815Z): the reinstall
 			// ran with NO dialog ever shown - Android defers the PENDING_USER_ACTION
@@ -1418,11 +1418,11 @@ class QuickBuildSessionManagerTest {
 			// before it re-registers. The user's return to CoGo must re-prompt on its
 			// own; they never saw anything to tap.
 			var foregrounded = false
-			rebaselineOutcome = {
+			proxyAppRebuildOutcome = {
 				if (foregrounded) {
-					defaultRebaselineSuccess()
+					defaultProxyAppRebuildSuccess()
 				} else {
-					RebaselineOutcome.InstallNotConfirmed("install was not confirmed")
+					ProxyAppRebuildOutcome.InstallNotConfirmed("install was not confirmed")
 				}
 			}
 			val manager = createManager()
@@ -1430,14 +1430,14 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			manager.save(gradleFile)
 			advanceUntilIdle()
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 
 			// The user comes back to CoGo: the editor's onResume forwards this.
 			foregrounded = true
 			manager.onHostForegrounded()
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(2)
+			assertThat(proxyAppRebuildCount).isEqualTo(2)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 			assertThat(daemon.isRunning).isTrue()
 		}
@@ -1446,27 +1446,27 @@ class QuickBuildSessionManagerTest {
 	fun `foreground auto-retries are bounded - a user who keeps declining is not re-prompted forever`() =
 		runTest {
 			// Defect #90's second half: every resume used to re-run a full Gradle
-			// rebaseline for a user who kept declining the reinstall. The auto-retry
+			// proxy app rebuild for a user who kept declining the reinstall. The auto-retry
 			// budget caps that; the session ends parked, where a TAP still retries.
-			rebaselineOutcome = { RebaselineOutcome.InstallNotConfirmed("install was not confirmed") }
+			proxyAppRebuildOutcome = { ProxyAppRebuildOutcome.InstallNotConfirmed("install was not confirmed") }
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 			manager.save(gradleFile)
 			advanceUntilIdle()
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 
 			// Each of the first MAX resumes retries (and re-parks, still unconfirmed).
 			repeat(SessionReducer.MAX_INSTALL_AUTO_RETRIES) {
 				manager.onHostForegrounded()
 				advanceUntilIdle()
 			}
-			assertThat(rebaselineCount).isEqualTo(1 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
+			assertThat(proxyAppRebuildCount).isEqualTo(1 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
 
 			// Budget spent: further resumes run NO Gradle build; the session stays parked.
 			manager.onHostForegrounded()
 			advanceUntilIdle()
-			assertThat(rebaselineCount).isEqualTo(1 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
+			assertThat(proxyAppRebuildCount).isEqualTo(1 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
 			assertThat(manager.state.value)
 				.isEqualTo(
 					QuickBuildSessionState.Invalidated(
@@ -1480,7 +1480,7 @@ class QuickBuildSessionManagerTest {
 			// An explicit tap is fresh consent: it still retries.
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
-			assertThat(rebaselineCount).isEqualTo(2 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
+			assertThat(proxyAppRebuildCount).isEqualTo(2 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
 		}
 
 	@Test
@@ -1489,14 +1489,14 @@ class QuickBuildSessionManagerTest {
 			// W9 finding F1: returning to CoGo after a gradle edit starts CoGo's own project
 			// sync (the same gradle-file change invalidated the session), and the foreground
 			// retry asked for the single Gradle slot 1.8 s later. The collision used to be
-			// reported as "Re-baseline build failed", which spent the one bounded retry and
+			// reported as "Proxy app rebuild failed", which spent the one bounded retry and
 			// dropped the session to Idle - a dead end instead of the install re-prompt.
 			var slotBusy = false
-			rebaselineOutcome = {
+			proxyAppRebuildOutcome = {
 				if (slotBusy) {
-					RebaselineOutcome.BuildSlotBusy
+					ProxyAppRebuildOutcome.BuildSlotBusy
 				} else {
-					RebaselineOutcome.InstallNotConfirmed("Your app needs a reinstall - return to CoGo to confirm.")
+					ProxyAppRebuildOutcome.InstallNotConfirmed("Your app needs a reinstall - return to CoGo to confirm.")
 				}
 			}
 			val manager = createManager()
@@ -1517,7 +1517,7 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			// It did attempt, and it parked straight back with the budget untouched.
-			assertThat(rebaselineCount).isEqualTo(2)
+			assertThat(proxyAppRebuildCount).isEqualTo(2)
 			assertThat(manager.state.value).isEqualTo(parked)
 			// The message does not degrade to a build failure - and it must not re-state
 			// the park's "return to CoGo" guidance either: returning to CoGo is exactly
@@ -1527,16 +1527,16 @@ class QuickBuildSessionManagerTest {
 					"Waiting for the current Gradle build to finish - your app still " +
 						"needs a reinstall. Tap Quick Build to retry.",
 				)
-			// A deferred attempt is not a rebaseline outcome; nothing is booked against the
-			// rebaseline success rate.
-			assertThat(metricsEvents.filter { it.startsWith("rebaseline:") }).hasSize(1)
+			// A deferred attempt is not a proxy app rebuild outcome; nothing is booked against the
+			// proxy-app-rebuild success rate.
+			assertThat(metricsEvents.filter { it.startsWith("proxyAppRebuild:") }).hasSize(1)
 
 			// The retry the deferral gave back still works when the slot frees up.
 			slotBusy = false
-			rebaselineOutcome = { defaultRebaselineSuccess() }
+			proxyAppRebuildOutcome = { defaultProxyAppRebuildSuccess() }
 			manager.onHostForegrounded()
 			advanceUntilIdle()
-			assertThat(rebaselineCount).isEqualTo(3)
+			assertThat(proxyAppRebuildCount).isEqualTo(3)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
@@ -1546,8 +1546,8 @@ class QuickBuildSessionManagerTest {
 			// The give-back must not turn into an unbounded retry loop: attempts that really
 			// run a Gradle build still cap at MAX_INSTALL_AUTO_RETRIES.
 			var slotBusy = true
-			rebaselineOutcome = {
-				if (slotBusy) RebaselineOutcome.BuildSlotBusy else RebaselineOutcome.InstallNotConfirmed("not confirmed")
+			proxyAppRebuildOutcome = {
+				if (slotBusy) ProxyAppRebuildOutcome.BuildSlotBusy else ProxyAppRebuildOutcome.InstallNotConfirmed("not confirmed")
 			}
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1555,13 +1555,13 @@ class QuickBuildSessionManagerTest {
 			slotBusy = false
 			manager.save(gradleFile)
 			advanceUntilIdle()
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 
 			// A deferred foreground retry costs nothing.
 			slotBusy = true
 			manager.onHostForegrounded()
 			advanceUntilIdle()
-			assertThat(rebaselineCount).isEqualTo(2)
+			assertThat(proxyAppRebuildCount).isEqualTo(2)
 
 			// The real ones then still bound at MAX.
 			slotBusy = false
@@ -1569,7 +1569,7 @@ class QuickBuildSessionManagerTest {
 				manager.onHostForegrounded()
 				advanceUntilIdle()
 			}
-			assertThat(rebaselineCount).isEqualTo(2 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
+			assertThat(proxyAppRebuildCount).isEqualTo(2 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
 			assertThat(manager.state.value)
 				.isEqualTo(
 					QuickBuildSessionState.Invalidated(
@@ -1582,12 +1582,12 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a first rebaseline that cannot get the Gradle slot is reported, not parked`() =
+	fun `a first proxy app rebuild that cannot get the Gradle slot is reported, not parked`() =
 		runTest {
-			// Only a parked RETRY has somewhere to defer to. A first rebaseline colliding
+			// Only a parked RETRY has somewhere to defer to. A first proxy app rebuild colliding
 			// with another build keeps the existing behaviour: surface it and go Idle, where
 			// the next tap re-provisions.
-			rebaselineOutcome = { RebaselineOutcome.BuildSlotBusy }
+			proxyAppRebuildOutcome = { ProxyAppRebuildOutcome.BuildSlotBusy }
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
@@ -1596,11 +1596,11 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
-			assertThat(userMessages).contains("Re-baseline build failed")
-			// Surfaced to the user as a failed rebaseline, so it books like one - only a
+			assertThat(userMessages).contains("Proxy app rebuild failed")
+			// Surfaced to the user as a failed proxy app rebuild, so it books like one - only a
 			// DEFERRED retry (slot busy while parked) skips the metrics sink.
-			assertThat(metricsEvents.filter { it.startsWith("rebaseline:") })
-				.containsExactly("rebaseline:false")
+			assertThat(metricsEvents.filter { it.startsWith("proxyAppRebuild:") })
+				.containsExactly("proxyAppRebuild:false")
 		}
 
 	@Test
@@ -1617,15 +1617,15 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			assertThat(manager.state.value).isEqualTo(before)
-			assertThat(rebaselineCount).isEqualTo(0)
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
 		}
 
 	@Test
-	fun `saves while parked for retry accumulate for the retried rebaseline - no dead-daemon build`() =
+	fun `saves while parked for retry accumulate for the retried proxy app rebuild - no dead-daemon build`() =
 		runTest {
 			var confirmed = false
-			rebaselineOutcome = {
-				if (confirmed) defaultRebaselineSuccess() else RebaselineOutcome.InstallNotConfirmed("not confirmed")
+			proxyAppRebuildOutcome = {
+				if (confirmed) defaultProxyAppRebuildSuccess() else ProxyAppRebuildOutcome.InstallNotConfirmed("not confirmed")
 			}
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1634,12 +1634,12 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			// A source save while parked must NOT start a quick build: the daemon is
-			// down, and the orchestrator still holds the rebaseline's absorbed batch.
+			// down, and the orchestrator still holds the proxy app rebuild's absorbed batch.
 			manager.save(sourceFile)
 			advanceUntilIdle()
 			assertThat(executed).isEmpty()
 
-			// The retried rebaseline absorbs the parked save (the file is on disk for
+			// The retried proxy app rebuild absorbs the parked save (the file is on disk for
 			// its Gradle build); the session comes back Ready without a quick build.
 			confirmed = true
 			manager.onQuickBuildTapped()
@@ -1649,12 +1649,12 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a rebaseline rebuilds the executor from the re-read proxyApp`() =
+	fun `a proxy app rebuild rebuilds the executor from the re-read proxyApp`() =
 		runTest {
-			// The rebaseline regenerates setup.json; here it comes back schema v2 (e.g.
+			// The proxy app rebuild regenerates setup.json; here it comes back schema v2 (e.g.
 			// a manifest edit added a service the new baseline proxies).
-			rebaselineOutcome = {
-				val base = defaultRebaselineSuccess()
+			proxyAppRebuildOutcome = {
+				val base = defaultProxyAppRebuildSuccess()
 				base.copy(proxyApp = base.proxyApp.copy(schema = 2))
 			}
 			val manager = createManager()
@@ -1709,7 +1709,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a gen-0 reconnect after a rebaseline does not trigger a catch-up build`() =
+	fun `a gen-0 reconnect after a proxy app rebuild does not trigger a catch-up build`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1720,7 +1720,7 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			val buildsBefore = executed.size
 
-			// The rebaseline reinstalled a fresh baseline; its gen-0 IS current code,
+			// The proxy app rebuild reinstalled a fresh baseline; its gen-0 IS current code,
 			// so a reconnect at 0 must not be mistaken for staleness.
 			connections.onConnected(connectedAt(0))
 			advanceUntilIdle()
@@ -1957,10 +1957,10 @@ class QuickBuildSessionManagerTest {
 	@Test
 	fun `after a failed provisioning the first tap starts a session even mid-prewarm`() =
 		runTest {
-			// The W9 F2 scenario end to end: a rebaseline retry failed, the session is Idle,
+			// The W9 F2 scenario end to end: a proxy app rebuild retry failed, the session is Idle,
 			// CoGo's project sync then finishes and fires the project-open prewarm - and the
 			// user's FIRST tap has to start the session, not be absorbed by the warm-up.
-			provisionOutcome = { ProvisionOutcome.Failure("Re-baseline build failed") }
+			provisionOutcome = { ProvisionOutcome.Failure("Proxy app rebuild failed") }
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
@@ -2010,7 +2010,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `standard run completion with clobbered proxy app build artifacts forces a full rebaseline`() =
+	fun `standard run completion with clobbered proxy app build artifacts forces a full proxy app rebuild`() =
 		runTest {
 			provisionOutcome = {
 				val base = defaultProvisionOutcome() as ProvisionOutcome.Success
@@ -2030,7 +2030,7 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			// EXTERNAL_FULL_BUILD routed through the invalidation machinery.
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
@@ -2067,12 +2067,12 @@ class QuickBuildSessionManagerTest {
 			manager.save(sourceFile)
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(0)
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
 			assertThat(executed.single().changes).isEqualTo(ChangedFiles.Unknown)
 		}
 
 	@Test
-	fun `standard run completion with a missing classpath jar forces a full rebaseline`() =
+	fun `standard run completion with a missing classpath jar forces a full proxy app rebuild`() =
 		runTest {
 			provisionOutcome = {
 				val base = defaultProvisionOutcome() as ProvisionOutcome.Success
@@ -2090,7 +2090,7 @@ class QuickBuildSessionManagerTest {
 			manager.onStandardRunCompleted()
 			advanceUntilIdle()
 
-			assertThat(rebaselineCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
 		}
 
 	@Test
@@ -2102,7 +2102,7 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			assertThat(executed).isEmpty()
-			assertThat(rebaselineCount).isEqualTo(0)
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 		}
 

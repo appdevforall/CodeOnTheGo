@@ -86,7 +86,7 @@ class BenchQuickBuildMetricsSink(
 		}
 	}
 
-	override fun onRebaseline(
+	override fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
 	) {
@@ -123,7 +123,7 @@ class BenchQuickBuildMetricsSink(
 	private fun BuildOutcome.wireName(): String =
 		when (this) {
 			is BuildOutcome.Success -> "Success"
-			is BuildOutcome.RequiresRebaseline -> "RequiresRebaseline"
+			is BuildOutcome.RequiresProxyAppRebuild -> "RequiresRebaseline"
 			is BuildOutcome.CompileError -> "CompileError"
 			is BuildOutcome.DeployFailure -> "DeployFailure"
 			is BuildOutcome.InfrastructureFailure -> "InfrastructureFailure"

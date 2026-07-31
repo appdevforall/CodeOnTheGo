@@ -45,10 +45,10 @@ class CompositeQuickBuildMetricsSink(
 
 	override fun onInvalidation(reason: InvalidationReason) = fanOut { it.onInvalidation(reason) }
 
-	override fun onRebaseline(
+	override fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
-	) = fanOut { it.onRebaseline(isSuccess, durationMillis) }
+	) = fanOut { it.onProxyAppRebuild(isSuccess, durationMillis) }
 
 	companion object {
 		private val log = LoggerFactory.getLogger(CompositeQuickBuildMetricsSink::class.java)

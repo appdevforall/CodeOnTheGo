@@ -305,11 +305,11 @@ class BuildOrchestratorTest {
 
 			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
 			runCurrent()
-			orchestrator.onRebaselineStarted()
+			orchestrator.onProxyAppRebuildStarted()
 			orchestrator.onBaselineReset()
 			runCurrent()
 
-			// The manifest edit was absorbed by the re-baseline; a fresh code save builds.
+			// The manifest edit was absorbed by the proxy app rebuild; a fresh code save builds.
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
 
@@ -318,7 +318,7 @@ class BuildOrchestratorTest {
 		}
 
 	@Test
-	fun `save landing mid-rebaseline is kept and quick-built right after the reset`() =
+	fun `save landing mid-rebuild is kept and quick-built right after the reset`() =
 		runTest {
 			// Regression (review F1): the Gradle build only absorbs what existed when it
 			// STARTED; a save landing while it runs must not be dropped with the batch.
@@ -327,8 +327,8 @@ class BuildOrchestratorTest {
 
 			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
 			runCurrent()
-			orchestrator.onRebaselineStarted()
-			orchestrator.onFilesChanged(known(srcA)) // mid-rebaseline save
+			orchestrator.onProxyAppRebuildStarted()
+			orchestrator.onFilesChanged(known(srcA)) // mid-rebuild save
 			runCurrent()
 			assertThat(executor.requests).isEmpty() // still invalidated: no quick build yet
 
@@ -340,7 +340,7 @@ class BuildOrchestratorTest {
 		}
 
 	@Test
-	fun `failed rebaseline returns the held batch to pending and re-reports on next save`() =
+	fun `failed proxy app rebuild returns the held batch to pending and re-reports on next save`() =
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
@@ -350,8 +350,8 @@ class BuildOrchestratorTest {
 			runCurrent()
 			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).hasSize(1)
 
-			orchestrator.onRebaselineStarted()
-			orchestrator.onRebaselineFailed()
+			orchestrator.onProxyAppRebuildStarted()
+			orchestrator.onProxyAppRebuildFailed()
 			runCurrent()
 			// Nothing was absorbed; no event yet (re-reporting here would loop the fallback).
 			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).hasSize(1)
@@ -392,8 +392,8 @@ class BuildOrchestratorTest {
 			runCurrent()
 			events.clear()
 
-			// A full Gradle build re-baselined the session while build #1 was in flight.
-			orchestrator.onRebaselineStarted()
+			// A full Gradle proxy app rebuild reset the session's baseline while build #1 was in flight.
+			orchestrator.onProxyAppRebuildStarted()
 			orchestrator.onBaselineReset()
 			executor.finish(0, success(generation = 7))
 			runCurrent()
@@ -804,11 +804,11 @@ class BuildOrchestratorTest {
 			assertThat(realFailure.diagnosticsUnchanged).isFalse()
 		}
 
-	// Review gap (2026-07-26 #69): a rebaseline landing mid-seed supersedes it - the
+	// Review gap (2026-07-26 #69): a proxy app rebuild landing mid-seed supersedes it - the
 	// seed's late result must be discarded, and it must NOT re-queue after the reset
-	// (the rebaseline's own Gradle build just recompiled the world).
+	// (the proxy app rebuild's own Gradle build just recompiled the world).
 	@Test
-	fun `a seed superseded by a rebaseline is discarded and does not restart after the reset`() =
+	fun `a seed superseded by a proxy app rebuild is discarded and does not restart after the reset`() =
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
@@ -818,13 +818,13 @@ class BuildOrchestratorTest {
 			runCurrent()
 			assertThat(executor.requests.single().route).isEqualTo(BuildRoute.Seed)
 
-			// A gradle/manifest edit forced a rebaseline while the seed compiles.
-			orchestrator.onRebaselineStarted()
+			// A gradle/manifest edit forced a proxy app rebuild while the seed compiles.
+			orchestrator.onProxyAppRebuildStarted()
 			events.clear()
 			executor.finish(0, success(generation = 0))
 			runCurrent()
 			// The superseded seed's result is discarded: no Succeeded/Failed escapes
-			// (a SeedFinished here would flip the session out of its rebaseline flow).
+			// (a SeedFinished here would flip the session out of its proxy-app-rebuild flow).
 			assertThat(events).isEmpty()
 
 			orchestrator.onBaselineReset()
@@ -851,9 +851,9 @@ class BuildOrchestratorTest {
 			val events = mutableListOf<OrchestratorEvent>()
 			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
-			// A save landed but its build has not started yet (mid-rebaseline absorption is the
+			// A save landed but its build has not started yet (mid-rebuild absorption is the
 			// real-world shape); the tap coalesces into it and must wait for the deploy.
-			orchestrator.onRebaselineStarted()
+			orchestrator.onProxyAppRebuildStarted()
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
 			assertThat(executor.requests).isEmpty()
@@ -932,7 +932,7 @@ class BuildOrchestratorTest {
 			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			// Hold the batch so the tap lands BEFORE the build starts and really tags it.
-			orchestrator.onRebaselineStarted()
+			orchestrator.onProxyAppRebuildStarted()
 			orchestrator.onFilesChanged(known(srcA))
 			orchestrator.onQuickBuildRequested(userInitiated = true)
 			orchestrator.onBaselineReset()

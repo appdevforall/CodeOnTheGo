@@ -323,18 +323,18 @@ class AnalyticsQuickBuildMetricsSinkTest {
 	}
 
 	@Test
-	fun `invalidation and rebaseline map to low-cardinality events`() {
+	fun `invalidation and proxy app rebuild map to low-cardinality events`() {
 		val sink = sink()
 		sink.onInvalidation(InvalidationReason.MANIFEST_CHANGED)
-		sink.onRebaseline(isSuccess = true, durationMillis = 7_500)
+		sink.onProxyAppRebuild(isSuccess = true, durationMillis = 7_500)
 
 		val invalidated = tracked[0] as QuickBuildInvalidatedMetric
 		assertThat(invalidated.eventName).isEqualTo("quick_build_invalidated")
 		assertThat(invalidated.reason).isEqualTo("manifest_changed")
 
-		val rebaseline = tracked[1] as QuickBuildRebaselineMetric
-		assertThat(rebaseline.eventName).isEqualTo("quick_build_rebaseline")
-		assertThat(rebaseline.isSuccess).isTrue()
-		assertThat(rebaseline.durationMs).isEqualTo(7_500)
+		val proxyAppRebuild = tracked[1] as QuickBuildProxyAppRebuildMetric
+		assertThat(proxyAppRebuild.eventName).isEqualTo("quick_build_rebaseline")
+		assertThat(proxyAppRebuild.isSuccess).isTrue()
+		assertThat(proxyAppRebuild.durationMs).isEqualTo(7_500)
 	}
 }

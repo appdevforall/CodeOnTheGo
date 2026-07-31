@@ -47,7 +47,7 @@ class CompositeQuickBuildMetricsSinkTest {
 			calls += "invalidation"
 		}
 
-		override fun onRebaseline(
+		override fun onProxyAppRebuild(
 			isSuccess: Boolean,
 			durationMillis: Long,
 		) {

@@ -52,10 +52,10 @@ sealed interface BuildOutcome {
 	 * The build succeeded but the quick path must not deploy it: the installed
 	 * baseline cannot take a restart-requiring payload safely (its runtime would
 	 * ignore the restart request and hot-swap, leaving a live service stale). The
-	 * session manager routes [reason] into the full-rebaseline fallback, which
+	 * session manager routes [reason] into the full-proxy-app-rebuild fallback, which
 	 * regenerates the baseline; the changed set stays pending and is absorbed there.
 	 */
-	data class RequiresRebaseline(
+	data class RequiresProxyAppRebuild(
 		val reason: InvalidationReason,
 		val detail: String,
 	) : BuildOutcome

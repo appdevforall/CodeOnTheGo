@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory
  * imports — so the whole model is unit-testable off-device.
  *
  * Invariant: **the pending changed-set is never lost** — not by a save landing mid-build,
- * not by a failed compile, not by a re-baseline, not by a crash. Concretely:
+ * not by a failed compile, not by a proxy app rebuild, not by a crash. Concretely:
  * - At most one build is in flight; saves that land mid-build coalesce into a pending set.
  * - Starting a build MOVES the pending set into the build; it is cleared only when that
  *   build succeeds. A failed batch is unioned back into pending. (The prototype cleared
@@ -32,10 +32,10 @@ import org.slf4j.LoggerFactory
  * event carries [OrchestratorEvent.BuildFailed.diagnosticsUnchanged] so the status
  * surface doesn't re-render the same errors.
  *
- * Re-baseline protocol (full Gradle fallback): the session manager calls
- * [onRebaselineStarted] when it kicks the Gradle build and [onBaselineReset] /
- * [onRebaselineFailed] when it finishes. Only the changes that existed when the Gradle
- * build STARTED are treated as absorbed — a save landing mid-rebaseline stays pending
+ * Proxy-app-rebuild protocol (full Gradle fallback): the session manager calls
+ * [onProxyAppRebuildStarted] when it kicks the Gradle build and [onBaselineReset] /
+ * [onProxyAppRebuildFailed] when it finishes. Only the changes that existed when the Gradle
+ * build STARTED are treated as absorbed — a save landing mid-rebuild stays pending
  * and quick-builds right after the reset (over-building is safe; dropping an edit is not).
  *
  * Threading: events are delivered via [onEvent] outside the internal lock, on the
@@ -84,7 +84,7 @@ class BuildOrchestrator(
 	 */
 	private var pendingSince: Long = 0L
 
-	/** Changes a running Gradle re-baseline will absorb; restored if it fails. */
+	/** Changes a running Gradle proxy app rebuild will absorb; restored if it fails. */
 	private var awaitingAbsorption: ChangedFiles? = null
 
 	/** Diagnostics of the last CompileError, for the duplicate-follow-up guard. */
@@ -267,13 +267,13 @@ class BuildOrchestrator(
 	}
 
 	/**
-	 * The session manager kicked off the full Gradle re-baseline build. Everything
+	 * The session manager kicked off the full Gradle proxy app rebuild build. Everything
 	 * currently pending (and any in-flight quick build's batch — those files are on disk,
 	 * so Gradle reads them) is marked as absorbed-in-progress; the in-flight build is
 	 * superseded so its late result is discarded. Saves arriving after this call
 	 * accumulate as NOT absorbed — the Gradle build may have already read those files.
 	 */
-	suspend fun onRebaselineStarted() {
+	suspend fun onProxyAppRebuildStarted() {
 		mutex.withLock {
 			awaitingAbsorption = (inFlight?.batch ?: ChangedFiles.Known.EMPTY) + pending
 			pending = ChangedFiles.Known.EMPTY
@@ -283,15 +283,15 @@ class BuildOrchestrator(
 	}
 
 	/**
-	 * The re-baseline completed: drop the absorbed changes, keep (and immediately build)
-	 * anything that arrived mid-rebaseline. Calling this without [onRebaselineStarted]
+	 * The proxy app rebuild completed: drop the absorbed changes, keep (and immediately build)
+	 * anything that arrived mid-rebuild. Calling this without [onProxyAppRebuildStarted]
 	 * is a protocol violation; the orchestrator then falls back to dropping everything
 	 * pending, which risks a stale proxy app — hence the warning.
 	 */
 	suspend fun onBaselineReset() {
 		withEvents { events ->
 			if (awaitingAbsorption == null) {
-				log.warn("onBaselineReset without onRebaselineStarted; dropping pending set")
+				log.warn("onBaselineReset without onProxyAppRebuildStarted; dropping pending set")
 				pending = ChangedFiles.Known.EMPTY
 				pendingForced = false
 				inFlight = null
@@ -304,12 +304,12 @@ class BuildOrchestrator(
 	}
 
 	/**
-	 * The re-baseline build failed (e.g. the manifest edit that forced it doesn't
+	 * The proxy app rebuild failed (e.g. the manifest edit that forced it doesn't
 	 * compile). Nothing was absorbed: the held batch returns to pending. No event is
 	 * emitted here — re-reporting invalidation would loop the failing fallback; the
 	 * next save re-triggers it once the user has fixed the problem.
 	 */
-	suspend fun onRebaselineFailed() {
+	suspend fun onProxyAppRebuildFailed() {
 		mutex.withLock {
 			awaitingAbsorption?.let { held ->
 				pending = held + pending
@@ -339,7 +339,7 @@ class BuildOrchestrator(
 		autoFollowUp: Boolean = false,
 	) {
 		if (inFlight != null) return
-		// Quick builds are suspended while a re-baseline runs: they would race the
+		// Quick builds are suspended while a proxy app rebuild runs: they would race the
 		// Gradle build against a half-reseeded baseline. Saves keep accumulating and
 		// build on onBaselineReset.
 		if (awaitingAbsorption != null) return
@@ -359,7 +359,7 @@ class BuildOrchestrator(
 		val route = classifier.classify(pending)
 		if (route is BuildRoute.FullGradleBuild) {
 			// The quick path can't absorb this; hand off to the session manager once.
-			// Pending is kept: it documents what the re-baseline will absorb.
+			// Pending is kept: it documents what the proxy app rebuild will absorb.
 			if (!invalidationReported) {
 				invalidationReported = true
 				events += OrchestratorEvent.InvalidationRequired(route.reason)

@@ -202,7 +202,7 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `building plus InvalidationDetected requires a full gradle rebaseline`() {
+	fun `building plus InvalidationDetected requires a full gradle proxy app rebuild`() {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Building(1),
@@ -211,11 +211,11 @@ class SessionReducerTest {
 
 		assertThat(transition.state)
 			.isEqualTo(QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunProxyAppRebuild))
 	}
 
 	@Test
-	fun `ready plus InvalidationDetected requires a full gradle rebaseline`() {
+	fun `ready plus InvalidationDetected requires a full gradle proxy app rebuild`() {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Ready(1),
@@ -224,15 +224,15 @@ class SessionReducerTest {
 
 		assertThat(transition.state)
 			.isEqualTo(QuickBuildSessionState.Invalidated(InvalidationReason.GRADLE_CONFIG_CHANGED, 1))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunProxyAppRebuild))
 	}
 
 	@Test
-	fun `invalidated plus RebaselineStarted moves to provisioning`() {
+	fun `invalidated plus ProxyAppRebuildStarted moves to provisioning`() {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1),
-				SessionEvent.RebaselineStarted,
+				SessionEvent.ProxyAppRebuildStarted,
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
@@ -240,14 +240,14 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `an unconfirmed rebaseline install parks in invalidated awaiting retry - not idle`() {
-		// The stranded-session fix: the rebaseline built fine, only the reinstall
+	fun `an unconfirmed proxy app rebuild install parks in invalidated awaiting retry - not idle`() {
+		// The stranded-session fix: the proxy app rebuild built fine, only the reinstall
 		// confirmation timed out. No effect fires (an automatic retry would re-prompt
 		// forever); the session waits for the user's tap instead of dying to Idle.
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Provisioning(),
-				SessionEvent.RebaselineInstallNotConfirmed(deployedGeneration = 2),
+				SessionEvent.ProxyAppRebuildInstallNotConfirmed(deployedGeneration = 2),
 			)
 
 		assertThat(transition.state)
@@ -262,15 +262,15 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `a deferred rebaseline retry parks back and gives its auto-retry back`() {
+	fun `a deferred proxy app rebuild retry parks back and gives its auto-retry back`() {
 		// W9 finding F1: the retry asked for the device's single Gradle slot while CoGo's
 		// own project sync held it, so no build ran and no install was prompted. Charging
 		// the budget for that spent the one retry the park depends on and dropped the
-		// session to Idle behind a "Re-baseline build failed" banner.
+		// session to Idle behind a "Proxy app rebuild failed" banner.
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Provisioning(installAutoRetries = 1),
-				SessionEvent.RebaselineDeferred(deployedGeneration = 2),
+				SessionEvent.ProxyAppRebuildDeferred(deployedGeneration = 2),
 			)
 
 		assertThat(transition.state)
@@ -288,13 +288,13 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `a deferred rebaseline retry never drives the auto-retry count below zero`() {
+	fun `a deferred proxy app rebuild retry never drives the auto-retry count below zero`() {
 		// A TAP-initiated retry arrives with the budget already reset to 0, so the
 		// give-back has nothing to give.
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Provisioning(installAutoRetries = 0),
-				SessionEvent.RebaselineDeferred(deployedGeneration = 7),
+				SessionEvent.ProxyAppRebuildDeferred(deployedGeneration = 7),
 			)
 
 		assertThat(transition.state)
@@ -321,17 +321,17 @@ class SessionReducerTest {
 
 		// One deferred attempt: parked again, budget untouched.
 		state = reducer.reduce(state, SessionEvent.HostForegrounded).state
-		state = reducer.reduce(state, SessionEvent.RebaselineStarted).state
-		state = reducer.reduce(state, SessionEvent.RebaselineDeferred(deployedGeneration = 2)).state
+		state = reducer.reduce(state, SessionEvent.ProxyAppRebuildStarted).state
+		state = reducer.reduce(state, SessionEvent.ProxyAppRebuildDeferred(deployedGeneration = 2)).state
 		assertThat((state as QuickBuildSessionState.Invalidated).installAutoRetries).isEqualTo(0)
 
 		// Then MAX real attempts, each ending unconfirmed: the budget fills up.
 		repeat(SessionReducer.MAX_INSTALL_AUTO_RETRIES) {
 			state = reducer.reduce(state, SessionEvent.HostForegrounded).state
-			state = reducer.reduce(state, SessionEvent.RebaselineStarted).state
+			state = reducer.reduce(state, SessionEvent.ProxyAppRebuildStarted).state
 			state =
 				reducer
-					.reduce(state, SessionEvent.RebaselineInstallNotConfirmed(deployedGeneration = 2))
+					.reduce(state, SessionEvent.ProxyAppRebuildInstallNotConfirmed(deployedGeneration = 2))
 					.state
 		}
 		assertThat((state as QuickBuildSessionState.Invalidated).installAutoRetries)
@@ -344,7 +344,7 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `invalidated awaiting retry plus QuickBuildTapped retries the rebaseline once`() {
+	fun `invalidated awaiting retry plus QuickBuildTapped retries the proxy app rebuild once`() {
 		val parked =
 			QuickBuildSessionState.Invalidated(
 				InvalidationReason.INSTALL_NOT_CONFIRMED,
@@ -354,14 +354,14 @@ class SessionReducerTest {
 
 		val transition = reducer.reduce(parked, SessionEvent.QuickBuildTapped)
 
-		// awaitingRetry drops with the effect, so a second tap before RebaselineStarted
+		// awaitingRetry drops with the effect, so a second tap before ProxyAppRebuildStarted
 		// cannot double-run the Gradle build.
 		assertThat(transition.state).isEqualTo(parked.copy(awaitingRetry = false))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunProxyAppRebuild))
 	}
 
 	@Test
-	fun `invalidated awaiting retry plus HostForegrounded retries the rebaseline once`() {
+	fun `invalidated awaiting retry plus HostForegrounded retries the proxy app rebuild once`() {
 		// The backgrounded-CoGo case: the reinstall ran with no dialog ever shown
 		// (Android defers PENDING_USER_ACTION until foreground, and the dialog-owning
 		// subscriber is lifecycle-bound), so the user's return to CoGo must re-prompt
@@ -378,7 +378,7 @@ class SessionReducerTest {
 
 		assertThat(transition.state)
 			.isEqualTo(parked.copy(awaitingRetry = false, installAutoRetries = 1))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunProxyAppRebuild))
 	}
 
 	@Test
@@ -415,13 +415,13 @@ class SessionReducerTest {
 
 		assertThat(transition.state)
 			.isEqualTo(exhausted.copy(awaitingRetry = false, installAutoRetries = 0))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunProxyAppRebuild))
 	}
 
 	@Test
 	fun `the auto-retry count survives the park - retry - park round trip`() {
 		// The budget is per unconfirmed install, not per park: it rides Invalidated ->
-		// Provisioning (RebaselineStarted) -> Invalidated (RebaselineInstallNotConfirmed).
+		// Provisioning (ProxyAppRebuildStarted) -> Invalidated (ProxyAppRebuildInstallNotConfirmed).
 		// Without the carry, every park would reset the count and the cap could never
 		// be reached.
 		val parked =
@@ -432,14 +432,14 @@ class SessionReducerTest {
 			)
 
 		val retried = reducer.reduce(parked, SessionEvent.HostForegrounded)
-		val provisioning = reducer.reduce(retried.state, SessionEvent.RebaselineStarted)
+		val provisioning = reducer.reduce(retried.state, SessionEvent.ProxyAppRebuildStarted)
 		assertThat(provisioning.state)
 			.isEqualTo(QuickBuildSessionState.Provisioning(installAutoRetries = 1))
 
 		val reParked =
 			reducer.reduce(
 				provisioning.state,
-				SessionEvent.RebaselineInstallNotConfirmed(deployedGeneration = 2),
+				SessionEvent.ProxyAppRebuildInstallNotConfirmed(deployedGeneration = 2),
 			)
 		assertThat(reParked.state)
 			.isEqualTo(
@@ -453,12 +453,12 @@ class SessionReducerTest {
 
 		// The second foreground return spends the last unit; the third does nothing.
 		val secondRetry = reducer.reduce(reParked.state, SessionEvent.HostForegrounded)
-		assertThat(secondRetry.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
-		val secondProvisioning = reducer.reduce(secondRetry.state, SessionEvent.RebaselineStarted)
+		assertThat(secondRetry.effects).isEqualTo(listOf(SessionEffect.RunProxyAppRebuild))
+		val secondProvisioning = reducer.reduce(secondRetry.state, SessionEvent.ProxyAppRebuildStarted)
 		val secondPark =
 			reducer.reduce(
 				secondProvisioning.state,
-				SessionEvent.RebaselineInstallNotConfirmed(deployedGeneration = 2),
+				SessionEvent.ProxyAppRebuildInstallNotConfirmed(deployedGeneration = 2),
 			)
 		val thirdAttempt = reducer.reduce(secondPark.state, SessionEvent.HostForegrounded)
 		assertThat(thirdAttempt.state).isEqualTo(secondPark.state)
@@ -466,7 +466,7 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `invalidated with a rebaseline in flight ignores HostForegrounded`() {
+	fun `invalidated with a proxy app rebuild in flight ignores HostForegrounded`() {
 		// After the retry fires (awaitingRetry dropped), a second onResume - e.g. the
 		// user dismissing the re-prompted install dialog - must not double-run Gradle.
 		val inFlight =
@@ -498,7 +498,7 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `invalidated with a rebaseline in flight ignores QuickBuildTapped`() {
+	fun `invalidated with a proxy app rebuild in flight ignores QuickBuildTapped`() {
 		val invalidated = QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1)
 
 		val transition = reducer.reduce(invalidated, SessionEvent.QuickBuildTapped)
@@ -508,11 +508,11 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `retried rebaseline start moves the parked session to provisioning`() {
+	fun `retried proxy app rebuild start moves the parked session to provisioning`() {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Invalidated(InvalidationReason.INSTALL_NOT_CONFIRMED, 2),
-				SessionEvent.RebaselineStarted,
+				SessionEvent.ProxyAppRebuildStarted,
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
@@ -697,7 +697,7 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `invalidated plus ExternalBuildCompleted does nothing - the rebaseline absorbs it`() {
+	fun `invalidated plus ExternalBuildCompleted does nothing - the proxy app rebuild absorbs it`() {
 		val invalidated = QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1)
 		val transition = reducer.reduce(invalidated, SessionEvent.ExternalBuildCompleted)
 
@@ -706,9 +706,9 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `degraded plus InvalidationDetected rebaselines instead of stranding the session`() {
+	fun `degraded plus InvalidationDetected proxy app rebuilds instead of stranding the session`() {
 		// Regression: the orchestrator reports an invalidation ONCE. Dropping it while
-		// Degraded meant no rebaseline would ever run and no build could ever start again.
+		// Degraded meant no proxy app rebuild would ever run and no build could ever start again.
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Degraded(1),
@@ -717,7 +717,7 @@ class SessionReducerTest {
 
 		assertThat(transition.state)
 			.isEqualTo(QuickBuildSessionState.Invalidated(InvalidationReason.GRADLE_CONFIG_CHANGED, 1))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunProxyAppRebuild))
 	}
 
 	@Test
@@ -786,8 +786,8 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `a rebaseline going live leaves the user in the editor`() {
-		// Provisioning is also the rebaseline's state, and a plain save can trigger one:
+	fun `a proxy app rebuild going live leaves the user in the editor`() {
+		// Provisioning is also the proxy app rebuild's state, and a plain save can trigger one:
 		// finishing a minute-long Gradle build is not an answer to anything the user asked.
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Provisioning(), SessionEvent.ProvisioningSucceeded(1))

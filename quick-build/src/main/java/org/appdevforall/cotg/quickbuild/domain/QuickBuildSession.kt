@@ -28,12 +28,12 @@ sealed interface QuickBuildSessionState {
 	 * live is the answer to the user asking - the proxy app is brought to the foreground on
 	 * [SessionEvent.ProvisioningSucceeded] (Bryan's behaviour 2). Nothing launches the proxy
 	 * app after its install otherwise, so without this a first tap would install the app,
-	 * warm the daemon and leave the user staring at the editor. False for a re-baseline
-	 * (also routed through this state): a rebaseline is a full Gradle build that a plain
+	 * warm the daemon and leave the user staring at the editor. False for a proxy app rebuild
+	 * (also routed through this state): a proxy app rebuild is a full Gradle build that a plain
 	 * save can trigger, and yanking the user out of the editor a minute later is not an
 	 * answer to anything they asked for.
 	 *
-	 * [installAutoRetries] rides along on a rebaseline so an unconfirmed reinstall parks
+	 * [installAutoRetries] rides along on a proxy app rebuild so an unconfirmed reinstall parks
 	 * back in [Invalidated] with the count intact - it is how the [SessionEvent.HostForegrounded]
 	 * auto-retry stays bounded across park/retry/park cycles (see [Invalidated.installAutoRetries]).
 	 */
@@ -80,16 +80,16 @@ sealed interface QuickBuildSessionState {
 
 	/**
 	 * The baseline is stale (manifest/gradle/external build); needs a full Gradle build.
-	 * [awaitingRetry] true = no rebaseline is in flight and the next Quick Build tap or
+	 * [awaitingRetry] true = no proxy app rebuild is in flight and the next Quick Build tap or
 	 * [SessionEvent.HostForegrounded] retries it instead of the session having died to
-	 * [Idle]. Two things park here: a rebaseline whose reinstall was never confirmed
-	 * ([SessionEvent.RebaselineInstallNotConfirmed]) and a retry that never got the
-	 * device's single Gradle slot ([SessionEvent.RebaselineDeferred]).
+	 * [Idle]. Two things park here: a proxy app rebuild whose reinstall was never confirmed
+	 * ([SessionEvent.ProxyAppRebuildInstallNotConfirmed]) and a retry that never got the
+	 * device's single Gradle slot ([SessionEvent.ProxyAppRebuildDeferred]).
 	 *
 	 * [installAutoRetries] counts the [SessionEvent.HostForegrounded] auto-retries already
 	 * spent on this unconfirmed reinstall. Once it reaches
 	 * [SessionReducer.MAX_INSTALL_AUTO_RETRIES] the foreground trigger stops re-running
-	 * the rebaseline - a user who keeps declining must not pay a fresh Gradle build on
+	 * the proxy app rebuild - a user who keeps declining must not pay a fresh Gradle build on
 	 * every resume, forever. A Quick Build TAP still retries (and resets the budget):
 	 * an explicit ask is fresh consent.
 	 */
@@ -191,23 +191,23 @@ sealed interface SessionEvent {
 		val reason: InvalidationReason,
 	) : SessionEvent
 
-	/** The full Gradle re-baseline build has been kicked off. */
-	data object RebaselineStarted : SessionEvent
+	/** The full Gradle proxy app rebuild build has been kicked off. */
+	data object ProxyAppRebuildStarted : SessionEvent
 
 	/**
-	 * The rebaseline's Gradle build succeeded but the proxy-app reinstall was never
+	 * The proxy app rebuild's Gradle build succeeded but the proxy-app reinstall was never
 	 * confirmed - no dialog could be shown (CoGo backgrounded), the user cancelled it,
 	 * or it was left untapped until the installer timed out. The session is NOT dead:
 	 * it parks in [QuickBuildSessionState.Invalidated] with `awaitingRetry = true`,
-	 * where the next Quick Build tap or [HostForegrounded] re-runs the rebaseline and
+	 * where the next Quick Build tap or [HostForegrounded] re-runs the proxy app rebuild and
 	 * re-prompts. [deployedGeneration] is the generation the proxy app still runs.
 	 */
-	data class RebaselineInstallNotConfirmed(
+	data class ProxyAppRebuildInstallNotConfirmed(
 		val deployedGeneration: Long,
 	) : SessionEvent
 
 	/**
-	 * A parked rebaseline RETRY never started: the device's single Gradle slot was already
+	 * A parked proxy app rebuild RETRY never started: the device's single Gradle slot was already
 	 * taken (CoGo's own project sync, a Standard Run), so nothing was built and no install
 	 * was prompted. The session parks straight back in
 	 * [QuickBuildSessionState.Invalidated] awaiting a retry, and the attempt is NOT counted
@@ -221,7 +221,7 @@ sealed interface SessionEvent {
 	 * that collision spent the whole budget and dropped the session to [Idle] with a
 	 * build-failure banner instead of the install re-prompt (W9 device walk, finding F1).
 	 */
-	data class RebaselineDeferred(
+	data class ProxyAppRebuildDeferred(
 		val deployedGeneration: Long,
 	) : SessionEvent
 
@@ -233,7 +233,7 @@ sealed interface SessionEvent {
 	 * and the dialog-owning subscriber (InstallationResultHandler) is EventBus
 	 * lifecycle-bound (registered onStart, unregistered onStop), so the deferred
 	 * delivery can land before it re-registers and no confirm dialog is ever launched.
-	 * The user saw nothing to tap. Re-running the rebaseline now (with CoGo foreground)
+	 * The user saw nothing to tap. Re-running the proxy app rebuild now (with CoGo foreground)
 	 * makes the dialog actually appear. Bounded by
 	 * [QuickBuildSessionState.Invalidated.installAutoRetries]; every other state
 	 * ignores this event.
@@ -303,7 +303,7 @@ sealed interface SessionEffect {
 	data object CancelQuickBuild : SessionEffect
 
 	/**
-	 * Stop the out-of-process Gradle PROXY APP build (prewarm / provision / re-baseline)
+	 * Stop the out-of-process Gradle PROXY APP build (prewarm / provision / proxy app rebuild)
 	 * (behaviour 5). Cancelling the awaiting coroutine alone leaves Gradle running to
 	 * completion, so this has to reach the tooling server's cancellation token.
 	 */
@@ -317,13 +317,13 @@ sealed interface SessionEffect {
 	 */
 	data object StartBackgroundSeed : SessionEffect
 
-	/** Route to the real Gradle build; on completion the session re-baselines. */
-	data object RunFullGradleRebaseline : SessionEffect
+	/** Route to the real Gradle build; on completion the session rebuilds its proxy app. */
+	data object RunProxyAppRebuild : SessionEffect
 
 	/**
 	 * Re-seed the live session after an external full build: either mark the whole
 	 * incremental baseline dirty (next build recompiles from current disk) or, when the
-	 * external build clobbered the proxy app build artifacts, escalate to a full rebaseline with
+	 * external build clobbered the proxy app build artifacts, escalate to a full proxy app rebuild with
 	 * [InvalidationReason.EXTERNAL_FULL_BUILD]. The shell decides which.
 	 */
 	data object ReseedBaseline : SessionEffect
@@ -448,7 +448,7 @@ class SessionReducer {
 					QuickBuildSessionState.Ready(event.generation),
 					// Behaviour 2: a TAP is what started this, and nothing else ever launches
 					// the freshly installed proxy app - so the session going live is where the
-					// tap gets its answer. A re-baseline routed through this state carries
+					// tap gets its answer. A proxy app rebuild routed through this state carries
 					// userInitiated = false and stays in the editor.
 					if (state.userInitiated) {
 						listOf(SessionEffect.StartBackgroundSeed, SessionEffect.SwitchToProxyApp)
@@ -477,7 +477,7 @@ class SessionReducer {
 				)
 			}
 
-			is SessionEvent.RebaselineDeferred -> {
+			is SessionEvent.ProxyAppRebuildDeferred -> {
 				// Park back exactly where the retry came from, with the attempt given
 				// back: it never ran a Gradle build and never prompted an install, which
 				// is what the budget bounds. Floored at zero - a TAP-initiated retry
@@ -492,8 +492,8 @@ class SessionReducer {
 				)
 			}
 
-			is SessionEvent.RebaselineInstallNotConfirmed -> {
-				// The rebaseline built fine; only the install confirmation is missing.
+			is SessionEvent.ProxyAppRebuildInstallNotConfirmed -> {
+				// The proxy app rebuild built fine; only the install confirmation is missing.
 				// Park recoverable (no effect - a retry loop would re-prompt forever):
 				// the next tap or foreground return retries, "Restart session" still
 				// tears down. The auto-retry count survives the round trip so the
@@ -535,7 +535,7 @@ class SessionReducer {
 			is SessionEvent.InvalidationDetected -> {
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(event.reason, generation),
-					listOf(SessionEffect.RunFullGradleRebaseline),
+					listOf(SessionEffect.RunProxyAppRebuild),
 				)
 			}
 
@@ -620,7 +620,7 @@ class SessionReducer {
 			is SessionEvent.InvalidationDetected -> {
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration),
-					listOf(SessionEffect.RunFullGradleRebaseline),
+					listOf(SessionEffect.RunProxyAppRebuild),
 				)
 			}
 
@@ -660,9 +660,9 @@ class SessionReducer {
 		event: SessionEvent,
 	): SessionTransition =
 		when (event) {
-			SessionEvent.RebaselineStarted -> {
+			SessionEvent.ProxyAppRebuildStarted -> {
 				// Deliberately NOT user-initiated even when a tap triggered the retry: a
-				// rebaseline is a full Gradle build (~a minute), and a save can trigger one
+				// a proxy app rebuild is a full Gradle build (~a minute), and a save can trigger one
 				// too, so completing it is not by itself a reason to leave the editor.
 				// The auto-retry count rides along so an unconfirmed reinstall parks back
 				// with it intact.
@@ -673,17 +673,17 @@ class SessionReducer {
 
 			SessionEvent.QuickBuildTapped -> {
 				if (state.awaitingRetry) {
-					// Retry the parked rebaseline (its reinstall was never confirmed).
+					// Retry the parked proxy app rebuild (its reinstall was never confirmed).
 					// An explicit tap is fresh consent: it also re-arms the foreground
 					// auto-retry budget. awaitingRetry drops immediately so a second
-					// trigger before RebaselineStarted lands cannot double-run the
+					// trigger before ProxyAppRebuildStarted lands cannot double-run the
 					// Gradle build.
 					SessionTransition(
 						state.copy(awaitingRetry = false, installAutoRetries = 0),
-						listOf(SessionEffect.RunFullGradleRebaseline),
+						listOf(SessionEffect.RunProxyAppRebuild),
 					)
 				} else {
-					// A rebaseline is already in flight; the trigger has nothing to add.
+					// A proxy app rebuild is already in flight; the trigger has nothing to add.
 					SessionTransition(state)
 				}
 			}
@@ -698,13 +698,13 @@ class SessionReducer {
 					// session stays parked (a tap still retries) instead of paying a fresh
 					// Gradle build on every resume of a user who keeps declining.
 					// awaitingRetry drops immediately so a second trigger before
-					// RebaselineStarted lands cannot double-run the Gradle build.
+					// ProxyAppRebuildStarted lands cannot double-run the Gradle build.
 					SessionTransition(
 						state.copy(awaitingRetry = false, installAutoRetries = state.installAutoRetries + 1),
-						listOf(SessionEffect.RunFullGradleRebaseline),
+						listOf(SessionEffect.RunProxyAppRebuild),
 					)
 				} else {
-					// Rebaseline in flight, or the auto-retry budget is spent: stay parked.
+					// Proxy app rebuild in flight, or the auto-retry budget is spent: stay parked.
 					SessionTransition(state)
 				}
 			}
@@ -730,14 +730,14 @@ class SessionReducer {
 			is SessionEvent.InvalidationDetected -> {
 				// Dropping this would strand the session: the orchestrator reports an
 				// invalidation ONCE, so a gradle/manifest edit landing while Degraded
-				// would otherwise never rebaseline and no build would ever run again.
-				// The rebaseline needs Gradle, not the daemon - and the shell's
-				// daemonEpoch guard discards the in-flight respawn the rebaseline's
+				// would otherwise never rebuild its proxy app and no build would ever run again.
+				// The proxy app rebuild needs Gradle, not the daemon - and the shell's
+				// daemonEpoch guard discards the in-flight respawn the proxy app rebuild's
 				// daemon teardown supersedes, so the two cannot race (2026-07-26
 				// review finding 2).
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration),
-					listOf(SessionEffect.RunFullGradleRebaseline),
+					listOf(SessionEffect.RunProxyAppRebuild),
 				)
 			}
 
@@ -753,7 +753,7 @@ class SessionReducer {
 	companion object {
 		/**
 		 * How many times [SessionEvent.HostForegrounded] may auto-retry an unconfirmed
-		 * rebaseline reinstall before the session just stays parked. Each retry costs a
+		 * proxy app rebuild reinstall before the session just stays parked. Each retry costs a
 		 * full Gradle build plus an install prompt; two declined prompts is a clear
 		 * "not now" - after that only an explicit Quick Build tap re-prompts (and
 		 * re-arms this budget).

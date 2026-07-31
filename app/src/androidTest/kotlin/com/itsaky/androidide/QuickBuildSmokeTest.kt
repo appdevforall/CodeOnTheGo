@@ -82,7 +82,7 @@ private const val BANNER_MESSAGE = "Quick Build smoke: injected error banner"
  * - the QuickBuildJumpActivity trampoline the proxy app's error overlay fires;
  * - the indefinite error banner (the surface `userMessages` renders through `flashError`)
  *   and its three dismiss paths: Dismiss button, tap-anywhere, swipe;
- * - the confirm-on-switch ("rebaseline/reinstall") dialog, driven through
+ * - the confirm-on-switch ("proxy app rebuild / reinstall") dialog, driven through
  *   [EditorHandlerActivity.ensureQuickBuildClobberConfirmed] with a fake
  *   [InstalledPackages] so it renders deterministically without installing anything;
  * - a real tap on the button: the session leaves Idle (status -> Provisioning) and the
@@ -268,7 +268,7 @@ class QuickBuildSmokeTest : TestCase() {
 				check(appId != null) { "Project sync never produced an applicationId" }
 			}
 
-			step("Rebaseline/reinstall confirm renders and honors decline then accept") {
+			step("Proxy app rebuild / reinstall confirm renders and honors decline then accept") {
 				// Override the clobber check with a fake occupant so the dialog is
 				// reachable without actually installing anything under the real id.
 				loadKoinModules(module { single<QuickBuildClobberCheck> { QuickBuildClobberCheck(fakePackages) } })

@@ -95,7 +95,7 @@ class BenchQuickBuildMetricsSinkTest {
 		val pinned: List<Pair<BuildOutcome, String>> =
 			listOf(
 				BuildOutcome.Success(generation = 1, durationMillis = 10) to "Success",
-				BuildOutcome.RequiresRebaseline(InvalidationReason.MANIFEST_CHANGED, detail = "d") to "RequiresRebaseline",
+				BuildOutcome.RequiresProxyAppRebuild(InvalidationReason.MANIFEST_CHANGED, detail = "d") to "RequiresRebaseline",
 				BuildOutcome.CompileError(emptyList()) to "CompileError",
 				BuildOutcome.DeployFailure("deploy failed") to "DeployFailure",
 				BuildOutcome.InfrastructureFailure("io error") to "InfrastructureFailure",
@@ -257,8 +257,8 @@ class BenchQuickBuildMetricsSinkTest {
 	}
 
 	@Test
-	fun `rebaseline carries ok and duration`() {
-		sink.onRebaseline(isSuccess = true, durationMillis = 7_500)
+	fun `rebaseline event carries ok and duration`() {
+		sink.onProxyAppRebuild(isSuccess = true, durationMillis = 7_500)
 
 		val o = last()
 		assertThat(o.getString("event")).isEqualTo("rebaseline")

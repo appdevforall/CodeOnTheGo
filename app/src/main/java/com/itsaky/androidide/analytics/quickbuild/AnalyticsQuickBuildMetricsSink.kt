@@ -143,12 +143,12 @@ class AnalyticsQuickBuildMetricsSink(
 		)
 	}
 
-	override fun onRebaseline(
+	override fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
 	) {
 		analytics.trackMetric(
-			QuickBuildRebaselineMetric(
+			QuickBuildProxyAppRebuildMetric(
 				qbSessionId = sessionId,
 				isSuccess = isSuccess,
 				durationMs = durationMillis,
@@ -216,6 +216,6 @@ class AnalyticsQuickBuildMetricsSink(
 
 			is BuildOutcome.InfrastructureFailure -> "infrastructure"
 
-			is BuildOutcome.RequiresRebaseline -> "requires_rebaseline"
+			is BuildOutcome.RequiresProxyAppRebuild -> "requires_rebaseline"
 		}
 }

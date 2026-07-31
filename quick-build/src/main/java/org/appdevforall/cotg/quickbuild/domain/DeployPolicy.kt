@@ -22,9 +22,9 @@ sealed interface DeployDecision {
 	/**
 	 * The installed baseline cannot take this deploy safely (it predates the component
 	 * metadata, so its runtime would ignore a restart request and hot-swap = stale).
-	 * The session must fall back to a full rebaseline, which regenerates the baseline.
+	 * The session must fall back to a full proxy app rebuild, which regenerates the baseline.
 	 */
-	data class Rebaseline(
+	data class RebuildProxyApp(
 		val detail: String,
 	) : DeployDecision
 }
@@ -48,8 +48,8 @@ class DeployPolicy(
 	/**
 	 * False when the baseline's setup.json predates schema v2 (no `components`): the
 	 * restart closure is unknowable AND the installed runtime ignores restart requests,
-	 * so every code-bearing deploy must [DeployDecision.Rebaseline] (self-healing: the
-	 * rebaseline regenerates a v2 baseline).
+	 * so every code-bearing deploy must [DeployDecision.RebuildProxyApp] (self-healing: the
+	 * proxy app rebuild regenerates a v2 baseline).
 	 */
 	private val componentInfoAvailable: Boolean = true,
 ) {
@@ -92,7 +92,7 @@ class DeployPolicy(
 	fun decide(changedClassFiles: Collection<String>?): DeployDecision {
 		if (changedClassFiles != null && changedClassFiles.isEmpty()) return DeployDecision.Recreate
 		if (!componentInfoAvailable) {
-			return DeployDecision.Rebaseline(
+			return DeployDecision.RebuildProxyApp(
 				"the installed baseline predates component metadata (setup.json schema v2)",
 			)
 		}
