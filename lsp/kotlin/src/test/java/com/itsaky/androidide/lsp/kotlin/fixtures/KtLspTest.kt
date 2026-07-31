@@ -24,9 +24,20 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 abstract class KtLspTest {
+	/** Source modules for this test class. Override to exercise inter-module resolution. */
+	internal open val moduleSpecs: List<TestSourceModuleSpec> =
+		listOf(TestSourceModuleSpec("src"))
+
+	/**
+	 * See [KtLspTestEnvironment]'s parameter of the same name. Override to `true` only for tests that
+	 * open a document and drive resolution/ranges through the live KtFile it produces - the default
+	 * `false` makes such files non-physical, which production never hits.
+	 */
+	internal open val enableParserEventSystem: Boolean = false
+
 	@get:Rule
 	@PublishedApi
-	internal val lspTestRule = KtLspTestRule()
+	internal val lspTestRule = KtLspTestRule({ moduleSpecs }, { enableParserEventSystem })
 
 	internal val env: KtLspTestEnvironment
 		get() = lspTestRule.env
@@ -34,8 +45,14 @@ abstract class KtLspTest {
 	protected fun createSourceFile(
 		relativePath: String,
 		content: String,
+	): KtFile = createSourceFile(moduleSpecs.first().name, relativePath, content)
+
+	protected fun createSourceFile(
+		moduleName: String,
+		relativePath: String,
+		content: String,
 	): KtFile {
-		val file = env.createSourceFile(relativePath, content)
+		val file = env.createSourceFile(moduleName, relativePath, content)
 		// See the comment in `analyzeMaybeDanglingForTest` below: freshly-created files are invisible to
 		// unqualified name resolution until they're registered with the symbol index's file metadata,
 		// which in production happens via the background indexer. Do that synchronously here so every

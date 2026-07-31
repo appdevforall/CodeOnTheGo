@@ -37,6 +37,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_INDEX_KEY
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_META_INDEX_KEY
 import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
+import com.itsaky.androidide.lsp.kotlin.navigation.findDefinitionAt
 import com.itsaky.androidide.lsp.kotlin.signaturehelp.doSignatureHelp
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -244,7 +245,11 @@ class KotlinLanguageServer : ILanguageServer {
 			return DefinitionResult.empty()
 		}
 
-		return DefinitionResult.empty()
+		logger.debug("findDefinition(position={}, file={})", params.position, params.file)
+		return compiler
+			?.compilationEnvironmentFor(params.file)
+			?.let { context(it) { findDefinitionAt(params) } }
+			?: DefinitionResult.empty()
 	}
 
 	override suspend fun expandSelection(params: ExpandSelectionParams): Range = params.selection
