@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.appdevforall.cotg.quickbuild.data.AndroidProjectWatcher
-import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.FileGenerationStore
 import org.appdevforall.cotg.quickbuild.data.ProjectWatcher
 import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
@@ -212,6 +211,21 @@ class QuickBuildSessionManager(
 			watcherFactory = watcherFactory,
 			scope = scope,
 			onOrchestratorEvent = ::onOrchestratorEvent,
+		)
+
+	/**
+	 * Runs the Gradle proxy app builds (provision + rebuild fallback) and returns
+	 * verdicts; this manager keeps the epoch guards, installs sessions, and dispatches.
+	 */
+	private val buildRunner =
+		ProxyAppBuildRunner(
+			provisioner = provisioner,
+			daemonController = daemonController,
+			connections = connections,
+			scratch = scratch,
+			sessionFactory = sessionFactory,
+			generationStoreFactory = generationStoreFactory,
+			metrics = metrics,
 		)
 
 	init {
@@ -569,83 +583,38 @@ class QuickBuildSessionManager(
 	}
 
 	private suspend fun provision(startEpoch: Long) {
-		// Disk-space guard (ADFA-4930): fail in seconds with a clear message rather than
-		// let a full private volume ENOSPC minutes into the proxy app build or mid-quick-build.
-		scratch.freeSpaceShortfall()?.let { message ->
-			dispatch(SessionEvent.ProvisioningFailed(message))
-			return
-		}
-
-		val outcome =
-			try {
-				provisioner.provision()
-			} catch (e: kotlinx.coroutines.CancellationException) {
-				throw e
-			} catch (e: Throwable) {
-				log.error("Provisioner threw instead of reporting an outcome", e)
-				ProvisionOutcome.Failure(e.message ?: e.javaClass.name)
+		when (val result = buildRunner.provision(superseded = { startEpoch != sessionEpoch })) {
+			is ProxyAppBuildRunner.ProvisionResult.DiskSpaceShort -> {
+				dispatch(SessionEvent.ProvisioningFailed(result.message))
 			}
 
-		if (startEpoch != sessionEpoch) {
-			// "Restart session" landed while the proxy app build ran; the user asked for a
-			// fresh start, so a late success must not resurrect (and a late failure must
-			// not surface) - see the zombie-session scenario in the teardown KDoc.
-			log.info("Quick-build provisioning outlived a session restart; discarding")
-			return
-		}
-
-		when (outcome) {
-			is ProvisionOutcome.Failure -> {
-				dispatch(SessionEvent.ProvisioningFailed(outcome.message))
+			is ProxyAppBuildRunner.ProvisionResult.Failed -> {
+				dispatch(SessionEvent.ProvisioningFailed(result.message))
 			}
 
-			is ProvisionOutcome.Success -> {
-				// Scratch tree on app-private storage (ADFA-4930): the executor and daemon
-				// dirs below live here, never under the FUSE-backed project root.
-				when (val prepared = scratch.prepare(outcome.layout.projectRoot)) {
-					is QuickBuildScratch.Preparation.Failed -> {
-						dispatch(SessionEvent.ProvisioningFailed(prepared.message))
-						return
-					}
+			is ProxyAppBuildRunner.ProvisionResult.Superseded -> {
+				// "Restart session" landed while the proxy app build ran; the user asked for
+				// a fresh start, so a late success must not resurrect (and a late failure
+				// must not surface) - see the zombie-session scenario in the teardown KDoc.
+				log.info("Quick-build provisioning outlived a session restart; discarding")
+			}
 
-					is QuickBuildScratch.Preparation.Ready -> {
-						Unit
-					}
-				}
-
-				connections.beginSession(outcome.proxyApp.proxyAppPackage, outcome.proxyAppUid)
-
+			is ProxyAppBuildRunner.ProvisionResult.SupersededDuringDaemonStart -> {
+				// Restart raced the daemon start: the runner already undid its side; stop
+				// the zombie daemon on a fresh coroutine (this one is already cancelled).
+				log.info("Session restarted during daemon start; shutting down")
 				daemonController.markIntentionalTransition()
-				when (val started = daemonController.start(outcome.layout, outcome.proxyApp)) {
-					is DaemonReply.Ok -> {
-						if (startEpoch != sessionEpoch) {
-							// Restart raced the daemon start: undo, don't go live.
-							log.info("Session restarted during daemon start; shutting down")
-							connections.endSession()
-							daemonController.markIntentionalTransition()
-							scope.launch { daemonController.shutdown() }
-							return
-						}
-						val tracker =
-							GenerationTracker(generationStoreFactory(outcome.layout.projectRoot))
-						val session = sessionFactory.create(outcome, tracker)
-						live = session
-						// Build ids restart per session; give the sink its session boundary.
-						report { metrics.onSessionStarted() }
-						// Trigger on file change from any source (editor, Termux, plugin,
-						// git pull) - the reload path is change-driven, not save-driven.
-						session.watcher.start(::onWatcherBatch)
-						dispatch(SessionEvent.ProvisioningSucceeded(tracker.current))
-					}
+				scope.launch { daemonController.shutdown() }
+			}
 
-					is DaemonReply.BuildFailed -> {
-						dispatch(SessionEvent.ProvisioningFailed("Daemon rejected configuration"))
-					}
-
-					is DaemonReply.Failed -> {
-						dispatch(SessionEvent.ProvisioningFailed(started.message))
-					}
-				}
+			is ProxyAppBuildRunner.ProvisionResult.Succeeded -> {
+				live = result.session
+				// Build ids restart per session; give the sink its session boundary.
+				report { metrics.onSessionStarted() }
+				// Trigger on file change from any source (editor, Termux, plugin,
+				// git pull) - the reload path is change-driven, not save-driven.
+				result.session.watcher.start(::onWatcherBatch)
+				dispatch(SessionEvent.ProvisioningSucceeded(result.tracker.current))
 			}
 		}
 	}
@@ -768,48 +737,19 @@ class QuickBuildSessionManager(
 		session.orchestrator.onProxyAppRebuildStarted()
 		dispatch(SessionEvent.ProxyAppRebuildStarted)
 
-		// Free the daemon's ~0.5GB for the Gradle build that is about to peak - on the
-		// 3-4GB target class the two must not coexist. Costless: the daemon's IC state
-		// is untrustworthy after a proxy app rebuild anyway (regenerated inputs it never saw),
-		// and it was going to be re-seeded from scratch regardless; on success it
-		// restarts below with the NEW proxy app info's config (the survivor used to keep serving
-		// the OLD configure's classpath - correct only via BTA's full-recompile
-		// fallback). The epoch bump discards a daemon respawn still in flight (a
-		// proxy app rebuild can start from Degraded); see [QuickBuildDaemonController].
-		daemonController.markIntentionalTransition()
-		daemonController.shutdown()
+		val result =
+			buildRunner.rebuildProxyApp(
+				parkedRetry = installRetryPark != null,
+				superseded = { startEpoch != sessionEpoch },
+			)
 
-		val startedAtNanos = System.nanoTime()
-		val outcome =
-			try {
-				provisioner.rebuildProxyApp()
-			} catch (e: kotlinx.coroutines.CancellationException) {
-				throw e
-			} catch (e: Throwable) {
-				log.error("Proxy app rebuild threw instead of reporting an outcome", e)
-				ProxyAppRebuildOutcome.Failure(e.message ?: e.javaClass.name)
+		when (result) {
+			is ProxyAppBuildRunner.ProxyAppRebuildResult.Superseded -> {
+				// The session this proxy app rebuild was for is gone; don't poke its orchestrator.
+				log.info("Quick-build proxy app rebuild outlived a session restart; discarding")
 			}
-		if (outcome !is ProxyAppRebuildOutcome.BuildSlotBusy || installRetryPark == null) {
-			// Only a DEFERRED retry (slot busy while parked) skips metrics: it never ran,
-			// so reporting it would book a 0 ms failed proxy app rebuild against the success rate
-			// for work that never happened. A FIRST proxy app rebuild losing the slot IS surfaced
-			// to the user as a failed proxy app rebuild, so it books like one.
-			report {
-				metrics.onProxyAppRebuild(
-					isSuccess = outcome is ProxyAppRebuildOutcome.Success,
-					durationMillis = (System.nanoTime() - startedAtNanos) / 1_000_000,
-				)
-			}
-		}
 
-		if (startEpoch != sessionEpoch) {
-			// The session this proxy app rebuild was for is gone; don't poke its orchestrator.
-			log.info("Quick-build proxy app rebuild outlived a session restart; discarding")
-			return
-		}
-
-		when (outcome) {
-			is ProxyAppRebuildOutcome.BuildSlotBusy -> {
+			is ProxyAppBuildRunner.ProxyAppRebuildResult.BuildSlotBusy -> {
 				if (installRetryPark != null) {
 					// The retry never got the Gradle slot (typically CoGo's own project sync,
 					// which the invalidating gradle edit itself triggers). Park back WITHOUT
@@ -832,34 +772,19 @@ class QuickBuildSessionManager(
 				}
 			}
 
-			is ProxyAppRebuildOutcome.Success -> {
+			is ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded -> {
 				// The proxy app rebuild regenerated setup.json and reinstalled the proxy app:
 				// every ProxyAppInfo-derived piece of the session (deploy-policy components,
 				// componentInfoAvailable, launcher/entry targets, classpath) must move to
 				// the new baseline, or the policy keeps routing on provisioning-time
 				// facts - e.g. a service the proxy app rebuild just proxied would hot-swap and
 				// silently leave its live instance stale.
-				session.proxyApp = outcome.proxyApp
-				session.layout = outcome.layout
+				session.proxyApp = result.proxyApp
+				session.layout = result.layout
 				session.executor.delegate =
-					sessionFactory.executorFor(outcome.proxyApp, outcome.layout, session.tracker)
+					sessionFactory.executorFor(result.proxyApp, result.layout, session.tracker)
 				session.annotationImpact.delegate =
-					sessionFactory.annotationImpactFor(outcome.proxyApp, outcome.layout)
-				// Restart the daemon torn down above, against the NEW proxy app info's config.
-				daemonController.markIntentionalTransition()
-				when (val started = daemonController.start(outcome.layout, outcome.proxyApp)) {
-					is DaemonReply.Ok -> {
-						Unit
-					}
-
-					else -> {
-						val message = (started as? DaemonReply.Failed)?.message ?: "daemon rejected configuration"
-						log.error("Daemon restart after a proxy app rebuild failed: {}", message)
-						session.orchestrator.onProxyAppRebuildFailed()
-						dispatch(SessionEvent.ProvisioningFailed(message))
-						return
-					}
-				}
+					sessionFactory.annotationImpactFor(result.proxyApp, result.layout)
 				// The freshly installed baseline boots gen 0 again; the fingerprint gate
 				// in its runtime discarded any older persisted payload.
 				session.lastDeployedGeneration = -1L
@@ -867,12 +792,18 @@ class QuickBuildSessionManager(
 				dispatch(SessionEvent.ProvisioningSucceeded(session.tracker.current))
 			}
 
-			is ProxyAppRebuildOutcome.Failure -> {
+			is ProxyAppBuildRunner.ProxyAppRebuildResult.DaemonRestartFailed -> {
+				log.error("Daemon restart after a proxy app rebuild failed: {}", result.message)
 				session.orchestrator.onProxyAppRebuildFailed()
-				dispatch(SessionEvent.ProvisioningFailed(outcome.message))
+				dispatch(SessionEvent.ProvisioningFailed(result.message))
 			}
 
-			is ProxyAppRebuildOutcome.InstallNotConfirmed -> {
+			is ProxyAppBuildRunner.ProxyAppRebuildResult.Failed -> {
+				session.orchestrator.onProxyAppRebuildFailed()
+				dispatch(SessionEvent.ProvisioningFailed(result.message))
+			}
+
+			is ProxyAppBuildRunner.ProxyAppRebuildResult.InstallNotConfirmed -> {
 				// The Gradle build was fine; only the reinstall confirmation is missing
 				// (no dialog shown / cancelled / left untapped - the stranded-session
 				// finding from the multi-module device verify). Park recoverable instead
@@ -882,8 +813,8 @@ class QuickBuildSessionManager(
 				// the daemon is down (a live-reload save here would only fail against the
 				// dead daemon); the retry's onProxyAppRebuildStarted re-holds pending on
 				// top, and every held file is on disk for its Gradle build to absorb.
-				log.warn("Proxy app rebuild reinstall not confirmed; awaiting a retry: {}", outcome.message)
-				surfaceUserMessage(outcome.message)
+				log.warn("Proxy app rebuild reinstall not confirmed; awaiting a retry: {}", result.message)
+				surfaceUserMessage(result.message)
 				dispatch(
 					SessionEvent.ProxyAppRebuildInstallNotConfirmed(
 						session.lastDeployedGeneration.takeIf { it >= 0 } ?: session.tracker.current,
@@ -902,18 +833,13 @@ class QuickBuildSessionManager(
 	 */
 	private suspend fun refreshBaseline() {
 		val session = live ?: return
-		if (proxyAppArtifactsIntact(session.proxyApp)) {
+		if (buildRunner.proxyAppArtifactsIntact(session.proxyApp)) {
 			session.orchestrator.onBaselineUntrusted()
 		} else {
 			log.warn("Proxy app build artifacts missing after an external build; forcing a proxy app rebuild")
 			dispatch(SessionEvent.InvalidationDetected(InvalidationReason.EXTERNAL_FULL_BUILD))
 		}
 	}
-
-	private fun proxyAppArtifactsIntact(proxyApp: ProxyAppInfo): Boolean =
-		proxyApp.classpath.all { it.exists() } &&
-			proxyApp.proxyClassesDir?.isDirectory != false &&
-			proxyApp.transformedManifest?.isFile != false
 
 	private suspend fun respawnDaemon(startEpoch: Long) {
 		val session = live ?: return
