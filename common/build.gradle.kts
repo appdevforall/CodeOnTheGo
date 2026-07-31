@@ -9,6 +9,15 @@ android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.common"
 }
 
+kotlin {
+	compilerOptions {
+		// This module's classes ship in the plugin-api coordinate that on-device plugins
+		// compile against, so emit metadata the on-device Kotlin (1.9.22) can read (<= 2.0.0).
+		apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+		languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+	}
+}
+
 dependencies {
 	compileOnly(libs.composite.javac)
 

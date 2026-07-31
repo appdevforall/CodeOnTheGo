@@ -20,26 +20,35 @@ package com.itsaky.androidide.utils
 import android.content.Context
 import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
+import android.view.View
+import android.view.inputmethod.InputMethodManager
 
 /**
  * @author Akash Yadav
  */
 object KeyboardUtils {
+	/**
+	 * Check if hardware keyboard is connected.
+	 * Based on default implementation of [InputMethodService.onEvaluateInputViewShown].
+	 *
+	 * https://developer.android.com/guide/topics/resources/providing-resources#ImeQualifier
+	 *
+	 * @param context The Context for operations.
+	 * @return Returns `true` if device has hardware keys for text input or an external hardware
+	 * keyboard is connected, otherwise `false`.
+	 */
+	fun isHardKeyboardConnected(context: Context?): Boolean {
+		if (context == null) return false
+		val config = context.resources.configuration
+		return (
+			config.keyboard != Configuration.KEYBOARD_NOKEYS ||
+				config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
+		)
+	}
 
-  /**
-   * Check if hardware keyboard is connected.
-   * Based on default implementation of [InputMethodService.onEvaluateInputViewShown].
-   *
-   * https://developer.android.com/guide/topics/resources/providing-resources#ImeQualifier
-   *
-   * @param context The Context for operations.
-   * @return Returns `true` if device has hardware keys for text input or an external hardware
-   * keyboard is connected, otherwise `false`.
-   */
-  fun isHardKeyboardConnected(context: Context?): Boolean {
-    if (context == null) return false
-    val config = context.resources.configuration
-    return (config.keyboard != Configuration.KEYBOARD_NOKEYS
-        || config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO)
-  }
+	/** Hide the soft keyboard associated with [view]'s window. */
+	fun hideSoftInput(view: View) {
+		val imm = view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+		imm?.hideSoftInputFromWindow(view.windowToken, 0)
+	}
 }
