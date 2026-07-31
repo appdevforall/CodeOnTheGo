@@ -16,7 +16,7 @@ import java.security.MessageDigest
  * - `out/` - daemon output (classes, dex, relinked resources)
  *
  * [root] is a Context-derived private directory (the app wires
- * `noBackupFilesDir/quickbuild`); user sources never move - only QB-owned
+ * `noBackupFilesDir/quickbuild-scratch`); user sources never move - only QB-owned
  * intermediates live here.
  *
  * Lifecycle: a tree exists only while its session does. [remove] deletes it on

@@ -1108,7 +1108,11 @@ class QuickBuildSessionManager(
 			// Only after the daemon is down: it writes into this tree until then. A
 			// teardown with no live session (provisioning failed before going live)
 			// has nothing to remove; the init-time sweep reclaims any half-made tree.
-			scratchOwner?.let(scratch::remove)
+			// Skip when a NEW session for the same project went live while shutdown
+			// suspended - the tree is now that session's, not this one's to delete.
+			scratchOwner
+				?.takeIf { live?.layout?.projectRoot != it }
+				?.let(scratch::remove)
 		}
 	}
 

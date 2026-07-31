@@ -407,9 +407,12 @@ class BuildOrchestrator(
 		val flight =
 			InFlightBuild(buildId, ChangedFiles.Known.EMPTY, forced = false, autoFollowUp = false, route = route)
 		inFlight = flight
-		// The batch is Unknown, matching the request below - the seed compiles every
-		// source, not zero files. A metrics sink reading this event's changedFiles count
-		// as 0 would understate a seed as "started:Seed:0" instead of "unknown size".
+		// The EVENT batch is Unknown, matching the request below - the seed compiles
+		// every source, not zero files. A metrics sink reading this event's changedFiles
+		// count as 0 would understate a seed as "started:Seed:0" instead of "unknown
+		// size". The flight's batch above deliberately DIVERGES from this event (it
+		// stays Known.EMPTY so a failed seed unions nothing back into pending) - don't
+		// assume flight.batch matches the started event for seeds.
 		events += OrchestratorEvent.BuildStarted(buildId, route, ChangedFiles.Unknown)
 		val request =
 			BuildRequest(
@@ -520,7 +523,8 @@ sealed interface OrchestratorEvent {
 	/**
 	 * @property diagnosticsUnchanged true when this build was an automatic follow-up
 	 *   that failed with exactly the diagnostics of the build it followed — the status
-	 *   surface should keep the existing rendering instead of re-notifying.
+	 *   surface should keep the existing rendering instead of re-notifying. Contract
+	 *   only for now: no production consumer reads the flag yet.
 	 */
 	data class BuildFailed(
 		val buildId: Long,
