@@ -29,7 +29,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.math.max
@@ -56,7 +55,7 @@ class BuildOutputViewModel(
 	/** Toggle for showing wall-clock timestamps `[HH:mm:ss.SSS]` in editor view. */
 	val showTimestamps = MutableStateFlow(true)
 
-	/** Toggle for showing total and step time deltas `[+mm:ss.SSS] (ΔXms)` in editor view. */
+	/** Toggle for showing step time deltas `ΔXms` in editor view. */
 	val showDeltas = MutableStateFlow(true)
 
 	/** Toggle for showing gutter line numbers in editor view. */
@@ -197,31 +196,24 @@ class BuildOutputViewModel(
 		// Must mirror formatLinePrefix exactly; the round-trip is covered by BuildOutputFilterTest.
 		// Anchored to line start so timestamp-shaped text inside a message is never stripped.
 		private val PREFIX_REGEX =
-			Regex("""^(\[\d{2}:\d{2}:\d{2}\.\d{3}\] )(\[\+\d{2,}:\d{2}\.\d{3}\] \(\u0394\d+ms\) )""")
+			Regex("""^(\[\d{2}:\d{2}:\d{2}\.\d{3}\] )(\u0394\d+ms )""")
 
 		private val PREFIX_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
 
 		/**
 		 * Formats the timing prefix written before every build output line:
-		 * `[HH:mm:ss.SSS] [+mm:ss.SSS] (\u0394Nms) `.
+		 * `[HH:mm:ss.SSS] \u0394Nms `.
 		 */
 		fun formatLinePrefix(
 			nowMs: Long,
-			totalDeltaMs: Long,
 			stepDeltaMs: Long,
 		): String {
 			val time =
 				PREFIX_TIME_FORMAT.format(Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault()))
-			val totalMins = TimeUnit.MILLISECONDS.toMinutes(totalDeltaMs)
-			val totalSecs = TimeUnit.MILLISECONDS.toSeconds(totalDeltaMs) % 60
-			val totalMillis = totalDeltaMs % 1000
 			return String.format(
 				Locale.US,
-				"[%s] [+%02d:%02d.%03d] (\u0394%dms) ",
+				"[%s] \u0394%dms ",
 				time,
-				totalMins,
-				totalSecs,
-				totalMillis,
 				stepDeltaMs,
 			)
 		}

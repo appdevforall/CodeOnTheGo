@@ -182,11 +182,10 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	 */
 	private fun formatOutput(raw: String): String {
 		val now = System.currentTimeMillis()
-		val totalDeltaMs = now - buildStartTimeMs
 		val stepDeltaMs = now - lastOutputTimeMs
 		lastOutputTimeMs = now
 
-		val prefix = BuildOutputViewModel.formatLinePrefix(now, totalDeltaMs, stepDeltaMs)
+		val prefix = BuildOutputViewModel.formatLinePrefix(now, stepDeltaMs)
 		val hadTrailingNewline = raw.endsWith("\n")
 		val body = if (hadTrailingNewline) raw.dropLast(1) else raw
 		val prefixed =

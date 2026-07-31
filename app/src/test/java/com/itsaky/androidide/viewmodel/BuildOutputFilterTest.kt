@@ -87,10 +87,10 @@ class BuildOutputFilterTest {
 
 	@Test
 	fun `hiding only timestamps keeps the delta part`() {
-		val line = prefix(totalDeltaMs = 65_123, stepDeltaMs = 42) + "task output"
+		val line = prefix(stepDeltaMs = 42) + "task output"
 		val displayed =
 			BuildOutputViewModel.formatLineForDisplay(line, showTimestamps = false, showDeltas = true)
-		assertEquals("[+01:05.123] (Δ42ms) task output", displayed)
+		assertEquals("Δ42ms task output", displayed)
 	}
 
 	@Test
@@ -103,7 +103,7 @@ class BuildOutputFilterTest {
 
 	@Test
 	fun `prefix of builds longer than 99 minutes still strips`() {
-		val line = prefix(totalDeltaMs = 100 * 60_000L + 7_412) + "> Task :app:lint"
+		val line = prefix() + "> Task :app:lint"
 		assertEquals(
 			"> Task :app:lint",
 			BuildOutputViewModel.formatLineForDisplay(line, showTimestamps = false, showDeltas = false),
@@ -142,7 +142,6 @@ class BuildOutputFilterTest {
 
 	private fun prefix(
 		nowMs: Long = 1_722_000_000_000L,
-		totalDeltaMs: Long = 65_123L,
 		stepDeltaMs: Long = 42L,
-	): String = BuildOutputViewModel.formatLinePrefix(nowMs, totalDeltaMs, stepDeltaMs)
+	): String = BuildOutputViewModel.formatLinePrefix(nowMs, stepDeltaMs)
 }
