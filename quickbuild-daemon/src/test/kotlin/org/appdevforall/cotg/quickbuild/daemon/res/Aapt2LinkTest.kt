@@ -124,6 +124,56 @@ class Aapt2LinkTest {
 	}
 
 	@Test
+	fun `a compiled dir that cannot be cleared fails the relink instead of linking stale flat files`() {
+		// relink globs every .flat in res-compiled, so a leftover from a previous run that a
+		// failed deleteRecursively leaves behind would be swept into the link as a stale
+		// resource. POSIX: deleting a file needs write permission on its directory, so a
+		// read-only subdir makes the reset fail with entries still present. Old code ignored
+		// the return and linked whatever survived. Fails before any aapt2 run, so the
+		// binaries can be fakes - which also pins the failure to the reset guard: a fake
+		// aapt2 would otherwise produce a "failed to run" diagnostic, not this one.
+		val stuckDir = File(workDir, "res-compiled/stuck").apply { mkdirs() }
+		File(stuckDir, "leftover.arsc.flat").writeText("stale")
+		assertThat(stuckDir.setWritable(false)).isTrue()
+		try {
+			val link = Aapt2Link(File(tempDir, "aapt2"), File(tempDir, "android.jar"))
+
+			val result = link.relink(listOf(resDir), manifest, workDir)
+
+			assertThat(result).isInstanceOf(Aapt2Link.Result.Failed::class.java)
+			val diagnostics = (result as Aapt2Link.Result.Failed).diagnostics
+			assertThat(diagnostics).isNotEmpty()
+			assertThat(diagnostics.any { it.severity == Diagnostic.Severity.ERROR }).isTrue()
+			assertThat(diagnostics.any { it.message.contains("failed to clear compiled-resource dir") }).isTrue()
+			assertThat(diagnostics.any { it.message.contains(File(workDir, "res-compiled").absolutePath) }).isTrue()
+		} finally {
+			stuckDir.setWritable(true)
+		}
+	}
+
+	@Test
+	fun `an uncreatable compiled dir fails the relink with a message naming the dir`() {
+		// A read-only work dir: nothing to clear (deleteRecursively of a nonexistent path
+		// reports success), but mkdirs() cannot create res-compiled - so there is no usable
+		// dir for aapt2 compile to write into. Old code ignored the mkdirs() return and let
+		// aapt2 fail later with a less actionable error.
+		val readOnlyWorkDir = File(tempDir, "ro-work").apply { mkdirs() }
+		assertThat(readOnlyWorkDir.setWritable(false)).isTrue()
+		try {
+			val link = Aapt2Link(File(tempDir, "aapt2"), File(tempDir, "android.jar"))
+
+			val result = link.relink(listOf(resDir), manifest, readOnlyWorkDir)
+
+			assertThat(result).isInstanceOf(Aapt2Link.Result.Failed::class.java)
+			val diagnostics = (result as Aapt2Link.Result.Failed).diagnostics
+			assertThat(diagnostics.any { it.message.contains("failed to create compiled-resource dir") }).isTrue()
+			assertThat(diagnostics.any { it.message.contains(File(readOnlyWorkDir, "res-compiled").absolutePath) }).isTrue()
+		} finally {
+			readOnlyWorkDir.setWritable(true)
+		}
+	}
+
+	@Test
 	fun `malformed resource xml fails with error diagnostics, not a throw`() {
 		writeStrings("<resources><string name=\"app_name\">unclosed")
 		val link = Aapt2Link(TestSdk.aapt2()!!, TestSdk.androidJar()!!)

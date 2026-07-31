@@ -119,9 +119,31 @@ class Aapt2Link(
 		stableIds: File? = null,
 		libraryResources: List<File> = emptyList(),
 	): Result {
+		// The compiled dir must start EMPTY: relink globs every .flat in it, so a leftover
+		// from a previous run (e.g. a since-deleted resource's .flat) would be swept into
+		// the link as a stale resource. A failed reset therefore fails the relink.
 		val compiledDir = File(workDir, "res-compiled")
-		compiledDir.deleteRecursively()
-		compiledDir.mkdirs()
+		if (!compiledDir.deleteRecursively() && compiledDir.listFiles()?.isNotEmpty() == true) {
+			return Result.Failed(
+				listOf(
+					Diagnostic(
+						Diagnostic.Severity.ERROR,
+						"failed to clear compiled-resource dir ${compiledDir.absolutePath}; " +
+							"leftover entries would leak stale .flat files into the link",
+					),
+				),
+			)
+		}
+		if (!compiledDir.mkdirs() && !compiledDir.isDirectory) {
+			return Result.Failed(
+				listOf(
+					Diagnostic(
+						Diagnostic.Severity.ERROR,
+						"failed to create compiled-resource dir ${compiledDir.absolutePath}",
+					),
+				),
+			)
+		}
 
 		val compileStartedAt = System.currentTimeMillis()
 		for (resDir in resDirs) {
@@ -219,7 +241,7 @@ class Aapt2Link(
 			// Merge stdout into stderr-side capture: aapt2 reports errors on stderr,
 			// notes on stdout; the daemon's stdout stays protocol-only regardless.
 			val process = ProcessBuilder(command).redirectErrorStream(true).start()
-			val output = process.inputStream.bufferedReader().readText()
+			val output = process.inputStream.bufferedReader().use { it.readText() }
 			val exitCode = process.waitFor()
 			ProcessResult(exitCode, output)
 		} catch (e: Exception) {
