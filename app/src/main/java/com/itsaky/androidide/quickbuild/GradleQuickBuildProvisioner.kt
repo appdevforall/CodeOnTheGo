@@ -20,9 +20,9 @@ import org.appdevforall.cotg.quickbuild.domain.RealIdInstall
 import org.appdevforall.cotg.quickbuild.service.InstallOutcome
 import org.appdevforall.cotg.quickbuild.service.InstalledPackages
 import org.appdevforall.cotg.quickbuild.service.ProvisionOutcome
-import org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner
-import org.appdevforall.cotg.quickbuild.service.ProxyAppRebuildOutcome
 import org.appdevforall.cotg.quickbuild.service.ProxyAppInstaller
+import org.appdevforall.cotg.quickbuild.service.ProxyAppRebuildOutcome
+import org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner
 import org.slf4j.LoggerFactory
 import java.io.File
 

@@ -29,12 +29,12 @@ import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
 import org.appdevforall.cotg.quickbuild.service.DeployChannel
 import org.appdevforall.cotg.quickbuild.service.DeploySender
 import org.appdevforall.cotg.quickbuild.service.InstalledPackages
+import org.appdevforall.cotg.quickbuild.service.ProxyAppConnections
+import org.appdevforall.cotg.quickbuild.service.ProxyAppInstaller
 import org.appdevforall.cotg.quickbuild.service.QuickBuildClobberCheck
 import org.appdevforall.cotg.quickbuild.service.QuickBuildHistoryStore
 import org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner
 import org.appdevforall.cotg.quickbuild.service.QuickBuildSessionManager
-import org.appdevforall.cotg.quickbuild.service.ProxyAppConnections
-import org.appdevforall.cotg.quickbuild.service.ProxyAppInstaller
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 import java.util.concurrent.Executors

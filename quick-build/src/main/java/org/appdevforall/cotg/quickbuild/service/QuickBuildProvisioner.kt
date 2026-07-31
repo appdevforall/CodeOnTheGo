@@ -1,7 +1,7 @@
 package org.appdevforall.cotg.quickbuild.service
 
-import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
+import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 
 /**
  * The session manager's door to the real Gradle world: the one-time proxy app build

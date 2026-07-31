@@ -13,8 +13,8 @@ import kotlinx.coroutines.test.runTest
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.DefaultQuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.ProjectWatcher
-import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
 import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
+import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
 import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.BuildRequest

@@ -19,12 +19,11 @@ import org.appdevforall.cotg.quickbuild.data.DaemonConfig
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.FileGenerationStore
 import org.appdevforall.cotg.quickbuild.data.ProjectWatcher
+import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
 import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
 import org.appdevforall.cotg.quickbuild.data.QuickBuildPaths
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
-import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
-import org.appdevforall.cotg.quickbuild.domain.LiveReloadOrchestrator
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.BuildRequest
 import org.appdevforall.cotg.quickbuild.domain.BuildRoute
@@ -35,8 +34,9 @@ import org.appdevforall.cotg.quickbuild.domain.DeployPolicy
 import org.appdevforall.cotg.quickbuild.domain.GenerationStore
 import org.appdevforall.cotg.quickbuild.domain.GenerationTracker
 import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
-import org.appdevforall.cotg.quickbuild.domain.OrchestratorEvent
 import org.appdevforall.cotg.quickbuild.domain.LiveReloadExecutor
+import org.appdevforall.cotg.quickbuild.domain.LiveReloadOrchestrator
+import org.appdevforall.cotg.quickbuild.domain.OrchestratorEvent
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildSessionState
