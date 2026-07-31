@@ -20,6 +20,10 @@ data class GradleTuningConfig(
  *
  * @property daemonEnabled Whether the daemon is enabled.
  * @property jvm The configuration for the JVM instance.
+ * @property daemonIdleTimeoutMs How long an idle daemon lives before expiring
+ *                               (org.gradle.daemon.idletimeout). An idle daemon
+ *                               holds its full heap, so low-memory tiers use a
+ *                               shorter timeout to give memory back sooner.
  * @property maxWorkers The maximum number of workers.
  * @property parallel Whether parallel mode is enabled.
  * @property caching Whether caching is enabled.
@@ -30,6 +34,7 @@ data class GradleTuningConfig(
 data class GradleDaemonConfig(
 	val daemonEnabled: Boolean,
 	val jvm: JvmConfig,
+	val daemonIdleTimeoutMs: Int,
 	val maxWorkers: Int,
 	val parallel: Boolean,
 	val caching: Boolean,
