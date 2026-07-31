@@ -107,11 +107,11 @@ class QuickBuildSessionManagerTest {
 	private val seedOutcomes = ArrayDeque<BuildOutcome>()
 	private var provisionCount = 0
 	private var proxyAppRebuildCount = 0
-	private var prewarmCount = 0
+	private var prebuildCount = 0
 	private var provisionOutcome: (() -> ProvisionOutcome)? = null
 	private var proxyAppRebuildOutcome: () -> ProxyAppRebuildOutcome = { defaultProxyAppRebuildSuccess() }
-	private var prewarmGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
-	private var prewarmError: Throwable? = null
+	private var prebuildGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+	private var prebuildError: Throwable? = null
 	private var provisionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 	private var provisionSurvivesCancel = false
 	private var proxyAppRebuildGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
@@ -226,9 +226,9 @@ class QuickBuildSessionManagerTest {
 				}
 
 				override suspend fun prebuildProxyApp() {
-					prewarmCount++
-					prewarmGate?.await()
-					prewarmError?.let { throw it }
+					prebuildCount++
+					prebuildGate?.await()
+					prebuildError?.let { throw it }
 				}
 
 				override fun cancelProxyAppBuild(): Boolean {
@@ -1825,14 +1825,14 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `prewarm runs the proxy app build only - no install, no daemon, back to Idle`() =
+	fun `prebuild runs the proxy app build only - no install, no daemon, back to Idle`() =
 		runTest {
 			val manager = createManager()
 
-			manager.prewarm()
+			manager.prebuild()
 			advanceUntilIdle()
 
-			assertThat(prewarmCount).isEqualTo(1)
+			assertThat(prebuildCount).isEqualTo(1)
 			// Nothing provisioned: no install path, no daemon, no watcher, no session.
 			assertThat(provisionCount).isEqualTo(0)
 			assertThat(daemon.startConfigs).isEmpty()
@@ -1841,12 +1841,12 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `tap during prewarm queues and provisions once the warm build finishes`() =
+	fun `tap during prebuild queues and provisions once the warm build finishes`() =
 		runTest {
-			prewarmGate = kotlinx.coroutines.CompletableDeferred()
+			prebuildGate = kotlinx.coroutines.CompletableDeferred()
 			val manager = createManager()
 
-			manager.prewarm()
+			manager.prebuild()
 			advanceUntilIdle()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
@@ -1854,10 +1854,10 @@ class QuickBuildSessionManagerTest {
 			// The tap does not race the warm Gradle build.
 			assertThat(provisionCount).isEqualTo(0)
 			assertThat(manager.state.value)
-				.isEqualTo(QuickBuildSessionState.Prewarming(tapQueued = true))
+				.isEqualTo(QuickBuildSessionState.Prebuilding(tapQueued = true))
 			assertThat(manager.status.value).isEqualTo(QuickBuildStatus.Provisioning)
 
-			prewarmGate!!.complete(Unit)
+			prebuildGate!!.complete(Unit)
 			advanceUntilIdle()
 
 			assertThat(provisionCount).isEqualTo(1)
@@ -1865,12 +1865,12 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `prewarm failure is silent and leaves the session Idle`() =
+	fun `prebuild failure is silent and leaves the session Idle`() =
 		runTest {
-			prewarmError = RuntimeException("proxy app build failed")
+			prebuildError = RuntimeException("proxy app build failed")
 			val manager = createManager()
 
-			manager.prewarm()
+			manager.prebuild()
 			advanceUntilIdle()
 
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
@@ -1879,21 +1879,21 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `prewarm while a session is live does not disturb it`() =
+	fun `prebuild while a session is live does not disturb it`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
-			manager.prewarm()
+			manager.prebuild()
 			advanceUntilIdle()
 
-			assertThat(prewarmCount).isEqualTo(0)
+			assertThat(prebuildCount).isEqualTo(0)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
 	@Test
-	fun `prewarm runs even on a project that has never used Quick Build`() =
+	fun `prebuild runs even on a project that has never used Quick Build`() =
 		runTest {
 			// The old behaviour skipped the warm-up until Quick Build had been tapped once
 			// on the project, which made the FIRST tap on every new project pay the whole
@@ -1902,10 +1902,10 @@ class QuickBuildSessionManagerTest {
 			historyStore.setHasUsedQuickBuild(false)
 			val manager = createManager()
 
-			manager.prewarm()
+			manager.prebuild()
 			advanceUntilIdle()
 
-			assertThat(prewarmCount).isEqualTo(1)
+			assertThat(prebuildCount).isEqualTo(1)
 		}
 
 	@Test
@@ -1924,9 +1924,9 @@ class QuickBuildSessionManagerTest {
 	fun `the tap reaches the reducer before the history write, not after it`() =
 		runTest {
 			// W9 finding F2: the tap used to be dispatched only AFTER recording history, so
-			// the reducer saw it behind a side effect that can be slow - while prewarm()
+			// the reducer saw it behind a side effect that can be slow - while prebuild()
 			// dispatches immediately. A tap sequenced behind that write can be reduced after
-			// PrewarmFinished has already settled the session back to Idle, which is what a
+			// PrebuildFinished has already settled the session back to Idle, which is what a
 			// "dead" first press on the primary control looks like.
 			var stateAtWrite: QuickBuildSessionState? = null
 			val manager = createManager()
@@ -1955,10 +1955,10 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `after a failed provisioning the first tap starts a session even mid-prewarm`() =
+	fun `after a failed provisioning the first tap starts a session even mid-prebuild`() =
 		runTest {
 			// The W9 F2 scenario end to end: a proxy app rebuild retry failed, the session is Idle,
-			// CoGo's project sync then finishes and fires the project-open prewarm - and the
+			// CoGo's project sync then finishes and fires the project-open prebuild - and the
 			// user's FIRST tap has to start the session, not be absorbed by the warm-up.
 			provisionOutcome = { ProvisionOutcome.Failure("Proxy app rebuild failed") }
 			val manager = createManager()
@@ -1966,20 +1966,20 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 
-			prewarmGate = kotlinx.coroutines.CompletableDeferred()
-			manager.prewarm()
+			prebuildGate = kotlinx.coroutines.CompletableDeferred()
+			manager.prebuild()
 			advanceUntilIdle()
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Prewarming())
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Prebuilding())
 
 			provisionOutcome = null
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 			// Recorded on the warm-up rather than dropped: the queued tap is what turns
-			// PrewarmFinished into provisioning instead of a return to Idle.
+			// PrebuildFinished into provisioning instead of a return to Idle.
 			assertThat(manager.state.value)
-				.isEqualTo(QuickBuildSessionState.Prewarming(tapQueued = true))
+				.isEqualTo(QuickBuildSessionState.Prebuilding(tapQueued = true))
 
-			prewarmGate!!.complete(Unit)
+			prebuildGate!!.complete(Unit)
 			advanceUntilIdle()
 
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
@@ -2192,14 +2192,14 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `restart during prewarm cancels the warm wait and the next tap provisions fresh`() =
+	fun `restart during prebuild cancels the warm wait and the next tap provisions fresh`() =
 		runTest {
-			prewarmGate = kotlinx.coroutines.CompletableDeferred()
+			prebuildGate = kotlinx.coroutines.CompletableDeferred()
 			val manager = createManager()
 
-			manager.prewarm()
+			manager.prebuild()
 			advanceUntilIdle()
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Prewarming())
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Prebuilding())
 
 			manager.restartSession()
 			advanceUntilIdle()
@@ -2578,21 +2578,21 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `stopping a queued tap during prewarm cancels the Gradle proxy app build and never provisions`() =
+	fun `stopping a queued tap during prebuild cancels the Gradle proxy app build and never provisions`() =
 		runTest {
 			// Behaviour 5 mid-PROVISIONING. The proxy app build runs out of process behind a future, so
 			// abandoning the coroutine that awaits it would leave Gradle running while the
 			// button went idle - the cancel has to reach the tooling server.
 			val gate = CompletableDeferred<Unit>()
-			prewarmGate = gate
+			prebuildGate = gate
 			val manager = createManager()
-			manager.prewarm()
+			manager.prebuild()
 			advanceUntilIdle()
 			val notices = recordNotices(manager)
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 			assertThat(manager.state.value)
-				.isEqualTo(QuickBuildSessionState.Prewarming(tapQueued = true))
+				.isEqualTo(QuickBuildSessionState.Prebuilding(tapQueued = true))
 
 			manager.onCancelRequested()
 			advanceUntilIdle()

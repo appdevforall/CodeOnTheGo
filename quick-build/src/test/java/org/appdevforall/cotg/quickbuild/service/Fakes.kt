@@ -172,7 +172,7 @@ class FakePaths(
 
 /**
  * In-memory [QuickBuildHistoryStore]. Defaults to `hasUsedQuickBuild = true` (the "warm
- * path") so the many [QuickBuildSessionManagerTest] cases exercising prewarm/tap
+ * path") so the many [QuickBuildSessionManagerTest] cases exercising prebuild/tap
  * mechanics don't need to touch the gate; tests of the gate itself flip it to false.
  */
 class FakeQuickBuildHistoryStore : QuickBuildHistoryStore {

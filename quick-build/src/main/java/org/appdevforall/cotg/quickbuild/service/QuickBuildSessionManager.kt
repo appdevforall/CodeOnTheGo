@@ -75,7 +75,7 @@ class QuickBuildSessionManager(
 	private val provisioner: QuickBuildProvisioner,
 	private val connections: ProxyAppConnections,
 	private val paths: QuickBuildPaths,
-	/** Gates eager prewarm on project history (plan P7) and records first use. */
+	/** Gates eager prebuild on project history (plan P7) and records first use. */
 	private val historyStore: QuickBuildHistoryStore,
 	dispatcher: CoroutineDispatcher,
 	private val generationStoreFactory: (File) -> GenerationStore = {
@@ -191,7 +191,7 @@ class QuickBuildSessionManager(
 	 */
 	private var sessionEpoch = 0L
 
-	/** The in-flight provision/prewarm/proxy app rebuild; cancelled by [teardown]. */
+	/** The in-flight provision/prebuild/proxy app rebuild; cancelled by [teardown]. */
 	private var sessionWork: Job? = null
 
 	/**
@@ -300,17 +300,17 @@ class QuickBuildSessionManager(
 
 	/**
 	 * The lightning-bolt tap: starts a session from Idle, forces a build when live, and
-	 * queues onto an in-flight prewarm ([QuickBuildSessionState.Prewarming.tapQueued]).
+	 * queues onto an in-flight prebuild ([QuickBuildSessionState.Prebuilding.tapQueued]).
 	 *
 	 * The tap is dispatched FIRST and the history write follows it. It used to be the other
 	 * way round, which made the reducer see the tap only after a side effect that can be
-	 * slow or throw: [prewarm] dispatches immediately, so a tap sequenced behind a disk
-	 * write could be reduced after `PrewarmFinished` had already settled the session back to
+	 * slow or throw: [prebuild] dispatches immediately, so a tap sequenced behind a disk
+	 * write could be reduced after `PrebuildFinished` had already settled the session back to
 	 * [QuickBuildSessionState.Idle] - and a write that threw killed this coroutine before
 	 * the dispatch, losing the tap outright (a dead press on the primary control, which is
 	 * also the press the parked-session banner instructs the user to make). Nothing depends
-	 * on the ordering the other way: prewarm is no longer gated on this history (see
-	 * [prewarm]), so it is bookkeeping.
+	 * on the ordering the other way: prebuild is no longer gated on this history (see
+	 * [prebuild]), so it is bookkeeping.
 	 */
 	fun onQuickBuildTapped() {
 		scope.launch {
@@ -363,8 +363,8 @@ class QuickBuildSessionManager(
 	 * new project pay the whole cold proxy app build cost -- ~97 s on an a56 for a small app -- which
 	 * is the one impression a user forms of the feature. If Quick Build is enabled, warm it.
 	 */
-	fun prewarm() {
-		scope.launch { dispatch(SessionEvent.PrewarmRequested) }
+	fun prebuild() {
+		scope.launch { dispatch(SessionEvent.PrebuildRequested) }
 	}
 
 	/**
@@ -504,8 +504,8 @@ class QuickBuildSessionManager(
 				sessionWork = scope.launch { provision(epoch) }
 			}
 
-			SessionEffect.StartPrewarm -> {
-				sessionWork = scope.launch { runPrewarm() }
+			SessionEffect.StartProxyAppPrebuild -> {
+				sessionWork = scope.launch { runPrebuild() }
 			}
 
 			is SessionEffect.TriggerLiveReload -> {
@@ -537,7 +537,7 @@ class QuickBuildSessionManager(
 			}
 
 			SessionEffect.CancelProxyAppBuild -> {
-				// Emitted only from Prewarming(tapQueued)/Provisioning, i.e. exactly when this
+				// Emitted only from Prebuilding(tapQueued)/Provisioning, i.e. exactly when this
 				// session owns the device's single Gradle build slot - see the port's KDoc for
 				// why issuing it blind would be dangerous.
 				if (provisioner.cancelProxyAppBuild()) {
@@ -619,7 +619,7 @@ class QuickBuildSessionManager(
 	}
 
 	/** B2 warm-up: best-effort, silent on failure; always reports finished. */
-	private suspend fun runPrewarm() {
+	private suspend fun runPrebuild() {
 		try {
 			provisioner.prebuildProxyApp()
 		} catch (e: kotlinx.coroutines.CancellationException) {
@@ -627,7 +627,7 @@ class QuickBuildSessionManager(
 		} catch (e: Throwable) {
 			log.warn("Eager quick-build proxy app build failed; first tap will retry", e)
 		}
-		dispatch(SessionEvent.PrewarmFinished)
+		dispatch(SessionEvent.PrebuildFinished)
 	}
 
 	private suspend fun provision(startEpoch: Long) {
@@ -1136,7 +1136,7 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * Tears down the live session AND any in-flight provision/prewarm/proxy app rebuild. The
+	 * Tears down the live session AND any in-flight provision/prebuild/proxy app rebuild. The
 	 * epoch bump + cancel pair is what makes "Restart session" safe mid-provisioning:
 	 * without it, a provision resuming after the restart would set [live], start its
 	 * watcher and build/deploy invisibly while the UI shows Idle - and the next tap's

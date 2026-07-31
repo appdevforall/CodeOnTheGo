@@ -40,7 +40,7 @@ interface QuickBuildProvisioner {
 	 * behind a future - so a stop has to reach the tooling server's cancellation token.
 	 *
 	 * The caller must only invoke this when the session actually owns the Gradle slot
-	 * (prewarming / provisioning / re-baselining): the device has ONE cancellation token, so
+	 * (prebuilding / provisioning / proxy app rebuilding): the device has ONE cancellation token, so
 	 * issuing it blind could kill a Standard Run instead.
 	 *
 	 * @return true when a cancellation was handed to Gradle. False (the default) means the

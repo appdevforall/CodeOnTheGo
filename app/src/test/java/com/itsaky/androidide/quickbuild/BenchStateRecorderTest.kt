@@ -44,7 +44,7 @@ class BenchStateRecorderTest {
 		val pinned: List<Pair<QuickBuildSessionState, String>> =
 			listOf(
 				QuickBuildSessionState.Idle to "Idle",
-				QuickBuildSessionState.Prewarming() to "Prewarming",
+				QuickBuildSessionState.Prebuilding() to "Prewarming",
 				QuickBuildSessionState.Provisioning() to "Provisioning",
 				QuickBuildSessionState.Ready(generation = 1) to "Ready",
 				QuickBuildSessionState.Building(deployedGeneration = 1) to "Building",
@@ -65,7 +65,7 @@ class BenchStateRecorderTest {
 	@Test
 	fun `record maps state to its pinned wire name and includes generation only where carried`() {
 		recorder.record(QuickBuildSessionState.Idle)
-		recorder.record(QuickBuildSessionState.Prewarming())
+		recorder.record(QuickBuildSessionState.Prebuilding())
 		recorder.record(QuickBuildSessionState.Provisioning())
 		recorder.record(QuickBuildSessionState.Ready(generation = 5))
 		recorder.record(QuickBuildSessionState.Building(deployedGeneration = 5))

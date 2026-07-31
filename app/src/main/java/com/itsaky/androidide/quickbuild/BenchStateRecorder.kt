@@ -41,7 +41,7 @@ class BenchStateRecorder(
 	private fun QuickBuildSessionState.wireName(): String =
 		when (this) {
 			QuickBuildSessionState.Idle -> "Idle"
-			is QuickBuildSessionState.Prewarming -> "Prewarming"
+			is QuickBuildSessionState.Prebuilding -> "Prewarming"
 			is QuickBuildSessionState.Provisioning -> "Provisioning"
 			is QuickBuildSessionState.Ready -> "Ready"
 			is QuickBuildSessionState.Building -> "Building"
@@ -63,7 +63,7 @@ class BenchStateRecorder(
 			is QuickBuildSessionState.Degraded -> state.deployedGeneration
 
 			QuickBuildSessionState.Idle,
-			is QuickBuildSessionState.Prewarming,
+			is QuickBuildSessionState.Prebuilding,
 			is QuickBuildSessionState.Provisioning,
 			-> null
 		}

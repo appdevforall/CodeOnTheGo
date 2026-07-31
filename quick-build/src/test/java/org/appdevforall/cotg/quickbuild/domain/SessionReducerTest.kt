@@ -596,37 +596,37 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `idle plus PrewarmRequested starts the eager proxy app build`() {
-		val transition = reducer.reduce(QuickBuildSessionState.Idle, SessionEvent.PrewarmRequested)
+	fun `idle plus PrebuildRequested starts the eager proxy app build`() {
+		val transition = reducer.reduce(QuickBuildSessionState.Idle, SessionEvent.PrebuildRequested)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Prewarming(tapQueued = false))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartPrewarm))
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Prebuilding(tapQueued = false))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartProxyAppPrebuild))
 	}
 
 	@Test
-	fun `prewarming finished without a tap returns to idle - install is deferred`() {
+	fun `prebuilding finished without a tap returns to idle - install is deferred`() {
 		val transition =
-			reducer.reduce(QuickBuildSessionState.Prewarming(), SessionEvent.PrewarmFinished)
+			reducer.reduce(QuickBuildSessionState.Prebuilding(), SessionEvent.PrebuildFinished)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle)
 		assertThat(transition.effects).isEmpty()
 	}
 
 	@Test
-	fun `tap during prewarming queues instead of racing the warm build`() {
+	fun `tap during prebuilding queues instead of racing the warm build`() {
 		val transition =
-			reducer.reduce(QuickBuildSessionState.Prewarming(), SessionEvent.QuickBuildTapped)
+			reducer.reduce(QuickBuildSessionState.Prebuilding(), SessionEvent.QuickBuildTapped)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Prewarming(tapQueued = true))
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Prebuilding(tapQueued = true))
 		assertThat(transition.effects).isEmpty()
 	}
 
 	@Test
-	fun `prewarming finished with a queued tap starts provisioning`() {
+	fun `prebuilding finished with a queued tap starts provisioning`() {
 		val transition =
 			reducer.reduce(
-				QuickBuildSessionState.Prewarming(tapQueued = true),
-				SessionEvent.PrewarmFinished,
+				QuickBuildSessionState.Prebuilding(tapQueued = true),
+				SessionEvent.PrebuildFinished,
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
@@ -634,20 +634,20 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `prewarm requested while a session is live is a no-op`() {
+	fun `prebuild requested while a session is live is a no-op`() {
 		val transition =
-			reducer.reduce(QuickBuildSessionState.Ready(2), SessionEvent.PrewarmRequested)
+			reducer.reduce(QuickBuildSessionState.Ready(2), SessionEvent.PrebuildRequested)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(2))
 		assertThat(transition.effects).isEmpty()
 	}
 
 	@Test
-	fun `prewarm requested while prewarming does not start a second warm build`() {
+	fun `prebuild requested while prebuilding does not start a second warm build`() {
 		val transition =
-			reducer.reduce(QuickBuildSessionState.Prewarming(), SessionEvent.PrewarmRequested)
+			reducer.reduce(QuickBuildSessionState.Prebuilding(), SessionEvent.PrebuildRequested)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Prewarming())
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Prebuilding())
 		assertThat(transition.effects).isEmpty()
 	}
 
@@ -757,10 +757,10 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `prewarming plus SessionRestartRequested tears down the warm-up`() {
+	fun `prebuilding plus SessionRestartRequested tears down the warm-up`() {
 		val transition =
 			reducer.reduce(
-				QuickBuildSessionState.Prewarming(tapQueued = true),
+				QuickBuildSessionState.Prebuilding(tapQueued = true),
 				SessionEvent.SessionRestartRequested,
 			)
 
@@ -867,10 +867,10 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `stopping a queued tap during prewarm drops the tap and cancels the proxy app build`() {
+	fun `stopping a queued tap during prebuild drops the tap and cancels the proxy app build`() {
 		val transition =
 			reducer.reduce(
-				QuickBuildSessionState.Prewarming(tapQueued = true),
+				QuickBuildSessionState.Prebuilding(tapQueued = true),
 				SessionEvent.CancelRequested,
 			)
 
@@ -885,7 +885,7 @@ class SessionReducerTest {
 		// rather than, say, tearing a live session down.
 		for (state in listOf(
 			QuickBuildSessionState.Idle,
-			QuickBuildSessionState.Prewarming(tapQueued = false),
+			QuickBuildSessionState.Prebuilding(tapQueued = false),
 			QuickBuildSessionState.Ready(1),
 			QuickBuildSessionState.Deployed(1, buildDurationMillis = 100),
 			QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1),

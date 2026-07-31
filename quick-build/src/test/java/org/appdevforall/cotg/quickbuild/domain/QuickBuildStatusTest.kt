@@ -26,14 +26,14 @@ class QuickBuildStatusTest {
 	}
 
 	@Test
-	fun `background prewarming maps to hidden - the user never asked for it`() {
-		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Prewarming(tapQueued = false)))
+	fun `background prebuilding maps to hidden - the user never asked for it`() {
+		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Prebuilding(tapQueued = false)))
 			.isEqualTo(QuickBuildStatus.Hidden)
 	}
 
 	@Test
-	fun `prewarming with a queued tap maps to provisioning`() {
-		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Prewarming(tapQueued = true)))
+	fun `prebuilding with a queued tap maps to provisioning`() {
+		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Prebuilding(tapQueued = true)))
 			.isEqualTo(QuickBuildStatus.Provisioning)
 	}
 

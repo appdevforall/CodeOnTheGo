@@ -28,11 +28,11 @@ class QuickBuildToneTest {
 	}
 
 	@Test
-	fun `an unasked-for prewarm reads as READY, but a prewarm with a queued tap reads as BUILDING`() {
-		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Prewarming()).toTone())
+	fun `an unasked-for prebuild reads as READY, but a prebuild with a queued tap reads as BUILDING`() {
+		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Prebuilding()).toTone())
 			.isEqualTo(QuickBuildTone.READY)
 		// Once a tap is queued the user IS waiting on this build, so the stop belongs to them.
-		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Prewarming(tapQueued = true)).toTone())
+		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Prebuilding(tapQueued = true)).toTone())
 			.isEqualTo(QuickBuildTone.BUILDING)
 	}
 

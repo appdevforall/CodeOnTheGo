@@ -323,7 +323,7 @@ class QuickBuildSmokeTest : TestCase() {
 					}
 				}
 				// Defensive: if provisioning raced far enough to fire the proxy-app
-				// install confirm (prewarm already warm), dismiss the system dialog.
+				// install confirm (prebuild already warm), dismiss the system dialog.
 				val d = device.uiDevice
 				val installer =
 					d.findObject(

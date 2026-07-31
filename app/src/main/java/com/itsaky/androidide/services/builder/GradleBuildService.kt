@@ -118,7 +118,7 @@ class GradleBuildService :
 	/**
 	 * How many INTERNAL builds are running - builds the user never asked for that go through
 	 * the same [executeTasks] path as a Standard Run. Today that is Quick Build's
-	 * proxy app build (prewarm / provision / re-baseline), which runs on every project open: without this it drove
+	 * proxy app build (prebuild / provision / proxy app rebuild), which runs on every project open: without this it drove
 	 * the EDITOR's build UI for ~97 s (status line, the modal first-build notice, the bottom
 	 * sheet's output, and the Run button relabelled to "Cancel build" - where a tap cancelled
 	 * Quick Build's provisioning).

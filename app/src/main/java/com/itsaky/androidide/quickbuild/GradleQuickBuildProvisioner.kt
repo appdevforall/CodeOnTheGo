@@ -271,11 +271,11 @@ class GradleQuickBuildProvisioner(
 
 			// The proxy app build goes through the SAME executeTasks path as the user's Standard
 			// Run, and GradleBuildService has ONE editor event listener - so without this
-			// bracket the prewarm drives the EDITOR's build UI on every project open: status
+			// bracket the prebuild drives the EDITOR's build UI on every project open: status
 			// line, the modal first-build notice (consuming the isFirstBuild flag the REAL
 			// first build should get), the build-output sheet, and the Run button relabelled
 			// to "Cancel build" for the whole window, where a tap cancels Quick Build's own
-			// provisioning. Bracketed here rather than re-gating prewarm: warming up whenever
+			// provisioning. Bracketed here rather than re-gating prebuild: warming up whenever
 			// the feature is on is the point.
 			val gradleService = buildService as? GradleBuildService
 			gradleService?.beginInternalBuild()
@@ -327,7 +327,7 @@ class GradleQuickBuildProvisioner(
 	 * Hands a cancellation to the Gradle build currently running through the tooling server.
 	 *
 	 * The device has a single cancellation token, so this refuses unless the in-flight build
-	 * is an INTERNAL one (Quick Build provision/prewarm/proxy app rebuild). The caller only ever issues
+	 * is an INTERNAL one (Quick Build provision/prebuild/proxy app rebuild). The caller only ever issues
 	 * this while the session owns the slot, but that invariant used to live in a comment - and
 	 * a comment cannot stop a stop-tap from killing the user's own Standard Run.
 	 */

@@ -17,7 +17,7 @@ sealed interface QuickBuildSessionState {
 	 * provisioning starts the moment the warm build finishes instead of racing it (two
 	 * concurrent Gradle builds through the tooling server would fail).
 	 */
-	data class Prewarming(
+	data class Prebuilding(
 		val tapQueued: Boolean = false,
 	) : QuickBuildSessionState
 
@@ -134,10 +134,10 @@ sealed interface SessionEvent {
 	data object CancelRequested : SessionEvent
 
 	/** Project opened with the feature enabled: warm the proxy app build, defer the install. */
-	data object PrewarmRequested : SessionEvent
+	data object PrebuildRequested : SessionEvent
 
 	/** The eager proxy app build finished (success or not - a warm failure is not surfaced). */
-	data object PrewarmFinished : SessionEvent
+	data object PrebuildFinished : SessionEvent
 
 	data class ProvisioningSucceeded(
 		val generation: Long,
@@ -264,7 +264,7 @@ sealed interface SessionEffect {
 	data object StartProvisioning : SessionEffect
 
 	/** Run the proxy app build only - no install, no daemon (plan B2's eager warm-up). */
-	data object StartPrewarm : SessionEffect
+	data object StartProxyAppPrebuild : SessionEffect
 
 	/**
 	 * Ask the orchestrator to build now (explicit tap while a session is live).
@@ -303,7 +303,7 @@ sealed interface SessionEffect {
 	data object CancelLiveReload : SessionEffect
 
 	/**
-	 * Stop the out-of-process Gradle PROXY APP build (prewarm / provision / proxy app rebuild)
+	 * Stop the out-of-process Gradle PROXY APP build (prebuild / provision / proxy app rebuild)
 	 * (behaviour 5). Cancelling the awaiting coroutine alone leaves Gradle running to
 	 * completion, so this has to reach the tooling server's cancellation token.
 	 */
@@ -370,7 +370,7 @@ class SessionReducer {
 	): SessionTransition =
 		when (state) {
 			is QuickBuildSessionState.Idle -> reduceIdle(state, event)
-			is QuickBuildSessionState.Prewarming -> reducePrewarming(state, event)
+			is QuickBuildSessionState.Prebuilding -> reducePrebuilding(state, event)
 			is QuickBuildSessionState.Provisioning -> reduceProvisioning(state, event)
 			is QuickBuildSessionState.Ready -> reduceLive(state, state.generation, event)
 			is QuickBuildSessionState.Building -> reduceBuilding(state, event)
@@ -391,8 +391,8 @@ class SessionReducer {
 				)
 			}
 
-			SessionEvent.PrewarmRequested -> {
-				SessionTransition(QuickBuildSessionState.Prewarming(), listOf(SessionEffect.StartPrewarm))
+			SessionEvent.PrebuildRequested -> {
+				SessionTransition(QuickBuildSessionState.Prebuilding(), listOf(SessionEffect.StartProxyAppPrebuild))
 			}
 
 			else -> {
@@ -400,18 +400,18 @@ class SessionReducer {
 			}
 		}
 
-	private fun reducePrewarming(
-		state: QuickBuildSessionState.Prewarming,
+	private fun reducePrebuilding(
+		state: QuickBuildSessionState.Prebuilding,
 		event: SessionEvent,
 	): SessionTransition =
 		when (event) {
 			// The tap must not race the warm build (one Gradle build at a time through
-			// the tooling server); it queues and fires on PrewarmFinished.
+			// the tooling server); it queues and fires on PrebuildFinished.
 			SessionEvent.QuickBuildTapped -> {
-				SessionTransition(QuickBuildSessionState.Prewarming(tapQueued = true))
+				SessionTransition(QuickBuildSessionState.Prebuilding(tapQueued = true))
 			}
 
-			SessionEvent.PrewarmFinished -> {
+			SessionEvent.PrebuildFinished -> {
 				if (state.tapQueued) {
 					SessionTransition(
 						QuickBuildSessionState.Provisioning(userInitiated = true),

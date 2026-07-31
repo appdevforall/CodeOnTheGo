@@ -52,7 +52,7 @@ sealed interface QuickBuildStatus {
 
 				// A background warm-up the user never asked for stays invisible; a tap
 				// that queued mid-warm reads as provisioning already underway.
-				is QuickBuildSessionState.Prewarming -> {
+				is QuickBuildSessionState.Prebuilding -> {
 					if (state.tapQueued) Provisioning else Hidden
 				}
 
