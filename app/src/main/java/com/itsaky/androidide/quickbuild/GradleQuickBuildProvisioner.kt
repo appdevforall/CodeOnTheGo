@@ -67,7 +67,8 @@ class GradleQuickBuildProvisioner(
 
 				// From Idle the next tap re-provisions (fast: tasks up-to-date), so the
 				// existing failure surface already IS the retry offer here.
-				is InstallOutcome.ConfirmationNotGiven -> return ProvisionOutcome.Failure(installed.message)
+				is InstallOutcome.ConfirmationNotGiven ->
+					return ProvisionOutcome.Failure(initialProvisionMessage(installed))
 
 				is InstallOutcome.Installed -> installed.uid
 			}
@@ -325,5 +326,19 @@ class GradleQuickBuildProvisioner(
 
 	companion object {
 		private val log = LoggerFactory.getLogger(GradleQuickBuildProvisioner::class.java)
+
+		/**
+		 * A [ProvisionOutcome.Failure] sends the session back to Idle, where returning to
+		 * CoGo is a no-op (there is no parked session for HostForegrounded to auto-retry) -
+		 * so the installer's DIALOG_NOT_SHOWN "return to CoGo to confirm" guidance is a
+		 * dead end on THIS path, unlike the rebaseline park where it is exactly right.
+		 * Swap in tap guidance; DECLINED and TIMED_OUT already carry their own.
+		 */
+		fun initialProvisionMessage(outcome: InstallOutcome.ConfirmationNotGiven): String =
+			if (outcome.reason == InstallOutcome.ConfirmationNotGiven.Reason.DIALOG_NOT_SHOWN) {
+				"Your app needs a reinstall - return to CoGo and tap Quick Build to try again."
+			} else {
+				outcome.message
+			}
 	}
 }
