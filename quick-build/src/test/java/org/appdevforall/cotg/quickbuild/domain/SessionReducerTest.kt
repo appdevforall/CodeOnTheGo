@@ -652,43 +652,43 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `ready plus ExternalBuildCompleted stays ready and re-seeds the baseline`() {
+	fun `ready plus ExternalBuildCompleted stays ready and refreshes the baseline`() {
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Ready(2), SessionEvent.ExternalBuildCompleted)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(2))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.ReseedBaseline))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RefreshBaseline))
 	}
 
 	@Test
-	fun `deployed plus ExternalBuildCompleted re-seeds the baseline`() {
+	fun `deployed plus ExternalBuildCompleted refreshes the baseline`() {
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Deployed(3, 700), SessionEvent.ExternalBuildCompleted)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Deployed(3, 700))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.ReseedBaseline))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RefreshBaseline))
 	}
 
 	@Test
-	fun `building plus ExternalBuildCompleted re-seeds into the follow-up build`() {
+	fun `building plus ExternalBuildCompleted coalesces the refresh into the follow-up build`() {
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Building(1), SessionEvent.ExternalBuildCompleted)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Building(1))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.ReseedBaseline))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RefreshBaseline))
 	}
 
 	@Test
-	fun `degraded plus ExternalBuildCompleted re-seeds the baseline`() {
+	fun `degraded plus ExternalBuildCompleted refreshes the baseline`() {
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Degraded(1), SessionEvent.ExternalBuildCompleted)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Degraded(1))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.ReseedBaseline))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RefreshBaseline))
 	}
 
 	@Test
-	fun `idle plus ExternalBuildCompleted does nothing - no session to re-seed`() {
+	fun `idle plus ExternalBuildCompleted does nothing - no session to refresh`() {
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Idle, SessionEvent.ExternalBuildCompleted)
 

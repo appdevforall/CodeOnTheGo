@@ -551,7 +551,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * external Gradle build finishes - success OR failure, Run button or "Run Gradle
 	 * tasks". Even a failed build can have rewritten build/ outputs of the modules that
 	 * DID compile (paths the quick-build watcher deliberately does not watch), so a live
-	 * session re-seeds from current disk either way. Over-reseeding is safe: it only
+	 * session refreshes its baseline from current disk either way. Over-refreshing is safe: it only
 	 * marks the baseline untrusted. The session's own proxy app builds also land here, but
 	 * the reducer drops the event in Provisioning/Prebuilding.
 	 */

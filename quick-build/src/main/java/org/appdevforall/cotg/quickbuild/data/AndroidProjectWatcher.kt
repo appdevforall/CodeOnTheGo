@@ -157,7 +157,7 @@ class AndroidProjectWatcher(
 	 * fingerprints, so a change inotify already handled is not rebuilt again here.
 	 */
 	private suspend fun pollLoop() {
-		seedFingerprints() // prime without firing: current on-disk state is the baseline
+		initFingerprints() // prime without firing: current on-disk state is the baseline
 		while (scope.isActive) {
 			delay(pollIntervalMillis)
 			sweep()
@@ -244,7 +244,7 @@ class AndroidProjectWatcher(
 		}
 	}
 
-	private fun seedFingerprints() {
+	private fun initFingerprints() {
 		forEachWatchedFile { f -> fingerprints[f.absolutePath] = f.lastModified() xor f.length() }
 	}
 

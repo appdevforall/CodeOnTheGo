@@ -480,7 +480,7 @@ class QuickBuildSessionManagerTest {
 	// Degraded and recover through the normal respawn, never end in WarmCompileFinished's
 	// silent "up to date" over a dead daemon.
 	@Test
-	fun `a daemon death during the seed degrades, respawns and re-seeds the fresh daemon`() =
+	fun `a daemon death during the warm compile degrades, respawns and re-seeds the fresh daemon`() =
 		runTest {
 			val manager = createManager()
 			val gate = CompletableDeferred<Unit>()
@@ -1987,7 +1987,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `standard run completion re-seeds - the next save recompiles everything`() =
+	fun `standard run completion refreshes the baseline - the next save recompiles everything`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1996,7 +1996,7 @@ class QuickBuildSessionManagerTest {
 			manager.onStandardRunCompleted()
 			advanceUntilIdle()
 
-			// Deferred re-seed: no build behind the user's back, state unchanged.
+			// Deferred refresh: no build behind the user's back, state unchanged.
 			assertThat(executed).isEmpty()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 
@@ -2035,7 +2035,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `standard run completion with all proxy app build artifacts present re-seeds incrementally`() =
+	fun `standard run completion with all proxy app build artifacts present refreshes the baseline incrementally`() =
 		runTest {
 			val jar =
 				File(projectRoot, "build/intermediates/r.jar").apply {

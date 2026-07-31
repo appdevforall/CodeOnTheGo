@@ -370,9 +370,10 @@ class QuickBuildSessionManager(
 	/**
 	 * Mode-switch hand-back (plan B3): call when a Standard Run's Gradle build completes
 	 * (e.g. from the A2 dropdown's "Standard Run", or the Run button's build-finished
-	 * hook). A live session re-seeds its incremental snapshot from current disk - a full
-	 * proxy app rebuild when the external build clobbered the proxy app build artifacts, otherwise a fresh
-	 * incremental seed - so the next quick build is never stale. No session: no-op.
+	 * hook). A live session refreshes its baseline from current disk - a full proxy app
+	 * rebuild when the external build clobbered the proxy app build artifacts, otherwise a
+	 * baseline refresh (the next build recompiles everything) - so the next quick build is
+	 * never stale. No session: no-op.
 	 */
 	fun onStandardRunCompleted() {
 		scope.launch { dispatch(SessionEvent.ExternalBuildCompleted) }
@@ -566,8 +567,8 @@ class QuickBuildSessionManager(
 				sessionWork = scope.launch { rebuildProxyApp(epoch) }
 			}
 
-			SessionEffect.ReseedBaseline -> {
-				scope.launch { reseedBaseline() }
+			SessionEffect.RefreshBaseline -> {
+				scope.launch { refreshBaseline() }
 			}
 
 			SessionEffect.RespawnDaemon -> {
@@ -1077,7 +1078,7 @@ class QuickBuildSessionManager(
 	 * the external build removed them (a clean wiped build/), only a full proxy app rebuild
 	 * helps: route to the existing invalidation machinery as EXTERNAL_FULL_BUILD.
 	 */
-	private suspend fun reseedBaseline() {
+	private suspend fun refreshBaseline() {
 		val session = live ?: return
 		if (proxyAppArtifactsIntact(session.proxyApp)) {
 			session.orchestrator.onBaselineUntrusted()

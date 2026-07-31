@@ -109,7 +109,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		act.flashSuccess(R.string.build_status_sucess)
 
 		// B3 hand-back (ADFA-4128): any completed Gradle build may have rewritten build/
-		// outputs beneath a live quick-build session; re-seed its baseline.
+		// outputs beneath a live quick-build session; refresh its baseline.
 		act.onExternalGradleBuildFinished()
 
 		val message =
@@ -148,7 +148,8 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		act.flashError(R.string.build_status_failed)
 
 		// B3 hand-back (ADFA-4128): even a FAILED build can have rewritten outputs of the
-		// modules that DID compile; a live quick-build session must re-seed either way.
+		// modules that DID compile; a live quick-build session must refresh its baseline
+		// either way.
 		act.onExternalGradleBuildFinished()
 
 		val message =

@@ -592,7 +592,7 @@ class LiveReloadOrchestratorTest {
 			orchestrator.onBaselineUntrusted()
 			runCurrent()
 
-			// Deferred re-seed: no build, no events, until the next save or tap.
+			// Deferred refresh: no build, no events, until the next save or tap.
 			assertThat(executor.requests).isEmpty()
 			assertThat(events).isEmpty()
 
@@ -605,7 +605,7 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
-	fun `onBaselineUntrusted during an in-flight build re-seeds the coalesced follow-up`() =
+	fun `onBaselineUntrusted during an in-flight build coalesces the refresh into the follow-up`() =
 		runTest {
 			val executor = GatedExecutor()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}

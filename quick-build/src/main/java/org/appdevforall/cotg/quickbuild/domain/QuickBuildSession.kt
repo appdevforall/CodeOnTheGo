@@ -243,7 +243,8 @@ sealed interface SessionEvent {
 	/**
 	 * A full Gradle build ran OUTSIDE the session (a Standard Run) and completed. The
 	 * baseline may have moved beneath the daemon (regenerated build/ inputs the watcher
-	 * cannot see), so a live session must re-seed from current disk before its next build.
+	 * cannot see), so a live session must refresh its baseline from current disk before its
+	 * next build.
 	 */
 	data object ExternalBuildCompleted : SessionEvent
 
@@ -321,12 +322,12 @@ sealed interface SessionEffect {
 	data object RunProxyAppRebuild : SessionEffect
 
 	/**
-	 * Re-seed the live session after an external full build: either mark the whole
+	 * Refresh the live session's baseline after an external full build: either mark the whole
 	 * incremental baseline dirty (next build recompiles from current disk) or, when the
 	 * external build clobbered the proxy app build artifacts, escalate to a full proxy app rebuild with
 	 * [InvalidationReason.EXTERNAL_FULL_BUILD]. The shell decides which.
 	 */
-	data object ReseedBaseline : SessionEffect
+	data object RefreshBaseline : SessionEffect
 
 	data object RespawnDaemon : SessionEffect
 
@@ -553,7 +554,7 @@ class SessionReducer {
 			}
 
 			SessionEvent.ExternalBuildCompleted -> {
-				SessionTransition(state, listOf(SessionEffect.ReseedBaseline))
+				SessionTransition(state, listOf(SessionEffect.RefreshBaseline))
 			}
 
 			else -> {
@@ -645,9 +646,9 @@ class SessionReducer {
 			}
 
 			SessionEvent.ExternalBuildCompleted -> {
-				// The in-flight build may have read half-rewritten inputs; the re-seed
-				// coalesces into the follow-up build, which recompiles everything.
-				SessionTransition(state, listOf(SessionEffect.ReseedBaseline))
+				// The in-flight build may have read half-rewritten inputs; the baseline
+				// refresh coalesces into the follow-up build, which recompiles everything.
+				SessionTransition(state, listOf(SessionEffect.RefreshBaseline))
 			}
 
 			else -> {
@@ -742,7 +743,7 @@ class SessionReducer {
 			}
 
 			SessionEvent.ExternalBuildCompleted -> {
-				SessionTransition(state, listOf(SessionEffect.ReseedBaseline))
+				SessionTransition(state, listOf(SessionEffect.RefreshBaseline))
 			}
 
 			else -> {

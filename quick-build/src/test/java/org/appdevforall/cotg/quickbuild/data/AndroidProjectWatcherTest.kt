@@ -52,7 +52,7 @@ class AndroidProjectWatcherTest {
 			)
 		watcher = w
 		w.start { batches += it }
-		// Let the poll loop's seedFingerprints() pass complete before any edit, so the
+		// Let the poll loop's initFingerprints() pass complete before any edit, so the
 		// fingerprint state matches a long-running session's.
 		Thread.sleep(750)
 		return w to batches

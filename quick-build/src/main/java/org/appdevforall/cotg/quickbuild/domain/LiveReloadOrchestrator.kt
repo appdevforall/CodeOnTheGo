@@ -340,7 +340,7 @@ class LiveReloadOrchestrator(
 	) {
 		if (inFlight != null) return
 		// Quick builds are suspended while a proxy app rebuild runs: they would race the
-		// Gradle build against a half-reseeded baseline. Saves keep accumulating and
+		// Gradle build against a half-reset baseline. Saves keep accumulating and
 		// build on onBaselineReset.
 		if (awaitingAbsorption != null) return
 		if (pending.isEmpty && !pendingForced) {
