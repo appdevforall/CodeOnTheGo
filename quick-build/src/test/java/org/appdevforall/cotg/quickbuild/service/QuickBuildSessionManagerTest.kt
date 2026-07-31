@@ -1519,10 +1519,14 @@ class QuickBuildSessionManagerTest {
 			// It did attempt, and it parked straight back with the budget untouched.
 			assertThat(rebaselineCount).isEqualTo(2)
 			assertThat(manager.state.value).isEqualTo(parked)
-			// The message does not degrade to a build failure: the install guidance stands,
-			// because that is still exactly what the user has to do.
+			// The message does not degrade to a build failure - and it must not re-state
+			// the park's "return to CoGo" guidance either: returning to CoGo is exactly
+			// what triggered this retry, so the deferral says what is actually happening.
 			assertThat(userMessages.last())
-				.isEqualTo("Your app needs a reinstall - return to CoGo to confirm.")
+				.isEqualTo(
+					"Waiting for the current Gradle build to finish - your app still " +
+						"needs a reinstall. Tap Quick Build to retry.",
+				)
 			// A deferred attempt is not a rebaseline outcome; nothing is booked against the
 			// rebaseline success rate.
 			assertThat(metricsEvents.filter { it.startsWith("rebaseline:") }).hasSize(1)
@@ -1593,6 +1597,10 @@ class QuickBuildSessionManagerTest {
 
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 			assertThat(userMessages).contains("Re-baseline build failed")
+			// Surfaced to the user as a failed rebaseline, so it books like one - only a
+			// DEFERRED retry (slot busy while parked) skips the metrics sink.
+			assertThat(metricsEvents.filter { it.startsWith("rebaseline:") })
+				.containsExactly("rebaseline:false")
 		}
 
 	@Test

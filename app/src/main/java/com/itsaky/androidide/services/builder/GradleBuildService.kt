@@ -108,6 +108,9 @@ class GradleBuildService :
 	ToolingServerRunner.Observer {
 	private var mBinder: GradleServiceBinder? = null
 	private var isToolingServerStarted = false
+	// Volatile: written on the Tooling API's CompletableFuture pool, read cross-thread
+	// by Quick Build's slot pre-check.
+	@Volatile
 	override var isBuildInProgress = false
 		private set
 
