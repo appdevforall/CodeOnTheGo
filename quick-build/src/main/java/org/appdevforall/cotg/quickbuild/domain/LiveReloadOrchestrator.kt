@@ -12,6 +12,15 @@ import org.slf4j.LoggerFactory
  * The quick-build concurrency model (plan sections 2.3 and 1.4). Pure JVM — no Android
  * imports — so the whole model is unit-testable off-device.
  *
+ * Boundary: this orchestrator schedules and runs the LIVE-RELOAD path only (classify ->
+ * daemon compile -> deploy). A [BuildRoute.FullGradleBuild] verdict from the same
+ * classifier is escalated ([OrchestratorEvent.InvalidationRequired]), never executed
+ * here, because the session manager owns Gradle — the install prompts, the proxy-app
+ * reinstall, and the device's single Gradle slot are not the incremental loop's
+ * business. The asymmetry is deliberate: executing the live-reload build inside the
+ * lock's reach is what lets `flight.job` be assigned while the mutex is held, so a
+ * cancel can never see a null handle for a build that is already running.
+ *
  * Invariant: **the pending changed-set is never lost** — not by a save landing mid-build,
  * not by a failed compile, not by a proxy app rebuild, not by a crash. Concretely:
  * - At most one build is in flight; saves that land mid-build coalesce into a pending set.
