@@ -162,7 +162,12 @@ fun PluginManagerContent(
 
 				is PluginManagerUiEffect.OpenFilePicker -> {
 					try {
-						filePickerLauncher.launch(arrayOf("*/*"))
+						// SAF filters by MIME type, not extension, and .cgp has no registered MIME
+						// type. "application/octet-stream" is what document providers report for
+						// files with an unrecognized extension, so this hides files with a known
+						// type (images, zips, apks, ...) without excluding .cgp files. isSupportedPluginFile
+						// still validates the actual pick, since this is an approximation.
+						filePickerLauncher.launch(arrayOf("application/octet-stream"))
 					} catch (_: Exception) {
 						activity.flashError(activity.getString(R.string.msg_no_file_manager))
 					}
