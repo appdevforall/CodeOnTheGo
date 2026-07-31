@@ -100,7 +100,7 @@ sealed interface QuickBuildSessionState {
 		val installAutoRetries: Int = 0,
 	) : QuickBuildSessionState
 
-	/** The compile daemon died; respawn + re-seed in progress. */
+	/** The compile daemon died; respawn + warm compile in progress. */
 	data class Degraded(
 		val deployedGeneration: Long,
 	) : QuickBuildSessionState
