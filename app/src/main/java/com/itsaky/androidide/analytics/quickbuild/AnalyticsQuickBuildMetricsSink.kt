@@ -22,6 +22,16 @@ import java.util.concurrent.ConcurrentHashMap
 class AnalyticsQuickBuildMetricsSink(
 	private val analytics: IAnalyticsManager,
 	private val projectPath: () -> String,
+	/**
+	 * Android module count of the open project (David's multi-module-encounter-rate ask,
+	 * ADFA-4128 status 2026-07-27). Defaults to a no-op supplier so existing callers/tests
+	 * stay source-compatible; the DI wiring passes the real
+	 * `IProjectManager.getAndroidModules().size`. Counts Android modules only - a
+	 * non-Android library module (plain Kotlin/Java) would undercount, but that shape is
+	 * rare in CoGo's target projects and the alternative (walking Gradle's raw subproject
+	 * list) is not exposed on `IProjectManager`'s public API.
+	 */
+	private val moduleCount: () -> Int? = { null },
 	private val now: () -> Long = System::currentTimeMillis,
 ) : QuickBuildMetricsSink {
 	private data class InFlight(
@@ -65,6 +75,7 @@ class AnalyticsQuickBuildMetricsSink(
 				changedAssets = mix?.assets,
 				changedOther = mix?.other,
 				projectHash = projectHash(),
+				moduleCount = moduleCount(),
 			),
 		)
 	}

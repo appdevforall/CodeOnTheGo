@@ -23,6 +23,12 @@ data class QuickBuildStartedMetric(
 	val changedAssets: Int?,
 	val changedOther: Int?,
 	val projectHash: Long,
+	/**
+	 * Android module count of the open project; null when the supplier had none wired
+	 * (bench/test contexts). `> 1` answers David's multi-module-encounter-rate ask
+	 * (ADFA-4128 status 2026-07-27) without joining to a separate project-info event.
+	 */
+	val moduleCount: Int? = null,
 ) : Metric {
 	override val eventName = "quick_build_started"
 
@@ -41,6 +47,7 @@ data class QuickBuildStartedMetric(
 			changedAssets?.let { putInt("changed_assets", it) }
 			changedOther?.let { putInt("changed_other", it) }
 			putLong("project_hash", projectHash)
+			moduleCount?.let { putInt("module_count", it) }
 		}
 }
 

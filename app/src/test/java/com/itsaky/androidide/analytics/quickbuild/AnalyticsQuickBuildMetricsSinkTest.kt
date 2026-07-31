@@ -31,10 +31,11 @@ class AnalyticsQuickBuildMetricsSinkTest {
 
 	private var nowMs = 1_000L
 
-	private fun sink() =
+	private fun sink(moduleCount: () -> Int? = { null }) =
 		AnalyticsQuickBuildMetricsSink(
 			analytics = analytics,
 			projectPath = { "/projects/demo" },
+			moduleCount = moduleCount,
 			now = { nowMs },
 		)
 
@@ -77,6 +78,24 @@ class AnalyticsQuickBuildMetricsSinkTest {
 		assertThat(metric.changedXml).isEqualTo(1)
 		assertThat(metric.changedAssets).isEqualTo(1)
 		assertThat(metric.changedOther).isEqualTo(1)
+	}
+
+	@Test
+	fun `started metric forwards the project's Android module count`() {
+		sink(moduleCount = { 3 }).onBuildStarted(7, BuildRoute.CodeOnly, ChangedFiles.Known(emptySet()))
+
+		val metric = tracked.single() as QuickBuildStartedMetric
+		assertThat(metric.moduleCount).isEqualTo(3)
+		assertThat(metric.asBundle().getInt("module_count")).isEqualTo(3)
+	}
+
+	@Test
+	fun `a null module count is omitted from the bundle rather than sent as zero`() {
+		sink().onBuildStarted(7, BuildRoute.CodeOnly, ChangedFiles.Known(emptySet()))
+
+		val metric = tracked.single() as QuickBuildStartedMetric
+		assertThat(metric.moduleCount).isNull()
+		assertThat(metric.asBundle().containsKey("module_count")).isFalse()
 	}
 
 	@Test

@@ -121,6 +121,10 @@ val quickBuildModule =
 				AnalyticsQuickBuildMetricsSink(
 					analytics = get(),
 					projectPath = { IProjectManager.getInstance().projectDirPath },
+					// David's multi-module-encounter-rate ask (ADFA-4128 status 2026-07-27):
+					// forwarded as a plain count so "multi-module" reads as moduleCount > 1
+					// without a new event.
+					moduleCount = { IProjectManager.getInstance().getAndroidModules().size },
 				)
 			if (FeatureFlags.isQuickBuildBenchEnabled) {
 				// Bench: fan the analytics sink AND a JSON-lines file so an external run
