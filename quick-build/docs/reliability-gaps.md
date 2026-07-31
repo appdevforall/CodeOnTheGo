@@ -3,8 +3,8 @@
 ## Summary
 
 - Device testing on 2026-07-25..28 surfaced **five user-facing defects**. **None is fixed.** Each is tracked as an ADFA-4128 task (#87-#91). The table below is the decision content; the sections after it are the evidence for each row.
-- **Neither speed nor correctness is at stake.** The never-stale invariant holds in all five — nobody ends up running stale code. What the user loses is trust: a fast path that went slow, went dead, or went quiet.
-- **Decision: which of these block v1?** Proposed, revised after Bryan's 2026-07-28 review: block on **#88 and #90** — the two that hit every user on every rebaseline. **#87, #89 and #91 go to v1.1.**
+- **Neither speed nor correctness is at stake.** The never-stale invariant holds in all five — nobody ends up running stale code. What the user loses is trust: a live reload path that went slow, went dead, or went quiet.
+- **Decision: which of these block v1?** Proposed, revised after Bryan's 2026-07-28 review: block on **#88 and #90** — the two that hit every user on every proxy app rebuild. **#87, #89 and #91 go to v1.1.**
 
 **Provenance**: `[measured on a56]` = Samsung A56, dates as noted. Untagged prose is code reading against the working tree at `75483b6eb`.
 
@@ -14,15 +14,15 @@ Sorted in descending priority. **Blocks v1 is TBD on every row** — that is the
 
 | Task | What breaks                                                  | Frequency                                                    | Severity             | Blocks v1?        |
 | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ | -------------------- | ----------------- |
-| #88  | After any rebaseline reinstall, every save fails "Test app is not connected" until the user relaunches their app | Deterministic — every rebaseline reinstall, and rebaseline reaches every user | High                 | TBDRecommend: yes |
-| #90  | A backgrounded rebaseline waits 180 s in silence, then shows a message that is wrong about what happened | Every backgrounded rebaseline that reinstalls — and a rebaseline runs long enough that backgrounding is normal | High on the wait     | TBDRecommend: yes |
+| #88  | After any proxy app rebuild reinstall, every save fails "Proxy app is not connected" until the user relaunches their app | Deterministic — every proxy app rebuild reinstall, and proxy app rebuild reaches every user | High                 | TBDRecommend: yes |
+| #90  | A backgrounded proxy app rebuild waits 180 s in silence, then shows a message that is wrong about what happened | Every backgrounded proxy app rebuild that reinstalls — and a proxy app rebuild runs long enough that backgrounding is normal | High on the wait     | TBDRecommend: yes |
 | #89  | A failed respawn parks the session in `Degraded`, where tapping Quick Build does nothing at all | Code reading only, no device repro; probably low `[inferred]` | High when it happens | TBD               |
 | #91  | The user's app crashes on its own; CoGo says nothing and then misattributes it to deploy infrastructure | Code reading only, `[unmeasured]` on device; as often as user code crashes | Moderate             | TBD               |
-| #87  | A one-line edit in a Room/KSP project triggers a full ~200 s rebaseline + reinstall | Only in projects using annotation processors — a minority, and QB has no real support for them yet; 3/3 when attempted | High                 | TBD               |
+| #87  | A one-line edit in a Room/KSP project triggers a full ~200 s proxy app rebuild + reinstall | Only in projects using annotation processors — a minority, and QB has no real support for them yet; 3/3 when attempted | High                 | TBD               |
 
 ## Why #88 and #90 are proposed as blocking
 
-Both land on a path every user takes — a rebaseline — and in both the product then explains it wrongly or not at all. #88 is deterministic on every rebaseline reinstall. #90 costs 180 s of silence, and a rebaseline runs long enough that backgrounding is the normal thing to do, not the edge case.
+Both land on a path every user takes — a proxy app rebuild — and in both the product then explains it wrongly or not at all. #88 is deterministic on every proxy app rebuild reinstall. #90 costs 180 s of silence, and a proxy app rebuild runs long enough that backgrounding is the normal thing to do, not the edge case.
 
 A user meeting any of these concludes Quick Build is unreliable, and they would not be wrong.
 
@@ -36,30 +36,30 @@ A user meeting any of these concludes Quick Build is unreliable, and they would 
 
 That list is honest about what Quick Build deliberately does not do. These five are cases where it behaves *worse than its own design intends*, which a user reads as bugs rather than boundaries.
 
-## #87 — A body-only edit escalates to a full rebaseline and a reinstall
+## #87 — A body-only edit escalates to a full proxy app rebuild and a reinstall
 
 **Task #87.**
 
 **What the user sees.**
 
 - They change one line inside a method, in a project using Room, KSP, or any annotation processor.
-- Instead of a ~2 s hot reload they get a full Gradle rebaseline — **198 s in the captured run** `[measured on a56, 2026-07-28]`.
+- Instead of a ~2 s live reload they get a full Gradle proxy app rebuild — **198 s in the captured run** `[measured on a56, 2026-07-28]`.
 - It ends in a package-installer dialog asking them to reinstall their own app.
-- The trigger is invisible to them: the compile daemon died between builds, most often because they switched to their test app and the system reclaimed memory.
+- The trigger is invisible to them: the compile daemon died between builds, most often because they switched to their proxy app and the system reclaimed memory.
 
 **Mechanism.**
 
 - Daemon death parks the session in `Degraded` and schedules a respawn.
-- On respawn, `BuildOrchestrator.kt:147` re-seeds the pending set with `ChangedFiles.Unknown`, which is an absorbing element (`ChangedFiles.kt:50-55`), destroying the known file set.
+- On respawn, `LiveReloadOrchestrator.kt:147` re-primes the pending set with `ChangedFiles.Unknown`, which is an absorbing element (`ChangedFiles.kt:50-55`), destroying the known file set.
 - `ChangeClassifier.kt:47` then escalates unconditionally whenever `annotationImpact.active` — which is just `profile.hasProcessors` (`AnnotationImpact.kt:88`), i.e. "does this project configure any processor at all", not "did this edit touch processor input".
 
 **The pessimism is unnecessary, which is what makes it a defect rather than a design choice.** Three things are intact at line 147:
 
-- The known changed-file set still exists — `BuildOrchestrator.kt:348` restores the failed build's batch before `BuildFailed` is dispatched, so `pending` names exactly the edited file.
-- The annotation baseline is intact — captured at provision (`QuickBuildSessionManager.kt:620`), swapped only on a successful rebaseline.
+- The known changed-file set still exists — `LiveReloadOrchestrator.kt:348` restores the failed build's batch before `BuildFailed` is dispatched, so `pending` names exactly the edited file.
+- The annotation baseline is intact — captured at provision (`QuickBuildSessionManager.kt:620`), swapped only on a successful proxy app rebuild.
 - On-disk sources are intact.
 
-`AnnotationImpactAnalyzer.escalation` would have answered "safe" for a body-only edit (`AnnotationImpact.kt:56-60`), but the code returns at `ChangeClassifier.kt:47` before reaching the per-file call at `:111-113`. The reinstall then follows mechanically via `QuickBuildSessionManager.rebaseline()` (`:829-830`).
+`AnnotationImpactAnalyzer.escalation` would have answered "safe" for a body-only edit (`AnnotationImpact.kt:56-60`), but the code returns at `ChangeClassifier.kt:47` before reaching the per-file call at `:111-113`. The reinstall then follows mechanically via `QuickBuildSessionManager.rebuildProxyApp()` (`:829-830`).
 
 **Evidence.**
 
@@ -71,27 +71,27 @@ That list is honest about what Quick Build deliberately does not do. These five 
 | #   | Option                                                       | Cost / caveat                                                |
 | --- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 1   | Reclassify from the preserved set instead of `Unknown`       | The correct fix and small, but it must distinguish "we lost the daemon" from "we lost track of the files", which today are the same `Unknown`; an unenumerable change genuinely must still escalate. |
-| 2   | Split the sentinel: a distinct `DaemonRestarted` marker forcing a full *compile* without a Gradle *rebaseline* | More explicit, slightly more code.                           |
+| 2   | Split the sentinel: a distinct `DaemonRestarted` marker forcing a full *compile* without a Gradle *proxy app rebuild* | More explicit, slightly more code.                           |
 | 3   | Keep the daemon alive more often (partly landed)             | Reduces frequency, does not fix the escalation.              |
 | 4   | Document it                                                  | Defensible only if the escalation were rare, and it is not.  |
 
-## #88 — After a rebaseline reinstall, the fast path is dead until the user relaunches
+## #88 — After a proxy app rebuild reinstall, the live reload path is dead until the user relaunches
 
 **Task #88.**
 
 **What the user sees.**
 
-- The rebaseline succeeds and the session says Ready.
-- Every subsequent save fails with **"Test app is not connected"**.
+- The proxy app rebuild succeeds and the session says Ready.
+- Every subsequent save fails with **"Proxy app is not connected"**.
 - Nothing on screen suggests that relaunching their app is the fix, and the message reads as an infrastructure fault rather than an instruction.
 
 **Mechanism.**
 
-- The connection is the test app's *outbound* AIDL binding into CoGo.
-- A reinstall kills the test-app process; the death recipient (`QuickBuildHostService.kt:47-52`) fires, `TestAppConnections.onDisconnected()` (`:66-69`) nulls the target, and `DeployChannel.kt:105` returns `NotConnected`, surfaced at `QuickBuildExecutorImpl.kt:593-595`.
+- The connection is the proxy app's *outbound* AIDL binding into CoGo.
+- A reinstall kills the proxy-app process; the death recipient (`QuickBuildHostService.kt:47-52`) fires, `ProxyAppConnections.onDisconnected()` (`:66-69`) nulls the target, and `DeployChannel.kt:105` returns `NotConnected`, surfaced at `LiveReloadExecutorImpl.kt:593-595`.
 - The reducer (`QuickBuildSession.kt:420-422`) returns to `Ready` with the failure attached, so the session stays live and repeats the failure on every save.
-- **Only the test app can re-establish the binding**, from `QuickBuildRuntime.onActivityCreated` (`QuickBuildRuntime.java:225-227`) — so the app must be launched; the runtime's rebind/backoff only helps a *running* process.
-- **CoGo never relaunches it**: `rebaseline()`'s success branch (`QuickBuildSessionManager.kt:827-859`) makes no `launcher.launch(...)` call, and the injected `TestAppLauncher` is used on exactly one other path (`QuickBuildExecutorImpl.kt:525`).
+- **Only the proxy app can re-establish the binding**, from `QuickBuildRuntime.onActivityCreated` (`QuickBuildRuntime.java:225-227`) — so the app must be launched; the runtime's rebind/backoff only helps a *running* process.
+- **CoGo never relaunches it**: `rebuildProxyApp()`'s success branch (`QuickBuildSessionManager.kt:827-859`) makes no `launcher.launch(...)` call, and the injected `ProxyAppLauncher` is used on exactly one other path (`LiveReloadExecutorImpl.kt:525`).
 
 **Correction worth carrying into the fix.**
 
@@ -109,7 +109,7 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 | #   | Option                                                       | Cost / caveat                                                |
 | --- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 1   | Relaunch automatically after a successful rebaseline reinstall | Smallest change, but it pulls the app to the foreground unasked. |
+| 1   | Relaunch automatically after a successful proxy app rebuild reinstall | Smallest change, but it pulls the app to the foreground unasked. |
 | 2   | **Recover at deploy time: on ****`NotConnected`****, launch and retry once** | Fixes this *and* defect 4's symptom with one mechanism, and only acts when the app is actually needed; needs a bounded retry. |
 | 3   | Fix the message and offer a Launch affordance                | Honest and cheap, but leaves an interruption the product does not need. |
 
@@ -121,7 +121,7 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 - The toolbar icon turns into a red alert bolt.
 - They tap Quick Build and nothing happens — no build, no error, no state change.
-- Only "Restart session", or an invalidating edit that forces a rebaseline, recovers it.
+- Only "Restart session", or an invalidating edit that forces a proxy app rebuild, recovers it.
 
 **Mechanism.**
 
@@ -140,7 +140,7 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 **The session can also loop silently.** `onWatcherBatch` (`:425-431`) bypasses the reducer, so:
 
-- a gradle/manifest save while Degraded still forces a rebaseline;
+- a gradle/manifest save while Degraded still forces a proxy app rebuild;
 - a plain code save builds against the dead daemon, fails, and re-enters Degraded.
 
 **Evidence.** Code reading.
@@ -157,26 +157,26 @@ That list is honest about what Quick Build deliberately does not do. These five 
 | 3   | Serialize the daemon lifecycle with a mutex so shutdown and respawn cannot interleave | Bigger, but addresses the cause.                             |
 | 4   | A bounded retry (two attempts, then park with a message)     | Keeps the reasoning behind today's deliberate no-auto-retry while removing the dead end. |
 
-## #91 — An organic test-app crash never reaches the crash surface
+## #91 — An organic proxy-app crash never reaches the crash surface
 
 **Task #91.**
 
 **What the user sees.**
 
 - Their app crashes on its own. CoGo shows nothing and still reports the session up to date.
-- On their next save the build compiles fine and then fails with **"Test app is not connected"** — a deploy-infrastructure message for what was actually a crash in their code, with no stack summary.
+- On their next save the build compiles fine and then fails with **"Proxy app is not connected"** — a deploy-infrastructure message for what was actually a crash in their code, with no stack summary.
 
 **Mechanism.**
 
 - The runtime reports a crash only while a reload is in flight: `QuickBuildRuntime.java:306` gates on `pendingReloadGeneration >= 0`, which is set only inside `handlePayload` (`:205`) and cleared on the first resumed frame (`:235`). Between builds it is `-1`, there is no `else`, and the throwable passes to the previous handler.
-- **The death *****is***** detected — it is just routed nowhere:** `TestAppConnections.onDisconnected()` emits `TargetReport.Disconnected`, but the session manager's collector (`QuickBuildSessionManager.kt:235`) only tests for `TargetReport.Crashed` and drops everything else.
+- **The death *****is***** detected — it is just routed nowhere:** `ProxyAppConnections.onDisconnected()` emits `TargetReport.Disconnected`, but the session manager's collector (`QuickBuildSessionManager.kt:235`) only tests for `TargetReport.Crashed` and drops everything else.
 
-**Worth knowing for the fix.** Even when `TestAppCrashed` *does* fire, the summary is never shown — it reaches `Ready(lastFailure = TestAppCrash(...))` and then the same red icon, with no `surfaceUserMessage` on that path. **The entire user-visible consequence of a crash today is an icon colour.**
+**Worth knowing for the fix.** Even when `ProxyAppCrashed` *does* fire, the summary is never shown — it reaches `Ready(lastFailure = ProxyAppCrash(...))` and then the same red icon, with no `surfaceUserMessage` on that path. **The entire user-visible consequence of a crash today is an icon colour.**
 
 **Evidence.** Code reading.
 
 - The downstream symptom is the same "not connected" captured for defect 2.
-- No run deliberately crashed a test app between builds, so this specific path is `[unmeasured]` on device.
+- No run deliberately crashed a proxy app between builds, so this specific path is `[unmeasured]` on device.
 
 **Options.**
 
@@ -193,9 +193,9 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 **What the user sees.**
 
-- A rebaseline needs to reinstall the test app.
+- A proxy app rebuild needs to reinstall the proxy app.
 - If CoGo is backgrounded — the normal middle of the loop, since the user switches to their app to look at it — no dialog appears.
-- Quick Build waits **180 seconds** in silence, then flashes *"Test app install was not confirmed within 180s. Tap Quick Build to retry."* with a single Dismiss button, on a screen the user is not looking at.
+- Quick Build waits **180 seconds** in silence, then flashes *"Proxy app install was not confirmed within 180s. Tap Quick Build to retry."* with a single Dismiss button, on a screen the user is not looking at.
 - The message says they failed to confirm something never shown to them.
 
 **The stated mechanism in this repo is wrong, and it points the fix in the wrong direction.**
@@ -208,10 +208,10 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 - The subscriber that owns the dialog is lifecycle-bound: only `InstallationResultHandler.onResult` (`:59-73`) can launch the confirm activity, it requires an `Activity` (`:40`), and EventBus registration is `onStart`/`onStop`-scoped (`BaseIDEActivity.kt:72-84`) — so backgrounded, the non-sticky post lands with zero subscribers.
 - A background `startActivity` would be blocked on Android 10+ anyway.
-- Meanwhile the quick-build-side listener is *not* lifecycle-bound (`QuickBuildModule.kt:87`) and **does** receive the event — it simply discards it, because `TestAppInstaller.kt:59-60` defines terminal as SUCCESS or FAILURE only, leaving the installer in `withTimeoutOrNull` (`:150`, `DEFAULT_TIMEOUT_MILLIS = 180_000L` at `:211`).
+- Meanwhile the quick-build-side listener is *not* lifecycle-bound (`QuickBuildModule.kt:87`) and **does** receive the event — it simply discards it, because `ProxyAppInstaller.kt:59-60` defines terminal as SUCCESS or FAILURE only, leaving the installer in `withTimeoutOrNull` (`:150`, `DEFAULT_TIMEOUT_MILLIS = 180_000L` at `:211`).
 - **No notification-based confirm path exists** anywhere in the install path.
 
-**The message also conflates three situations** (`TestAppInstaller.kt:170-173`):
+**The message also conflates three situations** (`ProxyAppInstaller.kt:170-173`):
 
 - dialog shown and user walked away;
 - dialog shown and cancelled;
@@ -219,10 +219,10 @@ That list is honest about what Quick Build deliberately does not do. These five 
 
 **What the 2026-07-27 fix (****`fe949a9f0`****) does and does not do.**
 
-- It adds `SessionEvent.HostForegrounded` and re-runs the whole Gradle rebaseline on the next resume.
+- It adds `SessionEvent.HostForegrounded` and re-runs the whole Gradle proxy app rebuild on the next resume.
 - It does **not** touch the install path at all.
 - It covers only `Invalidated(awaitingRetry = true)` — the provisioning path still collapses a confirmation timeout into a hard failure (`GradleQuickBuildProvisioner.kt:69`).
-- It has no max-attempts guard, so a user who deliberately declines gets a fresh rebaseline and prompt on every resume.
+- It has no max-attempts guard, so a user who deliberately declines gets a fresh proxy app rebuild and prompt on every resume.
 
 **Evidence, and its limits.** Three device runs, task #80 `[measured on a56, 2026-07-28]`.
 

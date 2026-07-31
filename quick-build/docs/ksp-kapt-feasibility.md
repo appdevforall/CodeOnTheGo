@@ -5,7 +5,7 @@ down to a full Gradle build whenever an edit touches processor input.
 
 Scope note: this is the *research* half of ADFA-4128 WS-E. The shipped half is
 annotation-aware classification (`quick-build/src/main/java/.../domain/annotations/`),
-which keeps a processor-using project on the fast path for edits that provably miss
+which keeps a processor-using project on the live reload path for edits that provably miss
 processor input. That change removes most of the pain; running processors in the daemon
 would remove the rest. Nothing in this document is implemented.
 
@@ -16,8 +16,8 @@ Gradle cache. Versions are named per claim; anything unverified says so.
 
 | | before WS-E | after WS-E track 1 | with processors in the daemon |
 |---|---|---|---|
-| edit that misses processor input | ~8 s Gradle rebaseline | fast path (~1 s) | fast path |
-| edit that touches processor input | ~8 s Gradle rebaseline | ~8 s Gradle rebaseline | fast path + processor run |
+| edit that misses processor input | ~8 s proxy app rebuild | live reload (~1 s) | live reload |
+| edit that touches processor input | ~8 s proxy app rebuild | ~8 s proxy app rebuild | live reload + processor run |
 
 So the remaining prize is narrow: DAO/entity/module edits only. That should temper how much
 machinery is worth spending here.

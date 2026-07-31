@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **14 of 16 template x language combinations work end to end** `[measured on a56]` — provision, install, launch and hot-reload on a real device, in both languages, with warm saves between 0.3 s and 2.3 s.
+- **14 of 16 template x language combinations work end to end** `[measured on a56]` — provision, install, launch and live-reload on a real device, in both languages, with warm saves between 0.3 s and 2.3 s.
 - What that covers:
   - the nine templates CoGo ships in `assets/core.cgt`; seven exist in both Kotlin and Java, two are single-language, giving 16 combinations
   - all 16 walked on device; the two failures are No Activity (Kotlin and Java), which by design produce no runnable app
@@ -11,7 +11,7 @@
   - **Compose** provisions and installs cleanly, but its code-edit loop was never timed `[unmeasured]` — the template using the most modern UI toolkit is the least measured
   - **Room-class apps are blocked entirely offline** by a missing bundle dependency, which for an offline-first product is the more serious of the two gaps
   - this sweep tested *templates*: freshly generated, single-module, small. The 30-app real-world corpus is where the harder cases live, and that is a separate result ([`benchmarking.md`](benchmarking.md))
-- **Takeaway: template coverage is no longer the risk.** Every template that produces a runnable app hot-reloads in both languages; what remains is a bundle-contents gap (Room/KSP) that fails before Quick Build is involved, and one untimed loop.
+- **Takeaway: template coverage is no longer the risk.** Every template that produces a runnable app live-reloads in both languages; what remains is a bundle-contents gap (Room/KSP) that fails before Quick Build is involved, and one untimed loop.
 
 Status: every built-in CoGo template walked on device 2026-07-23.
 
@@ -53,9 +53,9 @@ The seven viewBinding templates are exactly the seven Bug 1 broke, which is why 
 
 ## Where this started: Quick Build was unusable on almost every template
 
-Before the config-cache fix, the setup build failed on all seven viewBinding templates — 14 of the 16 combinations — so Quick Build was unusable on almost every app a user would create from a template. That was Bug 1, and it is the one David hit.
+Before the config-cache fix, the proxy app build failed on all seven viewBinding templates — 14 of the 16 combinations — so Quick Build was unusable on almost every app a user would create from a template. That was Bug 1, and it is the one David hit.
 
-## Language is the dominant cost; the reload itself never is
+## Language is the dominant cost; the apply step never is
 
 From the merged sweeps, 12 measured loops `[measured on a56]`:
 
@@ -69,14 +69,14 @@ From the merged sweeps, 12 measured loops `[measured on a56]`:
 
 - **Language is the dominant lever** — Kotlin costs ~2.6x Java warm, all of it kotlinc.
 - **Resource edits are the fastest class**, because an aapt2 relink beats a Kotlin compile; before Bugs 6 and 8 they were the class that crashed.
-- **The reload mechanism itself is 15-87 ms** for code and 41 ms for a resource edit, in every sample. All the latency is compile — the same conclusion the C107 reached independently ([`low-spec-devices.md`](low-spec-devices.md)), and why [`perf-roadmap.md`](perf-roadmap.md) is entirely about compile.
-- **The cold-first-build row is what the background seed at provisioning exists to hide**: it moves that ~11 s Kotlin penalty off the user's first save.
+- **The apply step (the in-app swap) is 15-87 ms** for code and 41 ms for a resource edit, in every sample. All the latency is compile — the same conclusion the C107 reached independently ([`low-spec-devices.md`](low-spec-devices.md)), and why [`perf-roadmap.md`](perf-roadmap.md) is entirely about compile.
+- **The cold-first-build row is what the background warm compile at provisioning exists to hide**: it moves that ~11 s Kotlin penalty off the user's first save.
 
 ## The seven bugs the walk found
 
 Numbering is the ticket's. Bugs 1-3 preceded the sweep; 4-10 are what walking the templates found. Each was checked against the branch, not against the status doc.
 
-**Bug 4 — the generated test app crash-looped on launch.**
+**Bug 4 — the generated proxy app crash-looped on launch.**
 
 - Scope: any androidx-based app.
 - Cause: Quick Build generated a proxy for `androidx.startup.InitializationProvider`, a library component the daemon never recompiles, so proxying it bought nothing and broke initialization.
@@ -106,7 +106,7 @@ Numbering is the ticket's. Bugs 1-3 preceded the sweep; 4-10 are what walking th
 
 - Scope: Material3 themes, a library manifest reference.
 - Cause: the hot relink had no access to the libraries' compiled resources.
-- Fix: feed the setup build's compiled library resource units (`.flat` files) to `aapt2 link` as overlays.
+- Fix: feed the proxy app build's compiled library resource units (`.flat` files) to `aapt2 link` as overlays.
 - Verified: `20260723T140211Z-bug678-verify`.
 
 **Bug 9 — Navigation-Component templates crashed on first launch.**
@@ -115,11 +115,11 @@ Numbering is the ticket's. Bugs 1-3 preceded the sweep; 4-10 are what walking th
 - Cause: `Context#getClassLoader()` is pinned to the base APK's shell classloader at LoadedApk-attach time, and androidx's default `FragmentFactory` resolves nav-graph destinations through it — but user classes live only in the payload dex.
 - Scoped precisely by the sweep: **Tabbed did not hit it**, because `ViewPager2`/`FragmentStateAdapter` instantiate fragments in code rather than by XML class name.
 - Fix: every generated proxy activity overrides `getClassLoader()` via `QuickBuildClassLoaders.forActivity`.
-- Verified on device 2026-07-28 across all four affected combinations `[measured on a56]` — clean launch with the nav-graph Home fragment rendered, plus a fast-path edit landing live: Bottom Nav Kotlin 2313 ms, Nav Drawer Java 1231 ms, zero rebaselines (`20260728T063125Z-bug9-navfrag-verify`, other two arms re-confirmed in `20260728T064805Z-consolidated-verify`).
+- Verified on device 2026-07-28 across all four affected combinations `[measured on a56]` — clean launch with the nav-graph Home fragment rendered, plus a live-reload edit landing live: Bottom Nav Kotlin 2313 ms, Nav Drawer Java 1231 ms, zero proxy app rebuilds (`20260728T063125Z-bug9-navfrag-verify`, other two arms re-confirmed in `20260728T064805Z-consolidated-verify`).
 
 **Bug 10 — the No-Activity template reported a build failure that had not happened.**
 
-- Cause: the Gradle setup build succeeded and wrote `setup.json`, but with `entryActivity` null — there is no launchable Activity, by design. `SetupInfo` parsing rejected that as a missing required field and the user saw the generic "Quick Build setup build failed" banner.
+- Cause: the Gradle proxy app build succeeded and wrote `setup.json`, but with `entryActivity` null — there is no launchable Activity, by design. `ProxyAppInfo` parsing rejected that as a missing required field and the user saw the generic "Quick Build proxy app build failed" banner.
 - Fix: `entryActivity` is now nullable, and the session refuses with a friendly message instead of faking either success or a build failure.
 - Verified: 2026-07-28.
 
@@ -127,7 +127,7 @@ Numbering is the ticket's. Bugs 1-3 preceded the sweep; 4-10 are what walking th
 
 **No-Activity projects (2 of 16).**
 
-- Nothing to run, so nothing to hot-reload.
+- Nothing to run, so nothing to live-reload.
 - Quick Build now says so clearly rather than reporting a phantom build failure.
 - Correct behaviour, not a defect — counted as a fail above only because those two combinations do not produce a working session.
 
@@ -136,12 +136,12 @@ Numbering is the ticket's. Bugs 1-3 preceded the sweep; 4-10 are what walking th
 - Room, KSP, and in fact every recognized annotation processor's codegen jar (dagger-compiler, auto-value, Moshi, Glide) are **entirely absent from the bundled offline Maven repo**. Verified two ways:
   - on device, `find` over CoGo's bundled maven tree returns zero hits for `room`, `ksp` or `symbol-processing` `[measured on a56]`
   - in the shipped asset, `assets/localMvnRepository.zip` (1,509 files) contains no matching entry while a full androidx set is present `[measured on host]`
-- Consequence: such a project **cannot complete its first standard Gradle setup build offline** — it fails before Quick Build is involved. Bundle gap, backlog #5.
+- Consequence: such a project **cannot complete its first proxy app build (a standard Gradle build) offline** — it fails before Quick Build is involved. Bundle gap, backlog #5.
 - Given one online build, it all works `[measured on a56, 2026-07-28]` (`20260728T113213Z-task32-roomksp-online`):
   - `:app:kspDebugKotlin` ran on the phone
   - the feared sqlite-jdbc query-verifier wall never fired
   - the generated `_Impl` classes compiled, and the app launched clean
-  - both directions of annotation-impact routing were verified — a body-only edit inside the `@Database` file stayed on the `CodeOnly` fast path, while adding a field to an `@Entity` escalated to `ANNOTATION_PROCESSOR_INPUT_CHANGED` and rebaselined in 21.5 s
+  - both directions of annotation-impact routing were verified — a body-only edit inside the `@Database` file stayed on the `CodeOnly` live reload route, while adding a field to an `@Entity` escalated to `ANNOTATION_PROCESSOR_INPUT_CHANGED` and took a proxy app rebuild in 21.5 s
 - Whether such a project then works **fully offline** after one online priming run is still `[unmeasured]` (task #98).
 - That same online run is where reliability defects 1 and 2 were caught; see [`reliability-gaps.md`](reliability-gaps.md).
 
@@ -150,7 +150,7 @@ Numbering is the ticket's. Bugs 1-3 preceded the sweep; 4-10 are what walking th
 The 07-28 consolidated run records 12 of 13 checks green, with `bug12-add-file` marked FAIL.
 
 - That is a **harness assertion, not a product failure**: `adb push` creates the file and then writes its content, and the two watcher events landed in separate coalescing batches, so the step produced two back-to-back `CodeOnly` builds where the driver asserted exactly one.
-- Both were incremental successes with zero invalidations and zero rebaselines.
+- Both were incremental successes with zero invalidations and zero proxy app rebuilds.
 - A real in-IDE save is a single write.
 - Worth knowing because the same artefact inflates build counts elsewhere in the benchmark data.
 

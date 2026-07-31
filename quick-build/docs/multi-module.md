@@ -1,6 +1,6 @@
 # Decision: Library-module edits cost a 25 s rebuild and an install tap (multi-module projects otherwise work today)
 
-**Status**: multi-module support is verified working on device as of 2026-07-28; the 07-22 framing of this gap was wrong and is corrected below. The "Level 2" fast path remains designed, unbuilt, and parked on this go/no-go.
+**Status**: multi-module support is verified working on device as of 2026-07-28; the 07-22 framing of this gap was wrong and is corrected below. The "Level 2" live reload path remains designed, unbuilt, and parked on this go/no-go.
 
 **Provenance**: tags are mandatory — `[measured on a56]`, `[measured on host]`, `[inferred]`, `[unmeasured]`, `[assumed]`. Untagged prose is code reading.
 
@@ -8,13 +8,13 @@
 
 ## Summary
 
-- Multi-module projects **work correctly today** — a two-module project provisions (`Ready gen=0` in 67 s) and an app-module edit hot-reloads in 2.55 s `[measured on a56]`. The 07-22 claim that they were rejected at setup was wrong.
-- What is slow is everything **outside** the app module: any such edit routes to a full rebaseline — 25 s edit->Ready `[measured on a56]`, plus an Android install-confirm tap, on **every** library edit.
+- Multi-module projects **work correctly today** — a two-module project provisions (`Ready gen=0` in 67 s) and an app-module edit live-reloads in 2.55 s `[measured on a56]`. The 07-22 claim that they were rejected at provisioning was wrong.
+- What is slow is everything **outside** the app module: any such edit routes to a full proxy app rebuild — 25 s edit->Ready `[measured on a56]`, plus an Android install-confirm tap, on **every** library edit.
   - Affected: library-module code and resources, any module's `build.gradle[.kts]`, `settings.gradle`, the version catalog.
   - Estimated reach: ~37% of multi-module commits, ~22% of all surveyed commits `[measured on host, inferred combination]`.
 - The constraint: Level 2 is a **latency** improvement on edits that already behave correctly, not a correctness unblock — and its value rests on `[inferred]` ratios over a commit-level proxy taken from GitHub repos, not CoGo users. It costs ~2-3 calendar weeks `[assumed]` plus standing harness/CI upkeep, and it competes with better-evidenced storage work in [`perf-roadmap.md`](perf-roadmap.md).
 - **Decision: do we build Level 2 this cycle?** Recommendation: no-go — take L2.0 plus analytics and revisit with field data.
-  - Payoff if we do build it: ~25 s rebaseline + install tap -> projected ~2-3 s hot reload `[inferred]` on that ~37%, and the team can finally dogfood Quick Build on CoGo's own ~88-module codebase.
+  - Payoff if we do build it: ~25 s proxy app rebuild + install tap -> projected ~2-3 s live reload `[inferred]` on that ~37%, and the team can finally dogfood Quick Build on CoGo's own ~88-module codebase.
 
 ## Recommendation: no-go this cycle
 
@@ -39,7 +39,7 @@ Why the storage work wins if only one thing lands. Level 2 competes with the mea
 ## The correction: the gap was a silent-stale bug, not a rejection
 
 - The 07-22 status said multi-module projects were **rejected at Quick Build setup**. That is not what the code does and not what the device does.
-- A two-module project (`:app` + `:lib`) provisions and Quick-Builds fine — `Ready gen=0` in 67 s, and an app-module edit hot-reloads in 2.55 s `[measured on a56]`.
+- A two-module project (`:app` + `:lib`) provisions and runs Quick Build fine — `Ready gen=0` in 67 s, and an app-module edit live-reloads in 2.55 s `[measured on a56]`.
 - The real gap was worse than a rejection, and quieter: **library-module edits were invisible to the watcher.**
   - The watcher only watched the app module's `src`, so a save in `:lib` fired no event at all — no build, no reload, no fallback, no error.
   - The running app kept serving the old library code while the editor showed the new source.
@@ -61,22 +61,22 @@ Three scopes, in `data/QuickBuildProjectLayout.kt`:
   - `gradle.properties`
   - `gradle/libs.versions.toml`
   - every module's `build.gradle[.kts]`
-- **Fast-path scope** (`fastPathScope()`) — `app/src` only. The app module is the directory literally named `app`.
+- **Live-reload scope** (`fastPathScope()`; the identifier keeps the older name) — `app/src` only. The app module is the directory literally named `app`.
 
 Routing:
 
-- `ChangeClassifier` routes any watched code/resource/asset change **outside** the fast-path scope to `BuildRoute.FullGradleBuild` with `InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED`.
-- An empty fast-path scope disables the boundary entirely, which is how single-module projects keep their previous behaviour.
+- `ChangeClassifier` routes any watched code/resource/asset change **outside** the live-reload scope to `BuildRoute.FullGradleBuild` with `InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED`.
+- An empty live-reload scope disables the boundary entirely, which is how single-module projects keep their previous behaviour.
 
-| Edit                                                         | Route                                | Cost                                                         |
-| ------------------------------------------------------------ | ------------------------------------ | ------------------------------------------------------------ |
-| App-module code / resources / assets                         | fast path                            | 2.55 s save->live `[measured on a56]`                        |
-| Any other module's code / resources                          | rebaseline (full Gradle setup build) | 25 s edit->Ready, including the reinstall `[measured on a56]` |
-| Any module's `build.gradle[.kts]`, `settings.gradle`, version catalog | rebaseline                           | as above                                                     |
+| Edit                                                         | Route                                   | Cost                                                         |
+| ------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------ |
+| App-module code / resources / assets                         | live reload                             | 2.55 s save->live `[measured on a56]`                        |
+| Any other module's code / resources                          | proxy app rebuild (a full Gradle build) | 25 s edit->Ready, including the reinstall `[measured on a56]` |
+| Any module's `build.gradle[.kts]`, `settings.gradle`, version catalog | proxy app rebuild                       | as above                                                     |
 
 The scan errs toward watching **more** than it needs, deliberately:
 
-- Over-inclusion is harmless — a stray module's edit merely rebaselines.
+- Over-inclusion is harmless — a stray module's edit merely takes a proxy app rebuild.
 - Under-inclusion resurrects the silent-drop bug.
 - The depth-4 bound is the one place that can still under-include: a `:a:b:c:d`-deep module path watches less of its tail, and those edits fall back to the periodic mtime sweep. Rare shape, `[unmeasured]` in the wild.
 
@@ -84,24 +84,24 @@ The scan errs toward watching **more** than it needs, deliberately:
 
 `20260728T044815Z-watchscope-verify2-run4`, all checks PASS `[measured on a56]`. The project carries visible `APP-Vn` / `LIB-Vn` UI markers so staleness is observable on screen rather than inferred from logs:
 
-| Check                         | Result                                              |
-| ----------------------------- | --------------------------------------------------- |
-| Two-module project provisions | Ready gen=0 in 67 s                                 |
-| Baseline UI                   | `APP-V1`, `LIB-V1`                                  |
-| Library edit is seen          | `invalidation reason=NON_APP_MODULE_SOURCE_CHANGED` |
-| Library edit rebaselines      | `rebaseline ok=true`, edit->Ready 25 s              |
-| Library edit reaches the app  | `APP-V1`, `LIB-V2`                                  |
-| App edit fast-paths           | `reload_timeline gen=1`, save->live 2550 ms         |
-| App edit reaches the app      | `APP-V2`, `LIB-V2`                                  |
+| Check                                  | Result                                                       |
+| -------------------------------------- | ------------------------------------------------------------ |
+| Two-module project provisions          | Ready gen=0 in 67 s                                          |
+| Baseline UI                            | `APP-V1`, `LIB-V1`                                           |
+| Library edit is seen                   | `invalidation reason=NON_APP_MODULE_SOURCE_CHANGED`          |
+| Library edit takes a proxy app rebuild | `rebaseline ok=true` (bench event; frozen spelling), edit->Ready 25 s |
+| Library edit reaches the app           | `APP-V1`, `LIB-V2`                                           |
+| App edit live-reloads                  | `reload_timeline gen=1`, save->live 2550 ms                  |
+| App edit reaches the app               | `APP-V2`, `LIB-V2`                                           |
 
 - The never-stale invariant holds in both directions: the library edit visibly landed, and the app edit did not lose it.
-- Protocol note for future readers: a successful rebaseline **resets the generation counter to 0** `[measured on a56]`, and post-rebaseline reloads resume at gen=1. Any consumer assuming monotonically increasing generations across a rebaseline will break.
+- Protocol note for future readers: a successful proxy app rebuild **resets the generation counter to 0** `[measured on a56]`, and post-rebuild reloads resume at gen=1. Any consumer assuming monotonically increasing generations across a proxy app rebuild will break.
 
-## The install prompt makes the rebaseline path fragile
+## The install prompt makes the proxy app rebuild path fragile
 
 The first verification run **failed**, and for a more interesting reason than a missing tap `[measured on a56]`:
 
-- A rebaseline reinstall needs the user to confirm an Android install dialog.
+- A proxy app rebuild reinstall needs the user to confirm an Android install dialog.
 - If CoGo is backgrounded — exactly where the user is if they are looking at their running app — no dialog appears.
 - The installer times out at 180 s and the edit is silently lost.
 - A dialog-tapping harness cannot rescue this; there is nothing to tap.
@@ -109,7 +109,7 @@ The first verification run **failed**, and for a more interesting reason than a 
 Scope and mitigations:
 
 - This is not multi-module-specific — it is the install-confirm gap owned by [`reliability-gaps.md`](reliability-gaps.md) defect 5, which also corrects the mechanism (the broadcast is deferred, not dropped; the failure is on our side).
-- But multi-module makes it a **per-edit** concern rather than once-per-session, because every library edit rebaselines. That is a real argument for Level 2 that the latency numbers alone understate.
+- But multi-module makes it a **per-edit** concern rather than once-per-session, because every library edit takes a proxy app rebuild. That is a real argument for Level 2 that the latency numbers alone understate.
 - `0ea640921` parks the session recoverable instead of dying to Idle.
 - `fe949a9f0` re-prompts when CoGo next comes to the foreground.
 - With CoGo foregrounded the dialog appears ~15 s after the edit and one tap confirms `[measured on a56]`.
@@ -119,24 +119,24 @@ Scope and mitigations:
 - The design is written and reviewed; it is not restated here. See `docs/product/plans/2026-07-27_ADFA-4128_qb-multimodule/level2-design.md` in the wrapper repo (fuller prior revision archived beside it).
   - Its §4 is the implementation directive if the team says go.
   - Its §4.10 has the staging table and the L2.2 decision gate.
-- In one line: emit the module dependency graph from the setup build, run one incremental-compile session per module, recompile the edited module and its dependents in dependency order, keep the edited module's resources live in the relink, and merge everything into one hot-apply.
-- The test app and the reload protocol do not change — modules are a build-time concept only.
+- In one line: emit the module dependency graph from the proxy app build, run one incremental-compile session per module, recompile the edited module and its dependents in dependency order, keep the edited module's resources live in the relink, and merge everything into one hot-apply.
+- The proxy app and the reload protocol do not change — modules are a build-time concept only.
 - **A correction now applied to the design doc.** It used to say "today Quick Build rejects multi-module projects at setup, so without this design their share is 0%" — the claim this device run overturned, and load-bearing for how its value table read. It now credits only category 2 to the design and defers to this page for device evidence.
 
 ## What the survey says it is worth
 
 From [`commit-survey.md`](commit-survey.md) `[measured on host]`: 60 of 99 surveyed real Android repos are multi-module, holding ~60% of surveyed commits (1,878 classified). The design doc's value table splits those as:
 
-| Category                                                     | Share | Status today                   |
-| ------------------------------------------------------------ | ----- | ------------------------------ |
-| 1 — existing machinery (no-op commits 25.3%, app-module code 11.1%) | 36.4% | **already works**              |
-| 2 — added by Level 2 (library code 20.8%, multi-module saves 10.9%, code+resources 4.8%, resource values 0.7%, assets 0.2%) | 37.4% | correct today, but rebaselines |
-| 3 — still a full build (gradle/manifest/processor 24.7%, resource shape changes 1.4%) | 26.1% | unchanged by Level 2           |
+| Category                                                     | Share | Status today                                 |
+| ------------------------------------------------------------ | ----- | -------------------------------------------- |
+| 1 — existing machinery (no-op commits 25.3%, app-module code 11.1%) | 36.4% | **already works**                            |
+| 2 — added by Level 2 (library code 20.8%, multi-module saves 10.9%, code+resources 4.8%, resource values 0.7%, assets 0.2%) | 37.4% | correct today, but takes a proxy app rebuild |
+| 3 — still a full build (gradle/manifest/processor 24.7%, resource shape changes 1.4%) | 26.1% | unchanged by Level 2                         |
 
 Read with the correction applied:
 
 - The marginal value of Level 2 is **category 2 alone: ~37% of multi-module commits** — about 22% of all surveyed commits `[measured on host, inferred combination]`.
-- Those edits move from a ~25 s rebaseline with an install prompt to a projected ~2-3 s hot reload `[inferred]`.
+- Those edits move from a ~25 s proxy app rebuild with an install prompt to a projected ~2-3 s live reload `[inferred]`.
 - Category 1's 36.4% is already delivered and is not Level 2's to claim.
 
 Both the shares and the ratios carry real caveats:

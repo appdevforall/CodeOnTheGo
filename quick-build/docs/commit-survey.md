@@ -1,4 +1,4 @@
-# Information: How often Quick Build's fast path applies to real commits (the headline is optimistic)
+# Information: How often Quick Build's live reload path applies to real commits (the headline is optimistic)
 
 **Status**: complete and reproducible, but a proxy rather than a metric. Its classifier has fallen behind the shipped one since the run.
 
@@ -6,12 +6,12 @@
 
 ## Summary
 
-- Across 99 repos and 3,126 human-authored commits, **72.4% of commits would take Quick Build's fast path** under the watch scope the device actually ships. The strict per-file reading, which assumes the device sees every file in the repo, is 41.3%.
+- Across 99 repos and 3,126 human-authored commits, **72.4% of commits would take Quick Build's live reload path** under the watch scope the device actually ships. The strict per-file reading, which assumes the device sees every file in the repo, is 41.3%.
 - Two things make that headline optimistic:
-  - **Most of the gain is invisible edits, not reloads.** 708 of the 970 commits that flip to the fast path under watch scope are device no-ops — the watcher never sees their files, so nothing happens on screen. Only **49.5% take a route that actually reloads something**.
-  - **The survey's classifier was behind the shipped one; the boundary rule is now measured.** Re-classifying the cached commit file lists with the shipped app-module rule takes quick-buildable commits in multi-module repos from **687 (43.8%) to 393 (25.0%)** — **294 flips, so 42.8% of what the shape-only classifier called quick was wrong there**. Of the 1,570 commits in repos whose app module resolved, **31.6% edit inside the app module** (fast path today) and **34.4% touch source outside it** (the Level 2 population); 308 commits in 10 unresolvable repos are excluded, not assumed. Evidence: `corpus/results/analysis/app-module-boundary.json` `[measured 2026-07-29]`. The remaining gap is annotation-processor escalation, which is not reachable from commit metadata — it needs a real setup build's baseline. Superseded estimate, kept for the record: The app-module boundary rule landed after the run; applying it takes 72.4% to **~49.9%**, and the reload share to **~27.0%**. A second rule (annotation-processor escalation) pushes both lower by an amount nobody has bounded.
+  - **Most of the gain is invisible edits, not reloads.** 708 of the 970 commits that flip to the live reload path under watch scope are device no-ops — the watcher never sees their files, so nothing happens on screen. Only **49.5% take a route that actually reloads something**.
+  - **The survey's classifier was behind the shipped one; the boundary rule is now measured.** Re-classifying the cached commit file lists with the shipped app-module rule takes live-reloadable commits in multi-module repos from **687 (43.8%) to 393 (25.0%)** — **294 flips, so 42.8% of what the shape-only classifier called quick was wrong there**. Of the 1,570 commits in repos whose app module resolved, **31.6% edit inside the app module** (live reload path today) and **34.4% touch source outside it** (the Level 2 population); 308 commits in 10 unresolvable repos are excluded, not assumed. Evidence: `corpus/results/analysis/app-module-boundary.json` `[measured 2026-07-29]`. The remaining gap is annotation-processor escalation, which is not reachable from commit metadata — it needs a real proxy app build's baseline. Superseded estimate, kept for the record: The app-module boundary rule landed after the run; applying it takes 72.4% to **~49.9%**, and the reload share to **~27.0%**. A second rule (annotation-processor escalation) pushes both lower by an amount nobody has bounded.
 - Per-repo variation is enormous — median 42.3%, repos at both 0% and 100%. This is a population number, not a typical-repo number.
-- **Believe ~50% fast-path and ~27% actually-reloads, as ceilings — not 72.4% — and use them to rank gaps rather than as a product metric.** A commit is not an edit.
+- **Believe ~50% live-reload and ~27% actually-reloads, as ceilings — not 72.4% — and use them to rank gaps rather than as a product metric.** A commit is not an edit.
 
 ## What the survey found
 
@@ -19,24 +19,24 @@ Across 99 repos and 3,126 human-authored commits `[measured on host]`:
 
 | reading            | result                            | what it assumes                                              |
 | ------------------ | --------------------------------- | ------------------------------------------------------------ |
-| strict per-file    | **41.3%** quick-buildable (1,292) | the device sees every file in the repo                       |
+| strict per-file    | **41.3%** live-reloadable (1,292) | the device sees every file in the repo                       |
 | device watch scope | **72.4%** (2,262)                 | the device sees only `<module>/src/**` plus gradle config — which is what actually ships |
-| of which sound     | **70.8%**                         | excluding 49 commits (1.6%) that would fast-path past a real build input |
+| of which sound     | **70.8%**                         | excluding 49 commits (1.6%) that would live-reload past a real build input |
 | multi-module       | 60.6% of repos, 60.1% of commits  | 60 of 99 repos have more than one module — by the survey's definition, not the shipped one |
 
-Per-repo variation is enormous `[measured on host]`: median 42.3% quick-buildable, interquartile range 12.9%-60.0%, with repos at both 0% and 100%. The headline is a population number, not a typical-repo number.
+Per-repo variation is enormous `[measured on host]`: median 42.3% live-reloadable, interquartile range 12.9%-60.0%, with repos at both 0% and 100%. The headline is a population number, not a typical-repo number.
 
 **Use these numbers to rank gaps, not to state a product metric.**
 
 - "Build config is the biggest remaining fallback cause" is sound from this data.
-- "72% of developer edits hot-reload" is not — a commit is not an edit:
+- "72% of developer edits live-reload" is not — a commit is not an edit:
   - Developers save many times per commit, and it is saves that hit the watcher.
   - The saves in between are almost by construction more likely to be plain code edits, because the dependency bump and the manifest change get folded into the same commit as the code they enable.
   - GitHub does not record saves at all.
 
 ## What 72.4% does not mean
 
-**72.4% does not mean 72% of commits hot-reload your change.** 970 commits flip from fallback to fast path once you account for what the watcher cannot see, but **708 of those 970 flip to ****`NoOp`** — their only changed files are invisible, so on a device nothing happens at all.
+**72.4% does not mean 72% of commits live-reload your change.** 970 commits flip from fallback to the live reload path once you account for what the watcher cannot see, but **708 of those 970 flip to ****`NoOp`** — their only changed files are invisible, so on a device nothing happens at all.
 
 The genuinely useful flips `[measured on host]`:
 
@@ -60,25 +60,25 @@ The no-op bucket is the 708 flips plus the 7 commits the strict reading already 
 
 ## Why every number is a ceiling
 
-The Python classifier mirrors the shipped Kotlin one (`quick-build/.../domain/ChangeClassifier.kt`) rule for rule, and `--selftest` passes 39 of 39 cases from `ChangeClassifierTest` `[measured on host]`. But it mirrors the **path-shape rules only**, and the Kotlin classifier has since grown two rules outside that shape. Both send commits to fallback that the survey scores as fast-path:
+The Python classifier mirrors the shipped Kotlin one (`quick-build/.../domain/ChangeClassifier.kt`) rule for rule, and `--selftest` passes 39 of 39 cases from `ChangeClassifierTest` `[measured on host]`. But it mirrors the **path-shape rules only**, and the Kotlin classifier has since grown two rules outside that shape. Both send commits to fallback that the survey scores as live-reload:
 
 - **`annotationImpact.escalation(...)`** (`ChangeClassifier.kt:111`)
-  - On a project with a KSP/kapt processor, a code change that could have moved generated code escalates to a rebaseline.
+  - On a project with a KSP/kapt processor, a code change that could have moved generated code escalates to a proxy app rebuild.
   - Content-aware, so no path-only mirror can model it.
   - It landed 2026-07-24, **before** this run, and the survey does not account for it.
 - **`fastPathRoots`**** / ****`NON_APP_MODULE_SOURCE_CHANGED`** (`ChangeClassifier.kt:78-82`)
-  - Any code, resource or asset edit outside the app module's `src` root rebaselines, because the quick path incrementally compiles only the app module.
+  - Any code, resource or asset edit outside the app module's `src` root takes a proxy app rebuild, because the live reload path incrementally compiles only the app module.
   - It landed 2026-07-27 17:53 PDT, **after** the 06:02 UTC survey run.
-  - This bites hardest in the 60 multi-module repos: every commit the survey counts as code-in-a-library-module would rebaseline on today's build.
+  - This bites hardest in the 60 multi-module repos: every commit the survey counts as code-in-a-library-module would take a proxy app rebuild on today's build.
   - Unlike the annotation rule, this one's effect is **arithmetically computable** from the artifacts already on disk — see below.
 
 ### Sizing the app-module-boundary correction
 
-[`multi-module.md`](multi-module.md)'s category 2 is exactly the set this rule moves: commits that are correct today but would now rebaseline. It is **37.4% of the 1,878 multi-module commits = 702 commits**. Subtracting them from the survey's own totals `[measured on host, arithmetic on host]`:
+[`multi-module.md`](multi-module.md)'s category 2 is exactly the set this rule moves: commits that are correct today but would now take a proxy app rebuild. It is **37.4% of the 1,878 multi-module commits = 702 commits**. Subtracting them from the survey's own totals `[measured on host, arithmetic on host]`:
 
 | reading                             | as surveyed   | with the rule applied |
 | ----------------------------------- | ------------- | --------------------- |
-| watch-scope fast path               | 72.4% (2,262) | **49.9% (1,560)**     |
+| watch-scope live reload             | 72.4% (2,262) | **49.9% (1,560)**     |
 | of which actually reloads something | 49.5% (1,547) | **27.0% (845)**       |
 
 That is a **bound, not a point estimate**, and it is loose in both directions:
@@ -91,7 +91,7 @@ That is a **bound, not a point estimate**, and it is loose in both directions:
 ### The biases that cannot be sized
 
 - **`annotationImpact`**** is currently unbounded.** It is content-aware, it fires only in projects carrying a KSP or kapt processor, and neither the survey nor the multi-module artifact records which repos those are. Bounding it needs one cheap addition to the next run — a per-repo "declares a KSP/kapt plugin" flag, readable from the same repo trees the module scan already walks — which would at least cap the affected share.
-- **Truncated file lists.** Commit file lists are capped by the GitHub REST API at 300 files, and a hidden gradle file past the cap could only move a commit from fast-path to fallback. A `truncated` flag is recorded per commit but **nothing reads it**, so the bias is unmitigated.
+- **Truncated file lists.** Commit file lists are capped by the GitHub REST API at 300 files, and a hidden gradle file past the cap could only move a commit from live reload to fallback. A `truncated` flag is recorded per commit but **nothing reads it**, so the bias is unmitigated.
 - **Routes, not outcomes.** A `CodeOnly` verdict means "Quick Build would try", not "would succeed".
 - **Project shape ignored.** A commit in a project Quick Build cannot provision at all still classifies as `CodeOnly`.
 
@@ -124,9 +124,9 @@ Under watch scope, a fallback commit flips only when *every* blocking file is in
 - Any gradle-config or manifest blocker keeps it fallback — both are watched.
 - So does any unsupported file under `src/`: watched, and genuinely unsupported (a `.png` misplaced in `src`, a native `.cpp`).
 
-### Risky flips: 49 commits, 1.6%, that would fast-path past a real build input
+### Risky flips: 49 commits, 1.6%, that would live-reload past a real build input
 
-A **risky flip** is one whose out-of-scope blockers are plausibly real build inputs the watcher misses — `.pro`, `.properties`, `.toml`, `.cmake`, `.c`, `.h`, `.gradle`, `.kts`, `.lock`, `.aar`, `.jar`, `.so` outside `src/`. There the device would fast-path while a full build could legitimately produce something different: the app keeps running with stale ProGuard rules or a stale native library.
+A **risky flip** is one whose out-of-scope blockers are plausibly real build inputs the watcher misses — `.pro`, `.properties`, `.toml`, `.cmake`, `.c`, `.h`, `.gradle`, `.kts`, `.lock`, `.aar`, `.jar`, `.so` outside `src/`. There the device would live-reload while a full build could legitimately produce something different: the app keeps running with stale ProGuard rules or a stale native library.
 
 **49 of them, 1.6% of all commits** `[measured on host]`. That is not a rounding error — it is a correctness exposure, and it is why the watch-scope number should be quoted as "72.4%, of which 1.6 points are unsound".
 
@@ -143,9 +143,9 @@ A **risky flip** is one whose out-of-scope blockers are plausibly real build inp
 - the linked GitHub account — login ending `[bot]`, account type `Bot`, or a login containing dependabot / renovate / greenkeeper / snyk / imgbot / weblate / transifex / crowdin / mergify / allcontributors / github-actions / semantic-release / release-please / pre-commit-ci / restyled;
 - **and** the git identity in the commit object, so it catches bot commits signed under a plain name.
 
-This matters because bot commits are overwhelmingly dependency and translation bumps — exactly the files that force a fallback — so leaving them in would have depressed the fast-path share with edits no human ever made.
+This matters because bot commits are overwhelmingly dependency and translation bumps — exactly the files that force a fallback — so leaving them in would have depressed the live-reload share with edits no human ever made.
 
-## What still cannot quick-build: build config, by a wide margin
+## What still cannot live-reload: build config, by a wide margin
 
 Of the 864 commits (27.6%) that remain fallback under watch scope, causes deduplicated per commit, so the column sums to more than 100% `[measured on host]`:
 
@@ -162,7 +162,7 @@ Of the 864 commits (27.6%) that remain fallback under watch scope, causes dedupl
 Build config dominates, and the raw label counts say what most of it is: `build.gradle.kts` 477, version catalog 206, `gradle.properties` 81, `build.gradle` 71 — dependency and plugin-version bumps.
 
 - That is the single largest remaining gap, and also the one where a fallback is arguably correct: a changed dependency really does need a real build.
-- The open sub-question is whether a *version-only* catalog bump could be handled more cheaply than a full rebaseline, which nothing here answers.
+- The open sub-question is whether a *version-only* catalog bump could be handled more cheaply than a full proxy app rebuild, which nothing here answers.
 
 For reference: shipping a docs/CI/repo-metadata ignore list would take the **strict** reading from 41.3% to 59.1%. That list is not shipped and does not need to be — the device watcher already achieves the same effect and more, which is why watch scope is the reading that describes shipped behaviour.
 
@@ -194,17 +194,17 @@ Within the 1,878, under watch-scope semantics `[measured on host]`:
 
 **Only 376 commits (20% of the multi-module set) touch more than one module.** So multi-module support matters for the majority of real repos, but cross-module edits are a minority of the edits inside them. Design detail: [`multi-module.md`](multi-module.md).
 
-This is the reading most affected by the app-module boundary rule that landed after the run: on today's build an edit to a library module's `src` rebaselines rather than fast-paths, so some share of those 599 single-module and 153 cross-module code commits would not take a fast path at all. The design doc's value table splits that share as its category 2, **37.4% of the 1,878 = 702 commits**, which is what "Sizing the app-module-boundary correction" above subtracts. That split is an assumption of the value table, not a measurement, so the corrected headline is a bound rather than a number.
+This is the reading most affected by the app-module boundary rule that landed after the run: on today's build an edit to a library module's `src` takes a proxy app rebuild rather than live-reloading, so some share of those 599 single-module and 153 cross-module code commits would not take the live reload path at all. The design doc's value table splits that share as its category 2, **37.4% of the 1,878 = 702 commits**, which is what "Sizing the app-module-boundary correction" above subtracts. That split is an assumption of the value table, not a measurement, so the corrected headline is a bound rather than a number.
 
 ## Making this a real metric needs device analytics, not GitHub
 
-The survey is a static proxy and will stay one. Turning "what share of edits hot-reload" into a measurement needs data from the device, not from GitHub. The identified route is **encounter-rate analytics**: the session already emits structured events per build, so counting routes taken per session would answer the question directly, on the devices and project shapes we actually ship to.
+The survey is a static proxy and will stay one. Turning "what share of edits live-reload" into a measurement needs data from the device, not from GitHub. The identified route is **encounter-rate analytics**: the session already emits structured events per build, so counting routes taken per session would answer the question directly, on the devices and project shapes we actually ship to.
 
 Until that exists, quote this survey for what it supports:
 
 - the ranking of gaps — build config first, manifest second, everything else a long tail;
 - the fact that most real repos are multi-module;
-- the fact that roughly 1.6% of commits would take a fast path the shipped watcher cannot fully justify.
+- the fact that roughly 1.6% of commits would take the live reload path the shipped watcher cannot fully justify.
 
 ## Where the code and outputs live
 

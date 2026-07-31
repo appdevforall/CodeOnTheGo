@@ -26,7 +26,7 @@ The stages, in the order they run:
 - **kotlinc** — the Kotlin Build Tools API incremental compile, given an explicit changed set: just the edited `.kt` files normally, every Kotlin source when a Java ABI moved.
 - **strip** — rewrites a mirror of every `.class` with `ACC_FINAL` cleared, because the generated proxy activities extend the user's classes and the dex verifier rejects a final superclass. It deletes and re-creates the whole tree each time, which is why it dominates on FUSE.
 - **d8** — dexes the stripped tree into one `classes.dex`, all classes every time.
-- **policy+walks** — two `Files.walk` passes over the class tree (before and after the compile) to diff mtimes into a changed-class set, plus the deploy policy that ASM-parses those class headers to decide restart / recreate / rebaseline.
+- **policy+walks** — two `Files.walk` passes over the class tree (before and after the compile) to diff mtimes into a changed-class set, plus the deploy policy that ASM-parses those class headers to decide restart / recreate / proxy app rebuild.
 
 Two caveats on that last column: it sums a daemon-side span with a host-side one, and the walk time is already inside the compile RPC — so it is not additive with `total` the way the other columns are.
 
@@ -59,10 +59,10 @@ Ordered by measured payoff per unit of risk.
 **What must be true first.**
 
 - A cleanup policy for stale per-project work dirs. On the project side they died with the project folder; in app-private storage they accumulate forever, which matters most on the smallest tier (incar Q8, 1.46 GB).
-- An audit of the rebaseline and teardown paths for code that assumes the out dir sits under the project root.
+- An audit of the proxy-app-rebuild and teardown paths for code that assumes the out dir sits under the project root.
 - A collision-safe directory key. The experimental patch keyed on `hashCode()` of the project path — fine to measure with, not to ship.
 
-**The test that proves it.** A device A/B on the same build: warm `01-java-body-edit` on `sora-editor-full` and on `medium-kotlin`, expecting ~-45% on both, with `stripMs` collapsing ~20x and `kotlinMs`/`d8Ms` flat. Flat compute steps are the control — if they move too, something other than the filesystem changed. Plus unit tests for the two lifecycle paths above: rebaseline with a relocated out dir, and delete-project leaving no orphan.
+**The test that proves it.** A device A/B on the same build: warm `01-java-body-edit` on `sora-editor-full` and on `medium-kotlin`, expecting ~-45% on both, with `stripMs` collapsing ~20x and `kotlinMs`/`d8Ms` flat. Flat compute steps are the control — if they move too, something other than the filesystem changed. Plus unit tests for the two lifecycle paths above: a proxy app rebuild with a relocated out dir, and delete-project leaving no orphan.
 
 Task #101.
 
@@ -89,7 +89,7 @@ Task #102.
 
 **Why.** `IncrementalCompiler.kt` passes `allSources`, not `changedFiles`, to `JavaCompileStep.compile()`, so javac recompiles the module's whole Java half on every edit; javac has no incremental mode of its own. Separately, `JavaCompileStep.kt:39` builds and closes a `StandardJavaFileManager` per compile, so the zip index of `android.jar` (27 MB) and every AAR `classes.jar` is re-scanned every edit even though the session classpath is fixed by construction.
 
-These are two separate changes and should be scheduled as such, because their risk surfaces are disjoint — landing them apart keeps bugs attributable. 3a, reusing the javac file manager, is Effort S / Risk L: independently worth ~24% of the all-sources path `[measured on host]`, and its failure mode is cache staleness, which is contained and cheap to test. 3b, per-changed-file javac, is Effort M / Risk M: the bulk of the win and the delicate one, because its failure mode is stale bytecode — the invariant the whole feature rests on — so its guards must be conservative-by-default and the fallback wired before the fast path. Land 3a first: it is small, it banks a real win, and it stands on its own if 3b is later deferred or reverted.
+These are two separate changes and should be scheduled as such, because their risk surfaces are disjoint — landing them apart keeps bugs attributable. 3a, reusing the javac file manager, is Effort S / Risk L: independently worth ~24% of the all-sources path `[measured on host]`, and its failure mode is cache staleness, which is contained and cheap to test. 3b, per-changed-file javac, is Effort M / Risk M: the bulk of the win and the delicate one, because its failure mode is stale bytecode — the invariant the whole feature rests on — so its guards must be conservative-by-default and the fallback wired before the incremental path. Land 3a first: it is small, it banks a real win, and it stands on its own if 3b is later deferred or reverted.
 
 **What must be true first.** Two guards, per [`incremental-javac-design.md`](incremental-javac-design.md) §3A:
 
@@ -109,9 +109,9 @@ Task #103.
 - Say which 22.9 s: that edit costs **28.1 s today** (the 28055 ms in the table above, variant A) and 22.9 s after item 1 lands.
 - Against the 11.9 s standard build that is 0.42x today and still 0.52x after item 1 — the only measured edit class that stays below a standard build either way.
 
-**Why.** `IncrementalCompiler.kotlinFilesToCompile` (`IncrementalCompiler.kt:377`) recompiles every Kotlin source whenever any `.java` ABI moves. This is deliberate, not a bug, and its KDoc states the reason: the Build Tools API engine has no dependency tracking over non-classpath Java sources, and the two cheap approximations both leave stale bytecode (there is no way to inject a non-classpath ABI change into the engine's lookup caches, and seeding from Kotlin files that lexically name the changed type misses indirect dependents — a `typealias` re-exports the type under a name whose own ABI does not move).
+**Why.** `IncrementalCompiler.kotlinFilesToCompile` (`IncrementalCompiler.kt:377`) recompiles every Kotlin source whenever any `.java` ABI moves. This is deliberate, not a bug, and its KDoc states the reason: the Build Tools API engine has no dependency tracking over non-classpath Java sources, and the two cheap approximations both leave stale bytecode (there is no way to inject a non-classpath ABI change into the engine's lookup caches, and priming from Kotlin files that lexically name the changed type misses indirect dependents — a `typealias` re-exports the type under a name whose own ABI does not move).
 
-**Effort: L. Risk: M.** The approach is a javac `TaskListener` dependency graph recorded at `ANALYZE` during the seeding compile, persisted, then used to recompile only the dependent closure. A graph that under-approximates is directly a stale-bytecode bug.
+**Effort: L. Risk: M.** The approach is a javac `TaskListener` dependency graph recorded at `ANALYZE` during the cache-populating full compile, persisted, then used to recompile only the dependent closure. A graph that under-approximates is directly a stale-bytecode bug.
 
 **What must be true first.** Do this last. It is blocked on the same BTA limitation its own KDoc documents, it moves one edit class rather than all of them, and its target should be a number measured *after* items 1-3 land — today we do not know the post-fix split between javac and Kotlin inside that 22.9 s.
 
@@ -148,4 +148,4 @@ Incidental, also from that run: **daemon IPC is free** — host-observed RPC min
 - **The low tiers generally.** Every number above is the A56. The C107 and the 1.9 GB tier are 4-13x slower overall and were not re-measured.
 - **`readyou`****.** A pure-Kotlin 6-file module measuring gen1 13.7 s / gen2 15.2 s before dropping to 2.9 s `[measured on a56]`. No javac, no large class tree — none of the items above explain it. Separate investigation, task #96.
 
-Two facts worth not re-deriving, both evidenced in the sora deep-dive run: **daemon IPC is free** (20-60 ms on multi-second calls `[measured on a56]`), and **the "53 s per edit" figure was never a per-edit cost** — it was the session's first build, which today runs as a background Seed before the user can save.
+Two facts worth not re-deriving, both evidenced in the sora deep-dive run: **daemon IPC is free** (20-60 ms on multi-second calls `[measured on a56]`), and **the "53 s per edit" figure was never a per-edit cost** — it was the session's first build, which today runs as a background warm compile before the user can save.

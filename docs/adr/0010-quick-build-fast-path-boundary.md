@@ -1,4 +1,4 @@
-# 0010. Quick Build's fast path is bounded; real Gradle stays authoritative outside it
+# 0010. Quick Build's live reload path is bounded; real Gradle stays authoritative outside it
 
 - **Status:** Proposed
 - **Date:** 2026-07-16
@@ -6,46 +6,48 @@
 
 ## Context
 
-Quick Build is a live-reload path for edit-run-edit iteration: an on-device watcher
+Quick Build gives edit-run-edit iteration a live reload path: an on-device watcher
 triggers an incremental compile + dex + relink, and the payload deploys into a running
-test app (installed under the project's real `applicationId`) over a bound service — no reinstall, no full Gradle
+proxy app (installed under the project's real `applicationId`) over a bound service — no reinstall, no full Gradle
 invocation. This is fast (~1 s warm at p50, measured on a mid-spec phone with a minimal
 app; `results/phase1-gates-a56/` in the `CodeOnTheGo-build-benchmark` repo) precisely because it skips most of
 what a real Gradle build does. That's only safe for a bounded class of edits; anything wider needs
 Gradle's full correctness (dependency resolution, manifest merging, resource linking,
 native builds) to avoid silently deploying a broken or stale app. Two terms used below:
-the **setup build** is the one-per-baseline real Gradle build that generates and
-installs the test app; re-running it to re-seed the fast path's baseline is a
-**rebaseline**.
+the **proxy app build** is the one-per-baseline real Gradle build that generates and
+installs the proxy app; re-running it to refresh the live reload path's baseline is a
+**proxy app rebuild** (the full glossary, including the retired older names, is in
+`quick-build/README.md`).
 
 ## Decision
 
-**Hot path (Quick Build daemon):** incremental Kotlin compile (Kotlin Build Tools API) +
+**Live reload path (Quick Build daemon):** incremental Kotlin compile (Kotlin Build Tools API) +
 `javac` + `aapt2` R regeneration + `d8` relink + deploy over the bound service. This
 covers source edits, resource-value edits, and asset changes.
 
-**Real Gradle stays authoritative** — any of the following routes to a full setup-build
-rebaseline instead of the hot path:
+**Real Gradle stays authoritative** — any of the following routes to a proxy app rebuild
+(a full Gradle build) instead of the live reload path:
 - Manifest changes (new component, permission, etc.)
 - Native `.so` changes (can't hot-reload native code)
 - Edits touching annotation-processor input (kapt/KSP correctness needs a real build;
-  fast-follow may run some processors incrementally in-daemon, but v1 always rebaselines)
+  fast-follow may run some processors incrementally in-daemon, but v1 always rebuilds
+  the proxy app)
 - Dependency / Gradle-file changes
 
-**Correctness target — equivalent on the cases we care about, not 100%:** the fast
-path aims for behavioral equivalence with a real Gradle build on the supported edit
+**Correctness target — equivalent on the cases we care about, not 100%:** the live
+reload path aims for behavioral equivalence with a real Gradle build on the supported edit
 classes, verified by the benchmark corpus's output-equivalence oracles — not universal
 equivalence (that would mean reimplementing Gradle). Anything outside the verified
 classes routes across the boundary above.
 
-**Never-stale invariant:** a failed or partial quick build must never leave the app
+**Never-stale invariant:** a failed or partial reload must never leave the app
 silently running stale code without the failure being surfaced. Any edit the classifier
-can't confidently route to the hot path takes the conservative branch (rebaseline), and a
-build failure on either path renders an error overlay rather than leaving the last-good
+can't confidently route to the live reload path takes the conservative branch (a proxy
+app rebuild), and a build failure on either path renders an error overlay rather than leaving the last-good
 build looking current.
 
 **Package identity (updated 2026-07-24 — supersedes the original `.quickbuild` suffix
-decision):** the test app now installs under the project's **real `applicationId`**, the
+decision):** the proxy app now installs under the project's **real `applicationId`**, the
 same slot a Standard Run uses. There is no `.quickbuild` suffix and no separate mode.
 Because both build types share one slot, switching from one to the other overwrites the
 other, so CoGo **confirms the clobber** before installing (it reads the installed package's
@@ -64,10 +66,10 @@ build, and first-run install is hands-free except OS-mandated dialogs.
 ## Consequences
 
 **Positive**
-- The hot path stays simple and fast because it never has to be correct for the cases
-  Gradle already handles well.
-- The never-stale invariant gives a hard backstop: when in doubt, a rebaseline is always
-  correct, just slower.
+- The live reload path stays simple and fast because it never has to be correct for the
+  cases Gradle already handles well.
+- The never-stale invariant gives a hard backstop: when in doubt, a proxy app rebuild is
+  always correct, just slower.
 
 **Negative / costs**
 - Any edit crossing the boundary (manifest, native, processor-input, deps) pays a full
@@ -82,9 +84,9 @@ build, and first-run install is hands-free except OS-mandated dialogs.
   of these are safely hot-swappable (new components need a real install; native code can't
   be swapped in a running process; dependency changes need real resolution), and getting
   this wrong violates the never-stale invariant.
-- **Run the test app under the real `applicationId`, warning the user about clobbering
+- **Run the proxy app under the real `applicationId`, warning the user about clobbering
   the installed app** (the original proposal) — rejected, for two reasons beyond the
-  clobber itself. (1) The test app is a harness, not the real app: v1 proxies activities
+  clobber itself. (1) The proxy app is a harness, not the real app: v1 proxies activities
   only, so everything else on the device that targets the real id — FCM pushes, alarms
   into Services, widgets, app links, notification taps — would route into an app that
   cannot run those components. The real id buys the *appearance* of feature parity while
@@ -105,9 +107,9 @@ build, and first-run install is hands-free except OS-mandated dialogs.
 ## Related
 
 - [ADR 0002](0002-on-device-builds-via-gradle-tooling-api.md) — real Gradle builds stay the
-  authoritative build engine; Quick Build is a narrower, additive fast path, not a
-  replacement.
-- `quick-build/README.md` — module map and the module-local design decisions (watch
-  trigger, skeleton app format, transport, daemon, generations, ...).
+  authoritative build engine; Quick Build adds a narrower live reload path beside it,
+  not a replacement.
+- `quick-build/README.md` — glossary, module map and the module-local design decisions
+  (watch trigger, proxy app format, transport, daemon, generations, ...).
 - Jira ADFA-4128 — the ticket that introduced Quick Build; design history and the
   release bar for lifting the experiments gate live there.

@@ -12,7 +12,7 @@
   - itel A667L, 1.9 GB — walled: never provisions, never finishes a build. The only app attempted there was **pure Java** (`hello-java`, 3 `.java` files, zero Kotlin), so the wall is not the cost of loading the Kotlin toolchain
   - incar Q8, 1.46 GB — already thrashing with CoGo open and idle, before anything starts building
 - **The wall is not Quick Build's.** What fails at 1.9 GB is the standard Gradle build that provisions it; Quick Build adds no failures of its own on any tier we measured. No amount of Quick Build work moves the floor.
-- The one lever that could `[inferred]`: serve provisioning without a full on-device Gradle build. The Quick Build hot loop is a much smaller runtime than the Gradle daemon that dies.
+- The one lever that could `[inferred]`: serve provisioning without a full on-device Gradle build. The Quick Build live reload loop is a much smaller runtime than the Gradle daemon that dies.
 - **Decision: do we accept 3.6 GB as the supported minimum, or spike Gradle-free provisioning to try to reach 1.9 GB?**
   - Would put a device tier the mission targets back in reach — today nothing Quick Build can do gets there.
   - Two open items should close first; one of them may be a harness artefact.
@@ -20,7 +20,7 @@
 ## How this was tested
 
 - Four devices against one 30-app corpus: A56 (8 GB) as reference, C107 3.6 GB, itel A667L 1.9 GB, incar Q8 1.46 GB.
-- Each C107 app was run both ways — standard Gradle build (cold full Run, then incremental against a warm daemon) and Quick Build (setup to Ready, then warm save->live edits).
+- Each C107 app was run both ways — standard Gradle build (cold full Run, then incremental against a warm daemon) and Quick Build (provisioning to Ready, then warm save->live edits).
 - Pass criteria: the standard build reaches `standard_build_finished`; Quick Build reaches Ready and lands a save->live edit.
 - Speedup is the median of per-edit ratios, each Quick Build save against the standard incremental build of the same edit on the same device and CoGo build — methodology owned by [`benchmarking.md`](benchmarking.md).
 - C107 figures are post-fix: before commit `6d198f576` the low tiers capped the daemon at `MaxMetaspaceSize=192m` and `:app:assembleDebug` died in `OutOfMemoryError: Metaspace`; at 384m it builds green `[measured on c107]`.
@@ -55,10 +55,10 @@ Every cell is a **median over apps** of that app's own median; min/max are acros
 
 | Cost                                               | median | min app | max app | apps |
 | -------------------------------------------------- | ------ | ------- | ------- | ---- |
-| Quick Build save->live, warm edits                 | 10.1 s | 2.1 s   | 53.3 s  | 18   |
+| Live reload save->live, warm edits                 | 10.1 s | 2.1 s   | 53.3 s  | 18   |
 | Incremental standard build (warm daemon)           | 26.6 s | 19.2 s  | 53.6 s  | 21   |
 | Cold standard build (full Run)                     | 133 s  | 82 s    | 357 s   | 21   |
-| Marginal Quick Build setup (project already built) | 92 s   | 77 s    | 162 s   | 21   |
+| Marginal Quick Build provisioning (project already built) | 92 s   | 77 s    | 162 s   | 21   |
 
 ### Essentially all of the latency is compile
 
@@ -68,9 +68,9 @@ Every cell is a **median over apps** of that app's own median; min/max are acros
 | ---------------------- | ------ |
 | compile                | 10.3 s |
 | stage (deploy handoff) | 13 ms  |
-| apply (live reload)    | 89 ms  |
+| apply (the in-app swap) | 89 ms |
 
-- Deploy and reload are free at this tier too, as on the A56; further speedup has to come out of compile.
+- Deploy and apply are free at this tier too, as on the A56; further speedup has to come out of compile.
 - The compile split is a function of the app's language, not a single blended number `[measured on c107]`:
   - **resource edits** — aapt2 only, ~5-6 s save->live, dominated by aapt2 link;
   - **Java edits** — javac + d8, ~2 s once warm, 11 s on the session's first edit;
