@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.appdevforall.cotg.quickbuild.data.AndroidProjectWatcher
-import org.appdevforall.cotg.quickbuild.data.DaemonConfig
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.FileGenerationStore
 import org.appdevforall.cotg.quickbuild.data.ProjectWatcher
@@ -187,22 +186,14 @@ class QuickBuildSessionManager(
 	private var sessionWork: Job? = null
 
 	/**
-	 * Counts intentional daemon lifecycle transitions: every `daemon.start`/`daemon.shutdown`
-	 * this manager initiates outside the respawn path (provisioning start + its undo,
-	 * proxy-app-rebuild teardown + restart, session teardown, low-memory shrink).
-	 *
-	 * [respawnDaemon] captures it at effect time and re-checks after its `daemon.start`
-	 * returns: any change means an intentional shutdown superseded the respawn mid-flight
-	 * (2026-07-26 review finding 2 - a proxy app rebuild's `daemon.shutdown()` racing an in-flight
-	 * respawn), so the respawn discards its result instead of dispatching
-	 * [SessionEvent.DaemonRespawned] and poking the orchestrator. EXACTLY one transition
-	 * since capture is the superseding shutdown itself, so a daemon the stale start brought
-	 * up is a zombie only the respawn knows about - it stops it (the daemon must not coexist
-	 * with the proxy app rebuild's Gradle build, nor outlive a teardown). More than one means a
-	 * successor flow already started a fresh daemon the stale respawn must not touch.
-	 * Only touched on [dispatcher].
+	 * Owns the daemon-epoch protocol, the respawn-supersession cleanup and the
+	 * low-memory shrink policy. The six intentional-transition bump sites (provisioning
+	 * start + its undo, proxy-app-rebuild teardown + restart, session teardown,
+	 * low-memory shrink) stay explicit via
+	 * [QuickBuildDaemonController.markIntentionalTransition]; see the controller's
+	 * KDoc for the exactly-one-transition rule.
 	 */
-	private var daemonEpoch = 0L
+	private val daemonController = QuickBuildDaemonController(daemon, scratch, paths)
 
 	/**
 	 * Assembles live sessions (and their ProxyAppInfo-derived rebuild pieces).
@@ -258,11 +249,11 @@ class QuickBuildSessionManager(
 			}
 		}
 		scope.launch {
-			// Retries a low-memory teardown that [shrinkDaemonForMemory] deferred while a
-			// build was in flight, the moment that build's own transition lands (success,
-			// failure, or a real daemon death all move the state away from Building).
+			// Retries a low-memory teardown the controller deferred while a build was in
+			// flight, the moment that build's own transition lands (success, failure, or
+			// a real daemon death all move the state away from Building).
 			_state.collect {
-				if (pendingLowMemoryTeardown) shrinkDaemonForMemory()
+				daemonController.shrinkIfPending(buildInFlight = it is QuickBuildSessionState.Building)
 			}
 		}
 		scope.launch {
@@ -409,42 +400,12 @@ class QuickBuildSessionManager(
 	 * already exists for an unplanned daemon death, on purpose.
 	 */
 	fun onTrimMemory(level: Int) {
-		scope.launch { handleTrimMemory(level) }
-	}
-
-	/** Set only on [dispatcher]; a build in flight defers the real teardown to here. */
-	private var pendingLowMemoryTeardown = false
-
-	private suspend fun handleTrimMemory(level: Int) {
-		if (level < ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) {
-			log.debug("Quick Build: onTrimMemory({}) below the shrink threshold; no-op", level)
-			return
+		scope.launch {
+			daemonController.onTrimMemory(
+				level,
+				buildInFlight = _state.value is QuickBuildSessionState.Building,
+			)
 		}
-		if (level == ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
-			// Not memory pressure - the user just switched away (typically to their own
-			// proxy app, mid-loop). Keep the daemon warm; see this function's KDoc.
-			log.debug("Quick Build: onTrimMemory(UI_HIDDEN); keeping the daemon warm")
-			return
-		}
-		pendingLowMemoryTeardown = true
-		shrinkDaemonForMemory()
-	}
-
-	/**
-	 * Tears the daemon down for memory pressure, unless a build is in flight - then this
-	 * is a no-op that leaves [pendingLowMemoryTeardown] set for the `init` state collector
-	 * to retry once that build's own transition lands. Idempotent: a daemon already down,
-	 * or no pending request at all, is a silent no-op either way - safe to call from a
-	 * repeated `onTrimMemory(CRITICAL)` or from the retry collector alike.
-	 */
-	private suspend fun shrinkDaemonForMemory() {
-		if (_state.value is QuickBuildSessionState.Building) return
-		if (!pendingLowMemoryTeardown) return
-		pendingLowMemoryTeardown = false
-		if (!daemon.isRunning) return
-		log.info("Quick Build: tearing down the compile daemon for low memory; the next build re-warms it")
-		daemonEpoch++
-		daemon.shutdown()
 	}
 
 	/**
@@ -548,7 +509,7 @@ class QuickBuildSessionManager(
 			}
 
 			SessionEffect.RespawnDaemon -> {
-				val epoch = daemonEpoch
+				val epoch = daemonController.epochSnapshot()
 				scope.launch { respawnDaemon(epoch) }
 			}
 
@@ -654,15 +615,15 @@ class QuickBuildSessionManager(
 
 				connections.beginSession(outcome.proxyApp.proxyAppPackage, outcome.proxyAppUid)
 
-				daemonEpoch++
-				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.proxyApp))) {
+				daemonController.markIntentionalTransition()
+				when (val started = daemonController.start(outcome.layout, outcome.proxyApp)) {
 					is DaemonReply.Ok -> {
 						if (startEpoch != sessionEpoch) {
 							// Restart raced the daemon start: undo, don't go live.
 							log.info("Session restarted during daemon start; shutting down")
 							connections.endSession()
-							daemonEpoch++
-							scope.launch { daemon.shutdown() }
+							daemonController.markIntentionalTransition()
+							scope.launch { daemonController.shutdown() }
 							return
 						}
 						val tracker =
@@ -688,24 +649,6 @@ class QuickBuildSessionManager(
 			}
 		}
 	}
-
-	private fun daemonConfig(
-		layout: QuickBuildProjectLayout,
-		proxyApp: ProxyAppInfo,
-	): DaemonConfig =
-		DaemonConfig(
-			projectRoot = layout.projectRoot,
-			classpath = layout.compileClasspath(),
-			// App-private scratch (ADFA-4930): the daemon's per-file-heavy output tree is
-			// the single biggest FUSE payer, and its scratchFsType reply (the bench-event
-			// field) reports whatever filesystem THIS dir lands on.
-			outDir = scratch.outDirFor(layout.projectRoot),
-			aapt2 = paths.aapt2,
-			d8Jar = paths.d8Jar,
-			androidJar = paths.androidJar,
-			compilerPlugins =
-				if (proxyApp.composeEnabled) listOf(paths.composeCompilerPlugin) else emptyList(),
-		)
 
 	/** Delivered synchronously on [dispatcher] by the orchestrator; hop to a launch. */
 	private fun onOrchestratorEvent(event: OrchestratorEvent) {
@@ -832,9 +775,9 @@ class QuickBuildSessionManager(
 		// restarts below with the NEW proxy app info's config (the survivor used to keep serving
 		// the OLD configure's classpath - correct only via BTA's full-recompile
 		// fallback). The epoch bump discards a daemon respawn still in flight (a
-		// proxy app rebuild can start from Degraded); see [daemonEpoch].
-		daemonEpoch++
-		daemon.shutdown()
+		// proxy app rebuild can start from Degraded); see [QuickBuildDaemonController].
+		daemonController.markIntentionalTransition()
+		daemonController.shutdown()
 
 		val startedAtNanos = System.nanoTime()
 		val outcome =
@@ -903,8 +846,8 @@ class QuickBuildSessionManager(
 				session.annotationImpact.delegate =
 					sessionFactory.annotationImpactFor(outcome.proxyApp, outcome.layout)
 				// Restart the daemon torn down above, against the NEW proxy app info's config.
-				daemonEpoch++
-				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.proxyApp))) {
+				daemonController.markIntentionalTransition()
+				when (val started = daemonController.start(outcome.layout, outcome.proxyApp)) {
 					is DaemonReply.Ok -> {
 						Unit
 					}
@@ -974,29 +917,8 @@ class QuickBuildSessionManager(
 
 	private suspend fun respawnDaemon(startEpoch: Long) {
 		val session = live ?: return
-		if (startEpoch != daemonEpoch) {
-			// An intentional daemon transition already superseded this respawn before it
-			// even started; the successor flow owns the daemon lifecycle.
-			log.info("Quick-build daemon respawn superseded before start; discarding")
-			return
-		}
-		val started = daemon.start(daemonConfig(session.layout, session.proxyApp))
-		if (startEpoch != daemonEpoch) {
-			// An intentional shutdown (proxy-app-rebuild teardown, session teardown, low-memory
-			// shrink) landed while this respawn's start was in flight (2026-07-26 review
-			// finding 2). The superseding flow owns the daemon lifecycle now: dispatching
-			// DaemonRespawned or poking the orchestrator here would corrupt it. See
-			// [daemonEpoch] for the exactly-one-transition cleanup rule.
-			if (started is DaemonReply.Ok && daemonEpoch == startEpoch + 1) {
-				log.info("Quick-build daemon respawn outlived an intentional shutdown; stopping its daemon")
-				daemon.shutdown()
-			} else {
-				log.info("Quick-build daemon respawn outlived a daemon restart; discarding")
-			}
-			return
-		}
-		when (started) {
-			is DaemonReply.Ok -> {
+		when (val outcome = daemonController.respawn(session.layout, session.proxyApp, startEpoch)) {
+			is QuickBuildDaemonController.RespawnOutcome.Respawned -> {
 				dispatch(SessionEvent.DaemonRespawned)
 				// A fresh daemon has no trustworthy IC state. With nothing pending this
 				// re-warms via a deploy-nothing WarmCompile (the proxy app keeps running its
@@ -1005,12 +927,15 @@ class QuickBuildSessionManager(
 				session.orchestrator.onDaemonReplaced()
 			}
 
-			else -> {
-				val message = (started as? DaemonReply.Failed)?.message ?: "unknown failure"
-				log.error("Daemon respawn failed: {}", message)
+			// The controller already stopped any zombie daemon per its
+			// exactly-one-transition rule; the successor flow owns the lifecycle.
+			is QuickBuildDaemonController.RespawnOutcome.Superseded -> Unit
+
+			is QuickBuildDaemonController.RespawnOutcome.Failed -> {
+				log.error("Daemon respawn failed: {}", outcome.message)
 				// Stay Degraded (honest); the next explicit tap or session restart
 				// retries. Auto-retry loops on a hard-broken daemon would spin.
-				surfaceUserMessage("Quick Build daemon could not be restarted: $message")
+				surfaceUserMessage("Quick Build daemon could not be restarted: ${outcome.message}")
 			}
 		}
 	}
@@ -1026,7 +951,7 @@ class QuickBuildSessionManager(
 	 */
 	private fun teardown() {
 		sessionEpoch++
-		daemonEpoch++
+		daemonController.markIntentionalTransition()
 		sessionWork?.cancel()
 		sessionWork = null
 		live?.watcher?.stop()
@@ -1034,7 +959,7 @@ class QuickBuildSessionManager(
 		live = null
 		connections.endSession()
 		scope.launch {
-			daemon.shutdown()
+			daemonController.shutdown()
 			// Only after the daemon is down: it writes into this tree until then. A
 			// teardown with no live session (provisioning failed before going live)
 			// has nothing to remove; the init-time sweep reclaims any half-made tree.
