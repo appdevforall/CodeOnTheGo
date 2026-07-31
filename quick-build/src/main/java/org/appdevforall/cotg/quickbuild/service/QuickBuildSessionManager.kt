@@ -657,7 +657,9 @@ class QuickBuildSessionManager(
 						return
 					}
 
-					is QuickBuildScratch.Preparation.Ready -> Unit
+					is QuickBuildScratch.Preparation.Ready -> {
+						Unit
+					}
 				}
 
 				connections.beginSession(outcome.setup.testAppPackage, outcome.testAppUid)

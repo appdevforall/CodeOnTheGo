@@ -1,6 +1,8 @@
 package com.itsaky.androidide.di
 
 import android.os.SystemClock
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.itsaky.androidide.analytics.quickbuild.AnalyticsQuickBuildMetricsSink
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.quickbuild.AndroidInstalledPackages
@@ -14,8 +16,6 @@ import com.itsaky.androidide.quickbuild.EnvironmentQuickBuildPaths
 import com.itsaky.androidide.quickbuild.GradleQuickBuildProvisioner
 import com.itsaky.androidide.quickbuild.InstallationEventFlow
 import com.itsaky.androidide.quickbuild.PreferencesQuickBuildHistoryStore
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ProcessLifecycleOwner
 import com.itsaky.androidide.utils.ApkInstaller
 import com.itsaky.androidide.utils.FeatureFlags
 import kotlinx.coroutines.CoroutineScope

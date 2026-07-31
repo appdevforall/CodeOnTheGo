@@ -63,14 +63,19 @@ class GradleQuickBuildProvisioner(
 
 		val uid =
 			when (val installed = installer.ensureInstalled(setup.apk, setup.testAppPackage)) {
-				is InstallOutcome.Failed -> return ProvisionOutcome.Failure(installed.message)
+				is InstallOutcome.Failed -> {
+					return ProvisionOutcome.Failure(installed.message)
+				}
 
 				// From Idle the next tap re-provisions (fast: tasks up-to-date), so the
 				// existing failure surface already IS the retry offer here.
-				is InstallOutcome.ConfirmationNotGiven ->
+				is InstallOutcome.ConfirmationNotGiven -> {
 					return ProvisionOutcome.Failure(initialProvisionMessage(installed))
+				}
 
-				is InstallOutcome.Installed -> installed.uid
+				is InstallOutcome.Installed -> {
+					installed.uid
+				}
 			}
 
 		return ProvisionOutcome.Success(
