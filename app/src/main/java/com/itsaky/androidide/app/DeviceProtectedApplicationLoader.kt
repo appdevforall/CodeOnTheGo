@@ -137,6 +137,11 @@ internal object DeviceProtectedApplicationLoader :
 		app.coroutineScope.launch(Dispatchers.IO) {
 			// early-init theme manager since it may need to perform disk reads
 			IThemeManager.getInstance()
+
+			// warm IDEApplication.cachedFilesDir off-main so later readers (e.g. pluginModule,
+			// resolved on the main thread on first navigation to the Extensions Manager) don't
+			// trip StrictMode's DiskReadViolation
+			IDEApplication.cachedFilesDir
 		}
 
 		withContext(Dispatchers.Main) {

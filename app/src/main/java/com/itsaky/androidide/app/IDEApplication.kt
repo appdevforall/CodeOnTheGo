@@ -54,6 +54,7 @@ import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.lang.Thread.UncaughtExceptionHandler
 
 const val EXIT_CODE_CRASH = 1
@@ -142,6 +143,16 @@ class IDEApplication :
 
 		@JvmStatic
 		fun getPluginManager(): PluginManager? = CredentialProtectedApplicationLoader.pluginManager
+
+		/**
+		 * [Context.getFilesDir] does a real disk check (`File.exists()`) on every call, not just
+		 * the first - callers on the main thread (e.g. Koin's [pluginModule] resolving on first
+		 * navigation to the Extensions Manager) trip StrictMode's DiskReadViolation. Cache it once,
+		 * off-main, during startup (see [DeviceProtectedApplicationLoader]) so later reads are a
+		 * plain field access instead of a syscall.
+		 */
+		@JvmStatic
+		val cachedFilesDir: File by lazy { instance.filesDir }
 	}
 
 	override fun onActivityPostPaused(activity: Activity) {
