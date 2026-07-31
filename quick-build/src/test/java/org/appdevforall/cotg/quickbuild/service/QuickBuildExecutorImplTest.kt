@@ -1228,6 +1228,36 @@ class QuickBuildExecutorImplTest {
 		}
 
 	@Test
+	fun `NotConnected RESTART deploy recovers too - relaunch, rebind, one retry, then the restart sequence`() =
+		runTest {
+			// The other half of the defect-88 surface: a service/receiver/provider edit
+			// after the rebaseline reinstall deploys through deployRestart, which must
+			// route through the same recovery as the hot-swap path.
+			val launcher = FakeLauncher()
+			val executor = restartExecutor(launcher)
+			serviceRecompiled()
+			// First attempt hits the post-reinstall dead connection; the retried deploy
+			// (default result) acks, and the normal restart sequence follows.
+			deploy.resultQueue += DeployResult.NotConnected
+
+			val outcome =
+				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 0, restarted = true))
+			// Same restart payload both times: the first attempt never reached the app.
+			assertThat(deploy.calls).hasSize(2)
+			assertThat(deploy.calls[0].generation).isEqualTo(deploy.calls[1].generation)
+			deploy.calls.forEach { call ->
+				assertThat(metadataOf(call).get("restart").asString).isEqualTo("true")
+			}
+			// One launch for the recovery rebind, one for the restart relaunch itself;
+			// likewise one reconnect wait each.
+			assertThat(launcher.calls).hasSize(2)
+			assertThat(deploy.awaitReconnectCalls).hasSize(2)
+			assertThat(deploy.awaitDisconnectCalls).hasSize(1)
+		}
+
+	@Test
 	fun `a connected test app deploys with no relaunch and no rebind wait`() =
 		runTest {
 			val launcher = FakeLauncher()
