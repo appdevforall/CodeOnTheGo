@@ -43,7 +43,7 @@ class BenchQuickBuildMetricsSinkTest {
 	}
 
 	@Test
-	fun `build_started carries buildId and the route simple name`() {
+	fun `build_started carries buildId and the pinned route wire name`() {
 		sink.onBuildStarted(7, BuildRoute.CodeAndResources, ChangedFiles.Known(emptySet()))
 
 		val o = last()
@@ -53,13 +53,83 @@ class BenchQuickBuildMetricsSinkTest {
 	}
 
 	@Test
-	fun `build_finished carries buildId and the outcome simple name`() {
+	fun `build_finished carries buildId and the pinned outcome wire name`() {
 		sink.onBuildFinished(7, BuildOutcome.Success(generation = 3, durationMillis = 100))
 
 		val o = last()
 		assertThat(o.getString("event")).isEqualTo("build_finished")
 		assertThat(o.getLong("buildId")).isEqualTo(7)
 		assertThat(o.getString("outcome")).isEqualTo("Success")
+	}
+
+	// The three pin tests below are the frozen bench wire contract: the harness
+	// (run_e2e_bench.py) string-compares these values and historical .events.jsonl
+	// files carry them. A rename of any route/outcome/reason identifier must keep
+	// these tables green by mapping the new identifier to the OLD string in
+	// BenchQuickBuildMetricsSink.wireName().
+
+	@Test
+	fun `build_started pins the wire string of every route`() {
+		val pinned: List<Pair<BuildRoute, String>> =
+			listOf(
+				BuildRoute.FullGradleBuild(InvalidationReason.MANIFEST_CHANGED) to "FullGradleBuild",
+				BuildRoute.ResourcesOnly to "ResourcesOnly",
+				BuildRoute.AssetsOnly to "AssetsOnly",
+				BuildRoute.CodeOnly to "CodeOnly",
+				BuildRoute.CodeAndResources to "CodeAndResources",
+				BuildRoute.NoOp to "NoOp",
+				BuildRoute.Seed to "Seed",
+			)
+		// The table must cover every route class, or a new route would ship unpinned.
+		assertThat(pinned.map { it.first::class })
+			.containsExactlyElementsIn(BuildRoute::class.sealedSubclasses)
+
+		pinned.forEach { (route, wire) ->
+			sink.onBuildStarted(1, route, ChangedFiles.Known(emptySet()))
+			assertThat(last().getString("route")).isEqualTo(wire)
+		}
+	}
+
+	@Test
+	fun `build_finished pins the wire string of every outcome`() {
+		val pinned: List<Pair<BuildOutcome, String>> =
+			listOf(
+				BuildOutcome.Success(generation = 1, durationMillis = 10) to "Success",
+				BuildOutcome.RequiresRebaseline(InvalidationReason.MANIFEST_CHANGED, detail = "d") to "RequiresRebaseline",
+				BuildOutcome.CompileError(emptyList()) to "CompileError",
+				BuildOutcome.DeployFailure("deploy failed") to "DeployFailure",
+				BuildOutcome.InfrastructureFailure("io error") to "InfrastructureFailure",
+			)
+		// The table must cover every outcome class, or a new outcome would ship unpinned.
+		assertThat(pinned.map { it.first::class })
+			.containsExactlyElementsIn(BuildOutcome::class.sealedSubclasses)
+
+		pinned.forEach { (outcome, wire) ->
+			sink.onBuildFinished(1, outcome)
+			assertThat(last().getString("outcome")).isEqualTo(wire)
+		}
+	}
+
+	@Test
+	fun `invalidation pins the wire string of every reason`() {
+		val pinned: Map<InvalidationReason, String> =
+			mapOf(
+				InvalidationReason.MANIFEST_CHANGED to "MANIFEST_CHANGED",
+				InvalidationReason.GRADLE_CONFIG_CHANGED to "GRADLE_CONFIG_CHANGED",
+				InvalidationReason.UNSUPPORTED_FILE_CHANGED to "UNSUPPORTED_FILE_CHANGED",
+				InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED to "NON_APP_MODULE_SOURCE_CHANGED",
+				InvalidationReason.EXTERNAL_FULL_BUILD to "EXTERNAL_FULL_BUILD",
+				InvalidationReason.ANNOTATION_PROCESSOR_INPUT_CHANGED to "ANNOTATION_PROCESSOR_INPUT_CHANGED",
+				InvalidationReason.OUTDATED_BASELINE to "OUTDATED_BASELINE",
+				InvalidationReason.INSTALL_NOT_CONFIRMED to "INSTALL_NOT_CONFIRMED",
+			)
+		// The table must cover every reason, or a new reason would ship unpinned.
+		assertThat(pinned.keys).containsExactlyElementsIn(InvalidationReason.entries)
+
+		pinned.forEach { (reason, wire) ->
+			sink.onInvalidation(reason)
+			assertThat(last().getString("reason")).isEqualTo(wire)
+		}
 	}
 
 	@Test

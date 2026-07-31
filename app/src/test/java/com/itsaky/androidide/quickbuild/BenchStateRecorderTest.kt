@@ -36,7 +36,34 @@ class BenchStateRecorderTest {
 	private fun objects() = file.readLines().map { JSONObject(it) }
 
 	@Test
-	fun `record maps state to its simple name and includes generation only where carried`() {
+	fun `record pins the wire string of every session state`() {
+		// These strings are the frozen bench wire contract: the harness
+		// (run_e2e_bench.py) string-compares them and historical .events.jsonl files
+		// carry them. A rename of any state class must keep this table green by mapping
+		// the new identifier to the OLD string in BenchStateRecorder.wireName().
+		val pinned: List<Pair<QuickBuildSessionState, String>> =
+			listOf(
+				QuickBuildSessionState.Idle to "Idle",
+				QuickBuildSessionState.Prewarming() to "Prewarming",
+				QuickBuildSessionState.Provisioning() to "Provisioning",
+				QuickBuildSessionState.Ready(generation = 1) to "Ready",
+				QuickBuildSessionState.Building(deployedGeneration = 1) to "Building",
+				QuickBuildSessionState.Deployed(generation = 2, buildDurationMillis = 10) to "Deployed",
+				QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, deployedGeneration = 2) to "Invalidated",
+				QuickBuildSessionState.Degraded(deployedGeneration = 2) to "Degraded",
+			)
+		// The table must cover every state class, or a new state would ship unpinned.
+		assertThat(pinned.map { it.first::class })
+			.containsExactlyElementsIn(QuickBuildSessionState::class.sealedSubclasses)
+
+		pinned.forEach { (state, wire) ->
+			recorder.record(state)
+			assertThat(JSONObject(file.readLines().last()).getString("state")).isEqualTo(wire)
+		}
+	}
+
+	@Test
+	fun `record maps state to its pinned wire name and includes generation only where carried`() {
 		recorder.record(QuickBuildSessionState.Idle)
 		recorder.record(QuickBuildSessionState.Prewarming())
 		recorder.record(QuickBuildSessionState.Provisioning())

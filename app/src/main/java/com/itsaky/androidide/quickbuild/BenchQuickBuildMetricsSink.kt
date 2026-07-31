@@ -27,7 +27,7 @@ class BenchQuickBuildMetricsSink(
 	) {
 		events.append("build_started") {
 			put("buildId", buildId)
-			put("route", route::class.simpleName ?: "Unknown")
+			put("route", route.wireName())
 		}
 	}
 
@@ -37,7 +37,7 @@ class BenchQuickBuildMetricsSink(
 	) {
 		events.append("build_finished") {
 			put("buildId", buildId)
-			put("outcome", outcome::class.simpleName ?: "Unknown")
+			put("outcome", outcome.wireName())
 		}
 	}
 
@@ -98,9 +98,46 @@ class BenchQuickBuildMetricsSink(
 
 	override fun onInvalidation(reason: InvalidationReason) {
 		events.append("invalidation") {
-			// reason is an enum; its constant name is the analogue of the sealed-type
-			// "simple name" used for route/outcome above.
-			put("reason", reason.name)
+			put("reason", reason.wireName())
 		}
 	}
+
+	// The wireName() maps below pin today's serialized values as an explicit contract,
+	// decoupled from the Kotlin identifiers (which used to be serialized directly via
+	// ::class.simpleName / enum .name). The benchmark harness string-compares these
+	// literals (e.g. run_e2e_bench.py reads "RequiresRebaseline"), and historical
+	// .events.jsonl files carry them - so an identifier rename must NOT change any
+	// string here. Same pattern as AnalyticsQuickBuildMetricsSink.metricName().
+
+	private fun BuildRoute.wireName(): String =
+		when (this) {
+			is BuildRoute.FullGradleBuild -> "FullGradleBuild"
+			BuildRoute.ResourcesOnly -> "ResourcesOnly"
+			BuildRoute.AssetsOnly -> "AssetsOnly"
+			BuildRoute.CodeOnly -> "CodeOnly"
+			BuildRoute.CodeAndResources -> "CodeAndResources"
+			BuildRoute.NoOp -> "NoOp"
+			BuildRoute.Seed -> "Seed"
+		}
+
+	private fun BuildOutcome.wireName(): String =
+		when (this) {
+			is BuildOutcome.Success -> "Success"
+			is BuildOutcome.RequiresRebaseline -> "RequiresRebaseline"
+			is BuildOutcome.CompileError -> "CompileError"
+			is BuildOutcome.DeployFailure -> "DeployFailure"
+			is BuildOutcome.InfrastructureFailure -> "InfrastructureFailure"
+		}
+
+	private fun InvalidationReason.wireName(): String =
+		when (this) {
+			InvalidationReason.MANIFEST_CHANGED -> "MANIFEST_CHANGED"
+			InvalidationReason.GRADLE_CONFIG_CHANGED -> "GRADLE_CONFIG_CHANGED"
+			InvalidationReason.UNSUPPORTED_FILE_CHANGED -> "UNSUPPORTED_FILE_CHANGED"
+			InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED -> "NON_APP_MODULE_SOURCE_CHANGED"
+			InvalidationReason.EXTERNAL_FULL_BUILD -> "EXTERNAL_FULL_BUILD"
+			InvalidationReason.ANNOTATION_PROCESSOR_INPUT_CHANGED -> "ANNOTATION_PROCESSOR_INPUT_CHANGED"
+			InvalidationReason.OUTDATED_BASELINE -> "OUTDATED_BASELINE"
+			InvalidationReason.INSTALL_NOT_CONFIRMED -> "INSTALL_NOT_CONFIRMED"
+		}
 }
