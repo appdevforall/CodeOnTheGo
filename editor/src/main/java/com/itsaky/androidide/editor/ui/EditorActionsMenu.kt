@@ -163,7 +163,7 @@ open class EditorActionsMenu(
 			return
 		}
 
-        if (touchHandler.hasAnyHeldHandle()) return
+		if (touchHandler.hasAnyHeldHandle()) return
 
 		if (event.isSelected) {
 			editor.post { displayWindow(isShowing) }
