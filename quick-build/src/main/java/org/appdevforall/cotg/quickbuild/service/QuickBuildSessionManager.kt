@@ -22,8 +22,6 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
 import org.appdevforall.cotg.quickbuild.data.QuickBuildPaths
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
-import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
-import org.appdevforall.cotg.quickbuild.domain.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.ComponentKind
 import org.appdevforall.cotg.quickbuild.domain.GenerationStore
@@ -38,7 +36,6 @@ import org.appdevforall.cotg.quickbuild.domain.QuickBuildSessionState
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.domain.SessionEffect
 import org.appdevforall.cotg.quickbuild.domain.SessionEvent
-import org.appdevforall.cotg.quickbuild.domain.SessionFailure
 import org.appdevforall.cotg.quickbuild.domain.SessionReducer
 import org.appdevforall.cotg.quickbuild.domain.WatchFilter
 import org.appdevforall.cotg.quickbuild.domain.WatcherBatchReconciler
@@ -227,6 +224,9 @@ class QuickBuildSessionManager(
 			generationStoreFactory = generationStoreFactory,
 			metrics = metrics,
 		)
+
+	/** Translates orchestrator facts into session events; see [onOrchestratorEvent]. */
+	private val eventRouter = OrchestratorEventRouter(metrics)
 
 	init {
 		daemon.setDeathListener { exitCode ->
@@ -622,72 +622,24 @@ class QuickBuildSessionManager(
 	/** Delivered synchronously on [dispatcher] by the orchestrator; hop to a launch. */
 	private fun onOrchestratorEvent(event: OrchestratorEvent) {
 		scope.launch {
-			when (event) {
-				is OrchestratorEvent.BuildStarted -> {
-					report { metrics.onBuildStarted(event.buildId, event.route, event.changes) }
-					if (event.route is BuildRoute.WarmCompile) {
-						// A warm compile compiles the sources the proxy app ALREADY runs and
-						// deploys nothing; telling either surface "one generation
-						// behind, building" would be a lie. WarmCompileStarted keeps the IDE
-						// status on "up to date" (Building(warmingCompiler = true)).
-						dispatch(SessionEvent.WarmCompileStarted)
-					} else {
-						dispatch(SessionEvent.BuildStarted)
-						notifyBuilding()
-					}
-				}
-
-				is OrchestratorEvent.BuildSucceeded -> {
-					report { metrics.onBuildFinished(event.buildId, event.result) }
-					if (event.route is BuildRoute.WarmCompile) {
-						// Nothing deployed, generation unmoved: no Deployed state, no
-						// lastDeployedGeneration bump.
-						dispatch(SessionEvent.WarmCompileFinished)
-						return@launch
-					}
-					live?.let {
-						it.lastDeployedGeneration = maxOf(it.lastDeployedGeneration, event.result.generation)
-					}
-					dispatch(
-						SessionEvent.BuildSucceeded(
-							event.result.generation,
-							event.result.durationMillis,
-							event.result.restarted,
-							userInitiated = event.userInitiated,
-						),
-					)
-				}
-
-				is OrchestratorEvent.BuildFailed -> {
-					report { metrics.onBuildFinished(event.buildId, event.outcome) }
-					val outcome = event.outcome
-					if (outcome is BuildOutcome.RequiresProxyAppRebuild) {
-						// The build was fine but the baseline cannot take the deploy (a
-						// restart-requiring change on a pre-restart baseline). Route into
-						// the existing proxy-app-rebuild fallback; the orchestrator already put
-						// the changed set back into pending, so the proxy app rebuild absorbs it.
-						log.info("Quick build routed to a proxy app rebuild: {}", outcome.detail)
-						report { metrics.onInvalidation(outcome.reason) }
-						dispatch(SessionEvent.InvalidationDetected(outcome.reason))
-					} else if (outcome is BuildOutcome.InfrastructureFailure && outcome.daemonDied) {
-						// Includes a daemon death mid-warm-compile: the normal respawn recovery
-						// re-seeds with ChangedFiles.Unknown, so no warm-compile-specific path.
-						dispatch(SessionEvent.DaemonDied)
-					} else if (event.route is BuildRoute.WarmCompile) {
-						// A failed warm compile is invisible by design: the proxy app build just
-						// compiled these sources green, and the next real save compiles
-						// the full source set anyway. Log for diagnosis, surface nothing.
-						log.warn("Background warm compile failed (not surfaced): {}", outcome)
-						dispatch(SessionEvent.WarmCompileFinished)
-					} else {
-						dispatch(SessionEvent.BuildFailed(outcome.toSessionFailure()))
-					}
-				}
-
-				is OrchestratorEvent.InvalidationRequired -> {
-					report { metrics.onInvalidation(event.reason) }
-					dispatch(SessionEvent.InvalidationDetected(event.reason))
-				}
+			val session = live
+			val routing =
+				eventRouter.route(
+					event,
+					lastDeployedGeneration = session?.lastDeployedGeneration ?: -1L,
+					connectedGeneration = connections.target.value?.runningGeneration,
+				)
+			// Tally first (the dispatched BuildSucceeded's consumers may read it),
+			// events second, the best-effort building notification last - the same
+			// order as before the router was extracted.
+			routing.newLastDeployedGeneration?.let { generation ->
+				session?.lastDeployedGeneration = generation
+			}
+			routing.sessionEvents.forEach { dispatch(it) }
+			routing.notifyBuildingAt?.let { generation ->
+				// No live session means nothing truthful to say - skip silently, like
+				// every other best-effort status push.
+				if (session != null) notifyBuilding(generation)
 			}
 		}
 	}
@@ -695,21 +647,11 @@ class QuickBuildSessionManager(
 	/**
 	 * Honesty line while a build is in flight (WS-G): tells the proxy app it is one
 	 * generation behind while the new one compiles, so a slow build never reads as
-	 * silence. Prefers [LiveSession.lastDeployedGeneration] - the session's own tally,
-	 * kept current across every hot-swap deploy - over the connected target's
-	 * self-reported generation, which is only fresh at connect time and goes stale the
-	 * moment a hot swap lands without a rebind. Falls back to the connection's value
-	 * before this session has deployed anything (a fresh proxy-app install has no tally
-	 * yet, but it did tell us its baseline generation at connect). No connection and no
-	 * tally means nothing truthful to say - skip silently, like every other best-effort
-	 * status push.
+	 * silence. The generation choice (session tally vs the connected target's
+	 * self-report) is [OrchestratorEventRouter]'s call - see
+	 * [OrchestratorEventRouter.Routing.notifyBuildingAt].
 	 */
-	private fun notifyBuilding() {
-		val session = live ?: return
-		val runningGeneration =
-			session.lastDeployedGeneration.takeIf { it >= 0 }
-				?: connections.target.value?.runningGeneration
-				?: return
+	private fun notifyBuilding(runningGeneration: Long) {
 		try {
 			deploy.notifyBuildStatus(BuildStatusJson.building(runningGeneration))
 		} catch (e: Exception) {
@@ -905,21 +847,6 @@ class QuickBuildSessionManager(
 	private fun surfaceNotice(notice: QuickBuildNotice) {
 		_notices.tryEmit(notice)
 	}
-
-	private fun BuildOutcome.toSessionFailure(): SessionFailure =
-		when (this) {
-			is BuildOutcome.CompileError -> SessionFailure.CompileError(diagnostics)
-
-			is BuildOutcome.DeployFailure -> SessionFailure.DeployError(message)
-
-			is BuildOutcome.InfrastructureFailure -> SessionFailure.DeployError(message)
-
-			// Handled as an invalidation before this mapping; keep it total anyway.
-			is BuildOutcome.RequiresProxyAppRebuild -> SessionFailure.DeployError(detail)
-
-			// Success never reaches BuildFailed; keep the mapping total anyway.
-			is BuildOutcome.Success -> SessionFailure.DeployError("unexpected success in failure path")
-		}
 
 	private companion object {
 		private val log = LoggerFactory.getLogger(QuickBuildSessionManager::class.java)
