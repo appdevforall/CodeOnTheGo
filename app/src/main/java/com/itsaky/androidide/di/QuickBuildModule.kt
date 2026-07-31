@@ -123,8 +123,16 @@ val quickBuildModule =
 					projectPath = { IProjectManager.getInstance().projectDirPath },
 					// David's multi-module-encounter-rate ask (ADFA-4128 status 2026-07-27):
 					// forwarded as a plain count so "multi-module" reads as moduleCount > 1
-					// without a new event.
-					moduleCount = { IProjectManager.getInstance().getAndroidModules().size },
+					// without a new event. Counts ALL Gradle subprojects via the public
+					// IProjectManager.workspace (an app module plus a pure-JVM library IS
+					// multi-module); null - omitted, never 0 - until the workspace syncs.
+					moduleCount = {
+						IProjectManager
+							.getInstance()
+							.workspace
+							?.subProjects
+							?.size
+					},
 				)
 			if (FeatureFlags.isQuickBuildBenchEnabled) {
 				// Bench: fan the analytics sink AND a JSON-lines file so an external run

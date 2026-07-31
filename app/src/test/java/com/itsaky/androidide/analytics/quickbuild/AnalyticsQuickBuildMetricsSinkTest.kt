@@ -81,7 +81,7 @@ class AnalyticsQuickBuildMetricsSinkTest {
 	}
 
 	@Test
-	fun `started metric forwards the project's Android module count`() {
+	fun `started metric forwards the project's subproject count`() {
 		sink(moduleCount = { 3 }).onBuildStarted(7, BuildRoute.CodeOnly, ChangedFiles.Known(emptySet()))
 
 		val metric = tracked.single() as QuickBuildStartedMetric
@@ -90,7 +90,7 @@ class AnalyticsQuickBuildMetricsSinkTest {
 	}
 
 	@Test
-	fun `a null module count is omitted from the bundle rather than sent as zero`() {
+	fun `an unknown module count - uninitialized workspace - is omitted rather than sent as zero`() {
 		sink().onBuildStarted(7, BuildRoute.CodeOnly, ChangedFiles.Known(emptySet()))
 
 		val metric = tracked.single() as QuickBuildStartedMetric

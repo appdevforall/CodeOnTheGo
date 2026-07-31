@@ -24,9 +24,11 @@ data class QuickBuildStartedMetric(
 	val changedOther: Int?,
 	val projectHash: Long,
 	/**
-	 * Android module count of the open project; null when the supplier had none wired
-	 * (bench/test contexts). `> 1` answers David's multi-module-encounter-rate ask
-	 * (ADFA-4128 status 2026-07-27) without joining to a separate project-info event.
+	 * Gradle subproject count of the open project (all modules, Android or not,
+	 * excluding the root build container); null when unknown - workspace not yet
+	 * synced, or no supplier wired (bench/test contexts) - and then omitted from the
+	 * bundle rather than sent as 0. `> 1` answers David's multi-module-encounter-rate
+	 * ask (ADFA-4128 status 2026-07-27) without joining to a separate project-info event.
 	 */
 	val moduleCount: Int? = null,
 ) : Metric {
