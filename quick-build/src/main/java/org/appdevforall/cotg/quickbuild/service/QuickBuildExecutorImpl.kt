@@ -449,7 +449,7 @@ class QuickBuildExecutorImpl(
 	): BuildOutcome {
 		timeline.markDeploySent(clock())
 		val result =
-			deploy.deploy(generation, dexFile, arscFile, assets?.zip, metadata(reason, assets, restart = false))
+			deployRecovering(generation, dexFile, arscFile, assets?.zip, metadata(reason, assets, restart = false))
 		return when (result) {
 			is DeployResult.Reloaded -> {
 				// t3: the test app's reportReloaded (fired from the recreated activity's
@@ -493,7 +493,7 @@ class QuickBuildExecutorImpl(
 		)
 		timeline.markDeploySent(clock())
 		val result =
-			deploy.deploy(generation, dexFile, arscFile, assets?.zip, metadata(reason, assets, restart = true))
+			deployRecovering(generation, dexFile, arscFile, assets?.zip, metadata(reason, assets, restart = true))
 		when (result) {
 			is DeployResult.Reloaded -> {
 				if (!deploy.awaitDisconnect(restartDisconnectTimeoutMillis)) {
@@ -560,6 +560,34 @@ class QuickBuildExecutorImpl(
 		}
 	}
 
+	/**
+	 * One deploy attempt with the defect-#88 recovery. A rebaseline reinstall kills the
+	 * test-app process, and only the test app can re-establish the AIDL connection (the
+	 * bind is outbound from its QuickBuildRuntime); without recovery every later deploy
+	 * fails NotConnected until the user opens the app by hand. On [DeployResult.NotConnected],
+	 * launch the app once via [launcher], wait a bounded [restartReconnectTimeoutMillis]
+	 * for the rebind, and retry the deploy exactly once - no loops, so a hard-broken app
+	 * costs one launch per deploy attempt, never a retry storm. Chosen over relaunching
+	 * right after the rebaseline itself (reliability doc option 2): this acts only when a
+	 * deploy actually needs the app and never steals the foreground unasked.
+	 */
+	private suspend fun deployRecovering(
+		generation: Long,
+		dexFile: File?,
+		arscFile: File?,
+		assetsZip: File?,
+		metadataJson: String,
+	): DeployResult {
+		val first = deploy.deploy(generation, dexFile, arscFile, assetsZip, metadataJson)
+		if (first != DeployResult.NotConnected) return first
+		val packageName = testAppPackage ?: return first
+		val relauncher = launcher ?: return first
+		log.info("Deploy of generation {} found no connected test app; relaunching it once", generation)
+		if (!relauncher.launch(packageName, launcherActivity)) return first
+		if (deploy.awaitReconnect(restartReconnectTimeoutMillis) == null) return first
+		return deploy.deploy(generation, dexFile, arscFile, assetsZip, metadataJson)
+	}
+
 	private fun metadata(
 		reason: String,
 		assets: AssetPackager.PackagedAssets?,
@@ -591,7 +619,11 @@ class QuickBuildExecutorImpl(
 			}
 
 			DeployResult.NotConnected -> {
-				BuildOutcome.DeployFailure("Test app is not connected")
+				// Reached only after deployRecovering's one launch-and-retry (or with no
+				// launcher wired): the remedy is the user's, not the infrastructure's.
+				BuildOutcome.DeployFailure(
+					"Test app is not connected. Relaunch your app to reconnect, then deploy again.",
+				)
 			}
 
 			DeployResult.Disconnected -> {
@@ -740,7 +772,8 @@ class QuickBuildExecutorImpl(
 		/**
 		 * How long the relaunched process gets to boot + bind + connect back. A cold
 		 * app start on the mission's low-end hardware, so this mirrors the deploy
-		 * verdict timeout rather than the exit timeout.
+		 * verdict timeout rather than the exit timeout. Also bounds the rebind wait in
+		 * [deployRecovering] - the same boot-bind-connect being waited on.
 		 */
 		const val DEFAULT_RESTART_RECONNECT_TIMEOUT_MILLIS = 15_000L
 	}

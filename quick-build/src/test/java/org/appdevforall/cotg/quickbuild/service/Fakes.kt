@@ -105,6 +105,9 @@ class FakeDeploy : DeploySender {
 	val awaitDisconnectCalls = mutableListOf<Long>()
 	val awaitReconnectCalls = mutableListOf<Long>()
 	var result: DeployResult = DeployResult.Reloaded(40)
+
+	/** When non-empty, each deploy consumes the next entry instead of [result]. */
+	val resultQueue = ArrayDeque<DeployResult>()
 	var disconnects: Boolean = true
 
 	/**
@@ -122,7 +125,7 @@ class FakeDeploy : DeploySender {
 		metadataJson: String,
 	): DeployResult {
 		calls += Call(generation, dexFile, arscFile, assetsZip, metadataJson)
-		return result
+		return resultQueue.removeFirstOrNull() ?: result
 	}
 
 	override fun notifyBuildStatus(statusJson: String) {

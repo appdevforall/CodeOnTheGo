@@ -188,6 +188,20 @@ class SessionReducerTest {
 	}
 
 	@Test
+	fun `building plus a deploy failure stays Ready - a failed relaunch retry must not tear the session down`() {
+		// Defect #88 tail: when the launch-and-retry-once recovery also fails, the
+		// outcome is a plain DeployFailure -> DeployError, and the session stays Ready
+		// so the user can relaunch the app and simply save again.
+		val failure = SessionFailure.DeployError("Test app is not connected. Relaunch your app to reconnect, then deploy again.")
+
+		val transition =
+			reducer.reduce(QuickBuildSessionState.Building(1), SessionEvent.BuildFailed(failure))
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1, lastFailure = failure))
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
 	fun `building plus InvalidationDetected requires a full gradle rebaseline`() {
 		val transition =
 			reducer.reduce(

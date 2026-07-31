@@ -1184,6 +1184,129 @@ class QuickBuildExecutorImplTest {
 			assertThat(launcher.calls).isEmpty()
 		}
 
+	/**
+	 * Executor wired the way a real session is (launcher + package known) but with no
+	 * restart-forcing policy, so deploys hot-swap: the defect-#88 surface, where a
+	 * rebaseline reinstall killed the test app and the next deploy finds NotConnected.
+	 */
+	private fun relaunchExecutor(
+		launcher: FakeLauncher,
+		reconnectTimeoutMillis: Long = 15_000L,
+	) = QuickBuildExecutorImpl(
+		daemon = daemon,
+		deploy = deploy,
+		layout = DefaultQuickBuildProjectLayout(projectRoot),
+		entryActivity = "com.example.MainActivity",
+		generations = tracker,
+		workDir = File(projectRoot, ".androidide/quickbuild"),
+		testAppPackage = "com.example.quickbuild",
+		launcherActivity = "com.example.quickbuild.proxies.Proxy0Activity",
+		launcher = launcher,
+		restartReconnectTimeoutMillis = reconnectTimeoutMillis,
+		clock = { 1000L },
+	)
+
+	@Test
+	fun `NotConnected deploy relaunches the test app, awaits the rebind and retries exactly once - defect 88`() =
+		runTest {
+			val launcher = FakeLauncher()
+			val executor = relaunchExecutor(launcher)
+			// First attempt hits the post-reinstall dead connection; the retry (default
+			// result) lands.
+			deploy.resultQueue += DeployResult.NotConnected
+
+			val outcome =
+				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 0))
+			assertThat(deploy.calls).hasSize(2)
+			// Same payload both times: the first attempt never reached the app.
+			assertThat(deploy.calls[0].generation).isEqualTo(deploy.calls[1].generation)
+			assertThat(launcher.calls)
+				.containsExactly("com.example.quickbuild" to "com.example.quickbuild.proxies.Proxy0Activity")
+			assertThat(deploy.awaitReconnectCalls).hasSize(1)
+		}
+
+	@Test
+	fun `a connected test app deploys with no relaunch and no rebind wait`() =
+		runTest {
+			val launcher = FakeLauncher()
+			val executor = relaunchExecutor(launcher)
+
+			val outcome =
+				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 0))
+			assertThat(deploy.calls).hasSize(1)
+			assertThat(launcher.calls).isEmpty()
+			assertThat(deploy.awaitReconnectCalls).isEmpty()
+		}
+
+	@Test
+	fun `still NotConnected after the one retry keeps the failure with the relaunch remedy - no third attempt`() =
+		runTest {
+			val launcher = FakeLauncher()
+			val executor = relaunchExecutor(launcher)
+			deploy.result = DeployResult.NotConnected // both attempts fail
+
+			val outcome =
+				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			// A plain DeployFailure: the reducer keeps the session Ready on it (no
+			// teardown, no rebaseline), so the next save just tries again.
+			assertThat(outcome).isInstanceOf(BuildOutcome.DeployFailure::class.java)
+			assertThat((outcome as BuildOutcome.DeployFailure).message).contains("Relaunch your app")
+			assertThat(deploy.calls).hasSize(2)
+			assertThat(launcher.calls).hasSize(1)
+		}
+
+	@Test
+	fun `rebind wait is bounded by the injected reconnect timeout and a timeout skips the retry`() =
+		runTest {
+			val launcher = FakeLauncher()
+			val executor = relaunchExecutor(launcher, reconnectTimeoutMillis = 1_234)
+			deploy.result = DeployResult.NotConnected
+			deploy.reconnectGeneration = { null } // app never rebinds within the bound
+
+			val outcome =
+				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(outcome).isInstanceOf(BuildOutcome.DeployFailure::class.java)
+			// Retrying against a still-dead connection would just double the wait.
+			assertThat(deploy.calls).hasSize(1)
+			assertThat(deploy.awaitReconnectCalls).containsExactly(1_234L)
+		}
+
+	@Test
+	fun `a relaunch that cannot even start skips the rebind wait and keeps the failure`() =
+		runTest {
+			val launcher = FakeLauncher(result = false)
+			val executor = relaunchExecutor(launcher)
+			deploy.result = DeployResult.NotConnected
+
+			val outcome =
+				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(outcome).isInstanceOf(BuildOutcome.DeployFailure::class.java)
+			assertThat((outcome as BuildOutcome.DeployFailure).message).contains("Relaunch your app")
+			assertThat(deploy.calls).hasSize(1)
+			assertThat(deploy.awaitReconnectCalls).isEmpty()
+		}
+
+	@Test
+	fun `NotConnected with no launcher wired fails on the first attempt but still names the remedy`() =
+		runTest {
+			// The default executor from setUp has no launcher/package (pre-#88 wiring).
+			deploy.result = DeployResult.NotConnected
+
+			val outcome =
+				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(outcome).isInstanceOf(BuildOutcome.DeployFailure::class.java)
+			assertThat((outcome as BuildOutcome.DeployFailure).message).contains("Relaunch your app")
+			assertThat(deploy.calls).hasSize(1)
+		}
+
 	@Test
 	fun `disconnect during a NORMAL deploy is a deploy failure`() =
 		runTest {
