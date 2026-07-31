@@ -60,7 +60,7 @@ class OverlayStateTest {
 	void buildingWithAnUnknownGenerationStillRendersHonestly() {
 		OverlayState state = OverlayState.building(-1L);
 		assertThat(state.text()).doesNotContain("gen -1");
-		assertThat(state.text()).contains("one build behind");
+		assertThat(state.text()).contains("one reload behind");
 	}
 
 	@Test

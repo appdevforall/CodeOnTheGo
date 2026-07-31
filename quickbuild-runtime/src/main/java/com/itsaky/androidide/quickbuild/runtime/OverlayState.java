@@ -109,8 +109,8 @@ final class OverlayState {
 		case BUILDING:
 			return runningGeneration >= 0
 					? "Quick Build is compiling - this screen is running gen " + runningGeneration
-							+ " (one build behind)"
-					: "Quick Build is compiling - this screen is one build behind";
+							+ " (one reload behind)"
+					: "Quick Build is compiling - this screen is one reload behind";
 		default:
 			return "";
 		}
