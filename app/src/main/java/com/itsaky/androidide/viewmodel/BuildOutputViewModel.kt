@@ -25,6 +25,10 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.math.max
@@ -47,6 +51,15 @@ class BuildOutputViewModel(
 	 * The session file always receives the unfiltered text.
 	 */
 	val filterText = MutableStateFlow("")
+
+	/** Toggle for showing wall-clock timestamps `[HH:mm:ss.SSS]` in editor view. */
+	val showTimestamps = MutableStateFlow(true)
+
+	/** Toggle for showing step time deltas `ΔXms` in editor view. */
+	val showDeltas = MutableStateFlow(true)
+
+	/** Toggle for showing gutter line numbers in editor view. */
+	val showLineNumbers = MutableStateFlow(true)
 
 	/**
 	 * Thread-safe snapshot of content for synchronous [getShareableContent] without blocking.
@@ -180,19 +193,67 @@ class BuildOutputViewModel(
 	}
 
 	companion object {
+		// Must mirror formatLinePrefix exactly; the round-trip is covered by BuildOutputFilterTest.
+		// Anchored to line start so timestamp-shaped text inside a message is never stripped.
+		private val PREFIX_REGEX =
+			Regex("""^(\[\d{2}:\d{2}:\d{2}\.\d{3}\] )(\u0394\d+ms )""")
+
+		private val PREFIX_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
+
 		/**
-		 * Returns only the lines of [content] containing [query] (case-insensitive), each terminated
-		 * with a newline. Returns [content] unchanged when [query] is empty.
+		 * Formats the timing prefix written before every build output line:
+		 * `[HH:mm:ss.SSS] \u0394Nms `.
+		 */
+		fun formatLinePrefix(
+			nowMs: Long,
+			stepDeltaMs: Long,
+		): String {
+			val time =
+				PREFIX_TIME_FORMAT.format(Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault()))
+			return String.format(
+				Locale.US,
+				"[%s] \u0394%dms ",
+				time,
+				stepDeltaMs,
+			)
+		}
+
+		/** Rebuilds [line] with the timestamp and/or delta part of its prefix hidden. */
+		fun formatLineForDisplay(
+			line: String,
+			showTimestamps: Boolean,
+			showDeltas: Boolean,
+		): String {
+			if (showTimestamps && showDeltas) return line
+			val match = PREFIX_REGEX.find(line) ?: return line
+			val (timestamp, delta) = match.destructured
+			return buildString {
+				if (showTimestamps) append(timestamp)
+				if (showDeltas) append(delta)
+				append(line, match.value.length, line.length)
+			}
+		}
+
+		/**
+		 * Returns only the lines of [content] whose *displayed* form (per [showTimestamps] and
+		 * [showDeltas]) contains [query] (case-insensitive), each terminated with a newline.
+		 * Returns [content] unchanged when there is nothing to filter or strip.
 		 */
 		fun filterLines(
 			content: String,
 			query: String,
+			showTimestamps: Boolean = true,
+			showDeltas: Boolean = true,
 		): String {
-			if (query.isEmpty() || content.isEmpty()) return content
+			if (content.isEmpty() || (query.isEmpty() && showTimestamps && showDeltas)) return content
+			// Drop the trailing empty element lineSequence() yields for newline-terminated input,
+			// otherwise every render would gain a blank line.
+			val body = if (content.endsWith('\n')) content.substring(0, content.length - 1) else content
 			return buildString {
-				for (line in content.lineSequence()) {
-					if (line.contains(query, ignoreCase = true)) {
-						append(line).append('\n')
+				for (rawLine in body.lineSequence()) {
+					val displayLine = formatLineForDisplay(rawLine, showTimestamps, showDeltas)
+					if (query.isEmpty() || displayLine.contains(query, ignoreCase = true)) {
+						append(displayLine).append('\n')
 					}
 				}
 			}
