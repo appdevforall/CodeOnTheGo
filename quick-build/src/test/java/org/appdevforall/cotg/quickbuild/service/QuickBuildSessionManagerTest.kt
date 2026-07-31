@@ -1241,8 +1241,10 @@ class QuickBuildSessionManagerTest {
 					// The rebaseline re-enters Ready via ProvisioningSucceeded, which fires
 					// a fresh background seed: the full Gradle build may have moved inputs
 					// (or respawned the daemon), so re-seeding the IC universe afterwards
-					// is deliberate, and its metrics are visible like any build's.
-					"started:Seed:0",
+					// is deliberate, and its metrics are visible like any build's. The count
+					// is null (not 0): a seed's changed-set is Unknown - it compiles every
+					// source, not zero files (2026-07-26 review nit).
+					"started:Seed:null",
 					"finished:Success",
 				).inOrder()
 		}

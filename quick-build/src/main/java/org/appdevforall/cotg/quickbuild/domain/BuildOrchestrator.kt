@@ -347,8 +347,13 @@ class BuildOrchestrator(
 			if (pendingSeed) startSeedBuildLocked(events)
 			return
 		}
-		// Any real build compiles the daemon's full source set on its first run, so a
-		// still-pending seed is redundant the moment user work exists.
+		// A CodeOnly/CodeAndResources/FullGradleBuild route compiles the daemon's full
+		// source set on its first run, making a still-pending seed redundant the moment
+		// that work exists. Narrower than "any real build": a ResourcesOnly/AssetsOnly
+		// route runs no compile op at all, so it does NOT actually warm the compiler -
+		// dropping the seed there is a missed optimization (a later save still triggers
+		// the daemon's own first-build compile), not a correctness issue, so it is left
+		// as-is rather than threading route-conditional logic through this early clear.
 		pendingSeed = false
 
 		val route = classifier.classify(pending)
@@ -402,7 +407,10 @@ class BuildOrchestrator(
 		val flight =
 			InFlightBuild(buildId, ChangedFiles.Known.EMPTY, forced = false, autoFollowUp = false, route = route)
 		inFlight = flight
-		events += OrchestratorEvent.BuildStarted(buildId, route, ChangedFiles.Known.EMPTY)
+		// The batch is Unknown, matching the request below - the seed compiles every
+		// source, not zero files. A metrics sink reading this event's changedFiles count
+		// as 0 would understate a seed as "started:Seed:0" instead of "unknown size".
+		events += OrchestratorEvent.BuildStarted(buildId, route, ChangedFiles.Unknown)
 		val request =
 			BuildRequest(
 				buildId = buildId,
@@ -469,7 +477,12 @@ class BuildOrchestrator(
 					val diagnostics = (outcome as? BuildOutcome.CompileError)?.diagnostics
 					val unchanged =
 						flight.autoFollowUp && diagnostics != null && diagnostics == lastCompileDiagnostics
-					if (diagnostics != null) {
+					// A seed's failure is invisible to the user (the session manager logs it
+					// and never surfaces it - the setup build just compiled these sources
+					// green). Priming lastCompileDiagnostics from it would make the next REAL
+					// build's identical failure silently report diagnosticsUnchanged = true for
+					// an error the user never actually saw.
+					if (diagnostics != null && flight.route !is BuildRoute.Seed) {
 						lastCompileDiagnostics = diagnostics
 					}
 					events += OrchestratorEvent.BuildFailed(buildId, outcome, unchanged, flight.route)

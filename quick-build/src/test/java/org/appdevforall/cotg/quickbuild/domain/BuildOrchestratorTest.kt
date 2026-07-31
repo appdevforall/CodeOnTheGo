@@ -641,7 +641,9 @@ class BuildOrchestratorTest {
 			assertThat(executor.requests[0].changes).isEqualTo(ChangedFiles.Unknown)
 			assertThat(executor.requests[0].forced).isFalse()
 			assertThat(events).containsExactly(
-				OrchestratorEvent.BuildStarted(1L, BuildRoute.Seed, ChangedFiles.Known.EMPTY),
+				// Unknown, not Known.EMPTY - a seed compiles every source, not zero files
+				// (2026-07-26 review nit: metrics must not read this as "0 files changed").
+				OrchestratorEvent.BuildStarted(1L, BuildRoute.Seed, ChangedFiles.Unknown),
 			)
 
 			executor.finish(0, success(generation = 0))
@@ -727,14 +729,17 @@ class BuildOrchestratorTest {
 		}
 
 	@Test
-	fun `daemon replacement during a superseded in-flight build defers to the union`() =
+	fun `daemon replacement mid-build unions Unknown into pending - the build's own failure, not a supersession, starts the follow-up`() =
 		runTest {
 			val executor = GatedExecutor()
 			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
-			// Daemon died mid-build; respawn lands BEFORE the failure result does.
+			// Daemon died mid-build; respawn lands BEFORE the failure result does. The
+			// in-flight build is NOT superseded here (its buildId stays inFlight) - it
+			// still owns its own failure/follow-up below; onDaemonReplaced only marks the
+			// pending batch Unknown for whatever build eventually follows.
 			orchestrator.onDaemonReplaced()
 			runCurrent()
 			assertThat(executor.requests).hasSize(1)
@@ -770,6 +775,33 @@ class BuildOrchestratorTest {
 			runCurrent()
 			assertThat(executor.requests).hasSize(2)
 			assertThat(executor.requests[1].changes).isEqualTo(known(srcB))
+		}
+
+	@Test
+	fun `a seed's compile error does not prime diagnosticsUnchanged for the auto-follow-up that answers it`() =
+		runTest {
+			// 2026-07-26 review minor finding: a seed failure is invisible to the user (the
+			// session manager never surfaces it), so it must not silently flag the FIRST
+			// real failure the user actually sees as "unchanged" just because a save that
+			// landed mid-seed produced an identical error.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onSeedRequested()
+			runCurrent()
+			// A real save lands WHILE the seed compiles - its build starts automatically
+			// as this build's auto-follow-up once the seed's own result lands.
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(0, compileError()) // the seed's (invisible) failure
+			runCurrent()
+			assertThat(executor.requests).hasSize(2)
+			executor.finish(1, compileError()) // identical diagnostics to the seed's failure
+			runCurrent()
+
+			val realFailure = events.filterIsInstance<OrchestratorEvent.BuildFailed>().single { it.route != BuildRoute.Seed }
+			assertThat(realFailure.diagnosticsUnchanged).isFalse()
 		}
 
 	// Review gap (2026-07-26 #69): a rebaseline landing mid-seed supersedes it - the
