@@ -59,13 +59,13 @@ interface QuickBuildProjectLayout {
 	fun watchedFiles(): List<File>
 
 	/**
-	 * The app module's source scope the quick path can incrementally build. A watched
-	 * code/resource/asset change OUTSIDE this scope is another module's and must rebaseline
+	 * The app module's source scope the live reload path can incrementally build. A watched
+	 * code/resource/asset change OUTSIDE this scope is another module's and must go through a proxy app rebuild
 	 * (see [org.appdevforall.cotg.quickbuild.domain.ChangeClassifier]). Distinct from
 	 * [watchedRoots], which spans EVERY module's `src` (so a library edit is seen, not
 	 * silently dropped) - only the app module's slice of that is live-reload-eligible.
 	 */
-	fun fastPathScope(): List<File>
+	fun liveReloadScope(): List<File>
 }
 
 /**
@@ -119,7 +119,7 @@ class DefaultQuickBuildProjectLayout(
 
 	// Watch EVERY module's src (not just the app module's): in a multi-module project a
 	// feature/library edit must be SEEN so it rebaselines, instead of firing no event and
-	// being silently not reloaded. The classifier still live-reloads only [fastPathScope]
+	// being silently not reloaded. The classifier still live-reloads only [liveReloadScope]
 	// (the app module); other-module edits route to a full build.
 	override fun watchedRoots(): List<File> = moduleDirs().map { File(it, "src") }
 
@@ -134,7 +134,7 @@ class DefaultQuickBuildProjectLayout(
 				listOf(File(it, "build.gradle"), File(it, "build.gradle.kts"))
 			}
 
-	override fun fastPathScope(): List<File> = listOf(File(appModuleDir, "src"))
+	override fun liveReloadScope(): List<File> = listOf(File(appModuleDir, "src"))
 
 	/**
 	 * Every Gradle module dir (a dir holding a `build.gradle[.kts]`), always including the

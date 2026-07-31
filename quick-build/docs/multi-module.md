@@ -61,7 +61,7 @@ Three scopes, in `data/QuickBuildProjectLayout.kt`:
   - `gradle.properties`
   - `gradle/libs.versions.toml`
   - every module's `build.gradle[.kts]`
-- **Live-reload scope** (`fastPathScope()`; the identifier keeps the older name) — `app/src` only. The app module is the directory literally named `app`.
+- **Live-reload scope** (`liveReloadScope()`) — `app/src` only. The app module is the directory literally named `app`.
 
 Routing:
 

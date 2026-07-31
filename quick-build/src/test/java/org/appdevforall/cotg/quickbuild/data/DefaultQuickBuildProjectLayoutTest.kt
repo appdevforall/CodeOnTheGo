@@ -155,11 +155,11 @@ class DefaultQuickBuildProjectLayoutTest {
 	}
 
 	@Test
-	fun `fastPathScope is only the app module even in a multi-module project`() {
+	fun `liveReloadScope is only the app module even in a multi-module project`() {
 		write("app/build.gradle.kts")
 		write("feature-login/build.gradle.kts")
 
-		assertThat(DefaultQuickBuildProjectLayout(root).fastPathScope())
+		assertThat(DefaultQuickBuildProjectLayout(root).liveReloadScope())
 			.containsExactly(File(root, "app/src"))
 	}
 }

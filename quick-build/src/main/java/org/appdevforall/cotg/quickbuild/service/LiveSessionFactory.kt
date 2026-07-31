@@ -62,7 +62,7 @@ internal class LiveSessionFactory(
 		val orchestrator =
 			LiveReloadOrchestrator(
 				executor = executor,
-				classifier = ChangeClassifier(annotationImpact, layout.fastPathScope()),
+				classifier = ChangeClassifier(annotationImpact, layout.liveReloadScope()),
 				scope = scope,
 				// Same monotonic timebase the executor stamps t1-t3 with, so the e2e
 				// timeline's t0 (trigger) is comparable to the rest (see E2eTimeline).
