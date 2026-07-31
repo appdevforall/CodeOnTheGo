@@ -1484,6 +1484,118 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `a retry that cannot get the Gradle slot defers instead of spending the auto-retry`() =
+		runTest {
+			// W9 finding F1: returning to CoGo after a gradle edit starts CoGo's own project
+			// sync (the same gradle-file change invalidated the session), and the foreground
+			// retry asked for the single Gradle slot 1.8 s later. The collision used to be
+			// reported as "Re-baseline build failed", which spent the one bounded retry and
+			// dropped the session to Idle - a dead end instead of the install re-prompt.
+			var slotBusy = false
+			rebaselineOutcome = {
+				if (slotBusy) {
+					RebaselineOutcome.BuildSlotBusy
+				} else {
+					RebaselineOutcome.InstallNotConfirmed("Your app needs a reinstall - return to CoGo to confirm.")
+				}
+			}
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			val parked =
+				QuickBuildSessionState.Invalidated(
+					InvalidationReason.INSTALL_NOT_CONFIRMED,
+					0,
+					awaitingRetry = true,
+				)
+			assertThat(manager.state.value).isEqualTo(parked)
+
+			slotBusy = true
+			manager.onHostForegrounded()
+			advanceUntilIdle()
+
+			// It did attempt, and it parked straight back with the budget untouched.
+			assertThat(rebaselineCount).isEqualTo(2)
+			assertThat(manager.state.value).isEqualTo(parked)
+			// The message does not degrade to a build failure: the install guidance stands,
+			// because that is still exactly what the user has to do.
+			assertThat(userMessages.last())
+				.isEqualTo("Your app needs a reinstall - return to CoGo to confirm.")
+			// A deferred attempt is not a rebaseline outcome; nothing is booked against the
+			// rebaseline success rate.
+			assertThat(metricsEvents.filter { it.startsWith("rebaseline:") }).hasSize(1)
+
+			// The retry the deferral gave back still works when the slot frees up.
+			slotBusy = false
+			rebaselineOutcome = { defaultRebaselineSuccess() }
+			manager.onHostForegrounded()
+			advanceUntilIdle()
+			assertThat(rebaselineCount).isEqualTo(3)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
+	fun `deferred retries do not lift the bound on real foreground retries`() =
+		runTest {
+			// The give-back must not turn into an unbounded retry loop: attempts that really
+			// run a Gradle build still cap at MAX_INSTALL_AUTO_RETRIES.
+			var slotBusy = true
+			rebaselineOutcome = {
+				if (slotBusy) RebaselineOutcome.BuildSlotBusy else RebaselineOutcome.InstallNotConfirmed("not confirmed")
+			}
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			slotBusy = false
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			assertThat(rebaselineCount).isEqualTo(1)
+
+			// A deferred foreground retry costs nothing.
+			slotBusy = true
+			manager.onHostForegrounded()
+			advanceUntilIdle()
+			assertThat(rebaselineCount).isEqualTo(2)
+
+			// The real ones then still bound at MAX.
+			slotBusy = false
+			repeat(SessionReducer.MAX_INSTALL_AUTO_RETRIES + 1) {
+				manager.onHostForegrounded()
+				advanceUntilIdle()
+			}
+			assertThat(rebaselineCount).isEqualTo(2 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Invalidated(
+						InvalidationReason.INSTALL_NOT_CONFIRMED,
+						0,
+						awaitingRetry = true,
+						installAutoRetries = SessionReducer.MAX_INSTALL_AUTO_RETRIES,
+					),
+				)
+		}
+
+	@Test
+	fun `a first rebaseline that cannot get the Gradle slot is reported, not parked`() =
+		runTest {
+			// Only a parked RETRY has somewhere to defer to. A first rebaseline colliding
+			// with another build keeps the existing behaviour: surface it and go Idle, where
+			// the next tap re-provisions.
+			rebaselineOutcome = { RebaselineOutcome.BuildSlotBusy }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+			assertThat(userMessages).contains("Re-baseline build failed")
+		}
+
+	@Test
 	fun `onHostForegrounded is a no-op when the session is not parked`() =
 		runTest {
 			// Every editor onResume calls this; a live session must be untouched by it.

@@ -80,10 +80,11 @@ sealed interface QuickBuildSessionState {
 
 	/**
 	 * The baseline is stale (manifest/gradle/external build); needs a full Gradle build.
-	 * [awaitingRetry] true = the rebaseline already ran but its reinstall was never
-	 * confirmed ([SessionEvent.RebaselineInstallNotConfirmed]); no rebaseline is in
-	 * flight, and the next Quick Build tap or [SessionEvent.HostForegrounded] retries
-	 * it (re-prompting the install) instead of the session having died to [Idle].
+	 * [awaitingRetry] true = no rebaseline is in flight and the next Quick Build tap or
+	 * [SessionEvent.HostForegrounded] retries it instead of the session having died to
+	 * [Idle]. Two things park here: a rebaseline whose reinstall was never confirmed
+	 * ([SessionEvent.RebaselineInstallNotConfirmed]) and a retry that never got the
+	 * device's single Gradle slot ([SessionEvent.RebaselineDeferred]).
 	 *
 	 * [installAutoRetries] counts the [SessionEvent.HostForegrounded] auto-retries already
 	 * spent on this unconfirmed reinstall. Once it reaches
@@ -202,6 +203,25 @@ sealed interface SessionEvent {
 	 * re-prompts. [deployedGeneration] is the generation the test app still runs.
 	 */
 	data class RebaselineInstallNotConfirmed(
+		val deployedGeneration: Long,
+	) : SessionEvent
+
+	/**
+	 * A parked rebaseline RETRY never started: the device's single Gradle slot was already
+	 * taken (CoGo's own project sync, a Standard Run), so nothing was built and no install
+	 * was prompted. The session parks straight back in
+	 * [QuickBuildSessionState.Invalidated] awaiting a retry, and the attempt is NOT counted
+	 * against [QuickBuildSessionState.Invalidated.installAutoRetries]: that budget bounds
+	 * Gradle builds and install prompts, and a deferred attempt produced neither.
+	 *
+	 * Reachable on exactly the path the park is made of: the invalidation that parks a
+	 * session is by definition a gradle-file change, which is also what makes CoGo's
+	 * ProjectSyncHelper declare NEED_SYNC - so a foreground return can start a sync build
+	 * milliseconds before the [HostForegrounded] retry asks for the same slot. Counting
+	 * that collision spent the whole budget and dropped the session to [Idle] with a
+	 * build-failure banner instead of the install re-prompt (W9 device walk, finding F1).
+	 */
+	data class RebaselineDeferred(
 		val deployedGeneration: Long,
 	) : SessionEvent
 
@@ -454,6 +474,21 @@ class SessionReducer {
 				SessionTransition(
 					QuickBuildSessionState.Idle,
 					listOf(SessionEffect.SurfaceProvisioningError(event.message)),
+				)
+			}
+
+			is SessionEvent.RebaselineDeferred -> {
+				// Park back exactly where the retry came from, with the attempt given
+				// back: it never ran a Gradle build and never prompted an install, which
+				// is what the budget bounds. Floored at zero - a TAP-initiated retry
+				// arrives here having already reset the budget.
+				SessionTransition(
+					QuickBuildSessionState.Invalidated(
+						InvalidationReason.INSTALL_NOT_CONFIRMED,
+						event.deployedGeneration,
+						awaitingRetry = true,
+						installAutoRetries = (state.installAutoRetries - 1).coerceAtLeast(0),
+					),
 				)
 			}
 

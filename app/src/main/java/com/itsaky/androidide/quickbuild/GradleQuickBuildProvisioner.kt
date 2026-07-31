@@ -52,8 +52,11 @@ class GradleQuickBuildProvisioner(
 	override suspend fun provision(): ProvisionOutcome {
 		unsupportedProjectTypeFailure()?.let { return ProvisionOutcome.Failure(it) }
 
+		// A busy Gradle slot folds into the same failure as any other: from Idle the next tap
+		// re-provisions, so there is no parked state to defer into (unlike [rebaseline]).
 		val setupResult =
-			runSetupBuild() ?: return ProvisionOutcome.Failure("Quick Build setup build failed")
+			runSetupBuild() as? SetupBuildResult.Ready
+				?: return ProvisionOutcome.Failure("Quick Build setup build failed")
 		val (setup, projectRoot, moduleDir) = setupResult
 
 		QuickBuildProjectSupport
@@ -102,7 +105,7 @@ class GradleQuickBuildProvisioner(
 			log.warn("Quick Build unsupported for this project type; skipping the warm setup build")
 			return
 		}
-		if (runSetupBuild() == null) {
+		if (runSetupBuild() !is SetupBuildResult.Ready) {
 			log.warn("Eager quick-build setup build did not complete; the first tap retries")
 		}
 	}
@@ -111,7 +114,15 @@ class GradleQuickBuildProvisioner(
 		unsupportedProjectTypeFailure()?.let { return RebaselineOutcome.Failure(it) }
 
 		val setupResult =
-			runSetupBuild() ?: return RebaselineOutcome.Failure("Re-baseline build failed")
+			when (val built = runSetupBuild()) {
+				is SetupBuildResult.Ready -> built
+
+				// Nothing ran, so this is not a build failure: the session parks back and
+				// retries later WITHOUT spending its bounded auto-retry budget.
+				SetupBuildResult.SlotBusy -> return RebaselineOutcome.BuildSlotBusy
+
+				SetupBuildResult.Failed -> return RebaselineOutcome.Failure("Re-baseline build failed")
+			}
 
 		QuickBuildProjectSupport
 			.noLaunchableActivityMessage(setupResult.setup.entryActivity)
@@ -194,14 +205,25 @@ class GradleQuickBuildProvisioner(
 			}
 	}
 
-	private data class SetupResult(
-		val setup: SetupInfo,
-		val projectRoot: File,
-		val moduleDir: File,
-	)
+	/**
+	 * Outcome of one setup-build attempt. [SlotBusy] is split out from [Failed] because the
+	 * caller's recovery differs: a rebaseline retry defers (nothing ran, so nothing is owed
+	 * a retry charge or an error banner), while a real failure is reported.
+	 */
+	private sealed interface SetupBuildResult {
+		data class Ready(
+			val setup: SetupInfo,
+			val projectRoot: File,
+			val moduleDir: File,
+		) : SetupBuildResult
 
-	/** Runs the setup build and parses setup.json; null (with a log) on any failure. */
-	private suspend fun runSetupBuild(): SetupResult? {
+		data object SlotBusy : SetupBuildResult
+
+		data object Failed : SetupBuildResult
+	}
+
+	/** Runs the setup build and parses setup.json; logs on every non-[SetupBuildResult.Ready]. */
+	private suspend fun runSetupBuild(): SetupBuildResult {
 		try {
 			QuickBuildArtifactStager.stage(context, paths)
 
@@ -212,7 +234,7 @@ class GradleQuickBuildProvisioner(
 					?: projectManager.getAndroidModules().firstOrNull()
 					?: run {
 						log.error("No Android module found for quick-build setup")
-						return null
+						return SetupBuildResult.Failed
 					}
 			val moduleDir = moduleDir(projectRoot, module.path)
 
@@ -220,7 +242,7 @@ class GradleQuickBuildProvisioner(
 				Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 					?: run {
 						log.error("Build service unavailable for quick-build setup")
-						return null
+						return SetupBuildResult.Failed
 					}
 
 			val gradleArgs =
@@ -235,6 +257,17 @@ class GradleQuickBuildProvisioner(
 					buildId = buildService.nextBuildId(BuildRunType.TaskRun),
 					buildParams = GradleBuildParams(gradleArgs = gradleArgs),
 				)
+
+			// One Gradle build at a time on the device, checked as late as possible - the
+			// staging and project-model work above takes seconds, and CoGo's own project sync
+			// fires on exactly the gradle-file change that invalidates a Quick Build session,
+			// so the two race here regularly. Reading the same raw in-progress flag CoGo's own
+			// build guards read keeps this a distinguishable outcome instead of an
+			// "IllegalStateException: Build is already in progress" that reads as a build failure.
+			if (buildService.isBuildInProgress) {
+				log.info("A Gradle build is already in progress; not starting the Quick Build setup build")
+				return SetupBuildResult.SlotBusy
+			}
 
 			// The setup build goes through the SAME executeTasks path as the user's Standard
 			// Run, and GradleBuildService has ONE editor event listener - so without this
@@ -257,7 +290,7 @@ class GradleQuickBuildProvisioner(
 				}
 			if (result == null || !result.isSuccessful) {
 				log.error("Quick-build setup build failed: {}", result?.failure)
-				return null
+				return SetupBuildResult.Failed
 			}
 
 			val setupJson =
@@ -271,22 +304,22 @@ class GradleQuickBuildProvisioner(
 							moduleDir,
 							projectRoot,
 						)
-						return null
+						return SetupBuildResult.Failed
 					}
 
 			val setup =
 				SetupInfo.parse(setupJson.readText(), projectRoot)
 					?: run {
 						log.error("Unparseable setup.json at {}", setupJson)
-						return null
+						return SetupBuildResult.Failed
 					}
 
-			return SetupResult(setup, projectRoot, moduleDir)
+			return SetupBuildResult.Ready(setup, projectRoot, moduleDir)
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Throwable) {
 			log.error("Quick-build setup build failed", e)
-			return null
+			return SetupBuildResult.Failed
 		}
 	}
 

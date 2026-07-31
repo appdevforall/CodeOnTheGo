@@ -262,6 +262,88 @@ class SessionReducerTest {
 	}
 
 	@Test
+	fun `a deferred rebaseline retry parks back and gives its auto-retry back`() {
+		// W9 finding F1: the retry asked for the device's single Gradle slot while CoGo's
+		// own project sync held it, so no build ran and no install was prompted. Charging
+		// the budget for that spent the one retry the park depends on and dropped the
+		// session to Idle behind a "Re-baseline build failed" banner.
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Provisioning(installAutoRetries = 1),
+				SessionEvent.RebaselineDeferred(deployedGeneration = 2),
+			)
+
+		assertThat(transition.state)
+			.isEqualTo(
+				QuickBuildSessionState.Invalidated(
+					InvalidationReason.INSTALL_NOT_CONFIRMED,
+					2,
+					awaitingRetry = true,
+					installAutoRetries = 0,
+				),
+			)
+		// No effect: retrying immediately would just hit the same busy slot. The next
+		// foreground return or tap runs it.
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
+	fun `a deferred rebaseline retry never drives the auto-retry count below zero`() {
+		// A TAP-initiated retry arrives with the budget already reset to 0, so the
+		// give-back has nothing to give.
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Provisioning(installAutoRetries = 0),
+				SessionEvent.RebaselineDeferred(deployedGeneration = 7),
+			)
+
+		assertThat(transition.state)
+			.isEqualTo(
+				QuickBuildSessionState.Invalidated(
+					InvalidationReason.INSTALL_NOT_CONFIRMED,
+					7,
+					awaitingRetry = true,
+					installAutoRetries = 0,
+				),
+			)
+	}
+
+	@Test
+	fun `deferrals do not lift the auto-retry cap - real attempts still bound it`() {
+		// The give-back must not become an unbounded budget: a deferral costs nothing, but
+		// the attempts that DO run a Gradle build still count up to the cap.
+		var state: QuickBuildSessionState =
+			QuickBuildSessionState.Invalidated(
+				InvalidationReason.INSTALL_NOT_CONFIRMED,
+				2,
+				awaitingRetry = true,
+			)
+
+		// One deferred attempt: parked again, budget untouched.
+		state = reducer.reduce(state, SessionEvent.HostForegrounded).state
+		state = reducer.reduce(state, SessionEvent.RebaselineStarted).state
+		state = reducer.reduce(state, SessionEvent.RebaselineDeferred(deployedGeneration = 2)).state
+		assertThat((state as QuickBuildSessionState.Invalidated).installAutoRetries).isEqualTo(0)
+
+		// Then MAX real attempts, each ending unconfirmed: the budget fills up.
+		repeat(SessionReducer.MAX_INSTALL_AUTO_RETRIES) {
+			state = reducer.reduce(state, SessionEvent.HostForegrounded).state
+			state = reducer.reduce(state, SessionEvent.RebaselineStarted).state
+			state =
+				reducer
+					.reduce(state, SessionEvent.RebaselineInstallNotConfirmed(deployedGeneration = 2))
+					.state
+		}
+		assertThat((state as QuickBuildSessionState.Invalidated).installAutoRetries)
+			.isEqualTo(SessionReducer.MAX_INSTALL_AUTO_RETRIES)
+
+		// Capped: the next foreground return runs nothing and stays parked.
+		val exhausted = reducer.reduce(state, SessionEvent.HostForegrounded)
+		assertThat(exhausted.state).isEqualTo(state)
+		assertThat(exhausted.effects).isEmpty()
+	}
+
+	@Test
 	fun `invalidated awaiting retry plus QuickBuildTapped retries the rebaseline once`() {
 		val parked =
 			QuickBuildSessionState.Invalidated(

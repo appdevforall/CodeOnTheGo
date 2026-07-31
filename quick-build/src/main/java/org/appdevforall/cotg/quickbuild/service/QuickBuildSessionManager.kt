@@ -195,6 +195,13 @@ class QuickBuildSessionManager(
 	private var sessionWork: Job? = null
 
 	/**
+	 * User-facing text of the park a rebaseline retry is recovering from, re-surfaced when
+	 * that retry is deferred (see [SessionEvent.RebaselineDeferred]). Only touched on
+	 * [dispatcher].
+	 */
+	private var parkedRetryMessage: String? = null
+
+	/**
 	 * Counts intentional daemon lifecycle transitions: every `daemon.start`/`daemon.shutdown`
 	 * this manager initiates outside the respawn path (provisioning start + its undo,
 	 * rebaseline teardown + restart, session teardown, low-memory shrink).
@@ -925,6 +932,12 @@ class QuickBuildSessionManager(
 
 	private suspend fun rebaseline(startEpoch: Long) {
 		val session = live ?: return
+		// Captured BEFORE RebaselineStarted moves the session to Provisioning, which carries
+		// neither the reason nor the deployed generation: a retry that never gets the Gradle
+		// slot has to park back exactly where it came from (see RebaselineDeferred).
+		val installRetryPark =
+			(_state.value as? QuickBuildSessionState.Invalidated)
+				?.takeIf { it.reason == InvalidationReason.INSTALL_NOT_CONFIRMED }
 		session.orchestrator.onRebaselineStarted()
 		dispatch(SessionEvent.RebaselineStarted)
 
@@ -949,11 +962,15 @@ class QuickBuildSessionManager(
 				log.error("Rebaseline threw instead of reporting an outcome", e)
 				RebaselineOutcome.Failure(e.message ?: e.javaClass.name)
 			}
-		report {
-			metrics.onRebaseline(
-				isSuccess = outcome is RebaselineOutcome.Success,
-				durationMillis = (System.nanoTime() - startedAtNanos) / 1_000_000,
-			)
+		if (outcome !is RebaselineOutcome.BuildSlotBusy) {
+			// A deferred rebaseline never ran, so reporting it would book a 0 ms failed
+			// rebaseline against the success rate for work that never happened.
+			report {
+				metrics.onRebaseline(
+					isSuccess = outcome is RebaselineOutcome.Success,
+					durationMillis = (System.nanoTime() - startedAtNanos) / 1_000_000,
+				)
+			}
 		}
 
 		if (startEpoch != sessionEpoch) {
@@ -963,6 +980,24 @@ class QuickBuildSessionManager(
 		}
 
 		when (outcome) {
+			is RebaselineOutcome.BuildSlotBusy -> {
+				if (installRetryPark != null) {
+					// The retry never got the Gradle slot (typically CoGo's own project sync,
+					// which the invalidating gradle edit itself triggers). Park back WITHOUT
+					// spending the auto-retry budget and re-state the install guidance: the
+					// user's next move is unchanged, and "Re-baseline build failed" would be
+					// both less actionable and a claim about a build that never ran.
+					log.info("Gradle slot busy; deferring the re-baseline retry without spending an auto-retry")
+					parkedRetryMessage?.let(::surfaceUserMessage)
+					dispatch(SessionEvent.RebaselineDeferred(installRetryPark.deployedGeneration))
+				} else {
+					// A first rebaseline (not a parked retry) has no park to return to and no
+					// budget to protect; report it like any other setup-build failure.
+					session.orchestrator.onRebaselineFailed()
+					dispatch(SessionEvent.ProvisioningFailed("Re-baseline build failed"))
+				}
+			}
+
 			is RebaselineOutcome.Success -> {
 				// The rebaseline regenerated setup.json and reinstalled the test app:
 				// every SetupInfo-derived piece of the session (deploy-policy components,
@@ -1012,6 +1047,9 @@ class QuickBuildSessionManager(
 				// dead daemon); the retry's onRebaselineStarted re-holds pending on
 				// top, and every held file is on disk for its Gradle build to absorb.
 				log.warn("Rebaseline reinstall not confirmed; awaiting a retry: {}", outcome.message)
+				// Kept so a retry that gets deferred can re-state THIS guidance instead of
+				// a build-failure message about a build that never ran.
+				parkedRetryMessage = outcome.message
 				surfaceUserMessage(outcome.message)
 				dispatch(
 					SessionEvent.RebaselineInstallNotConfirmed(
@@ -1099,6 +1137,7 @@ class QuickBuildSessionManager(
 	private fun teardown() {
 		sessionEpoch++
 		daemonEpoch++
+		parkedRetryMessage = null
 		sessionWork?.cancel()
 		sessionWork = null
 		live?.watcher?.stop()

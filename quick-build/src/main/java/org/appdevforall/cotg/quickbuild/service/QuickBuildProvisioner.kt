@@ -92,4 +92,13 @@ sealed interface RebaselineOutcome {
 	data class InstallNotConfirmed(
 		val message: String,
 	) : RebaselineOutcome
+
+	/**
+	 * The re-baseline never STARTED: the device runs one Gradle build at a time and the
+	 * slot was already taken (CoGo's own project sync, a Standard Run). Nothing was built,
+	 * nothing was installed, no user prompt happened - so this is not a failure to report
+	 * and, for a retry of an unconfirmed reinstall, not an attempt to charge against the
+	 * bounded auto-retry budget. The session parks back and a later trigger runs it.
+	 */
+	data object BuildSlotBusy : RebaselineOutcome
 }
