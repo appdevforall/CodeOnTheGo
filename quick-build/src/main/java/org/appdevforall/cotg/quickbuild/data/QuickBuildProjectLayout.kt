@@ -63,7 +63,7 @@ interface QuickBuildProjectLayout {
 	 * code/resource/asset change OUTSIDE this scope is another module's and must rebaseline
 	 * (see [org.appdevforall.cotg.quickbuild.domain.ChangeClassifier]). Distinct from
 	 * [watchedRoots], which spans EVERY module's `src` (so a library edit is seen, not
-	 * silently dropped) - only the app module's slice of that is fast-path-eligible.
+	 * silently dropped) - only the app module's slice of that is live-reload-eligible.
 	 */
 	fun fastPathScope(): List<File>
 }
@@ -119,7 +119,7 @@ class DefaultQuickBuildProjectLayout(
 
 	// Watch EVERY module's src (not just the app module's): in a multi-module project a
 	// feature/library edit must be SEEN so it rebaselines, instead of firing no event and
-	// being silently not reloaded. The classifier still fast-paths only [fastPathScope]
+	// being silently not reloaded. The classifier still live-reloads only [fastPathScope]
 	// (the app module); other-module edits route to a full build.
 	override fun watchedRoots(): List<File> = moduleDirs().map { File(it, "src") }
 
@@ -164,7 +164,7 @@ class DefaultQuickBuildProjectLayout(
 	private companion object {
 		// `:a:b:c:d`-deep module paths are rare; deeper reactors just watch a bit less of
 		// their tail (still correct - those edits fall to the periodic mtime sweep / are
-		// out of the single-module fast path anyway).
+		// out of the single-module live reload path anyway).
 		const val MODULE_SCAN_MAX_DEPTH = 4
 	}
 }

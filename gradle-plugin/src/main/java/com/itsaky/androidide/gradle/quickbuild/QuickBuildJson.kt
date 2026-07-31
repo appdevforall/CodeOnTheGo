@@ -131,7 +131,7 @@ object QuickBuildJson {
 				"composeEnabled" to composeEnabled,
 				// KSP/kapt/annotationProcessor coordinates, and every source root the
 				// variant compiles (GENERATED roots included). Together they let CoGo keep
-				// a processor-using project on the fast path for edits that miss processor
+				// a processor-using project on the live reload path for edits that miss processor
 				// input, instead of rebaselining on every save.
 				"annotationProcessors" to annotationProcessors,
 				"sourceRoots" to sourceRoots,

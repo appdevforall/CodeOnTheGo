@@ -3,7 +3,7 @@ package org.appdevforall.cotg.quickbuild.domain
 /**
  * Port for per-build run statistics (ADFA-4128 tracking; David's ask on the design doc):
  * change-set size, route, run time, invalidations, proxy-app-rebuild cost - the signals needed
- * to tune the fast path on real data. The app layer wires an analytics-backed sink; the
+ * to tune the live reload path on real data. The app layer wires an analytics-backed sink; the
  * domain only knows this interface so dependencies keep flowing down.
  *
  * Contract: implementations must be cheap and must not throw - metrics can never affect
@@ -31,7 +31,7 @@ interface QuickBuildMetricsSink {
 		outcome: BuildOutcome,
 	)
 
-	/** The changed-set forced the session off the fast path (David's "significant events"). */
+	/** The changed-set forced the session off the live reload path (David's "significant events"). */
 	fun onInvalidation(reason: InvalidationReason)
 
 	/**

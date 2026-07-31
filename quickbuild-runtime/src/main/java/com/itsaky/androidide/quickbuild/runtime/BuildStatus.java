@@ -3,7 +3,7 @@ package com.itsaky.androidide.quickbuild.runtime;
 import java.util.Map;
 
 /**
- * Parsed form of the {@code statusJson} argument of {@code IQuickBuildTarget.onBuildStatus} (schema in quick-build/README.md). All values are strings on the wire because {@link MiniJson} deliberately reads only strings. Plain Java so the parsing is JVM-unit-testable; unknown kinds parse to null and unknown fields are ignored, so CoGo can extend the schema without breaking already-installed test apps.
+ * Parsed form of the {@code statusJson} argument of {@code IQuickBuildTarget.onBuildStatus} (schema in quick-build/README.md). All values are strings on the wire because {@link MiniJson} deliberately reads only strings. Plain Java so the parsing is JVM-unit-testable; unknown kinds parse to null and unknown fields are ignored, so CoGo can extend the schema without breaking already-installed proxy apps.
  */
 final class BuildStatus {
 

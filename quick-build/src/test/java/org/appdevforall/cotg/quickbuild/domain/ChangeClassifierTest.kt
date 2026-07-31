@@ -140,7 +140,7 @@ class ChangeClassifierTest {
 	}
 
 	@Test
-	fun `annotation impact leaves a safe code change on the fast path`() {
+	fun `annotation impact leaves a safe code change on the live reload path`() {
 		assertThat(
 			classifierWith(active = true, escalates = false)
 				.classify(ChangedFiles.Known(setOf(File("app/src/main/java/Ui.kt")))),
@@ -239,14 +239,14 @@ class ChangeClassifierTest {
 		assertThat(classifier.classify(ChangedFiles.Known.EMPTY)).isEqualTo(BuildRoute.NoOp)
 	}
 
-	// --- multi-module boundary (Level 1): the fast path builds only the app module ---
+	// --- multi-module boundary (Level 1): a live reload builds only the app module ---
 
 	private val moduleAware = ChangeClassifier(fastPathRoots = listOf(File("app/src")))
 
 	private fun classifyScoped(vararg paths: String): BuildRoute = moduleAware.classify(ChangedFiles.Known(paths.map(::File).toSet()))
 
 	@Test
-	fun `app-module code inside the fast-path scope stays a code build`() {
+	fun `app-module code inside the live-reload scope stays a code build`() {
 		assertThat(classifyScoped("app/src/main/java/com/example/A.kt"))
 			.isEqualTo(BuildRoute.CodeOnly)
 	}
@@ -270,7 +270,7 @@ class ChangeClassifierTest {
 	}
 
 	@Test
-	fun `an app edit beside a library edit rebaselines - never fast-path a partial changeset`() {
+	fun `an app edit beside a library edit rebaselines - never live-reload a partial changeset`() {
 		assertThat(
 			classifyScoped(
 				"app/src/main/java/com/example/A.kt",
@@ -289,7 +289,7 @@ class ChangeClassifierTest {
 	}
 
 	@Test
-	fun `empty fast-path roots disables the boundary - single-module behavior is unchanged`() {
+	fun `empty live-reload roots disables the boundary - single-module behavior is unchanged`() {
 		// The default classifier (no fastPathRoots) must treat any src code as a code build,
 		// preserving pre-multi-module semantics for single-module projects and shape tests.
 		assertThat(classify("feature-login/src/main/java/com/example/Login.kt"))

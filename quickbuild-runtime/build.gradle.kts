@@ -5,7 +5,7 @@ plugins {
 }
 
 description =
-	"Quick Build runtime embedded in generated test apps: binds to CoGo, receives payload fds, hot-reloads (ADFA-4128)"
+	"Quick Build runtime embedded in generated proxy apps: binds to CoGo, receives payload fds, hot-reloads (ADFA-4128)"
 
 android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.quickbuild.runtime"

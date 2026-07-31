@@ -14,7 +14,7 @@ enum ResourceSwapStrategy {
 	LEGACY_ASSET_PATH,
 
 	/**
-	 * Below API 28: no mechanism this runtime supports; resource payloads are ignored (logged once). Unreachable in practice - the deploying CoGo host itself needs API 28+, and host and test app share one device.
+	 * Below API 28: no mechanism this runtime supports; resource payloads are ignored (logged once). Unreachable in practice - the deploying CoGo host itself needs API 28+, and host and proxy app share one device.
 	 */
 	UNSUPPORTED;
 

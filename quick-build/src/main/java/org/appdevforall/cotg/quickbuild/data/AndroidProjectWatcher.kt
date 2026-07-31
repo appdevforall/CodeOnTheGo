@@ -24,7 +24,7 @@ import java.io.File
  *
  * Why hybrid: the project lives under `/storage/emulated/0/...` (sdcardfs/FUSE), where
  * inotify events can be dropped under load. inotify alone risks a silently-stale app - a
- * direct hit on the never-stale invariant. So inotify provides the fast path and a cheap
+ * direct hit on the never-stale invariant. So inotify provides the low-latency path and a cheap
  * [pollIntervalMillis] mtime sweep is the floor that bounds staleness regardless of drops.
  *
  * Both feed one raw-event channel -> [WatchFilter] relevance -> [coalesceChanges] debounce

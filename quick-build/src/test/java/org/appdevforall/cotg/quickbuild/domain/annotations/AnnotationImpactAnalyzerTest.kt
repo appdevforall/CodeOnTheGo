@@ -113,7 +113,7 @@ class AnnotationImpactAnalyzerTest {
 	}
 
 	@Test
-	fun `new file without processor annotations stays on the fast path`() {
+	fun `new file without processor annotations stays on the live reload path`() {
 		val fixture = fixture()
 		val analyzer = analyzer(fixture)
 		val helper =
@@ -143,7 +143,7 @@ class AnnotationImpactAnalyzerTest {
 	}
 
 	@Test
-	fun `an anchor file reported as changed but byte-identical stays on the fast path`() {
+	fun `an anchor file reported as changed but byte-identical stays on the live reload path`() {
 		val fixture = fixture()
 		val analyzer = analyzer(fixture)
 		// A watcher event with no real content change (touch, editor re-save).
@@ -177,7 +177,7 @@ class AnnotationImpactAnalyzerTest {
 	}
 
 	@Test
-	fun `deleting a plain file stays on the fast path`() {
+	fun `deleting a plain file stays on the live reload path`() {
 		val fixture = fixture()
 		val analyzer = analyzer(fixture)
 		assertThat(fixture.formatter.delete()).isTrue()
@@ -186,7 +186,7 @@ class AnnotationImpactAnalyzerTest {
 	}
 
 	@Test
-	fun `body-only edit of a plain UI file stays on the fast path`() {
+	fun `body-only edit of a plain UI file stays on the live reload path`() {
 		val fixture = fixture()
 		val analyzer = analyzer(fixture)
 		fixture.edit(fixture.activity, RoomAppFixture.ACTIVITY.replace("\"Notes\"", "\"My Notes\""))
@@ -195,7 +195,7 @@ class AnnotationImpactAnalyzerTest {
 	}
 
 	@Test
-	fun `body-only edit inside an annotated file stays on the fast path`() {
+	fun `body-only edit inside an annotated file stays on the live reload path`() {
 		val fixture = fixture()
 		val analyzer = analyzer(fixture)
 		fixture.edit(
@@ -219,7 +219,7 @@ class AnnotationImpactAnalyzerTest {
 	}
 
 	@Test
-	fun `comment and whitespace edits stay on the fast path`() {
+	fun `comment and whitespace edits stay on the live reload path`() {
 		val fixture = fixture()
 		val analyzer = analyzer(fixture)
 		fixture.edit(
@@ -233,7 +233,7 @@ class AnnotationImpactAnalyzerTest {
 	}
 
 	@Test
-	fun `import-only change that brings nothing processor-relevant into scope stays on the fast path`() {
+	fun `import-only change that brings nothing processor-relevant into scope stays on the live reload path`() {
 		val fixture = fixture()
 		val analyzer = analyzer(fixture)
 		fixture.edit(
@@ -329,7 +329,7 @@ class AnnotationImpactAnalyzerTest {
 	}
 
 	@Test
-	fun `an unrecognized processor still fast-paths a file with no annotations`() {
+	fun `an unrecognized processor still live-reloads a file with no annotations`() {
 		val fixture = fixture()
 		val profile = AnnotationProcessorProfile.of(listOf("com.example:mystery-processor:1.0"))
 		val analyzer = analyzer(fixture, profile)
@@ -361,7 +361,7 @@ class AnnotationImpactAnalyzerTest {
 	}
 
 	@Test
-	fun `reverting an annotation edit returns to the fast path`() {
+	fun `reverting an annotation edit returns to the live reload path`() {
 		val fixture = fixture()
 		val analyzer = analyzer(fixture)
 		fixture.edit(fixture.userDao, RoomAppFixture.USER_DAO.replace("ORDER BY name", "ORDER BY id"))
@@ -372,7 +372,7 @@ class AnnotationImpactAnalyzerTest {
 	}
 
 	@Test
-	fun `hilt entry point on an activity fast-paths a body edit but not a constructor change`() {
+	fun `hilt entry point on an activity live-reloads a body edit but not a constructor change`() {
 		val fixture = fixture()
 		val profile = AnnotationProcessorProfile.of(listOf("com.google.dagger:hilt-android-compiler:2.51"))
 		val hiltActivity =

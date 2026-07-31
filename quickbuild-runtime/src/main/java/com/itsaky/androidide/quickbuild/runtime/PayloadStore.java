@@ -21,7 +21,7 @@ final class PayloadStore {
 
 	static final PayloadStore INSTANCE = new PayloadStore();
 
-	/** Where the setup build bakes the baseline payload into the test APK. */
+	/** Where the proxy app build bakes the baseline payload into the proxy app APK. */
 	static final String BASELINE_ASSET = "assets/quickbuild/gen-0.dex";
 
 	/** Store dir for the persisted newest payload, relative to the app's filesDir. */

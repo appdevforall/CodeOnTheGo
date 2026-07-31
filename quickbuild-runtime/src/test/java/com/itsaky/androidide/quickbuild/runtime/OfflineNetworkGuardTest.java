@@ -12,7 +12,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Offline guard (ADFA-4128 offline-test-plan touchpoints 7-10) for the `:quickbuild-runtime` AAR -- the code embedded in generated test apps that binds to CoGo and hot-reloads payloads over binder IPC. Quick Build must be provably network-free; this runtime opens no sockets. This test scans the module's compiled production classes for any network-API reference in their constant pools and fails, naming the offending class + constant, if one appears. It runs in the normal `test` task, so a regression is caught in CI, not just by a device walk.
+ * Offline guard (ADFA-4128 offline-test-plan touchpoints 7-10) for the `:quickbuild-runtime` AAR -- the code embedded in generated proxy apps that binds to CoGo and hot-reloads payloads over binder IPC. Quick Build must be provably network-free; this runtime opens no sockets. This test scans the module's compiled production classes for any network-API reference in their constant pools and fails, naming the offending class + constant, if one appears. It runs in the normal `test` task, so a regression is caught in CI, not just by a device walk.
  *
  * The runtime is Java-only with no allowed network exceptions. `java/net/URL`/`URI`/`URLClassLoader` are allow-listed for consistency but absent today.
  */

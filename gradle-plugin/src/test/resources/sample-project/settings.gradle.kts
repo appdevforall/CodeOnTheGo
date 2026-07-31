@@ -11,7 +11,7 @@ pluginManagement {
 dependencyResolutionManagement {
 	repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
 	// Dependency repos for functional tests that run a real `assemble` (the Quick Build
-	// setup-build config-cache test resolves the app's androidx deps here). Tests that only
+	// proxy app build config-cache test resolves the app's androidx deps here). Tests that only
 	// run `:app:tasks` never resolve a classpath, so this is inert for them.
 	repositories {
 		google()

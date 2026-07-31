@@ -4,8 +4,8 @@ import android.os.Bundle
 import com.itsaky.androidide.analytics.Metric
 
 /**
- * Firebase metrics for the Quick Build fast path (ADFA-4128), mirroring the Gradle
- * build metric family: started/completed pair + the fast-path-specific invalidation and
+ * Firebase metrics for the Quick Build live reload path (ADFA-4128), mirroring the Gradle
+ * build metric family: started/completed pair + the live-reload-specific invalidation and
  * proxy-app-rebuild events. Payloads are low-cardinality - routes and reasons are enum-derived
  * strings, projects are hashed like [com.itsaky.androidide.analytics.gradle.BuildStartedMetric],
  * no paths or file names ever leave the device.
@@ -179,7 +179,7 @@ data class QuickBuildReloadTimingMetric(
 	}
 }
 
-/** The changed-set forced the session off the fast path (route = FullGradleBuild). */
+/** The changed-set forced the session off the live reload path (route = FullGradleBuild). */
 data class QuickBuildInvalidatedMetric(
 	val qbSessionId: String,
 	val reason: String,

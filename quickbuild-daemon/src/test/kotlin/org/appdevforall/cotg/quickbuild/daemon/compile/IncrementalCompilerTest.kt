@@ -551,8 +551,8 @@ class IncrementalCompilerTest {
 	@Test
 	fun `a java constant's new value reaches its kotlin caller's bytecode`() {
 		// Kotlin inlines Java compile-time constants, so nothing about this edit shows up in
-		// a signature - if the ABI fingerprint ignored constant VALUES, the fast path would
-		// skip LimitUser and leave it returning 5 forever.
+		// a signature - if the ABI fingerprint ignored constant VALUES, the Java-ABI shortcut
+		// would skip LimitUser and leave it returning 5 forever.
 		val sources = limitsSources("5")
 		val compiler = compiler()
 		val baseline = compiler.compile(sources, changedFiles = sources)

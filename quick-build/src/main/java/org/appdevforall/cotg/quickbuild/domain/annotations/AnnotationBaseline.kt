@@ -10,7 +10,7 @@ import java.io.File
  * path correct: the generated code sitting in the installed proxy app was produced from
  * this snapshot, so "unchanged versus the baseline" is exactly the condition under which
  * that generated code is still right. It also means an edit that adds an annotation and
- * a later edit that removes it again lands back on the fast path, which comparing
+ * a later edit that removes it again lands back on the live reload path, which comparing
  * successive revisions would not.
  */
 class AnnotationBaseline private constructor(

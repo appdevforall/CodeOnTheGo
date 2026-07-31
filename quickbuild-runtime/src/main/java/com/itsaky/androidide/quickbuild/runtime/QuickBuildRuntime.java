@@ -13,7 +13,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 /**
- * The conductor of the test-app runtime: receives payloads from {@link QuickBuildClient}, applies them to {@link PayloadStore}/{@link ResourceStore}, drives the reload, and keeps the {@link StatusOverlay} and the host's reports honest.
+ * The conductor of the proxy app runtime: receives payloads from {@link QuickBuildClient}, applies them to {@link PayloadStore}/{@link ResourceStore}, drives the reload, and keeps the {@link StatusOverlay} and the host's reports honest.
  *
  * Installed once per process by {@link QuickBuildAppComponentFactory} at application instantiation - the earliest hook a library gets without a ContentProvider. Context work (binding to CoGo, cache dirs) is deferred to the first activity because the Application has no base context yet at install time.
  *

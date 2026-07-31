@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Parsed form of the {@code metadataJson} argument of {@code IQuickBuildTarget.onPayload} (schema in quick-build/README.md). Plain Java so the parsing is JVM-unit-testable; unknown fields are ignored so the host can extend the schema without breaking already-installed test apps.
+ * Parsed form of the {@code metadataJson} argument of {@code IQuickBuildTarget.onPayload} (schema in quick-build/README.md). Plain Java so the parsing is JVM-unit-testable; unknown fields are ignored so the host can extend the schema without breaking already-installed proxy apps.
  */
 final class DeployMetadata {
 

@@ -23,7 +23,7 @@ import java.util.Collections;
  *
  * Below 28 ({@code UNSUPPORTED}): resource payloads are ignored (logged once); unreachable in practice since the CoGo host needs API 28+ on the same device.
  *
- * Assets: no in-memory API exists, so the changed-assets zip is extracted to an app-private cache dir and exposed via {@link #overrideAsset}. v1 limitation, documented: this is a LOOKUP path for code that asks the runtime, not a transparent AssetManager override - code reading assets directly through AssetManager still sees the baked-in APK assets until the next setup build.
+ * Assets: no in-memory API exists, so the changed-assets zip is extracted to an app-private cache dir and exposed via {@link #overrideAsset}. v1 limitation, documented: this is a LOOKUP path for code that asks the runtime, not a transparent AssetManager override - code reading assets directly through AssetManager still sees the baked-in APK assets until the next proxy app build.
  */
 final class ResourceStore {
 

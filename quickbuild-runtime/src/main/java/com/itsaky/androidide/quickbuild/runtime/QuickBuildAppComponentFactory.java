@@ -13,7 +13,7 @@ import android.content.Intent;
  *
  * Services, receivers and providers route the same way (all hooks are API 28+, our floor). Receivers are re-instantiated per delivery so routing alone keeps them current; services, providers and the Application swap via process restart driven by CoGo (component-proxying design, section 4) - the factory's job is only to make every instantiation, including the post-restart one, use the current loader.
  *
- * Declared as {@code android:appComponentFactory} in the runtime's manifest (merged into the generated test app; framework instantiates it on API 28+). Deliberately androidx-free - this AAR is injected into arbitrary user apps and must not drag a dependency in.
+ * Declared as {@code android:appComponentFactory} in the runtime's manifest (merged into the generated proxy app; framework instantiates it on API 28+). Deliberately androidx-free - this AAR is injected into arbitrary user apps and must not drag a dependency in.
  *
  * Everything falls back to the framework default path on any failure: an app this factory is injected into must at worst behave like a normal app, never crash because of us.
  */

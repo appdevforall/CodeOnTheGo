@@ -7,7 +7,7 @@ import java.util.zip.ZipFile
 /**
  * Shells the device-provisioned aapt2 to rebuild the resource table after a res-only
  * (or mixed) save: compile every res dir to .flat files, then link them against
- * android.jar with the test-app manifest. The payload the runtime applies is the WHOLE
+ * android.jar with the proxy app manifest. The payload the runtime applies is the WHOLE
  * linked apk (`resources.arsc` plus every compiled resource FILE - layouts, drawable
  * XMLs, adaptive-icon XMLs, ...), not a bare extracted table.
  *
@@ -24,18 +24,18 @@ import java.util.zip.ZipFile
  * v1 recompiles and relinks everything on every call: correct-not-clever, and aapt2 on
  * a phone-sized res tree is fast enough for the ~0.3 s tier-0 budget (plan 2.3).
  *
- * A relink links ONLY the project's own res/ - a strict subset of what the real setup
- * build's Gradle resource-merge produces (library AAR resources, e.g. CoGo's injected
+ * A relink links ONLY the project's own res/ - a strict subset of what the real proxy
+ * app build's Gradle resource-merge produces (library AAR resources, e.g. CoGo's injected
  * LogSender `bool/logsender_enabled`, are absent). When a whole resource TYPE present in
  * the baseline link is absent here, aapt2's default (declaration-order) type-index
  * assignment shifts every type ordered after it - e.g. `mipmap` moves from the baseline's
- * type-id 04 to 03 - and the test app's `AndroidManifest.xml` (compiled once, at
- * setup-build time, against the BASELINE table) still encodes `android:icon` as the fixed
+ * type-id 04 to 03 - and the proxy app's `AndroidManifest.xml` (compiled once, at
+ * proxy app build time, against the BASELINE table) still encodes `android:icon` as the fixed
  * numeric id `0x7f040000`. Once the relinked table is live, that same id resolves against
  * type 04 in the NEW table, which is no longer mipmap - the OS resolves the app's icon to
  * the wrong resource type and crashes on activity recreate (ADFA-4128 Bug 6). [stableIds]
  * (`aapt2 link --stable-ids`) fixes this: it pins each resource present in the relink to
- * the exact numeric id AGP's own setup build gave it, so `mipmap` keeps type-id 04
+ * the exact numeric id AGP's own proxy app build gave it, so `mipmap` keeps type-id 04
  * regardless of what other types this narrower relink does or doesn't include.
  *
  * A relink also can't resolve any resource a dependency AAR provides - e.g. Material3's
@@ -43,7 +43,7 @@ import java.util.zip.ZipFile
  * `themes.xml` extends - because the project's own res/ never declares it (ADFA-4128
  * Bug 8). `--auto-add-overlay` doesn't help: it only relaxes duplicate-resource checks
  * between the caller's OWN inputs, it can't summon a name the inputs never contain.
- * AGP resolves library resources through two SEPARATE mechanisms the real setup build
+ * AGP resolves library resources through two SEPARATE mechanisms the real proxy app build
  * runs and this relink must feed back in via [libraryResources]:
  *  - VALUES resources (styles/themes/colors/dimens/strings/attrs, and everything a style
  *    parents against) are flattened, TRANSITIVELY, across the whole dependency graph by
@@ -71,11 +71,11 @@ import java.util.zip.ZipFile
  * `aapt2 compile --dir res` output) is therefore ALSO passed as `-R`, ordered LAST among
  * all `-R` arguments - so a resource the user just edited, which may also exist in
  * [libraryResources] (merged_res carries the project's own resources too, from
- * setup-build time), resolves to the FRESH edit, not the stale merged_res snapshot. This
+ * proxy app build time), resolves to the FRESH edit, not the stale merged_res snapshot. This
  * is a real, previously-latent correctness bug: the original plan for this fix assumed
  * [flatFiles] as bare positional args would win "because it's listed last" - that is false
  * for aapt2's actual precedence rule, and would have made every conflicting edit silently
- * serve the stale setup-build value.
+ * serve the stale proxy app build value.
  */
 class Aapt2Link(
 	private val aapt2: File,
@@ -99,11 +99,11 @@ class Aapt2Link(
 
 	/**
 	 * @param stableIds AGP's `stableIds.txt` mapping (`pkg:type/name = 0x7f0xxxxx`) from
-	 *   the setup build's real resource processing, if CoGo has one for this project.
+	 *   the proxy app build's real resource processing, if CoGo has one for this project.
 	 *   When present and readable, passed to aapt2 as `--stable-ids` (see class KDoc for
 	 *   why). Null falls back to the pre-fix behavior: aapt2's own declaration-order id
 	 *   assignment, unpinned.
-	 * @param libraryResources pre-compiled `.flat` resource units the setup build's real
+	 * @param libraryResources pre-compiled `.flat` resource units the proxy app build's real
 	 *   AGP resource processing produced (the project's own `intermediates/merged_res/`
 	 *   closure - transitively including every dependency AAR's VALUES resources - plus
 	 *   each resource-providing AAR's separately-compiled FILE-based resources). Feeds a

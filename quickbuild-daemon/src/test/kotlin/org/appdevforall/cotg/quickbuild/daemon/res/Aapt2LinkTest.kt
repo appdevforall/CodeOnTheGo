@@ -147,8 +147,8 @@ class Aapt2LinkTest {
 	}
 
 	// ADFA-4128 Bug 6: aapt2's declaration-order type-index assignment shifts when a whole
-	// resource TYPE the real setup build produced (e.g. a library-injected `bool`) is
-	// absent from a relink's narrower res tree - the test app's manifest, compiled once
+	// resource TYPE the real proxy app build produced (e.g. a library-injected `bool`) is
+	// absent from a relink's narrower res tree - the proxy app's manifest, compiled once
 	// against the baseline table, then decodes its numeric resource ids against the WRONG
 	// type in the reattached table. `--stable-ids` pins ids to the baseline regardless.
 	// These tests don't need a real aapt2 toolchain: `buildLinkArguments` is pure argument

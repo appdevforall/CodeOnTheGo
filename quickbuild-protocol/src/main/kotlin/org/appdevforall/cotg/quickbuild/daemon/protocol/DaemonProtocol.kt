@@ -80,7 +80,7 @@ data class DexRequest(
 /**
  * Recompile + relink resources; the response carries the extracted resources.arsc.
  *
- * @property stableIds path to AGP's `stableIds.txt` from the setup build's real resource
+ * @property stableIds path to AGP's `stableIds.txt` from the proxy app build's real resource
  *   processing, if CoGo has one for this project. Passed to `aapt2 link --stable-ids` so
  *   the relink (project res only - a strict subset of what the real build merged in)
  *   pins every resource to the same numeric id the baseline manifest was compiled
@@ -88,7 +88,7 @@ data class DexRequest(
  *   doesn't) shift aapt2's type-index assignment out from under that manifest
  *   (ADFA-4128 Bug 6). Optional and backward-compatible: a client that never sends it
  *   gets the pre-fix (unstable) relink behavior, not a protocol error.
- * @property libraryResources pre-compiled `.flat` resource units from the setup build's
+ * @property libraryResources pre-compiled `.flat` resource units from the proxy app build's
  *   real AGP resource processing - the project's own `intermediates/merged_res/` closure
  *   (transitively includes every dependency AAR's VALUES resources) plus each
  *   resource-providing AAR's separately-compiled FILE-based resources. Passed to

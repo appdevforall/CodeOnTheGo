@@ -9,10 +9,10 @@ package org.appdevforall.cotg.quickbuild.domain.annotations
  * generated code:
  * - **All processors recognized** - only annotations from those processors' own packages
  *   are input. A Room-only project can edit a Composable, a ViewModel or an Activity on
- *   the fast path.
+ *   the live reload path.
  * - **Any processor unrecognized** - ANY annotation is treated as input, except the
  *   language-level ones no processor can meaningfully consume ([LANGUAGE_INERT]). Files
- *   with no annotations at all still take the fast path, which is most of a real app.
+ *   with no annotations at all still take the live reload path, which is most of a real app.
  *
  * An annotation whose name cannot be resolved to a package (no matching import, no
  * qualified use) resolves as input whenever its simple name is one a configured

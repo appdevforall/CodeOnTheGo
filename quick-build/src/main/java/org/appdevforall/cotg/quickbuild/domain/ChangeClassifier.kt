@@ -26,7 +26,7 @@ import java.io.File
  * a changed source that could have moved generated code escalates to a Gradle rebaseline.
  * Default [AnnotationImpact.Inactive] keeps a processor-free project exactly as it was.
  *
- * [fastPathRoots] are the app module's fast-path source scope (its `src` root). The quick
+ * [fastPathRoots] are the app module's live-reload source scope (its `src` root). The quick
  * path incrementally compiles ONLY the app module against a frozen dependency classpath, so
  * a code/resource/asset change in ANOTHER Gradle module (a library/feature module) cannot be
  * absorbed - it routes to [BuildRoute.FullGradleBuild] ([InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED]).
@@ -72,7 +72,7 @@ class ChangeClassifier(
 		// ([QuickBuildSessionManager.onWatcherBatch]), so only recognized ones arrive here.
 		for (file in known.files + known.removed) {
 			val kind = kindOf(file)
-			// A code/resource/asset change outside the app module's fast-path scope belongs
+			// A code/resource/asset change outside the app module's live-reload scope belongs
 			// to another Gradle module the quick path can't incrementally build - rebaseline
 			// rather than fast-compile it against the app module (or silently drop it). Empty
 			// fastPathRoots = no boundary (single-module fallback / pure-shape unit tests).
@@ -204,7 +204,7 @@ class ChangeClassifier(
 		 * Deliberately narrow: a "true" result does NOT by itself force
 		 * [BuildRoute.FullGradleBuild] for a deletion — [kindOf] never checks existence, so
 		 * a kept-but-deleted `.kt` still classifies as ordinary [FileKind.CODE] and takes
-		 * the same fast path a live edit would. This function only decides what's safe to
+		 * the same live reload path a live edit would. This function only decides what's safe to
 		 * drop as noise, not how a genuine deletion should ultimately be handled — that's
 		 * unchanged, pre-existing classifier behavior, out of scope here.
 		 */

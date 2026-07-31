@@ -3,14 +3,14 @@ package com.itsaky.androidide.quickbuild;
 import com.itsaky.androidide.quickbuild.IQuickBuildTarget;
 
 /**
- * CoGo side of the deploy channel (bound service, LogSender bind pattern). The test app
+ * CoGo side of the deploy channel (bound service, LogSender bind pattern). The proxy app
  * binds on launch and registers its callback. CoGo verifies Binder.getCallingUid()
- * against the test app's installed uid on every call.
+ * against the proxy app's installed uid on every call.
  */
 interface IQuickBuildHost {
 
 	/**
-	 * Register the test app. CoGo replies (possibly immediately) with an
+	 * Register the proxy app. CoGo replies (possibly immediately) with an
 	 * {@link IQuickBuildTarget#onPayload} carrying the current generation when the
 	 * app's running generation is stale.
 	 */

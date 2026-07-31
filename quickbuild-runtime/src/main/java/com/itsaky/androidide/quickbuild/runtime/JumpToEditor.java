@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 
 /**
- * Sends the tap-to-jump intent back to CoGo: an explicit activity intent handled by CoGo's {@code QuickBuildJumpActivity} trampoline, which opens the failing file at the error line in the editor. Explicit (action + package) so no other app can intercept it; best-effort - an older CoGo without the trampoline just logs, never crashes the test app.
+ * Sends the tap-to-jump intent back to CoGo: an explicit activity intent handled by CoGo's {@code QuickBuildJumpActivity} trampoline, which opens the failing file at the error line in the editor. Explicit (action + package) so no other app can intercept it; best-effort - an older CoGo without the trampoline just logs, never crashes the proxy app.
  */
 final class JumpToEditor {
 

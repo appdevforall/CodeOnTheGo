@@ -13,11 +13,11 @@ import com.itsaky.androidide.quickbuild.IQuickBuildHost;
 import com.itsaky.androidide.quickbuild.IQuickBuildTarget;
 
 /**
- * The test app's end of the deploy channel: binds to CoGo's Quick Build service (the LogSender bind pattern - explicit action + package, BIND_AUTO_CREATE), registers the {@link IQuickBuildTarget} callback, and carries the reload/crash reports back.
+ * The proxy app's end of the deploy channel: binds to CoGo's Quick Build service (the LogSender bind pattern - explicit action + package, BIND_AUTO_CREATE), registers the {@link IQuickBuildTarget} callback, and carries the reload/crash reports back.
  *
- * Connection lifecycle: BIND_AUTO_CREATE keeps the binding alive across a CoGo service restart (the framework reconnects and {@link #onServiceConnected} re-runs connect with the CURRENT running generation, which is how a killed-and-relaunched test app catches up to the newest payload). Manual rebinds with backoff cover the cases the framework does not retry: a failed bind call, a dead binding, a null binding.
+ * Connection lifecycle: BIND_AUTO_CREATE keeps the binding alive across a CoGo service restart (the framework reconnects and {@link #onServiceConnected} re-runs connect with the CURRENT running generation, which is how a killed-and-relaunched proxy app catches up to the newest payload). Manual rebinds with backoff cover the cases the framework does not retry: a failed bind call, a dead binding, a null binding.
  *
- * Every remote call is guarded - losing CoGo must degrade the test app, never crash it.
+ * Every remote call is guarded - losing CoGo must degrade the proxy app, never crash it.
  */
 final class QuickBuildClient implements ServiceConnection {
 

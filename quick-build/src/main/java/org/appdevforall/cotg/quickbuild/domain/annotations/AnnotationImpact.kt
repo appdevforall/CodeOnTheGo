@@ -48,7 +48,7 @@ class SwitchableAnnotationImpact(
  * The real [AnnotationImpact], comparing each changed file against the proxy app build's
  * [AnnotationBaseline].
  *
- * **Cases deliberately treated as SAFE (fast path), and why:**
+ * **Cases deliberately treated as SAFE (live reload), and why:**
  * 1. *A file with no processor-relevant annotation, before or after.* No configured
  *    processor has a declaration in it to read. (Its edits can still reach a processor
  *    indirectly - case 3 covers that.)

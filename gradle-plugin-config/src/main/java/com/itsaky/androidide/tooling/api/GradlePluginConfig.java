@@ -35,12 +35,12 @@ public final class GradlePluginConfig {
 	public static final String PROPERTY_PROFILEABLE_ENABLED = "cotg.profileable.enabled";
 
 	/**
-	 * Property used by the Gradle plugin to determine whether this build is a Quick Build setup build (ADFA-4128). When {@code true}, the plugin generates the test-app shell: proxy activities from the merged manifest, the quick-build runtime dependency, and the class-openability transform.
+	 * Property used by the Gradle plugin to determine whether this build is a Quick Build proxy app build (ADFA-4128). When {@code true}, the plugin generates the proxy app shell: proxy activities from the merged manifest, the quick-build runtime dependency, and the class-openability transform.
 	 */
 	public static final String PROPERTY_QUICK_BUILD_ENABLED = "cotg.quickbuild.enabled";
 
 	/**
-	 * The path to the Quick Build runtime AAR file, injected into the test app like the LogSender AAR.
+	 * The path to the Quick Build runtime AAR file, injected into the proxy app like the LogSender AAR.
 	 */
 	public static final String PROPERTY_QUICK_BUILD_RUNTIME_AAR = "cotg.quickbuild.runtimeAar";
 

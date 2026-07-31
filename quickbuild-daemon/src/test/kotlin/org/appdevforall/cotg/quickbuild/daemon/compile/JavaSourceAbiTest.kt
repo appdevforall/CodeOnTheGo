@@ -105,7 +105,7 @@ class JavaSourceAbiTest {
 	fun `a static final constant's VALUE is part of the ABI`() {
 		// Kotlin inlines Java compile-time constants into its callers, so the value moving
 		// is an ABI change even though no signature did. Dropping this would let the
-		// fast path leave Kotlin callers holding the old constant.
+		// Java-ABI shortcut leave Kotlin callers holding the old constant.
 		val before = fingerprintOf(limits("5"))
 
 		val after = fingerprintOf(limits("7"))
