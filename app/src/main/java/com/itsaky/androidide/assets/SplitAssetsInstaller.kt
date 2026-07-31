@@ -15,6 +15,7 @@ import org.adfa.constants.DOCUMENTATION_DB
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.PLUGIN_MAVEN_REPO_ZIP_NAME
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -22,9 +23,9 @@ import java.io.FileNotFoundException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
-import java.util.zip.ZipInputStream
 import kotlin.system.measureTimeMillis
 
 data object SplitAssetsInstaller : BaseAssetsInstaller() {
@@ -37,8 +38,10 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 	): Unit =
 		withContext(Dispatchers.IO) {
 			if (!Environment.SPLIT_ASSETS_ZIP.exists()) {
-				throw FileNotFoundException("Assets zip file not found at path: ${Environment.SPLIT_ASSETS_ZIP.path}." +
-                        " Please check Slack #qa-testing-builds channel for the latest version.")
+				throw FileNotFoundException(
+					"Assets zip file not found at path: ${Environment.SPLIT_ASSETS_ZIP.path}." +
+						" Please check Slack #qa-testing-builds channel for the latest version.",
+				)
 			}
 
 			zipFile = ZipFile(Environment.SPLIT_ASSETS_ZIP)
@@ -53,15 +56,15 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 		entryName: String,
 	): Unit =
 		withContext(Dispatchers.IO) {
-			val entry = zipFile.getEntry(entryName)
-			?: throw FileNotFoundException(context.getString(R.string.err_asset_entry_not_found, entryName))
+			val entry =
+				zipFile.getEntry(entryName)
+					?: throw FileNotFoundException(context.getString(R.string.err_asset_entry_not_found, entryName))
 			val time =
 				measureTimeMillis {
 					zipFile.getInputStream(entry).use { zipInput ->
 						when (entry.name) {
 							GRADLE_DISTRIBUTION_ARCHIVE_NAME,
 							ANDROID_SDK_ZIP,
-							LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
 							GRADLE_API_NAME_JAR_ZIP,
 							-> {
 								val destDir = destinationDirForArchiveEntry(entry.name).toPath()
@@ -74,38 +77,60 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 								logger.debug("Completed extracting '{}' to dir: {}", entry.name, destDir)
 							}
 
-                            TEMPLATE_CORE_ARCHIVE -> {
-                                val coreCgt = Environment.TEMPLATES_DIR.resolve(TEMPLATE_CORE_ARCHIVE)
-                                coreCgt.outputStream().use { output ->
-                                    zipInput.copyTo(output)
-                                }
-                            }
-
-                            AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
-								logger.debug("Extracting 'bootstrap.zip' to dir: {}", stagingDir)
-
-								val result = retryOnceOnNoSuchFile(
-									onFirstFailure = { Files.createDirectories(stagingDir) },
-									onSecondFailure = { e2 ->
-										logger.error("Failed to open temporary bootstrap zip after retry", e2)
-										return@withContext
-									}
-								) {
-									withTempZipChannel(
-										stagingDir = stagingDir,
-										prefix = "bootstrap",
-										writeTo = { path ->
-											zipFile.getInputStream(entry).use { freshZipInput ->
-												Files.newOutputStream(path).use { out ->
-													freshZipInput.copyTo(out)
-												}
-											}
-										},
-										useChannel = { ch ->
-											TerminalInstaller.installIfNeeded(context, ch)
-										}
+							LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> {
+								val destDir = destinationDirForArchiveEntry(entry.name).toPath()
+								if (Files.exists(destDir)) {
+									destDir.deleteRecursively()
+								}
+								Files.createDirectories(destDir)
+								// 1) harvested repo
+								AssetsInstallationHelper.extractZipToDir(zipInput, destDir)
+								// 2) plugin coordinate overlay from the split assets zip -- merged (no wipe)
+								val overlay = zipFile.getEntry(PLUGIN_MAVEN_REPO_ZIP_NAME)
+								if (overlay == null) {
+									throw FileNotFoundException(
+										context.getString(R.string.err_asset_entry_not_found, PLUGIN_MAVEN_REPO_ZIP_NAME),
 									)
 								}
+								zipFile.getInputStream(overlay).use { overlayInput ->
+									AssetsInstallationHelper.extractZipToDir(overlayInput, destDir)
+								}
+								logger.debug("Merged plugin coordinates into {}", destDir)
+							}
+
+							TEMPLATE_CORE_ARCHIVE -> {
+								val coreCgt = Environment.TEMPLATES_DIR.resolve(TEMPLATE_CORE_ARCHIVE)
+								coreCgt.outputStream().use { output ->
+									zipInput.copyTo(output)
+								}
+							}
+
+							AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
+								logger.debug("Extracting 'bootstrap.zip' to dir: {}", stagingDir)
+
+								val result =
+									retryOnceOnNoSuchFile(
+										onFirstFailure = { Files.createDirectories(stagingDir) },
+										onSecondFailure = { e2 ->
+											logger.error("Failed to open temporary bootstrap zip after retry", e2)
+											return@withContext
+										},
+									) {
+										withTempZipChannel(
+											stagingDir = stagingDir,
+											prefix = "bootstrap",
+											writeTo = { path ->
+												zipFile.getInputStream(entry).use { freshZipInput ->
+													Files.newOutputStream(path).use { out ->
+														freshZipInput.copyTo(out)
+													}
+												}
+											},
+											useChannel = { ch ->
+												TerminalInstaller.installIfNeeded(context, ch)
+											},
+										)
+									}
 
 								if (result !is TerminalInstaller.InstallResult.Success) {
 									logger.error("Failed to install terminal: {}", result)
@@ -130,40 +155,45 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 								}
 								logger.debug("Completed extracting '{}' to {}", DOCUMENTATION_DB, Environment.DOC_DB)
 							}
-                            AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> {
-                                logger.debug("Extracting plugin artifacts from '{}'", entry.name)
-                                val pluginDir = Environment.PLUGIN_API_JAR.parentFile
-                                    ?: throw IllegalStateException("Plugin API parent directory is null")
-                                val pluginDirPath = pluginDir.toPath().toAbsolutePath().normalize()
-                                if (Files.exists(pluginDirPath)) {
-                                    pluginDirPath.deleteRecursively()
-                                }
-                                Files.createDirectories(pluginDirPath)
 
-                                ZipInputStream(zipInput).use { pluginZip ->
-                                    var pluginEntry = pluginZip.nextEntry
-                                    while (pluginEntry != null) {
-                                        if (!pluginEntry.isDirectory) {
-                                            val targetPath = pluginDirPath.resolve(pluginEntry.name).normalize()
-                                            // Security check: prevent path traversal attacks
-                                            if (!targetPath.startsWith(pluginDirPath)) {
-                                                throw IllegalStateException(
-                                                    "Zip entry '${pluginEntry.name}' would escape target directory"
-                                                )
-                                            }
-                                            val targetFile = targetPath.toFile()
-                                            targetFile.parentFile?.mkdirs()
-                                            logger.debug("Extracting '{}' to {}", pluginEntry.name, targetFile)
-                                            targetFile.outputStream().use { output ->
-                                                pluginZip.copyTo(output)
-                                            }
-                                        }
-                                        pluginEntry = pluginZip.nextEntry
-                                    }
-                                }
-                                logger.debug("Completed extracting plugin artifacts")
-                            }
-							else -> throw IllegalStateException("Unknown entry: $entryName")
+							AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> {
+								logger.debug("Extracting plugin artifacts from '{}'", entry.name)
+								val pluginDir =
+									Environment.PLUGIN_API_JAR.parentFile
+										?: throw IllegalStateException("Plugin API parent directory is null")
+								val pluginDirPath = pluginDir.toPath().toAbsolutePath().normalize()
+								if (Files.exists(pluginDirPath)) {
+									pluginDirPath.deleteRecursively()
+								}
+								Files.createDirectories(pluginDirPath)
+
+								ZipInputStream(zipInput).use { pluginZip ->
+									var pluginEntry = pluginZip.nextEntry
+									while (pluginEntry != null) {
+										if (!pluginEntry.isDirectory) {
+											val targetPath = pluginDirPath.resolve(pluginEntry.name).normalize()
+											// Security check: prevent path traversal attacks
+											if (!targetPath.startsWith(pluginDirPath)) {
+												throw IllegalStateException(
+													"Zip entry '${pluginEntry.name}' would escape target directory",
+												)
+											}
+											val targetFile = targetPath.toFile()
+											targetFile.parentFile?.mkdirs()
+											logger.debug("Extracting '{}' to {}", pluginEntry.name, targetFile)
+											targetFile.outputStream().use { output ->
+												pluginZip.copyTo(output)
+											}
+										}
+										pluginEntry = pluginZip.nextEntry
+									}
+								}
+								logger.debug("Completed extracting plugin artifacts")
+							}
+
+							else -> {
+								throw IllegalStateException("Unknown entry: $entryName")
+							}
 						}
 					}
 				}
@@ -186,28 +216,25 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 		super.postInstall(context, stagingDir)
 	}
 
-    override fun expectedSize(entryName: String): Long = when (entryName) {
-        GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 137260932L
-        ANDROID_SDK_ZIP                  -> 286625871L
-        DOCUMENTATION_DB                  -> 224296960L
-        LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 215389106L
-        AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 456462823L
-        GRADLE_API_NAME_JAR_ZIP           -> 46758608L
-        TEMPLATE_CORE_ARCHIVE               -> 702001L
-        else -> 0L
-    }
+	override fun expectedSize(entryName: String): Long =
+		when (entryName) {
+			GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 137260932L
+			ANDROID_SDK_ZIP -> 286625871L
+			DOCUMENTATION_DB -> 224296960L
+			LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 215389106L
+			AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 456462823L
+			GRADLE_API_NAME_JAR_ZIP -> 46758608L
+			TEMPLATE_CORE_ARCHIVE -> 702001L
+			else -> 0L
+		}
 
-    private fun destinationDirForArchiveEntry(entryName: String): File =
+	private fun destinationDirForArchiveEntry(entryName: String): File =
 		when (entryName) {
 			GRADLE_DISTRIBUTION_ARCHIVE_NAME -> Environment.GRADLE_DISTS
 			ANDROID_SDK_ZIP -> Environment.ANDROID_HOME
 			LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> Environment.LOCAL_MAVEN_DIR
 			GRADLE_API_NAME_JAR_ZIP -> Environment.GRADLE_GEN_JARS
-            TEMPLATE_CORE_ARCHIVE -> Environment.TEMPLATES_DIR
+			TEMPLATE_CORE_ARCHIVE -> Environment.TEMPLATES_DIR
 			else -> throw IllegalStateException("Entry '$entryName' is not expected to be an archive")
 		}
-
 }
-
-
-

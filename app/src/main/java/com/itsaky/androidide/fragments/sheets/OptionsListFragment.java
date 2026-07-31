@@ -24,89 +24,84 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
-import com.blankj.utilcode.util.SizeUtils;
 import com.itsaky.androidide.adapters.OptionsSheetAdapter;
 import com.itsaky.androidide.events.FileContextMenuItemClickEvent;
 import com.itsaky.androidide.events.FileContextMenuItemLongClickEvent;
 import com.itsaky.androidide.models.SheetOption;
-
-import org.greenrobot.eventbus.EventBus;
-
+import com.itsaky.androidide.utils.ContextUtilsKt;
 import java.util.ArrayList;
 import java.util.List;
+import org.greenrobot.eventbus.EventBus;
 
 public class OptionsListFragment extends BaseBottomSheetFragment {
 
-  private final List<SheetOption> mOptions = new ArrayList<>();
-  protected boolean dismissOnItemClick = true;
-  private RecyclerView mList;
+	private final List<SheetOption> mOptions = new ArrayList<>();
+	protected boolean dismissOnItemClick = true;
+	private RecyclerView mList;
 
-  @Nullable
-  @Override
-  public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
-                           @Nullable Bundle savedInstanceState
-  ) {
-    final var dp8 = SizeUtils.dp2px(8);
-    final var dp16 = dp8 * 2;
-    mList = new RecyclerView(requireContext());
-    mList.setLayoutParams(new LayoutParams(-1, -1));
-    mList.setPaddingRelative(dp16, dp8, dp16, dp8);
-    return mList;
-  }
+	public void addOption(SheetOption option) {
+		if (!mOptions.contains(option)) {
+			mOptions.add(option);
+		}
+	}
 
-  @Override
-  public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
-    super.onViewCreated(view, savedInstanceState);
-    mList.setLayoutManager(new LinearLayoutManager(getContext()));
-      mList.setAdapter(new OptionsSheetAdapter(mOptions,
-              new OptionsSheetAdapter.OnOptionsClickListener() {
-                  @Override
-                  public void onOptionClick(SheetOption option) {
+	@Nullable
+	@Override
+	public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+			@Nullable Bundle savedInstanceState) {
+		final var dp8 = ContextUtilsKt.dpToPx(requireContext(), 8);
+		final var dp16 = dp8 * 2;
+		mList = new RecyclerView(requireContext());
+		mList.setLayoutParams(new LayoutParams(-1, -1));
+		mList.setPaddingRelative(dp16, dp8, dp16, dp8);
+		return mList;
+	}
 
-                      if (dismissOnItemClick) {
-                          dismiss();
-                      }
-                      final var event = new FileContextMenuItemClickEvent(option);
-                      event.put(Context.class, requireContext());
-                      EventBus.getDefault().post(event);
+	@Override
+	public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
+		super.onViewCreated(view, savedInstanceState);
+		mList.setLayoutManager(new LinearLayoutManager(getContext()));
+		mList.setAdapter(new OptionsSheetAdapter(mOptions,
+				new OptionsSheetAdapter.OnOptionsClickListener() {
+					@Override
+					public void onOptionClick(SheetOption option) {
 
-                  }
+						if (dismissOnItemClick) {
+							dismiss();
+						}
+						final var event = new FileContextMenuItemClickEvent(option);
+						event.put(Context.class, requireContext());
+						EventBus.getDefault().post(event);
 
-                  @Override
-                  public void onOptionLongClick(SheetOption option) {
-                      if (dismissOnItemClick) {
-                          dismiss();
-                      }
-                      final var event = new FileContextMenuItemLongClickEvent(option);
-                      event.put(Context.class, requireContext());
-                      EventBus.getDefault().post(event);
-                  }
-              }));
-  }
+					}
 
-  public void addOption(SheetOption option) {
-    if (!mOptions.contains(option)) {
-      mOptions.add(option);
-    }
-  }
+					@Override
+					public void onOptionLongClick(SheetOption option) {
+						if (dismissOnItemClick) {
+							dismiss();
+						}
+						final var event = new FileContextMenuItemLongClickEvent(option);
+						event.put(Context.class, requireContext());
+						EventBus.getDefault().post(event);
+					}
+				}));
+	}
 
-  public OptionsListFragment removeOption(int optionIndex) {
-    return removeOption(mOptions.get(optionIndex));
-  }
+	public OptionsListFragment removeOption(int optionIndex) {
+		return removeOption(mOptions.get(optionIndex));
+	}
 
-  public OptionsListFragment removeOption(SheetOption option) {
-    mOptions.remove(option);
-    return this;
-  }
+	public OptionsListFragment removeOption(SheetOption option) {
+		mOptions.remove(option);
+		return this;
+	}
 
-  public OptionsListFragment setDismissOnItemClick(boolean dissmiss) {
-    this.dismissOnItemClick = dissmiss;
-    return this;
-  }
+	public OptionsListFragment setDismissOnItemClick(boolean dissmiss) {
+		this.dismissOnItemClick = dissmiss;
+		return this;
+	}
 }

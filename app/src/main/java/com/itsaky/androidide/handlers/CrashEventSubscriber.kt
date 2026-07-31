@@ -1,9 +1,8 @@
 package com.itsaky.androidide.handlers
 
 import android.content.Intent
-import com.blankj.utilcode.util.ActivityUtils.startActivity
-import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.itsaky.androidide.activities.CrashHandlerActivity
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.eventbus.events.editor.ReportCaughtExceptionEvent
 import io.sentry.Sentry
 import org.greenrobot.eventbus.Subscribe
@@ -29,9 +28,9 @@ class CrashEventSubscriber {
 			try {
 				val intent = Intent()
 				intent.action = CrashHandlerActivity.REPORT_ACTION
-				intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(ev.throwable))
+				intent.putExtra(CrashHandlerActivity.TRACE_KEY, ev.throwable.stackTraceToString())
 				intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-				startActivity(intent)
+				IDEApplication.instance.startActivity(intent)
 
 				exitProcess(EXIT_CODE_CRASH)
 			} catch (error: Throwable) {

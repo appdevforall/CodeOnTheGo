@@ -22,11 +22,9 @@ import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import androidx.annotation.NonNull;
-import com.blankj.utilcode.util.FileUtils;
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.buildinfo.BuildInfo;
 import com.itsaky.androidide.javac.config.JavacConfigProvider;
-
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -149,8 +147,7 @@ public final class Environment {
 		HOME = mkdirIfNotExists(new File(ROOT, "home"));
 		File ideHomeCandidate = new File(HOME, SharedEnvironment.PROJECT_CACHE_DIR_NAME);
 		File legacyIdeHome = new File(HOME, SharedEnvironment.LEGACY_PROJECT_CACHE_DIR_NAME);
-		File ideHomeResolved =
-				LegacyIdeDataDirMigration.migrateLegacyIdeDataDirIfNeeded(legacyIdeHome, ideHomeCandidate);
+		File ideHomeResolved = LegacyIdeDataDirMigration.migrateLegacyIdeDataDirIfNeeded(legacyIdeHome, ideHomeCandidate);
 		ANDROIDIDE_HOME = mkdirIfNotExists(ideHomeResolved);
 		TMP_DIR = mkdirIfNotExists(new File(PREFIX, "tmp"));
 		BIN_DIR = mkdirIfNotExists(new File(PREFIX, "bin"));
