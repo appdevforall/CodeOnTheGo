@@ -51,18 +51,18 @@ sealed interface QuickBuildSessionState {
 	/**
 	 * A quick build is running; the proxy app still runs [deployedGeneration].
 	 *
-	 * [seeding] true = the in-flight build is the background IC seed ([BuildRoute.Seed]):
+	 * [warmingCompiler] true = the in-flight build is the background warm compile ([BuildRoute.WarmCompile]):
 	 * it compiles the sources the proxy app ALREADY runs and deploys nothing, so the status
 	 * surface must not present it as a blocking "Building" (the app is genuinely up to
 	 * date), and a Quick Build tap must trigger a real build instead of being dropped (a
-	 * real build satisfies a mid-build tap by deploying; a seed never deploys).
-	 * [pendingCrash] carries a proxy-app crash observed mid-seed so [SessionEvent.SeedFinished]
-	 * lands it as [Ready.lastFailure] instead of swallowing it — the seed's "surface
-	 * nothing" contract covers seed OUTCOMES, not crashes of the running generation.
+	 * real build satisfies a mid-build tap by deploying; a warm compile never deploys).
+	 * [pendingCrash] carries a proxy-app crash observed mid-warm-compile so [SessionEvent.WarmCompileFinished]
+	 * lands it as [Ready.lastFailure] instead of swallowing it — the warm compile's "surface
+	 * nothing" contract covers warm-compile OUTCOMES, not crashes of the running generation.
 	 */
 	data class Building(
 		val deployedGeneration: Long,
-		val seeding: Boolean = false,
+		val warmingCompiler: Boolean = false,
 		val pendingCrash: SessionFailure.ProxyAppCrash? = null,
 	) : QuickBuildSessionState
 
@@ -150,12 +150,12 @@ sealed interface SessionEvent {
 	data object BuildStarted : SessionEvent
 
 	/**
-	 * The background IC seed started ([BuildRoute.Seed]). A distinct event, not a flag on
+	 * The background warm compile started ([BuildRoute.WarmCompile]). A distinct event, not a flag on
 	 * [BuildStarted]: the session enters [QuickBuildSessionState.Building] with
-	 * `seeding = true` so the status surface keeps reading "up to date" (nothing will
-	 * deploy) and taps/crashes during the seed are handled honestly (see [Building]).
+	 * `warmingCompiler = true` so the status surface keeps reading "up to date" (nothing will
+	 * deploy) and taps/crashes during the warm compile are handled honestly (see [Building]).
 	 */
-	data object SeedStarted : SessionEvent
+	data object WarmCompileStarted : SessionEvent
 
 	data class BuildSucceeded(
 		val generation: Long,
@@ -176,16 +176,16 @@ sealed interface SessionEvent {
 	) : SessionEvent
 
 	/**
-	 * The background IC-seed build finished (success or a silently-logged failure).
+	 * The background warm-compile build finished (success or a silently-logged failure).
 	 * Nothing deployed, the generation did not move: Building returns to Ready at the
-	 * deployed generation with no seed OUTCOME surfaced - a seed problem is invisible by
+	 * deployed generation with no warm-compile OUTCOME surfaced - a warm-compile problem is invisible by
 	 * design (the proxy app build just compiled the same sources green; the next real save
-	 * surfaces anything real). A proxy-app crash observed DURING the seed is not a seed
+	 * surfaces anything real). A proxy-app crash observed DURING the warm compile is not a warm-compile
 	 * outcome: it lands as [QuickBuildSessionState.Ready.lastFailure] via
-	 * [QuickBuildSessionState.Building.pendingCrash]. Daemon death during a seed does NOT
+	 * [QuickBuildSessionState.Building.pendingCrash]. Daemon death during a warm compile does NOT
 	 * arrive here - it stays on the [DaemonDied] recovery path.
 	 */
-	data object SeedFinished : SessionEvent
+	data object WarmCompileFinished : SessionEvent
 
 	data class InvalidationDetected(
 		val reason: InvalidationReason,
@@ -310,12 +310,12 @@ sealed interface SessionEffect {
 	data object CancelProxyAppBuild : SessionEffect
 
 	/**
-	 * Ask the orchestrator for the background IC seed ([BuildRoute.Seed]) the moment a
+	 * Ask the orchestrator for the background warm compile ([BuildRoute.WarmCompile]) the moment a
 	 * session goes live: pay the daemon's first-compile warm-up (kotlinc JIT + classpath
 	 * snapshot + IC-cache build - measured 12-14s on an 8GB device, 37-50s on 3.6GB even
 	 * for small Kotlin apps) in the provisioning tail instead of on the user's first save.
 	 */
-	data object StartBackgroundSeed : SessionEffect
+	data object StartWarmCompile : SessionEffect
 
 	/** Route to the real Gradle build; on completion the session rebuilds its proxy app. */
 	data object RunProxyAppRebuild : SessionEffect
@@ -451,9 +451,9 @@ class SessionReducer {
 					// tap gets its answer. A proxy app rebuild routed through this state carries
 					// userInitiated = false and stays in the editor.
 					if (state.userInitiated) {
-						listOf(SessionEffect.StartBackgroundSeed, SessionEffect.SwitchToProxyApp)
+						listOf(SessionEffect.StartWarmCompile, SessionEffect.SwitchToProxyApp)
 					} else {
-						listOf(SessionEffect.StartBackgroundSeed)
+						listOf(SessionEffect.StartWarmCompile)
 					},
 				)
 			}
@@ -528,8 +528,8 @@ class SessionReducer {
 				SessionTransition(QuickBuildSessionState.Building(generation))
 			}
 
-			SessionEvent.SeedStarted -> {
-				SessionTransition(QuickBuildSessionState.Building(generation, seeding = true))
+			SessionEvent.WarmCompileStarted -> {
+				SessionTransition(QuickBuildSessionState.Building(generation, warmingCompiler = true))
 			}
 
 			is SessionEvent.InvalidationDetected -> {
@@ -580,10 +580,10 @@ class SessionReducer {
 			}
 
 			SessionEvent.QuickBuildTapped -> {
-				if (state.seeding) {
-					// A seed deploys nothing, so the tap would otherwise vanish. The
+				if (state.warmingCompiler) {
+					// A warm compile deploys nothing, so the tap would otherwise vanish. The
 					// orchestrator queues it (pendingForced) and builds right after the
-					// seed - single-flight preserved, tap never dropped.
+					// warm compile - single-flight preserved, tap never dropped.
 					SessionTransition(state, listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
 				} else {
 					// The in-flight real build deploys anyway and satisfies the tap's build.
@@ -595,8 +595,8 @@ class SessionReducer {
 			}
 
 			SessionEvent.CancelRequested -> {
-				if (state.seeding) {
-					// The background seed is not the user's build: they never asked for it, it
+				if (state.warmingCompiler) {
+					// The background warm compile is not the user's build: they never asked for it, it
 					// deploys nothing, and the button shows the bolt throughout - so there is
 					// nothing here to cancel.
 					SessionTransition(state)
@@ -610,10 +610,10 @@ class SessionReducer {
 				}
 			}
 
-			SessionEvent.SeedFinished -> {
-				// The seed deployed nothing: back to Ready at the unchanged generation.
-				// No seed OUTCOME is surfaced (see the event's contract), but a crash of
-				// the running generation observed mid-seed lands now.
+			SessionEvent.WarmCompileFinished -> {
+				// The warm compile deployed nothing: back to Ready at the unchanged generation.
+				// No warm-compile OUTCOME is surfaced (see the event's contract), but a crash of
+				// the running generation observed mid-warm-compile lands now.
 				SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration, state.pendingCrash))
 			}
 
@@ -632,10 +632,10 @@ class SessionReducer {
 			}
 
 			is SessionEvent.ProxyAppCrashed -> {
-				if (state.seeding) {
-					// A seed ends in Ready with no failure, which would swallow this
+				if (state.warmingCompiler) {
+					// A warm compile ends in Ready with no failure, which would swallow this
 					// crash of the CURRENTLY RUNNING generation (nothing new is coming
-					// to supersede it). Carry it; SeedFinished surfaces it.
+					// to supersede it). Carry it; WarmCompileFinished surfaces it.
 					SessionTransition(state.copy(pendingCrash = SessionFailure.ProxyAppCrash(event.summary)))
 				} else {
 					// The old generation crashed while the next build runs; stay

@@ -117,7 +117,7 @@ class BenchQuickBuildMetricsSink(
 			BuildRoute.CodeOnly -> "CodeOnly"
 			BuildRoute.CodeAndResources -> "CodeAndResources"
 			BuildRoute.NoOp -> "NoOp"
-			BuildRoute.Seed -> "Seed"
+			BuildRoute.WarmCompile -> "Seed"
 		}
 
 	private fun BuildOutcome.wireName(): String =

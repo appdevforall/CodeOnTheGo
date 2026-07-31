@@ -24,20 +24,20 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `provisioning succeeded becomes ready and starts the background seed`() {
+	fun `provisioning succeeded becomes ready and starts the background warm compile`() {
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Provisioning(), SessionEvent.ProvisioningSucceeded(1))
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1, lastFailure = null))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartBackgroundSeed))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartWarmCompile))
 	}
 
 	@Test
-	fun `seed finished returns building to ready at the unchanged generation`() {
+	fun `warm compile finished returns building to ready at the unchanged generation`() {
 		val transition =
 			reducer.reduce(
-				QuickBuildSessionState.Building(deployedGeneration = 4, seeding = true),
-				SessionEvent.SeedFinished,
+				QuickBuildSessionState.Building(deployedGeneration = 4, warmingCompiler = true),
+				SessionEvent.WarmCompileFinished,
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(4, lastFailure = null))
@@ -45,46 +45,46 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `seed started moves ready into a seeding building state`() {
+	fun `warm compile started moves ready into a warm-compiling building state`() {
 		val transition =
-			reducer.reduce(QuickBuildSessionState.Ready(4), SessionEvent.SeedStarted)
+			reducer.reduce(QuickBuildSessionState.Ready(4), SessionEvent.WarmCompileStarted)
 
 		assertThat(transition.state)
-			.isEqualTo(QuickBuildSessionState.Building(4, seeding = true))
+			.isEqualTo(QuickBuildSessionState.Building(4, warmingCompiler = true))
 		assertThat(transition.effects).isEmpty()
 	}
 
-	// Review finding (2026-07-26 #3): a forced-redeploy tap during a seed must not
-	// vanish - a seed deploys nothing, so nothing else will satisfy it.
+	// Review finding (2026-07-26 #3): a forced-redeploy tap during a warm compile must not
+	// vanish - a warm compile deploys nothing, so nothing else will satisfy it.
 	@Test
-	fun `a tap during the seed triggers a build instead of being dropped`() {
-		val seeding = QuickBuildSessionState.Building(4, seeding = true)
-		val transition = reducer.reduce(seeding, SessionEvent.QuickBuildTapped)
+	fun `a tap during the warm compile triggers a build instead of being dropped`() {
+		val warmCompiling = QuickBuildSessionState.Building(4, warmingCompiler = true)
+		val transition = reducer.reduce(warmCompiling, SessionEvent.QuickBuildTapped)
 
-		assertThat(transition.state).isEqualTo(seeding)
+		assertThat(transition.state).isEqualTo(warmCompiling)
 		assertThat(transition.effects)
 			.isEqualTo(listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
 	}
 
-	// Review finding (2026-07-26 #1): a crash of the RUNNING generation during the seed
-	// window must surface like it does outside it - the seed's silent-outcome contract
-	// covers seed results, not crashes.
+	// Review finding (2026-07-26 #1): a crash of the RUNNING generation during the warm-compile
+	// window must surface like it does outside it - the warm compile's silent-outcome contract
+	// covers warm-compile results, not crashes.
 	@Test
-	fun `a proxy-app crash during the seed is carried and surfaced when the seed finishes`() {
-		val seeding = QuickBuildSessionState.Building(4, seeding = true)
-		val crashed = reducer.reduce(seeding, SessionEvent.ProxyAppCrashed("NPE in onCreate"))
+	fun `a proxy-app crash during the warm compile is carried and surfaced when it finishes`() {
+		val warmCompiling = QuickBuildSessionState.Building(4, warmingCompiler = true)
+		val crashed = reducer.reduce(warmCompiling, SessionEvent.ProxyAppCrashed("NPE in onCreate"))
 
 		assertThat(crashed.state)
 			.isEqualTo(
 				QuickBuildSessionState.Building(
 					4,
-					seeding = true,
+					warmingCompiler = true,
 					pendingCrash = SessionFailure.ProxyAppCrash("NPE in onCreate"),
 				),
 			)
 		assertThat(crashed.effects).isEmpty()
 
-		val finished = reducer.reduce(crashed.state, SessionEvent.SeedFinished)
+		val finished = reducer.reduce(crashed.state, SessionEvent.WarmCompileFinished)
 
 		assertThat(finished.state)
 			.isEqualTo(
@@ -97,9 +97,9 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `seed finished is a no-op outside building`() {
+	fun `warm compile finished is a no-op outside building`() {
 		val ready = QuickBuildSessionState.Ready(2)
-		val transition = reducer.reduce(ready, SessionEvent.SeedFinished)
+		val transition = reducer.reduce(ready, SessionEvent.WarmCompileFinished)
 
 		assertThat(transition.state).isEqualTo(ready)
 		assertThat(transition.effects).isEmpty()
@@ -782,7 +782,7 @@ class SessionReducerTest {
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1))
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.StartBackgroundSeed, SessionEffect.SwitchToProxyApp))
+			.isEqualTo(listOf(SessionEffect.StartWarmCompile, SessionEffect.SwitchToProxyApp))
 	}
 
 	@Test
@@ -792,7 +792,7 @@ class SessionReducerTest {
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Provisioning(), SessionEvent.ProvisioningSucceeded(1))
 
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartBackgroundSeed))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartWarmCompile))
 	}
 
 	@Test
@@ -842,12 +842,12 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `stopping does nothing during the background seed`() {
-		val seeding = QuickBuildSessionState.Building(4, seeding = true)
+	fun `stopping does nothing during the background warm compile`() {
+		val warmCompiling = QuickBuildSessionState.Building(4, warmingCompiler = true)
 
-		val transition = reducer.reduce(seeding, SessionEvent.CancelRequested)
+		val transition = reducer.reduce(warmCompiling, SessionEvent.CancelRequested)
 
-		assertThat(transition.state).isEqualTo(seeding)
+		assertThat(transition.state).isEqualTo(warmCompiling)
 		assertThat(transition.effects).isEmpty()
 	}
 

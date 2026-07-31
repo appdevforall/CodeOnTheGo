@@ -201,7 +201,7 @@ class AnalyticsQuickBuildMetricsSink(
 			BuildRoute.CodeOnly -> "code_only"
 			BuildRoute.CodeAndResources -> "code_and_resources"
 			BuildRoute.NoOp -> "no_op"
-			BuildRoute.Seed -> "seed"
+			BuildRoute.WarmCompile -> "seed"
 		}
 
 	private fun BuildOutcome.metricName(): String =

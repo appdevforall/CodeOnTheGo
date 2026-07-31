@@ -16,7 +16,7 @@ private data class FlagsCache(
 	val pardonEnabled: Boolean = false,
 	val leakCanaryDumpInhibited: Boolean = false,
 	val quickBuildBenchEnabled: Boolean = false,
-	val quickBuildSeedDisabled: Boolean = false,
+	val quickBuildWarmCompileDisabled: Boolean = false,
 ) {
 	companion object {
 		/**
@@ -89,12 +89,12 @@ object FeatureFlags {
 		get() = flags.quickBuildBenchEnabled
 
 	/**
-	 * Whether the Quick Build background seed is disabled (CodeOnTheGo.qbnoseed present in
+	 * Whether the Quick Build background warm compile is disabled (CodeOnTheGo.qbnoseed present in
 	 * Downloads). Bench-only A/B seam (ADFA-4128), inert unless [isQuickBuildBenchEnabled]
 	 * is also on - the DI wiring pairs the two.
 	 */
-	val isQuickBuildSeedDisabled: Boolean
-		get() = flags.quickBuildSeedDisabled
+	val isQuickBuildWarmCompileDisabled: Boolean
+		get() = flags.quickBuildWarmCompileDisabled
 
 	/**
 	 * Initialize feature flag values. This is thread-safe and idempotent i.e.
@@ -121,7 +121,7 @@ object FeatureFlags {
 							pardonEnabled = checkFlag(PARDON_FILE_NAME),
 							leakCanaryDumpInhibited = checkFlag(LEAKCANARY_FILE_NAME),
 							quickBuildBenchEnabled = checkFlag(QUICK_BUILD_BENCH_FILE_NAME),
-							quickBuildSeedDisabled = checkFlag(QUICK_BUILD_NO_SEED_FILE_NAME),
+							quickBuildWarmCompileDisabled = checkFlag(QUICK_BUILD_NO_SEED_FILE_NAME),
 						)
 					}.getOrElse { error ->
 						logger.error("Failed to load feature flags. Falling back to default values.", error)

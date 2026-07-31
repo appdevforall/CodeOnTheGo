@@ -90,8 +90,8 @@ class LiveReloadOrchestrator(
 	/** Diagnostics of the last CompileError, for the duplicate-follow-up guard. */
 	private var lastCompileDiagnostics: List<BuildDiagnostic>? = null
 
-	/** Requested background IC seed (post-provisioning); dropped once any real build runs. */
-	private var pendingSeed = false
+	/** Requested background warm compile (post-provisioning); dropped once any real build runs. */
+	private var pendingWarmCompile = false
 
 	private data class InFlightBuild(
 		val buildId: Long,
@@ -104,7 +104,7 @@ class LiveReloadOrchestrator(
 		 * rather than by a second one: the tap has nothing to add except the ask itself.
 		 */
 		var userInitiated: Boolean = false,
-		/** Cancellation handle for [onCancelRequested]; null for a seed (never cancelled). */
+		/** Cancellation handle for [onCancelRequested]; null for a warm compile (never cancelled). */
 		var job: Job? = null,
 	)
 
@@ -154,14 +154,14 @@ class LiveReloadOrchestrator(
 	 * second full rebuild behind a build that was about to do the same work.
 	 *
 	 * @return false when there is nothing to mark - no build in flight (it finished between
-	 *   the decision and this call), or the in-flight build is the background seed, which
+	 *   the decision and this call), or the in-flight build is the background warm compile, which
 	 *   deploys nothing and therefore cannot answer a tap. The caller must then fall back to
 	 *   a real request rather than let the tap vanish.
 	 */
 	suspend fun markInFlightUserInitiated(): Boolean =
 		mutex.withLock {
 			val flight = inFlight
-			if (flight == null || flight.route is BuildRoute.Seed) {
+			if (flight == null || flight.route is BuildRoute.WarmCompile) {
 				false
 			} else {
 				flight.userInitiated = true
@@ -176,7 +176,7 @@ class LiveReloadOrchestrator(
 	 * builds those files again.
 	 *
 	 * @return true when a build was actually abandoned; false when there was nothing to
-	 *   cancel (already finished, or the in-flight build is the background seed, which the
+	 *   cancel (already finished, or the in-flight build is the background warm compile, which the
 	 *   user never asked for). The caller must not report a cancellation on false.
 	 *
 	 * Two honest limits, both narrow and both deliberate:
@@ -193,7 +193,7 @@ class LiveReloadOrchestrator(
 		var cancelled = false
 		mutex.withLock {
 			val flight = inFlight ?: return@withLock
-			if (flight.route is BuildRoute.Seed) return@withLock
+			if (flight.route is BuildRoute.WarmCompile) return@withLock
 			inFlight = null
 			// A stop withdraws the ask, so neither the abandoned build's forced flag nor a tap
 			// queued behind it may survive to redeploy on the user's behalf later. Cleared
@@ -212,20 +212,20 @@ class LiveReloadOrchestrator(
 	}
 
 	/**
-	 * Background IC seed (session manager, right after provisioning goes live): build the
+	 * Background warm compile (session manager, right after provisioning goes live): build the
 	 * daemon's incremental universe now so the first save doesn't pay the compiler
 	 * warm-up. Lowest priority by construction: any real pending work (or a save that
-	 * lands before the seed starts) makes the seed redundant - the daemon's first real
+	 * lands before the warm compile starts) makes it redundant - the daemon's first real
 	 * build compiles the full source set anyway - so it is silently dropped, never queued
 	 * behind user work.
 	 */
-	suspend fun onSeedRequested() {
+	suspend fun onWarmCompileRequested() {
 		withEvents { events ->
-			// A build already in flight makes the seed moot (the daemon's first real
+			// A build already in flight makes the warm compile moot (the daemon's first real
 			// build compiles the full source set) - drop it now rather than queue it
 			// behind work it can only duplicate.
 			if (inFlight != null) return@withEvents
-			pendingSeed = true
+			pendingWarmCompile = true
 			maybeStartBuildLocked(events)
 		}
 	}
@@ -233,17 +233,17 @@ class LiveReloadOrchestrator(
 	/**
 	 * A fresh daemon process replaced a dead one (crash, trim-memory teardown, or a
 	 * deliberate restart). Its IC universe is empty, but the WATCHER never stopped, so
-	 * the pending set is still trustworthy. With nothing pending, a [BuildRoute.Seed]
+	 * the pending set is still trustworthy. With nothing pending, a [BuildRoute.WarmCompile]
 	 * re-warms the new daemon without deploying - the proxy app already runs the last
 	 * deployed generation, and a deploy would restart it for no visible change (the
-	 * pre-seed recovery did exactly that). With real work pending (or a superseded
+	 * pre-warm-compile recovery did exactly that). With real work pending (or a superseded
 	 * in-flight build whose batch is about to union back), the whole baseline is marked
 	 * dirty instead: the next build recompiles everything AND deploys, as before.
 	 */
 	suspend fun onDaemonReplaced() {
 		withEvents { events ->
 			if (inFlight == null && pending.isEmpty && !pendingForced) {
-				pendingSeed = true
+				pendingWarmCompile = true
 			} else {
 				markBatchArrivalLocked()
 				pending = pending + ChangedFiles.Unknown
@@ -344,17 +344,17 @@ class LiveReloadOrchestrator(
 		// build on onBaselineReset.
 		if (awaitingAbsorption != null) return
 		if (pending.isEmpty && !pendingForced) {
-			if (pendingSeed) startSeedBuildLocked(events)
+			if (pendingWarmCompile) startWarmCompileLocked(events)
 			return
 		}
 		// A CodeOnly/CodeAndResources/FullGradleBuild route compiles the daemon's full
-		// source set on its first run, making a still-pending seed redundant the moment
+		// source set on its first run, making a still-pending warm compile redundant the moment
 		// that work exists. Narrower than "any real build": a ResourcesOnly/AssetsOnly
 		// route runs no compile op at all, so it does NOT actually warm the compiler -
-		// dropping the seed there is a missed optimization (a later save still triggers
+		// dropping the warm compile there is a missed optimization (a later save still triggers
 		// the daemon's own first-build compile), not a correctness issue, so it is left
 		// as-is rather than threading route-conditional logic through this early clear.
-		pendingSeed = false
+		pendingWarmCompile = false
 
 		val route = classifier.classify(pending)
 		if (route is BuildRoute.FullGradleBuild) {
@@ -395,24 +395,24 @@ class LiveReloadOrchestrator(
 	}
 
 	/**
-	 * The seed's batch is EMPTY (it represents no user changes): a failed seed unions
+	 * The warm compile's batch is EMPTY (it represents no user changes): a failed warm compile unions
 	 * nothing back into pending, and the next real save recovers naturally because the
 	 * daemon's first real build compiles the full source set regardless. The request's
 	 * changes are [ChangedFiles.Unknown] so the executor compiles everything.
 	 */
-	private fun startSeedBuildLocked(events: MutableList<OrchestratorEvent>) {
-		pendingSeed = false
+	private fun startWarmCompileLocked(events: MutableList<OrchestratorEvent>) {
+		pendingWarmCompile = false
 		val buildId = nextBuildId++
-		val route = BuildRoute.Seed
+		val route = BuildRoute.WarmCompile
 		val flight =
 			InFlightBuild(buildId, ChangedFiles.Known.EMPTY, forced = false, autoFollowUp = false, route = route)
 		inFlight = flight
-		// The EVENT batch is Unknown, matching the request below - the seed compiles
+		// The EVENT batch is Unknown, matching the request below - the warm compile covers
 		// every source, not zero files. A metrics sink reading this event's changedFiles
-		// count as 0 would understate a seed as "started:Seed:0" instead of "unknown
+		// count as 0 would understate a warm compile as "started:WarmCompile:0" instead of "unknown
 		// size". The flight's batch above deliberately DIVERGES from this event (it
-		// stays Known.EMPTY so a failed seed unions nothing back into pending) - don't
-		// assume flight.batch matches the started event for seeds.
+		// stays Known.EMPTY so a failed warm compile unions nothing back into pending) - don't
+		// assume flight.batch matches the started event for warm compiles.
 		events += OrchestratorEvent.BuildStarted(buildId, route, ChangedFiles.Unknown)
 		val request =
 			BuildRequest(
@@ -480,12 +480,12 @@ class LiveReloadOrchestrator(
 					val diagnostics = (outcome as? BuildOutcome.CompileError)?.diagnostics
 					val unchanged =
 						flight.autoFollowUp && diagnostics != null && diagnostics == lastCompileDiagnostics
-					// A seed's failure is invisible to the user (the session manager logs it
+					// A warm compile's failure is invisible to the user (the session manager logs it
 					// and never surfaces it - the proxy app build just compiled these sources
 					// green). Priming lastCompileDiagnostics from it would make the next REAL
 					// build's identical failure silently report diagnosticsUnchanged = true for
 					// an error the user never actually saw.
-					if (diagnostics != null && flight.route !is BuildRoute.Seed) {
+					if (diagnostics != null && flight.route !is BuildRoute.WarmCompile) {
 						lastCompileDiagnostics = diagnostics
 					}
 					events += OrchestratorEvent.BuildFailed(buildId, outcome, unchanged, flight.route)
@@ -510,7 +510,7 @@ sealed interface OrchestratorEvent {
 	data class BuildSucceeded(
 		val buildId: Long,
 		val result: BuildOutcome.Success,
-		/** What the build was for — a [BuildRoute.Seed] success deployed nothing. */
+		/** What the build was for — a [BuildRoute.WarmCompile] success deployed nothing. */
 		val route: BuildRoute,
 		/**
 		 * True when a Quick Build TAP is what this build answers, so the deploy landing is
@@ -530,7 +530,7 @@ sealed interface OrchestratorEvent {
 		val buildId: Long,
 		val outcome: BuildOutcome,
 		val diagnosticsUnchanged: Boolean = false,
-		/** What the build was for — a [BuildRoute.Seed] failure is not user-visible. */
+		/** What the build was for — a [BuildRoute.WarmCompile] failure is not user-visible. */
 		val route: BuildRoute,
 	) : OrchestratorEvent
 

@@ -68,13 +68,13 @@ sealed interface QuickBuildStatus {
 				is QuickBuildSessionState.Building -> {
 					when {
 						// A real build: the proxy app is one generation behind, say so.
-						!state.seeding -> Building(state.deployedGeneration)
+						!state.warmingCompiler -> Building(state.deployedGeneration)
 
-						// A crash of the running generation observed mid-seed surfaces
-						// immediately, exactly as it would outside the seed window.
+						// A crash of the running generation observed mid-warm-compile surfaces
+						// immediately, exactly as it would outside the warm-compile window.
 						state.pendingCrash != null -> Failed(state.deployedGeneration, state.pendingCrash)
 
-						// The background seed compiles what already runs and deploys
+						// The background warm compile compiles what already runs and deploys
 						// nothing - presenting it as a blocking "Building" for its whole
 						// 12-50s window would be a lie. The app is genuinely up to date.
 						else -> UpToDate(state.deployedGeneration, buildDurationMillis = null)

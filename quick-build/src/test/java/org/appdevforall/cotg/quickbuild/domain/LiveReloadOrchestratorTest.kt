@@ -533,9 +533,9 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
-	fun `crash recovery — seeding with unknown yields one slow-but-correct first build`() =
+	fun `crash recovery — priming with unknown yields one slow-but-correct first build`() =
 		runTest {
-			// After a CoGo restart the watcher history is gone; the session manager seeds
+			// After a CoGo restart the watcher history is gone; the session manager primes
 			// the fresh orchestrator with Unknown. First build is full, nothing is lost.
 			val executor = GatedExecutor()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
@@ -627,62 +627,62 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
-	fun `seed request with nothing pending starts a seed build compiling everything`() =
+	fun `warm-compile request with nothing pending starts a warm-compile build compiling everything`() =
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
-			orchestrator.onSeedRequested()
+			orchestrator.onWarmCompileRequested()
 			runCurrent()
 
 			assertThat(executor.requests).hasSize(1)
-			assertThat(executor.requests[0].route).isEqualTo(BuildRoute.Seed)
+			assertThat(executor.requests[0].route).isEqualTo(BuildRoute.WarmCompile)
 			assertThat(executor.requests[0].changes).isEqualTo(ChangedFiles.Unknown)
 			assertThat(executor.requests[0].forced).isFalse()
 			assertThat(events).containsExactly(
-				// Unknown, not Known.EMPTY - a seed compiles every source, not zero files
+				// Unknown, not Known.EMPTY - a warm compile covers every source, not zero files
 				// (2026-07-26 review nit: metrics must not read this as "0 files changed").
-				OrchestratorEvent.BuildStarted(1L, BuildRoute.Seed, ChangedFiles.Unknown),
+				OrchestratorEvent.BuildStarted(1L, BuildRoute.WarmCompile, ChangedFiles.Unknown),
 			)
 
 			executor.finish(0, success(generation = 0))
 			runCurrent()
 			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
-			assertThat(succeeded.route).isEqualTo(BuildRoute.Seed)
+			assertThat(succeeded.route).isEqualTo(BuildRoute.WarmCompile)
 		}
 
 	@Test
-	fun `a save that lands before the seed starts drops the seed - the real build seeds implicitly`() =
+	fun `a save that lands before the warm compile starts drops it - the real build warms implicitly`() =
 		runTest {
 			val executor = GatedExecutor()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
-			// The save's build is in flight; the seed request arrives late.
-			orchestrator.onSeedRequested()
+			// The save's build is in flight; the warm-compile request arrives late.
+			orchestrator.onWarmCompileRequested()
 			executor.finish(0, success(generation = 1))
 			runCurrent()
 
 			// No second build: the save's build already compiled the full source set
-			// (daemon first-build contract), so the seed would be pure waste.
+			// (daemon first-build contract), so the warm compile would be pure waste.
 			assertThat(executor.requests).hasSize(1)
 			assertThat(executor.requests[0].route).isEqualTo(BuildRoute.CodeOnly)
 		}
 
 	@Test
-	fun `a save landing mid-seed queues and builds right after the seed finishes`() =
+	fun `a save landing mid-warm-compile queues and builds right after it finishes`() =
 		runTest {
 			val executor = GatedExecutor()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
-			orchestrator.onSeedRequested()
+			orchestrator.onWarmCompileRequested()
 			runCurrent()
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
 
-			// Single-flight: the save waits for the seed, never overlaps it.
+			// Single-flight: the save waits for the warm compile, never overlaps it.
 			assertThat(executor.requests).hasSize(1)
 			assertThat(executor.cancellations).isEqualTo(0)
 
@@ -695,7 +695,7 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
-	fun `daemon replacement with nothing pending re-warms via a deploy-nothing seed`() =
+	fun `daemon replacement with nothing pending re-warms via a deploy-nothing warm compile`() =
 		runTest {
 			val executor = GatedExecutor()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
@@ -704,7 +704,7 @@ class LiveReloadOrchestratorTest {
 			runCurrent()
 
 			assertThat(executor.requests).hasSize(1)
-			assertThat(executor.requests[0].route).isEqualTo(BuildRoute.Seed)
+			assertThat(executor.requests[0].route).isEqualTo(BuildRoute.WarmCompile)
 			assertThat(executor.requests[0].changes).isEqualTo(ChangedFiles.Unknown)
 		}
 
@@ -722,7 +722,7 @@ class LiveReloadOrchestratorTest {
 			orchestrator.onDaemonReplaced()
 			runCurrent()
 
-			// A REAL deploying build over everything, not a seed.
+			// A REAL deploying build over everything, not a warm compile.
 			val replay = executor.requests.last()
 			assertThat(replay.route).isEqualTo(BuildRoute.CodeAndResources)
 			assertThat(replay.changes).isEqualTo(ChangedFiles.Unknown)
@@ -754,13 +754,13 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
-	fun `a failed seed leaves nothing pending and does not auto-retry`() =
+	fun `a failed warm compile leaves nothing pending and does not auto-retry`() =
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
-			orchestrator.onSeedRequested()
+			orchestrator.onWarmCompileRequested()
 			runCurrent()
 			executor.finish(0, compileError())
 			runCurrent()
@@ -768,7 +768,7 @@ class LiveReloadOrchestratorTest {
 			// No retry loop for a background warm-up...
 			assertThat(executor.requests).hasSize(1)
 			val failed = events.filterIsInstance<OrchestratorEvent.BuildFailed>().single()
-			assertThat(failed.route).isEqualTo(BuildRoute.Seed)
+			assertThat(failed.route).isEqualTo(BuildRoute.WarmCompile)
 
 			// ...and the next real save builds exactly its own batch (nothing leaked in).
 			orchestrator.onFilesChanged(known(srcB))
@@ -778,58 +778,58 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
-	fun `a seed's compile error does not prime diagnosticsUnchanged for the auto-follow-up that answers it`() =
+	fun `a warm compile's compile error does not prime diagnosticsUnchanged for the auto-follow-up that answers it`() =
 		runTest {
-			// 2026-07-26 review minor finding: a seed failure is invisible to the user (the
+			// 2026-07-26 review minor finding: a warm-compile failure is invisible to the user (the
 			// session manager never surfaces it), so it must not silently flag the FIRST
 			// real failure the user actually sees as "unchanged" just because a save that
-			// landed mid-seed produced an identical error.
+			// landed mid-warm-compile produced an identical error.
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
-			orchestrator.onSeedRequested()
+			orchestrator.onWarmCompileRequested()
 			runCurrent()
-			// A real save lands WHILE the seed compiles - its build starts automatically
-			// as this build's auto-follow-up once the seed's own result lands.
+			// A real save lands WHILE the warm compile runs - its build starts automatically
+			// as this build's auto-follow-up once the warm compile's own result lands.
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
-			executor.finish(0, compileError()) // the seed's (invisible) failure
+			executor.finish(0, compileError()) // the warm compile's (invisible) failure
 			runCurrent()
 			assertThat(executor.requests).hasSize(2)
-			executor.finish(1, compileError()) // identical diagnostics to the seed's failure
+			executor.finish(1, compileError()) // identical diagnostics to the warm compile's failure
 			runCurrent()
 
-			val realFailure = events.filterIsInstance<OrchestratorEvent.BuildFailed>().single { it.route != BuildRoute.Seed }
+			val realFailure = events.filterIsInstance<OrchestratorEvent.BuildFailed>().single { it.route != BuildRoute.WarmCompile }
 			assertThat(realFailure.diagnosticsUnchanged).isFalse()
 		}
 
-	// Review gap (2026-07-26 #69): a proxy app rebuild landing mid-seed supersedes it - the
-	// seed's late result must be discarded, and it must NOT re-queue after the reset
+	// Review gap (2026-07-26 #69): a proxy app rebuild landing mid-warm-compile supersedes it - the
+	// warm compile's late result must be discarded, and it must NOT re-queue after the reset
 	// (the proxy app rebuild's own Gradle build just recompiled the world).
 	@Test
-	fun `a seed superseded by a proxy app rebuild is discarded and does not restart after the reset`() =
+	fun `a warm compile superseded by a proxy app rebuild is discarded and does not restart after the reset`() =
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
-			orchestrator.onSeedRequested()
+			orchestrator.onWarmCompileRequested()
 			runCurrent()
-			assertThat(executor.requests.single().route).isEqualTo(BuildRoute.Seed)
+			assertThat(executor.requests.single().route).isEqualTo(BuildRoute.WarmCompile)
 
-			// A gradle/manifest edit forced a proxy app rebuild while the seed compiles.
+			// A gradle/manifest edit forced a proxy app rebuild while the warm compile runs.
 			orchestrator.onProxyAppRebuildStarted()
 			events.clear()
 			executor.finish(0, success(generation = 0))
 			runCurrent()
-			// The superseded seed's result is discarded: no Succeeded/Failed escapes
-			// (a SeedFinished here would flip the session out of its proxy-app-rebuild flow).
+			// The superseded warm compile's result is discarded: no Succeeded/Failed escapes
+			// (a WarmCompileFinished here would flip the session out of its proxy-app-rebuild flow).
 			assertThat(events).isEmpty()
 
 			orchestrator.onBaselineReset()
 			runCurrent()
-			// Nothing pending, and the dead seed was not resurrected.
+			// Nothing pending, and the dead warm compile was not resurrected.
 			assertThat(executor.requests).hasSize(1)
 			assertThat(events).isEmpty()
 
@@ -976,7 +976,7 @@ class LiveReloadOrchestratorTest {
 	@Test
 	fun `marking refuses when there is no build to carry the ask`() =
 		runTest {
-			// Nothing in flight, and a seed in flight, both have to say no: a seed deploys
+			// Nothing in flight, and a warm compile in flight, both have to say no: a warm compile deploys
 			// nothing, so it can never be a tap's answer. The caller then falls back to a real
 			// request instead of dropping the tap.
 			val executor = GatedExecutor()
@@ -984,9 +984,9 @@ class LiveReloadOrchestratorTest {
 
 			assertThat(orchestrator.markInFlightUserInitiated()).isFalse()
 
-			orchestrator.onSeedRequested()
+			orchestrator.onWarmCompileRequested()
 			runCurrent()
-			assertThat(executor.requests.single().route).isEqualTo(BuildRoute.Seed)
+			assertThat(executor.requests.single().route).isEqualTo(BuildRoute.WarmCompile)
 			assertThat(orchestrator.markInFlightUserInitiated()).isFalse()
 		}
 
@@ -1038,17 +1038,17 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
-	fun `cancelling refuses when nothing is running, and never touches the seed`() =
+	fun `cancelling refuses when nothing is running, and never touches the warm compile`() =
 		runTest {
 			val executor = GatedExecutor()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			assertThat(orchestrator.onCancelRequested()).isFalse()
 
-			orchestrator.onSeedRequested()
+			orchestrator.onWarmCompileRequested()
 			runCurrent()
 			assertThat(orchestrator.onCancelRequested()).isFalse()
-			// The seed keeps running: it is the daemon warm-up the next real save needs.
+			// The warm compile keeps running: it is the daemon warm-up the next real save needs.
 			assertThat(executor.cancellations).isEqualTo(0)
 			executor.finish(0, success(generation = 0))
 			runCurrent()

@@ -78,7 +78,7 @@ class BenchQuickBuildMetricsSinkTest {
 				BuildRoute.CodeOnly to "CodeOnly",
 				BuildRoute.CodeAndResources to "CodeAndResources",
 				BuildRoute.NoOp to "NoOp",
-				BuildRoute.Seed to "Seed",
+				BuildRoute.WarmCompile to "Seed",
 			)
 		// The table must cover every route class, or a new route would ship unpinned.
 		assertThat(pinned.map { it.first::class })

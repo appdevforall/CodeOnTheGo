@@ -98,12 +98,12 @@ class QuickBuildSessionManager(
 	 */
 	private val launcher: ProxyAppLauncher = ProxyAppLauncher { _, _ -> false },
 	/**
-	 * Bench seam (ADFA-4128): gates the background IC seed fired when provisioning
-	 * succeeds, so a seed-off arm of an A/B run needs a flag file, not a rebuild. Read
+	 * Bench seam (ADFA-4128): gates the background warm compile fired when provisioning
+	 * succeeds, so a warm-compile-off arm of an A/B run needs a flag file, not a rebuild. Read
 	 * at effect time, per session. Always true outside bench runs; the daemon-respawn
-	 * re-warm seed is deliberately NOT gated (it repairs a dead daemon, not a cold one).
+	 * re-warm compile is deliberately NOT gated (it repairs a dead daemon, not a cold one).
 	 */
-	private val backgroundSeedEnabled: () -> Boolean = { true },
+	private val warmCompileEnabled: () -> Boolean = { true },
 	/**
 	 * Monotonic clock shared by the e2e timeline's t0 (orchestrator trigger stamp) and its
 	 * t1-t3 (executor stamps), so all four are comparable (see
@@ -551,13 +551,13 @@ class QuickBuildSessionManager(
 				surfaceNotice(QuickBuildNotice.BUILD_CANCELLED)
 			}
 
-			SessionEffect.StartBackgroundSeed -> {
-				if (backgroundSeedEnabled()) {
+			SessionEffect.StartWarmCompile -> {
+				if (warmCompileEnabled()) {
 					// live is assigned before ProvisioningSucceeded is dispatched (see
 					// startProvisioning), so the orchestrator is always there to take this.
-					scope.launch { live?.orchestrator?.onSeedRequested() }
+					scope.launch { live?.orchestrator?.onWarmCompileRequested() }
 				} else {
-					log.info("Background seed disabled (bench seam); session stays Ready unseeded")
+					log.info("Background warm compile disabled (bench seam); session stays Ready unwarmed")
 				}
 			}
 
@@ -835,12 +835,12 @@ class QuickBuildSessionManager(
 			when (event) {
 				is OrchestratorEvent.BuildStarted -> {
 					report { metrics.onBuildStarted(event.buildId, event.route, event.changes) }
-					if (event.route is BuildRoute.Seed) {
-						// A seed compiles the sources the proxy app ALREADY runs and
+					if (event.route is BuildRoute.WarmCompile) {
+						// A warm compile compiles the sources the proxy app ALREADY runs and
 						// deploys nothing; telling either surface "one generation
-						// behind, building" would be a lie. SeedStarted keeps the IDE
-						// status on "up to date" (Building(seeding = true)).
-						dispatch(SessionEvent.SeedStarted)
+						// behind, building" would be a lie. WarmCompileStarted keeps the IDE
+						// status on "up to date" (Building(warmingCompiler = true)).
+						dispatch(SessionEvent.WarmCompileStarted)
 					} else {
 						dispatch(SessionEvent.BuildStarted)
 						notifyBuilding()
@@ -849,10 +849,10 @@ class QuickBuildSessionManager(
 
 				is OrchestratorEvent.BuildSucceeded -> {
 					report { metrics.onBuildFinished(event.buildId, event.result) }
-					if (event.route is BuildRoute.Seed) {
+					if (event.route is BuildRoute.WarmCompile) {
 						// Nothing deployed, generation unmoved: no Deployed state, no
 						// lastDeployedGeneration bump.
-						dispatch(SessionEvent.SeedFinished)
+						dispatch(SessionEvent.WarmCompileFinished)
 						return@launch
 					}
 					live?.let {
@@ -880,15 +880,15 @@ class QuickBuildSessionManager(
 						report { metrics.onInvalidation(outcome.reason) }
 						dispatch(SessionEvent.InvalidationDetected(outcome.reason))
 					} else if (outcome is BuildOutcome.InfrastructureFailure && outcome.daemonDied) {
-						// Includes a daemon death mid-seed: the normal respawn recovery
-						// re-seeds with ChangedFiles.Unknown, so no seed-specific path.
+						// Includes a daemon death mid-warm-compile: the normal respawn recovery
+						// re-seeds with ChangedFiles.Unknown, so no warm-compile-specific path.
 						dispatch(SessionEvent.DaemonDied)
-					} else if (event.route is BuildRoute.Seed) {
-						// A failed seed is invisible by design: the proxy app build just
+					} else if (event.route is BuildRoute.WarmCompile) {
+						// A failed warm compile is invisible by design: the proxy app build just
 						// compiled these sources green, and the next real save compiles
 						// the full source set anyway. Log for diagnosis, surface nothing.
-						log.warn("Background seed build failed (not surfaced): {}", outcome)
-						dispatch(SessionEvent.SeedFinished)
+						log.warn("Background warm compile failed (not surfaced): {}", outcome)
+						dispatch(SessionEvent.WarmCompileFinished)
 					} else {
 						dispatch(SessionEvent.BuildFailed(outcome.toSessionFailure()))
 					}
@@ -1119,7 +1119,7 @@ class QuickBuildSessionManager(
 			is DaemonReply.Ok -> {
 				dispatch(SessionEvent.DaemonRespawned)
 				// A fresh daemon has no trustworthy IC state. With nothing pending this
-				// re-warms via a deploy-nothing Seed (the proxy app keeps running its
+				// re-warms via a deploy-nothing WarmCompile (the proxy app keeps running its
 				// current generation untouched); with pending work it marks the baseline
 				// dirty so the next build recompiles everything and deploys.
 				session.orchestrator.onDaemonReplaced()

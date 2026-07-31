@@ -65,23 +65,23 @@ class QuickBuildStatusTest {
 		assertThat(QuickBuildStatus.from(state)).isEqualTo(QuickBuildStatus.Building(3))
 	}
 
-	// Review finding (2026-07-26 #3): the background seed deploys nothing and the proxy
+	// Review finding (2026-07-26 #3): the background warm compile deploys nothing and the proxy
 	// app is genuinely current - it must not present as a blocking Building for its
 	// whole 12-50s window.
 	@Test
-	fun `a seeding build maps to up to date, not building`() {
-		val state = QuickBuildSessionState.Building(3, seeding = true)
+	fun `a warm-compiling build maps to up to date, not building`() {
+		val state = QuickBuildSessionState.Building(3, warmingCompiler = true)
 
 		assertThat(QuickBuildStatus.from(state))
 			.isEqualTo(QuickBuildStatus.UpToDate(3, buildDurationMillis = null))
 	}
 
 	// Review finding (2026-07-26 #1): a crash of the running generation observed
-	// mid-seed surfaces immediately, exactly as it would outside the seed window.
+	// mid-warm-compile surfaces immediately, exactly as it would outside the warm-compile window.
 	@Test
-	fun `a seeding build with a pending crash maps to failed`() {
+	fun `a warm-compiling build with a pending crash maps to failed`() {
 		val crash = SessionFailure.ProxyAppCrash("NPE in onCreate")
-		val state = QuickBuildSessionState.Building(3, seeding = true, pendingCrash = crash)
+		val state = QuickBuildSessionState.Building(3, warmingCompiler = true, pendingCrash = crash)
 
 		assertThat(QuickBuildStatus.from(state)).isEqualTo(QuickBuildStatus.Failed(3, crash))
 	}
@@ -128,7 +128,7 @@ class QuickBuildStatusTest {
 				QuickBuildSessionState.Provisioning(),
 				QuickBuildSessionState.Ready(3),
 				QuickBuildSessionState.Ready(3, lastFailure = failure),
-				QuickBuildSessionState.Building(3, seeding = true),
+				QuickBuildSessionState.Building(3, warmingCompiler = true),
 				QuickBuildSessionState.Deployed(4, 900),
 				QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 3),
 				QuickBuildSessionState.Degraded(3),

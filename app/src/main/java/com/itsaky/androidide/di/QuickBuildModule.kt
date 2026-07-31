@@ -167,10 +167,10 @@ val quickBuildModule =
 				// default is JVM currentTimeMillis for unit tests.
 				nowMillis = SystemClock::elapsedRealtime,
 				// Bench A/B seam: CodeOnTheGo.qbnoseed suppresses the post-provisioning
-				// background seed, but only when the bench flag is also on - shipping
-				// builds (no qbbench) always seed.
-				backgroundSeedEnabled = {
-					!(FeatureFlags.isQuickBuildBenchEnabled && FeatureFlags.isQuickBuildSeedDisabled)
+				// background warm compile, but only when the bench flag is also on - shipping
+				// builds (no qbbench) always warm-compile.
+				warmCompileEnabled = {
+					!(FeatureFlags.isQuickBuildBenchEnabled && FeatureFlags.isQuickBuildWarmCompileDisabled)
 				},
 			).also { manager ->
 				if (FeatureFlags.isQuickBuildBenchEnabled) {

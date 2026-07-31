@@ -33,13 +33,13 @@ sealed interface BuildRoute {
 
 	/**
 	 * Background warm-up right after provisioning: compile + dex the whole module once so
-	 * the daemon pays kotlinc JIT, the classpath-snapshot seed, and the IC-cache build
+	 * the daemon pays kotlinc JIT, the classpath-snapshot priming, and the IC-cache build
 	 * before the user's first save instead of on it. Deploys nothing - the proxy app
 	 * already runs exactly these sources (the proxy app build just produced them), so a
 	 * deploy would only restart it for no visible change. Never produced by the
-	 * classifier; only [LiveReloadOrchestrator.onSeedRequested] constructs it.
+	 * classifier; only [LiveReloadOrchestrator.onWarmCompileRequested] constructs it.
 	 */
-	data object Seed : BuildRoute
+	data object WarmCompile : BuildRoute
 }
 
 /** Why a quick-build session baseline can no longer absorb edits on the live reload path. */

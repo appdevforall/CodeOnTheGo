@@ -48,11 +48,11 @@ class QuickBuildSessionManagerTest {
 	private val executed = mutableListOf<BuildRequest>()
 
 	/**
-	 * Background seed builds ([BuildRoute.Seed]) recorded separately: they are a
+	 * Background warm-compile builds ([BuildRoute.WarmCompile]) recorded separately: they are a
 	 * post-provisioning warm-up, not user work, so keeping them out of [executed]
 	 * preserves every "the user's save produced exactly these builds" assertion.
 	 */
-	private val seeds = mutableListOf<BuildRequest>()
+	private val warmCompiles = mutableListOf<BuildRequest>()
 
 	/** ProxyAppInfo of every executor the manager built (provision + each proxy app rebuild). */
 	private val factoryProxyApps = mutableListOf<ProxyAppInfo>()
@@ -103,8 +103,8 @@ class QuickBuildSessionManagerTest {
 		}
 	private val scriptedOutcomes = ArrayDeque<BuildOutcome>()
 
-	/** Scripted outcomes for SEED builds only; empty = every seed succeeds unmoved. */
-	private val seedOutcomes = ArrayDeque<BuildOutcome>()
+	/** Scripted outcomes for WARM-COMPILE builds only; empty = every warm compile succeeds unmoved. */
+	private val warmCompileOutcomes = ArrayDeque<BuildOutcome>()
 	private var provisionCount = 0
 	private var proxyAppRebuildCount = 0
 	private var prebuildCount = 0
@@ -118,7 +118,7 @@ class QuickBuildSessionManagerTest {
 
 	/** Set to make the scripted executor await mid-build, so a test can observe Building. */
 	private var executionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
-	private var seedGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+	private var warmCompileGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
 	/** Captures the watcher the manager builds so a test can push change batches. */
 	private var watcher: FakeWatcher? = null
@@ -196,7 +196,7 @@ class QuickBuildSessionManagerTest {
 	}
 
 	private fun TestScope.createManager(
-		backgroundSeedEnabled: () -> Boolean = { true },
+		warmCompileEnabled: () -> Boolean = { true },
 		scratch: QuickBuildScratch = QuickBuildScratch(FakePaths(projectRoot).projectScratchRoot),
 	): QuickBuildSessionManager {
 		val provisioner =
@@ -249,13 +249,13 @@ class QuickBuildSessionManagerTest {
 				factoryProxyApps += proxyApp
 				object : LiveReloadExecutor {
 					override suspend fun execute(request: BuildRequest): BuildOutcome {
-						if (request.route is BuildRoute.Seed) {
-							// Mirror the real executor's seed contract: compile-only,
+						if (request.route is BuildRoute.WarmCompile) {
+							// Mirror the real executor's warm-compile contract: compile-only,
 							// nothing deployed, generation unmoved, scripted outcomes
 							// (which script USER builds) untouched.
-							seeds += request
-							seedGate?.await()
-							return seedOutcomes.removeFirstOrNull()
+							warmCompiles += request
+							warmCompileGate?.await()
+							return warmCompileOutcomes.removeFirstOrNull()
 								?: BuildOutcome.Success(tracker.current, 5)
 						}
 						executed += request
@@ -268,7 +268,7 @@ class QuickBuildSessionManagerTest {
 			onUserMessage = { userMessages += it },
 			watcherFactory = { _, _, filter, _ -> FakeWatcher(filter).also { watcher = it } },
 			metrics = recordingMetrics,
-			backgroundSeedEnabled = backgroundSeedEnabled,
+			warmCompileEnabled = warmCompileEnabled,
 			launcher =
 				ProxyAppLauncher { packageName, activityClass ->
 					launches += packageName to activityClass
@@ -334,18 +334,18 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `provisioning fires exactly one background seed that ends back in Ready`() =
+	fun `provisioning fires exactly one background warm compile that ends back in Ready`() =
 		runTest {
 			val manager = createManager()
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
-			val seed = seeds.single()
-			assertThat(seed.route).isEqualTo(BuildRoute.Seed)
-			assertThat(seed.changes).isEqualTo(ChangedFiles.Unknown)
-			assertThat(seed.forced).isFalse()
-			// The seed deployed nothing: generation unmoved, no Deployed state lingering.
+			val warmCompile = warmCompiles.single()
+			assertThat(warmCompile.route).isEqualTo(BuildRoute.WarmCompile)
+			assertThat(warmCompile.changes).isEqualTo(ChangedFiles.Unknown)
+			assertThat(warmCompile.forced).isFalse()
+			// The warm compile deployed nothing: generation unmoved, no Deployed state lingering.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 			assertThat(manager.status.value).isEqualTo(QuickBuildStatus.UpToDate(0, null))
 			// User-build bookkeeping untouched.
@@ -353,15 +353,15 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `bench seam off - provisioning lands Ready with no seed, and a later save still builds`() =
+	fun `bench seam off - provisioning lands Ready with no warm compile, and a later save still builds`() =
 		runTest {
-			val manager = createManager(backgroundSeedEnabled = { false })
+			val manager = createManager(warmCompileEnabled = { false })
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
-			// No seed was requested; the session simply stays Ready at the base generation.
-			assertThat(seeds).isEmpty()
+			// No warm compile was requested; the session simply stays Ready at the base generation.
+			assertThat(warmCompiles).isEmpty()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 
 			// The seam only skips the warm-up: real user work is untouched.
@@ -372,20 +372,20 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a save during the seed queues and builds right after it - never lost, never overlapped`() =
+	fun `a save during the warm compile queues and builds right after it - never lost, never overlapped`() =
 		runTest {
 			val manager = createManager()
 			val gate = CompletableDeferred<Unit>()
-			seedGate = gate
+			warmCompileGate = gate
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
-			assertThat(seeds).hasSize(1)
+			assertThat(warmCompiles).hasSize(1)
 			assertThat(executed).isEmpty()
 
 			manager.save(File(projectRoot, "app/src/main/java/com/example/A.kt"))
 			advanceUntilIdle()
-			// Single-flight: the save waits for the in-flight seed.
+			// Single-flight: the save waits for the in-flight warm compile.
 			assertThat(executed).isEmpty()
 
 			gate.complete(Unit)
@@ -394,23 +394,23 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
 		}
 
-	// Review finding (2026-07-26 #3): the seed compiles what the proxy app already runs
+	// Review finding (2026-07-26 #3): the warm compile compiles what the proxy app already runs
 	// and deploys nothing - it must not present as a blocking Building for its whole
 	// 12-50s window.
 	@Test
-	fun `the background seed does not present as Building - status stays up to date`() =
+	fun `the background warm compile does not present as Building - status stays up to date`() =
 		runTest {
 			val manager = createManager()
 			val gate = CompletableDeferred<Unit>()
-			seedGate = gate
+			warmCompileGate = gate
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
-			// The seed is in flight (gated), yet the surface reads up to date.
-			assertThat(seeds).hasSize(1)
+			// The warm compile is in flight (gated), yet the surface reads up to date.
+			assertThat(warmCompiles).hasSize(1)
 			assertThat(manager.state.value)
-				.isEqualTo(QuickBuildSessionState.Building(0, seeding = true))
+				.isEqualTo(QuickBuildSessionState.Building(0, warmingCompiler = true))
 			assertThat(manager.status.value).isEqualTo(QuickBuildStatus.UpToDate(0, null))
 
 			gate.complete(Unit)
@@ -418,22 +418,22 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
-	// Review finding (2026-07-26 #3): a forced-redeploy tap during the seed must not
-	// vanish - the seed deploys nothing, so nothing else would satisfy it.
+	// Review finding (2026-07-26 #3): a forced-redeploy tap during the warm compile must not
+	// vanish - the warm compile deploys nothing, so nothing else would satisfy it.
 	@Test
-	fun `a tap during the seed queues and forces a build right after it`() =
+	fun `a tap during the warm compile queues and forces a build right after it`() =
 		runTest {
 			val manager = createManager()
 			val gate = CompletableDeferred<Unit>()
-			seedGate = gate
+			warmCompileGate = gate
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
-			assertThat(seeds).hasSize(1)
+			assertThat(warmCompiles).hasSize(1)
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
-			// Single-flight: the tap waits for the in-flight seed.
+			// Single-flight: the tap waits for the in-flight warm compile.
 			assertThat(executed).isEmpty()
 
 			gate.complete(Unit)
@@ -443,23 +443,23 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
 		}
 
-	// Review finding (2026-07-26 #1): a crash of the running generation during the seed
+	// Review finding (2026-07-26 #1): a crash of the running generation during the warm compile
 	// window surfaces like any other proxy-app crash instead of being swallowed by the
-	// seed's silent SeedFinished -> Ready path.
+	// warm compile's silent WarmCompileFinished -> Ready path.
 	@Test
-	fun `a proxy-app crash during the seed surfaces as a session failure`() =
+	fun `a proxy-app crash during the warm compile surfaces as a session failure`() =
 		runTest {
 			val manager = createManager()
 			val gate = CompletableDeferred<Unit>()
-			seedGate = gate
+			warmCompileGate = gate
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
-			assertThat(seeds).hasSize(1)
+			assertThat(warmCompiles).hasSize(1)
 
 			connections.report(TargetReport.Crashed(0, "NPE in onCreate"))
 			advanceUntilIdle()
-			// Surfaced immediately, not deferred to the end of the seed window.
+			// Surfaced immediately, not deferred to the end of the warm-compile window.
 			assertThat(manager.status.value)
 				.isEqualTo(
 					QuickBuildStatus.Failed(0, SessionFailure.ProxyAppCrash("NPE in onCreate")),
@@ -476,21 +476,21 @@ class QuickBuildSessionManagerTest {
 				)
 		}
 
-	// Review gap (2026-07-26 #69): the daemon dying DURING the seed must surface as
-	// Degraded and recover through the normal respawn, never end in SeedFinished's
+	// Review gap (2026-07-26 #69): the daemon dying DURING the warm compile must surface as
+	// Degraded and recover through the normal respawn, never end in WarmCompileFinished's
 	// silent "up to date" over a dead daemon.
 	@Test
 	fun `a daemon death during the seed degrades, respawns and re-seeds the fresh daemon`() =
 		runTest {
 			val manager = createManager()
 			val gate = CompletableDeferred<Unit>()
-			seedGate = gate
-			seedOutcomes +=
+			warmCompileGate = gate
+			warmCompileOutcomes +=
 				BuildOutcome.InfrastructureFailure("daemon connection lost", daemonDied = true)
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
-			assertThat(seeds).hasSize(1)
+			assertThat(warmCompiles).hasSize(1)
 
 			// Hold the respawn's start so the honest Degraded window is observable.
 			val respawnGate = CompletableDeferred<Unit>()
@@ -501,10 +501,10 @@ class QuickBuildSessionManagerTest {
 
 			respawnGate.complete(Unit)
 			advanceUntilIdle()
-			// The fresh daemon re-warmed via a second deploy-nothing seed; nothing
+			// The fresh daemon re-warmed via a second deploy-nothing warm compile; nothing
 			// user-visible happened: no user build, no deploy, generation unmoved.
 			assertThat(daemon.startConfigs).hasSize(2)
-			assertThat(seeds).hasSize(2)
+			assertThat(warmCompiles).hasSize(2)
 			assertThat(executed).isEmpty()
 			assertThat(deploy.calls).isEmpty()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
@@ -1082,16 +1082,16 @@ class QuickBuildSessionManagerTest {
 			assertThat(daemon.startConfigs).hasSize(3) // + the proxy app rebuild's restart
 			assertThat(daemon.isRunning).isTrue()
 			val shutdownsBefore = daemon.shutdownCount
-			val seedsBefore = seeds.size
+			val warmCompilesBefore = warmCompiles.size
 
 			// The parked respawn finally completes - AFTER the proxy app rebuild already owns a
 			// fresh daemon. It must discard itself: no DaemonRespawned, no orchestrator
-			// poke (a spurious seed), and no touching the proxy app rebuild's NEW daemon.
+			// poke (a spurious warm compile), and no touching the proxy app rebuild's NEW daemon.
 			respawnGate.complete(Unit)
 			advanceUntilIdle()
 			assertThat(daemon.isRunning).isTrue()
 			assertThat(daemon.shutdownCount).isEqualTo(shutdownsBefore)
-			assertThat(seeds).hasSize(seedsBefore)
+			assertThat(warmCompiles).hasSize(warmCompilesBefore)
 			assertThat(executed).isEmpty()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
@@ -1140,7 +1140,7 @@ class QuickBuildSessionManagerTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
-			val seedsBefore = seeds.size
+			val warmCompilesBefore = warmCompiles.size
 
 			val respawnGate = CompletableDeferred<Unit>()
 			daemon.startGate = respawnGate
@@ -1158,7 +1158,7 @@ class QuickBuildSessionManagerTest {
 			respawnGate.complete(Unit)
 			advanceUntilIdle()
 			assertThat(daemon.isRunning).isFalse()
-			assertThat(seeds).hasSize(seedsBefore)
+			assertThat(warmCompiles).hasSize(warmCompilesBefore)
 			assertThat(executed).isEmpty()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 		}
@@ -1239,12 +1239,12 @@ class QuickBuildSessionManagerTest {
 					"invalidated:GRADLE_CONFIG_CHANGED",
 					"proxyAppRebuild:true",
 					// The proxy app rebuild re-enters Ready via ProvisioningSucceeded, which fires
-					// a fresh background seed: the full Gradle build may have moved inputs
+					// a fresh background warm compile: the full Gradle build may have moved inputs
 					// (or respawned the daemon), so re-seeding the IC universe afterwards
 					// is deliberate, and its metrics are visible like any build's. The count
-					// is null (not 0): a seed's changed-set is Unknown - it compiles every
+					// is null (not 0): a warm compile's changed-set is Unknown - it compiles every
 					// source, not zero files (2026-07-26 review nit).
-					"started:Seed:null",
+					"started:WarmCompile:null",
 					"finished:Success",
 				).inOrder()
 		}
@@ -1788,7 +1788,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `daemon death with nothing pending respawns and re-warms via a deploy-nothing seed`() =
+	fun `daemon death with nothing pending respawns and re-warms via a deploy-nothing warm compile`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1799,12 +1799,12 @@ class QuickBuildSessionManagerTest {
 
 			// Respawned: configure ran twice (provision + respawn)...
 			assertThat(daemon.startConfigs).hasSize(2)
-			// ...and with nothing pending the re-warm is a SEED (one per daemon life:
+			// ...and with nothing pending the re-warm is a WARM COMPILE (one per daemon life:
 			// provisioning's + the respawn's) - no user build, no deploy, the proxy app
 			// keeps running its current generation untouched.
 			assertThat(executed).isEmpty()
-			assertThat(seeds).hasSize(2)
-			assertThat(seeds.last().changes).isEqualTo(ChangedFiles.Unknown)
+			assertThat(warmCompiles).hasSize(2)
+			assertThat(warmCompiles.last().changes).isEqualTo(ChangedFiles.Unknown)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
@@ -2551,25 +2551,25 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `stopping is a no-op during the background seed - the user never asked for it`() =
+	fun `stopping is a no-op during the background warm compile - the user never asked for it`() =
 		runTest {
-			// The seed deploys nothing and the button shows the bolt throughout, so there is
+			// The warm compile deploys nothing and the button shows the bolt throughout, so there is
 			// no build here for the user to cancel. Cancelling it would also throw away the
 			// daemon warm-up the next real save is about to need.
 			val gate = CompletableDeferred<Unit>()
-			seedGate = gate
+			warmCompileGate = gate
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 			val notices = recordNotices(manager)
 			assertThat(manager.state.value)
-				.isEqualTo(QuickBuildSessionState.Building(0, seeding = true))
+				.isEqualTo(QuickBuildSessionState.Building(0, warmingCompiler = true))
 
 			manager.onCancelRequested()
 			advanceUntilIdle()
 
 			assertThat(manager.state.value)
-				.isEqualTo(QuickBuildSessionState.Building(0, seeding = true))
+				.isEqualTo(QuickBuildSessionState.Building(0, warmingCompiler = true))
 			assertThat(notices).isEmpty()
 
 			gate.complete(Unit)

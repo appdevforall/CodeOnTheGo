@@ -91,11 +91,11 @@ class LiveReloadExecutorImpl(
 	override suspend fun execute(request: BuildRequest): BuildOutcome =
 		try {
 			val outcome = executeInner(request)
-			// A seed compiles the sources the proxy app ALREADY runs and deploys
+			// A warm compile compiles the sources the proxy app ALREADY runs and deploys
 			// nothing: flashing build-ok/build-failed on its overlay would announce
 			// a build the user never triggered (2026-07-26 review). Stay silent;
 			// the outcome still flows to the orchestrator for recovery routing.
-			if (request.route !is BuildRoute.Seed) notifyProxyApp(outcome)
+			if (request.route !is BuildRoute.WarmCompile) notifyProxyApp(outcome)
 			outcome
 		} catch (e: CancellationException) {
 			throw e
@@ -154,8 +154,8 @@ class LiveReloadExecutorImpl(
 		val startedAt = clock()
 		val timeline = Timeline(request.triggeredAtMillis) { daemon.scratchFsType }
 
-		if (request.route is BuildRoute.Seed) {
-			// Background IC seed: compile + dex everything once (kotlinc JIT, classpath
+		if (request.route is BuildRoute.WarmCompile) {
+			// Background warm compile: compile + dex everything once (kotlinc JIT, classpath
 			// snapshot, IC caches, d8 warm-up) but deploy NOTHING - the proxy app already
 			// runs exactly these sources, and the generation must not move. No timeline
 			// is reported: nothing reloaded, so there is no save->live to measure.
@@ -272,9 +272,9 @@ class LiveReloadExecutorImpl(
 				)
 			}
 
-			BuildRoute.Seed -> {
+			BuildRoute.WarmCompile -> {
 				// Handled by the early branch above; unreachable, kept for exhaustiveness.
-				BuildOutcome.InfrastructureFailure("Seed route fell through the seed branch")
+				BuildOutcome.InfrastructureFailure("WarmCompile route fell through the warm-compile branch")
 			}
 		}
 	}

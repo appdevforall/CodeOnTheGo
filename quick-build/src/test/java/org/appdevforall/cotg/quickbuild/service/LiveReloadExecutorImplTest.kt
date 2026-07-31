@@ -106,12 +106,12 @@ class LiveReloadExecutorImplTest {
 		}
 
 	@Test
-	fun `seed route compiles everything and dexes but deploys NOTHING at an unmoved generation`() =
+	fun `warm-compile route compiles everything and dexes but deploys NOTHING at an unmoved generation`() =
 		runTest {
-			val outcome = executor.execute(request(BuildRoute.Seed, ChangedFiles.Unknown))
+			val outcome = executor.execute(request(BuildRoute.WarmCompile, ChangedFiles.Unknown))
 
 			assertThat(outcome).isEqualTo(BuildOutcome.Success(0, 0))
-			// The whole source set goes through the compiler (IC-cache seed)...
+			// The whole source set goes through the compiler (IC-cache priming)...
 			assertThat(daemon.compileCalls).hasSize(1)
 			assertThat(daemon.compileCalls[0].second).containsExactly(sourceFile)
 			// ...d8 warms too...
@@ -122,20 +122,20 @@ class LiveReloadExecutorImplTest {
 			assertThat(tracker.current).isEqualTo(0)
 		}
 
-	// Review gap (2026-07-26 #69): the seed is invisible by contract - the proxy app
+	// Review gap (2026-07-26 #69): the warm compile is invisible by contract - the proxy app
 	// already runs exactly the sources it compiles - so its overlay must not flash
 	// "build ok" for a build the user never triggered.
 	@Test
-	fun `a seed success stays silent on the proxy-app status channel`() =
+	fun `a warm-compile success stays silent on the proxy-app status channel`() =
 		runTest {
-			val outcome = executor.execute(request(BuildRoute.Seed, ChangedFiles.Unknown))
+			val outcome = executor.execute(request(BuildRoute.WarmCompile, ChangedFiles.Unknown))
 
 			assertThat(outcome).isEqualTo(BuildOutcome.Success(0, 0))
 			assertThat(deploy.statusCalls).isEmpty()
 		}
 
 	@Test
-	fun `a seed compile error stays silent on the proxy-app status channel but keeps the real outcome`() =
+	fun `a warm-compile compile error stays silent on the proxy-app status channel but keeps the real outcome`() =
 		runTest {
 			val diagnostics =
 				listOf(
@@ -148,7 +148,7 @@ class LiveReloadExecutorImplTest {
 				)
 			daemon.compileReply = DaemonReply.BuildFailed(diagnostics)
 
-			val outcome = executor.execute(request(BuildRoute.Seed, ChangedFiles.Unknown))
+			val outcome = executor.execute(request(BuildRoute.WarmCompile, ChangedFiles.Unknown))
 
 			// The orchestrator still needs the honest outcome (it routes recovery),
 			// but the proxy-app overlay must not flash "build failed" for sources the
@@ -797,12 +797,12 @@ class LiveReloadExecutorImplTest {
 		}
 
 	@Test
-	fun `a seed build emits no timeline - nothing reloaded`() =
+	fun `a warm-compile build emits no timeline - nothing reloaded`() =
 		runTest {
 			val emitted = mutableListOf<E2eTimeline>()
 
 			timingExecutor(emitted).execute(
-				timedRequest(BuildRoute.Seed, ChangedFiles.Unknown, triggeredAtMillis = 5),
+				timedRequest(BuildRoute.WarmCompile, ChangedFiles.Unknown, triggeredAtMillis = 5),
 			)
 
 			assertThat(emitted).isEmpty()

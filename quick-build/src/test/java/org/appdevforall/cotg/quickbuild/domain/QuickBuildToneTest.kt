@@ -21,10 +21,10 @@ class QuickBuildToneTest {
 	// keeps the bolt for the two background builds they did not. These are the derivations
 	// that decide it, so they are pinned rather than left to be re-decided by accident.
 	@Test
-	fun `the background seed reads as READY - it deploys nothing and was never asked for`() {
-		val seeding = QuickBuildSessionState.Building(3, seeding = true)
+	fun `the background warm compile reads as READY - it deploys nothing and was never asked for`() {
+		val warmCompiling = QuickBuildSessionState.Building(3, warmingCompiler = true)
 
-		assertThat(QuickBuildStatus.from(seeding).toTone()).isEqualTo(QuickBuildTone.READY)
+		assertThat(QuickBuildStatus.from(warmCompiling).toTone()).isEqualTo(QuickBuildTone.READY)
 	}
 
 	@Test
