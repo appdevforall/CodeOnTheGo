@@ -24,6 +24,29 @@ class ChangedFilesTest {
 	}
 
 	@Test
+	fun `a path modified in one batch then deleted in the newer batch collapses to a removal`() {
+		// Right operand is the newer batch at every union site. A plain set union would leave
+		// x.kt in BOTH sets and the executor would feed it to the daemon as changed AND removed.
+		val union = known("x.kt", "a.kt") + removed("x.kt")
+
+		assertThat(union).isEqualTo(ChangedFiles.Known(setOf(File("a.kt")), setOf(File("x.kt"))))
+	}
+
+	@Test
+	fun `a path deleted in one batch then recreated in the newer batch collapses to a modification`() {
+		val union = removed("x.kt", "gone.kt") + known("x.kt")
+
+		assertThat(union).isEqualTo(ChangedFiles.Known(setOf(File("x.kt")), setOf(File("gone.kt"))))
+	}
+
+	@Test
+	fun `union of batches with disjoint sets never lands a path in both sets`() {
+		val union = ((known("a.kt") + removed("old.kt")) + (known("b.kt") + removed("gone.kt"))) as ChangedFiles.Known
+
+		assertThat(union.files.intersect(union.removed)).isEmpty()
+	}
+
+	@Test
 	fun `a set with only removals is not empty`() {
 		assertThat(removed("gone.kt").isEmpty).isFalse()
 	}

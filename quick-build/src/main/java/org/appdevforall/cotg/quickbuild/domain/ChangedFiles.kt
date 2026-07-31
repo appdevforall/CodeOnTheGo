@@ -12,7 +12,14 @@ import java.io.File
  * conflated the two, which turned no-op saves into spurious full recompiles.
  */
 sealed interface ChangedFiles {
-	/** Union of two changed-sets. [Unknown] absorbs everything. */
+	/**
+	 * Union of two changed-sets, with per-path last-event-wins reconciliation: the RIGHT
+	 * operand is the newer batch (every union site puts it there), so a path modified in
+	 * one batch then deleted in the next collapses to a removal, and a delete-then-recreate
+	 * to a modification. A plain set union would leave such a path in BOTH sets, and the
+	 * executor would then feed it to the daemon as both changed and removed. [Unknown]
+	 * absorbs everything.
+	 */
 	operator fun plus(other: ChangedFiles): ChangedFiles
 
 	/** True only for an empty [Known] set — [Unknown] is never empty. */
@@ -35,7 +42,12 @@ sealed interface ChangedFiles {
 	) : ChangedFiles {
 		override fun plus(other: ChangedFiles): ChangedFiles =
 			when (other) {
-				is Known -> Known(files + other.files, removed + other.removed)
+				// other is the NEWER batch: its events override this batch's per path.
+				is Known ->
+					Known(
+						(files - other.removed) + other.files,
+						(removed - other.files) + other.removed,
+					)
 				Unknown -> Unknown
 			}
 

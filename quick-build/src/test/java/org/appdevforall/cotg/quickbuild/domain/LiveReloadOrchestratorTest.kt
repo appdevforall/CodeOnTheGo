@@ -160,6 +160,29 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
+	fun `a file modified in one mid-build batch then deleted in the next is only removed in the follow-up`() =
+		runTest {
+			// Pending accumulates across coalesced batches while a build is in flight. A plain
+			// set union would carry srcB as BOTH modified and removed, and the executor would
+			// feed it to the daemon compile as changed and removed at once.
+			val executor = GatedExecutor()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcB)) // batch 1: srcB modified
+			orchestrator.onFilesChanged(ChangedFiles.Known(emptySet(), setOf(File(srcB)))) // batch 2: srcB deleted
+			runCurrent()
+
+			executor.finish(0, success(generation = 1))
+			runCurrent()
+
+			assertThat(executor.requests).hasSize(2)
+			assertThat(executor.requests[1].changes)
+				.isEqualTo(ChangedFiles.Known(emptySet(), setOf(File(srcB))))
+		}
+
+	@Test
 	fun `multi-file batch survives a failed compile — nothing is dropped`() =
 		runTest {
 			// Regression for the prototype bug: changedSrc was cleared before the compile,
