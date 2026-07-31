@@ -25,12 +25,9 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildPaths
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
-import org.appdevforall.cotg.quickbuild.domain.BuildRequest
 import org.appdevforall.cotg.quickbuild.domain.BuildRoute
-import org.appdevforall.cotg.quickbuild.domain.ChangeClassifier
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.ComponentKind
-import org.appdevforall.cotg.quickbuild.domain.DeployPolicy
 import org.appdevforall.cotg.quickbuild.domain.GenerationStore
 import org.appdevforall.cotg.quickbuild.domain.GenerationTracker
 import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
@@ -47,11 +44,6 @@ import org.appdevforall.cotg.quickbuild.domain.SessionFailure
 import org.appdevforall.cotg.quickbuild.domain.SessionReducer
 import org.appdevforall.cotg.quickbuild.domain.WatchFilter
 import org.appdevforall.cotg.quickbuild.domain.WatcherBatchReconciler
-import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationBaseline
-import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpact
-import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpactAnalyzer
-import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationProcessorProfile
-import org.appdevforall.cotg.quickbuild.domain.annotations.SwitchableAnnotationImpact
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -212,40 +204,24 @@ class QuickBuildSessionManager(
 	 */
 	private var daemonEpoch = 0L
 
-	private class LiveSession(
-		/** Mutable: a proxy app rebuild regenerates setup.json and must move this snapshot. */
-		var proxyApp: ProxyAppInfo,
-		var layout: QuickBuildProjectLayout,
-		val tracker: GenerationTracker,
-		val filter: WatchFilter,
-		val orchestrator: LiveReloadOrchestrator,
-		val watcher: ProjectWatcher,
-		/** Seam the proxy app rebuild swaps a fresh ProxyAppInfo-derived executor into. */
-		val executor: SwitchableExecutor,
-		/** Seam the proxy app rebuild swaps a fresh annotation baseline into. */
-		val annotationImpact: SwitchableAnnotationImpact,
-	) {
-		/**
-		 * Newest generation a deploy verifiably landed in this session, or -1 before the
-		 * first one. The reconnect catch-up compares against THIS (not the allocation
-		 * counter, which persists across sessions and burns numbers on failed builds):
-		 * a proxy app reconnecting below it is running code this session already
-		 * superseded.
-		 */
-		var lastDeployedGeneration = -1L
-	}
-
 	/**
-	 * Executor indirection for [LiveSession]: the orchestrator holds one executor for
-	 * its lifetime, but a proxy app rebuild must rebuild the executor from the re-read
-	 * setup.json (new deploy-policy components, launcher/entry targets). Swapping the
-	 * delegate keeps the orchestrator - and its pending-changes bookkeeping - intact.
+	 * Assembles live sessions (and their ProxyAppInfo-derived rebuild pieces).
+	 * Constructed here from deps this class already takes, so the manager's ctor, the
+	 * Koin wiring, and the two test seams it passes through stay unchanged.
 	 */
-	private class SwitchableExecutor(
-		@Volatile var delegate: LiveReloadExecutor,
-	) : LiveReloadExecutor {
-		override suspend fun execute(request: BuildRequest): BuildOutcome = delegate.execute(request)
-	}
+	private val sessionFactory =
+		LiveSessionFactory(
+			daemon = daemon,
+			deploy = deploy,
+			scratch = scratch,
+			launcher = launcher,
+			metrics = metrics,
+			nowMillis = nowMillis,
+			executorFactory = executorFactory,
+			watcherFactory = watcherFactory,
+			scope = scope,
+			onOrchestratorEvent = ::onOrchestratorEvent,
+		)
 
 	init {
 		daemon.setDeathListener { exitCode ->
@@ -691,7 +667,7 @@ class QuickBuildSessionManager(
 						}
 						val tracker =
 							GenerationTracker(generationStoreFactory(outcome.layout.projectRoot))
-						val session = createSession(outcome, tracker)
+						val session = sessionFactory.create(outcome, tracker)
 						live = session
 						// Build ids restart per session; give the sink its session boundary.
 						report { metrics.onSessionStarted() }
@@ -712,105 +688,6 @@ class QuickBuildSessionManager(
 			}
 		}
 	}
-
-	private fun createSession(
-		outcome: ProvisionOutcome.Success,
-		tracker: GenerationTracker,
-	): LiveSession {
-		val layout = outcome.layout
-		val proxyApp = outcome.proxyApp
-		val executor = SwitchableExecutor(buildExecutor(proxyApp, layout, tracker))
-		val annotationImpact = SwitchableAnnotationImpact(annotationImpact(proxyApp, layout))
-		val orchestrator =
-			LiveReloadOrchestrator(
-				executor = executor,
-				classifier = ChangeClassifier(annotationImpact, layout.fastPathScope()),
-				scope = scope,
-				// Same monotonic timebase the executor stamps t1-t3 with, so the e2e
-				// timeline's t0 (trigger) is comparable to the rest (see E2eTimeline).
-				now = nowMillis,
-				onEvent = ::onOrchestratorEvent,
-			)
-		val filter = WatchFilter(layout.watchedRoots(), layout.watchedFiles())
-		return LiveSession(
-			proxyApp = outcome.proxyApp,
-			layout = layout,
-			tracker = tracker,
-			filter = filter,
-			orchestrator = orchestrator,
-			watcher = watcherFactory.create(layout.watchedRoots(), layout.watchedFiles(), filter, scope),
-			executor = executor,
-			annotationImpact = annotationImpact,
-		)
-	}
-
-	/**
-	 * Annotation-processor awareness for this session's baseline. A project with no
-	 * `ksp`/`kapt`/`annotationProcessor` dependency gets [AnnotationImpact.Inactive] and
-	 * behaves exactly as before; otherwise the classifier compares each edit against the
-	 * annotation input the proxy app build actually ran against, and only edits that could
-	 * have moved generated code pay a proxy app rebuild.
-	 *
-	 * Rebuilt on every proxy app rebuild too (see [SwitchableAnnotationImpact]): the Gradle build
-	 * that just ran IS the new reference point.
-	 */
-	private fun annotationImpact(
-		proxyApp: ProxyAppInfo,
-		layout: QuickBuildProjectLayout,
-	): AnnotationImpact {
-		val profile = AnnotationProcessorProfile.of(proxyApp.annotationProcessors)
-		if (!profile.hasProcessors) return AnnotationImpact.Inactive
-		log.info(
-			"Quick build: annotation-aware classification on for processors {}",
-			profile.processorCoordinates,
-		)
-		return AnnotationImpactAnalyzer(profile, AnnotationBaseline.capture(layout.allSources(), profile))
-	}
-
-	/** ProxyAppInfo-derived executor; rebuilt (and swapped in) on every proxy app rebuild. */
-	private fun buildExecutor(
-		proxyApp: ProxyAppInfo,
-		layout: QuickBuildProjectLayout,
-		tracker: GenerationTracker,
-	): LiveReloadExecutor =
-		executorFactory?.create(proxyApp, layout, tracker)
-			?: LiveReloadExecutorImpl(
-				daemon = daemon,
-				deploy = deploy,
-				layout = layout,
-				// A session only reaches here off ProvisionOutcome.Success, which the
-				// provisioner never produces for a null entryActivity (ADFA-4128 Bug 10) -
-				// it refuses with a friendly message first. See ProxyAppInfo.entryActivity.
-				entryActivity =
-					checkNotNull(proxyApp.entryActivity) {
-						"Quick Build session started without an entry activity"
-					},
-				generations = tracker,
-				// App-private scratch (ADFA-4930), NOT under the FUSE-backed project root.
-				workDir = scratch.workDirFor(layout.projectRoot),
-				proxyClassesDir = proxyApp.proxyClassesDir,
-				proxyAppManifest = proxyApp.transformedManifest,
-				deployPolicy =
-					DeployPolicy(
-						components = proxyApp.components,
-						// Pre-v2 setup.json (no schema/components) = a baseline whose
-						// runtime ignores restart deploys; the policy then routes
-						// restart-requiring builds to a proxy app rebuild (skew guard).
-						componentInfoAvailable = proxyApp.supportsComponentInfo,
-					),
-				proxyAppPackage = proxyApp.proxyAppPackage,
-				launcherActivity =
-					proxyApp.components
-						.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
-						?.proxyClass,
-				launcher = launcher,
-				// Monotonic device clock for durationMillis + the e2e timeline stamps; the
-				// orchestrator's `now` above shares it so all four stamps are comparable.
-				clock = nowMillis,
-				// The e2e reload timing is an analytics deliverable (ADFA-4128): the executor
-				// reports each completed timeline to the same sink the lifecycle events use.
-				metrics = metrics,
-			)
 
 	private fun daemonConfig(
 		layout: QuickBuildProjectLayout,
@@ -1021,8 +898,10 @@ class QuickBuildSessionManager(
 				// silently leave its live instance stale.
 				session.proxyApp = outcome.proxyApp
 				session.layout = outcome.layout
-				session.executor.delegate = buildExecutor(outcome.proxyApp, outcome.layout, session.tracker)
-				session.annotationImpact.delegate = annotationImpact(outcome.proxyApp, outcome.layout)
+				session.executor.delegate =
+					sessionFactory.executorFor(outcome.proxyApp, outcome.layout, session.tracker)
+				session.annotationImpact.delegate =
+					sessionFactory.annotationImpactFor(outcome.proxyApp, outcome.layout)
 				// Restart the daemon torn down above, against the NEW proxy app info's config.
 				daemonEpoch++
 				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.proxyApp))) {
