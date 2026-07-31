@@ -20,13 +20,13 @@ package com.itsaky.androidide.handlers
 
 import android.content.pm.ApplicationInfo
 import android.os.SystemClock
-import com.blankj.utilcode.util.AppUtils
-import com.blankj.utilcode.util.DeviceUtils
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.utils.BuildInfoUtils
+import com.itsaky.androidide.utils.DeviceUtils
+import com.itsaky.androidide.utils.getAppVersionCode
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.android.SELinuxUtils
 import io.sentry.EventProcessor
@@ -182,7 +182,7 @@ object GlitchTipDiagnosticsContext {
 
 		// A — release identifier + version code.
 		tag(event, "app_version_name") { BuildInfo.VERSION_NAME_SIMPLE }
-		tag(event, "app_version_code") { AppUtils.getAppVersionCode().toString() }
+		tag(event, "app_version_code") { IDEApplication.instance.getAppVersionCode().toString() }
 		tag(event, "app_git_commit") { BuildInfo.CI_GIT_COMMIT_HASH }
 		tag(event, "app_ci_build") { BuildInfo.CI_BUILD.toString() }
 

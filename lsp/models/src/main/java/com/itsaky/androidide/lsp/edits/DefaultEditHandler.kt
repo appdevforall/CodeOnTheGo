@@ -18,11 +18,11 @@
 package com.itsaky.androidide.lsp.edits
 
 import android.os.Looper
-import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.CompletionItem
 import com.itsaky.androidide.lsp.models.InsertTextFormat.SNIPPET
 import com.itsaky.androidide.lsp.util.RewriteHelper
+import com.itsaky.androidide.tasks.runOnUiThread
 import io.github.rosemoe.sora.lang.completion.snippet.parser.CodeSnippetParser
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.batchEdit
@@ -35,9 +35,7 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 open class DefaultEditHandler : IEditHandler {
-
 	companion object {
-
 		private val log = LoggerFactory.getLogger(DefaultEditHandler::class.java)
 	}
 
@@ -47,17 +45,17 @@ open class DefaultEditHandler : IEditHandler {
 		text: Content,
 		line: Int,
 		column: Int,
-		index: Int
+		index: Int,
 	) {
 		if (Looper.myLooper() != Looper.getMainLooper()) {
-			ThreadUtils.runOnUiThread {
+			runOnUiThread {
 				performEditsInternal(
 					item,
 					editor,
 					text,
 					line,
 					column,
-					index
+					index,
 				)
 			}
 			return
@@ -72,7 +70,7 @@ open class DefaultEditHandler : IEditHandler {
 		text: Content,
 		line: Int,
 		column: Int,
-		index: Int
+		index: Int,
 	) {
 		if (item.insertTextFormat == SNIPPET) {
 			insertSnippet(item, editor, text, line, column, index)
@@ -87,7 +85,14 @@ open class DefaultEditHandler : IEditHandler {
 		executeCommand(editor, item.command)
 	}
 
-	protected open fun performAdditionalEdits(item: CompletionItem, editor: CodeEditor, text: Content, line: Int, column: Int, index: Int) {
+	protected open fun performAdditionalEdits(
+		item: CompletionItem,
+		editor: CodeEditor,
+		text: Content,
+		line: Int,
+		column: Int,
+		index: Int,
+	) {
 		text.batchEdit {
 			item.additionalEditHandler?.performEdits(item, editor, text, line, column, index)
 				?: item.additionalTextEdits?.also { RewriteHelper.performEdits(it, editor) }
@@ -100,7 +105,7 @@ open class DefaultEditHandler : IEditHandler {
 		text: Content,
 		line: Int,
 		column: Int,
-		index: Int
+		index: Int,
 	) {
 		val snippetDescription = item.snippetDescription!!
 		val snippet = CodeSnippetParser.parse(item.insertText)
@@ -120,7 +125,10 @@ open class DefaultEditHandler : IEditHandler {
 		}
 	}
 
-	protected open fun executeCommand(editor: CodeEditor, command: Command?) {
+	protected open fun executeCommand(
+		editor: CodeEditor,
+		command: Command?,
+	) {
 		if (command == null) {
 			return
 		}
@@ -135,7 +143,10 @@ open class DefaultEditHandler : IEditHandler {
 		}
 	}
 
-	protected open fun getIdentifierStart(text: CharSequence, end: Int): Int {
+	protected open fun getIdentifierStart(
+		text: CharSequence,
+		end: Int,
+	): Int {
 		var start = end
 		while (start > 0) {
 			if (isPartialPart(text[start - 1])) {

@@ -19,8 +19,6 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import android.os.Build
-import com.blankj.utilcode.util.AppUtils
-import com.blankj.utilcode.util.DeviceUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
@@ -38,7 +36,7 @@ object BuildInfoUtils {
 	private val BUILD_INFO_HEADER by lazy {
 		val map =
 			mapOf(
-				"Version" to "v${BasicBuildInfo.formatVersion()} (${AppUtils.getAppVersionCode()})",
+				"Version" to "v${BasicBuildInfo.formatVersion()} (${IDEApplication.instance.getAppVersionCode()})",
 				"CI Build" to BuildInfo.CI_BUILD,
 				"Branch" to BuildInfo.CI_GIT_BRANCH,
 				"Commit" to BuildInfo.CI_GIT_COMMIT_HASH,

@@ -20,8 +20,8 @@ package com.itsaky.androidide.uidesigner.drawable
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.LayerDrawable
-import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.uidesigner.utils.bgDesignerView
+import com.itsaky.androidide.utils.dpToPx
 
 /**
  * Marker class to be able to differentiate between normal foregrounds and already layered
@@ -29,12 +29,14 @@ import com.itsaky.androidide.uidesigner.utils.bgDesignerView
  *
  * @author Akash Yadav
  */
-class UiViewLayeredForeground(context: Context, val src: Drawable) : LayerDrawable(emptyArray())
-{
-  init {
-    val dp1 = SizeUtils.dp2px(1f)
-    val index = addLayer(src)
-    setLayerInsetRelative(index, dp1, dp1, dp1, dp1)
-    bgDesignerView(context)?.let { addLayer(it) }
-  }
+class UiViewLayeredForeground(
+	context: Context,
+	val src: Drawable,
+) : LayerDrawable(emptyArray()) {
+	init {
+		val dp1 = context.dpToPx(1f)
+		val index = addLayer(src)
+		setLayerInsetRelative(index, dp1, dp1, dp1, dp1)
+		bgDesignerView(context)?.let { addLayer(it) }
+	}
 }

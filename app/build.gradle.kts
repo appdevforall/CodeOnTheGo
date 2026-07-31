@@ -222,7 +222,6 @@ dependencies {
 
 	implementation(platform(libs.sora.bom))
 	implementation(libs.common.editor)
-	implementation(libs.common.utilcode)
 	implementation(libs.common.glide)
 	implementation(libs.common.jsoup)
 	implementation(libs.common.kotlin.coroutines.android)
@@ -434,6 +433,104 @@ tasks.register<Zip>("createPluginArtifactsZip") {
 	destinationDirectory.set(rootProject.file("assets"))
 }
 
+// Fat compile-only jar published as com.itsaky.androidide:plugin-api:1.0.0.
+// Merges the API surface plugins already compile against (plugin-api + common +
+// eventbus-events + idetooltips) into one coordinate. The three add-ons are
+// v7/v8-flavored (unlike plugin-api); their classes are ABI-neutral so v8 is used.
+tasks.register<Jar>("assemblePluginApiFatJar") {
+	dependsOn(
+		":plugin-api:assembleRelease",
+		":common:assembleV8Release",
+		":eventbus-events:assembleV8Release",
+		":idetooltips:assembleV8Release",
+	)
+	archiveFileName.set("plugin-api-1.0.0.jar")
+	destinationDirectory.set(layout.buildDirectory.dir("plugin-maven-repo-staging"))
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+	from(
+		zipTree(
+			project(":plugin-api")
+				.layout.buildDirectory
+				.file("intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar")
+				.get()
+				.asFile,
+		),
+	)
+	from(
+		zipTree(
+			project(":common")
+				.layout.buildDirectory
+				.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
+				.get()
+				.asFile,
+		),
+	)
+	from(
+		zipTree(
+			project(":eventbus-events")
+				.layout.buildDirectory
+				.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
+				.get()
+				.asFile,
+		),
+	)
+	from(
+		zipTree(
+			project(":idetooltips")
+				.layout.buildDirectory
+				.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
+				.get()
+				.asFile,
+		),
+	)
+}
+
+// Dependency-free POM for the fat plugin-api coordinate: it is compile-only/provided,
+// so it must NOT drag transitives that would need offline resolution.
+tasks.register("writePluginApiPom") {
+	val pomFile = layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.pom")
+	outputs.file(pomFile)
+	doLast {
+		val file = pomFile.get().asFile
+		file.parentFile.mkdirs()
+		file.writeText(
+			"""<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>com.itsaky.androidide</groupId>
+	<artifactId>plugin-api</artifactId>
+	<version>1.0.0</version>
+	<packaging>jar</packaging>
+</project>
+""",
+		)
+	}
+}
+
+// Assembles the shippable Maven layout: the fat plugin-api coordinate + the
+// builder impl/POM/marker published by the plugin-builder included build.
+tasks.register<Zip>("createPluginMavenRepoZip") {
+	dependsOn("assemblePluginApiFatJar", "writePluginApiPom")
+	dependsOn(
+		gradle
+			.includedBuild("plugin-builder")
+			.task(":publishAllPublicationsToPluginMavenRepoRepository"),
+	)
+
+	archiveFileName.set("plugin-maven-repo.zip")
+	destinationDirectory.set(rootProject.file("assets"))
+
+	into("com/itsaky/androidide/plugin-api/1.0.0") {
+		from(layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.jar"))
+		from(layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.pom"))
+	}
+	// Builder tree is already in Maven layout (com/itsaky/androidide/plugins/...).
+	from(rootProject.file("plugin-api/plugin-builder/build/plugin-maven-repo"))
+}
+
 // Packages the on-device installer payload (assets-<arch>.zip) consumed by
 // SplitAssetsInstaller on debug builds. Entry names must match the installer
 // contract in AssetsInstallationHelper.expectedEntries.
@@ -460,6 +557,7 @@ fun createAssetsZip(arch: String) {
 			"documentation.db",
 			bootstrapName,
 			"plugin-artifacts.zip",
+			"plugin-maven-repo.zip",
 			"core.cgt",
 		).forEach { fileName ->
 			val filePath = sourceDir.resolve(fileName)
@@ -485,6 +583,7 @@ fun createAssetsZip(arch: String) {
 
 tasks.register("assembleV8Assets") {
 	dependsOn("createPluginArtifactsZip")
+	dependsOn("createPluginMavenRepoZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
 	}
@@ -495,6 +594,7 @@ tasks.register("assembleV8Assets") {
 
 tasks.register("assembleV7Assets") {
 	dependsOn("createPluginArtifactsZip")
+	dependsOn("createPluginMavenRepoZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
 	}

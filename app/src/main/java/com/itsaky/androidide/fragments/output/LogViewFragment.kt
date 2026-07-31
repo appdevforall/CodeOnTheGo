@@ -38,6 +38,7 @@ import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.utils.BasicBuildInfo
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.jetbrainsMono
 import com.itsaky.androidide.utils.viewLifecycleScope
@@ -130,6 +131,9 @@ abstract class LogViewFragment<V : LogViewModel> :
 			showLevelChips = true,
 			initialText = currentFilter.text,
 			initialLevels = currentFilter.enabledLevels,
+			onVisibilityChanged = {
+				updateEmptyState(isSourceEmpty = viewModel.isBufferEmpty, isFilterActive = isFilterActive)
+			},
 		) { levels, text ->
 			viewModel.setFilter(LogFilter(levels, text.trim()))
 		}.also { filterBar = it }
@@ -141,10 +145,18 @@ abstract class LogViewFragment<V : LogViewModel> :
 		return "${BasicBuildInfo.shareableBuildInfo()}${System.lineSeparator()}$logText"
 	}
 
+	private val noMatchTracker = FilterNoMatchTracker()
+
+	// Reads view state (bar visibility), so evaluate it on the main thread.
+	private val isFilterActive: Boolean
+		get() = viewModel.filter.value != LogFilter.NONE || filterBar?.isVisible == true
+
 	override fun clearOutput() {
+		noMatchTracker.reset()
 		viewModel.clear()
 		_binding?.editor?.setText("")?.also {
-			emptyStateViewModel.setEmpty(true)
+			// An active filter keeps the content layout (and the filter bar) reachable.
+			updateEmptyState(isSourceEmpty = true, isFilterActive = isFilterActive)
 		}
 	}
 
@@ -257,7 +269,11 @@ abstract class LogViewFragment<V : LogViewModel> :
 	private fun setText(text: String) {
 		val editor = _binding?.editor ?: return
 		editor.setText(text)
-		emptyStateViewModel.setEmpty(text.isBlank())
+		val isSourceEmpty = viewModel.isBufferEmpty
+		updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
+		if (noMatchTracker.onRender(isSourceEmpty = isSourceEmpty, isFilteredEmpty = text.isBlank())) {
+			flashInfo(R.string.msg_no_filter_matches)
+		}
 		onContentReplaced()
 	}
 

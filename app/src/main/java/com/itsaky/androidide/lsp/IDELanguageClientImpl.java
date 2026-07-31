@@ -24,8 +24,6 @@ import static com.itsaky.androidide.resources.R.string;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import com.blankj.utilcode.util.FileIOUtils;
-import com.blankj.utilcode.util.FileUtils;
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity;
 import com.itsaky.androidide.adapters.DiagnosticsAdapter;
 import com.itsaky.androidide.adapters.SearchListAdapter;
@@ -46,6 +44,8 @@ import com.itsaky.androidide.models.Range;
 import com.itsaky.androidide.models.SearchResult;
 import com.itsaky.androidide.tasks.TaskExecutor;
 import com.itsaky.androidide.ui.CodeEditorView;
+import com.itsaky.androidide.utils.FileIOUtils;
+import com.itsaky.androidide.utils.FileUtils;
 import com.itsaky.androidide.utils.FlashbarActivityUtilsKt;
 import com.itsaky.androidide.utils.FlashbarUtilsKt;
 import com.itsaky.androidide.utils.LSPUtils;

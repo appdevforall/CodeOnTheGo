@@ -42,9 +42,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.transition.TransitionManager
-import com.blankj.utilcode.util.KeyboardUtils
-import com.blankj.utilcode.util.SizeUtils
-import com.blankj.utilcode.util.ThreadUtils.runOnUiThread
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.tabs.TabLayout.OnTabSelectedListener
 import com.google.android.material.tabs.TabLayout.Tab
@@ -55,6 +52,7 @@ import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
+import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.fragments.output.SearchableOutputFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.fragments.output.WrappableOutputFragment
@@ -64,11 +62,14 @@ import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DiagnosticsFormatter
 import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
+import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.isSoftInputVisible
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
@@ -127,6 +128,8 @@ class EditorBottomSheet
 		private val buildOutputViewModel by (context as FragmentActivity).viewModels<BuildOutputViewModel>()
 		private lateinit var mediator: TabLayoutMediator
 		private var shareJob: Job? = null
+		private var fragmentEmptyStateJob: Job? = null
+		private var currentObservedFragment: Fragment? = null
 
 		// BottomSheetBehavior repositions the sheet after layout without triggering onSlide,
 		// so refresh the FABs afterward
@@ -235,8 +238,14 @@ class EditorBottomSheet
 							}
 						} finally {
 							if (isAttachedToWindow) {
-								binding.shareOutputAction.isEnabled = true
-								binding.clearOutputAction.isEnabled = true
+								// The share job is still active while its own finally runs, so it must be
+								// cleared first or updateActionButtonsEnabledState would keep the share and
+								// clear actions disabled. Also re-read the current tab: it may have changed
+								// since the share started.
+								shareJob = null
+								val current = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
+								val isCurrentEmpty = (current as? EmptyStateFragment<*>)?.isSourceEmpty == true
+								updateActionButtonsEnabledState(isSourceEmpty = isCurrentEmpty)
 							}
 						}
 					}
@@ -305,6 +314,9 @@ class EditorBottomSheet
 		override fun onDetachedFromWindow() {
 			shareJob?.cancel()
 			shareJob = null
+			currentObservedFragment = null
+			fragmentEmptyStateJob?.cancel()
+			fragmentEmptyStateJob = null
 			if (this::mediator.isInitialized) {
 				mediator.detach()
 			}
@@ -416,7 +428,7 @@ class EditorBottomSheet
 				object : ViewTreeObserver.OnGlobalLayoutListener {
 					override fun onGlobalLayout() {
 						view.viewTreeObserver.removeOnGlobalLayoutListener(this)
-						anchorOffset = view.height + SizeUtils.dp2px(1f)
+						anchorOffset = view.height + view.context.dpToPx(1f)
 
 						behavior.peekHeight = collapsedHeight.roundToInt()
 						behavior.expandedOffset = anchorOffset
@@ -560,7 +572,7 @@ class EditorBottomSheet
 			)
 
 			val activity = context as Activity
-			if (KeyboardUtils.isSoftInputVisible(activity)) {
+			if (activity.isSoftInputVisible()) {
 				binding.headerContainer.displayedChild = CHILD_SYMBOL_INPUT
 			} else {
 				binding.headerContainer.displayedChild = CHILD_HEADER
@@ -678,6 +690,53 @@ class EditorBottomSheet
 				}
 				updateWordWrapButtonState(isEnabled)
 			}
+
+			observeCurrentFragmentEmptyState(currentFragment)
+		}
+
+		private fun observeCurrentFragmentEmptyState(fragment: Fragment?) {
+			if (fragment === currentObservedFragment && fragmentEmptyStateJob?.isActive == true) {
+				return
+			}
+
+			fragmentEmptyStateJob?.cancel()
+			fragmentEmptyStateJob = null
+			currentObservedFragment = fragment
+
+			if (fragment !is EmptyStateFragment<*> || !fragment.isAdded || fragment.isDetached || fragment.host == null) {
+				updateActionButtonsEnabledState(isSourceEmpty = false)
+				return
+			}
+
+			val flow =
+				fragment.isSourceEmptyFlow ?: run {
+					updateActionButtonsEnabledState(isSourceEmpty = false)
+					return
+				}
+
+			val activity = context as FragmentActivity
+			fragmentEmptyStateJob =
+				activity.lifecycleScope.launch {
+					activity.repeatOnLifecycle(Lifecycle.State.STARTED) {
+						flow.collectLatest { isSourceEmpty ->
+							if (fragment.isAdded && !fragment.isDetached) {
+								updateActionButtonsEnabledState(isSourceEmpty = isSourceEmpty)
+							}
+						}
+					}
+				}
+		}
+
+		// Gates on source content, not the fragment's isEmpty: that flag stays false while a
+		// filter UI is active even when there is nothing to share, clear, or search.
+		private fun updateActionButtonsEnabledState(isSourceEmpty: Boolean) {
+			val hasContent = !isSourceEmpty
+			val isSharing = shareJob?.isActive == true
+			val canShareOrClear = hasContent && !isSharing
+			binding.searchOutputAction.isEnabled = hasContent
+			binding.filterOutputAction.isEnabled = hasContent
+			binding.shareOutputAction.isEnabled = canShareOrClear
+			binding.clearOutputAction.isEnabled = canShareOrClear
 		}
 
 		// The bottom-anchored FAB goes off-screen when the bottom sheet is collapsed.

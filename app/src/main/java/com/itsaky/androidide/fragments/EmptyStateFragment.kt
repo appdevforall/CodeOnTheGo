@@ -17,6 +17,7 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.EmptyStateFragmentViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -31,11 +32,14 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	protected val emptyStateViewModel by viewModels<EmptyStateFragmentViewModel>()
 
 	private var gestureDetector: GestureDetector? = null
-	
+
 	// Cache the last known empty state to avoid returning incorrect default when detached
 	// Volatile ensures thread-safe visibility and atomicity for boolean reads/writes
 	@Volatile
 	private var cachedIsEmpty: Boolean = true
+
+	@Volatile
+	private var cachedIsSourceEmpty: Boolean = true
 
 	open val currentEditor: IDEEditor? get() = null
 
@@ -43,10 +47,13 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	 * Called when a long press is detected on the fragment's root view.
 	 * Subclasses must implement this to define the action (e.g., show a tooltip).
 	 */
-	open fun onFragmentLongPressed(x: Float = -1f, y: Float = -1f) {
+	open fun onFragmentLongPressed(
+		x: Float = -1f,
+		y: Float = -1f,
+	) {
 		currentEditor?.let { editor ->
-    	if (x >= 0 && y >= 0) {
-    		editor.setSelectionFromPoint(x, y)
+			if (x >= 0 && y >= 0) {
+				editor.setSelectionFromPoint(x, y)
 			}
 		}
 		onFragmentLongPressed()
@@ -65,6 +72,29 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 			}
 		}
 
+	/**
+	 * Whether the underlying data source has no content at all, independent of any filter UI.
+	 * This is the signal to gate content-dependent actions (share, clear, search, filter) on;
+	 * [isEmpty] only says which layout the [android.widget.ViewFlipper] shows.
+	 */
+	internal val isSourceEmptyFlow: StateFlow<Boolean>?
+		get() {
+			return if (isAdded && !isDetached) {
+				emptyStateViewModel.isSourceEmpty
+			} else {
+				null
+			}
+		}
+
+	internal val isSourceEmpty: Boolean
+		get() {
+			return if (isAdded && !isDetached) {
+				emptyStateViewModel.isSourceEmpty.value.also { cachedIsSourceEmpty = it }
+			} else {
+				cachedIsSourceEmpty
+			}
+		}
+
 	internal var isEmpty: Boolean
 		get() {
 			return if (isAdded && !isDetached) {
@@ -78,11 +108,33 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 		set(value) {
 			// Always update cache to preserve intended state even when detached
 			cachedIsEmpty = value
+			cachedIsSourceEmpty = value
 			// Update ViewModel only when attached
 			if (isAdded && !isDetached) {
 				emptyStateViewModel.setEmpty(value)
 			}
 		}
+
+	/**
+	 * Centralized empty-state updater for log and output fragments.
+	 *
+	 * Empty state is set to `true` only when the underlying data source has no content AT ALL
+	 * and no filter / filter bar is active. When an active filter query returns zero matches for
+	 * non-empty source history, empty state remains `false` so the content layout (with the filter bar)
+	 * stays visible. [isSourceEmpty] is tracked separately so action buttons can still be gated
+	 * on actual content.
+	 */
+	fun updateEmptyState(
+		isSourceEmpty: Boolean,
+		isFilterActive: Boolean,
+	) {
+		val isEmpty = isSourceEmpty && !isFilterActive
+		cachedIsEmpty = isEmpty
+		cachedIsSourceEmpty = isSourceEmpty
+		if (isAdded && !isDetached) {
+			emptyStateViewModel.setEmptyState(isEmpty = isEmpty, isSourceEmpty = isSourceEmpty)
+		}
+	}
 
 	override fun onCreateView(
 		inflater: LayoutInflater,
@@ -115,10 +167,13 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 		}
 
 		// Sync ViewModel with cache when view is created (in case cache was updated while detached)
-		// Read cached value into local variable to ensure atomic read
+		// Read cached values into local variables to ensure atomic reads
 		val cachedValue = cachedIsEmpty
-		if (emptyStateViewModel.isEmpty.value != cachedValue) {
-			emptyStateViewModel.setEmpty(cachedValue)
+		val cachedSourceValue = cachedIsSourceEmpty
+		if (emptyStateViewModel.isEmpty.value != cachedValue ||
+			emptyStateViewModel.isSourceEmpty.value != cachedSourceValue
+		) {
+			emptyStateViewModel.setEmptyState(isEmpty = cachedValue, isSourceEmpty = cachedSourceValue)
 		}
 
 		viewLifecycleScope.launch {
@@ -156,5 +211,4 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 			tag = tooltipTag,
 		)
 	}
-
 }

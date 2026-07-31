@@ -29,6 +29,7 @@ import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.utils.BasicBuildInfo
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -71,6 +72,11 @@ class BuildOutputFragment :
 	// in-flight batch flush drained before the replacement can detect it and drop itself.
 	@Volatile
 	private var editorContentGeneration = 0
+	private val noMatchTracker = FilterNoMatchTracker()
+
+	// Reads view state (bar visibility), so evaluate it on the main thread.
+	private val isFilterActive: Boolean
+		get() = buildOutputViewModel.filterText.value.isNotEmpty() || filterBar?.isVisible == true
 
 	override fun onViewCreated(
 		view: View,
@@ -118,7 +124,11 @@ class BuildOutputFragment :
 				}
 			withContext(Dispatchers.Main) {
 				editor?.setText(filtered)
-				emptyStateViewModel.setEmpty(filtered.isBlank())
+				val isSourceEmpty = window.isBlank()
+				updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
+				if (noMatchTracker.onRender(isSourceEmpty = isSourceEmpty, isFilteredEmpty = filtered.isBlank())) {
+					flashInfo(R.string.msg_no_filter_matches)
+				}
 				onContentReplaced()
 			}
 		}
@@ -191,7 +201,12 @@ class BuildOutputFragment :
 				buildOutputViewModel.showTimestamps.value = enabled
 			},
 			onDeltasToggled = { enabled ->
-				buildOutputViewModel.showDeltas.value = enabled
+				buildOutputViewModel.showDeltas.value = enabled},
+			onVisibilityChanged = {
+				updateEmptyState(
+					isSourceEmpty = buildOutputViewModel.getCachedContentSnapshot().isEmpty(),
+					isFilterActive = isFilterActive,
+				)
 			},
 		) { _, text ->
 			buildOutputViewModel.filterText.value = text.trim()
@@ -207,24 +222,42 @@ class BuildOutputFragment :
 				buildOutputViewModel.showTimestamps.value,
 				buildOutputViewModel.showDeltas.value,
 			)
+		val query = buildOutputViewModel.filterText.value
+		val isSourceEmpty = window.isBlank()
+		val isFilteredEmpty = content.isBlank()
+
+		withContext(Dispatchers.Main) {
+			updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
+			noMatchTracker.prime(isFilteredEmpty)
+			if (!isSourceEmpty && isFilteredEmpty) {
+				editor?.setText("")
+				onContentReplaced()
+			}
+		}
+
 		if (content.isEmpty()) return
 		withContext(Dispatchers.Main) {
 			val editor = this@BuildOutputFragment.editor ?: return@withContext
 			val layoutCompleted =
 				withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-					editor.awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+					editor.awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
 				}
 			if (layoutCompleted != null) {
 				editor.appendBatch(content)
-				emptyStateViewModel.setEmpty(false)
+				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 			} else {
 				// Timeout: defer append until layout is ready so content is not lost
+				val generationAtRestore = editorContentGeneration
 				val job =
 					viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
 						editor.run {
-							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
-							appendBatch(content)
-							emptyStateViewModel.setEmpty(false)
+							awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
+							editorContentMutex.withLock {
+								if (editorContentGeneration == generationAtRestore) {
+									appendBatch(content)
+									updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+								}
+							}
 						}
 					}
 				job.join()
@@ -251,8 +284,12 @@ class BuildOutputFragment :
 		// channel earlier cannot re-seed the cleared session.
 		sessionGeneration++
 		editorContentGeneration++
+		noMatchTracker.reset()
 		buildOutputViewModel.clear()
 		super.clearOutput()
+		// super sets the empty state unconditionally; re-apply the invariant so an
+		// active filter keeps the content layout (and the filter bar) reachable.
+		updateEmptyState(isSourceEmpty = true, isFilterActive = isFilterActive)
 	}
 
 	/** Returns the shareable build output, or an empty string when the fragment is detached. */
@@ -345,12 +382,17 @@ class BuildOutputFragment :
 			if (visibleText.isEmpty()) {
 				return
 			}
+				BuildOutputViewModel.filterLines(text, buildOutputViewModel.filterText.value)
 
 			withContext(Dispatchers.Main) {
+				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+				if (visibleText.isEmpty()) {
+					return@withContext
+				}
 				editor?.run {
 					val layoutCompleted =
 						withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+							awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
 						}
 					if (layoutCompleted != null) {
 						// clearOutput() or renderFiltered() may have run since the file append.
@@ -358,15 +400,17 @@ class BuildOutputFragment :
 							appendBatch(visibleText)
 							emptyStateViewModel.setEmpty(false)
 						}
+						appendBatch(visibleText)
+						updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 					} else {
 						// Timeout: defer append until layout is ready (same as restoreWindowFromViewModel)
 						viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
 							editor?.run {
-								awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+								awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
 								editorContentMutex.withLock {
 									if (editorGen == editorContentGeneration) {
 										appendBatch(visibleText)
-										emptyStateViewModel.setEmpty(false)
+										updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 									}
 								}
 							}

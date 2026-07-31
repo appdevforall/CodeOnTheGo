@@ -18,13 +18,11 @@
 package com.itsaky.androidide.utils
 
 import android.content.Context
-import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
-import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
-import com.blankj.utilcode.util.ResourceUtils
-import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.templates.RecipeExecutor
+import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
+import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -34,37 +32,50 @@ import java.io.InputStream
  *
  * @author Akash Yadav
  */
-class TemplateRecipeExecutor (
-    override val context: Context
+class TemplateRecipeExecutor(
+	override val context: Context,
 ) : RecipeExecutor {
+	private val application: IDEApplication
+		get() = IDEApplication.instance
 
-    private val application: IDEApplication
-        get() = IDEApplication.instance
+	override fun copy(
+		source: File,
+		dest: File,
+	) {
+		source.copyTo(dest)
+	}
 
-    override fun copy(source: File, dest: File) {
-        source.copyTo(dest)
-    }
+	override fun save(
+		source: String,
+		dest: File,
+	) {
+		dest.parentFile?.mkdirs()
+		dest.writeText(source)
+	}
 
-    override fun save(source: String, dest: File) {
-        dest.parentFile?.mkdirs()
-        dest.writeText(source)
-    }
+	override fun openAsset(path: String): InputStream {
+		try {
+			return application.assets.open(path)
+		} catch (e: Exception) {
+			throw RuntimeException(e)
+		}
+	}
 
-    override fun openAsset(path: String): InputStream {
-        try {
-            return application.assets.open(path)
-        } catch (e: Exception) {
-            throw RuntimeException(e)
-        }
-    }
+	override fun copyAsset(
+		path: String,
+		dest: File,
+	) {
+		openAsset(path).use { input ->
+			dest.outputStream().use { output ->
+				input.copyTo(output)
+			}
+		}
+	}
 
-    override fun copyAsset(path: String, dest: File) {
-        openAsset(path).use {
-            it.copyTo(dest.outputStream())
-        }
-    }
-
-    override fun copyAssetsRecursively(path: String, destDir: File) {
-        ResourceUtils.copyFileFromAssets(path, destDir.absolutePath)
-    }
+	override fun copyAssetsRecursively(
+		path: String,
+		destDir: File,
+	) {
+		ResourceUtils.copyFileFromAssets(path, destDir.absolutePath)
+	}
 }
