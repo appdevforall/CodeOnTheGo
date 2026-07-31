@@ -158,12 +158,12 @@ open class EditorActionsMenu(
 	}
 
 	protected open fun onSelectionChanged(event: SelectionChangeEvent) {
-		if (touchHandler.hasAnyHeldHandle()) return
-
 		if (shouldSuppressActionsMenu()) {
 			dismiss()
 			return
 		}
+
+        if (touchHandler.hasAnyHeldHandle()) return
 
 		if (event.isSelected) {
 			editor.post { displayWindow(isShowing) }
