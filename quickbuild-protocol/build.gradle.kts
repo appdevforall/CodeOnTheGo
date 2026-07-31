@@ -14,3 +14,25 @@ java {
 kotlin {
 	jvmToolchain(17)
 }
+
+tasks.withType<Test> {
+	useJUnitPlatform()
+}
+
+// DoD coverage gate: >=90% line+branch on non-UI (domain/data) code.
+// Same wiring as :quickbuild-daemon: the root-applied jacoco plugin auto-creates
+// jacocoTestReport for JVM modules with the XML report off and no test dependency;
+// the exec lands at the JVM default build/jacoco/test.exec.
+tasks.named<JacocoReport>("jacocoTestReport") {
+	dependsOn(tasks.test)
+	reports {
+		xml.required.set(true)
+		html.required.set(true)
+	}
+}
+
+dependencies {
+	testImplementation(libs.tests.junit.jupiter)
+	testImplementation(libs.tests.google.truth)
+	testRuntimeOnly(libs.tests.junit.platformLauncher)
+}

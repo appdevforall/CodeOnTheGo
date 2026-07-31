@@ -88,6 +88,20 @@ tasks.withType<Test> {
 	}
 }
 
+// DoD coverage gate: >=90% line+branch on non-UI (domain/data) code.
+// The root build applies the jacoco plugin to every subproject, which auto-creates
+// jacocoTestReport for JVM modules -- but with the XML report off and no dependency
+// on the test task, so the gate is never actually measured. The agent's exec lands
+// at the JVM default build/jacoco/test.exec (Android modules differ - see
+// :quick-build's report and the ADFA-3834 learnings on silently-SKIPped reports).
+tasks.named<JacocoReport>("jacocoTestReport") {
+	dependsOn(tasks.test)
+	reports {
+		xml.required.set(true)
+		html.required.set(true)
+	}
+}
+
 dependencies {
 	// The wire DTOs/constants, shared with CoGo's client so both sides compile
 	// against one protocol definition. api: the router/handler signatures expose them.
