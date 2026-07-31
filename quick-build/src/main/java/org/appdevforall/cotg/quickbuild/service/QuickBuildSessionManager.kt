@@ -721,17 +721,32 @@ class QuickBuildSessionManager(
 				// the new baseline, or the policy keeps routing on provisioning-time
 				// facts - e.g. a service the proxy app rebuild just proxied would hot-swap and
 				// silently leave its live instance stale.
-				session.proxyApp = result.proxyApp
-				session.layout = result.layout
-				session.executor.delegate =
-					sessionFactory.executorFor(result.proxyApp, result.layout, session.tracker)
-				session.annotationImpact.delegate =
-					sessionFactory.annotationImpactFor(result.proxyApp, result.layout)
-				// The freshly installed baseline boots gen 0 again; the fingerprint gate
-				// in its runtime discarded any older persisted payload.
-				session.lastDeployedGeneration = -1L
-				session.orchestrator.onBaselineReset()
-				dispatch(SessionEvent.ProvisioningSucceeded(session.tracker.current))
+				try {
+					// Both delegates are built BEFORE any session field moves: executorFor can
+					// throw (checkNotNull(entryActivity) - the rebuild contract does not
+					// guarantee it non-null), and a throw here must leave the old baseline
+					// fully intact instead of escaping to the scope with the session
+					// half-updated.
+					val executorDelegate =
+						sessionFactory.executorFor(result.proxyApp, result.layout, session.tracker)
+					val annotationImpactDelegate =
+						sessionFactory.annotationImpactFor(result.proxyApp, result.layout)
+					session.proxyApp = result.proxyApp
+					session.layout = result.layout
+					session.executor.delegate = executorDelegate
+					session.annotationImpact.delegate = annotationImpactDelegate
+					// The freshly installed baseline boots gen 0 again; the fingerprint gate
+					// in its runtime discarded any older persisted payload.
+					session.lastDeployedGeneration = -1L
+					session.orchestrator.onBaselineReset()
+					dispatch(SessionEvent.ProvisioningSucceeded(session.tracker.current))
+				} catch (e: kotlinx.coroutines.CancellationException) {
+					throw e
+				} catch (e: Throwable) {
+					log.error("Re-baselining after a successful proxy app rebuild threw", e)
+					session.orchestrator.onProxyAppRebuildFailed()
+					dispatch(SessionEvent.ProvisioningFailed(e.message ?: e.javaClass.name))
+				}
 			}
 
 			is ProxyAppBuildRunner.ProxyAppRebuildResult.DaemonRestartFailed -> {

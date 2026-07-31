@@ -111,29 +111,53 @@ internal class ProxyAppBuildRunner(
 					}
 				}
 
-				connections.beginSession(outcome.proxyApp.proxyAppPackage, outcome.proxyAppUid)
+				// Error boundary over the whole session assembly: a throw past this point
+				// (the daemon start, the tracker construction, sessionFactory.create) would
+				// otherwise escape to a session scope with no CoroutineExceptionHandler and
+				// crash CoGo with a uid session already registered.
+				var sessionBegun = false
+				var daemonStarted = false
+				try {
+					connections.beginSession(outcome.proxyApp.proxyAppPackage, outcome.proxyAppUid)
+					sessionBegun = true
 
-				daemonController.markIntentionalTransition()
-				when (val started = daemonController.start(outcome.layout, outcome.proxyApp)) {
-					is DaemonReply.Ok -> {
-						if (superseded()) {
-							// Restart raced the daemon start: undo what began here; the
-							// manager stops the zombie daemon.
-							connections.endSession()
-							return ProvisionResult.SupersededDuringDaemonStart
+					daemonController.markIntentionalTransition()
+					when (val started = daemonController.start(outcome.layout, outcome.proxyApp)) {
+						is DaemonReply.Ok -> {
+							daemonStarted = true
+							if (superseded()) {
+								// Restart raced the daemon start: undo what began here; the
+								// manager stops the zombie daemon.
+								connections.endSession()
+								return ProvisionResult.SupersededDuringDaemonStart
+							}
+							val tracker =
+								GenerationTracker(generationStoreFactory(outcome.layout.projectRoot))
+							ProvisionResult.Succeeded(sessionFactory.create(outcome, tracker), tracker)
 						}
-						val tracker =
-							GenerationTracker(generationStoreFactory(outcome.layout.projectRoot))
-						ProvisionResult.Succeeded(sessionFactory.create(outcome, tracker), tracker)
-					}
 
-					is DaemonReply.BuildFailed -> {
-						ProvisionResult.Failed("Daemon rejected configuration")
-					}
+						is DaemonReply.BuildFailed -> {
+							ProvisionResult.Failed("Daemon rejected configuration")
+						}
 
-					is DaemonReply.Failed -> {
-						ProvisionResult.Failed(started.message)
+						is DaemonReply.Failed -> {
+							ProvisionResult.Failed(started.message)
+						}
 					}
+				} catch (e: kotlinx.coroutines.CancellationException) {
+					// A real teardown superseded this provision; its epoch bump already ran
+					// (or is about to run) endSession + shutdown for us.
+					throw e
+				} catch (e: Throwable) {
+					log.error("Session assembly threw after the proxy app build; unwinding", e)
+					if (sessionBegun) connections.endSession()
+					if (daemonStarted) {
+						// Same intentional-transition mark the teardown path uses, so the
+						// death listener never respawns a daemon shut down on purpose.
+						daemonController.markIntentionalTransition()
+						daemonController.shutdown()
+					}
+					ProvisionResult.Failed(e.message ?: e.javaClass.name)
 				}
 			}
 		}

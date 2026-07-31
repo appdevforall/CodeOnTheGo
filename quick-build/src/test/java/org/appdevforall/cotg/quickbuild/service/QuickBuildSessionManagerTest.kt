@@ -116,6 +116,13 @@ class QuickBuildSessionManagerTest {
 	private var provisionSurvivesCancel = false
 	private var proxyAppRebuildGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
+	/**
+	 * When set, every executorFactory call throws it. Stands in for the real factory's
+	 * checkNotNull(entryActivity) during a rebuild's re-baseline (the rebuild contract
+	 * does not guarantee it non-null).
+	 */
+	private var executorFactoryError: (() -> Throwable)? = null
+
 	/** Set to make the scripted executor await mid-build, so a test can observe Building. */
 	private var executionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 	private var warmCompileGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
@@ -246,6 +253,7 @@ class QuickBuildSessionManagerTest {
 			dispatcher = StandardTestDispatcher(testScheduler),
 			generationStoreFactory = { store },
 			executorFactory = { proxyApp, _, tracker ->
+				executorFactoryError?.let { throw it() }
 				factoryProxyApps += proxyApp
 				object : LiveReloadExecutor {
 					override suspend fun execute(request: BuildRequest): BuildOutcome {
@@ -1312,6 +1320,41 @@ class QuickBuildSessionManagerTest {
 			assertThat(provisionCount).isEqualTo(2)
 			assertThat(daemon.isRunning).isTrue()
 			assertThat(daemon.startConfigs).hasSize(2)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	// Review finding (2026-07-30 major #5b): the rebuild-Succeeded arm mutated
+	// session.proxyApp/layout BEFORE building the new delegates, so a factory throw
+	// (checkNotNull(entryActivity)) escaped the session scope - crashing CoGo with the
+	// session half-updated. The delegates are now built first and the arm dispatches
+	// the existing rebuild-failure path instead.
+	@Test
+	fun `a delegate factory throw during the rebuild's re-baseline dispatches the failure path instead of escaping`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(factoryProxyApps).hasSize(1)
+
+			executorFactoryError = {
+				IllegalStateException("Quick Build session started without an entry activity")
+			}
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			// Old baseline stayed intact (no second executor was ever installed) and the
+			// failure took the same path as any other failed rebuild: torn down clean to
+			// Idle with the error surfaced, never a crash or a wedged Provisioning.
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
+			assertThat(factoryProxyApps).hasSize(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+			assertThat(userMessages).contains("Quick Build session started without an entry activity")
+
+			// The next tap re-provisions from scratch - not wedged.
+			executorFactoryError = null
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(provisionCount).isEqualTo(2)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 

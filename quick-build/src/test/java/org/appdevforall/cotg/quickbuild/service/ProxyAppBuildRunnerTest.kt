@@ -80,6 +80,7 @@ class ProxyAppBuildRunnerTest {
 
 	private val metrics = RecordingMetrics()
 	private val provisioner = FakeProvisioner(daemon)
+	private val connections = ProxyAppConnections()
 
 	private fun runner(minFreeBytes: Long = 0L): ProxyAppBuildRunner {
 		val scratch = QuickBuildScratch(FakePaths(projectRoot).projectScratchRoot, minFreeBytes)
@@ -92,7 +93,7 @@ class ProxyAppBuildRunnerTest {
 		return ProxyAppBuildRunner(
 			provisioner = provisioner,
 			daemonController = daemonController,
-			connections = ProxyAppConnections(),
+			connections = connections,
 			scratch = scratch,
 			sessionFactory =
 				LiveSessionFactory(
@@ -112,15 +113,17 @@ class ProxyAppBuildRunnerTest {
 		)
 	}
 
-	private fun proxyApp(root: File = projectRoot) =
-		ProxyAppInfo(
-			proxyAppPackage = "com.example.quickbuild",
-			entryActivity = "com.example.MainActivity",
-			apk = File(root, "proxy-app.apk"),
-			classpath = emptyList(),
-			proxyClassesDir = null,
-			transformedManifest = null,
-		)
+	private fun proxyApp(
+		root: File = projectRoot,
+		entryActivity: String? = "com.example.MainActivity",
+	) = ProxyAppInfo(
+		proxyAppPackage = "com.example.quickbuild",
+		entryActivity = entryActivity,
+		apk = File(root, "proxy-app.apk"),
+		classpath = emptyList(),
+		proxyClassesDir = null,
+		transformedManifest = null,
+	)
 
 	@Test
 	fun `a deferred rebuild - slot busy while parked - books no rebuild metric`() =
@@ -199,6 +202,33 @@ class ProxyAppBuildRunnerTest {
 			val result = runner().provision(superseded = { false })
 			assertThat(result)
 				.isEqualTo(ProxyAppBuildRunner.ProvisionResult.Failed("provision exploded"))
+		}
+
+	@Test
+	fun `a session assembly throw after the daemon started unwinds the session and daemon and becomes Failed`() =
+		runTest {
+			provisioner.provisionOutcome = {
+				ProvisionOutcome.Success(
+					// Null entryActivity makes sessionFactory.create throw its checkNotNull -
+					// the assembly-stage throw the runner's error boundary must catch instead
+					// of letting it crash the session scope with a uid session registered.
+					proxyApp(entryActivity = null),
+					proxyAppUid = 10001,
+					layout = DefaultQuickBuildProjectLayout(projectRoot),
+				)
+			}
+
+			val result = runner().provision(superseded = { false })
+
+			assertThat(result).isInstanceOf(ProxyAppBuildRunner.ProvisionResult.Failed::class.java)
+			assertThat((result as ProxyAppBuildRunner.ProvisionResult.Failed).message)
+				.contains("entry activity")
+			// The uid session registered before the throw was ended...
+			assertThat(connections.expectedPackage).isNull()
+			assertThat(connections.expectedUid).isNull()
+			// ...and the daemon started before it was shut down, intentionally (no respawn).
+			assertThat(daemon.shutdownCount).isEqualTo(1)
+			assertThat(daemon.isRunning).isFalse()
 		}
 
 	@Test
