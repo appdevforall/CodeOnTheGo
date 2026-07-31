@@ -14,7 +14,7 @@ package org.appdevforall.cotg.quickbuild.domain
  * Stamp definitions (documented here because the harness and the report both cite them):
  * - [trigger] (t0): the watcher event time for the change that started this build's
  *   batch - the earliest not-yet-built change the build coalesced (see
- *   [BuildOrchestrator]). Captures the queue wait a slow in-flight build imposes.
+ *   [LiveReloadOrchestrator]). Captures the queue wait a slow in-flight build imposes.
  * - [compileDone] (t1): compile + dex finished (the deployable classes exist). For a
  *   route with no compile (resources/assets only) this equals [deploySent] - there is no
  *   compile phase, so [compileMillis] then measures relink + packaging instead.

@@ -63,7 +63,7 @@ class SessionReducerTest {
 
 		assertThat(transition.state).isEqualTo(seeding)
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.TriggerQuickBuild(userInitiated = true)))
+			.isEqualTo(listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
 	}
 
 	// Review finding (2026-07-26 #1): a crash of the RUNNING generation during the seed
@@ -131,7 +131,7 @@ class SessionReducerTest {
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1))
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.TriggerQuickBuild(userInitiated = true)))
+			.isEqualTo(listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
 	}
 
 	@Test
@@ -838,7 +838,7 @@ class SessionReducerTest {
 		// Ready at the generation the proxy app still runs, lastFailure null: a cancellation
 		// the user chose must not render as the ATTENTION icon a broken build gets.
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(4, lastFailure = null))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.CancelQuickBuild))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.CancelLiveReload))
 	}
 
 	@Test

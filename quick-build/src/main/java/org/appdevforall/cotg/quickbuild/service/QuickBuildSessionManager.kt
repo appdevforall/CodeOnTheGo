@@ -24,7 +24,7 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildPaths
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
 import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
-import org.appdevforall.cotg.quickbuild.domain.BuildOrchestrator
+import org.appdevforall.cotg.quickbuild.domain.LiveReloadOrchestrator
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.BuildRequest
 import org.appdevforall.cotg.quickbuild.domain.BuildRoute
@@ -36,7 +36,7 @@ import org.appdevforall.cotg.quickbuild.domain.GenerationStore
 import org.appdevforall.cotg.quickbuild.domain.GenerationTracker
 import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.OrchestratorEvent
-import org.appdevforall.cotg.quickbuild.domain.QuickBuildExecutor
+import org.appdevforall.cotg.quickbuild.domain.LiveReloadExecutor
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildSessionState
@@ -57,7 +57,7 @@ import java.io.File
 
 /**
  * The shell around the domain session machine (plan 2.1): owns the [SessionReducer],
- * the per-session [BuildOrchestrator] + [GenerationTracker], and turns reducer effects
+ * the per-session [LiveReloadOrchestrator] + [GenerationTracker], and turns reducer effects
  * into real work (provisioning, daemon respawn, Gradle proxy app rebuild).
  *
  * Threading: EVERYTHING stateful runs on [dispatcher], which MUST be single-threaded -
@@ -135,7 +135,7 @@ class QuickBuildSessionManager(
 			proxyApp: ProxyAppInfo,
 			layout: QuickBuildProjectLayout,
 			tracker: GenerationTracker,
-		): QuickBuildExecutor
+		): LiveReloadExecutor
 	}
 
 	private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -218,7 +218,7 @@ class QuickBuildSessionManager(
 		var layout: QuickBuildProjectLayout,
 		val tracker: GenerationTracker,
 		val filter: WatchFilter,
-		val orchestrator: BuildOrchestrator,
+		val orchestrator: LiveReloadOrchestrator,
 		val watcher: ProjectWatcher,
 		/** Seam the proxy app rebuild swaps a fresh ProxyAppInfo-derived executor into. */
 		val executor: SwitchableExecutor,
@@ -242,8 +242,8 @@ class QuickBuildSessionManager(
 	 * delegate keeps the orchestrator - and its pending-changes bookkeeping - intact.
 	 */
 	private class SwitchableExecutor(
-		@Volatile var delegate: QuickBuildExecutor,
-	) : QuickBuildExecutor {
+		@Volatile var delegate: LiveReloadExecutor,
+	) : LiveReloadExecutor {
 		override suspend fun execute(request: BuildRequest): BuildOutcome = delegate.execute(request)
 	}
 
@@ -277,7 +277,7 @@ class QuickBuildSessionManager(
 					// NOT user-initiated: nobody tapped anything. Saying otherwise here would
 					// foreground the proxy app off a stale reconnect (behaviour 2's ask must
 					// come from a human).
-					session.orchestrator.onQuickBuildRequested(userInitiated = false)
+					session.orchestrator.onLiveReloadRequested(userInitiated = false)
 				}
 			}
 		}
@@ -423,7 +423,7 @@ class QuickBuildSessionManager(
 	 *
 	 * Re-warm is deliberately lazy, not immediate: nothing here calls `daemon.start`. The
 	 * next build attempt (a tap or a watcher-triggered save) finds the daemon dead, which
-	 * [org.appdevforall.cotg.quickbuild.service.QuickBuildExecutorImpl] already reports as
+	 * [org.appdevforall.cotg.quickbuild.service.LiveReloadExecutorImpl] already reports as
 	 * an [org.appdevforall.cotg.quickbuild.domain.BuildOutcome.InfrastructureFailure] with
 	 * `daemonDied = true` - the SAME signal a real daemon crash produces - so the existing
 	 * [SessionEvent.DaemonDied] -> [QuickBuildSessionState.Degraded] ->
@@ -508,8 +508,8 @@ class QuickBuildSessionManager(
 				sessionWork = scope.launch { runPrewarm() }
 			}
 
-			is SessionEffect.TriggerQuickBuild -> {
-				scope.launch { triggerQuickBuild(effect.userInitiated) }
+			is SessionEffect.TriggerLiveReload -> {
+				scope.launch { triggerLiveReload(effect.userInitiated) }
 			}
 
 			SessionEffect.MarkBuildUserInitiated -> {
@@ -518,7 +518,7 @@ class QuickBuildSessionManager(
 					// The build can finish between the reducer's decision and this effect. Fall
 					// back to a real request rather than let the tap vanish - a tap that does
 					// nothing at all is the failure mode this whole path exists to remove.
-					if (!orchestrator.markInFlightUserInitiated()) triggerQuickBuild(userInitiated = true)
+					if (!orchestrator.markInFlightUserInitiated()) triggerLiveReload(userInitiated = true)
 				}
 			}
 
@@ -526,7 +526,7 @@ class QuickBuildSessionManager(
 				switchToProxyApp()
 			}
 
-			SessionEffect.CancelQuickBuild -> {
+			SessionEffect.CancelLiveReload -> {
 				scope.launch {
 					// Only report a cancellation that really happened: a stop that lost the
 					// race to the build's own completion cancelled nothing.
@@ -588,9 +588,9 @@ class QuickBuildSessionManager(
 		}
 	}
 
-	private suspend fun triggerQuickBuild(userInitiated: Boolean) {
+	private suspend fun triggerLiveReload(userInitiated: Boolean) {
 		val orchestrator = live?.orchestrator ?: return
-		val awaitsDeploy = orchestrator.onQuickBuildRequested(userInitiated)
+		val awaitsDeploy = orchestrator.onLiveReloadRequested(userInitiated)
 		// Behaviour 4: a tap with nothing pending still costs a full recompile + relink +
 		// deploy (the runtime only accepts strictly-newer generations, so a metadata-only
 		// replay cannot land), and the user must not stare at the editor through it. Answer
@@ -721,7 +721,7 @@ class QuickBuildSessionManager(
 		val executor = SwitchableExecutor(buildExecutor(proxyApp, layout, tracker))
 		val annotationImpact = SwitchableAnnotationImpact(annotationImpact(proxyApp, layout))
 		val orchestrator =
-			BuildOrchestrator(
+			LiveReloadOrchestrator(
 				executor = executor,
 				classifier = ChangeClassifier(annotationImpact, layout.fastPathScope()),
 				scope = scope,
@@ -771,9 +771,9 @@ class QuickBuildSessionManager(
 		proxyApp: ProxyAppInfo,
 		layout: QuickBuildProjectLayout,
 		tracker: GenerationTracker,
-	): QuickBuildExecutor =
+	): LiveReloadExecutor =
 		executorFactory?.create(proxyApp, layout, tracker)
-			?: QuickBuildExecutorImpl(
+			?: LiveReloadExecutorImpl(
 				daemon = daemon,
 				deploy = deploy,
 				layout = layout,
@@ -1056,7 +1056,7 @@ class QuickBuildSessionManager(
 				// of dying to Idle; the message already says how to recover for its
 				// specific case. Deliberately NOT onProxyAppRebuildFailed(): the orchestrator
 				// keeps holding the absorbed batch, so quick builds stay suspended while
-				// the daemon is down (a fast-path save here would only fail against the
+				// the daemon is down (a live-reload save here would only fail against the
 				// dead daemon); the retry's onProxyAppRebuildStarted re-holds pending on
 				// top, and every held file is on disk for its Gradle build to absorb.
 				log.warn("Proxy app rebuild reinstall not confirmed; awaiting a retry: {}", outcome.message)

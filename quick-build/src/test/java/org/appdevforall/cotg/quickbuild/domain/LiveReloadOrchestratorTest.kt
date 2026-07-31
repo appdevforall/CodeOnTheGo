@@ -22,8 +22,8 @@ import java.io.File
  *   with unknown and ran spurious full recompiles;
  * - "result of a superseded build is discarded" — generation/build-id tagged results.
  */
-class BuildOrchestratorTest {
-	private class GatedExecutor : QuickBuildExecutor {
+class LiveReloadOrchestratorTest {
+	private class GatedExecutor : LiveReloadExecutor {
 		val requests = mutableListOf<BuildRequest>()
 		val gates = mutableListOf<CompletableDeferred<BuildOutcome>>()
 		var cancellations = 0
@@ -71,7 +71,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known(srcA, srcB))
 			runCurrent()
@@ -89,7 +89,7 @@ class BuildOrchestratorTest {
 		runTest {
 			var nowMs = 100L
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope, now = { nowMs }) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope, now = { nowMs }) {}
 
 			nowMs = 100L
 			orchestrator.onFilesChanged(known(srcA))
@@ -103,7 +103,7 @@ class BuildOrchestratorTest {
 		runTest {
 			var nowMs = 100L
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope, now = { nowMs }) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope, now = { nowMs }) {}
 
 			orchestrator.onFilesChanged(known(srcA)) // starts build 0 at t=100
 			runCurrent()
@@ -127,9 +127,9 @@ class BuildOrchestratorTest {
 		runTest {
 			var nowMs = 500L
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope, now = { nowMs }) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope, now = { nowMs }) {}
 
-			orchestrator.onQuickBuildRequested()
+			orchestrator.onLiveReloadRequested()
 			runCurrent()
 
 			assertThat(executor.requests.single().triggeredAtMillis).isEqualTo(500L)
@@ -139,7 +139,7 @@ class BuildOrchestratorTest {
 	fun `save during in-flight build coalesces and never cancels the running compile`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -165,7 +165,7 @@ class BuildOrchestratorTest {
 			// Regression for the prototype bug: changedSrc was cleared before the compile,
 			// so a failed compile silently dropped every file in the batch.
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known(srcA, srcB))
 			runCurrent()
@@ -188,7 +188,7 @@ class BuildOrchestratorTest {
 	fun `plan 1-4 sequence — failed batch unions with mid-build save, fix rebuilds everything`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			// save A, B -> build #1 {A, B}
 			orchestrator.onFilesChanged(known(srcA, srcB))
@@ -228,7 +228,7 @@ class BuildOrchestratorTest {
 			// Regression for the prototype bug: empty changed-set was conflated with
 			// unknown, so a no-op save ran a spurious full recompile.
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(ChangedFiles.Known.EMPTY)
 			orchestrator.onFilesChanged(ChangedFiles.Known.EMPTY)
@@ -238,10 +238,10 @@ class BuildOrchestratorTest {
 		}
 
 	@Test
-	fun `unknown changes force a full recompile on the quick path`() =
+	fun `unknown changes force a full recompile on the live reload path`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(ChangedFiles.Unknown)
 			runCurrent()
@@ -255,7 +255,7 @@ class BuildOrchestratorTest {
 	fun `rapid save burst coalesces into a single follow-up build`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -280,7 +280,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
 			runCurrent()
@@ -301,7 +301,7 @@ class BuildOrchestratorTest {
 	fun `after a baseline reset the session builds normally again`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
 			runCurrent()
@@ -323,7 +323,7 @@ class BuildOrchestratorTest {
 			// Regression (review F1): the Gradle build only absorbs what existed when it
 			// STARTED; a save landing while it runs must not be dropped with the batch.
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
 			runCurrent()
@@ -344,7 +344,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
 			runCurrent()
@@ -368,7 +368,7 @@ class BuildOrchestratorTest {
 		runTest {
 			// Protocol-violation compatibility path: reset with no started call drops all.
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
 			runCurrent()
@@ -386,7 +386,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -409,7 +409,7 @@ class BuildOrchestratorTest {
 			// the same error must not flash twice at the user.
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known(srcA, srcB))
 			runCurrent()
@@ -432,7 +432,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -458,7 +458,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -481,9 +481,9 @@ class BuildOrchestratorTest {
 	fun `forced tap with nothing changed still executes a redeploy build`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
-			orchestrator.onQuickBuildRequested()
+			orchestrator.onLiveReloadRequested()
 			runCurrent()
 
 			assertThat(executor.requests).hasSize(1)
@@ -496,11 +496,11 @@ class BuildOrchestratorTest {
 	fun `forced tap during an in-flight build runs a follow-up after success`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
-			orchestrator.onQuickBuildRequested()
+			orchestrator.onLiveReloadRequested()
 			runCurrent()
 			assertThat(executor.requests).hasSize(1)
 
@@ -516,7 +516,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			executor.throwOnNext = IllegalStateException("daemon socket closed")
 			orchestrator.onFilesChanged(known(srcA, srcB))
@@ -538,7 +538,7 @@ class BuildOrchestratorTest {
 			// After a CoGo restart the watcher history is gone; the session manager seeds
 			// the fresh orchestrator with Unknown. First build is full, nothing is lost.
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(ChangedFiles.Unknown)
 			runCurrent()
@@ -561,7 +561,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -587,7 +587,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onBaselineUntrusted()
 			runCurrent()
@@ -608,7 +608,7 @@ class BuildOrchestratorTest {
 	fun `onBaselineUntrusted during an in-flight build re-seeds the coalesced follow-up`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -631,7 +631,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onSeedRequested()
 			runCurrent()
@@ -656,7 +656,7 @@ class BuildOrchestratorTest {
 	fun `a save that lands before the seed starts drops the seed - the real build seeds implicitly`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -675,7 +675,7 @@ class BuildOrchestratorTest {
 	fun `a save landing mid-seed queues and builds right after the seed finishes`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onSeedRequested()
 			runCurrent()
@@ -698,7 +698,7 @@ class BuildOrchestratorTest {
 	fun `daemon replacement with nothing pending re-warms via a deploy-nothing seed`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onDaemonReplaced()
 			runCurrent()
@@ -712,7 +712,7 @@ class BuildOrchestratorTest {
 	fun `daemon replacement with pending saves marks the baseline dirty and deploys`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			// Save lands while the daemon is dead (watcher outlives it), then the respawn.
 			orchestrator.onFilesChanged(known(srcA))
@@ -732,7 +732,7 @@ class BuildOrchestratorTest {
 	fun `daemon replacement mid-build unions Unknown into pending - the build's own failure, not a supersession, starts the follow-up`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -758,7 +758,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onSeedRequested()
 			runCurrent()
@@ -786,7 +786,7 @@ class BuildOrchestratorTest {
 			// landed mid-seed produced an identical error.
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onSeedRequested()
 			runCurrent()
@@ -812,7 +812,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onSeedRequested()
 			runCurrent()
@@ -849,7 +849,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			// A save landed but its build has not started yet (mid-rebuild absorption is the
 			// real-world shape); the tap coalesces into it and must wait for the deploy.
@@ -858,7 +858,7 @@ class BuildOrchestratorTest {
 			runCurrent()
 			assertThat(executor.requests).isEmpty()
 
-			val awaitsDeploy = orchestrator.onQuickBuildRequested(userInitiated = true)
+			val awaitsDeploy = orchestrator.onLiveReloadRequested(userInitiated = true)
 			orchestrator.onBaselineReset()
 			runCurrent()
 			executor.finish(0, success(generation = 2))
@@ -875,9 +875,9 @@ class BuildOrchestratorTest {
 			// Behaviour 4's decision point. The build still runs (forced redeploy), but the
 			// caller must be told it has nothing worth waiting for.
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
-			val awaitsDeploy = orchestrator.onQuickBuildRequested(userInitiated = true)
+			val awaitsDeploy = orchestrator.onLiveReloadRequested(userInitiated = true)
 			runCurrent()
 
 			assertThat(awaitsDeploy).isFalse()
@@ -891,7 +891,7 @@ class BuildOrchestratorTest {
 			// pulls the user out of the editor.
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -909,10 +909,10 @@ class BuildOrchestratorTest {
 			// a usable stand-in for "the user asked".
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known(srcA))
-			orchestrator.onQuickBuildRequested(userInitiated = false)
+			orchestrator.onLiveReloadRequested(userInitiated = false)
 			runCurrent()
 			executor.finish(0, success(generation = 1))
 			runCurrent()
@@ -929,12 +929,12 @@ class BuildOrchestratorTest {
 			// code is not a new ask, so it must not yank the user out of the editor.
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			// Hold the batch so the tap lands BEFORE the build starts and really tags it.
 			orchestrator.onProxyAppRebuildStarted()
 			orchestrator.onFilesChanged(known(srcA))
-			orchestrator.onQuickBuildRequested(userInitiated = true)
+			orchestrator.onLiveReloadRequested(userInitiated = true)
 			orchestrator.onBaselineReset()
 			runCurrent()
 			assertThat(executor.requests).hasSize(1)
@@ -959,7 +959,7 @@ class BuildOrchestratorTest {
 		runTest {
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -980,7 +980,7 @@ class BuildOrchestratorTest {
 			// nothing, so it can never be a tap's answer. The caller then falls back to a real
 			// request instead of dropping the tap.
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			assertThat(orchestrator.markInFlightUserInitiated()).isFalse()
 
@@ -997,7 +997,7 @@ class BuildOrchestratorTest {
 			// edit is still owed a build, so the next save carries it too.
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -1023,10 +1023,10 @@ class BuildOrchestratorTest {
 			// The user asked, then unasked. A forced flag surviving the cancel would make the
 			// next save redeploy at a fresh generation as if the tap still stood.
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known(srcA))
-			orchestrator.onQuickBuildRequested(userInitiated = true)
+			orchestrator.onLiveReloadRequested(userInitiated = true)
 			runCurrent()
 			orchestrator.onCancelRequested()
 			runCurrent()
@@ -1041,7 +1041,7 @@ class BuildOrchestratorTest {
 	fun `cancelling refuses when nothing is running, and never touches the seed`() =
 		runTest {
 			val executor = GatedExecutor()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			assertThat(orchestrator.onCancelRequested()).isFalse()
 
@@ -1061,7 +1061,7 @@ class BuildOrchestratorTest {
 			// next build start at all. Without it every later build would be suspended forever.
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = BuildOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()

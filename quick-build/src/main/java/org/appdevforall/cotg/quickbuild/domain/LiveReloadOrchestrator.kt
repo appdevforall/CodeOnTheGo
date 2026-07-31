@@ -44,8 +44,8 @@ import org.slf4j.LoggerFactory
  * on a multithreaded dispatcher a fast build could report Finished before the caller's
  * thread delivers Started. Wire it single-threaded.
  */
-class BuildOrchestrator(
-	private val executor: QuickBuildExecutor,
+class LiveReloadOrchestrator(
+	private val executor: LiveReloadExecutor,
 	private val classifier: ChangeClassifier,
 	private val scope: CoroutineScope,
 	/**
@@ -57,7 +57,7 @@ class BuildOrchestrator(
 	private val now: () -> Long = System::currentTimeMillis,
 	private val onEvent: (OrchestratorEvent) -> Unit,
 ) {
-	private val log = LoggerFactory.getLogger(BuildOrchestrator::class.java)
+	private val log = LoggerFactory.getLogger(LiveReloadOrchestrator::class.java)
 
 	private val mutex = Mutex()
 	private var pending: ChangedFiles = ChangedFiles.Known.EMPTY
@@ -130,7 +130,7 @@ class BuildOrchestrator(
 	 *   pending: the caller may act on the tap NOW rather than after a full recompile of
 	 *   everything (Bryan's behaviour 4).
 	 */
-	suspend fun onQuickBuildRequested(userInitiated: Boolean = true): Boolean {
+	suspend fun onLiveReloadRequested(userInitiated: Boolean = true): Boolean {
 		var awaitsDeploy = false
 		withEvents { events ->
 			markBatchArrivalLocked()
@@ -358,7 +358,7 @@ class BuildOrchestrator(
 
 		val route = classifier.classify(pending)
 		if (route is BuildRoute.FullGradleBuild) {
-			// The quick path can't absorb this; hand off to the session manager once.
+			// The live reload path can't absorb this; hand off to the session manager once.
 			// Pending is kept: it documents what the proxy app rebuild will absorb.
 			if (!invalidationReported) {
 				invalidationReported = true

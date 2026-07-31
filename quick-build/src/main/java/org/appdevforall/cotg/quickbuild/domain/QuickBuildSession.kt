@@ -275,7 +275,7 @@ sealed interface SessionEffect {
 	 * is re-armed after a failure, so reusing it would yank the user out of the editor on a
 	 * stale reconnect or on a save that retried a failed tap.
 	 */
-	data class TriggerQuickBuild(
+	data class TriggerLiveReload(
 		val userInitiated: Boolean,
 	) : SessionEffect
 
@@ -289,7 +289,7 @@ sealed interface SessionEffect {
 	/**
 	 * A tap landed while a real build was already in flight. That build deploys anyway, so it
 	 * satisfies the tap's BUILD - this only records that the tap happened, so the deploy
-	 * brings the proxy app forward. Distinct from [TriggerQuickBuild] on purpose: forcing a
+	 * brings the proxy app forward. Distinct from [TriggerLiveReload] on purpose: forcing a
 	 * second full rebuild behind a build that was about to do the same work would double the
 	 * cost for nothing.
 	 */
@@ -300,7 +300,7 @@ sealed interface SessionEffect {
 	 * moved back to [QuickBuildSessionState.Ready] at the unchanged generation, so nothing
 	 * new deploys and the button returns to the bolt.
 	 */
-	data object CancelQuickBuild : SessionEffect
+	data object CancelLiveReload : SessionEffect
 
 	/**
 	 * Stop the out-of-process Gradle PROXY APP build (prewarm / provision / proxy app rebuild)
@@ -521,7 +521,7 @@ class SessionReducer {
 	): SessionTransition =
 		when (event) {
 			SessionEvent.QuickBuildTapped -> {
-				SessionTransition(state, listOf(SessionEffect.TriggerQuickBuild(userInitiated = true)))
+				SessionTransition(state, listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
 			}
 
 			SessionEvent.BuildStarted -> {
@@ -584,7 +584,7 @@ class SessionReducer {
 					// A seed deploys nothing, so the tap would otherwise vanish. The
 					// orchestrator queues it (pendingForced) and builds right after the
 					// seed - single-flight preserved, tap never dropped.
-					SessionTransition(state, listOf(SessionEffect.TriggerQuickBuild(userInitiated = true)))
+					SessionTransition(state, listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
 				} else {
 					// The in-flight real build deploys anyway and satisfies the tap's build.
 					// It does NOT satisfy the ask, though: the tap used to be dropped here
@@ -605,7 +605,7 @@ class SessionReducer {
 					// with no failure recorded - the user chose this, it is not an error.
 					SessionTransition(
 						QuickBuildSessionState.Ready(state.deployedGeneration),
-						listOf(SessionEffect.CancelQuickBuild),
+						listOf(SessionEffect.CancelLiveReload),
 					)
 				}
 			}

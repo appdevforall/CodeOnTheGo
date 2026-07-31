@@ -21,7 +21,7 @@ import org.appdevforall.cotg.quickbuild.domain.BuildRequest
 import org.appdevforall.cotg.quickbuild.domain.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
-import org.appdevforall.cotg.quickbuild.domain.QuickBuildExecutor
+import org.appdevforall.cotg.quickbuild.domain.LiveReloadExecutor
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildSessionState
@@ -247,7 +247,7 @@ class QuickBuildSessionManagerTest {
 			generationStoreFactory = { store },
 			executorFactory = { proxyApp, _, tracker ->
 				factoryProxyApps += proxyApp
-				object : QuickBuildExecutor {
+				object : LiveReloadExecutor {
 					override suspend fun execute(request: BuildRequest): BuildOutcome {
 						if (request.route is BuildRoute.Seed) {
 							// Mirror the real executor's seed contract: compile-only,
@@ -838,7 +838,7 @@ class QuickBuildSessionManagerTest {
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
-			// A real (not vanished) java-resource the quick path can't package - existing
+			// A real (not vanished) java-resource the live reload path can't package - existing
 			// on disk at batch-settle time must not exempt a genuinely unsupported file
 			// from the honest fallback (no over-correction from the vanished-file drop).
 			val unsupported =
@@ -996,7 +996,7 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			assertThat(proxyAppRebuildCount).isEqualTo(1)
-			// Quick path never ran for the gradle change.
+			// Live reload path never ran for the gradle change.
 			assertThat(executed).isEmpty()
 			// Proxy app rebuild succeeded: back to Ready at the unchanged generation.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
@@ -2383,7 +2383,7 @@ class QuickBuildSessionManagerTest {
 			assertThat(daemon.isRunning).isFalse()
 
 			// The scripted executor doesn't know the daemon died; script what the REAL
-			// executor reports for a torn-down daemon (QuickBuildExecutorImpl.compileAndDex
+			// executor reports for a torn-down daemon (LiveReloadExecutorImpl.compileAndDex
 			// maps DaemonReply.Failed(daemonDied=true) to exactly this outcome).
 			scriptedOutcomes += BuildOutcome.InfrastructureFailure("daemon not running", daemonDied = true)
 

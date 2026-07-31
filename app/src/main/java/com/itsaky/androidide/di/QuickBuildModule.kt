@@ -152,7 +152,7 @@ val quickBuildModule =
 				paths = get<EnvironmentQuickBuildPaths>(),
 				historyStore = get(),
 				// The orchestrator's ordering guarantee requires a single-threaded
-				// dispatcher (see BuildOrchestrator KDoc); a dedicated thread keeps
+				// dispatcher (see LiveReloadOrchestrator KDoc); a dedicated thread keeps
 				// session work off Main and off the shared pools.
 				dispatcher =
 					Executors

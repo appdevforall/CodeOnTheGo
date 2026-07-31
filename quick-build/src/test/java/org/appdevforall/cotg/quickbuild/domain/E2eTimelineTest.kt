@@ -31,7 +31,7 @@ class E2eTimelineTest {
 	@Test
 	fun `parse tolerates a logcat prefix around the line`() {
 		val logcatLine =
-			"07-22 23:14:05.123  4821  4890 I QuickBuildExecutorImpl: " +
+			"07-22 23:14:05.123  4821  4890 I LiveReloadExecutorImpl: " +
 				"quickbuild-e2e: gen=3 trigger=42 compileDone=9042 deploySent=9050 reloadLive=9120"
 		assertThat(E2eTimeline.parse(logcatLine))
 			.isEqualTo(E2eTimeline(3, 42, 9042, 9050, 9120))

@@ -27,7 +27,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.util.zip.ZipFile
 
-class QuickBuildExecutorImplTest {
+class LiveReloadExecutorImplTest {
 	@TempDir lateinit var projectRoot: File
 
 	private val daemon = FakeDaemon()
@@ -38,7 +38,7 @@ class QuickBuildExecutorImplTest {
 	private lateinit var sourceFile: File
 	private lateinit var resFile: File
 	private lateinit var assetFile: File
-	private lateinit var executor: QuickBuildExecutorImpl
+	private lateinit var executor: LiveReloadExecutorImpl
 
 	@BeforeEach
 	fun setUp() {
@@ -62,7 +62,7 @@ class QuickBuildExecutorImplTest {
 
 		tracker = GenerationTracker(store)
 		executor =
-			QuickBuildExecutorImpl(
+			LiveReloadExecutorImpl(
 				daemon = daemon,
 				deploy = deploy,
 				layout = DefaultQuickBuildProjectLayout(projectRoot),
@@ -220,7 +220,7 @@ class QuickBuildExecutorImplTest {
 						writeText("demo:string/app_name = 0x7f010000")
 					}
 			val executorWithStableIds =
-				QuickBuildExecutorImpl(
+				LiveReloadExecutorImpl(
 					daemon = daemon,
 					deploy = deploy,
 					layout = DefaultQuickBuildProjectLayout(projectRoot, stableIdsFile = stableIds),
@@ -249,7 +249,7 @@ class QuickBuildExecutorImplTest {
 						writeText("")
 					}
 			val executorWithLibraryResources =
-				QuickBuildExecutorImpl(
+				LiveReloadExecutorImpl(
 					daemon = daemon,
 					deploy = deploy,
 					layout = DefaultQuickBuildProjectLayout(projectRoot, libraryResourceFlats = listOf(libraryResource)),
@@ -444,7 +444,7 @@ class QuickBuildExecutorImplTest {
 			store.value = 5
 			tracker = GenerationTracker(store)
 			executor =
-				QuickBuildExecutorImpl(
+				LiveReloadExecutorImpl(
 					daemon = daemon,
 					deploy = deploy,
 					layout = DefaultQuickBuildProjectLayout(projectRoot),
@@ -528,8 +528,8 @@ class QuickBuildExecutorImplTest {
 		}
 	}
 
-	private fun timingExecutor(emitted: MutableList<E2eTimeline>): QuickBuildExecutorImpl =
-		QuickBuildExecutorImpl(
+	private fun timingExecutor(emitted: MutableList<E2eTimeline>): LiveReloadExecutorImpl =
+		LiveReloadExecutorImpl(
 			daemon = daemon,
 			deploy = deploy,
 			layout = DefaultQuickBuildProjectLayout(projectRoot),
@@ -751,7 +751,7 @@ class QuickBuildExecutorImplTest {
 			val emitted = mutableListOf<E2eTimeline>()
 			val launcher = FakeLauncher()
 			val executor =
-				QuickBuildExecutorImpl(
+				LiveReloadExecutorImpl(
 					daemon = daemon,
 					deploy = deploy,
 					layout = DefaultQuickBuildProjectLayout(projectRoot),
@@ -855,7 +855,7 @@ class QuickBuildExecutorImplTest {
 			val emitted = mutableListOf<E2eTimeline>()
 			val metrics = RecordingMetrics()
 			val executor =
-				QuickBuildExecutorImpl(
+				LiveReloadExecutorImpl(
 					daemon = daemon,
 					deploy = deploy,
 					layout = DefaultQuickBuildProjectLayout(projectRoot),
@@ -880,7 +880,7 @@ class QuickBuildExecutorImplTest {
 		runTest {
 			val metrics = RecordingMetrics()
 			val executor =
-				QuickBuildExecutorImpl(
+				LiveReloadExecutorImpl(
 					daemon = daemon,
 					deploy = deploy,
 					layout = DefaultQuickBuildProjectLayout(projectRoot),
@@ -925,7 +925,7 @@ class QuickBuildExecutorImplTest {
 					override fun onReloadTimeline(timeline: E2eTimeline): Unit = throw RuntimeException("sink boom")
 				}
 			val executor =
-				QuickBuildExecutorImpl(
+				LiveReloadExecutorImpl(
 					daemon = daemon,
 					deploy = deploy,
 					layout = DefaultQuickBuildProjectLayout(projectRoot),
@@ -973,7 +973,7 @@ class QuickBuildExecutorImplTest {
 					ComponentInfo(ComponentKind.SERVICE, "com.example.SyncService"),
 				),
 			),
-	) = QuickBuildExecutorImpl(
+	) = LiveReloadExecutorImpl(
 		daemon = daemon,
 		deploy = deploy,
 		layout = DefaultQuickBuildProjectLayout(projectRoot),
@@ -1192,7 +1192,7 @@ class QuickBuildExecutorImplTest {
 	private fun relaunchExecutor(
 		launcher: FakeLauncher,
 		reconnectTimeoutMillis: Long = 15_000L,
-	) = QuickBuildExecutorImpl(
+	) = LiveReloadExecutorImpl(
 		daemon = daemon,
 		deploy = deploy,
 		layout = DefaultQuickBuildProjectLayout(projectRoot),
@@ -1379,7 +1379,7 @@ class QuickBuildExecutorImplTest {
 
 			val launcher = FakeLauncher()
 			val executor =
-				QuickBuildExecutorImpl(
+				LiveReloadExecutorImpl(
 					daemon = daemon,
 					deploy = deploy,
 					layout = DefaultQuickBuildProjectLayout(projectRoot),

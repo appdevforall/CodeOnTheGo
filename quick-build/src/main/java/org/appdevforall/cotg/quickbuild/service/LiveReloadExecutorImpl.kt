@@ -20,13 +20,13 @@ import org.appdevforall.cotg.quickbuild.domain.DeployPolicy
 import org.appdevforall.cotg.quickbuild.domain.E2eTimeline
 import org.appdevforall.cotg.quickbuild.domain.GenerationTracker
 import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
-import org.appdevforall.cotg.quickbuild.domain.QuickBuildExecutor
+import org.appdevforall.cotg.quickbuild.domain.LiveReloadExecutor
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
 import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * The warm-daemon pipeline behind the domain [QuickBuildExecutor] contract: routes a
+ * The warm-daemon pipeline behind the domain [LiveReloadExecutor] contract: routes a
  * classified changed-set through compile/dex/relink on the daemon, then deploys the
  * artifacts to the proxy app.
  *
@@ -41,7 +41,7 @@ import java.io.File
  * the launcher proxy via [launcher], and verifies the fresh process reconnected AT the
  * deployed generation before claiming success (see [deployRestart]).
  */
-class QuickBuildExecutorImpl(
+class LiveReloadExecutorImpl(
 	private val daemon: QuickBuildDaemon,
 	private val deploy: DeploySender,
 	private val layout: QuickBuildProjectLayout,
@@ -87,7 +87,7 @@ class QuickBuildExecutorImpl(
 	 * ([reportTimeline]) per the sink's contract, so telemetry can never fail a build.
 	 */
 	private val metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop,
-) : QuickBuildExecutor {
+) : LiveReloadExecutor {
 	override suspend fun execute(request: BuildRequest): BuildOutcome =
 		try {
 			val outcome = executeInner(request)
@@ -268,7 +268,7 @@ class QuickBuildExecutorImpl(
 			is BuildRoute.FullGradleBuild -> {
 				// Contract: the orchestrator never routes this here. Refuse honestly.
 				BuildOutcome.InfrastructureFailure(
-					"FullGradleBuild route must not reach the quick path",
+					"FullGradleBuild route must not reach the live reload path",
 				)
 			}
 
@@ -659,7 +659,7 @@ class QuickBuildExecutorImpl(
 
 	/**
 	 * Accumulates one build's e2e stamps as it flows through the pipeline (safe as a plain
-	 * object: the [org.appdevforall.cotg.quickbuild.domain.QuickBuildExecutor] contract is
+	 * object: the [org.appdevforall.cotg.quickbuild.domain.LiveReloadExecutor] contract is
 	 * at-most-one build in flight). [trigger] is t0 from the request; [markCompileDone] and
 	 * [markDeploySent] stamp t1/t2; [completed] mints the [E2eTimeline] with t3. A route with
 	 * no compile never calls [markCompileDone], so [E2eTimeline.compileDone] falls back to
@@ -761,7 +761,7 @@ class QuickBuildExecutorImpl(
 	}
 
 	private companion object {
-		private val log = LoggerFactory.getLogger(QuickBuildExecutorImpl::class.java)
+		private val log = LoggerFactory.getLogger(LiveReloadExecutorImpl::class.java)
 
 		/**
 		 * How long the runtime gets to exit after acking a restart deploy. Generous vs
