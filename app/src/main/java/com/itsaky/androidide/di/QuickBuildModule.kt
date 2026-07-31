@@ -50,7 +50,7 @@ val quickBuildModule =
 		// process-wide registry, so the graph must bind exactly that instance.
 		single { TestAppConnections.INSTANCE }
 
-		single { EnvironmentQuickBuildPaths() }
+		single { EnvironmentQuickBuildPaths(androidContext()) }
 
 		single<QuickBuildDaemon> {
 			DaemonProcessClient(

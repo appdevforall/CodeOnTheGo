@@ -164,6 +164,9 @@ class FakePaths(
 	override val composeCompilerPlugin = File(baseDir, "quickbuild/daemon/compose-compiler-plugin.jar")
 	override val androidJar = File(baseDir, "sdk/android.jar")
 
+	/** Stands in for the app's noBackupFilesDir subtree; a temp dir in tests. */
+	override val projectScratchRoot = File(baseDir, "app-private/quickbuild-scratch")
+
 	override fun daemonEnvironment(): Map<String, String> = emptyMap()
 }
 

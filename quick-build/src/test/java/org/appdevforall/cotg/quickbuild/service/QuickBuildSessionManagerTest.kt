@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.DefaultQuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.ProjectWatcher
+import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
 import org.appdevforall.cotg.quickbuild.data.SetupInfo
 import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
@@ -194,7 +195,10 @@ class QuickBuildSessionManagerTest {
 		return RebaselineOutcome.Success(setup = provision.setup, layout = provision.layout)
 	}
 
-	private fun TestScope.createManager(backgroundSeedEnabled: () -> Boolean = { true }): QuickBuildSessionManager {
+	private fun TestScope.createManager(
+		backgroundSeedEnabled: () -> Boolean = { true },
+		scratch: QuickBuildScratch = QuickBuildScratch(FakePaths(projectRoot).projectScratchRoot),
+	): QuickBuildSessionManager {
 		val provisioner =
 			object : QuickBuildProvisioner {
 				override suspend fun provision(): ProvisionOutcome {
@@ -270,6 +274,7 @@ class QuickBuildSessionManagerTest {
 					launches += packageName to activityClass
 					true
 				},
+			scratch = scratch,
 		)
 	}
 
@@ -543,6 +548,81 @@ class QuickBuildSessionManagerTest {
 
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 			assertThat(userMessages).containsExactly("no build service")
+		}
+
+	// ADFA-4930: intermediates live on app-private storage, keyed per project, guarded
+	// by a free-space floor, removed on teardown, swept at manager start.
+
+	@Test
+	fun `a full private volume fails fast with the disk message - before the setup build`() =
+		runTest {
+			val scratchRoot = FakePaths(projectRoot).projectScratchRoot
+			val manager =
+				createManager(scratch = QuickBuildScratch(scratchRoot, minFreeBytes = Long.MAX_VALUE))
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// Failed BEFORE the expensive Gradle setup build and before any daemon spawn.
+			assertThat(provisionCount).isEqualTo(0)
+			assertThat(daemon.startConfigs).isEmpty()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+			val message = userMessages.single()
+			assertThat(message).contains("free")
+			assertThat(message).contains("MB")
+		}
+
+	@Test
+	fun `the daemon out dir lands under the private scratch root, not the project`() =
+		runTest {
+			val manager = createManager()
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			val scratchRoot = FakePaths(projectRoot).projectScratchRoot
+			val outDir = daemon.startConfigs.single().outDir
+			assertThat(outDir.path).startsWith(scratchRoot.path)
+			assertThat(outDir.path).doesNotContain(".androidide")
+			// The tree provisioning prepared actually exists, on the private side.
+			assertThat(QuickBuildScratch(scratchRoot).treeFor(projectRoot).isDirectory).isTrue()
+		}
+
+	@Test
+	fun `session teardown removes the project's scratch tree`() =
+		runTest {
+			val manager = createManager()
+			val tree = QuickBuildScratch(FakePaths(projectRoot).projectScratchRoot).treeFor(projectRoot)
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(tree.isDirectory).isTrue()
+
+			manager.restartSession()
+			advanceUntilIdle()
+
+			assertThat(tree.exists()).isFalse()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+		}
+
+	@Test
+	fun `manager start sweeps a dead session's scratch tree before anything is live`() =
+		runTest {
+			val scratchRoot = FakePaths(projectRoot).projectScratchRoot
+			val stale =
+				File(scratchRoot, "dead-project-0123456789abcdef").apply {
+					File(this, "out").mkdirs()
+				}
+
+			val manager = createManager()
+			advanceUntilIdle()
+			assertThat(stale.exists()).isFalse()
+
+			// The sweep is strictly ordered before any tap: a session provisioned after
+			// it keeps its (new) tree.
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(QuickBuildScratch(scratchRoot).treeFor(projectRoot).isDirectory).isTrue()
 		}
 
 	@Test

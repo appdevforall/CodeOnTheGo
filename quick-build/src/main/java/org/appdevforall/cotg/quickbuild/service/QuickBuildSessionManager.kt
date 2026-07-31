@@ -22,6 +22,7 @@ import org.appdevforall.cotg.quickbuild.data.ProjectWatcher
 import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
 import org.appdevforall.cotg.quickbuild.data.QuickBuildPaths
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
+import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
 import org.appdevforall.cotg.quickbuild.data.SetupInfo
 import org.appdevforall.cotg.quickbuild.domain.BuildOrchestrator
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
@@ -112,6 +113,11 @@ class QuickBuildSessionManager(
 	 * monotonic device clock.
 	 */
 	private val nowMillis: () -> Long = System::currentTimeMillis,
+	/**
+	 * Per-project scratch trees on app-private storage (ADFA-4930): intermediates
+	 * off FUSE. Overridable so tests can shrink or inflate the disk-space floor.
+	 */
+	private val scratch: QuickBuildScratch = QuickBuildScratch(paths.projectScratchRoot),
 ) {
 	/** Builds the project watcher for a live session; overridden with a fake in tests. */
 	fun interface WatcherFactory {
@@ -282,6 +288,13 @@ class QuickBuildSessionManager(
 			_state.collect {
 				if (pendingLowMemoryTeardown) shrinkDaemonForMemory()
 			}
+		}
+		scope.launch {
+			// Stale-tree sweep (ADFA-4930): nothing can be live yet - this manager is the
+			// process's only session owner and no tap has dispatched - so every tree under
+			// the scratch root is a dead session's leftover (process kill, crash) or a
+			// since-deleted project's. Runs on [dispatcher], strictly before any tap.
+			scratch.sweep(liveProjectRoots = emptyList())
 		}
 	}
 
@@ -605,6 +618,13 @@ class QuickBuildSessionManager(
 	}
 
 	private suspend fun provision(startEpoch: Long) {
+		// Disk-space guard (ADFA-4930): fail in seconds with a clear message rather than
+		// let a full private volume ENOSPC minutes into the setup build or mid-quick-build.
+		scratch.freeSpaceShortfall()?.let { message ->
+			dispatch(SessionEvent.ProvisioningFailed(message))
+			return
+		}
+
 		val outcome =
 			try {
 				provisioner.provision()
@@ -629,6 +649,17 @@ class QuickBuildSessionManager(
 			}
 
 			is ProvisionOutcome.Success -> {
+				// Scratch tree on app-private storage (ADFA-4930): the executor and daemon
+				// dirs below live here, never under the FUSE-backed project root.
+				when (val prepared = scratch.prepare(outcome.layout.projectRoot)) {
+					is QuickBuildScratch.Preparation.Failed -> {
+						dispatch(SessionEvent.ProvisioningFailed(prepared.message))
+						return
+					}
+
+					is QuickBuildScratch.Preparation.Ready -> Unit
+				}
+
 				connections.beginSession(outcome.setup.testAppPackage, outcome.testAppUid)
 
 				daemonEpoch++
@@ -739,7 +770,8 @@ class QuickBuildSessionManager(
 						"Quick Build session started without an entry activity"
 					},
 				generations = tracker,
-				workDir = File(layout.projectRoot, ".androidide/quickbuild"),
+				// App-private scratch (ADFA-4930), NOT under the FUSE-backed project root.
+				workDir = scratch.workDirFor(layout.projectRoot),
 				proxyClassesDir = setup.proxyClassesDir,
 				testAppManifest = setup.transformedManifest,
 				deployPolicy =
@@ -771,7 +803,10 @@ class QuickBuildSessionManager(
 		DaemonConfig(
 			projectRoot = layout.projectRoot,
 			classpath = layout.compileClasspath(),
-			outDir = File(layout.projectRoot, ".androidide/quickbuild/out"),
+			// App-private scratch (ADFA-4930): the daemon's per-file-heavy output tree is
+			// the single biggest FUSE payer, and its scratchFsType reply (the bench-event
+			// field) reports whatever filesystem THIS dir lands on.
+			outDir = scratch.outDirFor(layout.projectRoot),
 			aapt2 = paths.aapt2,
 			d8Jar = paths.d8Jar,
 			androidJar = paths.androidJar,
@@ -1065,9 +1100,16 @@ class QuickBuildSessionManager(
 		sessionWork?.cancel()
 		sessionWork = null
 		live?.watcher?.stop()
+		val scratchOwner = live?.layout?.projectRoot
 		live = null
 		connections.endSession()
-		scope.launch { daemon.shutdown() }
+		scope.launch {
+			daemon.shutdown()
+			// Only after the daemon is down: it writes into this tree until then. A
+			// teardown with no live session (provisioning failed before going live)
+			// has nothing to remove; the init-time sweep reclaims any half-made tree.
+			scratchOwner?.let(scratch::remove)
+		}
 	}
 
 	private fun surfaceUserMessage(message: String) {

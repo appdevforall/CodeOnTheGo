@@ -30,6 +30,7 @@ class DaemonProcessClientTest {
 		override val d8Jar = File(base, "d8.jar")
 		override val composeCompilerPlugin = File(base, "compose-compiler-plugin.jar")
 		override val androidJar = File(base, "android.jar")
+		override val projectScratchRoot = File(base, "app-private/quickbuild-scratch")
 
 		// The client clears the child env; give the script a PATH for its utilities.
 		override fun daemonEnvironment(): Map<String, String> = mapOf("PATH" to "/usr/bin:/bin")

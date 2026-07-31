@@ -45,6 +45,14 @@ interface QuickBuildPaths {
 	val androidJar: File
 
 	/**
+	 * Root for per-project scratch trees ([QuickBuildScratch]) on app-private
+	 * (ext4-backed) storage - NOT under the project on `/storage/emulated`, whose
+	 * FUSE layer pays a ~50x per-file toll on the intermediate-heavy quick path
+	 * (ADFA-4930). The app wires a `Context.noBackupFilesDir` subtree.
+	 */
+	val projectScratchRoot: File
+
+	/**
 	 * Full environment for the daemon child process. The host app env must NOT be
 	 * inherited: Android runtime classpath vars crash a standalone OpenJDK on some
 	 * OEM images (same reason ToolingServerRunner clears its env).

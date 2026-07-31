@@ -9,6 +9,13 @@ import java.io.IOException
  * [GenerationStore] persisted as a single number in
  * `<project>/.androidide/quickbuild/generation`.
  *
+ * Deliberately NOT in the app-private [QuickBuildScratch] tree (ADFA-4930): scratch is
+ * deleted on session teardown and swept when no session is live, while this counter
+ * must OUTLIVE sessions - an installed test app persists payloads keyed by generation,
+ * and only a counter that survives lets a later session stay strictly newer. One tiny
+ * write per successful build makes its FUSE cost irrelevant, and living with the
+ * project means it dies with the project.
+ *
  * A corrupt or unreadable file loads as `null` (fresh session) instead of throwing:
  * the generation counter only needs monotonicity from where it can prove it, and a
  * broken state file must never take the whole quick-build feature down.

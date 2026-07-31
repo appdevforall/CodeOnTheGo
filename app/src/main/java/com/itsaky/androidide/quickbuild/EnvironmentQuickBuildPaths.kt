@@ -1,5 +1,6 @@
 package com.itsaky.androidide.quickbuild
 
+import android.content.Context
 import com.itsaky.androidide.utils.Environment
 import org.appdevforall.cotg.quickbuild.data.QuickBuildPaths
 import java.io.File
@@ -9,7 +10,9 @@ import java.io.File
  * under `<ANDROIDIDE_HOME>/quickbuild/` (see [QuickBuildArtifactStager]); toolchain
  * binaries reuse the same discovery the tooling server uses.
  */
-class EnvironmentQuickBuildPaths : QuickBuildPaths {
+class EnvironmentQuickBuildPaths(
+	private val context: Context,
+) : QuickBuildPaths {
 	/** Deliberately a getter: Environment.init runs after app start. */
 	private val quickBuildHome: File
 		get() = File(Environment.ANDROIDIDE_HOME, "quickbuild")
@@ -45,6 +48,15 @@ class EnvironmentQuickBuildPaths : QuickBuildPaths {
 
 	override val androidJar: File
 		get() = Environment.ANDROID_JAR
+
+	/**
+	 * Per-project scratch trees (ADFA-4930) on app-private ext4 storage, off the
+	 * project's FUSE-backed `/storage/emulated` tree. `noBackupFilesDir` rather than
+	 * `filesDir`: the trees are large, regenerated every session, and must never
+	 * ride Android Auto Backup. Both live on `/data`, which is the point.
+	 */
+	override val projectScratchRoot: File
+		get() = File(context.noBackupFilesDir, "quickbuild-scratch")
 
 	override fun daemonEnvironment(): Map<String, String> {
 		val env = HashMap<String, String>()
