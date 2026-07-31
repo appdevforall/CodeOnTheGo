@@ -123,12 +123,15 @@ internal class QuickBuildDaemonController(
 			return RespawnOutcome.Superseded
 		}
 		return when (started) {
-			is DaemonReply.Ok -> RespawnOutcome.Respawned
+			is DaemonReply.Ok -> {
+				RespawnOutcome.Respawned
+			}
 
-			else ->
+			else -> {
 				RespawnOutcome.Failed(
 					(started as? DaemonReply.Failed)?.message ?: "unknown failure",
 				)
+			}
 		}
 	}
 

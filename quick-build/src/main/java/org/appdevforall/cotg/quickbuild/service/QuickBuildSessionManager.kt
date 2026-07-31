@@ -797,7 +797,9 @@ class QuickBuildSessionManager(
 
 			// The controller already stopped any zombie daemon per its
 			// exactly-one-transition rule; the successor flow owns the lifecycle.
-			is QuickBuildDaemonController.RespawnOutcome.Superseded -> Unit
+			is QuickBuildDaemonController.RespawnOutcome.Superseded -> {
+				Unit
+			}
 
 			is QuickBuildDaemonController.RespawnOutcome.Failed -> {
 				log.error("Daemon respawn failed: {}", outcome.message)

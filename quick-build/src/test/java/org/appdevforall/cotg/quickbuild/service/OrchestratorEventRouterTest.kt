@@ -16,8 +16,7 @@ import org.junit.jupiter.api.Test
  * end-to-end; these pin the router's own branching).
  */
 class OrchestratorEventRouterTest {
-	private fun router(metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop) =
-		OrchestratorEventRouter(metrics)
+	private fun router(metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop) = OrchestratorEventRouter(metrics)
 
 	private fun route(
 		event: OrchestratorEvent,
@@ -26,8 +25,7 @@ class OrchestratorEventRouterTest {
 		metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop,
 	) = router(metrics).route(event, lastDeployedGeneration, connectedGeneration)
 
-	private fun success(generation: Long = 7L) =
-		BuildOutcome.Success(generation = generation, durationMillis = 120L)
+	private fun success(generation: Long = 7L) = BuildOutcome.Success(generation = generation, durationMillis = 120L)
 
 	@Test
 	fun `a warm-compile success emits WarmCompileFinished and does not advance the tally`() {

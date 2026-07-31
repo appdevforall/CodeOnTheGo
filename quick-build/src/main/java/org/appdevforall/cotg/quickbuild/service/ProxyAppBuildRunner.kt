@@ -94,16 +94,21 @@ internal class ProxyAppBuildRunner(
 		}
 
 		return when (outcome) {
-			is ProvisionOutcome.Failure -> ProvisionResult.Failed(outcome.message)
+			is ProvisionOutcome.Failure -> {
+				ProvisionResult.Failed(outcome.message)
+			}
 
 			is ProvisionOutcome.Success -> {
 				// Scratch tree on app-private storage (ADFA-4930): the executor and daemon
 				// dirs below live here, never under the FUSE-backed project root.
 				when (val prepared = scratch.prepare(outcome.layout.projectRoot)) {
-					is QuickBuildScratch.Preparation.Failed ->
+					is QuickBuildScratch.Preparation.Failed -> {
 						return ProvisionResult.Failed(prepared.message)
+					}
 
-					is QuickBuildScratch.Preparation.Ready -> Unit
+					is QuickBuildScratch.Preparation.Ready -> {
+						Unit
+					}
 				}
 
 				connections.beginSession(outcome.proxyApp.proxyAppPackage, outcome.proxyAppUid)
@@ -122,9 +127,13 @@ internal class ProxyAppBuildRunner(
 						ProvisionResult.Succeeded(sessionFactory.create(outcome, tracker), tracker)
 					}
 
-					is DaemonReply.BuildFailed -> ProvisionResult.Failed("Daemon rejected configuration")
+					is DaemonReply.BuildFailed -> {
+						ProvisionResult.Failed("Daemon rejected configuration")
+					}
 
-					is DaemonReply.Failed -> ProvisionResult.Failed(started.message)
+					is DaemonReply.Failed -> {
+						ProvisionResult.Failed(started.message)
+					}
 				}
 			}
 		}
@@ -213,24 +222,31 @@ internal class ProxyAppBuildRunner(
 		if (superseded()) return ProxyAppRebuildResult.Superseded
 
 		return when (outcome) {
-			is ProxyAppRebuildOutcome.BuildSlotBusy -> ProxyAppRebuildResult.BuildSlotBusy
+			is ProxyAppRebuildOutcome.BuildSlotBusy -> {
+				ProxyAppRebuildResult.BuildSlotBusy
+			}
 
-			is ProxyAppRebuildOutcome.Failure -> ProxyAppRebuildResult.Failed(outcome.message)
+			is ProxyAppRebuildOutcome.Failure -> {
+				ProxyAppRebuildResult.Failed(outcome.message)
+			}
 
-			is ProxyAppRebuildOutcome.InstallNotConfirmed ->
+			is ProxyAppRebuildOutcome.InstallNotConfirmed -> {
 				ProxyAppRebuildResult.InstallNotConfirmed(outcome.message)
+			}
 
 			is ProxyAppRebuildOutcome.Success -> {
 				// Restart the daemon torn down above, against the NEW proxy app info's config.
 				daemonController.markIntentionalTransition()
 				when (val started = daemonController.start(outcome.layout, outcome.proxyApp)) {
-					is DaemonReply.Ok ->
+					is DaemonReply.Ok -> {
 						ProxyAppRebuildResult.Succeeded(outcome.proxyApp, outcome.layout)
+					}
 
-					else ->
+					else -> {
 						ProxyAppRebuildResult.DaemonRestartFailed(
 							(started as? DaemonReply.Failed)?.message ?: "daemon rejected configuration",
 						)
+					}
 				}
 			}
 		}
