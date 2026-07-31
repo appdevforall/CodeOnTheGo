@@ -44,7 +44,9 @@ Ordered by measured payoff per unit of risk.
 
 ### 1. Move the daemon scratch tree off emulated storage
 
-**Payoff: -45% on both warm edits it was measured on** `[measured on a56]`
+**Status: built (2026-07-31).** `QuickBuildScratch` keys a per-project tree under the app's `noBackupFilesDir` (`quickbuild-scratch/<basename>-<sha256-prefix>/{work,out}`); the session manager wires the executor workDir and daemon outDir there, guards free space before provisioning, removes the tree on session teardown, and sweeps dead-session trees at manager start. The generation counter stays at `<project>/.androidide/quickbuild/generation` on purpose (must outlive sessions; see `FileGenerationStore`). The -45% below is still the PROTOTYPE's number - the production code has not been re-benchmarked on device yet.
+
+**Payoff: -45% on both warm edits it was measured on** `[measured on a56]` (prototype patch)
 
 - sora 14.7 s -> 8.1 s; `medium-kotlin` (28 sources) 2.5 s -> 1.4 s. One edit each, n=1 before and n=2 after.
 - Against the 11.9 s standard incremental build, sora's Java body edit goes from 0.81x (losing) to 1.47x (winning).
