@@ -1,0 +1,48 @@
+package com.itsaky.androidide.quickbuild.runtime;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.view.MotionEvent;
+
+/**
+ * App-switcher gesture (plan A3): a 3-finger tap in the proxy app jumps back to CoGo.
+ *
+ * PUBLIC because the generated proxy activities call it from their {@code dispatchTouchEvent} override (see ProxySourceGenerator in :gradle-plugin) - everything else in this AAR stays package-private. The contract with the proxies: this method only OBSERVES the event; the proxy always forwards to {@code super.dispatchTouchEvent} afterwards, so the app under test sees every touch unmodified and undelayed.
+ */
+public final class QuickBuildGestures {
+
+	private static final ThreeFingerTapDetector DETECTOR = new ThreeFingerTapDetector();
+
+	/** Never throws and never consumes: a gesture bug must not break the app's touch input. */
+	public static void onDispatchTouchEvent(Activity activity, MotionEvent event) {
+		if (activity == null || event == null) {
+			return;
+		}
+		try {
+			boolean fired = DETECTOR.onTouch(event.getActionMasked(), event.getPointerCount(),
+					event.getEventTime());
+			if (fired) {
+				returnToIde(activity);
+			}
+		} catch (Throwable error) {
+			RuntimeLog.w("gesture detection failed", error);
+		}
+	}
+
+	/**
+	 * Package-private (not private) so {@link ReturnToIdeButton} (WS-G) shares the exact same path - the gesture and the visible button are two triggers for one action.
+	 */
+	static void returnToIde(Activity activity) {
+		Intent launch = activity.getPackageManager()
+				.getLaunchIntentForPackage(QuickBuildClient.IDE_PACKAGE);
+		if (launch == null) {
+			RuntimeLog.w("cannot return to CoGo: no launch intent for "
+					+ QuickBuildClient.IDE_PACKAGE);
+			return;
+		}
+		RuntimeLog.i("returning to CoGo");
+		activity.startActivity(launch);
+	}
+
+	private QuickBuildGestures() {}
+}
