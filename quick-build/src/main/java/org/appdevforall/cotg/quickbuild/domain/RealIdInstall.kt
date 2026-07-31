@@ -10,43 +10,43 @@ package org.appdevforall.cotg.quickbuild.domain
  *
  * Which build currently occupies the slot is read statelessly from the installed package's
  * `android:appComponentFactory` (no persisted marker): the Quick Build setup build stamps
- * [QUICK_BUILD_APP_COMPONENT_FACTORY] into the test app's manifest, so an installed factory
- * equal to it means "a Quick Build test app"; anything else means "the user's Standard-Run
+ * [QUICK_BUILD_APP_COMPONENT_FACTORY] into the proxy app's manifest, so an installed factory
+ * equal to it means "a Quick Build proxy app"; anything else means "the user's Standard-Run
  * build" (or a third-party app of the same id, caught by [signatureRefusal] before any
  * clobber).
  */
 object RealIdInstall {
 	/**
 	 * FQN of the Quick Build runtime's AppComponentFactory. The setup build sets exactly this
-	 * as the test app's `android:appComponentFactory`, making it the marker that identifies an
-	 * installed package as a Quick Build test app. MUST stay in sync with the runtime class
+	 * as the proxy app's `android:appComponentFactory`, making it the marker that identifies an
+	 * installed package as a Quick Build proxy app. MUST stay in sync with the runtime class
 	 * `com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory` and the value the
 	 * Gradle plugin writes into the manifest (`QuickBuildPlugin.APP_COMPONENT_FACTORY`).
 	 */
 	const val QUICK_BUILD_APP_COMPONENT_FACTORY =
 		"com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory"
 
-	/** True when the package installed under the real id is a Quick Build test app. */
-	fun isQuickBuildTestApp(installedFactory: String?): Boolean = installedFactory == QUICK_BUILD_APP_COMPONENT_FACTORY
+	/** True when the package installed under the real id is a Quick Build proxy app. */
+	fun isQuickBuildProxyApp(installedFactory: String?): Boolean = installedFactory == QUICK_BUILD_APP_COMPONENT_FACTORY
 
 	/**
 	 * Whether tapping Quick Build should confirm a clobber first. Confirm only when a
 	 * DIFFERENT build already occupies the slot (the Standard-Run app, or a third-party app);
-	 * a fresh slot or Quick Build's own test app installs without a prompt.
+	 * a fresh slot or Quick Build's own proxy app installs without a prompt.
 	 */
 	fun quickBuildNeedsClobberConfirm(
 		realAppInstalled: Boolean,
 		installedFactory: String?,
-	): Boolean = realAppInstalled && !isQuickBuildTestApp(installedFactory)
+	): Boolean = realAppInstalled && !isQuickBuildProxyApp(installedFactory)
 
 	/**
 	 * Whether a Standard Run should confirm a clobber first. Confirm only when a Quick Build
-	 * test app occupies the slot; over a normal app (or nothing) Standard Run behaves as always.
+	 * proxy app occupies the slot; over a normal app (or nothing) Standard Run behaves as always.
 	 */
-	fun standardRunNeedsClobberConfirm(installedFactory: String?): Boolean = isQuickBuildTestApp(installedFactory)
+	fun standardRunNeedsClobberConfirm(installedFactory: String?): Boolean = isQuickBuildProxyApp(installedFactory)
 
 	/**
-	 * The provisioner's authoritative safety check before installing the test app over an
+	 * The provisioner's authoritative safety check before installing the proxy app over an
 	 * existing real-id package: returns a refusal message when the occupant was NOT built by
 	 * this device's CoGo (its signing cert differs from the freshly built test APK's), else null
 	 * to proceed. Refusing here prevents clobbering a third-party install of the same id, whose

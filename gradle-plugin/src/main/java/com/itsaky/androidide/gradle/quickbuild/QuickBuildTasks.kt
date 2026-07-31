@@ -37,7 +37,7 @@ import javax.tools.JavaFileObject
 import javax.tools.ToolProvider
 
 /**
- * Rewrites the merged manifest for the test app and generates the artifacts derived from
+ * Rewrites the merged manifest for the proxy app and generates the artifacts derived from
  * it: proxy component sources (activities, services, receivers, providers), the
  * proxy-to-user component map (an APK asset), and the manifest-info intermediate consumed
  * by [QuickBuildSetupReportTask].
@@ -49,7 +49,7 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 	@get:InputFile
 	abstract val mergedManifest: RegularFileProperty
 
-	/** The test app's application id - the project's real applicationId (no suffix). */
+	/** The proxy app's application id - the project's real applicationId (no suffix). */
 	@get:Input
 	abstract val applicationId: Property<String>
 
@@ -108,7 +108,7 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 
 		val info =
 			ManifestInfo(
-				testAppId = appId,
+				proxyAppId = appId,
 				entryActivity = result.entryActivity,
 				activities = result.activities.map { it.userClass },
 				components = result.components,
@@ -132,7 +132,7 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 
 /**
  * Diverts ALL project-scope classes out of the APK: the classes pipeline receives an
- * empty jar (so the installed test app carries no user code), while the real classes are
+ * empty jar (so the installed proxy app carries no user code), while the real classes are
  * copied to [payloadClasses] for [QuickBuildPayloadDexTask] and, later, the on-device
  * compile daemon's baseline.
  */
@@ -455,7 +455,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 
 /**
  * Writes build/quickbuild/setup.json - the setup-build handshake CoGo reads to learn the
- * test app id, entry activity, declared activities and the APK to install.
+ * proxy app id, entry activity, declared activities and the APK to install.
  */
 abstract class QuickBuildSetupReportTask : DefaultTask() {
 	@get:InputFile
@@ -475,7 +475,7 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 	@get:Input
 	abstract val proxyClassesPath: Property<String>
 
-	/** The transformed (test-app) manifest; resource relinks must link against it. */
+	/** The transformed (proxy-app) manifest; resource relinks must link against it. */
 	@get:Input
 	abstract val transformedManifestPath: Property<String>
 

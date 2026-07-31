@@ -20,7 +20,7 @@ class QuickBuildClobberCheck(
 			installedFactory = packages.appComponentFactory(realApplicationId),
 		)
 
-	/** True when a Standard Run for [realApplicationId] would clobber a Quick Build test app. */
+	/** True when a Standard Run for [realApplicationId] would clobber a Quick Build proxy app. */
 	fun standardRunNeedsConfirm(realApplicationId: String): Boolean =
 		RealIdInstall.standardRunNeedsClobberConfirm(
 			packages.appComponentFactory(realApplicationId),

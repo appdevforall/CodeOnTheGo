@@ -11,13 +11,13 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Sends one deploy payload to the test app and awaits its verdict. Behind an
+ * Sends one deploy payload to the proxy app and awaits its verdict. Behind an
  * interface so the executor is unit-testable; the real channel touches
  * [ParcelFileDescriptor] and binder, which only exist on device.
  */
 interface DeploySender {
 	/**
-	 * Delivers [generation] to the connected test app. All file params optional per
+	 * Delivers [generation] to the connected proxy app. All file params optional per
 	 * the AIDL contract; [metadataJson] follows the schema in quick-build/README.md.
 	 */
 	suspend fun deploy(
@@ -29,16 +29,16 @@ interface DeploySender {
 	): DeployResult
 
 	/**
-	 * Best-effort build-status message (plan A1): tells the running test app a build
+	 * Best-effort build-status message (plan A1): tells the running proxy app a build
 	 * failed CoGo-side (compile errors never produce a payload) or succeeded (clears a
 	 * shown failure). Fire-and-forget - no verdict, never throws; a disconnected or
-	 * older test app (whose stub predates onBuildStatus) simply misses the message.
+	 * older proxy app (whose stub predates onBuildStatus) simply misses the message.
 	 * [statusJson] comes from [BuildStatusJson].
 	 */
 	fun notifyBuildStatus(statusJson: String)
 
 	/**
-	 * Waits until no test app is bound (binder death observed, or none was connected).
+	 * Waits until no proxy app is bound (binder death observed, or none was connected).
 	 * The restart deploy path uses this to confirm the runtime actually exited before
 	 * relaunching - relaunching a still-alive process would just resume the old code.
 	 *
@@ -47,7 +47,7 @@ interface DeploySender {
 	suspend fun awaitDisconnect(timeoutMillis: Long): Boolean
 
 	/**
-	 * Waits for a test app to (re)connect and returns the generation it reported
+	 * Waits for a proxy app to (re)connect and returns the generation it reported
 	 * running, or null on timeout. The restart deploy path uses this to VERIFY the
 	 * relaunched process actually booted the deployed generation before claiming
 	 * success - claiming it blind would be a stale-code lie whenever the persist
@@ -70,7 +70,7 @@ sealed interface DeployResult {
 	data object NotConnected : DeployResult
 
 	/**
-	 * The test app disconnected while the deploy waited for its verdict. Fatal for a
+	 * The proxy app disconnected while the deploy waited for its verdict. Fatal for a
 	 * hot-swap deploy; for a restart deploy it is the expected process exit (or a crash
 	 * around the payload - either way relaunch + binder catch-up reconciles honestly).
 	 */
@@ -88,11 +88,11 @@ sealed interface DeployResult {
 /**
  * The real deploy channel: opens read-only fds per payload file, hands them across
  * the oneway [com.itsaky.androidide.quickbuild.IQuickBuildTarget.onPayload], and
- * awaits the matching reportReloaded/reportCrash with a timeout so a hung test app
+ * awaits the matching reportReloaded/reportCrash with a timeout so a hung proxy app
  * degrades to a visible [DeployResult.TimedOut] rather than a stuck build.
  */
 class DeployChannel(
-	private val connections: TestAppConnections,
+	private val connections: ProxyAppConnections,
 	private val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
 ) : DeploySender {
 	override suspend fun deploy(
@@ -159,7 +159,7 @@ class DeployChannel(
 		} catch (e: Exception) {
 			// Best-effort by contract (binder proxies can throw beyond RemoteException);
 			// the failure surface for builds is CoGo's own UI.
-			log.warn("Build-status message to the test app failed", e)
+			log.warn("Build-status message to the proxy app failed", e)
 		}
 	}
 
@@ -184,7 +184,7 @@ class DeployChannel(
 	companion object {
 		private val log = LoggerFactory.getLogger(DeployChannel::class.java)
 
-		/** Reload itself is ~40ms; the margin covers a cold test-app relaunch. */
+		/** Reload itself is ~40ms; the margin covers a cold proxy-app relaunch. */
 		const val DEFAULT_TIMEOUT_MILLIS = 15_000L
 	}
 }

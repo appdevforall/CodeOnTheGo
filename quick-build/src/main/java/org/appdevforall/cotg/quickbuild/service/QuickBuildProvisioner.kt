@@ -12,7 +12,7 @@ import org.appdevforall.cotg.quickbuild.data.SetupInfo
 interface QuickBuildProvisioner {
 	/**
 	 * Runs the setup build (`assembleDebug` with the quick-build -P properties),
-	 * installs the produced test app and resolves its uid. Must not throw - failures
+	 * installs the produced proxy app and resolves its uid. Must not throw - failures
 	 * come back as [ProvisionOutcome.Failure] and surface in the UI.
 	 */
 	suspend fun provision(): ProvisionOutcome
@@ -53,8 +53,8 @@ interface QuickBuildProvisioner {
 sealed interface ProvisionOutcome {
 	data class Success(
 		val setup: SetupInfo,
-		/** PackageManager uid of the installed test app; the deploy-channel gate. */
-		val testAppUid: Int,
+		/** PackageManager uid of the installed proxy app; the deploy-channel gate. */
+		val proxyAppUid: Int,
 		val layout: QuickBuildProjectLayout,
 	) : ProvisionOutcome
 

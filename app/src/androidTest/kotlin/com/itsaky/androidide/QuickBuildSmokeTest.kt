@@ -79,7 +79,7 @@ private const val BANNER_MESSAGE = "Quick Build smoke: injected error banner"
  * Kaspresso smoke for the Quick Build surfaces added by ADFA-4128 (plan A2/E3/A1):
  * - the lightning-bolt toolbar action (via [com.itsaky.androidide.screens.QuickBuildScreen])
  *   and its long-press split-button dropdown;
- * - the QuickBuildJumpActivity trampoline the test app's error overlay fires;
+ * - the QuickBuildJumpActivity trampoline the proxy app's error overlay fires;
  * - the indefinite error banner (the surface `userMessages` renders through `flashError`)
  *   and its three dismiss paths: Dismiss button, tap-anywhere, swipe;
  * - the confirm-on-switch ("rebaseline/reinstall") dialog, driven through
@@ -322,7 +322,7 @@ class QuickBuildSmokeTest : TestCase() {
 						sessionManager.status.first { it == QuickBuildStatus.Hidden }
 					}
 				}
-				// Defensive: if provisioning raced far enough to fire the test-app
+				// Defensive: if provisioning raced far enough to fire the proxy-app
 				// install confirm (prewarm already warm), dismiss the system dialog.
 				val d = device.uiDevice
 				val installer =

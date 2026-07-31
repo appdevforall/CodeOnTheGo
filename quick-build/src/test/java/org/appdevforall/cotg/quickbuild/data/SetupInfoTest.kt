@@ -10,7 +10,7 @@ class SetupInfoTest {
 	private fun json(extra: String = "") =
 		"""
 		{
-			"testAppId": "com.example.app.quickbuild",
+			"proxyAppId": "com.example.app.quickbuild",
 			"entryActivity": "com.example.app.MainActivity",
 			"apkPath": "/apk/app-debug.apk"
 			$extra
@@ -226,7 +226,7 @@ class SetupInfoTest {
 			SetupInfo.parse(
 				"""
 				{
-					"testAppId": "com.example.app.quickbuild",
+					"proxyAppId": "com.example.app.quickbuild",
 					"entryActivity": null,
 					"apkPath": "/apk/app-debug.apk"
 				}
@@ -244,7 +244,7 @@ class SetupInfoTest {
 			SetupInfo.parse(
 				"""
 				{
-					"testAppId": "com.example.app.quickbuild",
+					"proxyAppId": "com.example.app.quickbuild",
 					"apkPath": "/apk/app-debug.apk"
 				}
 				""".trimIndent(),
@@ -253,5 +253,22 @@ class SetupInfoTest {
 
 		assertThat(info).isNotNull()
 		assertThat(info!!.entryActivity).isNull()
+	}
+
+	@Test
+	fun `legacy testAppId key still parses - a setup json on device may predate the rename`() {
+		val info =
+			SetupInfo.parse(
+				"""
+				{
+					"testAppId": "com.example.app.quickbuild",
+					"apkPath": "/apk/app-debug.apk"
+				}
+				""".trimIndent(),
+				baseDir,
+			)
+
+		assertThat(info).isNotNull()
+		assertThat(info!!.proxyAppPackage).isEqualTo("com.example.app.quickbuild")
 	}
 }

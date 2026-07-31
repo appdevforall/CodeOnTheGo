@@ -38,7 +38,7 @@ interface InstalledPackages {
 
 	/**
 	 * The installed package's `android:appComponentFactory` (ApplicationInfo.appComponentFactory,
-	 * API 28+), or null when not installed or none is declared. A Quick Build test app carries
+	 * API 28+), or null when not installed or none is declared. A Quick Build proxy app carries
 	 * the runtime factory here, which is how [RealIdInstall] tells it apart from the user's
 	 * Standard-Run build under the same applicationId.
 	 */
@@ -95,7 +95,7 @@ sealed interface InstallOutcome {
 }
 
 /**
- * Installs the quick-build test app through CoGo's own install pathway (plan B1) and
+ * Installs the quick-build proxy app through CoGo's own install pathway (plan B1) and
  * waits for a REAL verdict instead of blind uid-polling:
  *
  * - **Skip when current**: if the package is installed and its APK bytes equal the
@@ -115,7 +115,7 @@ sealed interface InstallOutcome {
  * is accepted as ours; a concurrent Run-install failure could in theory cross-signal,
  * which errs toward a visible (retryable) failure, never a false success.
  */
-class TestAppInstaller(
+class ProxyAppInstaller(
 	private val packages: InstalledPackages,
 	/** Starts the install (ApkInstaller.installApk); false = could not even start. */
 	private val launchInstall: suspend (File) -> Boolean,
@@ -170,7 +170,7 @@ class TestAppInstaller(
 				verdict.cancel()
 				stampChanged.cancel()
 				return@coroutineScope InstallOutcome.Failed(
-					"Could not start the test app installation",
+					"Could not start the proxy app installation",
 				)
 			}
 
@@ -201,7 +201,7 @@ class TestAppInstaller(
 
 								else -> {
 									InstallOutcome.Failed(
-										broadcast.message ?: "Test app installation failed",
+										broadcast.message ?: "Proxy app installation failed",
 									)
 								}
 							}
@@ -266,7 +266,7 @@ class TestAppInstaller(
 	}
 
 	companion object {
-		private val log = LoggerFactory.getLogger(TestAppInstaller::class.java)
+		private val log = LoggerFactory.getLogger(ProxyAppInstaller::class.java)
 
 		/** Generous: the user has to tap through PackageInstaller + Play Protect. */
 		const val DEFAULT_TIMEOUT_MILLIS = 180_000L

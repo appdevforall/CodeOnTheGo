@@ -7,7 +7,7 @@ import java.io.File
  * every later edit is compared to.
  *
  * Comparing against the BASELINE (not against the previous edit) is what makes the fast
- * path correct: the generated code sitting in the installed test app was produced from
+ * path correct: the generated code sitting in the installed proxy app was produced from
  * this snapshot, so "unchanged versus the baseline" is exactly the condition under which
  * that generated code is still right. It also means an edit that adds an annotation and
  * a later edit that removes it again lands back on the fast path, which comparing

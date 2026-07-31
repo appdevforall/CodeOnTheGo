@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory
 
 /**
  * The Quick Build toolbar action (ADFA-4128, plan 2.6). First tap starts the session (setup
- * build + test-app install); every later tap forces a quick build of whatever is pending
+ * build + proxy-app install); every later tap forces a quick build of whatever is pending
  * (redeploy when nothing changed). All lifecycle logic lives in [QuickBuildSessionManager];
  * this action is a dumb trigger on purpose.
  *
@@ -110,7 +110,7 @@ class QuickBuildAction(
 				log.info("Quick Build: the activity went away during the save; dropping the tap")
 				return@launch
 			}
-			// Confirm-on-switch gate (ADFA-4128): Quick Build installs the test app under the
+			// Confirm-on-switch gate (ADFA-4128): Quick Build installs the proxy app under the
 			// project's real applicationId. If the Standard Run build currently occupies that
 			// id, a tap replaces it, so the activity confirms the clobber first and the build
 			// proceeds only on accept.

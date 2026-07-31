@@ -14,12 +14,12 @@ import org.junit.jupiter.api.Test
 
 /**
  * The real [DeployChannel]'s two restart-path waits, against a real
- * [TestAppConnections] - the executor's own suite only ever sees a fake channel, which
+ * [ProxyAppConnections] - the executor's own suite only ever sees a fake channel, which
  * is how a disconnect that reported itself as a timeout shipped and made every
  * restart deploy fall back to a rebaseline on device (2026-07-22 QA walk).
  */
 class DeployChannelWaitsTest {
-	private val connections = TestAppConnections()
+	private val connections = ProxyAppConnections()
 	private val channel = DeployChannel(connections)
 
 	/** Never called: the waits only read the connection StateFlow. */
@@ -41,7 +41,7 @@ class DeployChannelWaitsTest {
 	private fun connect(generation: Long) = connections.onConnected(ConnectedTarget(target, "com.example.quickbuild", generation))
 
 	@Test
-	fun `awaitDisconnect reports true when the test app actually disconnects`() =
+	fun `awaitDisconnect reports true when the proxy app actually disconnects`() =
 		runTest {
 			connect(generation = 7)
 			val awaited = async { channel.awaitDisconnect(5_000) }
@@ -53,7 +53,7 @@ class DeployChannelWaitsTest {
 		}
 
 	@Test
-	fun `awaitDisconnect reports false when the test app stays connected`() =
+	fun `awaitDisconnect reports false when the proxy app stays connected`() =
 		runTest {
 			connect(generation = 7)
 			val awaited = async { channel.awaitDisconnect(5_000) }

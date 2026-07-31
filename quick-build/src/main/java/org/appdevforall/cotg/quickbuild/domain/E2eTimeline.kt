@@ -3,7 +3,7 @@ package org.appdevforall.cotg.quickbuild.domain
 /**
  * One generation's end-to-end reload timeline (ADFA-4128 e2e-timing spec): the four
  * device-local timestamps that bound the live-reload loop, from the file-watch trigger
- * to the new code being live in the running test app.
+ * to the new code being live in the running proxy app.
  *
  * All four stamps originate on the SAME device (the A56) off ONE monotonic clock
  * (`SystemClock.elapsedRealtime` on device; an injected fake in tests), so their
@@ -18,9 +18,9 @@ package org.appdevforall.cotg.quickbuild.domain
  * - [compileDone] (t1): compile + dex finished (the deployable classes exist). For a
  *   route with no compile (resources/assets only) this equals [deploySent] - there is no
  *   compile phase, so [compileMillis] then measures relink + packaging instead.
- * - [deploySent] (t2): immediately before the payload is handed to the test app over the
+ * - [deploySent] (t2): immediately before the payload is handed to the proxy app over the
  *   binder deploy channel.
- * - [reloadLive] (t3): the test app confirmed the new code is live - a hot-swap
+ * - [reloadLive] (t3): the proxy app confirmed the new code is live - a hot-swap
  *   `reportReloaded` (fired from the recreated activity's onResume) or a verified restart
  *   reconnect at the deployed generation.
  */
@@ -156,7 +156,7 @@ data class E2eTimeline(
 	/** Compiled -> about to deploy: relink + asset packaging on a mixed route, ~0 on code-only. */
 	val stageMillis: Long get() = deploySent - compileDone
 
-	/** Deploy handed off -> confirmed live: binder round-trip + the test app's reload. */
+	/** Deploy handed off -> confirmed live: binder round-trip + the proxy app's reload. */
 	val reloadMillis: Long get() = reloadLive - deploySent
 
 	/** The whole loop the user feels: file change -> new code on screen. */

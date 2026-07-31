@@ -5,7 +5,7 @@ package org.appdevforall.cotg.quickbuild.domain
  *
  * Routing errs toward honesty: anything the quick path cannot absorb with certainty is
  * routed to [FullGradleBuild] rather than served potentially stale. The invariant this
- * protects: the test app never silently runs stale code.
+ * protects: the proxy app never silently runs stale code.
  */
 sealed interface BuildRoute {
 	/** The session baseline is stale; only a real Gradle build can absorb this change. */
@@ -34,7 +34,7 @@ sealed interface BuildRoute {
 	/**
 	 * Background warm-up right after provisioning: compile + dex the whole module once so
 	 * the daemon pays kotlinc JIT, the classpath-snapshot seed, and the IC-cache build
-	 * before the user's first save instead of on it. Deploys nothing - the test app
+	 * before the user's first save instead of on it. Deploys nothing - the proxy app
 	 * already runs exactly these sources (the setup build just produced them), so a
 	 * deploy would only restart it for no visible change. Never produced by the
 	 * classifier; only [BuildOrchestrator.onSeedRequested] constructs it.
@@ -80,7 +80,7 @@ enum class InvalidationReason {
 	 * The installed baseline predates the component-restart contract (setup.json
 	 * schema < 2, or its runtime ignored a restart request): a restart-requiring
 	 * deploy would be silently hot-swapped, leaving a live service/provider stale.
-	 * Rebaselining regenerates setup.json and reinstalls the test app.
+	 * Rebaselining regenerates setup.json and reinstalls the proxy app.
 	 */
 	OUTDATED_BASELINE,
 

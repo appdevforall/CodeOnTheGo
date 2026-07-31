@@ -73,7 +73,7 @@ class QuickBuildSessionManager(
 	private val daemon: QuickBuildDaemon,
 	private val deploy: DeploySender,
 	private val provisioner: QuickBuildProvisioner,
-	private val connections: TestAppConnections,
+	private val connections: ProxyAppConnections,
 	private val paths: QuickBuildPaths,
 	/** Gates eager prewarm on project history (plan P7) and records first use. */
 	private val historyStore: QuickBuildHistoryStore,
@@ -92,11 +92,11 @@ class QuickBuildSessionManager(
 	/** Run-statistics port (David's tracking ask); the app wires an analytics sink. */
 	private val metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop,
 	/**
-	 * Relaunches the test app after a restart deploy; the app wires an intent-based
+	 * Relaunches the proxy app after a restart deploy; the app wires an intent-based
 	 * implementation. The default refuses, which the executor surfaces as a deploy
 	 * failure ("open the app manually") instead of claiming a relaunch it cannot do.
 	 */
-	private val launcher: TestAppLauncher = TestAppLauncher { _, _ -> false },
+	private val launcher: ProxyAppLauncher = ProxyAppLauncher { _, _ -> false },
 	/**
 	 * Bench seam (ADFA-4128): gates the background IC seed fired when provisioning
 	 * succeeds, so a seed-off arm of an A/B run needs a flag file, not a rebuild. Read
@@ -229,7 +229,7 @@ class QuickBuildSessionManager(
 		 * Newest generation a deploy verifiably landed in this session, or -1 before the
 		 * first one. The reconnect catch-up compares against THIS (not the allocation
 		 * counter, which persists across sessions and burns numbers on failed builds):
-		 * a test app reconnecting below it is running code this session already
+		 * a proxy app reconnecting below it is running code this session already
 		 * superseded.
 		 */
 		var lastDeployedGeneration = -1L
@@ -255,12 +255,12 @@ class QuickBuildSessionManager(
 		scope.launch {
 			connections.reports.collect { report ->
 				if (report is TargetReport.Crashed) {
-					dispatch(SessionEvent.TestAppCrashed(report.stackSummary))
+					dispatch(SessionEvent.ProxyAppCrashed(report.stackSummary))
 				}
 			}
 		}
 		scope.launch {
-			// Reconnect catch-up: a killed-and-relaunched test app reports the
+			// Reconnect catch-up: a killed-and-relaunched proxy app reports the
 			// generation it booted; below what this session already deployed means it
 			// is verifiably running superseded code (persisted payload lost/stale), so
 			// force a rebuild of current sources at a fresh generation - the same path
@@ -270,12 +270,12 @@ class QuickBuildSessionManager(
 				val session = live ?: return@collect
 				if (target != null && target.runningGeneration < session.lastDeployedGeneration) {
 					log.info(
-						"Test app reconnected at generation {} but the session deployed {}; forcing a catch-up build",
+						"Proxy app reconnected at generation {} but the session deployed {}; forcing a catch-up build",
 						target.runningGeneration,
 						session.lastDeployedGeneration,
 					)
 					// NOT user-initiated: nobody tapped anything. Saying otherwise here would
-					// foreground the test app off a stale reconnect (behaviour 2's ask must
+					// foreground the proxy app off a stale reconnect (behaviour 2's ask must
 					// come from a human).
 					session.orchestrator.onQuickBuildRequested(userInitiated = false)
 				}
@@ -381,7 +381,7 @@ class QuickBuildSessionManager(
 	/**
 	 * Restart action (plan A2 dropdown "Restart session"): tears down the current live
 	 * session and daemon and returns to Idle from whatever state the session is in. The
-	 * next tap re-provisions from scratch - the escape hatch for a daemon or test app
+	 * next tap re-provisions from scratch - the escape hatch for a daemon or proxy app
 	 * stuck past what a plain quick build or rebaseline can recover.
 	 */
 	fun restartSession() {
@@ -406,7 +406,7 @@ class QuickBuildSessionManager(
 	 * [ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN] is explicitly NOT a teardown, even
 	 * though Android numbers it (20) above `RUNNING_CRITICAL` (15): it means "your UI
 	 * went away", not "memory is short". Backgrounding CoGo is the MIDDLE of the Quick
-	 * Build loop, not the end of it - the user switches to their running test app to look
+	 * Build loop, not the end of it - the user switches to their running proxy app to look
 	 * at the edit they just made, then comes back to edit again. Tearing the daemon down
 	 * there costs a respawn plus a re-seed on the very next edit and breaks the flow the
 	 * feature exists for. So Quick Build's daemon follows the same policy as CoGo's
@@ -445,7 +445,7 @@ class QuickBuildSessionManager(
 		}
 		if (level == ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
 			// Not memory pressure - the user just switched away (typically to their own
-			// test app, mid-loop). Keep the daemon warm; see this function's KDoc.
+			// proxy app, mid-loop). Keep the daemon warm; see this function's KDoc.
 			log.debug("Quick Build: onTrimMemory(UI_HIDDEN); keeping the daemon warm")
 			return
 		}
@@ -522,8 +522,8 @@ class QuickBuildSessionManager(
 				}
 			}
 
-			SessionEffect.SwitchToTestApp -> {
-				switchToTestApp()
+			SessionEffect.SwitchToProxyApp -> {
+				switchToProxyApp()
 			}
 
 			SessionEffect.CancelQuickBuild -> {
@@ -596,15 +596,15 @@ class QuickBuildSessionManager(
 		// replay cannot land), and the user must not stare at the editor through it. Answer
 		// the tap NOW and let the redeploy land behind them. The decision lives here rather
 		// than in the reducer because only the orchestrator knows what is pending.
-		if (userInitiated && !awaitsDeploy) switchToTestApp()
+		if (userInitiated && !awaitsDeploy) switchToProxyApp()
 	}
 
 	/**
-	 * Bring the test app to the foreground because the USER asked (behaviours 2 and 4).
+	 * Bring the proxy app to the foreground because the USER asked (behaviours 2 and 4).
 	 * Best-effort: a refusal is logged, never surfaced - the build itself already landed and
 	 * the user can open the app themselves, so a second banner would only add noise.
 	 */
-	private fun switchToTestApp() {
+	private fun switchToProxyApp() {
 		val session = live ?: return
 		// Same target the restart-deploy relaunch uses: the proxied launcher activity when
 		// one carries MAIN/LAUNCHER, else null so the launcher falls back to the package's
@@ -613,8 +613,8 @@ class QuickBuildSessionManager(
 			session.setup.components
 				.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
 				?.proxyClass
-		if (!launcher.launch(session.setup.testAppPackage, launcherActivity)) {
-			log.warn("Could not bring the test app {} to the foreground", session.setup.testAppPackage)
+		if (!launcher.launch(session.setup.proxyAppPackage, launcherActivity)) {
+			log.warn("Could not bring the proxy app {} to the foreground", session.setup.proxyAppPackage)
 		}
 	}
 
@@ -675,7 +675,7 @@ class QuickBuildSessionManager(
 					}
 				}
 
-				connections.beginSession(outcome.setup.testAppPackage, outcome.testAppUid)
+				connections.beginSession(outcome.setup.proxyAppPackage, outcome.proxyAppUid)
 
 				daemonEpoch++
 				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.setup))) {
@@ -788,7 +788,7 @@ class QuickBuildSessionManager(
 				// App-private scratch (ADFA-4930), NOT under the FUSE-backed project root.
 				workDir = scratch.workDirFor(layout.projectRoot),
 				proxyClassesDir = setup.proxyClassesDir,
-				testAppManifest = setup.transformedManifest,
+				proxyAppManifest = setup.transformedManifest,
 				deployPolicy =
 					DeployPolicy(
 						components = setup.components,
@@ -797,7 +797,7 @@ class QuickBuildSessionManager(
 						// restart-requiring builds to a rebaseline (skew guard).
 						componentInfoAvailable = setup.supportsComponentInfo,
 					),
-				testAppPackage = setup.testAppPackage,
+				proxyAppPackage = setup.proxyAppPackage,
 				launcherActivity =
 					setup.components
 						.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
@@ -836,7 +836,7 @@ class QuickBuildSessionManager(
 				is OrchestratorEvent.BuildStarted -> {
 					report { metrics.onBuildStarted(event.buildId, event.route, event.changes) }
 					if (event.route is BuildRoute.Seed) {
-						// A seed compiles the sources the test app ALREADY runs and
+						// A seed compiles the sources the proxy app ALREADY runs and
 						// deploys nothing; telling either surface "one generation
 						// behind, building" would be a lie. SeedStarted keeps the IDE
 						// status on "up to date" (Building(seeding = true)).
@@ -903,13 +903,13 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * Honesty line while a build is in flight (WS-G): tells the test app it is one
+	 * Honesty line while a build is in flight (WS-G): tells the proxy app it is one
 	 * generation behind while the new one compiles, so a slow build never reads as
 	 * silence. Prefers [LiveSession.lastDeployedGeneration] - the session's own tally,
 	 * kept current across every hot-swap deploy - over the connected target's
 	 * self-reported generation, which is only fresh at connect time and goes stale the
 	 * moment a hot swap lands without a rebind. Falls back to the connection's value
-	 * before this session has deployed anything (a fresh test-app install has no tally
+	 * before this session has deployed anything (a fresh proxy-app install has no tally
 	 * yet, but it did tell us its baseline generation at connect). No connection and no
 	 * tally means nothing truthful to say - skip silently, like every other best-effort
 	 * status push.
@@ -1012,7 +1012,7 @@ class QuickBuildSessionManager(
 			}
 
 			is RebaselineOutcome.Success -> {
-				// The rebaseline regenerated setup.json and reinstalled the test app:
+				// The rebaseline regenerated setup.json and reinstalled the proxy app:
 				// every SetupInfo-derived piece of the session (deploy-policy components,
 				// componentInfoAvailable, launcher/entry targets, classpath) must move to
 				// the new baseline, or the policy keeps routing on provisioning-time
@@ -1119,7 +1119,7 @@ class QuickBuildSessionManager(
 			is DaemonReply.Ok -> {
 				dispatch(SessionEvent.DaemonRespawned)
 				// A fresh daemon has no trustworthy IC state. With nothing pending this
-				// re-warms via a deploy-nothing Seed (the test app keeps running its
+				// re-warms via a deploy-nothing Seed (the proxy app keeps running its
 				// current generation untouched); with pending work it marks the baseline
 				// dirty so the next build recompiles everything and deploys.
 				session.orchestrator.onDaemonReplaced()

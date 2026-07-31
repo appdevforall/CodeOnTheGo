@@ -10,7 +10,7 @@ import java.io.File
 class QuickBuildManifestTransformerTest {
 	private val proxyPackage = "com.example.app.quickbuild.proxies"
 	private val factory = "com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory"
-	private val testAppId = "com.example.app.quickbuild"
+	private val proxyAppId = "com.example.app.quickbuild"
 
 	private fun transformer() = QuickBuildManifestTransformer(proxyPackage, factory)
 
@@ -406,7 +406,7 @@ class QuickBuildManifestTransformerTest {
 
 	@Test
 	fun `passes a mix of app-id, third-party and prefix-sharing authorities verbatim, in order`() {
-		// The test app installs under the project's REAL applicationId, so authorities are
+		// The proxy app installs under the project's REAL applicationId, so authorities are
 		// already correct as merged - the transformer records them unchanged and never sets
 		// the authorities attribute. App-owned, third-party, and merely-prefix-sharing
 		// authorities all pass through identically.
@@ -437,14 +437,14 @@ class QuickBuildManifestTransformerTest {
 	fun `leaves androidx startup InitializationProvider under its real name, unproxied`() {
 		// AppInitializer looks ITSELF up by this exact component name at runtime
 		// (PackageManager#getProviderInfo); a renamed proxy breaks that self-lookup and
-		// crash-loops the test app on launch (ADFA-4128 Bug 4).
+		// crash-loops the proxy app on launch (ADFA-4128 Bug 4).
 		val result =
 			transformer().transform(
 				manifest(
 					launcherActivity + "\n" +
 						"""
 						<provider android:name="androidx.startup.InitializationProvider"
-							android:authorities="$testAppId.androidx-startup"
+							android:authorities="$proxyAppId.androidx-startup"
 							android:exported="false">
 							<meta-data android:name="androidx.lifecycle.ProcessLifecycleInitializer"
 								android:value="androidx.startup" />
@@ -472,7 +472,7 @@ class QuickBuildManifestTransformerTest {
 					launcherActivity + "\n" +
 						"""
 						<provider android:name="androidx.startup.InitializationProvider"
-							android:authorities="$testAppId.androidx-startup" />
+							android:authorities="$proxyAppId.androidx-startup" />
 						<provider android:name="com.example.app.DataProvider"
 							android:authorities="com.example.app.data" />
 						""".trimIndent(),

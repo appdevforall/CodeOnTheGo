@@ -7,15 +7,15 @@ class RealIdInstallTest {
 	private val ourFactory = RealIdInstall.QUICK_BUILD_APP_COMPONENT_FACTORY
 
 	@Test
-	fun `isQuickBuildTestApp is true only for the runtime factory`() {
-		assertThat(RealIdInstall.isQuickBuildTestApp(ourFactory)).isTrue()
+	fun `isQuickBuildProxyApp is true only for the runtime factory`() {
+		assertThat(RealIdInstall.isQuickBuildProxyApp(ourFactory)).isTrue()
 	}
 
 	@Test
-	fun `isQuickBuildTestApp is false for a null, empty, or foreign factory`() {
-		assertThat(RealIdInstall.isQuickBuildTestApp(null)).isFalse()
-		assertThat(RealIdInstall.isQuickBuildTestApp("")).isFalse()
-		assertThat(RealIdInstall.isQuickBuildTestApp("androidx.core.app.CoreComponentFactory")).isFalse()
+	fun `isQuickBuildProxyApp is false for a null, empty, or foreign factory`() {
+		assertThat(RealIdInstall.isQuickBuildProxyApp(null)).isFalse()
+		assertThat(RealIdInstall.isQuickBuildProxyApp("")).isFalse()
+		assertThat(RealIdInstall.isQuickBuildProxyApp("androidx.core.app.CoreComponentFactory")).isFalse()
 	}
 
 	@Test
@@ -29,7 +29,7 @@ class RealIdInstallTest {
 	}
 
 	@Test
-	fun `Quick Build needs no confirm when its own test app already occupies the slot`() {
+	fun `Quick Build needs no confirm when its own proxy app already occupies the slot`() {
 		assertThat(
 			RealIdInstall.quickBuildNeedsClobberConfirm(
 				realAppInstalled = true,
@@ -56,7 +56,7 @@ class RealIdInstallTest {
 	}
 
 	@Test
-	fun `Standard Run confirms only when a Quick Build test app occupies the slot`() {
+	fun `Standard Run confirms only when a Quick Build proxy app occupies the slot`() {
 		assertThat(RealIdInstall.standardRunNeedsClobberConfirm(ourFactory)).isTrue()
 		assertThat(RealIdInstall.standardRunNeedsClobberConfirm(null)).isFalse()
 		assertThat(RealIdInstall.standardRunNeedsClobberConfirm("com.example.OtherFactory")).isFalse()

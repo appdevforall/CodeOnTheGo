@@ -590,7 +590,7 @@ open class EditorHandlerActivity :
 	 * re-execute the same [ActionItem]s the toolbar's own taps do, so B3's rebaseline-on-
 	 * return hand-back (wired at the Run button's install callback) fires the same way no
 	 * matter which entry point started the build. "Restart session" is the escape hatch
-	 * for a stuck daemon/test app; "Help" reuses the tooltip already wired via
+	 * for a stuck daemon/proxy app; "Help" reuses the tooltip already wired via
 	 * [QuickBuildAction.retrieveTooltipTag] (E3).
 	 */
 	private fun showQuickBuildDropdownMenu(
@@ -1349,7 +1349,7 @@ open class EditorHandlerActivity :
 	}
 
 	/**
-	 * Tap on the Quick Build test app's error overlay (ADFA-4128, plan A1): the
+	 * Tap on the Quick Build proxy app's error overlay (ADFA-4128, plan A1): the
 	 * QuickBuildJumpActivity trampoline validated the file and posts this event; open
 	 * the failing file at the error. Compiler positions are 1-based, editor is 0-based.
 	 */

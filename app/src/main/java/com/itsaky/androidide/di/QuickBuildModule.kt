@@ -6,7 +6,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.itsaky.androidide.analytics.quickbuild.AnalyticsQuickBuildMetricsSink
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.quickbuild.AndroidInstalledPackages
-import com.itsaky.androidide.quickbuild.AndroidTestAppLauncher
+import com.itsaky.androidide.quickbuild.AndroidProxyAppLauncher
 import com.itsaky.androidide.quickbuild.ApkSigningCert
 import com.itsaky.androidide.quickbuild.BenchEventsFile
 import com.itsaky.androidide.quickbuild.BenchQuickBuildMetricsSink
@@ -33,8 +33,8 @@ import org.appdevforall.cotg.quickbuild.service.QuickBuildClobberCheck
 import org.appdevforall.cotg.quickbuild.service.QuickBuildHistoryStore
 import org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner
 import org.appdevforall.cotg.quickbuild.service.QuickBuildSessionManager
-import org.appdevforall.cotg.quickbuild.service.TestAppConnections
-import org.appdevforall.cotg.quickbuild.service.TestAppInstaller
+import org.appdevforall.cotg.quickbuild.service.ProxyAppConnections
+import org.appdevforall.cotg.quickbuild.service.ProxyAppInstaller
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 import java.util.concurrent.Executors
@@ -48,7 +48,7 @@ val quickBuildModule =
 	module {
 		// The Android-instantiated QuickBuildHostService writes into the same
 		// process-wide registry, so the graph must bind exactly that instance.
-		single { TestAppConnections.INSTANCE }
+		single { ProxyAppConnections.INSTANCE }
 
 		single { EnvironmentQuickBuildPaths(androidContext()) }
 
@@ -70,13 +70,13 @@ val quickBuildModule =
 			)
 		}
 
-		// Confirm-on-switch check: reads which build (Quick Build test app vs Standard Run)
+		// Confirm-on-switch check: reads which build (Quick Build proxy app vs Standard Run)
 		// currently occupies the real applicationId, so the UI can warn before a clobber.
 		single { QuickBuildClobberCheck(get<InstalledPackages>()) }
 
 		single {
 			val context = androidContext()
-			TestAppInstaller(
+			ProxyAppInstaller(
 				packages = get(),
 				// The exact call the Run button's install flow bottoms out in (plan B1):
 				// same PackageInstaller session params, same InstallationResultReceiver,
@@ -106,7 +106,7 @@ val quickBuildModule =
 			GradleQuickBuildProvisioner(
 				context = context,
 				paths = get<EnvironmentQuickBuildPaths>(),
-				installer = get<TestAppInstaller>(),
+				installer = get<ProxyAppInstaller>(),
 				packages = get(),
 				apkCertSha256 = { apk -> ApkSigningCert.sha256(context, apk) },
 			)
@@ -162,7 +162,7 @@ val quickBuildModule =
 				metrics = get(),
 				// Restart deploys (service/provider/Application code changed): the
 				// runtime exits after persisting; this relaunches the launcher proxy.
-				launcher = AndroidTestAppLauncher(androidContext()),
+				launcher = AndroidProxyAppLauncher(androidContext()),
 				// Monotonic device clock for the e2e timing line (ADFA-4128); the module
 				// default is JVM currentTimeMillis for unit tests.
 				nowMillis = SystemClock::elapsedRealtime,

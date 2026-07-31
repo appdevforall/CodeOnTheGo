@@ -59,7 +59,7 @@ class E2eTimelineTest {
 
 	@Test
 	fun `parse returns null on an unrelated line`() {
-		assertThat(E2eTimeline.parse("I QuickBuildSessionManager: Test app connected at generation 4")).isNull()
+		assertThat(E2eTimeline.parse("I QuickBuildSessionManager: Proxy app connected at generation 4")).isNull()
 	}
 
 	@Test

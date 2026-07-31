@@ -122,11 +122,11 @@ class QuickBuildExecutorImplTest {
 			assertThat(tracker.current).isEqualTo(0)
 		}
 
-	// Review gap (2026-07-26 #69): the seed is invisible by contract - the test app
+	// Review gap (2026-07-26 #69): the seed is invisible by contract - the proxy app
 	// already runs exactly the sources it compiles - so its overlay must not flash
 	// "build ok" for a build the user never triggered.
 	@Test
-	fun `a seed success stays silent on the test-app status channel`() =
+	fun `a seed success stays silent on the proxy-app status channel`() =
 		runTest {
 			val outcome = executor.execute(request(BuildRoute.Seed, ChangedFiles.Unknown))
 
@@ -135,7 +135,7 @@ class QuickBuildExecutorImplTest {
 		}
 
 	@Test
-	fun `a seed compile error stays silent on the test-app status channel but keeps the real outcome`() =
+	fun `a seed compile error stays silent on the proxy-app status channel but keeps the real outcome`() =
 		runTest {
 			val diagnostics =
 				listOf(
@@ -151,7 +151,7 @@ class QuickBuildExecutorImplTest {
 			val outcome = executor.execute(request(BuildRoute.Seed, ChangedFiles.Unknown))
 
 			// The orchestrator still needs the honest outcome (it routes recovery),
-			// but the test-app overlay must not flash "build failed" for sources the
+			// but the proxy-app overlay must not flash "build failed" for sources the
 			// app is running fine - the setup build compiled them green moments ago.
 			assertThat(outcome).isEqualTo(BuildOutcome.CompileError(diagnostics))
 			assertThat(deploy.statusCalls).isEmpty()
@@ -351,7 +351,7 @@ class QuickBuildExecutorImplTest {
 		}
 
 	@Test
-	fun `compile error notifies the test app with the failing location - plan A1`() =
+	fun `compile error notifies the proxy app with the failing location - plan A1`() =
 		runTest {
 			daemon.compileReply =
 				DaemonReply.BuildFailed(
@@ -424,7 +424,7 @@ class QuickBuildExecutorImplTest {
 		}
 
 	@Test
-	fun `test-app crash during deploy maps to DeployFailure carrying the summary`() =
+	fun `proxy-app crash during deploy maps to DeployFailure carrying the summary`() =
 		runTest {
 			deploy.result = DeployResult.Crashed("NullPointerException at Foo.kt:1")
 
@@ -760,7 +760,7 @@ class QuickBuildExecutorImplTest {
 					workDir = File(projectRoot, ".androidide/quickbuild"),
 					deployPolicy =
 						DeployPolicy(listOf(ComponentInfo(ComponentKind.SERVICE, "com.example.SyncService"))),
-					testAppPackage = "com.example.quickbuild",
+					proxyAppPackage = "com.example.quickbuild",
 					launcherActivity = "com.example.quickbuild.proxies.Proxy0Activity",
 					launcher = launcher,
 					clock = steppingClock(),
@@ -946,7 +946,7 @@ class QuickBuildExecutorImplTest {
 
 	private class FakeLauncher(
 		var result: Boolean = true,
-	) : TestAppLauncher {
+	) : ProxyAppLauncher {
 		val calls = mutableListOf<Pair<String, String?>>()
 
 		override fun launch(
@@ -981,7 +981,7 @@ class QuickBuildExecutorImplTest {
 		generations = tracker,
 		workDir = File(projectRoot, ".androidide/quickbuild"),
 		deployPolicy = policy,
-		testAppPackage = "com.example.quickbuild",
+		proxyAppPackage = "com.example.quickbuild",
 		launcherActivity = launcherActivity,
 		launcher = launcher,
 		clock = { 1000L },
@@ -1187,7 +1187,7 @@ class QuickBuildExecutorImplTest {
 	/**
 	 * Executor wired the way a real session is (launcher + package known) but with no
 	 * restart-forcing policy, so deploys hot-swap: the defect-#88 surface, where a
-	 * rebaseline reinstall killed the test app and the next deploy finds NotConnected.
+	 * rebaseline reinstall killed the proxy app and the next deploy finds NotConnected.
 	 */
 	private fun relaunchExecutor(
 		launcher: FakeLauncher,
@@ -1199,7 +1199,7 @@ class QuickBuildExecutorImplTest {
 		entryActivity = "com.example.MainActivity",
 		generations = tracker,
 		workDir = File(projectRoot, ".androidide/quickbuild"),
-		testAppPackage = "com.example.quickbuild",
+		proxyAppPackage = "com.example.quickbuild",
 		launcherActivity = "com.example.quickbuild.proxies.Proxy0Activity",
 		launcher = launcher,
 		restartReconnectTimeoutMillis = reconnectTimeoutMillis,
@@ -1207,7 +1207,7 @@ class QuickBuildExecutorImplTest {
 	)
 
 	@Test
-	fun `NotConnected deploy relaunches the test app, awaits the rebind and retries exactly once - defect 88`() =
+	fun `NotConnected deploy relaunches the proxy app, awaits the rebind and retries exactly once - defect 88`() =
 		runTest {
 			val launcher = FakeLauncher()
 			val executor = relaunchExecutor(launcher)
@@ -1258,7 +1258,7 @@ class QuickBuildExecutorImplTest {
 		}
 
 	@Test
-	fun `a connected test app deploys with no relaunch and no rebind wait`() =
+	fun `a connected proxy app deploys with no relaunch and no rebind wait`() =
 		runTest {
 			val launcher = FakeLauncher()
 			val executor = relaunchExecutor(launcher)
@@ -1389,7 +1389,7 @@ class QuickBuildExecutorImplTest {
 					// No baked supertypes: the base is in the closure ONLY if the real-file
 					// feed reads the service's header (super = ExecutorFeedBaseService).
 					deployPolicy = DeployPolicy(listOf(ComponentInfo(ComponentKind.SERVICE, serviceFqn))),
-					testAppPackage = "com.example.quickbuild",
+					proxyAppPackage = "com.example.quickbuild",
 					launcherActivity = "com.example.quickbuild.proxies.Proxy0Activity",
 					launcher = launcher,
 					clock = { 1000L },

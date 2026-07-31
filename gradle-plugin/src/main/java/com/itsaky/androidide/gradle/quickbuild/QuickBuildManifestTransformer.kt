@@ -13,7 +13,7 @@ import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
 /**
- * Kind of a manifest component the Quick Build test app proxies. [jsonName] is the
+ * Kind of a manifest component the Quick Build proxy app proxies. [jsonName] is the
  * `type` value in the setup.json/manifest-info `components` array.
  */
 enum class ComponentType(
@@ -50,7 +50,7 @@ data class ProxiedComponent(
 )
 
 /**
- * Result of rewriting a merged manifest for the Quick Build test app.
+ * Result of rewriting a merged manifest for the Quick Build proxy app.
  */
 class ManifestTransformResult(
 	val document: Document,
@@ -66,11 +66,11 @@ class ManifestTransformResult(
 }
 
 /**
- * Rewrites a merged Android manifest into the Quick Build test-app manifest (plan 2.2 +
+ * Rewrites a merged Android manifest into the Quick Build proxy-app manifest (plan 2.2 +
  * component-proxying contract): every component's android:name is replaced with a
  * generated proxy FQN (stable component names while the user's classes stay swappable in
  * the payload dex), provider authorities that embed the real applicationId move to the
- * test-app id, and the `<application>` gains an android:appComponentFactory pointing at
+ * proxy-app id, and the `<application>` gains an android:appComponentFactory pointing at
  * the quick-build runtime. Everything else (permissions, icon, label, intent filters,
  * exported/permission attributes, meta-data) is preserved verbatim.
  *
@@ -86,7 +86,7 @@ class ManifestTransformResult(
  * PRODUCES the merged manifest can't also depend on classes/classpath info that requires
  * compilation to have already happened).
  *
- * Attribute combinations the test app cannot host yet (android:process on any component,
+ * Attribute combinations the proxy app cannot host yet (android:process on any component,
  * isolated services, multiprocess providers) throw with the component named - the setup
  * build fails loud and the session never starts, instead of silently dropping behavior.
  *
@@ -134,7 +134,7 @@ class QuickBuildManifestTransformer(
 		 *   lifecycle-process, profileinstaller, emoji2, WorkManager, ... - registers its
 		 *   startup hook, merged by the manifest merger into ONE provider element). A
 		 *   renamed proxy breaks that lookup with `NameNotFoundException` ->
-		 *   `StartupException`, crashing the test app during `handleBindApplication`
+		 *   `StartupException`, crashing the proxy app during `handleBindApplication`
 		 *   before any activity or the quick-build runtime binds (ADFA-4128 Bug 4; every
 		 *   androidx-based project pulls this in).
 		 * - `androidx.compose.ui.tooling.PreviewActivity` - `final`; the generated
@@ -336,9 +336,9 @@ class QuickBuildManifestTransformer(
 	}
 
 	/**
-	 * Neutralizes auto-backup on the test app. android:backupAgent points at a class that
+	 * Neutralizes auto-backup on the proxy app. android:backupAgent points at a class that
 	 * travels only in the payload dex (never the installed APK), so the OS backup pass
-	 * would instantiate it through the APK classloader and crash the test app in the
+	 * would instantiate it through the APK classloader and crash the proxy app in the
 	 * background - a crash the user cannot connect to Quick Build. Backing up a throwaway
 	 * dev harness is pointless anyway, so force allowBackup="false" and drop the backup
 	 * hooks (design contract, application attribute table). Consistent with the loud-reject
@@ -372,7 +372,7 @@ class QuickBuildManifestTransformer(
 	}
 
 	/**
-	 * The provider's declared authorities, split on `;`. The test app installs under the
+	 * The provider's declared authorities, split on `;`. The proxy app installs under the
 	 * project's real applicationId, so `${applicationId}`-derived authorities already resolve
 	 * correctly and need no rewrite - they pass through verbatim (recorded here only so the
 	 * setup report can carry them).

@@ -16,10 +16,10 @@ import org.slf4j.LoggerFactory
  * A class (with a process-wide [INSTANCE]) rather than an object so tests get fresh,
  * isolated registries.
  */
-class TestAppConnections {
+class ProxyAppConnections {
 	/**
 	 * The uid the deploy channel accepts calls from - recorded at session start from
-	 * the installed test app's PackageManager entry. Null means no live session: every
+	 * the installed proxy app's PackageManager entry. Null means no live session: every
 	 * inbound call is rejected.
 	 */
 	@Volatile var expectedUid: Int? = null
@@ -30,7 +30,7 @@ class TestAppConnections {
 
 	private val _target = MutableStateFlow<ConnectedTarget?>(null)
 
-	/** The currently bound test app, or null when none is connected. */
+	/** The currently bound proxy app, or null when none is connected. */
 	val target: StateFlow<ConnectedTarget?> = _target
 
 	// Buffered so binder threads never suspend; a report burst beyond the buffer is
@@ -41,14 +41,14 @@ class TestAppConnections {
 			onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST,
 		)
 
-	/** Reload/crash/disconnect reports from the test app, in arrival order. */
+	/** Reload/crash/disconnect reports from the proxy app, in arrival order. */
 	val reports: SharedFlow<TargetReport> = _reports
 
 	fun beginSession(
 		packageName: String,
 		uid: Int,
 	) {
-		log.info("Quick-build session accepts test app {} (uid {})", packageName, uid)
+		log.info("Quick-build session accepts proxy app {} (uid {})", packageName, uid)
 		expectedPackage = packageName
 		expectedUid = uid
 	}
@@ -73,21 +73,21 @@ class TestAppConnections {
 	}
 
 	companion object {
-		private val log = LoggerFactory.getLogger(TestAppConnections::class.java)
+		private val log = LoggerFactory.getLogger(ProxyAppConnections::class.java)
 
 		/** Process-wide registry the Android service and the Koin graph both use. */
-		val INSTANCE = TestAppConnections()
+		val INSTANCE = ProxyAppConnections()
 	}
 }
 
-/** A bound test app and the generation it reported running at connect time. */
+/** A bound proxy app and the generation it reported running at connect time. */
 data class ConnectedTarget(
 	val target: IQuickBuildTarget,
 	val packageName: String,
 	val runningGeneration: Long,
 )
 
-/** Feedback from the test app after a deploy (or its death). */
+/** Feedback from the proxy app after a deploy (or its death). */
 sealed interface TargetReport {
 	data class Reloaded(
 		val generation: Long,

@@ -70,16 +70,16 @@ class SessionReducerTest {
 	// window must surface like it does outside it - the seed's silent-outcome contract
 	// covers seed results, not crashes.
 	@Test
-	fun `a test-app crash during the seed is carried and surfaced when the seed finishes`() {
+	fun `a proxy-app crash during the seed is carried and surfaced when the seed finishes`() {
 		val seeding = QuickBuildSessionState.Building(4, seeding = true)
-		val crashed = reducer.reduce(seeding, SessionEvent.TestAppCrashed("NPE in onCreate"))
+		val crashed = reducer.reduce(seeding, SessionEvent.ProxyAppCrashed("NPE in onCreate"))
 
 		assertThat(crashed.state)
 			.isEqualTo(
 				QuickBuildSessionState.Building(
 					4,
 					seeding = true,
-					pendingCrash = SessionFailure.TestAppCrash("NPE in onCreate"),
+					pendingCrash = SessionFailure.ProxyAppCrash("NPE in onCreate"),
 				),
 			)
 		assertThat(crashed.effects).isEmpty()
@@ -90,7 +90,7 @@ class SessionReducerTest {
 			.isEqualTo(
 				QuickBuildSessionState.Ready(
 					4,
-					lastFailure = SessionFailure.TestAppCrash("NPE in onCreate"),
+					lastFailure = SessionFailure.ProxyAppCrash("NPE in onCreate"),
 				),
 			)
 		assertThat(finished.effects).isEmpty()
@@ -192,7 +192,7 @@ class SessionReducerTest {
 		// Defect #88 tail: when the launch-and-retry-once recovery also fails, the
 		// outcome is a plain DeployFailure -> DeployError, and the session stays Ready
 		// so the user can relaunch the app and simply save again.
-		val failure = SessionFailure.DeployError("Test app is not connected. Relaunch your app to reconnect, then deploy again.")
+		val failure = SessionFailure.DeployError("Proxy app is not connected. Relaunch your app to reconnect, then deploy again.")
 
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Building(1), SessionEvent.BuildFailed(failure))
@@ -569,27 +569,27 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `deployed plus TestAppCrashed falls back to ready with the crash recorded`() {
+	fun `deployed plus ProxyAppCrashed falls back to ready with the crash recorded`() {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Deployed(2, 500),
-				SessionEvent.TestAppCrashed("NPE in onCreate"),
+				SessionEvent.ProxyAppCrashed("NPE in onCreate"),
 			)
 
 		assertThat(transition.state)
 			.isEqualTo(
 				QuickBuildSessionState.Ready(
 					2,
-					lastFailure = SessionFailure.TestAppCrash("NPE in onCreate"),
+					lastFailure = SessionFailure.ProxyAppCrash("NPE in onCreate"),
 				),
 			)
 		assertThat(transition.effects).isEmpty()
 	}
 
 	@Test
-	fun `building plus TestAppCrashed stays building while the next build runs`() {
+	fun `building plus ProxyAppCrashed stays building while the next build runs`() {
 		val transition =
-			reducer.reduce(QuickBuildSessionState.Building(1), SessionEvent.TestAppCrashed("crash"))
+			reducer.reduce(QuickBuildSessionState.Building(1), SessionEvent.ProxyAppCrashed("crash"))
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Building(1))
 		assertThat(transition.effects).isEmpty()
@@ -769,11 +769,11 @@ class SessionReducerTest {
 	}
 
 	// Bryan's button spec (2026-07-29). The reducer owns two of the five decisions: WHO the
-	// test app is brought forward for (behaviours 2/3), and what a stop does per state
+	// proxy app is brought forward for (behaviours 2/3), and what a stop does per state
 	// (behaviour 5). The other three are shape/timing and live in the shell and the action.
 
 	@Test
-	fun `a user-initiated provision brings the test app forward when the session goes live`() {
+	fun `a user-initiated provision brings the proxy app forward when the session goes live`() {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Provisioning(userInitiated = true),
@@ -782,7 +782,7 @@ class SessionReducerTest {
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1))
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.StartBackgroundSeed, SessionEffect.SwitchToTestApp))
+			.isEqualTo(listOf(SessionEffect.StartBackgroundSeed, SessionEffect.SwitchToProxyApp))
 	}
 
 	@Test
@@ -796,7 +796,7 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `a deploy the user asked for switches to the test app`() {
+	fun `a deploy the user asked for switches to the proxy app`() {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Building(1),
@@ -804,7 +804,7 @@ class SessionReducerTest {
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Deployed(2, 800))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.SwitchToTestApp))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.SwitchToProxyApp))
 	}
 
 	@Test
@@ -835,7 +835,7 @@ class SessionReducerTest {
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Building(4), SessionEvent.CancelRequested)
 
-		// Ready at the generation the test app still runs, lastFailure null: a cancellation
+		// Ready at the generation the proxy app still runs, lastFailure null: a cancellation
 		// the user chose must not render as the ATTENTION icon a broken build gets.
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(4, lastFailure = null))
 		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.CancelQuickBuild))

@@ -10,16 +10,16 @@ import org.slf4j.LoggerFactory
 
 /**
  * CoGo side of the deploy channel (plan 2.4, LogSender bind pattern): the generated
- * test app binds on launch and registers its [IQuickBuildTarget]; deploys travel back
+ * proxy app binds on launch and registers its [IQuickBuildTarget]; deploys travel back
  * over that callback as fds.
  *
  * Security: every inbound call is checked against the uid PackageManager reported for
- * the installed test app at session start ([TestAppConnections.beginSession]). No
+ * the installed proxy app at session start ([ProxyAppConnections.beginSession]). No
  * session, or any other caller, is rejected with a logged SecurityException - the
  * service is exported, so the uid gate is the whole trust boundary.
  */
 class QuickBuildHostService : Service() {
-	private val binder = HostBinder(TestAppConnections.INSTANCE)
+	private val binder = HostBinder(ProxyAppConnections.INSTANCE)
 
 	override fun onBind(intent: Intent?): IBinder? {
 		if (intent?.action != ACTION_QUICK_BUILD) {
@@ -30,7 +30,7 @@ class QuickBuildHostService : Service() {
 	}
 
 	internal class HostBinder(
-		private val connections: TestAppConnections,
+		private val connections: ProxyAppConnections,
 	) : IQuickBuildHost.Stub() {
 		override fun connect(
 			target: IQuickBuildTarget?,
@@ -42,7 +42,7 @@ class QuickBuildHostService : Service() {
 				throw SecurityException("connect() with null target or packageName")
 			}
 
-			// Clear the registration if this test app process dies so deploys fail
+			// Clear the registration if this proxy app process dies so deploys fail
 			// fast as NotConnected instead of timing out on a dead binder.
 			runCatching {
 				target.asBinder().linkToDeath(
@@ -51,7 +51,7 @@ class QuickBuildHostService : Service() {
 				)
 			}
 
-			log.info("Test app {} connected at generation {}", packageName, runningGeneration)
+			log.info("Proxy app {} connected at generation {}", packageName, runningGeneration)
 			connections.onConnected(ConnectedTarget(target, packageName, runningGeneration))
 		}
 
@@ -73,7 +73,7 @@ class QuickBuildHostService : Service() {
 
 		override fun disconnect(packageName: String?) {
 			enforceCaller("disconnect")
-			log.info("Test app {} disconnected", packageName)
+			log.info("Proxy app {} disconnected", packageName)
 			connections.onDisconnected()
 		}
 

@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
-class TestAppInstallerTest {
+class ProxyAppInstallerTest {
 	private companion object {
 		const val PKG = "com.example.quickbuild"
 	}
@@ -54,7 +54,7 @@ class TestAppInstallerTest {
 	private var confirmDialogShowable = true
 
 	private fun installer(timeoutMillis: Long = 180_000L) =
-		TestAppInstaller(
+		ProxyAppInstaller(
 			packages = packages,
 			launchInstall = { file ->
 				installLaunches += file
@@ -69,7 +69,7 @@ class TestAppInstallerTest {
 
 	@BeforeEach
 	fun setUp() {
-		apk = File(dir, "test-app.apk").apply { writeText("apk-bytes-v1") }
+		apk = File(dir, "proxy-app.apk").apply { writeText("apk-bytes-v1") }
 	}
 
 	@Test
@@ -197,7 +197,7 @@ class TestAppInstallerTest {
 			val outcome = installer().ensureInstalled(apk, PKG)
 
 			assertThat(outcome)
-				.isEqualTo(InstallOutcome.Failed("Could not start the test app installation"))
+				.isEqualTo(InstallOutcome.Failed("Could not start the proxy app installation"))
 		}
 
 	@Test
@@ -231,7 +231,7 @@ class TestAppInstallerTest {
 			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationNotGiven::class.java)
 			assertThat((outcome as InstallOutcome.ConfirmationNotGiven).reason)
 				.isEqualTo(InstallOutcome.ConfirmationNotGiven.Reason.DIALOG_NOT_SHOWN)
-			assertThat(outcome.message).isEqualTo(TestAppInstaller.MESSAGE_RETURN_TO_CONFIRM)
+			assertThat(outcome.message).isEqualTo(ProxyAppInstaller.MESSAGE_RETURN_TO_CONFIRM)
 		}
 
 	@Test
@@ -253,7 +253,7 @@ class TestAppInstallerTest {
 			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationNotGiven::class.java)
 			assertThat((outcome as InstallOutcome.ConfirmationNotGiven).reason)
 				.isEqualTo(InstallOutcome.ConfirmationNotGiven.Reason.DIALOG_NOT_SHOWN)
-			assertThat(outcome.message).isEqualTo(TestAppInstaller.MESSAGE_RETURN_TO_CONFIRM)
+			assertThat(outcome.message).isEqualTo(ProxyAppInstaller.MESSAGE_RETURN_TO_CONFIRM)
 		}
 
 	@Test
@@ -289,7 +289,7 @@ class TestAppInstallerTest {
 			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationNotGiven::class.java)
 			assertThat((outcome as InstallOutcome.ConfirmationNotGiven).reason)
 				.isEqualTo(InstallOutcome.ConfirmationNotGiven.Reason.DECLINED)
-			assertThat(outcome.message).isEqualTo(TestAppInstaller.MESSAGE_CONFIRM_DECLINED)
+			assertThat(outcome.message).isEqualTo(ProxyAppInstaller.MESSAGE_CONFIRM_DECLINED)
 		}
 
 	@Test
@@ -399,7 +399,7 @@ class TestAppInstallerTest {
 			advanceUntilIdle()
 
 			assertThat(result.await())
-				.isEqualTo(InstallOutcome.Failed("Test app installation failed"))
+				.isEqualTo(InstallOutcome.Failed("Proxy app installation failed"))
 		}
 
 	@Test
@@ -410,7 +410,7 @@ class TestAppInstallerTest {
 			val outcome = installer().ensureInstalled(apk, PKG)
 
 			assertThat(outcome)
-				.isEqualTo(InstallOutcome.Failed("Could not start the test app installation"))
+				.isEqualTo(InstallOutcome.Failed("Could not start the proxy app installation"))
 		}
 
 	@Test
@@ -448,8 +448,8 @@ class TestAppInstallerTest {
 
 	@Test
 	fun `sha256 digests real content and returns null for a missing file`() {
-		assertThat(TestAppInstaller.sha256OrNull(apk))
-			.isEqualTo(TestAppInstaller.sha256OrNull(File(dir, "copy.apk").apply { writeText("apk-bytes-v1") }))
-		assertThat(TestAppInstaller.sha256OrNull(File(dir, "missing.apk"))).isNull()
+		assertThat(ProxyAppInstaller.sha256OrNull(apk))
+			.isEqualTo(ProxyAppInstaller.sha256OrNull(File(dir, "copy.apk").apply { writeText("apk-bytes-v1") }))
+		assertThat(ProxyAppInstaller.sha256OrNull(File(dir, "missing.apk"))).isNull()
 	}
 }

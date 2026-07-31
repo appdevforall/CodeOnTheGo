@@ -1001,9 +1001,9 @@
 	<string name="quick_build_menu_standard_run">Standard Run</string>
 	<string name="quick_build_menu_restart_session">Restart session</string>
 	<string name="quick_build_switch_to_quick_title">Replace the installed app?</string>
-	<string name="quick_build_switch_to_quick_message">%1$s was installed by a standard Run. Quick Build will replace it with a live test app that shares its data. Run the app normally again to restore the standard build.</string>
-	<string name="quick_build_switch_to_standard_title">Replace the Quick Build test app?</string>
-	<string name="quick_build_switch_to_standard_message">%1$s is currently the Quick Build test app. This Run replaces it with the standard build. Its data is shared, so this is usually fine.</string>
+	<string name="quick_build_switch_to_quick_message">%1$s was installed by a standard Run. Quick Build will replace it with a proxy app - a live-reloading build of your app that shares its data. Run the app normally again to restore the standard build.</string>
+	<string name="quick_build_switch_to_standard_title">Replace the Quick Build proxy app?</string>
+	<string name="quick_build_switch_to_standard_message">%1$s is currently the Quick Build proxy app. This Run replaces it with the standard build. Its data is shared, so this is usually fine.</string>
 	<string name="quick_build_switch_confirm">Replace</string>
 	<string name="cd_undo">Undo</string>
 	<string name="cd_redo">Redo</string>

@@ -39,7 +39,7 @@ class QuickBuildSessionManagerTest {
 
 	private val daemon = FakeDaemon()
 	private val deploy = FakeDeploy()
-	private val connections = TestAppConnections()
+	private val connections = ProxyAppConnections()
 	private val store = MemoryGenerationStore()
 	private val historyStore = FakeQuickBuildHistoryStore()
 	private val userMessages = mutableListOf<String>()
@@ -124,7 +124,7 @@ class QuickBuildSessionManagerTest {
 	private var watcher: FakeWatcher? = null
 
 	/**
-	 * Every request to bring the test app to the foreground, as (package, launcherActivity).
+	 * Every request to bring the proxy app to the foreground, as (package, launcherActivity).
 	 * Behaviours 2/3/4 are exactly "is this list empty, and when did it grow", so it is the
 	 * assertion surface for all three.
 	 */
@@ -179,14 +179,14 @@ class QuickBuildSessionManagerTest {
 		ProvisionOutcome.Success(
 			setup =
 				SetupInfo(
-					testAppPackage = "com.example.quickbuild",
+					proxyAppPackage = "com.example.quickbuild",
 					entryActivity = "com.example.MainActivity",
-					apk = File(projectRoot, "test-app.apk"),
+					apk = File(projectRoot, "proxy-app.apk"),
 					classpath = emptyList(),
 					proxyClassesDir = null,
 					transformedManifest = null,
 				),
-			testAppUid = 10123,
+			proxyAppUid = 10123,
 			layout = DefaultQuickBuildProjectLayout(projectRoot),
 		)
 
@@ -270,7 +270,7 @@ class QuickBuildSessionManagerTest {
 			metrics = recordingMetrics,
 			backgroundSeedEnabled = backgroundSeedEnabled,
 			launcher =
-				TestAppLauncher { packageName, activityClass ->
+				ProxyAppLauncher { packageName, activityClass ->
 					launches += packageName to activityClass
 					true
 				},
@@ -394,7 +394,7 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
 		}
 
-	// Review finding (2026-07-26 #3): the seed compiles what the test app already runs
+	// Review finding (2026-07-26 #3): the seed compiles what the proxy app already runs
 	// and deploys nothing - it must not present as a blocking Building for its whole
 	// 12-50s window.
 	@Test
@@ -444,10 +444,10 @@ class QuickBuildSessionManagerTest {
 		}
 
 	// Review finding (2026-07-26 #1): a crash of the running generation during the seed
-	// window surfaces like any other test-app crash instead of being swallowed by the
+	// window surfaces like any other proxy-app crash instead of being swallowed by the
 	// seed's silent SeedFinished -> Ready path.
 	@Test
-	fun `a test-app crash during the seed surfaces as a session failure`() =
+	fun `a proxy-app crash during the seed surfaces as a session failure`() =
 		runTest {
 			val manager = createManager()
 			val gate = CompletableDeferred<Unit>()
@@ -462,7 +462,7 @@ class QuickBuildSessionManagerTest {
 			// Surfaced immediately, not deferred to the end of the seed window.
 			assertThat(manager.status.value)
 				.isEqualTo(
-					QuickBuildStatus.Failed(0, SessionFailure.TestAppCrash("NPE in onCreate")),
+					QuickBuildStatus.Failed(0, SessionFailure.ProxyAppCrash("NPE in onCreate")),
 				)
 
 			gate.complete(Unit)
@@ -471,7 +471,7 @@ class QuickBuildSessionManagerTest {
 				.isEqualTo(
 					QuickBuildSessionState.Ready(
 						0,
-						lastFailure = SessionFailure.TestAppCrash("NPE in onCreate"),
+						lastFailure = SessionFailure.ProxyAppCrash("NPE in onCreate"),
 					),
 				)
 		}
@@ -643,7 +643,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a build start before any deploy this session tells the test app its own connect-time generation`() =
+	fun `a build start before any deploy this session tells the proxy app its own connect-time generation`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -677,7 +677,7 @@ class QuickBuildSessionManagerTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
-			// First build: nothing deployed yet this session and no test app connected in
+			// First build: nothing deployed yet this session and no proxy app connected in
 			// this test, so there is nothing truthful to say - no "building" message.
 			manager.save(sourceFile)
 			advanceUntilIdle()
@@ -1683,7 +1683,7 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			assertThat(executed).hasSize(1)
 
-			// A killed-and-relaunched test app that lost the deployed payload boots and
+			// A killed-and-relaunched proxy app that lost the deployed payload boots and
 			// reconnects at gen 0 - verifiably running code this session superseded.
 			connections.onConnected(connectedAt(0))
 			advanceUntilIdle()
@@ -1800,7 +1800,7 @@ class QuickBuildSessionManagerTest {
 			// Respawned: configure ran twice (provision + respawn)...
 			assertThat(daemon.startConfigs).hasSize(2)
 			// ...and with nothing pending the re-warm is a SEED (one per daemon life:
-			// provisioning's + the respawn's) - no user build, no deploy, the test app
+			// provisioning's + the respawn's) - no user build, no deploy, the proxy app
 			// keeps running its current generation untouched.
 			assertThat(executed).isEmpty()
 			assertThat(seeds).hasSize(2)
@@ -1809,7 +1809,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `test app crash reported by the host service surfaces as a session failure`() =
+	fun `proxy app crash reported by the host service surfaces as a session failure`() =
 		runTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1821,7 +1821,7 @@ class QuickBuildSessionManagerTest {
 			val state = manager.state.value
 			assertThat(state).isInstanceOf(QuickBuildSessionState.Ready::class.java)
 			assertThat((state as QuickBuildSessionState.Ready).lastFailure)
-				.isEqualTo(SessionFailure.TestAppCrash("NullPointerException in onCreate"))
+				.isEqualTo(SessionFailure.ProxyAppCrash("NullPointerException in onCreate"))
 		}
 
 	@Test
@@ -2293,7 +2293,7 @@ class QuickBuildSessionManagerTest {
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
-			// The user switched to their running test app to look at the edit they just
+			// The user switched to their running proxy app to look at the edit they just
 			// made; they are coming back to edit again. UI_HIDDEN is not memory pressure.
 			manager.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN)
 			advanceUntilIdle()
@@ -2397,12 +2397,12 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
 		}
 
-	// Bryan's button spec, behaviours 2-5. The governing principle: bringing the test app
+	// Bryan's button spec, behaviours 2-5. The governing principle: bringing the proxy app
 	// forward answers the USER asking. A tap asks; a save does not; a cancelled tap withdraws
 	// the ask. Each test below pins one of those clauses.
 
 	@Test
-	fun `the first tap brings the freshly installed test app to the foreground`() =
+	fun `the first tap brings the freshly installed proxy app to the foreground`() =
 		runTest {
 			// Behaviour 2 at its coldest: nothing else in the system ever launches the test
 			// app after its install, so if the session going live did not do it the user would
@@ -2416,7 +2416,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a save-triggered build never brings the test app forward`() =
+	fun `a save-triggered build never brings the proxy app forward`() =
 		runTest {
 			// Behaviour 3: the user is typing. A save is not a request to leave the editor.
 			val manager = createManager()
@@ -2488,7 +2488,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a stale reconnect catch-up build does not drag the user into the test app`() =
+	fun `a stale reconnect catch-up build does not drag the user into the proxy app`() =
 		runTest {
 			// The catch-up build is forced, exactly like a tap - which is why "the user asked"
 			// cannot be read off BuildRequest.forced. Nobody tapped anything here.

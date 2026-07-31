@@ -37,7 +37,7 @@ data class BuildRequest(
 
 sealed interface BuildOutcome {
 	/**
-	 * Compiled, deployed and reloaded: the test app now runs [generation].
+	 * Compiled, deployed and reloaded: the proxy app now runs [generation].
 	 * [restarted] true = the deploy went through the process-restart path (a
 	 * service/provider/Application class changed): the payload was persisted, the
 	 * process exited and was relaunched, instead of a hot swap.
@@ -60,12 +60,12 @@ sealed interface BuildOutcome {
 		val detail: String,
 	) : BuildOutcome
 
-	/** The changed-set does not compile. The test app keeps running the old generation. */
+	/** The changed-set does not compile. The proxy app keeps running the old generation. */
 	data class CompileError(
 		val diagnostics: List<BuildDiagnostic>,
 	) : BuildOutcome
 
-	/** Compile succeeded but the payload never reached the test app (deploy/reload failed). */
+	/** Compile succeeded but the payload never reached the proxy app (deploy/reload failed). */
 	data class DeployFailure(
 		val message: String,
 	) : BuildOutcome

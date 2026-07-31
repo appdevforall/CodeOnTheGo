@@ -14,8 +14,8 @@ import java.io.File
  * the primary names are listed first per field.
  */
 data class SetupInfo(
-	/** The generated test app's applicationId - the project's real applicationId. */
-	val testAppPackage: String,
+	/** The generated proxy app's applicationId - the project's real applicationId. */
+	val proxyAppPackage: String,
 	/**
 	 * Fully-qualified user entry activity carried in every deploy metadata. Null when
 	 * the setup build found no launchable Activity (ADFA-4128 Bug 10 - e.g. the
@@ -25,7 +25,7 @@ data class SetupInfo(
 	 * [ProvisionOutcome.Success][org.appdevforall.cotg.quickbuild.service.ProvisionOutcome.Success].
 	 */
 	val entryActivity: String?,
-	/** The built test-app APK to install. */
+	/** The built proxy-app APK to install. */
 	val apk: File,
 	/** Compile classpath for the daemon; optional in the JSON. */
 	val classpath: List<File>,
@@ -36,7 +36,7 @@ data class SetupInfo(
 	 */
 	val proxyClassesDir: File?,
 	/**
-	 * The setup build's TRANSFORMED manifest (test-app package + proxy component
+	 * The setup build's TRANSFORMED manifest (proxy-app package + proxy component
 	 * names); resource relinks must link against it, not the user's raw manifest.
 	 * Optional in the JSON.
 	 */
@@ -126,8 +126,10 @@ data class SetupInfo(
 					}
 
 			val pkg =
-				obj.firstString("testAppId", "testAppPackage", "applicationId", "packageName")
-					?: return missing("testAppId")
+				// "testAppId"/"testAppPackage" are legacy aliases: a setup.json already on
+				// device may predate the proxy-app vocabulary rename.
+				obj.firstString("proxyAppId", "testAppId", "testAppPackage", "applicationId", "packageName")
+					?: return missing("proxyAppId")
 			// Absent/null (a JSON null, not just a missing key - the plugin writes
 			// `"entryActivity": null` for a project with no launchable Activity) is a
 			// legitimate outcome of a SUCCESSFUL setup build, not a parse failure - see
@@ -151,7 +153,7 @@ data class SetupInfo(
 					?: emptyList()
 
 			return SetupInfo(
-				testAppPackage = pkg,
+				proxyAppPackage = pkg,
 				entryActivity = entry,
 				apk = resolve(apkPath, baseDir),
 				classpath = classpath + payloadJars,

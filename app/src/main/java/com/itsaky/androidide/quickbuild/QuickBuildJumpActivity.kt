@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Tap-to-jump trampoline for the Quick Build error overlay (plan A1). The test app
+ * Tap-to-jump trampoline for the Quick Build error overlay (plan A1). The proxy app
  * starts this activity when the user taps a build-failure banner; because it shares
  * CoGo's task affinity, launching it brings CoGo's existing task to the foreground,
  * and finishing immediately (Theme.NoDisplay) reveals the editor beneath - which
@@ -62,7 +62,7 @@ class QuickBuildJumpActivity : Activity() {
 	}
 
 	companion object {
-		// Contract with the test-app runtime; see JumpToEditor in :quickbuild-runtime.
+		// Contract with the proxy-app runtime; see JumpToEditor in :quickbuild-runtime.
 		const val ACTION_JUMP_TO_ERROR = "com.itsaky.androidide.quickbuild.action.JUMP_TO_ERROR"
 		const val EXTRA_FILE = "com.itsaky.androidide.quickbuild.extra.FILE"
 		const val EXTRA_LINE = "com.itsaky.androidide.quickbuild.extra.LINE"

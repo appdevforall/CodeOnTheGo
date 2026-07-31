@@ -28,11 +28,11 @@ import java.io.File
 /**
  * The warm-daemon pipeline behind the domain [QuickBuildExecutor] contract: routes a
  * classified changed-set through compile/dex/relink on the daemon, then deploys the
- * artifacts to the test app.
+ * artifacts to the proxy app.
  *
  * Every failure becomes a [BuildOutcome] - nothing escapes to crash the orchestrator.
  * A generation is allocated only after the build steps succeed, so a compile error
- * burns nothing and the test app verifiably stays on its old generation.
+ * burns nothing and the proxy app verifiably stays on its old generation.
  *
  * After a successful compile the [deployPolicy] decides hot swap vs process restart
  * (a recompiled service/provider/Application class cannot be swapped into a live
@@ -55,11 +55,11 @@ class QuickBuildExecutorImpl(
 	 */
 	private val proxyClassesDir: File? = null,
 	/** The setup build's transformed manifest; relinks link against it when present. */
-	private val testAppManifest: File? = null,
+	private val proxyAppManifest: File? = null,
 	/** Restart-vs-recreate decision; null (a session without one) always hot-swaps. */
 	private val deployPolicy: DeployPolicy? = null,
-	/** The installed test app's applicationId; restart relaunch target. */
-	private val testAppPackage: String? = null,
+	/** The installed proxy app's applicationId; restart relaunch target. */
+	private val proxyAppPackage: String? = null,
 	/**
 	 * Launcher proxy activity FQN from the transformed manifest; the restart relaunch
 	 * target. Null when the MAIN/LAUNCHER filter lives on an `<activity-alias>` (no
@@ -67,7 +67,7 @@ class QuickBuildExecutorImpl(
 	 * default launch intent.
 	 */
 	private val launcherActivity: String? = null,
-	private val launcher: TestAppLauncher? = null,
+	private val launcher: ProxyAppLauncher? = null,
 	private val restartDisconnectTimeoutMillis: Long = DEFAULT_RESTART_DISCONNECT_TIMEOUT_MILLIS,
 	private val restartReconnectTimeoutMillis: Long = DEFAULT_RESTART_RECONNECT_TIMEOUT_MILLIS,
 	private val assetPackager: AssetPackager = AssetPackager(),
@@ -91,11 +91,11 @@ class QuickBuildExecutorImpl(
 	override suspend fun execute(request: BuildRequest): BuildOutcome =
 		try {
 			val outcome = executeInner(request)
-			// A seed compiles the sources the test app ALREADY runs and deploys
+			// A seed compiles the sources the proxy app ALREADY runs and deploys
 			// nothing: flashing build-ok/build-failed on its overlay would announce
 			// a build the user never triggered (2026-07-26 review). Stay silent;
 			// the outcome still flows to the orchestrator for recovery routing.
-			if (request.route !is BuildRoute.Seed) notifyTestApp(outcome)
+			if (request.route !is BuildRoute.Seed) notifyProxyApp(outcome)
 			outcome
 		} catch (e: CancellationException) {
 			throw e
@@ -105,12 +105,12 @@ class QuickBuildExecutorImpl(
 		}
 
 	/**
-	 * The test-app half of the never-stale invariant (plan A1): a compile error never
+	 * The proxy-app half of the never-stale invariant (plan A1): a compile error never
 	 * produces a payload, so without this message the app would keep running old code
 	 * with no on-screen signal. Success clears a previously shown failure (also on the
 	 * no-payload success paths, e.g. an unforced no-op). Best-effort by contract.
 	 */
-	private fun notifyTestApp(outcome: BuildOutcome) {
+	private fun notifyProxyApp(outcome: BuildOutcome) {
 		try {
 			when (outcome) {
 				is BuildOutcome.CompileError -> {
@@ -156,7 +156,7 @@ class QuickBuildExecutorImpl(
 
 		if (request.route is BuildRoute.Seed) {
 			// Background IC seed: compile + dex everything once (kotlinc JIT, classpath
-			// snapshot, IC caches, d8 warm-up) but deploy NOTHING - the test app already
+			// snapshot, IC caches, d8 warm-up) but deploy NOTHING - the proxy app already
 			// runs exactly these sources, and the generation must not move. No timeline
 			// is reported: nothing reloaded, so there is no save->live to measure.
 			val dex = compileAndDex(ChangedFiles.Unknown, timeline)
@@ -184,7 +184,7 @@ class QuickBuildExecutorImpl(
 				} else {
 					// Explicit tap with nothing changed: rebuild the CURRENT sources and
 					// ship them at a fresh generation (e.g. catch up a killed-and-relaunched
-					// test app running the gen-0 baseline). A metadata-only replay of the
+					// proxy app running the gen-0 baseline). A metadata-only replay of the
 					// current generation cannot work: the runtime only accepts strictly
 					// NEWER generations (an equal one is dropped without a report), and a
 					// null-dex payload at a newer generation would advance the app's
@@ -387,7 +387,7 @@ class QuickBuildExecutorImpl(
 			daemon.relink(
 				RelinkInputs(
 					resDirs = layout.resDirs(),
-					manifest = testAppManifest ?: layout.manifest(),
+					manifest = proxyAppManifest ?: layout.manifest(),
 					stableIdsFile = layout.stableIdsFile(),
 					libraryResources = layout.libraryResourceFlats(),
 				),
@@ -452,7 +452,7 @@ class QuickBuildExecutorImpl(
 			deployRecovering(generation, dexFile, arscFile, assets?.zip, metadata(reason, assets, restart = false))
 		return when (result) {
 			is DeployResult.Reloaded -> {
-				// t3: the test app's reportReloaded (fired from the recreated activity's
+				// t3: the proxy app's reportReloaded (fired from the recreated activity's
 				// onResume) came back over the channel - the new code is live.
 				reportTimeline(timeline.completed(generation, clock()))
 				BuildOutcome.Success(generation, clock() - startedAt)
@@ -502,7 +502,7 @@ class QuickBuildExecutorImpl(
 					// reinstalls a current runtime; honesty over silence.
 					return BuildOutcome.RequiresRebaseline(
 						InvalidationReason.OUTDATED_BASELINE,
-						"test app acknowledged a restart deploy but did not exit " +
+						"proxy app acknowledged a restart deploy but did not exit " +
 							"(runtime predates restart support)",
 					)
 				}
@@ -517,7 +517,7 @@ class QuickBuildExecutorImpl(
 			}
 		}
 
-		val packageName = testAppPackage
+		val packageName = proxyAppPackage
 		// launcherActivity is null when the MAIN/LAUNCHER filter lives on an
 		// <activity-alias> (icon-switching apps) rather than an <activity>: no activity
 		// carries launcher=true. Passing null lets the launcher fall back to the package's
@@ -526,7 +526,7 @@ class QuickBuildExecutorImpl(
 			// The process is gone and nothing runs stale code, but the loop is visibly
 			// broken until the app is opened again (it then boots whatever persisted).
 			return BuildOutcome.DeployFailure(
-				"Test app restarted for ${restart.componentClass} but could not be relaunched; " +
+				"Proxy app restarted for ${restart.componentClass} but could not be relaunched; " +
 					"open it manually to load the new code",
 			)
 		}
@@ -534,7 +534,7 @@ class QuickBuildExecutorImpl(
 		return when {
 			reconnectGeneration == null -> {
 				BuildOutcome.DeployFailure(
-					"Test app was relaunched for ${restart.componentClass} but did not " +
+					"Proxy app was relaunched for ${restart.componentClass} but did not " +
 						"reconnect within $restartReconnectTimeoutMillis ms; open it manually",
 				)
 			}
@@ -545,7 +545,7 @@ class QuickBuildExecutorImpl(
 				// sources, which converges every component honestly.
 				BuildOutcome.RequiresRebaseline(
 					InvalidationReason.OUTDATED_BASELINE,
-					"test app relaunched at generation $reconnectGeneration instead of " +
+					"proxy app relaunched at generation $reconnectGeneration instead of " +
 						"$generation (restart payload did not persist)",
 				)
 			}
@@ -562,7 +562,7 @@ class QuickBuildExecutorImpl(
 
 	/**
 	 * One deploy attempt with the defect-#88 recovery. A rebaseline reinstall kills the
-	 * test-app process, and only the test app can re-establish the AIDL connection (the
+	 * proxy-app process, and only the proxy app can re-establish the AIDL connection (the
 	 * bind is outbound from its QuickBuildRuntime); without recovery every later deploy
 	 * fails NotConnected until the user opens the app by hand. On [DeployResult.NotConnected],
 	 * launch the app once via [launcher], wait a bounded [restartReconnectTimeoutMillis]
@@ -580,9 +580,9 @@ class QuickBuildExecutorImpl(
 	): DeployResult {
 		val first = deploy.deploy(generation, dexFile, arscFile, assetsZip, metadataJson)
 		if (first != DeployResult.NotConnected) return first
-		val packageName = testAppPackage ?: return first
+		val packageName = proxyAppPackage ?: return first
 		val relauncher = launcher ?: return first
-		log.info("Deploy of generation {} found no connected test app; relaunching it once", generation)
+		log.info("Deploy of generation {} found no connected proxy app; relaunching it once", generation)
 		if (!relauncher.launch(packageName, launcherActivity)) return first
 		if (deploy.awaitReconnect(restartReconnectTimeoutMillis) == null) return first
 		return deploy.deploy(generation, dexFile, arscFile, assetsZip, metadataJson)
@@ -614,7 +614,7 @@ class QuickBuildExecutorImpl(
 		when (result) {
 			is DeployResult.Crashed -> {
 				BuildOutcome.DeployFailure(
-					"Generation $generation crashed in the test app: ${result.stackSummary}",
+					"Generation $generation crashed in the proxy app: ${result.stackSummary}",
 				)
 			}
 
@@ -622,17 +622,17 @@ class QuickBuildExecutorImpl(
 				// Reached only after deployRecovering's one launch-and-retry (or with no
 				// launcher wired): the remedy is the user's, not the infrastructure's.
 				BuildOutcome.DeployFailure(
-					"Test app is not connected. Relaunch your app to reconnect, then deploy again.",
+					"Proxy app is not connected. Relaunch your app to reconnect, then deploy again.",
 				)
 			}
 
 			DeployResult.Disconnected -> {
-				BuildOutcome.DeployFailure("Test app disconnected during deploy")
+				BuildOutcome.DeployFailure("Proxy app disconnected during deploy")
 			}
 
 			is DeployResult.TimedOut -> {
 				BuildOutcome.DeployFailure(
-					"Test app did not confirm generation $generation within ${result.timeoutMillis} ms",
+					"Proxy app did not confirm generation $generation within ${result.timeoutMillis} ms",
 				)
 			}
 

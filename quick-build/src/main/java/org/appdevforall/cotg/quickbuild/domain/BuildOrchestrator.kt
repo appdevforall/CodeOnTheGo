@@ -122,9 +122,9 @@ class BuildOrchestrator(
 	 * A failed forced build re-arms the flag, so the eventual retry is also forced.
 	 *
 	 * @param userInitiated whether a HUMAN asked. The default is true because a tap is the
-	 *   only caller that should ever say so; the reconnect catch-up (a stale test app
+	 *   only caller that should ever say so; the reconnect catch-up (a stale proxy app
 	 *   reporting an old generation) must pass false or it would drag the user into the
-	 *   test app for something they did not do.
+	 *   proxy app for something they did not do.
 	 * @return true when the tap's answer is a deploy the caller should wait for (there are
 	 *   real changed files pending). False means this is a pure forced redeploy with nothing
 	 *   pending: the caller may act on the tap NOW rather than after a full recompile of
@@ -138,7 +138,7 @@ class BuildOrchestrator(
 			// Only a tap with real work to wait for arms the on-deploy switch. With nothing
 			// pending the build is a pure forced redeploy, which the caller answers
 			// immediately instead (behaviour 4) - arming it here too would foreground the
-			// test app a second time when that redeploy landed.
+			// proxy app a second time when that redeploy landed.
 			awaitsDeploy = !pending.isEmpty
 			if (userInitiated && awaitsDeploy) pendingUserInitiated = true
 			maybeStartBuildLocked(events)
@@ -186,7 +186,7 @@ class BuildOrchestrator(
 	 *   what guarantees nothing DEPLOYS; the abandoned compile finishes unheard, so the
 	 *   next build may queue behind it.
 	 * - A stop that lands in the same scheduler turn as the deploy can report a cancel for
-	 *   a payload the test app already took. Nothing wrong is deployed either way; the
+	 *   a payload the proxy app already took. Nothing wrong is deployed either way; the
 	 *   status line is one generation behind until the next build.
 	 */
 	suspend fun onCancelRequested(): Boolean {
@@ -234,7 +234,7 @@ class BuildOrchestrator(
 	 * A fresh daemon process replaced a dead one (crash, trim-memory teardown, or a
 	 * deliberate restart). Its IC universe is empty, but the WATCHER never stopped, so
 	 * the pending set is still trustworthy. With nothing pending, a [BuildRoute.Seed]
-	 * re-warms the new daemon without deploying - the test app already runs the last
+	 * re-warms the new daemon without deploying - the proxy app already runs the last
 	 * deployed generation, and a deploy would restart it for no visible change (the
 	 * pre-seed recovery did exactly that). With real work pending (or a superseded
 	 * in-flight build whose batch is about to union back), the whole baseline is marked
@@ -286,7 +286,7 @@ class BuildOrchestrator(
 	 * The re-baseline completed: drop the absorbed changes, keep (and immediately build)
 	 * anything that arrived mid-rebaseline. Calling this without [onRebaselineStarted]
 	 * is a protocol violation; the orchestrator then falls back to dropping everything
-	 * pending, which risks a stale test app — hence the warning.
+	 * pending, which risks a stale proxy app — hence the warning.
 	 */
 	suspend fun onBaselineReset() {
 		withEvents { events ->
@@ -514,7 +514,7 @@ sealed interface OrchestratorEvent {
 		val route: BuildRoute,
 		/**
 		 * True when a Quick Build TAP is what this build answers, so the deploy landing is
-		 * where the test app should be brought forward (Bryan's behaviour 2). False for a
+		 * where the proxy app should be brought forward (Bryan's behaviour 2). False for a
 		 * build a file write triggered (behaviour 3).
 		 */
 		val userInitiated: Boolean = false,

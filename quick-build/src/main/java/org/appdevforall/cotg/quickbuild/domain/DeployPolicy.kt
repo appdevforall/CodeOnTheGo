@@ -1,12 +1,12 @@
 package org.appdevforall.cotg.quickbuild.domain
 
 /**
- * What a successful code-bearing quick build should do to the test app.
+ * What a successful code-bearing quick build should do to the proxy app.
  *
  * Loader-swap + activity recreate cannot update a live Service/ContentProvider/custom
- * Application instance, so a deploy touching one must restart the test-app process
+ * Application instance, so a deploy touching one must restart the proxy-app process
  * instead (the design contract in quick-build/docs/component-proxying-design.md,
- * section 4). A restart is never-stale-safe because a killed-and-relaunched test app
+ * section 4). A restart is never-stale-safe because a killed-and-relaunched proxy app
  * boots the newest persisted generation and binder catch-up reconciles the rest.
  */
 sealed interface DeployDecision {

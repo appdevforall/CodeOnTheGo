@@ -11,7 +11,7 @@ import java.io.IOException
  *
  * Deliberately NOT in the app-private [QuickBuildScratch] tree (ADFA-4930): scratch is
  * deleted on session teardown and swept when no session is live, while this counter
- * must OUTLIVE sessions - an installed test app persists payloads keyed by generation,
+ * must OUTLIVE sessions - an installed proxy app persists payloads keyed by generation,
  * and only a counter that survives lets a later session stay strictly newer. One tiny
  * write per successful build makes its FUSE cost irrelevant, and living with the
  * project means it dies with the project.

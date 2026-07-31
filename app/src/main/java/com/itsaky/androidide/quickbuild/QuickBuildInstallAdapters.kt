@@ -18,7 +18,7 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * PackageManager-backed [InstalledPackages] for the quick-build test-app installer.
+ * PackageManager-backed [InstalledPackages] for the quick-build proxy-app installer.
  */
 class AndroidInstalledPackages(
 	private val context: Context,

@@ -26,14 +26,14 @@ import java.io.FileNotFoundException
 
 /**
  * Turns a debuggable application build into the Quick Build setup build (ADFA-4128): a
- * one-per-baseline real Gradle build that produces the installable test app.
+ * one-per-baseline real Gradle build that produces the installable proxy app.
  *
  * Applied by [AndroidIDEGradlePlugin] when
  * [com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_ENABLED] is
  * true. For every debuggable application variant it:
  *
  * - injects the quick-build runtime AAR into the runtime classpath (LogSender pattern);
- * - builds the test app under the project's real applicationId (Quick Build and Standard
+ * - builds the proxy app under the project's real applicationId (Quick Build and Standard
  *   Run share the one package slot; switching build type is a confirmed clobber, handled
  *   CoGo-side);
  * - rewrites the merged manifest: proxy component names + the runtime's

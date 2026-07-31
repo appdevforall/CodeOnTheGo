@@ -1,7 +1,7 @@
 package org.appdevforall.cotg.quickbuild.service
 
 /**
- * Relaunches the test app after a restart deploy (design contract section 4, step 3):
+ * Relaunches the proxy app after a restart deploy (design contract section 4, step 3):
  * the runtime persisted the payload and exited; CoGo, being the foreground app while
  * the user edits, starts the launcher proxy activity via an explicit intent and the
  * fresh process boots on the newest persisted generation.
@@ -9,7 +9,7 @@ package org.appdevforall.cotg.quickbuild.service
  * Implemented in the app module (needs a Context); an interface here keeps the
  * executor JVM-testable.
  */
-fun interface TestAppLauncher {
+fun interface ProxyAppLauncher {
 	/**
 	 * Relaunches [packageName]. [activityClass] is the launcher proxy FQN from the
 	 * transformed manifest when one is known; null when the launcher is an

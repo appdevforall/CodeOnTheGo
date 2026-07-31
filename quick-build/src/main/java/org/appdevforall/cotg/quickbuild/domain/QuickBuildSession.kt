@@ -3,9 +3,9 @@ package org.appdevforall.cotg.quickbuild.domain
 /**
  * Quick-build session lifecycle states (plan section 2.1) — one sealed type, not booleans.
  *
- * [generation] on the live states is the generation the TEST APP currently runs — the
+ * [generation] on the live states is the generation the PROXY APP currently runs — the
  * "running gen N" honesty line derives from it. A compile error keeps the session in
- * [Ready] at the old generation with [Ready.lastFailure] set; the test app never moved.
+ * [Ready] at the old generation with [Ready.lastFailure] set; the proxy app never moved.
  */
 sealed interface QuickBuildSessionState {
 	/** No session. The Quick Build button starts provisioning. */
@@ -22,10 +22,10 @@ sealed interface QuickBuildSessionState {
 	) : QuickBuildSessionState
 
 	/**
-	 * Setup build + test-app install + daemon spawn in progress.
+	 * Setup build + proxy-app install + daemon spawn in progress.
 	 *
 	 * [userInitiated] true = a Quick Build TAP is what started this, so the session going
-	 * live is the answer to the user asking - the test app is brought to the foreground on
+	 * live is the answer to the user asking - the proxy app is brought to the foreground on
 	 * [SessionEvent.ProvisioningSucceeded] (Bryan's behaviour 2). Nothing launches the test
 	 * app after its install otherwise, so without this a first tap would install the app,
 	 * warm the daemon and leave the user staring at the editor. False for a re-baseline
@@ -49,27 +49,27 @@ sealed interface QuickBuildSessionState {
 	) : QuickBuildSessionState
 
 	/**
-	 * A quick build is running; the test app still runs [deployedGeneration].
+	 * A quick build is running; the proxy app still runs [deployedGeneration].
 	 *
 	 * [seeding] true = the in-flight build is the background IC seed ([BuildRoute.Seed]):
-	 * it compiles the sources the test app ALREADY runs and deploys nothing, so the status
+	 * it compiles the sources the proxy app ALREADY runs and deploys nothing, so the status
 	 * surface must not present it as a blocking "Building" (the app is genuinely up to
 	 * date), and a Quick Build tap must trigger a real build instead of being dropped (a
 	 * real build satisfies a mid-build tap by deploying; a seed never deploys).
-	 * [pendingCrash] carries a test-app crash observed mid-seed so [SessionEvent.SeedFinished]
+	 * [pendingCrash] carries a proxy-app crash observed mid-seed so [SessionEvent.SeedFinished]
 	 * lands it as [Ready.lastFailure] instead of swallowing it — the seed's "surface
 	 * nothing" contract covers seed OUTCOMES, not crashes of the running generation.
 	 */
 	data class Building(
 		val deployedGeneration: Long,
 		val seeding: Boolean = false,
-		val pendingCrash: SessionFailure.TestAppCrash? = null,
+		val pendingCrash: SessionFailure.ProxyAppCrash? = null,
 	) : QuickBuildSessionState
 
 	/**
-	 * A build just landed; the test app runs [generation]. [restarted] true = it landed
+	 * A build just landed; the proxy app runs [generation]. [restarted] true = it landed
 	 * via the process-restart path (service/provider/Application code changed), so the
-	 * test app relaunched at its launcher and lost in-process state - the status surface
+	 * proxy app relaunched at its launcher and lost in-process state - the status surface
 	 * says so instead of a plain "reloaded".
 	 */
 	data class Deployed(
@@ -106,7 +106,7 @@ sealed interface QuickBuildSessionState {
 	) : QuickBuildSessionState
 }
 
-/** Why the last quick build did not move the test app to a new generation. */
+/** Why the last quick build did not move the proxy app to a new generation. */
 sealed interface SessionFailure {
 	data class CompileError(
 		val diagnostics: List<BuildDiagnostic>,
@@ -116,8 +116,8 @@ sealed interface SessionFailure {
 		val message: String,
 	) : SessionFailure
 
-	/** The payload crashed in the test app (render/lifecycle) — distinct from a compile error. */
-	data class TestAppCrash(
+	/** The payload crashed in the proxy app (render/lifecycle) — distinct from a compile error. */
+	data class ProxyAppCrash(
 		val summary: String,
 	) : SessionFailure
 }
@@ -160,11 +160,11 @@ sealed interface SessionEvent {
 	data class BuildSucceeded(
 		val generation: Long,
 		val durationMillis: Long,
-		/** True when the deploy restarted the test-app process (component code changed). */
+		/** True when the deploy restarted the proxy-app process (component code changed). */
 		val restarted: Boolean = false,
 		/**
 		 * True when a Quick Build TAP is what this build answers, so the deploy landing is
-		 * the moment to bring the test app forward (Bryan's behaviour 2). False for a
+		 * the moment to bring the proxy app forward (Bryan's behaviour 2). False for a
 		 * build a file write triggered - a save is not the user asking to leave the editor
 		 * (behaviour 3) - and false for a tap the user then cancelled.
 		 */
@@ -180,7 +180,7 @@ sealed interface SessionEvent {
 	 * Nothing deployed, the generation did not move: Building returns to Ready at the
 	 * deployed generation with no seed OUTCOME surfaced - a seed problem is invisible by
 	 * design (the setup build just compiled the same sources green; the next real save
-	 * surfaces anything real). A test-app crash observed DURING the seed is not a seed
+	 * surfaces anything real). A proxy-app crash observed DURING the seed is not a seed
 	 * outcome: it lands as [QuickBuildSessionState.Ready.lastFailure] via
 	 * [QuickBuildSessionState.Building.pendingCrash]. Daemon death during a seed does NOT
 	 * arrive here - it stays on the [DaemonDied] recovery path.
@@ -195,12 +195,12 @@ sealed interface SessionEvent {
 	data object RebaselineStarted : SessionEvent
 
 	/**
-	 * The rebaseline's Gradle build succeeded but the test-app reinstall was never
+	 * The rebaseline's Gradle build succeeded but the proxy-app reinstall was never
 	 * confirmed - no dialog could be shown (CoGo backgrounded), the user cancelled it,
 	 * or it was left untapped until the installer timed out. The session is NOT dead:
 	 * it parks in [QuickBuildSessionState.Invalidated] with `awaitingRetry = true`,
 	 * where the next Quick Build tap or [HostForegrounded] re-runs the rebaseline and
-	 * re-prompts. [deployedGeneration] is the generation the test app still runs.
+	 * re-prompts. [deployedGeneration] is the generation the proxy app still runs.
 	 */
 	data class RebaselineInstallNotConfirmed(
 		val deployedGeneration: Long,
@@ -228,7 +228,7 @@ sealed interface SessionEvent {
 	/**
 	 * CoGo's editor came (back) to the foreground. Only meaningful to a session parked
 	 * in [QuickBuildSessionState.Invalidated] with `awaitingRetry = true`: when the
-	 * reinstall ran while CoGo was BACKGROUNDED (e.g. the user was in the test app),
+	 * reinstall ran while CoGo was BACKGROUNDED (e.g. the user was in the proxy app),
 	 * Android DEFERS the PENDING_USER_ACTION broadcast until the app is foregrounded -
 	 * and the dialog-owning subscriber (InstallationResultHandler) is EventBus
 	 * lifecycle-bound (registered onStart, unregistered onStop), so the deferred
@@ -251,7 +251,7 @@ sealed interface SessionEvent {
 
 	data object DaemonRespawned : SessionEvent
 
-	data class TestAppCrashed(
+	data class ProxyAppCrashed(
 		val summary: String,
 	) : SessionEvent
 
@@ -270,7 +270,7 @@ sealed interface SessionEffect {
 	 * Ask the orchestrator to build now (explicit tap while a session is live).
 	 *
 	 * [userInitiated] carries WHO asked all the way to the deploy, which is what decides
-	 * whether the test app is brought forward (Bryan's behaviours 2/3/4). It is a separate
+	 * whether the proxy app is brought forward (Bryan's behaviours 2/3/4). It is a separate
 	 * fact from [BuildRequest.forced]: `forced` is also set by the reconnect catch-up and
 	 * is re-armed after a failure, so reusing it would yank the user out of the editor on a
 	 * stale reconnect or on a save that retried a failed tap.
@@ -280,16 +280,16 @@ sealed interface SessionEffect {
 	) : SessionEffect
 
 	/**
-	 * Bring the test app to the foreground: the answer to a TAP (behaviours 2 and 4).
+	 * Bring the proxy app to the foreground: the answer to a TAP (behaviours 2 and 4).
 	 * Never emitted for a build a file write triggered - a save is not the user asking to
 	 * leave the editor (behaviour 3) - nor after a cancelled tap (behaviour 5).
 	 */
-	data object SwitchToTestApp : SessionEffect
+	data object SwitchToProxyApp : SessionEffect
 
 	/**
 	 * A tap landed while a real build was already in flight. That build deploys anyway, so it
 	 * satisfies the tap's BUILD - this only records that the tap happened, so the deploy
-	 * brings the test app forward. Distinct from [TriggerQuickBuild] on purpose: forcing a
+	 * brings the proxy app forward. Distinct from [TriggerQuickBuild] on purpose: forcing a
 	 * second full rebuild behind a build that was about to do the same work would double the
 	 * cost for nothing.
 	 */
@@ -447,11 +447,11 @@ class SessionReducer {
 				SessionTransition(
 					QuickBuildSessionState.Ready(event.generation),
 					// Behaviour 2: a TAP is what started this, and nothing else ever launches
-					// the freshly installed test app - so the session going live is where the
+					// the freshly installed proxy app - so the session going live is where the
 					// tap gets its answer. A re-baseline routed through this state carries
 					// userInitiated = false and stays in the editor.
 					if (state.userInitiated) {
-						listOf(SessionEffect.StartBackgroundSeed, SessionEffect.SwitchToTestApp)
+						listOf(SessionEffect.StartBackgroundSeed, SessionEffect.SwitchToProxyApp)
 					} else {
 						listOf(SessionEffect.StartBackgroundSeed)
 					},
@@ -546,9 +546,9 @@ class SessionReducer {
 				)
 			}
 
-			is SessionEvent.TestAppCrashed -> {
+			is SessionEvent.ProxyAppCrashed -> {
 				SessionTransition(
-					QuickBuildSessionState.Ready(generation, SessionFailure.TestAppCrash(event.summary)),
+					QuickBuildSessionState.Ready(generation, SessionFailure.ProxyAppCrash(event.summary)),
 				)
 			}
 
@@ -571,7 +571,7 @@ class SessionReducer {
 					QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted),
 					// Behaviour 2 vs 3: the deploy landing is where a TAP gets its answer, and
 					// where a save deliberately gets none - the user is still editing.
-					if (event.userInitiated) listOf(SessionEffect.SwitchToTestApp) else emptyList(),
+					if (event.userInitiated) listOf(SessionEffect.SwitchToProxyApp) else emptyList(),
 				)
 			}
 
@@ -601,7 +601,7 @@ class SessionReducer {
 					// nothing here to cancel.
 					SessionTransition(state)
 				} else {
-					// Behaviour 5: back to the bolt at the generation the test app still runs,
+					// Behaviour 5: back to the bolt at the generation the proxy app still runs,
 					// with no failure recorded - the user chose this, it is not an error.
 					SessionTransition(
 						QuickBuildSessionState.Ready(state.deployedGeneration),
@@ -631,12 +631,12 @@ class SessionReducer {
 				)
 			}
 
-			is SessionEvent.TestAppCrashed -> {
+			is SessionEvent.ProxyAppCrashed -> {
 				if (state.seeding) {
 					// A seed ends in Ready with no failure, which would swallow this
 					// crash of the CURRENTLY RUNNING generation (nothing new is coming
 					// to supersede it). Carry it; SeedFinished surfaces it.
-					SessionTransition(state.copy(pendingCrash = SessionFailure.TestAppCrash(event.summary)))
+					SessionTransition(state.copy(pendingCrash = SessionFailure.ProxyAppCrash(event.summary)))
 				} else {
 					// The old generation crashed while the next build runs; stay
 					// Building - the imminent deploy supersedes the crashed code.

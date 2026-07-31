@@ -22,7 +22,7 @@ import org.appdevforall.cotg.quickbuild.service.InstalledPackages
 import org.appdevforall.cotg.quickbuild.service.ProvisionOutcome
 import org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner
 import org.appdevforall.cotg.quickbuild.service.RebaselineOutcome
-import org.appdevforall.cotg.quickbuild.service.TestAppInstaller
+import org.appdevforall.cotg.quickbuild.service.ProxyAppInstaller
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -30,11 +30,11 @@ import java.io.File
  * Real-Gradle side of quick-build provisioning (plan 2.2): stages the bundled
  * artifacts, runs the setup build through the existing [BuildService.executeTasks]
  * path with the quick-build `-P` properties (LogSender-AAR pattern), reads the setup
- * manifest the Gradle plugin writes, and hands the built test app to [installer] -
+ * manifest the Gradle plugin writes, and hands the built proxy app to [installer] -
  * which reuses CoGo's Run install pathway (plan B1) and skips the install entirely
  * when the device already runs those exact APK bytes.
  *
- * The test app installs under the project's real applicationId (Quick Build and Standard
+ * The proxy app installs under the project's real applicationId (Quick Build and Standard
  * Run share the one package slot). Before installing over an existing real-id package the
  * provisioner runs an authoritative signature check (built APK cert vs installed cert): a
  * mismatch means a third-party install of the same id is occupying the slot, so it refuses
@@ -44,7 +44,7 @@ import java.io.File
 class GradleQuickBuildProvisioner(
 	private val context: Context,
 	private val paths: EnvironmentQuickBuildPaths,
-	private val installer: TestAppInstaller,
+	private val installer: ProxyAppInstaller,
 	private val packages: InstalledPackages,
 	/** SHA-256 of an APK file's signing cert; app wiring uses PackageManager. */
 	private val apkCertSha256: (File) -> String? = { null },
@@ -65,7 +65,7 @@ class GradleQuickBuildProvisioner(
 		installRefusal(setup)?.let { return ProvisionOutcome.Failure(it) }
 
 		val uid =
-			when (val installed = installer.ensureInstalled(setup.apk, setup.testAppPackage)) {
+			when (val installed = installer.ensureInstalled(setup.apk, setup.proxyAppPackage)) {
 				is InstallOutcome.Failed -> {
 					return ProvisionOutcome.Failure(installed.message)
 				}
@@ -83,7 +83,7 @@ class GradleQuickBuildProvisioner(
 
 		return ProvisionOutcome.Success(
 			setup = setup,
-			testAppUid = uid,
+			proxyAppUid = uid,
 			layout =
 				DefaultQuickBuildProjectLayout(
 					projectRoot = projectRoot,
@@ -130,11 +130,11 @@ class GradleQuickBuildProvisioner(
 		installRefusal(setupResult.setup)?.let { return RebaselineOutcome.Failure(it) }
 
 		// The installer skips when the rebuilt APK is byte-identical to what is
-		// installed (common when a gradle edit did not change the test app), so a
+		// installed (common when a gradle edit did not change the proxy app), so a
 		// rebaseline only re-prompts the user when the APK really changed.
 		return when (
 			val installed =
-				installer.ensureInstalled(setupResult.setup.apk, setupResult.setup.testAppPackage)
+				installer.ensureInstalled(setupResult.setup.apk, setupResult.setup.proxyAppPackage)
 		) {
 			is InstallOutcome.Failed -> {
 				RebaselineOutcome.Failure(installed.message)
@@ -185,7 +185,7 @@ class GradleQuickBuildProvisioner(
 	 * install may proceed.
 	 */
 	private fun installRefusal(setup: SetupInfo): String? {
-		val realAppId = setup.testAppPackage
+		val realAppId = setup.proxyAppPackage
 		if (packages.uid(realAppId) == null) return null
 		val installedCert = packages.signingCertSha256(realAppId)
 		val builtCert = apkCertSha256(setup.apk)
@@ -197,7 +197,7 @@ class GradleQuickBuildProvisioner(
 				builtCertSha256 = builtCert,
 			)?.also {
 				log.warn(
-					"Refusing to install the Quick Build test app over {}: installed cert {} != built cert {}",
+					"Refusing to install the Quick Build proxy app over {}: installed cert {} != built cert {}",
 					realAppId,
 					installedCert,
 					builtCert,

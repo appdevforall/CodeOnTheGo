@@ -252,7 +252,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * See [QuickBuildSessionManager.onTrimMemory] for the per-level decision and the
 	 * (lazy, auto-healing) re-warm path - nothing else is required here. Genuine memory
 	 * pressure is the ONLY thing that reclaims the daemon: backgrounding CoGo (the user
-	 * switching to their running test app mid-loop) deliberately keeps it warm, matching
+	 * switching to their running proxy app mid-loop) deliberately keeps it warm, matching
 	 * the standard Gradle build daemon's lifetime policy.
 	 */
 	override fun onTrimMemory(level: Int) {
@@ -334,7 +334,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	private fun installApk(state: BuildState.AwaitingInstall) {
 		// Confirm-on-switch (ADFA-4128): Quick Build and Standard Run share the one package
-		// slot (the real applicationId). When a Quick Build test app currently occupies it,
+		// slot (the real applicationId). When a Quick Build proxy app currently occupies it,
 		// this Standard Run install replaces it, so confirm before clobbering it.
 		val realAppId = projectRealApplicationId()
 		if (realAppId != null && quickBuildClobberCheck()?.standardRunNeedsConfirm(realAppId) == true) {
@@ -485,9 +485,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	/**
-	 * Quick Build install gate (ADFA-4128): the test app installs under the project's real
+	 * Quick Build install gate (ADFA-4128): the proxy app installs under the project's real
 	 * applicationId. When a different build (the Standard Run app) currently occupies that
-	 * id, installing the test app replaces it, so confirm first and run [onConfirmed] only on
+	 * id, installing the proxy app replaces it, so confirm first and run [onConfirmed] only on
 	 * accept; otherwise [onConfirmed] runs immediately. A third-party occupant (different
 	 * signing cert) is caught authoritatively by the provisioner's signature check, which
 	 * refuses rather than clobbers.

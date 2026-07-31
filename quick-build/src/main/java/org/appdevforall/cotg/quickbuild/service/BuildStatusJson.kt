@@ -7,7 +7,7 @@ import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
  * Encodes the `statusJson` argument of `IQuickBuildTarget.onBuildStatus` (plan A1;
  * schema in quick-build/README.md). Every value is a STRING on the wire - the runtime's
  * deliberately tiny MiniJson parser reads only strings - and the runtime ignores unknown
- * kinds/fields, so the schema can grow without breaking installed test apps.
+ * kinds/fields, so the schema can grow without breaking installed proxy apps.
  */
 object BuildStatusJson {
 	const val KIND_BUILD_FAILED = "build_failed"
@@ -15,7 +15,7 @@ object BuildStatusJson {
 	const val KIND_BUILDING = "building"
 
 	/**
-	 * A build has started (WS-G honesty line): tells the test app it is still running
+	 * A build has started (WS-G honesty line): tells the proxy app it is still running
 	 * [runningGeneration] while a newer one compiles, so a slow quick build never reads
 	 * as silence to whoever is looking at the screen. Cleared by the [buildFailed] or
 	 * [buildOk] this attempt eventually sends.

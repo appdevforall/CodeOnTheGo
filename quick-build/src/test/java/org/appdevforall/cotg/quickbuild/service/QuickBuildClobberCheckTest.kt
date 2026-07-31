@@ -38,7 +38,7 @@ class QuickBuildClobberCheckTest {
 	}
 
 	@Test
-	fun `Quick Build tap needs no confirm over its own test app`() {
+	fun `Quick Build tap needs no confirm over its own proxy app`() {
 		assertThat(check(installed = true, factory = quickBuildFactory).quickBuildNeedsConfirm(realAppId)).isFalse()
 	}
 
@@ -48,7 +48,7 @@ class QuickBuildClobberCheckTest {
 	}
 
 	@Test
-	fun `Standard Run confirms over a Quick Build test app`() {
+	fun `Standard Run confirms over a Quick Build proxy app`() {
 		assertThat(check(installed = true, factory = quickBuildFactory).standardRunNeedsConfirm(realAppId)).isTrue()
 	}
 

@@ -18,7 +18,7 @@ sealed interface QuickBuildStatus {
 	) : QuickBuildStatus
 
 	/**
-	 * [restarted] true = the last deploy relaunched the test-app process (a
+	 * [restarted] true = the last deploy relaunched the proxy-app process (a
 	 * service/provider/Application class changed); the surface should phrase it as a
 	 * restart ("Restarted <app> - component code changed"), not a plain reload.
 	 */
@@ -28,7 +28,7 @@ sealed interface QuickBuildStatus {
 		val restarted: Boolean = false,
 	) : QuickBuildStatus
 
-	/** Honesty line: the test app still runs [runningGeneration]; the edit did not land. */
+	/** Honesty line: the proxy app still runs [runningGeneration]; the edit did not land. */
 	data class Failed(
 		val runningGeneration: Long,
 		val failure: SessionFailure,
@@ -67,7 +67,7 @@ sealed interface QuickBuildStatus {
 
 				is QuickBuildSessionState.Building -> {
 					when {
-						// A real build: the test app is one generation behind, say so.
+						// A real build: the proxy app is one generation behind, say so.
 						!state.seeding -> Building(state.deployedGeneration)
 
 						// A crash of the running generation observed mid-seed surfaces

@@ -114,7 +114,7 @@ data class QuickBuildReloadTimingMetric(
 	val compileMs: Long,
 	/** Compiled -> deploy sent: relink + asset packaging (~0 on code-only). */
 	val stageMs: Long,
-	/** Deploy sent -> confirmed live: binder round-trip + the test app's reload. */
+	/** Deploy sent -> confirmed live: binder round-trip + the proxy app's reload. */
 	val reloadMs: Long,
 	val projectHash: Long,
 	/** Host spans partitioning the build half; null when unmeasured. */

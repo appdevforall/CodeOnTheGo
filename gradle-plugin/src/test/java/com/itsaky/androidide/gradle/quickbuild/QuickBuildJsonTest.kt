@@ -46,7 +46,7 @@ class QuickBuildJsonTest {
 
 	private val info =
 		ManifestInfo(
-			testAppId = "com.example.app.quickbuild",
+			proxyAppId = "com.example.app.quickbuild",
 			entryActivity = "com.example.app.MainActivity",
 			activities = listOf("com.example.app.MainActivity", "com.example.app.SettingsActivity"),
 			components = components,
@@ -97,7 +97,7 @@ class QuickBuildJsonTest {
 	fun `parseManifestInfo accepts pre-v2 json without components`() {
 		val parsed =
 			QuickBuildJson.parseManifestInfo(
-				"""{"testAppId": "a.b.quickbuild", "entryActivity": "a.b.C", "activities": ["a.b.C"]}""",
+				"""{"proxyAppId": "a.b.quickbuild", "entryActivity": "a.b.C", "activities": ["a.b.C"]}""",
 			)
 
 		assertThat(parsed.components).isEmpty()
@@ -108,7 +108,7 @@ class QuickBuildJsonTest {
 		val error =
 			assertThrows<IllegalArgumentException> {
 				QuickBuildJson.parseManifestInfo(
-					"""{"testAppId": "a.b", "components": [{"type": "widget", "userClass": "a.b.W"}]}""",
+					"""{"proxyAppId": "a.b", "components": [{"type": "widget", "userClass": "a.b.W"}]}""",
 				)
 			}
 		assertThat(error).hasMessageThat().contains("widget")
@@ -128,7 +128,7 @@ class QuickBuildJsonTest {
 
 		val parsed = JsonSlurper().parseText(json) as Map<*, *>
 		assertThat(parsed["schema"]).isEqualTo(QuickBuildJson.SCHEMA_VERSION)
-		assertThat(parsed["testAppId"]).isEqualTo("com.example.app.quickbuild")
+		assertThat(parsed["proxyAppId"]).isEqualTo("com.example.app.quickbuild")
 		assertThat(parsed["entryActivity"]).isEqualTo("com.example.app.MainActivity")
 		assertThat(parsed["activities"]).isEqualTo(info.activities)
 		assertThat(parsed["apkPath"])
@@ -190,7 +190,7 @@ class QuickBuildJsonTest {
 	fun `setupJson defaults composeEnabled to false`() {
 		val info =
 			ManifestInfo(
-				testAppId = "com.example.app.quickbuild",
+				proxyAppId = "com.example.app.quickbuild",
 				entryActivity = "com.example.app.MainActivity",
 				activities = listOf("com.example.app.MainActivity"),
 			)
@@ -202,12 +202,18 @@ class QuickBuildJsonTest {
 	}
 
 	@Test
-	fun `parseManifestInfo rejects json without a testAppId`() {
+	fun `parseManifestInfo rejects json without a proxyAppId`() {
 		val error =
 			assertThrows<IllegalArgumentException> {
 				QuickBuildJson.parseManifestInfo("""{"entryActivity": "a.b.C"}""")
 			}
-		assertThat(error).hasMessageThat().contains("testAppId")
+		assertThat(error).hasMessageThat().contains("proxyAppId")
+	}
+
+	@Test
+	fun `parseManifestInfo accepts the legacy testAppId key - an intermediate on device may predate the rename`() {
+		val info = QuickBuildJson.parseManifestInfo("""{"testAppId": "a.b.quickbuild"}""")
+		assertThat(info.proxyAppId).isEqualTo("a.b.quickbuild")
 	}
 
 	@Test

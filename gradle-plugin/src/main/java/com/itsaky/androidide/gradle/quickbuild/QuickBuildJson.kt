@@ -8,7 +8,7 @@ import groovy.json.JsonSlurper
  * with the APK path into build/quickbuild/setup.json by the report task.
  */
 data class ManifestInfo(
-	val testAppId: String,
+	val proxyAppId: String,
 	val entryActivity: String?,
 	val activities: List<String>,
 	val components: List<ProxiedComponent> = emptyList(),
@@ -52,7 +52,7 @@ object QuickBuildJson {
 		pretty(
 			linkedMapOf(
 				"schema" to SCHEMA_VERSION,
-				"testAppId" to info.testAppId,
+				"proxyAppId" to info.proxyAppId,
 				"entryActivity" to info.entryActivity,
 				"activities" to info.activities,
 				"components" to info.components.map { componentMap(it, supertypes = null) },
@@ -109,7 +109,7 @@ object QuickBuildJson {
 		val map =
 			linkedMapOf(
 				"schema" to SCHEMA_VERSION,
-				"testAppId" to info.testAppId,
+				"proxyAppId" to info.proxyAppId,
 				"entryActivity" to info.entryActivity,
 				"activities" to info.activities,
 				"components" to
@@ -119,7 +119,7 @@ object QuickBuildJson {
 				"apkPath" to apkPath,
 				// For the on-device daemon: what the setup build compiled against, the
 				// compiled proxies every later payload must bundle, and the TRANSFORMED
-				// manifest resource relinks must use (test-app package, proxy names).
+				// manifest resource relinks must use (proxy-app package, proxy names).
 				"classpath" to classpath,
 				"proxyClassesDir" to proxyClassesDir,
 				"manifestPath" to manifestPath,
@@ -146,11 +146,14 @@ object QuickBuildJson {
 		val map =
 			JsonSlurper().parseText(json) as? Map<*, *>
 				?: throw IllegalArgumentException("manifest info is not a JSON object")
-		val testAppId =
-			map["testAppId"] as? String
-				?: throw IllegalArgumentException("manifest info is missing 'testAppId'")
+		val proxyAppId =
+			// "testAppId" is the legacy key: a manifest-info.json intermediate on device may
+			// predate the proxy-app vocabulary rename.
+			map["proxyAppId"] as? String
+				?: map["testAppId"] as? String
+				?: throw IllegalArgumentException("manifest info is missing 'proxyAppId'")
 		return ManifestInfo(
-			testAppId = testAppId,
+			proxyAppId = proxyAppId,
 			entryActivity = map["entryActivity"] as? String,
 			activities = (map["activities"] as? List<*>).orEmpty().filterIsInstance<String>(),
 			components =

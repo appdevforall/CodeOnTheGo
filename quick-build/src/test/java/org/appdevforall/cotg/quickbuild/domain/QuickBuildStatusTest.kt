@@ -80,7 +80,7 @@ class QuickBuildStatusTest {
 	// mid-seed surfaces immediately, exactly as it would outside the seed window.
 	@Test
 	fun `a seeding build with a pending crash maps to failed`() {
-		val crash = SessionFailure.TestAppCrash("NPE in onCreate")
+		val crash = SessionFailure.ProxyAppCrash("NPE in onCreate")
 		val state = QuickBuildSessionState.Building(3, seeding = true, pendingCrash = crash)
 
 		assertThat(QuickBuildStatus.from(state)).isEqualTo(QuickBuildStatus.Failed(3, crash))
