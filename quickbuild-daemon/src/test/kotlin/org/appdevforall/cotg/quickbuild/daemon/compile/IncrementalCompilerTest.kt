@@ -180,6 +180,48 @@ class IncrementalCompilerTest {
 	}
 
 	@Test
+	fun `a stale java class that cannot be deleted fails the compile instead of riding into the dex`() {
+		// POSIX: deleting a file needs write permission on its DIRECTORY - a read-only
+		// package dir makes File.delete() return false with the file still present,
+		// exactly the "stubborn stale output" this guard exists for. Old code ignored
+		// the delete() return and compiled on, shipping the stale Widget.class.
+		val widget =
+			File(srcDir, "main/java/demo/Widget.java").apply {
+				parentFile!!.mkdirs()
+				writeText("package demo;\n\npublic class Widget { public int v() { return 1; } }")
+			}
+		val sources = listOf(greeterKt(), mainKt(), widget)
+		val compiler = compiler()
+		val first = compiler.compile(sources, changedFiles = sources)
+		assertThat(first).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		val classesDir = (first as IncrementalCompiler.Result.Success).classesDir
+		val staleClass = File(classesDir, "demo/Widget.class")
+		assertThat(staleClass.isFile).isTrue()
+
+		assertThat(widget.delete()).isTrue()
+		val pkgDir = staleClass.parentFile!!
+		assertThat(pkgDir.setWritable(false)).isTrue()
+		try {
+			val result =
+				compiler.compile(
+					listOf(greeterKt(), mainKt()),
+					changedFiles = emptyList(),
+					removedFiles = listOf(widget),
+				)
+
+			assertThat(result).isInstanceOf(IncrementalCompiler.Result.Failed::class.java)
+			val diagnostics = (result as IncrementalCompiler.Result.Failed).diagnostics
+			assertThat(diagnostics).isNotEmpty()
+			assertThat(diagnostics.any { it.severity == Diagnostic.Severity.ERROR }).isTrue()
+			// The diagnostic must NAME the stubborn path so the failure is actionable.
+			assertThat(diagnostics.any { it.message.contains(staleClass.absolutePath) }).isTrue()
+			assertThat(staleClass.exists()).isTrue()
+		} finally {
+			pkgDir.setWritable(true)
+		}
+	}
+
+	@Test
 	fun `syntax error yields structured diagnostics with file and line`() {
 		val sources = listOf(greeterKt(), mainKt())
 		val compiler = compiler()

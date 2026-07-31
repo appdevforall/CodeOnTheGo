@@ -154,7 +154,19 @@ class IncrementalCompiler(
 		// dex. Delete it before the pre-snapshot so it's simply gone, not reported as a
 		// changed output. (Removed `.kt` outputs are handled by the BTA engine via
 		// SourcesChanges.Known below.)
-		deleteRemovedJavaOutputs(removedFiles)
+		val undeleted = deleteRemovedJavaOutputs(removedFiles)
+		if (undeleted.isNotEmpty()) {
+			// Proceeding would dex the stale classes of a deleted source - the exact
+			// NEVER-STALE violation the delete exists to prevent. Fail the compile instead.
+			return Result.Failed(
+				undeleted.map { stale ->
+					Diagnostic(
+						Diagnostic.Severity.ERROR,
+						"failed to delete stale class output of a removed Java source: ${stale.absolutePath}",
+					)
+				},
+			)
+		}
 		compileCount++
 		javaAbiSnapMillis = 0
 		kotlinToCompileCount = 0
@@ -254,10 +266,15 @@ class IncrementalCompiler(
 	 * NEVER-STALE invariant forbids. The source is gone, so its package is derived from the
 	 * path (see [javaClassStem]); the primary class and any nested `Outer$Inner.class` in
 	 * the same package dir are removed.
+	 *
+	 * @return the `.class` files that could NOT be deleted (delete() failed and the file
+	 *   still exists). A non-empty return must fail the compile in [compile]: a survivor
+	 *   here would ride into every subsequent dex as stale bytecode.
 	 */
-	private fun deleteRemovedJavaOutputs(removedFiles: List<File>) {
+	private fun deleteRemovedJavaOutputs(removedFiles: List<File>): List<File> {
 		val classesRoot = classesDir.toFile()
-		if (!classesRoot.isDirectory) return
+		if (!classesRoot.isDirectory) return emptyList()
+		val undeleted = mutableListOf<File>()
 		removedFiles.filter { it.extension == "java" }.forEach { javaFile ->
 			val relStem = javaClassStem(javaFile) ?: return@forEach
 			val pkgDir = File(classesRoot, relStem).parentFile ?: return@forEach
@@ -265,10 +282,13 @@ class IncrementalCompiler(
 			pkgDir.listFiles()?.forEach { candidate ->
 				val name = candidate.name
 				if (name == "$stem.class" || (name.startsWith("$stem\$") && name.endsWith(".class"))) {
-					candidate.delete()
+					if (!candidate.delete() && candidate.exists()) {
+						undeleted += candidate
+					}
 				}
 			}
 		}
+		return undeleted
 	}
 
 	/**
