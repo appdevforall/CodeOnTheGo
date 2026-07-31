@@ -196,7 +196,7 @@ class BuildOutputViewModel(
 		// Must mirror formatLinePrefix exactly; the round-trip is covered by BuildOutputFilterTest.
 		// Anchored to line start so timestamp-shaped text inside a message is never stripped.
 		private val PREFIX_REGEX =
-			Regex("""^(\[\d{2}:\d{2}:\d{2}\.\d{3}\] )(\u0394\d+ms )""")
+			Regex("""^(\[\d{2}:\d{2}:\d{2}\.\d{3}\] )(\u0394\d+ms\s+)""")
 
 		private val PREFIX_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
 
@@ -212,9 +212,9 @@ class BuildOutputViewModel(
 				PREFIX_TIME_FORMAT.format(Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault()))
 			return String.format(
 				Locale.US,
-				"[%s] \u0394%dms ",
+				"[%s] %-8s ",
 				time,
-				stepDeltaMs,
+				"\u0394${stepDeltaMs}ms",
 			)
 		}
 

@@ -90,7 +90,7 @@ class BuildOutputFilterTest {
 		val line = prefix(stepDeltaMs = 42) + "task output"
 		val displayed =
 			BuildOutputViewModel.formatLineForDisplay(line, showTimestamps = false, showDeltas = true)
-		assertEquals("Δ42ms task output", displayed)
+		assertEquals("Δ42ms    task output", displayed)
 	}
 
 	@Test
