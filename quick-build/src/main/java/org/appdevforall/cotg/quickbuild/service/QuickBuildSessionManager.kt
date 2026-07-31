@@ -306,14 +306,27 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * The lightning-bolt tap: starts a session from Idle, forces a build when live.
-	 * Marks the project as a Quick Build user before dispatching - the signal
-	 * [prewarm] checks on every later project open (plan P7).
+	 * The lightning-bolt tap: starts a session from Idle, forces a build when live, and
+	 * queues onto an in-flight prewarm ([QuickBuildSessionState.Prewarming.tapQueued]).
+	 *
+	 * The tap is dispatched FIRST and the history write follows it. It used to be the other
+	 * way round, which made the reducer see the tap only after a side effect that can be
+	 * slow or throw: [prewarm] dispatches immediately, so a tap sequenced behind a disk
+	 * write could be reduced after `PrewarmFinished` had already settled the session back to
+	 * [QuickBuildSessionState.Idle] - and a write that threw killed this coroutine before
+	 * the dispatch, losing the tap outright (a dead press on the primary control, which is
+	 * also the press the parked-session banner instructs the user to make). Nothing depends
+	 * on the ordering the other way: prewarm is no longer gated on this history (see
+	 * [prewarm]), so it is bookkeeping.
 	 */
 	fun onQuickBuildTapped() {
 		scope.launch {
-			historyStore.setHasUsedQuickBuild(true)
 			dispatch(SessionEvent.QuickBuildTapped)
+			try {
+				historyStore.setHasUsedQuickBuild(true)
+			} catch (e: Throwable) {
+				log.warn("Could not record Quick Build history for this project", e)
+			}
 		}
 	}
 

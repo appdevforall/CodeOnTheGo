@@ -178,9 +178,21 @@ class FakePaths(
 class FakeQuickBuildHistoryStore : QuickBuildHistoryStore {
 	private var used = true
 
+	/**
+	 * Thrown by [setHasUsedQuickBuild] when set. Stands in for any real store failure
+	 * (no project open, unwritable preferences): recording history is bookkeeping and must
+	 * never be able to swallow the tap that triggered it.
+	 */
+	var writeError: Throwable? = null
+
+	/** Runs on every [setHasUsedQuickBuild], so a test can observe WHEN the write lands. */
+	var onWrite: () -> Unit = {}
+
 	override fun hasUsedQuickBuild(): Boolean = used
 
 	override fun setHasUsedQuickBuild(used: Boolean) {
+		onWrite()
+		writeError?.let { throw it }
 		this.used = used
 	}
 }

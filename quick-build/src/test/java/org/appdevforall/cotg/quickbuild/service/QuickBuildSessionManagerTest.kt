@@ -1913,6 +1913,72 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `the tap reaches the reducer before the history write, not after it`() =
+		runTest {
+			// W9 finding F2: the tap used to be dispatched only AFTER recording history, so
+			// the reducer saw it behind a side effect that can be slow - while prewarm()
+			// dispatches immediately. A tap sequenced behind that write can be reduced after
+			// PrewarmFinished has already settled the session back to Idle, which is what a
+			// "dead" first press on the primary control looks like.
+			var stateAtWrite: QuickBuildSessionState? = null
+			val manager = createManager()
+			historyStore.onWrite = { stateAtWrite = manager.state.value }
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			assertThat(stateAtWrite).isNotNull()
+			assertThat(stateAtWrite).isNotEqualTo(QuickBuildSessionState.Idle)
+		}
+
+	@Test
+	fun `a tap still starts the session when recording history fails`() =
+		runTest {
+			// A throwing store used to kill the coroutine before the dispatch, losing the tap
+			// outright - the one press the parked-session banner tells the user to make.
+			historyStore.writeError = IllegalStateException("no project open")
+			val manager = createManager()
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			assertThat(provisionCount).isEqualTo(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
+	fun `after a failed provisioning the first tap starts a session even mid-prewarm`() =
+		runTest {
+			// The W9 F2 scenario end to end: a rebaseline retry failed, the session is Idle,
+			// CoGo's project sync then finishes and fires the project-open prewarm - and the
+			// user's FIRST tap has to start the session, not be absorbed by the warm-up.
+			provisionOutcome = { ProvisionOutcome.Failure("Re-baseline build failed") }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
+
+			prewarmGate = kotlinx.coroutines.CompletableDeferred()
+			manager.prewarm()
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Prewarming())
+
+			provisionOutcome = null
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			// Recorded on the warm-up rather than dropped: the queued tap is what turns
+			// PrewarmFinished into provisioning instead of a return to Idle.
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Prewarming(tapQueued = true))
+
+			prewarmGate!!.complete(Unit)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			assertThat(provisionCount).isEqualTo(2)
+		}
+
+	@Test
 	fun `standard run completion re-seeds - the next save recompiles everything`() =
 		runTest {
 			val manager = createManager()
