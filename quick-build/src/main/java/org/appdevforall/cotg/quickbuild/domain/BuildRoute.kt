@@ -85,14 +85,17 @@ enum class InvalidationReason {
 	OUTDATED_BASELINE,
 
 	/**
-	 * A rebaseline built a good APK but its OS install-confirmation was never given
-	 * (dialog left untapped until the installer's timeout - or, with CoGo backgrounded,
-	 * never even shown: Android does not deliver the PENDING_USER_ACTION broadcast to a
-	 * backgrounded app). The baseline is still stale - the session parks in
+	 * A rebaseline built a good APK but its OS install-confirmation was never given -
+	 * the dialog was cancelled or left untapped, or (with CoGo backgrounded) never even
+	 * shown: Android DEFERS the PENDING_USER_ACTION broadcast until the app is
+	 * foregrounded, and the dialog-owning subscriber (InstallationResultHandler) is
+	 * EventBus lifecycle-bound (registered onStart, unregistered onStop), so the
+	 * deferred delivery can land before it re-registers and nothing launches the
+	 * dialog. The baseline is still stale - the session parks in
 	 * `Invalidated(awaitingRetry = true)` and the next Quick Build tap OR CoGo's next
-	 * return to the foreground re-runs the rebaseline, which re-prompts. Unlike the
-	 * other reasons this one is not detected from a file change; the session manager
-	 * raises it itself on `RebaselineOutcome.InstallNotConfirmed`.
+	 * return to the foreground (bounded auto-retry) re-runs the rebaseline, which
+	 * re-prompts. Unlike the other reasons this one is not detected from a file change;
+	 * the session manager raises it itself on `RebaselineOutcome.InstallNotConfirmed`.
 	 */
 	INSTALL_NOT_CONFIRMED,
 }

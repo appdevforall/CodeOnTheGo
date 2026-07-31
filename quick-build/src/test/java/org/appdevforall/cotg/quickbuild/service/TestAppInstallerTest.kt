@@ -50,6 +50,9 @@ class TestAppInstallerTest {
 	/** What the scripted launch does to the fake package state, if anything. */
 	private var onLaunch: () -> Unit = {}
 
+	/** Scripted "can the confirm dialog be launched right now" probe. */
+	private var confirmDialogShowable = true
+
 	private fun installer(timeoutMillis: Long = 180_000L) =
 		TestAppInstaller(
 			packages = packages,
@@ -61,6 +64,7 @@ class TestAppInstallerTest {
 			broadcasts = broadcasts,
 			timeoutMillis = timeoutMillis,
 			pollMillis = 1_000L,
+			canShowConfirmDialog = { confirmDialogShowable },
 		)
 
 	@BeforeEach
@@ -143,8 +147,9 @@ class TestAppInstallerTest {
 
 			// Ignored: we time out instead of misreporting the other app's failure.
 			val outcome = result.await()
-			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationTimedOut::class.java)
-			assertThat((outcome as InstallOutcome.ConfirmationTimedOut).message).contains("not confirmed")
+			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationNotGiven::class.java)
+			assertThat((outcome as InstallOutcome.ConfirmationNotGiven).reason)
+				.isEqualTo(InstallOutcome.ConfirmationNotGiven.Reason.TIMED_OUT)
 		}
 
 	@Test
@@ -196,20 +201,135 @@ class TestAppInstallerTest {
 		}
 
 	@Test
-	fun `timeout produces a distinguishable ConfirmationTimedOut, never a false success`() =
+	fun `foreground timeout is ConfirmationNotGiven TIMED_OUT, never a false success`() =
 		runTest {
+			// The dialog was up the whole time (probe true) and never answered: the
+			// user walked away - case (c).
 			val result = async { installer(timeoutMillis = 10_000L).ensureInstalled(apk, PKG) }
 			advanceUntilIdle()
 
 			// Distinct from Failed: nothing is broken, a retry re-prompts - callers
 			// (the rebaseline path) park the session for retry instead of failing hard.
 			val outcome = result.await()
-			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationTimedOut::class.java)
-			assertThat((outcome as InstallOutcome.ConfirmationTimedOut).message).contains("not confirmed")
+			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationNotGiven::class.java)
+			assertThat((outcome as InstallOutcome.ConfirmationNotGiven).reason)
+				.isEqualTo(InstallOutcome.ConfirmationNotGiven.Reason.TIMED_OUT)
+			assertThat(outcome.message).contains("unanswered")
 		}
 
 	@Test
-	fun `a real failure broadcast is Failed, not ConfirmationTimedOut`() =
+	fun `backgrounded timeout reports the dialog was never shown - return to CoGo`() =
+		runTest {
+			// The PENDING_USER_ACTION status is deferred by Android while the host is
+			// backgrounded, so NOTHING arrives before the timeout. The message must not
+			// claim the user ignored a dialog that never existed - case (a).
+			confirmDialogShowable = false
+			val result = async { installer(timeoutMillis = 10_000L).ensureInstalled(apk, PKG) }
+			advanceUntilIdle()
+
+			val outcome = result.await()
+			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationNotGiven::class.java)
+			assertThat((outcome as InstallOutcome.ConfirmationNotGiven).reason)
+				.isEqualTo(InstallOutcome.ConfirmationNotGiven.Reason.DIALOG_NOT_SHOWN)
+			assertThat(outcome.message).isEqualTo(TestAppInstaller.MESSAGE_RETURN_TO_CONFIRM)
+		}
+
+	@Test
+	fun `PENDING_USER_ACTION with no showable dialog fails fast - no silent timeout wait`() =
+		runTest {
+			// Fail-fast park (defect #90): the OS asked for a confirmation, no dialog
+			// can be launched (host backgrounded when the deferred broadcast landed).
+			// The verdict must arrive NOW, not after the 180s backstop.
+			confirmDialogShowable = false
+			val result = async { installer().ensureInstalled(apk, PKG) }
+			runCurrent()
+
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.PENDING_USER_ACTION))
+			runCurrent()
+
+			// Completed immediately - virtual time has not advanced toward the timeout.
+			assertThat(result.isCompleted).isTrue()
+			val outcome = result.await()
+			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationNotGiven::class.java)
+			assertThat((outcome as InstallOutcome.ConfirmationNotGiven).reason)
+				.isEqualTo(InstallOutcome.ConfirmationNotGiven.Reason.DIALOG_NOT_SHOWN)
+			assertThat(outcome.message).isEqualTo(TestAppInstaller.MESSAGE_RETURN_TO_CONFIRM)
+		}
+
+	@Test
+	fun `PENDING_USER_ACTION with a showable dialog keeps waiting for the real verdict`() =
+		runTest {
+			// Foreground: the dialog IS up; PENDING must not park, the user may still
+			// confirm.
+			val result = async { installer().ensureInstalled(apk, PKG) }
+			runCurrent()
+
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.PENDING_USER_ACTION))
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS))
+			advanceUntilIdle()
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123, reinstalled = true))
+		}
+
+	@Test
+	fun `an aborted install is ConfirmationNotGiven DECLINED, not a hard failure`() =
+		runTest {
+			// STATUS_FAILURE_ABORTED = the user cancelled the dialog - case (b). The
+			// APK is fine; callers park for retry instead of surfacing a broken build.
+			val result = async { installer().ensureInstalled(apk, PKG) }
+			runCurrent()
+
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED, "user rejected"))
+			advanceUntilIdle()
+
+			val outcome = result.await()
+			assertThat(outcome).isInstanceOf(InstallOutcome.ConfirmationNotGiven::class.java)
+			assertThat((outcome as InstallOutcome.ConfirmationNotGiven).reason)
+				.isEqualTo(InstallOutcome.ConfirmationNotGiven.Reason.DECLINED)
+			assertThat(outcome.message).isEqualTo(TestAppInstaller.MESSAGE_CONFIRM_DECLINED)
+		}
+
+	@Test
+	fun `the three unconfirmed-install messages are pairwise distinct`() =
+		runTest {
+			// (a) dialog never launched, (b) user cancelled, (c) user walked away -
+			// the user-facing text must tell them apart or the park reads as a lie.
+			confirmDialogShowable = false
+			val notShown =
+				async { installer().ensureInstalled(apk, PKG) }
+					.also {
+						runCurrent()
+						broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.PENDING_USER_ACTION))
+						advanceUntilIdle()
+					}.await() as InstallOutcome.ConfirmationNotGiven
+
+			confirmDialogShowable = true
+			val declined =
+				async { installer().ensureInstalled(apk, PKG) }
+					.also {
+						runCurrent()
+						broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED))
+						advanceUntilIdle()
+					}.await() as InstallOutcome.ConfirmationNotGiven
+
+			val timedOut =
+				async { installer(timeoutMillis = 10_000L).ensureInstalled(apk, PKG) }
+					.also { advanceUntilIdle() }
+					.await() as InstallOutcome.ConfirmationNotGiven
+
+			assertThat(
+				setOf(notShown.message, declined.message, timedOut.message),
+			).hasSize(3)
+			assertThat(
+				setOf(notShown.reason, declined.reason, timedOut.reason),
+			).hasSize(3)
+		}
+
+	@Test
+	fun `a real failure broadcast is Failed, not ConfirmationNotGiven`() =
 		runTest {
 			// Guards the distinction the retry path relies on: an actual installer
 			// verdict must never be presented as a retryable unconfirmed prompt.

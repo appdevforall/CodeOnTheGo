@@ -67,7 +67,7 @@ class GradleQuickBuildProvisioner(
 
 				// From Idle the next tap re-provisions (fast: tasks up-to-date), so the
 				// existing failure surface already IS the retry offer here.
-				is InstallOutcome.ConfirmationTimedOut -> return ProvisionOutcome.Failure(installed.message)
+				is InstallOutcome.ConfirmationNotGiven -> return ProvisionOutcome.Failure(installed.message)
 
 				is InstallOutcome.Installed -> installed.uid
 			}
@@ -123,10 +123,12 @@ class GradleQuickBuildProvisioner(
 				RebaselineOutcome.Failure(installed.message)
 			}
 
-			is InstallOutcome.ConfirmationTimedOut -> {
-				// The rebuilt APK is good; only the user's confirmation is missing. Keep
-				// that distinguishable so the session can offer a retry instead of dying
-				// to Idle (the stranded-session failure the multi-module verify found).
+			is InstallOutcome.ConfirmationNotGiven -> {
+				// The rebuilt APK is good; only the user's confirmation is missing (no
+				// dialog shown / cancelled / left untapped - the message says which).
+				// Keep that distinguishable so the session can offer a retry instead of
+				// dying to Idle (the stranded-session failure the multi-module verify
+				// found).
 				RebaselineOutcome.InstallNotConfirmed(installed.message)
 			}
 

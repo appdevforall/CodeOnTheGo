@@ -14,6 +14,8 @@ import com.itsaky.androidide.quickbuild.EnvironmentQuickBuildPaths
 import com.itsaky.androidide.quickbuild.GradleQuickBuildProvisioner
 import com.itsaky.androidide.quickbuild.InstallationEventFlow
 import com.itsaky.androidide.quickbuild.PreferencesQuickBuildHistoryStore
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.itsaky.androidide.utils.ApkInstaller
 import com.itsaky.androidide.utils.FeatureFlags
 import kotlinx.coroutines.CoroutineScope
@@ -85,6 +87,17 @@ val quickBuildModule =
 				// Register before any install: the receiver's EventBus events become the
 				// installer's completion signal.
 				broadcasts = InstallationEventFlow().also { it.register() }.broadcasts,
+				// Whether the install-confirm dialog can be launched right now. The
+				// dialog-owning subscriber (BaseEditorActivity -> InstallationResultHandler)
+				// is EventBus lifecycle-bound - registered onStart, unregistered onStop -
+				// so it can show the dialog exactly while the process is STARTED. Racy
+				// reads err toward waiting (the installer's timeout is the backstop).
+				canShowConfirmDialog = {
+					ProcessLifecycleOwner
+						.get()
+						.lifecycle.currentState
+						.isAtLeast(Lifecycle.State.STARTED)
+				},
 			)
 		}
 

@@ -32,9 +32,14 @@ sealed interface QuickBuildSessionState {
 	 * (also routed through this state): a rebaseline is a full Gradle build that a plain
 	 * save can trigger, and yanking the user out of the editor a minute later is not an
 	 * answer to anything they asked for.
+	 *
+	 * [installAutoRetries] rides along on a rebaseline so an unconfirmed reinstall parks
+	 * back in [Invalidated] with the count intact - it is how the [SessionEvent.HostForegrounded]
+	 * auto-retry stays bounded across park/retry/park cycles (see [Invalidated.installAutoRetries]).
 	 */
 	data class Provisioning(
 		val userInitiated: Boolean = false,
+		val installAutoRetries: Int = 0,
 	) : QuickBuildSessionState
 
 	/** Session live, no build running. [lastFailure] is surfaced until the next build. */
@@ -79,11 +84,19 @@ sealed interface QuickBuildSessionState {
 	 * confirmed ([SessionEvent.RebaselineInstallNotConfirmed]); no rebaseline is in
 	 * flight, and the next Quick Build tap or [SessionEvent.HostForegrounded] retries
 	 * it (re-prompting the install) instead of the session having died to [Idle].
+	 *
+	 * [installAutoRetries] counts the [SessionEvent.HostForegrounded] auto-retries already
+	 * spent on this unconfirmed reinstall. Once it reaches
+	 * [SessionReducer.MAX_INSTALL_AUTO_RETRIES] the foreground trigger stops re-running
+	 * the rebaseline - a user who keeps declining must not pay a fresh Gradle build on
+	 * every resume, forever. A Quick Build TAP still retries (and resets the budget):
+	 * an explicit ask is fresh consent.
 	 */
 	data class Invalidated(
 		val reason: InvalidationReason,
 		val deployedGeneration: Long,
 		val awaitingRetry: Boolean = false,
+		val installAutoRetries: Int = 0,
 	) : QuickBuildSessionState
 
 	/** The compile daemon died; respawn + re-seed in progress. */
@@ -182,11 +195,11 @@ sealed interface SessionEvent {
 
 	/**
 	 * The rebaseline's Gradle build succeeded but the test-app reinstall was never
-	 * confirmed (install dialog left untapped until the installer timed out). The
-	 * session is NOT dead: it parks in [QuickBuildSessionState.Invalidated] with
-	 * `awaitingRetry = true`, where the next Quick Build tap or [HostForegrounded]
-	 * re-runs the rebaseline and re-prompts. [deployedGeneration] is the generation
-	 * the test app still runs.
+	 * confirmed - no dialog could be shown (CoGo backgrounded), the user cancelled it,
+	 * or it was left untapped until the installer timed out. The session is NOT dead:
+	 * it parks in [QuickBuildSessionState.Invalidated] with `awaitingRetry = true`,
+	 * where the next Quick Build tap or [HostForegrounded] re-runs the rebaseline and
+	 * re-prompts. [deployedGeneration] is the generation the test app still runs.
 	 */
 	data class RebaselineInstallNotConfirmed(
 		val deployedGeneration: Long,
@@ -195,11 +208,14 @@ sealed interface SessionEvent {
 	/**
 	 * CoGo's editor came (back) to the foreground. Only meaningful to a session parked
 	 * in [QuickBuildSessionState.Invalidated] with `awaitingRetry = true`: when the
-	 * unconfirmed reinstall timed out while CoGo was BACKGROUNDED (e.g. the user was in
-	 * the test app), the OS never even delivered the PENDING_USER_ACTION broadcast, so
-	 * no confirm dialog appeared and there was nothing to tap. Re-prompting the moment
-	 * the user returns is the recovery for that case - re-running the rebaseline now
-	 * (with CoGo foreground) makes the dialog actually appear. Every other state
+	 * reinstall ran while CoGo was BACKGROUNDED (e.g. the user was in the test app),
+	 * Android DEFERS the PENDING_USER_ACTION broadcast until the app is foregrounded -
+	 * and the dialog-owning subscriber (InstallationResultHandler) is EventBus
+	 * lifecycle-bound (registered onStart, unregistered onStop), so the deferred
+	 * delivery can land before it re-registers and no confirm dialog is ever launched.
+	 * The user saw nothing to tap. Re-running the rebaseline now (with CoGo foreground)
+	 * makes the dialog actually appear. Bounded by
+	 * [QuickBuildSessionState.Invalidated.installAutoRetries]; every other state
 	 * ignores this event.
 	 */
 	data object HostForegrounded : SessionEvent
@@ -444,12 +460,15 @@ class SessionReducer {
 			is SessionEvent.RebaselineInstallNotConfirmed -> {
 				// The rebaseline built fine; only the install confirmation is missing.
 				// Park recoverable (no effect - a retry loop would re-prompt forever):
-				// the next tap retries, "Restart session" still tears down.
+				// the next tap or foreground return retries, "Restart session" still
+				// tears down. The auto-retry count survives the round trip so the
+				// HostForegrounded budget is spent per unconfirmed install, not per park.
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(
 						InvalidationReason.INSTALL_NOT_CONFIRMED,
 						event.deployedGeneration,
 						awaitingRetry = true,
+						installAutoRetries = state.installAutoRetries,
 					),
 				)
 			}
@@ -610,24 +629,47 @@ class SessionReducer {
 				// Deliberately NOT user-initiated even when a tap triggered the retry: a
 				// rebaseline is a full Gradle build (~a minute), and a save can trigger one
 				// too, so completing it is not by itself a reason to leave the editor.
-				SessionTransition(QuickBuildSessionState.Provisioning())
+				// The auto-retry count rides along so an unconfirmed reinstall parks back
+				// with it intact.
+				SessionTransition(
+					QuickBuildSessionState.Provisioning(installAutoRetries = state.installAutoRetries),
+				)
 			}
 
-			SessionEvent.QuickBuildTapped, SessionEvent.HostForegrounded -> {
+			SessionEvent.QuickBuildTapped -> {
 				if (state.awaitingRetry) {
 					// Retry the parked rebaseline (its reinstall was never confirmed).
-					// HostForegrounded is a retry trigger too: when the timeout hit with
-					// CoGo backgrounded, the confirm dialog never appeared at all (the
-					// PENDING_USER_ACTION broadcast is not delivered to a backgrounded
-					// app), so the user's return IS the first chance to re-prompt.
-					// awaitingRetry drops immediately so a second trigger before
-					// RebaselineStarted lands cannot double-run the Gradle build.
+					// An explicit tap is fresh consent: it also re-arms the foreground
+					// auto-retry budget. awaitingRetry drops immediately so a second
+					// trigger before RebaselineStarted lands cannot double-run the
+					// Gradle build.
 					SessionTransition(
-						state.copy(awaitingRetry = false),
+						state.copy(awaitingRetry = false, installAutoRetries = 0),
 						listOf(SessionEffect.RunFullGradleRebaseline),
 					)
 				} else {
 					// A rebaseline is already in flight; the trigger has nothing to add.
+					SessionTransition(state)
+				}
+			}
+
+			SessionEvent.HostForegrounded -> {
+				if (state.awaitingRetry && state.installAutoRetries < MAX_INSTALL_AUTO_RETRIES) {
+					// The reinstall ran while CoGo was backgrounded: Android DEFERS the
+					// PENDING_USER_ACTION broadcast until the app is foregrounded, and the
+					// dialog-owning subscriber is lifecycle-bound (registered onStart), so
+					// no confirm dialog was ever launched - the user's return is the first
+					// chance to re-prompt. Bounded: past MAX_INSTALL_AUTO_RETRIES the
+					// session stays parked (a tap still retries) instead of paying a fresh
+					// Gradle build on every resume of a user who keeps declining.
+					// awaitingRetry drops immediately so a second trigger before
+					// RebaselineStarted lands cannot double-run the Gradle build.
+					SessionTransition(
+						state.copy(awaitingRetry = false, installAutoRetries = state.installAutoRetries + 1),
+						listOf(SessionEffect.RunFullGradleRebaseline),
+					)
+				} else {
+					// Rebaseline in flight, or the auto-retry budget is spent: stay parked.
 					SessionTransition(state)
 				}
 			}
@@ -672,4 +714,15 @@ class SessionReducer {
 				SessionTransition(state)
 			}
 		}
+
+	companion object {
+		/**
+		 * How many times [SessionEvent.HostForegrounded] may auto-retry an unconfirmed
+		 * rebaseline reinstall before the session just stays parked. Each retry costs a
+		 * full Gradle build plus an install prompt; two declined prompts is a clear
+		 * "not now" - after that only an explicit Quick Build tap re-prompts (and
+		 * re-arms this budget).
+		 */
+		const val MAX_INSTALL_AUTO_RETRIES = 2
+	}
 }

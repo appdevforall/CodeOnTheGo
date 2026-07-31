@@ -266,9 +266,11 @@ class SessionReducerTest {
 
 	@Test
 	fun `invalidated awaiting retry plus HostForegrounded retries the rebaseline once`() {
-		// The backgrounded-CoGo case: the reinstall timed out with no dialog ever shown
-		// (PENDING_USER_ACTION is not delivered to a backgrounded app), so the user's
-		// return to CoGo must re-prompt without requiring a tap they don't know to make.
+		// The backgrounded-CoGo case: the reinstall ran with no dialog ever shown
+		// (Android defers PENDING_USER_ACTION until foreground, and the dialog-owning
+		// subscriber is lifecycle-bound), so the user's return to CoGo must re-prompt
+		// without requiring a tap they don't know to make. The retry spends one unit
+		// of the bounded auto-retry budget.
 		val parked =
 			QuickBuildSessionState.Invalidated(
 				InvalidationReason.INSTALL_NOT_CONFIRMED,
@@ -278,8 +280,93 @@ class SessionReducerTest {
 
 		val transition = reducer.reduce(parked, SessionEvent.HostForegrounded)
 
-		assertThat(transition.state).isEqualTo(parked.copy(awaitingRetry = false))
+		assertThat(transition.state)
+			.isEqualTo(parked.copy(awaitingRetry = false, installAutoRetries = 1))
 		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
+	}
+
+	@Test
+	fun `HostForegrounded stops auto-retrying once the budget is spent - stays parked`() {
+		// A user who keeps declining must not pay a fresh Gradle build on every
+		// resume, forever (defect #90). Past the cap the session just stays parked.
+		val exhausted =
+			QuickBuildSessionState.Invalidated(
+				InvalidationReason.INSTALL_NOT_CONFIRMED,
+				2,
+				awaitingRetry = true,
+				installAutoRetries = SessionReducer.MAX_INSTALL_AUTO_RETRIES,
+			)
+
+		val transition = reducer.reduce(exhausted, SessionEvent.HostForegrounded)
+
+		assertThat(transition.state).isEqualTo(exhausted)
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
+	fun `a Quick Build tap retries even with the auto-retry budget spent and re-arms it`() {
+		// An explicit tap is fresh consent: it always re-prompts and resets the
+		// HostForegrounded budget.
+		val exhausted =
+			QuickBuildSessionState.Invalidated(
+				InvalidationReason.INSTALL_NOT_CONFIRMED,
+				2,
+				awaitingRetry = true,
+				installAutoRetries = SessionReducer.MAX_INSTALL_AUTO_RETRIES,
+			)
+
+		val transition = reducer.reduce(exhausted, SessionEvent.QuickBuildTapped)
+
+		assertThat(transition.state)
+			.isEqualTo(exhausted.copy(awaitingRetry = false, installAutoRetries = 0))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
+	}
+
+	@Test
+	fun `the auto-retry count survives the park - retry - park round trip`() {
+		// The budget is per unconfirmed install, not per park: it rides Invalidated ->
+		// Provisioning (RebaselineStarted) -> Invalidated (RebaselineInstallNotConfirmed).
+		// Without the carry, every park would reset the count and the cap could never
+		// be reached.
+		val parked =
+			QuickBuildSessionState.Invalidated(
+				InvalidationReason.INSTALL_NOT_CONFIRMED,
+				2,
+				awaitingRetry = true,
+			)
+
+		val retried = reducer.reduce(parked, SessionEvent.HostForegrounded)
+		val provisioning = reducer.reduce(retried.state, SessionEvent.RebaselineStarted)
+		assertThat(provisioning.state)
+			.isEqualTo(QuickBuildSessionState.Provisioning(installAutoRetries = 1))
+
+		val reParked =
+			reducer.reduce(
+				provisioning.state,
+				SessionEvent.RebaselineInstallNotConfirmed(deployedGeneration = 2),
+			)
+		assertThat(reParked.state)
+			.isEqualTo(
+				QuickBuildSessionState.Invalidated(
+					InvalidationReason.INSTALL_NOT_CONFIRMED,
+					2,
+					awaitingRetry = true,
+					installAutoRetries = 1,
+				),
+			)
+
+		// The second foreground return spends the last unit; the third does nothing.
+		val secondRetry = reducer.reduce(reParked.state, SessionEvent.HostForegrounded)
+		assertThat(secondRetry.effects).isEqualTo(listOf(SessionEffect.RunFullGradleRebaseline))
+		val secondProvisioning = reducer.reduce(secondRetry.state, SessionEvent.RebaselineStarted)
+		val secondPark =
+			reducer.reduce(
+				secondProvisioning.state,
+				SessionEvent.RebaselineInstallNotConfirmed(deployedGeneration = 2),
+			)
+		val thirdAttempt = reducer.reduce(secondPark.state, SessionEvent.HostForegrounded)
+		assertThat(thirdAttempt.state).isEqualTo(secondPark.state)
+		assertThat(thirdAttempt.effects).isEmpty()
 	}
 
 	@Test

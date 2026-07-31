@@ -54,10 +54,11 @@ data class InstallBroadcast(
 	val status: Status,
 	val message: String? = null,
 ) {
-	enum class Status { SUCCESS, FAILURE, PENDING_USER_ACTION, OTHER }
+	/** [ABORTED] = STATUS_FAILURE_ABORTED: the user cancelled the confirm dialog. */
+	enum class Status { SUCCESS, FAILURE, ABORTED, PENDING_USER_ACTION, OTHER }
 
 	val isTerminal: Boolean
-		get() = status == Status.SUCCESS || status == Status.FAILURE
+		get() = status == Status.SUCCESS || status == Status.FAILURE || status == Status.ABORTED
 }
 
 sealed interface InstallOutcome {
@@ -72,15 +73,25 @@ sealed interface InstallOutcome {
 	) : InstallOutcome
 
 	/**
-	 * The install started but no verdict (broadcast or lastUpdateTime change) arrived
-	 * within the timeout - in practice an install-confirmation dialog nobody tapped
-	 * (or, with the host app backgrounded, one that never even appeared). Distinct
+	 * The install started but the user's OS confirmation was never given. Distinct
 	 * from [Failed]: nothing is broken - the built APK is fine and simply retrying
 	 * the install re-prompts, so callers can offer a retry instead of failing hard.
+	 *
+	 * [reason] keeps the three ways this happens distinguishable (each carries its
+	 * own user-facing [message]):
+	 * - [Reason.DIALOG_NOT_SHOWN]: the confirm dialog could not be launched because
+	 *   the host app was not foreground (its dialog-owning subscriber is
+	 *   lifecycle-bound). Fail-fast: reported the moment PENDING_USER_ACTION arrives
+	 *   with no dialog possible, not after a silent timeout.
+	 * - [Reason.DECLINED]: the user cancelled the dialog (STATUS_FAILURE_ABORTED).
+	 * - [Reason.TIMED_OUT]: the dialog was shown and simply never answered.
 	 */
-	data class ConfirmationTimedOut(
+	data class ConfirmationNotGiven(
 		val message: String,
-	) : InstallOutcome
+		val reason: Reason,
+	) : InstallOutcome {
+		enum class Reason { DIALOG_NOT_SHOWN, DECLINED, TIMED_OUT }
+	}
 }
 
 /**
@@ -113,6 +124,15 @@ class TestAppInstaller(
 	private val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
 	private val pollMillis: Long = DEFAULT_POLL_MILLIS,
 	private val digest: (File) -> String? = ::sha256OrNull,
+	/**
+	 * Whether the OS install-confirm dialog can be shown RIGHT NOW. The dialog-owning
+	 * subscriber (InstallationResultHandler via the editor activity) is EventBus
+	 * lifecycle-bound (registered onStart, unregistered onStop), so with the host app
+	 * backgrounded a PENDING_USER_ACTION status never launches a dialog - the app wires
+	 * this to a process-foreground probe. The default (always true) preserves the plain
+	 * wait-for-the-user behavior for callers without a probe.
+	 */
+	private val canShowConfirmDialog: () -> Boolean = { true },
 ) {
 	suspend fun ensureInstalled(
 		apk: File,
@@ -127,12 +147,20 @@ class TestAppInstaller(
 
 		return coroutineScope {
 			// Subscribe BEFORE committing the install so a fast broadcast cannot slip
-			// past us (same pattern as DeployChannel).
+			// past us (same pattern as DeployChannel). PENDING_USER_ACTION is decisive
+			// too when no confirm dialog can be launched (host backgrounded): waiting
+			// out the full timeout there is a silent lie - nobody will ever tap.
 			val verdict =
 				async(start = CoroutineStart.UNDISPATCHED) {
 					broadcasts.first { broadcast ->
-						broadcast.isTerminal &&
-							(broadcast.packageName == null || broadcast.packageName == packageName)
+						(broadcast.packageName == null || broadcast.packageName == packageName) &&
+							(
+								broadcast.isTerminal ||
+									(
+										broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION &&
+											!canShowConfirmDialog()
+									)
+							)
 					}
 				}
 			val stampChanged = async { awaitStampChange(packageName, initialStamp) }
@@ -155,6 +183,22 @@ class TestAppInstaller(
 									resolveUid(packageName)
 								}
 
+								InstallBroadcast.Status.PENDING_USER_ACTION -> {
+									// Fail-fast park: the OS asked for a confirmation no dialog
+									// can deliver right now. Truthful and immediate - no 180s wait.
+									InstallOutcome.ConfirmationNotGiven(
+										MESSAGE_RETURN_TO_CONFIRM,
+										InstallOutcome.ConfirmationNotGiven.Reason.DIALOG_NOT_SHOWN,
+									)
+								}
+
+								InstallBroadcast.Status.ABORTED -> {
+									InstallOutcome.ConfirmationNotGiven(
+										MESSAGE_CONFIRM_DECLINED,
+										InstallOutcome.ConfirmationNotGiven.Reason.DECLINED,
+									)
+								}
+
 								else -> {
 									InstallOutcome.Failed(
 										broadcast.message ?: "Test app installation failed",
@@ -167,12 +211,29 @@ class TestAppInstaller(
 				}
 			verdict.cancel()
 			stampChanged.cancel()
-			outcome
-				?: InstallOutcome.ConfirmationTimedOut(
-					"Test app install was not confirmed within ${timeoutMillis / 1000}s",
-				)
+			outcome ?: confirmationNotGivenAtTimeout()
 		}
 	}
+
+	/**
+	 * No verdict arrived at all within the timeout. With the host backgrounded that means
+	 * the PENDING_USER_ACTION status is still deferred by Android (delivered only once the
+	 * app is foregrounded), so no dialog was ever launched - same truthful message as the
+	 * fail-fast path. Foreground, the dialog was up the whole time: the user walked away.
+	 */
+	private fun confirmationNotGivenAtTimeout(): InstallOutcome.ConfirmationNotGiven =
+		if (!canShowConfirmDialog()) {
+			InstallOutcome.ConfirmationNotGiven(
+				MESSAGE_RETURN_TO_CONFIRM,
+				InstallOutcome.ConfirmationNotGiven.Reason.DIALOG_NOT_SHOWN,
+			)
+		} else {
+			InstallOutcome.ConfirmationNotGiven(
+				"Your app needs a reinstall - the install prompt went unanswered for " +
+					"${timeoutMillis / 1000}s. Tap Quick Build to try again.",
+				InstallOutcome.ConfirmationNotGiven.Reason.TIMED_OUT,
+			)
+		}
 
 	private suspend fun awaitStampChange(
 		packageName: String,
@@ -211,6 +272,15 @@ class TestAppInstaller(
 		const val DEFAULT_TIMEOUT_MILLIS = 180_000L
 		const val DEFAULT_POLL_MILLIS = 1_000L
 		private const val UID_RETRIES = 5
+
+		/** Case (a): no dialog could be shown - returning to CoGo is what re-prompts. */
+		const val MESSAGE_RETURN_TO_CONFIRM =
+			"Your app needs a reinstall - return to CoGo to confirm."
+
+		/** Case (b): the dialog was shown and the user cancelled it. */
+		const val MESSAGE_CONFIRM_DECLINED =
+			"Your app needs a reinstall - the install prompt was cancelled. " +
+				"Tap Quick Build to try again."
 
 		/** Streaming SHA-256; null on any IO problem (treated as content mismatch). */
 		fun sha256OrNull(file: File): String? =

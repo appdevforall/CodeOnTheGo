@@ -150,6 +150,12 @@ class InstallationEventFlow {
 					InstallBroadcast.Status.PENDING_USER_ACTION
 				}
 
+				// The user cancelled the confirm dialog: kept distinct from FAILURE so
+				// the installer can report "declined" (retryable) rather than "broken".
+				code == PackageInstaller.STATUS_FAILURE_ABORTED -> {
+					InstallBroadcast.Status.ABORTED
+				}
+
 				code >= PackageInstaller.STATUS_FAILURE -> {
 					InstallBroadcast.Status.FAILURE
 				}

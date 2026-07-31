@@ -26,6 +26,7 @@ import org.appdevforall.cotg.quickbuild.domain.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildSessionState
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.domain.SessionFailure
+import org.appdevforall.cotg.quickbuild.domain.SessionReducer
 import org.appdevforall.cotg.quickbuild.domain.WatchFilter
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -1285,8 +1286,10 @@ class QuickBuildSessionManagerTest {
 						awaitingRetry = true,
 					),
 				)
-			// The user is told what happened and how to recover.
-			assertThat(userMessages).contains("install was not confirmed. Tap Quick Build to retry.")
+			// The user is told what happened; the outcome's message is surfaced as-is
+			// (the installer's ConfirmationNotGiven text already says how to recover
+			// for its specific case - not shown / declined / timed out).
+			assertThat(userMessages).contains("install was not confirmed")
 			// Parked, not torn down: the daemon stays down (it was shut down for the
 			// Gradle build and there is no new baseline to restart it against yet).
 			assertThat(daemon.isRunning).isFalse()
@@ -1327,9 +1330,11 @@ class QuickBuildSessionManagerTest {
 	fun `CoGo returning to the foreground after an unconfirmed install retries the rebaseline`() =
 		runTest {
 			// The backgrounded-CoGo case (corpus run 20260728T044815Z): the reinstall
-			// timed out with NO dialog ever shown - Android does not deliver the
-			// PENDING_USER_ACTION broadcast to a backgrounded app. The user's return to
-			// CoGo must re-prompt on its own; they never saw anything to tap.
+			// ran with NO dialog ever shown - Android defers the PENDING_USER_ACTION
+			// broadcast until the app is foregrounded, and the dialog-owning subscriber
+			// is lifecycle-bound (registered onStart), so the deferred delivery can land
+			// before it re-registers. The user's return to CoGo must re-prompt on its
+			// own; they never saw anything to tap.
 			var foregrounded = false
 			rebaselineOutcome = {
 				if (foregrounded) {
@@ -1353,6 +1358,47 @@ class QuickBuildSessionManagerTest {
 			assertThat(rebaselineCount).isEqualTo(2)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 			assertThat(daemon.isRunning).isTrue()
+		}
+
+	@Test
+	fun `foreground auto-retries are bounded - a user who keeps declining is not re-prompted forever`() =
+		runTest {
+			// Defect #90's second half: every resume used to re-run a full Gradle
+			// rebaseline for a user who kept declining the reinstall. The auto-retry
+			// budget caps that; the session ends parked, where a TAP still retries.
+			rebaselineOutcome = { RebaselineOutcome.InstallNotConfirmed("install was not confirmed") }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			assertThat(rebaselineCount).isEqualTo(1)
+
+			// Each of the first MAX resumes retries (and re-parks, still unconfirmed).
+			repeat(SessionReducer.MAX_INSTALL_AUTO_RETRIES) {
+				manager.onHostForegrounded()
+				advanceUntilIdle()
+			}
+			assertThat(rebaselineCount).isEqualTo(1 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
+
+			// Budget spent: further resumes run NO Gradle build; the session stays parked.
+			manager.onHostForegrounded()
+			advanceUntilIdle()
+			assertThat(rebaselineCount).isEqualTo(1 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Invalidated(
+						InvalidationReason.INSTALL_NOT_CONFIRMED,
+						0,
+						awaitingRetry = true,
+						installAutoRetries = SessionReducer.MAX_INSTALL_AUTO_RETRIES,
+					),
+				)
+
+			// An explicit tap is fresh consent: it still retries.
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(rebaselineCount).isEqualTo(2 + SessionReducer.MAX_INSTALL_AUTO_RETRIES)
 		}
 
 	@Test

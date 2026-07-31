@@ -309,13 +309,17 @@ class QuickBuildSessionManager(
 
 	/**
 	 * Call when CoGo's editor returns to the foreground. Recovers the one park that a
-	 * tap cannot be expected to fix unprompted: a rebaseline whose reinstall timed out
-	 * while CoGo was BACKGROUNDED never showed a confirm dialog at all (Android does not
-	 * deliver the PENDING_USER_ACTION broadcast to a backgrounded app), so the user saw
-	 * nothing fail. Re-running the rebaseline now - with CoGo foreground - makes the
-	 * prompt actually appear. Dispatch is a no-op in every state except
-	 * [QuickBuildSessionState.Invalidated] with `awaitingRetry = true`, so calling this
-	 * from every editor onResume is safe and cheap.
+	 * tap cannot be expected to fix unprompted: a rebaseline reinstall that ran while
+	 * CoGo was BACKGROUNDED never showed a confirm dialog - Android DEFERS the
+	 * PENDING_USER_ACTION broadcast until the app is foregrounded, and the dialog-owning
+	 * subscriber (InstallationResultHandler) is EventBus lifecycle-bound (registered
+	 * onStart, unregistered onStop), so the deferred delivery can land before it
+	 * re-registers and nothing launches the dialog. The user saw nothing fail.
+	 * Re-running the rebaseline now - with CoGo foreground - makes the prompt actually
+	 * appear. Dispatch is a no-op in every state except
+	 * [QuickBuildSessionState.Invalidated] with `awaitingRetry = true` (and the reducer
+	 * bounds the auto-retries), so calling this from every editor onResume is safe and
+	 * cheap.
 	 */
 	fun onHostForegrounded() {
 		scope.launch { dispatch(SessionEvent.HostForegrounded) }
@@ -962,15 +966,16 @@ class QuickBuildSessionManager(
 
 			is RebaselineOutcome.InstallNotConfirmed -> {
 				// The Gradle build was fine; only the reinstall confirmation is missing
-				// (dialog left untapped - the stranded-session finding from the
-				// multi-module device verify). Park recoverable instead of dying to
-				// Idle. Deliberately NOT onRebaselineFailed(): the orchestrator keeps
-				// holding the absorbed batch, so quick builds stay suspended while the
-				// daemon is down (a fast-path save here would only fail against the
+				// (no dialog shown / cancelled / left untapped - the stranded-session
+				// finding from the multi-module device verify). Park recoverable instead
+				// of dying to Idle; the message already says how to recover for its
+				// specific case. Deliberately NOT onRebaselineFailed(): the orchestrator
+				// keeps holding the absorbed batch, so quick builds stay suspended while
+				// the daemon is down (a fast-path save here would only fail against the
 				// dead daemon); the retry's onRebaselineStarted re-holds pending on
 				// top, and every held file is on disk for its Gradle build to absorb.
-				log.warn("Rebaseline reinstall not confirmed; awaiting a retry tap: {}", outcome.message)
-				surfaceUserMessage("${outcome.message}. Tap Quick Build to retry.")
+				log.warn("Rebaseline reinstall not confirmed; awaiting a retry: {}", outcome.message)
+				surfaceUserMessage(outcome.message)
 				dispatch(
 					SessionEvent.RebaselineInstallNotConfirmed(
 						session.lastDeployedGeneration.takeIf { it >= 0 } ?: session.tracker.current,
