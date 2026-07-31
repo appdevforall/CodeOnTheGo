@@ -74,7 +74,7 @@ class IDEApplication :
 	/**
 	 * The currently visible (foreground) activity.
 	 */
-	val foregroundActivity: Activity?
+	override val foregroundActivity: Activity?
 		get() = foregroundActivityState.value
 
 	private val deviceUnlockReceiver =

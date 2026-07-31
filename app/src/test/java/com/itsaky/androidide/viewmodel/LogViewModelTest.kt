@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -178,6 +179,18 @@ class LogViewModelTest {
 		withCollectedEvents(viewModel) { events ->
 			assertEquals("line\n", (events.receive() as LogViewModel.UiEvent.SetText).text)
 		}
+	}
+
+	@Test
+	fun `isBufferEmpty reflects submits and clears`() {
+		val viewModel = TestLogViewModel()
+		assertTrue(viewModel.isBufferEmpty)
+
+		viewModel.submit(null, "line")
+		assertFalse(viewModel.isBufferEmpty)
+
+		viewModel.clear()
+		assertTrue(viewModel.isBufferEmpty)
 	}
 
 	@Test

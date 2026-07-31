@@ -31,7 +31,6 @@ dependencies {
 
 	implementation(libs.androidx.appcompat)
 	implementation(libs.common.kotlin)
-	implementation(libs.common.utilcode)
 
 	implementation(projects.annotations)
 	implementation(projects.common)
