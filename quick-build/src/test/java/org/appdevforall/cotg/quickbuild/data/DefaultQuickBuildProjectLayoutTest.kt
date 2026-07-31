@@ -16,7 +16,7 @@ class DefaultQuickBuildProjectLayoutTest {
 	): File = File(root, path).apply { parentFile.mkdirs() }.apply { writeText(text) }
 
 	@Test
-	fun `stableIdsFile returns the setup build's reported file`() {
+	fun `stableIdsFile returns the proxy app build's reported file`() {
 		val stableIds = write("app/build/intermediates/stable_resource_ids_file/debug/processDebugResources/stableIds.txt", "")
 
 		val layout = DefaultQuickBuildProjectLayout(root, stableIdsFile = stableIds)
@@ -25,14 +25,14 @@ class DefaultQuickBuildProjectLayoutTest {
 	}
 
 	@Test
-	fun `stableIdsFile is null when the setup build did not report one`() {
+	fun `stableIdsFile is null when the proxy app build did not report one`() {
 		val layout = DefaultQuickBuildProjectLayout(root)
 
 		assertThat(layout.stableIdsFile()).isNull()
 	}
 
 	@Test
-	fun `libraryResourceFlats returns the setup build's reported units`() {
+	fun `libraryResourceFlats returns the proxy app build's reported units`() {
 		val mergedRes = write("app/build/intermediates/merged_res/debug/values_values.arsc.flat", "")
 		val libraryFile = write("gradle-cache/transformed/com.google.android.material/drawable_x.xml.flat", "")
 
@@ -42,7 +42,7 @@ class DefaultQuickBuildProjectLayoutTest {
 	}
 
 	@Test
-	fun `libraryResourceFlats is empty when the setup build did not report any`() {
+	fun `libraryResourceFlats is empty when the proxy app build did not report any`() {
 		val layout = DefaultQuickBuildProjectLayout(root)
 
 		assertThat(layout.libraryResourceFlats()).isEmpty()
@@ -60,7 +60,7 @@ class DefaultQuickBuildProjectLayoutTest {
 	}
 
 	@Test
-	fun `includes generated source roots reported by the setup build`() {
+	fun `includes generated source roots reported by the proxy app build`() {
 		write("app/src/main/java/com/example/A.kt")
 		val generated = write("app/build/generated/ksp/v8Debug/kotlin/com/example/ADao_Impl.kt")
 

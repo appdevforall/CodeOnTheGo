@@ -24,20 +24,20 @@ interface QuickBuildProjectLayout {
 	fun compileClasspath(): List<File>
 
 	/**
-	 * AGP's `stableIds.txt` from the setup build's real resource processing
-	 * (`pkg:type/name = 0x7f0xxxxx`), if the setup report carried one. Relinks pass this
+	 * AGP's `stableIds.txt` from the proxy app build's real resource processing
+	 * (`pkg:type/name = 0x7f0xxxxx`), if the proxy app report carried one. Relinks pass this
 	 * to `aapt2 link --stable-ids` so a relink of the project's own res/ - a strict
 	 * subset of what the real build merged in, library AAR resources included - pins
 	 * every resource to the numeric id the baseline manifest was compiled against,
 	 * instead of letting aapt2's type-index assignment drift when a whole resource TYPE
 	 * present in the baseline is absent from the relink (ADFA-4128 Bug 6). Null when the
-	 * setup build didn't report one (older AGP, or a variant whose resource processing
+	 * proxy app build didn't report one (older AGP, or a variant whose resource processing
 	 * never produced the file).
 	 */
 	fun stableIdsFile(): File?
 
 	/**
-	 * Pre-compiled `.flat` resource units from the setup build's real AGP resource
+	 * Pre-compiled `.flat` resource units from the proxy app build's real AGP resource
 	 * processing: the project's own `intermediates/merged_res/` closure (which
 	 * transitively carries every dependency AAR's VALUES resources - styles, themes,
 	 * colors, dimens, strings, attrs) plus each resource-providing AAR's separately
@@ -46,7 +46,7 @@ interface QuickBuildProjectLayout {
 	 * Material3's `Theme.Material3.DayNight.NoActionBar`, which a Material3 template's own
 	 * `themes.xml` extends - because the project's own res/ never declares it (ADFA-4128
 	 * Bug 8). Passed to `aapt2 link` as `-R` overlays, ordered BEFORE the relink's own
-	 * fresh compile (see `Aapt2Link`'s KDoc for why order matters). Empty when the setup
+	 * fresh compile (see `Aapt2Link`'s KDoc for why order matters). Empty when the proxy app
 	 * build didn't report any (older AGP, or a variant whose resource processing never
 	 * produced them) - relinks then fall back to the pre-fix behavior.
 	 */
@@ -73,15 +73,15 @@ interface QuickBuildProjectLayout {
  * emit: sources in `src/main/{java,kotlin}`, resources in `src/main/res`, assets in
  * `src/main/assets`. Pure JVM on purpose.
  *
- * @param extraSourceRoots additional source roots the setup build reported (`setup.json`
+ * @param extraSourceRoots additional source roots the proxy app build reported (`setup.json`
  *   `sourceRoots`) - in practice the KSP/kapt GENERATED roots. Without them a project
  *   using an API-generating processor (Dagger and kin) cannot hot-compile at all: user
  *   code references generated classes the daemon has neither a source nor a classpath
  *   entry for. They are compiled but deliberately NOT watched - Gradle owns `build/`,
  *   and watching it would feed the loop its own output.
- * @param stableIdsFile the setup build's reported AGP stable-ids file (`setup.json`
+ * @param stableIdsFile the proxy app build's reported AGP stable-ids file (`setup.json`
  *   `stableIdsPath`), or null when it didn't report one. See [QuickBuildProjectLayout.stableIdsFile].
- * @param libraryResourceFlats the setup build's reported library-resource `.flat` units
+ * @param libraryResourceFlats the proxy app build's reported library-resource `.flat` units
  *   (`setup.json` `libraryResourcePaths`), or empty when it didn't report any. See
  *   [QuickBuildProjectLayout.libraryResourceFlats].
  */

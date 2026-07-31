@@ -2,7 +2,7 @@ package org.appdevforall.cotg.quickbuild.domain.annotations
 
 /**
  * Which annotations count as processor input for THIS project, derived from the
- * processors the setup build reported (`setup.json` `annotationProcessors`, the
+ * processors the proxy app build reported (`setup.json` `annotationProcessors`, the
  * `ksp` / `kapt` / `annotationProcessor` configurations).
  *
  * Two modes, because getting this wrong in the permissive direction ships stale
@@ -19,7 +19,7 @@ package org.appdevforall.cotg.quickbuild.domain.annotations
  * processor is known to consume, and always resolves as input in unrecognized mode.
  */
 class AnnotationProcessorProfile private constructor(
-	/** Dependency coordinates as reported by the setup build; empty means no processors. */
+	/** Dependency coordinates as reported by the proxy app build; empty means no processors. */
 	val processorCoordinates: List<String>,
 	private val specs: List<ProcessorSpec>,
 	private val hasUnrecognized: Boolean,
@@ -80,7 +80,7 @@ class AnnotationProcessorProfile private constructor(
 
 		/**
 		 * @param coordinates processor dependency coordinates (`group:artifact:version`,
-		 *   or whatever the setup build could report - matching is substring-based so a
+		 *   or whatever the proxy app build could report - matching is substring-based so a
 		 *   version-catalog alias like `libs.room.compiler` still identifies Room).
 		 */
 		fun of(coordinates: List<String>): AnnotationProcessorProfile {
@@ -192,7 +192,7 @@ class AnnotationProcessorProfile private constructor(
 			)
 
 		/**
-		 * Coordinate marker -> vocabulary. Substring match against whatever the setup
+		 * Coordinate marker -> vocabulary. Substring match against whatever the proxy app
 		 * build reported, so both `androidx.room:room-compiler:2.6.1` and a catalog alias
 		 * (`libs.room.compiler`) identify Room. A coordinate matching nothing here flips
 		 * the profile into the conservative unrecognized mode.

@@ -65,7 +65,7 @@ class QuickBuildStatusTest {
 		assertThat(QuickBuildStatus.from(state)).isEqualTo(QuickBuildStatus.Building(3))
 	}
 
-	// Review finding (2026-07-26 #3): the background seed deploys nothing and the test
+	// Review finding (2026-07-26 #3): the background seed deploys nothing and the proxy
 	// app is genuinely current - it must not present as a blocking Building for its
 	// whole 12-50s window.
 	@Test

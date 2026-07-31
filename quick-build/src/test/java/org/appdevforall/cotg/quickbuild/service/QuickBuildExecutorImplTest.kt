@@ -152,7 +152,7 @@ class QuickBuildExecutorImplTest {
 
 			// The orchestrator still needs the honest outcome (it routes recovery),
 			// but the proxy-app overlay must not flash "build failed" for sources the
-			// app is running fine - the setup build compiled them green moments ago.
+			// app is running fine - the proxy app build compiled them green moments ago.
 			assertThat(outcome).isEqualTo(BuildOutcome.CompileError(diagnostics))
 			assertThat(deploy.statusCalls).isEmpty()
 			assertThat(deploy.calls).isEmpty()

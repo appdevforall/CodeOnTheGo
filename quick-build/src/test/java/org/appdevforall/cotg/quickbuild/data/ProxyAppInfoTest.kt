@@ -4,7 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.jupiter.api.Test
 import java.io.File
 
-class SetupInfoTest {
+class ProxyAppInfoTest {
 	private val baseDir = File("/project")
 
 	private fun json(extra: String = "") =
@@ -19,7 +19,7 @@ class SetupInfoTest {
 
 	@Test
 	fun `composeEnabled true parses through`() {
-		val info = SetupInfo.parse(json(""","composeEnabled": true"""), baseDir)
+		val info = ProxyAppInfo.parse(json(""","composeEnabled": true"""), baseDir)
 
 		assertThat(info).isNotNull()
 		assertThat(info!!.composeEnabled).isTrue()
@@ -27,7 +27,7 @@ class SetupInfoTest {
 
 	@Test
 	fun `composeEnabled defaults to false when absent`() {
-		val info = SetupInfo.parse(json(), baseDir)
+		val info = ProxyAppInfo.parse(json(), baseDir)
 
 		assertThat(info).isNotNull()
 		assertThat(info!!.composeEnabled).isFalse()
@@ -35,7 +35,7 @@ class SetupInfoTest {
 
 	@Test
 	fun `composeEnabled tolerates a non-boolean value`() {
-		val info = SetupInfo.parse(json(""","composeEnabled": "yes""""), baseDir)
+		val info = ProxyAppInfo.parse(json(""","composeEnabled": "yes""""), baseDir)
 
 		assertThat(info).isNotNull()
 		assertThat(info!!.composeEnabled).isFalse()
@@ -43,7 +43,7 @@ class SetupInfoTest {
 
 	@Test
 	fun `pre-v2 setup json parses with schema 0 and no components`() {
-		val info = SetupInfo.parse(json(), baseDir)
+		val info = ProxyAppInfo.parse(json(), baseDir)
 
 		assertThat(info).isNotNull()
 		assertThat(info!!.schema).isEqualTo(0)
@@ -53,7 +53,7 @@ class SetupInfoTest {
 	@Test
 	fun `v2 components parse with kind, proxy, launcher and supertypes`() {
 		val info =
-			SetupInfo.parse(
+			ProxyAppInfo.parse(
 				json(
 					""",
 					"schema": 2,
@@ -93,7 +93,7 @@ class SetupInfoTest {
 	@Test
 	fun `unknown component type is skipped, not fatal`() {
 		val info =
-			SetupInfo.parse(
+			ProxyAppInfo.parse(
 				json(
 					""",
 					"schema": 2,
@@ -114,7 +114,7 @@ class SetupInfoTest {
 	@Test
 	fun `malformed component entries are skipped`() {
 		val info =
-			SetupInfo.parse(
+			ProxyAppInfo.parse(
 				json(
 					""",
 					"schema": 2,
@@ -135,7 +135,7 @@ class SetupInfoTest {
 	@Test
 	fun `annotation processors and source roots parse through`() {
 		val info =
-			SetupInfo.parse(
+			ProxyAppInfo.parse(
 				json(
 					"""
 					,
@@ -157,7 +157,7 @@ class SetupInfoTest {
 
 	@Test
 	fun `annotation processors and source roots default to empty`() {
-		val info = SetupInfo.parse(json(), baseDir)
+		val info = ProxyAppInfo.parse(json(), baseDir)
 
 		assertThat(info).isNotNull()
 		assertThat(info!!.annotationProcessors).isEmpty()
@@ -167,7 +167,7 @@ class SetupInfoTest {
 	@Test
 	fun `stableIdsPath parses to an absolute file resolved against the base dir`() {
 		val info =
-			SetupInfo.parse(
+			ProxyAppInfo.parse(
 				json(""", "stableIdsPath": "app/build/intermediates/stable_resource_ids_file/debug/processDebugResources/stableIds.txt""""),
 				baseDir,
 			)
@@ -178,8 +178,8 @@ class SetupInfoTest {
 	}
 
 	@Test
-	fun `stableIdsPath is null when the setup build reported none`() {
-		val info = SetupInfo.parse(json(), baseDir)
+	fun `stableIdsPath is null when the proxy app build reported none`() {
+		val info = ProxyAppInfo.parse(json(), baseDir)
 
 		assertThat(info).isNotNull()
 		assertThat(info!!.stableIdsFile).isNull()
@@ -188,7 +188,7 @@ class SetupInfoTest {
 	@Test
 	fun `libraryResourcePaths parse to absolute files resolved against the base dir`() {
 		val info =
-			SetupInfo.parse(
+			ProxyAppInfo.parse(
 				json(
 					""", "libraryResourcePaths": ["app/build/intermediates/merged_res/debug/values_values.arsc.flat",
 					"/root/.gradle/caches/8.14.3/transforms/abc/transformed/com.google.android.material/drawable_x.xml.flat"]""".replace(
@@ -208,8 +208,8 @@ class SetupInfoTest {
 	}
 
 	@Test
-	fun `libraryResourcePaths defaults to empty when the setup build reported none`() {
-		val info = SetupInfo.parse(json(), baseDir)
+	fun `libraryResourcePaths defaults to empty when the proxy app build reported none`() {
+		val info = ProxyAppInfo.parse(json(), baseDir)
 
 		assertThat(info).isNotNull()
 		assertThat(info!!.libraryResourceFlats).isEmpty()
@@ -220,10 +220,10 @@ class SetupInfoTest {
 		// ADFA-4128 Bug 10: the plugin writes a literal JSON null for entryActivity
 		// when the project has no launchable Activity (e.g. the No-Activity
 		// template). Before the fix this was a required field and parse() returned
-		// null, which the provisioner then reported as "Quick Build setup build
+		// null, which the provisioner then reported as "Quick Build proxy app build
 		// failed" - despite the underlying Gradle build having succeeded.
 		val info =
-			SetupInfo.parse(
+			ProxyAppInfo.parse(
 				"""
 				{
 					"proxyAppId": "com.example.app.quickbuild",
@@ -241,7 +241,7 @@ class SetupInfoTest {
 	@Test
 	fun `an absent entryActivity key parses successfully as null too`() {
 		val info =
-			SetupInfo.parse(
+			ProxyAppInfo.parse(
 				"""
 				{
 					"proxyAppId": "com.example.app.quickbuild",
@@ -258,7 +258,7 @@ class SetupInfoTest {
 	@Test
 	fun `legacy testAppId key still parses - a setup json on device may predate the rename`() {
 		val info =
-			SetupInfo.parse(
+			ProxyAppInfo.parse(
 				"""
 				{
 					"testAppId": "com.example.app.quickbuild",

@@ -35,7 +35,7 @@ sealed interface BuildRoute {
 	 * Background warm-up right after provisioning: compile + dex the whole module once so
 	 * the daemon pays kotlinc JIT, the classpath-snapshot seed, and the IC-cache build
 	 * before the user's first save instead of on it. Deploys nothing - the proxy app
-	 * already runs exactly these sources (the setup build just produced them), so a
+	 * already runs exactly these sources (the proxy app build just produced them), so a
 	 * deploy would only restart it for no visible change. Never produced by the
 	 * classifier; only [BuildOrchestrator.onSeedRequested] constructs it.
 	 */
@@ -57,7 +57,7 @@ enum class InvalidationReason {
 	 * A code/resource/asset file changed OUTSIDE the app module's fast-path source scope -
 	 * i.e. in another Gradle module. The quick path incrementally compiles only the app
 	 * module against a frozen dependency classpath (that module's compiled output + merged
-	 * resources are baked into the setup baseline), so it cannot absorb a library-module
+	 * resources are baked into the proxy app baseline), so it cannot absorb a library-module
 	 * source or resource edit. Falling back to a full build keeps the never-stale
 	 * invariant; the alternative - the pre-Level-1 behavior - was to not watch other
 	 * modules at all, so a library edit fired no event and was SILENTLY not reloaded.

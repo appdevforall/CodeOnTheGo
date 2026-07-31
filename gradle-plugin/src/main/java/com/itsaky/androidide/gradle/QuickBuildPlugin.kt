@@ -10,7 +10,7 @@ import com.android.build.api.variant.impl.ApplicationVariantImpl
 import com.itsaky.androidide.gradle.quickbuild.QuickBuildGenerateSourcesTask
 import com.itsaky.androidide.gradle.quickbuild.QuickBuildPayloadDexTask
 import com.itsaky.androidide.gradle.quickbuild.QuickBuildPayloadTransformTask
-import com.itsaky.androidide.gradle.quickbuild.QuickBuildSetupReportTask
+import com.itsaky.androidide.gradle.quickbuild.QuickBuildProxyAppReportTask
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_RUNTIME_AAR
 import org.gradle.api.GradleException
@@ -25,7 +25,7 @@ import java.io.File
 import java.io.FileNotFoundException
 
 /**
- * Turns a debuggable application build into the Quick Build setup build (ADFA-4128): a
+ * Turns a debuggable application build into the Quick Build proxy app build (ADFA-4128): a
  * one-per-baseline real Gradle build that produces the installable proxy app.
  *
  * Applied by [AndroidIDEGradlePlugin] when
@@ -212,8 +212,8 @@ class QuickBuildPlugin : Plugin<Project> {
 
 		val report =
 			project.tasks.register(
-				variant.generateTaskName("write", "QuickBuildSetupReport"),
-				QuickBuildSetupReportTask::class.java,
+				variant.generateTaskName("write", "QuickBuildProxyAppReport"),
+				QuickBuildProxyAppReportTask::class.java,
 			) { task ->
 				task.manifestInfoFile.set(generate.flatMap { it.manifestInfoFile })
 				task.apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
@@ -270,12 +270,12 @@ class QuickBuildPlugin : Plugin<Project> {
 				// FileCollection, not an eagerly-mapped property) for the same config-cache
 				// reason as sourceRootDirs (Bug 1).
 				task.dependencyResourceDirs.from(compiledDependencyResources(variant, project))
-				// One report per setup build (the contract path CoGo reads); setup builds build
+				// One report per proxy app build (the contract path CoGo reads); proxy app builds build
 				// exactly one variant, so variants never race on it.
-				task.setupReport.set(buildDirectory.file("quickbuild/setup.json"))
+				task.reportFile.set(buildDirectory.file("quickbuild/setup.json"))
 			}
 
-		// Ensure a plain `assemble<Variant>` setup build also produces the report.
+		// Ensure a plain `assemble<Variant>` proxy app build also produces the report.
 		val assembleTaskName = variant.generateTaskName("assemble")
 		project.tasks.matching { it.name == assembleTaskName }.configureEach { assemble ->
 			assemble.finalizedBy(report)

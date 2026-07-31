@@ -123,15 +123,15 @@ data class DexOutput(
  * own protocol key.
  *
  * @property resDirs the project's own `res/` directories to recompile + relink.
- * @property manifest the manifest to link against - the setup build's TRANSFORMED
+ * @property manifest the manifest to link against - the proxy app build's TRANSFORMED
  *   manifest when available, else the project's raw one.
- * @property stableIdsFile AGP's stable-ids mapping from the setup build's real resource
+ * @property stableIdsFile AGP's stable-ids mapping from the proxy app build's real resource
  *   processing ([QuickBuildProjectLayout.stableIdsFile]), if any. Pins the relink's
  *   resource ids to the baseline's so a relink of the project's own res/ (a strict
  *   subset of what the real build merged in) can't shift a resource's numeric id out
- *   from under the manifest the setup build already compiled (ADFA-4128 Bug 6). Null
+ *   from under the manifest the proxy app build already compiled (ADFA-4128 Bug 6). Null
  *   is a supported, backward-compatible fallback to the pre-fix (unstable) relink.
- * @property libraryResources pre-compiled `.flat` resource units from the setup build's
+ * @property libraryResources pre-compiled `.flat` resource units from the proxy app build's
  *   real AGP resource processing ([QuickBuildProjectLayout.libraryResourceFlats]) -
  *   the project's own merged_res closure plus every resource-providing AAR's
  *   compiled file resources. Lets a relink resolve a resource a dependency AAR

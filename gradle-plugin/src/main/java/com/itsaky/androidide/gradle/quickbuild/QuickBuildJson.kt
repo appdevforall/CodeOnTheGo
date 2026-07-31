@@ -4,7 +4,7 @@ import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
 /**
- * Manifest facts CoGo needs after the setup build; written by the generate task, merged
+ * Manifest facts CoGo needs after the proxy app build; written by the generate task, merged
  * with the APK path into build/quickbuild/setup.json by the report task.
  */
 data class ManifestInfo(
@@ -15,7 +15,7 @@ data class ManifestInfo(
 )
 
 /**
- * JSON payloads the setup build emits. Uses Gradle's bundled Groovy JSON support so the
+ * JSON payloads the proxy app build emits. Uses Gradle's bundled Groovy JSON support so the
  * plugin needs no extra dependency; kept as pure functions for unit testing.
  */
 object QuickBuildJson {
@@ -24,8 +24,8 @@ object QuickBuildJson {
 	 * predates services/providers/restart, so restart-requiring deploys must rebaseline
 	 * instead of hot-swapping stale.
 	 *
-	 * Must stay in step with the reader side's `SetupInfo.COMPONENT_SCHEMA_VERSION`
-	 * (quick-build data/SetupInfo.kt) - bump the two together when the schema changes.
+	 * Must stay in step with the reader side's `ProxyAppInfo.COMPONENT_SCHEMA_VERSION`
+	 * (quick-build data/ProxyAppInfo.kt) - bump the two together when the schema changes.
 	 */
 	const val SCHEMA_VERSION = 2
 
@@ -60,7 +60,7 @@ object QuickBuildJson {
 		)
 
 	/**
-	 * The setup report CoGo reads after the setup build (build/quickbuild/setup.json).
+	 * The proxy app report CoGo reads after the proxy app build (build/quickbuild/setup.json).
 	 *
 	 * @param supertypes per-userClass user-side superclass chains (project-compiled classes
 	 *   only), merged into each `components` entry - the deploy policy's restart closure
@@ -72,16 +72,16 @@ object QuickBuildJson {
 	 * @param sourceRoots every java/kotlin source directory of the variant, GENERATED ones
 	 *   included, so the daemon compiles processor output alongside user sources instead of
 	 *   failing to resolve it.
-	 * @param stableIdsPath AGP's `stableIds.txt` from the setup build's real resource
-	 *   processing (`pkg:type/name = 0x7f0xxxxx`), if the setup build produced one. The
+	 * @param stableIdsPath AGP's `stableIds.txt` from the proxy app build's real resource
+	 *   processing (`pkg:type/name = 0x7f0xxxxx`), if the proxy app build produced one. The
 	 *   daemon's relinks pass this to `aapt2 link --stable-ids` so a relink of the
 	 *   project's own res/ (a strict subset of what the real build merged in - library
 	 *   AAR resources included) pins every resource to the SAME numeric id the baseline
 	 *   manifest was compiled against, instead of letting aapt2's type-index assignment
 	 *   drift when a whole resource TYPE the baseline had is absent from the relink
-	 *   (ADFA-4128 Bug 6). Null when the setup build's AGP version/variant didn't produce
+	 *   (ADFA-4128 Bug 6). Null when the proxy app build's AGP version/variant didn't produce
 	 *   the file - relinks then fall back to the pre-fix (unstable) behavior.
-	 * @param libraryResourcePaths pre-compiled `.flat` resource units from the setup
+	 * @param libraryResourcePaths pre-compiled `.flat` resource units from the proxy app
 	 *   build's real AGP resource processing: the project's own `intermediates/
 	 *   merged_res/` closure (transitively carries every dependency AAR's VALUES
 	 *   resources) plus each resource-providing AAR's separately-compiled FILE-based
@@ -89,10 +89,10 @@ object QuickBuildJson {
 	 *   resource a dependency AAR provides (e.g. Material3's
 	 *   `Theme.Material3.DayNight.NoActionBar`) resolves, instead of failing linking
 	 *   because the project's own res/ never declares it (ADFA-4128 Bug 8). Empty when
-	 *   the setup build's AGP version/variant produced none - relinks then fall back to
+	 *   the proxy app build's AGP version/variant produced none - relinks then fall back to
 	 *   the pre-fix behavior (project res/ only).
 	 */
-	fun setupJson(
+	fun proxyAppReportJson(
 		info: ManifestInfo,
 		apkPath: String,
 		classpath: List<String> = emptyList(),
@@ -117,7 +117,7 @@ object QuickBuildJson {
 						componentMap(it, supertypes = supertypes[it.userClass].orEmpty())
 					},
 				"apkPath" to apkPath,
-				// For the on-device daemon: what the setup build compiled against, the
+				// For the on-device daemon: what the proxy app build compiled against, the
 				// compiled proxies every later payload must bundle, and the TRANSFORMED
 				// manifest resource relinks must use (proxy-app package, proxy names).
 				"classpath" to classpath,

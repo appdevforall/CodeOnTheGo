@@ -67,7 +67,7 @@ class QuickBuildBenchActivity : Activity() {
 		// project, there is no re-initialization to hook - tap Quick Build directly. The
 		// harness relies on this to retry a session (e.g. after an install-confirm
 		// timeout) without paying a force-stop + full project re-open, and to fire the
-		// setup build right after a bench standard build (the marginal-cost measurement).
+		// proxy app build right after a bench standard build (the marginal-cost measurement).
 		// A still-armed autostart means the project never finished initializing - in that
 		// case fall through to re-arm + re-open instead of tapping an uninitialized project.
 		// A standard-mode re-trigger also goes through arm + re-open: the single-top editor
@@ -121,7 +121,7 @@ class QuickBuildBenchActivity : Activity() {
 		 * Which build the autostart fires once the project initializes:
 		 * [QuickBuildBenchAutostart.MODE_QUICK_BUILD] (default) or
 		 * [QuickBuildBenchAutostart.MODE_STANDARD] (standard Run, for the cold
-		 * standard-vs-setup build comparison). Unknown values reject the intent.
+		 * standard-vs-proxy app build comparison). Unknown values reject the intent.
 		 */
 		const val EXTRA_MODE = "com.itsaky.androidide.quickbuild.extra.MODE"
 

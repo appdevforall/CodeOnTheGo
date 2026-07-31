@@ -1,7 +1,7 @@
 package com.itsaky.androidide.quickbuild
 
 /**
- * Composes the Gradle task path for the quick-build setup build's `assembleDebug`
+ * Composes the Gradle task path for the quick-build proxy app build's `assembleDebug`
  * task from a module's Gradle project path.
  *
  * The root/single-module project's Gradle path is `:` (defensively, an empty string

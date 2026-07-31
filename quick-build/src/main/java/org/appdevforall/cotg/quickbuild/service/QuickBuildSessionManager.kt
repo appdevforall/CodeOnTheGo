@@ -23,7 +23,7 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
 import org.appdevforall.cotg.quickbuild.data.QuickBuildPaths
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
-import org.appdevforall.cotg.quickbuild.data.SetupInfo
+import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
 import org.appdevforall.cotg.quickbuild.domain.BuildOrchestrator
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.BuildRequest
@@ -132,7 +132,7 @@ class QuickBuildSessionManager(
 	/** Test seam: build the executor for a freshly provisioned session. */
 	fun interface ExecutorFactory {
 		fun create(
-			setup: SetupInfo,
+			proxyApp: ProxyAppInfo,
 			layout: QuickBuildProjectLayout,
 			tracker: GenerationTracker,
 		): QuickBuildExecutor
@@ -214,13 +214,13 @@ class QuickBuildSessionManager(
 
 	private class LiveSession(
 		/** Mutable: a rebaseline regenerates setup.json and must move this snapshot. */
-		var setup: SetupInfo,
+		var proxyApp: ProxyAppInfo,
 		var layout: QuickBuildProjectLayout,
 		val tracker: GenerationTracker,
 		val filter: WatchFilter,
 		val orchestrator: BuildOrchestrator,
 		val watcher: ProjectWatcher,
-		/** Seam the rebaseline swaps a fresh SetupInfo-derived executor into. */
+		/** Seam the rebaseline swaps a fresh ProxyAppInfo-derived executor into. */
 		val executor: SwitchableExecutor,
 		/** Seam the rebaseline swaps a fresh annotation baseline into. */
 		val annotationImpact: SwitchableAnnotationImpact,
@@ -353,14 +353,14 @@ class QuickBuildSessionManager(
 
 	/**
 	 * Eager warm-up (plan B2): call at project open, AFTER the normal Gradle sync
-	 * completes, with the experimental flag on. Runs the setup build in the background
+	 * completes, with the experimental flag on. Runs the proxy app build in the background
 	 * so the first tap pays only install + bind; installs nothing. No-op unless Idle.
 	 * A tap landing mid-warm queues and provisions when the warm build finishes.
 	 *
 	 * NOT gated on project history. The previous behaviour (plan P7) skipped the warm-up
 	 * until Quick Build had been tapped once on the project, to avoid spending battery on
 	 * a feature that might never be used. In practice that made the first tap on every
-	 * new project pay the whole cold setup cost -- ~97 s on an a56 for a small app -- which
+	 * new project pay the whole cold proxy app build cost -- ~97 s on an a56 for a small app -- which
 	 * is the one impression a user forms of the feature. If Quick Build is enabled, warm it.
 	 */
 	fun prewarm() {
@@ -371,7 +371,7 @@ class QuickBuildSessionManager(
 	 * Mode-switch hand-back (plan B3): call when a Standard Run's Gradle build completes
 	 * (e.g. from the A2 dropdown's "Standard Run", or the Run button's build-finished
 	 * hook). A live session re-seeds its incremental snapshot from current disk - a full
-	 * rebaseline when the external build clobbered the setup artifacts, otherwise a fresh
+	 * rebaseline when the external build clobbered the proxy app build artifacts, otherwise a fresh
 	 * incremental seed - so the next quick build is never stale. No session: no-op.
 	 */
 	fun onStandardRunCompleted() {
@@ -536,17 +536,17 @@ class QuickBuildSessionManager(
 				}
 			}
 
-			SessionEffect.CancelSetupBuild -> {
+			SessionEffect.CancelProxyAppBuild -> {
 				// Emitted only from Prewarming(tapQueued)/Provisioning, i.e. exactly when this
 				// session owns the device's single Gradle build slot - see the port's KDoc for
 				// why issuing it blind would be dangerous.
-				if (provisioner.cancelSetupBuild()) {
-					log.info("Quick Build setup build cancelled by the user")
+				if (provisioner.cancelProxyAppBuild()) {
+					log.info("Quick Build proxy app build cancelled by the user")
 				} else {
 					// The Gradle build had already finished (the session is in its install or
 					// daemon-spawn tail). The TeardownSession effect that follows still stops
 					// the session, so the stop is honoured; nothing Gradle is doing is claimed.
-					log.info("No Quick Build setup build to cancel; tearing the session down instead")
+					log.info("No Quick Build proxy app build to cancel; tearing the session down instead")
 				}
 				surfaceNotice(QuickBuildNotice.BUILD_CANCELLED)
 			}
@@ -610,29 +610,29 @@ class QuickBuildSessionManager(
 		// one carries MAIN/LAUNCHER, else null so the launcher falls back to the package's
 		// default launch intent (which resolves an <activity-alias> launcher).
 		val launcherActivity =
-			session.setup.components
+			session.proxyApp.components
 				.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
 				?.proxyClass
-		if (!launcher.launch(session.setup.proxyAppPackage, launcherActivity)) {
-			log.warn("Could not bring the proxy app {} to the foreground", session.setup.proxyAppPackage)
+		if (!launcher.launch(session.proxyApp.proxyAppPackage, launcherActivity)) {
+			log.warn("Could not bring the proxy app {} to the foreground", session.proxyApp.proxyAppPackage)
 		}
 	}
 
 	/** B2 warm-up: best-effort, silent on failure; always reports finished. */
 	private suspend fun runPrewarm() {
 		try {
-			provisioner.warmSetupBuild()
+			provisioner.prebuildProxyApp()
 		} catch (e: kotlinx.coroutines.CancellationException) {
 			throw e
 		} catch (e: Throwable) {
-			log.warn("Eager quick-build setup build failed; first tap will retry", e)
+			log.warn("Eager quick-build proxy app build failed; first tap will retry", e)
 		}
 		dispatch(SessionEvent.PrewarmFinished)
 	}
 
 	private suspend fun provision(startEpoch: Long) {
 		// Disk-space guard (ADFA-4930): fail in seconds with a clear message rather than
-		// let a full private volume ENOSPC minutes into the setup build or mid-quick-build.
+		// let a full private volume ENOSPC minutes into the proxy app build or mid-quick-build.
 		scratch.freeSpaceShortfall()?.let { message ->
 			dispatch(SessionEvent.ProvisioningFailed(message))
 			return
@@ -649,7 +649,7 @@ class QuickBuildSessionManager(
 			}
 
 		if (startEpoch != sessionEpoch) {
-			// "Restart session" landed while the setup build ran; the user asked for a
+			// "Restart session" landed while the proxy app build ran; the user asked for a
 			// fresh start, so a late success must not resurrect (and a late failure must
 			// not surface) - see the zombie-session scenario in the teardown KDoc.
 			log.info("Quick-build provisioning outlived a session restart; discarding")
@@ -675,10 +675,10 @@ class QuickBuildSessionManager(
 					}
 				}
 
-				connections.beginSession(outcome.setup.proxyAppPackage, outcome.proxyAppUid)
+				connections.beginSession(outcome.proxyApp.proxyAppPackage, outcome.proxyAppUid)
 
 				daemonEpoch++
-				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.setup))) {
+				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.proxyApp))) {
 					is DaemonReply.Ok -> {
 						if (startEpoch != sessionEpoch) {
 							// Restart raced the daemon start: undo, don't go live.
@@ -717,9 +717,9 @@ class QuickBuildSessionManager(
 		tracker: GenerationTracker,
 	): LiveSession {
 		val layout = outcome.layout
-		val setup = outcome.setup
-		val executor = SwitchableExecutor(buildExecutor(setup, layout, tracker))
-		val annotationImpact = SwitchableAnnotationImpact(annotationImpact(setup, layout))
+		val proxyApp = outcome.proxyApp
+		val executor = SwitchableExecutor(buildExecutor(proxyApp, layout, tracker))
+		val annotationImpact = SwitchableAnnotationImpact(annotationImpact(proxyApp, layout))
 		val orchestrator =
 			BuildOrchestrator(
 				executor = executor,
@@ -732,7 +732,7 @@ class QuickBuildSessionManager(
 			)
 		val filter = WatchFilter(layout.watchedRoots(), layout.watchedFiles())
 		return LiveSession(
-			setup = outcome.setup,
+			proxyApp = outcome.proxyApp,
 			layout = layout,
 			tracker = tracker,
 			filter = filter,
@@ -747,17 +747,17 @@ class QuickBuildSessionManager(
 	 * Annotation-processor awareness for this session's baseline. A project with no
 	 * `ksp`/`kapt`/`annotationProcessor` dependency gets [AnnotationImpact.Inactive] and
 	 * behaves exactly as before; otherwise the classifier compares each edit against the
-	 * annotation input the setup build actually ran against, and only edits that could
+	 * annotation input the proxy app build actually ran against, and only edits that could
 	 * have moved generated code pay a rebaseline.
 	 *
 	 * Rebuilt on every re-baseline too (see [SwitchableAnnotationImpact]): the Gradle build
 	 * that just ran IS the new reference point.
 	 */
 	private fun annotationImpact(
-		setup: SetupInfo,
+		proxyApp: ProxyAppInfo,
 		layout: QuickBuildProjectLayout,
 	): AnnotationImpact {
-		val profile = AnnotationProcessorProfile.of(setup.annotationProcessors)
+		val profile = AnnotationProcessorProfile.of(proxyApp.annotationProcessors)
 		if (!profile.hasProcessors) return AnnotationImpact.Inactive
 		log.info(
 			"Quick build: annotation-aware classification on for processors {}",
@@ -766,40 +766,40 @@ class QuickBuildSessionManager(
 		return AnnotationImpactAnalyzer(profile, AnnotationBaseline.capture(layout.allSources(), profile))
 	}
 
-	/** SetupInfo-derived executor; rebuilt (and swapped in) on every rebaseline. */
+	/** ProxyAppInfo-derived executor; rebuilt (and swapped in) on every rebaseline. */
 	private fun buildExecutor(
-		setup: SetupInfo,
+		proxyApp: ProxyAppInfo,
 		layout: QuickBuildProjectLayout,
 		tracker: GenerationTracker,
 	): QuickBuildExecutor =
-		executorFactory?.create(setup, layout, tracker)
+		executorFactory?.create(proxyApp, layout, tracker)
 			?: QuickBuildExecutorImpl(
 				daemon = daemon,
 				deploy = deploy,
 				layout = layout,
 				// A session only reaches here off ProvisionOutcome.Success, which the
 				// provisioner never produces for a null entryActivity (ADFA-4128 Bug 10) -
-				// it refuses with a friendly message first. See SetupInfo.entryActivity.
+				// it refuses with a friendly message first. See ProxyAppInfo.entryActivity.
 				entryActivity =
-					checkNotNull(setup.entryActivity) {
+					checkNotNull(proxyApp.entryActivity) {
 						"Quick Build session started without an entry activity"
 					},
 				generations = tracker,
 				// App-private scratch (ADFA-4930), NOT under the FUSE-backed project root.
 				workDir = scratch.workDirFor(layout.projectRoot),
-				proxyClassesDir = setup.proxyClassesDir,
-				proxyAppManifest = setup.transformedManifest,
+				proxyClassesDir = proxyApp.proxyClassesDir,
+				proxyAppManifest = proxyApp.transformedManifest,
 				deployPolicy =
 					DeployPolicy(
-						components = setup.components,
+						components = proxyApp.components,
 						// Pre-v2 setup.json (no schema/components) = a baseline whose
 						// runtime ignores restart deploys; the policy then routes
 						// restart-requiring builds to a rebaseline (skew guard).
-						componentInfoAvailable = setup.supportsComponentInfo,
+						componentInfoAvailable = proxyApp.supportsComponentInfo,
 					),
-				proxyAppPackage = setup.proxyAppPackage,
+				proxyAppPackage = proxyApp.proxyAppPackage,
 				launcherActivity =
-					setup.components
+					proxyApp.components
 						.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
 						?.proxyClass,
 				launcher = launcher,
@@ -813,7 +813,7 @@ class QuickBuildSessionManager(
 
 	private fun daemonConfig(
 		layout: QuickBuildProjectLayout,
-		setup: SetupInfo,
+		proxyApp: ProxyAppInfo,
 	): DaemonConfig =
 		DaemonConfig(
 			projectRoot = layout.projectRoot,
@@ -826,7 +826,7 @@ class QuickBuildSessionManager(
 			d8Jar = paths.d8Jar,
 			androidJar = paths.androidJar,
 			compilerPlugins =
-				if (setup.composeEnabled) listOf(paths.composeCompilerPlugin) else emptyList(),
+				if (proxyApp.composeEnabled) listOf(paths.composeCompilerPlugin) else emptyList(),
 		)
 
 	/** Delivered synchronously on [dispatcher] by the orchestrator; hop to a launch. */
@@ -884,7 +884,7 @@ class QuickBuildSessionManager(
 						// re-seeds with ChangedFiles.Unknown, so no seed-specific path.
 						dispatch(SessionEvent.DaemonDied)
 					} else if (event.route is BuildRoute.Seed) {
-						// A failed seed is invisible by design: the setup build just
+						// A failed seed is invisible by design: the proxy app build just
 						// compiled these sources green, and the next real save compiles
 						// the full source set anyway. Log for diagnosis, surface nothing.
 						log.warn("Background seed build failed (not surfaced): {}", outcome)
@@ -951,7 +951,7 @@ class QuickBuildSessionManager(
 		// 3-4GB target class the two must not coexist. Costless: the daemon's IC state
 		// is untrustworthy after a rebaseline anyway (regenerated inputs it never saw),
 		// and it was going to be re-seeded from scratch regardless; on success it
-		// restarts below with the NEW setup's config (the survivor used to keep serving
+		// restarts below with the NEW proxy app info's config (the survivor used to keep serving
 		// the OLD configure's classpath - correct only via BTA's full-recompile
 		// fallback). The epoch bump discards a daemon respawn still in flight (a
 		// rebaseline can start from Degraded); see [daemonEpoch].
@@ -1005,7 +1005,7 @@ class QuickBuildSessionManager(
 					dispatch(SessionEvent.RebaselineDeferred(installRetryPark.deployedGeneration))
 				} else {
 					// A first rebaseline (not a parked retry) has no park to return to and no
-					// budget to protect; report it like any other setup-build failure.
+					// budget to protect; report it like any other proxy-app-build failure.
 					session.orchestrator.onRebaselineFailed()
 					dispatch(SessionEvent.ProvisioningFailed("Re-baseline build failed"))
 				}
@@ -1013,18 +1013,18 @@ class QuickBuildSessionManager(
 
 			is RebaselineOutcome.Success -> {
 				// The rebaseline regenerated setup.json and reinstalled the proxy app:
-				// every SetupInfo-derived piece of the session (deploy-policy components,
+				// every ProxyAppInfo-derived piece of the session (deploy-policy components,
 				// componentInfoAvailable, launcher/entry targets, classpath) must move to
 				// the new baseline, or the policy keeps routing on provisioning-time
 				// facts - e.g. a service the rebaseline just proxied would hot-swap and
 				// silently leave its live instance stale.
-				session.setup = outcome.setup
+				session.proxyApp = outcome.proxyApp
 				session.layout = outcome.layout
-				session.executor.delegate = buildExecutor(outcome.setup, outcome.layout, session.tracker)
-				session.annotationImpact.delegate = annotationImpact(outcome.setup, outcome.layout)
-				// Restart the daemon torn down above, against the NEW setup's config.
+				session.executor.delegate = buildExecutor(outcome.proxyApp, outcome.layout, session.tracker)
+				session.annotationImpact.delegate = annotationImpact(outcome.proxyApp, outcome.layout)
+				// Restart the daemon torn down above, against the NEW proxy app info's config.
 				daemonEpoch++
-				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.setup))) {
+				when (val started = daemon.start(daemonConfig(outcome.layout, outcome.proxyApp))) {
 					is DaemonReply.Ok -> {
 						Unit
 					}
@@ -1071,26 +1071,26 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * B3 hand-back: an external full build finished. When the setup artifacts the daemon
+	 * B3 hand-back: an external full build finished. When the proxy app build artifacts the daemon
 	 * builds against are still on disk, marking the baseline dirty is enough - the next
 	 * build recompiles everything from current disk, without reinstalling anything. When
-	 * the external build removed them (a clean wiped build/), only a full setup rebuild
+	 * the external build removed them (a clean wiped build/), only a full proxy app rebuild
 	 * helps: route to the existing invalidation machinery as EXTERNAL_FULL_BUILD.
 	 */
 	private suspend fun reseedBaseline() {
 		val session = live ?: return
-		if (setupArtifactsIntact(session.setup)) {
+		if (proxyAppArtifactsIntact(session.proxyApp)) {
 			session.orchestrator.onBaselineUntrusted()
 		} else {
-			log.warn("Setup artifacts missing after an external build; forcing a rebaseline")
+			log.warn("Proxy app build artifacts missing after an external build; forcing a rebaseline")
 			dispatch(SessionEvent.InvalidationDetected(InvalidationReason.EXTERNAL_FULL_BUILD))
 		}
 	}
 
-	private fun setupArtifactsIntact(setup: SetupInfo): Boolean =
-		setup.classpath.all { it.exists() } &&
-			setup.proxyClassesDir?.isDirectory != false &&
-			setup.transformedManifest?.isFile != false
+	private fun proxyAppArtifactsIntact(proxyApp: ProxyAppInfo): Boolean =
+		proxyApp.classpath.all { it.exists() } &&
+			proxyApp.proxyClassesDir?.isDirectory != false &&
+			proxyApp.transformedManifest?.isFile != false
 
 	private suspend fun respawnDaemon(startEpoch: Long) {
 		val session = live ?: return
@@ -1100,7 +1100,7 @@ class QuickBuildSessionManager(
 			log.info("Quick-build daemon respawn superseded before start; discarding")
 			return
 		}
-		val started = daemon.start(daemonConfig(session.layout, session.setup))
+		val started = daemon.start(daemonConfig(session.layout, session.proxyApp))
 		if (startEpoch != daemonEpoch) {
 			// An intentional shutdown (rebaseline teardown, session teardown, low-memory
 			// shrink) landed while this respawn's start was in flight (2026-07-26 review

@@ -596,7 +596,7 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `idle plus PrewarmRequested starts the eager setup build`() {
+	fun `idle plus PrewarmRequested starts the eager proxy app build`() {
 		val transition = reducer.reduce(QuickBuildSessionState.Idle, SessionEvent.PrewarmRequested)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Prewarming(tapQueued = false))
@@ -852,7 +852,7 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `stopping during provisioning cancels the Gradle setup build and tears down`() {
+	fun `stopping during provisioning cancels the Gradle proxy app build and tears down`() {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Provisioning(userInitiated = true),
@@ -863,11 +863,11 @@ class SessionReducerTest {
 		// Order matters: the Gradle build has to be cancelled BEFORE the teardown cancels the
 		// coroutine that is awaiting it, or nothing would ever reach the cancellation token.
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.CancelSetupBuild, SessionEffect.TeardownSession))
+			.isEqualTo(listOf(SessionEffect.CancelProxyAppBuild, SessionEffect.TeardownSession))
 	}
 
 	@Test
-	fun `stopping a queued tap during prewarm drops the tap and cancels the setup build`() {
+	fun `stopping a queued tap during prewarm drops the tap and cancels the proxy app build`() {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Prewarming(tapQueued = true),
@@ -875,7 +875,7 @@ class SessionReducerTest {
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle)
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.CancelSetupBuild))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.CancelProxyAppBuild))
 	}
 
 	@Test

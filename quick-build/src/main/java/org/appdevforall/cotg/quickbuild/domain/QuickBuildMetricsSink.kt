@@ -43,7 +43,7 @@ interface QuickBuildMetricsSink {
 	 */
 	fun onReloadTimeline(timeline: E2eTimeline) {}
 
-	/** A rebaseline (full setup rebuild) finished; the cost of every fallback route. */
+	/** A rebaseline (full proxy app rebuild) finished; the cost of every fallback route. */
 	fun onRebaseline(
 		isSuccess: Boolean,
 		durationMillis: Long,

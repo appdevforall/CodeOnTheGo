@@ -552,7 +552,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * tasks". Even a failed build can have rewritten build/ outputs of the modules that
 	 * DID compile (paths the quick-build watcher deliberately does not watch), so a live
 	 * session re-seeds from current disk either way. Over-reseeding is safe: it only
-	 * marks the baseline untrusted. The session's own setup builds also land here, but
+	 * marks the baseline untrusted. The session's own proxy app builds also land here, but
 	 * the reducer drops the event in Provisioning/Prewarming.
 	 */
 	fun onExternalGradleBuildFinished() {
@@ -639,7 +639,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		val service =
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
-		// The USER-visible flag, not the raw one: Quick Build's setup build occupies the same
+		// The USER-visible flag, not the raw one: Quick Build's proxy app build occupies the same
 		// Gradle slot on every project open, and latching the raw flag here left the editor
 		// stuck showing "building" (progress bar + cancel label) for a build nobody started -
 		// and, with its listener suppressed, nothing would ever clear it.
@@ -1081,7 +1081,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		// project, claim it now - the adb-driven stand-in for the human's tap. Bench-flag
 		// only; claim() is a one-shot, matched by canonical path. Claimed BEFORE prewarm so
 		// a standard-mode bench build runs alone on the daemon instead of racing the eager
-		// setup build.
+		// proxy app build.
 		val benchMode =
 			if (FeatureFlags.isQuickBuildBenchEnabled) {
 				runCatching { File(IProjectManager.getInstance().projectDirPath).canonicalPath }
@@ -1091,7 +1091,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				null
 			}
 
-		// B2 (ADFA-4128): eager quick-build setup build, AFTER the normal sync so it
+		// B2 (ADFA-4128): eager quick-build proxy app build, AFTER the normal sync so it
 		// rides the warm Gradle daemon instead of fighting it. Fire-and-forget on the
 		// session manager's own thread; installs nothing until the first tap.
 		if (benchMode != QuickBuildBenchAutostart.MODE_STANDARD) {

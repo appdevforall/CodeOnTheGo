@@ -78,7 +78,7 @@ class ManifestTransformResult(
  * KDoc) keep their real manifest name. Some resolve their OWN component by hardcoded name
  * at runtime, so renaming them breaks that lookup; others simply cannot be turned into an
  * `extends`-style proxy at all (a `final` library class, or one that doesn't resolve on
- * this setup build's compile classpath). [ComponentProxiabilityResolver] reads a
+ * this proxy app build's compile classpath). [ComponentProxiabilityResolver] reads a
  * component's actual class file to detect the latter shape in general, but is wired in at
  * [QuickBuildPayloadDexTask] (the real proxy compile), not here - see its KDoc for why
  * this task cannot safely consult the compile classpath itself (a real Gradle task-graph
@@ -87,7 +87,7 @@ class ManifestTransformResult(
  * compilation to have already happened).
  *
  * Attribute combinations the proxy app cannot host yet (android:process on any component,
- * isolated services, multiprocess providers) throw with the component named - the setup
+ * isolated services, multiprocess providers) throw with the component named - the proxy app
  * build fails loud and the session never starts, instead of silently dropping behavior.
  *
  * Pure logic, no Gradle types - unit-testable without a build.
@@ -116,7 +116,7 @@ class QuickBuildManifestTransformer(
 
 		/**
 		 * Library-owned manifest components (of ANY type - activity, service, receiver,
-		 * provider) that the setup build cannot safely turn into a
+		 * provider) that the proxy app build cannot safely turn into a
 		 * `Proxy<N><Type> extends <userClass>` subclass, so they are left under their REAL
 		 * manifest name instead: no proxy class, no [ProxiedComponent] entry,
 		 * `android:name` (and everything else - meta-data, authorities, intent-filters)
@@ -143,7 +143,7 @@ class QuickBuildManifestTransformer(
 		 *   user code (ADFA-4128 Bug 7; every Compose template with `ui-tooling` pulls
 		 *   this in).
 		 * - `androidx.profileinstaller.ProfileInstallReceiver` - resolves on some variant
-		 *   classpaths (it's in the merged manifest) but not on every setup build's
+		 *   classpaths (it's in the merged manifest) but not on every proxy app build's
 		 *   proxy-compile classpath (`variant.compileClasspath`, which doesn't always
 		 *   carry an AGP/transitively-injected runtime-only dependency), so `extends`
 		 *   fails "cannot find symbol". Same runtime-only-classpath hazard the README's
@@ -152,7 +152,7 @@ class QuickBuildManifestTransformer(
 		 *   manifest name" option the design doc already calls out as a valid
 		 *   generalization (ADFA-4128 Bug 7). It does not do a self-lookup (checked its
 		 *   decompiled bytecode), so this is a pure classpath-resolution exclusion, not a
-		 *   correctness one - if a future setup-build classpath change makes it resolve,
+		 *   correctness one - if a future proxy-app-build classpath change makes it resolve,
 		 *   proxying it would still be harmless, but excluding it is simpler than chasing
 		 *   per-project classpath differences.
 		 * - `androidx.room.MultiInstanceInvalidationService` - `final`, exactly like
@@ -179,7 +179,7 @@ class QuickBuildManifestTransformer(
 	/**
 	 * Parses and rewrites the manifest. Throws [IllegalArgumentException] on a manifest the
 	 * quick path cannot handle (no `<application>`, a component without android:name, or an
-	 * unsupported-for-v1 attribute) - the calling task turns that into a failed setup build
+	 * unsupported-for-v1 attribute) - the calling task turns that into a failed proxy app build
 	 * with the message intact.
 	 */
 	fun transform(input: InputStream): ManifestTransformResult {
@@ -375,7 +375,7 @@ class QuickBuildManifestTransformer(
 	 * The provider's declared authorities, split on `;`. The proxy app installs under the
 	 * project's real applicationId, so `${applicationId}`-derived authorities already resolve
 	 * correctly and need no rewrite - they pass through verbatim (recorded here only so the
-	 * setup report can carry them).
+	 * proxy app report can carry them).
 	 */
 	private fun readAuthorities(provider: Element): List<String> {
 		val raw = provider.getAttributeNS(ANDROID_NS, "authorities")

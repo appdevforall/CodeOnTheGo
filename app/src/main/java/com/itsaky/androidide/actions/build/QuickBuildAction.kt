@@ -27,7 +27,7 @@ import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 
 /**
- * The Quick Build toolbar action (ADFA-4128, plan 2.6). First tap starts the session (setup
+ * The Quick Build toolbar action (ADFA-4128, plan 2.6). First tap starts the session (proxy app
  * build + proxy-app install); every later tap forces a quick build of whatever is pending
  * (redeploy when nothing changed). All lifecycle logic lives in [QuickBuildSessionManager];
  * this action is a dumb trigger on purpose.

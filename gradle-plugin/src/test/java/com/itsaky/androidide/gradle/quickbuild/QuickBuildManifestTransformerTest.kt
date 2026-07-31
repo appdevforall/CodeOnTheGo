@@ -495,7 +495,7 @@ class QuickBuildManifestTransformerTest {
 	fun `leaves a final Compose PreviewActivity under its real name, unproxied`() {
 		// androidx.compose.ui.tooling.PreviewActivity is final - a generated
 		// `Proxy<N>Activity extends` it can't even compile ("cannot inherit from
-		// final"), which broke every Compose template's setup build (ADFA-4128 Bug 7).
+		// final"), which broke every Compose template's proxy app build (ADFA-4128 Bug 7).
 		val result =
 			transformer().transform(
 				manifest(
@@ -517,7 +517,7 @@ class QuickBuildManifestTransformerTest {
 
 	@Test
 	fun `leaves androidx profileinstaller ProfileInstallReceiver under its real name, unproxied`() {
-		// Not on every setup build's proxy-compile classpath (an AGP/transitively-injected
+		// Not on every proxy app build's proxy-compile classpath (an AGP/transitively-injected
 		// runtime-only dependency in some projects), so a generated Proxy<N>Receiver
 		// extending it fails "cannot find symbol" (ADFA-4128 Bug 7).
 		val result =
@@ -548,7 +548,7 @@ class QuickBuildManifestTransformerTest {
 	@Test
 	fun `leaves Room's final MultiInstanceInvalidationService under its real name, unproxied`() {
 		// final - a generated `Proxy<N>Service extends` it can't even compile ("cannot
-		// inherit from final"), which broke a real project's setup build (ADFA-4128,
+		// inherit from final"), which broke a real project's proxy app build (ADFA-4128,
 		// generalizing Bug 7's Compose PreviewActivity fix to any final library class -
 		// see QuickBuildManifestTransformer.UNPROXIABLE_LIBRARY_COMPONENTS' KDoc for why
 		// this is a named exception rather than an auto-detected one).
@@ -622,7 +622,7 @@ class QuickBuildManifestTransformerTest {
 				).byteInputStream(),
 			)
 
-		// Shorthand must not survive: the test APK installs under the suffixed
+		// Shorthand must not survive: the proxy app APK installs under the suffixed
 		// .quickbuild id, so a relative name would re-resolve against the wrong package
 		// at runtime. Manifest and recorded component must agree on the FQN.
 		val application = result.document.getElementsByTagName("application").item(0) as Element

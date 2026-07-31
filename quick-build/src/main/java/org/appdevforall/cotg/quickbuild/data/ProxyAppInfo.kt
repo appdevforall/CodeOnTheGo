@@ -8,17 +8,17 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * The setup build's output manifest (`build/quickbuild/setup.json`, written by the
+ * The proxy app build's output manifest (`build/quickbuild/setup.json`, written by the
  * Gradle-plugin side of the feature). Parsing is tolerant about key aliases because
  * the exact field names are a cross-agent contract pinned only by convention tonight -
  * the primary names are listed first per field.
  */
-data class SetupInfo(
+data class ProxyAppInfo(
 	/** The generated proxy app's applicationId - the project's real applicationId. */
 	val proxyAppPackage: String,
 	/**
 	 * Fully-qualified user entry activity carried in every deploy metadata. Null when
-	 * the setup build found no launchable Activity (ADFA-4128 Bug 10 - e.g. the
+	 * the proxy app build found no launchable Activity (ADFA-4128 Bug 10 - e.g. the
 	 * No-Activity template): the build itself succeeded, there's just nothing for
 	 * Quick Build to install/launch. [org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner]
 	 * callers must refuse with a friendly message before this null ever reaches a
@@ -30,19 +30,19 @@ data class SetupInfo(
 	/** Compile classpath for the daemon; optional in the JSON. */
 	val classpath: List<File>,
 	/**
-	 * Compiled proxy classes from the setup build; the executor bundles them into
+	 * Compiled proxy classes from the proxy app build; the executor bundles them into
 	 * every payload dex (the proxies must ride with the user classes they extend).
 	 * Optional in the JSON.
 	 */
 	val proxyClassesDir: File?,
 	/**
-	 * The setup build's TRANSFORMED manifest (proxy-app package + proxy component
+	 * The proxy app build's TRANSFORMED manifest (proxy-app package + proxy component
 	 * names); resource relinks must link against it, not the user's raw manifest.
 	 * Optional in the JSON.
 	 */
 	val transformedManifest: File?,
 	/**
-	 * True when the setup build detected Jetpack Compose in the user project; the
+	 * True when the proxy app build detected Jetpack Compose in the user project; the
 	 * daemon then compiles with the bundled Compose compiler plugin. Optional in the
 	 * JSON, defaults to false.
 	 */
@@ -54,12 +54,12 @@ data class SetupInfo(
 	 */
 	val schema: Int = 0,
 	/**
-	 * The manifest components the setup build recorded (schema v2 `components`);
+	 * The manifest components the proxy app build recorded (schema v2 `components`);
 	 * empty for pre-v2 baselines. Feeds the restart closure and the relaunch target.
 	 */
 	val components: List<ComponentInfo> = emptyList(),
 	/**
-	 * KSP/kapt/annotationProcessor coordinates the setup build saw. Empty (or absent, on
+	 * KSP/kapt/annotationProcessor coordinates the proxy app build saw. Empty (or absent, on
 	 * an older setup.json) means no processors, and the classifier stays in its original
 	 * content-free mode; non-empty switches on annotation-aware classification.
 	 */
@@ -71,20 +71,20 @@ data class SetupInfo(
 	 */
 	val sourceRoots: List<File> = emptyList(),
 	/**
-	 * AGP's `stableIds.txt` from the setup build's real resource processing, if reported
+	 * AGP's `stableIds.txt` from the proxy app build's real resource processing, if reported
 	 * (`setup.json` `stableIdsPath`). Feeds [org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout.stableIdsFile]
 	 * so relinks can pin resource ids against the baseline (ADFA-4128 Bug 6). Null when
-	 * absent - an older setup.json, or a setup build whose AGP version/variant never
+	 * absent - an older setup.json, or a proxy app build whose AGP version/variant never
 	 * produced the file.
 	 */
 	val stableIdsFile: File? = null,
 	/**
-	 * Pre-compiled `.flat` resource units from the setup build's real AGP resource
+	 * Pre-compiled `.flat` resource units from the proxy app build's real AGP resource
 	 * processing (`setup.json` `libraryResourcePaths`) - the project's own merged_res
 	 * closure plus every resource-providing AAR's compiled file resources. Feeds
 	 * [org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout.libraryResourceFlats]
 	 * so relinks can resolve a resource a dependency AAR provides (ADFA-4128 Bug 8).
-	 * Empty when absent - an older setup.json, or a setup build whose AGP version/variant
+	 * Empty when absent - an older setup.json, or a proxy app build whose AGP version/variant
 	 * never produced them.
 	 */
 	val libraryResourceFlats: List<File> = emptyList(),
@@ -98,7 +98,7 @@ data class SetupInfo(
 		get() = schema >= COMPONENT_SCHEMA_VERSION
 
 	companion object {
-		private val log = LoggerFactory.getLogger(SetupInfo::class.java)
+		private val log = LoggerFactory.getLogger(ProxyAppInfo::class.java)
 
 		/**
 		 * The setup.json schema version that introduced `components` + runtime restart
@@ -117,7 +117,7 @@ data class SetupInfo(
 		fun parse(
 			json: String,
 			baseDir: File,
-		): SetupInfo? {
+		): ProxyAppInfo? {
 			val obj =
 				runCatching { JsonParser.parseString(json).asJsonObject }.getOrNull()
 					?: run {
@@ -132,8 +132,8 @@ data class SetupInfo(
 					?: return missing("proxyAppId")
 			// Absent/null (a JSON null, not just a missing key - the plugin writes
 			// `"entryActivity": null` for a project with no launchable Activity) is a
-			// legitimate outcome of a SUCCESSFUL setup build, not a parse failure - see
-			// the classification note on [SetupInfo.entryActivity].
+			// legitimate outcome of a SUCCESSFUL proxy app build, not a parse failure - see
+			// the classification note on [ProxyAppInfo.entryActivity].
 			val entry = obj.firstString("entryActivity", "mainActivity")
 			val apkPath = obj.firstString("apk", "apkPath", "apkFile") ?: return missing("apk")
 
@@ -152,7 +152,7 @@ data class SetupInfo(
 					?.map { resolve(it, baseDir) }
 					?: emptyList()
 
-			return SetupInfo(
+			return ProxyAppInfo(
 				proxyAppPackage = pkg,
 				entryActivity = entry,
 				apk = resolve(apkPath, baseDir),
@@ -251,7 +251,7 @@ data class SetupInfo(
 				get(key)?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it.isNotBlank() }
 			}
 
-		private fun missing(field: String): SetupInfo? {
+		private fun missing(field: String): ProxyAppInfo? {
 			log.error("setup.json is missing required field '{}'", field)
 			return null
 		}

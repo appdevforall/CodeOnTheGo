@@ -47,7 +47,7 @@ interface BuildService {
 
 	/**
 	 * Whether a build the USER started is in progress. Differs from [isBuildInProgress] only
-	 * while an INTERNAL build owns the single Gradle slot: Quick Build's setup/prewarm build
+	 * while an INTERNAL build owns the single Gradle slot: Quick Build's proxy-app/prewarm build
 	 * runs through the same [executeTasks] path, but nobody asked for it, so the editor's
 	 * build UI (status line, first-build notice, the Run button's cancel affordance) must not
 	 * present it as the user's build.

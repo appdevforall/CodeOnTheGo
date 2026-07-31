@@ -9,7 +9,7 @@ package org.appdevforall.cotg.quickbuild.domain
  * clobbers the other build.
  *
  * Which build currently occupies the slot is read statelessly from the installed package's
- * `android:appComponentFactory` (no persisted marker): the Quick Build setup build stamps
+ * `android:appComponentFactory` (no persisted marker): the Quick Build proxy app build stamps
  * [QUICK_BUILD_APP_COMPONENT_FACTORY] into the proxy app's manifest, so an installed factory
  * equal to it means "a Quick Build proxy app"; anything else means "the user's Standard-Run
  * build" (or a third-party app of the same id, caught by [signatureRefusal] before any
@@ -17,7 +17,7 @@ package org.appdevforall.cotg.quickbuild.domain
  */
 object RealIdInstall {
 	/**
-	 * FQN of the Quick Build runtime's AppComponentFactory. The setup build sets exactly this
+	 * FQN of the Quick Build runtime's AppComponentFactory. The proxy app build sets exactly this
 	 * as the proxy app's `android:appComponentFactory`, making it the marker that identifies an
 	 * installed package as a Quick Build proxy app. MUST stay in sync with the runtime class
 	 * `com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory` and the value the
@@ -48,7 +48,7 @@ object RealIdInstall {
 	/**
 	 * The provisioner's authoritative safety check before installing the proxy app over an
 	 * existing real-id package: returns a refusal message when the occupant was NOT built by
-	 * this device's CoGo (its signing cert differs from the freshly built test APK's), else null
+	 * this device's CoGo (its signing cert differs from the freshly built proxy app APK's), else null
 	 * to proceed. Refusing here prevents clobbering a third-party install of the same id, whose
 	 * data an update-install cannot preserve; the only way past it is a manual uninstall.
 	 *

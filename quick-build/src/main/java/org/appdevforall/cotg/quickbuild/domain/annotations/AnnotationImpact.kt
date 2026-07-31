@@ -45,7 +45,7 @@ class SwitchableAnnotationImpact(
 }
 
 /**
- * The real [AnnotationImpact], comparing each changed file against the setup build's
+ * The real [AnnotationImpact], comparing each changed file against the proxy app build's
  * [AnnotationBaseline].
  *
  * **Cases deliberately treated as SAFE (fast path), and why:**

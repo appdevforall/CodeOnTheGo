@@ -6,7 +6,7 @@ import org.junit.Test
 /**
  * ADFA-4128 Bug 3 (UX half): a plugin project's artifact is a `.cgp`, not a runnable
  * app, so Quick Build should refuse with a friendly message instead of running the
- * setup build into a raw Gradle failure.
+ * proxy app build into a raw Gradle failure.
  */
 class QuickBuildProjectSupportTest {
 	@Test
@@ -26,9 +26,9 @@ class QuickBuildProjectSupportTest {
 
 	@Test
 	fun `a null entryActivity gets a friendly no-launchable-activity message, not a generic failure`() {
-		// ADFA-4128 Bug 10: setup.json without entryActivity + a successful setup
+		// ADFA-4128 Bug 10: setup.json without entryActivity + a successful proxy app
 		// build must surface this specific, actionable message - not the generic
-		// "Quick Build setup build failed" the misclassification used to produce.
+		// "Quick Build proxy app build failed" the misclassification used to produce.
 		val message = QuickBuildProjectSupport.noLaunchableActivityMessage(entryActivity = null)
 
 		assertThat(message).isNotNull()

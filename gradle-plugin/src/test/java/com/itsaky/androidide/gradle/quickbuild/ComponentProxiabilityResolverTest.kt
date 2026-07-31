@@ -97,7 +97,7 @@ class ComponentProxiabilityResolverTest {
 	}
 
 	@Test
-	fun `forSetupBuild finds a class in a directory search-path entry`(
+	fun `forProxyAppBuild finds a class in a directory search-path entry`(
 		@TempDir tempDir: File,
 	) {
 		val classDir = File(tempDir, "classes")
@@ -105,14 +105,14 @@ class ComponentProxiabilityResolverTest {
 		relativePath.parentFile.mkdirs()
 		relativePath.writeBytes(classBytes(Opcodes.ACC_PUBLIC, "androidx.room.MultiInstanceInvalidationService"))
 
-		val resolver = ComponentProxiabilityResolver.forSetupBuild(listOf(classDir))
+		val resolver = ComponentProxiabilityResolver.forProxyAppBuild(listOf(classDir))
 
 		assertThat(resolver.resolve("androidx.room.MultiInstanceInvalidationService"))
 			.isEqualTo(ComponentProxiabilityResolver.Resolution.Proxiable)
 	}
 
 	@Test
-	fun `forSetupBuild finds a final class inside a jar search-path entry and skips it`(
+	fun `forProxyAppBuild finds a final class inside a jar search-path entry and skips it`(
 		@TempDir tempDir: File,
 	) {
 		val jar = File(tempDir, "room-runtime.jar")
@@ -122,7 +122,7 @@ class ComponentProxiabilityResolverTest {
 			out.closeEntry()
 		}
 
-		val resolver = ComponentProxiabilityResolver.forSetupBuild(listOf(jar))
+		val resolver = ComponentProxiabilityResolver.forProxyAppBuild(listOf(jar))
 
 		val resolution = resolver.resolve("androidx.room.MultiInstanceInvalidationService")
 
@@ -131,24 +131,24 @@ class ComponentProxiabilityResolverTest {
 	}
 
 	@Test
-	fun `forSetupBuild treats a class absent from every search-path entry as proxiable`(
+	fun `forProxyAppBuild treats a class absent from every search-path entry as proxiable`(
 		@TempDir tempDir: File,
 	) {
 		val emptyDir = File(tempDir, "empty").apply { mkdirs() }
 
-		val resolver = ComponentProxiabilityResolver.forSetupBuild(listOf(emptyDir))
+		val resolver = ComponentProxiabilityResolver.forProxyAppBuild(listOf(emptyDir))
 
 		assertThat(resolver.resolve("com.example.app.MainActivity"))
 			.isEqualTo(ComponentProxiabilityResolver.Resolution.Proxiable)
 	}
 
 	@Test
-	fun `forSetupBuild tolerates a corrupt jar on the search path, treating the class as not found`(
+	fun `forProxyAppBuild tolerates a corrupt jar on the search path, treating the class as not found`(
 		@TempDir tempDir: File,
 	) {
 		val corruptJar = File(tempDir, "corrupt.jar").apply { writeText("not a real jar") }
 
-		val resolver = ComponentProxiabilityResolver.forSetupBuild(listOf(corruptJar))
+		val resolver = ComponentProxiabilityResolver.forProxyAppBuild(listOf(corruptJar))
 
 		assertThat(resolver.resolve("com.example.lib.Anything"))
 			.isEqualTo(ComponentProxiabilityResolver.Resolution.Proxiable)

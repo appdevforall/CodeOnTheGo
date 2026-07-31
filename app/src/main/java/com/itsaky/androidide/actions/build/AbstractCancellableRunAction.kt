@@ -72,7 +72,7 @@ abstract class AbstractCancellableRunAction(
 			return cancelBuild()
 		}
 
-		// An INTERNAL build (Quick Build's setup build) can own the single Gradle slot without
+		// An INTERNAL build (Quick Build's proxy app build) can own the single Gradle slot without
 		// driving the editor's build UI, so this button correctly still reads "Run" - but
 		// starting a second build would throw BuildInProgressException deep in the service and
 		// surface as a raw error string. Say what is actually happening instead. The RAW flag,
@@ -128,7 +128,7 @@ abstract class AbstractCancellableRunAction(
 		 * Whether the USER has a build running - what the stop affordance, the progress bar
 		 * and the disabled-during-build actions key off. Reads
 		 * [BuildService.isUserVisibleBuildInProgress], not the raw flag, so Quick Build's own
-		 * setup build (same Gradle path, nobody asked for it) does not make this button claim
+		 * proxy app build (same Gradle path, nobody asked for it) does not make this button claim
 		 * to cancel a build the user never started.
 		 */
 		fun EditorHandlerActivity?.isBuildInProgress(): Boolean {

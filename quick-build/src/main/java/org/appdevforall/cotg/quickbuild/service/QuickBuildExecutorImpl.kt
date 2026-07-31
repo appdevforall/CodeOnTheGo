@@ -50,11 +50,11 @@ class QuickBuildExecutorImpl(
 	/** Scratch dir for payload staging (the changed-assets zip). */
 	private val workDir: File,
 	/**
-	 * Setup-build proxy classes, bundled into every payload dex — the manifest's proxy
+	 * The proxy app build's proxy classes, bundled into every payload dex — the manifest's proxy
 	 * components extend user classes, so a payload without them cannot be loaded.
 	 */
 	private val proxyClassesDir: File? = null,
-	/** The setup build's transformed manifest; relinks link against it when present. */
+	/** The proxy app build's transformed manifest; relinks link against it when present. */
 	private val proxyAppManifest: File? = null,
 	/** Restart-vs-recreate decision; null (a session without one) always hot-swaps. */
 	private val deployPolicy: DeployPolicy? = null,
@@ -121,7 +121,7 @@ class QuickBuildExecutorImpl(
 					deploy.notifyBuildStatus(BuildStatusJson.buildOk())
 				}
 
-				// Deploy/infrastructure failures surface in CoGo's own status UI; the test
+				// Deploy/infrastructure failures surface in CoGo's own status UI; the proxy
 				// app cannot say anything more truthful than what it already shows. A
 				// RequiresRebaseline surfaces through the session's fallback flow.
 				else -> {

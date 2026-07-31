@@ -40,7 +40,7 @@ import javax.tools.ToolProvider
  * Rewrites the merged manifest for the proxy app and generates the artifacts derived from
  * it: proxy component sources (activities, services, receivers, providers), the
  * proxy-to-user component map (an APK asset), and the manifest-info intermediate consumed
- * by [QuickBuildSetupReportTask].
+ * by [QuickBuildProxyAppReportTask].
  *
  * One task for all four outputs so the proxy numbering in the manifest and in the sources
  * can never drift apart.
@@ -404,7 +404,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 		val userClassByProxyClass =
 			manifestInfo.components.mapNotNull { component -> component.proxyClass?.let { it to component.userClass } }.toMap()
 		val projectClasses = SupertypeResolver.supertypeIndex(payloadRoot).keys
-		val resolver = ComponentProxiabilityResolver.forSetupBuild(runtimeClassesJars + compileClasspath.files)
+		val resolver = ComponentProxiabilityResolver.forProxyAppBuild(runtimeClassesJars + compileClasspath.files)
 		val proxySourcesRoot = proxySources.get().asFile
 		for (proxyFile in proxyJavaFiles) {
 			val proxyClassName =
@@ -454,10 +454,10 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 }
 
 /**
- * Writes build/quickbuild/setup.json - the setup-build handshake CoGo reads to learn the
+ * Writes build/quickbuild/setup.json - the proxy-app-build handshake CoGo reads to learn the
  * proxy app id, entry activity, declared activities and the APK to install.
  */
-abstract class QuickBuildSetupReportTask : DefaultTask() {
+abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	@get:InputFile
 	abstract val manifestInfoFile: RegularFileProperty
 
@@ -505,7 +505,7 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 	 * every task field to persist the work graph, and serializing a `ListProperty` REALIZES
 	 * its value at STORE time (before any task runs), which forces those output providers and
 	 * throws `InvalidUserCodeException: querying the mapped value ... before task ... completed`
-	 * - killing every viewBinding-enabled setup build (ADFA-4128 Bug 1). A file collection is
+	 * - killing every viewBinding-enabled proxy app build (ADFA-4128 Bug 1). A file collection is
 	 * the one type the configuration cache stores lazily (roots + producer task dependencies,
 	 * resolved only when queried), so store never forces the providers. The absolute root
 	 * paths are read from [files] in [report] - safely, because the report runs after the
@@ -579,7 +579,7 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 	abstract val dependencyResourceDirs: ConfigurableFileCollection
 
 	@get:OutputFile
-	abstract val setupReport: RegularFileProperty
+	abstract val reportFile: RegularFileProperty
 
 	@TaskAction
 	fun report() {
@@ -607,7 +607,7 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 					"Quick Build: no APK found under '${apkDirectory.get().asFile}'",
 				)
 
-		val reportFile = setupReport.get().asFile.apply { parentFile.mkdirs() }
+		val outFile = reportFile.get().asFile.apply { parentFile.mkdirs() }
 		val payloadClassesRoot = File(payloadClassesPath.get())
 		val payloadJars =
 			File(payloadClassesRoot, "jars")
@@ -625,8 +625,8 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 			}
 		val stableIdsPath = findStableIdsFile()?.absolutePath
 		val libraryResourcePaths = collectLibraryResourcePaths()
-		reportFile.writeText(
-			QuickBuildJson.setupJson(
+		outFile.writeText(
+			QuickBuildJson.proxyAppReportJson(
 				info,
 				File(apkPath).absolutePath,
 				classpath = compileClasspathPaths.get(),
@@ -658,7 +658,7 @@ abstract class QuickBuildSetupReportTask : DefaultTask() {
 				mergedResSearchDir.orNull?.asFile,
 			)
 		}
-		logger.lifecycle("Quick Build: setup report written to {}", reportFile)
+		logger.lifecycle("Quick Build: proxy app report written to {}", outFile)
 	}
 
 	/**

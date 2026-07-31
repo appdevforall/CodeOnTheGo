@@ -4,7 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 /**
- * Regression coverage for ADFA-4128 Bug 3: the setup build's task path used to be
+ * Regression coverage for ADFA-4128 Bug 3: the proxy app build's task path used to be
  * composed as `"${module.path}:assembleDebug"`, which produces `::assembleDebug` for
  * a root/single-module project (Gradle path `:`) - a task path Gradle's selector
  * rejects with `TaskSelectionException`.

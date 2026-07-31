@@ -89,7 +89,7 @@ private const val BANNER_MESSAGE = "Quick Build smoke: injected error banner"
  *   button flips to the stop affordance, then "Restart session" tears it back down.
  *
  * Determinism notes: the banner and dialog steps drive state seams directly (no build
- * runs, nothing installs). The tap step starts a REAL provisioning setup build; the test
+ * runs, nothing installs). The tap step starts a REAL provisioning proxy app build; the test
  * only asserts the status flip and then restarts the session, so the build never runs to
  * completion. Residual flakiness risk: if provisioning fails within the assertion window
  * (broken toolchain on the test device), the status lands on Failed instead of

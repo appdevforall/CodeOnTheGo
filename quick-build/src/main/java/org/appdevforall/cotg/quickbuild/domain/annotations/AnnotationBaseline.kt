@@ -3,7 +3,7 @@ package org.appdevforall.cotg.quickbuild.domain.annotations
 import java.io.File
 
 /**
- * The annotation-processor input the setup build actually ran against - the reference
+ * The annotation-processor input the proxy app build actually ran against - the reference
  * every later edit is compared to.
  *
  * Comparing against the BASELINE (not against the previous edit) is what makes the fast
@@ -32,7 +32,7 @@ class AnnotationBaseline private constructor(
 
 	companion object {
 		/**
-		 * @param sources every source file the setup build compiled.
+		 * @param sources every source file the proxy app build compiled.
 		 * @param readText content reader; returning null (unreadable) records the file as
 		 *   unscannable, which makes any later change to it rebaseline.
 		 */

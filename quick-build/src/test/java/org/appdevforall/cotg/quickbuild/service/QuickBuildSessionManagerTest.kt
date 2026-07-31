@@ -14,7 +14,7 @@ import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.DefaultQuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.ProjectWatcher
 import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
-import org.appdevforall.cotg.quickbuild.data.SetupInfo
+import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
 import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
 import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.BuildRequest
@@ -54,8 +54,8 @@ class QuickBuildSessionManagerTest {
 	 */
 	private val seeds = mutableListOf<BuildRequest>()
 
-	/** SetupInfo of every executor the manager built (provision + each rebaseline). */
-	private val factorySetups = mutableListOf<SetupInfo>()
+	/** ProxyAppInfo of every executor the manager built (provision + each rebaseline). */
+	private val factoryProxyApps = mutableListOf<ProxyAppInfo>()
 
 	/** Flat trace of metrics-sink calls, e.g. "started:CodeOnly:1", "rebaseline:true". */
 	private val metricsEvents = mutableListOf<String>()
@@ -130,8 +130,8 @@ class QuickBuildSessionManagerTest {
 	 */
 	private val launches = mutableListOf<Pair<String, String?>>()
 
-	/** How many times a stop reached the real Gradle setup-build cancellation. */
-	private var setupCancelCount = 0
+	/** How many times a stop reached the real Gradle proxy-app-build cancellation. */
+	private var proxyAppBuildCancelCount = 0
 
 	/**
 	 * Stands in for [AndroidProjectWatcher]: mirrors its two observable behaviours -
@@ -177,8 +177,8 @@ class QuickBuildSessionManagerTest {
 
 	private fun defaultProvisionOutcome(): ProvisionOutcome =
 		ProvisionOutcome.Success(
-			setup =
-				SetupInfo(
+			proxyApp =
+				ProxyAppInfo(
 					proxyAppPackage = "com.example.quickbuild",
 					entryActivity = "com.example.MainActivity",
 					apk = File(projectRoot, "proxy-app.apk"),
@@ -192,7 +192,7 @@ class QuickBuildSessionManagerTest {
 
 	private fun defaultRebaselineSuccess(): RebaselineOutcome.Success {
 		val provision = defaultProvisionOutcome() as ProvisionOutcome.Success
-		return RebaselineOutcome.Success(setup = provision.setup, layout = provision.layout)
+		return RebaselineOutcome.Success(proxyApp = provision.proxyApp, layout = provision.layout)
 	}
 
 	private fun TestScope.createManager(
@@ -225,14 +225,14 @@ class QuickBuildSessionManagerTest {
 					return rebaselineOutcome()
 				}
 
-				override suspend fun warmSetupBuild() {
+				override suspend fun prebuildProxyApp() {
 					prewarmCount++
 					prewarmGate?.await()
 					prewarmError?.let { throw it }
 				}
 
-				override fun cancelSetupBuild(): Boolean {
-					setupCancelCount++
+				override fun cancelProxyAppBuild(): Boolean {
+					proxyAppBuildCancelCount++
 					return true
 				}
 			}
@@ -245,8 +245,8 @@ class QuickBuildSessionManagerTest {
 			historyStore = historyStore,
 			dispatcher = StandardTestDispatcher(testScheduler),
 			generationStoreFactory = { store },
-			executorFactory = { setup, _, tracker ->
-				factorySetups += setup
+			executorFactory = { proxyApp, _, tracker ->
+				factoryProxyApps += proxyApp
 				object : QuickBuildExecutor {
 					override suspend fun execute(request: BuildRequest): BuildOutcome {
 						if (request.route is BuildRoute.Seed) {
@@ -526,7 +526,7 @@ class QuickBuildSessionManagerTest {
 		runTest {
 			provisionOutcome = {
 				val default = defaultProvisionOutcome() as ProvisionOutcome.Success
-				default.copy(setup = default.setup.copy(composeEnabled = true))
+				default.copy(proxyApp = default.proxyApp.copy(composeEnabled = true))
 			}
 			val manager = createManager()
 
@@ -554,7 +554,7 @@ class QuickBuildSessionManagerTest {
 	// by a free-space floor, removed on teardown, swept at manager start.
 
 	@Test
-	fun `a full private volume fails fast with the disk message - before the setup build`() =
+	fun `a full private volume fails fast with the disk message - before the proxy app build`() =
 		runTest {
 			val scratchRoot = FakePaths(projectRoot).projectScratchRoot
 			val manager =
@@ -563,7 +563,7 @@ class QuickBuildSessionManagerTest {
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
-			// Failed BEFORE the expensive Gradle setup build and before any daemon spawn.
+			// Failed BEFORE the expensive Gradle proxy app build and before any daemon spawn.
 			assertThat(provisionCount).isEqualTo(0)
 			assertThat(daemon.startConfigs).isEmpty()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
@@ -1015,26 +1015,26 @@ class QuickBuildSessionManagerTest {
 
 			// Torn down at rebaseline start (the daemon's ~0.5GB must not coexist with
 			// the Gradle build's peak on low-RAM devices), restarted on success against
-			// the re-read setup - and left RUNNING for the session that continues.
+			// the re-read proxy app info - and left RUNNING for the session that continues.
 			assertThat(daemon.shutdownCount).isEqualTo(1)
 			assertThat(daemon.startConfigs).hasSize(2)
 			assertThat(daemon.isRunning).isTrue()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
-	// Review gap (2026-07-26 #69): the test above reuses an identical setup/layout, so
+	// Review gap (2026-07-26 #69): the test above reuses an identical proxy app info/layout, so
 	// restarting on the stale provisioning-time config would also pass it. Here the
 	// rebaseline moves BOTH - the restarted daemon must reflect the new facts.
 	@Test
-	fun `the rebaseline's daemon restart uses the re-read setup and layout, not the provisioning-time config`() =
+	fun `the rebaseline's daemon restart uses the re-read proxyApp and layout, not the provisioning-time config`() =
 		runTest {
 			// The gradle edit that forced the rebaseline added a dependency jar and
-			// enabled Compose; the regenerated setup/layout carry both.
+			// enabled Compose; the regenerated proxy app info/layout carry both.
 			val newJar = File(projectRoot, "libs/new-dep.jar")
 			rebaselineOutcome = {
 				val base = defaultRebaselineSuccess()
 				base.copy(
-					setup = base.setup.copy(composeEnabled = true),
+					proxyApp = base.proxyApp.copy(composeEnabled = true),
 					layout = DefaultQuickBuildProjectLayout(projectRoot, classpath = listOf(newJar)),
 				)
 			}
@@ -1403,7 +1403,7 @@ class QuickBuildSessionManagerTest {
 
 			assertThat(rebaselineCount).isEqualTo(2)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			// The daemon restarted against the retried rebaseline's setup.
+			// The daemon restarted against the retried rebaseline's proxy app info.
 			assertThat(daemon.isRunning).isTrue()
 			assertThat(daemon.startConfigs).hasSize(2)
 		}
@@ -1649,27 +1649,27 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a rebaseline rebuilds the executor from the re-read setup`() =
+	fun `a rebaseline rebuilds the executor from the re-read proxyApp`() =
 		runTest {
 			// The rebaseline regenerates setup.json; here it comes back schema v2 (e.g.
 			// a manifest edit added a service the new baseline proxies).
 			rebaselineOutcome = {
 				val base = defaultRebaselineSuccess()
-				base.copy(setup = base.setup.copy(schema = 2))
+				base.copy(proxyApp = base.proxyApp.copy(schema = 2))
 			}
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
-			assertThat(factorySetups).hasSize(1)
+			assertThat(factoryProxyApps).hasSize(1)
 
 			manager.save(gradleFile)
 			advanceUntilIdle()
 
-			// The live session's executor was rebuilt from the RE-READ setup, not left
+			// The live session's executor was rebuilt from the RE-READ proxy app info, not left
 			// on the provisioning-time snapshot - otherwise the deploy policy would
 			// keep routing on stale component facts for the rest of the session.
-			assertThat(factorySetups).hasSize(2)
-			assertThat(factorySetups.last().schema).isEqualTo(2)
+			assertThat(factoryProxyApps).hasSize(2)
+			assertThat(factoryProxyApps.last().schema).isEqualTo(2)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
@@ -1825,7 +1825,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `prewarm runs the setup build only - no install, no daemon, back to Idle`() =
+	fun `prewarm runs the proxy app build only - no install, no daemon, back to Idle`() =
 		runTest {
 			val manager = createManager()
 
@@ -1867,7 +1867,7 @@ class QuickBuildSessionManagerTest {
 	@Test
 	fun `prewarm failure is silent and leaves the session Idle`() =
 		runTest {
-			prewarmError = RuntimeException("setup build failed")
+			prewarmError = RuntimeException("proxy app build failed")
 			val manager = createManager()
 
 			manager.prewarm()
@@ -1897,7 +1897,7 @@ class QuickBuildSessionManagerTest {
 		runTest {
 			// The old behaviour skipped the warm-up until Quick Build had been tapped once
 			// on the project, which made the FIRST tap on every new project pay the whole
-			// cold setup cost (~97 s on an a56 for a small app). If the feature is enabled,
+			// cold proxy app build cost (~97 s on an a56 for a small app). If the feature is enabled,
 			// warm it -- the flag is the only gate.
 			historyStore.setHasUsedQuickBuild(false)
 			val manager = createManager()
@@ -2010,13 +2010,13 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `standard run completion with clobbered setup artifacts forces a full rebaseline`() =
+	fun `standard run completion with clobbered proxy app build artifacts forces a full rebaseline`() =
 		runTest {
 			provisionOutcome = {
 				val base = defaultProvisionOutcome() as ProvisionOutcome.Success
 				base.copy(
-					setup =
-						base.setup.copy(
+					proxyApp =
+						base.proxyApp.copy(
 							// Points at nothing on disk - as after an external clean.
 							proxyClassesDir = File(projectRoot, "build/quickbuild/proxy-gone"),
 						),
@@ -2035,7 +2035,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `standard run completion with all setup artifacts present re-seeds incrementally`() =
+	fun `standard run completion with all proxy app build artifacts present re-seeds incrementally`() =
 		runTest {
 			val jar =
 				File(projectRoot, "build/intermediates/r.jar").apply {
@@ -2050,8 +2050,8 @@ class QuickBuildSessionManagerTest {
 			provisionOutcome = {
 				val base = defaultProvisionOutcome() as ProvisionOutcome.Success
 				base.copy(
-					setup =
-						base.setup.copy(
+					proxyApp =
+						base.proxyApp.copy(
 							classpath = listOf(jar),
 							proxyClassesDir = proxyDir,
 							transformedManifest = manifest,
@@ -2077,8 +2077,8 @@ class QuickBuildSessionManagerTest {
 			provisionOutcome = {
 				val base = defaultProvisionOutcome() as ProvisionOutcome.Success
 				base.copy(
-					setup =
-						base.setup.copy(
+					proxyApp =
+						base.proxyApp.copy(
 							classpath = listOf(File(projectRoot, "build/intermediates/r.jar")),
 						),
 				)
@@ -2404,9 +2404,9 @@ class QuickBuildSessionManagerTest {
 	@Test
 	fun `the first tap brings the freshly installed proxy app to the foreground`() =
 		runTest {
-			// Behaviour 2 at its coldest: nothing else in the system ever launches the test
+			// Behaviour 2 at its coldest: nothing else in the system ever launches the proxy
 			// app after its install, so if the session going live did not do it the user would
-			// tap, wait through the whole setup, and be left staring at the editor.
+			// tap, wait through the whole provisioning, and be left staring at the editor.
 			val manager = createManager()
 
 			manager.onQuickBuildTapped()
@@ -2578,9 +2578,9 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `stopping a queued tap during prewarm cancels the Gradle setup build and never provisions`() =
+	fun `stopping a queued tap during prewarm cancels the Gradle proxy app build and never provisions`() =
 		runTest {
-			// Behaviour 5 mid-SETUP. The setup build runs out of process behind a future, so
+			// Behaviour 5 mid-PROVISIONING. The proxy app build runs out of process behind a future, so
 			// abandoning the coroutine that awaits it would leave Gradle running while the
 			// button went idle - the cancel has to reach the tooling server.
 			val gate = CompletableDeferred<Unit>()
@@ -2597,7 +2597,7 @@ class QuickBuildSessionManagerTest {
 			manager.onCancelRequested()
 			advanceUntilIdle()
 
-			assertThat(setupCancelCount).isEqualTo(1)
+			assertThat(proxyAppBuildCancelCount).isEqualTo(1)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 			assertThat(notices).containsExactly(QuickBuildNotice.BUILD_CANCELLED)
 
@@ -2610,7 +2610,7 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `stopping during provisioning cancels the setup build and tears the session down`() =
+	fun `stopping during provisioning cancels the proxy app build and tears the session down`() =
 		runTest {
 			val gate = CompletableDeferred<Unit>()
 			provisionGate = gate
@@ -2624,7 +2624,7 @@ class QuickBuildSessionManagerTest {
 			manager.onCancelRequested()
 			advanceUntilIdle()
 
-			assertThat(setupCancelCount).isEqualTo(1)
+			assertThat(proxyAppBuildCancelCount).isEqualTo(1)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 			assertThat(notices).containsExactly(QuickBuildNotice.BUILD_CANCELLED)
 

@@ -77,7 +77,7 @@ class QuickBuildScratch(
 	/**
 	 * Disk-space guard: null when the private volume has room, else the user-facing
 	 * failure message. Called before provisioning so a full volume fails in seconds
-	 * with a clear message instead of ENOSPC minutes into the setup build or, worse,
+	 * with a clear message instead of ENOSPC minutes into the proxy app build or, worse,
 	 * mid-quick-build.
 	 *
 	 * Heuristic: a fixed floor ([minFreeBytes], default 100 MB) rather than an

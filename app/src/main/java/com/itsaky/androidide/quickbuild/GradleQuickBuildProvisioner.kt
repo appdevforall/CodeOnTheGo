@@ -15,7 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.data.DefaultQuickBuildProjectLayout
-import org.appdevforall.cotg.quickbuild.data.SetupInfo
+import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
 import org.appdevforall.cotg.quickbuild.domain.RealIdInstall
 import org.appdevforall.cotg.quickbuild.service.InstallOutcome
 import org.appdevforall.cotg.quickbuild.service.InstalledPackages
@@ -28,9 +28,9 @@ import java.io.File
 
 /**
  * Real-Gradle side of quick-build provisioning (plan 2.2): stages the bundled
- * artifacts, runs the setup build through the existing [BuildService.executeTasks]
- * path with the quick-build `-P` properties (LogSender-AAR pattern), reads the setup
- * manifest the Gradle plugin writes, and hands the built proxy app to [installer] -
+ * artifacts, runs the proxy app build through the existing [BuildService.executeTasks]
+ * path with the quick-build `-P` properties (LogSender-AAR pattern), reads the proxy app
+ * report the Gradle plugin writes, and hands the built proxy app to [installer] -
  * which reuses CoGo's Run install pathway (plan B1) and skips the install entirely
  * when the device already runs those exact APK bytes.
  *
@@ -54,18 +54,18 @@ class GradleQuickBuildProvisioner(
 
 		// A busy Gradle slot folds into the same failure as any other: from Idle the next tap
 		// re-provisions, so there is no parked state to defer into (unlike [rebaseline]).
-		val setupResult =
-			runSetupBuild() as? SetupBuildResult.Ready
-				?: return ProvisionOutcome.Failure("Quick Build setup build failed")
-		val (setup, projectRoot, moduleDir) = setupResult
+		val buildResult =
+			runProxyAppBuild() as? ProxyAppBuildResult.Ready
+				?: return ProvisionOutcome.Failure("Quick Build proxy app build failed")
+		val (proxyApp, projectRoot, moduleDir) = buildResult
 
 		QuickBuildProjectSupport
-			.noLaunchableActivityMessage(setup.entryActivity)
+			.noLaunchableActivityMessage(proxyApp.entryActivity)
 			?.let { return ProvisionOutcome.Failure(it) }
-		installRefusal(setup)?.let { return ProvisionOutcome.Failure(it) }
+		installRefusal(proxyApp)?.let { return ProvisionOutcome.Failure(it) }
 
 		val uid =
-			when (val installed = installer.ensureInstalled(setup.apk, setup.proxyAppPackage)) {
+			when (val installed = installer.ensureInstalled(proxyApp.apk, proxyApp.proxyAppPackage)) {
 				is InstallOutcome.Failed -> {
 					return ProvisionOutcome.Failure(installed.message)
 				}
@@ -82,59 +82,59 @@ class GradleQuickBuildProvisioner(
 			}
 
 		return ProvisionOutcome.Success(
-			setup = setup,
+			proxyApp = proxyApp,
 			proxyAppUid = uid,
 			layout =
 				DefaultQuickBuildProjectLayout(
 					projectRoot = projectRoot,
 					appModuleDir = moduleDir,
-					classpath = setup.classpath,
-					extraSourceRoots = setup.sourceRoots,
-					stableIdsFile = setup.stableIdsFile,
-					libraryResourceFlats = setup.libraryResourceFlats,
+					classpath = proxyApp.classpath,
+					extraSourceRoots = proxyApp.sourceRoots,
+					stableIdsFile = proxyApp.stableIdsFile,
+					libraryResourceFlats = proxyApp.libraryResourceFlats,
 				),
 		)
 	}
 
-	override suspend fun warmSetupBuild() {
-		// Eager B2 warm-up: run the setup build, install nothing - so no clobber can
+	override suspend fun prebuildProxyApp() {
+		// Eager B2 warm-up: run the proxy app build, install nothing - so no clobber can
 		// happen before the user confirms (contract section 1). The tap-time
 		// provision() re-runs it against current disk (fast: tasks up-to-date), so a
 		// stale warm result can never become the session baseline.
 		if (unsupportedProjectTypeFailure() != null) {
-			log.warn("Quick Build unsupported for this project type; skipping the warm setup build")
+			log.warn("Quick Build unsupported for this project type; skipping the proxy app prebuild")
 			return
 		}
-		if (runSetupBuild() !is SetupBuildResult.Ready) {
-			log.warn("Eager quick-build setup build did not complete; the first tap retries")
+		if (runProxyAppBuild() !is ProxyAppBuildResult.Ready) {
+			log.warn("Eager quick-build proxy app build did not complete; the first tap retries")
 		}
 	}
 
 	override suspend fun rebaseline(): RebaselineOutcome {
 		unsupportedProjectTypeFailure()?.let { return RebaselineOutcome.Failure(it) }
 
-		val setupResult =
-			when (val built = runSetupBuild()) {
-				is SetupBuildResult.Ready -> built
+		val buildResult =
+			when (val built = runProxyAppBuild()) {
+				is ProxyAppBuildResult.Ready -> built
 
 				// Nothing ran, so this is not a build failure: the session parks back and
 				// retries later WITHOUT spending its bounded auto-retry budget.
-				SetupBuildResult.SlotBusy -> return RebaselineOutcome.BuildSlotBusy
+				ProxyAppBuildResult.SlotBusy -> return RebaselineOutcome.BuildSlotBusy
 
-				SetupBuildResult.Failed -> return RebaselineOutcome.Failure("Re-baseline build failed")
+				ProxyAppBuildResult.Failed -> return RebaselineOutcome.Failure("Re-baseline build failed")
 			}
 
 		QuickBuildProjectSupport
-			.noLaunchableActivityMessage(setupResult.setup.entryActivity)
+			.noLaunchableActivityMessage(buildResult.proxyApp.entryActivity)
 			?.let { return RebaselineOutcome.Failure(it) }
-		installRefusal(setupResult.setup)?.let { return RebaselineOutcome.Failure(it) }
+		installRefusal(buildResult.proxyApp)?.let { return RebaselineOutcome.Failure(it) }
 
 		// The installer skips when the rebuilt APK is byte-identical to what is
 		// installed (common when a gradle edit did not change the proxy app), so a
 		// rebaseline only re-prompts the user when the APK really changed.
 		return when (
 			val installed =
-				installer.ensureInstalled(setupResult.setup.apk, setupResult.setup.proxyAppPackage)
+				installer.ensureInstalled(buildResult.proxyApp.apk, buildResult.proxyApp.proxyAppPackage)
 		) {
 			is InstallOutcome.Failed -> {
 				RebaselineOutcome.Failure(installed.message)
@@ -151,15 +151,15 @@ class GradleQuickBuildProvisioner(
 
 			is InstallOutcome.Installed -> {
 				RebaselineOutcome.Success(
-					setup = setupResult.setup,
+					proxyApp = buildResult.proxyApp,
 					layout =
 						DefaultQuickBuildProjectLayout(
-							projectRoot = setupResult.projectRoot,
-							appModuleDir = setupResult.moduleDir,
-							classpath = setupResult.setup.classpath,
-							extraSourceRoots = setupResult.setup.sourceRoots,
-							stableIdsFile = setupResult.setup.stableIdsFile,
-							libraryResourceFlats = setupResult.setup.libraryResourceFlats,
+							projectRoot = buildResult.projectRoot,
+							appModuleDir = buildResult.moduleDir,
+							classpath = buildResult.proxyApp.classpath,
+							extraSourceRoots = buildResult.proxyApp.sourceRoots,
+							stableIdsFile = buildResult.proxyApp.stableIdsFile,
+							libraryResourceFlats = buildResult.proxyApp.libraryResourceFlats,
 						),
 				)
 			}
@@ -169,7 +169,7 @@ class GradleQuickBuildProvisioner(
 	/**
 	 * Quick Build can't provision a plugin project (its artifact is a `.cgp`, not a
 	 * runnable app) - checked up front so this fails fast with a friendly message
-	 * instead of a raw Gradle `TaskSelectionException` from the setup build.
+	 * instead of a raw Gradle `TaskSelectionException` from the proxy app build.
 	 */
 	private fun unsupportedProjectTypeFailure(): String? =
 		QuickBuildProjectSupport.unsupportedProjectTypeMessage(
@@ -177,18 +177,18 @@ class GradleQuickBuildProvisioner(
 		)
 
 	/**
-	 * The authoritative safety check between the setup build and the install: if a package
+	 * The authoritative safety check between the proxy app build and the install: if a package
 	 * already occupies the real applicationId and its signing cert differs from the freshly
-	 * built test APK's, it was not built by this device's CoGo - refuse loud rather than
+	 * built proxy app APK's, it was not built by this device's CoGo - refuse loud rather than
 	 * clobber a third-party install whose data an update cannot preserve. No installed app,
 	 * or a matching cert (CoGo's own Quick Build or Standard Run build), proceeds. Null =
 	 * install may proceed.
 	 */
-	private fun installRefusal(setup: SetupInfo): String? {
-		val realAppId = setup.proxyAppPackage
+	private fun installRefusal(proxyApp: ProxyAppInfo): String? {
+		val realAppId = proxyApp.proxyAppPackage
 		if (packages.uid(realAppId) == null) return null
 		val installedCert = packages.signingCertSha256(realAppId)
-		val builtCert = apkCertSha256(setup.apk)
+		val builtCert = apkCertSha256(proxyApp.apk)
 		return RealIdInstall
 			.signatureRefusal(
 				realApplicationId = realAppId,
@@ -206,24 +206,24 @@ class GradleQuickBuildProvisioner(
 	}
 
 	/**
-	 * Outcome of one setup-build attempt. [SlotBusy] is split out from [Failed] because the
+	 * Outcome of one proxy-app-build attempt. [SlotBusy] is split out from [Failed] because the
 	 * caller's recovery differs: a rebaseline retry defers (nothing ran, so nothing is owed
 	 * a retry charge or an error banner), while a real failure is reported.
 	 */
-	private sealed interface SetupBuildResult {
+	private sealed interface ProxyAppBuildResult {
 		data class Ready(
-			val setup: SetupInfo,
+			val proxyApp: ProxyAppInfo,
 			val projectRoot: File,
 			val moduleDir: File,
-		) : SetupBuildResult
+		) : ProxyAppBuildResult
 
-		data object SlotBusy : SetupBuildResult
+		data object SlotBusy : ProxyAppBuildResult
 
-		data object Failed : SetupBuildResult
+		data object Failed : ProxyAppBuildResult
 	}
 
-	/** Runs the setup build and parses setup.json; logs on every non-[SetupBuildResult.Ready]. */
-	private suspend fun runSetupBuild(): SetupBuildResult {
+	/** Runs the proxy app build and parses setup.json; logs on every non-[ProxyAppBuildResult.Ready]. */
+	private suspend fun runProxyAppBuild(): ProxyAppBuildResult {
 		try {
 			QuickBuildArtifactStager.stage(context, paths)
 
@@ -233,16 +233,16 @@ class GradleQuickBuildProvisioner(
 				projectManager.getAndroidAppModules().firstOrNull()
 					?: projectManager.getAndroidModules().firstOrNull()
 					?: run {
-						log.error("No Android module found for quick-build setup")
-						return SetupBuildResult.Failed
+						log.error("No Android module found for the Quick Build proxy app build")
+						return ProxyAppBuildResult.Failed
 					}
 			val moduleDir = moduleDir(projectRoot, module.path)
 
 			val buildService =
 				Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 					?: run {
-						log.error("Build service unavailable for quick-build setup")
-						return SetupBuildResult.Failed
+						log.error("Build service unavailable for the Quick Build proxy app build")
+						return ProxyAppBuildResult.Failed
 					}
 
 			val gradleArgs =
@@ -265,11 +265,11 @@ class GradleQuickBuildProvisioner(
 			// build guards read keeps this a distinguishable outcome instead of an
 			// "IllegalStateException: Build is already in progress" that reads as a build failure.
 			if (buildService.isBuildInProgress) {
-				log.info("A Gradle build is already in progress; not starting the Quick Build setup build")
-				return SetupBuildResult.SlotBusy
+				log.info("A Gradle build is already in progress; not starting the Quick Build proxy app build")
+				return ProxyAppBuildResult.SlotBusy
 			}
 
-			// The setup build goes through the SAME executeTasks path as the user's Standard
+			// The proxy app build goes through the SAME executeTasks path as the user's Standard
 			// Run, and GradleBuildService has ONE editor event listener - so without this
 			// bracket the prewarm drives the EDITOR's build UI on every project open: status
 			// line, the modal first-build notice (consuming the isFirstBuild flag the REAL
@@ -289,37 +289,37 @@ class GradleQuickBuildProvisioner(
 					gradleService?.endInternalBuild()
 				}
 			if (result == null || !result.isSuccessful) {
-				log.error("Quick-build setup build failed: {}", result?.failure)
-				return SetupBuildResult.Failed
+				log.error("Quick-build proxy app build failed: {}", result?.failure)
+				return ProxyAppBuildResult.Failed
 			}
 
-			val setupJson =
+			val reportFile =
 				sequenceOf(
 					File(moduleDir, "build/quickbuild/setup.json"),
 					File(projectRoot, "build/quickbuild/setup.json"),
 				).firstOrNull { it.isFile }
 					?: run {
 						log.error(
-							"setup.json not found under {} or {} after the setup build",
+							"setup.json not found under {} or {} after the proxy app build",
 							moduleDir,
 							projectRoot,
 						)
-						return SetupBuildResult.Failed
+						return ProxyAppBuildResult.Failed
 					}
 
-			val setup =
-				SetupInfo.parse(setupJson.readText(), projectRoot)
+			val proxyApp =
+				ProxyAppInfo.parse(reportFile.readText(), projectRoot)
 					?: run {
-						log.error("Unparseable setup.json at {}", setupJson)
-						return SetupBuildResult.Failed
+						log.error("Unparseable setup.json at {}", reportFile)
+						return ProxyAppBuildResult.Failed
 					}
 
-			return SetupBuildResult.Ready(setup, projectRoot, moduleDir)
+			return ProxyAppBuildResult.Ready(proxyApp, projectRoot, moduleDir)
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Throwable) {
-			log.error("Quick-build setup build failed", e)
-			return SetupBuildResult.Failed
+			log.error("Quick-build proxy app build failed", e)
+			return ProxyAppBuildResult.Failed
 		}
 	}
 
@@ -327,11 +327,11 @@ class GradleQuickBuildProvisioner(
 	 * Hands a cancellation to the Gradle build currently running through the tooling server.
 	 *
 	 * The device has a single cancellation token, so this refuses unless the in-flight build
-	 * is an INTERNAL one (Quick Build setup/prewarm/rebaseline). The caller only ever issues
+	 * is an INTERNAL one (Quick Build provision/prewarm/rebaseline). The caller only ever issues
 	 * this while the session owns the slot, but that invariant used to live in a comment - and
 	 * a comment cannot stop a stop-tap from killing the user's own Standard Run.
 	 */
-	override fun cancelSetupBuild(): Boolean {
+	override fun cancelProxyAppBuild(): Boolean {
 		val buildService =
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 				?: return false
@@ -346,7 +346,7 @@ class GradleQuickBuildProvisioner(
 		} catch (e: Throwable) {
 			// A tooling server that is gone cannot be asked to cancel; the caller falls back
 			// to tearing the session down, so this is not worth surfacing.
-			log.warn("Could not cancel the Quick Build setup build", e)
+			log.warn("Could not cancel the Quick Build proxy app build", e)
 			false
 		}
 	}

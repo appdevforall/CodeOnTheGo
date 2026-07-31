@@ -67,7 +67,7 @@ class BuildOrchestrator(
 	 * Set by a Quick Build TAP, and by nothing else. Deliberately NOT folded into
 	 * [pendingForced]: `forced` is also set by the reconnect catch-up and is re-armed after
 	 * a failed build, so a stale reconnect or a save that retried a failed tap would carry
-	 * it - and this flag decides whether the user is yanked out of the editor into the test
+	 * it - and this flag decides whether the user is yanked out of the editor into the proxy
 	 * app (Bryan's behaviours 2/3). A failed build therefore does NOT re-arm it: the tap was
 	 * answered (with an error), and the save that fixes the code is not a new ask.
 	 */
@@ -481,7 +481,7 @@ class BuildOrchestrator(
 					val unchanged =
 						flight.autoFollowUp && diagnostics != null && diagnostics == lastCompileDiagnostics
 					// A seed's failure is invisible to the user (the session manager logs it
-					// and never surfaces it - the setup build just compiled these sources
+					// and never surfaces it - the proxy app build just compiled these sources
 					// green). Priming lastCompileDiagnostics from it would make the next REAL
 					// build's identical failure silently report diagnosticsUnchanged = true for
 					// an error the user never actually saw.

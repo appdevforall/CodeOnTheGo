@@ -12,7 +12,7 @@ import java.io.File
  * re-staging each time, so a fixed bundle can never be served stale):
  *
  * `<ANDROIDIDE_HOME>/quickbuild/`
- * - `quickbuild-runtime.aar` - injected into the setup build via
+ * - `quickbuild-runtime.aar` - injected into the proxy app build via
  *   `-Pcotg.quickbuild.runtimeAar` (LogSender AAR pattern)
  * - `daemon/quickbuild-daemon.jar` - runnable daemon jar; its manifest Class-Path
  *   names sibling jars, so the WHOLE runtime classpath is staged in `daemon/`
@@ -24,7 +24,7 @@ interface QuickBuildPaths {
 	/** The staged daemon jar; the daemon process runs with this jar's dir as cwd. */
 	val daemonJar: File
 
-	/** The staged runtime AAR handed to the setup build. */
+	/** The staged runtime AAR handed to the proxy app build. */
 	val runtimeAar: File
 
 	/** On-device aapt2 (CoGo's Android-built binary, not the Maven one). */
@@ -36,7 +36,7 @@ interface QuickBuildPaths {
 	/**
 	 * The Compose compiler plugin jar staged next to the daemon jar, version-matched
 	 * to the daemon's bundled Kotlin compiler (NOT the user project's Compose compiler,
-	 * whose version tracks the project's own Kotlin). Passed as -Xplugin when the setup
+	 * whose version tracks the project's own Kotlin). Passed as -Xplugin when the proxy app
 	 * build reports the project uses Compose.
 	 */
 	val composeCompilerPlugin: File

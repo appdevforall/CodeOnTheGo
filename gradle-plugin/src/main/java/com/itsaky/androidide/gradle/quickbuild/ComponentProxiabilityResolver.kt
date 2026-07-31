@@ -5,13 +5,13 @@ import java.io.IOException
 import java.util.jar.JarFile
 
 /**
- * Decides, for one manifest component's class, whether the setup build can safely emit
+ * Decides, for one manifest component's class, whether the proxy app build can safely emit
  * `Proxy<N><Type> extends <userClass>` for it. Generalizes the by-name
  * [QuickBuildManifestTransformer.UNPROXIABLE_LIBRARY_COMPONENTS] exclusion (ADFA-4128 Bug
  * 7 - Compose's `PreviewActivity`) to any library class, by reading the ACTUAL class file
  * instead of only recognizing a few hardcoded names: Room's manifest-merged
  * `MultiInstanceInvalidationService` is `final` too, and nothing named it until it broke a
- * real project's setup build with `error: cannot inherit from final`.
+ * real project's proxy app build with `error: cannot inherit from final`.
  *
  * - A class [libraryClassBytes] DOES find is a library class: proxiable only if it is not
  *   `final` (read via [ClassOpener.isFinal] - the class file's access flags, never a
@@ -67,7 +67,7 @@ class ComponentProxiabilityResolver(
 		fun alwaysProxiable(): ComponentProxiabilityResolver = ComponentProxiabilityResolver(libraryClassBytes = { null })
 
 		/**
-		 * The real resolver for a setup build. [librarySearchPath] is searched, in order,
+		 * The real resolver for a proxy app build. [librarySearchPath] is searched, in order,
 		 * for each component's class - directories are probed by relative path, jars by zip
 		 * entry name. Mirrors the exact classpath the real proxy compile uses (variant
 		 * compile classpath plus the extracted runtime AAR jars), so a class this resolver
@@ -75,7 +75,7 @@ class ComponentProxiabilityResolver(
 		 * pair this with [resolveWithProjectOverride] rather than calling [resolve]
 		 * directly - see the class KDoc for why.
 		 */
-		fun forSetupBuild(librarySearchPath: List<File>): ComponentProxiabilityResolver =
+		fun forProxyAppBuild(librarySearchPath: List<File>): ComponentProxiabilityResolver =
 			ComponentProxiabilityResolver(libraryClassBytes = { className -> findClassBytes(className, librarySearchPath) })
 
 		/**

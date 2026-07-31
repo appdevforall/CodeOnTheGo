@@ -101,7 +101,7 @@ sealed interface InstallOutcome {
  * - **Skip when current**: if the package is installed and its APK bytes equal the
  *   candidate's, no install runs at all - no PackageInstaller dialog, no Play Protect
  *   prompt. This is what keeps "the reload loop never reinstalls" true across
- *   rebaselines whose setup build came back up-to-date, and across CoGo restarts.
+ *   rebaselines whose proxy app build came back up-to-date, and across CoGo restarts.
  * - **Same pathway as Run**: [launchInstall] is ApkInstaller.installApk - the exact
  *   call the Run button's flow bottoms out in, with the same session params, the same
  *   InstallationResultReceiver, and the same MIUI intent fallback.

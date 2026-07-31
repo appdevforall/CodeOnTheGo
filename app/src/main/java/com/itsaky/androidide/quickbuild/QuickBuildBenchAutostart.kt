@@ -6,7 +6,7 @@ package com.itsaky.androidide.quickbuild
  * [com.itsaky.androidide.activities.editor.ProjectHandlerActivity] claims it exactly once -
  * when that project finishes initializing - to fire the first build in place of the human's
  * tap: either the Quick Build lightning-bolt ([MODE_QUICK_BUILD]) or the standard Run
- * ([MODE_STANDARD], for the cold standard-build-vs-setup-build comparison).
+ * ([MODE_STANDARD], for the cold standard-build-vs-proxy-app-build comparison).
  *
  * Benchmark-only (both the experiments and qbbench flags gate every writer/reader), so a
  * process-global single slot is sufficient: there is never more than one pending bench

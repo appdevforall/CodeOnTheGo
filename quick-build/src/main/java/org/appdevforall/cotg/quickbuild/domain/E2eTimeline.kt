@@ -7,7 +7,7 @@ package org.appdevforall.cotg.quickbuild.domain
  *
  * All four stamps originate on the SAME device (the A56) off ONE monotonic clock
  * (`SystemClock.elapsedRealtime` on device; an injected fake in tests), so their
- * differences are meaningful without any cross-process clock sync - CoGo and the test
+ * differences are meaningful without any cross-process clock sync - CoGo and the proxy
  * app read the same device-global boot clock. Absolute values are only comparable within
  * a single boot; consumers always read the deltas, never the raw stamps.
  *

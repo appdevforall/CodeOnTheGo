@@ -117,7 +117,7 @@ class QuickBuildJsonTest {
 	@Test
 	fun `setup json carries manifest info plus the apk path`() {
 		val json =
-			QuickBuildJson.setupJson(
+			QuickBuildJson.proxyAppReportJson(
 				info,
 				"/data/project/app/build/outputs/apk/debug/app-debug.apk",
 				classpath = listOf("/sdk/android.jar", "/libs/kotlin-stdlib.jar"),
@@ -144,7 +144,7 @@ class QuickBuildJsonTest {
 	@Test
 	fun `setup json components carry per-type fields and merged supertypes`() {
 		val json =
-			QuickBuildJson.setupJson(
+			QuickBuildJson.proxyAppReportJson(
 				info,
 				"/apk/app-debug.apk",
 				supertypes =
@@ -187,7 +187,7 @@ class QuickBuildJsonTest {
 	}
 
 	@Test
-	fun `setupJson defaults composeEnabled to false`() {
+	fun `proxyAppReportJson defaults composeEnabled to false`() {
 		val info =
 			ManifestInfo(
 				proxyAppId = "com.example.app.quickbuild",
@@ -195,7 +195,7 @@ class QuickBuildJsonTest {
 				activities = listOf("com.example.app.MainActivity"),
 			)
 
-		val json = QuickBuildJson.setupJson(info, "/apk/app-debug.apk")
+		val json = QuickBuildJson.proxyAppReportJson(info, "/apk/app-debug.apk")
 
 		val parsed = JsonSlurper().parseText(json) as Map<*, *>
 		assertThat(parsed["composeEnabled"]).isEqualTo(false)
@@ -219,7 +219,7 @@ class QuickBuildJsonTest {
 	@Test
 	fun `setup json carries annotation processors and source roots`() {
 		val json =
-			QuickBuildJson.setupJson(
+			QuickBuildJson.proxyAppReportJson(
 				info,
 				"/apk/app-debug.apk",
 				annotationProcessors = listOf("androidx.room:room-compiler:2.6.1"),
@@ -244,15 +244,15 @@ class QuickBuildJsonTest {
 	@Test
 	fun `setup json reports no processors for a project without any`() {
 		val parsed =
-			JsonSlurper().parseText(QuickBuildJson.setupJson(info, "/apk/app-debug.apk")) as Map<*, *>
+			JsonSlurper().parseText(QuickBuildJson.proxyAppReportJson(info, "/apk/app-debug.apk")) as Map<*, *>
 
 		assertThat(parsed["annotationProcessors"]).isEqualTo(emptyList<String>())
 	}
 
 	@Test
-	fun `setup json carries the stable-ids path when the setup build found one`() {
+	fun `setup json carries the stable-ids path when the proxy app build found one`() {
 		val json =
-			QuickBuildJson.setupJson(
+			QuickBuildJson.proxyAppReportJson(
 				info,
 				"/apk/app-debug.apk",
 				stableIdsPath = "/project/app/build/intermediates/stable_resource_ids_file/debug/processDebugResources/stableIds.txt",
@@ -264,18 +264,18 @@ class QuickBuildJsonTest {
 	}
 
 	@Test
-	fun `setup json reports a null stable-ids path when the setup build found none`() {
+	fun `setup json reports a null stable-ids path when the proxy app build found none`() {
 		val parsed =
-			JsonSlurper().parseText(QuickBuildJson.setupJson(info, "/apk/app-debug.apk")) as Map<*, *>
+			JsonSlurper().parseText(QuickBuildJson.proxyAppReportJson(info, "/apk/app-debug.apk")) as Map<*, *>
 
 		assertThat(parsed.containsKey("stableIdsPath")).isTrue()
 		assertThat(parsed["stableIdsPath"]).isNull()
 	}
 
 	@Test
-	fun `setup json carries library resource paths when the setup build found any`() {
+	fun `setup json carries library resource paths when the proxy app build found any`() {
 		val json =
-			QuickBuildJson.setupJson(
+			QuickBuildJson.proxyAppReportJson(
 				info,
 				"/apk/app-debug.apk",
 				libraryResourcePaths =
@@ -298,7 +298,7 @@ class QuickBuildJsonTest {
 	@Test
 	fun `setup json reports an empty library resource paths list by default`() {
 		val parsed =
-			JsonSlurper().parseText(QuickBuildJson.setupJson(info, "/apk/app-debug.apk")) as Map<*, *>
+			JsonSlurper().parseText(QuickBuildJson.proxyAppReportJson(info, "/apk/app-debug.apk")) as Map<*, *>
 
 		assertThat(parsed["libraryResourcePaths"]).isEqualTo(emptyList<String>())
 	}

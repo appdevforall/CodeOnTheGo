@@ -12,7 +12,7 @@ sealed interface QuickBuildSessionState {
 	data object Idle : QuickBuildSessionState
 
 	/**
-	 * The eager setup build runs in the background (project open, plan B2) - no install,
+	 * The eager proxy app build runs in the background (project open, plan B2) - no install,
 	 * no daemon, no session. [tapQueued] records a Quick Build tap that landed mid-warm:
 	 * provisioning starts the moment the warm build finishes instead of racing it (two
 	 * concurrent Gradle builds through the tooling server would fail).
@@ -22,11 +22,11 @@ sealed interface QuickBuildSessionState {
 	) : QuickBuildSessionState
 
 	/**
-	 * Setup build + proxy-app install + daemon spawn in progress.
+	 * Proxy app build + proxy-app install + daemon spawn in progress.
 	 *
 	 * [userInitiated] true = a Quick Build TAP is what started this, so the session going
 	 * live is the answer to the user asking - the proxy app is brought to the foreground on
-	 * [SessionEvent.ProvisioningSucceeded] (Bryan's behaviour 2). Nothing launches the test
+	 * [SessionEvent.ProvisioningSucceeded] (Bryan's behaviour 2). Nothing launches the proxy
 	 * app after its install otherwise, so without this a first tap would install the app,
 	 * warm the daemon and leave the user staring at the editor. False for a re-baseline
 	 * (also routed through this state): a rebaseline is a full Gradle build that a plain
@@ -133,10 +133,10 @@ sealed interface SessionEvent {
 	 */
 	data object CancelRequested : SessionEvent
 
-	/** Project opened with the feature enabled: warm the setup build, defer the install. */
+	/** Project opened with the feature enabled: warm the proxy app build, defer the install. */
 	data object PrewarmRequested : SessionEvent
 
-	/** The eager setup build finished (success or not - a warm failure is not surfaced). */
+	/** The eager proxy app build finished (success or not - a warm failure is not surfaced). */
 	data object PrewarmFinished : SessionEvent
 
 	data class ProvisioningSucceeded(
@@ -179,7 +179,7 @@ sealed interface SessionEvent {
 	 * The background IC-seed build finished (success or a silently-logged failure).
 	 * Nothing deployed, the generation did not move: Building returns to Ready at the
 	 * deployed generation with no seed OUTCOME surfaced - a seed problem is invisible by
-	 * design (the setup build just compiled the same sources green; the next real save
+	 * design (the proxy app build just compiled the same sources green; the next real save
 	 * surfaces anything real). A proxy-app crash observed DURING the seed is not a seed
 	 * outcome: it lands as [QuickBuildSessionState.Ready.lastFailure] via
 	 * [QuickBuildSessionState.Building.pendingCrash]. Daemon death during a seed does NOT
@@ -263,7 +263,7 @@ sealed interface SessionEvent {
 sealed interface SessionEffect {
 	data object StartProvisioning : SessionEffect
 
-	/** Run the setup build only - no install, no daemon (plan B2's eager warm-up). */
+	/** Run the proxy app build only - no install, no daemon (plan B2's eager warm-up). */
 	data object StartPrewarm : SessionEffect
 
 	/**
@@ -303,11 +303,11 @@ sealed interface SessionEffect {
 	data object CancelQuickBuild : SessionEffect
 
 	/**
-	 * Stop the out-of-process Gradle SETUP build (prewarm / provision / re-baseline)
+	 * Stop the out-of-process Gradle PROXY APP build (prewarm / provision / re-baseline)
 	 * (behaviour 5). Cancelling the awaiting coroutine alone leaves Gradle running to
 	 * completion, so this has to reach the tooling server's cancellation token.
 	 */
-	data object CancelSetupBuild : SessionEffect
+	data object CancelProxyAppBuild : SessionEffect
 
 	/**
 	 * Ask the orchestrator for the background IC seed ([BuildRoute.Seed]) the moment a
@@ -323,7 +323,7 @@ sealed interface SessionEffect {
 	/**
 	 * Re-seed the live session after an external full build: either mark the whole
 	 * incremental baseline dirty (next build recompiles from current disk) or, when the
-	 * external build clobbered the setup artifacts, escalate to a full rebaseline with
+	 * external build clobbered the proxy app build artifacts, escalate to a full rebaseline with
 	 * [InvalidationReason.EXTERNAL_FULL_BUILD]. The shell decides which.
 	 */
 	data object ReseedBaseline : SessionEffect
@@ -426,8 +426,8 @@ class SessionReducer {
 				if (state.tapQueued) {
 					// The button only shows the stop affordance once a tap has queued (an
 					// unasked-for warm-up stays invisible), so a cancel here means: drop the
-					// queued tap AND stop the Gradle setup build it is waiting on.
-					SessionTransition(QuickBuildSessionState.Idle, listOf(SessionEffect.CancelSetupBuild))
+					// queued tap AND stop the Gradle proxy app build it is waiting on.
+					SessionTransition(QuickBuildSessionState.Idle, listOf(SessionEffect.CancelProxyAppBuild))
 				} else {
 					SessionTransition(state)
 				}
@@ -459,14 +459,14 @@ class SessionReducer {
 			}
 
 			SessionEvent.CancelRequested -> {
-				// There is no half-provisioned session worth keeping: stop the Gradle setup
+				// There is no half-provisioned session worth keeping: stop the Gradle proxy app
 				// build and tear the rest down, which is also what makes a cancel mid-install
 				// safe (a late provisioning success is discarded by the epoch guard). The next
-				// tap re-provisions - the setup build's outputs are still on disk, so it is
+				// tap re-provisions - the proxy app build's outputs are still on disk, so it is
 				// not the full cold cost again.
 				SessionTransition(
 					QuickBuildSessionState.Idle,
-					listOf(SessionEffect.CancelSetupBuild, SessionEffect.TeardownSession),
+					listOf(SessionEffect.CancelProxyAppBuild, SessionEffect.TeardownSession),
 				)
 			}
 

@@ -1,6 +1,6 @@
 package org.appdevforall.cotg.quickbuild.domain
 
-/** Kind of a manifest component the setup build recorded (setup.json `components`). */
+/** Kind of a manifest component the proxy app build recorded (setup.json `components`). */
 enum class ComponentKind {
 	ACTIVITY,
 	SERVICE,
@@ -10,7 +10,7 @@ enum class ComponentKind {
 }
 
 /**
- * One manifest component fact from the setup build's `components` array (schema v2) -
+ * One manifest component fact from the proxy app build's `components` array (schema v2) -
  * the manifest facts the deploy policy and restart UX need, nothing more (intent
  * filters, permissions etc. transfer verbatim in the manifest and are not duplicated).
  *
@@ -20,7 +20,7 @@ enum class ComponentKind {
  * @property launcher true for the launcher activity - its [proxyClass] is the explicit
  *   relaunch target after a restart-deploy.
  * @property supertypes the user-side (project-compiled) superclass chain recorded from
- *   class headers at setup time; seeds the restart closure's supertype index.
+ *   class headers at proxy app build time; seeds the restart closure's supertype index.
  */
 data class ComponentInfo(
 	val kind: ComponentKind,
