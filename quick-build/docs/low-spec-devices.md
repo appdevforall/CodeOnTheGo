@@ -43,39 +43,25 @@ colliding with the device.
   takes ~8.8 minutes** for a trivial project `[measured on itel, debloated + screen-off]`.
 - A `hello-java` build that takes 82 s on the C107 had still not finished after 15 minutes
   `[measured on itel]`. It is a crawl slow enough to be unusable, not an instant death.
-- **Debloating changed the failure mode, not the outcome.** It bought enough headroom to reach
-  task execution instead of dying at the harness init window - which is what exposed GC thrash as
-  the mechanism - but the build still did not finish.
-- **Retuning the heap cannot fix it**: there is no RAM to grow into, with ~300 MB free mid-build
-  `[inferred, from the measured GC and heap behavior]`.
-
-The Q8 (1.46 GB) never got a build attempt: at idle on CoGo's onboarding screen it already showed
-795 MB available, 43 MB free and ~558 MB in zram swap - worse than the itel's *failing* mid-build
-state `[measured on Q8]`. Its onboarding carousel also ignores programmatic taps, so setup needs a
-human at the screen.
+- **Debloating changed the failure mode, not the outcome** - enough headroom to reach task
+  execution instead of dying at harness init, which is what exposed GC thrash as the mechanism.
+- **Retuning the heap cannot fix it**: there is no RAM to grow into, ~300 MB free mid-build
+  `[inferred]`.
+- The Q8 (1.46 GB) never got a build attempt - at idle it already showed 795 MB available, 43 MB
+  free and ~558 MB in zram, worse than the itel's *failing* mid-build state `[measured on Q8]`.
 
 ## Decision: accept the current floor, or spike Gradle-free provisioning?
 
-The lever follows directly from the mechanism above. The thing that dies is the big Gradle daemon
-JVM; the live reload loop is a far smaller runtime. If a session could be provisioned *without* an
-on-device Gradle build - a baseline prebaked and shipped with the project - the loop might run at
-1.9 GB even though the setup build cannot `[inferred]`.
+The lever follows from the mechanism: what dies is the big Gradle daemon JVM, and the live reload
+loop is a far smaller runtime. If a session could be provisioned *without* an on-device Gradle
+build - a baseline prebaked and shipped with the project - the loop might run at 1.9 GB even though
+the setup build cannot `[inferred]`.
 
-```mermaid
-flowchart TD
-    Q{"Accept the current floor,<br/>or spike Gradle-free provisioning?"}
-    Q -->|accept| STOP["Quick Build stays above ~3.6 GB"]
-    Q -->|spike| PRE["prebake a hello-java baseline,<br/>push it to the itel"]
-    PRE --> HOT["run the warm live reload loop"]
-    HOT -->|completes| WIN["the loop fits at 2 GB - keep going"]
-    HOT -->|does not| LOSE["spike dies, floor stands"]
-```
-
-- Payoff: reopens a device tier the mission targets and that CoGo already ships to.
+- The falsifier is cheap and decisive, which is the main argument for running it: prebake a
+  `hello-java` baseline, push it to the itel, run one warm edit. It completes or it doesn't.
+- Payoff: reopens a device tier the mission targets and CoGo already ships to.
 - Cost `[assumed]`: a few days to a first answer; sizing it properly is the spike's own first
   deliverable.
-- The falsifier is cheap and decisive, which is the main argument for running it: one prebaked
-  app on the itel either completes a warm edit or does not.
 
 ## Still unmeasured
 

@@ -4,11 +4,10 @@ How a generated proxy app can host a project's services, receivers, providers an
 `Application` - not just its activities. Implemented on this branch (ADFA-4128).
 
 Every manifest component is replaced by a generated `extends` subclass compiled into the proxy
-app, while the user's own classes travel in the swappable payload dex. A swap therefore replaces
-the whole hierarchy at once. This sits inside
-[the boundary](../README.md#the-boundary-what-live-reloads-and-what-falls-back-to-gradle): a
-manifest *change* still takes a proxy app rebuild - this only widens what a generated proxy app
-can host.
+app, while the user's own classes travel in the swappable payload dex - so a swap replaces the
+whole hierarchy at once. A manifest *change* still takes a proxy app rebuild; this only widens what
+a generated proxy app can host. See
+[the boundary](../README.md#the-boundary-what-live-reloads-and-what-falls-back-to-gradle).
 
 ```mermaid
 flowchart LR
@@ -41,10 +40,10 @@ flowchart LR
   `applicationId`, so `${applicationId}` resolves exactly as the real app's would.
 - **Unsupported attributes fail the build with the component and attribute named** - no stripping,
   no silent loss. `android:process` and isolated/multi-process providers are the live cases.
-- **The runtime persists the newest payload to disk.** Without it a fresh process boots the baked
-  gen-0 baseline; providers and the `Application` instantiate before the binder connects and are
-  never re-instantiated, so they would pin to baseline code forever - a never-stale violation.
-  On a baseline-fingerprint mismatch or any read failure it discards and falls back to gen-0.
+- **The runtime persists the newest payload to disk.** Providers and the `Application`
+  instantiate before the binder connects and are never re-instantiated, so without it they would
+  pin to baseline code forever - a never-stale violation. A fingerprint mismatch or read failure
+  falls back to gen-0.
 
 ## Restart vs recreate
 
@@ -62,17 +61,15 @@ flowchart TD
 - **Receivers are deliberately not in the restart set** - manifest receivers are instantiated
   fresh per delivery, so they already run current code.
 - **The restart is honest, not clever**: the process really dies and reboots from the persisted
-  generation, reusing the existing never-stale catch-up path rather than inventing one. Cost: the
-  back stack and all in-process state are lost, the same trade Apply Changes makes on structural
-  changes.
+  generation, reusing the never-stale catch-up path rather than inventing one. Cost is the back
+  stack and all in-process state - the same trade Apply Changes makes on structural changes.
 - **Skew guard.** An older installed baseline whose baked runtime predates restart support would
   ignore the restart flag and hot-swap - stale. `setup.json`'s top-level `schema` field gates it:
   below schema 2, a restart-requiring deploy routes to a full proxy app rebuild, which
   self-heals by regenerating a schema-2 baseline.
-- **Accepted residual, documented not silent**: a *live* service or provider keeps calling old
-  copies of recompiled non-component helper classes until its next restart. A loader swap updates
-  instantiation, not live object graphs. Bounded and identical in kind to an activity
-  mid-recreate; see README "Known limitations".
+- **Accepted residual**: a *live* service or provider keeps calling old copies of recompiled
+  non-component helper classes until its next restart - a loader swap updates instantiation, not
+  live object graphs. Same kind as an activity mid-recreate; see README "Known limitations".
 
 ## Where the code lives
 
@@ -98,4 +95,4 @@ closure rule and the skew guard.
   manifest-generation time needs the variant's compile classpath, which isn't reachable there
   without a Gradle task-graph cycle (tried; it cycles back through source generation).
 - **Tightening the live-instance residual** - restart on any code deploy while a tracked service
-  is live - is possible behind a flag; the service census already exists. Priced by metrics first.
+  is live - is possible behind a flag (the service census exists). Price it with metrics first.
