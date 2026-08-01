@@ -50,7 +50,7 @@ private val disableCoreLibDesugaringForModules =
 		":logger",
 		// Like :logsender, the AAR is injected into apps built with CoGo and must
 		// not force desugaring onto user projects (ADFA-4128).
-		":quickbuild-runtime",
+		":quickbuild:runtime",
 	)
 
 /**

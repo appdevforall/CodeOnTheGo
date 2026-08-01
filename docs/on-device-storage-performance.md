@@ -26,7 +26,7 @@ Rest was written by Claude but not edited very much...if you want more details s
   `cp -r` into each filesystem, best of 3 `[measured on a56]`.
 - **A Quick Build A/B.** Moved only the daemon's scratch tree to app-private storage, changed
 
-  nothing else, re-ran a warm edit on `sora-editor-full` (292 sources) and `medium-kotlin` (28 sources). Per-step timings from the daemon's own instrumentation. n=1 before, n=2 after, A56 only — a strong signal, not a distribution. Raw data: `quick-build/corpus/results/20260728T172912Z-sora-deepdive/`.
+  nothing else, re-ran a warm edit on `sora-editor-full` (292 sources) and `medium-kotlin` (28 sources). Per-step timings from the daemon's own instrumentation. n=1 before, n=2 after, A56 only — a strong signal, not a distribution. Raw data: `corpus/results/20260728T172912Z-sora-deepdive/` in `CodeOnTheGo-build-benchmark`.
 - **Controls.** kotlinc and d8 are compute-bound and should not move if this is a filesystem
 
   effect. They didn't.
@@ -72,7 +72,7 @@ Everything CoGo owns internally — `GRADLE_USER_HOME`, Kotlin daemon state, the
   every standard build — but a genuine product tradeoff: outputs stop being visible in the file manager and over MTP, stop travelling with the project folder when it is copied or shared (a real loss for an offline-first product), CoGo takes on orphan cleanup and storage accounting, and APK export needs an explicit copy-out step. **Measure the exposure first** — a standard-build A/B with the build directory relocated, on one mid and one low device. Task #106.
 3. **Write less, regardless of filesystem.** Incremental dexing and not re-stripping unchanged
 
-  classes (ADFA-4128 task #102) cut the file count itself. These compound with option 1 and are the only ones that still help if a future Android makes this path slower again. Sequencing, effort and risk: [`quick-build/docs/perf-roadmap.md`](../quick-build/docs/perf-roadmap.md).
+  classes (ADFA-4128 task #102) cut the file count itself. These compound with option 1 and are the only ones that still help if a future Android makes this path slower again. Sequencing, effort and risk: [`quickbuild/core/docs/perf-roadmap.md`](../quickbuild/core/docs/perf-roadmap.md).
 
 ## Generalizable takeaway
 

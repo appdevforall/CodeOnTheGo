@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory
  *
  * Registered only when experiments are enabled (see EditorActivityActions), so no runtime
  * gate is needed here. Works from API 28: resource reloads below API 30 take the degraded
- * addAssetPath shim (ResourceSwapStrategy in :quickbuild-runtime).
+ * addAssetPath shim (ResourceSwapStrategy in :quickbuild:runtime).
  */
 class QuickBuildAction(
 	context: Context,

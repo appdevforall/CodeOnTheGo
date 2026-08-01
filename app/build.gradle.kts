@@ -319,7 +319,7 @@ dependencies {
 	implementation(projects.floatingWindow)
 	implementation(projects.gitCore)
 	implementation(projects.profiler)
-	implementation(projects.quickBuild)
+	implementation(projects.quickbuild.core)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -369,14 +369,14 @@ dependencies {
 // into APK assets, mirroring the LogSender AAR flow in AndroidIDEAssetsPlugin. The
 // artifacts are extracted to <ANDROIDIDE_HOME>/quickbuild/ at session start
 // (QuickBuildArtifactStager).
-evaluationDependsOn(":quickbuild-runtime")
-evaluationDependsOn(":quickbuild-daemon")
+evaluationDependsOn(":quickbuild:runtime")
+evaluationDependsOn(":quickbuild:daemon")
 
 val quickBuildDaemonZip =
 	tasks.register<Zip>("quickBuildDaemonZip") {
 		archiveFileName.set("quickbuild-daemon.zip")
 		destinationDirectory.set(layout.buildDirectory.dir("intermediates/quickbuild"))
-		val daemonProject = rootProject.project(":quickbuild-daemon")
+		val daemonProject = rootProject.project(":quickbuild:daemon")
 		dependsOn(daemonProject.tasks.named("daemonJar"))
 		from(daemonProject.tasks.named("daemonJar"))
 		// The daemon jar's manifest Class-Path names these by file name; they must sit
@@ -395,7 +395,7 @@ androidComponents.onVariants { variant ->
 
 	val copyRuntimeAar =
 		tasks.register<AddFileToAssetsTask>("copy${variantName}QuickBuildRuntimeAar") {
-			val runtimeProject = rootProject.project(":quickbuild-runtime")
+			val runtimeProject = rootProject.project(":quickbuild:runtime")
 			dependsOn(
 				runtimeProject.tasks.named(
 					"assemble${flavorName.replaceFirstChar(Char::uppercaseChar)}Release",

@@ -62,7 +62,7 @@ class QuickBuildJumpActivity : Activity() {
 	}
 
 	companion object {
-		// Contract with the proxy-app runtime; see JumpToEditor in :quickbuild-runtime.
+		// Contract with the proxy-app runtime; see JumpToEditor in :quickbuild:runtime.
 		const val ACTION_JUMP_TO_ERROR = "com.itsaky.androidide.quickbuild.action.JUMP_TO_ERROR"
 		const val EXTRA_FILE = "com.itsaky.androidide.quickbuild.extra.FILE"
 		const val EXTRA_LINE = "com.itsaky.androidide.quickbuild.extra.LINE"

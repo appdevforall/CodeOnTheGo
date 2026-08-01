@@ -4,7 +4,7 @@ package com.itsaky.androidide.gradle.quickbuild
  * Emits the Java source of a generated proxy component: a subclass of the user's class
  * whose manifest name stays stable while the user hierarchy swaps. Extension (not
  * delegation) is enough because proxy and user class both travel in the payload dex - a
- * reload swaps the whole hierarchy together (see quick-build/README.md, "Proxy-app
+ * reload swaps the whole hierarchy together (see quickbuild/core/README.md, "Proxy-app
  * architecture"). Per type: activities add the app-switcher gesture hook (plan A3) and a
  * getClassLoader() override so by-name class resolution (Fragment/Navigation destinations,
  * LayoutInflater custom views) can see payload-only classes (ADFA-4128 Bug 9), services
