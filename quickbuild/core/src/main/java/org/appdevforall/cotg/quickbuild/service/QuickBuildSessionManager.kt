@@ -622,15 +622,6 @@ class QuickBuildSessionManager(
 		}
 	}
 
-	/** Metrics can never affect a build: a throwing sink degrades to a logged warning. */
-	private inline fun report(block: () -> Unit) {
-		try {
-			block()
-		} catch (e: Throwable) {
-			log.warn("Quick Build metrics sink failed", e)
-		}
-	}
-
 	private suspend fun rebuildProxyApp(startEpoch: Long) {
 		val session = live ?: return
 		// Captured BEFORE ProxyAppRebuildStarted moves the session to Provisioning, which carries

@@ -144,15 +144,6 @@ internal class OrchestratorEventRouter(
 			is BuildOutcome.Success -> SessionFailure.DeployError("unexpected success in failure path")
 		}
 
-	/** Metrics can never affect a build: a throwing sink degrades to a logged warning. */
-	private inline fun report(block: () -> Unit) {
-		try {
-			block()
-		} catch (e: Throwable) {
-			log.warn("Quick Build metrics sink failed", e)
-		}
-	}
-
 	private companion object {
 		private val log = LoggerFactory.getLogger(OrchestratorEventRouter::class.java)
 	}

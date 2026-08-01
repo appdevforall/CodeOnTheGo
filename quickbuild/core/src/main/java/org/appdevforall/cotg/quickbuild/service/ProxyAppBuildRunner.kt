@@ -286,15 +286,6 @@ internal class ProxyAppBuildRunner(
 			proxyApp.proxyClassesDir?.isDirectory != false &&
 			proxyApp.transformedManifest?.isFile != false
 
-	/** Metrics can never affect a build: a throwing sink degrades to a logged warning. */
-	private inline fun report(block: () -> Unit) {
-		try {
-			block()
-		} catch (e: Throwable) {
-			log.warn("Quick Build metrics sink failed", e)
-		}
-	}
-
 	private companion object {
 		private val log = LoggerFactory.getLogger(ProxyAppBuildRunner::class.java)
 	}
