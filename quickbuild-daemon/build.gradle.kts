@@ -127,7 +127,13 @@ dependencies {
 		exclude(group = "org.jetbrains.kotlin", module = "kotlin-compiler-runner")
 	}
 
+	// Staged next to the daemon jar on device and passed as -Xplugin when the user
+	// project uses Compose.
 	composeCompilerPlugin(libs.kotlin.composeCompilerPluginEmbeddable)
+	// The compose compile tests resolve a classpath from this; classes.jar is extracted
+	// from the AAR at build time and never shipped. Names the -android artifact rather
+	// than the KMP umbrella, which redirects via available-at - a redirect a
+	// non-transitive configuration will not follow.
 	composeTestRuntimeAar(libs.composeRuntimeDaemonTests)
 
 	testImplementation(libs.tests.junit.jupiter)
