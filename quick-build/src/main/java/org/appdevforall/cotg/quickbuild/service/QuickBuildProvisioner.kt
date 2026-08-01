@@ -1,0 +1,104 @@
+package org.appdevforall.cotg.quickbuild.service
+
+import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
+import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
+
+/**
+ * The session manager's door to the real Gradle world: the one-time proxy app build
+ * (plan 2.2) and the full-Gradle proxy app rebuild fallback. Implemented in the app module
+ * (GradleBuildService + ApkInstaller); an interface here keeps `:quick-build` off
+ * CoGo's project-model modules and the session manager testable.
+ */
+interface QuickBuildProvisioner {
+	/**
+	 * Runs the proxy app build (`assembleDebug` with the quick-build -P properties),
+	 * installs the produced proxy app and resolves its uid. Must not throw - failures
+	 * come back as [ProvisionOutcome.Failure] and surface in the UI.
+	 */
+	suspend fun provision(): ProvisionOutcome
+
+	/**
+	 * Re-runs the proxy app build after an invalidation (manifest/gradle change) and
+	 * reinstalls, moving the session baseline. The orchestrator's proxy-app-rebuild protocol
+	 * (onProxyAppRebuildStarted/onBaselineReset/onProxyAppRebuildFailed) brackets this call.
+	 */
+	suspend fun rebuildProxyApp(): ProxyAppRebuildOutcome
+
+	/**
+	 * Best-effort eager proxy app build (plan B2): runs at project open, AFTER the normal
+	 * Gradle sync, riding its warm daemon. Installs NOTHING - the install is deferred to
+	 * the first Quick Build tap, whose [provision] re-runs the proxy app build (fast: tasks
+	 * come back up-to-date) so it always reads current disk. Failures are logged, never
+	 * surfaced - the user did not ask for this build; a real tap reports real errors.
+	 */
+	suspend fun prebuildProxyApp() {}
+
+	/**
+	 * Cancel the proxy app build currently running through the real Gradle path (Bryan's
+	 * behaviour 5, mid-provisioning). Cancelling the coroutine that awaits [provision] /
+	 * [prebuildProxyApp] / [rebuildProxyApp] does NOT stop Gradle - the build runs out of process
+	 * behind a future - so a stop has to reach the tooling server's cancellation token.
+	 *
+	 * The caller must only invoke this when the session actually owns the Gradle slot
+	 * (prebuilding / provisioning / proxy app rebuilding): the device has ONE cancellation token, so
+	 * issuing it blind could kill a Standard Run instead.
+	 *
+	 * @return true when a cancellation was handed to Gradle. False (the default) means the
+	 *   implementation cannot cancel - the caller must not claim it stopped anything Gradle
+	 *   is still doing.
+	 */
+	fun cancelProxyAppBuild(): Boolean = false
+}
+
+sealed interface ProvisionOutcome {
+	data class Success(
+		val proxyApp: ProxyAppInfo,
+		/** PackageManager uid of the installed proxy app; the deploy-channel gate. */
+		val proxyAppUid: Int,
+		val layout: QuickBuildProjectLayout,
+	) : ProvisionOutcome
+
+	data class Failure(
+		val message: String,
+	) : ProvisionOutcome
+}
+
+sealed interface ProxyAppRebuildOutcome {
+	/**
+	 * Carries the RE-READ proxy app report (and the layout derived from it): a proxy app rebuild
+	 * regenerates setup.json, and the live session must rebuild its ProxyAppInfo-derived
+	 * state (deploy-policy components, launcher/entry targets, classpath) from the new
+	 * baseline - keeping the provisioning-time snapshot would leave the policy blind to
+	 * components the proxy app rebuild just added (a silent-stale route).
+	 */
+	data class Success(
+		val proxyApp: ProxyAppInfo,
+		val layout: QuickBuildProjectLayout,
+	) : ProxyAppRebuildOutcome
+
+	data class Failure(
+		val message: String,
+	) : ProxyAppRebuildOutcome
+
+	/**
+	 * The proxy app rebuild's Gradle build succeeded and produced a good APK, but the OS
+	 * install-confirmation was never given ([InstallOutcome.ConfirmationNotGiven] -
+	 * no dialog could be shown, the user cancelled it, or it was left untapped for
+	 * the whole timeout; [message] carries the case-specific user-facing text).
+	 * Distinct from [Failure] because nothing needs fixing: re-running the proxy app rebuild
+	 * (tasks come back up-to-date, so it is cheap) simply re-prompts, and the session
+	 * manager parks the session in a retryable state instead of tearing it down.
+	 */
+	data class InstallNotConfirmed(
+		val message: String,
+	) : ProxyAppRebuildOutcome
+
+	/**
+	 * The proxy app rebuild never STARTED: the device runs one Gradle build at a time and the
+	 * slot was already taken (CoGo's own project sync, a Standard Run). Nothing was built,
+	 * nothing was installed, no user prompt happened - so this is not a failure to report
+	 * and, for a retry of an unconfirmed reinstall, not an attempt to charge against the
+	 * bounded auto-retry budget. The session parks back and a later trigger runs it.
+	 */
+	data object BuildSlotBusy : ProxyAppRebuildOutcome
+}
