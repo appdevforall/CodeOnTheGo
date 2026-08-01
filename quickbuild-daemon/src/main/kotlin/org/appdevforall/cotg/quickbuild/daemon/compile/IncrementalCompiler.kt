@@ -422,8 +422,12 @@ class IncrementalCompiler(
 		return toCompile
 	}
 
-	/** Collects compiler output per channel; errors feed structured diagnostics. */
-	private class CollectingLogger : KotlinLogger {
+	/**
+	 * Collects compiler output per channel; errors feed structured diagnostics.
+	 * `internal` (not private) so the severity routing is unit-testable: the daemon
+	 * passes `-nowarn`, so no real compile can drive the warn channel from a test.
+	 */
+	internal class CollectingLogger : KotlinLogger {
 		val errors = mutableListOf<String>()
 		val warnings = mutableListOf<String>()
 		val lines = mutableListOf<String>()
