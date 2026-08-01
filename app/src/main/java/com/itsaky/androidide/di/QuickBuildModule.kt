@@ -78,7 +78,7 @@ val quickBuildModule =
 			val context = androidContext()
 			ProxyAppInstaller(
 				packages = get(),
-				// The exact call the Run button's install flow bottoms out in (plan B1):
+				// The exact call the Run button's install flow bottoms out in:
 				// same PackageInstaller session params, same InstallationResultReceiver,
 				// same MIUI intent fallback.
 				launchInstall = { apk ->

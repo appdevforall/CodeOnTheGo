@@ -1,7 +1,7 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
 /**
- * Detects a 3-pointer down burst: three fingers landing within {@link #BURST_WINDOW_MS} of the first touch (plan A3, the "return to CoGo" gesture). Pure observation - the caller feeds it every touch event and ALWAYS passes the event through to the app regardless of the return value, so normal 1-2 finger interaction is never consumed or delayed. Fires at most once per gesture (resets when the last finger lifts).
+ * Detects a 3-pointer down burst: three fingers landing within {@link #BURST_WINDOW_MS} of the first touch. Pure observation - the caller feeds it every touch event and ALWAYS passes the event through to the app regardless of the return value, so normal 1-2 finger interaction is never consumed or delayed. Fires at most once per gesture (resets when the last finger lifts).
  *
  * Plain Java with int action constants (mirroring MotionEvent's public API values) so the state machine is JVM-unit-testable without android.jar's stubbed MotionEvent.
  */

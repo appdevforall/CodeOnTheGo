@@ -12,7 +12,7 @@ interface GenerationStore {
 }
 
 /**
- * Monotonic generation counter (plan section 2.5). The proxy app accepts a payload only if
+ * Monotonic generation counter. The proxy app accepts a payload only if
  * its generation is newer than the one it runs, so this counter is what makes "an old
  * payload can never replace a newer one" true — including across CoGo crashes.
  *

@@ -38,7 +38,7 @@ class ProxySourceGeneratorTest {
 
 	@Test
 	fun `activity proxy routes getClassLoader through the payload loader picker`() {
-		// ADFA-4128 Bug 9 regression: without this override, androidx FragmentFactory
+		// without this override, androidx FragmentFactory
 		// (Navigation-Component destinations, <fragment> tags) and LayoutInflater custom
 		// views resolve classes via context.getClassLoader(), which never sees a
 		// payload-only class - crashing every BottomNav/NavDrawer template on launch.

@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
 	<application>
-		<!-- Deploy channel host (plan D1, LogSender bind pattern). Exported so the
+		<!-- Deploy channel host (LogSender bind pattern). Exported so the
 		     generated proxy app (a different package) can bind; every inbound call is
 		     uid-checked against the installed proxy app in QuickBuildHostService. -->
 		<service

@@ -95,7 +95,7 @@ sealed interface InstallOutcome {
 }
 
 /**
- * Installs the quick-build proxy app through CoGo's own install pathway (plan B1) and
+ * Installs the quick-build proxy app through CoGo's own install pathway and
  * waits for a REAL verdict instead of blind uid-polling:
  *
  * - **Skip when current**: if the package is installed and its APK bytes equal the

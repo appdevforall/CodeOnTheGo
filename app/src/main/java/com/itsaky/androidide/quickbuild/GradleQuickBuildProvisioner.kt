@@ -27,11 +27,11 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Real-Gradle side of quick-build provisioning (plan 2.2): stages the bundled
+ * Real-Gradle side of quick-build provisioning: stages the bundled
  * artifacts, runs the proxy app build through the existing [BuildService.executeTasks]
  * path with the quick-build `-P` properties (LogSender-AAR pattern), reads the proxy app
  * report the Gradle plugin writes, and hands the built proxy app to [installer] -
- * which reuses CoGo's Run install pathway (plan B1) and skips the install entirely
+ * which reuses CoGo's Run install pathway and skips the install entirely
  * when the device already runs those exact APK bytes.
  *
  * The proxy app installs under the project's real applicationId (Quick Build and Standard

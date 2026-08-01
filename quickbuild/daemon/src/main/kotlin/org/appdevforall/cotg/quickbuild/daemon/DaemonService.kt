@@ -17,7 +17,7 @@ import java.nio.file.Files
 /**
  * The stateful op implementations behind the protocol: `configure` builds the session
  * (classpath snapshots, tool wrappers), then `compile`/`dex`/`relink` reuse it - the
- * warm state is the whole point of a daemon (plan 2.3). All failures become ok:false
+ * warm state is the whole point of a daemon. All failures become ok:false
  * responses; the process-level backstop lives in [RequestRouter].
  */
 class DaemonService(
@@ -199,7 +199,7 @@ class DaemonService(
 				)
 				// Wire field name kept as "resourcesArsc" for protocol stability even
 				// though the payload is now the full relinked apk, not a bare table -
-				// see Aapt2Link's KDoc (ADFA-4128 Bug 5).
+				// see Aapt2Link's KDoc.
 				DaemonResponse.ok(
 					request.id,
 					mapOf(

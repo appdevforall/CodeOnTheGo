@@ -5,9 +5,9 @@ package com.itsaky.androidide.gradle.quickbuild
  * whose manifest name stays stable while the user hierarchy swaps. Extension (not
  * delegation) is enough because proxy and user class both travel in the payload dex - a
  * reload swaps the whole hierarchy together (see quickbuild/core/README.md, "Proxy-app
- * architecture"). Per type: activities add the app-switcher gesture hook (plan A3) and a
+ * architecture"). Per type: activities add the app-switcher gesture hook and a
  * getClassLoader() override so by-name class resolution (Fragment/Navigation destinations,
- * LayoutInflater custom views) can see payload-only classes (ADFA-4128 Bug 9), services
+ * LayoutInflater custom views) can see payload-only classes, services
  * register with the runtime's live-service census, receivers and providers are empty
  * subclasses (receivers instantiate fresh per delivery; providers swap by restart).
  */
@@ -20,7 +20,7 @@ object ProxySourceGenerator {
 
 	/**
 	 * Runtime classloader picker the activity proxies call from their getClassLoader()
-	 * override (ADFA-4128 Bug 9 - see QuickBuildClassLoaders' doc for why the override is
+	 * override (see QuickBuildClassLoaders' doc for why the override is
 	 * needed at all).
 	 */
 	private const val CLASS_LOADERS_CLASS = "com.itsaky.androidide.quickbuild.runtime.QuickBuildClassLoaders"
@@ -97,7 +97,7 @@ object ProxySourceGenerator {
 		append("\t}\n")
 		append('\n')
 		append("\t/**\n")
-		append("\t * ADFA-4128 Bug 9: Context#getClassLoader() is otherwise fixed to the base APK's\n")
+		append("	 * Context#getClassLoader() is otherwise fixed to the base APK's\n")
 		append("\t * classloader regardless of which loader instantiated this activity, so\n")
 		append("\t * by-name resolution (LayoutInflater custom views, FragmentFactory/Navigation\n")
 		append("\t * destinations) can never see a payload-only class without this override.\n")

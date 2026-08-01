@@ -12,7 +12,7 @@
 	</queries>
 
 	<!--
-		This AAR deliberately does NOT declare android:appComponentFactory (ADFA-4128 Bug 2).
+		This AAR deliberately does NOT declare android:appComponentFactory.
 		It once did, but a debuggable app that also pulls androidx.core (which declares
 		androidx.core.app.CoreComponentFactory) then fails manifest merge with
 		"Attribute application@appComponentFactory ... is also present at [androidx.core]"

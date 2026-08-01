@@ -9,7 +9,7 @@ import kotlinx.coroutines.sync.withLock
 import org.slf4j.LoggerFactory
 
 /**
- * The quick-build concurrency model (plan sections 2.3 and 1.4). Pure JVM — no Android
+ * The quick-build concurrency model. Pure JVM — no Android
  * imports — so the whole model is unit-testable off-device.
  *
  * Boundary: this orchestrator schedules and runs the LIVE-RELOAD path only (classify ->
@@ -25,8 +25,8 @@ import org.slf4j.LoggerFactory
  * not by a failed compile, not by a proxy app rebuild, not by a crash. Concretely:
  * - At most one build is in flight; saves that land mid-build coalesce into a pending set.
  * - Starting a build MOVES the pending set into the build; it is cleared only when that
- *   build succeeds. A failed batch is unioned back into pending. (The prototype cleared
- *   before compiling and silently dropped edits on failure — regression-tested.)
+ *   build succeeds. A failed batch is unioned back into pending — clearing before the
+ *   compile would silently drop the user's edits on any failure. Regression-tested.
  * - An empty known changed-set is not "unknown": no-op saves never trigger a recompile.
  * - A running compile is never cancelled by NEW WORK; it waits and coalesces. The one
  *   exception is an explicit stop ([onCancelRequested]), which abandons the build but

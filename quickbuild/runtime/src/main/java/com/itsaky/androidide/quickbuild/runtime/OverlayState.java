@@ -132,7 +132,7 @@ final class OverlayState {
 		BUILD_FAILED,
 		/** A delivered payload crashed in render/lifecycle; rolled back to last-good. */
 		CRASHED,
-		/** One-time discoverability hint for the 3-finger return gesture (plan A3). */
+		/** One-time discoverability hint for the 3-finger return gesture. */
 		HINT,
 		/** A build is compiling; the app keeps running its last-deployed generation. */
 		BUILDING

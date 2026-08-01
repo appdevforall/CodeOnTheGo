@@ -9,7 +9,7 @@ import com.itsaky.androidide.quickbuild.IQuickBuildTarget
 import org.slf4j.LoggerFactory
 
 /**
- * CoGo side of the deploy channel (plan 2.4, LogSender bind pattern): the generated
+ * CoGo side of the deploy channel: the generated
  * proxy app binds on launch and registers its [IQuickBuildTarget]; deploys travel back
  * over that callback as fds.
  *

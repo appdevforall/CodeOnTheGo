@@ -1,7 +1,7 @@
 package com.itsaky.androidide.quickbuild;
 
 /**
- * Proxy app side of the deploy channel (plan D1). CoGo calls this after a successful
+ * Proxy app side of the deploy channel. CoGo calls this after a successful
  * quick build. Payloads travel as ParcelFileDescriptors; nothing touches shared storage.
  * The target accepts a payload only when {@code generation} is strictly newer than the
  * generation it currently runs.
@@ -21,7 +21,7 @@ oneway interface IQuickBuildTarget {
 	 *                        or null for a resources/assets-only deploy.
 	 * @param resourcesPayload fd to the full relinked resource apk (resources.arsc plus
 	 *                        every compiled resource file, not a bare table - see
-	 *                        Aapt2Link's KDoc, ADFA-4128 Bug 5) for
+	 *                        Aapt2Link's KDoc) for
 	 *                        ResourcesProvider.loadFromApk, or null when resources did
 	 *                        not change.
 	 * @param assetsPayload   a zip of changed asset files, or null.

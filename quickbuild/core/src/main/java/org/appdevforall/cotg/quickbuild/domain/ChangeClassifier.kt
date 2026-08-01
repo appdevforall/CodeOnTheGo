@@ -5,7 +5,7 @@ import java.io.File
 
 /**
  * Classifies a coalesced changed-set into the cheapest correct [BuildRoute]
- * (plan section 2.3). Pure logic — safe to unit-test without a project on disk.
+ * Pure logic — safe to unit-test without a project on disk.
  *
  * Classification is by path shape, not file content:
  * - Gradle build files and `AndroidManifest.xml` invalidate the session (full Gradle build).

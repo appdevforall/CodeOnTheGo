@@ -5,7 +5,7 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 
 /**
  * The session manager's door to the real Gradle world: the one-time proxy app build
- * (plan 2.2) and the full-Gradle proxy app rebuild fallback. Implemented in the app module
+ * and the full-Gradle proxy app rebuild fallback. Implemented in the app module
  * (GradleBuildService + ApkInstaller); an interface here keeps `:quick-build` off
  * CoGo's project-model modules and the session manager testable.
  */
@@ -25,7 +25,7 @@ interface QuickBuildProvisioner {
 	suspend fun rebuildProxyApp(): ProxyAppRebuildOutcome
 
 	/**
-	 * Best-effort eager proxy app build (plan B2): runs at project open, AFTER the normal
+	 * Best-effort eager proxy app build: runs at project open, AFTER the normal
 	 * Gradle sync, riding its warm daemon. Installs NOTHING - the install is deferred to
 	 * the first Quick Build tap, whose [provision] re-runs the proxy app build (fast: tasks
 	 * come back up-to-date) so it always reads current disk. Failures are logged, never

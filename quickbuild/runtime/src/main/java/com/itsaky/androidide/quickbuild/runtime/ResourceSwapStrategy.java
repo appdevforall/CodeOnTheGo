@@ -1,7 +1,7 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
 /**
- * How a resource-table payload is applied on this device, selected once per process from the runtime SDK level (plan B5). Kept free of android.* so the version routing is JVM-unit-testable.
+ * How a resource-table payload is applied on this device, selected once per process from the runtime SDK level. Kept free of android.* so the version routing is JVM-unit-testable.
  */
 enum ResourceSwapStrategy {
 

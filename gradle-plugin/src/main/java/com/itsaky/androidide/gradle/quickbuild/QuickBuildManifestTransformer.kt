@@ -66,8 +66,8 @@ class ManifestTransformResult(
 }
 
 /**
- * Rewrites a merged Android manifest into the Quick Build proxy-app manifest (plan 2.2 +
- * component-proxying contract): every component's android:name is replaced with a
+ * Rewrites a merged Android manifest into the Quick Build proxy-app manifest: every
+ * component's android:name is replaced with a
  * generated proxy FQN (stable component names while the user's classes stay swappable in
  * the payload dex), provider authorities that embed the real applicationId move to the
  * proxy-app id, and the `<application>` gains an android:appComponentFactory pointing at
@@ -135,12 +135,12 @@ class QuickBuildManifestTransformer(
 		 *   startup hook, merged by the manifest merger into ONE provider element). A
 		 *   renamed proxy breaks that lookup with `NameNotFoundException` ->
 		 *   `StartupException`, crashing the proxy app during `handleBindApplication`
-		 *   before any activity or the quick-build runtime binds (ADFA-4128 Bug 4; every
+		 *   before any activity or the quick-build runtime binds (every
 		 *   androidx-based project pulls this in).
 		 * - `androidx.compose.ui.tooling.PreviewActivity` - `final`; the generated
 		 *   proxy's `extends` cannot even compile (`cannot inherit from final ...`).
 		 *   Debug-only Compose `@Preview` tooling - never a real launcher, never edited by
-		 *   user code (ADFA-4128 Bug 7; every Compose template with `ui-tooling` pulls
+		 *   user code (every Compose template with `ui-tooling` pulls
 		 *   this in).
 		 * - `androidx.profileinstaller.ProfileInstallReceiver` - resolves on some variant
 		 *   classpaths (it's in the merged manifest) but not on every proxy app build's
@@ -150,7 +150,7 @@ class QuickBuildManifestTransformer(
 		 *   Known Limitations documents generally for library components; excluding it by
 		 *   name is the "skip proxying library components and keep their original
 		 *   manifest name" option the design doc already calls out as a valid
-		 *   generalization (ADFA-4128 Bug 7). It does not do a self-lookup (checked its
+		 *   generalization. It does not do a self-lookup (checked its
 		 *   decompiled bytecode), so this is a pure classpath-resolution exclusion, not a
 		 *   correctness one - if a future proxy-app-build classpath change makes it resolve,
 		 *   proxying it would still be harmless, but excluding it is simpler than chasing
@@ -158,7 +158,7 @@ class QuickBuildManifestTransformer(
 		 * - `androidx.room.MultiInstanceInvalidationService` - `final`, exactly like
 		 *   `PreviewActivity` above: `Proxy<N>Service extends
 		 *   androidx.room.MultiInstanceInvalidationService` fails `cannot inherit from
-		 *   final` (live app crash, generalizing ADFA-4128 Bug 7). Every Room project that
+		 *   final` (live app crash, generalizing). Every Room project that
 		 *   uses multi-instance invalidation tracking pulls this in. `ComponentProxiabilityResolver`
 		 *   (see its KDoc and [QuickBuildPayloadDexTask]) reads a component's class file to
 		 *   detect this shape from ANY library, not just this one - but a task that
@@ -288,7 +288,7 @@ class QuickBuildManifestTransformer(
 			val userClass = requireComponentName(receiver, "receiver", index, manifestPackage)
 			rejectUnsupported(receiver, "receiver", userClass)
 			// See UNPROXIABLE_LIBRARY_COMPONENTS (androidx.profileinstaller.ProfileInstallReceiver
-			// is exactly this case - ADFA-4128 Bug 7).
+			// is exactly this case).
 			if (userClass in UNPROXIABLE_LIBRARY_COMPONENTS) {
 				return@mapIndexedNotNull null
 			}

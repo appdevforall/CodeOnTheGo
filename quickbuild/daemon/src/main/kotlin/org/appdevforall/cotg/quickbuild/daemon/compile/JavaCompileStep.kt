@@ -45,7 +45,7 @@ object JavaCompileStep {
 					classpath.joinToString(File.pathSeparator) { it.absolutePath },
 					"-d",
 					outputDir.absolutePath,
-					// Annotation processing is a full-Gradle-build concern (plan Q4);
+					// Annotation processing is a full-Gradle-build concern;
 					// running processors here would silently diverge from the real build.
 					"-proc:none",
 					"-encoding",

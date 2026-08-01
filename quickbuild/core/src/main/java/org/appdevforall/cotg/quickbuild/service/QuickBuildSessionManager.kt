@@ -43,7 +43,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * The shell around the domain session machine (plan 2.1): owns the [SessionReducer],
+ * The shell around the domain session machine: owns the [SessionReducer],
  * the per-session [LiveReloadOrchestrator] + [GenerationTracker], and turns reducer effects
  * into real work (provisioning, daemon respawn, Gradle proxy app rebuild).
  *
@@ -62,7 +62,7 @@ class QuickBuildSessionManager(
 	private val provisioner: QuickBuildProvisioner,
 	private val connections: ProxyAppConnections,
 	private val paths: QuickBuildPaths,
-	/** Gates eager prebuild on project history (plan P7) and records first use. */
+	/** Gates eager prebuild on project history and records first use. */
 	private val historyStore: QuickBuildHistoryStore,
 	dispatcher: CoroutineDispatcher,
 	private val generationStoreFactory: (File) -> GenerationStore = {
@@ -332,23 +332,23 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * Eager warm-up (plan B2): call at project open, AFTER the normal Gradle sync
+	 * Eager warm-up: call at project open, AFTER the normal Gradle sync
 	 * completes, with the experimental flag on. Runs the proxy app build in the background
 	 * so the first tap pays only install + bind; installs nothing. No-op unless Idle.
 	 * A tap landing mid-warm queues and provisions when the warm build finishes.
 	 *
-	 * NOT gated on project history. The previous behaviour (plan P7) skipped the warm-up
-	 * until Quick Build had been tapped once on the project, to avoid spending battery on
-	 * a feature that might never be used. In practice that made the first tap on every
-	 * new project pay the whole cold proxy app build cost -- ~97 s on an a56 for a small app -- which
-	 * is the one impression a user forms of the feature. If Quick Build is enabled, warm it.
+	 * NOT gated on project history: if Quick Build is enabled, warm it. Gating the warm-up
+	 * until the feature had been tapped once on the project would save battery on projects
+	 * that never use it, but it makes the first tap on every new project pay the whole cold
+	 * proxy app build -- ~97 s on an a56 for a small app -- which is the one impression a
+	 * user forms of the feature.
 	 */
 	fun prebuild() {
 		scope.launch { dispatch(SessionEvent.PrebuildRequested) }
 	}
 
 	/**
-	 * Mode-switch hand-back (plan B3): call when a Standard Run's Gradle build completes
+	 * Mode-switch hand-back: call when a Standard Run's Gradle build completes
 	 * (e.g. from the A2 dropdown's "Standard Run", or the Run button's build-finished
 	 * hook). A live session refreshes its baseline from current disk - a full proxy app
 	 * rebuild when the external build clobbered the proxy app build artifacts, otherwise a
@@ -360,7 +360,7 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * Restart action (plan A2 dropdown "Restart session"): tears down the current live
+	 * Restart action: tears down the current live
 	 * session and daemon and returns to Idle from whatever state the session is in. The
 	 * next tap re-provisions from scratch - the escape hatch for a daemon or proxy app
 	 * stuck past what a plain quick build or proxy app rebuild can recover.

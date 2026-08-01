@@ -10,7 +10,7 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.NodeList;
 
 /**
- * ADFA-4128 Bug 2 regression. The runtime AAR must NOT declare {@code android:appComponentFactory}: a debuggable app that also pulls androidx.core (which declares {@code androidx.core.app.CoreComponentFactory}) then fails manifest merge at {@code processDebugMainManifest} - before the proxy app build's merged-manifest transform runs - which killed Quick Build provisioning for every app template. The proxy app build owns the factory (QuickBuildManifestTransformer sets it on the merged manifest). If someone re-adds the attribute to the AAR manifest, this test fails.
+ * Regression guard. The runtime AAR must NOT declare {@code android:appComponentFactory}: a debuggable app that also pulls androidx.core (which declares {@code androidx.core.app.CoreComponentFactory}) then fails manifest merge at {@code processDebugMainManifest} - before the proxy app build's merged-manifest transform runs - which killed Quick Build provisioning for every app template. The proxy app build owns the factory (QuickBuildManifestTransformer sets it on the merged manifest). If someone re-adds the attribute to the AAR manifest, this test fails.
  *
  * <p>
  * Parses the XML (so the explanatory comment that mentions the attribute name doesn't trip the check) and asserts no element declares an appComponentFactory attribute.

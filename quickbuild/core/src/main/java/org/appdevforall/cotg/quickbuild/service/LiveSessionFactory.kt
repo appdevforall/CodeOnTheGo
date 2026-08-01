@@ -94,7 +94,7 @@ internal class LiveSessionFactory(
 				deploy = deploy,
 				layout = layout,
 				// A session only reaches here off ProvisionOutcome.Success, which the
-				// provisioner never produces for a null entryActivity (ADFA-4128 Bug 10) -
+				// provisioner never produces for a null entryActivity -
 				// it refuses with a friendly message first. See ProxyAppInfo.entryActivity.
 				entryActivity =
 					checkNotNull(proxyApp.entryActivity) {

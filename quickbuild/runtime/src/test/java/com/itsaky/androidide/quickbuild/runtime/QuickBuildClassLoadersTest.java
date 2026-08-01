@@ -20,7 +20,7 @@ class QuickBuildClassLoadersTest {
 		ClassLoader payload = new ClassLoader(null) {};
 		// The payload loader wins even though fallback also "works" - a stale-code lie
 		// (Fragment/custom-view resolution silently missing every payload-only class)
-		// is exactly the ADFA-4128 Bug 9 regression this guards.
+		// is exactly the regression this guards.
 		assertThat(QuickBuildClassLoaders.choose(payload, fallback)).isSameInstanceAs(payload);
 	}
 }

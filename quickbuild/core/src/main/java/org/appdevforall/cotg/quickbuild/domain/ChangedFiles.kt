@@ -8,8 +8,8 @@ import java.io.File
  * [Known] and [Unknown] are deliberately distinct types: an empty [Known] set means
  * "nothing changed" (a no-op save must NOT trigger a recompile), while [Unknown] means
  * "we cannot tell what changed" (crash recovery, missed watcher events) and forces the
- * next build to treat every source as potentially dirty. The ADFA-4128 prototype
- * conflated the two, which turned no-op saves into spurious full recompiles.
+ * next build to treat every source as potentially dirty. Conflating the two turns
+ * every no-op save into a spurious full recompile.
  */
 sealed interface ChangedFiles {
 	/**
@@ -33,7 +33,7 @@ sealed interface ChangedFiles {
 	 *   nothing on disk can be re-stat'd - and it routes differently downstream: a removed
 	 *   `.kt`/`.java` feeds the incremental compiler's removed-sources slot (its outputs are
 	 *   deleted and dependents recompiled), while a live edit compiles the file itself. The
-	 *   ADFA-4128 watcher never detected standalone deletions at all (Bug 12), so a deleted
+	 *   ADFA-4128 watcher never detected standalone deletions at all, so a deleted
 	 *   class lingered in the running app until an unrelated edit fired a build.
 	 */
 	data class Known(

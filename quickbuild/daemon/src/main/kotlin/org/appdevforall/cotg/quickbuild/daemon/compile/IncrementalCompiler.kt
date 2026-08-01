@@ -18,7 +18,7 @@ import java.util.UUID
 /**
  * Incremental Kotlin (+ plain Java) compilation via the Kotlin Build Tools API. A
  * one-line edit recompiles ~one file instead of the whole app, which is what keeps the
- * quick-build hot loop flat as the project grows (plan 2.3, decision D4).
+ * quick-build hot loop flat as the project grows.
  *
  * The BTA incremental engine has sharp edges, re-derived from the ADFA-4128 spike and
  * documented in quickbuild/core/README.md - each is load-bearing here:

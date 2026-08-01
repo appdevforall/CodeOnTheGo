@@ -1,7 +1,7 @@
 package org.appdevforall.cotg.quickbuild.domain
 
 /**
- * The cheapest correct path for a coalesced changed-set (plan section 2.3, tier dispatch).
+ * The cheapest correct path for a coalesced changed-set (tier dispatch).
  *
  * Routing errs toward honesty: anything the live reload path cannot absorb with certainty is
  * routed to [FullGradleBuild] rather than served potentially stale. The invariant this

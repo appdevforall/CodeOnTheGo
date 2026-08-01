@@ -8,7 +8,7 @@ package com.itsaky.androidide.quickbuild
  * is treated the same way) - naive `"$modulePath:assembleDebug"` composition then
  * produces `::assembleDebug`, which Gradle's task selector rejects with
  * `TaskSelectionException: Cannot locate tasks that match '::assembleDebug'`
- * (ADFA-4128 Bug 3: single-module projects, e.g. the Plugin template, have no `:app`
+ * (single-module projects, e.g. the Plugin template, have no `:app`
  * and hit this instantly).
  */
 object QuickBuildTaskPaths {

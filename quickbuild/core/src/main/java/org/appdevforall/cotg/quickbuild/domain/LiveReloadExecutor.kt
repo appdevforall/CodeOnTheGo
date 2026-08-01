@@ -2,7 +2,7 @@ package org.appdevforall.cotg.quickbuild.domain
 
 /**
  * Runs one quick build end to end: compile (if the route needs it), dex, relink, deploy.
- * Implemented by the warm-daemon pipeline (plan section 2.3/2.4); tests use scripted fakes.
+ * Implemented by the warm-daemon pipeline; tests use scripted fakes.
  *
  * Contract:
  * - Called with at most one request in flight (the [LiveReloadOrchestrator] guarantees it).

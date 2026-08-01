@@ -76,7 +76,7 @@ private const val INSTALLER_DIALOG_CHECK_MS = 2_000L
 private const val BANNER_MESSAGE = "Quick Build smoke: injected error banner"
 
 /**
- * Kaspresso smoke for the Quick Build surfaces added by ADFA-4128 (plan A2/E3/A1):
+ * Kaspresso smoke for the Quick Build surfaces added by ADFA-4128:
  * - the lightning-bolt toolbar action (via [com.itsaky.androidide.screens.QuickBuildScreen])
  *   and its long-press split-button dropdown;
  * - the QuickBuildJumpActivity trampoline the proxy app's error overlay fires;

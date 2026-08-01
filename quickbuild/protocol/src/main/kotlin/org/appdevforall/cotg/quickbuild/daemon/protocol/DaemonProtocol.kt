@@ -86,7 +86,7 @@ data class DexRequest(
  *   pins every resource to the same numeric id the baseline manifest was compiled
  *   against, instead of letting a whole resource TYPE the baseline had (but the relink
  *   doesn't) shift aapt2's type-index assignment out from under that manifest
- *   (ADFA-4128 Bug 6). Optional and backward-compatible: a client that never sends it
+ *  . Optional and backward-compatible: a client that never sends it
  *   relinks with aapt2's own unpinned ids, not a protocol error.
  * @property libraryResources pre-compiled `.flat` resource units from the proxy app build's
  *   real AGP resource processing - the project's own `intermediates/merged_res/` closure
@@ -94,7 +94,7 @@ data class DexRequest(
  *   resource-providing AAR's separately-compiled FILE-based resources. Passed to
  *   `aapt2 link` as `-R` overlays, ordered BEFORE the relink's own fresh compile, so a
  *   library-provided reference (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`)
- *   resolves (ADFA-4128 Bug 8). Optional and backward-compatible: absent/empty on a client
+ *   resolves. Optional and backward-compatible: absent/empty on a client
  *   that never reports one relinks against the project's own res/ alone.
  */
 data class RelinkRequest(

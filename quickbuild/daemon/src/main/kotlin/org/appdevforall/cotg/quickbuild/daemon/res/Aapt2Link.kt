@@ -12,69 +12,46 @@ import java.util.zip.ZipFile
  * XMLs, adaptive-icon XMLs, ...), not a bare extracted table.
  *
  * A bare table cannot back a file-typed resource: `ResourcesProvider.loadFromTable`
- * (API 30+) and the API 28/29 addAssetPath shim both need the actual file bytes
- * reachable from the SAME archive the table came from, and a table-only payload has no
- * such archive. ADFA-4128 Bug 5: a `strings.xml`-only edit shipped a stripped arsc: the
- * reload's activity recreate crashed with `Resources$NotFoundException` resolving
- * `res/mipmap-anydpi-v26/ic_launcher.xml` - a resource the edit never even touched, just
- * one this app happens to reference on every recreate. Shipping the full linked apk and
- * loading it with `ResourcesProvider.loadFromApk` / a direct `addAssetPath` (see
- * `ResourceStore`) resolves file-backed resources from the same archive as the table.
+ * (API 30+) and the API 28/29 addAssetPath shim both need the file bytes reachable from
+ * the SAME archive the table came from. Ship a stripped arsc and an unrelated file-backed
+ * resource the app touches on every activity recreate - `ic_launcher.xml`, say - throws
+ * `Resources$NotFoundException` after a `strings.xml`-only edit.
  *
  * v1 recompiles and relinks everything on every call: correct-not-clever, and aapt2 on
- * a phone-sized res tree is fast enough for the ~0.3 s tier-0 budget (plan 2.3).
+ * a phone-sized res tree is fast enough for the ~0.3 s tier-0 budget.
  *
- * A relink links ONLY the project's own res/ - a strict subset of what the real proxy
- * app build's Gradle resource-merge produces (library AAR resources, e.g. CoGo's injected
- * LogSender `bool/logsender_enabled`, are absent). When a whole resource TYPE present in
- * the baseline link is absent here, aapt2's default (declaration-order) type-index
- * assignment shifts every type ordered after it - e.g. `mipmap` moves from the baseline's
- * type-id 04 to 03 - and the proxy app's `AndroidManifest.xml` (compiled once, at
- * proxy app build time, against the BASELINE table) still encodes `android:icon` as the fixed
- * numeric id `0x7f040000`. Once the relinked table is live, that same id resolves against
- * type 04 in the NEW table, which is no longer mipmap - the OS resolves the app's icon to
- * the wrong resource type and crashes on activity recreate (ADFA-4128 Bug 6). [stableIds]
- * (`aapt2 link --stable-ids`) fixes this: it pins each resource present in the relink to
- * the exact numeric id AGP's own proxy app build gave it, so `mipmap` keeps type-id 04
- * regardless of what other types this narrower relink does or doesn't include.
+ * Three rules make a relink safe, because it links a strict SUBSET of what the proxy app
+ * build's Gradle resource-merge produced (library AAR resources are absent):
  *
- * A relink also can't resolve any resource a dependency AAR provides - e.g. Material3's
- * `Theme.Material3.DayNight.NoActionBar`, which any Material3-themed template's own
- * `themes.xml` extends - because the project's own res/ never declares it (ADFA-4128
- * Bug 8). `--auto-add-overlay` doesn't help: it only relaxes duplicate-resource checks
- * between the caller's OWN inputs, it can't summon a name the inputs never contain.
- * AGP resolves library resources through two SEPARATE mechanisms the real proxy app build
- * runs and this relink must feed back in via [libraryResources]:
- *  - VALUES resources (styles/themes/colors/dimens/strings/attrs, and everything a style
- *    parents against) are flattened, TRANSITIVELY, across the whole dependency graph by
- *    AGP's classic resource merger into the project's OWN `intermediates/merged_res/`
- *    tree - confirmed on-host by grepping a real `mergeDebugResources` run's `--info`
- *    log: it compiles `intermediates/incremental/.../merged.dir/values/values.xml`, a
- *    file that contains the literal `Theme.Material3.DayNight.NoActionBar` declaration
- *    though the project's own `res/values/` never does.
- *  - FILE-based resources (layouts, drawables, anims, menus, ...) are NOT merged into
- *    merged_res; each resource-providing library is compiled SEPARATELY via a Gradle
- *    `ArtifactTransform` keyed on the artifact-type attribute value
- *    `"android-compiled-dependencies-resources"` (`AndroidArtifacts.ArtifactType
- *    .COMPILED_DEPENDENCIES_RESOURCES`, confirmed by inspecting AGP's own
- *    `AndroidArtifacts$ArtifactType.class` constant pool), producing one `.flat` file per
- *    resource, cached per-dependency. A Material3 theme's OWN item values reference both
- *    kinds (e.g. `popupMenuBackground` points at a drawable) - EITHER piece missing on
- *    its own still fails linking, verified on-host by adding each independently.
+ *  1. **[stableIds] is mandatory.** aapt2 assigns type ids by declaration order, so a
+ *     resource TYPE present in the baseline but absent here shifts every later type down
+ *     (`mipmap` 04 -> 03). The proxy app's manifest was compiled once against the BASELINE
+ *     table and still encodes `android:icon` as a fixed numeric id, which now resolves to
+ *     the wrong type and crashes on recreate. `--stable-ids` pins each resource to the id
+ *     AGP gave it.
  *
- * Ordering matters and is NOT what the aapt2 docs' "the last conflicting resource given
- * takes precedence" wording suggests in isolation: verified empirically (real aapt2, this
- * host) that a bare positional (non `-R`) input ALWAYS loses to ANY `-R` overlay input for
- * the same resource, regardless of which one is written first or last on the command
- * line - `-R` beats positional unconditionally; only among MULTIPLE `-R` inputs does
- * textual order decide (last `-R` wins). [flatFiles] (the project's OWN fresh
- * `aapt2 compile --dir res` output) is therefore ALSO passed as `-R`, ordered LAST among
- * all `-R` arguments - so a resource the user just edited, which may also exist in
- * [libraryResources] (merged_res carries the project's own resources too, from
- * proxy app build time), resolves to the FRESH edit, not the stale merged_res snapshot.
- * Passing [flatFiles] as bare positional args on the assumption that "listed last wins" is
- * false for aapt2's actual precedence rule, and makes every conflicting edit silently serve
- * the stale proxy app build value.
+ *  2. **[libraryResources] must carry BOTH of AGP's library-resource mechanisms.** A
+ *     relink cannot resolve a name the project's own res/ never declares - e.g. a
+ *     Material3-themed template extending `Theme.Material3.DayNight.NoActionBar`.
+ *     `--auto-add-overlay` does not help; it only relaxes duplicate checks between the
+ *     caller's own inputs.
+ *      - VALUES resources (styles/themes/colors/dimens/strings/attrs, and everything a
+ *        style parents against) are flattened TRANSITIVELY into the project's own
+ *        `intermediates/merged_res/` by AGP's classic resource merger.
+ *      - FILE-based resources (layouts, drawables, anims, menus, ...) are NOT in
+ *        merged_res; each library is compiled separately by an `ArtifactTransform` keyed
+ *        on `AndroidArtifacts.ArtifactType.COMPILED_DEPENDENCIES_RESOURCES`, one `.flat`
+ *        per resource.
+ *     A theme's own item values reference both kinds (`popupMenuBackground` points at a
+ *     drawable), so either piece missing on its own still fails the link.
+ *
+ *  3. **[flatFiles] goes in as `-R`, ordered LAST among all `-R` args.** aapt2's real
+ *     precedence is not the docs' "the last conflicting resource given takes precedence":
+ *     a bare positional input ALWAYS loses to ANY `-R` input for the same resource,
+ *     whatever the command-line order; only among multiple `-R` inputs does textual order
+ *     decide. merged_res carries the project's own resources too, from proxy app build
+ *     time - so passing the fresh `aapt2 compile --dir res` output positionally serves
+ *     the STALE value for every resource the user just edited.
  */
 class Aapt2Link(
 	private val aapt2: File,
@@ -106,7 +83,7 @@ class Aapt2Link(
 	 *   closure - transitively including every dependency AAR's VALUES resources - plus
 	 *   each resource-providing AAR's separately-compiled FILE-based resources). Feeds a
 	 *   resource an AAR declares (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`)
-	 *   back into the relink so it resolves (ADFA-4128 Bug 8). Empty leaves only the
+	 *   back into the relink so it resolves. Empty leaves only the
 	 *   project's own fresh `resDirs` compile visible, so any library-provided reference
 	 *   fails linking. Order matters - see class KDoc.
 	 */
@@ -179,9 +156,9 @@ class Aapt2Link(
 	 * unlike [relink] itself, which needs a real toolchain end to end (`@EnabledIf`
 	 * `Aapt2LinkTest`).
 	 *
-	 * Every resource input is passed as `-R` (none bare-positional): verified empirically
-	 * that a bare positional input always LOSES to an `-R` overlay for the same resource
-	 * regardless of textual order, so mixing the two would make [libraryResources] (which
+	 * Every resource input is passed as `-R` (none bare-positional): a bare positional
+	 * input always LOSES to an `-R` overlay for the same resource regardless of textual
+	 * order, so mixing the two would make [libraryResources] (which
 	 * can carry a stale project-owned copy of a resource, via merged_res) win over
 	 * [flatFiles]'s fresh edit if flatFiles were positional. Passing everything as `-R`,
 	 * with [flatFiles] LAST, makes ordering do what "last one wins" actually promises:

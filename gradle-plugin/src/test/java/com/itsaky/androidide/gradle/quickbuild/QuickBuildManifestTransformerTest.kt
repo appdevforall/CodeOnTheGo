@@ -437,7 +437,7 @@ class QuickBuildManifestTransformerTest {
 	fun `leaves androidx startup InitializationProvider under its real name, unproxied`() {
 		// AppInitializer looks ITSELF up by this exact component name at runtime
 		// (PackageManager#getProviderInfo); a renamed proxy breaks that self-lookup and
-		// crash-loops the proxy app on launch (ADFA-4128 Bug 4).
+		// crash-loops the proxy app on launch.
 		val result =
 			transformer().transform(
 				manifest(
@@ -495,7 +495,7 @@ class QuickBuildManifestTransformerTest {
 	fun `leaves a final Compose PreviewActivity under its real name, unproxied`() {
 		// androidx.compose.ui.tooling.PreviewActivity is final - a generated
 		// `Proxy<N>Activity extends` it can't even compile ("cannot inherit from
-		// final"), which broke every Compose template's proxy app build (ADFA-4128 Bug 7).
+		// final"), which broke every Compose template's proxy app build.
 		val result =
 			transformer().transform(
 				manifest(
@@ -519,7 +519,7 @@ class QuickBuildManifestTransformerTest {
 	fun `leaves androidx profileinstaller ProfileInstallReceiver under its real name, unproxied`() {
 		// Not on every proxy app build's proxy-compile classpath (an AGP/transitively-injected
 		// runtime-only dependency in some projects), so a generated Proxy<N>Receiver
-		// extending it fails "cannot find symbol" (ADFA-4128 Bug 7).
+		// extending it fails "cannot find symbol".
 		val result =
 			transformer().transform(
 				manifest(
@@ -549,7 +549,7 @@ class QuickBuildManifestTransformerTest {
 	fun `leaves Room's final MultiInstanceInvalidationService under its real name, unproxied`() {
 		// final - a generated `Proxy<N>Service extends` it can't even compile ("cannot
 		// inherit from final"), which broke a real project's proxy app build (ADFA-4128,
-		// generalizing Bug 7's Compose PreviewActivity fix to any final library class -
+		// generalizing the Compose PreviewActivity case to any final library class -
 		// see QuickBuildManifestTransformer.UNPROXIABLE_LIBRARY_COMPONENTS' KDoc for why
 		// this is a named exception rather than an auto-detected one).
 		val result =

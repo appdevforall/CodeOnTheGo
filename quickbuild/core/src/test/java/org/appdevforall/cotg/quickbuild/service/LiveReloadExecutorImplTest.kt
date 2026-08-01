@@ -239,7 +239,7 @@ class LiveReloadExecutorImplTest {
 	@Test
 	fun `relink passes the layout's library-resource units to the daemon`() =
 		runTest {
-			// ADFA-4128 Bug 8: a relink of the project's own res/ alone can't resolve a
+			// a relink of the project's own res/ alone can't resolve a
 			// resource a dependency AAR provides, so the layout's reported merged_res /
 			// dependency-resource units must reach the daemon on every relink.
 			val libraryResource =

@@ -63,7 +63,7 @@ interface QuickBuildDaemon {
 	 * @return the full relinked resource apk (resources.arsc plus every compiled
 	 *   resource file - layouts, drawable XMLs, adaptive-icon XMLs, ...), not a bare
 	 *   extracted table. A bare table cannot back a file-typed resource; see
-	 *   `Aapt2Link`'s KDoc (ADFA-4128 Bug 5).
+	 *   `Aapt2Link`'s KDoc.
 	 */
 	suspend fun relink(inputs: RelinkInputs): DaemonReply<RelinkOutput>
 
@@ -129,14 +129,14 @@ data class DexOutput(
  *   processing ([QuickBuildProjectLayout.stableIdsFile]), if any. Pins the relink's
  *   resource ids to the baseline's so a relink of the project's own res/ (a strict
  *   subset of what the real build merged in) can't shift a resource's numeric id out
- *   from under the manifest the proxy app build already compiled (ADFA-4128 Bug 6). Null
+ *   from under the manifest the proxy app build already compiled. Null
  *   is a supported, backward-compatible fallback to an unpinned-id relink.
  * @property libraryResources pre-compiled `.flat` resource units from the proxy app build's
  *   real AGP resource processing ([QuickBuildProjectLayout.libraryResourceFlats]) -
  *   the project's own merged_res closure plus every resource-providing AAR's
  *   compiled file resources. Lets a relink resolve a resource a dependency AAR
  *   provides (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`), which the
- *   project's own res/ never declares (ADFA-4128 Bug 8). Empty is a supported,
+ *   project's own res/ never declares. Empty is a supported,
  *   backward-compatible fallback to relinking against the project's own res/ alone.
  */
 data class RelinkInputs(

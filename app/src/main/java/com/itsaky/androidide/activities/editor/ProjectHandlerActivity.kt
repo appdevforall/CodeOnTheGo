@@ -371,11 +371,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	/**
 	 * The Quick Build session manager (ADFA-4128), or null when the feature is off.
 	 * Gated exactly like the action's registration in EditorActivityActions - the
-	 * experiments flag only, no SDK check: Quick Build works from API 28 (plan B5's
-	 * degraded resource shim covers 28/29). Resolving the Koin singleton is cheap -
+	 * experiments flag only, no SDK check: Quick Build works from API 28, where a degraded
+	 * resource shim covers 28/29. Resolving the Koin singleton is cheap -
 	 * nothing spawns until the first quick build runs.
 	 *
-	 * Protected (not private): [EditorHandlerActivity]'s split-button dropdown (plan A2)
+	 * Protected (not private): [EditorHandlerActivity]'s split-button dropdown
 	 * calls this too, to trigger a quick build / restart from the long-press menu.
 	 */
 	protected fun quickBuildSessionManager(): QuickBuildSessionManager? {

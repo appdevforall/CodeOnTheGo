@@ -1999,7 +1999,7 @@ class QuickBuildSessionManagerTest {
 	@Test
 	fun `after a failed provisioning the first tap starts a session even mid-prebuild`() =
 		runTest {
-			// The W9 F2 scenario end to end: a proxy app rebuild retry failed, the session is Idle,
+			// End to end: a proxy app rebuild retry failed, the session is Idle,
 			// CoGo's project sync then finishes and fires the project-open prebuild - and the
 			// user's FIRST tap has to start the session, not be absorbed by the warm-up.
 			provisionOutcome = { ProvisionOutcome.Failure("Proxy app rebuild failed") }

@@ -18,7 +18,7 @@ data class ProxyAppInfo(
 	val proxyAppPackage: String,
 	/**
 	 * Fully-qualified user entry activity carried in every deploy metadata. Null when
-	 * the proxy app build found no launchable Activity (ADFA-4128 Bug 10 - e.g. the
+	 * the proxy app build found no launchable Activity (e.g. the
 	 * No-Activity template): the build itself succeeded, there's just nothing for
 	 * Quick Build to install/launch. [org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner]
 	 * callers must refuse with a friendly message before this null ever reaches a
@@ -73,7 +73,7 @@ data class ProxyAppInfo(
 	/**
 	 * AGP's `stableIds.txt` from the proxy app build's real resource processing, if reported
 	 * (`setup.json` `stableIdsPath`). Feeds [org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout.stableIdsFile]
-	 * so relinks can pin resource ids against the baseline (ADFA-4128 Bug 6). Null when
+	 * so relinks can pin resource ids against the baseline. Null when
 	 * absent - an older setup.json, or a proxy app build whose AGP version/variant never
 	 * produced the file.
 	 */
@@ -83,7 +83,7 @@ data class ProxyAppInfo(
 	 * processing (`setup.json` `libraryResourcePaths`) - the project's own merged_res
 	 * closure plus every resource-providing AAR's compiled file resources. Feeds
 	 * [org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout.libraryResourceFlats]
-	 * so relinks can resolve a resource a dependency AAR provides (ADFA-4128 Bug 8).
+	 * so relinks can resolve a resource a dependency AAR provides.
 	 * Empty when absent - an older setup.json, or a proxy app build whose AGP version/variant
 	 * never produced them.
 	 */

@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The JVM-testable half of the API 28/29 shim: persisting the relinked resource apk to a file addAssetPath can mount. Before ADFA-4128 Bug 5's fix this wrapped a bare arsc byte array into a synthetic single-entry zip (see git history) - the payload is now the full relinked apk already, so writing it is a plain byte copy. The reflective addAssetPath / cache flush can only run on a real device.
+ * The JVM-testable half of the API 28/29 shim: persisting the relinked resource apk to a file addAssetPath can mount. The payload is the full relinked apk already, so writing it is a plain byte copy - it must not be re-wrapped into a synthetic zip. The reflective addAssetPath / cache flush can only run on a real device.
  */
 class LegacyResourceSwapTest {
 
@@ -56,7 +56,7 @@ class LegacyResourceSwapTest {
 
 	@Test
 	void writesTheApkBytesUnmodified() throws IOException {
-		// Regression guard for Bug 5: the old wrapping path re-encoded the input into a
+		// A wrapping path would re-encode the input into a
 		// synthetic zip entry, so a naive "it produced *a* zip" assertion would not have
 		// caught the content being wrong. This asserts byte-for-byte identity with what
 		// aapt2 link actually produced.

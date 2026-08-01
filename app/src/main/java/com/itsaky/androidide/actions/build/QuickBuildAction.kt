@@ -38,7 +38,7 @@ import org.slf4j.LoggerFactory
  * behaviour all derive from the same [QuickBuildTone], so the picture and the action can
  * never disagree.
  *
- * The icon shape AND color both track the tone (plan A2) - status is never carried by color
+ * The icon shape AND color both track the tone - status is never carried by color
  * alone, so it reads the same for a colorblind user. Long-press opens a split-button dropdown
  * (Quick Build / Standard Run / Restart session / Help); that's wired in
  * `EditorHandlerActivity.prepareOptionsMenu`, not here, since only that call site owns the

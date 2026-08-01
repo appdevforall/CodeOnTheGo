@@ -15,7 +15,7 @@ import java.io.File
  * One raw watcher observation before coalescing: a path was written/created ([Modified]) or
  * deleted ([Removed]). Distinguishing them at the source is what lets a standalone deletion
  * (a `git pull`/branch-switch/`rm`, which produces no create-or-modify event) reach the
- * build pipeline at all - the ADFA-4128 gap Bug 12 closes.
+ * build pipeline at all - the gap this closes.
  */
 sealed interface WatchEvent {
 	val file: File

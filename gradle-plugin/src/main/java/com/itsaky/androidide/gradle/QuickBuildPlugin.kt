@@ -72,7 +72,7 @@ class QuickBuildPlugin : Plugin<Project> {
 		 * (no public constant), so the raw string is used directly rather than pulling
 		 * AGP's internal `AndroidArtifacts` class onto this plugin's classpath - confirmed
 		 * by inspecting AGP 8.8.2's `AndroidArtifacts$ArtifactType.class` constant pool
-		 * (ADFA-4128 Bug 8).
+		 *.
 		 */
 		internal const val COMPILED_DEPENDENCIES_RESOURCES_ARTIFACT_TYPE = "android-compiled-dependencies-resources"
 	}
@@ -242,7 +242,7 @@ class QuickBuildPlugin : Plugin<Project> {
 				// register their output here) as a file collection, NOT a mapped
 				// ListProperty<String>: the config cache realizes ListProperty values at store
 				// time, which forces the generated roots' producer providers before those tasks
-				// run and fails the store (ADFA-4128 Bug 1). A file collection stores lazily and
+				// run and fails the store. A file collection stores lazily and
 				// carries the producer task dependencies; the report resolves paths at execution.
 				variant.sources.java
 					?.all
@@ -258,17 +258,17 @@ class QuickBuildPlugin : Plugin<Project> {
 					buildDirectory.dir("intermediates/stable_resource_ids_file/${variant.name}"),
 				)
 				// AGP's merged_res closure for this variant - project res PLUS every
-				// dependency AAR's transitively-flattened VALUES resources (ADFA-4128 Bug 8).
+				// dependency AAR's transitively-flattened VALUES resources.
 				// Same probing rationale as stableIdsSearchDir: the task-name subfolder isn't
 				// part of any public API.
 				task.mergedResSearchDir.set(
 					buildDirectory.dir("intermediates/merged_res/${variant.name}"),
 				)
 				// Every resource-providing dependency's separately-compiled FILE-based
-				// resources - NOT part of merged_res's closure (ADFA-4128 Bug 8). Resolved via
+				// resources - NOT part of merged_res's closure. Resolved via
 				// a plain Gradle ArtifactView over the variant's runtime classpath, lazily (a
 				// FileCollection, not an eagerly-mapped property) for the same config-cache
-				// reason as sourceRootDirs (Bug 1).
+				// reason as sourceRootDirs.
 				task.dependencyResourceDirs.from(compiledDependencyResources(variant, project))
 				// One report per proxy app build (the contract path CoGo reads); proxy app builds build
 				// exactly one variant, so variants never race on it.
@@ -330,7 +330,7 @@ class QuickBuildPlugin : Plugin<Project> {
 
 	/**
 	 * Every resource-providing dependency's separately-compiled FILE-based resources
-	 * (ADFA-4128 Bug 8): an `ArtifactView` over the variant's runtime classpath
+	 *: an `ArtifactView` over the variant's runtime classpath
 	 * configuration, filtered to [COMPILED_DEPENDENCIES_RESOURCES_ARTIFACT_TYPE]. Each
 	 * resolved "file" is actually a DIRECTORY (one per resource-providing library,
 	 * containing its compiled `.flat` units directly) - confirmed on-host inspecting the

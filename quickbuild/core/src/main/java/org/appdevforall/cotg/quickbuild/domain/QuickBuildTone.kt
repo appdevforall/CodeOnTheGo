@@ -1,7 +1,7 @@
 package org.appdevforall.cotg.quickbuild.domain
 
 /**
- * Colorblind-safe presentation tone for the Quick Build toolbar icon (plan A2). Status
+ * Colorblind-safe presentation tone for the Quick Build toolbar icon. Status
  * must never be carried by color alone, so each tone maps to both a distinct icon shape
  * AND a distinct color in the app module - this type is the pure, JVM-testable half of
  * that derivation; the app module owns the drawable resource / color attr mapping since

@@ -375,8 +375,8 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 	/**
 	 * Fails loud, with one clear line naming the component and why, BEFORE the real proxy
 	 * compile below attempts a doomed `extends` - instead of javac's multi-line "cannot
-	 * inherit from final ..." diagnostic dump (ADFA-4128, generalizing Bug 7's detection:
-	 * see [ComponentProxiabilityResolver]'s KDoc for why the DECISION to skip a component
+	 * inherit from final ..." diagnostic dump (see [ComponentProxiabilityResolver]'s KDoc
+	 * for why the DECISION to skip a component
 	 * still has to be a named [QuickBuildManifestTransformer.UNPROXIABLE_LIBRARY_COMPONENTS]
 	 * entry rather than a silent auto-skip here).
 	 *
@@ -505,7 +505,7 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	 * every task field to persist the work graph, and serializing a `ListProperty` REALIZES
 	 * its value at STORE time (before any task runs), which forces those output providers and
 	 * throws `InvalidUserCodeException: querying the mapped value ... before task ... completed`
-	 * - killing every viewBinding-enabled proxy app build (ADFA-4128 Bug 1). A file collection is
+	 * - killing every viewBinding-enabled proxy app build. A file collection is
 	 * the one type the configuration cache stores lazily (roots + producer task dependencies,
 	 * resolved only when queried), so store never forces the providers. The absolute root
 	 * paths are read from [files] in [report] - safely, because the report runs after the
@@ -542,7 +542,7 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	 * resource merger, confirmed on-host by grepping a real `mergeDebugResources --info`
 	 * log: it compiles `.../merged.dir/values/values.xml`, a file that contains the literal
 	 * `Theme.Material3.DayNight.NoActionBar` declaration though the project's own
-	 * `res/values/` never does (ADFA-4128 Bug 8 - a relink of the project's own res/ alone
+	 * `res/values/` never does (a relink of the project's own res/ alone
 	 * can't resolve any resource a dependency AAR provides).
 	 *
 	 * That artifact type is AGP-internal too (no public `SingleArtifact`), so [report]
@@ -566,11 +566,11 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	 * accessor). This is NOT part of [mergedResSearchDir]'s closure - confirmed on-host
 	 * that closure has zero FILE-type entries for a real Material3 dependency - and a
 	 * Material3 theme's own item values reference both VALUES and FILE resources, so a
-	 * relink needs BOTH closures or linking still fails (ADFA-4128 Bug 8; verified by
-	 * adding each independently and observing which errors remain).
+	 * relink needs BOTH closures or linking still fails - either one missing on its own
+	 * still leaves unresolved references.
 	 *
 	 * Held as a `ConfigurableFileCollection`, not a mapped `ListProperty<String>`, for the
-	 * same config-cache-safety reason as [sourceRootDirs] (ADFA-4128 Bug 1): the artifact
+	 * same config-cache-safety reason as [sourceRootDirs]: the artifact
 	 * view's files aren't known at configuration time, and the configuration cache would
 	 * force them at STORE time if this were an eagerly-mapped property.
 	 */
@@ -676,7 +676,7 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 
 	/**
 	 * Every pre-compiled `.flat` resource unit a relink needs to resolve a dependency
-	 * AAR's resources (ADFA-4128 Bug 8): [mergedResSearchDir]'s closure (project res +
+	 * AAR's resources: [mergedResSearchDir]'s closure (project res +
 	 * transitively-flattened library VALUES) followed by [dependencyResourceDirs]' FILE
 	 * -based units. Sorted for determinism only - relative order between these two
 	 * doesn't matter (they never declare the same resource by construction: one is

@@ -11,15 +11,15 @@ import org.junit.jupiter.api.Test
 import java.io.File
 
 /**
- * Pins the concurrency model from plan sections 2.3 and 1.4. The invariant under test:
+ * Pins the concurrency model. The invariant under test:
  * the pending changed-set is never lost — not by a save landing mid-build, not by a
  * failed compile, not by a superseded build.
  *
- * Three tests are regressions for exact prototype bugs:
- * - "multi-file batch survives a failed compile" — the prototype cleared changedSrc
- *   BEFORE compiling, so a failed compile silently dropped edits;
- * - "no-op save does not trigger a build" — the prototype conflated empty-changed-set
- *   with unknown and ran spurious full recompiles;
+ * Three tests pin the ways that invariant is easy to break:
+ * - "multi-file batch survives a failed compile" — clearing changedSrc BEFORE the compile
+ *   silently drops the user's edits when it fails;
+ * - "no-op save does not trigger a build" — conflating an empty changed-set with an
+ *   unknown one runs spurious full recompiles;
  * - "result of a superseded build is discarded" — generation/build-id tagged results.
  */
 class LiveReloadOrchestratorTest {
@@ -185,8 +185,8 @@ class LiveReloadOrchestratorTest {
 	@Test
 	fun `multi-file batch survives a failed compile — nothing is dropped`() =
 		runTest {
-			// Regression for the prototype bug: changedSrc was cleared before the compile,
-			// so a failed compile silently dropped every file in the batch.
+			// Clearing changedSrc before the compile would drop every file in the batch
+			// the moment that compile fails.
 			val executor = GatedExecutor()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
@@ -248,8 +248,8 @@ class LiveReloadOrchestratorTest {
 	@Test
 	fun `no-op save does not trigger a build`() =
 		runTest {
-			// Regression for the prototype bug: empty changed-set was conflated with
-			// unknown, so a no-op save ran a spurious full recompile.
+			// Conflating an empty changed-set with an unknown one turns a no-op save
+			// into a spurious full recompile.
 			val executor = GatedExecutor()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 

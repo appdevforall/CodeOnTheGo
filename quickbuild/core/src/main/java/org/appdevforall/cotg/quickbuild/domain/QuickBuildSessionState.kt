@@ -1,7 +1,7 @@
 package org.appdevforall.cotg.quickbuild.domain
 
 /**
- * Quick-build session lifecycle states (plan section 2.1) — one sealed type, not booleans.
+ * Quick-build session lifecycle states — one sealed type, not booleans.
  *
  * [generation] on the live states is the generation the PROXY APP currently runs — the
  * "running gen N" honesty line derives from it. A compile error keeps the session in
@@ -219,7 +219,7 @@ sealed interface SessionEvent {
 	 * ProjectSyncHelper declare NEED_SYNC - so a foreground return can start a sync build
 	 * milliseconds before the [HostForegrounded] retry asks for the same slot. Counting
 	 * that collision spent the whole budget and dropped the session to [Idle] with a
-	 * build-failure banner instead of the install re-prompt (W9 device walk, finding F1).
+	 * build-failure banner instead of the install re-prompt.
 	 */
 	data class ProxyAppRebuildDeferred(
 		val deployedGeneration: Long,
@@ -256,7 +256,7 @@ sealed interface SessionEvent {
 		val summary: String,
 	) : SessionEvent
 
-	/** User-requested escape hatch (plan A2 dropdown "Restart session"). Valid from any state. */
+	/** User-requested escape hatch. Valid from any state. */
 	data object SessionRestartRequested : SessionEvent
 }
 
@@ -264,7 +264,7 @@ sealed interface SessionEvent {
 sealed interface SessionEffect {
 	data object StartProvisioning : SessionEffect
 
-	/** Run the proxy app build only - no install, no daemon (plan B2's eager warm-up). */
+	/** Run the proxy app build only - no install, no daemon. */
 	data object StartProxyAppPrebuild : SessionEffect
 
 	/**

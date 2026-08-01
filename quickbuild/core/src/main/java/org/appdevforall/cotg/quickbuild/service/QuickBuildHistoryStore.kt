@@ -7,8 +7,8 @@ package org.appdevforall.cotg.quickbuild.service
  */
 interface QuickBuildHistoryStore {
 	/**
-	 * True once this project has tapped Quick Build at least once (plan P7's eager prebuild gate:
-	 * no warm-up for a project with no signal it will ever be used).
+	 * True once this project has tapped Quick Build at least once. Recorded for analytics;
+	 * the eager prebuild does NOT gate on it (see [QuickBuildSessionManager.prebuild]).
 	 */
 	fun hasUsedQuickBuild(): Boolean
 

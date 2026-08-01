@@ -45,8 +45,7 @@ class QuickBuildStatusTest {
 			.isEqualTo(QuickBuildStatus.UpToDate(3, buildDurationMillis = null))
 	}
 
-	// Regression for the prototype's stuck-"Compiling..." banner: an error state must
-	// never map to Building.
+	// An error state must never map to Building, or the banner sticks on "Compiling...".
 	@Test
 	fun `ready with a failure maps to failed`() {
 		val failure =

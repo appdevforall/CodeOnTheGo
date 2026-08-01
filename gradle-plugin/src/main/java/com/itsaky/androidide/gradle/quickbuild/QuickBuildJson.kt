@@ -79,7 +79,7 @@ object QuickBuildJson {
 	 *   AAR resources included) pins every resource to the SAME numeric id the baseline
 	 *   manifest was compiled against, instead of letting aapt2's type-index assignment
 	 *   drift when a whole resource TYPE the baseline had is absent from the relink
-	 *   (ADFA-4128 Bug 6). Null when the proxy app build's AGP version/variant didn't produce
+	 *  . Null when the proxy app build's AGP version/variant didn't produce
 	 *   the file - relinks then run with aapt2's own unpinned ids.
 	 * @param libraryResourcePaths pre-compiled `.flat` resource units from the proxy app
 	 *   build's real AGP resource processing: the project's own `intermediates/
@@ -88,7 +88,7 @@ object QuickBuildJson {
 	 *   resources. The daemon's relinks pass these to `aapt2 link` as `-R` overlays so a
 	 *   resource a dependency AAR provides (e.g. Material3's
 	 *   `Theme.Material3.DayNight.NoActionBar`) resolves, instead of failing linking
-	 *   because the project's own res/ never declares it (ADFA-4128 Bug 8). Empty when
+	 *   because the project's own res/ never declares it. Empty when
 	 *   the proxy app build's AGP version/variant produced none - relinks then see the
 	 *   project's own res/ alone.
 	 */

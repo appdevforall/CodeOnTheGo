@@ -30,7 +30,7 @@ interface QuickBuildProjectLayout {
 	 * subset of what the real build merged in, library AAR resources included - pins
 	 * every resource to the numeric id the baseline manifest was compiled against,
 	 * instead of letting aapt2's type-index assignment drift when a whole resource TYPE
-	 * present in the baseline is absent from the relink (ADFA-4128 Bug 6). Null when the
+	 * present in the baseline is absent from the relink. Null when the
 	 * proxy app build didn't report one (older AGP, or a variant whose resource processing
 	 * never produced the file).
 	 */
@@ -44,8 +44,8 @@ interface QuickBuildProjectLayout {
 	 * -compiled FILE-based resources (layouts, drawables, anims, ...). A relink of the
 	 * project's own res/ alone can't resolve a resource a dependency AAR provides - e.g.
 	 * Material3's `Theme.Material3.DayNight.NoActionBar`, which a Material3 template's own
-	 * `themes.xml` extends - because the project's own res/ never declares it (ADFA-4128
-	 * Bug 8). Passed to `aapt2 link` as `-R` overlays, ordered BEFORE the relink's own
+	 * `themes.xml` extends - because the project's own res/ never declares it.
+	 * Passed to `aapt2 link` as `-R` overlays, ordered BEFORE the relink's own
 	 * fresh compile (see `Aapt2Link`'s KDoc for why order matters). Empty when the proxy app
 	 * build didn't report any (older AGP, or a variant whose resource processing never
 	 * produced them) - relinks then see the project's own res/ alone.

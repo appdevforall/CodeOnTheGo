@@ -220,7 +220,7 @@ class DaemonProcessClient(
 		// Wire field name is "resourcesArsc" for protocol stability, but the file it
 		// names is the FULL relinked resource apk (resources.arsc plus every
 		// compiled resource file), not a bare table - see Aapt2Link's KDoc
-		// (ADFA-4128 Bug 5). Fallback path matches the daemon's actual conventional
+		// . Fallback path matches the daemon's actual conventional
 		// output location (DaemonService's relink workDir).
 		return reply.mapFile("resourcesArsc") { File(it, "res/linked-res.apk") }.mapOk {
 			RelinkOutput(

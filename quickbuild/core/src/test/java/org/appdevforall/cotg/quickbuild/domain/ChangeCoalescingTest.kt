@@ -18,7 +18,7 @@ import java.io.File
  * Pins the debounce policy from design-watcher-and-testing.md section 3: trailing
  * [quietMillis] window, reset on every event, capped at [maxMillis] since the batch's
  * first event. Virtual-time tests so they are deterministic and instant. Batches carry
- * both the modified/created paths and the removed ones (Bug 12).
+ * both the modified/created paths and the removed ones.
  */
 class ChangeCoalescingTest {
 	private fun f(name: String) = File("/proj/app/src/main/java/$name")

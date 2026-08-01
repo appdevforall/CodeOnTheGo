@@ -3,7 +3,7 @@ package com.itsaky.androidide.quickbuild
 /**
  * Quick Build's artifact is a runnable proxy app APK; a plugin project's build output is a
  * `.cgp` package instead, so there is nothing to install or launch. Detecting this
- * before the proxy app build runs turns a raw Gradle failure (ADFA-4128 Bug 3: a plugin
+ * before the proxy app build runs turns a raw Gradle failure (a plugin
  * project's single module has no `:app`, so the proxy app build's task-path composition
  * hits `TaskSelectionException`) into a friendly, actionable message.
  */
@@ -17,7 +17,7 @@ object QuickBuildProjectSupport {
 		}
 
 	/**
-	 * A successful proxy app build with no launchable Activity (ADFA-4128 Bug 10 - e.g.
+	 * A successful proxy app build with no launchable Activity (e.g.
 	 * the No-Activity template) has nothing for Quick Build to install or launch.
 	 * Unlike [unsupportedProjectTypeMessage], this can only be known AFTER the proxy app
 	 * build runs (`setup.json`'s `entryActivity` comes from the real manifest merge),

@@ -64,7 +64,7 @@ class Aapt2LinkTest {
 	@Test
 	fun `relinked apk carries file-backed resources, not just the arsc table`() {
 		// A drawable XML has no useful value inside resources.arsc alone - the runtime
-		// needs the actual zip entry to resolve it. ADFA-4128 Bug 5: the old arsc-only
+		// needs the actual zip entry to resolve it. An arsc-only
 		// relink shipped just the table, so ANY file-backed resource (even one the edit
 		// never touched, e.g. an adaptive-icon mipmap XML) failed to resolve on the next
 		// activity recreate. This asserts the fix: the shipped apk contains the file
@@ -196,7 +196,7 @@ class Aapt2LinkTest {
 		assertThat(result).isInstanceOf(Aapt2Link.Result.Failed::class.java)
 	}
 
-	// ADFA-4128 Bug 6: aapt2's declaration-order type-index assignment shifts when a whole
+	// aapt2's declaration-order type-index assignment shifts when a whole
 	// resource TYPE the real proxy app build produced (e.g. a library-injected `bool`) is
 	// absent from a relink's narrower res tree - the proxy app's manifest, compiled once
 	// against the baseline table, then decodes its numeric resource ids against the WRONG
@@ -282,7 +282,7 @@ class Aapt2LinkTest {
 		assertThat(dumpResourceId(apk, "string/app_name")).isEqualTo(pinnedId)
 	}
 
-	// ADFA-4128 Bug 8: a relink of the project's own res/ alone can't resolve a resource a
+	// a relink of the project's own res/ alone can't resolve a resource a
 	// dependency AAR provides (e.g. Material3's Theme.Material3.DayNight.NoActionBar). The
 	// daemon now feeds pre-compiled library-resource units back in as `-R` overlays.
 
@@ -353,7 +353,7 @@ class Aapt2LinkTest {
 		val link = Aapt2Link(TestSdk.aapt2()!!, TestSdk.androidJar()!!)
 
 		// Baseline: without any library resources, the parent style doesn't exist -
-		// reproduces Bug 8.
+		// reproduces the library-resource failure.
 		val unfixed =
 			link.relink(
 				listOf(resDir),

@@ -9,13 +9,13 @@ import java.io.InputStream;
 import java.lang.reflect.Method;
 
 /**
- * The API 28/29 degraded resource path (plan B5). ResourcesLoader does not exist below API 30, so a resource payload is applied by:
+ * The API 28/29 degraded resource path. ResourcesLoader does not exist below API 30, so a resource payload is applied by:
  *
  * 1. persisting the relinked resource apk to a file ({@link #writeResourceApk}; the framework can only mount resources from an apk/zip path - the received bytes are ALREADY a valid apk/zip, aapt2 link's own output with resources.arsc stored uncompressed as the framework requires for mmap, so this is a plain byte copy, no re-wrapping); 2. appending that file to the live AssetManager via the hidden addAssetPath(String) ({@link #addAssetPath}; greylisted-but-callable on 28/29 - never used on 30+, where the ResourcesLoader path applies instead); 3. flushing the Resources caches ({@link #flushCaches}) so the activity recreate that every deploy already performs resolves values from the new table (same package id, same resource ids - the last-added package wins the lookup).
  *
  * Degraded relative to the loader path, by design: added paths cannot be removed, so each generation appends one more package (bounded by session length, reset by process restart), and a Resources object whose AssetManager is not shared with the application's only picks the table up when {@link ResourceStore#attachTo} reaches it.
  *
- * Before ADFA-4128 Bug 5's fix this method wrapped a BARE arsc byte array into a synthetic single-entry zip - which meant file-backed resources (layouts, drawable XMLs) had no zip entry to resolve against and crashed on first access. The payload is now the full relinked apk from {@code Aapt2Link} (already a proper apk/zip), so the write is a straight byte copy.
+ * The payload is the full relinked apk from {@code Aapt2Link} (already a proper apk/zip), so the write is a straight byte copy. It must NOT be re-wrapped: a bare arsc in a synthetic single-entry zip leaves file-backed resources (layouts, drawable XMLs) with no zip entry to resolve against, and they crash on first access.
  *
  * Plain java.io and JVM-unit-tested; the reflective calls can only be exercised on a real 28/29 device.
  */

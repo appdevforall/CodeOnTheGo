@@ -2,10 +2,10 @@ package org.appdevforall.cotg.quickbuild.domain
 
 /**
  * What the status surface should show — derived purely from session state, never set and
- * cleared imperatively. The prototype's banner was event-driven and only cleared on a
- * successful render, so a compile error or payload crash left "Compiling…" stuck forever.
- * Deriving the banner from state makes that failure mode unrepresentable: every state
- * maps to exactly one status, so every terminal state clears the transient one.
+ * cleared imperatively. Deriving it from state makes a stuck transient banner
+ * unrepresentable: every state maps to exactly one status, so every terminal state
+ * clears the transient one. An event-driven banner cleared only on successful render
+ * leaves "Compiling…" up forever after a compile error or a payload crash.
  */
 sealed interface QuickBuildStatus {
 	/** No session — show nothing. */

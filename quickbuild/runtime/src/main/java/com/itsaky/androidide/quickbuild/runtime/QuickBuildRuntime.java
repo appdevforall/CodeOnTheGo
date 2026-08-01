@@ -356,7 +356,7 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * One-time discoverability hint for the 3-finger return gesture (plan A3). Shown on the first resume of the first session after install, only when nothing else is on the overlay; a marker file in filesDir keeps it from ever showing again.
+	 * One-time discoverability hint for the 3-finger return gesture. Shown on the first resume of the first session after install, only when nothing else is on the overlay; a marker file in filesDir keeps it from ever showing again.
 	 */
 	private void maybeShowGestureHint(Activity activity) {
 		if (overlayState.kind != OverlayState.Kind.HIDDEN) {
