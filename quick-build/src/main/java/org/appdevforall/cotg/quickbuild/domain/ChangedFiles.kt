@@ -43,12 +43,16 @@ sealed interface ChangedFiles {
 		override fun plus(other: ChangedFiles): ChangedFiles =
 			when (other) {
 				// other is the NEWER batch: its events override this batch's per path.
-				is Known ->
+				is Known -> {
 					Known(
 						(files - other.removed) + other.files,
 						(removed - other.files) + other.removed,
 					)
-				Unknown -> Unknown
+				}
+
+				Unknown -> {
+					Unknown
+				}
 			}
 
 		override val isEmpty: Boolean

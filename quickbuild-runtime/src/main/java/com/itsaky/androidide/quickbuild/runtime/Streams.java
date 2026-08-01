@@ -35,7 +35,8 @@ final class Streams {
 	/**
 	 * Reads {@code in} to exhaustion. Does not close the stream; the caller owns it.
 	 *
-	 * @throws IOException if the stream carries more than {@code maxBytes} bytes; exactly {@code maxBytes} is fine. The read stops at the first over-cap chunk, so no unbounded buffering happens either way.
+	 * @throws IOException
+	 *             if the stream carries more than {@code maxBytes} bytes; exactly {@code maxBytes} is fine. The read stops at the first over-cap chunk, so no unbounded buffering happens either way.
 	 */
 	static byte[] readFully(InputStream in, int maxBytes) throws IOException {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();

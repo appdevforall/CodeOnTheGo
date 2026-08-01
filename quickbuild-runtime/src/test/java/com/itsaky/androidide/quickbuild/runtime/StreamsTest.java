@@ -11,8 +11,35 @@ import org.junit.jupiter.api.Test;
 class StreamsTest {
 
 	@Test
+	void defaultOverloadAppliesThePayloadCap() {
+		// The 1-arg overload every production call site uses must carry the cap itself - a
+		// capped 2-arg variant nobody calls would leave all six call sites unbounded.
+		IOException thrown = assertThrows(IOException.class,
+				() -> Streams.readFully(new OversizedStream(Streams.MAX_PAYLOAD_BYTES + 1L)));
+		assertThat(thrown).hasMessageThat().contains(String.valueOf(Streams.MAX_PAYLOAD_BYTES));
+	}
+
+	@Test
 	void emptyStreamYieldsEmptyArray() throws IOException {
 		assertThat(Streams.readFully(new ByteArrayInputStream(new byte[0]))).isEmpty();
+	}
+
+	@Test
+	void exactCapSizedStreamReadsFully() throws IOException {
+		// The cap is inclusive: exactly maxBytes is a legal payload, one byte more is not.
+		byte[] data = new byte[64 * 1024];
+		new Random(11).nextBytes(data);
+		assertThat(Streams.readFully(new ByteArrayInputStream(data), 64 * 1024)).isEqualTo(data);
+	}
+
+	@Test
+	void overCapStreamThrowsNamingTheLimit() {
+		// Payload fds are Binder-unbounded and read fully on a binder thread; without the cap
+		// an oversized payload is an OOM, not an IOException the deploy path can reject.
+		byte[] data = new byte[64 * 1024 + 1];
+		IOException thrown = assertThrows(IOException.class,
+				() -> Streams.readFully(new ByteArrayInputStream(data), 64 * 1024));
+		assertThat(thrown).hasMessageThat().contains(String.valueOf(64 * 1024));
 	}
 
 	@Test
@@ -35,33 +62,6 @@ class StreamsTest {
 		byte[] data = new byte[40 * 1024];
 		new Random(7).nextBytes(data);
 		assertThat(Streams.readFully(new ByteArrayInputStream(data), 64 * 1024)).isEqualTo(data);
-	}
-
-	@Test
-	void overCapStreamThrowsNamingTheLimit() {
-		// Payload fds are Binder-unbounded and read fully on a binder thread; without the cap
-		// an oversized payload is an OOM, not an IOException the deploy path can reject.
-		byte[] data = new byte[64 * 1024 + 1];
-		IOException thrown = assertThrows(IOException.class,
-				() -> Streams.readFully(new ByteArrayInputStream(data), 64 * 1024));
-		assertThat(thrown).hasMessageThat().contains(String.valueOf(64 * 1024));
-	}
-
-	@Test
-	void exactCapSizedStreamReadsFully() throws IOException {
-		// The cap is inclusive: exactly maxBytes is a legal payload, one byte more is not.
-		byte[] data = new byte[64 * 1024];
-		new Random(11).nextBytes(data);
-		assertThat(Streams.readFully(new ByteArrayInputStream(data), 64 * 1024)).isEqualTo(data);
-	}
-
-	@Test
-	void defaultOverloadAppliesThePayloadCap() {
-		// The 1-arg overload every production call site uses must carry the cap itself - a
-		// capped 2-arg variant nobody calls would leave all six call sites unbounded.
-		IOException thrown = assertThrows(IOException.class,
-				() -> Streams.readFully(new OversizedStream(Streams.MAX_PAYLOAD_BYTES + 1L)));
-		assertThat(thrown).hasMessageThat().contains(String.valueOf(Streams.MAX_PAYLOAD_BYTES));
 	}
 
 	/** Claims {@code size} zero bytes without allocating them, so the 256 MB default cap is testable in-heap: the capped reader must throw before buffering anywhere near that much. */
