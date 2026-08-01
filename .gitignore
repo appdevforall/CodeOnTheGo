@@ -111,6 +111,10 @@ tests/test-home
 /composite-builds/build-deps/build/
 
 /app/google-services.json
+/app/keystore-debug.jks
+
+# Quick Build local benchmark corpus
+/quick-build/corpus/
 
 # Kotlin build files
 .kotlin/

@@ -60,28 +60,45 @@ private fun Activity.showFlashBar(
 	gravity: Flashbar.Gravity = TOP,
 	duration: Long = Flashbar.DURATION_SHORT,
 ) {
-  val builder = flashbarBuilder(gravity, duration)
-    .applyIcon(iconType)
+	val builder =
+		flashbarBuilder(gravity, duration)
+			.applyIcon(iconType)
 
-  // Add a close button if the flashbar is an indefinite error
-  if (duration == DURATION_INDEFINITE && iconType == IconType.ERROR) {
-    builder.positiveActionText(getString(R.string.dismiss))
-    builder.positiveActionTapListener { it.dismiss() }
-  }
+	// Add a close button if the flashbar is an indefinite error
+	if (duration == DURATION_INDEFINITE && iconType == IconType.ERROR) {
+		builder.positiveActionText(getString(R.string.dismiss))
+		builder.positiveActionTapListener { it.dismiss() }
+
+		// An indefinite bar is drawn OVER the activity, and the error variant is tall enough
+		// (message + action row) to cover the editor toolbar. Until it goes away the Run and
+		// Quick Build buttons cannot be reached at all: a tap on them lands on the bar, so both
+		// read as dead with nothing on screen saying why. Measured on an a56: the bar occupied
+		// y 236-371 while the toolbar buttons sat at y 261-383.
+		// So any touch on the bar, and any swipe, gets rid of it - not just the Dismiss button.
+		builder.listenBarTaps { it.dismiss() }
+		builder.enableSwipeToDismiss()
+	}
 
 	when (msg) {
-		null -> return
-		is Int ->
+		null -> {
+			return
+		}
+
+		is Int -> {
 			builder
 				.message(msg)
 				.showOnUiThread()
+		}
 
-		is String ->
-      builder
+		is String -> {
+			builder
 				.message(msg)
 				.showOnUiThread()
+		}
 
-		else -> throw IllegalArgumentException("Message must be String or Int resource")
+		else -> {
+			throw IllegalArgumentException("Message must be String or Int resource")
+		}
 	}
 }
 
