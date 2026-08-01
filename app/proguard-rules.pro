@@ -206,9 +206,18 @@
 -keep class com.itsaky.androidide.plugins.** { *; }
 -keep interface com.itsaky.androidide.plugins.** { *; }
 
-## Initial rules to enable when R8 is shrinking to address exceptions
-#-keep class com.sun.tools.jdi.** { *; }
-#-keep class com.sun.jdi.** { *; }
+## ADFA-3604: JDI's SocketAttachingConnector/SocketListeningConnector are
+## loaded via ServiceLoader (META-INF/services), which R8 can't trace, so it
+## stripped their no-arg constructors. This surfaced as
+## "ServiceConfigurationError: Provider ... could not be instantiated" ->
+## "java.lang.Error: no Connectors loaded" from VirtualMachineManagerImpl,
+## which the app then reports to the user as a generic "Network access
+## error" (the debug-connect failure handler always appends a network
+## suggestion regardless of cause) even though this has nothing to do with
+## network permissions. This is exactly the exceptions these rules were
+## anticipating -- enabling them now that shrinking is genuinely on.
+-keep class com.sun.tools.jdi.** { *; }
+-keep class com.sun.jdi.** { *; }
 
 ## R8 Kotlin metadata workaround for Kotlin 2.3.0 compatibility
 ## Suppresses D8 errors when parsing kotlin metadata for StopWatch inline functions
