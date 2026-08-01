@@ -93,10 +93,13 @@ class QuickBuildPipelineTest : TestCase() {
 	private var hadExperimentsFlag = false
 
 	/**
-	 * Fake occupant of the project's real applicationId (duplicated from
-	 * [QuickBuildSmokeTest] rather than shared, per this file's isolation constraint).
-	 * `installed=false` reads as "the slot is empty", which is what makes a real Quick
-	 * Build tap proceed straight to provisioning without the clobber-confirm dialog.
+	 * Fake occupant of the project's real applicationId. `installed=false` reads as "the
+	 * slot is empty", which is what makes a real Quick Build tap proceed straight to
+	 * provisioning without the clobber-confirm dialog.
+	 *
+	 * Copied in [QuickBuildSmokeTest] rather than shared. Nothing forces that - the
+	 * `helper` package next door is shared test code - so it is worth folding into a
+	 * helper the next time these run on a device.
 	 */
 	private class FakeInstalledPackages : InstalledPackages {
 		@Volatile var installed: Boolean = false
