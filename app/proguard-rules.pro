@@ -114,7 +114,7 @@
 
 # Gson model classes deserialized only via reflection (gson.fromJson(...,
 # X::class.java)), same "R8 strips the unreachable constructor" issue as
-# templates.impl.zip above. Covers OpenedFilesCache/OpenedFile (no prior
+# templates.impl.zip below. Covers OpenedFilesCache/OpenedFile (no prior
 # rule) as well as the APK metadata classes already listed individually.
 -keep class com.itsaky.androidide.models.** { *; }
 -keep class com.itsaky.androidide.lsp.debug.model.** { *; }
