@@ -128,6 +128,37 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- Quick Build tap-to-jump trampoline (ADFA-4128, plan A1): started by the
+             generated proxy app when the user taps the build-error overlay; brings CoGo
+             forward and opens the failing file at the error line. Exported by necessity
+             (caller is another package); validates the file against the open project. -->
+        <activity
+            android:name=".quickbuild.QuickBuildJumpActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="com.itsaky.androidide.quickbuild.action.JUMP_TO_ERROR" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- ADFA-4128 benchmark trampoline: adb-triggerable project open + Quick Build
+             start, so an external harness can drive the edit->hot-reload loop unattended.
+             Exported by necessity (the harness is another package); double-gated on the
+             experiments AND qbbench flags, and it opens only a directory inside the app's
+             own projects dir. -->
+        <activity
+            android:name=".quickbuild.QuickBuildBenchActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="com.itsaky.androidide.quickbuild.action.BENCH_OPEN_PROJECT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Crash/log reporting. These io.sentry.* keys configure the Sentry SDK,
              which reports to our GlitchTip backend (GlitchTip speaks the Sentry
              protocol); ${sentryDsn} carries the GlitchTip DSN. -->
