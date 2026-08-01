@@ -112,10 +112,12 @@
 }
 -keep class com.itsaky.androidide.utils.DialogUtils {  public <methods>; }
 
-# APK Metadata
--keep class com.itsaky.androidide.models.ApkMetadata { *; }
--keep class com.itsaky.androidide.models.ArtifactType { *; }
--keep class com.itsaky.androidide.models.MetadataElement { *; }
+# Gson model classes deserialized only via reflection (gson.fromJson(...,
+# X::class.java)), same "R8 strips the unreachable constructor" issue as
+# templates.impl.zip below. Covers OpenedFilesCache/OpenedFile (no prior
+# rule) as well as the APK metadata classes already listed individually.
+-keep class com.itsaky.androidide.models.** { *; }
+-keep class com.itsaky.androidide.lsp.debug.model.** { *; }
 
 # Parcelable
 -keepclassmembers class * implements android.os.Parcelable {
@@ -164,6 +166,13 @@
 -keep class * implements com.google.gson.JsonSerializer
 -keep class * implements com.google.gson.JsonDeserializer
 
+# Gson model classes: nothing calls `new TemplatesIndex(...)` directly --
+# only gson.fromJson(..., TemplatesIndex::class.java) does, via reflection.
+# With no traceable constructor call, R8 strips the constructor and Gson's
+# runtime then reports the class as abstract ("Failed to load template
+# archive ... Abstract classes can't be instantiated!").
+-keep class com.itsaky.androidide.templates.impl.zip.** { *; }
+
 -keepclassmembers,allowobfuscation class * {
   @com.google.gson.annotations.SerializedName <fields>;
 }
@@ -197,9 +206,18 @@
 -keep class com.itsaky.androidide.plugins.** { *; }
 -keep interface com.itsaky.androidide.plugins.** { *; }
 
-## Initial rules to enable when R8 is shrinking to address exceptions
-#-keep class com.sun.tools.jdi.** { *; }
-#-keep class com.sun.jdi.** { *; }
+## ADFA-3604: JDI's SocketAttachingConnector/SocketListeningConnector are
+## loaded via ServiceLoader (META-INF/services), which R8 can't trace, so it
+## stripped their no-arg constructors. This surfaced as
+## "ServiceConfigurationError: Provider ... could not be instantiated" ->
+## "java.lang.Error: no Connectors loaded" from VirtualMachineManagerImpl,
+## which the app then reports to the user as a generic "Network access
+## error" (the debug-connect failure handler always appends a network
+## suggestion regardless of cause) even though this has nothing to do with
+## network permissions. This is exactly the exceptions these rules were
+## anticipating -- enabling them now that shrinking is genuinely on.
+-keep class com.sun.tools.jdi.** { *; }
+-keep class com.sun.jdi.** { *; }
 
 ## R8 Kotlin metadata workaround for Kotlin 2.3.0 compatibility
 ## Suppresses D8 errors when parsing kotlin metadata for StopWatch inline functions
