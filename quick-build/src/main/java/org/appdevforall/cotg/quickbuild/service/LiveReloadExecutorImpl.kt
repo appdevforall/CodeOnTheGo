@@ -115,7 +115,7 @@ class LiveReloadExecutorImpl(
 		}
 
 	/**
-	 * The proxy-app half of the never-stale invariant (plan A1): a compile error never
+	 * The proxy-app half of the never-stale invariant: a compile error never
 	 * produces a payload, so without this message the app would keep running old code
 	 * with no on-screen signal. Success clears a previously shown failure (also on the
 	 * no-payload success paths, e.g. an unforced no-op). Best-effort by contract.

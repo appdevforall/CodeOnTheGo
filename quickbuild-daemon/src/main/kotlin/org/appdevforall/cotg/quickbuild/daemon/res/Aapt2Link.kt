@@ -71,11 +71,10 @@ import java.util.zip.ZipFile
  * `aapt2 compile --dir res` output) is therefore ALSO passed as `-R`, ordered LAST among
  * all `-R` arguments - so a resource the user just edited, which may also exist in
  * [libraryResources] (merged_res carries the project's own resources too, from
- * proxy app build time), resolves to the FRESH edit, not the stale merged_res snapshot. This
- * is a real, previously-latent correctness bug: the original plan for this fix assumed
- * [flatFiles] as bare positional args would win "because it's listed last" - that is false
- * for aapt2's actual precedence rule, and would have made every conflicting edit silently
- * serve the stale proxy app build value.
+ * proxy app build time), resolves to the FRESH edit, not the stale merged_res snapshot.
+ * Passing [flatFiles] as bare positional args on the assumption that "listed last wins" is
+ * false for aapt2's actual precedence rule, and makes every conflicting edit silently serve
+ * the stale proxy app build value.
  */
 class Aapt2Link(
 	private val aapt2: File,
@@ -101,16 +100,15 @@ class Aapt2Link(
 	 * @param stableIds AGP's `stableIds.txt` mapping (`pkg:type/name = 0x7f0xxxxx`) from
 	 *   the proxy app build's real resource processing, if CoGo has one for this project.
 	 *   When present and readable, passed to aapt2 as `--stable-ids` (see class KDoc for
-	 *   why). Null falls back to the pre-fix behavior: aapt2's own declaration-order id
-	 *   assignment, unpinned.
+	 *   why). Null falls back to aapt2's own declaration-order id assignment, unpinned.
 	 * @param libraryResources pre-compiled `.flat` resource units the proxy app build's real
 	 *   AGP resource processing produced (the project's own `intermediates/merged_res/`
 	 *   closure - transitively including every dependency AAR's VALUES resources - plus
 	 *   each resource-providing AAR's separately-compiled FILE-based resources). Feeds a
 	 *   resource an AAR declares (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`)
-	 *   back into the relink so it resolves (ADFA-4128 Bug 8). Empty falls back to the
-	 *   pre-fix behavior: only the project's own fresh `resDirs` compile is visible, so
-	 *   any library-provided reference fails linking. Order matters - see class KDoc.
+	 *   back into the relink so it resolves (ADFA-4128 Bug 8). Empty leaves only the
+	 *   project's own fresh `resDirs` compile visible, so any library-provided reference
+	 *   fails linking. Order matters - see class KDoc.
 	 */
 	fun relink(
 		resDirs: List<File>,

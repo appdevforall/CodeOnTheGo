@@ -80,7 +80,7 @@ object QuickBuildJson {
 	 *   manifest was compiled against, instead of letting aapt2's type-index assignment
 	 *   drift when a whole resource TYPE the baseline had is absent from the relink
 	 *   (ADFA-4128 Bug 6). Null when the proxy app build's AGP version/variant didn't produce
-	 *   the file - relinks then fall back to the pre-fix (unstable) behavior.
+	 *   the file - relinks then run with aapt2's own unpinned ids.
 	 * @param libraryResourcePaths pre-compiled `.flat` resource units from the proxy app
 	 *   build's real AGP resource processing: the project's own `intermediates/
 	 *   merged_res/` closure (transitively carries every dependency AAR's VALUES
@@ -89,8 +89,8 @@ object QuickBuildJson {
 	 *   resource a dependency AAR provides (e.g. Material3's
 	 *   `Theme.Material3.DayNight.NoActionBar`) resolves, instead of failing linking
 	 *   because the project's own res/ never declares it (ADFA-4128 Bug 8). Empty when
-	 *   the proxy app build's AGP version/variant produced none - relinks then fall back to
-	 *   the pre-fix behavior (project res/ only).
+	 *   the proxy app build's AGP version/variant produced none - relinks then see the
+	 *   project's own res/ alone.
 	 */
 	fun proxyAppReportJson(
 		info: ManifestInfo,

@@ -328,8 +328,8 @@ class GradleQuickBuildProvisioner(
 	 *
 	 * The device has a single cancellation token, so this refuses unless the in-flight build
 	 * is an INTERNAL one (Quick Build provision/prebuild/proxy app rebuild). The caller only ever issues
-	 * this while the session owns the slot, but that invariant used to live in a comment - and
-	 * a comment cannot stop a stop-tap from killing the user's own Standard Run.
+	 * this while the session owns the slot, but the check is enforced here rather than left to
+	 * the caller: a comment cannot stop a stop-tap from killing the user's own Standard Run.
 	 */
 	override fun cancelProxyAppBuild(): Boolean {
 		val buildService =

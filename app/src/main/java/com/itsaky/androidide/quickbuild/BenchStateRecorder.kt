@@ -32,9 +32,8 @@ class BenchStateRecorder(
 		}
 	}
 
-	// Pins today's serialized state values as an explicit contract, decoupled from the
-	// Kotlin identifiers (which used to be serialized directly via ::class.simpleName).
-	// The benchmark harness string-compares these literals (run_e2e_bench.py drives its
+	// Pins the serialized state values as an explicit contract, decoupled from the Kotlin
+	// identifiers. The benchmark harness string-compares these literals (run_e2e_bench.py drives its
 	// state machine off "Prewarming"), and historical .events.jsonl files carry them -
 	// so an identifier rename must NOT change any string here. Same pattern as
 	// AnalyticsQuickBuildMetricsSink.metricName().

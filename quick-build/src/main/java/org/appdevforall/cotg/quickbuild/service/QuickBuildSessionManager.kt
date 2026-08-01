@@ -283,15 +283,14 @@ class QuickBuildSessionManager(
 	 * The lightning-bolt tap: starts a session from Idle, forces a build when live, and
 	 * queues onto an in-flight prebuild ([QuickBuildSessionState.Prebuilding.tapQueued]).
 	 *
-	 * The tap is dispatched FIRST and the history write follows it. It used to be the other
-	 * way round, which made the reducer see the tap only after a side effect that can be
-	 * slow or throw: [prebuild] dispatches immediately, so a tap sequenced behind a disk
-	 * write could be reduced after `PrebuildFinished` had already settled the session back to
-	 * [QuickBuildSessionState.Idle] - and a write that threw killed this coroutine before
-	 * the dispatch, losing the tap outright (a dead press on the primary control, which is
-	 * also the press the parked-session banner instructs the user to make). Nothing depends
-	 * on the ordering the other way: prebuild is no longer gated on this history (see
-	 * [prebuild]), so it is bookkeeping.
+	 * The tap MUST be dispatched before the history write, never after. The reducer has to
+	 * see the tap without waiting on a side effect that can be slow or throw: [prebuild]
+	 * dispatches immediately, so a tap sequenced behind a disk write can be reduced after
+	 * `PrebuildFinished` has already settled the session back to
+	 * [QuickBuildSessionState.Idle], and a write that throws kills this coroutine before the
+	 * dispatch - losing the tap outright on the primary control, which is also the press the
+	 * parked-session banner tells the user to make. Nothing depends on the other ordering:
+	 * prebuild is not gated on this history (see [prebuild]), so it is pure bookkeeping.
 	 */
 	fun onQuickBuildTapped() {
 		scope.launch {
@@ -645,7 +644,7 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * Honesty line while a build is in flight (WS-G): tells the proxy app it is one
+	 * Honesty line while a build is in flight: tells the proxy app it is one
 	 * generation behind while the new one compiles, so a slow build never reads as
 	 * silence. The generation choice (session tally vs the connected target's
 	 * self-report) is [OrchestratorEventRouter]'s call - see

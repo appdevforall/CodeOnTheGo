@@ -7,9 +7,9 @@ import java.security.MessageDigest
  * Per-project Quick Build scratch trees on app-private storage (ADFA-4930).
  *
  * The pipeline's intermediates (daemon compile/dex/relink outputs, the executor's
- * payload staging) used to live under `<project>/.androidide/quickbuild/` - on
- * `/storage/emulated`, i.e. FUSE, which pays a ~50x per-file toll versus the app's
- * own ext4-backed private storage. This class owns the relocated layout:
+ * payload staging) live here rather than under `<project>/.androidide/quickbuild/`,
+ * which sits on `/storage/emulated` - FUSE, which pays a ~50x per-file toll versus
+ * the app's own ext4-backed private storage. This class owns that layout:
  *
  * `<root>/<projectKey>/` - one tree per project
  * - `work/` - executor payload staging (assets zip)
@@ -22,7 +22,7 @@ import java.security.MessageDigest
  * Lifecycle: a tree exists only while its session does. [remove] deletes it on
  * session teardown, and [sweep] reclaims leftovers from dead sessions (process
  * kills, crashes) - including trees of since-deleted projects, which nothing else
- * would ever clean up now that the tree no longer dies with the project folder.
+ * would ever clean up, since the tree does not die with the project folder.
  * Deleting on teardown is safe: no cross-session content here is load-bearing -
  * every daemon start re-seeds its incremental state from current disk, and the
  * cross-session generation counter deliberately stays OUT of this tree (see

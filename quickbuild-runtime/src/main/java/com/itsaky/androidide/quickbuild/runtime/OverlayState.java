@@ -1,7 +1,7 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
 /**
- * What the status overlay currently shows. Originally ERROR-ONLY (plan A1): the overlay exists to keep the never-stale invariant honest when a build fails or a payload crashes, plus a one-time gesture discoverability hint. WS-G adds one deliberately narrow exception - {@link #building} - a neutral in-flight line so a slow compile never reads as silence; it is still not a general progress UI (success still renders NOTHING). Immutable and DERIVED-then-rendered - the overlay always renders the latest state object and every terminal event installs a new state, so a transient state can never get stuck on screen (the prototype's stuck banner is a named regression, plan 1.4).
+ * What the status overlay currently shows. The overlay is error-only by design: it exists to keep the never-stale invariant honest when a build fails or a payload crashes, plus a one-time gesture discoverability hint. {@link #building} is the one deliberately narrow exception - a neutral in-flight line so a slow compile never reads as silence. It is not a general progress UI; success renders NOTHING. Immutable and DERIVED-then-rendered - the overlay always renders the latest state object and every terminal event installs a new state, so a transient state can never get stuck on screen.
  */
 final class OverlayState {
 
@@ -11,7 +11,7 @@ final class OverlayState {
 	}
 
 	/**
-	 * A build is compiling; the app on screen is still running {@code runningGeneration} (WS-G honesty line). Never offers tap-to-jump - there is no error location yet.
+	 * A build is compiling; the app on screen is still running {@code runningGeneration}. Never offers tap-to-jump - there is no error location yet.
 	 */
 	static OverlayState building(long runningGeneration) {
 		return new OverlayState(Kind.BUILDING, null, -1, -1, null, 0, runningGeneration);
@@ -134,7 +134,7 @@ final class OverlayState {
 		CRASHED,
 		/** One-time discoverability hint for the 3-finger return gesture (plan A3). */
 		HINT,
-		/** A build is compiling (WS-G); the app keeps running its last-deployed generation. */
+		/** A build is compiling; the app keeps running its last-deployed generation. */
 		BUILDING
 	}
 }

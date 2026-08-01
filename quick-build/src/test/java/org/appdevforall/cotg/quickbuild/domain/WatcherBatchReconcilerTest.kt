@@ -5,9 +5,9 @@ import org.junit.jupiter.api.Test
 import java.io.File
 
 /**
- * Pins the reconciliation behavior that used to live inline in
- * QuickBuildSessionManager.onWatcherBatch - the manager tests remain the end-to-end
- * regression harness; these cover the pure decision table directly.
+ * Covers the watcher-batch reconciliation decision table directly. The
+ * QuickBuildSessionManager tests remain the end-to-end regression harness for the same
+ * behavior.
  */
 class WatcherBatchReconcilerTest {
 	private val source = File("/project/app/src/main/java/com/example/Main.kt")

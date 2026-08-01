@@ -48,7 +48,7 @@ interface QuickBuildProjectLayout {
 	 * Bug 8). Passed to `aapt2 link` as `-R` overlays, ordered BEFORE the relink's own
 	 * fresh compile (see `Aapt2Link`'s KDoc for why order matters). Empty when the proxy app
 	 * build didn't report any (older AGP, or a variant whose resource processing never
-	 * produced them) - relinks then fall back to the pre-fix behavior.
+	 * produced them) - relinks then see the project's own res/ alone.
 	 */
 	fun libraryResourceFlats(): List<File>
 

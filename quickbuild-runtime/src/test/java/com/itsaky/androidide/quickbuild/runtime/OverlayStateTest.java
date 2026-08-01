@@ -11,7 +11,7 @@ class OverlayStateTest {
 		OverlayState state = OverlayState.buildFailed(BuildStatus.parse(
 				"{\"kind\": \"build_failed\", \"file\": \"/p/src/Foo.kt\", \"line\": \"12\","
 						+ " \"message\": \"Unresolved reference: foo\"}"));
-		// The honesty line is the point of the overlay (never-stale, plan 1.4/A1).
+		// The honesty line is the point of the overlay: never stale.
 		assertThat(state.text()).contains("running the last working version");
 		assertThat(state.text()).contains("Foo.kt:12");
 		assertThat(state.text()).contains("Unresolved reference: foo");

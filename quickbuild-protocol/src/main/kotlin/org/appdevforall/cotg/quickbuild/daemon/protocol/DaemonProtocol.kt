@@ -87,7 +87,7 @@ data class DexRequest(
  *   against, instead of letting a whole resource TYPE the baseline had (but the relink
  *   doesn't) shift aapt2's type-index assignment out from under that manifest
  *   (ADFA-4128 Bug 6). Optional and backward-compatible: a client that never sends it
- *   gets the pre-fix (unstable) relink behavior, not a protocol error.
+ *   relinks with aapt2's own unpinned ids, not a protocol error.
  * @property libraryResources pre-compiled `.flat` resource units from the proxy app build's
  *   real AGP resource processing - the project's own `intermediates/merged_res/` closure
  *   (transitively includes every dependency AAR's VALUES resources) plus each
@@ -95,7 +95,7 @@ data class DexRequest(
  *   `aapt2 link` as `-R` overlays, ordered BEFORE the relink's own fresh compile, so a
  *   library-provided reference (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`)
  *   resolves (ADFA-4128 Bug 8). Optional and backward-compatible: absent/empty on a client
- *   that never reports one gets the pre-fix behavior (project res/ only).
+ *   that never reports one relinks against the project's own res/ alone.
  */
 data class RelinkRequest(
 	override val id: Long,
@@ -152,9 +152,8 @@ object ResponseKeys {
  *
  * These exist because those two fields account for only about half of a warm edit: the
  * rest is the output-tree snapshots, the Java-ABI re-parse, and the source I/O around
- * them, all of which are per-file filesystem work and all of which were invisible. A
- * design note read the old fields and concluded javac was "the bottleneck" when javac is
- * 19-27% of a warm edit (ADFA-4128 sora-editor-full deep-dive, section 5).
+ * them, all per-file filesystem work with no span of its own. Without them javac reads
+ * like the bottleneck, when javac is 19-27% of a warm edit `[measured on a56]`.
  *
  * Every field is a counter or a duration. Nothing here is derived from a path, a name, or
  * source content.

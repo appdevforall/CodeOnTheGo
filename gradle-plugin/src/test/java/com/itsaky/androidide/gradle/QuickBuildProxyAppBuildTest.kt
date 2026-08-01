@@ -25,25 +25,23 @@ import java.io.File
 
 /**
  * Functional coverage for the Quick Build proxy app build (ADFA-4128), run through the shared
- * TestKit harness against the sample project - which enables `viewBinding`, the exact DSL
- * that triggered Bug 1.
+ * TestKit harness against the sample project - which enables `viewBinding`, the DSL that
+ * makes generated-source providers part of the configuration-cache store.
  */
 class QuickBuildProxyAppBuildTest {
 	/**
-	 * ADFA-4128 Bug 1 regression. The proxy app build runs with `--configuration-cache`; storing
-	 * the cache serializes every scheduled task's fields. When `QuickBuildProxyAppReportTask`
-	 * held its source roots as a `ListProperty<String>` mapped from `variant.sources.*.all`,
-	 * the store REALIZED that value before any task ran, forcing the viewBinding-contributed
-	 * `dataBindingGenBaseClasses<Variant>` output provider and throwing
-	 * `InvalidUserCodeException: querying the mapped value ... before task ... completed`.
-	 * That failed the store and every viewBinding-enabled proxy app build (i.e. 7 of 9 built-in
-	 * templates). Holding the roots as a `ConfigurableFileCollection` lets the store defer
-	 * resolution, so the cache is stored and the report task is scheduled without forcing the
-	 * generated-source producers.
+	 * The proxy app build runs with `--configuration-cache`, and storing the cache serializes
+	 * every scheduled task's fields. `QuickBuildProxyAppReportTask` must therefore hold its
+	 * source roots as a `ConfigurableFileCollection`, which the store can leave unresolved -
+	 * never as a `ListProperty<String>` mapped from `variant.sources.*.all`, whose mapped value
+	 * the store realizes before any task runs. Realizing it forces the viewBinding-contributed
+	 * `dataBindingGenBaseClasses<Variant>` output provider and throws
+	 * `InvalidUserCodeException: querying the mapped value ... before task ... completed`, which
+	 * fails the store and with it every viewBinding-enabled proxy app build - 7 of the 9
+	 * built-in templates.
 	 *
 	 * `--dry-run` stops after the store (no compile/dex), so the assertion isolates the
-	 * config-cache store step. On the pre-fix code the harness's `.build()` throws, failing
-	 * this test.
+	 * config-cache store step.
 	 */
 	@Test
 	fun `viewBinding proxy app build stores the configuration cache without forcing generated-source providers`() {
@@ -64,7 +62,7 @@ class QuickBuildProxyAppBuildTest {
 		assertThat(result.output).contains("Configuration cache entry stored")
 		// ... the proxy app report task WAS scheduled (so its fields were serialized) ...
 		assertThat(result.output).contains("writeDemoDebugQuickBuildProxyAppReport")
-		// ... and the pre-fix store failure did not occur.
+		// ... and the store did not trip over a realized source-roots provider.
 		assertThat(result.output).doesNotContain("__sourceRoots__")
 		assertThat(result.output).doesNotContain("Configuration cache state could not be cached")
 	}

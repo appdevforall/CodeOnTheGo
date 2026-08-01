@@ -37,8 +37,8 @@ internal class QuickBuildDaemonController(
 	/**
 	 * [respawn] captures this at effect time and re-checks after its `daemon.start`
 	 * returns: any change means an intentional shutdown superseded the respawn
-	 * mid-flight (2026-07-26 review finding 2 - a proxy app rebuild's `daemon.shutdown()`
-	 * racing an in-flight respawn), so the respawn discards its result instead of
+	 * mid-flight - a proxy app rebuild's `daemon.shutdown()` racing an in-flight
+	 * respawn - so the respawn discards its result instead of
 	 * reporting [RespawnOutcome.Respawned]. EXACTLY one transition since capture is the
 	 * superseding shutdown itself, so a daemon the stale start brought up is a zombie
 	 * only the respawn knows about - it stops it (the daemon must not coexist with the
@@ -110,8 +110,8 @@ internal class QuickBuildDaemonController(
 		val started = daemon.start(configFor(layout, proxyApp))
 		if (startEpoch != daemonEpoch) {
 			// An intentional shutdown (proxy-app-rebuild teardown, session teardown,
-			// low-memory shrink) landed while this respawn's start was in flight
-			// (2026-07-26 review finding 2). The superseding flow owns the daemon
+			// low-memory shrink) landed while this respawn's start was in flight.
+			// The superseding flow owns the daemon
 			// lifecycle now: reporting Respawned here would corrupt it. See
 			// [daemonEpoch] for the exactly-one-transition cleanup rule.
 			if (started is DaemonReply.Ok && daemonEpoch == startEpoch + 1) {

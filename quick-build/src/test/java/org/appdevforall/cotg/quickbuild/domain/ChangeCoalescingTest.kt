@@ -169,10 +169,10 @@ class ChangeCoalescingTest {
 	@Test
 	fun `a batch is not lost when the consumer is busy at flush time`() =
 		runTest {
-			// Regression: the quiet-timer flush used to cancel its OWN job before send();
-			// if send() then had to suspend (consumer busy), prompt cancellation threw and
-			// the batch was silently dropped - a stale app. A rendezvous buffer + a busy
-			// consumer force exactly that suspension. Upstream stays open so the flush comes
+			// The quiet-timer flush must not cancel its OWN job before send(): if send()
+			// then has to suspend (consumer busy), prompt cancellation throws and the batch
+			// is silently dropped - a stale app. A rendezvous buffer + a busy consumer force
+			// exactly that suspension. Upstream stays open so the flush comes
 			// from the timer, not the terminal path.
 			val source =
 				flow {

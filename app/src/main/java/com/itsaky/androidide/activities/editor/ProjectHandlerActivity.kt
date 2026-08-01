@@ -616,7 +616,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			// of the project
 			ProjectManagerImpl.getInstance().destroy()
 
-			// ADFA-4128 (WS-H): the Quick Build session manager is a process-wide Koin
+			// ADFA-4128: the Quick Build session manager is a process-wide Koin
 			// singleton that outlives this activity, and its provisioner reads
 			// IProjectManager.getInstance().projectDirPath fresh at build time rather
 			// than a snapshot. Without this, closing a project while its eager prebuild

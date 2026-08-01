@@ -102,9 +102,8 @@ class BenchQuickBuildMetricsSink(
 		}
 	}
 
-	// The wireName() maps below pin today's serialized values as an explicit contract,
-	// decoupled from the Kotlin identifiers (which used to be serialized directly via
-	// ::class.simpleName / enum .name). The benchmark harness string-compares these
+	// The wireName() maps below pin the serialized values as an explicit contract,
+	// decoupled from the Kotlin identifiers. The benchmark harness string-compares these
 	// literals (e.g. run_e2e_bench.py reads "RequiresRebaseline"), and historical
 	// .events.jsonl files carry them - so an identifier rename must NOT change any
 	// string here. Same pattern as AnalyticsQuickBuildMetricsSink.metricName().

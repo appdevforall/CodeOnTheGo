@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test
 /**
  * The wire-contract details of the request/result DTOs that the codec and the client (both
  * in other modules) rely on: documented defaults for optional fields (an absent field must
- * mean the pre-fix fallback behavior, never an error) and value semantics (a request
+ * mean the documented fallback behavior, never an error) and value semantics (a request
  * rebuilt from the same wire fields IS the same request - what every codec round-trip
  * assertion stands on).
  */
@@ -61,7 +61,7 @@ class DaemonProtocolDtoTest {
 	}
 
 	@Test
-	fun `relink defaults stableIds to null and libraryResources to empty - the pre-fix fallbacks`() {
+	fun `relink defaults stableIds to null and libraryResources to empty - the documented fallbacks`() {
 		val request = RelinkRequest(4, listOf("/res"), "/AndroidManifest.xml")
 
 		assertThat(request.id).isEqualTo(4)

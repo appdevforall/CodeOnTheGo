@@ -17,9 +17,9 @@ import java.nio.ByteBuffer;
  *
  * Installed once per process by {@link QuickBuildAppComponentFactory} at application instantiation - the earliest hook a library gets without a ContentProvider. Context work (binding to CoGo, cache dirs) is deferred to the first activity because the Application has no base context yet at install time.
  *
- * The overlay is ERROR-MOSTLY (plan A1, WS-G): a CoGo-side build failure ({@link #handleBuildStatus}) or a payload crash shows a banner saying the app still runs the last working version, cleared by the next successful build/reload; a one-time hint for the 3-finger return gesture; and (WS-G) a neutral in-flight line while a build compiles, so a slow build never reads as silence. Success itself still renders nothing - it only clears whatever was showing.
+ * The overlay is error-mostly: a CoGo-side build failure ({@link #handleBuildStatus}) or a payload crash shows a banner saying the app still runs the last working version, cleared by the next successful build/reload; a one-time hint for the 3-finger return gesture; and a neutral in-flight line while a build compiles, so a slow build never reads as silence. Success itself still renders nothing - it only clears whatever was showing.
  *
- * Failure policy, everywhere: a reload failure calls reportCrash and ROLLS BACK to the old generation - the app keeps running gen N and says so; it never crash-loops on a bad payload and never silently claims gen N+1 (the never-stale invariant, plan 1.4).
+ * Failure policy, everywhere: a reload failure calls reportCrash and ROLLS BACK to the old generation - the app keeps running gen N and says so; it never crash-loops on a bad payload and never silently claims gen N+1 (the never-stale invariant).
  */
 final class QuickBuildRuntime {
 
@@ -122,7 +122,7 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Build-status message from CoGo (plan A1) - the only way the running app learns about a compile error, which never produces a payload. Runs on a binder thread; guards all throwables so nothing escapes into the binder.
+	 * Build-status message from CoGo - the only way the running app learns about a compile error, which never produces a payload. Runs on a binder thread; guards all throwables so nothing escapes into the binder.
 	 */
 	void handleBuildStatus(String statusJson) {
 		try {

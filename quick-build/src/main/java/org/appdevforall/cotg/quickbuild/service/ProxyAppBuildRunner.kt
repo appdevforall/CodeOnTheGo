@@ -19,8 +19,8 @@ import java.io.File
  * and dispatches, because all of that is state ownership.
  *
  * The [superseded] probe each call takes is the manager's epoch check handed in as a
- * closure: the runner asks "was I outlived?" at exactly the points the inlined code
- * used to check, without ever seeing the epoch itself.
+ * closure: the runner asks "was I outlived?" at each point that can be raced, without
+ * ever seeing the epoch itself.
  *
  * Call only on the session dispatcher; this class holds no scope of its own.
  */
@@ -216,9 +216,9 @@ internal class ProxyAppBuildRunner(
 		// 3-4GB target class the two must not coexist. Costless: the daemon's IC state
 		// is untrustworthy after a proxy app rebuild anyway (regenerated inputs it never saw),
 		// and it was going to be re-seeded from scratch regardless; on success it
-		// restarts below with the NEW proxy app info's config (the survivor used to keep serving
-		// the OLD configure's classpath - correct only via BTA's full-recompile
-		// fallback). The epoch bump discards a daemon respawn still in flight (a
+		// restarts below with the NEW proxy app info's config - a surviving daemon would keep
+		// serving the OLD configure's classpath, correct only via BTA's full-recompile
+		// fallback. The epoch bump discards a daemon respawn still in flight (a
 		// proxy app rebuild can start from Degraded); see [QuickBuildDaemonController].
 		daemonController.markIntentionalTransition()
 		daemonController.shutdown()

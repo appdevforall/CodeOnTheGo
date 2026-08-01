@@ -119,14 +119,14 @@ Warm edit, ms, pre-lever-1 `[measured on a56]`:
 - *"Non-incremental dexing is the dominant cost."* Half right - dex is 48-60% of the edit, but
   most of that was the strip pass's file I/O, not dex compute (strip fell 20x once only the
   filesystem changed).
-- [`incremental-javac-design.md`](incremental-javac-design.md)'s options A+B are still right
-  (levers 3a/3b), but its framing called javac "the bottleneck" - it's 19-27% of a warm edit
-  pre-fix, 25-36% post-fix, because it only measured inside `compileMs`, which excludes dex
-  entirely. Its ~40x host-scaling estimate was also off; the A56's factor is 7-14x at N=214
-  `[inferred]`.
-- Lesson: the shipped timing fields summed to about half a warm edit, with the dominant cost in
-  the unmeasured half. Fix was an explicit unaccounted **residual** field in the analytics
-  event, so a future expensive un-timed step grows the residual instead of being misattributed.
+- *"javac is the bottleneck."* No - javac is 25-36% of a warm edit today (19-27% before the
+  storage move). `compileMs` alone reads higher because it excludes dex entirely. Options A+B in
+  [`incremental-javac-design.md`](incremental-javac-design.md) (levers 3a/3b) are still worth
+  taking, just not as the headline. Its ~40x host-scaling estimate is also too high; the A56's
+  factor is 7-14x at N=214 `[inferred]`.
+- The tool timings cover only about half a warm edit, so read the analytics event's unaccounted
+  **residual** field alongside them - an expensive un-timed step grows the residual instead of
+  being misattributed to whatever is measured next door.
 
 ## Not covered here
 

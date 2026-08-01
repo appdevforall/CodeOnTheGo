@@ -9,7 +9,7 @@ import android.widget.FrameLayout;
 import android.widget.TextView;
 
 /**
- * Minimal translucent banner pinned just below the system status bar, as a child of the window DECOR with a status-bar top margin (the bar itself stays untouched; the app's own chrome may be overlapped - it is an error surface). ERROR-ONLY (plan A1): it renders build failures, payload crashes and the one-time gesture hint; success and in-progress states render nothing.
+ * Minimal translucent banner pinned just below the system status bar, as a child of the window DECOR with a status-bar top margin (the bar itself stays untouched; the app's own chrome may be overlapped - it is an error surface). Error-only: it renders build failures, payload crashes and the one-time gesture hint; success and in-progress states render nothing.
  *
  * Rendering is stateless: {@link #render} makes the banner match the given {@link OverlayState} exactly, creating/updating/removing as needed. There is no "clear" call to forget - every state change re-renders, which is what makes a stuck banner unrepresentable.
  */
@@ -86,7 +86,7 @@ final class StatusOverlay {
 		}
 	}
 
-	/** Tap on a build failure jumps to the failing line in CoGo (plan A1). */
+	/** Tap on a build failure jumps to the failing line in CoGo. */
 	private void bindJump(TextView banner, final Activity activity, final OverlayState state) {
 		if (state.canJumpToEditor()) {
 			banner.setOnClickListener(new View.OnClickListener() {

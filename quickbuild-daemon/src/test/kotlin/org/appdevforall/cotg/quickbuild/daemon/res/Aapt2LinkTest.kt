@@ -404,9 +404,8 @@ class Aapt2LinkTest {
 
 	@Test
 	fun `relink resolves a fresh project edit over a stale libraryResources copy of the same resource`() {
-		// The correctness bug this fix could easily have reintroduced: if the project's own
-		// fresh compile were bare positional (as originally planned) instead of -R, a stale
-		// merged_res copy of the SAME resource would win over today's live edit. Verified
+		// If the project's own fresh compile were bare positional instead of -R, a stale
+		// merged_res copy of the SAME resource would win over the live edit. Verified
 		// empirically (real aapt2) that -R always beats positional regardless of order, so
 		// both flatFiles and libraryResources must be -R with flatFiles LAST.
 		writeStrings(

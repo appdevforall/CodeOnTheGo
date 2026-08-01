@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Tap-to-jump trampoline for the Quick Build error overlay (plan A1). The proxy app
+ * Tap-to-jump trampoline for the Quick Build error overlay. The proxy app
  * starts this activity when the user taps a build-failure banner; because it shares
  * CoGo's task affinity, launching it brings CoGo's existing task to the foreground,
  * and finishing immediately (Theme.NoDisplay) reveals the editor beneath - which

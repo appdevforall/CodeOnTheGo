@@ -33,7 +33,7 @@ oneway interface IQuickBuildTarget {
 			in @nullable ParcelFileDescriptor assetsPayload, String metadataJson);
 
 	/**
-	 * Build-status message (plan A1): tells the running proxy app that a quick build
+	 * Build-status message: tells the running proxy app that a quick build
 	 * FAILED CoGo-side (a compile error never produces a payload, so without this the
 	 * app would silently keep running old code with no user-visible signal), or that a
 	 * build succeeded (clears a previously shown failure).

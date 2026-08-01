@@ -22,7 +22,7 @@ object QuickBuildProjectSupport {
 	 * Unlike [unsupportedProjectTypeMessage], this can only be known AFTER the proxy app
 	 * build runs (`setup.json`'s `entryActivity` comes from the real manifest merge),
 	 * so it's checked once the proxy app build's [org.appdevforall.cotg.quickbuild.data.ProxyAppInfo]
-	 * is in hand - turning what used to read as a build failure into a friendly refusal.
+	 * is in hand, so it reads as a friendly refusal rather than a build failure.
 	 */
 	fun noLaunchableActivityMessage(entryActivity: String?): String? =
 		if (entryActivity == null) {

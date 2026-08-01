@@ -29,7 +29,7 @@ interface DeploySender {
 	): DeployResult
 
 	/**
-	 * Best-effort build-status message (plan A1): tells the running proxy app a build
+	 * Best-effort build-status message: tells the running proxy app a build
 	 * failed CoGo-side (compile errors never produce a payload) or succeeded (clears a
 	 * shown failure). Fire-and-forget - no verdict, never throws; a disconnected or
 	 * older proxy app (whose stub predates onBuildStatus) simply misses the message.

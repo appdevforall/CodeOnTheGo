@@ -19,7 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * calling [AndroidProjectWatcher.report] directly and poll sweeps are driven manually
  * via [AndroidProjectWatcher.sweep] (the automatic loop is parked with a huge interval).
  *
- * The regression under test (task #66): one `adb push` of a manifest produced TWO
+ * The regression under test: one `adb push` of a manifest must not produce TWO
  * invalidations/rebaselines. `adb push` back-dates the file's mtime (utimensat) right
  * after the CLOSE_WRITE the inotify path fingerprinted [measured on a56], so the next
  * 2s poll sweep saw a stamp "change" for content the first batch already delivered and
@@ -90,8 +90,8 @@ class AndroidProjectWatcherTest {
 		assertThat(batches[0].files).containsExactly(manifest)
 
 		// The poll sweep after the batch settled must stay quiet: the edit was already
-		// delivered, only its attrs moved. Pre-fix this emitted a phantom second batch
-		// (the double invalidation/rebaseline of task #66).
+		// delivered, only its attrs moved. A second batch here is a phantom, and costs a
+		// double invalidation/rebaseline.
 		w.sweep()
 		Thread.sleep(300)
 		assertThat(batches).hasSize(1)

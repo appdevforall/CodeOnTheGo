@@ -243,10 +243,10 @@ class SessionReducer {
 					// warm compile - single-flight preserved, tap never dropped.
 					SessionTransition(state, listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
 				} else {
-					// The in-flight real build deploys anyway and satisfies the tap's build.
-					// It does NOT satisfy the ask, though: the tap used to be dropped here
-					// outright, so tapping during a save-triggered build did nothing the user
-					// could see. Record the ask on that build instead (behaviour 2).
+					// The in-flight real build deploys anyway and satisfies the tap's build,
+					// but not the ask: a tap during a save-triggered build must still show
+					// the user something happened. Record the ask on that build (behaviour 2)
+					// rather than dropping it.
 					SessionTransition(state, listOf(SessionEffect.MarkBuildUserInitiated))
 				}
 			}
@@ -390,8 +390,7 @@ class SessionReducer {
 				// would otherwise never rebuild its proxy app and no build would ever run again.
 				// The proxy app rebuild needs Gradle, not the daemon - and the shell's
 				// daemonEpoch guard discards the in-flight respawn the proxy app rebuild's
-				// daemon teardown supersedes, so the two cannot race (2026-07-26
-				// review finding 2).
+				// daemon teardown supersedes, so the two cannot race.
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration),
 					listOf(SessionEffect.RunProxyAppRebuild),

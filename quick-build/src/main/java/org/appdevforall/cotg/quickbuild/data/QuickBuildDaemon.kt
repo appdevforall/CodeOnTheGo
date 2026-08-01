@@ -130,14 +130,14 @@ data class DexOutput(
  *   resource ids to the baseline's so a relink of the project's own res/ (a strict
  *   subset of what the real build merged in) can't shift a resource's numeric id out
  *   from under the manifest the proxy app build already compiled (ADFA-4128 Bug 6). Null
- *   is a supported, backward-compatible fallback to the pre-fix (unstable) relink.
+ *   is a supported, backward-compatible fallback to an unpinned-id relink.
  * @property libraryResources pre-compiled `.flat` resource units from the proxy app build's
  *   real AGP resource processing ([QuickBuildProjectLayout.libraryResourceFlats]) -
  *   the project's own merged_res closure plus every resource-providing AAR's
  *   compiled file resources. Lets a relink resolve a resource a dependency AAR
  *   provides (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`), which the
  *   project's own res/ never declares (ADFA-4128 Bug 8). Empty is a supported,
- *   backward-compatible fallback to the pre-fix behavior (project res/ only).
+ *   backward-compatible fallback to relinking against the project's own res/ alone.
  */
 data class RelinkInputs(
 	val resDirs: List<File>,

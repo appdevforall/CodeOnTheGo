@@ -33,7 +33,7 @@ internal class OrchestratorEventRouter(
 		val newLastDeployedGeneration: Long? = null,
 		/**
 		 * Non-null: tell the proxy app it is one generation behind, running this one,
-		 * while the new build compiles (WS-G honesty line) - so a slow build never
+		 * while the new build compiles - the honesty line, so a slow build never
 		 * reads as silence. Prefers [route]'s `lastDeployedGeneration` - the session's
 		 * own tally, kept current across every hot-swap deploy - over the connected
 		 * target's self-reported generation, which is only fresh at connect time and

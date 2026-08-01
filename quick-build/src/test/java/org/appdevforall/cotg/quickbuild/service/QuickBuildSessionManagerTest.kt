@@ -402,7 +402,7 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
 		}
 
-	// Review finding (2026-07-26 #3): the warm compile compiles what the proxy app already runs
+	// The warm compile compiles what the proxy app already runs
 	// and deploys nothing - it must not present as a blocking Building for its whole
 	// 12-50s window.
 	@Test
@@ -426,7 +426,7 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
-	// Review finding (2026-07-26 #3): a forced-redeploy tap during the warm compile must not
+	// A forced-redeploy tap during the warm compile must not
 	// vanish - the warm compile deploys nothing, so nothing else would satisfy it.
 	@Test
 	fun `a tap during the warm compile queues and forces a build right after it`() =
@@ -451,7 +451,7 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
 		}
 
-	// Review finding (2026-07-26 #1): a crash of the running generation during the warm compile
+	// A crash of the running generation during the warm compile
 	// window surfaces like any other proxy-app crash instead of being swallowed by the
 	// warm compile's silent WarmCompileFinished -> Ready path.
 	@Test
@@ -1064,7 +1064,7 @@ class QuickBuildSessionManagerTest {
 			assertThat(restarted.compilerPlugins).isNotEmpty()
 		}
 
-	// Review finding (2026-07-26 #2): the proxy app rebuild calls daemon.shutdown() and can race an
+	// The proxy app rebuild calls daemon.shutdown() and can race an
 	// in-flight respawn. The daemonEpoch guard must discard the superseded respawn.
 	@Test
 	fun `a respawn superseded by a completed proxy app rebuild is discarded and leaves the new daemon alone`() =
@@ -1323,11 +1323,10 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
-	// Review finding (2026-07-30 major #5b): the rebuild-Succeeded arm mutated
-	// session.proxyApp/layout BEFORE building the new delegates, so a factory throw
-	// (checkNotNull(entryActivity)) escaped the session scope - crashing CoGo with the
-	// session half-updated. The delegates are now built first and the arm dispatches
-	// the existing rebuild-failure path instead.
+	// The rebuild-Succeeded arm must build the new delegates BEFORE mutating
+	// session.proxyApp/layout: a factory throw (checkNotNull(entryActivity)) after the
+	// mutation escapes the session scope and crashes CoGo with the session half-updated.
+	// Built first, the arm can dispatch the ordinary rebuild-failure path instead.
 	@Test
 	fun `a delegate factory throw during the rebuild's re-baseline dispatches the failure path instead of escaping`() =
 		runTest {
@@ -1358,9 +1357,8 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
-	// Review finding (2026-07-26 #4): the Gradle proxy app rebuild SUCCEEDED but the daemon
-	// restart after it fails. Traced safe at review time but unpinned - the session
-	// must tear down to Idle (never park daemon-less) and a tap must re-provision.
+	// The Gradle proxy app rebuild SUCCEEDED but the daemon restart after it fails: the
+	// session must tear down to Idle (never park daemon-less) and a tap must re-provision.
 	@Test
 	fun `a daemon restart failure after a successful proxy app rebuild tears down to Idle and a tap re-provisions`() =
 		runTest {
@@ -1488,9 +1486,9 @@ class QuickBuildSessionManagerTest {
 	@Test
 	fun `foreground auto-retries are bounded - a user who keeps declining is not re-prompted forever`() =
 		runTest {
-			// Defect #90's second half: every resume used to re-run a full Gradle
-			// proxy app rebuild for a user who kept declining the reinstall. The auto-retry
-			// budget caps that; the session ends parked, where a TAP still retries.
+			// Without a bound, every resume re-runs a full Gradle proxy app rebuild for a
+			// user who keeps declining the reinstall. The auto-retry budget caps that; the
+			// session ends parked, where a TAP still retries.
 			proxyAppRebuildOutcome = { ProxyAppRebuildOutcome.InstallNotConfirmed("install was not confirmed") }
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1529,11 +1527,11 @@ class QuickBuildSessionManagerTest {
 	@Test
 	fun `a retry that cannot get the Gradle slot defers instead of spending the auto-retry`() =
 		runTest {
-			// W9 finding F1: returning to CoGo after a gradle edit starts CoGo's own project
-			// sync (the same gradle-file change invalidated the session), and the foreground
-			// retry asked for the single Gradle slot 1.8 s later. The collision used to be
-			// reported as "Proxy app rebuild failed", which spent the one bounded retry and
-			// dropped the session to Idle - a dead end instead of the install re-prompt.
+			// Losing the single Gradle slot is contention, not a build failure. Returning to
+			// CoGo after a gradle edit starts CoGo's own project sync (the same change
+			// invalidated the session) and the foreground retry asks for the slot ~2 s later,
+			// so this collision is routine. Charging it to the one bounded retry drops the
+			// session to Idle - a dead end instead of the install re-prompt.
 			var slotBusy = false
 			proxyAppRebuildOutcome = {
 				if (slotBusy) {
@@ -1966,11 +1964,11 @@ class QuickBuildSessionManagerTest {
 	@Test
 	fun `the tap reaches the reducer before the history write, not after it`() =
 		runTest {
-			// W9 finding F2: the tap used to be dispatched only AFTER recording history, so
-			// the reducer saw it behind a side effect that can be slow - while prebuild()
-			// dispatches immediately. A tap sequenced behind that write can be reduced after
-			// PrebuildFinished has already settled the session back to Idle, which is what a
-			// "dead" first press on the primary control looks like.
+			// The reducer must see the tap without waiting on the history write, which is a
+			// side effect that can be slow. prebuild() dispatches immediately, so a tap
+			// sequenced behind that write can be reduced after PrebuildFinished has already
+			// settled the session back to Idle - which is what a "dead" first press on the
+			// primary control looks like.
 			var stateAtWrite: QuickBuildSessionState? = null
 			val manager = createManager()
 			historyStore.onWrite = { stateAtWrite = manager.state.value }
@@ -1985,8 +1983,9 @@ class QuickBuildSessionManagerTest {
 	@Test
 	fun `a tap still starts the session when recording history fails`() =
 		runTest {
-			// A throwing store used to kill the coroutine before the dispatch, losing the tap
-			// outright - the one press the parked-session banner tells the user to make.
+			// A throwing store must not kill the coroutine before the dispatch: that loses
+			// the tap outright - the one press the parked-session banner tells the user to
+			// make.
 			historyStore.writeError = IllegalStateException("no project open")
 			val manager = createManager()
 

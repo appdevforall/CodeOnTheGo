@@ -51,7 +51,6 @@ flowchart LR
 | "Proxy app is not connected. Relaunch your app to reconnect, then deploy again." right after a reinstall | #88 - post-fix, reached only when the automatic launch-and-retry itself failed |
 | The same "not connected" failure with no reinstall involved - the app crashed on its own | #91 |
 | "Your app needs a reinstall - return to CoGo to confirm." | #90 - the fixed fail-fast park (also the timeout message when CoGo was never foregrounded) |
-| "Proxy app install was not confirmed within 180s. Tap Quick Build to retry." | #90 pre-fix behavior (branch history); no longer emitted |
 | Red alert toolbar icon; tapping Quick Build does nothing | #89 |
 | A one-line body edit runs a full ~200s Gradle rebuild ending in a reinstall dialog (Room/KSP project) | #87 |
 
@@ -70,7 +69,7 @@ deliberate scope. These are cases where behavior fell short of the design's own 
 
 ## #88 - FIXED: dead reload path after a proxy app rebuild reinstall
 
-- **Symptom (pre-fix):** rebuild succeeded, session said Ready, but every following save failed
+- **Symptom:** rebuild succeeded, session said Ready, but every following save failed
   "Proxy app is not connected" until the user manually relaunched their app - deterministic on
   every reinstall.
 - **Fix:** on a `NotConnected` deploy, CoGo launches the proxy app once, awaits the rebind, and
@@ -88,12 +87,12 @@ deliberate scope. These are cases where behavior fell short of the design's own 
 
 ## #90 - FIXED: 180s of silence, then a misleading install-confirm message
 
-- **Symptom (pre-fix):** a reinstall needed while CoGo was backgrounded (the normal middle of the
+- **Symptom:** a reinstall needed while CoGo was backgrounded (the normal middle of the
   loop) waited 180s in silence, then showed "Proxy app install was not confirmed within 180s" -
   wrong, since no dialog was ever shown, and it conflated three different situations.
-- **Platform fact:** Android *defers* the install-confirm broadcast until CoGo is next foregrounded
-  - it does not drop it (earlier repo comments claimed the latter; corrected on this branch,
-  `ProxyAppInstaller.kt` KDoc, `SessionReducer.kt:350-352`) `[measured on a56]`.
+- **Platform fact:** Android *defers* the install-confirm broadcast until CoGo is next
+  foregrounded - it does not drop it (`ProxyAppInstaller.kt` KDoc, `SessionReducer.kt:350-352`)
+  `[measured on a56]`.
 - **Fix:** a `PENDING_USER_ACTION` with no dialog launchable now parks immediately with a truthful
   message, and returning to CoGo re-prompts automatically, bounded at `MAX_INSTALL_AUTO_RETRIES = 2`.
   `ProxyAppInstaller.kt:75-193`, `SessionReducer.kt:348-418` (KDoc distinguishes the three outcomes:

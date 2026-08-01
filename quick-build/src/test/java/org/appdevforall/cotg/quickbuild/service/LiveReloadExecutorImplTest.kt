@@ -351,7 +351,7 @@ class LiveReloadExecutorImplTest {
 		}
 
 	@Test
-	fun `compile error notifies the proxy app with the failing location - plan A1`() =
+	fun `compile error notifies the proxy app with the failing location`() =
 		runTest {
 			daemon.compileReply =
 				DaemonReply.BuildFailed(

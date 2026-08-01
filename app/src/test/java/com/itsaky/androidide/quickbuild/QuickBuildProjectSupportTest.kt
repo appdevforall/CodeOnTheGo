@@ -28,7 +28,7 @@ class QuickBuildProjectSupportTest {
 	fun `a null entryActivity gets a friendly no-launchable-activity message, not a generic failure`() {
 		// ADFA-4128 Bug 10: setup.json without entryActivity + a successful proxy app
 		// build must surface this specific, actionable message - not the generic
-		// "Quick Build proxy app build failed" the misclassification used to produce.
+		// "Quick Build proxy app build failed" a misclassification would produce.
 		val message = QuickBuildProjectSupport.noLaunchableActivityMessage(entryActivity = null)
 
 		assertThat(message).isNotNull()

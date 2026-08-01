@@ -174,11 +174,11 @@ data class E2eTimeline(
 	/**
 	 * The part of the loop no span measured - THE field this event exists for.
 	 *
-	 * Quick Build's per-build telemetry used to report four tool timings that summed to
-	 * roughly half a warm edit. The other half - source scan, ABI snapshot, output-tree
-	 * walks, the deploy-policy class-header pass - was not merely unmeasured but
-	 * invisible, and a design note read the visible half and concluded javac was "the
-	 * bottleneck" when javac is 19-27% of a warm edit (ADFA-4128 deep-dive, section 5).
+	 * The tool timings alone cover only about half a warm edit. The other half - source
+	 * scan, ABI snapshot, output-tree walks, the deploy-policy class-header pass - has no
+	 * span of its own, and reporting it keeps it visible: read only the measured spans and
+	 * javac looks like the bottleneck, when javac is 19-27% of a warm edit
+	 * `[measured on a56]`.
 	 *
 	 * A near-zero residual is the healthy state: on the deep-dive's 13 device rows the
 	 * measured spans reconciled to the total within 5 ms. A residual that GROWS is the

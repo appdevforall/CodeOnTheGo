@@ -65,7 +65,7 @@ class QuickBuildStatusTest {
 		assertThat(QuickBuildStatus.from(state)).isEqualTo(QuickBuildStatus.Building(3))
 	}
 
-	// Review finding (2026-07-26 #3): the background warm compile deploys nothing and the proxy
+	// The background warm compile deploys nothing and the proxy
 	// app is genuinely current - it must not present as a blocking Building for its
 	// whole 12-50s window.
 	@Test
@@ -76,7 +76,7 @@ class QuickBuildStatusTest {
 			.isEqualTo(QuickBuildStatus.UpToDate(3, buildDurationMillis = null))
 	}
 
-	// Review finding (2026-07-26 #1): a crash of the running generation observed
+	// A crash of the running generation observed
 	// mid-warm-compile surfaces immediately, exactly as it would outside the warm-compile window.
 	@Test
 	fun `a warm-compiling build with a pending crash maps to failed`() {

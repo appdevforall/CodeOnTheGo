@@ -1354,7 +1354,7 @@ open class EditorHandlerActivity :
 	}
 
 	/**
-	 * Tap on the Quick Build proxy app's error overlay (ADFA-4128, plan A1): the
+	 * Tap on the Quick Build proxy app's error overlay (ADFA-4128): the
 	 * QuickBuildJumpActivity trampoline validated the file and posts this event; open
 	 * the failing file at the error. Compiler positions are 1-based, editor is 0-based.
 	 */

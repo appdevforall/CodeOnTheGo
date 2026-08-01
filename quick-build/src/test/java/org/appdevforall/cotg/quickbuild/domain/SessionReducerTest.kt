@@ -54,7 +54,7 @@ class SessionReducerTest {
 		assertThat(transition.effects).isEmpty()
 	}
 
-	// Review finding (2026-07-26 #3): a forced-redeploy tap during a warm compile must not
+	// A forced-redeploy tap during a warm compile must not
 	// vanish - a warm compile deploys nothing, so nothing else will satisfy it.
 	@Test
 	fun `a tap during the warm compile triggers a build instead of being dropped`() {
@@ -66,7 +66,7 @@ class SessionReducerTest {
 			.isEqualTo(listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
 	}
 
-	// Review finding (2026-07-26 #1): a crash of the RUNNING generation during the warm-compile
+	// A crash of the RUNNING generation during the warm-compile
 	// window must surface like it does outside it - the warm compile's silent-outcome contract
 	// covers warm-compile results, not crashes.
 	@Test
@@ -263,10 +263,10 @@ class SessionReducerTest {
 
 	@Test
 	fun `a deferred proxy app rebuild retry parks back and gives its auto-retry back`() {
-		// W9 finding F1: the retry asked for the device's single Gradle slot while CoGo's
-		// own project sync held it, so no build ran and no install was prompted. Charging
-		// the budget for that spent the one retry the park depends on and dropped the
-		// session to Idle behind a "Proxy app rebuild failed" banner.
+		// The retry asks for the device's single Gradle slot; if CoGo's own project sync
+		// holds it, no build runs and no install is prompted. Charging the budget for that
+		// spends the one retry the park depends on and drops the session to Idle behind a
+		// "Proxy app rebuild failed" banner.
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Provisioning(installAutoRetries = 1),
@@ -819,10 +819,10 @@ class SessionReducerTest {
 
 	@Test
 	fun `a tap during a real build records the ask without forcing a second build`() {
-		// It used to be dropped outright ("the in-flight build deploys anyway"), which was
-		// true of the DEPLOY but lost the switch: a tap landing on a save-triggered build
-		// silently did nothing the user could see. Marking, not triggering: a second forced
-		// build behind one that already deploys is a full recompile for nothing.
+		// The in-flight build deploys anyway, so the tap needs no build of its own - but
+		// dropping it outright means a tap landing on a save-triggered build does nothing
+		// the user can see. Mark, don't trigger: a second forced build behind one that
+		// already deploys is a full recompile for nothing.
 		val transition =
 			reducer.reduce(QuickBuildSessionState.Building(3), SessionEvent.QuickBuildTapped)
 

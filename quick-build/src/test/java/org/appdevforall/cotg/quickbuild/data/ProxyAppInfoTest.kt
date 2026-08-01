@@ -217,11 +217,11 @@ class ProxyAppInfoTest {
 
 	@Test
 	fun `a null entryActivity parses successfully - a successful build with no launchable Activity is not a parse failure`() {
-		// ADFA-4128 Bug 10: the plugin writes a literal JSON null for entryActivity
-		// when the project has no launchable Activity (e.g. the No-Activity
-		// template). Before the fix this was a required field and parse() returned
-		// null, which the provisioner then reported as "Quick Build proxy app build
-		// failed" - despite the underlying Gradle build having succeeded.
+		// The plugin writes a literal JSON null for entryActivity when the project has
+		// no launchable Activity (e.g. the No-Activity template), so entryActivity is
+		// optional. Treating it as required makes parse() return null on a build that
+		// succeeded, which the provisioner reports as "Quick Build proxy app build
+		// failed".
 		val info =
 			ProxyAppInfo.parse(
 				"""
