@@ -4,6 +4,16 @@
 -dontnote **
 -dontobfuscate
 
+# ADFA-3604: R8's optimize pass (inlining/method merging) can silently
+# retarget a call to the wrong method when it fails to parse Kotlin 2.3.0
+# metadata (see "R8: An error occurred when parsing kotlin metadata" in the
+# build log) -- observed corrupting calls to utils.TestModeUtilsKt.isTestMode
+# into calls to the unrelated, device-missing dalvik.system.VMRuntime.isTestMode,
+# crashing every release build on launch. Shrinking (dead-code removal) is
+# what actually cuts dex size; the optimize passes are the risky part given
+# this R8/Kotlin version mismatch, so disable only optimization.
+-dontoptimize
+
 -keep class javax.** { *; }
 -keep class jdkx.** { *; }
 
@@ -18,6 +28,42 @@
 
 # Builder model implementations
 -keep class com.itsaky.androidide.builder.model.** { *; }
+
+# lsp/kotlin registers its own IntelliJ project/application services -- some
+# by class name in lsp/kotlin/src/main/resources/META-INF/kt-lsp/kt-lsp.xml,
+# the rest via ::class literals in
+# lsp/kotlin/.../registrar/AnalysisApiServiceProviders.kt, which PicoContainer
+# then instantiates reflectively via each class's no-arg constructor. A
+# ::class literal doesn't count as an actual `new` call to R8, so it kept
+# stripping "unused" no-arg constructors one class at a time as each was
+# discovered on-device (ClassNotFoundException on DirectInheritorsProvider,
+# then a PicoInitializationException on ModuleDependentsProvider's missing
+# constructor). Keep the whole package rather than list every implementation
+# class in AnalysisApiServiceProviders.kt individually.
+-keep class com.itsaky.androidide.lsp.kotlin.compiler.services.** { *; }
+
+# Kotlin Analysis API (bundled in subprojects/kotlin-analysis-api, used by the
+# Kotlin LSP). subprojects/kotlin-analysis-api/consumer-rules.pro keeps every
+# class this jar's own IntelliJ plugin XML descriptors and ServiceLoader
+# entries reference by name, but on-device testing kept surfacing distinct
+# reflection paths that narrow list didn't cover -- not just inside this jar,
+# but in other lsp/kotlin runtime dependencies too (Caffeine picks a cache
+# implementation from dozens of codegenned variant classes at runtime; a
+# protobuf-lite message field is resolved by name string; lsp/kotlin's own
+# kt-lsp.xml above; and a NullPointerException deep in IntelliJ's own
+# JavaCoreApplicationEnvironment bootstrap, verified absent on an unshrunk
+# debug build). Each fix was quick but the next gap kept appearing elsewhere
+# in the same dependency graph, so rather than keep discovering them one
+# on-device crash at a time, keep every runtime dependency lsp/kotlin pulls in
+# whole. This gives up the dex-size reduction for this whole dependency graph;
+# see ADFA-3604 for the size trade-off.
+-keep class org.jetbrains.kotlin.** { *; }
+-keep class com.github.benmanes.caffeine.** { *; }
+-keep class kotlin.reflect.** { *; }
+-keep class kotlin.script.** { *; }
+-keep class kotlinx.coroutines.internal.** { *; }
+-keep class one.util.streamex.** { *; }
+-keep class gnu.trove.** { *; }
 
 # Eclipse
 -keep class org.eclipse.** { *; }
@@ -87,6 +133,14 @@
 }
 
 -keep class com.itsaky.androidide.treesitter.** { *; }
+
+# Protobuf lite: the generated runtime resolves message fields by name via
+# reflection (the info string baked into newMessageInfo()), so shrinking a
+# "field with no direct bytecode reference" breaks it at runtime with a
+# NoSuchFieldException (observed on SyncMetaModels$SyncMeta.projectModelInfo_).
+-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
+    <fields>;
+}
 
 # Retrofit 2
 -dontwarn retrofit2.**
