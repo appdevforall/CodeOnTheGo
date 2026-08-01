@@ -40,7 +40,9 @@ class IncrementalCompilerEdgeTest {
 		writeJava(relativePath, "package demo;\n\npublic class Widget { public int v() { return 1; } }")
 
 	private fun kotlinSource(): File =
-		File(srcDir, "Greeter.kt").apply { writeText("package demo\n\nclass Greeter { fun hi() = \"hi\" }\n") }
+		File(srcDir, "Greeter.kt").apply {
+			writeText("package demo\n\nclass Greeter { fun hi() = \"hi\" }\n")
+		}
 
 	@Test
 	fun `a java-only source set compiles through javac alone`() {
@@ -87,7 +89,12 @@ class IncrementalCompilerEdgeTest {
 
 		assertThat(success.kotlinMillis).isEqualTo(0)
 		assertThat(success.javaMillis).isEqualTo(0)
-		assertThat(success.stats.toValues().values.map { (it as Number).toLong() }).doesNotContain(-1L)
+		assertThat(
+			success.stats
+				.toValues()
+				.values
+				.map { (it as Number).toLong() },
+		).doesNotContain(-1L)
 		assertThat(success.stats.compileOrdinal).isEqualTo(0)
 	}
 
