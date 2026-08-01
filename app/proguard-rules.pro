@@ -112,10 +112,12 @@
 }
 -keep class com.itsaky.androidide.utils.DialogUtils {  public <methods>; }
 
-# APK Metadata
--keep class com.itsaky.androidide.models.ApkMetadata { *; }
--keep class com.itsaky.androidide.models.ArtifactType { *; }
--keep class com.itsaky.androidide.models.MetadataElement { *; }
+# Gson model classes deserialized only via reflection (gson.fromJson(...,
+# X::class.java)), same "R8 strips the unreachable constructor" issue as
+# templates.impl.zip above. Covers OpenedFilesCache/OpenedFile (no prior
+# rule) as well as the APK metadata classes already listed individually.
+-keep class com.itsaky.androidide.models.** { *; }
+-keep class com.itsaky.androidide.lsp.debug.model.** { *; }
 
 # Parcelable
 -keepclassmembers class * implements android.os.Parcelable {
@@ -163,6 +165,13 @@
 -keep class * implements com.google.gson.TypeAdapterFactory
 -keep class * implements com.google.gson.JsonSerializer
 -keep class * implements com.google.gson.JsonDeserializer
+
+# Gson model classes: nothing calls `new TemplatesIndex(...)` directly --
+# only gson.fromJson(..., TemplatesIndex::class.java) does, via reflection.
+# With no traceable constructor call, R8 strips the constructor and Gson's
+# runtime then reports the class as abstract ("Failed to load template
+# archive ... Abstract classes can't be instantiated!").
+-keep class com.itsaky.androidide.templates.impl.zip.** { *; }
 
 -keepclassmembers,allowobfuscation class * {
   @com.google.gson.annotations.SerializedName <fields>;
