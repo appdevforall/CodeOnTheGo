@@ -389,7 +389,7 @@ class IncrementalCompilerTest {
 	}
 
 	@Test
-	fun `kotlin source resolves a same-module java class it calls (D2 direction a)`() {
+	fun `kotlin source resolves a same-module java class it calls`() {
 		// Without javaSources in compileJvm's source list, kotlinc has zero visibility into
 		// a sibling .java file that isn't precompiled onto the classpath yet - this used to
 		// fail baseline compile outright with "Unresolved reference".
@@ -432,7 +432,7 @@ class IncrementalCompilerTest {
 		// changedFiles list containing ONLY a .java path told the incremental engine "nothing
 		// kotlin changed" and it skipped OrderService.kt entirely - leaving its .class calling
 		// the OLD Java descriptor even after JavaCalculator's signature changed underneath it.
-		// That's exactly the under-recompilation bug the ADFA-4128 D2 corpus entry targets.
+		// That's exactly the under-recompilation bug this guards against.
 		val javaSource =
 			writeSource(
 				"JavaCalculator.java",

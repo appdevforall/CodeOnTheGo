@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Quick Build split-button dropdown (ADFA-4128, plan A2). A tap on the toolbar icon runs Quick Build directly; a long-press
-	opens this menu instead of the usual tooltip - see EditorHandlerActivity#showQuickBuildDropdownMenu. -->
+<!-- Quick Build split-button dropdown (ADFA-4128). A tap on the toolbar icon runs Quick Build directly; a long-press opens
+	this menu instead of the usual tooltip - see EditorHandlerActivity#showQuickBuildDropdownMenu. -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
 	<item

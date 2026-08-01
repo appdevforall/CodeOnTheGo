@@ -343,7 +343,7 @@ class LiveReloadOrchestratorTest {
 	@Test
 	fun `save landing mid-rebuild is kept and quick-built right after the reset`() =
 		runTest {
-			// Regression (review F1): the Gradle build only absorbs what existed when it
+			// The Gradle build only absorbs what existed when it
 			// STARTED; a save landing while it runs must not be dropped with the batch.
 			val executor = GatedExecutor()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
@@ -428,7 +428,7 @@ class LiveReloadOrchestratorTest {
 	@Test
 	fun `immediate follow-up failing with identical diagnostics is flagged unchanged`() =
 		runTest {
-			// Review F2 / planning-session ruling: the wasted-build case must stay invisible —
+			// The wasted-build case must stay invisible —
 			// the same error must not flash twice at the user.
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()

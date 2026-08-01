@@ -11,7 +11,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 
 /**
- * On-disk store of the NEWEST payload generation (component-proxying design, section 3; revises plan D1's "nothing on disk"). A fresh process boots the persisted generation instead of the baked gen-0 baseline - without this, providers and a custom Application (which instantiate before the binder connects and are never re-instantiated) would be pinned to baseline code after any process death, and the restart-based swap for services/providers could not work at all.
+ * On-disk store of the NEWEST payload generation (component-proxying design, section 3). A fresh process boots the persisted generation instead of the baked gen-0 baseline - without this, providers and a custom Application (which instantiate before the binder connects and are never re-instantiated) would be pinned to baseline code after any process death, and the restart-based swap for services/providers could not work at all.
  *
  * Layout under the store dir: {@code payload.dex}, {@code resources.arsc}, {@code assets.zip} (each optional - a deploy carries only what changed, and the store keeps the newest file of each kind), plus {@code meta.json} holding the generation and the baseline fingerprint. Files are written temp-then-rename with {@code meta.json} LAST, so a crash mid-persist leaves the old meta pointing at possibly-newer payload files - the store then claims an OLDER generation than it serves, which is the safe direction (the host redeploys anything newer than the claimed generation; claiming newer than served would be a stale-code lie).
  *

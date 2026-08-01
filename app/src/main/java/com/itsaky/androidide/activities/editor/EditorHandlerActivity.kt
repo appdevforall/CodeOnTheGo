@@ -592,7 +592,7 @@ open class EditorHandlerActivity :
 
 	/**
 	 * Quick Build's split-button dropdown. "Quick Build" and "Standard Run"
-	 * re-execute the same [ActionItem]s the toolbar's own taps do, so B3's refresh-baseline-on-
+	 * re-execute the same [ActionItem]s the toolbar's own taps do, so the refresh-baseline-on-
 	 * return hand-back (wired at the Run button's install callback) fires the same way no
 	 * matter which entry point started the build. "Restart session" is the escape hatch
 	 * for a stuck daemon/proxy app; "Help" reuses the tooltip already wired via

@@ -13,7 +13,7 @@ private const val FIRST_BUILD_NOTICE_TIMEOUT_MS = 3_000L
 private const val DROPDOWN_ITEM_TIMEOUT_MS = 5_000L
 
 /**
- * Page object for the Quick Build editor-toolbar surface (ADFA-4128, plan A2/E3):
+ * Page object for the Quick Build editor-toolbar surface (ADFA-4128):
  * the lightning-bolt status/indicator button (contentDescription `cd_quick_build`,
  * icon tone tracks the session status) and its long-press split-button dropdown
  * (Quick Build / Standard Run / Restart session / Help).

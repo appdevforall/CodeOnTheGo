@@ -267,7 +267,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					buildViewModel.buildState.collect { onBuildStateChanged(it) }
 				}
 				quickBuildSessionManager()?.let { quickBuild ->
-					// A2 (ADFA-4128): the toolbar icon reads the session status
+					// ADFA-4128: the toolbar icon reads the session status
 					// pull-style in prepare(); nothing else rebuilds the toolbar when
 					// e.g. a watcher-triggered build fails, so push every status
 					// change into a menu refresh or the ATTENTION icon never shows.
@@ -547,7 +547,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	/**
-	 * B3 hand-back (ADFA-4128): called by [EditorBuildEventListener] whenever ANY
+	 * Hand-back (ADFA-4128): called by [EditorBuildEventListener] whenever ANY
 	 * external Gradle build finishes - success OR failure, Run button or "Run Gradle
 	 * tasks". Even a failed build can have rewritten build/ outputs of the modules that
 	 * DID compile (paths the quick-build watcher deliberately does not watch), so a live
@@ -1091,7 +1091,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				null
 			}
 
-		// B2 (ADFA-4128): eager quick-build proxy app build, AFTER the normal sync so it
+		// ADFA-4128: eager quick-build proxy app build, AFTER the normal sync so it
 		// rides the warm Gradle daemon instead of fighting it. Fire-and-forget on the
 		// session manager's own thread; installs nothing until the first tap.
 		if (benchMode != QuickBuildBenchAutostart.MODE_STANDARD) {

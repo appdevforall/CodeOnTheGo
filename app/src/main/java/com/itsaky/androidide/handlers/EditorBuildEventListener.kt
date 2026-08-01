@@ -108,7 +108,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		act.editorViewModel.isBuildInProgress = false
 		act.flashSuccess(R.string.build_status_sucess)
 
-		// B3 hand-back (ADFA-4128): any completed Gradle build may have rewritten build/
+		// Hand-back (ADFA-4128): any completed Gradle build may have rewritten build/
 		// outputs beneath a live quick-build session; refresh its baseline.
 		act.onExternalGradleBuildFinished()
 
@@ -147,7 +147,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		act.editorViewModel.isBuildInProgress = false
 		act.flashError(R.string.build_status_failed)
 
-		// B3 hand-back (ADFA-4128): even a FAILED build can have rewritten outputs of the
+		// Hand-back (ADFA-4128): even a FAILED build can have rewritten outputs of the
 		// modules that DID compile; a live quick-build session must refresh its baseline
 		// either way.
 		act.onExternalGradleBuildFinished()

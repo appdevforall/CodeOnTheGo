@@ -349,7 +349,7 @@ class QuickBuildSessionManager(
 
 	/**
 	 * Mode-switch hand-back: call when a Standard Run's Gradle build completes
-	 * (e.g. from the A2 dropdown's "Standard Run", or the Run button's build-finished
+	 * (e.g. from the dropdown's "Standard Run", or the Run button's build-finished
 	 * hook). A live session refreshes its baseline from current disk - a full proxy app
 	 * rebuild when the external build clobbered the proxy app build artifacts, otherwise a
 	 * baseline refresh (the next build recompiles everything) - so the next quick build is
@@ -569,7 +569,7 @@ class QuickBuildSessionManager(
 		}
 	}
 
-	/** B2 warm-up: best-effort, silent on failure; always reports finished. */
+	/** Warm-up: best-effort, silent on failure; always reports finished. */
 	private suspend fun runPrebuild() {
 		try {
 			provisioner.prebuildProxyApp()
@@ -714,15 +714,9 @@ class QuickBuildSessionManager(
 			}
 
 			is ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded -> {
-				// The proxy app rebuild regenerated setup.json and reinstalled the proxy app:
-				// every ProxyAppInfo-derived piece of the session (deploy-policy components,
-				// componentInfoAvailable, launcher/entry targets, classpath) must move to
-				// the new baseline, or the policy keeps routing on provisioning-time
-				// facts - e.g. a service the proxy app rebuild just proxied would hot-swap and
-				// silently leave its live instance stale.
 				try {
-					// Both delegates are built BEFORE any session field moves: executorFor can
-					// throw (checkNotNull(entryActivity) - the rebuild contract does not
+					// Both delegates are built BEFORE adoptBaseline moves anything: executorFor
+					// can throw (checkNotNull(entryActivity) - the rebuild contract does not
 					// guarantee it non-null), and a throw here must leave the old baseline
 					// fully intact instead of escaping to the scope with the session
 					// half-updated.
@@ -730,14 +724,12 @@ class QuickBuildSessionManager(
 						sessionFactory.executorFor(result.proxyApp, result.layout, session.tracker)
 					val annotationImpactDelegate =
 						sessionFactory.annotationImpactFor(result.proxyApp, result.layout)
-					session.proxyApp = result.proxyApp
-					session.layout = result.layout
-					session.executor.delegate = executorDelegate
-					session.annotationImpact.delegate = annotationImpactDelegate
-					// The freshly installed baseline boots gen 0 again; the fingerprint gate
-					// in its runtime discarded any older persisted payload.
-					session.lastDeployedGeneration = -1L
-					session.orchestrator.onBaselineReset()
+					session.adoptBaseline(
+						result.proxyApp,
+						result.layout,
+						executorDelegate,
+						annotationImpactDelegate,
+					)
 					dispatch(SessionEvent.ProvisioningSucceeded(session.tracker.current))
 				} catch (e: kotlinx.coroutines.CancellationException) {
 					throw e
@@ -781,7 +773,7 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * B3 hand-back: an external full build finished. When the proxy app build artifacts the daemon
+	 * Hand-back: an external full build finished. When the proxy app build artifacts the daemon
 	 * builds against are still on disk, marking the baseline dirty is enough - the next
 	 * build recompiles everything from current disk, without reinstalling anything. When
 	 * the external build removed them (a clean wiped build/), only a full proxy app rebuild

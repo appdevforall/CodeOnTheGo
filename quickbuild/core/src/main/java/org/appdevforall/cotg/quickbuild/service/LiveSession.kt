@@ -9,6 +9,7 @@ import org.appdevforall.cotg.quickbuild.domain.GenerationTracker
 import org.appdevforall.cotg.quickbuild.domain.LiveReloadExecutor
 import org.appdevforall.cotg.quickbuild.domain.LiveReloadOrchestrator
 import org.appdevforall.cotg.quickbuild.domain.WatchFilter
+import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpact
 import org.appdevforall.cotg.quickbuild.domain.annotations.SwitchableAnnotationImpact
 
 /**
@@ -43,6 +44,31 @@ internal class LiveSession(
 	 * superseded.
 	 */
 	var lastDeployedGeneration = -1L
+
+	/**
+	 * Moves this session onto the baseline a proxy app rebuild just installed. Every
+	 * ProxyAppInfo-derived piece moves together or none does: leave one behind and the
+	 * deploy policy keeps routing on provisioning-time facts - a service the rebuild
+	 * just proxied would hot-swap and silently leave its live instance stale.
+	 *
+	 * The caller must have both delegates in hand already, because building them can
+	 * fail and a failure has to leave the OLD baseline fully intact.
+	 */
+	suspend fun adoptBaseline(
+		proxyApp: ProxyAppInfo,
+		layout: QuickBuildProjectLayout,
+		executorDelegate: LiveReloadExecutor,
+		annotationImpactDelegate: AnnotationImpact,
+	) {
+		this.proxyApp = proxyApp
+		this.layout = layout
+		executor.delegate = executorDelegate
+		annotationImpact.delegate = annotationImpactDelegate
+		// The freshly installed baseline boots gen 0 again; the fingerprint gate in its
+		// runtime discarded any older persisted payload.
+		lastDeployedGeneration = -1L
+		orchestrator.onBaselineReset()
+	}
 }
 
 /**

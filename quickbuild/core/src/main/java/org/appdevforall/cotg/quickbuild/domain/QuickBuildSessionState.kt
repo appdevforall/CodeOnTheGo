@@ -12,7 +12,7 @@ sealed interface QuickBuildSessionState {
 	data object Idle : QuickBuildSessionState
 
 	/**
-	 * The eager proxy app build runs in the background (project open, plan B2) - no install,
+	 * The eager proxy app build runs in the background (project open) - no install,
 	 * no daemon, no session. [tapQueued] records a Quick Build tap that landed mid-warm:
 	 * provisioning starts the moment the warm build finishes instead of racing it (two
 	 * concurrent Gradle builds through the tooling server would fail).

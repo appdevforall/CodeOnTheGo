@@ -115,7 +115,7 @@ class ChangeClassifierTest {
 	fun `native library under jniLibs falls back honestly`() {
 		// The quick path has no relink/redeploy story for a changed .so - serving a build that
 		// still has the OLD native library loaded would be silently stale, so this must route
-		// to Gradle like any other unsupported-file change (D7: native app corpus entry).
+		// to Gradle like any other unsupported-file change (a native app's .c/.h sources).
 		assertThat(classify("app/src/main/jniLibs/arm64-v8a/libnativestub.so"))
 			.isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.UNSUPPORTED_FILE_CHANGED))
 	}

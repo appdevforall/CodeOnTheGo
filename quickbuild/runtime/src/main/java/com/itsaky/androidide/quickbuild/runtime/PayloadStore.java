@@ -15,7 +15,7 @@ import java.nio.ByteBuffer;
  *
  * The dex is read fully into a ByteBuffer and loaded through {@link InMemoryDexClassLoader} with the APK classloader as parent: framework/androidx resolve from the APK, user classes exist ONLY in the payload, so parent-first delegation cannot serve a stale user class.
  *
- * Boot: {@link #ensureBaseline} loads the baked gen-0 baseline, then swaps in the NEWEST persisted generation ({@link PayloadPersistence}, component-proxying design section 3 - revising plan D1's "nothing on disk"). Without that, a killed-and-relaunched process would pin its providers and custom Application (instantiated before any binder catch-up, never re-instantiated) to baseline code - silently stale. The persisted store is fingerprint-keyed to the baseline dex, so a rebaseline/reinstall discards it.
+ * Boot: {@link #ensureBaseline} loads the baked gen-0 baseline, then swaps in the NEWEST persisted generation ({@link PayloadPersistence}, component-proxying design section 3). Without that, a killed-and-relaunched process would pin its providers and custom Application (instantiated before any binder catch-up, never re-instantiated) to baseline code - silently stale. The persisted store is fingerprint-keyed to the baseline dex, so a rebaseline/reinstall discards it.
  */
 final class PayloadStore {
 

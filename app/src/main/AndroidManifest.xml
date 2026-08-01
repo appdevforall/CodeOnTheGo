@@ -128,7 +128,7 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- Quick Build tap-to-jump trampoline (ADFA-4128, plan A1): started by the
+        <!-- Quick Build tap-to-jump trampoline (ADFA-4128): started by the
              generated proxy app when the user taps the build-error overlay; brings CoGo
              forward and opens the failing file at the error line. Exported by necessity
              (caller is another package); validates the file against the open project. -->

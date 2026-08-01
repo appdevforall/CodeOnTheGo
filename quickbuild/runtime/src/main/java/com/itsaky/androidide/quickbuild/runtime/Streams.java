@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * Stream helper for reading payload fds fully into memory. Dex goes straight into an InMemoryDexClassLoader and nothing ever lands in shared storage; the only disk the payload path touches is the app-PRIVATE {@link PayloadPersistence} store (component-proxying design section 3, revising plan D1) plus the extracted-assets cache. Plain Java, JVM-unit-testable.
+ * Stream helper for reading payload fds fully into memory. Dex goes straight into an InMemoryDexClassLoader and nothing ever lands in shared storage; the only disk the payload path touches is the app-PRIVATE {@link PayloadPersistence} store (component-proxying design section 3) plus the extracted-assets cache. Plain Java, JVM-unit-testable.
  */
 final class Streams {
 

@@ -278,7 +278,7 @@ internal class ProxyAppBuildRunner(
 
 	/**
 	 * True when the proxy app build artifacts the daemon builds against are still on
-	 * disk (the B3 hand-back probe: an external clean that wiped build/ forces a
+	 * disk (the hand-back probe: an external clean that wiped build/ forces a
 	 * rebuild; anything less only needs a baseline refresh).
 	 */
 	fun proxyAppArtifactsIntact(proxyApp: ProxyAppInfo): Boolean =

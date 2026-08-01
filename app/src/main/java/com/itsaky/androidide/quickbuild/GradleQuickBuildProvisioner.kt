@@ -97,7 +97,7 @@ class GradleQuickBuildProvisioner(
 	}
 
 	override suspend fun prebuildProxyApp() {
-		// Eager B2 warm-up: run the proxy app build, install nothing - so no clobber can
+		// Eager warm-up: run the proxy app build, install nothing - so no clobber can
 		// happen before the user confirms (contract section 1). The tap-time
 		// provision() re-runs it against current disk (fast: tasks up-to-date), so a
 		// stale warm result can never become the session baseline.
