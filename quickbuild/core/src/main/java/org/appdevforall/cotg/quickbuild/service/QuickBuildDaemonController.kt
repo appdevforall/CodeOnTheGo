@@ -136,22 +136,18 @@ internal class QuickBuildDaemonController(
 	}
 
 	/**
-	 * The low-memory shrink policy (P1a.1). Only
-	 * [ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL] and above tear the daemon
-	 * down: `RUNNING_MODERATE`/`RUNNING_LOW` fire on transient pressure the OS usually
-	 * recovers from without killing anything, and a teardown pays a daemon respawn +
-	 * re-seed on the next edit. [ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN] is
-	 * explicitly NOT a teardown even though Android numbers it (20) above
-	 * `RUNNING_CRITICAL` (15): it means "your UI went away", not "memory is short",
-	 * and backgrounding CoGo is the MIDDLE of the Quick Build loop (the user is
-	 * looking at their proxy app). The cached-process levels above it (`BACKGROUND`,
-	 * `MODERATE`, `COMPLETE`) DO tear down - those only arrive when the system is
-	 * genuinely short. Full policy rationale:
-	 * [QuickBuildSessionManager.onTrimMemory].
+	 * Tears the daemon down only when the system is genuinely short of memory:
+	 * [ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL] and the cached-process levels above
+	 * it. `RUNNING_MODERATE`/`RUNNING_LOW` fire on transient pressure the OS usually recovers
+	 * from, and a teardown costs a respawn plus a re-seed on the next edit.
 	 *
-	 * A build in flight ([buildInFlight]) is never interrupted: the teardown defers,
-	 * and the manager's state collector retries via [shrinkIfPending] the moment the
-	 * build's own transition lands.
+	 * [ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN] is NOT a teardown despite Android numbering
+	 * it (20) above `RUNNING_CRITICAL` (15): it means the UI went away, not that memory is
+	 * short, and backgrounding CoGo is the MIDDLE of the Quick Build loop - the user is
+	 * looking at the proxy app they just edited.
+	 *
+	 * A build in flight ([buildInFlight]) is never interrupted; the teardown defers and the
+	 * manager's state collector retries via [shrinkIfPending] once that build transitions.
 	 */
 	suspend fun onTrimMemory(
 		level: Int,

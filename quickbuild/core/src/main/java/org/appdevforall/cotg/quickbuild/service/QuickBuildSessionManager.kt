@@ -370,47 +370,11 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * Framework low-memory signal (P1a.1, low-spec device support): the host
-	 * Activity/Service forwards `ComponentCallbacks2.onTrimMemory`'s level here. The
-	 * compile daemon is a separate child JVM ([org.appdevforall.cotg.quickbuild.data.DaemonProcessClient])
-	 * whose heap is pure overhead between builds - on a constrained device it is the
-	 * first thing worth giving back under memory pressure.
-	 *
-	 * Decision (this ticket asked for one, not just an action): only
-	 * [ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL] and above tear the daemon down.
-	 * `RUNNING_MODERATE`/`RUNNING_LOW` are no-ops - those fire on transient pressure the
-	 * OS usually recovers from without ever killing the process, and tearing the daemon
-	 * down pays a full proxy app rebuild's cost (every proxy app rebuild is a real Gradle build) for
-	 * pressure that may pass in seconds. `RUNNING_CRITICAL` is documented as "about to be
-	 * killed" - the point where giving the memory back is worth that cost.
-	 *
-	 * [ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN] is explicitly NOT a teardown, even
-	 * though Android numbers it (20) above `RUNNING_CRITICAL` (15): it means "your UI
-	 * went away", not "memory is short". Backgrounding CoGo is the MIDDLE of the Quick
-	 * Build loop, not the end of it - the user switches to their running proxy app to look
-	 * at the edit they just made, then comes back to edit again. Tearing the daemon down
-	 * there costs a respawn plus a re-seed on the very next edit and breaks the flow the
-	 * feature exists for. So Quick Build's daemon follows the same policy as CoGo's
-	 * standard Gradle build daemon: it sticks around across backgrounding and is reclaimed
-	 * by memory pressure (or its idle timeout), never by the user looking at their app.
-	 * The cached-process levels above it (`BACKGROUND`=40, `MODERATE`=60, `COMPLETE`=80)
-	 * DO tear down - those only arrive when the system is genuinely short on memory.
-	 *
-	 * A build already in flight is never interrupted: forcibly killing the daemon
-	 * mid-compile would abort a request that may be seconds from finishing, only to redo
-	 * the same work on the auto-respawn. The teardown defers instead, applied the moment
-	 * the build's own completion event moves the state off [QuickBuildSessionState.Building]
-	 * (see the `_state` collector in `init`).
-	 *
-	 * Re-warm is deliberately lazy, not immediate: nothing here calls `daemon.start`. The
-	 * next build attempt (a tap or a watcher-triggered save) finds the daemon dead, which
-	 * [org.appdevforall.cotg.quickbuild.service.LiveReloadExecutorImpl] already reports as
-	 * an [org.appdevforall.cotg.quickbuild.domain.BuildOutcome.InfrastructureFailure] with
-	 * `daemonDied = true` - the SAME signal a real daemon crash produces - so the existing
-	 * [SessionEvent.DaemonDied] -> [QuickBuildSessionState.Degraded] ->
-	 * [SessionEffect.RespawnDaemon] recovery re-seeds with [ChangedFiles.Unknown] and
-	 * that build lands normally. No new recovery path needed: this reuses the one that
-	 * already exists for an unplanned daemon death, on purpose.
+	 * Framework low-memory signal: the host forwards `ComponentCallbacks2.onTrimMemory`'s
+	 * level here. The compile daemon is a separate child JVM whose heap is pure overhead
+	 * between builds, so it is the first thing worth giving back on a constrained device.
+	 * Which levels actually tear it down, and why a build in flight defers instead of being
+	 * killed, is [QuickBuildDaemonController.onTrimMemory].
 	 */
 	fun onTrimMemory(level: Int) {
 		scope.launch {
