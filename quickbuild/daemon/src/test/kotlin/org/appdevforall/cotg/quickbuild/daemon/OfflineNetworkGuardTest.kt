@@ -2,6 +2,7 @@ package org.appdevforall.cotg.quickbuild.daemon
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import org.appdevforall.cotg.quickbuild.testfixtures.OfflineGuard
 import org.junit.jupiter.api.Test
 
 /**

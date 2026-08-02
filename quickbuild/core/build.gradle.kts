@@ -71,5 +71,7 @@ dependencies {
 	testImplementation(libs.tests.junit.jupiter)
 	testImplementation(libs.tests.google.truth)
 	testImplementation(libs.tests.kotlinx.coroutines)
+	// Shared offline-guard scanner (OfflineNetworkGuardTest).
+	testImplementation(testFixtures(projects.quickbuild.protocol))
 	testRuntimeOnly(libs.tests.junit.platformLauncher)
 }

@@ -2,6 +2,7 @@ package org.appdevforall.cotg.quickbuild
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import org.appdevforall.cotg.quickbuild.testfixtures.OfflineGuard
 import org.junit.jupiter.api.Test
 
 /**
@@ -14,7 +15,8 @@ import org.junit.jupiter.api.Test
  *
  * This module has no allowed network exceptions (unlike :quickbuild:daemon, which loads
  * a local `d8.jar` via a `file:` URLClassLoader). `java/net/URL`/`URI`/`URLClassLoader`
- * are allow-listed here for consistency but are absent today.
+ * are absent from this module's bytes today; none of them is in [OfflineGuard.BANNED]
+ * either, so adding one for a local `file:` URI would not trip this test.
  */
 class OfflineNetworkGuardTest {
 	@Test

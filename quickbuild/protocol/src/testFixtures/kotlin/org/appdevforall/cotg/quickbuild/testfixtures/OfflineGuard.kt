@@ -1,19 +1,24 @@
-package org.appdevforall.cotg.quickbuild.daemon
+package org.appdevforall.cotg.quickbuild.testfixtures
 
 import java.io.File
 
 /**
- * Self-contained scanner shared by this module's guard tests. Locates the module build
- * dir from the running test's own code source (no hardcoded absolute paths), enumerates
- * production class dirs (main / non-test variants), and searches raw `.class` bytes for
- * banned network-API constants.
+ * Scanner behind the Quick Build offline guard tests. Locates the calling module's build
+ * dir from that test's own code source (no hardcoded absolute paths), enumerates
+ * production class dirs (main / non-test variants, JVM and Android layouts), and searches
+ * raw `.class` bytes for banned network-API constants.
+ *
+ * It lives in `:quickbuild:protocol` because that is the only module every guarded module
+ * already depends on; the scanner itself has nothing to do with the wire protocol. Each
+ * module keeps its own guard test -- the allowed exceptions differ per module and belong
+ * next to the assertions that encode them.
  *
  * The max-line-length suppression below is for a phantom lint: no line here
  * exceeds 140, but ktlint under spotless reports L1 max-line-length on this file
  * regardless (formatter interaction bug) -- suppressed narrowly, not repo-wide.
  */
 @Suppress("ktlint:standard:max-line-length")
-internal object OfflineGuard {
+object OfflineGuard {
 	/** Constant-pool / UTF8 substrings of network APIs that must never appear. */
 	val BANNED: List<String> =
 		listOf(

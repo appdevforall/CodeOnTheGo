@@ -1,6 +1,10 @@
 plugins {
 	id("java-library")
 	id("org.jetbrains.kotlin.jvm")
+	// Publishes src/testFixtures as a variant consumable by the other quickbuild modules'
+	// tests. Home of the shared offline-guard scanner: this is the only module all of
+	// them already depend on.
+	id("java-test-fixtures")
 }
 
 description =

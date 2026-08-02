@@ -138,6 +138,8 @@ dependencies {
 
 	testImplementation(libs.tests.junit.jupiter)
 	testImplementation(libs.tests.google.truth)
+	// Shared offline-guard scanner (OfflineNetworkGuardTest).
+	testImplementation(testFixtures(projects.quickbuild.protocol))
 	testRuntimeOnly(libs.tests.junit.platformLauncher)
 }
 

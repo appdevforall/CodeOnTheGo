@@ -109,5 +109,8 @@ tasks.register<JacocoReport>("jacocoTestReport") {
 dependencies {
 	testImplementation(libs.tests.junit.jupiter)
 	testImplementation(libs.tests.google.truth)
+	// Shared offline-guard scanner (OfflineNetworkGuardTest). Test-only: this never
+	// reaches the AAR, so the module's no-kotlin-stdlib rule still holds.
+	testImplementation(testFixtures(projects.quickbuild.protocol))
 	testRuntimeOnly(libs.tests.junit.platformLauncher)
 }
