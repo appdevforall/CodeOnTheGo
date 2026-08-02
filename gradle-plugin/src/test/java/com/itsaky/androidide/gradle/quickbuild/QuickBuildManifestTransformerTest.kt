@@ -4,6 +4,8 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
+import org.objectweb.asm.ClassWriter
+import org.objectweb.asm.Opcodes
 import org.w3c.dom.Element
 import java.io.File
 
@@ -13,6 +15,27 @@ class QuickBuildManifestTransformerTest {
 	private val proxyAppId = "com.example.app.quickbuild"
 
 	private fun transformer() = QuickBuildManifestTransformer(proxyPackage, factory)
+
+	/**
+	 * A transformer whose dependency classpath reports exactly [finalClasses] as `final`
+	 * library classes - the shape the real task builds from the variant's dependency
+	 * artifacts. Everything else is "not found", i.e. assumed project-owned.
+	 */
+	private fun transformerSeeingFinal(vararg finalClasses: String): QuickBuildManifestTransformer {
+		val byName =
+			finalClasses.associateWith { name ->
+				ClassWriter(0)
+					.apply {
+						visit(Opcodes.V11, Opcodes.ACC_PUBLIC or Opcodes.ACC_FINAL, name.replace('.', '/'), null, "java/lang/Object", null)
+						visitEnd()
+					}.toByteArray()
+			}
+		return QuickBuildManifestTransformer(
+			proxyPackage,
+			factory,
+			proxiability = ComponentProxiabilityResolver { byName[it] },
+		)
+	}
 
 	private fun manifest(
 		body: String,
@@ -495,9 +518,10 @@ class QuickBuildManifestTransformerTest {
 	fun `leaves a final Compose PreviewActivity under its real name, unproxied`() {
 		// androidx.compose.ui.tooling.PreviewActivity is final - a generated
 		// `Proxy<N>Activity extends` it can't even compile ("cannot inherit from
-		// final"), which broke every Compose template's proxy app build.
+		// final"), which broke every Compose template's proxy app build. Detected from the
+		// dependency artifact's class bytes, not from a hardcoded name.
 		val result =
-			transformer().transform(
+			transformerSeeingFinal("androidx.compose.ui.tooling.PreviewActivity").transform(
 				manifest(
 					launcherActivity + "\n" +
 						"""<activity android:name="androidx.compose.ui.tooling.PreviewActivity" android:exported="true" />""",
@@ -506,6 +530,8 @@ class QuickBuildManifestTransformerTest {
 
 		assertThat(result.components.none { it.userClass == "androidx.compose.ui.tooling.PreviewActivity" })
 			.isTrue()
+		assertThat(result.unproxied.map { it.userClass })
+			.containsExactly("androidx.compose.ui.tooling.PreviewActivity")
 		// The real launcher activity still proxies normally, numbered from zero - the
 		// excluded PreviewActivity must not consume a proxy-index slot.
 		assertThat(result.activities.single().proxyClass).isEqualTo("$proxyPackage.Proxy0Activity")
@@ -548,12 +574,9 @@ class QuickBuildManifestTransformerTest {
 	@Test
 	fun `leaves Room's final MultiInstanceInvalidationService under its real name, unproxied`() {
 		// final - a generated `Proxy<N>Service extends` it can't even compile ("cannot
-		// inherit from final"), which broke a real project's proxy app build (ADFA-4128,
-		// generalizing the Compose PreviewActivity case to any final library class -
-		// see QuickBuildManifestTransformer.UNPROXIABLE_LIBRARY_COMPONENTS' KDoc for why
-		// this is a named exception rather than an auto-detected one).
+		// inherit from final"), which broke a real project's proxy app build (ADFA-4128).
 		val result =
-			transformer().transform(
+			transformerSeeingFinal("androidx.room.MultiInstanceInvalidationService").transform(
 				manifest(
 					launcherActivity + "\n" +
 						"""<service android:name="androidx.room.MultiInstanceInvalidationService" />""",
@@ -569,6 +592,52 @@ class QuickBuildManifestTransformerTest {
 		val element = result.document.getElementsByTagName("service").item(0) as Element
 		assertThat(element.getAttributeNS(QuickBuildManifestTransformer.ANDROID_NS, "name"))
 			.isEqualTo("androidx.room.MultiInstanceInvalidationService")
+	}
+
+	@Test
+	fun `a never-before-seen final library component is skipped without any code change`() {
+		// The point of the whole mechanism: a dependency nobody has met yet ships a final
+		// component, and the user's Quick Build keeps working - no CoGo release, no name
+		// added anywhere. Before this, the same manifest produced a proxy that failed the
+		// proxy compile with "cannot inherit from final".
+		val unknown = "com.thirdparty.analytics.TrackingService"
+
+		val result =
+			transformerSeeingFinal(unknown).transform(
+				manifest(
+					launcherActivity + "\n" +
+						"""<service android:name="$unknown" />""" + "\n" +
+						"""<service android:name="com.example.app.SyncService" />""",
+				).byteInputStream(),
+			)
+
+		assertThat(result.components.none { it.userClass == unknown }).isTrue()
+		assertThat(result.unproxied.single().userClass).isEqualTo(unknown)
+		assertThat(result.unproxied.single().reason).contains("final")
+		// The project's own service still proxies, and the skipped one took no index slot.
+		val services = result.components.filter { it.type == ComponentType.SERVICE }
+		assertThat(services.single().userClass).isEqualTo("com.example.app.SyncService")
+		assertThat(services.single().proxyClass).isEqualTo("$proxyPackage.Proxy0Service")
+		assertThat(componentNames(result, "service"))
+			.containsExactly(unknown, "$proxyPackage.Proxy0Service")
+			.inOrder()
+	}
+
+	@Test
+	fun `a non-final library component is proxied like any other`() {
+		// The complement of the test above: the resolver finds the class and it is ordinary,
+		// so nothing changes. Guards against a skip rule that fires on "found" rather than
+		// "found and final".
+		val libraryService = "com.thirdparty.sync.OrdinaryService"
+
+		val result =
+			transformerSeeingFinal("some.other.FinalThing").transform(
+				manifest(launcherActivity + "\n" + """<service android:name="$libraryService" />""").byteInputStream(),
+			)
+
+		assertThat(result.unproxied).isEmpty()
+		assertThat(result.components.single { it.type == ComponentType.SERVICE }.proxyClass)
+			.isEqualTo("$proxyPackage.Proxy0Service")
 	}
 
 	@Test

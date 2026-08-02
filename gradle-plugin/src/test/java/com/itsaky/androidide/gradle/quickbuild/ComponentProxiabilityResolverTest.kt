@@ -53,10 +53,37 @@ class ComponentProxiabilityResolverTest {
 	}
 
 	@Test
-	fun `alwaysProxiable never skips regardless of the class name`() {
-		val resolver = ComponentProxiabilityResolver.alwaysProxiable()
+	fun `byNameOnly skips only the named components`() {
+		val resolver = ComponentProxiabilityResolver.byNameOnly()
 
 		assertThat(resolver.resolve("anything.at.All")).isEqualTo(ComponentProxiabilityResolver.Resolution.Proxiable)
+		assertThat(resolver.resolve("androidx.startup.InitializationProvider"))
+			.isInstanceOf(ComponentProxiabilityResolver.Resolution.Skip::class.java)
+	}
+
+	@Test
+	fun `each by-name component is skipped with its own reason, whatever its class bytes say`() {
+		// The by-name rules exist for what a class file CANNOT reveal, so they must win over
+		// the final-class rule - including for a perfectly ordinary non-final class, which is
+		// exactly what androidx.startup.InitializationProvider is.
+		ComponentProxiabilityResolver.UNPROXIABLE_BY_NAME.forEach { (userClass, reason) ->
+			val nonFinalBytes = classBytes(Opcodes.ACC_PUBLIC, userClass)
+
+			val resolution = ComponentProxiabilityResolver { nonFinalBytes }.resolve(userClass)
+
+			assertThat(resolution).isEqualTo(ComponentProxiabilityResolver.Resolution.Skip(reason))
+		}
+	}
+
+	@Test
+	fun `a by-name component stays skipped even when it looks project-owned`() {
+		val userClass = "androidx.startup.InitializationProvider"
+
+		val resolution =
+			ComponentProxiabilityResolver { null }
+				.resolveWithProjectOverride(userClass, projectClasses = setOf(userClass))
+
+		assertThat(resolution).isInstanceOf(ComponentProxiabilityResolver.Resolution.Skip::class.java)
 	}
 
 	@Test
@@ -71,12 +98,7 @@ class ComponentProxiabilityResolverTest {
 		val rawFinalCopy = classBytes(Opcodes.ACC_PUBLIC or Opcodes.ACC_FINAL, userClass)
 		val resolver = ComponentProxiabilityResolver { rawFinalCopy }
 
-		val resolution =
-			ComponentProxiabilityResolver.resolveWithProjectOverride(
-				userClass,
-				projectClasses = setOf(userClass),
-				resolver = resolver,
-			)
+		val resolution = resolver.resolveWithProjectOverride(userClass, projectClasses = setOf(userClass))
 
 		assertThat(resolution).isEqualTo(ComponentProxiabilityResolver.Resolution.Proxiable)
 	}
@@ -87,17 +109,16 @@ class ComponentProxiabilityResolverTest {
 		val resolver = ComponentProxiabilityResolver { bytes }
 
 		val resolution =
-			ComponentProxiabilityResolver.resolveWithProjectOverride(
+			resolver.resolveWithProjectOverride(
 				"androidx.room.MultiInstanceInvalidationService",
 				projectClasses = emptySet(),
-				resolver = resolver,
 			)
 
 		assertThat(resolution).isInstanceOf(ComponentProxiabilityResolver.Resolution.Skip::class.java)
 	}
 
 	@Test
-	fun `forProxyAppBuild finds a class in a directory search-path entry`(
+	fun `searchingClasspath finds a class in a directory search-path entry`(
 		@TempDir tempDir: File,
 	) {
 		val classDir = File(tempDir, "classes")
@@ -105,14 +126,14 @@ class ComponentProxiabilityResolverTest {
 		relativePath.parentFile.mkdirs()
 		relativePath.writeBytes(classBytes(Opcodes.ACC_PUBLIC, "androidx.room.MultiInstanceInvalidationService"))
 
-		val resolver = ComponentProxiabilityResolver.forProxyAppBuild(listOf(classDir))
+		val resolver = ComponentProxiabilityResolver.searchingClasspath(listOf(classDir))
 
 		assertThat(resolver.resolve("androidx.room.MultiInstanceInvalidationService"))
 			.isEqualTo(ComponentProxiabilityResolver.Resolution.Proxiable)
 	}
 
 	@Test
-	fun `forProxyAppBuild finds a final class inside a jar search-path entry and skips it`(
+	fun `searchingClasspath finds a final class inside a jar search-path entry and skips it`(
 		@TempDir tempDir: File,
 	) {
 		val jar = File(tempDir, "room-runtime.jar")
@@ -122,7 +143,7 @@ class ComponentProxiabilityResolverTest {
 			out.closeEntry()
 		}
 
-		val resolver = ComponentProxiabilityResolver.forProxyAppBuild(listOf(jar))
+		val resolver = ComponentProxiabilityResolver.searchingClasspath(listOf(jar))
 
 		val resolution = resolver.resolve("androidx.room.MultiInstanceInvalidationService")
 
@@ -131,24 +152,24 @@ class ComponentProxiabilityResolverTest {
 	}
 
 	@Test
-	fun `forProxyAppBuild treats a class absent from every search-path entry as proxiable`(
+	fun `searchingClasspath treats a class absent from every search-path entry as proxiable`(
 		@TempDir tempDir: File,
 	) {
 		val emptyDir = File(tempDir, "empty").apply { mkdirs() }
 
-		val resolver = ComponentProxiabilityResolver.forProxyAppBuild(listOf(emptyDir))
+		val resolver = ComponentProxiabilityResolver.searchingClasspath(listOf(emptyDir))
 
 		assertThat(resolver.resolve("com.example.app.MainActivity"))
 			.isEqualTo(ComponentProxiabilityResolver.Resolution.Proxiable)
 	}
 
 	@Test
-	fun `forProxyAppBuild tolerates a corrupt jar on the search path, treating the class as not found`(
+	fun `searchingClasspath tolerates a corrupt jar on the search path, treating the class as not found`(
 		@TempDir tempDir: File,
 	) {
 		val corruptJar = File(tempDir, "corrupt.jar").apply { writeText("not a real jar") }
 
-		val resolver = ComponentProxiabilityResolver.forProxyAppBuild(listOf(corruptJar))
+		val resolver = ComponentProxiabilityResolver.searchingClasspath(listOf(corruptJar))
 
 		assertThat(resolver.resolve("com.example.lib.Anything"))
 			.isEqualTo(ComponentProxiabilityResolver.Resolution.Proxiable)

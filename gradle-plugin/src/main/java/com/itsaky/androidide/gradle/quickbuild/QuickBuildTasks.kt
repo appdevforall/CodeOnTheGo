@@ -57,6 +57,23 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 	@get:Input
 	abstract val appComponentFactory: Property<String>
 
+	/**
+	 * The variant's DEPENDENCY class artifacts (each AAR's classes.jar, each jar dependency),
+	 * searched by [ComponentProxiabilityResolver] to skip a library component that cannot be
+	 * proxied - a `final` one from ANY library, not just a hardcoded name.
+	 *
+	 * Dependency artifacts specifically, NOT `variant.compileClasspath`: this task PRODUCES
+	 * the merged manifest, which AGP processes before compilation, and `compileClasspath`
+	 * carries the project's own compile outputs (its R jar among them) - wiring that here is
+	 * a genuine circular task dependency. Resolving external dependencies needs nothing this
+	 * project has compiled, so it cycles nowhere. The cost of the narrower view is that a
+	 * class absent from it is ambiguous - project-owned, or a runtime-only library component
+	 * - which is why [ComponentProxiabilityResolver] treats absence as proxiable and names
+	 * the one known runtime-only component instead of inferring it.
+	 */
+	@get:Classpath
+	abstract val dependencyClasspath: ConfigurableFileCollection
+
 	@get:OutputFile
 	abstract val updatedManifest: RegularFileProperty
 
@@ -78,6 +95,7 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 			QuickBuildManifestTransformer(
 				proxyPackage = "$appId.proxies",
 				appComponentFactory = appComponentFactory.get(),
+				proxiability = ComponentProxiabilityResolver.searchingClasspath(dependencyClasspath.files.toList()),
 			)
 
 		val result =
@@ -121,6 +139,15 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 
 		if (result.entryActivity == null) {
 			logger.warn("Quick Build: no LAUNCHER activity found in the merged manifest")
+		}
+		result.unproxied.forEach { skipped ->
+			// Lifecycle, not info: a component silently losing its proxy is exactly the kind
+			// of thing someone debugging a stale-code report needs to see without re-running.
+			logger.lifecycle(
+				"Quick Build: '{}' keeps its real manifest name, unproxied ({})",
+				skipped.userClass,
+				skipped.reason,
+			)
 		}
 		logger.lifecycle(
 			"Quick Build: generated {} proxy components for '{}'",
@@ -373,12 +400,13 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 	private fun extractRuntimeClasses(): List<File> = RuntimeClassesExtractor.extract(runtimeAar.files, temporaryDir)
 
 	/**
-	 * Fails loud, with one clear line naming the component and why, BEFORE the real proxy
-	 * compile below attempts a doomed `extends` - instead of javac's multi-line "cannot
-	 * inherit from final ..." diagnostic dump (see [ComponentProxiabilityResolver]'s KDoc
-	 * for why the DECISION to skip a component
-	 * still has to be a named [QuickBuildManifestTransformer.UNPROXIABLE_LIBRARY_COMPONENTS]
-	 * entry rather than a silent auto-skip here).
+	 * The backstop. [QuickBuildGenerateSourcesTask] already asked
+	 * [ComponentProxiabilityResolver] the same question and skipped what it rejected, but it
+	 * could only search the variant's DEPENDENCY artifacts (see its `dependencyClasspath`
+	 * KDoc). This runs against the real proxy compile classpath, which additionally carries
+	 * the injected runtime AARs and the project's own outputs - so a component only that
+	 * wider view can see is caught here, with one clear line naming it, instead of javac's
+	 * multi-line "cannot inherit from final ..." diagnostic dump.
 	 *
 	 * Maps each proxy source file back to its target userClass via [manifestInfoFile] (the
 	 * same intermediate [QuickBuildGenerateSourcesTask] wrote). [payloadRoot] (the divert
@@ -404,7 +432,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 		val userClassByProxyClass =
 			manifestInfo.components.mapNotNull { component -> component.proxyClass?.let { it to component.userClass } }.toMap()
 		val projectClasses = SupertypeResolver.supertypeIndex(payloadRoot).keys
-		val resolver = ComponentProxiabilityResolver.forProxyAppBuild(runtimeClassesJars + compileClasspath.files)
+		val resolver = ComponentProxiabilityResolver.searchingClasspath(runtimeClassesJars + compileClasspath.files)
 		val proxySourcesRoot = proxySources.get().asFile
 		for (proxyFile in proxyJavaFiles) {
 			val proxyClassName =
@@ -414,7 +442,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 					.removeSuffix(".java")
 					.replace(File.separatorChar, '.')
 			val userClass = userClassByProxyClass[proxyClassName] ?: continue
-			val resolution = ComponentProxiabilityResolver.resolveWithProjectOverride(userClass, projectClasses, resolver)
+			val resolution = resolver.resolveWithProjectOverride(userClass, projectClasses)
 			if (resolution is ComponentProxiabilityResolver.Resolution.Skip) {
 				// Addressed to whoever hits this, which is a CoGo user building their own app -
 				// so it names the action they have (Run/Debug), not a CoGo source file they

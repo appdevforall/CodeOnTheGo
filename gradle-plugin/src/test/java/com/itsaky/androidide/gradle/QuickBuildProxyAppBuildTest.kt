@@ -66,4 +66,39 @@ class QuickBuildProxyAppBuildTest {
 		assertThat(result.output).doesNotContain("__sourceRoots__")
 		assertThat(result.output).doesNotContain("Configuration cache state could not be cached")
 	}
+
+	/**
+	 * The manifest transform decides proxiability from the variant's DEPENDENCY class
+	 * artifacts, so a `final` component from ANY library is skipped without anyone naming it
+	 * (ADFA-4128 followup). Two things can only be proven by a real build, and both are the
+	 * risk in that change:
+	 *
+	 * - Wiring a classpath into the task that PRODUCES the merged manifest is what cycled
+	 *   before; a circular task dependency fails this build outright.
+	 * - The `ArtifactView` really resolves class bytes. It is `lenient`, so a wrong artifact
+	 *   type would silently resolve NOTHING, every component would look project-owned, and
+	 *   Compose/Room projects would go back to failing the proxy compile. The fixture is real:
+	 *   the sample project depends on room-runtime, whose merged-in
+	 *   `MultiInstanceInvalidationService` is genuinely `final` in the shipped AAR - and is
+	 *   named nowhere in Quick Build's source.
+	 */
+	@Test
+	fun `a final component from a real dependency is skipped, read from that dependency's class bytes`() {
+		val runtimeAar = File.createTempFile("quickbuild-runtime", ".aar").apply { deleteOnExit() }
+
+		val result =
+			buildProject(
+				task = ":app:generateDemoDebugQuickBuildSources",
+				configureArgs = {
+					it.add("-P$PROPERTY_QUICK_BUILD_ENABLED=true")
+					it.add("-P$PROPERTY_QUICK_BUILD_RUNTIME_AAR=${runtimeAar.absolutePath}")
+				},
+			)
+
+		assertThat(result.output).contains(
+			"Quick Build: 'androidx.room.MultiInstanceInvalidationService' keeps its real manifest name, unproxied",
+		)
+		// From the class file's access flags, not from a name: the reason distinguishes the two.
+		assertThat(result.output).contains("final class - cannot be extended")
+	}
 }

@@ -50,11 +50,22 @@ data class ProxiedComponent(
 )
 
 /**
+ * A component left under its real manifest name because
+ * [ComponentProxiabilityResolver] rejected it, with that resolver's [reason]. Reported so
+ * the calling task can log what it skipped and why.
+ */
+data class UnproxiedComponent(
+	val userClass: String,
+	val reason: String,
+)
+
+/**
  * Result of rewriting a merged manifest for the Quick Build proxy app.
  */
 class ManifestTransformResult(
 	val document: Document,
 	val components: List<ProxiedComponent>,
+	val unproxied: List<UnproxiedComponent> = emptyList(),
 ) {
 	/** The proxied activities, in manifest order (view kept for activity-only consumers). */
 	val activities: List<ProxiedComponent>
@@ -74,17 +85,11 @@ class ManifestTransformResult(
  * the quick-build runtime. Everything else (permissions, icon, label, intent filters,
  * exported/permission attributes, meta-data) is preserved verbatim.
  *
- * One exception to "every component is proxied": [UNPROXIABLE_LIBRARY_COMPONENTS] (see its
- * KDoc) keep their real manifest name. Some resolve their OWN component by hardcoded name
- * at runtime, so renaming them breaks that lookup; others simply cannot be turned into an
- * `extends`-style proxy at all (a `final` library class, or one that doesn't resolve on
- * this proxy app build's compile classpath). [ComponentProxiabilityResolver] reads a
- * component's actual class file to detect the latter shape in general, but is wired in at
- * [QuickBuildPayloadDexTask] (the real proxy compile), not here - see its KDoc for why
- * this task cannot safely consult the compile classpath itself (a real Gradle task-graph
- * cycle: manifest processing precedes compilation in AGP's pipeline, so a task that
- * PRODUCES the merged manifest can't also depend on classes/classpath info that requires
- * compilation to have already happened).
+ * The one exception to "every component is proxied" is whatever [proxiability] rejects:
+ * that component keeps its real manifest name, emits no proxy class and no
+ * [ProxiedComponent] entry, and is reported in [ManifestTransformResult.unproxied]. The
+ * decision lives entirely in [ComponentProxiabilityResolver] - read that, not a second list
+ * here.
  *
  * Attribute combinations the proxy app cannot host yet (android:process on any component,
  * isolated services, multiprocess providers) throw with the component named - the proxy app
@@ -94,10 +99,13 @@ class ManifestTransformResult(
  *
  * @property proxyPackage package for generated proxies, e.g. `com.example.app.quickbuild.proxies`.
  * @property appComponentFactory FQN of the runtime's AppComponentFactory.
+ * @property proxiability decides which components are skipped; defaults to the by-name rules
+ *   alone, for callers with no dependency classpath to search.
  */
 class QuickBuildManifestTransformer(
 	private val proxyPackage: String,
 	private val appComponentFactory: String,
+	private val proxiability: ComponentProxiabilityResolver = ComponentProxiabilityResolver.byNameOnly(),
 ) {
 	companion object {
 		const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
@@ -113,67 +121,6 @@ class QuickBuildManifestTransformer(
 			val suffix = type.jsonName.replaceFirstChar { it.uppercase() }
 			return "Proxy$index$suffix"
 		}
-
-		/**
-		 * Library-owned manifest components (of ANY type - activity, service, receiver,
-		 * provider) that the proxy app build cannot safely turn into a
-		 * `Proxy<N><Type> extends <userClass>` subclass, so they are left under their REAL
-		 * manifest name instead: no proxy class, no [ProxiedComponent] entry,
-		 * `android:name` (and everything else - meta-data, authorities, intent-filters)
-		 * untouched. Always safe to exclude: none of these is EVER recompiled by the
-		 * daemon, so the swap-via-restart machinery a proxy exists for buys nothing here;
-		 * left as-is they instantiate through the framework's default
-		 * `AppComponentFactory` path exactly like an unmodified Android app (the runtime's
-		 * `LoaderRouter` already falls back to the default loader for a class it can't
-		 * find in the payload dex, which none of these ever are).
-		 *
-		 * - `androidx.startup.InitializationProvider` - does a hardcoded self-lookup by
-		 *   this exact component name at runtime (`AppInitializer` calls
-		 *   `PackageManager.getProviderInfo(ComponentName(pkg, InitializationProvider))`)
-		 *   to read its own `<meta-data>` initializer list (how every androidx library -
-		 *   lifecycle-process, profileinstaller, emoji2, WorkManager, ... - registers its
-		 *   startup hook, merged by the manifest merger into ONE provider element). A
-		 *   renamed proxy breaks that lookup with `NameNotFoundException` ->
-		 *   `StartupException`, crashing the proxy app during `handleBindApplication`
-		 *   before any activity or the quick-build runtime binds (every
-		 *   androidx-based project pulls this in).
-		 * - `androidx.compose.ui.tooling.PreviewActivity` - `final`; the generated
-		 *   proxy's `extends` cannot even compile (`cannot inherit from final ...`).
-		 *   Debug-only Compose `@Preview` tooling - never a real launcher, never edited by
-		 *   user code (every Compose template with `ui-tooling` pulls
-		 *   this in).
-		 * - `androidx.profileinstaller.ProfileInstallReceiver` - resolves on some variant
-		 *   classpaths (it's in the merged manifest) but not on every proxy app build's
-		 *   proxy-compile classpath (`variant.compileClasspath`, which doesn't always
-		 *   carry an AGP/transitively-injected runtime-only dependency), so `extends`
-		 *   fails "cannot find symbol". Same runtime-only-classpath hazard the README's
-		 *   Known Limitations documents generally for library components; excluding it by
-		 *   name is the "skip proxying library components and keep their original
-		 *   manifest name" option the design doc already calls out as a valid
-		 *   generalization. It does not do a self-lookup (checked its
-		 *   decompiled bytecode), so this is a pure classpath-resolution exclusion, not a
-		 *   correctness one - if a future proxy-app-build classpath change makes it resolve,
-		 *   proxying it would still be harmless, but excluding it is simpler than chasing
-		 *   per-project classpath differences.
-		 * - `androidx.room.MultiInstanceInvalidationService` - `final`, exactly like
-		 *   `PreviewActivity` above: `Proxy<N>Service extends
-		 *   androidx.room.MultiInstanceInvalidationService` fails `cannot inherit from
-		 *   final` (live app crash, generalizing). Every Room project that
-		 *   uses multi-instance invalidation tracking pulls this in. `ComponentProxiabilityResolver`
-		 *   (see its KDoc and [QuickBuildPayloadDexTask]) reads a component's class file to
-		 *   detect this shape from ANY library, not just this one - but a task that
-		 *   produces the merged manifest cannot safely consult the compile classpath (a
-		 *   real Gradle task-graph cycle, see that resolver's KDoc), so a newly-discovered
-		 *   final library class is added here by name, same as the other entries, rather
-		 *   than auto-skipped at manifest-generation time.
-		 */
-		private val UNPROXIABLE_LIBRARY_COMPONENTS =
-			setOf(
-				"androidx.startup.InitializationProvider",
-				"androidx.compose.ui.tooling.PreviewActivity",
-				"androidx.profileinstaller.ProfileInstallReceiver",
-				"androidx.room.MultiInstanceInvalidationService",
-			)
 	}
 
 	/**
@@ -194,31 +141,46 @@ class QuickBuildManifestTransformer(
 		neutralizeBackup(application)
 
 		val components = mutableListOf<ProxiedComponent>()
-		components += transformActivities(application, manifestPackage)
-		components += transformServices(application, manifestPackage)
-		components += transformReceivers(application, manifestPackage)
-		components += transformProviders(application, manifestPackage)
+		val unproxied = mutableListOf<UnproxiedComponent>()
+		components += transformActivities(application, manifestPackage, unproxied)
+		components += transformServices(application, manifestPackage, unproxied)
+		components += transformReceivers(application, manifestPackage, unproxied)
+		components += transformProviders(application, manifestPackage, unproxied)
 		applicationComponent(application, manifestPackage)?.let { components += it }
 
 		inlineLibraryResourceRefs(document)
 
-		return ManifestTransformResult(document, components)
+		return ManifestTransformResult(document, components, unproxied)
+	}
+
+	/**
+	 * Records and reports a component [proxiability] rejects, so each caller can bail out of
+	 * its loop with one line. The rejected component is left verbatim - and, critically, must
+	 * not consume a per-type proxy index, or every LATER component of that type would shift.
+	 */
+	private fun skipProxy(
+		userClass: String,
+		unproxied: MutableList<UnproxiedComponent>,
+	): Boolean {
+		val resolution = proxiability.resolve(userClass)
+		if (resolution !is ComponentProxiabilityResolver.Resolution.Skip) return false
+		unproxied += UnproxiedComponent(userClass, resolution.reason)
+		return true
 	}
 
 	private fun transformActivities(
 		application: Element,
 		manifestPackage: String,
+		unproxied: MutableList<UnproxiedComponent>,
 	): List<ProxiedComponent> {
 		val activities = mutableListOf<ProxiedComponent>()
 		var proxyIndex = 0
 		application.childElements("activity").forEachIndexed { index, activity ->
 			val userClass = requireComponentName(activity, "activity", index, manifestPackage)
 			rejectUnsupported(activity, "activity", userClass)
-			// See UNPROXIABLE_LIBRARY_COMPONENTS: left verbatim, no ProxiedComponent
-			// emitted - the per-type proxy index used for OTHER activities must not
-			// count it. An alias targeting this activity (below) then finds no proxy
-			// mapping and correctly leaves its targetActivity pointed at the real class.
-			if (userClass in UNPROXIABLE_LIBRARY_COMPONENTS) {
+			// An alias targeting a skipped activity (below) then finds no proxy mapping
+			// and correctly leaves its targetActivity pointed at the real class.
+			if (skipProxy(userClass, unproxied)) {
 				return@forEachIndexed
 			}
 			val proxyClass = "$proxyPackage.${proxySimpleName(proxyIndex, ComponentType.ACTIVITY)}"
@@ -251,6 +213,7 @@ class QuickBuildManifestTransformer(
 	private fun transformServices(
 		application: Element,
 		manifestPackage: String,
+		unproxied: MutableList<UnproxiedComponent>,
 	): List<ProxiedComponent> {
 		var proxyIndex = 0
 		return application.childElements("service").mapIndexedNotNull { index, service ->
@@ -262,8 +225,7 @@ class QuickBuildManifestTransformer(
 						"does not support yet; use a Standard Run",
 				)
 			}
-			// See UNPROXIABLE_LIBRARY_COMPONENTS.
-			if (userClass in UNPROXIABLE_LIBRARY_COMPONENTS) {
+			if (skipProxy(userClass, unproxied)) {
 				return@mapIndexedNotNull null
 			}
 			val proxyClass = "$proxyPackage.${proxySimpleName(proxyIndex, ComponentType.SERVICE)}"
@@ -282,14 +244,13 @@ class QuickBuildManifestTransformer(
 	private fun transformReceivers(
 		application: Element,
 		manifestPackage: String,
+		unproxied: MutableList<UnproxiedComponent>,
 	): List<ProxiedComponent> {
 		var proxyIndex = 0
 		return application.childElements("receiver").mapIndexedNotNull { index, receiver ->
 			val userClass = requireComponentName(receiver, "receiver", index, manifestPackage)
 			rejectUnsupported(receiver, "receiver", userClass)
-			// See UNPROXIABLE_LIBRARY_COMPONENTS (androidx.profileinstaller.ProfileInstallReceiver
-			// is exactly this case).
-			if (userClass in UNPROXIABLE_LIBRARY_COMPONENTS) {
+			if (skipProxy(userClass, unproxied)) {
 				return@mapIndexedNotNull null
 			}
 			val proxyClass = "$proxyPackage.${proxySimpleName(proxyIndex, ComponentType.RECEIVER)}"
@@ -306,6 +267,7 @@ class QuickBuildManifestTransformer(
 	private fun transformProviders(
 		application: Element,
 		manifestPackage: String,
+		unproxied: MutableList<UnproxiedComponent>,
 	): List<ProxiedComponent> {
 		var proxyIndex = 0
 		return application.childElements("provider").mapIndexedNotNull { index, provider ->
@@ -317,10 +279,7 @@ class QuickBuildManifestTransformer(
 						"does not support yet; use a Standard Run",
 				)
 			}
-			// See UNPROXIABLE_LIBRARY_COMPONENTS: left verbatim, no ProxiedComponent
-			// emitted - the component index used for OTHER providers' proxy names must
-			// not count it.
-			if (userClass in UNPROXIABLE_LIBRARY_COMPONENTS) {
+			if (skipProxy(userClass, unproxied)) {
 				return@mapIndexedNotNull null
 			}
 			val proxyClass = "$proxyPackage.${proxySimpleName(proxyIndex, ComponentType.PROVIDER)}"

@@ -29,11 +29,13 @@ flowchart LR
   user-vs-library discrimination.
 - **Two shapes defeat `extends`, and both fail the build loudly**: a `final` library class, and a
   class present only on the runtime classpath. Never a silent component drop.
-- **A short exclusion list keeps known-unproxiable library components under their real manifest
-  name.** Each entry came from a real crash; the per-entry reasons live in the KDoc on
-  `QuickBuildManifestTransformer.UNPROXIABLE_LIBRARY_COMPONENTS` - read that, not a copy here.
-  Today: androidx `InitializationProvider` (resolves itself by hardcoded name), Compose
-  `PreviewActivity` and Room `MultiInstanceInvalidationService` (both `final`).
+- **`ComponentProxiabilityResolver` is the single authority on which components get proxied.**
+  Both the manifest transform and the payload dex task ask it. It reads each component's class
+  from the variant's dependency artifacts and skips any `final` one - from any library, named
+  nowhere - leaving it under its real manifest name. Only what a class file cannot reveal is
+  listed by name: androidx `InitializationProvider` (resolves itself by hardcoded name) and
+  `ProfileInstallReceiver` (absent from some proxy compile classpaths, and absence is
+  indistinguishable from project-owned before compilation). Reasons live in that class's KDoc.
 - **The `Application` gets no proxy.** Nothing addresses it by manifest name, and
   `instantiateApplication` already routes through the payload loader.
 - **Provider authorities pass through verbatim.** The proxy app installs under the project's real
@@ -75,8 +77,8 @@ flowchart TD
 
 | Concern | Code |
 |---|---|
-| Manifest rewrite, exclusion list, authority recording | `gradle-plugin/.../QuickBuildManifestTransformer.kt` |
-| Detecting final/unresolvable components before javac | `gradle-plugin/.../ComponentProxiabilityResolver.kt` |
+| Manifest rewrite, authority recording | `gradle-plugin/.../QuickBuildManifestTransformer.kt` |
+| Which components can be proxied (the one authority) | `gradle-plugin/.../ComponentProxiabilityResolver.kt` |
 | Proxy source generation | `gradle-plugin/.../ProxySourceGenerator.kt` |
 | `setup.json` shape and schema version | `gradle-plugin/.../QuickBuildJson.kt`, read by `quickbuild/core/.../data/ProxyAppInfo.kt` |
 | Supertype chains for the restart closure | `gradle-plugin/.../SupertypeResolver.kt`, `domain/ClassHeader.kt` |
@@ -91,8 +93,12 @@ closure rule and the skew guard.
 
 - **Multi-process components are unsupported** - per-process payload and generation coherence is
   unverified, so `android:process` fails the build rather than deploying something unproven.
-- **The exclusion list is maintained by hand.** Detecting unproxiable components generally at
-  manifest-generation time needs the variant's compile classpath, which isn't reachable there
-  without a Gradle task-graph cycle (tried; it cycles back through source generation).
+- **A runtime-only library component still has to be excluded by name.** The manifest transform
+  searches the variant's DEPENDENCY artifacts, which resolve without compiling anything;
+  `variant.compileClasspath` cannot be used there, because it drags in `processResources` (for
+  the project's own R jar), which needs the very manifest this task produces - a real cycle,
+  reproduced on demand by the mutation in `QuickBuildProxyAppBuildTest`'s KDoc. The cost of the
+  narrower view: a class it cannot find is either project-owned or runtime-only, and nothing at
+  that point distinguishes them, so the runtime-only case stays a named entry.
 - **Tightening the live-instance residual** - restart on any code deploy while a tracked service
   is live - is possible behind a flag (the service census exists). Price it with metrics first.

@@ -75,6 +75,15 @@ class QuickBuildPlugin : Plugin<Project> {
 		 *.
 		 */
 		internal const val COMPILED_DEPENDENCIES_RESOURCES_ARTIFACT_TYPE = "android-compiled-dependencies-resources"
+
+		/**
+		 * The artifact-type attribute value for a dependency's classes as a jar
+		 * (`AndroidArtifacts.ArtifactType.CLASSES_JAR`) - an AAR's extracted classes.jar, or a
+		 * plain jar dependency. AGP-internal like the constant above, so the raw string is used
+		 * directly rather than pulling `AndroidArtifacts` onto this plugin's classpath;
+		 * confirmed present in AGP 8.8.2's `AndroidArtifacts$ArtifactType.class` constant pool.
+		 */
+		internal const val CLASSES_JAR_ARTIFACT_TYPE = "android-classes-jar"
 	}
 
 	override fun apply(target: Project) {
@@ -163,6 +172,11 @@ class QuickBuildPlugin : Plugin<Project> {
 				task.appComponentFactory.set(APP_COMPONENT_FACTORY)
 				task.proxySources.set(buildDirectory.dir("$variantDir/proxy-sources"))
 				task.manifestInfoFile.set(buildDirectory.file("$variantDir/manifest-info.json"))
+				// The variant's dependency class artifacts, so the manifest transform can skip
+				// any final library component instead of only a hardcoded few. Dependencies
+				// only - see the task's dependencyClasspath KDoc for why variant.compileClasspath
+				// would be a circular task dependency here.
+				task.dependencyClasspath.from(dependencyClassesJars(variant, project))
 			}
 		variant.artifacts
 			.use(generate)
@@ -327,6 +341,34 @@ class QuickBuildPlugin : Plugin<Project> {
 			delegate.withRuntimeConfiguration(action)
 		}
 	}
+
+	/**
+	 * Every dependency's classes, as jars: an `ArtifactView` over the variant's COMPILE
+	 * classpath configuration filtered to [CLASSES_JAR_ARTIFACT_TYPE], which is how AGP hands
+	 * out each AAR's extracted classes.jar and each plain jar dependency.
+	 *
+	 * The compile CONFIGURATION, not `variant.compileClasspath`: the FileCollection also
+	 * carries the project's own compile outputs (its R jar among them), and wiring those into
+	 * the task that PRODUCES the merged manifest is a circular task dependency - manifest
+	 * processing precedes compilation in AGP's pipeline. Resolving the configuration's
+	 * dependency artifacts needs nothing this project has compiled.
+	 *
+	 * `lenient(true)` so a dependency exposing no such variant is skipped rather than failing
+	 * resolution: a missed class only means a component is proxied as before, which the
+	 * payload dex task's `checkProxiability` still catches.
+	 */
+	private fun dependencyClassesJars(
+		variant: ApplicationVariant,
+		project: Project,
+	): FileCollection =
+		variant.compileConfiguration.incoming
+			.artifactView { view ->
+				view.attributes {
+					it.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, CLASSES_JAR_ARTIFACT_TYPE)
+				}
+				view.setLenient(true)
+			}.files
+			.let { project.files(it) }
 
 	/**
 	 * Every resource-providing dependency's separately-compiled FILE-based resources
