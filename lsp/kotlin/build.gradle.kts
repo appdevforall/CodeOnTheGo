@@ -21,10 +21,17 @@ plugins {
 	id("com.android.library")
 	id("kotlin-android")
 	id("kotlin-kapt")
+	alias(libs.plugins.kotlin.compose)
 }
 
 android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.kotlin"
+
+	// The refactoring bottom sheets are Compose (ADR 0009); they live here rather than in a UI
+	// module because `editor` depends on this module, not the reverse (ADR 0011).
+	buildFeatures {
+		compose = true
+	}
 
 	kotlin.compilerOptions {
 		freeCompilerArgs.addAll("-Xcontext-parameters")
@@ -50,6 +57,20 @@ dependencies {
 	implementation(projects.shared)
 	implementation(projects.subprojects.projects)
 	implementation(projects.subprojects.projectModels)
+
+	implementation(platform(libs.compose.bom))
+	implementation(libs.compose.runtime)
+	implementation(libs.compose.ui)
+	implementation(libs.compose.foundation)
+	implementation(libs.compose.material3)
+	implementation(libs.compose.ui.tooling.preview)
+	debugImplementation(libs.compose.ui.tooling)
+
+	implementation(libs.androidx.fragment.ktx)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
+	implementation(libs.androidx.lifecycle.viewmodel.ktx)
+	implementation(libs.androidx.lifecycle.runtime.compose)
+	implementation(libs.google.material)
 
 	implementation(libs.common.jsonrpc)
 	implementation(libs.common.kotlin)
