@@ -70,4 +70,28 @@ class ExtractZipToDirMergeTest {
 			AssetsInstallationHelper.extractZipToDir(zipOf("../evil.jar" to "x"), dest)
 		}
 	}
+
+	@Test
+	fun `rejects extraction over an existing symlink`() {
+		val dest = Files.createTempDirectory("mvn")
+		val outsideTarget = Files.createTempDirectory("outside").resolve("payload")
+
+		Files.createSymbolicLink(dest.resolve("evil.jar"), outsideTarget)
+
+		assertThrows(IllegalStateException::class.java) {
+			AssetsInstallationHelper.extractZipToDir(zipOf("evil.jar" to "x"), dest)
+		}
+	}
+
+	@Test
+	fun `rejects extraction into a symlinked parent that escapes destDir`() {
+		val dest = Files.createTempDirectory("mvn")
+		val outside = Files.createTempDirectory("outside")
+
+		Files.createSymbolicLink(dest.resolve("linked"), outside)
+
+		assertThrows(IllegalStateException::class.java) {
+			AssetsInstallationHelper.extractZipToDir(zipOf("linked/nested.txt" to "x"), dest)
+		}
+	}
 }

@@ -245,6 +245,7 @@ object AssetsInstallationHelper {
 		Files.createDirectories(destDir)
 		// Normalize and make destDir absolute for secure path validation
 		val normalizedDestDir = destDir.toAbsolutePath().normalize()
+		val realDestDir = normalizedDestDir.toRealPath()
 
 		ZipInputStream(srcStream.buffered()).useEntriesEach { zipInput, entry ->
 			// Validate entry name doesn't contain dangerous patterns
@@ -264,6 +265,18 @@ object AssetsInstallationHelper {
 				Files.createDirectories(destFile)
 			} else {
 				Files.createDirectories(destFile.parent)
+
+				// The checks above are lexical (entry name only) and don't catch a
+				// symlink already present on disk (e.g. destDir merged/reused across
+				// installer runs). Resolve the real, on-disk parent path and re-check
+				// containment, and refuse to write through an existing symlink.
+				if (!destFile.parent.toRealPath().startsWith(realDestDir)) {
+					throw IllegalStateException("Entry parent escapes the target dir via symlink: ${entry.name}")
+				}
+				if (Files.isSymbolicLink(destFile)) {
+					throw IllegalStateException("Refusing to extract over an existing symlink: ${entry.name}")
+				}
+
 				Files.newOutputStream(destFile).use { dest ->
 					zipInput.copyTo(dest)
 				}
