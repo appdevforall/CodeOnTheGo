@@ -21,7 +21,6 @@ import android.view.View
 import android.widget.LinearLayout
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
-import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutLogFilterBarBinding
 import com.itsaky.androidide.editor.ui.EditorSearchLayout
@@ -29,6 +28,7 @@ import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.utils.BasicBuildInfo
+import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
@@ -152,7 +152,7 @@ class BuildOutputFragment :
 		val ed = editor ?: return
 		ed.setLineNumberEnabled(enabled)
 		// Zero the divider with the gutter, otherwise a stray 2dp rule remains.
-		ed.setDividerWidth((if (enabled) SizeUtils.dp2px(2f) else 0).toFloat())
+		ed.setDividerWidth((if (enabled) requireContext().dpToPx(2f) else 0).toFloat())
 	}
 
 	override fun toggleFilterBar() {
@@ -201,7 +201,8 @@ class BuildOutputFragment :
 				buildOutputViewModel.showTimestamps.value = enabled
 			},
 			onDeltasToggled = { enabled ->
-				buildOutputViewModel.showDeltas.value = enabled},
+				buildOutputViewModel.showDeltas.value = enabled
+			},
 			onVisibilityChanged = {
 				updateEmptyState(
 					isSourceEmpty = buildOutputViewModel.getCachedContentSnapshot().isEmpty(),
@@ -382,7 +383,7 @@ class BuildOutputFragment :
 			if (visibleText.isEmpty()) {
 				return
 			}
-				BuildOutputViewModel.filterLines(text, buildOutputViewModel.filterText.value)
+			BuildOutputViewModel.filterLines(text, buildOutputViewModel.filterText.value)
 
 			withContext(Dispatchers.Main) {
 				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
