@@ -1,6 +1,6 @@
 # Low-spec devices: on-device Gradle is the wall, not Quick Build
 
-**CoGo itself runs on 2 GB devices, and people use it there.** What does not run on one is a
+**CoGo itself runs on 2 GB devices, and people use it there.** What is not usable on one is a
 full on-device *Gradle* build - and today every Quick Build session has to start with one. So
 Quick Build cannot reach that tier yet, but nothing we measured says its own runtime is the
 reason: the live reload loop has never failed on its own at any tier tested, and it has never
@@ -19,7 +19,7 @@ repo.
 | --- | --- | --- | --- |
 | A56 | 8 GB | works | works - reference device `[measured on a56]` |
 | C107 | 3.6 GB | works | works: Ready on 21/30 corpus apps `[measured on c107]` |
-| itel A667L | 1.9 GB | never finishes | never reached `[measured on itel]` |
+| itel A667L | 1.9 GB | too slow to use - see below | never reached `[measured on itel]` |
 | incar Q8 | 1.46 GB | not attempted | not reached `[measured on Q8]` |
 
 - **The C107's 9 misses are a corpus artifact, not a device limit** - 5 died on
@@ -41,14 +41,33 @@ colliding with the device.
 - At that size, SerialGC thrashes: the heap pins at 450-604 MB against the 616 MB ceiling, the
   daemon burns 200-293% CPU almost entirely on GC, and **Gradle startup plus configuration alone
   takes ~8.8 minutes** for a trivial project `[measured on itel, debloated + screen-off]`.
-- A `hello-java` build that takes 82 s on the C107 had still not finished after 15 minutes
-  `[measured on itel]`. It is a crawl slow enough to be unusable, not an instant death.
-- **Debloating changed the failure mode, not the outcome** - enough headroom to reach task
-  execution instead of dying at harness init, which is what exposed GC thrash as the mechanism.
+- **A `hello-java` build that takes 82 s on the C107 had not finished when we stopped it at
+  15 minutes** `[measured on itel]`.
 - **Retuning the heap cannot fix it**: there is no RAM to grow into, ~300 MB free mid-build
   `[inferred]`.
 - The Q8 (1.46 GB) never got a build attempt - at idle it already showed 795 MB available, 43 MB
   free and ~558 MB in zram, worse than the itel's *failing* mid-build state `[measured on Q8]`.
+
+### What we actually observed, per attempt
+
+We never watched a build fail on its own. Every attempt ended at a timeout **we** chose, so the
+claim is "too slow to be usable", not "never terminates" - those are different results and only
+the first is measured `[measured on itel]`.
+
+| Run | Condition | Our cap | Build reported started | Outcome |
+| --- | --- | --- | --- | --- |
+| `20260725T224033Z` | stock | 300 s | no | cut off at the cap |
+| `20260726T055750Z` | debloat wave 1, 11 pkgs | 300 s | no | cut off at the cap |
+| `20260726T060809Z` | debloat wave 2, 16 pkgs, screen off | 900 s | yes, after ~8.8 min | ~6 min of task execution, still running at the cap |
+
+- Only the 900 s run says anything about the shape of the failure: startup plus configuration
+  alone took ~8.8 min, task execution had been running ~6 min more, and nothing in the log
+  suggested it was stuck rather than crawling.
+- **Debloating changed the failure mode, not the outcome** - enough headroom to reach task
+  execution instead of being cut off before the build started, which is what exposed GC thrash as
+  the mechanism.
+- **Where an uncapped build would land is unmeasured.** Nobody has run one to completion or to a
+  self-reported failure on this device.
 
 ## Decision: accept the current floor, or spike Gradle-free provisioning?
 
