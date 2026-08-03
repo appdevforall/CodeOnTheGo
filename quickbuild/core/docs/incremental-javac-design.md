@@ -31,14 +31,15 @@ flowchart LR
 
 ## The design
 
-Two independent changes, landed in this order behind `quickbuild.javac.incremental` (default off):
+Nothing here is implemented. Two independent changes, to be built in this order behind a new
+`quickbuild.javac.incremental` flag (default off):
 
 1. **B - reuse the file manager across the session.** Small and self-contained.
 2. **A - compile only the changed files.** The correctness-sensitive half.
 
 B first because the two risks are disjoint - stale cache versus stale bytecode - so a bug stays
-attributable to one of them. A's fallback to a full javac is wired before its fast path, so a
-guard bug costs speed, not correctness.
+attributable to one of them. A's fallback to a full javac should be wired before its fast path,
+so a guard bug costs speed, not correctness.
 
 ## The two guards, which are the whole correctness argument
 
