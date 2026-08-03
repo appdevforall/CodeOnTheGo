@@ -94,4 +94,25 @@ class ExtractZipToDirMergeTest {
 			AssetsInstallationHelper.extractZipToDir(zipOf("linked/nested.txt" to "x"), dest)
 		}
 	}
+
+	@Test
+	fun `rejects a bare directory entry that resolves to an existing symlink escaping destDir`() {
+		val dest = Files.createTempDirectory("mvn")
+		val outside = Files.createTempDirectory("outside")
+
+		Files.createSymbolicLink(dest.resolve("linked"), outside)
+
+		val zipBytes =
+			ByteArrayOutputStream().use { baos ->
+				ZipOutputStream(baos).use { zip ->
+					zip.putNextEntry(ZipEntry("linked/"))
+					zip.closeEntry()
+				}
+				baos.toByteArray()
+			}
+
+		assertThrows(IllegalStateException::class.java) {
+			AssetsInstallationHelper.extractZipToDir(ByteArrayInputStream(zipBytes), dest)
+		}
+	}
 }
