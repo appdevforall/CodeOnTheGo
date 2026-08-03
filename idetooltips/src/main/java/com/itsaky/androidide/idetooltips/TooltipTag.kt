@@ -91,6 +91,7 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX = "editor.codeactions.kotlin.nullsafetyfix"
 	const val EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH = "editor.codeactions.kotlin.trycatch"
 	const val EDITOR_CODE_ACTIONS_KT_GOTO_DEF = "editor.codeactions.kotlin.gotodef"
+	const val EDITOR_CODE_ACTIONS_KT_EXTRACT_VARIABLE = "editor.codeactions.kotlin.extractvariable"
 
 	const val EXIT_TO_MAIN = "exit.to.main"
 

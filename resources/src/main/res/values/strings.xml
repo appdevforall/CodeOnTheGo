@@ -539,6 +539,8 @@
 	<string name="msg_extract_variable_name_invalid">Not a valid Kotlin name</string>
 	<string name="msg_extract_variable_name_keyword">That is a Kotlin keyword</string>
 	<string name="msg_extract_variable_name_taken">That name is already used</string>
+	<string name="msg_extract_variable_nothing_to_extract">No expression to extract here</string>
+	<string name="msg_extract_variable_file_changed">The file changed. Try extracting again.</string>
 	<string name="msg_select_fields">Select fields</string>
 	<string name="msg_no_fields_selected">No fields selected</string>
 	<string name="msg_no_fields_found">No fields found</string>
