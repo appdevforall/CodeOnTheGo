@@ -14,7 +14,7 @@ Two devices are referenced throughout: the **A56** (Samsung Galaxy A56, the mid-
 ## Contents
 
 - **[Overview and architecture](#overview-and-architecture)** — what it is, how the loop works, and the rules it must not break
-  - [Where to start](#where-to-start) · [Pipeline overview](#pipeline-overview) · [How a save becomes a reload](#how-a-save-becomes-a-reload) · [Pieces](#pieces)
+  - [Where to start](#where-to-start) · [Workflow overview](#workflow-overview) · [How a save becomes a reload](#how-a-save-becomes-a-reload) · [Pieces](#pieces)
   - [Proxy-app architecture](#proxy-app-architecture-the-classloading-contract) · [Session model](#session-model) · [The boundary](#the-boundary-what-live-reloads-and-what-falls-back-to-gradle) · [Design decisions](#design-decisions) · [Known limitations (v1)](#known-limitations-v1)
 - **[The pipeline in detail](#the-pipeline-in-detail)** — steps 1-8, the deep dive behind the overview
 - **[Working on Quick Build](#working-on-quick-build)** — [running it on a device](#running-it-on-a-device) · [debugging a session](#debugging-a-session-on-device) · [driving one from outside](#driving-and-observing-a-session-from-outside) · [verifying changes](#verifying-changes)
@@ -33,9 +33,22 @@ Reading in this order gets you to the load-bearing parts fastest:
 4. Step 5's [FinalStripper](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/dex/FinalStripper.kt) and the scratch move — moving the daemon's work/out trees off FUSE-backed shared storage into app-private f2fs storage — explain the off-FUSE benchmark: strip is per-file I/O, so it collapses when the out dir leaves FUSE ([`docs/perf-roadmap.md`](docs/perf-roadmap.md)).
 5. Step 6's loader diagram is the classloading contract — both template-crash bugs were violations of "by-name resolution must see the payload loader".
 
-### Pipeline overview
+### Workflow overview
 
-Eight steps and three triggers. **Opening a project** runs a *prebuild* — the proxy app build only, no install and no daemon. The **first lightning-bolt tap** provisions: it installs the proxy app and spawns the daemon. After that a **file change** drives the live reload loop, and only an edit the classifier refuses sends you back to Gradle. Round bubbles are triggers; each box names a process, with the step number that details it below.
+Eight steps and three triggers. **Opening a project** runs a *prebuild* — the proxy app build only, no install and no daemon. The **first lightning-bolt tap** provisions: it installs the proxy app and spawns the daemon. After that a **file change** drives the live reload loop, and only an edit the classifier refuses sends you back to Gradle.
+
+The eight steps, in order. These numbers are used everywhere: in the diagram below, in the [step-by-step sections](#the-pipeline-in-detail), and in the "step N" references throughout this doc.
+
+1. **Build the proxy app** — Gradle + `QuickBuildPlugin` turn the project into a live-reloadable app.
+2. **Session control and provisioning** — the first tap installs the proxy app and spawns the daemon; ends with the session `Ready`.
+3. **Watch and normalize file changes** — raw editor/filesystem events become one debounced batch.
+4. **Live reload orchestration** — classify the batch (live reload vs Gradle), then run one build at a time, in order.
+5. **Compile daemon** — the on-device daemon compiles and dexes the batch into a payload.
+6. **Deploy and reload** — the payload reaches the proxy app, which swaps code and resources.
+7. **Proxy app rebuild and recovery** — the off-ramps: anything step 4 refuses, plus crash and failure recovery.
+8. **Observability** — the one metrics port every other step reports to.
+
+Round bubbles below are triggers; each box names a process and carries its step number.
 
 ```mermaid
 flowchart TB
