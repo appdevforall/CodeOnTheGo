@@ -14,13 +14,17 @@ built (ADFA-4128, the initial implementation) - not a change to something alread
   install time. Changing it means reinstalling - the cost Quick Build exists to avoid.
 - **So the manifest must name a class that is in the APK and never changes**, while the code behind
   that name changes on every reload.
-- **A generated `Proxy<N><Type> extends <user class>`, compiled into the APK, is that name.**
-  `QuickBuildAppComponentFactory` then instantiates it through the current payload generation's
-  loader. Renaming or moving the user's class changes nothing in the manifest.
-- **The proxy is also the only hook point.** Activity proxies carry the app-switcher gesture and a
-  `getClassLoader()` override, so by-name resolution - Fragment and Navigation destinations,
-  `LayoutInflater` custom views - can see payload-only classes; service proxies register with the
-  runtime's live-service census.
+- **A generated `Proxy<N><Type> extends <user class>` is that name.**
+  `QuickBuildAppComponentFactory` instantiates it through the current payload generation's loader.
+  The proxy is compiled once, at proxy app build time, and bundled into every payload dex; its
+  `extends` is a *symbolic* reference resolved by name at load time, which is why the same
+  compiled proxy keeps working as the user's class changes underneath it.
+- **The proxy is also where the runtime injects behaviour**, and for activities and services that
+  is what earns it. Activity proxies carry the app-switcher gesture and a `getClassLoader()`
+  override, so by-name resolution - Fragment and Navigation destinations, `LayoutInflater` custom
+  views - can see payload-only classes; service proxies register with the runtime's live-service
+  census. Receiver and provider proxies are empty subclasses: they exist for the stable name
+  alone.
 
 ## What has to be proxied
 
@@ -32,10 +36,16 @@ Android instantiates five kinds of class by name from the merged manifest:
 | `<service>` | `android.app.Service` | yes | Registers with the live-service census; swaps by process restart |
 | `<receiver>` | `android.content.BroadcastReceiver` | yes | Manifest-declared only - receivers registered at runtime are ordinary objects and need nothing |
 | `<provider>` | `android.content.ContentProvider` | yes | Swaps by process restart; authorities pass through verbatim |
-| `<application android:name>` | `android.app.Application` | **no** | Nothing addresses it by manifest name, so it keeps the user's FQN and `instantiateApplication` routes it straight through the payload loader |
+| `<application android:name>` | `android.app.Application` | **no** | Keeps the user's FQN, which `instantiateApplication` resolves against the payload loader like any other component. A proxy would buy nothing: the runtime's own per-process hook (`QuickBuildRuntime.install`) already runs inside `instantiateApplication`, so there is no behaviour to inject via a subclass |
 
 `<activity-alias>` is not instantiated itself, but its `targetActivity` must follow the activity it
 points at, or the alias would reference a component the manifest no longer declares.
+
+The `Application` is the one object created before anything else in the process and living as long
+as it - apps subclass it to do process-wide setup (a DI graph, logging, a database or WorkManager
+handle) in `onCreate`. Most apps declare none. Because it is instantiated exactly once and never
+re-instantiated, an edit to it (or to one of its user-side supertypes) is in the restart closure:
+the deploy restarts the process rather than hot-swapping. See "Restart vs recreate".
 
 ## How: a Gradle plugin rewrites the merged manifest
 
@@ -68,7 +78,7 @@ flowchart LR
 
 | Approach | Why not |
 |---|---|
-| **No proxy: leave the user's own class names in the manifest** and let `AppComponentFactory` load them from the payload | Works until a class is renamed or moved - then the manifest changes, which means a reinstall, on exactly the edits developers make most. It also leaves nowhere to hang the per-component hooks (gesture, `getClassLoader()`, service census). |
+| **No proxy: leave the user's own class names in the manifest** and let `AppComponentFactory` load them from the payload | Loads fine - this is exactly what the `Application` does today. What it loses is the injection point: no gesture hook, no `getClassLoader()` override (so `LayoutInflater` and Fragment/Navigation by-name resolution cannot see payload-only classes), no live-service census. For a receiver or provider, which need none of those, the no-proxy option is genuinely close - they are proxied for uniformity. |
 | **Delegation: one generic proxy per component type that forwards to a user instance** | A component's behaviour is inherited, not forwardable - lifecycle callbacks, `onBind`, `getResources`/theme overrides, and the concrete type that the framework and libraries check with `instanceof`. Subclassing keeps the real type. |
 | **Rewrite the manifest on every reload** | A manifest change means a reinstall. That is the cost Quick Build exists to remove. |
 | **Redefine classes in place (Apply Changes / HotSwap style)** | ART's redefinition cannot add or remove classes, methods or fields, so adding a class or a method - routine while developing - falls back to a full build anyway. |
@@ -190,5 +200,12 @@ closure rule and the skew guard.
   reproduced on demand by the mutation in `QuickBuildProxyAppBuildTest`'s KDoc. The cost of the
   narrower view: a class it cannot find is either project-owned or runtime-only, and nothing at
   that point distinguishes them, so the runtime-only case stays a named entry.
+- **Renaming or moving a proxied component class is untested, and proxying may make it worse than
+  no-proxy would.** The payload's proxy classes are the ones compiled at proxy app build time, so
+  `Proxy0Activity extends com.foo.MainActivity` keeps resolving that name at load time - fine while
+  the class merely changes, but a *rename* removes the target. Under proxying the manifest does not
+  mention the user class, so the edit stays on the live reload path; without proxying it would have
+  edited the manifest and correctly forced a Gradle build. Nothing in the code detects this today
+  and no test or device walk covers it. Needs a device repro before we claim either way.
 - **Tightening the live-instance residual** - restart on any code deploy while a tracked service
   is live - is possible behind a flag (the service census exists). Price it with metrics first.
