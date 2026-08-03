@@ -54,8 +54,7 @@ build. Warm edit, ms, pre-lever-1 `[measured on a56]`:
 ## Not covered here
 
 - **The standard Gradle build's own exposure to the same filesystem toll** - project `build/` dirs
-  are on emulated storage too. `[unmeasured]`; options in
-  [`docs/on-device-storage-performance.md`](../../../docs/on-device-storage-performance.md).
+  are on emulated storage too. `[unmeasured]`; tracked separately in Jira.
 - **The low device tiers** - every number here is the A56; the C107 and 1.9 GB tier are 4-13x
   slower overall and were not re-measured.
 - **`readyou`** - a pure-Kotlin 6-file module measuring 13.7 s / 15.2 s before dropping to 2.9 s
@@ -65,7 +64,7 @@ Two facts worth not re-deriving: daemon IPC is free (20-60 ms on multi-second ca
 `[measured on a56]`), and the "53 s per edit" figure was never a per-edit cost - it was the
 session's first build, which now runs as a background warm compile before the user can save.
 
-Lever 1's design is [`docs/on-device-storage-performance.md`](../../../docs/on-device-storage-performance.md);
-levers 3a/3b's is [`incremental-javac-design.md`](incremental-javac-design.md). Evidence:
+Lever 1 (moving build files off emulated storage) shipped; levers 3a/3b's design is
+[`incremental-javac-design.md`](incremental-javac-design.md). Evidence:
 `20260728T172912Z-sora-deepdive/` and `results/analysis/offfuse-comparison-2026-07-31.md` in
 `CodeOnTheGo-build-benchmark`.
