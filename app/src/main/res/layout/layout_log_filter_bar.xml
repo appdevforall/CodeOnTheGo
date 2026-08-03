@@ -64,36 +64,6 @@
 			app:singleLine="true">
 
 			<com.google.android.material.chip.Chip
-				android:id="@+id/chip_line_numbers"
-				style="@style/Widget.Material3.Chip.Filter"
-				android:layout_width="wrap_content"
-				android:layout_height="wrap_content"
-				android:checkable="true"
-				android:checked="true"
-				android:visibility="gone"
-				android:text="@string/log_filter_line_numbers" />
-
-			<com.google.android.material.chip.Chip
-				android:id="@+id/chip_timestamps"
-				style="@style/Widget.Material3.Chip.Filter"
-				android:layout_width="wrap_content"
-				android:layout_height="wrap_content"
-				android:checkable="true"
-				android:checked="true"
-				android:visibility="gone"
-				android:text="@string/log_filter_timestamps" />
-
-			<com.google.android.material.chip.Chip
-				android:id="@+id/chip_deltas"
-				style="@style/Widget.Material3.Chip.Filter"
-				android:layout_width="wrap_content"
-				android:layout_height="wrap_content"
-				android:checkable="true"
-				android:checked="true"
-				android:visibility="gone"
-				android:text="@string/log_filter_deltas" />
-
-			<com.google.android.material.chip.Chip
 				android:id="@+id/chip_level_verbose"
 				style="@style/Widget.Material3.Chip.Filter"
 				android:layout_width="wrap_content"
