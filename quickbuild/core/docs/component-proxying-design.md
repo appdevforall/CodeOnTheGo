@@ -25,10 +25,13 @@ flowchart LR
 
 ## Key decisions
 
-- **Every component is proxied - user code and library code alike.** Keeps the transform free of
-  user-vs-library discrimination.
-- **Two shapes defeat `extends`, and both fail the build loudly**: a `final` library class, and a
-  class present only on the runtime classpath. Never a silent component drop.
+- **Every component is proxied by default - user code and library code alike.** The transform never
+  discriminates by origin; every exception comes from the resolver below, which decides from the
+  class file rather than from whose code it is.
+- **A component that defeats `extends` is never silently dropped.** A `final` library class is
+  skipped and logged, keeping its real manifest name. One present only on the runtime classpath
+  cannot be detected before compilation, so it fails the proxy app build loudly, naming the
+  component and pointing the user at Run/Debug.
 - **`ComponentProxiabilityResolver` is the single authority on which components get proxied.**
   Both the manifest transform and the payload dex task ask it. It reads each component's class
   from the variant's dependency artifacts and skips any `final` one - from any library, named
