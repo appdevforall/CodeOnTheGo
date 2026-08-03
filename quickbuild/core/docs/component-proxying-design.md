@@ -1,13 +1,54 @@
 # Component proxying
 
-How a generated proxy app can host a project's services, receivers, providers and custom
-`Application` - not just its activities. Implemented on this branch (ADFA-4128).
+Why the generated proxy app names generated classes in its manifest instead of the user's own,
+which Android components that covers, and how the Gradle plugin builds it. This is the design as
+built (ADFA-4128, the initial implementation) - not a change to something already shipped.
 
-Every manifest component is replaced by a generated `extends` subclass compiled into the proxy
-app, while the user's own classes travel in the swappable payload dex - so a swap replaces the
-whole hierarchy at once. A manifest *change* still takes a proxy app rebuild; this only widens what
-a generated proxy app can host. See
+## Why proxy at all
+
+- **The user's classes are deliberately absent from the installed APK.** They travel only in the
+  swappable payload dex, so the parent-first classloader chain can never serve a stale copy of a
+  class the user just edited. That absence is what makes "never silently stale" mechanical rather
+  than a matter of care.
+- **But Android instantiates manifest components by class name**, and the manifest is fixed at
+  install time. Changing it means reinstalling - the cost Quick Build exists to avoid.
+- **So the manifest must name a class that is in the APK and never changes**, while the code behind
+  that name changes on every reload.
+- **A generated `Proxy<N><Type> extends <user class>`, compiled into the APK, is that name.**
+  `QuickBuildAppComponentFactory` then instantiates it through the current payload generation's
+  loader. Renaming or moving the user's class changes nothing in the manifest.
+- **The proxy is also the only hook point.** Activity proxies carry the app-switcher gesture and a
+  `getClassLoader()` override, so by-name resolution - Fragment and Navigation destinations,
+  `LayoutInflater` custom views - can see payload-only classes; service proxies register with the
+  runtime's live-service census.
+
+## What has to be proxied
+
+Android instantiates five kinds of class by name from the merged manifest:
+
+| Manifest element | Android class | Proxied | Why / note |
+|---|---|---|---|
+| `<activity>` | `android.app.Activity` | yes | Gains the gesture hook and the `getClassLoader()` override |
+| `<service>` | `android.app.Service` | yes | Registers with the live-service census; swaps by process restart |
+| `<receiver>` | `android.content.BroadcastReceiver` | yes | Manifest-declared only - receivers registered at runtime are ordinary objects and need nothing |
+| `<provider>` | `android.content.ContentProvider` | yes | Swaps by process restart; authorities pass through verbatim |
+| `<application android:name>` | `android.app.Application` | **no** | Nothing addresses it by manifest name, so it keeps the user's FQN and `instantiateApplication` routes it straight through the payload loader |
+
+`<activity-alias>` is not instantiated itself, but its `targetActivity` must follow the activity it
+points at, or the alias would reference a component the manifest no longer declares.
+
+## How: a Gradle plugin rewrites the merged manifest
+
+`QuickBuildPlugin` transforms AGP's merged-manifest artifact: every component's `android:name`
+becomes a generated proxy FQN, a `Proxy<N><Type> extends <user class>` source is generated and
+compiled into the APK, and `<application>` gains the runtime's `android:appComponentFactory`.
+Everything else - permissions, icon, label, intent filters, `exported`, meta-data - is preserved
+verbatim. A manifest *change* (adding a component, editing an intent filter) still needs a proxy
+app rebuild; see
 [the boundary](../README.md#the-boundary-what-live-reloads-and-what-falls-back-to-gradle).
+
+Subclassing works rather than delegation because the proxy and the user class both travel in the
+payload dex, so a reload swaps the whole hierarchy at once.
 
 ```mermaid
 flowchart LR
@@ -22,6 +63,22 @@ flowchart LR
         SJ -. read by CoGo .-> DP["DeployPolicy<br/>restart or recreate"]
     end
 ```
+
+## Alternatives, and why this one
+
+| Approach | Why not |
+|---|---|
+| **No proxy: leave the user's own class names in the manifest** and let `AppComponentFactory` load them from the payload | Works until a class is renamed or moved - then the manifest changes, which means a reinstall, on exactly the edits developers make most. It also leaves nowhere to hang the per-component hooks (gesture, `getClassLoader()`, service census). |
+| **Delegation: one generic proxy per component type that forwards to a user instance** | A component's behaviour is inherited, not forwardable - lifecycle callbacks, `onBind`, `getResources`/theme overrides, and the concrete type that the framework and libraries check with `instanceof`. Subclassing keeps the real type. |
+| **Rewrite the manifest on every reload** | A manifest change means a reinstall. That is the cost Quick Build exists to remove. |
+| **Redefine classes in place (Apply Changes / HotSwap style)** | ART's redefinition cannot add or remove classes, methods or fields, so adding a class or a method - routine while developing - falls back to a full build anyway. |
+| **Post-process the built APK inside CoGo instead of using a Gradle plugin** | The merged manifest, the variant's dependency artifacts and the compile classpath only exist inside the Gradle build. Doing it outside means re-implementing manifest merging and losing incrementality. |
+
+**Why the Gradle plugin wins.** It is the only place with the merged manifest as a first-class
+artifact and the variant's real classpath, so proxy generation is an ordinary incremental task
+rather than a bolt-on; CoGo already injects Gradle plugins by init script, so it needs no new seam;
+and everything it produces (`setup.json`, the proxy sources, the payload dex) is a declared task
+output that Gradle caches and invalidates for us.
 
 ## What the proxy app must satisfy
 
