@@ -418,6 +418,163 @@ class AnalysisSerializationTest : KtLspTest() {
 		assertThat(newerRan.get()).isTrue()
 	}
 
+	/**
+	 * ADR 0011's central property. Two user-invoked commands must not discard each other - before
+	 * [AnalysisPriority.COMMAND] existed they both ran at [AnalysisPriority.INTERACTIVE], where the
+	 * newer one superseded the older and the older silently produced nothing.
+	 */
+	@Test(timeout = 10_000)
+	fun `a command does not supersede an in-flight command`() {
+		val holding = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val secondEntered = AtomicBoolean(false)
+
+		val first =
+			Thread {
+				withAnalysisLock(AnalysisPriority.COMMAND, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+					holding.countDown()
+					release.await()
+				}
+			}
+		first.start()
+		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
+
+		val second =
+			Thread {
+				withAnalysisLock(AnalysisPriority.COMMAND, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+					secondEntered.set(true)
+				}
+			}
+		second.start()
+
+		// Give the second command time to (incorrectly) barge in.
+		Thread.sleep(300)
+		val enteredWhileHeld = secondEntered.get()
+
+		release.countDown()
+		first.join(5_000)
+		second.join(5_000)
+
+		assertThat(enteredWhileHeld).isFalse()
+		assertThat(secondEntered.get()).isTrue()
+	}
+
+	@Test(timeout = 10_000)
+	fun `a command preempts an in-flight diagnostics`() {
+		val holderChecker = ScheduledCancelChecker(ICancelChecker.NOOP)
+		val holding = CountDownLatch(1)
+		val preempted = AtomicBoolean(false)
+		val commandRan = AtomicBoolean(false)
+
+		val diagnostics =
+			Thread {
+				try {
+					withAnalysisLock(AnalysisPriority.DIAGNOSTICS, holderChecker) {
+						holding.countDown()
+						repeat(2_000) {
+							holderChecker.abortIfCancelled()
+							Thread.sleep(5)
+						}
+					}
+				} catch (e: AnalysisPreemptedException) {
+					preempted.set(true)
+				}
+			}
+		diagnostics.start()
+		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
+
+		val command =
+			Thread {
+				withAnalysisLock(AnalysisPriority.COMMAND, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+					commandRan.set(true)
+				}
+			}
+		command.start()
+		command.join(5_000)
+		diagnostics.join(5_000)
+
+		assertThat(preempted.get()).isTrue()
+		assertThat(commandRan.get()).isTrue()
+	}
+
+	/**
+	 * The cost ADR 0011 accepts in exchange for typing responsiveness: a command *is* preemptable, so
+	 * every command call site retries (see [retryingOnPreemption]).
+	 */
+	@Test(timeout = 10_000)
+	fun `keystroke-driven work preempts an in-flight command`() {
+		val holderChecker = ScheduledCancelChecker(ICancelChecker.NOOP)
+		val holding = CountDownLatch(1)
+		val preempted = AtomicBoolean(false)
+		val completionRan = AtomicBoolean(false)
+
+		val command =
+			Thread {
+				try {
+					withAnalysisLock(AnalysisPriority.COMMAND, holderChecker) {
+						holding.countDown()
+						repeat(2_000) {
+							holderChecker.abortIfCancelled()
+							Thread.sleep(5)
+						}
+					}
+				} catch (e: AnalysisPreemptedException) {
+					preempted.set(true)
+				}
+			}
+		command.start()
+		assertThat(holding.await(5, TimeUnit.SECONDS)).isTrue()
+
+		val completion =
+			Thread {
+				withAnalysisLock(AnalysisPriority.INTERACTIVE, ScheduledCancelChecker(ICancelChecker.NOOP)) {
+					completionRan.set(true)
+				}
+			}
+		completion.start()
+		completion.join(5_000)
+		command.join(5_000)
+
+		assertThat(preempted.get()).isTrue()
+		assertThat(completionRan.get()).isTrue()
+	}
+
+	@Test(timeout = 10_000)
+	fun `retryingOnPreemption runs a preempted attempt exactly once more with a fresh checker`() {
+		val attempts = AtomicInteger(0)
+
+		val result =
+			retryingOnPreemption(ICancelChecker.NOOP, "test") { checker ->
+				// A latched checker would abort the retry immediately, so each attempt must get its own.
+				assertThat(checker.isCancelled()).isFalse()
+				if (attempts.incrementAndGet() == 1) {
+					checker.preempt()
+					checker.abortIfCancelled()
+				}
+				"done"
+			}
+
+		assertThat(attempts.get()).isEqualTo(2)
+		assertThat(result).isEqualTo("done")
+	}
+
+	@Test(timeout = 10_000)
+	fun `retryingOnPreemption propagates a second preemption rather than looping`() {
+		val attempts = AtomicInteger(0)
+
+		val thrown =
+			runCatching {
+				retryingOnPreemption(ICancelChecker.NOOP, "test") { checker ->
+					attempts.incrementAndGet()
+					checker.preempt()
+					checker.abortIfCancelled()
+				}
+			}.exceptionOrNull()
+
+		assertThat(attempts.get()).isEqualTo(2)
+		assertThat(thrown).isInstanceOf(AnalysisPreemptedException::class.java)
+	}
+
 	@Test(timeout = 10_000)
 	fun `same priority diagnostics does not preempt an in-flight diagnostics`() {
 		val holding = CountDownLatch(1)

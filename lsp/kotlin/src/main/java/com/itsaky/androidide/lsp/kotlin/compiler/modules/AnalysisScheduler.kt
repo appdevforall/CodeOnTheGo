@@ -1,6 +1,8 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.modules
 
 import com.itsaky.androidide.progress.ICancelChecker
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.util.concurrent.CancellationException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
@@ -12,20 +14,37 @@ import kotlin.concurrent.withLock
  * lower-priority analysis that is currently running, and is served before any lower-priority request
  * that is merely waiting.
  *
- * Order: [INDEXING] < [DIAGNOSTICS] < [INTERACTIVE] — interactive requests (completion, signature
- * help) beat background diagnostics, which beats bulk indexing.
+ * Order: [INDEXING] < [DIAGNOSTICS] < [COMMAND] < [INTERACTIVE] — keystroke-driven requests
+ * (completion, signature help) beat user-invoked commands, which beat background diagnostics, which
+ * beat bulk indexing.
  *
  * [supersedesSamePriority] additionally lets a *newer* request preempt an in-flight one of the
  * **same** priority. On for [INTERACTIVE] only: rapid typing makes the in-flight request stale, so
  * the newer one cancels it and the superseded work is *discarded* (nothing reschedules it). Off for
- * [DIAGNOSTICS]/[INDEXING], whose preempted work is re-queued — there same-priority preemption would
- * livelock, two contenders endlessly re-queuing and re-preempting each other.
+ * the rest, whose preempted work is re-queued — there same-priority preemption would livelock, two
+ * contenders endlessly re-queuing and re-preempting each other.
  */
 internal enum class AnalysisPriority(
 	val supersedesSamePriority: Boolean,
 ) {
 	INDEXING(supersedesSamePriority = false),
 	DIAGNOSTICS(supersedesSamePriority = false),
+
+	/**
+	 * A command the user invoked from the code-actions menu: find usages, go-to-definition, organize
+	 * imports, implement members. Distinct from [INTERACTIVE] because such a request is never *stale* —
+	 * the user tapped a menu item and is watching a progress flashbar, so discarding the work produces
+	 * a wrong answer rather than no answer. Hence [supersedesSamePriority] is off: two commands must
+	 * not discard each other.
+	 *
+	 * Ordered below [INTERACTIVE] so a long command never starves the completion popup, which on a
+	 * phone is part of how text gets entered. The cost is that a command *can* be preempted, so its
+	 * call site must retry — and a long-running one should take the lock per unit of work (find usages
+	 * takes it per candidate file) so a preemption costs one unit rather than the whole request.
+	 *
+	 * See ADR 0011 (docs/adr/0011-command-analysis-priority.md).
+	 */
+	COMMAND(supersedesSamePriority = false),
 	INTERACTIVE(supersedesSamePriority = true),
 }
 
@@ -95,6 +114,38 @@ internal class ScheduledCancelChecker(
 		delegate.removeOnCancel(listener)
 	}
 }
+
+/**
+ * Runs [attempt] and, if it was preempted, runs it exactly once more.
+ *
+ * The retry policy every [AnalysisPriority.COMMAND] call site needs. A command is preempted by
+ * keystroke-driven work ([AnalysisPriority.INTERACTIVE]), which - unlike a genuine cancellation -
+ * leaves the user's own request alive, so reporting the empty/failed result would be a lie: "no
+ * references" for a symbol that has plenty, or a silently skipped organize-imports.
+ *
+ * Two details this centralises:
+ * - **A fresh [ScheduledCancelChecker] per attempt.** [ScheduledCancelChecker.preempt] latches, so
+ *   reusing the checker would make the retry abort at its first checkpoint.
+ * - **The whole pipeline is retried, not just the `analyze` block.** Whatever preempted the first
+ *   attempt also refreshed the live PSI, unregistering the `KtFile` that attempt held; re-analyzing
+ *   that stale file fails. So [attempt] must re-fetch the file too.
+ *
+ * A second preemption propagates - this is one retry, not a loop.
+ */
+internal inline fun <R> retryingOnPreemption(
+	delegate: ICancelChecker,
+	label: String,
+	attempt: (ScheduledCancelChecker) -> R,
+): R =
+	try {
+		attempt(ScheduledCancelChecker(delegate))
+	} catch (e: AnalysisPreemptedException) {
+		schedulerLogger.debug("{} preempted; retrying once", label)
+		attempt(ScheduledCancelChecker(delegate))
+	}
+
+@PublishedApi
+internal val schedulerLogger: Logger = LoggerFactory.getLogger("AnalysisScheduler")
 
 /**
  * A process-global, priority-aware, preemptive lock that serializes all Kotlin Analysis API access.

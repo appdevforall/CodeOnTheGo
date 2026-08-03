@@ -7,8 +7,8 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.collectImportUsage
 import com.itsaky.androidide.lsp.kotlin.utils.organizedImportBlock
@@ -19,6 +19,7 @@ import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.createJobCancelChecker
 import org.slf4j.LoggerFactory
@@ -41,7 +42,7 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 		val nioPath = data.requireFile().toPath()
 		val env = server.compilationEnvironmentFor(nioPath) ?: return emptyList()
 		// Ties the analysis to this action's coroutine: cancelling the action aborts the queued analysis.
-		return computeOrganizeEdit(env, nioPath, ScheduledCancelChecker(createJobCancelChecker()))
+		return computeOrganizeEdit(env, nioPath, createJobCancelChecker())
 	}
 
 	/**
@@ -57,17 +58,23 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 	internal fun computeOrganizeEdit(
 		env: AbstractCompilationEnvironment,
 		nioPath: Path,
-		cancelChecker: ScheduledCancelChecker,
+		cancelChecker: ICancelChecker,
 	): List<TextEdit> =
 		runCatching {
-			val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return emptyList()
-			if (ktFile.importDirectives.isEmpty()) return emptyList()
-			env.project.read {
-				val usage = analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) { collectImportUsage(ktFile) }
-				val newText = organizedImportBlock(ktFile, usage) ?: return@read emptyList()
-				val range = ktFile.importList?.textRange?.toRange(ktFile) ?: return@read emptyList()
-				if (range == Range.NONE) return@read emptyList()
-				listOf(TextEdit(range, newText))
+			// A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
+			// preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and
+			// organize-imports silently did nothing. The file is re-fetched per attempt because the
+			// preemptor also refreshed the live PSI.
+			retryingOnPreemption(cancelChecker, "Organize imports for $nioPath") { checker ->
+				val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return@retryingOnPreemption emptyList()
+				if (ktFile.importDirectives.isEmpty()) return@retryingOnPreemption emptyList()
+				env.project.read {
+					val usage = analyzeMaybeDangling(ktFile, AnalysisPriority.COMMAND, checker) { collectImportUsage(ktFile) }
+					val newText = organizedImportBlock(ktFile, usage) ?: return@read emptyList()
+					val range = ktFile.importList?.textRange?.toRange(ktFile) ?: return@read emptyList()
+					if (range == Range.NONE) return@read emptyList()
+					listOf(TextEdit(range, newText))
+				}
 			}
 		}.getOrElse { e ->
 			logger.warn("Failed to organize imports", e)

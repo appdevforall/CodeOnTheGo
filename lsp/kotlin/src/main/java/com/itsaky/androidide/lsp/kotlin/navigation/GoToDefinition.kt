@@ -3,10 +3,10 @@ package com.itsaky.androidide.lsp.kotlin.navigation
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.rangeOf
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
@@ -197,47 +197,35 @@ internal suspend fun findDefinitionAt(params: DefinitionParams): DefinitionResul
 	return try {
 		val offset = params.position.requireIndex()
 
-		// Navigation is user-initiated: run at INTERACTIVE priority so it preempts background
-		// diagnostics/indexing and is discarded when a newer interactive request wins.
-		// params.cancelChecker is request-scoped (CancellableRequestParams), so wrap it directly.
-		//
-		// INTERACTIVE.supersedesSamePriority is true, so a concurrent completion/signature-help
-		// request can preempt this lookup even though the user's own request is still alive - unlike
-		// a genuine cancellation, that coroutine survives, so surfacing an empty result would be a lie
-		// ("Definition not found" for a reference that resolves fine). One retry, with a fresh
-		// checker, covers it without turning this into a retry loop.
-		suspend fun attempt(): List<Location> {
-			// Awaited per attempt, not once: whatever preempted the first attempt also refreshed the
-			// live PSI, unregistering the KtFile that attempt held, and analyzing it again would fail.
-			//
-			// Safe to await a (possibly blocking) refresh here: this runs outside any project.read/write
-			// block, so it can't deadlock against the refresh's project.write. Refreshed to the open
-			// document's current version, so the caret offset and the PSI it indexes into come from the
-			// same text - a stale snapshot points at the wrong element. (params.position is fixed by the
-			// request, so a retry after the user typed can still be one edit behind; that resolves to
-			// the wrong element or to nothing, never to a crash.)
-			val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).await()
-			if (ktFile == null) {
-				logger.warn("File {} cannot be loaded for definition lookup", params.file)
-				return emptyList()
-			}
-
-			val cancelChecker = ScheduledCancelChecker(params.cancelChecker)
-			cancelChecker.abortIfCancelled()
-			return env.project.read {
-				val element = referenceAtCaret(ktFile, offset) ?: return@read emptyList()
-				analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
-					definitionLocations(element, cancelChecker)
-				}
-			}
-		}
-
+		// Navigation is a user-invoked command: AnalysisPriority.COMMAND preempts background
+		// diagnostics/indexing but yields to keystroke-driven completion, and is never discarded by
+		// another command. It can still be preempted by INTERACTIVE, so it retries once (see
+		// retryingOnPreemption, and ADR 0011). params.cancelChecker is request-scoped
+		// (CancellableRequestParams), so it is the delegate the per-attempt checker wraps.
 		val locations =
-			try {
-				attempt()
-			} catch (e: AnalysisPreemptedException) {
-				logger.debug("Definition lookup for {} preempted; retrying once", params.file)
-				attempt()
+			retryingOnPreemption(params.cancelChecker, "Definition lookup for ${params.file}") { cancelChecker ->
+				// Awaited per attempt, not once: whatever preempted the first attempt also refreshed the
+				// live PSI, unregistering the KtFile that attempt held, and analyzing it again would fail.
+				//
+				// Safe to await a (possibly blocking) refresh here: this runs outside any project.read/write
+				// block, so it can't deadlock against the refresh's project.write. Refreshed to the open
+				// document's current version, so the caret offset and the PSI it indexes into come from the
+				// same text - a stale snapshot points at the wrong element. (params.position is fixed by the
+				// request, so a retry after the user typed can still be one edit behind; that resolves to
+				// the wrong element or to nothing, never to a crash.)
+				val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).await()
+				if (ktFile == null) {
+					logger.warn("File {} cannot be loaded for definition lookup", params.file)
+					emptyList()
+				} else {
+					cancelChecker.abortIfCancelled()
+					env.project.read {
+						val element = referenceAtCaret(ktFile, offset) ?: return@read emptyList()
+						analyzeMaybeDangling(ktFile, AnalysisPriority.COMMAND, cancelChecker) {
+							definitionLocations(element, cancelChecker)
+						}
+					}
+				}
 			}
 		logger.debug("Definition result for {}: {} location(s)", params.file, locations.size)
 		DefinitionResult(locations)
