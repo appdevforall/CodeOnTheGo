@@ -18,7 +18,11 @@ package com.itsaky.androidide.fragments.output
 
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.CheckedTextView
 import android.widget.LinearLayout
+import androidx.appcompat.widget.ListPopupWindow
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
@@ -45,7 +49,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class BuildOutputFragment :
 	NonEditableEditorFragment(),
-	SearchableOutputFragment {
+	SearchableOutputFragment,
+	ViewOptionsOutputFragment {
 	private val buildOutputViewModel: BuildOutputViewModel by activityViewModels()
 
 	companion object {
@@ -180,6 +185,73 @@ class BuildOutputFragment :
 		this.searchLayout = searchLayout
 	}
 
+	private data class ViewOptionItem(
+		val title: String,
+		var isChecked: Boolean,
+		val onToggle: (Boolean) -> Unit,
+	)
+
+	override fun showViewOptions(anchorView: View) {
+		val context = anchorView.context
+		val options =
+			listOf(
+				ViewOptionItem(
+					title = context.getString(R.string.log_filter_line_numbers),
+					isChecked = buildOutputViewModel.showLineNumbers.value,
+					onToggle = { enabled ->
+						buildOutputViewModel.showLineNumbers.value = enabled
+						setLineNumbersEnabled(enabled)
+					},
+				),
+				ViewOptionItem(
+					title = context.getString(R.string.log_filter_timestamps),
+					isChecked = buildOutputViewModel.showTimestamps.value,
+					onToggle = { enabled ->
+						buildOutputViewModel.showTimestamps.value = enabled
+					},
+				),
+				ViewOptionItem(
+					title = context.getString(R.string.log_filter_deltas),
+					isChecked = buildOutputViewModel.showDeltas.value,
+					onToggle = { enabled ->
+						buildOutputViewModel.showDeltas.value = enabled
+					},
+				),
+			)
+
+		val adapter =
+			object : ArrayAdapter<String>(
+				context,
+				android.R.layout.simple_list_item_multiple_choice,
+				options.map { it.title },
+			) {
+				override fun getView(
+					position: Int,
+					convertView: View?,
+					parent: ViewGroup,
+				): View {
+					val view = super.getView(position, convertView, parent)
+					if (view is CheckedTextView) {
+						view.isChecked = options[position].isChecked
+					}
+					return view
+				}
+			}
+
+		val popup = ListPopupWindow(context)
+		popup.anchorView = anchorView
+		popup.setAdapter(adapter)
+		popup.width = context.dpToPx(200f)
+		popup.isModal = true
+		popup.setOnItemClickListener { _, _, position, _ ->
+			val item = options[position]
+			item.isChecked = !item.isChecked
+			item.onToggle(item.isChecked)
+			adapter.notifyDataSetChanged()
+		}
+		popup.show()
+	}
+
 	private fun createFilterBar(): LogFilterBarController? {
 		val stub = _binding?.filterBarStub ?: return null
 		val barBinding = LayoutLogFilterBarBinding.bind(stub.inflate())
@@ -187,22 +259,8 @@ class BuildOutputFragment :
 			binding = barBinding,
 			coroutineScope = viewLifecycleOwner.lifecycleScope,
 			showLevelChips = false,
-			showOptionChips = true,
 			initialText = buildOutputViewModel.filterText.value,
 			initialLevels = LogFilter.ALL_LEVELS,
-			initialLineNumbersEnabled = buildOutputViewModel.showLineNumbers.value,
-			initialTimestampsEnabled = buildOutputViewModel.showTimestamps.value,
-			initialDeltasEnabled = buildOutputViewModel.showDeltas.value,
-			onLineNumbersToggled = { enabled ->
-				buildOutputViewModel.showLineNumbers.value = enabled
-				setLineNumbersEnabled(enabled)
-			},
-			onTimestampsToggled = { enabled ->
-				buildOutputViewModel.showTimestamps.value = enabled
-			},
-			onDeltasToggled = { enabled ->
-				buildOutputViewModel.showDeltas.value = enabled
-			},
 			onVisibilityChanged = {
 				updateEmptyState(
 					isSourceEmpty = buildOutputViewModel.getCachedContentSnapshot().isEmpty(),
