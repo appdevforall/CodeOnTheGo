@@ -1,7 +1,7 @@
 # Kotlin find usages (K2 LSP)
 
 - **Ticket:** ADFA-4824 (subtask of ADFA-3317; split out of the closed ADFA-3321 "Navigation")
-- **Status:** Design agreed, implementation in progress
+- **Status:** Implemented in `lsp/kotlin/navigation/`, pending on-device QA
 - **Module:** `lsp/kotlin`
 
 From a Kotlin declaration - or from a reference to one - list every place in the workspace that uses it, across three scopes: same file, another file in the same module, another module in the workspace.
@@ -99,12 +99,16 @@ The ticket's three resolution scopes fall out of this one code path rather than 
 
 | File | Prefilter text | PSI |
 |---|---|---|
-| open in the editor | `FileManager.getDocumentContents(path)` - the live buffer | `ktSymbolIndex.getCurrentKtFile(path).await()`, awaited **outside** `project.read` |
-| everything else | disk, via `StringSearch.containsWord` | `ktSymbolIndex.getKtFile(vf)` |
+| open in the editor | the live buffer | `ktSymbolIndex.getCurrentKtFile(path).await()`, awaited **outside** `project.read` |
+| everything else | disk | `ktSymbolIndex.getKtFile(path)` |
 
-The prefilter is word-boundary exact on the target's simple name. Its errors are one-directional: a file that mentions the name but contains no usage is parsed and discarded (wasted work, correct result), while a file that does not mention the name cannot contain a named usage.
+The prefilter is `StringSearch.containsWord`, word-boundary exact on the target's simple name. It needs no live-buffer branch of its own: it already reads `FileManager.getActiveDocument(file)` when the file is open, and only falls back to disk otherwise. Its errors are one-directional: a file that mentions the name but contains no usage is parsed and discarded (wasted work, correct result), while a file that does not mention the name cannot contain a named usage.
 
 Open documents are tab-count many, so the live tier is free. Without it, a usage the user just typed would be missed entirely - the prefilter would never select the file, so it would never be parsed.
+
+Two pre-existing `StringSearch` limits carry over. It reads only the **first 1 MB** of a file, so a usage past that point is missed; and it scans through one shared static `ByteBuffer` with no synchronisation, so a Kotlin usage search running concurrently with a Java find-references can corrupt the other's scan. Neither is introduced here and neither is fixed here, but the second is worth a ticket.
+
+Only `KtSimpleNameExpression`s are examined. That is what makes the name filter cheap - it runs on PSI alone, before any resolution - and it is also what implements "convention references are not results": `a + b` contains no `plus` token, so it is never a candidate. The cost is that a **KDoc `[link]`** to the target is not reported, even though go-to-definition navigates from one; a documented gap rather than a decision worth its own machinery in v1.
 
 **R6 - Identity.** A reference is a usage if its resolved symbol is in the match set. Deciding that across files needs care, because `KaSymbol` is session-scoped and the same declaration exists as two PSI instances - the on-disk `KtFile` cached in the index, and the dangling `KtFile` built from the editor buffer for an open file.
 
@@ -139,11 +143,15 @@ Granularity is per candidate file, and it is load-bearing:
 
 The prefilter pass runs first, before any analysis, holding no locks. No progress count is shown - `launchCancellableAsyncWithProgress` takes a fixed `@StringRes`, and threading a live count through it would change a shared editor API for a cosmetic gain. No timeout and no file budget: the search finishes or the user cancels.
 
-**R10 - Panel cost.** `IDELanguageClientImpl.showLocations` currently reads each result file **in full, once per hit, on the main thread** (`FileIOUtils.readFile2String` inside the per-location loop). That is a main-thread I/O violation and O(hits) file reads; Java's find-references has it today and simply rarely produces enough hits to hurt.
+**R10 - Panel cost.** `IDELanguageClientImpl.showLocations` used to read each result file **in full, once per hit, on the main thread** (`FileIOUtils.readFile2String` inside the per-location loop, plus an `exists()` stat per hit). That is a main-thread I/O violation and O(hits) file reads; Java's find-references had it too and simply rarely produced enough hits to hurt.
 
-Rewritten to: group locations by file, then one sequential `BufferedReader` pass per file pulling only the lines its ranges touch, building the `SearchResult`s and retaining nothing before moving on. A file with an open editor uses that editor's live `Content` - no read, no extra memory, and correct for unsaved edits. The whole map is built off the main thread; only `handleSearchResults` touches the UI.
+Rewritten to: group locations by file, then one sequential `BufferedReader` pass per file pulling only the lines its ranges touch, retaining nothing before moving on. The disk pass runs **off** the main thread through `TaskExecutor`, which posts its callback back to the UI thread.
 
-Reads drop from O(hits) to O(files), peak memory is one line rather than one file (deliberately *not* a per-file content cache - holding every result file's text at once is the wrong trade on a phone), and the main thread does no I/O. This removes the need for a result cap, which would otherwise silently truncate. One behaviour change: a stale location whose line no longer exists is dropped rather than yielding whatever `Content` returned.
+A file with an **open editor** is still resolved **on** the UI thread. Its `Content` is live UI state that a background thread must not touch, and pulling a few lines out of it is substring work with no I/O. That is also what keeps unsaved edits reflected in the panel.
+
+Reads drop from O(hits) to O(files), peak memory is one line rather than one file (deliberately *not* a per-file content cache - holding every result file's text at once is the wrong trade on a phone), and the main thread does no I/O. This removes the need for a result cap, which would otherwise silently truncate.
+
+Two behaviour changes, both improvements: a hit whose line no longer exists is dropped rather than yielding whatever `Content` returned, and a file whose every hit is stale is omitted rather than contributing an empty group. The grouping and line extraction live in `SearchResultGrouping` so they can be unit-tested; the activity call is a thin shell.
 
 **R11 - Not ready.** No `CompilationEnvironment` for the file (a script, a file outside the content roots), or no analysis session yet, answers empty and logs. There is no "still indexing" signal; that gap is cross-cutting across every LSP feature and is not solved here.
 
@@ -156,6 +164,7 @@ Reads drop from O(hits) to O(files), peak memory is one line rather than one fil
 - **Searching `.java` files** for usages of a Kotlin declaration. Filed separately.
 - **Usages in test source sets.** Filed separately, as an LSP-wide content-root gap.
 - **Implicit call sites as results** (see Scope).
+- **KDoc `[link]`s as results.** Only `KtSimpleNameExpression`s are examined (R5). Go-to-definition navigates *from* a KDoc link, so this is an asymmetry, but a bounded one.
 - **Library-source usages**, via decompilation or `-sources.jar`.
 - **Categorising results** (imports vs calls vs type references) - the panel has no grouping beyond file.
 - **A partiality signal.** `ReferenceResult` is shared with the Java and XML servers and has no field for it, and `showLocations` has no header slot; the same caveat already applies silently to test sources.
@@ -196,16 +205,16 @@ FindReferencesAction.execAction                   lsp/kotlin/actions
          guards: settings.referencesEnabled(), DocumentUtils.isKotlinFile
          compilationEnvironmentFor(params.file) ?: empty                        [R11]
          -> context(env) { findUsagesAt(params) }        navigation/FindUsages.kt
-              ktFile = env.ktSymbolIndex.getCurrentKtFile(file).await() ?: empty [R5, R11]
-              env.project.read {
-                target = targetAtCaret(ktFile, offset)   navigation/TargetAtCaret.kt [R2]
-                analyzeMaybeDangling(ktFile, COMMAND, cancelChecker) {
-                  matchSet(target) -> List<KaSymbolPointer>                      [R3, R6]
+              planAt(params):                            (retried once if preempted)
+                ktFile = env.ktSymbolIndex.getCurrentKtFile(file).await() ?: empty [R5, R11]
+                env.project.read {
+                  target = targetAtCaret(ktFile, offset) navigation/TargetAtCaret.kt [R2]
+                  analyzeMaybeDangling(ktFile, COMMAND, cancelChecker) {
+                    planFor(target) -> simpleName, matchSet pointers, scope       [R3, R4, R6]
+                  }
                 }
-              }
-              scopeOf(target) -> modules                                        [R4]
-              prefilter(modules, target.name) -> candidate files                 [R5]
-              per candidate file:                                               [R9]
+              candidateFiles(plan)                                              [R5]
+              per candidate file:                        (retried once if preempted) [R9]
                 await live PSI if open                  (outside project.read)
                 env.project.read {
                   analyzeMaybeDangling(file, COMMAND, cancelChecker) {
@@ -217,29 +226,35 @@ FindReferencesAction.execAction                   lsp/kotlin/actions
 
 New components:
 
-- **`navigation/TargetAtCaret.kt`** - `targetAtCaret(file: KtFile, offset: Int): KtElement?`. Pure PSI, no analysis session, so R2's caret rules are testable without one. Shares `ReferenceAtCaret.kt`'s token accept-list and `offset - 1` retry, which become `internal` rather than private.
-- **`navigation/FindUsages.kt`** - the match set, the visibility-derived scope, the prefilter, the per-file resolve loop, and symbol-to-`Location` conversion, reusing go-to-definition's range helper.
+- **`navigation/TargetAtCaret.kt`** - `targetAtCaret(file: KtFile, offset: Int): CaretTarget?`, returning either a `Declaration` or a `Reference` so the resolution step does not re-derive which case it is looking at. Pure PSI, no analysis session, so R2's caret rules are testable without one. Shares `ReferenceAtCaret.kt`'s token accept-list, which becomes `internal`. It checks the leaf at the offset **and** the one before it, because `referenceAtCaret`'s single retry is not enough here: a caret just past `fun target` lands on `(`, which is navigable in its own right, so checking only that leaf made a caret one character past a declaration's name find nothing.
+- **`navigation/FindUsages.kt`** - `planAt` (target, match set, scope) and the per-file resolve loop, reusing go-to-definition's `symbolsAt` and range helper. `planAt`, `SearchPlan` and `candidateFiles` are `internal` rather than private so the visibility ladder is directly assertable: it is *not* observable from a result set, since symbol matching means a same-named decoy can never be a false positive whatever the scope.
+- **`SearchResultGrouping`** (in `app/`) - R10's grouping and line extraction.
+
+An **ambiguous** reference at the caret (overloads, broken code) searches for its first resolved candidate and logs. The alternative is a chooser the panel cannot host, and refusing to search would be worse.
 
 Touched existing components:
 
 - **`KotlinLanguageServer.findReferences`** - the stub's guards stay; it now delegates inside the file's `CompilationEnvironment`, matching how `findDefinition` and `signatureHelp` dispatch.
 - **`navigation/ReferenceAtCaret.kt`** - visibility loosened for reuse. Behaviour unchanged, and its existing tests are kept as the proof of that.
-- **`AnalysisPriority` / `AnalysisScheduler`** - the new `COMMAND` tier ([ADR 0011](../adr/0011-command-analysis-priority.md)).
-- **`GoToDefinitionAction`, `OrganizeImportsAction`, `ImplementMembersAction`** - migrated to `COMMAND`; the latter two gain the retry they never had.
-- **`IDELanguageClientImpl.showLocations`** - R10's grouped streaming rewrite. The grouping and line extraction are extracted into a pure helper so they can be unit-tested; the activity call stays a thin shell.
+- **`AnalysisPriority` / `AnalysisScheduler`** - the new `COMMAND` tier, plus `retryingOnPreemption`, which holds the two invariants every command's retry depends on: a fresh `ScheduledCancelChecker` per attempt (`preempt()` latches), and re-fetching the `KtFile` inside the attempt ([ADR 0011](../adr/0011-command-analysis-priority.md)).
+- **`GoToDefinitionAction`, `OrganizeImportsAction`, `ImplementMembersAction`** - migrated to `COMMAND`; the latter two gain the retry they never had, and take the delegate `ICancelChecker` rather than a pre-wrapped one since wrapping is now per attempt.
+- **`GoToDefinition.symbolsAt`** - `internal`, so the reference-at-caret resolution is shared rather than duplicated.
+- **`IDELanguageClientImpl.showLocations`** - R10's grouped streaming rewrite.
 - **`TooltipTag`** - one new constant (R1).
 
 Unchanged: `ReferenceParams`/`ReferenceResult`, `ILanguageServer`, `IDEEditor`, and every string resource.
 
 ## Verification
 
-Unit tests in `:lsp:kotlin` (`flox activate -d flox/local -- ./gradlew :lsp:kotlin:testV7DebugUnitTest`), split to match the helpers:
+`flox activate -d flox/local -- ./gradlew :lsp:kotlin:testV7DebugUnitTest` and `:app:testV7DebugUnitTest`, split to match the helpers:
 
-- **`TargetAtCaretTest`** - PSI only, no session. Caret on a declaration's own name; caret on a reference; whitespace / comment / non-navigable keyword; one past an identifier; a destructuring entry targeting the local rather than `componentN`.
+- **`TargetAtCaretTest`** (13) - PSI only, no session. Caret on a function's / class's / property's / parameter's own name; caret on a reference rather than the enclosing declaration; one past a declaration's name; a local declaration inside a lambda; a destructuring entry targeting the local rather than `componentN`; an operator; whitespace / comment / non-navigable keyword. One case asserts the contrast directly: the same caret that `referenceAtCaret` rejects still yields a target.
 - **`ReferenceAtCaretTest`** - kept as-is, as the regression proof that loosening visibility changed no behaviour.
-- **`FindUsagesTest`** - the `lib` + `app(dependsOn = lib)` fixture from ADFA-4823: the three resolution scopes; each row of R4's visibility ladder, including a same-named decoy in another file; R3's super-walk, fake-override normalisation, workspace-boundary cutoff and constructor expansion; a Java-source target; dedup, ordering and ranges; the declaration's absence; a pre-cancelled `cancelChecker` returning empty without resolving; and a usage in an open unsaved file (via the `enableParserEventSystem = true` fixture).
+- **`FindUsagesTest`** (20) - the `lib` + `app(dependsOn = lib)` fixture from ADFA-4823: the three resolution scopes; each row of R4's visibility ladder, asserted on the plan's scope rather than the result set; R3's super-walk, workspace-boundary cutoff and constructor expansion; imports; a Java-source target; a same-named decoy in another package; ordering; property reads and writes; a stdlib reference; a caret that names nothing; and a pre-cancelled request.
+- **`FindUsagesLiveDocumentTest`** (2) - R5's live tier, which needs `enableParserEventSystem`: a usage that exists only in an unsaved buffer is found, and one deleted in the buffer but still on disk is not.
+- **`AnalysisSerializationTest`** (+5) - `COMMAND`'s three ordering properties, plus `retryingOnPreemption`'s one-retry-with-a-fresh-checker contract and its refusal to loop.
 - **`KotlinCodeActionTooltipTagTest`** - the new tag row.
-- **The `showLocations` helper** - one read per file, hits grouped by file, a stale line past EOF dropped.
+- **`SearchResultGroupingTest`** (10, in `:app`) - single-line and multi-line hits, a hit on a line that no longer exists, a column past its line's end, only-the-wanted-lines collection, a short file, an unreadable file, and several hits in one file from one read.
 
 Not unit-testable, so covered by on-device QA via the "Steps to QA" field on ADFA-4824: the menu item and its tooltip tag, the panel with a large result set, cancelling mid-search, and typing during a search without losing it.
 
