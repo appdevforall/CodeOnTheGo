@@ -1,15 +1,48 @@
 # Quick Build (ADFA-4128)
 
-Tap the lightning-bolt button once and **CoGo** (Code On The Go, this IDE) installs a generated **proxy app** — a live-reloading build of the user's project; from then on every save live-reloads it, with no reinstall.
+Quick Build exists to collapse the on-device edit loop. Tap the lightning-bolt button once and
+**CoGo** (Code On The Go, this IDE) installs a generated **proxy app** - a live-reloading build of
+the user's project. From then on every save reaches the running app in seconds, with no Gradle
+build and no reinstall.
 
-- **A typical save is ~1-3.5 s.**
-- **The invariant: the proxy app never silently runs stale code.** Every edit either live-reloads or visibly falls back to a real Gradle build.
-- **The whole loop runs on device** — edit -> watch -> compile -> dex -> deploy -> reload all happen on the phone, inside or alongside CoGo. No desktop component is part of the feature.
-- **The first save is warm because of a background warm compile.** The daemon's cold compile (~12 s on a mid-spec phone) is paid by a **warm compile** fired when the session provisions (it starts once provisioning reaches `Ready`), so the tools are warm before your first save. A matched warm-compile-on/off A/B (A56, 3 trials per arm, one build, `hello-kotlin`) puts the first save at **1.9 s warmed vs 11.5 s unwarmed** — 6.1x, almost all of it cold `kotlinc` (`corpus/results/20260728T153938Z-seed-ab/`, benchmark repo). Tap-to-Ready is unchanged, because the warm compile starts after `Ready`.
+- **A typical save is ~1-3.5 s** `[measured on a56]`.
+- That is **3.45x faster than the standard incremental build** of the same edit - median over 78
+  edits across 23 apps `[measured on a56]`.
+- **The slower the device, the bigger the win.** On the 19 edits measured on both tiers, the C107's
+  speedup beat the A56's 19 times out of 19 `[measured on a56, measured on c107]`.
+- **The whole loop runs on device** - edit, watch, compile, dex, deploy, reload. No desktop
+  component is part of the feature.
 
-What live-reloads and what falls back to a real Gradle build is [The boundary](#the-boundary-what-live-reloads-and-what-falls-back-to-gradle) below. Design history lives in Jira ticket ADFA-4128.
+## Goals
 
-Two devices are referenced throughout: the **A56** (Samsung Galaxy A56, the mid-spec reference phone) and the **C107** (a low-spec 3.6 GB device, the lowest tier Quick Build runs on today). **Standard Run** means CoGo's normal Run-button Gradle build, the thing Quick Build sits beside.
+1. **Live-reload as fast as possible.** Under 1 s is the target. A warm save is ~1-3.5 s on the
+   A56 today; on the low-spec C107 the slower edit classes are nearer 5 s
+   `[measured on a56, measured on c107]`.
+2. **The proxy app behaves like the real app, and is never stale.** Same `applicationId`,
+   permissions, components and resources; and every edit either live-reloads or visibly falls back
+   to a real Gradle build - it never quietly keeps running old code. Where the proxy app cannot
+   match the real app, the difference is written down (see Known limitations and
+   [The boundary](#the-boundary-what-live-reloads-and-what-falls-back-to-gradle)).
+3. **The inner loop wins the trade.** Extra time at project open (a *prebuild*) and the memory of a
+   resident compile daemon are acceptable prices for a faster save. The other side of that trade is
+   real and measured: reaching a first working session costs ~24 s more than a plain build on the
+   A56, repaid after about 7 edits `[measured on a56]`.
+
+The full picture of what those numbers do and do not cover is the benchmarking page in Confluence;
+design history is in Jira ticket ADFA-4128.
+
+## What this doc covers
+
+- **Overview and architecture** - the loop, the pieces, the classloading contract, the session
+  states, the boundary between live reload and Gradle, and the rules a change must not break.
+- **The pipeline in detail** - the same eight steps, one section each, for when you are changing one.
+- **Working on Quick Build** - running it on a device, debugging a live session, driving one from
+  outside CoGo, and what to verify before shipping a change.
+- **Reference** - the install slot, the JSON contracts, the daemon wire protocol, and the tunables.
+
+Two devices are referenced throughout: the **A56** (Samsung Galaxy A56, the mid-spec reference
+phone) and the **C107** (a low-spec 3.6 GB device, the lowest tier Quick Build runs on today).
+**Standard Run** means CoGo's normal Run-button Gradle build, the thing Quick Build sits beside.
 
 ## Contents
 
@@ -206,7 +239,7 @@ One sealed state type ([`domain/QuickBuildSessionState.kt`](src/main/java/org/ap
 - **Off-ramp: `Invalidated`** — manifest/gradle/external change; needs a proxy app rebuild.
 - **Off-ramp: `Degraded`** — daemon died; respawn + background warm compile in progress — the respawned daemon deploys nothing until a real edit arrives.
 - **Install-timeout park.** A proxy app rebuild whose reinstall is never confirmed (the installer times out — either the dialog was left untapped, or CoGo was backgrounded and Android never delivered the PENDING_USER_ACTION broadcast, so no dialog appeared at all) does NOT kill the session: it parks in `Invalidated(awaitingRetry = true)` — saves keep accumulating (no build runs; the daemon is down), and either the next lightning-bolt tap or CoGo's next return to the foreground re-runs the proxy app rebuild, which re-prompts the install.
-- **Warm-compile timing.** A background `WarmCompile` build (see Terms) runs after `Ready` is first reached and after every proxy app rebuild, so the daemon is warm before the user's next save.
+- **Warm-compile timing.** A background `WarmCompile` build (see Terms) runs after `Ready` is first reached and after every proxy app rebuild, so the daemon is warm before the user's next save. This is what makes the *first* save fast: a matched on/off A/B (A56, 3 trials per arm, one build, `hello-kotlin`) puts it at **1.9 s warmed vs 11.5 s unwarmed**, 6.1x, almost all of it cold `kotlinc` (`corpus/results/20260728T153938Z-seed-ab/`, benchmark repo). Tap-to-Ready is unchanged, because the warm compile starts after `Ready`.
 - **A compile error is NOT a state change:** the session stays `Ready` at the old generation with `lastFailure` set — the proxy app never moved, which is the never-stale invariant in state form.
 - **One known exception that does NOT converge on its own:** a failed relink wedges the session at the failed resource delta (Known limitations below); the unwedge today is any gradle-file touch, which routes to a proxy app rebuild.
 
