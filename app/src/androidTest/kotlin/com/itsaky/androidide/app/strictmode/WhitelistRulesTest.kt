@@ -73,7 +73,7 @@ class WhitelistRulesTest {
 			stackTraceElement("com.google.firebase.components.Lazy", "get", "Lazy.java", 53),
 			stackTraceElement("com.google.firebase.FirebaseApp", "isDataCollectionDefaultEnabled", "FirebaseApp.java", 371),
 			stackTraceElement("com.google.firebase.analytics.connector.AnalyticsConnectorImpl", "getInstance", "play-services-measurement-api@@22.1.2", 31),
-			stackTraceElement("com.google.firebase.FirebaseApp\$UserUnlockReceiver", "onReceive", "FirebaseApp.java", 672)
+			stackTraceElement("com.google.firebase.FirebaseApp\$UserUnlockReceiver", "onReceive", "FirebaseApp.java", 672),
 			// @formatter:on
 		)
 	}
@@ -84,7 +84,7 @@ class WhitelistRulesTest {
 			stackTraceElement("com.itsaky.androidide.utils.ServiceLoader", "parse"),
 			stackTraceElement(
 				"com.itsaky.androidide.app.configuration.IJdkDistributionProvider\$Companion",
-				"_instance_delegate\$lambda\$0"
+				"_instance_delegate\$lambda\$0",
 			),
 		)
 	}
@@ -95,7 +95,7 @@ class WhitelistRulesTest {
 			stackTraceElement("java.io.File", "exists"),
 			stackTraceElement(
 				"com.itsaky.androidide.activities.OnboardingActivity",
-				"checkToolsIsInstalled"
+				"checkToolsIsInstalled",
 			),
 		)
 	}
