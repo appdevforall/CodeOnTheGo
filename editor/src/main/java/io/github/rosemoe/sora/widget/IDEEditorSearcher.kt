@@ -45,6 +45,18 @@ open class IDEEditorSearcher(
 		this.searchOptions = searchOptions
 	}
 
+	override fun search(
+		query: String,
+		searchOptions: SearchOptions,
+	) {
+		if (query.isNotEmpty()) {
+			markSearching()
+		} else {
+			isSearching = false
+		}
+		super.search(query, searchOptions)
+	}
+
 	override fun replaceAll(
 		replacement: String,
 		whenFinished: Runnable?,
@@ -75,6 +87,7 @@ open class IDEEditorSearcher(
 
 	fun onClose() {
 		isSearching = false
+		stopSearch()
 	}
 
 	private fun markSearching() {
