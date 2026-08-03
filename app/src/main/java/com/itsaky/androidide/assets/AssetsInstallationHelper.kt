@@ -263,6 +263,7 @@ object AssetsInstallationHelper {
 			if (entry.isDirectory) {
 				Files.createDirectories(destFile)
 			} else {
+				Files.createDirectories(destFile.parent)
 				Files.newOutputStream(destFile).use { dest ->
 					zipInput.copyTo(dest)
 				}
