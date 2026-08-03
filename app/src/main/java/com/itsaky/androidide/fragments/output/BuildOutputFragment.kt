@@ -18,7 +18,11 @@ package com.itsaky.androidide.fragments.output
 
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.CheckedTextView
 import android.widget.LinearLayout
+import androidx.appcompat.widget.ListPopupWindow
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
@@ -28,12 +32,14 @@ import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.utils.BasicBuildInfo
+import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -43,7 +49,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class BuildOutputFragment :
 	NonEditableEditorFragment(),
-	SearchableOutputFragment {
+	SearchableOutputFragment,
+	ViewOptionsOutputFragment {
 	private val buildOutputViewModel: BuildOutputViewModel by activityViewModels()
 
 	companion object {
@@ -75,6 +82,7 @@ class BuildOutputFragment :
 		super.onViewCreated(view, savedInstanceState)
 		editor?.tag = TooltipTag.PROJECT_BUILD_OUTPUT
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_buildoutput))
+		setLineNumbersEnabled(buildOutputViewModel.showLineNumbers.value)
 		setupSearchLayout()
 
 		viewLifecycleOwner.lifecycleScope.launch {
@@ -85,21 +93,31 @@ class BuildOutputFragment :
 				buildOutputViewModel.setCachedSnapshot(content)
 			}
 			launch {
-				buildOutputViewModel.filterText.drop(1).collectLatest { query ->
-					renderFiltered(query)
+				combine(
+					buildOutputViewModel.filterText,
+					buildOutputViewModel.showTimestamps,
+					buildOutputViewModel.showDeltas,
+				) { query, ts, deltas ->
+					Triple(query, ts, deltas)
+				}.drop(1).collectLatest { (query, ts, deltas) ->
+					renderFiltered(query, ts, deltas)
 				}
 			}
 		}
 	}
 
-	/** Re-renders the editor window from the session file, filtered by [query]. */
-	private suspend fun renderFiltered(query: String) {
+	/** Re-renders the editor window from the session file, filtered by [query] and visibility options. */
+	private suspend fun renderFiltered(
+		query: String = buildOutputViewModel.filterText.value,
+		showTimestamps: Boolean = buildOutputViewModel.showTimestamps.value,
+		showDeltas: Boolean = buildOutputViewModel.showDeltas.value,
+	) {
 		editorContentMutex.withLock {
 			editorContentGeneration++
 			val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
 			val filtered =
 				withContext(Dispatchers.Default) {
-					BuildOutputViewModel.filterLines(window, query)
+					BuildOutputViewModel.filterLines(window, query, showTimestamps, showDeltas)
 				}
 			withContext(Dispatchers.Main) {
 				editor?.setText(filtered)
@@ -127,6 +145,12 @@ class BuildOutputFragment :
 		searchLayout?.beginSearchMode()
 	}
 
+	fun setLineNumbersEnabled(enabled: Boolean) {
+		val ed = editor ?: return
+		ed.setLineNumberEnabled(enabled)
+		ed.setDividerWidth((if (enabled) requireContext().dpToPx(2f) else 0).toFloat())
+	}
+
 	override fun toggleFilterBar() {
 		val existing = filterBar
 		existing?.toggle() ?: createFilterBar()
@@ -150,6 +174,73 @@ class BuildOutputFragment :
 			),
 		)
 		this.searchLayout = searchLayout
+	}
+
+	private data class ViewOptionItem(
+		val title: String,
+		var isChecked: Boolean,
+		val onToggle: (Boolean) -> Unit,
+	)
+
+	override fun showViewOptions(anchorView: View) {
+		val context = anchorView.context
+		val options =
+			listOf(
+				ViewOptionItem(
+					title = context.getString(R.string.log_filter_line_numbers),
+					isChecked = buildOutputViewModel.showLineNumbers.value,
+					onToggle = { enabled ->
+						buildOutputViewModel.showLineNumbers.value = enabled
+						setLineNumbersEnabled(enabled)
+					},
+				),
+				ViewOptionItem(
+					title = context.getString(R.string.log_filter_timestamps),
+					isChecked = buildOutputViewModel.showTimestamps.value,
+					onToggle = { enabled ->
+						buildOutputViewModel.showTimestamps.value = enabled
+					},
+				),
+				ViewOptionItem(
+					title = context.getString(R.string.log_filter_deltas),
+					isChecked = buildOutputViewModel.showDeltas.value,
+					onToggle = { enabled ->
+						buildOutputViewModel.showDeltas.value = enabled
+					},
+				),
+			)
+
+		val adapter =
+			object : ArrayAdapter<String>(
+				context,
+				android.R.layout.simple_list_item_multiple_choice,
+				options.map { it.title },
+			) {
+				override fun getView(
+					position: Int,
+					convertView: View?,
+					parent: ViewGroup,
+				): View {
+					val view = super.getView(position, convertView, parent)
+					if (view is CheckedTextView) {
+						view.isChecked = options[position].isChecked
+					}
+					return view
+				}
+			}
+
+		val popup = ListPopupWindow(context)
+		popup.anchorView = anchorView
+		popup.setAdapter(adapter)
+		popup.width = context.dpToPx(200f)
+		popup.isModal = true
+		popup.setOnItemClickListener { _, _, position, _ ->
+			val item = options[position]
+			item.isChecked = !item.isChecked
+			item.onToggle(item.isChecked)
+			adapter.notifyDataSetChanged()
+		}
+		popup.show()
 	}
 
 	private fun createFilterBar(): LogFilterBarController? {
@@ -176,7 +267,13 @@ class BuildOutputFragment :
 	private suspend fun restoreWindowFromViewModel() {
 		val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
 		val query = buildOutputViewModel.filterText.value
-		val content = BuildOutputViewModel.filterLines(window, query)
+		val content =
+			BuildOutputViewModel.filterLines(
+				window,
+				query,
+				buildOutputViewModel.showTimestamps.value,
+				buildOutputViewModel.showDeltas.value,
+			)
 		val isSourceEmpty = window.isBlank()
 		val isFilteredEmpty = content.isBlank()
 

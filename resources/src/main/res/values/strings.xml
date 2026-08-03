@@ -698,6 +698,9 @@
 	<string name="log_filter_level_info">Info</string>
 	<string name="log_filter_level_warning">Warning</string>
 	<string name="log_filter_level_error">Error</string>
+    <string name="log_filter_line_numbers">Line numbers</string>
+    <string name="log_filter_timestamps">Timestamps</string>
+    <string name="log_filter_deltas">Time deltas</string>
 	<string name="tooltip_search_output">Search in output</string>
 	<string name="tooltip_filter_output">Filter output</string>
 	<string name="msg_emptyview_buildoutput">"Build the application or run a task to see its build output here. "</string>
