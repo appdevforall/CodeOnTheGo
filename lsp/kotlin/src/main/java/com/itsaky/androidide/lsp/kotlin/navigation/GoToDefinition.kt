@@ -78,8 +78,11 @@ private fun KaSession.resolvedLocations(
  *
  * Resolution over broken code throws, and a throw must read as "not found" rather than crash the
  * request, so both paths are guarded.
+ *
+ * Shared with find usages, which resolves the reference under the caret the same way before searching
+ * for what it names.
  */
-private fun KaSession.symbolsAt(element: KtElement): List<KaSymbol> =
+internal fun KaSession.symbolsAt(element: KtElement): List<KaSymbol> =
 	runCatching {
 		element.mainReference
 			?.resolveToSymbols()
