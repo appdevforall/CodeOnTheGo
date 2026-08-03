@@ -64,6 +64,22 @@ class ExtractZipToDirMergeTest {
 	}
 
 	@Test
+	fun `extracts multiple sibling files under the same directory`() {
+		val dest = Files.createTempDirectory("mvn")
+
+		AssetsInstallationHelper.extractZipToDir(
+			zipOf(
+				"com/foo/1.0/a.txt" to "a",
+				"com/foo/1.0/b.txt" to "b",
+			),
+			dest,
+		)
+
+		assertEquals("a", String(Files.readAllBytes(dest.resolve("com/foo/1.0/a.txt"))))
+		assertEquals("b", String(Files.readAllBytes(dest.resolve("com/foo/1.0/b.txt"))))
+	}
+
+	@Test
 	fun `rejects path traversal`() {
 		val dest = Files.createTempDirectory("mvn")
 		assertThrows(IllegalStateException::class.java) {

@@ -247,6 +247,13 @@ object AssetsInstallationHelper {
 		val normalizedDestDir = destDir.toAbsolutePath().normalize()
 		val realDestDir = normalizedDestDir.toRealPath()
 
+		// Zip entries are commonly clustered by directory (e.g. dozens of files
+		// under the same build-tools/<version>/ prefix); cache the last-verified
+		// parent so consecutive entries under it skip a redundant toRealPath() call.
+		// Nothing below can turn an already-verified real directory into a symlink
+		// mid-run, so caching by lexical parent equality is safe.
+		var lastVerifiedParent: Path? = null
+
 		ZipInputStream(srcStream.buffered()).useEntriesEach { zipInput, entry ->
 			// Validate entry name doesn't contain dangerous patterns
 			if (entry.name.contains("..") || entry.name.startsWith("/") || entry.name.startsWith("\\")) {
@@ -276,8 +283,11 @@ object AssetsInstallationHelper {
 				}
 			} else {
 				Files.createDirectories(destFile.parent)
-				if (!destFile.parent.toRealPath().startsWith(realDestDir)) {
-					throw IllegalStateException("Entry parent escapes the target dir via symlink: ${entry.name}")
+				if (destFile.parent != lastVerifiedParent) {
+					if (!destFile.parent.toRealPath().startsWith(realDestDir)) {
+						throw IllegalStateException("Entry parent escapes the target dir via symlink: ${entry.name}")
+					}
+					lastVerifiedParent = destFile.parent
 				}
 
 				Files.newOutputStream(destFile).use { dest ->
