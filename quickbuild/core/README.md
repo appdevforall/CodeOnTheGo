@@ -14,7 +14,7 @@ Two devices are referenced throughout: the **A56** (Samsung Galaxy A56, the mid-
 ## Contents
 
 - **[Overview and architecture](#overview-and-architecture)** — what it is, how the loop works, and the rules it must not break
-  - [Where to start](#where-to-start) · [Workflow overview](#workflow-overview) · [How a save becomes a reload](#how-a-save-becomes-a-reload) · [Pieces](#pieces)
+  - [Deliberate things that look wrong](#deliberate-things-that-look-wrong) · [Workflow overview](#workflow-overview) · [How a save becomes a reload](#how-a-save-becomes-a-reload) · [Pieces](#pieces)
   - [Proxy-app architecture](#proxy-app-architecture-the-classloading-contract) · [Session model](#session-model) · [The boundary](#the-boundary-what-live-reloads-and-what-falls-back-to-gradle) · [Design decisions](#design-decisions) · [Known limitations (v1)](#known-limitations-v1)
 - **[The pipeline in detail](#the-pipeline-in-detail)** — steps 1-8, the deep dive behind the overview
 - **[Working on Quick Build](#working-on-quick-build)** — [running it on a device](#running-it-on-a-device) · [debugging a session](#debugging-a-session-on-device) · [driving one from outside](#driving-and-observing-a-session-from-outside) · [verifying changes](#verifying-changes)
@@ -23,15 +23,26 @@ Two devices are referenced throughout: the **A56** (Samsung Galaxy A56, the mid-
 
 ## Overview and architecture
 
-### Where to start
+### Deliberate things that look wrong
 
-Reading in this order gets you to the load-bearing parts fastest:
+Code here that reads as a mistake, an over-complication or dead weight, and is none of those. The
+rule for being on this list: someone (or some agent) plausibly "fixes" it and breaks the feature.
 
-1. Step 4's [ChangeClassifier](src/main/java/org/appdevforall/cotg/quickbuild/domain/ChangeClassifier.kt) is the correctness contract — a wrong route means stale code. It lives with the orchestrator, not with the watcher.
-2. Step 2/7's reducer ([SessionReducer](src/main/java/org/appdevforall/cotg/quickbuild/domain/SessionReducer.kt), states in [QuickBuildSessionState](src/main/java/org/appdevforall/cotg/quickbuild/domain/QuickBuildSessionState.kt)) is where every lifecycle bug during ADFA-4128 development lived; the states and off-ramps are its full vocabulary.
-3. [Invariants you must not break](#invariants-you-must-not-break) — five rules that are cheap to violate silently.
-4. Step 5's [FinalStripper](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/dex/FinalStripper.kt) and the scratch move — moving the daemon's work/out trees off FUSE-backed shared storage into app-private f2fs storage — explain the off-FUSE benchmark: strip is per-file I/O, so it collapses when the out dir leaves FUSE ([`docs/perf-roadmap.md`](docs/perf-roadmap.md)).
-5. Step 6's loader diagram is the classloading contract — both template-crash bugs were violations of "by-name resolution must see the payload loader".
+- **The daemon strips `final` off classes before dexing**
+  ([`FinalStripper`](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/dex/FinalStripper.kt)).
+  Not an optimization and not leftover - a `final` user class cannot be extended by its generated
+  proxy.
+- **The daemon's work/out trees live in app-private storage, not beside the project.** Stripping is
+  per-file I/O, and shared storage is FUSE-backed, so keeping the out dir off FUSE is where a large
+  slice of the warm-edit win comes from ([`docs/perf-roadmap.md`](docs/perf-roadmap.md)). Moving it
+  back "next to the project" for tidiness undoes that.
+- **Activity proxies override `getClassLoader()`.** `Context#getClassLoader()` is otherwise pinned
+  to the base APK's loader no matter which loader built the activity, so by-name resolution -
+  `LayoutInflater` custom views, FragmentFactory and Navigation destinations - could never see a
+  payload-only class. Both template crashes during development were violations of this one; the
+  contract is [Proxy-app architecture](#proxy-app-architecture-the-classloading-contract).
+- **The runtime is Java-only with no androidx and no CoGo dependencies.** It is compiled into the
+  user's app, so a convenience dependency here ships in someone else's APK.
 
 ### Workflow overview
 
@@ -189,7 +200,7 @@ The proxy app APK contains the runtime AAR, the user's library dependencies and 
 
 ### Session model
 
-One sealed state type ([`domain/QuickBuildSessionState.kt`](src/main/java/org/appdevforall/cotg/quickbuild/domain/QuickBuildSessionState.kt), with the pure reducer beside it in [`domain/SessionReducer.kt`](src/main/java/org/appdevforall/cotg/quickbuild/domain/SessionReducer.kt)):
+One sealed state type ([`domain/QuickBuildSessionState.kt`](src/main/java/org/appdevforall/cotg/quickbuild/domain/QuickBuildSessionState.kt), with the pure reducer beside it in [`domain/SessionReducer.kt`](src/main/java/org/appdevforall/cotg/quickbuild/domain/SessionReducer.kt)). Nearly every lifecycle bug found during development lived in that reducer, and the states plus off-ramps below are its whole vocabulary:
 
 - **The states:** `Idle` -> `Prebuilding` (eager proxy app build at project open — no install, no daemon) -> `Provisioning` (proxy app build + proxy-app install + daemon spawn) -> `Ready` <-> `Building` -> `Deployed`, plus the two off-ramps below.
 - **Off-ramp: `Invalidated`** — manifest/gradle/external change; needs a proxy app rebuild.
@@ -419,7 +430,7 @@ Two distinctions worth keeping straight, because the names invite confusion. `Pr
 
 ### Step 4 — Live reload orchestration (`:quickbuild:core` `domain/` + `service/`)
 
-The batch arrives here and the classifier decides live reload or proxy app rebuild — the orchestrator owns the classifier, which is why the fork lives inside this box. A live-reload route is sequenced and run; a `FullGradleBuild` route is handed up to session control, since only that can run Gradle. It never loses a pending edit: a save landing mid-build queues and runs next, and the two paths never run concurrently.
+The batch arrives here and the classifier decides live reload or proxy app rebuild — the orchestrator owns the classifier, which is why the fork lives inside this box (not with the watcher). This is the correctness contract of the whole feature: a wrong route means stale code. A live-reload route is sequenced and run; a `FullGradleBuild` route is handed up to session control, since only that can run Gradle. It never loses a pending edit: a save landing mid-build queues and runs next, and the two paths never run concurrently.
 
 ```mermaid
 flowchart TB
