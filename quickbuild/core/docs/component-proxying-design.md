@@ -23,6 +23,36 @@ flowchart LR
     end
 ```
 
+## What the proxy app must satisfy
+
+Every decision below is trying to preserve these. When a change forces a trade-off, trade in this
+order - 1 and 2 are not negotiable against the rest.
+
+1. **It never silently runs stale code.** Every edit either live-reloads or visibly falls back to a
+   real Gradle build. This outranks speed: a fast wrong answer is worse than a slow right one.
+2. **It behaves like the real app.** Same `applicationId`, permissions, icon, label, intent filters
+   and components; real resources; the merged manifest preserved verbatim apart from component
+   names. Where it cannot, the difference is written down and surfaced to the user -
+   [the boundary](../README.md#the-boundary-what-live-reloads-and-what-falls-back-to-gradle) and the
+   README's Known limitations. **A divergence nobody documented is a bug, not a limitation.**
+3. **New classes, resources and assets plug in quickly and reliably.** Generated component names are
+   stable across generations, so a reload never needs a manifest change; user classes travel in a
+   swappable payload dex, resources through a replaceable loader.
+4. **A reload never reinstalls.** The install is paid once, at provisioning. That is where
+   seconds-instead-of-minutes comes from, so any design that reinstalls per edit has lost the point.
+5. **It never strands the user's real app.** One install slot under the real `applicationId`,
+   confirm-on-switch, and a completed Standard Run hands back to a live session - the user can
+   always get back to an ordinary build.
+6. **It runs standalone.** With CoGo not attached the proxy app still starts and runs the newest
+   payload it persisted, rather than silently reverting to the baseline.
+7. **It stays cheap to embed.** The runtime is compiled into the user's app, so it is Java-only with
+   no CoGo dependencies - it must not drag `kotlin-stdlib` or anything else into someone's APK.
+8. **Getting from the running app back to the next edit is smooth.** Tap-to-jump and the return
+   gesture exist today, but this one is directional rather than finished: the review-to-edit loop is
+   where the next round of work goes.
+
+1-7 hold today. 8 is partial by design.
+
 ## Key decisions
 
 - **Every component is proxied by default - user code and library code alike.** The transform never
