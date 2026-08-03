@@ -17,6 +17,8 @@ import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.handlers.GlitchTipDiagnosticsContext
 import com.itsaky.androidide.logging.provider.IdeLogRouter
+import com.itsaky.androidide.preferences.internal.StatPreferences
+import com.itsaky.androidide.preferences.internal.TelemetryConsent
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
@@ -37,6 +39,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.system.exitProcess
 
 /**
@@ -50,6 +53,10 @@ internal object DeviceProtectedApplicationLoader :
 
 	private val crashEventSubscriber = CrashEventSubscriber()
 	val analyticsManager: IAnalyticsManager by inject()
+
+	private val telemetryInitialized = AtomicBoolean(false)
+
+	private const val KEY_LEGACY_PRIVACY_DISCLOSURE_SHOWN = "privacy.disclosure.shown"
 
 	override suspend fun load(app: IDEApplication) {
 		logger.info("Loading device protected storage context components...")
@@ -72,6 +79,41 @@ internal object DeviceProtectedApplicationLoader :
 				isReprieveEnabled = true,
 			),
 		)
+
+		migrateLegacyConsent(app)
+		initTelemetryIfConsented(app)
+
+		ShizukuSettings.initialize()
+
+		EventBus
+			.builder()
+			.addIndex(AppEventsIndex())
+			.addIndex(EditorEventsIndex())
+			.addIndex(ProjectsApiEventsIndex())
+			.addIndex(LspApiEventsIndex())
+			.addIndex(LspJavaEventsIndex())
+			.installDefaultEventBus(true)
+
+		EventBus.getDefault().register(crashEventSubscriber)
+
+		EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
+
+		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
+
+		app.coroutineScope.launch(Dispatchers.IO) {
+			IThemeManager.getInstance()
+		}
+	}
+
+	suspend fun initTelemetryIfConsented(app: IDEApplication) {
+		if (StatPreferences.telemetryConsent != TelemetryConsent.GRANTED) {
+			logger.info("Telemetry not initialized (consent={})", StatPreferences.telemetryConsent)
+			return
+		}
+
+		if (!telemetryInitialized.compareAndSet(false, true)) {
+			return
+		}
 
 		runCatching {
 			// Initialize the Sentry SDK; it reports to our GlitchTip backend
@@ -117,30 +159,28 @@ internal object DeviceProtectedApplicationLoader :
 			logger.error("Failed to initialize crash and log reporting", it)
 		}
 
-		ShizukuSettings.initialize()
-
-		EventBus
-			.builder()
-			.addIndex(AppEventsIndex())
-			.addIndex(EditorEventsIndex())
-			.addIndex(ProjectsApiEventsIndex())
-			.addIndex(LspApiEventsIndex())
-			.addIndex(LspJavaEventsIndex())
-			.installDefaultEventBus(true)
-
-		EventBus.getDefault().register(crashEventSubscriber)
-
-		EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
-
-		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
-
-		app.coroutineScope.launch(Dispatchers.IO) {
-			// early-init theme manager since it may need to perform disk reads
-			IThemeManager.getInstance()
-		}
-
 		withContext(Dispatchers.Main) {
 			initializeAnalytics()
+		}
+	}
+
+	fun onTelemetryConsentGranted(app: IDEApplication) {
+		app.coroutineScope.launch(Dispatchers.Default) {
+			initTelemetryIfConsented(app)
+		}
+	}
+
+	internal fun shouldMigrateLegacyConsent(
+		currentConsent: TelemetryConsent,
+		legacyDisclosureShown: Boolean,
+	): Boolean = currentConsent == TelemetryConsent.UNSET && legacyDisclosureShown
+
+	private fun migrateLegacyConsent(app: IDEApplication) {
+		val legacyDisclosureShown =
+			app.prefManager.getBoolean(KEY_LEGACY_PRIVACY_DISCLOSURE_SHOWN, false)
+		if (shouldMigrateLegacyConsent(StatPreferences.telemetryConsent, legacyDisclosureShown)) {
+			logger.info("Migrating legacy privacy disclosure acceptance to telemetry consent")
+			StatPreferences.telemetryConsent = TelemetryConsent.GRANTED
 		}
 	}
 

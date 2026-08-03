@@ -7,6 +7,8 @@ import com.google.firebase.ktx.Firebase
 import com.itsaky.androidide.analytics.gradle.BuildCompletedMetric
 import com.itsaky.androidide.analytics.gradle.BuildStartedMetric
 import com.itsaky.androidide.analytics.gradle.StrategySelectedMetric
+import com.itsaky.androidide.preferences.internal.StatPreferences
+import com.itsaky.androidide.preferences.internal.TelemetryConsent
 import java.util.concurrent.TimeUnit
 
 interface IAnalyticsManager {
@@ -46,16 +48,19 @@ interface IAnalyticsManager {
 class AnalyticsManager : IAnalyticsManager {
 	private val analytics: FirebaseAnalytics by lazy {
 		Firebase.analytics.apply {
-			setAnalyticsCollectionEnabled(true)
+			setAnalyticsCollectionEnabled(isConsentGranted())
 		}
 	}
 
 	private var sessionStartTime: Long = 0
 
 	override fun initialize() {
+		analytics.setAnalyticsCollectionEnabled(isConsentGranted())
 		trackAppOpen()
 		startSession()
 	}
+
+	private fun isConsentGranted(): Boolean = StatPreferences.telemetryConsent == TelemetryConsent.GRANTED
 
 	override fun trackAppOpen() {
 		val bundle =

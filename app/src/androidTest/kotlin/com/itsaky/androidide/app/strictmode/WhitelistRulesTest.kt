@@ -208,6 +208,33 @@ class WhitelistRulesTest {
 	}
 
 	@Test
+	fun allow_DiskRead_on_TelemetryConsentPrefsResolution() {
+		assertAllowed<DiskReadViolation>(
+			// @formatter:off
+			stackTraceElement("java.io.File", "exists"),
+			stackTraceElement("android.app.ContextImpl", "getDataDir"),
+			stackTraceElement("android.app.ContextImpl", "getPreferencesDir"),
+			stackTraceElement("android.app.ContextImpl", "getSharedPreferencesPath"),
+			stackTraceElement("android.app.ContextImpl", "getSharedPreferences"),
+			stackTraceElement("com.itsaky.androidide.preferences.internal.StatPreferences", "getPrefs"),
+			stackTraceElement("com.itsaky.androidide.preferences.internal.StatPreferences", "getTelemetryConsent"),
+			// @formatter:on
+		)
+	}
+
+	@Test
+	fun allow_DiskRead_on_TelemetryConsentFirstRead() {
+		assertAllowed<DiskReadViolation>(
+			// @formatter:off
+			stackTraceElement("android.os.StrictMode\$AndroidBlockGuardPolicy", "onReadFromDisk"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "awaitLoadedLocked"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "getString"),
+			stackTraceElement("com.itsaky.androidide.preferences.internal.StatPreferences", "getTelemetryConsent"),
+			// @formatter:on
+		)
+	}
+
+	@Test
 	fun allow_DiskWrite_on_MtkAsyncDrawableCache_OsChmod() {
 		assertAllowed<DiskWriteViolation>(
 			// @formatter:off

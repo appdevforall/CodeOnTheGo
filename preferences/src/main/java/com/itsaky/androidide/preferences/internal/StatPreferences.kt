@@ -17,31 +17,44 @@
 
 package com.itsaky.androidide.preferences.internal
 
-/**
- * @author Akash Yadav
- */
-@Suppress("MemberVisibilityCanBePrivate")
+import android.content.Context
+import android.content.SharedPreferences
+import com.itsaky.androidide.app.BaseApplication
+
+enum class TelemetryConsent {
+	UNSET,
+	GRANTED,
+	DECLINED,
+}
+
 object StatPreferences {
+	const val TELEMETRY_CONSENT = "ide.stats.telemetryConsent"
 
-  const val STAT_COLLECTION_CONSENT_SHOWN = "ide.stats.consentShown"
-  const val STAT_OPT_IN = "ide.stats.optIn"
-  const val STAT_LAST_REPORTED = "ide.stats.lastReported"
+	private const val PREFS_FILE = "ide.stats"
 
-  var statConsentDialogShown: Boolean
-    get() = prefManager.getBoolean(STAT_COLLECTION_CONSENT_SHOWN, false)
-    set(value) {
-      prefManager.putBoolean(STAT_COLLECTION_CONSENT_SHOWN, value)
-    }
+	private var cachedPrefs: SharedPreferences? = null
+	private var cachedPrefsApp: BaseApplication? = null
 
-  var statOptIn: Boolean
-    get() = prefManager.getBoolean(STAT_OPT_IN, true)
-    set(value) {
-      prefManager.putBoolean(STAT_OPT_IN, value)
-    }
+	private val prefs: SharedPreferences
+		get() {
+			val app = BaseApplication.baseInstance
+			cachedPrefs?.takeIf { cachedPrefsApp === app }?.let { return it }
+			return app
+				.createDeviceProtectedStorageContext()
+				.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
+				.also {
+					cachedPrefs = it
+					cachedPrefsApp = app
+				}
+		}
 
-  var statLastReported: Long
-    get() = prefManager.getLong(STAT_LAST_REPORTED, 0L)
-    set(value) {
-      prefManager.putLong(STAT_LAST_REPORTED, value)
-    }
+	var telemetryConsent: TelemetryConsent
+		get() =
+			prefs
+				.getString(TELEMETRY_CONSENT, null)
+				?.let { stored -> TelemetryConsent.entries.firstOrNull { it.name == stored } }
+				?: TelemetryConsent.UNSET
+		set(value) {
+			prefs.edit().putString(TELEMETRY_CONSENT, value.name).apply()
+		}
 }
