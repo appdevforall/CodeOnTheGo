@@ -18,6 +18,7 @@ package com.itsaky.androidide.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
@@ -53,13 +54,13 @@ class BuildOutputViewModel(
 	val filterText = MutableStateFlow("")
 
 	/** Toggle for showing wall-clock timestamps `[HH:mm:ss.SSS]` in editor view. */
-	val showTimestamps = MutableStateFlow(true)
+	val showTimestamps = MutableStateFlow(EditorPreferences.outputTimestamps)
 
 	/** Toggle for showing step time deltas `ΔXms` in editor view. */
-	val showDeltas = MutableStateFlow(true)
+	val showDeltas = MutableStateFlow(EditorPreferences.outputDeltas)
 
 	/** Toggle for showing gutter line numbers in editor view. */
-	val showLineNumbers = MutableStateFlow(true)
+	val showLineNumbers = MutableStateFlow(EditorPreferences.outputLineNumbers)
 
 	/**
 	 * Thread-safe snapshot of content for synchronous [getShareableContent] without blocking.

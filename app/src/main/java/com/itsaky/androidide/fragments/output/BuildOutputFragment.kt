@@ -31,6 +31,7 @@ import com.itsaky.androidide.editor.ui.EditorSearchLayout
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.LogFilter
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashInfo
@@ -190,6 +191,7 @@ class BuildOutputFragment :
 					title = context.getString(R.string.log_filter_line_numbers),
 					isChecked = buildOutputViewModel.showLineNumbers.value,
 					onToggle = { enabled ->
+						EditorPreferences.outputLineNumbers = enabled
 						buildOutputViewModel.showLineNumbers.value = enabled
 						setLineNumbersEnabled(enabled)
 					},
@@ -198,6 +200,7 @@ class BuildOutputFragment :
 					title = context.getString(R.string.log_filter_timestamps),
 					isChecked = buildOutputViewModel.showTimestamps.value,
 					onToggle = { enabled ->
+						EditorPreferences.outputTimestamps = enabled
 						buildOutputViewModel.showTimestamps.value = enabled
 					},
 				),
@@ -205,6 +208,7 @@ class BuildOutputFragment :
 					title = context.getString(R.string.log_filter_deltas),
 					isChecked = buildOutputViewModel.showDeltas.value,
 					onToggle = { enabled ->
+						EditorPreferences.outputDeltas = enabled
 						buildOutputViewModel.showDeltas.value = enabled
 					},
 				),
