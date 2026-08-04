@@ -1,12 +1,9 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
-import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
-import org.jetbrains.kotlin.analysis.api.impl.base.util.LibraryUtils
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
-import org.jetbrains.org.objectweb.asm.AnnotationVisitor
-import org.jetbrains.org.objectweb.asm.ClassReader
-import org.jetbrains.org.objectweb.asm.ClassVisitor
-import org.jetbrains.org.objectweb.asm.Opcodes
+import org.objectweb.asm.AnnotationVisitor
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.Opcodes
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.nio.file.Path
@@ -20,26 +17,6 @@ import kotlin.io.path.pathString
 object CombinedJarScanner {
 
 	private val log = LoggerFactory.getLogger(CombinedJarScanner::class.java)
-
-	@OptIn(KaImplementationDetail::class)
-	fun scan(rootVf: VirtualFile, sourceId: String = rootVf.path): Sequence<JvmSymbol> = sequence {
-		val allFiles = LibraryUtils.getAllVirtualFilesFromRoot(rootVf, includeRoot = true)
-		for (vf in allFiles) {
-			if (!vf.name.endsWith(".class")) continue
-			if (vf.name == "module-info.class" || vf.name == "package-info.class") continue
-			try {
-				val bytes = vf.contentsToByteArray()
-				val symbols = if (hasKotlinMetadata(bytes)) {
-					KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
-				} else {
-					JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
-				}
-				symbols?.forEach { yield(it) }
-			} catch (e: Exception) {
-				log.debug("Failed to parse {}: {}", vf.path, e.message)
-			}
-		}
-	}
 
 	fun scan(jarPath: Path, sourceId: String = jarPath.pathString): Sequence<JvmSymbol> = sequence {
 		val jar = try {

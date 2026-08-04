@@ -4,16 +4,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
-import org.jetbrains.kotlin.analysis.api.impl.base.util.LibraryUtils
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
-import org.jetbrains.org.objectweb.asm.AnnotationVisitor
-import org.jetbrains.org.objectweb.asm.ClassReader
-import org.jetbrains.org.objectweb.asm.ClassVisitor
-import org.jetbrains.org.objectweb.asm.FieldVisitor
-import org.jetbrains.org.objectweb.asm.MethodVisitor
-import org.jetbrains.org.objectweb.asm.Opcodes
-import org.jetbrains.org.objectweb.asm.Type
+import org.objectweb.asm.AnnotationVisitor
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.FieldVisitor
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
+import org.objectweb.asm.Type
 import org.slf4j.LoggerFactory
 import java.io.InputStream
 import java.nio.file.Path
@@ -31,25 +28,6 @@ import kotlin.io.path.pathString
 object JarSymbolScanner {
 
 	private val log = LoggerFactory.getLogger(JarSymbolScanner::class.java)
-
-	@OptIn(KaImplementationDetail::class)
-	fun scan(rootVf: VirtualFile, sourceId: String = rootVf.path): Flow<JvmSymbol> = flow {
-		val allFiles = LibraryUtils.getAllVirtualFilesFromRoot(rootVf, includeRoot = true)
-		for (vf in allFiles) {
-			if (!vf.name.endsWith(".class")) continue
-			if (vf.name == "module-info.class" || vf.name == "package-info.class") continue
-			try {
-				vf.contentsToByteArray().inputStream().use { input ->
-					for (symbol in parseClassFile(input, sourceId)) {
-						emit(symbol)
-					}
-				}
-			} catch (e: Exception) {
-				log.debug("Failed to parse {}: {}", vf.path, e.message)
-			}
-		}
-	}
-		.flowOn(Dispatchers.IO)
 
 	fun scan(jarPath: Path, sourceId: String = jarPath.pathString): Flow<JvmSymbol> = flow {
 		val jar = try {
