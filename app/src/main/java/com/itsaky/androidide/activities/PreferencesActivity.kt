@@ -22,6 +22,7 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import androidx.core.graphics.Insets
+import androidx.core.os.BundleCompat
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
@@ -80,8 +81,12 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 		feedbackButtonManager?.setupDraggableFab()
 
 		if (savedInstanceState != null) {
-			// The restored fragment already carries its children; only record what it was built from.
-			contributedPreferences = pluginSettingsPreferences()
+			contributedPreferences =
+				BundleCompat.getParcelableArrayList(
+					savedInstanceState,
+					STATE_CONTRIBUTED_PREFERENCES,
+					PluginSettingsEntryPreference::class.java,
+				)
 			return
 		}
 
@@ -162,9 +167,20 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 		return super.dispatchTouchEvent(ev)
 	}
 
+	override fun onSaveInstanceState(outState: Bundle) {
+		super.onSaveInstanceState(outState)
+		contributedPreferences?.let {
+			outState.putParcelableArrayList(STATE_CONTRIBUTED_PREFERENCES, ArrayList(it))
+		}
+	}
+
 	override fun onResume() {
 		super.onResume()
 		feedbackButtonManager?.loadFabPosition()
 		reloadRootFragmentIfContributedRowsChanged()
+	}
+
+	companion object {
+		private const val STATE_CONTRIBUTED_PREFERENCES = "contributedPreferences"
 	}
 }

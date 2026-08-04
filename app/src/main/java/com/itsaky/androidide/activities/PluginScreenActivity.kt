@@ -120,6 +120,9 @@ class PluginScreenActivity : IDEActivity() {
 		 * `IdeUIServiceImpl.openPluginScreen` builds, so both entry points stay in step. Action-based
 		 * rather than explicit-component to match the manifest intent-filter; [setPackage] keeps it
 		 * inside the app.
+		 *
+		 * No reuse flags: every entry is its own screen, and the extras are only read in [onCreate],
+		 * so a reused instance would keep showing the previous plugin's fragment.
 		 */
 		fun newIntent(
 			context: Context,
@@ -132,7 +135,6 @@ class PluginScreenActivity : IDEActivity() {
 				putExtra(IdeUIService.EXTRA_PLUGIN_ID, pluginId)
 				putExtra(IdeUIService.EXTRA_FRAGMENT_CLASS_NAME, fragmentClassName)
 				putExtra(IdeUIService.EXTRA_TITLE, title)
-				flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
 			}
 	}
 }

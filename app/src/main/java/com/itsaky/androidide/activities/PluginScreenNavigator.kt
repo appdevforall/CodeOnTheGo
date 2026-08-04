@@ -25,12 +25,13 @@ object PluginScreenNavigator {
 		fragmentClassName: String,
 		title: String? = null,
 	): Boolean =
-		runCatching {
+		try {
 			context.startActivity(
 				PluginScreenActivity.newIntent(context, pluginId, fragmentClassName, title),
 			)
 			true
-		}.onFailure { error ->
-			log.error("Failed to open screen $fragmentClassName of plugin $pluginId", error)
-		}.getOrDefault(false)
+		} catch (error: Exception) {
+			log.error("Failed to open screen {} of plugin {}", fragmentClassName, pluginId, error)
+			false
+		}
 }
