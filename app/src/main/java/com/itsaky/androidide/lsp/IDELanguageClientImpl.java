@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import kotlin.Unit;
 import org.slf4j.Logger;
@@ -104,6 +105,9 @@ public class IDELanguageClientImpl implements ILanguageClient {
 	}
 
 	private final Map<File, List<DiagnosticItem>> diagnostics = new HashMap<>();
+
+	/** Identifies the most recent {@link #showLocations(List)} request; older ones must not publish. */
+	private final AtomicInteger showLocationsRequest = new AtomicInteger();
 
 	protected EditorHandlerActivity activity;
 
@@ -269,10 +273,13 @@ public class IDELanguageClientImpl implements ILanguageClient {
 			return;
 		}
 
-		boolean error = locations == null || locations.isEmpty();
-		activity.handleSearchResultVisibility(error);
+		// Claims the panel for this request. The publish below is asynchronous, so without this a slow
+		// request that started first would land last and overwrite the newer search the user is looking at.
+		final int request = showLocationsRequest.incrementAndGet();
 
+		boolean error = locations == null || locations.isEmpty();
 		if (error) {
+			activity.handleSearchResultVisibility(true);
 			activity
 					.setSearchResultAdapter(
 							new SearchListAdapter(Collections.emptyMap(), this::noOp, this::noOp));
@@ -308,14 +315,22 @@ public class IDELanguageClientImpl implements ILanguageClient {
 		}
 
 		if (onDisk.isEmpty()) {
-			activity.handleSearchResults(fromEditors);
+			publishLocations(fromEditors);
 			return;
 		}
+
+		// Some other search may publish (and bump the generation) while the read is in flight; capture it
+		// here so this request does not overwrite whatever replaced it.
+		final int generation = activity.getEditorViewModel().getCurrentSearchGeneration();
 
 		TaskExecutor.executeAsyncProvideError(
 				() -> SearchResultGrouping.INSTANCE.readFromDisk(onDisk),
 				(result, throwable) -> {
-					if (!canUseActivity()) {
+					if (!canUseActivity()
+							|| request != showLocationsRequest.get()
+							|| generation != activity.getEditorViewModel().getCurrentSearchGeneration()) {
+						// Superseded, or the activity went away. Leave the panel to whoever owns it now: this
+						// request's results would be an answer to a question no longer on screen.
 						return;
 					}
 					final Map<File, List<SearchResult>> merged = new HashMap<>(fromEditors);
@@ -324,7 +339,7 @@ public class IDELanguageClientImpl implements ILanguageClient {
 					} else {
 						LOG.error("Failed to read search result files", throwable);
 					}
-					activity.handleSearchResults(merged);
+					publishLocations(merged);
 				});
 	}
 
@@ -480,5 +495,15 @@ public class IDELanguageClientImpl implements ILanguageClient {
 
 	private Unit noOp(final Object obj) {
 		return Unit.INSTANCE;
+	}
+
+	/**
+	 * Shows {@code results} in the search panel.
+	 *
+	 * Visibility and rows are committed together: a publish that never happens - superseded, or the activity recreated mid-read - must not leave the panel open with the "no results" placeholder hidden over the previous query's rows.
+	 */
+	private void publishLocations(final Map<File, List<SearchResult>> results) {
+		activity.handleSearchResultVisibility(results.isEmpty());
+		activity.handleSearchResults(results);
 	}
 }
