@@ -8,9 +8,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Pins the logging guard's contract that logging never alters behavior.
  *
- * In JVM unit tests android.util.Log is the unmocked stub and throws on every call, so each
- * assertion below proves the guard swallowed a real throw: remove any try/catch in RuntimeLog
- * and its test here goes red.
+ * In JVM unit tests android.util.Log is the unmocked stub and throws on every call, so each assertion below proves the guard swallowed a real throw: remove any try/catch in RuntimeLog and its test here goes red.
  */
 class RuntimeLogTest {
 

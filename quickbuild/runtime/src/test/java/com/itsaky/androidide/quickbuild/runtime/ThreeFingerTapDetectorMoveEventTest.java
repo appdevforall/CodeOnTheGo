@@ -7,9 +7,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Pins that actions outside the detector's vocabulary are pure pass-throughs.
  *
- * MOVE, POINTER_UP and the rest must neither fire the gesture nor disturb an in-flight burst:
- * fingers always drift a little between landing, so a MOVE that reset the burst would make the
- * 3-finger tap nearly impossible to perform.
+ * MOVE, POINTER_UP and the rest must neither fire the gesture nor disturb an in-flight burst: fingers always drift a little between landing, so a MOVE that reset the burst would make the 3-finger tap nearly impossible to perform.
  */
 class ThreeFingerTapDetectorMoveEventTest {
 

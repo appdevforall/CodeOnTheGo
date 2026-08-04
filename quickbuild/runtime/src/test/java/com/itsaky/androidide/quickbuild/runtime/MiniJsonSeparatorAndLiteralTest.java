@@ -9,9 +9,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Covers the hand-rolled parser's separator and literal-token edges.
  *
- * A missing comma, a value that starts on a separator, and literals terminated by whitespace,
- * ']' or end-of-input. Every malformed input must throw IllegalArgumentException - the
- * bad-payload contract - rather than parse into something plausible.
+ * A missing comma, a value that starts on a separator, and literals terminated by whitespace, ']' or end-of-input. Every malformed input must throw IllegalArgumentException - the bad-payload contract - rather than parse into something plausible.
  */
 class MiniJsonSeparatorAndLiteralTest {
 

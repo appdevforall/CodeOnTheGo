@@ -14,9 +14,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Covers the atomic-write and best-effort-clear edges of the payload store.
  *
- * Persist must fail loudly when the store cannot be written, since a swallowed write would let a
- * later boot silently serve older code. The writeAtomic rename fallback must recover when only
- * the first rename fails, and clear() must stay best-effort over entries it cannot delete.
+ * Persist must fail loudly when the store cannot be written, since a swallowed write would let a later boot silently serve older code. The writeAtomic rename fallback must recover when only the first rename fails, and clear() must stay best-effort over entries it cannot delete.
  */
 class PayloadPersistenceAtomicWriteTest {
 

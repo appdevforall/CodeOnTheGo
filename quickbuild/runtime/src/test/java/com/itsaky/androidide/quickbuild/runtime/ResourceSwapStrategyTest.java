@@ -5,8 +5,7 @@ import static com.google.common.truth.Truth.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins the version routing: 30+ takes ResourcesLoader, 28/29 the degraded addAssetPath shim,
- * below 28 is unsupported.
+ * Pins the version routing: 30+ takes ResourcesLoader, 28/29 the degraded addAssetPath shim, below 28 is unsupported.
  */
 class ResourceSwapStrategyTest {
 

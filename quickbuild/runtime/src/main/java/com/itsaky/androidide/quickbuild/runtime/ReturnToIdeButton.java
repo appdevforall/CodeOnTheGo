@@ -11,16 +11,11 @@ import android.widget.FrameLayout;
 import android.widget.TextView;
 
 /**
- * Draws the always-present "back to CoGo" button in the bottom-end corner of every proxy app
- * activity.
+ * Draws the always-present "back to CoGo" button in the bottom-end corner of every proxy app activity.
  *
- * It exists because the 3-finger gesture in {@link QuickBuildGestures} is undiscoverable on its
- * own: the one-time hint fades and never returns, leaving a user who missed it with only the
- * recents screen. Tapping runs the same {@link QuickBuildGestures#returnToIde} path as the gesture.
+ * It exists because the 3-finger gesture in {@link QuickBuildGestures} is undiscoverable on its own: the one-time hint fades and never returns, leaving a user who missed it with only the recents screen. Tapping runs the same {@link QuickBuildGestures#returnToIde} path as the gesture.
  *
- * Kept unobtrusive: small, low-alpha, corner-anchored with a margin that clears the system
- * navigation bar. It attaches to the decor view rather than the app's layout, so it never resizes
- * or repositions anything the app under test draws.
+ * Kept unobtrusive: small, low-alpha, corner-anchored with a margin that clears the system navigation bar. It attaches to the decor view rather than the app's layout, so it never resizes or repositions anything the app under test draws.
  */
 final class ReturnToIdeButton {
 
@@ -38,11 +33,10 @@ final class ReturnToIdeButton {
 	/**
 	 * Adds the button to this activity's decor view, once.
 	 *
-	 * Must run on the main thread. Never throws: a failure here must not affect the app under
-	 * test.
+	 * Must run on the main thread. Never throws: a failure here must not affect the app under test.
 	 *
-	 * @param activity the activity whose decor view receives the button; null, or one without a
-	 *     window, is ignored. Calling again on the same decor is a no-op.
+	 * @param activity
+	 *            the activity whose decor view receives the button; null, or one without a window, is ignored. Calling again on the same decor is a no-op.
 	 */
 	void render(Activity activity) {
 		if (activity == null) {
@@ -70,8 +64,8 @@ final class ReturnToIdeButton {
 	/**
 	 * Builds the circular button view, sized and positioned for this activity's display.
 	 *
-	 * @param activity supplies the display density for the dp sizes and is the click target's
-	 *     launch context; captured by the listener, so the view must not outlive it
+	 * @param activity
+	 *            supplies the display density for the dp sizes and is the click target's launch context; captured by the listener, so the view must not outlive it
 	 * @return the tagged, laid-out button, not yet attached to anything
 	 */
 	private View createButton(final Activity activity) {
@@ -109,12 +103,12 @@ final class ReturnToIdeButton {
 	}
 
 	/**
-	 * Height of the system navigation bar, added to the bottom margin so the button never sits on
-	 * top of it.
+	 * Height of the system navigation bar, added to the bottom margin so the button never sits on top of it.
 	 *
 	 * The deprecated accessor is the only one available at minSdk 28.
 	 *
-	 * @param activity the activity whose window insets to read
+	 * @param activity
+	 *            the activity whose window insets to read
 	 * @return the bottom inset in pixels, 0 when the window or its insets are not available yet
 	 */
 	@SuppressWarnings("deprecation")

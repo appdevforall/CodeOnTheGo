@@ -19,9 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Covers the extractor's failure paths: unmountable destination dirs and the rename fallback.
  *
- * A POSIX rename cannot replace a directory with a file, so pre-planting a directory where a
- * file entry must land drives the delete-and-retry fallback both ways: an empty dir lets the
- * fallback succeed, a non-empty one makes extraction fail loudly and leave no temp file behind.
+ * A POSIX rename cannot replace a directory with a file, so pre-planting a directory where a file entry must land drives the delete-and-retry fallback both ways: an empty dir lets the fallback succeed, a non-empty one makes extraction fail loudly and leave no temp file behind.
  */
 class AssetExtractorFailurePathTest {
 

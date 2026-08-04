@@ -7,10 +7,7 @@ import java.util.Map;
 /**
  * Maps a user component class to the proxy class the manifest declares for it.
  *
- * Baked into the proxy app APK as {@code assets/quickbuild/components.json}, a JSON object of
- * {@code "com.example.MainActivity": "<proxy activity class>"}. The manifest needs stable
- * component names while the user's classes stay swappable inside the payload dex, so the runtime
- * translates through this map before launching anything.
+ * Baked into the proxy app APK as {@code assets/quickbuild/components.json}, a JSON object of {@code "com.example.MainActivity": "<proxy activity class>"}. The manifest needs stable component names while the user's classes stay swappable inside the payload dex, so the runtime translates through this map before launching anything.
  */
 final class ComponentMap {
 
@@ -18,13 +15,13 @@ final class ComponentMap {
 	static final ComponentMap EMPTY = new ComponentMap(Collections.<String, String> emptyMap());
 
 	/**
-	 * Parses the component map, dropping non-string values so a schema extension never bricks an
-	 * installed proxy app.
+	 * Parses the component map, dropping non-string values so a schema extension never bricks an installed proxy app.
 	 *
-	 * @param json the whole {@code assets/quickbuild/components.json} text; must be a JSON object
+	 * @param json
+	 *            the whole {@code assets/quickbuild/components.json} text; must be a JSON object
 	 * @return an immutable map holding only the string-valued entries, possibly empty
-	 * @throws IllegalArgumentException when {@code json} is not a well-formed JSON object, which
-	 *     means the proxy app's asset is corrupt
+	 * @throws IllegalArgumentException
+	 *             when {@code json} is not a well-formed JSON object, which means the proxy app's asset is corrupt
 	 */
 	static ComponentMap parse(String json) {
 		Map<String, Object> obj = MiniJson.parseObject(json);
@@ -46,8 +43,8 @@ final class ComponentMap {
 	/**
 	 * The manifest-declared proxy class for {@code userClassName}, or null when unmapped.
 	 *
-	 * @param userClassName binary name of the user's own component class; null is tolerated and
-	 *     answered with null, so callers need not pre-check
+	 * @param userClassName
+	 *            binary name of the user's own component class; null is tolerated and answered with null, so callers need not pre-check
 	 * @return the proxy class name to launch, or null when this component has no proxy
 	 */
 	String proxyFor(String userClassName) {

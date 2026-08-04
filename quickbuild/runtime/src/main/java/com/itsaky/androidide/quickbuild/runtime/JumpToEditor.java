@@ -6,8 +6,7 @@ import android.content.Intent;
 /**
  * Sends the tap-to-jump intent that opens the failing file at the error line in CoGo's editor.
  *
- * Handled by CoGo's {@code QuickBuildJumpActivity} trampoline. The intent names both action and
- * package so no other app can intercept it.
+ * Handled by CoGo's {@code QuickBuildJumpActivity} trampoline. The intent names both action and package so no other app can intercept it.
  */
 final class JumpToEditor {
 
@@ -25,14 +24,16 @@ final class JumpToEditor {
 	/**
 	 * Opens {@code file} at the given position in CoGo's editor, if CoGo can handle it.
 	 *
-	 * Never throws - the overlay tap must not be able to crash the app under test - so an older
-	 * CoGo without the trampoline only logs.
+	 * Never throws - the overlay tap must not be able to crash the app under test - so an older CoGo without the trampoline only logs.
 	 *
-	 * @param context any context able to start an activity; null is ignored, not an error
-	 * @param file absolute path of the failing source file as the compiler reported it; null is
-	 *     ignored, since there is nothing to open
-	 * @param line 1-based line to place the caret on, as reported by the compiler
-	 * @param column 1-based column to place the caret on, as reported by the compiler
+	 * @param context
+	 *            any context able to start an activity; null is ignored, not an error
+	 * @param file
+	 *            absolute path of the failing source file as the compiler reported it; null is ignored, since there is nothing to open
+	 * @param line
+	 *            1-based line to place the caret on, as reported by the compiler
+	 * @param column
+	 *            1-based column to place the caret on, as reported by the compiler
 	 */
 	static void open(Context context, String file, int line, int column) {
 		if (context == null || file == null) {

@@ -11,9 +11,7 @@ import java.util.List;
 /**
  * Tracks the process's live activities so a reload knows which one to recreate.
  *
- * Registered via {@link Application#registerActivityLifecycleCallbacks}. Activities are held
- * weakly so the tracker never keeps a destroyed one alive, and access is synchronized because
- * deploy code reads {@link #topActivity} off the main thread.
+ * Registered via {@link Application#registerActivityLifecycleCallbacks}. Activities are held weakly so the tracker never keeps a destroyed one alive, and access is synchronized because deploy code reads {@link #topActivity} off the main thread.
  */
 final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 
@@ -26,19 +24,20 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	private WeakReference<Activity> resumed;
 
 	/**
-	 * @param runtime the runtime to notify of activity creation and resume; held strongly, which
-	 *     is safe because the runtime outlives every activity
+	 * @param runtime
+	 *            the runtime to notify of activity creation and resume; held strongly, which is safe because the runtime outlives every activity
 	 */
 	ActivityTracker(QuickBuildRuntime runtime) {
 		this.runtime = runtime;
 	}
 
 	/**
-	 * Attaches swapped resources, records the activity, and lets the runtime do its first-activity
-	 * Context work.
+	 * Attaches swapped resources, records the activity, and lets the runtime do its first-activity Context work.
 	 *
-	 * @param activity the activity being created
-	 * @param savedInstanceState the framework's saved state; unused here
+	 * @param activity
+	 *            the activity being created
+	 * @param savedInstanceState
+	 *            the framework's saved state; unused here
 	 */
 	@Override
 	public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
@@ -52,7 +51,8 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	/**
 	 * Drops the activity, and any reference whose activity has already been collected.
 	 *
-	 * @param activity the activity being destroyed
+	 * @param activity
+	 *            the activity being destroyed
 	 */
 	@Override
 	public void onActivityDestroyed(Activity activity) {
@@ -78,8 +78,10 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	 *
 	 * Only fires on API 29+; on older devices {@link #onActivityCreated} is the later backstop.
 	 *
-	 * @param activity the activity about to be created, used only for its Resources
-	 * @param savedInstanceState the framework's saved state; unused here
+	 * @param activity
+	 *            the activity about to be created, used only for its Resources
+	 * @param savedInstanceState
+	 *            the framework's saved state; unused here
 	 */
 	@Override
 	public void onActivityPreCreated(Activity activity, Bundle savedInstanceState) {
@@ -89,7 +91,8 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	/**
 	 * Marks the activity as the reload target and lets the runtime bind its overlay to it.
 	 *
-	 * @param activity the activity now in the foreground
+	 * @param activity
+	 *            the activity now in the foreground
 	 */
 	@Override
 	public void onActivityResumed(Activity activity) {
@@ -111,9 +114,7 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	/**
 	 * Picks the activity a reload should recreate: the resumed one, else the newest live one.
 	 *
-	 * @return the resumed activity, else the newest live one, else null when no live activity
-	 *     remains and the caller should launch the entry activity instead. Finishing activities
-	 *     are skipped, since recreating one would just have it finish again.
+	 * @return the resumed activity, else the newest live one, else null when no live activity remains and the caller should launch the entry activity instead. Finishing activities are skipped, since recreating one would just have it finish again.
 	 */
 	synchronized Activity topActivity() {
 		if (resumed != null) {

@@ -7,8 +7,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Covers the banner-text edges when a build_failed status arrives only partly filled in.
  *
- * The wire schema makes file, line and message all optional, so the rendered text must degrade
- * cleanly on any subset instead of printing "null" or leaving dangling separators.
+ * The wire schema makes file, line and message all optional, so the rendered text must degrade cleanly on any subset instead of printing "null" or leaving dangling separators.
  */
 class OverlayStateTextEdgeTest {
 

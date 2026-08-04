@@ -14,9 +14,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Covers the JVM-testable half of the API 28/29 shim: writing the relinked resource apk to disk.
  *
- * The payload is already the full relinked apk, so persisting it is a plain byte copy and must
- * not be re-wrapped into a synthetic zip. The reflective addAssetPath and the resource cache
- * flush are device-only and are not exercised here.
+ * The payload is already the full relinked apk, so persisting it is a plain byte copy and must not be re-wrapped into a synthetic zip. The reflective addAssetPath and the resource cache flush are device-only and are not exercised here.
  */
 class LegacyResourceSwapTest {
 

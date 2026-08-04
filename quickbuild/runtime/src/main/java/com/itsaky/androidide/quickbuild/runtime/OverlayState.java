@@ -3,19 +3,15 @@ package com.itsaky.androidide.quickbuild.runtime;
 /**
  * Immutable description of what the status overlay currently shows.
  *
- * The overlay is error-only: it tells the user when a build fails or a payload crashes, plus a
- * one-time hint for the return gesture. {@link #building} is the one narrow exception, a neutral
- * in-flight line so a slow compile does not read as silence. Success renders nothing. Every
- * terminal event installs a new state and the overlay always renders the latest, so a transient
- * state cannot get stuck on screen.
+ * The overlay is error-only: it tells the user when a build fails or a payload crashes, plus a one-time hint for the return gesture. {@link #building} is the one narrow exception, a neutral in-flight line so a slow compile does not read as silence. Success renders nothing. Every terminal event installs a new state and the overlay always renders the latest, so a transient state cannot get stuck on screen.
  */
 final class OverlayState {
 
 	/**
 	 * State for a compile error, carrying the location and message for tap-to-jump.
 	 *
-	 * @param status a parsed {@link BuildStatus#KIND_BUILD_FAILED} message; must be non-null, and
-	 *     its already-defaulted fields are copied as they are
+	 * @param status
+	 *            a parsed {@link BuildStatus#KIND_BUILD_FAILED} message; must be non-null, and its already-defaulted fields are copied as they are
 	 * @return the state to render, tappable only when the status named a file
 	 */
 	static OverlayState buildFailed(BuildStatus status) {
@@ -28,8 +24,8 @@ final class OverlayState {
 	 *
 	 * Never offers tap-to-jump; there is no error location yet.
 	 *
-	 * @param runningGeneration the generation the screen still shows, named in the banner text;
-	 *     -1 when unknown, which drops that clause
+	 * @param runningGeneration
+	 *            the generation the screen still shows, named in the banner text; -1 when unknown, which drops that clause
 	 * @return the neutral in-flight state
 	 */
 	static OverlayState building(long runningGeneration) {
@@ -37,11 +33,10 @@ final class OverlayState {
 	}
 
 	/**
-	 * State for a payload that crashed and was rolled back, with a stack summary as
-	 * {@code detail}.
+	 * State for a payload that crashed and was rolled back, with a stack summary as {@code detail}.
 	 *
-	 * @param detail one-line summary of the crash, appended to the banner; null renders the
-	 *     headline alone
+	 * @param detail
+	 *            one-line summary of the crash, appended to the banner; null renders the headline alone
 	 * @return the crash state, never tappable since a crash carries no source location
 	 */
 	static OverlayState crashed(String detail) {
@@ -90,13 +85,20 @@ final class OverlayState {
 	/**
 	 * Stores one state; only the factory methods above construct these.
 	 *
-	 * @param kind which state this is
-	 * @param file failing file for tap-to-jump, or null
-	 * @param line 1-based line for tap-to-jump, or -1
-	 * @param column 1-based column for tap-to-jump, or -1
-	 * @param detail first diagnostic line or crash summary, or null
-	 * @param moreErrors further error count beyond the first, >= 0
-	 * @param runningGeneration generation still on screen for BUILDING, else -1
+	 * @param kind
+	 *            which state this is
+	 * @param file
+	 *            failing file for tap-to-jump, or null
+	 * @param line
+	 *            1-based line for tap-to-jump, or -1
+	 * @param column
+	 *            1-based column for tap-to-jump, or -1
+	 * @param detail
+	 *            first diagnostic line or crash summary, or null
+	 * @param moreErrors
+	 *            further error count beyond the first, >= 0
+	 * @param runningGeneration
+	 *            generation still on screen for BUILDING, else -1
 	 */
 	private OverlayState(Kind kind, String file, int line, int column, String detail,
 			int moreErrors, long runningGeneration) {
@@ -130,16 +132,14 @@ final class OverlayState {
 	/**
 	 * True for the states a successful reload / build must clear.
 	 *
-	 * @return whether this state is BUILD_FAILED or CRASHED; the hint is not an error and
-	 *     survives a successful build
+	 * @return whether this state is BUILD_FAILED or CRASHED; the hint is not an error and survives a successful build
 	 */
 	boolean isError() {
 		return kind == Kind.BUILD_FAILED || kind == Kind.CRASHED;
 	}
 
 	/**
-	 * Builds the banner text for this state; failure copy always says the app still runs the last
-	 * working code.
+	 * Builds the banner text for this state; failure copy always says the app still runs the last working code.
 	 *
 	 * @return the multi-line banner text, empty for {@link Kind#HIDDEN}
 	 */
@@ -186,8 +186,7 @@ final class OverlayState {
 	/**
 	 * Short display location, e.g. "Foo.kt:12"; the full path stays in {@link #file} for the jump.
 	 *
-	 * @return the file name with the line appended, the bare name when the line is unknown, or
-	 *     null when there is no file
+	 * @return the file name with the line appended, the bare name when the line is unknown, or null when there is no file
 	 */
 	private String location() {
 		if (file == null) {

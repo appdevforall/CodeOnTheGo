@@ -11,18 +11,11 @@ import java.nio.ByteBuffer;
 /**
  * Owns the current payload generation and its classloader, process-wide.
  *
- * A singleton because {@link QuickBuildAppComponentFactory}, which the framework instantiates, and
- * the deploy path need the same loader, and there is exactly one live generation per process.
- * Generation and loader travel together in an immutable {@link Payload} swapped atomically, so a
- * reader can never see generation N with generation N-1's classes.
+ * A singleton because {@link QuickBuildAppComponentFactory}, which the framework instantiates, and the deploy path need the same loader, and there is exactly one live generation per process. Generation and loader travel together in an immutable {@link Payload} swapped atomically, so a reader can never see generation N with generation N-1's classes.
  *
- * The dex loads through {@link InMemoryDexClassLoader} with the APK classloader as parent:
- * framework and androidx classes resolve from the APK while user classes exist only in the
- * payload, so parent-first delegation cannot serve a stale user class.
+ * The dex loads through {@link InMemoryDexClassLoader} with the APK classloader as parent: framework and androidx classes resolve from the APK while user classes exist only in the payload, so parent-first delegation cannot serve a stale user class.
  *
- * At boot {@link #ensureBaseline} loads the baked gen-0 dex, then swaps in the newest persisted
- * generation ({@link PayloadPersistence}); otherwise a relaunched process would pin its providers
- * and custom Application to baseline code.
+ * At boot {@link #ensureBaseline} loads the baked gen-0 dex, then swaps in the newest persisted generation ({@link PayloadPersistence}); otherwise a relaunched process would pin its providers and custom Application to baseline code.
  */
 final class PayloadStore {
 
@@ -41,12 +34,9 @@ final class PayloadStore {
 	/**
 	 * Derives the persist dir without a Context, because none exists when the factory first runs.
 	 *
-	 * Takes the package name from /proc/self/cmdline - the default process name is the
-	 * applicationId, and the manifest transformer rejects android:process - and the user id from
-	 * the uid.
+	 * Takes the package name from /proc/self/cmdline - the default process name is the applicationId, and the manifest transformer rejects android:process - and the user id from the uid.
 	 *
-	 * @return the store directory, or null when the derivation fails; {@link #attachPersistence}
-	 *     heals that later
+	 * @return the store directory, or null when the derivation fails; {@link #attachPersistence} heals that later
 	 */
 	private static File defaultPersistDir() {
 		InputStream in = null;
@@ -104,13 +94,13 @@ final class PayloadStore {
 	/**
 	 * Swaps in a new payload atomically, if it is strictly newer than the running one.
 	 *
-	 * A null {@code dex}, meaning a resources or assets-only deploy, keeps the current classes and
-	 * only advances the generation.
+	 * A null {@code dex}, meaning a resources or assets-only deploy, keeps the current classes and only advances the generation.
 	 *
-	 * @param generation the incoming generation; only a strictly newer one is accepted
-	 * @param dex the payload dex, or null for a resources or assets-only deploy
-	 * @return true when the payload was accepted and is now current; false for a stale generation
-	 *     or when no baseline was ever loaded, in which case nothing changed
+	 * @param generation
+	 *            the incoming generation; only a strictly newer one is accepted
+	 * @param dex
+	 *            the payload dex, or null for a resources or assets-only deploy
+	 * @return true when the payload was accepted and is now current; false for a stale generation or when no baseline was ever loaded, in which case nothing changed
 	 */
 	synchronized boolean apply(long generation, ByteBuffer dex) {
 		Payload previous = current;
@@ -135,8 +125,8 @@ final class PayloadStore {
 	 *
 	 * Heals a boot whose pre-Context dir derivation failed; a no-op when boot already resolved it.
 	 *
-	 * @param context any context with a real filesDir, normally the first activity's; also a
-	 *     no-op before a baseline exists, since there would be no fingerprint to gate a load
+	 * @param context
+	 *            any context with a real filesDir, normally the first activity's; also a no-op before a baseline exists, since there would be no fingerprint to gate a load
 	 */
 	synchronized void attachPersistence(Context context) {
 		if (persistence != null || baselineFingerprint == null) {
@@ -161,8 +151,7 @@ final class PayloadStore {
 	/**
 	 * The current payload classloader, or null when no payload is live (runtime inert).
 	 *
-	 * @return the loader every component should be instantiated through, or null to fall back to
-	 *     the framework default
+	 * @return the loader every component should be instantiated through, or null to fall back to the framework default
 	 */
 	ClassLoader classLoader() {
 		Payload payload = current;
@@ -170,15 +159,12 @@ final class PayloadStore {
 	}
 
 	/**
-	 * Loads the gen-0 baseline from the APK once, then swaps in a newer persisted generation if
-	 * one matches it.
+	 * Loads the gen-0 baseline from the APK once, then swaps in a newer persisted generation if one matches it.
 	 *
-	 * Reads the asset through the classloader, not a Context, since the factory runs before any
-	 * Context exists. A missing baseline leaves the store inert, so lookups fall back to the
-	 * default classloader instead of crashing an app the AAR was wrongly injected into.
+	 * Reads the asset through the classloader, not a Context, since the factory runs before any Context exists. A missing baseline leaves the store inert, so lookups fall back to the default classloader instead of crashing an app the AAR was wrongly injected into.
 	 *
-	 * @param apkLoader the base APK's classloader, retained as the parent of every payload
-	 *     loader; null is ignored, and only the first non-null call has any effect
+	 * @param apkLoader
+	 *            the base APK's classloader, retained as the parent of every payload loader; null is ignored, and only the first non-null call has any effect
 	 */
 	synchronized void ensureBaseline(ClassLoader apkLoader) {
 		if (baselineAttempted || apkLoader == null) {
@@ -224,11 +210,9 @@ final class PayloadStore {
 	}
 
 	/**
-	 * The persisted-payload store, or null when unavailable (deploys must then fail loudly on
-	 * restart).
+	 * The persisted-payload store, or null when unavailable (deploys must then fail loudly on restart).
 	 *
-	 * @return the store to persist through, or null when neither boot nor
-	 *     {@link #attachPersistence} could resolve a directory
+	 * @return the store to persist through, or null when neither boot nor {@link #attachPersistence} could resolve a directory
 	 */
 	PayloadPersistence persistence() {
 		return persistence;
@@ -237,11 +221,10 @@ final class PayloadStore {
 	/**
 	 * Rolls back to a {@link #snapshot} after a failed reload.
 	 *
-	 * The app then visibly runs the old generation, and the host hears about it via reportCrash,
-	 * rather than claiming a generation whose classes never rendered.
+	 * The app then visibly runs the old generation, and the host hears about it via reportCrash, rather than claiming a generation whose classes never rendered.
 	 *
-	 * @param payload the value {@link #snapshot} returned before the failed apply; restored
-	 *     verbatim, null included
+	 * @param payload
+	 *            the value {@link #snapshot} returned before the failed apply; restored verbatim, null included
 	 */
 	synchronized void restore(Payload payload) {
 		current = payload;
@@ -259,8 +242,7 @@ final class PayloadStore {
 	/**
 	 * Persisted resource payloads found at boot; null after the first call (one consumer).
 	 *
-	 * @return the boot-time payload whose resources still need applying, or null when there was
-	 *     none or it has already been taken
+	 * @return the boot-time payload whose resources still need applying, or null when there was none or it has already been taken
 	 */
 	synchronized PayloadPersistence.Loaded takePendingBootResources() {
 		PayloadPersistence.Loaded pending = pendingBootResources;
@@ -269,15 +251,12 @@ final class PayloadStore {
 	}
 
 	/**
-	 * Adopts a matching persisted payload's generation and classes now, before any provider or
-	 * Application instantiates.
+	 * Adopts a matching persisted payload's generation and classes now, before any provider or Application instantiates.
 	 *
-	 * Resource payloads cannot apply without a Context, so they are stashed for
-	 * {@link #takePendingBootResources}. Any failure keeps the gen-0 baseline, which is always
-	 * safe.
+	 * Resource payloads cannot apply without a Context, so they are stashed for {@link #takePendingBootResources}. Any failure keeps the gen-0 baseline, which is always safe.
 	 *
-	 * @param apkLoader the base APK's classloader, the parent of the loader built from the
-	 *     persisted dex; must be the same one the baseline was read through
+	 * @param apkLoader
+	 *            the base APK's classloader, the parent of the loader built from the persisted dex; must be the same one the baseline was read through
 	 */
 	private void loadPersisted(ClassLoader apkLoader) {
 		try {
@@ -312,16 +291,15 @@ final class PayloadStore {
 		final long generation;
 
 		/**
-		 * The loader serving that generation's classes; shared with the previous payload when the
-		 * deploy carried no dex.
+		 * The loader serving that generation's classes; shared with the previous payload when the deploy carried no dex.
 		 */
 		final ClassLoader classLoader;
 
 		/**
-		 * @param generation the generation these classes came from; 0 is the APK baseline, and
-		 *     later deploys must only ever increase it
-		 * @param classLoader the loader to instantiate components through; never null in practice,
-		 *     since an inert store holds no Payload at all
+		 * @param generation
+		 *            the generation these classes came from; 0 is the APK baseline, and later deploys must only ever increase it
+		 * @param classLoader
+		 *            the loader to instantiate components through; never null in practice, since an inert store holds no Payload at all
 		 */
 		Payload(long generation, ClassLoader classLoader) {
 			this.generation = generation;

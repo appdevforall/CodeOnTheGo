@@ -12,18 +12,14 @@ import org.w3c.dom.NodeList;
 /**
  * Pins that the runtime AAR manifest declares no {@code android:appComponentFactory}.
  *
- * If it did, a debuggable app also pulling androidx.core would fail manifest merge at
- * {@code processDebugMainManifest} before the proxy build's merged-manifest transform runs -
- * the failure that once killed Quick Build provisioning for every app template. The proxy app
- * build owns the factory; the XML is parsed so this comment's mention cannot trip the check.
+ * If it did, a debuggable app also pulling androidx.core would fail manifest merge at {@code processDebugMainManifest} before the proxy build's merged-manifest transform runs - the failure that once killed Quick Build provisioning for every app template. The proxy app build owns the factory; the XML is parsed so this comment's mention cannot trip the check.
  */
 class ManifestAppComponentFactoryTest {
 
 	/**
 	 * Resolves this module's src/main/AndroidManifest.xml from the test working directory.
 	 *
-	 * Gradle runs unit tests with the working directory at the module root, so no search is
-	 * needed, and no module path is hardcoded that a module move would silently invalidate.
+	 * Gradle runs unit tests with the working directory at the module root, so no search is needed, and no module path is hardcoded that a module move would silently invalidate.
 	 *
 	 * @return the manifest file; a miss throws rather than letting the test pass vacuously
 	 */

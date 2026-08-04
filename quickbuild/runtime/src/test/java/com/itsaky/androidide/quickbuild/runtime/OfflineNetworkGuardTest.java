@@ -11,10 +11,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Fails if any production class in the `:quickbuild:runtime` AAR references a network API.
  *
- * Covers ADFA-4128 offline-test-plan touchpoints 7-10. The AAR is what generated proxy apps
- * embed to bind to CoGo and hot-reload payloads over binder IPC, so it must be provably
- * network-free. The scan reads compiled constant pools and names the offending class plus
- * constant; it runs in the normal `test` task, so a regression is caught in CI, not on a device.
+ * Covers ADFA-4128 offline-test-plan touchpoints 7-10. The AAR is what generated proxy apps embed to bind to CoGo and hot-reload payloads over binder IPC, so it must be provably network-free. The scan reads compiled constant pools and names the offending class plus constant; it runs in the normal `test` task, so a regression is caught in CI, not on a device.
  */
 class OfflineNetworkGuardTest {
 
@@ -31,9 +28,7 @@ class OfflineNetworkGuardTest {
 	/**
 	 * Proves the detector fires on banned bytes and stays quiet on local-URL APIs.
 	 *
-	 * Without it, a green scan could be a scanner that can never fire. `java/net/URL`, `URI` and
-	 * `URLClassLoader` are absent from this module today and absent from
-	 * {@link OfflineGuard#BANNED}, so adding one for a local `file:` URI would not trip the test.
+	 * Without it, a green scan could be a scanner that can never fire. `java/net/URL`, `URI` and `URLClassLoader` are absent from this module today and absent from {@link OfflineGuard#BANNED}, so adding one for a local `file:` URI would not trip the test.
 	 */
 	@Test
 	void detectorFiresOnBannedBytesAndNotOnAllowedBytes() {

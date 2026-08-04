@@ -7,10 +7,7 @@ import android.view.MotionEvent;
 /**
  * Turns a 3-finger tap in the proxy app into a jump back to CoGo.
  *
- * Public because generated proxy activities call it from their {@code dispatchTouchEvent} override
- * (see ProxySourceGenerator in :gradle-plugin); everything else in this AAR is package-private. It
- * only observes the event - the proxy always forwards to {@code super.dispatchTouchEvent}
- * afterwards, so the app under test sees every touch unmodified and undelayed.
+ * Public because generated proxy activities call it from their {@code dispatchTouchEvent} override (see ProxySourceGenerator in :gradle-plugin); everything else in this AAR is package-private. It only observes the event - the proxy always forwards to {@code super.dispatchTouchEvent} afterwards, so the app under test sees every touch unmodified and undelayed.
  */
 public final class QuickBuildGestures {
 
@@ -19,13 +16,12 @@ public final class QuickBuildGestures {
 	/**
 	 * Feeds one touch event to the detector and returns to CoGo when the gesture completes.
 	 *
-	 * Never throws and never consumes the event: a gesture bug must not break the app's touch
-	 * input.
+	 * Never throws and never consumes the event: a gesture bug must not break the app's touch input.
 	 *
-	 * @param activity the proxy activity dispatching the touch, used to launch CoGo when the
-	 *     gesture fires; null is ignored
-	 * @param event the event being dispatched, read only for action, pointer count and event
-	 *     time; null is ignored
+	 * @param activity
+	 *            the proxy activity dispatching the touch, used to launch CoGo when the gesture fires; null is ignored
+	 * @param event
+	 *            the event being dispatched, read only for action, pointer count and event time; null is ignored
 	 */
 	public static void onDispatchTouchEvent(Activity activity, MotionEvent event) {
 		if (activity == null || event == null) {
@@ -45,10 +41,10 @@ public final class QuickBuildGestures {
 	/**
 	 * Launches CoGo, or logs when it has no launch intent.
 	 *
-	 * Package-private so {@link ReturnToIdeButton} shares this exact path: the gesture and the
-	 * visible button are two triggers for one action.
+	 * Package-private so {@link ReturnToIdeButton} shares this exact path: the gesture and the visible button are two triggers for one action.
 	 *
-	 * @param activity the activity to start CoGo from; must be non-null, as both callers have one
+	 * @param activity
+	 *            the activity to start CoGo from; must be non-null, as both callers have one
 	 */
 	static void returnToIde(Activity activity) {
 		Intent launch = activity.getPackageManager()

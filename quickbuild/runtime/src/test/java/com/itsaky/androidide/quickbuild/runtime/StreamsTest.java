@@ -67,8 +67,7 @@ class StreamsTest {
 	/**
 	 * Claims {@code size} zero bytes without ever allocating them.
 	 *
-	 * Makes the 256 MB default cap testable in-heap: the capped reader must throw before it
-	 * buffers anywhere near that much.
+	 * Makes the 256 MB default cap testable in-heap: the capped reader must throw before it buffers anywhere near that much.
 	 */
 	private static final class OversizedStream extends java.io.InputStream {
 

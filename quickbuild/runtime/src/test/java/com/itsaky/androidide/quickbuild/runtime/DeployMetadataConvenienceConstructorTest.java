@@ -6,8 +6,7 @@ import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins the 3-arg no-restart shorthand: restart defaults to false and the full constructor's
- * null-safety applies unchanged.
+ * Pins the 3-arg no-restart shorthand: restart defaults to false and the full constructor's null-safety applies unchanged.
  */
 class DeployMetadataConvenienceConstructorTest {
 

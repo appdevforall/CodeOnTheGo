@@ -11,11 +11,7 @@ import android.widget.TextView;
 /**
  * Draws the translucent status banner just below the system status bar.
  *
- * It attaches to the window decor with a status-bar top margin, so the system bar stays untouched
- * while the app's own chrome may be overlapped; this is an error surface. Rendering is stateless:
- * {@link #render} makes the banner match the given {@link OverlayState} exactly, creating,
- * updating or removing it. There is no separate clear call to forget, which is what makes a stuck
- * banner impossible.
+ * It attaches to the window decor with a status-bar top margin, so the system bar stays untouched while the app's own chrome may be overlapped; this is an error surface. Rendering is stateless: {@link #render} makes the banner match the given {@link OverlayState} exactly, creating, updating or removing it. There is no separate clear call to forget, which is what makes a stuck banner impossible.
  */
 final class StatusOverlay {
 
@@ -29,8 +25,8 @@ final class StatusOverlay {
 	/**
 	 * Banner background color for a state kind.
 	 *
-	 * @param kind the state being rendered; anything but BUILD_FAILED and CRASHED, HIDDEN
-	 *     included, takes the neutral hint color
+	 * @param kind
+	 *            the state being rendered; anything but BUILD_FAILED and CRASHED, HIDDEN included, takes the neutral hint color
 	 * @return an ARGB color, deliberately translucent so the app stays readable behind it
 	 */
 	private static int colorFor(OverlayState.Kind kind) {
@@ -49,10 +45,10 @@ final class StatusOverlay {
 	 *
 	 * Must run on the main thread. Never throws: overlay failures are logged, not fatal.
 	 *
-	 * @param activity the activity whose decor view hosts the banner; null, or one without a
-	 *     window, is ignored
-	 * @param state the state to render; a HIDDEN state removes the banner, so this is the only
-	 *     call needed to clear it. Null is ignored rather than treated as HIDDEN.
+	 * @param activity
+	 *            the activity whose decor view hosts the banner; null, or one without a window, is ignored
+	 * @param state
+	 *            the state to render; a HIDDEN state removes the banner, so this is the only call needed to clear it. Null is ignored rather than treated as HIDDEN.
 	 */
 	void render(Activity activity, OverlayState state) {
 		if (activity == null || state == null) {
@@ -92,12 +88,12 @@ final class StatusOverlay {
 	/**
 	 * Sets the banner's top margin to the status-bar inset, so it starts just below the bar.
 	 *
-	 * Reads the inset directly because listener dispatch is consumed by the app's root and never
-	 * reaches us. The deprecated accessor is the only one available at minSdk 28.
+	 * Reads the inset directly because listener dispatch is consumed by the app's root and never reaches us. The deprecated accessor is the only one available at minSdk 28.
 	 *
-	 * @param decor the decor view the banner is attached to, the source of the insets
-	 * @param banner the banner view whose layout params are updated in place, and only when the
-	 *     margin actually changed, to avoid a needless relayout on every render
+	 * @param decor
+	 *            the decor view the banner is attached to, the source of the insets
+	 * @param banner
+	 *            the banner view whose layout params are updated in place, and only when the margin actually changed, to avoid a needless relayout on every render
 	 */
 	@SuppressWarnings("deprecation")
 	private void applyStatusBarInset(ViewGroup decor, TextView banner) {
@@ -114,10 +110,12 @@ final class StatusOverlay {
 	/**
 	 * Makes the banner tappable when the state has an error location, and inert otherwise.
 	 *
-	 * @param banner the banner view whose click listener is set or cleared
-	 * @param activity the source of the application context the jump intent is started from
-	 * @param state supplies the file and position to jump to; re-bound on every render, so a
-	 *     stale listener can never point at the previous error
+	 * @param banner
+	 *            the banner view whose click listener is set or cleared
+	 * @param activity
+	 *            the source of the application context the jump intent is started from
+	 * @param state
+	 *            supplies the file and position to jump to; re-bound on every render, so a stale listener can never point at the previous error
 	 */
 	private void bindJump(TextView banner, final Activity activity, final OverlayState state) {
 		if (state.canJumpToEditor()) {
@@ -138,7 +136,8 @@ final class StatusOverlay {
 	/**
 	 * Builds the banner view; the caller sets its color, text and click target.
 	 *
-	 * @param activity supplies the display density for the padding and elevation
+	 * @param activity
+	 *            supplies the display density for the padding and elevation
 	 * @return the tagged, full-width, top-anchored banner, not yet attached to anything
 	 */
 	private TextView createBanner(Activity activity) {

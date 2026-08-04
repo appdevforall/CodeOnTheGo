@@ -10,9 +10,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Pins the never-throws promise of the public Service-typed entry points against a null service.
  *
- * Neither the null nor the logging inside may crash a user's service lifecycle or corrupt the
- * census. Null is the vehicle because android.app.Service is not constructible in a JVM test;
- * the census logic itself is covered through the Object-typed seams in ServiceTrackerTest.
+ * Neither the null nor the logging inside may crash a user's service lifecycle or corrupt the census. Null is the vehicle because android.app.Service is not constructible in a JVM test; the census logic itself is covered through the Object-typed seams in ServiceTrackerTest.
  */
 class ServiceTrackerNullSafetyTest {
 

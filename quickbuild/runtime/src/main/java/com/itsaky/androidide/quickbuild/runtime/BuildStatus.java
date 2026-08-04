@@ -5,9 +5,7 @@ import java.util.Map;
 /**
  * Parsed form of the {@code statusJson} argument of {@code IQuickBuildTarget.onBuildStatus}.
  *
- * Schema is in quickbuild/core/README.md. Every value is a string on the wire because
- * {@link MiniJson} reads only strings. Unknown kinds parse to null and unknown fields are ignored,
- * so CoGo can extend the schema without breaking installed proxy apps.
+ * Schema is in quickbuild/core/README.md. Every value is a string on the wire because {@link MiniJson} reads only strings. Unknown kinds parse to null and unknown fields are ignored, so CoGo can extend the schema without breaking installed proxy apps.
  */
 final class BuildStatus {
 
@@ -23,10 +21,11 @@ final class BuildStatus {
 	/**
 	 * Parses one build status message.
 	 *
-	 * @param json the {@code statusJson} argument of {@code onBuildStatus}; must be a JSON object
-	 * @return the parsed status, or null for a kind this runtime does not know; unknown kinds are
-	 *     ignored, not errors
-	 * @throws IllegalArgumentException on malformed JSON, for the caller to log and drop
+	 * @param json
+	 *            the {@code statusJson} argument of {@code onBuildStatus}; must be a JSON object
+	 * @return the parsed status, or null for a kind this runtime does not know; unknown kinds are ignored, not errors
+	 * @throws IllegalArgumentException
+	 *             on malformed JSON, for the caller to log and drop
 	 */
 	static BuildStatus parse(String json) {
 		Map<String, Object> obj = MiniJson.parseObject(json);
@@ -54,8 +53,10 @@ final class BuildStatus {
 	/**
 	 * Reads a wire value as an int, since every JSON value here is a string.
 	 *
-	 * @param value the raw value {@link MiniJson} produced, possibly null
-	 * @param fallback returned when the value is absent, not a string, or not a number
+	 * @param value
+	 *            the raw value {@link MiniJson} produced, possibly null
+	 * @param fallback
+	 *            returned when the value is absent, not a string, or not a number
 	 * @return the parsed int, or {@code fallback}
 	 */
 	private static int asInt(Object value, int fallback) {
@@ -72,8 +73,10 @@ final class BuildStatus {
 	/**
 	 * Reads a wire value as a long, for the generation counter.
 	 *
-	 * @param value the raw value {@link MiniJson} produced, possibly null
-	 * @param fallback returned when the value is absent, not a string, or not a number
+	 * @param value
+	 *            the raw value {@link MiniJson} produced, possibly null
+	 * @param fallback
+	 *            returned when the value is absent, not a string, or not a number
 	 * @return the parsed long, or {@code fallback}
 	 */
 	private static long asLong(Object value, long fallback) {
@@ -90,7 +93,8 @@ final class BuildStatus {
 	/**
 	 * Narrows a parsed JSON value to a string, so an unexpected type defaults instead of throwing.
 	 *
-	 * @param value the raw value {@link MiniJson} produced, possibly null
+	 * @param value
+	 *            the raw value {@link MiniJson} produced, possibly null
 	 * @return {@code value} as a string, or null when absent or of another type
 	 */
 	private static String asString(Object value) {
@@ -121,13 +125,20 @@ final class BuildStatus {
 	/**
 	 * Stores one already-defaulted status; only {@link #parse} constructs these.
 	 *
-	 * @param kind one of the KIND_ constants
-	 * @param file failing source file, or null when the kind has none
-	 * @param line 1-based line of the first error, or -1 when unknown
-	 * @param column 1-based column of the first error, or -1 when unknown
-	 * @param message first line of the first error message, or null
-	 * @param moreErrors further error count beyond the first, already clamped to >= 0
-	 * @param runningGeneration generation still running, for {@link #KIND_BUILDING}, else -1
+	 * @param kind
+	 *            one of the KIND_ constants
+	 * @param file
+	 *            failing source file, or null when the kind has none
+	 * @param line
+	 *            1-based line of the first error, or -1 when unknown
+	 * @param column
+	 *            1-based column of the first error, or -1 when unknown
+	 * @param message
+	 *            first line of the first error message, or null
+	 * @param moreErrors
+	 *            further error count beyond the first, already clamped to >= 0
+	 * @param runningGeneration
+	 *            generation still running, for {@link #KIND_BUILDING}, else -1
 	 */
 	private BuildStatus(String kind, String file, int line, int column, String message,
 			int moreErrors, long runningGeneration) {
