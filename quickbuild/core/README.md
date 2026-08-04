@@ -201,5 +201,4 @@ Design notes for this module live in [`docs/`](docs/); repo-level ADRs are one l
 Three things live outside this repo:
 
 - **The benchmark corpus, harness and results**, in the standalone `CodeOnTheGo-build-benchmark` repo - every `corpus/...` path above maps into it. It drives CoGo only through the declared interfaces, so it cannot mask a break in them. Methodology and the QA records (low-spec runbook, template sweep, commit survey) are there too.
-- **Earlier revisions of these docs**, in the archived history tag `adfa-4128-history-20260731`.
-- **Design history**, in Jira ADFA-4128.
+- **History** - earlier revisions of these docs in the archived tag `adfa-4128-history-20260731`, design history in Jira ADFA-4128.
