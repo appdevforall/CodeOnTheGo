@@ -13,46 +13,44 @@ import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpact
 import org.appdevforall.cotg.quickbuild.domain.annotations.SwitchableAnnotationImpact
 
 /**
- * One live Quick Build session's wiring: the orchestrator, watcher, tracker, and the
- * ProxyAppInfo-derived pieces a proxy app rebuild swaps out. Assembled by
- * [LiveSessionFactory]; owned (and mutated) only by
- * [QuickBuildSessionManager] on the session dispatcher.
+ * Holds the wiring of one live Quick Build session: orchestrator, watcher, tracker, and
+ * the ProxyAppInfo-derived pieces a proxy app rebuild replaces.
  *
- * [proxyApp]/[layout] are mutable and [executor]/[annotationImpact] are switchable
- * delegates for the same reason: a proxy app rebuild regenerates setup.json and must
- * move the session to the new baseline without rebuilding the orchestrator (whose
- * pending-changes bookkeeping has to survive the rebuild).
+ * Assembled by [LiveSessionFactory]; read and mutated only by [QuickBuildSessionManager]
+ * on the session dispatcher. [proxyApp] and [layout] are mutable, and [executor] and
+ * [annotationImpact] are switchable delegates, so a rebuild can move the session to the
+ * new baseline while keeping the orchestrator and its pending-changes bookkeeping.
  */
 internal class LiveSession(
-	/** Mutable: a proxy app rebuild regenerates setup.json and must move this snapshot. */
 	var proxyApp: ProxyAppInfo,
 	var layout: QuickBuildProjectLayout,
 	val tracker: GenerationTracker,
 	val filter: WatchFilter,
 	val orchestrator: LiveReloadOrchestrator,
 	val watcher: ProjectWatcher,
-	/** Seam the proxy app rebuild swaps a fresh ProxyAppInfo-derived executor into. */
+	/** Seam a proxy app rebuild swaps a fresh ProxyAppInfo-derived executor into. */
 	val executor: SwitchableExecutor,
-	/** Seam the proxy app rebuild swaps a fresh annotation baseline into. */
+	/** Seam a proxy app rebuild swaps a fresh annotation baseline into. */
 	val annotationImpact: SwitchableAnnotationImpact,
 ) {
 	/**
 	 * Newest generation a deploy verifiably landed in this session, or -1 before the
-	 * first one. The reconnect catch-up compares against THIS (not the allocation
-	 * counter, which persists across sessions and burns numbers on failed builds):
-	 * a proxy app reconnecting below it is running code this session already
-	 * superseded.
+	 * first one.
+	 *
+	 * Reconnect catch-up compares against this rather than the allocation counter, which
+	 * persists across sessions and burns numbers on failed builds. A proxy app
+	 * reconnecting below it is running superseded code.
 	 */
 	var lastDeployedGeneration = -1L
 
 	/**
-	 * Moves this session onto the baseline a proxy app rebuild just installed. Every
-	 * ProxyAppInfo-derived piece moves together or none does: leave one behind and the
-	 * deploy policy keeps routing on provisioning-time facts - a service the rebuild
-	 * just proxied would hot-swap and silently leave its live instance stale.
+	 * Moves this session onto the baseline a proxy app rebuild just installed.
 	 *
-	 * The caller must have both delegates in hand already, because building them can
-	 * fail and a failure has to leave the OLD baseline fully intact.
+	 * Every ProxyAppInfo-derived piece moves together: leaving one behind lets the deploy
+	 * policy keep routing on provisioning-time facts, so a newly proxied service would
+	 * hot-swap and leave its live instance stale. Callers must already hold both
+	 * delegates, since building them can fail and a failure has to leave the old baseline
+	 * intact.
 	 */
 	suspend fun adoptBaseline(
 		proxyApp: ProxyAppInfo,
@@ -72,10 +70,12 @@ internal class LiveSession(
 }
 
 /**
- * Executor indirection for [LiveSession]: the orchestrator holds one executor for
- * its lifetime, but a proxy app rebuild must rebuild the executor from the re-read
- * setup.json (new deploy-policy components, launcher/entry targets). Swapping the
- * delegate keeps the orchestrator - and its pending-changes bookkeeping - intact.
+ * Lets [LiveSession] replace its executor without replacing the orchestrator.
+ *
+ * The orchestrator holds one executor for its lifetime, but a proxy app rebuild has to
+ * rebuild the executor from the re-read setup.json (new deploy-policy components,
+ * launcher and entry targets). Swapping the delegate keeps the orchestrator's
+ * pending-changes bookkeeping.
  */
 internal class SwitchableExecutor(
 	@Volatile var delegate: LiveReloadExecutor,

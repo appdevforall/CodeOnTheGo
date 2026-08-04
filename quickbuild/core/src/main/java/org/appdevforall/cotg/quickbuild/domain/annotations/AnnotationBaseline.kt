@@ -3,24 +3,22 @@ package org.appdevforall.cotg.quickbuild.domain.annotations
 import java.io.File
 
 /**
- * The annotation-processor input the proxy app build actually ran against - the reference
- * every later edit is compared to.
+ * The annotation-processor input the proxy app build ran against - the reference every later
+ * edit is compared to.
  *
- * Comparing against the BASELINE (not against the previous edit) is what makes the fast
- * path correct: the generated code sitting in the installed proxy app was produced from
- * this snapshot, so "unchanged versus the baseline" is exactly the condition under which
- * that generated code is still right. It also means an edit that adds an annotation and
- * a later edit that removes it again lands back on the live reload path, which comparing
- * successive revisions would not.
+ * Comparing against the baseline rather than the previous edit is what makes the fast path
+ * correct: the generated code in the installed proxy app came from this snapshot, so
+ * "unchanged versus the baseline" is exactly when that generated code is still right. It also
+ * lets an edit that adds an annotation and a later one that removes it end up back on the live
+ * reload path.
  */
 class AnnotationBaseline private constructor(
 	private val facts: Map<String, AnnotationFacts?>,
 	/**
-	 * Simple type names an annotated file reaches out to: supertypes, `@Database(entities
-	 * = [...])` targets, `@Embedded` property types, converter classes. A file that
-	 * declares one of these can change generated output WITHOUT carrying an annotation
-	 * itself (Room reads inherited fields and embedded classes), so declaring an anchor
-	 * name forces a rebaseline.
+	 * Simple type names an annotated file reaches out to: supertypes, `@Database(entities =
+	 * [...])` targets, `@Embedded` property types, converter classes. Declaring one of these
+	 * forces a rebaseline, because such a file can change generated output without carrying an
+	 * annotation itself - Room reads inherited fields and embedded classes.
 	 */
 	val anchorNames: Set<String>,
 ) {
@@ -32,9 +30,11 @@ class AnnotationBaseline private constructor(
 
 	companion object {
 		/**
+		 * Scans the proxy app build's whole source set into a baseline.
+		 *
 		 * @param sources every source file the proxy app build compiled.
-		 * @param readText content reader; returning null (unreadable) records the file as
-		 *   unscannable, which makes any later change to it rebaseline.
+		 * @param readText content reader; returning null records the file as unscannable,
+		 *   which makes any later change to it rebaseline.
 		 */
 		fun capture(
 			sources: List<File>,
@@ -53,6 +53,7 @@ class AnnotationBaseline private constructor(
 			return AnnotationBaseline(facts, anchors)
 		}
 
+		/** File contents, or null when it cannot be read. */
 		fun readOrNull(file: File): String? = runCatching { file.readText() }.getOrNull()
 
 		private fun key(file: File): String = file.absoluteFile.normalize().path

@@ -1,7 +1,9 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
 /**
- * How a resource-table payload is applied on this device, selected once per process from the runtime SDK level. Kept free of android.* so the version routing is JVM-unit-testable.
+ * How a resource-table payload is applied on this device, chosen once per process from the SDK level.
+ *
+ * Free of android.* imports so the version routing is JVM-unit-testable.
  */
 enum ResourceSwapStrategy {
 
@@ -9,16 +11,16 @@ enum ResourceSwapStrategy {
 	RESOURCES_LOADER,
 
 	/**
-	 * API 28/29: degraded shim. ResourcesLoader does not exist, so the relinked table is wrapped into an apk-shaped zip and appended to the live AssetManager via the hidden addAssetPath; the activity recreate every deploy already performs then re-reads values from the new table. See {@link LegacyResourceSwap}.
+	 * API 28/29: no ResourcesLoader, so {@link LegacyResourceSwap} appends the relinked apk to the live AssetManager and the per-deploy activity recreate re-reads from it.
 	 */
 	LEGACY_ASSET_PATH,
 
 	/**
-	 * Below API 28: no mechanism this runtime supports; resource payloads are ignored (logged once). Unreachable in practice - the deploying CoGo host itself needs API 28+, and host and proxy app share one device.
+	 * Below API 28: no mechanism this runtime supports, so resource payloads are ignored. Unreachable in practice, since the deploying CoGo host needs API 28+ on the same device.
 	 */
 	UNSUPPORTED;
 
-	/** SDK levels inlined (Build.VERSION_CODES.R / .P) to keep this class android-free. */
+	/** Maps an SDK level to its strategy; the levels are inlined (R and P) to keep this class android-free. */
 	static ResourceSwapStrategy forSdk(int sdkInt) {
 		if (sdkInt >= 30) {
 			return RESOURCES_LOADER;

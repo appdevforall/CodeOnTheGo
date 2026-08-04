@@ -12,14 +12,14 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Deploys one build's artifacts to the proxy app, from the deploy decision onward:
- * hot swap vs process restart, the binder-death wait, the relaunch, the
- * reconnect-generation verification, the defect-#88 launch-and-retry, and the mapping
- * of every [DeployResult] to a [BuildOutcome]. The executor hands it artifacts; a
- * generation is allocated here, only once a deploy actually goes out.
+ * Gets one build's artifacts into the running proxy app, and reports honestly whether
+ * they are live.
  *
- * Call only on the session dispatcher; this class holds no scope of its own - its
- * suspend functions inherit the caller's confinement.
+ * Owns everything downstream of the deploy decision: hot swap versus process restart,
+ * the relaunch and reconnect checks, the retry when no app is connected, and the mapping
+ * of each [DeployResult] to a [BuildOutcome]. Generations are allocated here, so a build
+ * that never deploys never burns one. Call only on the session dispatcher; the suspend
+ * functions inherit the caller's confinement.
  */
 internal class PayloadDeployer(
 	private val deploy: DeploySender,
@@ -29,10 +29,10 @@ internal class PayloadDeployer(
 	/** The installed proxy app's applicationId; restart relaunch target. */
 	private val proxyAppPackage: String?,
 	/**
-	 * Launcher proxy activity FQN from the transformed manifest; the restart relaunch
-	 * target. Null when the MAIN/LAUNCHER filter lives on an `<activity-alias>` (no
-	 * proxied activity carries it) - the relaunch then falls back to the package's
-	 * default launch intent.
+	 * Launcher proxy activity FQN from the transformed manifest, the restart relaunch
+	 * target. Null when the MAIN/LAUNCHER filter sits on an `<activity-alias>` that no
+	 * proxied activity carries; the relaunch then uses the package's default launch
+	 * intent.
 	 */
 	private val launcherActivity: String?,
 	private val launcher: ProxyAppLauncher?,
@@ -42,7 +42,10 @@ internal class PayloadDeployer(
 	/** Hands a completed timeline to the executor's log + analytics channels. */
 	private val reportTimeline: (E2eTimeline) -> Unit,
 ) {
-	/** Dispatches a code-bearing deploy on the policy's decision. */
+	/**
+	 * Deploys one build's artifacts by the route [decision] chose, and reports the
+	 * outcome.
+	 */
 	suspend fun deploy(
 		decision: DeployDecision,
 		dexFile: File?,
@@ -63,12 +66,13 @@ internal class PayloadDeployer(
 
 			is DeployDecision.RebuildProxyApp -> {
 				// Deploying anyway would hot-swap on a runtime that cannot restart,
-				// leaving a live service/provider on stale code. Refuse before the deploy;
-				// the session manager routes this into the proxy app rebuild fallback.
+				// leaving a live service or provider on stale code. The session manager
+				// routes this refusal into the proxy app rebuild fallback.
 				BuildOutcome.RequiresProxyAppRebuild(InvalidationReason.OUTDATED_BASELINE, decision.detail)
 			}
 		}
 
+	/** Hot-swap path: send the payload and let the running process recreate itself. */
 	private suspend fun deployPayload(
 		generation: Long,
 		dexFile: File?,
@@ -83,8 +87,8 @@ internal class PayloadDeployer(
 			deployRecovering(generation, dexFile, arscFile, assets?.zip, metadata(reason, assets, restart = false))
 		return when (result) {
 			is DeployResult.Reloaded -> {
-				// t3: the proxy app's reportReloaded (fired from the recreated activity's
-				// onResume) came back over the channel - the new code is live.
+				// t3: reportReloaded came back from the recreated activity's onResume,
+				// so the new code is live.
 				reportTimeline(recorder.completed(generation, clock()))
 				BuildOutcome.Success(generation, clock() - startedAt)
 			}
@@ -96,15 +100,14 @@ internal class PayloadDeployer(
 	}
 
 	/**
-	 * The restart path (design contract section 4): deploy with restart metadata, let
-	 * the runtime persist + ack + exit, confirm the binder death, relaunch the launcher
-	 * proxy, then VERIFY the fresh process reconnected at the deployed generation.
-	 * [DeployResult.Disconnected] before the ack means the process died around the
-	 * payload - the persist may or may not have landed, so the relaunch proceeds and
-	 * the reconnect check decides honestly: only a reconnect AT the new generation is
-	 * a success; anything else is reported as the failure it is (claiming success
-	 * while the app runs an older generation would be exactly the silent-stale lie
-	 * the invariant forbids).
+	 * Restart path (design contract section 4): deploy with restart metadata, wait for
+	 * the runtime to persist and exit, relaunch it, then check which generation came
+	 * back.
+	 *
+	 * Only a reconnect at the deployed generation counts as success; anything lower means
+	 * the payload did not survive the process death. [DeployResult.Disconnected] before
+	 * the ack leaves the persist uncertain, so the relaunch still proceeds and the
+	 * reconnect check settles it.
 	 */
 	private suspend fun deployRestart(
 		restart: DeployDecision.Restart,
@@ -128,9 +131,9 @@ internal class PayloadDeployer(
 		when (result) {
 			is DeployResult.Reloaded -> {
 				if (!deploy.awaitDisconnect(restartDisconnectTimeoutMillis)) {
-					// The runtime acked but kept running: it predates restart support and
-					// hot-swapped instead - a live service may now be stale. A proxy app rebuild
-					// reinstalls a current runtime; honesty over silence.
+					// The runtime acked but kept running, so it predates restart support
+					// and hot-swapped instead, leaving a live service possibly stale. A
+					// proxy app rebuild reinstalls a current runtime.
 					return BuildOutcome.RequiresProxyAppRebuild(
 						InvalidationReason.OUTDATED_BASELINE,
 						"proxy app acknowledged a restart deploy but did not exit " +
@@ -149,13 +152,12 @@ internal class PayloadDeployer(
 		}
 
 		val packageName = proxyAppPackage
-		// launcherActivity is null when the MAIN/LAUNCHER filter lives on an
-		// <activity-alias> (icon-switching apps) rather than an <activity>: no activity
-		// carries launcher=true. Passing null lets the launcher fall back to the package's
-		// default launch intent, which resolves the alias the OS itself would launch.
+		// A null launcherActivity is expected for alias-launched apps; the launcher then
+		// falls back to the default launch intent, which resolves the same alias the OS
+		// would.
 		if (packageName == null || launcher?.launch(packageName, launcherActivity) != true) {
-			// The process is gone and nothing runs stale code, but the loop is visibly
-			// broken until the app is opened again (it then boots whatever persisted).
+			// The process is gone so nothing runs stale code, but the loop stays broken
+			// until the user opens the app again.
 			return BuildOutcome.DeployFailure(
 				"Proxy app restarted for ${restart.componentClass} but could not be relaunched; " +
 					"open it manually to load the new code",
@@ -171,9 +173,9 @@ internal class PayloadDeployer(
 			}
 
 			reconnectGeneration < generation -> {
-				// The payload did not survive the process death: the fresh process booted
-				// an older generation. A proxy app rebuild rebuilds + reinstalls from current
-				// sources, which converges every component honestly.
+				// The payload did not survive the process death, so the fresh process
+				// booted an older generation. A proxy app rebuild reinstalls from
+				// current sources and brings every component back in step.
 				BuildOutcome.RequiresProxyAppRebuild(
 					InvalidationReason.OUTDATED_BASELINE,
 					"proxy app relaunched at generation $reconnectGeneration instead of " +
@@ -182,9 +184,9 @@ internal class PayloadDeployer(
 			}
 
 			else -> {
-				// t3: the relaunched process reconnected AT the deployed generation - the
-				// restart swap is verifiably live (a slower t3 than a hot swap: full process
-				// relaunch, not an activity recreate).
+				// t3: the relaunched process reconnected at the deployed generation, so
+				// the restart swap is live. Slower than a hot swap by a full process
+				// launch.
 				reportTimeline(recorder.completed(generation, clock()))
 				BuildOutcome.Success(generation, clock() - startedAt, restarted = true)
 			}
@@ -192,15 +194,13 @@ internal class PayloadDeployer(
 	}
 
 	/**
-	 * One deploy attempt with the defect-#88 recovery. A proxy app rebuild reinstall kills the
-	 * proxy-app process, and only the proxy app can re-establish the AIDL connection (the
-	 * bind is outbound from its QuickBuildRuntime); without recovery every later deploy
-	 * fails NotConnected until the user opens the app by hand. On [DeployResult.NotConnected],
-	 * launch the app once via [launcher], wait a bounded [restartReconnectTimeoutMillis]
-	 * for the rebind, and retry the deploy exactly once - no loops, so a hard-broken app
-	 * costs one launch per deploy attempt, never a retry storm. Chosen over relaunching
-	 * right after the proxy app rebuild itself (reliability doc option 2): this acts only when a
-	 * deploy actually needs the app and never steals the foreground unasked.
+	 * Deploys once, and on [DeployResult.NotConnected] launches the app once and retries.
+	 *
+	 * A proxy app reinstall kills the process, and only the proxy app can re-establish
+	 * the AIDL connection, so without this every later deploy fails until the user opens
+	 * the app by hand. Exactly one launch and one retry, so a hard-broken app never turns
+	 * into a retry storm, and the foreground is only taken when a deploy actually needs
+	 * the app.
 	 */
 	private suspend fun deployRecovering(
 		generation: Long,
@@ -219,6 +219,7 @@ internal class PayloadDeployer(
 		return deploy.deploy(generation, dexFile, arscFile, assetsZip, metadataJson)
 	}
 
+	/** Builds the payload metadata the runtime reads (schema in quickbuild/core/README.md). */
 	private fun metadata(
 		reason: String,
 		assets: AssetPackager.PackagedAssets?,
@@ -238,6 +239,7 @@ internal class PayloadDeployer(
 				if (restart) addProperty("restart", "true")
 			}.toString()
 
+	/** Turns a non-reloaded [DeployResult] into the outcome the user sees. */
 	private fun failureOf(
 		result: DeployResult,
 		generation: Long,
@@ -250,8 +252,8 @@ internal class PayloadDeployer(
 			}
 
 			DeployResult.NotConnected -> {
-				// Reached only after deployRecovering's one launch-and-retry (or with no
-				// launcher wired): the remedy is the user's, not the infrastructure's.
+				// Reached only after deployRecovering already tried a launch, or with no
+				// launcher wired, so the remedy is the user's.
 				BuildOutcome.DeployFailure(
 					"Proxy app is not connected. Relaunch your app to reconnect, then deploy again.",
 				)

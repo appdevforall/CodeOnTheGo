@@ -4,19 +4,21 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Decides whether a code change can have moved annotation-processor output, and so
- * whether the quick path must give way to a full Gradle rebaseline.
+ * Decides whether a code change can have moved annotation-processor output, and so whether
+ * the quick path must give way to a full Gradle rebaseline.
  *
- * Without this, a project with any processor configured has to rebaseline on EVERY edit
- * (the ~8 s path), because a stale generated class is indistinguishable from a fresh one
- * at run time. With it, only edits that actually touch processor input pay that cost -
- * in a Room app that is the entities, DAOs and database class, not the UI.
+ * Without it, a project with any processor configured would have to rebaseline on every edit,
+ * because a stale generated class is indistinguishable from a fresh one at run time. With it,
+ * only edits that touch processor input pay that cost - in a Room app, the entities, DAOs and
+ * database class, not the UI.
  */
 interface AnnotationImpact {
 	/** True when the project configures at least one annotation processor. */
 	val active: Boolean
 
 	/**
+	 * Checks a build's changed code files against the processor input.
+	 *
 	 * @return a human-readable reason to rebaseline, or null when every changed file is
 	 *   provably outside processor input.
 	 */
@@ -31,10 +33,11 @@ interface AnnotationImpact {
 }
 
 /**
- * Indirection so a re-baseline can move the reference point without rebuilding the
- * orchestrator: the Gradle build that just ran IS the new baseline, and comparing later
- * edits against the pre-rebaseline snapshot would keep charging for changes already
- * absorbed. Mirrors how the session swaps its executor on the same event.
+ * An [AnnotationImpact] whose delegate can be swapped, so a rebaseline can move the reference
+ * point without rebuilding the orchestrator.
+ *
+ * The Gradle build that just ran is the new baseline; comparing later edits against the
+ * pre-rebaseline snapshot would keep charging for changes it already absorbed.
  */
 class SwitchableAnnotationImpact(
 	var delegate: AnnotationImpact,
@@ -45,38 +48,20 @@ class SwitchableAnnotationImpact(
 }
 
 /**
- * The real [AnnotationImpact], comparing each changed file against the proxy app build's
+ * The real [AnnotationImpact]: compares each changed file against the proxy app build's
  * [AnnotationBaseline].
  *
- * **Cases deliberately treated as SAFE (live reload), and why:**
- * 1. *A file with no processor-relevant annotation, before or after.* No configured
- *    processor has a declaration in it to read. (Its edits can still reach a processor
- *    indirectly - case 3 covers that.)
- * 2. *An edit inside a function/initializer body of an annotated file* - including a
- *    comment, whitespace or formatting change anywhere in it. Every processor the profile
- *    recognizes (Room, Dagger/Hilt, Moshi, Glide, AutoValue) generates from declarations
- *    and annotation arguments; none reads statement bodies. The declaration fingerprint
- *    covers the whole file except those bodies, and annotation ARGUMENTS keep their string
- *    literals verbatim, so an `@Query("SELECT ...")` SQL edit is NOT body-only.
- * 3. *A brand-new file with no processor-relevant annotation.* Adding a declaration cannot
- *    change what an existing annotated declaration generates, unless it collides with an
- *    anchor name - which is checked.
- * 4. *A changed-set entry whose declaration surface is identical to the baseline's* - a
- *    touch, an editor re-save, a reformat. Nothing a processor reads moved.
+ * Rebaselines when a file carrying a processor-relevant annotation changes its declarations or
+ * its annotations, when such a file is added or deleted, when a file declares one of the
+ * baseline's [AnnotationBaseline.anchorNames], or when the scanner could not read a file
+ * confidently.
  *
- * **Cases deliberately treated as UNSAFE (rebaseline), and why:**
- * - Any change to a file carrying a processor-relevant annotation whose declaration
- *   surface or annotation list moved: adding an `@Entity` field, editing `@Query` SQL,
- *   changing an `@Inject` constructor's parameters, adding or removing the annotation.
- * - A new or deleted file that carries a processor-relevant annotation.
- * - A file declaring a type whose name is an [AnnotationBaseline.anchorNames] entry: an
- *   `@Entity`'s non-annotated base class, an `@Embedded` value type, a `@TypeConverters`
- *   converter, a `@Database(entities = [...])` target. Those feed generated code without
- *   an annotation of their own.
- * - Anything the scanner could not read confidently (unbalanced braces mid-edit, an
- *   unreadable file, a file the baseline never saw and cannot be scanned now).
- * - [ChangedFiles.Unknown]-shaped situations, handled one level up by the classifier: if
- *   we cannot enumerate what changed, we cannot prove it missed processor input.
+ * Stays on the live reload path for a file no processor reads, for a change that leaves the
+ * declaration surface identical (a touch, a re-save, a reformat), and for edits confined to
+ * function or initializer bodies - every processor the profile knows (Room, Dagger/Hilt,
+ * Moshi, Glide, AutoValue) generates from declarations and annotation arguments, not statement
+ * bodies. Annotation arguments keep their string literals, so an `@Query("SELECT ...")` edit
+ * counts as a declaration change rather than a body edit.
  */
 class AnnotationImpactAnalyzer(
 	private val profile: AnnotationProcessorProfile,
@@ -99,6 +84,7 @@ class AnnotationImpactAnalyzer(
 		return null
 	}
 
+	/** Why [file] forces a rebaseline, or null when it provably misses processor input. */
 	private fun escalationFor(file: File): String? {
 		val old = baseline.factsFor(file)
 		val existedAtBaseline = baseline.known(file)

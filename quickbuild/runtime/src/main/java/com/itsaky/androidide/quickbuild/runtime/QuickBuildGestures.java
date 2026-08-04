@@ -5,15 +5,19 @@ import android.content.Intent;
 import android.view.MotionEvent;
 
 /**
- * App-switcher gesture: a 3-finger tap in the proxy app jumps back to CoGo.
+ * Turns a 3-finger tap in the proxy app into a jump back to CoGo.
  *
- * PUBLIC because the generated proxy activities call it from their {@code dispatchTouchEvent} override (see ProxySourceGenerator in :gradle-plugin) - everything else in this AAR stays package-private. The contract with the proxies: this method only OBSERVES the event; the proxy always forwards to {@code super.dispatchTouchEvent} afterwards, so the app under test sees every touch unmodified and undelayed.
+ * Public because generated proxy activities call it from their {@code dispatchTouchEvent} override (see ProxySourceGenerator in :gradle-plugin); everything else in this AAR is package-private. It only observes the event - the proxy always forwards to {@code super.dispatchTouchEvent} afterwards, so the app under test sees every touch unmodified and undelayed.
  */
 public final class QuickBuildGestures {
 
 	private static final ThreeFingerTapDetector DETECTOR = new ThreeFingerTapDetector();
 
-	/** Never throws and never consumes: a gesture bug must not break the app's touch input. */
+	/**
+	 * Feeds one touch event to the detector and returns to CoGo when the gesture completes.
+	 *
+	 * Never throws and never consumes the event: a gesture bug must not break the app's touch input.
+	 */
 	public static void onDispatchTouchEvent(Activity activity, MotionEvent event) {
 		if (activity == null || event == null) {
 			return;
@@ -30,7 +34,9 @@ public final class QuickBuildGestures {
 	}
 
 	/**
-	 * Package-private (not private) so {@link ReturnToIdeButton} shares the exact same path - the gesture and the visible button are two triggers for one action.
+	 * Launches CoGo, or logs when it has no launch intent.
+	 *
+	 * Package-private so {@link ReturnToIdeButton} shares this exact path: the gesture and the visible button are two triggers for one action.
 	 */
 	static void returnToIde(Activity activity) {
 		Intent launch = activity.getPackageManager()

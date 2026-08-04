@@ -22,14 +22,13 @@ import org.appdevforall.cotg.quickbuild.domain.annotations.SwitchableAnnotationI
 import org.slf4j.LoggerFactory
 
 /**
- * Assembles a [LiveSession] from a successful provision: pure wiring with zero mutable
- * state and zero back-reference into the manager - a [ProxyAppInfo] + layout + tracker
- * goes in, a wired session comes out. [executorFor] and [annotationImpactFor] are
- * public seams because a proxy app rebuild rebuilds the executor and the annotation
- * baseline against the regenerated setup.json (see [LiveSession]'s switchable delegates).
+ * Assembles a [LiveSession] from a successful provision.
  *
- * Call only on the session dispatcher; this class holds no scope of its own - [scope]
- * is the manager's, handed through to the orchestrator and watcher it assembles.
+ * Pure wiring: no mutable state, no back-reference into the manager. [executorFor] and
+ * [annotationImpactFor] are exposed because a proxy app rebuild rebuilds those two
+ * against the regenerated setup.json (see [LiveSession]'s switchable delegates). Call
+ * only on the session dispatcher; [scope] belongs to the manager and is passed through to
+ * the orchestrator and watcher.
  */
 internal class LiveSessionFactory(
 	private val daemon: QuickBuildDaemon,
@@ -39,8 +38,8 @@ internal class LiveSessionFactory(
 	private val launcher: ProxyAppLauncher,
 	private val metrics: QuickBuildMetricsSink,
 	/**
-	 * Monotonic clock shared by the orchestrator's t0 stamp and the executor's t1-t3,
-	 * so the e2e timeline's four stamps are comparable (see
+	 * Monotonic clock shared by the orchestrator's t0 stamp and the executor's t1-t3, so
+	 * the e2e timeline's stamps are comparable (see
 	 * [org.appdevforall.cotg.quickbuild.domain.E2eTimeline]).
 	 */
 	private val nowMillis: () -> Long,
@@ -51,6 +50,7 @@ internal class LiveSessionFactory(
 	private val scope: CoroutineScope,
 	private val onOrchestratorEvent: (OrchestratorEvent) -> Unit,
 ) {
+	/** Wires a session around the provisioned proxy app, ready to accept edits. */
 	fun create(
 		outcome: ProvisionOutcome.Success,
 		tracker: GenerationTracker,
@@ -64,8 +64,6 @@ internal class LiveSessionFactory(
 				executor = executor,
 				classifier = ChangeClassifier(annotationImpact, layout.liveReloadScope()),
 				scope = scope,
-				// Same monotonic timebase the executor stamps t1-t3 with, so the e2e
-				// timeline's t0 (trigger) is comparable to the rest (see E2eTimeline).
 				now = nowMillis,
 				onEvent = onOrchestratorEvent,
 			)
@@ -82,7 +80,10 @@ internal class LiveSessionFactory(
 		)
 	}
 
-	/** ProxyAppInfo-derived executor; rebuilt (and swapped in) on every proxy app rebuild. */
+	/**
+	 * Builds the executor for one proxy app baseline. Called again, and swapped in, on
+	 * every proxy app rebuild.
+	 */
 	fun executorFor(
 		proxyApp: ProxyAppInfo,
 		layout: QuickBuildProjectLayout,
@@ -93,24 +94,23 @@ internal class LiveSessionFactory(
 				daemon = daemon,
 				deploy = deploy,
 				layout = layout,
-				// A session only reaches here off ProvisionOutcome.Success, which the
-				// provisioner never produces for a null entryActivity -
-				// it refuses with a friendly message first. See ProxyAppInfo.entryActivity.
+				// Safe: the provisioner never reports Success for a null entryActivity,
+				// it refuses with a friendly message first.
 				entryActivity =
 					checkNotNull(proxyApp.entryActivity) {
 						"Quick Build session started without an entry activity"
 					},
 				generations = tracker,
-				// App-private scratch (ADFA-4930), NOT under the FUSE-backed project root.
+				// App-private scratch, deliberately not under the FUSE-backed project root.
 				workDir = scratch.workDirFor(layout.projectRoot),
 				proxyClassesDir = proxyApp.proxyClassesDir,
 				proxyAppManifest = proxyApp.transformedManifest,
 				deployPolicy =
 					DeployPolicy(
 						components = proxyApp.components,
-						// Pre-v2 setup.json (no schema/components) = a baseline whose
-						// runtime ignores restart deploys; the policy then routes
-						// restart-requiring builds to a proxy app rebuild (skew guard).
+						// Pre-v2 setup.json means a runtime that ignores restart
+						// deploys, so the policy routes restart-requiring builds to a
+						// proxy app rebuild instead.
 						componentInfoAvailable = proxyApp.supportsComponentInfo,
 					),
 				proxyAppPackage = proxyApp.proxyAppPackage,
@@ -119,23 +119,18 @@ internal class LiveSessionFactory(
 						.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
 						?.proxyClass,
 				launcher = launcher,
-				// Monotonic device clock for durationMillis + the e2e timeline stamps; the
-				// orchestrator's `now` above shares it so all four stamps are comparable.
 				clock = nowMillis,
-				// The e2e reload timing is an analytics deliverable (ADFA-4128): the executor
-				// reports each completed timeline to the same sink the lifecycle events use.
 				metrics = metrics,
 			)
 
 	/**
-	 * Annotation-processor awareness for this session's baseline. A project with no
-	 * `ksp`/`kapt`/`annotationProcessor` dependency gets [AnnotationImpact.Inactive] and
-	 * behaves exactly as before; otherwise the classifier compares each edit against the
-	 * annotation input the proxy app build actually ran against, and only edits that could
-	 * have moved generated code pay a proxy app rebuild.
+	 * Builds the annotation-processor awareness the classifier uses to decide which edits
+	 * could have moved generated code.
 	 *
-	 * Rebuilt on every proxy app rebuild too (see [SwitchableAnnotationImpact]): the Gradle build
-	 * that just ran IS the new reference point.
+	 * A project with no `ksp`/`kapt`/`annotationProcessor` dependency gets
+	 * [AnnotationImpact.Inactive]. Otherwise the analyzer's baseline is the annotation
+	 * input the proxy app build just ran against, so this is rebuilt on every proxy app
+	 * rebuild (see [SwitchableAnnotationImpact]).
 	 */
 	fun annotationImpactFor(
 		proxyApp: ProxyAppInfo,

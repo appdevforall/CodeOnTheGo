@@ -9,9 +9,9 @@ import android.widget.FrameLayout;
 import android.widget.TextView;
 
 /**
- * Minimal translucent banner pinned just below the system status bar, as a child of the window DECOR with a status-bar top margin (the bar itself stays untouched; the app's own chrome may be overlapped - it is an error surface). Error-only: it renders build failures, payload crashes and the one-time gesture hint; success and in-progress states render nothing.
+ * Draws the translucent status banner just below the system status bar.
  *
- * Rendering is stateless: {@link #render} makes the banner match the given {@link OverlayState} exactly, creating/updating/removing as needed. There is no "clear" call to forget - every state change re-renders, which is what makes a stuck banner unrepresentable.
+ * It attaches to the window decor with a status-bar top margin, so the system bar stays untouched while the app's own chrome may be overlapped; this is an error surface. Rendering is stateless: {@link #render} makes the banner match the given {@link OverlayState} exactly, creating, updating or removing it. There is no separate clear call to forget, which is what makes a stuck banner impossible.
  */
 final class StatusOverlay {
 
@@ -22,6 +22,7 @@ final class StatusOverlay {
 	private static final int COLOR_CRASHED = 0xCCB71C1C;
 	private static final int COLOR_HINT = 0xCC37474F;
 
+	/** Banner background color for a state kind. */
 	private static int colorFor(OverlayState.Kind kind) {
 		switch (kind) {
 		case BUILD_FAILED:
@@ -33,18 +34,20 @@ final class StatusOverlay {
 		}
 	}
 
-	/** Must run on the main thread. Never throws: overlay failures are logged, not fatal. */
+	/**
+	 * Makes the banner on {@code activity} match {@code state}, adding, updating or removing it.
+	 *
+	 * Must run on the main thread. Never throws: overlay failures are logged, not fatal.
+	 */
 	void render(Activity activity, OverlayState state) {
 		if (activity == null || state == null) {
 			return;
 		}
 		try {
-			// The DECOR, not android.R.id.content: under edge-to-edge, content starts
-			// beneath the status bar, its root consumes the insets, and the decor's
-			// action-bar container is a SIBLING of content that out-draws anything
-			// inside it (elevation does not reorder across subtrees). A decor child
-			// with a status-bar top margin is visible over the app's chrome while the
-			// system status bar itself stays untouched.
+			// The decor, not android.R.id.content: under edge-to-edge the content root
+			// consumes the insets, and the decor's action-bar container is a sibling
+			// that out-draws anything inside content, since elevation does not reorder
+			// across subtrees.
 			View decorView = activity.getWindow() != null ? activity.getWindow().getDecorView() : null;
 			if (!(decorView instanceof ViewGroup)) {
 				return;
@@ -72,7 +75,9 @@ final class StatusOverlay {
 	}
 
 	/**
-	 * Start the banner just below the system status bar: a top MARGIN of the raw status-bar inset (getRootWindowInsets() - listener dispatch is consumed by the app's root and never reaches us). The deprecated accessor is the only one available at minSdk 28.
+	 * Sets the banner's top margin to the status-bar inset, so it starts just below the bar.
+	 *
+	 * Reads the inset directly because listener dispatch is consumed by the app's root and never reaches us. The deprecated accessor is the only one available at minSdk 28.
 	 */
 	@SuppressWarnings("deprecation")
 	private void applyStatusBarInset(ViewGroup decor, TextView banner) {
@@ -86,7 +91,7 @@ final class StatusOverlay {
 		}
 	}
 
-	/** Tap on a build failure jumps to the failing line in CoGo. */
+	/** Makes the banner tappable when the state has an error location, and inert otherwise. */
 	private void bindJump(TextView banner, final Activity activity, final OverlayState state) {
 		if (state.canJumpToEditor()) {
 			banner.setOnClickListener(new View.OnClickListener() {
@@ -103,6 +108,7 @@ final class StatusOverlay {
 		}
 	}
 
+	/** Builds the banner view; the caller sets its color, text and click target. */
 	private TextView createBanner(Activity activity) {
 		TextView banner = new TextView(activity);
 		banner.setTag(VIEW_TAG);
@@ -113,8 +119,7 @@ final class StatusOverlay {
 		final int padding = (int) (8 * density);
 		banner.setPadding(padding, padding, padding, padding);
 		// Sibling order is not enough: app bars carry elevation and draw above a plain
-		// later-added sibling. Out-elevate them so the banner is never hidden behind the
-		// app's own toolbar (system bars stay untouched - the inset handles those).
+		// later-added sibling, so out-elevate them.
 		banner.setElevation(16 * density);
 		FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
 				ViewGroup.LayoutParams.MATCH_PARENT,

@@ -9,9 +9,9 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * Tracks the process's live activities so a reload knows what to recreate. Registered via {@link Application#registerActivityLifecycleCallbacks} - the only public, reflection-free way to see the activity stack from a library.
+ * Tracks the process's live activities so a reload knows which one to recreate.
  *
- * Holds activities weakly: the tracker must never be the thing keeping a destroyed activity alive. All list mutation happens on the main thread (lifecycle callbacks), but {@link #topActivity} is read from deploy code too, so access is synchronized.
+ * Registered via {@link Application#registerActivityLifecycleCallbacks}. Activities are held weakly so the tracker never keeps a destroyed one alive, and access is synchronized because deploy code reads {@link #topActivity} off the main thread.
  */
 final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 
@@ -52,7 +52,9 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	public void onActivityPaused(Activity activity) {}
 
 	/**
-	 * Called by the framework on API 29+ before the activity's onCreate - early enough that resources attached here are live for the activity's own inflation. On older devices this never fires; {@link #onActivityCreated} is the (later) backstop.
+	 * Attaches swapped resources early enough that the activity's own inflation sees them.
+	 *
+	 * Only fires on API 29+; on older devices {@link #onActivityCreated} is the later backstop.
 	 */
 	@Override
 	public void onActivityPreCreated(Activity activity, Bundle savedInstanceState) {
@@ -77,7 +79,9 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	public void onActivityStopped(Activity activity) {}
 
 	/**
-	 * The activity a reload should recreate: the resumed one when there is one, else the most recently created live activity (a paused/stopped activity still recreates correctly), else null - the caller then launches the entry activity instead.
+	 * Picks the activity a reload should recreate: the resumed one, else the newest live one.
+	 *
+	 * @return null when no live activity remains, meaning the caller should launch the entry activity instead.
 	 */
 	synchronized Activity topActivity() {
 		if (resumed != null) {

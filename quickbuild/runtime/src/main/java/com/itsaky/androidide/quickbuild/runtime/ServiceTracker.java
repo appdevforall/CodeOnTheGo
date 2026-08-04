@@ -6,9 +6,9 @@ import java.util.IdentityHashMap;
 import java.util.Set;
 
 /**
- * Live-service census. Generated {@code Proxy<N>Service} subclasses call {@link #onServiceCreated}/{@link #onServiceDestroyed} from their onCreate/onDestroy overrides (super always called first), giving the runtime an honest count of running services - the input for restart UX messaging and the tracked policy tightening ("restart on any code deploy while a service is live").
+ * Counts the proxy app's live services, so the runtime knows whether a deploy needs a restart.
  *
- * Public (unlike the rest of the runtime) because the callers are generated classes in the user's payload package. Identity-based so the census never depends on user equals/hashCode overrides. Best-effort: a census failure must never crash a user's service lifecycle.
+ * Generated {@code Proxy<N>Service} subclasses call {@link #onServiceCreated} and {@link #onServiceDestroyed} from their onCreate and onDestroy overrides. Public, unlike the rest of the runtime, because those callers live in the user's payload package. The census is identity-based so it never depends on a user's equals or hashCode, and a census failure must never crash a user's service lifecycle.
  */
 public final class ServiceTracker {
 
@@ -25,7 +25,7 @@ public final class ServiceTracker {
 		return LIVE.size();
 	}
 
-	/** Called by generated service proxies from onCreate. Never throws. */
+	/** Records a service as live; called by generated service proxies from onCreate. Never throws. */
 	public static void onServiceCreated(Service service) {
 		trackCreated(service);
 		try {
@@ -36,7 +36,7 @@ public final class ServiceTracker {
 		}
 	}
 
-	/** Called by generated service proxies from onDestroy. Never throws. */
+	/** Drops a service from the census; called by generated service proxies from onDestroy. Never throws. */
 	public static void onServiceDestroyed(Service service) {
 		trackDestroyed(service);
 		try {
@@ -52,8 +52,8 @@ public final class ServiceTracker {
 		LIVE.clear();
 	}
 
-	// Object-typed seams carry the census logic so it is JVM-unit-testable
-	// (android.app.Service is not on the unit-test classpath).
+	// The census logic takes Object so it is JVM-unit-testable: android.app.Service
+	// is not on the unit-test classpath.
 
 	static void trackCreated(Object service) {
 		if (service != null) {

@@ -3,9 +3,9 @@ package com.itsaky.androidide.quickbuild.runtime;
 import android.util.Log;
 
 /**
- * Single logging front for the runtime. One tag so a device walk can follow the whole reload flow with a single logcat filter; android.util.Log directly because this AAR ships into arbitrary user apps and must not carry a logging dependency.
+ * The runtime's only logging entry point, under one tag so a device walk can follow a whole reload with a single logcat filter.
  *
- * Every call is guarded: in JVM unit tests android.util.Log is the unmocked stub and throws, and logging must never change behavior - on device Log never throws, so the guard is free.
+ * Calls android.util.Log directly, because this AAR ships into arbitrary user apps and must not carry a logging dependency. Every call is guarded because android.util.Log is an unmocked stub in JVM unit tests and throws there; on device it never throws, so the guard costs nothing.
  */
 final class RuntimeLog {
 

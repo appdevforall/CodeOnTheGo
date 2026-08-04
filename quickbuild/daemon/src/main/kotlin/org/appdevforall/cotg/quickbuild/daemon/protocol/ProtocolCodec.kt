@@ -6,9 +6,9 @@ import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 
 /**
- * Encodes/decodes the line-delimited JSON protocol. Pure functions over strings - no IO -
- * so malformed-input handling is exhaustively unit-testable. Gson escapes newlines inside
- * strings, so an encoded response is always exactly one line.
+ * Encodes and decodes the line-delimited JSON protocol. Pure functions over strings, no IO, so
+ * malformed-input handling is exhaustively unit-testable. Gson escapes newlines inside strings,
+ * so an encoded response is always exactly one line.
  */
 object ProtocolCodec {
 	/** Parses one request line. Never throws: broken input becomes [ParseResult.Malformed]. */

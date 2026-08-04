@@ -3,19 +3,16 @@ package org.appdevforall.cotg.quickbuild.domain.annotations
 /**
  * Extracts [AnnotationFacts] from Kotlin/Java source text without a compiler front-end.
  *
- * Why text and not a parser: classification happens on every save, before any compile,
- * and the quick path has no resolved PSI to consult. The scanner therefore aims at one
- * property only - **never miss a change that could alter annotation-processor output** -
- * and buys that with over-inclusiveness plus an explicit bail:
- *
- * - String literals are kept verbatim (an `@Query("SELECT ...")` SQL edit IS processor
- *   input); comments and whitespace are normalized away (they are not).
- * - Only *function/initializer* bodies are excluded from the declaration fingerprint,
- *   and only when the opening line is unambiguously a function signature. Anything the
- *   scanner cannot classify stays IN the fingerprint, so an unrecognized construct makes
- *   the file look changed rather than unchanged.
- * - Structural surprises - unbalanced braces, an unterminated comment or raw string -
- *   return `null` ("cannot tell"), which the analyzer reads as "rebaseline".
+ * Text rather than a parser because classification runs on every save, before any compile,
+ * with no resolved PSI to consult. The scanner aims at one property - never miss a change that
+ * could alter annotation-processor output - and pays for it with over-inclusiveness:
+ * - String literals are kept verbatim (an `@Query("SELECT ...")` edit IS processor input);
+ *   comments and whitespace are normalized away.
+ * - Only function/initializer bodies are excluded from the declaration fingerprint, and only
+ *   when the opening line is unambiguously a signature. Anything unrecognized stays in, so it
+ *   makes the file look changed rather than unchanged.
+ * - Structural surprises - unbalanced braces, an unterminated comment or raw string - return
+ *   null, which the analyzer reads as "rebaseline".
  *
  * @see AnnotationImpactAnalyzer for how the facts turn into a routing decision.
  */
@@ -24,9 +21,11 @@ object SourceAnnotationScanner {
 	private const val MASKED = '\u0001'
 
 	/**
-	 * @return the file's facts, or null when the text could not be scanned confidently
-	 *   (unbalanced braces, unterminated comment/raw string) - callers must treat null
-	 *   as "assume processor input changed".
+	 * Extracts one file's facts from its source text.
+	 *
+	 * @return null when the text could not be scanned confidently (unbalanced braces,
+	 *   unterminated comment or raw string). Callers must read that as "assume processor
+	 *   input changed".
 	 */
 	fun scan(text: String): AnnotationFacts? {
 		val prepared = prepare(text) ?: return null
@@ -81,6 +80,7 @@ object SourceAnnotationScanner {
 		val maskLines: List<String>,
 	)
 
+	/** Strips comments and builds the literal mask; null when a comment or literal never ends. */
 	private fun prepare(text: String): Prepared? {
 		val code = StringBuilder()
 		val mask = StringBuilder()
@@ -190,12 +190,11 @@ object SourceAnnotationScanner {
 	private enum class State { CODE, BLOCK_COMMENT, STRING, RAW_STRING }
 
 	/**
-	 * Per-line flag: is this line inside a function/initializer body?
+	 * Flags each line that sits inside a function or initializer body.
 	 *
-	 * Conservative by construction - a line only becomes "body" when its opening line
-	 * matched [FUNCTION_SIGNATURE] and contributed exactly one net brace. Everything else
-	 * (class bodies, `when` blocks, property-initializer lambdas, multi-line signatures
-	 * whose `{` sits alone on its own line) stays in the fingerprint.
+	 * Conservative: a line counts as body only when its opening line matched
+	 * [FUNCTION_SIGNATURE] and contributed exactly one net brace. Class bodies, `when` blocks,
+	 * property-initializer lambdas and multi-line signatures all stay in the fingerprint.
 	 *
 	 * @return null when brace nesting does not balance - the caller must not trust the file.
 	 */
@@ -231,11 +230,12 @@ object SourceAnnotationScanner {
 	}
 
 	/**
-	 * Every `@Name(...)` in the file, in source order. A Kotlin use-site target is split
-	 * off into [AnnotationUse.useSiteTarget] so imports still resolve the bare name, while
-	 * `@get:Json` and `@field:Json` stay distinct. Argument text keeps its string literals
-	 * verbatim and collapses whitespace, so reformatting an annotation is a no-op while
-	 * changing a value is not.
+	 * Collects every `@Name(...)` in the file, in source order.
+	 *
+	 * A Kotlin use-site target is split into [AnnotationUse.useSiteTarget] so imports still
+	 * resolve the bare name while `@get:Json` and `@field:Json` stay distinct. Argument text
+	 * keeps string literals verbatim and collapses whitespace, so reformatting an annotation
+	 * is a no-op while changing a value is not.
 	 */
 	private fun extractAnnotations(prepared: Prepared): List<AnnotationUse> {
 		val mask = prepared.maskLines.joinToString("\n")

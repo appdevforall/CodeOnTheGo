@@ -5,15 +5,17 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Packages changed asset files into the deploy payload zip. Entry names are the
- * asset-relative paths (`data/levels.json`, forward slashes) - exactly the strings the
- * deploy metadata's `changedAssets` array carries, so the runtime can overlay them 1:1.
+ * Packages changed asset files into the deploy payload zip.
+ *
+ * Entry names are asset-relative paths with forward slashes (`data/levels.json`) - the same
+ * strings the deploy metadata's `changedAssets` array carries, so the runtime overlays them
+ * 1:1.
  */
 class AssetPackager {
 	/**
-	 * The path of [file] relative to the asset root that contains it, or null when the
-	 * file is not under any of [assetRoots]. Used both to select asset files out of a
-	 * changed-set and to name their zip entries.
+	 * Maps [file] to its path relative to whichever of [assetRoots] contains it, or null if
+	 * none does. Used both to pick asset files out of a changed set and to name their zip
+	 * entries.
 	 */
 	fun relativeAssetPath(
 		file: File,
@@ -59,6 +61,7 @@ class AssetPackager {
 		return PackagedAssets(outFile, entries.map { it.first }.sorted())
 	}
 
+	/** A written assets zip and the entry paths inside it. */
 	data class PackagedAssets(
 		val zip: File,
 		val relativePaths: List<String>,

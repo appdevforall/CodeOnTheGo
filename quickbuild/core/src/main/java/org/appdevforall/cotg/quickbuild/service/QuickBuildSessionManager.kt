@@ -43,18 +43,16 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * The shell around the domain session machine: owns the [SessionReducer],
- * the per-session [LiveReloadOrchestrator] + [GenerationTracker], and turns reducer effects
- * into real work (provisioning, daemon respawn, Gradle proxy app rebuild).
+ * The shell around the domain session machine: owns the [SessionReducer] and the live
+ * session, and turns reducer effects into real work such as provisioning, daemon respawn,
+ * and Gradle proxy app rebuilds.
  *
- * Threading: EVERYTHING stateful runs on [dispatcher], which MUST be single-threaded -
- * the orchestrator's event-ordering guarantee requires it (see its KDoc). Effects are
- * `scope.launch`ed rather than run inline so a reducer dispatch never re-enters itself;
- * the single thread keeps the launched work strictly ordered.
- *
- * Change events arrive from the on-device [ProjectWatcher] (file changes from ANY source -
- * editor, Termux, plugin, git pull), coalesced into batches, and are hopped onto
- * [dispatcher] before touching the orchestrator.
+ * Everything stateful runs on [dispatcher], which must be single-threaded because the
+ * orchestrator's event-ordering guarantee requires it. Effects are launched rather than
+ * run inline so a reducer dispatch never re-enters itself, and the single thread keeps
+ * the launched work ordered. Change events arrive from the on-device [ProjectWatcher] -
+ * file changes from any source, not just the editor - and are hopped onto [dispatcher]
+ * before reaching the orchestrator.
  */
 class QuickBuildSessionManager(
 	private val daemon: QuickBuildDaemon,
@@ -76,33 +74,32 @@ class QuickBuildSessionManager(
 		WatcherFactory { roots, files, filter, scope ->
 			AndroidProjectWatcher(roots, files, filter, scope)
 		},
-	/** Run-statistics port (David's tracking ask); the app wires an analytics sink. */
+	/** Run-statistics port; the app wires an analytics sink. */
 	private val metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop,
 	/**
 	 * Relaunches the proxy app after a restart deploy; the app wires an intent-based
-	 * implementation. The default refuses, which the executor surfaces as a deploy
-	 * failure ("open the app manually") instead of claiming a relaunch it cannot do.
+	 * implementation. The default refuses, which the executor surfaces as a deploy failure
+	 * telling the user to open the app, rather than claiming a relaunch it cannot do.
 	 */
 	private val launcher: ProxyAppLauncher = ProxyAppLauncher { _, _ -> false },
 	/**
-	 * Bench seam (ADFA-4128): gates the background warm compile fired when provisioning
-	 * succeeds, so a warm-compile-off arm of an A/B run needs a flag file, not a rebuild. Read
-	 * at effect time, per session. Always true outside bench runs; the daemon-respawn
-	 * re-warm compile is deliberately NOT gated (it repairs a dead daemon, not a cold one).
+	 * Bench seam gating the background warm compile fired when provisioning succeeds, so a
+	 * warm-compile-off arm of an A/B run needs a flag file rather than a rebuild. Read at
+	 * effect time, per session; always true outside bench runs. The daemon-respawn re-warm
+	 * is deliberately not gated, since it repairs a dead daemon rather than a cold one.
 	 */
 	private val warmCompileEnabled: () -> Boolean = { true },
 	/**
-	 * Monotonic clock shared by the e2e timeline's t0 (orchestrator trigger stamp) and its
-	 * t1-t3 (executor stamps), so all four are comparable (see
-	 * [org.appdevforall.cotg.quickbuild.domain.E2eTimeline]). Defaults to
-	 * `System.currentTimeMillis` so this module's pure-JVM unit tests run without an Android
-	 * runtime; the app's Koin graph injects `SystemClock.elapsedRealtime` for the real
-	 * monotonic device clock.
+	 * Monotonic clock shared by the e2e timeline's orchestrator and executor stamps, so
+	 * they are comparable (see [org.appdevforall.cotg.quickbuild.domain.E2eTimeline]).
+	 *
+	 * Defaults to `System.currentTimeMillis` so this module's unit tests run without an
+	 * Android runtime; the app's Koin graph injects `SystemClock.elapsedRealtime`.
 	 */
 	private val nowMillis: () -> Long = System::currentTimeMillis,
 	/**
-	 * Per-project scratch trees on app-private storage (ADFA-4930): intermediates
-	 * off FUSE. Overridable so tests can shrink or inflate the disk-space floor.
+	 * Per-project scratch trees on app-private storage, keeping intermediates off FUSE.
+	 * Overridable so tests can shrink or inflate the disk-space floor.
 	 */
 	private val scratch: QuickBuildScratch = QuickBuildScratch(paths.projectScratchRoot),
 ) {
@@ -133,16 +130,19 @@ class QuickBuildSessionManager(
 
 	val state: StateFlow<QuickBuildSessionState> = _state
 
-	/** Derived, never set imperatively - the stuck-banner bug is unrepresentable. */
+	/**
+	 * What the toolbar shows. Derived from [state] and never set imperatively, so a banner
+	 * cannot get stuck out of step with the session.
+	 */
 	val status: StateFlow<QuickBuildStatus> =
 		_state
 			.map(QuickBuildStatus.Companion::from)
 			.stateIn(scope, SharingStarted.Eagerly, QuickBuildStatus.Hidden)
 
 	/**
-	 * Provisioning/daemon failure text for the host UI to flash. Same messages as the
-	 * injected [onUserMessage] callback; this flow is the surface the editor activity
-	 * collects, since the Koin graph can't reach an Activity's flash helpers.
+	 * Provisioning and daemon failure text for the host UI to flash. Carries the same
+	 * messages as the injected [onUserMessage] callback; this flow is what the editor
+	 * activity collects, since the Koin graph cannot reach an Activity's flash helpers.
 	 */
 	val userMessages: SharedFlow<String>
 		get() = _userMessages
@@ -154,10 +154,11 @@ class QuickBuildSessionManager(
 		)
 
 	/**
-	 * Neutral notices for the host UI - things that are not failures and must not be
-	 * flashed as errors. Separate from [userMessages] precisely because that flow IS the
-	 * error channel: a cancellation the user asked for reading as a red error banner would
-	 * be the same dishonesty as a silent one.
+	 * Neutral notices for the host UI: things that are not failures and must not be
+	 * flashed as errors.
+	 *
+	 * Separate from [userMessages] because that flow is the error channel, and a
+	 * cancellation the user asked for should not read as a red banner.
 	 */
 	val notices: SharedFlow<QuickBuildNotice>
 		get() = _notices
@@ -171,31 +172,22 @@ class QuickBuildSessionManager(
 	private var live: LiveSession? = null
 
 	/**
-	 * Bumped by every [teardown]. In-flight provisioning/proxy-app-rebuild work captures the
-	 * epoch at launch and discards its result when they differ: a provision completing
-	 * after "Restart session" must never install itself as a zombie session (watcher +
-	 * daemon live while the UI shows Idle). Only touched on [dispatcher].
+	 * Bumped by every [teardown], so in-flight work can tell it was outlived.
+	 *
+	 * Provisioning and rebuild work captures the epoch at launch and discards its result
+	 * when they differ: a provision completing after "Restart session" must never install
+	 * itself as a zombie session with a live watcher and daemon behind an Idle UI. Only
+	 * touched on [dispatcher].
 	 */
 	private var sessionEpoch = 0L
 
-	/** The in-flight provision/prebuild/proxy app rebuild; cancelled by [teardown]. */
+	/** The in-flight provision, prebuild, or proxy app rebuild; cancelled by [teardown]. */
 	private var sessionWork: Job? = null
 
-	/**
-	 * Owns the daemon-epoch protocol, the respawn-supersession cleanup and the
-	 * low-memory shrink policy. The six intentional-transition bump sites (provisioning
-	 * start + its undo, proxy-app-rebuild teardown + restart, session teardown,
-	 * low-memory shrink) stay explicit via
-	 * [QuickBuildDaemonController.markIntentionalTransition]; see the controller's
-	 * KDoc for the exactly-one-transition rule.
-	 */
+	/** Owns the daemon lifecycle protocol; see [QuickBuildDaemonController]. */
 	private val daemonController = QuickBuildDaemonController(daemon, scratch, paths)
 
-	/**
-	 * Assembles live sessions (and their ProxyAppInfo-derived rebuild pieces).
-	 * Constructed here from deps this class already takes, so the manager's ctor, the
-	 * Koin wiring, and the two test seams it passes through stay unchanged.
-	 */
+	/** Assembles live sessions and the rebuild pieces derived from a proxy app baseline. */
 	private val sessionFactory =
 		LiveSessionFactory(
 			daemon = daemon,
@@ -211,8 +203,8 @@ class QuickBuildSessionManager(
 		)
 
 	/**
-	 * Runs the Gradle proxy app builds (provision + rebuild fallback) and returns
-	 * verdicts; this manager keeps the epoch guards, installs sessions, and dispatches.
+	 * Runs the Gradle proxy app builds and returns verdicts. This manager keeps the epoch
+	 * guards, installs sessions, and dispatches.
 	 */
 	private val buildRunner =
 		ProxyAppBuildRunner(
@@ -241,12 +233,11 @@ class QuickBuildSessionManager(
 			}
 		}
 		scope.launch {
-			// Reconnect catch-up: a killed-and-relaunched proxy app reports the
-			// generation it booted; below what this session already deployed means it
-			// is verifiably running superseded code (persisted payload lost/stale), so
-			// force a rebuild of current sources at a fresh generation - the same path
-			// as an explicit tap. Without this, nothing reacts to a stale reconnect
-			// and the app would run old code silently until the next edit.
+			// Reconnect catch-up: a relaunched proxy app reports the generation it
+			// booted, and one below what this session deployed means its persisted
+			// payload was lost or stale. Force a rebuild of current sources at a fresh
+			// generation, the same path an explicit tap takes; otherwise the app runs
+			// old code silently until the next edit.
 			connections.target.collect { target ->
 				val session = live ?: return@collect
 				if (target != null && target.runningGeneration < session.lastDeployedGeneration) {
@@ -255,9 +246,8 @@ class QuickBuildSessionManager(
 						target.runningGeneration,
 						session.lastDeployedGeneration,
 					)
-					// NOT user-initiated: nobody tapped anything. Saying otherwise here would
-					// foreground the proxy app off a stale reconnect (behaviour 2's ask must
-					// come from a human).
+					// Not user-initiated: nobody tapped anything, and saying otherwise
+					// would foreground the proxy app off a stale reconnect.
 					session.orchestrator.onLiveReloadRequested(userInitiated = false)
 				}
 			}
@@ -271,26 +261,23 @@ class QuickBuildSessionManager(
 			}
 		}
 		scope.launch {
-			// Stale-tree sweep (ADFA-4930): nothing can be live yet - this manager is the
-			// process's only session owner and no tap has dispatched - so every tree under
-			// the scratch root is a dead session's leftover (process kill, crash) or a
-			// since-deleted project's. Runs on [dispatcher], strictly before any tap.
+			// Stale-tree sweep. Nothing can be live yet - this manager is the process's
+			// only session owner and no tap has dispatched - so every tree under the
+			// scratch root belongs to a dead session or a deleted project. Runs on
+			// dispatcher, strictly before any tap.
 			scratch.sweep(liveProjectRoots = emptyList())
 		}
 	}
 
 	/**
-	 * The lightning-bolt tap: starts a session from Idle, forces a build when live, and
-	 * queues onto an in-flight prebuild ([QuickBuildSessionState.Prebuilding.tapQueued]).
+	 * Handles the Quick Build tap: starts a session from Idle, forces a build when live,
+	 * and queues onto an in-flight prebuild.
 	 *
-	 * The tap MUST be dispatched before the history write, never after. The reducer has to
-	 * see the tap without waiting on a side effect that can be slow or throw: [prebuild]
-	 * dispatches immediately, so a tap sequenced behind a disk write can be reduced after
-	 * `PrebuildFinished` has already settled the session back to
-	 * [QuickBuildSessionState.Idle], and a write that throws kills this coroutine before the
-	 * dispatch - losing the tap outright on the primary control, which is also the press the
-	 * parked-session banner tells the user to make. Nothing depends on the other ordering:
-	 * prebuild is not gated on this history (see [prebuild]), so it is pure bookkeeping.
+	 * The tap must dispatch before the history write, never after. A tap sequenced behind
+	 * a disk write can be reduced after `PrebuildFinished` already settled the session
+	 * back to Idle, and a write that throws would kill this coroutine before the dispatch,
+	 * losing the tap on the primary control. Nothing depends on the other ordering, since
+	 * prebuild does not gate on this history.
 	 */
 	fun onQuickBuildTapped() {
 		scope.launch {
@@ -304,77 +291,72 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * The stop button (Bryan's behaviour 5): the SAME toolbar button, tapped while it is
-	 * showing the standard build's stop icon. Dispatching is safe from any state - the
-	 * reducer only acts on the states that own a build the user asked for, so a tap that
-	 * raced the build's completion is a no-op rather than a spurious cancellation.
+	 * Handles the stop button, the same toolbar button showing its stop icon.
+	 *
+	 * Safe to call from any state: the reducer only acts on states that own a build the
+	 * user asked for, so a tap that raced the build's completion does nothing.
 	 */
 	fun onCancelRequested() {
 		scope.launch { dispatch(SessionEvent.CancelRequested) }
 	}
 
 	/**
-	 * Call when CoGo's editor returns to the foreground. Recovers the one park that a
-	 * tap cannot be expected to fix unprompted: a proxy app rebuild reinstall that ran while
-	 * CoGo was BACKGROUNDED never showed a confirm dialog - Android DEFERS the
-	 * PENDING_USER_ACTION broadcast until the app is foregrounded, and the dialog-owning
-	 * subscriber (InstallationResultHandler) is EventBus lifecycle-bound (registered
-	 * onStart, unregistered onStop), so the deferred delivery can land before it
-	 * re-registers and nothing launches the dialog. The user saw nothing fail.
-	 * Re-running the proxy app rebuild now - with CoGo foreground - makes the prompt actually
-	 * appear. Dispatch is a no-op in every state except
-	 * [QuickBuildSessionState.Invalidated] with `awaitingRetry = true` (and the reducer
-	 * bounds the auto-retries), so calling this from every editor onResume is safe and
-	 * cheap.
+	 * Retries a reinstall whose confirm dialog never appeared, now that CoGo is
+	 * foreground again. Call from the editor's onResume.
+	 *
+	 * A rebuild reinstall that ran while CoGo was backgrounded shows the user nothing:
+	 * Android defers the PENDING_USER_ACTION broadcast until the app is foreground, and
+	 * the dialog-owning subscriber is lifecycle-bound, so the deferred delivery can land
+	 * before it re-registers. This is a no-op in every state except an Invalidated session
+	 * awaiting retry, and the reducer bounds the auto-retries.
 	 */
 	fun onHostForegrounded() {
 		scope.launch { dispatch(SessionEvent.HostForegrounded) }
 	}
 
 	/**
-	 * Eager warm-up: call at project open, AFTER the normal Gradle sync
-	 * completes, with the experimental flag on. Runs the proxy app build in the background
-	 * so the first tap pays only install + bind; installs nothing. No-op unless Idle.
-	 * A tap landing mid-warm queues and provisions when the warm build finishes.
+	 * Runs the proxy app build in the background so the first tap pays only install and
+	 * bind. Call at project open, after the normal Gradle sync completes.
 	 *
-	 * NOT gated on project history: if Quick Build is enabled, warm it. Gating the warm-up
-	 * until the feature had been tapped once on the project would save battery on projects
-	 * that never use it, but it makes the first tap on every new project pay the whole cold
-	 * proxy app build -- ~97 s on an a56 for a small app -- which is the one impression a
-	 * user forms of the feature.
+	 * Installs nothing, and is a no-op unless Idle; a tap landing mid-warm queues and
+	 * provisions when the warm build finishes. Deliberately not gated on project history:
+	 * gating would save battery on projects that never use Quick Build, at the cost of
+	 * making the first tap on every new project pay a whole cold proxy app build -
+	 * about 97 s on an a56 for a small app [measured on a56].
 	 */
 	fun prebuild() {
 		scope.launch { dispatch(SessionEvent.PrebuildRequested) }
 	}
 
 	/**
-	 * Mode-switch hand-back: call when a Standard Run's Gradle build completes
-	 * (e.g. from the dropdown's "Standard Run", or the Run button's build-finished
-	 * hook). A live session refreshes its baseline from current disk - a full proxy app
-	 * rebuild when the external build clobbered the proxy app build artifacts, otherwise a
-	 * baseline refresh (the next build recompiles everything) - so the next quick build is
-	 * never stale. No session: no-op.
+	 * Moves a live session back onto current disk after a Standard Run's Gradle build, so
+	 * the next quick build is not stale. Call from the Run button's build-finished hook.
+	 *
+	 * A build that clobbered the proxy app artifacts forces a full rebuild; anything less
+	 * only marks the baseline dirty. No-op with no live session.
 	 */
 	fun onStandardRunCompleted() {
 		scope.launch { dispatch(SessionEvent.ExternalBuildCompleted) }
 	}
 
 	/**
-	 * Restart action: tears down the current live
-	 * session and daemon and returns to Idle from whatever state the session is in. The
-	 * next tap re-provisions from scratch - the escape hatch for a daemon or proxy app
-	 * stuck past what a plain quick build or proxy app rebuild can recover.
+	 * Tears down the live session and daemon and returns to Idle from any state, so the
+	 * next tap re-provisions from scratch.
+	 *
+	 * The escape hatch for a daemon or proxy app stuck past what a quick build or a
+	 * rebuild can recover.
 	 */
 	fun restartSession() {
 		scope.launch { dispatch(SessionEvent.SessionRestartRequested) }
 	}
 
 	/**
-	 * Framework low-memory signal: the host forwards `ComponentCallbacks2.onTrimMemory`'s
-	 * level here. The compile daemon is a separate child JVM whose heap is pure overhead
-	 * between builds, so it is the first thing worth giving back on a constrained device.
-	 * Which levels actually tear it down, and why a build in flight defers instead of being
-	 * killed, is [QuickBuildDaemonController.onTrimMemory].
+	 * Gives the compile daemon's memory back under system pressure. The host forwards
+	 * `ComponentCallbacks2.onTrimMemory`'s level here.
+	 *
+	 * The daemon is a separate child JVM whose heap is pure overhead between builds, so it
+	 * is the first thing worth releasing. Which levels tear it down, and why a build in
+	 * flight defers, is [QuickBuildDaemonController.onTrimMemory].
 	 */
 	fun onTrimMemory(level: Int) {
 		scope.launch {
@@ -386,13 +368,11 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * A coalesced batch of changes from the watcher (already filtered to relevant paths).
-	 * Hopped onto [dispatcher]; the orchestrator + classifier decide the route (quick build
-	 * vs. proxy app rebuild) and handle concurrency with any in-flight build.
+	 * Hands one coalesced batch of watcher changes to the orchestrator, which picks the
+	 * route and handles any in-flight build.
 	 *
-	 * The modified-vs-removed reconciliation itself is domain logic
-	 * ([WatcherBatchReconciler]); this shell only supplies the `File.isFile` probe and
-	 * dispatches the reconciled batch.
+	 * Reconciling modified against removed is domain logic in [WatcherBatchReconciler];
+	 * this shell only supplies the `File.isFile` probe.
 	 */
 	private fun onWatcherBatch(batch: ChangedFiles.Known) {
 		val reconciled = WatcherBatchReconciler.reconcile(batch, File::isFile)
@@ -402,7 +382,7 @@ class QuickBuildSessionManager(
 		}
 	}
 
-	/** Runs on [dispatcher] only. */
+	/** Reduces one event into the new state and runs its effects. On [dispatcher] only. */
 	private suspend fun dispatch(event: SessionEvent) {
 		val transition = reducer.reduce(_state.value, event)
 		if (transition.state != _state.value) {
@@ -412,6 +392,7 @@ class QuickBuildSessionManager(
 		transition.effects.forEach(::runEffect)
 	}
 
+	/** Turns one reducer effect into real work, launched so a dispatch never re-enters itself. */
 	private fun runEffect(effect: SessionEffect) {
 		when (effect) {
 			SessionEffect.StartProvisioning -> {
@@ -430,9 +411,9 @@ class QuickBuildSessionManager(
 			SessionEffect.MarkBuildUserInitiated -> {
 				scope.launch {
 					val orchestrator = live?.orchestrator ?: return@launch
-					// The build can finish between the reducer's decision and this effect. Fall
-					// back to a real request rather than let the tap vanish - a tap that does
-					// nothing at all is the failure mode this whole path exists to remove.
+					// The build can finish between the reducer's decision and this
+					// effect; fall back to a real request rather than let the tap
+					// vanish.
 					if (!orchestrator.markInFlightUserInitiated()) triggerLiveReload(userInitiated = true)
 				}
 			}
@@ -452,15 +433,15 @@ class QuickBuildSessionManager(
 			}
 
 			SessionEffect.CancelProxyAppBuild -> {
-				// Emitted only from Prebuilding(tapQueued)/Provisioning, i.e. exactly when this
-				// session owns the device's single Gradle build slot - see the port's KDoc for
-				// why issuing it blind would be dangerous.
+				// Emitted only from states where this session owns the device's single
+				// Gradle slot; see QuickBuildProvisioner.cancelProxyAppBuild for why
+				// issuing it otherwise would be dangerous.
 				if (provisioner.cancelProxyAppBuild()) {
 					log.info("Quick Build proxy app build cancelled by the user")
 				} else {
-					// The Gradle build had already finished (the session is in its install or
-					// daemon-spawn tail). The TeardownSession effect that follows still stops
-					// the session, so the stop is honoured; nothing Gradle is doing is claimed.
+					// The Gradle build had already finished and the session is in its
+					// install or daemon-spawn tail. The TeardownSession effect that
+					// follows still stops the session.
 					log.info("No Quick Build proxy app build to cancel; tearing the session down instead")
 				}
 				surfaceNotice(QuickBuildNotice.BUILD_CANCELLED)
@@ -468,8 +449,8 @@ class QuickBuildSessionManager(
 
 			SessionEffect.StartWarmCompile -> {
 				if (warmCompileEnabled()) {
-					// live is assigned before ProvisioningSucceeded is dispatched (see
-					// startProvisioning), so the orchestrator is always there to take this.
+					// live is assigned before ProvisioningSucceeded is dispatched, so
+					// the orchestrator is always there to take this.
 					scope.launch { live?.orchestrator?.onWarmCompileRequested() }
 				} else {
 					log.info("Background warm compile disabled (bench seam); session stays Ready unwarmed")
@@ -503,27 +484,28 @@ class QuickBuildSessionManager(
 		}
 	}
 
+	/** Asks the orchestrator for a build, and foregrounds the app when a tap has nothing to wait for. */
 	private suspend fun triggerLiveReload(userInitiated: Boolean) {
 		val orchestrator = live?.orchestrator ?: return
 		val awaitsDeploy = orchestrator.onLiveReloadRequested(userInitiated)
-		// Behaviour 4: a tap with nothing pending still costs a full recompile + relink +
-		// deploy (the runtime only accepts strictly-newer generations, so a metadata-only
-		// replay cannot land), and the user must not stare at the editor through it. Answer
-		// the tap NOW and let the redeploy land behind them. The decision lives here rather
-		// than in the reducer because only the orchestrator knows what is pending.
+		// A tap with nothing pending still costs a full recompile, relink and deploy,
+		// because the runtime only accepts strictly newer generations. Answer the tap now
+		// and let the redeploy land behind the user. The decision lives here rather than
+		// in the reducer because only the orchestrator knows what is pending.
 		if (userInitiated && !awaitsDeploy) switchToProxyApp()
 	}
 
 	/**
-	 * Bring the proxy app to the foreground because the USER asked (behaviours 2 and 4).
-	 * Best-effort: a refusal is logged, never surfaced - the build itself already landed and
-	 * the user can open the app themselves, so a second banner would only add noise.
+	 * Brings the proxy app to the foreground because the user asked.
+	 *
+	 * Best-effort: a refusal is logged rather than surfaced, since the build already
+	 * landed and the user can open the app themselves.
 	 */
 	private fun switchToProxyApp() {
 		val session = live ?: return
-		// Same target the restart-deploy relaunch uses: the proxied launcher activity when
-		// one carries MAIN/LAUNCHER, else null so the launcher falls back to the package's
-		// default launch intent (which resolves an <activity-alias> launcher).
+		// Same target the restart-deploy relaunch uses: the proxied launcher activity
+		// when one carries MAIN/LAUNCHER, else null so the launcher falls back to the
+		// default launch intent, which resolves an <activity-alias> launcher.
 		val launcherActivity =
 			session.proxyApp.components
 				.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
@@ -533,7 +515,7 @@ class QuickBuildSessionManager(
 		}
 	}
 
-	/** Warm-up: best-effort, silent on failure; always reports finished. */
+	/** Runs the eager warm-up build. Silent on failure, and always reports finished. */
 	private suspend fun runPrebuild() {
 		try {
 			provisioner.prebuildProxyApp()
@@ -545,6 +527,7 @@ class QuickBuildSessionManager(
 		dispatch(SessionEvent.PrebuildFinished)
 	}
 
+	/** Provisions a session and installs it as [live], unless a teardown outlived it. */
 	private suspend fun provision(startEpoch: Long) {
 		when (val result = buildRunner.provision(superseded = { startEpoch != sessionEpoch })) {
 			is ProxyAppBuildRunner.ProvisionResult.DiskSpaceShort -> {
@@ -556,15 +539,15 @@ class QuickBuildSessionManager(
 			}
 
 			is ProxyAppBuildRunner.ProvisionResult.Superseded -> {
-				// "Restart session" landed while the proxy app build ran; the user asked for
-				// a fresh start, so a late success must not resurrect (and a late failure
-				// must not surface) - see the zombie-session scenario in the teardown KDoc.
+				// The user asked for a fresh start while the proxy app build ran, so a
+				// late success must not resurrect and a late failure must not surface.
 				log.info("Quick-build provisioning outlived a session restart; discarding")
 			}
 
 			is ProxyAppBuildRunner.ProvisionResult.SupersededDuringDaemonStart -> {
-				// Restart raced the daemon start: the runner already undid its side; stop
-				// the zombie daemon on a fresh coroutine (this one is already cancelled).
+				// A restart raced the daemon start. The runner already undid its side;
+				// stop the zombie daemon on a fresh coroutine, since this one is
+				// already cancelled.
 				log.info("Session restarted during daemon start; shutting down")
 				daemonController.markIntentionalTransition()
 				scope.launch { daemonController.shutdown() }
@@ -574,15 +557,18 @@ class QuickBuildSessionManager(
 				live = result.session
 				// Build ids restart per session; give the sink its session boundary.
 				report { metrics.onSessionStarted() }
-				// Trigger on file change from any source (editor, Termux, plugin,
-				// git pull) - the reload path is change-driven, not save-driven.
+				// The reload path is change-driven, not save-driven: any source of a
+				// file change triggers it, including Termux, plugins and git.
 				result.session.watcher.start(::onWatcherBatch)
 				dispatch(SessionEvent.ProvisioningSucceeded(result.tracker.current))
 			}
 		}
 	}
 
-	/** Delivered synchronously on [dispatcher] by the orchestrator; hop to a launch. */
+	/**
+	 * Applies what [eventRouter] made of one orchestrator event. The orchestrator
+	 * delivers synchronously on [dispatcher], so this hops to a launch.
+	 */
 	private fun onOrchestratorEvent(event: OrchestratorEvent) {
 		scope.launch {
 			val session = live
@@ -592,26 +578,25 @@ class QuickBuildSessionManager(
 					lastDeployedGeneration = session?.lastDeployedGeneration ?: -1L,
 					connectedGeneration = connections.target.value?.runningGeneration,
 				)
-			// Tally first (the dispatched BuildSucceeded's consumers may read it),
-			// events second, the best-effort building notification last - the same
-			// order as before the router was extracted.
+			// Tally first, because the dispatched BuildSucceeded's consumers may read
+			// it; events second; the best-effort building notification last.
 			routing.newLastDeployedGeneration?.let { generation ->
 				session?.lastDeployedGeneration = generation
 			}
 			routing.sessionEvents.forEach { dispatch(it) }
 			routing.notifyBuildingAt?.let { generation ->
-				// No live session means nothing truthful to say - skip silently, like
-				// every other best-effort status push.
+				// With no live session there is nothing truthful to say, so skip
+				// silently like every other best-effort status push.
 				if (session != null) notifyBuilding(generation)
 			}
 		}
 	}
 
 	/**
-	 * Honesty line while a build is in flight: tells the proxy app it is one
-	 * generation behind while the new one compiles, so a slow build never reads as
-	 * silence. The generation choice (session tally vs the connected target's
-	 * self-report) is [OrchestratorEventRouter]'s call - see
+	 * Tells the proxy app a newer build is compiling while it keeps running
+	 * [runningGeneration], so a slow build does not read as silence.
+	 *
+	 * Which generation that is comes from
 	 * [OrchestratorEventRouter.Routing.notifyBuildingAt].
 	 */
 	private fun notifyBuilding(runningGeneration: Long) {
@@ -622,11 +607,12 @@ class QuickBuildSessionManager(
 		}
 	}
 
+	/** Rebuilds the proxy app and moves the live session onto the new baseline. */
 	private suspend fun rebuildProxyApp(startEpoch: Long) {
 		val session = live ?: return
-		// Captured BEFORE ProxyAppRebuildStarted moves the session to Provisioning, which carries
-		// neither the reason nor the deployed generation: a retry that never gets the Gradle
-		// slot has to park back exactly where it came from (see ProxyAppRebuildDeferred).
+		// Captured before ProxyAppRebuildStarted moves the session to Provisioning, which
+		// carries neither the reason nor the deployed generation: a retry that never gets
+		// the Gradle slot has to park back exactly where it came from.
 		val installRetryPark =
 			(_state.value as? QuickBuildSessionState.Invalidated)
 				?.takeIf { it.reason == InvalidationReason.INSTALL_NOT_CONFIRMED }
@@ -641,19 +627,17 @@ class QuickBuildSessionManager(
 
 		when (result) {
 			is ProxyAppBuildRunner.ProxyAppRebuildResult.Superseded -> {
-				// The session this proxy app rebuild was for is gone; don't poke its orchestrator.
+				// The session this rebuild was for is gone; do not poke its orchestrator.
 				log.info("Quick-build proxy app rebuild outlived a session restart; discarding")
 			}
 
 			is ProxyAppBuildRunner.ProxyAppRebuildResult.BuildSlotBusy -> {
 				if (installRetryPark != null) {
-					// The retry never got the Gradle slot (typically CoGo's own project sync,
-					// which the invalidating gradle edit itself triggers). Park back WITHOUT
-					// spending the auto-retry budget. Do NOT re-state the park's install
-					// guidance here: its dominant text says "return to CoGo", and returning
-					// to CoGo is exactly what triggered this retry - say what is actually
-					// happening instead. "Proxy app rebuild failed" would be worse still, a
-					// claim about a build that never ran.
+					// The retry never got the Gradle slot, usually to CoGo's own project
+					// sync that the invalidating gradle edit triggered. Park back
+					// without spending the auto-retry budget, and say what is actually
+					// happening: the park's own text tells the user to return to CoGo,
+					// which is exactly what triggered this retry.
 					log.info("Gradle slot busy; deferring the proxy app rebuild retry without spending an auto-retry")
 					surfaceUserMessage(
 						"Waiting for the current Gradle build to finish - your app still " +
@@ -661,8 +645,8 @@ class QuickBuildSessionManager(
 					)
 					dispatch(SessionEvent.ProxyAppRebuildDeferred(installRetryPark.deployedGeneration))
 				} else {
-					// A first proxy app rebuild (not a parked retry) has no park to return to and no
-					// budget to protect; report it like any other proxy-app-build failure.
+					// A first rebuild has no park to return to and no budget to
+					// protect, so report it like any other proxy-app-build failure.
 					session.orchestrator.onProxyAppRebuildFailed()
 					dispatch(SessionEvent.ProvisioningFailed("Proxy app rebuild failed"))
 				}
@@ -670,11 +654,10 @@ class QuickBuildSessionManager(
 
 			is ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded -> {
 				try {
-					// Both delegates are built BEFORE adoptBaseline moves anything: executorFor
-					// can throw (checkNotNull(entryActivity) - the rebuild contract does not
-					// guarantee it non-null), and a throw here must leave the old baseline
-					// fully intact instead of escaping to the scope with the session
-					// half-updated.
+					// Both delegates are built before adoptBaseline moves anything:
+					// executorFor can throw on a null entryActivity, which the rebuild
+					// contract does not rule out, and a throw must leave the old
+					// baseline intact rather than escape with the session half-updated.
 					val executorDelegate =
 						sessionFactory.executorFor(result.proxyApp, result.layout, session.tracker)
 					val annotationImpactDelegate =
@@ -707,15 +690,12 @@ class QuickBuildSessionManager(
 			}
 
 			is ProxyAppBuildRunner.ProxyAppRebuildResult.InstallNotConfirmed -> {
-				// The Gradle build was fine; only the reinstall confirmation is missing
-				// (no dialog shown / cancelled / left untapped - the stranded-session
-				// finding from the multi-module device verify). Park recoverable instead
-				// of dying to Idle; the message already says how to recover for its
-				// specific case. Deliberately NOT onProxyAppRebuildFailed(): the orchestrator
-				// keeps holding the absorbed batch, so quick builds stay suspended while
-				// the daemon is down (a live-reload save here would only fail against the
-				// dead daemon); the retry's onProxyAppRebuildStarted re-holds pending on
-				// top, and every held file is on disk for its Gradle build to absorb.
+				// The Gradle build was fine and only the reinstall confirmation is
+				// missing, so park recoverable instead of dying to Idle; the message
+				// already says how to recover. Deliberately not onProxyAppRebuildFailed:
+				// the orchestrator keeps holding the absorbed batch, which suspends
+				// quick builds while the daemon is down, and every held file is on disk
+				// for the retry's Gradle build to absorb.
 				log.warn("Proxy app rebuild reinstall not confirmed; awaiting a retry: {}", result.message)
 				surfaceUserMessage(result.message)
 				dispatch(
@@ -728,11 +708,11 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * Hand-back: an external full build finished. When the proxy app build artifacts the daemon
-	 * builds against are still on disk, marking the baseline dirty is enough - the next
-	 * build recompiles everything from current disk, without reinstalling anything. When
-	 * the external build removed them (a clean wiped build/), only a full proxy app rebuild
-	 * helps: route to the existing invalidation machinery as EXTERNAL_FULL_BUILD.
+	 * Brings the session back in step after an external full build.
+	 *
+	 * With the daemon's proxy app artifacts still on disk, marking the baseline dirty is
+	 * enough: the next build recompiles everything and reinstalls nothing. If the external
+	 * build removed them, only a full rebuild helps.
 	 */
 	private suspend fun refreshBaseline() {
 		val session = live ?: return
@@ -744,15 +724,16 @@ class QuickBuildSessionManager(
 		}
 	}
 
+	/** Restarts a dead daemon and re-seeds the orchestrator against it. */
 	private suspend fun respawnDaemon(startEpoch: Long) {
 		val session = live ?: return
 		when (val outcome = daemonController.respawn(session.layout, session.proxyApp, startEpoch)) {
 			is QuickBuildDaemonController.RespawnOutcome.Respawned -> {
 				dispatch(SessionEvent.DaemonRespawned)
-				// A fresh daemon has no trustworthy IC state. With nothing pending this
-				// re-warms via a deploy-nothing WarmCompile (the proxy app keeps running its
-				// current generation untouched); with pending work it marks the baseline
-				// dirty so the next build recompiles everything and deploys.
+				// A fresh daemon has no trustworthy incremental state. With nothing
+				// pending this re-warms via a deploy-nothing warm compile, leaving the
+				// proxy app on its current generation; with pending work it marks the
+				// baseline dirty so the next build recompiles everything and deploys.
 				session.orchestrator.onDaemonReplaced()
 			}
 
@@ -764,21 +745,22 @@ class QuickBuildSessionManager(
 
 			is QuickBuildDaemonController.RespawnOutcome.Failed -> {
 				log.error("Daemon respawn failed: {}", outcome.message)
-				// Stay Degraded (honest); the next explicit tap or session restart
-				// retries. Auto-retry loops on a hard-broken daemon would spin.
+				// Stay Degraded and let the next explicit tap or session restart retry;
+				// auto-retrying a hard-broken daemon would just spin.
 				surfaceUserMessage("Quick Build daemon could not be restarted: ${outcome.message}")
 			}
 		}
 	}
 
 	/**
-	 * Tears down the live session AND any in-flight provision/prebuild/proxy app rebuild. The
-	 * epoch bump + cancel pair is what makes "Restart session" safe mid-provisioning:
-	 * without it, a provision resuming after the restart would set [live], start its
-	 * watcher and build/deploy invisibly while the UI shows Idle - and the next tap's
-	 * provision would overwrite [live] leaving the orphan watcher running forever.
-	 * Cancelling [sessionWork] from within that very coroutine (the
-	 * SurfaceProvisioningError path) is safe: nothing suspends after the dispatch.
+	 * Tears down the live session and any in-flight provision, prebuild, or rebuild.
+	 *
+	 * The epoch bump and cancel pair is what makes "Restart session" safe
+	 * mid-provisioning: without it a provision resuming after the restart would set
+	 * [live], start its watcher, and deploy invisibly behind an Idle UI, and the next
+	 * tap's provision would overwrite [live] leaving that watcher orphaned. Cancelling
+	 * [sessionWork] from within that coroutine is safe, since nothing suspends after the
+	 * dispatch.
 	 */
 	private fun teardown() {
 		sessionEpoch++
@@ -791,22 +773,24 @@ class QuickBuildSessionManager(
 		connections.endSession()
 		scope.launch {
 			daemonController.shutdown()
-			// Only after the daemon is down: it writes into this tree until then. A
-			// teardown with no live session (provisioning failed before going live)
-			// has nothing to remove; the init-time sweep reclaims any half-made tree.
-			// Skip when a NEW session for the same project went live while shutdown
-			// suspended - the tree is now that session's, not this one's to delete.
+			// Only after the daemon is down, since it writes into this tree until
+			// then. A teardown with no live session has nothing to remove, and the
+			// init-time sweep reclaims any half-made tree. Skip when a new session for
+			// the same project went live while shutdown suspended: the tree is that
+			// session's now.
 			scratchOwner
 				?.takeIf { live?.layout?.projectRoot != it }
 				?.let(scratch::remove)
 		}
 	}
 
+	/** Sends failure text to both the injected callback and [userMessages]. */
 	private fun surfaceUserMessage(message: String) {
 		onUserMessage(message)
 		_userMessages.tryEmit(message)
 	}
 
+	/** Sends a non-failure notice to [notices]. */
 	private fun surfaceNotice(notice: QuickBuildNotice) {
 		_notices.tryEmit(notice)
 	}

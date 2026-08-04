@@ -11,13 +11,11 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 
 /**
- * On-disk store of the NEWEST payload generation (component-proxying design, section 3). A fresh process boots the persisted generation instead of the baked gen-0 baseline - without this, providers and a custom Application (which instantiate before the binder connects and are never re-instantiated) would be pinned to baseline code after any process death, and the restart-based swap for services/providers could not work at all.
+ * Keeps the newest payload generation on disk so a fresh process boots it instead of the baked gen-0 baseline.
  *
- * Layout under the store dir: {@code payload.dex}, {@code resources.arsc}, {@code assets.zip} (each optional - a deploy carries only what changed, and the store keeps the newest file of each kind), plus {@code meta.json} holding the generation and the baseline fingerprint. Files are written temp-then-rename with {@code meta.json} LAST, so a crash mid-persist leaves the old meta pointing at possibly-newer payload files - the store then claims an OLDER generation than it serves, which is the safe direction (the host redeploys anything newer than the claimed generation; claiming newer than served would be a stale-code lie).
+ * Without it, providers and a custom Application - which instantiate before the binder connects and are never re-instantiated - would be pinned to baseline code after any process death, and the restart-based swap for services and providers could not work. Pure java.io, so the store is JVM-unit-testable.
  *
- * The fingerprint is a digest of the baked gen-0 baseline dex: a rebaseline/reinstall changes it, and {@link #load} deletes a mismatching store and falls back to gen-0 - a persisted payload must never outlive the baseline it was compiled against.
- *
- * Pure Java + java.io only, so the whole store is JVM-unit-testable.
+ * The dir holds {@code payload.dex}, {@code resources.arsc} and {@code assets.zip}, each optional because a deploy carries only what changed, plus {@code meta.json} with the generation and baseline fingerprint. Everything is written temp-then-rename with {@code meta.json} last, so a crash mid-persist leaves the store claiming an older generation than it serves. That is the safe direction: the host redeploys anything newer than the claimed generation, while claiming newer than served would serve stale code.
  */
 final class PayloadPersistence {
 
@@ -27,7 +25,7 @@ final class PayloadPersistence {
 	static final String META_FILE = "meta.json";
 
 	/**
-	 * Hex SHA-256 of the baseline dex bytes - the key that ties a persisted payload to the exact baseline APK it was deployed onto.
+	 * Computes the key that ties a persisted payload to the baseline APK it was deployed onto: hex SHA-256 of the baseline dex bytes.
 	 */
 	static String fingerprint(byte[] baselineDex) {
 		try {
@@ -103,7 +101,9 @@ final class PayloadPersistence {
 	}
 
 	/**
-	 * Loads the persisted payload when it exists, parses, and matches {@code expectedFingerprint}. Any mismatch or corruption deletes the store and returns null - the caller then boots the gen-0 baseline, which is always current for a fresh install/rebaseline.
+	 * Loads the persisted payload, or discards the store when it cannot be trusted.
+	 *
+	 * A fingerprint mismatch means a rebaseline or reinstall, so the payload must not outlive the baseline it was compiled against. Any mismatch or corruption deletes the store and returns null; the caller then boots the gen-0 baseline.
 	 */
 	Loaded load(String expectedFingerprint) {
 		File meta = new File(dir, META_FILE);
@@ -138,9 +138,11 @@ final class PayloadPersistence {
 	}
 
 	/**
-	 * Persists {@code generation} as the newest payload. Null byte arrays keep the previously persisted file of that kind (deploys are deltas per payload kind; the store is cumulative so a boot always has the newest of everything). Throws on any IO failure so the caller can refuse the deploy LOUDLY instead of leaving a boot path that would silently serve older code.
+	 * Writes {@code generation} as the newest payload.
 	 *
-	 * @return the store's current payload files after the write, for callers that apply resources from the persisted copies.
+	 * A null byte array keeps the previously persisted file of that kind: deploys are per-kind deltas, and the store is cumulative so a boot always has the newest of everything. Throws on any IO failure, so the caller refuses the deploy loudly rather than leaving a boot path that silently serves older code.
+	 *
+	 * @return the store's payload files after the write, for callers that apply resources from the persisted copies.
 	 */
 	Persisted persist(long generation, String fingerprint, byte[] dex, byte[] arsc,
 			byte[] assetsZip) throws IOException {
@@ -167,7 +169,7 @@ final class PayloadPersistence {
 				assetsFile.isFile() ? assetsFile : null);
 	}
 
-	/** A successfully loaded persisted payload. [dex] null = no code deploy persisted. */
+	/** A successfully loaded persisted payload; a null {@code dex} means no code deploy was persisted. */
 	static final class Loaded {
 
 		final long generation;

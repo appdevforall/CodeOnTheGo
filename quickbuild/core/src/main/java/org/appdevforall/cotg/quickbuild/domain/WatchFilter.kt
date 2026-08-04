@@ -3,20 +3,15 @@ package org.appdevforall.cotg.quickbuild.domain
 import java.io.File
 
 /**
- * Decides whether a filesystem/save event is relevant to the quick-build session.
- * The watcher observes `src/`, `res/` and `assets/` roots plus the project's Gradle
- * files; everything else — build intermediates, editor temp files — is noise.
+ * Decides whether a filesystem event is relevant to the quick-build session: inside the
+ * watched `src/`, `res/` and `assets/` roots or the watched Gradle files, and not a build
+ * intermediate or a temp file.
  *
- * CoGo's own editor writes in place (truncate + sequential write; see
- * [com.itsaky.androidide.editor.utils.ContentReadWrite.writeTo]) — its saves need no
- * special handling here. The temp-file names this filter drops come from EXTERNAL
- * atomic-rename tools instead: `sed -i`, `git checkout`/`stash`, vim with
- * `backupcopy=yes`, which write a sibling temp file and rename it over the target. This
- * filter only recognizes temp names by shape (dot-prefix, `~`, `.tmp`/`.swp`/`.bak`,
- * `.orig`/`.rej`); an
- * unrecognized one (e.g. `sed`'s `sedXXXXXX`) still reaches the coalesced batch and is
- * dropped later — once it no longer exists AND has no recognized project-file shape at
- * batch-settle time — see
+ * The temp names dropped here come from EXTERNAL atomic-rename tools (`sed -i`, `git
+ * checkout`/`stash`, vim with `backupcopy=yes`), which write a sibling temp and rename it over
+ * the target; CoGo's own editor writes in place and needs no special handling. Only temp names
+ * of a recognized shape are dropped here - an unrecognized one such as `sed`'s `sedXXXXXX`
+ * reaches the coalesced batch and is dropped at batch-settle time by
  * [org.appdevforall.cotg.quickbuild.service.QuickBuildSessionManager.onWatcherBatch].
  */
 class WatchFilter(
@@ -26,6 +21,7 @@ class WatchFilter(
 	private val roots = watchedRoots.map { it.absoluteFile }
 	private val files = watchedFiles.mapTo(HashSet()) { it.absoluteFile }
 
+	/** True when the session should react to a change at [file]. */
 	fun isRelevant(file: File): Boolean {
 		val abs = file.absoluteFile
 		if (isTempArtifact(abs.name)) return false
@@ -36,6 +32,7 @@ class WatchFilter(
 		return !hasBuildSegment(abs)
 	}
 
+	/** True when [root] is this file or one of its ancestor directories. */
 	private fun File.startsWith(root: File): Boolean {
 		var current: File? = this
 		while (current != null) {
@@ -55,14 +52,15 @@ class WatchFilter(
 		return false
 	}
 
+	/** True for names an editor or rename-based tool leaves behind rather than real sources. */
 	private fun isTempArtifact(name: String): Boolean =
 		name.startsWith(".") ||
 			name.endsWith("~") ||
 			name.endsWith(".tmp") ||
 			name.endsWith(".swp") ||
 			name.endsWith(".bak") ||
-			// `patch`/merge droppings: a persisted `.orig`/`.rej` under `src/` would
-			// otherwise classify UNSUPPORTED and force a spurious rebaseline (audit Gap B).
+			// A persisted `patch`/merge dropping under `src/` would otherwise classify
+			// UNSUPPORTED and force a spurious rebaseline.
 			name.endsWith(".orig") ||
 			name.endsWith(".rej")
 }

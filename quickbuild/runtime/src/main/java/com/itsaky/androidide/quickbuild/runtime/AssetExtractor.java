@@ -8,9 +8,9 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * Extracts a changed-assets zip payload into an app-private directory. This is the one place a payload touches disk - assets have no in-memory loading API, so v1's asset reload is best-effort via an extracted override directory (see {@link ResourceStore#overrideAsset}).
+ * Extracts a changed-assets zip payload into an app-private override directory.
  *
- * Entry names come from an fd handed over binder, so they are validated against path traversal (zip-slip) before any byte is written; files are written temp+rename so a mid-extraction failure never leaves a half-written asset behind. Plain Java (no Android imports), JVM-unit-testable.
+ * Assets have no in-memory loading API, so this is the one place a payload touches disk (see {@link ResourceStore#overrideAsset}). Entry names arrive over binder and are checked for path traversal before any byte is written. Plain Java, no Android imports, so it stays JVM-unit-testable.
  */
 final class AssetExtractor {
 
@@ -49,6 +49,7 @@ final class AssetExtractor {
 		return count;
 	}
 
+	/** Writes to a temp file and renames, so a failure mid-copy never leaves a half-written asset. */
 	private static void writeFile(InputStream in, File target) throws IOException {
 		File parent = target.getParentFile();
 		if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {

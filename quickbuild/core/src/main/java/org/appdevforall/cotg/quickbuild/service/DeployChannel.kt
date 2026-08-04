@@ -11,14 +11,17 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Sends one deploy payload to the proxy app and awaits its verdict. Behind an
- * interface so the executor is unit-testable; the real channel touches
+ * Sends deploy payloads to the proxy app and awaits its verdict.
+ *
+ * An interface so the executor is unit-testable: the real channel touches
  * [ParcelFileDescriptor] and binder, which only exist on device.
  */
 interface DeploySender {
 	/**
-	 * Delivers [generation] to the connected proxy app. All file params optional per
-	 * the AIDL contract; [metadataJson] follows the schema in quickbuild/core/README.md.
+	 * Delivers one payload to the connected proxy app and waits for it to reload or fail.
+	 *
+	 * All file params are optional per the AIDL contract; [metadataJson] follows the
+	 * schema in quickbuild/core/README.md.
 	 */
 	suspend fun deploy(
 		generation: Long,
@@ -29,29 +32,30 @@ interface DeploySender {
 	): DeployResult
 
 	/**
-	 * Best-effort build-status message: tells the running proxy app a build
-	 * failed CoGo-side (compile errors never produce a payload) or succeeded (clears a
-	 * shown failure). Fire-and-forget - no verdict, never throws; a disconnected or
-	 * older proxy app (whose stub predates onBuildStatus) simply misses the message.
-	 * [statusJson] comes from [BuildStatusJson].
+	 * Tells the running proxy app a build failed or succeeded, when there is no payload
+	 * to send.
+	 *
+	 * Fire-and-forget: no verdict, never throws. A disconnected proxy app, or one whose
+	 * stub predates onBuildStatus, simply misses the message.
+	 *
+	 * @param statusJson built by [BuildStatusJson]
 	 */
 	fun notifyBuildStatus(statusJson: String)
 
 	/**
-	 * Waits until no proxy app is bound (binder death observed, or none was connected).
-	 * The restart deploy path uses this to confirm the runtime actually exited before
-	 * relaunching - relaunching a still-alive process would just resume the old code.
+	 * Waits until no proxy app is bound, so the restart path can confirm the runtime
+	 * exited before relaunching. Relaunching a still-alive process would resume the old
+	 * code.
 	 *
-	 * @return true when disconnected within [timeoutMillis].
+	 * @return true when disconnected within [timeoutMillis]
 	 */
 	suspend fun awaitDisconnect(timeoutMillis: Long): Boolean
 
 	/**
-	 * Waits for a proxy app to (re)connect and returns the generation it reported
-	 * running, or null on timeout. The restart deploy path uses this to VERIFY the
-	 * relaunched process actually booted the deployed generation before claiming
-	 * success - claiming it blind would be a stale-code lie whenever the persist
-	 * raced the process death.
+	 * Waits for a proxy app to reconnect, so the restart path can check which generation
+	 * actually booted rather than assume the deployed one.
+	 *
+	 * @return the generation the app reports running, or null on timeout
 	 */
 	suspend fun awaitReconnect(timeoutMillis: Long): Long?
 }
@@ -71,8 +75,8 @@ sealed interface DeployResult {
 
 	/**
 	 * The proxy app disconnected while the deploy waited for its verdict. Fatal for a
-	 * hot-swap deploy; for a restart deploy it is the expected process exit (or a crash
-	 * around the payload - either way relaunch + binder catch-up reconciles honestly).
+	 * hot-swap deploy; for a restart deploy it is the expected process exit, which
+	 * relaunch and binder catch-up then reconcile.
 	 */
 	data object Disconnected : DeployResult
 
@@ -86,10 +90,12 @@ sealed interface DeployResult {
 }
 
 /**
- * The real deploy channel: opens read-only fds per payload file, hands them across
- * the oneway [com.itsaky.androidide.quickbuild.IQuickBuildTarget.onPayload], and
- * awaits the matching reportReloaded/reportCrash with a timeout so a hung proxy app
- * degrades to a visible [DeployResult.TimedOut] rather than a stuck build.
+ * The on-device [DeploySender]: passes payload files as read-only fds over the oneway
+ * [com.itsaky.androidide.quickbuild.IQuickBuildTarget.onPayload] and awaits the matching
+ * report.
+ *
+ * Every wait is bounded, so a hung proxy app surfaces as [DeployResult.TimedOut] instead
+ * of a stuck build.
  */
 class DeployChannel(
 	private val connections: ProxyAppConnections,
@@ -164,10 +170,9 @@ class DeployChannel(
 	}
 
 	override suspend fun awaitDisconnect(timeoutMillis: Long): Boolean =
-		// The awaited value IS null by construction, so the block must yield its own
-		// non-null sentinel - returning `first { it == null }` makes a real disconnect
-		// indistinguishable from a timeout, and the restart path then always falls back
-		// to a rebaseline (observed on-device 2026-07-22, gen-90 service edit).
+		// The awaited value is null by construction, so the block must yield its own
+		// non-null sentinel: returning `first { it == null }` would make a real
+		// disconnect indistinguishable from a timeout.
 		withTimeoutOrNull(timeoutMillis) {
 			connections.target.first { it == null }
 			true

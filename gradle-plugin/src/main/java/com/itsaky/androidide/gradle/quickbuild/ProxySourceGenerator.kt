@@ -1,15 +1,13 @@
 package com.itsaky.androidide.gradle.quickbuild
 
 /**
- * Emits the Java source of a generated proxy component: a subclass of the user's class
- * whose manifest name stays stable while the user hierarchy swaps. Extension (not
- * delegation) is enough because proxy and user class both travel in the payload dex - a
- * reload swaps the whole hierarchy together (see quickbuild/core/README.md, "Proxy-app
- * architecture"). Per type: activities add the app-switcher gesture hook and a
- * getClassLoader() override so by-name class resolution (Fragment/Navigation destinations,
- * LayoutInflater custom views) can see payload-only classes, services
- * register with the runtime's live-service census, receivers and providers are empty
- * subclasses (receivers instantiate fresh per delivery; providers swap by restart).
+ * Emits the Java source of a proxy component: a subclass of the user's class that keeps the
+ * manifest name stable while the user hierarchy swaps.
+ *
+ * Extending is enough (no delegation) because proxy and user class both travel in the payload
+ * dex, so a reload swaps them together - see quickbuild/core/README.md, "Proxy-app
+ * architecture". Bodies vary by type: activities add the gesture hook and a getClassLoader()
+ * override, services report to the live-service census, receivers and providers stay empty.
  */
 object ProxySourceGenerator {
 	/** Runtime gesture hook the activity proxies call; public entry point of the runtime AAR. */
@@ -35,6 +33,8 @@ object ProxySourceGenerator {
 	}
 
 	/**
+	 * Emits the proxy source for one class pair.
+	 *
 	 * @param proxyClass fully-qualified proxy class name (must contain a package).
 	 * @param userClass fully-qualified user class the proxy extends.
 	 */

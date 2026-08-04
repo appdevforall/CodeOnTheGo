@@ -4,41 +4,33 @@ import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpact
 import java.io.File
 
 /**
- * Classifies a coalesced changed-set into the cheapest correct [BuildRoute]
- * Pure logic — safe to unit-test without a project on disk.
+ * Picks the cheapest correct [BuildRoute] for a coalesced changed-set.
  *
- * Classification is by path shape, not file content:
- * - Gradle build files and `AndroidManifest.xml` invalidate the session (full Gradle build).
- * - Files under a `res/` directory inside `src/` are resources; under `assets/` are assets.
- * - `.kt`/`.java` sources are code.
- * - Anything else under `src/` (e.g. a java-resource `.properties`) is honest-fallback
- *   territory: the quick path doesn't implement its packaging, so route to Gradle rather
- *   than risk serving a stale artifact.
+ * Classification is by path shape, not file content: Gradle build files and
+ * `AndroidManifest.xml` invalidate the session, `res/` and `assets/` under `src/` are
+ * resources and assets, `.kt`/`.java` are code, and anything else under `src/` (a
+ * java-resource `.properties`, say) routes to Gradle because the live reload path does not
+ * implement its packaging. Pure logic - unit-testable without a project on disk.
  *
- * [ChangedFiles.Unknown] routes to [BuildRoute.CodeAndResources]: the incremental engine
- * recompiles everything and resources are relinked — a slow-but-correct quick build, not
- * a Gradle fallback. (Baseline drift while CoGo was dead — manifest/gradle edits — is the
- * session manager's job to detect via fingerprints, not the classifier's.) With annotation
- * processors configured, `Unknown` DOES fall back: we cannot prove an unenumerable change
- * missed processor input.
- *
- * The one content-aware step is [annotationImpact]: on a project with a KSP/kapt processor,
- * a changed source that could have moved generated code escalates to a Gradle rebaseline.
- * Default [AnnotationImpact.Inactive] keeps a processor-free project exactly as it was.
- *
- * [fastPathRoots] are the app module's live-reload source scope (its `src` root). The quick
- * path incrementally compiles ONLY the app module against a frozen dependency classpath, so
- * a code/resource/asset change in ANOTHER Gradle module (a library/feature module) cannot be
- * absorbed - it routes to [BuildRoute.FullGradleBuild] ([InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED]).
- * Empty [fastPathRoots] disables the boundary (single-module projects, and the pure-shape
- * unit tests), preserving pre-multi-module behavior. Watching those other modules at all is
- * the session/layer's job (so the edit is SEEN and rebaselined, not silently dropped); the
- * classifier's job is only to route a seen out-of-module change honestly.
+ * @param annotationImpact the one content-aware step: with a KSP/kapt processor configured, a
+ *   changed source that could have moved generated code escalates to a Gradle rebaseline.
+ *   [AnnotationImpact.Inactive] leaves a processor-free project unaffected.
+ * @param fastPathRoots the app module's live-reload source scope. The quick path compiles only
+ *   the app module against a frozen dependency classpath, so a change under any other Gradle
+ *   module routes to [InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED]. Empty disables the
+ *   boundary (single-module projects, pure-shape unit tests).
  */
 class ChangeClassifier(
 	private val annotationImpact: AnnotationImpact = AnnotationImpact.Inactive,
 	private val fastPathRoots: List<File> = emptyList(),
 ) {
+	/**
+	 * Routes one coalesced changed-set.
+	 *
+	 * [ChangedFiles.Unknown] recompiles everything ON the quick path
+	 * ([BuildRoute.CodeAndResources]), not as a Gradle fallback - unless a processor is
+	 * configured, since an unenumerable change cannot be proven to miss processor input.
+	 */
 	fun classify(changes: ChangedFiles): BuildRoute {
 		val known =
 			when (changes) {
@@ -63,19 +55,12 @@ class ChangeClassifier(
 		var hasAssets = false
 		val codeFiles = mutableListOf<File>()
 
-		// A removed file classifies by the same path SHAPE as a modified one - its role is
-		// still legible from its extension/path even though it's gone (see
-		// [ChangedFiles.Known.removed]). A removed `.kt`/`.java` is a code change (its
-		// output must be dropped + dependents recompiled), a removed `res/` file a resource
-		// change (the relink re-links the shrunk current set), a removed gradle/manifest a
-		// rebaseline. Removals with no recognized shape are dropped upstream
-		// ([QuickBuildSessionManager.onWatcherBatch]), so only recognized ones arrive here.
+		// A removed file classifies by the same path shape as a modified one - its role is
+		// still legible from its extension even though the file is gone. Removals with no
+		// recognized shape are dropped upstream (QuickBuildSessionManager.onWatcherBatch).
 		for (file in known.files + known.removed) {
 			val kind = kindOf(file)
-			// A code/resource/asset change outside the app module's live-reload scope belongs
-			// to another Gradle module the quick path can't incrementally build - rebaseline
-			// rather than fast-compile it against the app module (or silently drop it). Empty
-			// fastPathRoots = no boundary (single-module fallback / pure-shape unit tests).
+			// Empty fastPathRoots = no module boundary (single-module projects, unit tests).
 			if (kind == FileKind.CODE || kind == FileKind.RESOURCE || kind == FileKind.ASSET) {
 				if (fastPathRoots.isNotEmpty() && fastPathRoots.none { isUnder(file, it) }) {
 					return BuildRoute.FullGradleBuild(InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED)
@@ -161,9 +146,9 @@ class ChangeClassifier(
 		}
 
 		/**
-		 * True when [file] is [dir] or lives underneath it. Walks the parent chain by
-		 * equality (like [hasSegment]) so it works for both the absolute paths the watcher
-		 * emits and the relative paths unit tests use, as long as both sides share a base.
+		 * True when [file] is [dir] or lives under it. Compares parent-chain entries by
+		 * equality, so the watcher's absolute paths and unit tests' relative ones both work
+		 * as long as both sides share a base.
 		 */
 		private fun isUnder(
 			file: File,
@@ -191,22 +176,14 @@ class ChangeClassifier(
 		}
 
 		/**
-		 * True when [file]'s path SHAPE ALONE — no filesystem access, existence-agnostic —
-		 * is one this classifier can name a role for (Gradle config, manifest, code,
-		 * resource, or asset), as opposed to the honest-fallback/unsupported bucket.
+		 * True when [file]'s path shape alone names a role this classifier knows (Gradle
+		 * config, manifest, code, resource, asset). No filesystem access - the file need not
+		 * exist.
 		 *
-		 * Lets a caller tell a genuinely deleted project file (still has a recognized
-		 * shape, e.g. a `git checkout` that removes a tracked `.kt`) from a vanished path
-		 * with NO recognizable shape at all — e.g. an external atomic-rename tool's sibling
-		 * temp file (`sedXXXXXX`) — which is safe to treat as pure noise. See
-		 * [org.appdevforall.cotg.quickbuild.service.QuickBuildSessionManager.onWatcherBatch].
-		 *
-		 * Deliberately narrow: a "true" result does NOT by itself force
-		 * [BuildRoute.FullGradleBuild] for a deletion — [kindOf] never checks existence, so
-		 * a kept-but-deleted `.kt` still classifies as ordinary [FileKind.CODE] and takes
-		 * the same live reload path a live edit would. This function only decides what's safe to
-		 * drop as noise, not how a genuine deletion should ultimately be handled — that's
-		 * unchanged, pre-existing classifier behavior, out of scope here.
+		 * Lets a caller tell a deleted project file from a vanished path that never had a
+		 * role, such as an atomic-rename tool's temp sibling (`sedXXXXXX`), which is safe to
+		 * drop as noise. That is all it decides - a `true` result does not by itself force a
+		 * fallback for a deletion.
 		 */
 		fun hasRecognizedShape(file: File): Boolean = kindOf(file) != FileKind.UNSUPPORTED
 	}

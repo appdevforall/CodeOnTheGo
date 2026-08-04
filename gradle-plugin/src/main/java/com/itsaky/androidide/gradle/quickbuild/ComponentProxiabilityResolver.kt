@@ -5,38 +5,19 @@ import java.io.IOException
 import java.util.jar.JarFile
 
 /**
- * THE authority on whether the proxy app build can emit `Proxy<N><Type> extends <userClass>`
- * for one manifest component (ADFA-4128). Both call sites ask this one object: the manifest
- * transform, which SKIPS a component this rejects (leaving it under its real manifest name),
- * and [QuickBuildPayloadDexTask.checkProxiability], which fails loud if one slips through.
+ * Decides whether the build can emit `Proxy<N><Type> extends <userClass>` for one manifest
+ * component. The single authority for that call: the manifest transform skips a component this
+ * rejects, and [QuickBuildPayloadDexTask.checkProxiability] fails the build if one slips through.
  *
  * Two rules, in order:
  *
  * 1. [UNPROXIABLE_BY_NAME] - the cases no class file can reveal, keyed by name.
- * 2. The class file's own `ACC_FINAL` flag ([ClassOpener.isFinal] - the header's access
- *    flags, never a loaded `Class`), for any class [libraryClassBytes] finds. This is the
- *    rule that generalizes: Room's `MultiInstanceInvalidationService` and Compose's
- *    `PreviewActivity` are both simply `final`, and each broke a real project before being
- *    recognized. Any FUTURE final library component is now skipped automatically, without a
- *    CoGo release.
+ * 2. The class file's own `ACC_FINAL` flag, for any class [libraryClassBytes] finds. This rule
+ *    generalizes to future final library components with no CoGo release.
  *
- * A class [libraryClassBytes] cannot find at all is assumed project-owned and [Proxiable].
- * At manifest-transform time the project's own classes genuinely aren't compiled yet, so
- * "absent from the dependency artifacts" is the only signal available - which is exactly why
- * `ProfileInstallReceiver`, whose real problem is absence from the proxy compile classpath,
- * still has to be named in [UNPROXIABLE_BY_NAME] rather than inferred.
- *
- * [resolveWithProjectOverride] adds a project-owned class-name set that wins over rule 2 (but
- * not rule 1): a mixed Kotlin/Java module's compile classpath can expose a RAW
- * (pre-[ClassOpener]) copy of the project's own class alongside the divert task's opened
- * copy, and that raw copy reports `final` for every ordinary Kotlin class (Kotlin classes are
- * final by default) - [resolve] alone would then wrongly flag the user's own `MainActivity`
- * as unproxiable (regressed a real corpus app: ADFA-4128). Project membership must win,
- * because [ClassOpener] strips `final` from the divert task's own output before the real
- * compile, regardless of what a second, unrelated copy on the classpath looks like.
- *
- * Pure logic - no Gradle types - so it unit-tests against fixture class bytes and fake
- * lookups, without a real classpath or Gradle test fixture.
+ * A class [libraryClassBytes] cannot find is assumed project-owned and [Resolution.Proxiable]:
+ * at manifest-transform time the project's own classes are not compiled yet, so absence from
+ * the dependency artifacts is the only signal available.
  */
 class ComponentProxiabilityResolver(
 	private val libraryClassBytes: (String) -> ByteArray?,
@@ -52,6 +33,7 @@ class ComponentProxiabilityResolver(
 		) : Resolution
 	}
 
+	/** Applies both rules to [userClass]: the name list first, then the class file's final flag. */
 	fun resolve(userClass: String): Resolution {
 		UNPROXIABLE_BY_NAME[userClass]?.let { return Resolution.Skip(it) }
 		val bytes = libraryClassBytes(userClass) ?: return Resolution.Proxiable
@@ -63,10 +45,14 @@ class ComponentProxiabilityResolver(
 	}
 
 	/**
-	 * [resolve], except a [userClass] in [projectClasses] (e.g. the key set of
-	 * [SupertypeResolver.supertypeIndex] over the divert task's diverted classes) is
-	 * [Resolution.Proxiable] whatever the classpath says - see the class KDoc for the
-	 * mixed-language raw-copy shape this defeats. [UNPROXIABLE_BY_NAME] still wins over both.
+	 * [resolve], except that a class the project itself compiled is always proxiable.
+	 *
+	 * A mixed Kotlin/Java module's compile classpath can carry a raw, pre-[ClassOpener] copy of
+	 * a project class, and that copy reports final for every ordinary Kotlin class - [resolve]
+	 * alone would then reject the user's own `MainActivity`. [UNPROXIABLE_BY_NAME] still wins.
+	 *
+	 * @param projectClasses project-compiled class names, e.g. the key set of
+	 *   [SupertypeResolver.supertypeIndex] over the divert task's output
 	 */
 	fun resolveWithProjectOverride(
 		userClass: String,
@@ -78,33 +64,23 @@ class ComponentProxiabilityResolver(
 
 	companion object {
 		/**
-		 * Library components that cannot be proxied for a reason their class file does not
-		 * carry, mapped to the reason. Everything else unproxiable - today's `final` classes
-		 * and tomorrow's - is detected from the bytes by [resolve], so this list is meant to
-		 * stay at two entries.
+		 * Library components whose class file cannot reveal why they are unproxiable, mapped to
+		 * the reason. Everything else is detected from the bytes by [resolve], so this list is
+		 * meant to stay small.
 		 *
-		 * - `androidx.startup.InitializationProvider` does a hardcoded self-lookup by this
-		 *   exact component name at runtime (`AppInitializer` calls
-		 *   `PackageManager.getProviderInfo(ComponentName(pkg, InitializationProvider))`) to
-		 *   read its own `<meta-data>` initializer list - how every androidx library
-		 *   (lifecycle-process, profileinstaller, emoji2, WorkManager, ...) registers its
-		 *   startup hook, merged into ONE provider element. A renamed proxy breaks that
-		 *   lookup with `NameNotFoundException` -> `StartupException`, crashing the proxy app
-		 *   during `handleBindApplication` before anything binds. Not `final`, so nothing in
-		 *   its bytes gives this away.
-		 * - `androidx.profileinstaller.ProfileInstallReceiver` is in the merged manifest but
-		 *   not on every proxy app build's proxy-compile classpath (`variant.compileClasspath`
-		 *   doesn't always carry an AGP/transitively-injected runtime-only dependency), so
-		 *   `extends` fails "cannot find symbol". Absence can't be distinguished from
-		 *   "project-owned, not compiled yet" at manifest-transform time - see the class KDoc
-		 *   - so it is named here. It does no self-lookup (checked its decompiled bytecode):
-		 *   this is a classpath exclusion, not a correctness one.
+		 * - `androidx.startup.InitializationProvider` looks itself up by this exact component
+		 *   name at runtime, to read the `<meta-data>` initializer list every androidx library
+		 *   registers into. A renamed proxy turns that into `NameNotFoundException` ->
+		 *   `StartupException` during `handleBindApplication`. It is not final, so its bytes
+		 *   give nothing away.
+		 * - `androidx.profileinstaller.ProfileInstallReceiver` is in the merged manifest but not
+		 *   always on the proxy compile classpath, so `extends` fails to compile. Absence is
+		 *   indistinguishable from "project-owned, not compiled yet", so it is named here rather
+		 *   than inferred. A classpath exclusion, not a correctness one.
 		 *
-		 * Excluding either is always safe: neither is ever recompiled by the daemon, so the
-		 * swap-via-restart machinery a proxy exists for buys nothing, and left as-is they
-		 * instantiate through the framework's default `AppComponentFactory` path exactly like
-		 * an unmodified Android app (the runtime's `LoaderRouter` already falls back to the
-		 * default loader for a class absent from the payload dex, which neither ever is).
+		 * Excluding either is safe: the daemon never recompiles them, so they gain nothing from
+		 * a proxy, and they instantiate through the framework's default `AppComponentFactory`
+		 * path like any unmodified app.
 		 */
 		internal val UNPROXIABLE_BY_NAME =
 			mapOf(
@@ -115,20 +91,19 @@ class ComponentProxiabilityResolver(
 			)
 
 		/**
-		 * Applies [UNPROXIABLE_BY_NAME] only - no classpath, so no class is ever found and
-		 * rule 2 never fires. The [QuickBuildManifestTransformer] default, for tests and
-		 * callers that have no classpath to offer.
+		 * Builds a resolver that applies [UNPROXIABLE_BY_NAME] only - with no classpath, the
+		 * final-flag rule never fires. The [QuickBuildManifestTransformer] default, for callers
+		 * that have no classpath to offer.
 		 */
 		fun byNameOnly(): ComponentProxiabilityResolver = ComponentProxiabilityResolver(libraryClassBytes = { null })
 
 		/**
-		 * The real resolver. [classpath] is searched, in order, for each component's class -
-		 * directories are probed by relative path, jars by zip entry name.
+		 * Builds a resolver that looks each component's class up in [classpath], in order -
+		 * directories by relative path, jars by zip entry name.
 		 *
-		 * Give it a classpath whose shape matches the decision being made: the manifest
-		 * transform passes the variant's DEPENDENCY artifacts (available without compiling
-		 * anything, so no task-graph cycle), the payload dex task passes the actual proxy
-		 * compile classpath.
+		 * Pass a classpath matching the decision: the manifest transform passes the variant's
+		 * dependency artifacts, which resolve without compiling anything and so avoid a
+		 * task-graph cycle; the payload dex task passes the real proxy compile classpath.
 		 */
 		fun searchingClasspath(classpath: List<File>): ComponentProxiabilityResolver =
 			ComponentProxiabilityResolver(libraryClassBytes = { className -> findClassBytes(className, classpath) })

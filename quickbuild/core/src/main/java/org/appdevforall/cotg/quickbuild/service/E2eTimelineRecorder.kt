@@ -5,13 +5,16 @@ import org.appdevforall.cotg.quickbuild.daemon.protocol.DexStats
 import org.appdevforall.cotg.quickbuild.domain.E2eTimeline
 
 /**
- * Accumulates one build's e2e stamps as it flows through the pipeline (safe as a plain
- * object: the [org.appdevforall.cotg.quickbuild.domain.LiveReloadExecutor] contract is
- * at-most-one build in flight). [trigger] is t0 from the request; [markCompileDone] and
- * [markDeploySent] stamp t1/t2; [completed] mints the [E2eTimeline] with t3. A route with
- * no compile never calls [markCompileDone], so [E2eTimeline.compileDone] falls back to
- * deploySent - t1==t2, and compileMillis then measures relink+package (documented on
+ * Collects one build's timings as it moves through the pipeline, then mints an
+ * [E2eTimeline].
+ *
+ * Not thread-safe, and does not need to be: the
+ * [org.appdevforall.cotg.quickbuild.domain.LiveReloadExecutor] contract allows at most one
+ * build in flight. A route that never compiles skips [markCompileDone], so `compileDone`
+ * falls back to `deploySent` and compileMillis then measures relink plus package (see
  * [E2eTimeline]).
+ *
+ * @param trigger the request's t0, in the same clock as the later marks
  */
 internal class E2eTimelineRecorder(
 	private val trigger: Long,
@@ -90,6 +93,7 @@ internal class E2eTimelineRecorder(
 		steps = steps.copy(aapt2CompileMillis = aapt2CompileMillis, aapt2LinkMillis = aapt2LinkMillis)
 	}
 
+	/** Builds the finished timeline, stamping [reloadLive] as the last mark. */
 	fun completed(
 		generation: Long,
 		reloadLive: Long,

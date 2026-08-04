@@ -10,17 +10,24 @@ import javax.tools.JavaFileObject
 import javax.tools.ToolProvider
 
 /**
- * Compiles the project's stray `.java` sources with the JDK's in-process javac, after
- * Kotlin, against the same classpath plus the Kotlin output dir (so Java can reference
- * Kotlin classes). javac's structured [javax.tools.Diagnostic]s map 1:1 onto the
- * protocol shape - no text parsing needed on this path.
+ * Compiles the project's `.java` sources with the JDK's in-process javac, after Kotlin.
+ * javac's structured [javax.tools.Diagnostic]s map onto the protocol shape directly, so
+ * this path needs no text parsing.
  */
 object JavaCompileStep {
+	/** Outcome of one javac run; [diagnostics] carries warnings even on success. */
 	data class Result(
 		val success: Boolean,
 		val diagnostics: List<Diagnostic>,
 	)
 
+	/**
+	 * Compiles [javaSources] into [outputDir].
+	 *
+	 * @param classpath the compile classpath; the caller adds the Kotlin output dir so Java
+	 *   can reference Kotlin classes.
+	 * @return a failed [Result] rather than an exception when the runtime has no javac.
+	 */
 	fun compile(
 		javaSources: List<File>,
 		classpath: List<File>,

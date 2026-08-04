@@ -1,42 +1,32 @@
 package org.appdevforall.cotg.quickbuild.daemon.protocol
 
 /**
- * The daemon wire protocol model (quickbuild/core/README.md "Daemon protocol"). One
- * line-delimited JSON request at a time over stdin, one JSON response line over stdout.
- * These types are pure data so the codec and router unit-test on the JVM without any
- * process plumbing.
+ * A request the daemon accepts: one line-delimited JSON object over stdin, answered by one
+ * [DaemonResponse] line over stdout. See quickbuild/core/README.md, "Daemon protocol".
  *
- * Lives in :quickbuild:protocol so the daemon (:quickbuild:daemon) and CoGo's client
- * (:quick-build DaemonProcessClient) compile against one definition of the wire shape
- * instead of two conventions pinned only by the README.
+ * These types live in :quickbuild:protocol so the daemon and CoGo's client compile against one
+ * definition of the wire shape rather than two conventions pinned only by the README.
  */
 sealed interface DaemonRequest {
 	val id: Long
 }
 
 /**
- * One-time session setup. Everything path-shaped arrives absolute from CoGo.
+ * Opens a session and fixes everything that stays constant for it. Every path arrives absolute.
  *
- * @property projectRoot the user project root (identifies the session; not written to).
- * @property classpath compile classpath jars (android.jar, kotlin-stdlib, library jars).
- *   Fixed for the session - the compiler snapshots it once here, which is what makes
- *   later compiles skip the per-build classpath re-verification.
+ * @property projectRoot the user project root; identifies the session and is never written to.
+ * @property classpath compile classpath jars. Snapshotted once here, which is what lets later
+ *   compiles skip per-build classpath re-verification.
  * @property outDir daemon-owned work directory: classes, dex, IC caches, aapt2 output.
- * @property aapt2 path to the aapt2 binary provisioned on device. Optional: when
- *   omitted, the daemon discovers it under `$ANDROID_HOME/build-tools/<newest>/aapt2`
- *   (see [org.appdevforall.cotg.quickbuild.daemon.ToolchainDiscovery]) so an external
- *   caller doesn't need to know CoGo's internal toolchain layout.
- * @property d8Jar path to build-tools' r8.jar (carries com.android.tools.r8.D8); loaded
- *   reflectively so the daemon carries no AGP/r8 build dependency. Optional: discovered
- *   the same way as [aapt2] when omitted.
- * @property androidJar the platform android.jar (javac/aapt2 link target). Optional:
- *   discovered under `$ANDROID_HOME/platforms/<newest android-NN>/android.jar` when
- *   omitted.
- * @property minApi min API level for d8; defaults to 30, the quick-build v1 floor
- *   (ResourcesLoader gate, plan 2.4).
- * @property compilerPlugins Kotlin compiler plugin jars passed as `-Xplugin=` to every
- *   compile of the session (e.g. the Compose compiler plugin when the project uses
- *   Compose). Fixed for the session, like the classpath. Optional; defaults to none.
+ * @property aapt2 the aapt2 binary on device. Optional: discovered under
+ *   `$ANDROID_HOME/build-tools/<newest>/` so an external caller need not know CoGo's toolchain
+ *   layout.
+ * @property d8Jar build-tools' r8.jar, loaded reflectively so the daemon needs no AGP/r8 build
+ *   dependency. Optional, discovered like [aapt2].
+ * @property androidJar the platform android.jar. Optional, discovered like [aapt2].
+ * @property minApi min API level for d8; 30 is the quick-build floor.
+ * @property compilerPlugins Kotlin compiler plugin jars passed as `-Xplugin=` to every compile of
+ *   the session, e.g. the Compose compiler plugin.
  */
 data class ConfigureRequest(
 	override val id: Long,
@@ -55,14 +45,13 @@ data class ConfigureRequest(
 }
 
 /**
- * Incremental compile. [allSources] is the full source set (the IC engine always needs
- * it); [changedFiles] drives `SourcesChanges.Known`. CoGo passes ALL sources as changed
- * on the first build of a session to seed the IC caches (README gotcha).
+ * Compiles the project incrementally.
  *
+ * @property allSources the full source set, which the IC engine needs on every build.
+ * @property changedFiles sources edited since the last build, driving `SourcesChanges.Known`.
+ *   CoGo passes all sources here on a session's first build to seed the IC caches.
  * @property removedFiles sources deleted since the last build. Kotlin removals feed
- *   `SourcesChanges.Known`'s removed-files slot (outputs deleted, dependents recompiled);
- *   Java removals have their stale `.class` deleted explicitly. Optional and
- *   backward-compatible: absent/empty is the pre-Bug-12 behavior.
+ *   `SourcesChanges.Known`; Java removals have their stale `.class` deleted explicitly.
  */
 data class CompileRequest(
 	override val id: Long,
@@ -71,31 +60,23 @@ data class CompileRequest(
 	val removedFiles: List<String> = emptyList(),
 ) : DaemonRequest
 
-/** Dex the given classes directories into a single classes.dex. */
+/** Dexes the given classes directories into a single classes.dex. */
 data class DexRequest(
 	override val id: Long,
 	val classesDirs: List<String>,
 ) : DaemonRequest
 
 /**
- * Recompile + relink resources; the response carries the extracted resources.arsc.
+ * Recompiles and relinks resources; the response carries the extracted resources.arsc.
  *
- * @property stableIds path to AGP's `stableIds.txt` from the proxy app build's real resource
- *   processing, if CoGo has one for this project. Passed to `aapt2 link --stable-ids` so
- *   the relink (project res only - a strict subset of what the real build merged in)
- *   pins every resource to the same numeric id the baseline manifest was compiled
- *   against, instead of letting a whole resource TYPE the baseline had (but the relink
- *   doesn't) shift aapt2's type-index assignment out from under that manifest
- *  . Optional and backward-compatible: a client that never sends it
- *   relinks with aapt2's own unpinned ids, not a protocol error.
- * @property libraryResources pre-compiled `.flat` resource units from the proxy app build's
- *   real AGP resource processing - the project's own `intermediates/merged_res/` closure
- *   (transitively includes every dependency AAR's VALUES resources) plus each
- *   resource-providing AAR's separately-compiled FILE-based resources. Passed to
- *   `aapt2 link` as `-R` overlays, ordered BEFORE the relink's own fresh compile, so a
- *   library-provided reference (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`)
- *   resolves. Optional and backward-compatible: absent/empty on a client
- *   that never reports one relinks against the project's own res/ alone.
+ * @property stableIds AGP's `stableIds.txt` from the proxy app build, passed to `aapt2 link
+ *   --stable-ids`. The relink sees only the project's res/, a subset of what the real build
+ *   merged, so without this a resource type missing from the relink shifts aapt2's type-index
+ *   assignment out from under the baseline manifest. Optional: omitting it relinks with aapt2's
+ *   own unpinned ids.
+ * @property libraryResources pre-compiled `.flat` units from the proxy app build, passed to
+ *   `aapt2 link` as `-R` overlays ahead of the relink's own compile, so a library-provided
+ *   reference still resolves. Optional: omitting it relinks against the project's res/ alone.
  */
 data class RelinkRequest(
 	override val id: Long,
@@ -105,17 +86,19 @@ data class RelinkRequest(
 	val libraryResources: List<String> = emptyList(),
 ) : DaemonRequest
 
+/** Liveness check; the response stamps the protocol version. */
 data class PingRequest(
 	override val id: Long,
 ) : DaemonRequest
 
+/** Ends the session and stops the daemon process. */
 data class ShutdownRequest(
 	override val id: Long,
 ) : DaemonRequest
 
 /**
- * One compiler/linker message in the protocol shape. Severity is the closed ERROR |
- * WARNING set from the README; anything a tool reports below warning stays on stderr.
+ * One compiler or linker message in the protocol shape. Only ERROR and WARNING travel here;
+ * anything a tool reports below warning stays on stderr.
  */
 data class Diagnostic(
 	val severity: Severity,
@@ -136,41 +119,36 @@ object ResponseKeys {
 	const val PROTOCOL_VERSION = "protocolVersion"
 
 	/**
-	 * Filesystem type of the daemon's work directory, as `configure` observed it (e.g.
-	 * `ext4`, `f2fs`, `fuse`). Session-constant and low-cardinality. It is here because
-	 * it is the single strongest predictor of build time on device: the same 464-file
-	 * class tree copies in 192 ms on the app's own filesystem and 9985 ms on Android's
-	 * FUSE-backed emulated storage - 52x (ADFA-4128 sora-editor-full deep-dive). Without
-	 * it, a field timing row cannot be interpreted at all.
+	 * Filesystem type of the daemon's work directory as `configure` observed it (`ext4`, `f2fs`,
+	 * `fuse`, ...). Reported because it is the strongest predictor of on-device build time - a
+	 * class tree copies ~50x slower on FUSE-backed emulated storage than on the app's own
+	 * filesystem `[measured on a56]` - so a timing row cannot be interpreted without it.
 	 */
 	const val SCRATCH_FS_TYPE = "scratchFsType"
 }
 
 /**
- * The phase counters a `compile` op measures inside itself - the spans that the
- * `kotlinMillis`/`javaMillis` pair does NOT cover.
+ * The phase counters a `compile` op measures inside itself: the spans the `kotlinMillis` /
+ * `javaMillis` pair does not cover.
  *
- * These exist because those two fields account for only about half of a warm edit: the
- * rest is the output-tree snapshots, the Java-ABI re-parse, and the source I/O around
- * them, all per-file filesystem work with no span of its own. Without them javac reads
- * like the bottleneck, when javac is 19-27% of a warm edit `[measured on a56]`.
- *
- * Every field is a counter or a duration. Nothing here is derived from a path, a name, or
- * source content.
+ * Those two account for only about half of a warm edit; the rest is the output-tree snapshots,
+ * the Java-ABI re-parse and the source I/O around them, per-file filesystem work with no span of
+ * its own. Without these fields javac reads like the bottleneck, when javac is 19-27% of a warm
+ * edit `[measured on a56]`. Every field is a counter or a duration - nothing is derived from a
+ * path, a name or source content.
  *
  * @property preSnapMillis walking the output tree before the compile, to diff against.
  * @property postSnapMillis the same walk after, which yields the changed-class set.
- * @property javaAbiSnapMillis re-parsing every `.java` source's declarations to decide
- *   whether a Java ABI moved (which forces a full Kotlin recompile).
+ * @property javaAbiSnapMillis re-parsing every `.java` source's declarations to decide whether a
+ *   Java ABI moved, which forces a full Kotlin recompile.
  * @property allSources size of the source set handed to the compiler.
- * @property kotlinToCompile Kotlin sources this build actually recompiled - the number
- *   that explains a slow row (an ABI-changing Java edit recompiles all of them).
+ * @property kotlinToCompile Kotlin sources actually recompiled - the number that explains a slow
+ *   row, since an ABI-changing Java edit recompiles all of them.
  * @property javaSources `.java` sources, all of which javac recompiles every build.
  * @property changedClasses `.class` files this build emitted or rewrote.
- * @property compileOrdinal 1-based index of this compile within the daemon session. `1`
- *   is the session's cold build - it seeds the incremental caches and pays kotlinc's
- *   warm-up, and reading one as a warm edit is what made a 53 s first build look like a
- *   per-edit cost. Everything above 1 is a warm build.
+ * @property compileOrdinal 1-based index of this compile within the session. `1` is the cold
+ *   build: it seeds the incremental caches and pays kotlinc's warm-up, so reading it as a warm
+ *   edit badly overstates per-edit cost.
  */
 data class CompileStats(
 	val preSnapMillis: Long = 0,
@@ -182,6 +160,7 @@ data class CompileStats(
 	val changedClasses: Int = 0,
 	val compileOrdinal: Long = 0,
 ) {
+	/** Flattens the stats into response values, keyed by the constants below. */
 	fun toValues(): Map<String, Any> =
 		mapOf(
 			KEY_PRE_SNAP_MILLIS to preSnapMillis,
@@ -217,11 +196,11 @@ data class CompileStats(
 			)
 
 		/**
-		 * Reads the stats back out of a response. [lookup] returns null for a key the
-		 * response does not carry, so a daemon predating these fields yields null here
-		 * rather than a zero-filled row that would read as "measured, and it was free".
-		 * An individually missing key defaults to 0 - forward compatibility for a future
-		 * daemon that drops one.
+		 * Reads the stats back out of a response, or null if it carries none of them.
+		 *
+		 * The null return matters: a daemon predating these fields must not yield a zero-filled
+		 * row, which would read as "measured, and it was free". A single missing key does
+		 * default to 0, so a future daemon may drop one.
 		 */
 		fun fromValues(lookup: (String) -> Long?): CompileStats? {
 			if (KEYS.none { lookup(it) != null }) return null
@@ -240,9 +219,8 @@ data class CompileStats(
 }
 
 /**
- * What a `dex` op processed. The dex step rewrites and re-dexes the WHOLE class tree on
- * every build, changed or not, so these two numbers - not the changed-file count - are
- * what its cost scales with.
+ * What a `dex` op processed. The step rewrites and re-dexes the whole class tree every build,
+ * changed or not, so its cost scales with these two numbers rather than the changed-file count.
  *
  * @property classFiles `.class` files read, stripped and dexed.
  * @property classBytes their total size in bytes.
@@ -251,6 +229,7 @@ data class DexStats(
 	val classFiles: Int = 0,
 	val classBytes: Long = 0,
 ) {
+	/** Flattens the stats into response values, keyed by the constants below. */
 	fun toValues(): Map<String, Any> =
 		mapOf(
 			KEY_CLASS_FILES to classFiles,
@@ -272,16 +251,13 @@ data class DexStats(
 }
 
 /**
- * A single response line. [values] carries the op-specific scalar fields serialized
- * flat into the response object (e.g. `classesDir`, `dexFile`, `resourcesArsc`,
- * `durationMillis`) so the wire shape matches the README's `{"id", "ok", ...}`.
+ * The daemon's answer to one request. [values] holds the op-specific scalars (`classesDir`,
+ * `dexFile`, `resourcesArsc`, `durationMillis`, ...), serialized flat into the response object.
  *
- * Extending a response is ADDITIVE and does NOT bump [DaemonResponse.PROTOCOL_VERSION]:
- * a new key is invisible to an older client (it reads the keys it knows), and an absent
- * key reads back as null on a newer client (see [CompileStats.fromValues]). The version
- * is a hard gate - [org.appdevforall.cotg.quickbuild.daemon.protocol.DaemonResponse.PROTOCOL_VERSION]
- * mismatch aborts the session - and a STAGED daemon jar can lag the client, so bumping it
- * for a new optional field would break the very pairing the additive shape supports.
+ * Adding a response key must not bump [PROTOCOL_VERSION]: a new key is invisible to an older
+ * client, and an absent key reads back as null on a newer one. The version is a hard gate that
+ * aborts the session on mismatch, and a staged daemon jar can lag the client, so bumping it for
+ * an optional field would break the pairing the additive shape exists to support.
  */
 data class DaemonResponse(
 	val id: Long,
@@ -291,9 +267,8 @@ data class DaemonResponse(
 ) {
 	companion object {
 		/**
-		 * Wire-protocol version, stamped into `ping`/`configure` success responses so an
-		 * external caller can pin it and abort loudly on drift instead of silently
-		 * misinterpreting a changed wire shape.
+		 * Wire-protocol version, stamped into `ping` and `configure` success responses so a
+		 * caller can pin it and abort loudly on drift rather than misread a changed wire shape.
 		 */
 		const val PROTOCOL_VERSION = 1
 
@@ -314,15 +289,17 @@ data class DaemonResponse(
 	}
 }
 
-/** Outcome of parsing one stdin line. Malformed input NEVER throws past the codec. */
+/** Outcome of parsing one stdin line. Malformed input never throws past the codec. */
 sealed interface ParseResult {
 	data class Parsed(
 		val request: DaemonRequest,
 	) : ParseResult
 
 	/**
-	 * @property id the request id when it could be recovered from the broken input,
-	 *   else [UNKNOWN_ID] so the client can still correlate "something failed".
+	 * A line the codec could not turn into a request.
+	 *
+	 * @property id the request id when it could be recovered from the broken input, else
+	 *   [UNKNOWN_ID] so the client can still correlate "something failed".
 	 */
 	data class Malformed(
 		val id: Long,

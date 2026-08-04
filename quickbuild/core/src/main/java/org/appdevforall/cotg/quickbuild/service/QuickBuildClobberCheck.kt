@@ -3,12 +3,13 @@ package org.appdevforall.cotg.quickbuild.service
 import org.appdevforall.cotg.quickbuild.domain.RealIdInstall
 
 /**
- * Decides whether tapping Quick Build or Standard Run should confirm a clobber first
- * (ADFA-4128). Both build types install under the project's real applicationId, so switching
- * from one to the other overwrites the installed app. This queries the installed package's
- * component factory (via [InstalledPackages]) to tell which build occupies the slot and applies
- * [RealIdInstall]'s pure rules. Stateless: it reads the device each time and holds no state,
- * so an install or uninstall outside CoGo can never leave it stale.
+ * Decides whether tapping Quick Build or Standard Run should ask the user to confirm a
+ * clobber first.
+ *
+ * Both build types install under the project's real applicationId, so switching between
+ * them overwrites the installed app. The installed package's component factory (read via
+ * [InstalledPackages]) says which build occupies the slot; [RealIdInstall] holds the
+ * rules. Stateless, so an install or uninstall outside CoGo cannot leave it stale.
  */
 class QuickBuildClobberCheck(
 	private val packages: InstalledPackages,

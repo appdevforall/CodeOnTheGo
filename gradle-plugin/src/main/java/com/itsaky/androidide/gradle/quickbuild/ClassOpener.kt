@@ -6,18 +6,18 @@ import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes
 
 /**
- * Clears ACC_FINAL from a class file. Kotlin classes are final by default, but the
- * generated proxies must extend the user's activities - and the dex verifier enforces
- * finality at runtime, so the opened classes are also what ships in the payload dex.
+ * Clears ACC_FINAL from class files so generated proxies can extend the user's activities.
+ * Kotlin classes are final by default, and the dex verifier enforces finality at runtime, so
+ * the opened bytes are what ships in the payload dex.
  */
 object ClassOpener {
 	/**
-	 * True if the class file declares ACC_FINAL. Reads only the class header (ASM's
-	 * [ClassReader.access] convenience accessor) - never loads the class - so this is safe
-	 * to call on an arbitrary library class file from a compile classpath jar.
+	 * Reports whether a class declares ACC_FINAL. Reads only the class header and never loads
+	 * the class, so it is safe on arbitrary library classes from a compile classpath jar.
 	 */
 	fun isFinal(classBytes: ByteArray): Boolean = ClassReader(classBytes).access and Opcodes.ACC_FINAL != 0
 
+	/** Rewrites a class with ACC_FINAL cleared on the class itself and on its inner classes. */
 	fun stripFinalModifier(classBytes: ByteArray): ByteArray {
 		val reader = ClassReader(classBytes)
 		val writer = ClassWriter(0)

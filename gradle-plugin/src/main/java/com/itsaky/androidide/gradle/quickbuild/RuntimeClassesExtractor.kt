@@ -6,14 +6,15 @@ import java.io.IOException
 import java.util.jar.JarFile
 
 /**
- * Pulls classes.jar out of runtime AARs so javac and D8 can read them (neither accepts
- * an AAR on a classpath). Pure logic so it is unit-testable; the dex task supplies its
- * own temp dir as [extract]'s output.
+ * Unpacks classes.jar from runtime AARs so javac and D8 can read them; neither accepts an
+ * AAR on a classpath.
  */
 internal object RuntimeClassesExtractor {
 	/**
-	 * The classes.jar of each AAR in [aars], extracted into [outputDir] as
-	 * `<aar-name>-classes.jar`. Non-AAR files and AARs without a classes.jar are skipped.
+	 * Extracts each AAR's classes.jar into [outputDir], named `<aar-name>-classes.jar`.
+	 * Non-AAR files and AARs without a classes.jar are skipped.
+	 *
+	 * @return the extracted jars, in input order
 	 */
 	fun extract(
 		aars: Collection<File>,

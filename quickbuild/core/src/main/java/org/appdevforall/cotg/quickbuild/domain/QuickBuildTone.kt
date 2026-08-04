@@ -1,11 +1,11 @@
 package org.appdevforall.cotg.quickbuild.domain
 
 /**
- * Colorblind-safe presentation tone for the Quick Build toolbar icon. Status
- * must never be carried by color alone, so each tone maps to both a distinct icon shape
- * AND a distinct color in the app module - this type is the pure, JVM-testable half of
- * that derivation; the app module owns the drawable resource / color attr mapping since
- * that needs a Context.
+ * Colorblind-safe presentation tone for the Quick Build toolbar icon.
+ *
+ * Status is never carried by color alone: each tone maps to a distinct icon shape as well as
+ * a distinct color. The app module owns that drawable/color mapping because it needs a
+ * Context; this type is the JVM-testable half.
  */
 enum class QuickBuildTone {
 	/** Ready to build - no session, or a session sitting on a successful build. */
@@ -18,7 +18,7 @@ enum class QuickBuildTone {
 	ATTENTION,
 }
 
-/** Derives the toolbar presentation tone from the status the session surface already exposes. */
+/** Derives the toolbar tone from the status the session surface already exposes. */
 fun QuickBuildStatus.toTone(): QuickBuildTone =
 	when (this) {
 		QuickBuildStatus.Hidden,

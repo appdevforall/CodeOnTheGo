@@ -3,7 +3,9 @@ package com.itsaky.androidide.quickbuild.runtime;
 import java.util.Map;
 
 /**
- * Parsed form of the {@code statusJson} argument of {@code IQuickBuildTarget.onBuildStatus} (schema in quickbuild/core/README.md). All values are strings on the wire because {@link MiniJson} deliberately reads only strings. Plain Java so the parsing is JVM-unit-testable; unknown kinds parse to null and unknown fields are ignored, so CoGo can extend the schema without breaking already-installed proxy apps.
+ * Parsed form of the {@code statusJson} argument of {@code IQuickBuildTarget.onBuildStatus}.
+ *
+ * Schema is in quickbuild/core/README.md. Every value is a string on the wire because {@link MiniJson} reads only strings. Unknown kinds parse to null and unknown fields are ignored, so CoGo can extend the schema without breaking installed proxy apps.
  */
 final class BuildStatus {
 
@@ -12,7 +14,11 @@ final class BuildStatus {
 	static final String KIND_BUILDING = "building";
 
 	/**
-	 * Parses a build status. Returns null for a kind this runtime does not know (the defensive-versioning contract: ignore, don't fail); malformed JSON throws {@link IllegalArgumentException} for the caller to log and drop.
+	 * Parses one build status message.
+	 *
+	 * @return null for a kind this runtime does not know; unknown kinds are ignored, not errors.
+	 * @throws IllegalArgumentException
+	 *             on malformed JSON, for the caller to log and drop.
 	 */
 	static BuildStatus parse(String json) {
 		Map<String, Object> obj = MiniJson.parseObject(json);

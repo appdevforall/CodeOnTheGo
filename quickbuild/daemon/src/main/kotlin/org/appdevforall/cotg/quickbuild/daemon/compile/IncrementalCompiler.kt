@@ -16,39 +16,29 @@ import java.nio.file.Path
 import java.util.UUID
 
 /**
- * Incremental Kotlin (+ plain Java) compilation via the Kotlin Build Tools API. A
- * one-line edit recompiles ~one file instead of the whole app, which is what keeps the
- * quick-build hot loop flat as the project grows.
+ * Compiles a module's Kotlin and Java sources incrementally, so a one-line edit recompiles
+ * about one file instead of the whole app.
  *
- * The BTA incremental engine has sharp edges, re-derived from the ADFA-4128 spike and
- * documented in quickbuild/core/README.md - each is load-bearing here:
- * - Drive with [SourcesChanges.Known]; `ToBeCalculated` silently falls back to a full
- *   compile (UNKNOWN_CHANGES_IN_GRADLE_INPUTS).
- * - The shrunk snapshot MUST be exactly `<rootProjectDir>/shrunk-classpath-snapshot.bin`
- *   - the engine derives that path from `setRootProjectDir` and a mismatch means every
- *   build silently degrades to non-incremental (CLASSPATH_SNAPSHOT_NOT_FOUND) while
- *   still compiling correctly. We point rootProjectDir at the daemon work dir, not the
- *   user's project, so the engine's artifacts never pollute user sources.
- * - The caller passes ALL sources as changed on the first build to seed the IC caches.
- * - `assureNoClasspathSnapshotsChanges(true)` only once the shrunk snapshot exists: it
- *   skips per-build re-verification of every classpath entry (the dominant cost on a
- *   real resolved classpath), valid because the session classpath is fixed - but before
- *   the first build the engine needs the full comparison to seed.
+ * Constraints the Kotlin Build Tools API imposes, none of them visible from the calls below
+ * (more in quickbuild/core/README.md):
+ * - Changes must be passed as [SourcesChanges.Known]; `ToBeCalculated` silently degrades to
+ *   a full compile.
+ * - The shrunk snapshot path is derived from `setRootProjectDir`, so it must be exactly
+ *   `<rootProjectDir>/shrunk-classpath-snapshot.bin`; a mismatch still compiles correctly
+ *   but silently degrades to non-incremental. rootProjectDir is the daemon work dir, so the
+ *   engine's artifacts stay out of the user's project.
+ * - The caller must pass ALL sources as changed on the first compile, to seed the IC caches.
+ * - `assureNoClasspathSnapshotsChanges(true)` is only safe once the shrunk snapshot exists;
+ *   before that the engine needs the full classpath comparison to seed.
  *
- * Java sources: kotlinc sees `.java` files for symbol resolution (so Kotlin may call a
- * same-module Java class), then the JDK's javac compiles them for real after Kotlin,
- * against the same classpath plus the Kotlin output (so Java may also call Kotlin), into
- * the same output directory. This is Gradle's own two-pass shape, and it compiles genuine
- * Kotlin<->Java cycles - mutual calls, and a Java class whose supertype is a Kotlin source
- * in the same pass (corpus app `mixed-lang-cyclic`). javac's pass is not incremental: user
- * projects here are Kotlin-first and stray Java files are small.
+ * Java sources take two passes: kotlinc reads them for symbol resolution only, then javac
+ * compiles them after Kotlin against the same classpath plus the Kotlin output, into the
+ * same output dir. That compiles Kotlin<->Java cycles. javac's pass is not incremental.
+ * [JavaSourceAbi] decides when a `.java` edit forces a Kotlin recompile - see
+ * [kotlinFilesToCompile].
  *
- * A `.java` edit's effect on the Kotlin side is decided by [JavaSourceAbi] - see
- * `compileKotlin` below for the rule and the conservatism it keeps.
- *
- * Kotlin 2.3 deprecates this [CompilationService] entry point in favor of the new
- * `KotlinToolchains` API; it still works and matches the spike-proven recipe above, so
- * v1 stays on it - migrating is a contained follow-up inside this class.
+ * Kotlin 2.3 deprecates this [CompilationService] entry point in favor of `KotlinToolchains`;
+ * v1 stays on it, and migrating is contained to this class.
  */
 @OptIn(ExperimentalBuildToolsApi::class)
 class IncrementalCompiler(
@@ -56,19 +46,19 @@ class IncrementalCompiler(
 	private val workDir: Path,
 	compilerPluginJars: List<File> = emptyList(),
 ) {
+	/** Outcome of one compile. */
 	sealed interface Result {
 		/**
-		 * @property classesDir single merged output dir (Kotlin + Java classes).
-		 * @property changedClassFiles the .class files this compile emitted or rewrote,
-		 *   as '/'-separated paths relative to [classesDir]. Feeds the CoGo-side deploy
-		 *   policy (restart vs recreate), so it must never under-report: computed by
-		 *   diffing a pre/post snapshot of the output tree on (size, nanosecond mtime).
-		 * @property kotlinMillis wall time of the BTA Kotlin pass (0 when no Kotlin sources).
-		 * @property javaMillis wall time of the javac pass (0 when no Java sources).
-		 * @property stats the phases [kotlinMillis]/[javaMillis] do NOT cover - the two
-		 *   output-tree walks and the Java-ABI re-parse - plus this build's source and
-		 *   output counts. Together they close the compile op's measurement gap; see
-		 *   [CompileStats].
+		 * @property classesDir single merged output dir for Kotlin and Java classes.
+		 * @property changedClassFiles the .class files this compile emitted or rewrote, as
+		 *   '/'-separated paths relative to [classesDir]. The CoGo deploy policy picks
+		 *   restart vs recreate from this, so it must never under-report: computed by diffing
+		 *   a pre/post snapshot of the output tree on size and nanosecond mtime.
+		 * @property kotlinMillis wall time of the Kotlin pass (0 when there are no Kotlin sources).
+		 * @property javaMillis wall time of the javac pass (0 when there are no Java sources).
+		 * @property stats the phases [kotlinMillis]/[javaMillis] do not cover - the two
+		 *   output-tree walks and the Java-ABI re-parse - plus this build's source and output
+		 *   counts.
 		 */
 		data class Success(
 			val classesDir: File,
@@ -93,9 +83,8 @@ class IncrementalCompiler(
 	private val classpathString = classpathJars.joinToString(File.pathSeparator) { it.absolutePath }
 	private val classpathFiles = classpathJars
 
-	// One -Xplugin per jar: the BTA hands free-form kotlinc args through to the
-	// (incremental) compile, so compiler plugins ride the same route as on a CLI
-	// invocation. Session-fixed, like the classpath.
+	// Compiler plugins are passed as free-form kotlinc args, one -Xplugin per jar, the same
+	// way a CLI invocation would. Session-fixed, like the classpath.
 	private val pluginArguments = compilerPluginJars.map { "-Xplugin=${it.absolutePath}" }
 
 	/** Raw logger lines from the last compile, level-tagged; test/debug visibility only. */
@@ -104,24 +93,22 @@ class IncrementalCompiler(
 
 	/**
 	 * Java type names whose ABI moved in the last compile, forcing a full Kotlin recompile
-	 * (see [kotlinFilesToCompile]). Empty when the Java side stayed ABI-stable - which is
-	 * what tells a reader of a slow compile why it was slow.
+	 * (see [kotlinFilesToCompile]). Empty when the Java side stayed ABI-stable, which is what
+	 * explains an otherwise surprising slow compile.
 	 */
 	var lastJavaAbiChange: Set<String> = emptySet()
 		private set
 
-	/**
-	 * Phase timings/counts [compileKotlin] and [kotlinFilesToCompile] measure on the way
-	 * past; [compile] folds them into the returned [CompileStats]. Same intra-call handoff
-	 * shape as [lastJavaAbiChange] - the compiler runs one compile at a time by contract.
-	 */
+	// Phase timings/counts measured by compileKotlin and kotlinFilesToCompile on the way past;
+	// compile() folds them into the returned CompileStats. Safe as fields because the compiler
+	// runs one compile at a time by contract.
 	private var javaAbiSnapMillis: Long = 0
 	private var kotlinToCompileCount: Int = 0
 
 	/** Compiles served since construction; a `configure` builds a fresh compiler. */
 	private var compileCount: Long = 0
 
-	/** Last SUCCESSFUL compile's `.java` ABI; null when unknown and Kotlin must be recompiled whole. */
+	/** Last successful compile's `.java` ABI; null when unknown and Kotlin must be recompiled whole. */
 	private var javaAbi: Map<File, JavaSourceAbi.FileAbi>? = null
 
 	/** This compile's `.java` ABI, promoted to [javaAbi] only once the compile succeeds. */
@@ -144,20 +131,28 @@ class IncrementalCompiler(
 			}
 	}
 
+	/**
+	 * Runs one compile: the incremental Kotlin pass, then javac over any `.java` sources.
+	 *
+	 * @param allSources every source in the module, not just the edited ones.
+	 * @param changedFiles sources edited since the last compile; pass all of [allSources] on
+	 *   the first compile of a session.
+	 * @return [Result.Failed] on any compile error, and also when a removed source's stale
+	 *   `.class` could not be deleted.
+	 */
 	fun compile(
 		allSources: List<File>,
 		changedFiles: List<File>,
 		removedFiles: List<File> = emptyList(),
 	): Result {
-		// javac has no incremental removed-files API and never deletes outputs for sources
-		// it's no longer given, so a removed `.java`'s stale `.class` would survive into the
-		// dex. Delete it before the pre-snapshot so it's simply gone, not reported as a
-		// changed output. (Removed `.kt` outputs are handled by the BTA engine via
-		// SourcesChanges.Known below.)
+		// javac never deletes outputs for sources it is no longer given, so a removed .java's
+		// stale .class must go before the pre-snapshot - otherwise it survives into the dex,
+		// or is reported as a changed output. Removed .kt outputs are the engine's job, via
+		// SourcesChanges.Known below.
 		val undeleted = deleteRemovedJavaOutputs(removedFiles)
 		if (undeleted.isNotEmpty()) {
-			// Proceeding would dex the stale classes of a deleted source - the exact
-			// NEVER-STALE violation the delete exists to prevent. Fail the compile instead.
+			// Proceeding would dex the stale classes of a deleted source, the exact thing the
+			// delete exists to prevent.
 			return Result.Failed(
 				undeleted.map { stale ->
 					Diagnostic(
@@ -204,10 +199,10 @@ class IncrementalCompiler(
 		if (!javaDiagnostics.success) {
 			return Result.Failed(javaDiagnostics.diagnostics + warnings)
 		}
-		// Only a compile that fully succeeded may become the ABI baseline. A failed compile
-		// leaves output the caller never deployed, so the NEXT compile has to keep seeing
-		// the Java side as changed relative to the last good state - committing here rather
-		// than where the snapshot is taken is what makes that true.
+		// Only a fully successful compile may become the ABI baseline: a failed compile leaves
+		// output the caller never deployed, so the next compile must still see the Java side
+		// as changed relative to the last good state. Hence committing here, not where the
+		// snapshot is taken.
 		javaAbi = pendingJavaAbi
 		val postSnapStartedAt = System.currentTimeMillis()
 		val changedClassFiles = changedClassOutputs(before)
@@ -233,10 +228,9 @@ class IncrementalCompiler(
 	}
 
 	/**
-	 * Snapshot of every .class under [classesDir]: relative path -> (size, mtime).
-	 * Nanosecond [java.nio.file.attribute.FileTime] (not millis) so a rewrite within
-	 * the same millisecond still diffs - an under-report here would let a changed
-	 * component class skip the restart policy, a never-stale violation.
+	 * Snapshots every .class under [classesDir] as relative path -> (size, mtime). Nanosecond
+	 * [java.nio.file.attribute.FileTime], not millis, so a rewrite inside the same millisecond
+	 * still diffs; missing one would let a changed component class skip the restart policy.
 	 */
 	private fun snapshotClassOutputs(): Map<String, Pair<Long, java.nio.file.attribute.FileTime>> {
 		val root = classesDir
@@ -260,16 +254,13 @@ class IncrementalCompiler(
 			.sorted()
 
 	/**
-	 * Deletes the `.class` outputs of removed `.java` sources. javac only writes - it never
-	 * deletes outputs for sources it's no longer handed - so without this a deleted Java
-	 * class survives in [classesDir] and rides into the dex, exactly the stale bytecode the
-	 * NEVER-STALE invariant forbids. The source is gone, so its package is derived from the
-	 * path (see [javaClassStem]); the primary class and any nested `Outer$Inner.class` in
-	 * the same package dir are removed.
+	 * Deletes the `.class` outputs of removed `.java` sources, which javac never cleans up
+	 * itself - without this a deleted class stays in [classesDir] and rides into every later
+	 * dex as stale bytecode. The source is gone, so its package comes from the path (see
+	 * [javaClassStem]); the primary class and any nested `Outer$Inner.class` beside it go too.
 	 *
-	 * @return the `.class` files that could NOT be deleted (delete() failed and the file
-	 *   still exists). A non-empty return must fail the compile in [compile]: a survivor
-	 *   here would ride into every subsequent dex as stale bytecode.
+	 * @return the `.class` files that could not be deleted; [compile] must fail on a non-empty
+	 *   result rather than dex a survivor.
 	 */
 	private fun deleteRemovedJavaOutputs(removedFiles: List<File>): List<File> {
 		val classesRoot = classesDir.toFile()
@@ -292,11 +283,10 @@ class IncrementalCompiler(
 	}
 
 	/**
-	 * The output-relative class stem (`com/foo/Bar`) for a `.java` source path, or null when
-	 * no source-root marker is found. Path-only (the file is gone). Prefers a `main/java` or
-	 * `main/kotlin` root - the enforced project layout - so a package segment literally named
-	 * `java`/`kotlin` deeper in the path isn't mistaken for the root; falls back to the last
-	 * such segment for a non-standard layout.
+	 * The output-relative class stem (`com/foo/Bar`) for a `.java` source path, or null when no
+	 * source root is found. Path-only, since the file is gone. Prefers a `main/java` or
+	 * `main/kotlin` root so a package segment named `java`/`kotlin` deeper in the path isn't
+	 * mistaken for the root; otherwise falls back to the last such segment.
 	 */
 	private fun javaClassStem(javaFile: File): String? {
 		val parts = javaFile.invariantSeparatorsPath.split('/')
@@ -309,6 +299,7 @@ class IncrementalCompiler(
 		return parts.subList(rootIdx + 1, parts.size).joinToString("/").removeSuffix(".java")
 	}
 
+	/** Runs the incremental Kotlin pass; a module with no Kotlin sources succeeds immediately. */
 	private fun compileKotlin(
 		allSources: List<File>,
 		changedFiles: List<File>,
@@ -323,16 +314,12 @@ class IncrementalCompiler(
 			return CompilationResult.COMPILATION_SUCCESS
 		}
 
-		// A Kotlin file calling a same-module Java class (not yet on any jar classpath) needs
-		// kotlinc to see that .java source for symbol resolution - passing javaSources into
-		// compileJvm's source list below (not the `-Xjava-source-roots` CLI flag, which this
-		// BTA entry point silently ignores) makes that resolution work without asking kotlinc
-		// to emit bytecode for them (JavaCompileStep does that afterward). But BTA's incremental
-		// engine has no ABI/dependency tracking over those java sources (unlike the
-		// jar-classpath-snapshot machinery it uses for external deps): telling the engine only
-		// that a .java file changed says nothing, and it would skip recompiling Kotlin callers
-		// entirely, leaving their .class files calling the OLD Java signature - a stale-bytecode
-		// bug the NEVER-STALE invariant forbids.
+		// kotlinc needs the .java sources in compileJvm's source list to resolve a Kotlin file
+		// that calls a same-module Java class; the `-Xjava-source-roots` flag is silently
+		// ignored by this entry point. It emits no bytecode for them (JavaCompileStep does
+		// that). The engine tracks no ABI over those sources, so being told a .java file
+		// changed tells it nothing - kotlinFilesToCompile has to decide instead, or callers
+		// keep .class files compiled against the old Java signature.
 		val kotlinChanged = kotlinFilesToCompile(kotlinSources, javaSources, changedFiles)
 
 		val strategy = service.makeCompilerExecutionStrategyConfiguration().useInProcessStrategy()
@@ -345,10 +332,10 @@ class IncrementalCompiler(
 		}
 		val parameters =
 			ClasspathSnapshotBasedIncrementalCompilationApproachParameters(classpathSnapshots, shrunkSnapshot)
-		// Removed Kotlin sources go into SourcesChanges.Known's removed-files slot: the
-		// engine deletes their outputs and recompiles dependents (a now-dangling reference
-		// then surfaces as an ordinary compile error). `.java` removals are handled out of
-		// band (deleteRemovedJavaOutputs) - the engine tracks only Kotlin outputs.
+		// Removed Kotlin sources go in SourcesChanges.Known's removed slot: the engine deletes
+		// their outputs and recompiles dependents, so a dangling reference surfaces as an
+		// ordinary compile error. The engine tracks only Kotlin outputs, so `.java` removals
+		// are handled separately in deleteRemovedJavaOutputs.
 		val kotlinRemoved = removedFiles.filter { it.extension != "java" }
 		val changes = SourcesChanges.Known(kotlinChanged, kotlinRemoved)
 		config.useIncrementalCompilation(icCachesDir.toFile(), changes, parameters, icConfig)
@@ -371,28 +358,19 @@ class IncrementalCompiler(
 	}
 
 	/**
-	 * Which Kotlin sources this compile must treat as changed, given the engine is blind to
-	 * the `.java` sources it is resolving against.
+	 * Decides which Kotlin sources this compile must treat as changed, given the engine
+	 * tracks no dependencies over the `.java` sources it resolves against.
 	 *
-	 * The rule has two cases and only two:
-	 * - **No Java ABI moved** (every `.java` file's declarations hash the same as last
-	 *   compile) - the Kotlin changed set is exactly the caller's Kotlin changes. This is
-	 *   sound without any cross-language dependency analysis: Kotlin never inlines a Java
-	 *   method body, and Java compile-time constants, which it does inline, are part of the
-	 *   ABI hash. So no Kotlin bytecode can differ. This is the common edit - a Java method
-	 *   body - and it now costs the same as a same-size Kotlin edit.
-	 * - **Some Java ABI moved, or the ABI is unknown** (first compile of the session, no
-	 *   system Java compiler, an unparseable source) - every Kotlin source is treated as
-	 *   changed: a full, correct Kotlin recompile.
+	 * If no Java ABI moved, the answer is exactly the caller's Kotlin changes: Kotlin never
+	 * inlines a Java method body, and Java compile-time constants, which it does inline, are
+	 * part of the ABI hash, so no Kotlin bytecode can differ. Otherwise - or when the ABI is
+	 * unknown (first compile, no system Java compiler, an unparseable source) - every Kotlin
+	 * source is recompiled.
 	 *
-	 * The second case is deliberately blunt. Narrowing it needs the set of Kotlin files that
-	 * depend on the changed Java types, and neither available signal is sound: BTA exposes no
-	 * way to inject a non-classpath ABI change into its lookup caches (which is exactly the
-	 * machinery that would answer this precisely), and seeding from Kotlin files that
-	 * lexically name the changed type misses indirect dependents - a `typealias` to the Java
-	 * type re-exports it under a name the dependent writes instead, and its own ABI does not
-	 * move, so the engine has no reason to propagate. Both leave stale bytecode. Until one of
-	 * those is closed, an ABI-changing Java edit pays a full Kotlin recompile.
+	 * The second case stays blunt because no sound way to narrow it exists yet: BTA offers no
+	 * way to inject a non-classpath ABI change into its lookup caches, and seeding from Kotlin
+	 * files that lexically name the changed type misses indirect dependents (a `typealias`
+	 * re-exports it under another name whose own ABI does not move). Both leave stale bytecode.
 	 */
 	private fun kotlinFilesToCompile(
 		kotlinSources: List<File>,
@@ -423,9 +401,9 @@ class IncrementalCompiler(
 	}
 
 	/**
-	 * Collects compiler output per channel; errors feed structured diagnostics.
-	 * `internal` (not private) so the severity routing is unit-testable: the daemon
-	 * passes `-nowarn`, so no real compile can drive the warn channel from a test.
+	 * Collects compiler output per channel; the error channel feeds structured diagnostics.
+	 * `internal` rather than private so severity routing is unit-testable - the daemon passes
+	 * `-nowarn`, so no real compile can drive the warn channel from a test.
 	 */
 	internal class CollectingLogger : KotlinLogger {
 		val errors = mutableListOf<String>()

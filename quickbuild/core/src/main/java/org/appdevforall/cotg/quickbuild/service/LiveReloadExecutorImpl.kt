@@ -21,19 +21,15 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * The warm-daemon pipeline behind the domain [LiveReloadExecutor] contract: routes a
- * classified changed-set through compile/dex/relink on the daemon, then deploys the
- * artifacts to the proxy app.
+ * Turns one classified changed-set into new code running in the proxy app, by routing it
+ * through compile, dex, and relink on the warm daemon and then deploying the artifacts.
  *
- * Every failure becomes a [BuildOutcome] - nothing escapes to crash the orchestrator.
- * A generation is allocated only after the build steps succeed, so a compile error
- * burns nothing and the proxy app verifiably stays on its old generation.
- *
- * After a successful compile the [deployPolicy] decides hot swap vs process restart
- * (a recompiled service/provider/Application class cannot be swapped into a live
- * instance). Everything from that decision onward - the restart protocol, the
- * relaunch verification, the defect-#88 recovery, and the failure mapping - lives in
- * [PayloadDeployer], constructed here from this executor's own params.
+ * Every failure becomes a [BuildOutcome]; nothing escapes to crash the orchestrator. A
+ * generation is allocated only after the build steps succeed, so a compile error burns
+ * none and the proxy app stays on its old generation. After a successful compile
+ * [deployPolicy] chooses hot swap or process restart, since a recompiled service,
+ * provider, or Application class cannot be swapped into a live instance; everything from
+ * that decision onward lives in [PayloadDeployer].
  */
 class LiveReloadExecutorImpl(
 	private val daemon: QuickBuildDaemon,
@@ -44,21 +40,21 @@ class LiveReloadExecutorImpl(
 	/** Scratch dir for payload staging (the changed-assets zip). */
 	private val workDir: File,
 	/**
-	 * The proxy app build's proxy classes, bundled into every payload dex — the manifest's proxy
-	 * components extend user classes, so a payload without them cannot be loaded.
+	 * The proxy app build's proxy classes, bundled into every payload dex. The manifest's
+	 * proxy components extend user classes, so a payload without them cannot be loaded.
 	 */
 	private val proxyClassesDir: File? = null,
 	/** The proxy app build's transformed manifest; relinks link against it when present. */
 	private val proxyAppManifest: File? = null,
-	/** Restart-vs-recreate decision; null (a session without one) always hot-swaps. */
+	/** Restart-vs-recreate decision. Null, for a session without one, always hot-swaps. */
 	private val deployPolicy: DeployPolicy? = null,
 	/** The installed proxy app's applicationId; restart relaunch target. */
 	private val proxyAppPackage: String? = null,
 	/**
-	 * Launcher proxy activity FQN from the transformed manifest; the restart relaunch
-	 * target. Null when the MAIN/LAUNCHER filter lives on an `<activity-alias>` (no
-	 * proxied activity carries it) - the relaunch then falls back to the package's
-	 * default launch intent.
+	 * Launcher proxy activity FQN from the transformed manifest, the restart relaunch
+	 * target. Null when the MAIN/LAUNCHER filter sits on an `<activity-alias>` that no
+	 * proxied activity carries; the relaunch then uses the package's default launch
+	 * intent.
 	 */
 	private val launcherActivity: String? = null,
 	private val launcher: ProxyAppLauncher? = null,
@@ -67,23 +63,17 @@ class LiveReloadExecutorImpl(
 	private val assetPackager: AssetPackager = AssetPackager(),
 	private val clock: () -> Long = System::currentTimeMillis,
 	/**
-	 * Sink for the per-generation e2e timing line (ADFA-4128 e2e-timing spec). Default logs
-	 * one structured [E2eTimeline.format] line at INFO - cheap, always-on, no network. The
-	 * spec explicitly leaves wiring an analytics backend as a team decision (offline-first
-	 * users); this is a log line, not [org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink].
-	 * Tests inject a capturing lambda.
+	 * Local sink for the per-generation e2e timing line. The default logs one structured
+	 * [E2eTimeline.format] line at INFO, which is what the benchmark harness parses. Tests
+	 * inject a capturing lambda.
 	 */
 	private val emitTimeline: (E2eTimeline) -> Unit = { log.info(it.format()) },
 	/**
-	 * Analytics channel for the same timeline (ADFA-4128 e2e-timing spec: the timing is an
-	 * analytics deliverable, not just a log line). The app wires the Firebase-backed sink;
-	 * the default no-op keeps existing callers + tests unchanged. Guarded on every call
-	 * ([reportTimeline]) per the sink's contract, so telemetry can never fail a build.
+	 * Analytics channel for the same timeline. The app wires the Firebase-backed sink; the
+	 * default no-op keeps existing callers and tests unchanged.
 	 */
 	private val metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop,
 ) : LiveReloadExecutor {
-	// Constructed here from deps this class already takes: the executor's ctor (and the
-	// Koin wiring behind it) stays unchanged, and tests keep driving it via execute().
 	private val payloadDeployer =
 		PayloadDeployer(
 			deploy = deploy,
@@ -101,10 +91,10 @@ class LiveReloadExecutorImpl(
 	override suspend fun execute(request: BuildRequest): BuildOutcome =
 		try {
 			val outcome = executeInner(request)
-			// A warm compile compiles the sources the proxy app ALREADY runs and deploys
-			// nothing: flashing build-ok/build-failed on its overlay would announce
-			// a build the user never triggered (2026-07-26 review). Stay silent;
-			// the outcome still flows to the orchestrator for recovery routing.
+			// A warm compile recompiles what the proxy app already runs and deploys
+			// nothing, so flashing build-ok or build-failed on its overlay would announce
+			// a build the user never triggered. The outcome still flows to the
+			// orchestrator for recovery routing.
 			if (request.route !is BuildRoute.WarmCompile) notifyProxyApp(outcome)
 			outcome
 		} catch (e: CancellationException) {
@@ -115,10 +105,11 @@ class LiveReloadExecutorImpl(
 		}
 
 	/**
-	 * The proxy-app half of the never-stale invariant: a compile error never
-	 * produces a payload, so without this message the app would keep running old code
-	 * with no on-screen signal. Success clears a previously shown failure (also on the
-	 * no-payload success paths, e.g. an unforced no-op). Best-effort by contract.
+	 * Tells the proxy app about a build that shipped no payload, so it never runs old
+	 * code with nothing on screen to say why.
+	 *
+	 * A compile error shows; a success clears a previously shown failure. Best-effort by
+	 * contract.
 	 */
 	private fun notifyProxyApp(outcome: BuildOutcome) {
 		try {
@@ -131,25 +122,25 @@ class LiveReloadExecutorImpl(
 					deploy.notifyBuildStatus(BuildStatusJson.buildOk())
 				}
 
-				// Deploy/infrastructure failures surface in CoGo's own status UI; the proxy
-				// app cannot say anything more truthful than what it already shows. A
-				// RequiresProxyAppRebuild surfaces through the session's fallback flow.
+				// Deploy and infrastructure failures surface in CoGo's own status UI,
+				// and a RequiresProxyAppRebuild goes through the session's fallback
+				// flow, so the proxy app has nothing to add.
 				else -> {
 					Unit
 				}
 			}
 		} catch (e: Exception) {
-			// Best-effort messaging must never rewrite a real outcome (a throw here
-			// would turn e.g. a CompileError into an InfrastructureFailure upstream).
+			// Best-effort messaging must never rewrite a real outcome: a throw here
+			// would turn a CompileError into an InfrastructureFailure upstream.
 			log.warn("Build-status notification failed", e)
 		}
 	}
 
 	/**
-	 * Hands a completed timeline to BOTH channels: the always-on log line (the harness's
-	 * local parse source) and the analytics sink (the ADFA-4128 telemetry deliverable). The
-	 * metrics call is guarded so a misbehaving sink degrades to a warning and never fails a
-	 * build the user already saw reload.
+	 * Hands a completed timeline to both the log line and the analytics sink.
+	 *
+	 * The metrics call is guarded so a misbehaving sink degrades to a warning rather than
+	 * failing a build the user already saw reload.
 	 */
 	private fun reportTimeline(timeline: E2eTimeline) {
 		emitTimeline(timeline)
@@ -160,23 +151,24 @@ class LiveReloadExecutorImpl(
 		}
 	}
 
+	/** Runs one build request down its route; [execute] adds the error boundary. */
 	private suspend fun executeInner(request: BuildRequest): BuildOutcome {
 		val startedAt = clock()
 		val timeline = E2eTimelineRecorder(request.triggeredAtMillis) { daemon.scratchFsType }
 
 		if (request.route is BuildRoute.WarmCompile) {
-			// Background warm compile: compile + dex everything once (kotlinc JIT, classpath
-			// snapshot, IC caches, d8 warm-up) but deploy NOTHING - the proxy app already
-			// runs exactly these sources, and the generation must not move. No timeline
-			// is reported: nothing reloaded, so there is no save->live to measure.
+			// Compile and dex everything once to warm kotlinc, the classpath snapshot,
+			// the IC caches and d8, but deploy nothing: the proxy app already runs these
+			// sources and the generation must not move. Nothing reloaded, so there is no
+			// timeline to report.
 			val dex = compileAndDex(ChangedFiles.Unknown, timeline)
 			if (dex is Step.Fail) return dex.outcome
 			return BuildOutcome.Success(generations.current, clock() - startedAt)
 		}
 
 		val known = request.changes as? ChangedFiles.Known
-		// A removed asset must reach the packager too: it names the entry in the payload's
-		// changedAssets so the runtime drops it (absence is the removal signal, AssetPackager).
+		// Removed assets must reach the packager too: naming one in changedAssets while
+		// omitting its bytes is how the runtime is told to drop it.
 		val assetCandidates = known?.files.orEmpty() + known?.removed.orEmpty()
 		val assets =
 			assetPackager.packageAssets(
@@ -192,13 +184,12 @@ class LiveReloadExecutorImpl(
 					// benignly keeps the executor total anyway.
 					BuildOutcome.Success(generations.current, 0)
 				} else {
-					// Explicit tap with nothing changed: rebuild the CURRENT sources and
-					// ship them at a fresh generation (e.g. catch up a killed-and-relaunched
-					// proxy app running the gen-0 baseline). A metadata-only replay of the
-					// current generation cannot work: the runtime only accepts strictly
-					// NEWER generations (an equal one is dropped without a report), and a
-					// null-dex payload at a newer generation would advance the app's
-					// generation without shipping the classes it claims - a stale-code lie.
+					// Explicit tap with nothing changed: rebuild the current sources and
+					// ship them at a fresh generation, which is how a relaunched proxy
+					// app on the gen-0 baseline catches up. Replaying the current
+					// generation cannot work, because the runtime drops anything not
+					// strictly newer, and a null-dex payload at a newer generation would
+					// advance the app's generation without the classes it claims.
 					val dex = compileAndDex(ChangedFiles.Unknown, timeline)
 					if (dex is Step.Fail) return dex.outcome
 					val arsc = relink(timeline)
@@ -229,14 +220,14 @@ class LiveReloadExecutorImpl(
 			}
 
 			BuildRoute.ResourcesOnly -> {
-				// Resource-only deploys never restart: no code moved.
 				when (val arsc = relink(timeline)) {
 					is Step.Fail -> {
 						arsc.outcome
 					}
 
 					is Step.Ok -> {
-						// Recreate unconditionally: no code moved, so the policy has no say.
+						// No code moved, so the deploy policy has no say and a recreate
+						// is always enough.
 						payloadDeployer.deploy(
 							DeployDecision.Recreate,
 							null,
@@ -268,8 +259,8 @@ class LiveReloadExecutorImpl(
 
 			BuildRoute.AssetsOnly -> {
 				if (assets == null) {
-					// Classifier said assets-only but nothing packaged (e.g. the only
-					// change was a deletion of a file already gone). Nothing to ship.
+					// The classifier said assets-only but nothing packaged, for instance
+					// a deletion of a file that was already gone.
 					BuildOutcome.Success(generations.current, clock() - startedAt)
 				} else {
 					payloadDeployer.deploy(DeployDecision.Recreate, null, null, assets, "assets", startedAt, timeline)
@@ -291,17 +282,19 @@ class LiveReloadExecutorImpl(
 	}
 
 	/**
-	 * Compile then dex; [ChangedFiles.Unknown] recompiles everything (IC re-seed).
-	 * On success also feeds the compile's changed class headers into the policy's
-	 * supertype index (catches re-parenting) and computes the deploy decision.
+	 * Compiles and dexes the changed sources, and decides how the result must be
+	 * deployed.
+	 *
+	 * [ChangedFiles.Unknown] recompiles everything, re-seeding incremental state. On
+	 * success the compile's changed class headers also feed the policy's supertype index,
+	 * which is what catches re-parenting.
 	 */
 	private suspend fun compileAndDex(
 		changes: ChangedFiles,
 		timeline: E2eTimelineRecorder,
 	): Step {
-		// One clock read per step BOUNDARY, not per step: the spans then abut exactly, so
-		// they partition [scanStartedAt, dexDoneAt] with no gap of their own making. Any
-		// residual left over is real un-timed work, which is the whole point.
+		// One clock read per step boundary rather than per step, so the spans abut
+		// exactly and any residual is real un-timed work.
 		val scanStartedAt = clock()
 		val allSources = layout.allSources()
 		val scanDoneAt = clock()
@@ -316,9 +309,9 @@ class LiveReloadExecutorImpl(
 					changes.files.filter { it.extension == "kt" || it.extension == "java" }
 				}
 			}
-		// Removed sources are gone from disk (so out of allSources); pass them separately so
-		// the incremental compiler deletes their outputs and recompiles dependents. Unknown
-		// reseeds the whole world, so it carries no removed set.
+		// Removed sources are gone from disk and so absent from allSources; pass them
+		// separately so the incremental compiler deletes their outputs and recompiles
+		// dependents. Unknown re-seeds everything and needs no removed set.
 		val removedSources =
 			when (changes) {
 				ChangedFiles.Unknown -> {
@@ -358,8 +351,8 @@ class LiveReloadExecutorImpl(
 		timeline.recordDexRpc(dexDoneAt - policyDoneAt)
 		return when (val reply = dexReply) {
 			is DaemonReply.Ok -> {
-				// t1: classes are compiled + dexed (the deployable dex exists). On-device
-				// dexing dominates the build, so it belongs inside compileMillis, not after.
+				// t1: the deployable dex exists. Dexing dominates an on-device build, so
+				// it belongs inside compileMillis rather than after it.
 				timeline.markCompileDone(dexDoneAt)
 				timeline.recordDexSteps(reply.value.stripMillis, reply.value.d8Millis, reply.value.stats)
 				Step.Ok(reply.value.dexFile, decision)
@@ -375,6 +368,10 @@ class LiveReloadExecutorImpl(
 		}
 	}
 
+	/**
+	 * Asks the deploy policy for a hot swap or a restart, after teaching it the
+	 * supertypes of every class this compile changed.
+	 */
 	private fun decideDeploy(
 		classesDir: File,
 		changedClassFiles: List<String>?,
@@ -392,6 +389,7 @@ class LiveReloadExecutorImpl(
 		return policy.decide(changedClassFiles)
 	}
 
+	/** Rebuilds the resource APK from the project's current resources. */
 	private suspend fun relink(timeline: E2eTimelineRecorder): Step {
 		val startedAt = clock()
 		val reply =
@@ -410,8 +408,8 @@ class LiveReloadExecutorImpl(
 				Step.Ok(reply.value.resourceApk, DeployDecision.Recreate)
 			}
 
-			// aapt2 errors are the user's resources failing to build - a compile error
-			// in the domain's sense, with aapt2's diagnostics attached.
+			// aapt2 errors are the user's resources failing to build, which is a compile
+			// error in the domain's sense, with aapt2's diagnostics attached.
 			is DaemonReply.BuildFailed -> {
 				Step.Fail(BuildOutcome.CompileError(reply.diagnostics))
 			}
@@ -422,6 +420,7 @@ class LiveReloadExecutorImpl(
 		}
 	}
 
+	/** Result of one pipeline step: the artifact it produced, or the outcome that ends the build. */
 	private sealed interface Step {
 		data class Ok(
 			val file: File,
@@ -437,16 +436,15 @@ class LiveReloadExecutorImpl(
 		private val log = LoggerFactory.getLogger(LiveReloadExecutorImpl::class.java)
 
 		/**
-		 * How long the runtime gets to exit after acking a restart deploy. Generous vs
-		 * the ~ms it needs; hitting it at all means the runtime ignored the request.
+		 * How long the runtime gets to exit after acking a restart deploy. Far more than
+		 * it needs, so hitting it at all means the runtime ignored the request.
 		 */
 		const val DEFAULT_RESTART_DISCONNECT_TIMEOUT_MILLIS = 5_000L
 
 		/**
-		 * How long the relaunched process gets to boot + bind + connect back. A cold
-		 * app start on the mission's low-end hardware, so this mirrors the deploy
-		 * verdict timeout rather than the exit timeout. Also bounds the rebind wait in
-		 * [PayloadDeployer]'s launch-and-retry - the same boot-bind-connect being waited on.
+		 * How long the relaunched process gets to boot, bind, and connect back. Sized for
+		 * a cold app start on low-end hardware, which is also why it bounds the rebind
+		 * wait in [PayloadDeployer]'s launch-and-retry.
 		 */
 		const val DEFAULT_RESTART_RECONNECT_TIMEOUT_MILLIS = 15_000L
 	}

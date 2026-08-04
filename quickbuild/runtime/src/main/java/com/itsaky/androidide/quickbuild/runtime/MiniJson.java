@@ -6,14 +6,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Minimal JSON object reader for the runtime's two tiny schemas (deploy metadata, component map). Hand-rolled because this AAR must carry ZERO dependencies and android.jar's org.json is a stub in JVM unit tests. It reads exactly what the schemas need - a top-level object whose interesting values are strings or arrays of strings - while still consuming (and dropping) nested objects, numbers, booleans and nulls so a well-formed document with extra fields parses cleanly.
+ * Reads the runtime's two small JSON schemas: deploy metadata and the component map.
  *
- * Malformed input throws {@link IllegalArgumentException}; callers treat that as a bad payload, never as a crash.
+ * Hand-rolled because this AAR carries zero dependencies and android.jar's org.json is a stub in JVM unit tests. It keeps only strings and arrays of strings, but still consumes nested objects, numbers, booleans and nulls so a document with extra fields parses cleanly. Malformed input throws {@link IllegalArgumentException}, which callers treat as a bad payload rather than a crash.
  */
 final class MiniJson {
 
 	/**
-	 * Parses {@code json} as an object. Values that are strings map to {@link String}, arrays keep only their string elements as {@code List<String>}; everything else is consumed and dropped.
+	 * Parses {@code json} as a top-level object.
+	 *
+	 * String values map to {@link String} and arrays keep only their string elements as {@code List<String>}; every other value is consumed and dropped.
 	 */
 	static Map<String, Object> parseObject(String json) {
 		if (json == null) {

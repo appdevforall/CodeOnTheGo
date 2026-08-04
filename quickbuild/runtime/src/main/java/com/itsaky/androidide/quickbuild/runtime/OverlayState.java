@@ -1,30 +1,38 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
 /**
- * What the status overlay currently shows. The overlay is error-only by design: it exists to keep the never-stale invariant honest when a build fails or a payload crashes, plus a one-time gesture discoverability hint. {@link #building} is the one deliberately narrow exception - a neutral in-flight line so a slow compile never reads as silence. It is not a general progress UI; success renders NOTHING. Immutable and DERIVED-then-rendered - the overlay always renders the latest state object and every terminal event installs a new state, so a transient state can never get stuck on screen.
+ * Immutable description of what the status overlay currently shows.
+ *
+ * The overlay is error-only: it tells the user when a build fails or a payload crashes, plus a one-time hint for the return gesture. {@link #building} is the one narrow exception, a neutral in-flight line so a slow compile does not read as silence. Success renders nothing. Every terminal event installs a new state and the overlay always renders the latest, so a transient state cannot get stuck on screen.
  */
 final class OverlayState {
 
+	/** State for a compile error, carrying the location and message for tap-to-jump. */
 	static OverlayState buildFailed(BuildStatus status) {
 		return new OverlayState(Kind.BUILD_FAILED, status.file, status.line, status.column,
 				status.message, status.moreErrors, -1);
 	}
 
 	/**
-	 * A build is compiling; the app on screen is still running {@code runningGeneration}. Never offers tap-to-jump - there is no error location yet.
+	 * State for a build in flight, with the app on screen still running {@code runningGeneration}.
+	 *
+	 * Never offers tap-to-jump; there is no error location yet.
 	 */
 	static OverlayState building(long runningGeneration) {
 		return new OverlayState(Kind.BUILDING, null, -1, -1, null, 0, runningGeneration);
 	}
 
+	/** State for a payload that crashed and was rolled back, with a stack summary as {@code detail}. */
 	static OverlayState crashed(String detail) {
 		return new OverlayState(Kind.CRASHED, null, -1, -1, detail, 0, -1);
 	}
 
+	/** State that renders nothing, the resting state. */
 	static OverlayState hidden() {
 		return new OverlayState(Kind.HIDDEN, null, -1, -1, null, 0, -1);
 	}
 
+	/** State for the one-time hint about the 3-finger return gesture. */
 	static OverlayState hint() {
 		return new OverlayState(Kind.HINT, null, -1, -1, null, 0, -1);
 	}
@@ -75,7 +83,7 @@ final class OverlayState {
 		return kind == Kind.BUILD_FAILED || kind == Kind.CRASHED;
 	}
 
-	/** Banner text. Failure copy always says the app still runs the last-good code. */
+	/** Builds the banner text for this state; failure copy always says the app still runs the last working code. */
 	String text() {
 		switch (kind) {
 		case BUILD_FAILED:
@@ -116,7 +124,7 @@ final class OverlayState {
 		}
 	}
 
-	/** "Foo.kt:12" (short name; the full path stays in {@link #file} for the jump). */
+	/** Short display location, e.g. "Foo.kt:12"; the full path stays in {@link #file} for the jump. */
 	private String location() {
 		if (file == null) {
 			return null;

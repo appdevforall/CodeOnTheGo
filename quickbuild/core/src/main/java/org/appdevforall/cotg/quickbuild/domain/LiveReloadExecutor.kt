@@ -6,26 +6,27 @@ package org.appdevforall.cotg.quickbuild.domain
  *
  * Contract:
  * - Called with at most one request in flight (the [LiveReloadOrchestrator] guarantees it).
- * - Must NOT throw for build problems — report them as a [BuildOutcome]; an escaped
+ * - Must NOT throw for build problems - report them as a [BuildOutcome]; an escaped
  *   exception is treated by the orchestrator as [BuildOutcome.InfrastructureFailure].
  * - Never receives a [BuildRoute.FullGradleBuild] route (those bypass the live reload path).
  */
 interface LiveReloadExecutor {
+	/** Runs one build to completion and reports how it ended. */
 	suspend fun execute(request: BuildRequest): BuildOutcome
 }
 
 /**
- * @property buildId orchestrator-unique id; tags diagnostics so a superseded build's
- *   output is discarded, never rendered.
- * @property forced true for an explicit Quick Build tap — the executor must produce a
- *   deploy even when [changes] is empty, by rebuilding the current sources at a FRESH
- *   generation (the runtime only accepts strictly-newer generations, so replaying the
- *   current one can never land; see LiveReloadExecutorImpl's NoOp branch).
- * @property triggeredAtMillis the monotonic stamp (same clock the executor stamps t1-t3
- *   with) of the earliest not-yet-built change this build coalesced — t0 of the e2e
- *   timeline (see [E2eTimeline]). 0 when the orchestrator was built without a clock
- *   (tests that don't measure timing); the executor still runs, the timeline's t0 is
- *   just meaningless.
+ * One build the executor is asked to run.
+ *
+ * @property buildId orchestrator-unique id; tags diagnostics so a superseded build's output is
+ *   discarded rather than rendered.
+ * @property forced true for an explicit Quick Build tap - the executor must deploy even when
+ *   [changes] is empty, by rebuilding the current sources at a FRESH generation, since the
+ *   runtime only accepts strictly-newer generations.
+ * @property triggeredAtMillis monotonic stamp of the earliest not-yet-built change this build
+ *   coalesced - t0 of the [E2eTimeline], on the same clock the executor stamps t1-t3 with. 0
+ *   when the orchestrator has no clock (tests that don't measure timing), which only makes t0
+ *   meaningless.
  */
 data class BuildRequest(
 	val buildId: Long,
@@ -35,12 +36,13 @@ data class BuildRequest(
 	val triggeredAtMillis: Long = 0L,
 )
 
+/** How one build ended. */
 sealed interface BuildOutcome {
 	/**
 	 * Compiled, deployed and reloaded: the proxy app now runs [generation].
-	 * [restarted] true = the deploy went through the process-restart path (a
-	 * service/provider/Application class changed): the payload was persisted, the
-	 * process exited and was relaunched, instead of a hot swap.
+	 *
+	 * @property restarted true when the deploy took the process-restart path (a service,
+	 *   provider or Application class changed) instead of a hot swap.
 	 */
 	data class Success(
 		val generation: Long,
@@ -49,10 +51,10 @@ sealed interface BuildOutcome {
 	) : BuildOutcome
 
 	/**
-	 * The build succeeded but the live reload path must not deploy it: the installed
-	 * baseline cannot take a restart-requiring payload safely (its runtime would
-	 * ignore the restart request and hot-swap, leaving a live service stale). The
-	 * session manager routes [reason] into the full-proxy-app-rebuild fallback, which
+	 * The build succeeded but must not be deployed: the installed baseline would hot-swap a
+	 * restart-requiring payload and leave a live service stale.
+	 *
+	 * The session manager routes [reason] into the proxy-app-rebuild fallback, which
 	 * regenerates the baseline; the changed set stays pending and is absorbed there.
 	 */
 	data class RequiresProxyAppRebuild(
@@ -70,7 +72,7 @@ sealed interface BuildOutcome {
 		val message: String,
 	) : BuildOutcome
 
-	/** The build pipeline itself broke (daemon died, I/O error) — not the user's code. */
+	/** The build pipeline itself broke (daemon died, I/O error) - not the user's code. */
 	data class InfrastructureFailure(
 		val message: String,
 		val daemonDied: Boolean = false,

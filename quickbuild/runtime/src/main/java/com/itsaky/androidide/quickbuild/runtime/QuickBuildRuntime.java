@@ -13,13 +13,11 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 /**
- * The conductor of the proxy app runtime: receives payloads from {@link QuickBuildClient}, applies them to {@link PayloadStore}/{@link ResourceStore}, drives the reload, and keeps the {@link StatusOverlay} and the host's reports honest.
+ * Coordinates the proxy app runtime: takes payloads from {@link QuickBuildClient}, applies them to {@link PayloadStore} and {@link ResourceStore}, drives the reload, and keeps the {@link StatusOverlay} and the reports to CoGo honest.
  *
- * Installed once per process by {@link QuickBuildAppComponentFactory} at application instantiation - the earliest hook a library gets without a ContentProvider. Context work (binding to CoGo, cache dirs) is deferred to the first activity because the Application has no base context yet at install time.
+ * Installed once per process by {@link QuickBuildAppComponentFactory} at application instantiation, the earliest hook a library gets without a ContentProvider. Context work - binding to CoGo, cache dirs - waits for the first activity, because the Application has no base context yet.
  *
- * The overlay is error-mostly: a CoGo-side build failure ({@link #handleBuildStatus}) or a payload crash shows a banner saying the app still runs the last working version, cleared by the next successful build/reload; a one-time hint for the 3-finger return gesture; and a neutral in-flight line while a build compiles, so a slow build never reads as silence. Success itself still renders nothing - it only clears whatever was showing.
- *
- * Failure policy, everywhere: a reload failure calls reportCrash and ROLLS BACK to the old generation - the app keeps running gen N and says so; it never crash-loops on a bad payload and never silently claims gen N+1 (the never-stale invariant).
+ * Failure policy throughout: a reload failure calls reportCrash and rolls back to the old generation, so the app keeps running the last working code and says so, instead of crash-looping or silently claiming the new generation.
  */
 final class QuickBuildRuntime {
 
@@ -34,7 +32,7 @@ final class QuickBuildRuntime {
 
 	private static volatile QuickBuildRuntime instance;
 
-	/** Installs the runtime once; safe to call repeatedly. Never throws. */
+	/** Creates and starts the one runtime for this process. Idempotent, and never throws. */
 	static void install(Application application) {
 		if (instance != null || application == null) {
 			return;
@@ -57,12 +55,12 @@ final class QuickBuildRuntime {
 		return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
 	}
 
+	/** Parses deploy metadata, falling back to defaults so a bad blob cannot block a code reload. */
 	private static DeployMetadata parseMetadata(String metadataJson) {
 		try {
 			return DeployMetadata.parse(metadataJson);
 		} catch (IllegalArgumentException error) {
-			// A bad metadata blob must not block a code reload; fall back to defaults
-			// (recreate-only, no entry launch) and log loudly.
+			// Defaults are recreate-only, with no entry launch.
 			RuntimeLog.e("unparseable deploy metadata; using defaults", error);
 			return new DeployMetadata(null, null, null);
 		}
@@ -122,7 +120,9 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Build-status message from CoGo - the only way the running app learns about a compile error, which never produces a payload. Runs on a binder thread; guards all throwables so nothing escapes into the binder.
+	 * Turns a build-status message from CoGo into overlay state.
+	 *
+	 * This is the only way the running app learns about a compile error, which never produces a payload. Runs on a binder thread and swallows every throwable, so nothing escapes into the binder.
 	 */
 	void handleBuildStatus(String statusJson) {
 		try {
@@ -148,9 +148,11 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Applies one deploy. Runs on a binder thread; heavy work (fd reads, persistence, zip extraction) happens here, only the reload itself is posted to the main thread.
+	 * Applies one deploy: reads the payload fds, persists them, then swaps in the new generation.
 	 *
-	 * Every accepted payload is persisted BEFORE it is applied ({@link PayloadPersistence}) so a killed-and-relaunched process boots the newest generation, and a restart deploy ({@code "restart": "true"} metadata) persists + acks + exits instead of hot-swapping - the component-proxying contract, section 4. A persist failure fails the deploy loudly (rollback + reportCrash): proceeding would leave a boot path that silently serves older code.
+	 * Runs on a binder thread, where the fd reads, persistence and zip extraction happen; only the reload itself is posted to the main thread. Persisting before applying is what lets a relaunched process boot the newest generation, so a persist failure fails the deploy loudly rather than leaving a boot path that serves older code.
+	 *
+	 * A restart deploy persists, acks and exits instead of hot-swapping, because services, providers and the Application can only swap across a process restart.
 	 */
 	void handlePayload(long generation, ParcelFileDescriptor dexPayload,
 			ParcelFileDescriptor resourcesPayload, ParcelFileDescriptor assetsPayload,
@@ -164,24 +166,21 @@ final class QuickBuildRuntime {
 			byte[] assetsBytes = readBytesAndClose(assetsPayload);
 			if (previous == null
 					|| !Generations.accepts(previous.generation, generation)) {
-				// Stale or baseline-less: contract says drop it. No report - claiming a
-				// reload for a payload we refused would be a lie the host acts on.
+				// Deliberately unreported: claiming a reload for a payload we refused
+				// would mislead the host.
 				RuntimeLog.w("dropping payload gen " + generation + " (running "
 						+ (previous == null ? "no baseline" : "gen " + previous.generation) + ")");
 				return;
 			}
 			if (metadata.restart && dexBytes == null) {
-				// A restart deploy exists to move component CODE; without a dex the
-				// relaunch would boot old classes under a new generation label - a
-				// stale-code lie. Refuse loudly (a CoGo bug if it ever happens).
+				// Without a dex, the relaunch would boot old classes under a new
+				// generation label. A CoGo bug if it ever happens.
 				throw new IllegalStateException("restart deploy without a dex payload");
 			}
 			PayloadPersistence.Persisted persisted = persistPayload(generation, dexBytes, arscBytes, assetsBytes);
 			if (metadata.restart) {
-				// Restart deploy: the payload is on disk; ack, then exit. The fresh
-				// process boots the persisted generation, which is what makes the swap
-				// real for services/providers/the Application. Never applied in-memory -
-				// this process is already condemned.
+				// Never applied in-memory: this process is already condemned, and the
+				// fresh one boots the persisted generation.
 				RuntimeLog.i("restart deploy gen " + generation + " persisted; exiting");
 				client.reportReloaded(generation, SystemClock.uptimeMillis() - startUptime);
 				exitForRestart();
@@ -222,6 +221,7 @@ final class QuickBuildRuntime {
 		}
 	}
 
+	/** Does the Context-dependent setup deferred from install: bind to CoGo, attach persistence, restore boot resources. */
 	void onActivityCreated(Activity activity) {
 		// First moment a usable Context exists; bind() is idempotent.
 		client.bind(activity.getApplicationContext());
@@ -229,15 +229,20 @@ final class QuickBuildRuntime {
 		applyPendingBootResources(activity.getApplicationContext());
 	}
 
+	/**
+	 * Completes a pending reload on its first rendered frame, and renders the overlay and return button.
+	 *
+	 * This is where reportReloaded fires, since a resumed frame is the first proof the new generation actually rendered.
+	 */
 	void onActivityResumed(Activity activity) {
 		long pending = pendingReloadGeneration;
 		if (pending >= 0 && PayloadStore.INSTANCE.generation() == pending) {
 			pendingReloadGeneration = -1;
 			long reloadMillis = SystemClock.uptimeMillis() - pendingReloadStartUptime;
 			client.reportReloaded(pending, reloadMillis);
-			// Success renders nothing itself - it only CLEARS a shown error or an
-			// in-flight banner (a reload landing IS the build finishing, even if the
-			// build_ok status message is still in flight behind it).
+			// Success renders nothing; it only clears a shown error or in-flight
+			// banner, since a landed reload means the build finished even if the
+			// build_ok message is still in flight behind it.
 			if (overlayState.isError() || overlayState.isBuilding()) {
 				setOverlayState(OverlayState.hidden());
 			} else {
@@ -250,12 +255,15 @@ final class QuickBuildRuntime {
 		returnButton.render(activity);
 	}
 
+	/** The generation the app is running, as reported to CoGo on connect. */
 	long runningGeneration() {
 		return PayloadStore.INSTANCE.generation();
 	}
 
 	/**
-	 * Restores persisted resource payloads found at boot (the code half already loaded pre-Context in {@link PayloadStore#ensureBaseline}). Runs at the first activity - the first moment a Context exists; components that read resources earlier (providers) see baseline resources until here, a documented residual of the persisted-boot contract. Best-effort: a failure keeps baseline resources, and the next deploy re-applies current ones.
+	 * Applies the resource payloads a persisted boot left pending, once a Context exists.
+	 *
+	 * The code half already loaded pre-Context in {@link PayloadStore#ensureBaseline}. Components that read resources before the first activity, such as providers, see baseline resources until this runs. A failure keeps baseline resources and the next deploy re-applies current ones.
 	 */
 	private void applyPendingBootResources(android.content.Context context) {
 		PayloadPersistence.Loaded pending = PayloadStore.INSTANCE.takePendingBootResources();
@@ -278,12 +286,12 @@ final class QuickBuildRuntime {
 		}
 	}
 
-	/** The process must actually die - a restart deploy's ack promises a fresh boot. */
+	/** Kills the process, because a restart deploy's ack promises a fresh boot. */
 	private void exitForRestart() {
 		android.os.Process.killProcess(android.os.Process.myPid());
 	}
 
-	/** Roll back, tell the host, show the honesty banner. The app stays on the old gen. */
+	/** Rolls back to {@code rollback}, reports the crash to CoGo, and shows the banner; the app stays on the old generation. */
 	private void failReload(long generation, PayloadStore.Payload rollback, Throwable error) {
 		PayloadStore.INSTANCE.restore(rollback);
 		pendingReloadGeneration = -1;
@@ -293,7 +301,9 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * A payload crash during render happens OUTSIDE our call stack (the recreated activity throws in its own lifecycle), so the only interception point is the default uncaught handler. Report to the host best-effort, then delegate - the process still dies, but CoGo learns WHY, and on relaunch the app starts from the baseline and reconnects with its (old) running generation so the host can decide what to redeploy.
+	 * Chains a handler that reports a crashing reload to CoGo before the app dies.
+	 *
+	 * A payload crash during render happens outside our call stack - the recreated activity throws in its own lifecycle - so the default uncaught handler is the only interception point. It delegates afterwards, so the process still dies; on relaunch the app reconnects with its old running generation and CoGo decides what to redeploy.
 	 */
 	private void installCrashGuard() {
 		final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
@@ -316,14 +326,15 @@ final class QuickBuildRuntime {
 		});
 	}
 
+	/** Launches the deploy's entry activity through its manifest-declared proxy, when no activity is alive to recreate. */
 	private void launchEntryActivity(DeployMetadata metadata) {
 		String entry = metadata.entryActivity;
 		if (entry == null) {
 			throw new IllegalStateException(
 					"no live activity to recreate and no entryActivity in deploy metadata");
 		}
-		// The manifest only knows the proxies; translate. Falling back to the raw name
-		// covers a host that already sends the proxy class.
+		// The manifest only knows the proxies. Falling back to the raw name covers a
+		// host that already sends the proxy class.
 		String component = componentMap.proxyFor(entry);
 		if (component == null) {
 			component = entry;
@@ -334,6 +345,7 @@ final class QuickBuildRuntime {
 		application.startActivity(intent);
 	}
 
+	/** Reads the baked component map from the APK; leaves it empty when absent or unreadable. */
 	private void loadComponentMap() {
 		ClassLoader apkLoader = PayloadStore.INSTANCE.apkClassLoader();
 		if (apkLoader == null) {
@@ -356,7 +368,9 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * One-time discoverability hint for the 3-finger return gesture. Shown on the first resume of the first session after install, only when nothing else is on the overlay; a marker file in filesDir keeps it from ever showing again.
+	 * Shows the one-time hint about the 3-finger return gesture.
+	 *
+	 * Appears on the first resume after install, only when the overlay is otherwise empty; a marker file in filesDir keeps it from showing again.
 	 */
 	private void maybeShowGestureHint(Activity activity) {
 		if (overlayState.kind != OverlayState.Kind.HIDDEN) {
@@ -375,7 +389,10 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Persists the payload before anything applies (see {@link #handlePayload}). Throws when the store is unavailable or the write fails - the deploy then fails loudly instead of leaving the boot path behind the running generation.
+	 * Writes the payload to the persisted store before anything applies it.
+	 *
+	 * @throws IOException
+	 *             when the store is unavailable or the write fails, so the deploy fails loudly instead of leaving the boot path behind the running generation.
 	 */
 	private PayloadPersistence.Persisted persistPayload(long generation, byte[] dex,
 			byte[] arsc, byte[] assetsZip) throws IOException {
@@ -388,7 +405,9 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Recreates the top activity so it re-instantiates from the new generation's classloader - that recreation is what makes the reload real. With no live activity, launches the entry activity through its manifest-stable proxy.
+	 * Recreates the top activity so it re-instantiates from the new generation's classloader.
+	 *
+	 * That recreation is what makes the reload visible. With no live activity, launches the entry activity instead.
 	 */
 	private void reloadOnMain(long generation, DeployMetadata metadata,
 			PayloadStore.Payload rollback) {
@@ -406,7 +425,7 @@ final class QuickBuildRuntime {
 		}
 	}
 
-	/** Auto-hide a transient banner - but only if that exact state is still current. */
+	/** Hides a transient banner after {@code delayMillis}, but only if that exact state is still current. */
 	private void scheduleAutoHide(final OverlayState shown, int delayMillis) {
 		mainHandler.postDelayed(new Runnable() {
 
@@ -419,6 +438,7 @@ final class QuickBuildRuntime {
 		}, delayMillis);
 	}
 
+	/** Installs the new overlay state and re-renders it on the main thread; callable from any thread. */
 	private void setOverlayState(OverlayState state) {
 		overlayState = state;
 		mainHandler.post(new Runnable() {
@@ -430,6 +450,7 @@ final class QuickBuildRuntime {
 		});
 	}
 
+	/** Wires up the pieces that need no Context: activity tracking, the component map, the crash guard. */
 	private void start() {
 		application.registerActivityLifecycleCallbacks(tracker);
 		loadComponentMap();

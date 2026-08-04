@@ -8,21 +8,21 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * The proxy app build's output manifest (`build/quickbuild/setup.json`, written by the
- * Gradle-plugin side of the feature). Parsing is tolerant about key aliases because
- * the exact field names are a cross-agent contract pinned only by convention tonight -
- * the primary names are listed first per field.
+ * What the proxy app build published about the project, read from its output manifest
+ * `build/quickbuild/setup.json`.
+ *
+ * [parse] accepts several key aliases per field (primary name first) because the names are a
+ * convention shared with the Gradle-plugin writer rather than an enforced schema.
  */
 data class ProxyAppInfo(
 	/** The generated proxy app's applicationId - the project's real applicationId. */
 	val proxyAppPackage: String,
 	/**
-	 * Fully-qualified user entry activity carried in every deploy metadata. Null when
-	 * the proxy app build found no launchable Activity (e.g. the
-	 * No-Activity template): the build itself succeeded, there's just nothing for
-	 * Quick Build to install/launch. [org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner]
-	 * callers must refuse with a friendly message before this null ever reaches a
-	 * [ProvisionOutcome.Success][org.appdevforall.cotg.quickbuild.service.ProvisionOutcome.Success].
+	 * Fully-qualified user entry activity, carried in every deploy metadata. Null when the
+	 * proxy app build found no launchable Activity (e.g. the No-Activity template) - a
+	 * successful build with nothing to install and launch, which
+	 * [org.appdevforall.cotg.quickbuild.service.QuickBuildProvisioner] callers must refuse
+	 * with a friendly message rather than let through as a success.
 	 */
 	val entryActivity: String?,
 	/** The built proxy-app APK to install. */
@@ -36,9 +36,9 @@ data class ProxyAppInfo(
 	 */
 	val proxyClassesDir: File?,
 	/**
-	 * The proxy app build's TRANSFORMED manifest (proxy-app package + proxy component
-	 * names); resource relinks must link against it, not the user's raw manifest.
-	 * Optional in the JSON.
+	 * The proxy app build's transformed manifest (proxy-app package plus proxy component
+	 * names); resource relinks must link against it, not the user's raw manifest. Optional
+	 * in the JSON.
 	 */
 	val transformedManifest: File?,
 	/**
@@ -71,21 +71,16 @@ data class ProxyAppInfo(
 	 */
 	val sourceRoots: List<File> = emptyList(),
 	/**
-	 * AGP's `stableIds.txt` from the proxy app build's real resource processing, if reported
-	 * (`setup.json` `stableIdsPath`). Feeds [org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout.stableIdsFile]
-	 * so relinks can pin resource ids against the baseline. Null when
-	 * absent - an older setup.json, or a proxy app build whose AGP version/variant never
-	 * produced the file.
+	 * AGP's `stableIds.txt` from the proxy app build (`setup.json` `stableIdsPath`), which
+	 * lets relinks pin resource ids against the baseline. Null on an older setup.json or a
+	 * build whose AGP version/variant never produced the file.
 	 */
 	val stableIdsFile: File? = null,
 	/**
-	 * Pre-compiled `.flat` resource units from the proxy app build's real AGP resource
-	 * processing (`setup.json` `libraryResourcePaths`) - the project's own merged_res
-	 * closure plus every resource-providing AAR's compiled file resources. Feeds
-	 * [org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout.libraryResourceFlats]
-	 * so relinks can resolve a resource a dependency AAR provides.
-	 * Empty when absent - an older setup.json, or a proxy app build whose AGP version/variant
-	 * never produced them.
+	 * Pre-compiled `.flat` resource units from the proxy app build (`setup.json`
+	 * `libraryResourcePaths`) - the merged_res closure plus every resource-providing AAR -
+	 * which let relinks resolve resources a dependency AAR provides. Empty on an older
+	 * setup.json or a build whose AGP version/variant never produced them.
 	 */
 	val libraryResourceFlats: List<File> = emptyList(),
 ) {
@@ -101,18 +96,18 @@ data class ProxyAppInfo(
 		private val log = LoggerFactory.getLogger(ProxyAppInfo::class.java)
 
 		/**
-		 * The setup.json schema version that introduced `components` + runtime restart
-		 * support. Must stay in step with the writer side's
-		 * `QuickBuildJson.SCHEMA_VERSION` (gradle-plugin quickbuild/QuickBuildJson.kt) -
-		 * bump the two together when the schema changes.
+		 * The setup.json schema version that introduced `components` and runtime restart
+		 * support. Bump together with the writer side's `QuickBuildJson.SCHEMA_VERSION`
+		 * (gradle-plugin quickbuild/QuickBuildJson.kt).
 		 */
 		const val COMPONENT_SCHEMA_VERSION = 2
 
 		/**
-		 * @param baseDir directory relative paths in the JSON resolve against
-		 *   (the project root).
-		 * @return the parsed info, or null when the JSON is malformed or misses a
-		 *   required field - provisioning then fails visibly instead of crashing.
+		 * Parses a setup.json document.
+		 *
+		 * @param baseDir directory the JSON's relative paths resolve against (the project root).
+		 * @return the parsed info, or null when the JSON is malformed or misses a required
+		 *   field - provisioning then fails visibly instead of crashing.
 		 */
 		fun parse(
 			json: String,
@@ -130,10 +125,9 @@ data class ProxyAppInfo(
 				// device may predate the proxy-app vocabulary rename.
 				obj.firstString("proxyAppId", "testAppId", "testAppPackage", "applicationId", "packageName")
 					?: return missing("proxyAppId")
-			// Absent/null (a JSON null, not just a missing key - the plugin writes
-			// `"entryActivity": null` for a project with no launchable Activity) is a
-			// legitimate outcome of a SUCCESSFUL proxy app build, not a parse failure - see
-			// the classification note on [ProxyAppInfo.entryActivity].
+			// Absent or an explicit JSON null (the plugin writes `"entryActivity": null` for
+			// a project with no launchable Activity) is a legitimate successful build, not a
+			// parse failure - see [ProxyAppInfo.entryActivity].
 			val entry = obj.firstString("entryActivity", "mainActivity")
 			val apkPath = obj.firstString("apk", "apkPath", "apkFile") ?: return missing("apk")
 

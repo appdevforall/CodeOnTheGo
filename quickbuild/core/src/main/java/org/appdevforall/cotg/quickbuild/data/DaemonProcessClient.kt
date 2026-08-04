@@ -25,17 +25,13 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Child-JVM implementation of [QuickBuildDaemon]: spawns the staged daemon jar on the
- * bundled JDK and speaks the line-delimited JSON protocol from quickbuild/core/README.md
- * over stdin/stdout (stderr is drained to the log).
+ * Runs the quick-build daemon as a child JVM and speaks its line-delimited JSON protocol.
  *
- * Threading: never blocks the caller's thread - all process I/O runs on
- * [Dispatchers.IO]. One request in flight at a time ([requestMutex]); the daemon
- * protocol requires it and the orchestrator already guarantees it upstream.
- *
- * Death detection: a watcher coroutine waits on the process; an exit without a
- * preceding [shutdown] fails every pending request and fires the death listener, which
- * the session manager turns into the Degraded/respawn flow.
+ * Spawns the staged daemon jar on the bundled JDK, talks over stdin/stdout, drains stderr to
+ * the log. All process I/O runs on [Dispatchers.IO], one request in flight at a time
+ * ([requestMutex]) as the protocol requires. A watcher coroutine waits on the process: an
+ * exit without a preceding [shutdown] fails every pending request and fires the death
+ * listener, which the session manager turns into the Degraded/respawn flow.
  */
 class DaemonProcessClient(
 	private val paths: QuickBuildPaths,
@@ -128,10 +124,9 @@ class DaemonProcessClient(
 						?.runCatching { asInt }
 						?.getOrNull()
 				if (daemonVersion != EXPECTED_PROTOCOL_VERSION) {
-					// Fail loudly on drift instead of silently misreading a changed wire
-					// shape. A missing field fails too: the daemon has stamped it into
-					// every configure success since the protocol existed, so absence
-					// means "not our daemon".
+					// A missing field fails too: the daemon has stamped it into every
+					// configure success since the protocol existed, so absence means
+					// "not our daemon".
 					DaemonReply.Failed(
 						"Daemon protocol version mismatch: daemon reported " +
 							"${daemonVersion ?: "no protocolVersion"}, this client expects " +
@@ -217,11 +212,10 @@ class DaemonProcessClient(
 				}
 			}
 		val response = (reply as? DaemonReply.Ok)?.value
-		// Wire field name is "resourcesArsc" for protocol stability, but the file it
-		// names is the FULL relinked resource apk (resources.arsc plus every
-		// compiled resource file), not a bare table - see Aapt2Link's KDoc
-		// . Fallback path matches the daemon's actual conventional
-		// output location (DaemonService's relink workDir).
+		// The wire field is named "resourcesArsc" for protocol stability, but it names the
+		// full relinked resource apk (resources.arsc plus every compiled resource file),
+		// not a bare table - see Aapt2Link's KDoc. The fallback path matches the daemon's
+		// own relink workDir layout.
 		return reply.mapFile("resourcesArsc") { File(it, "res/linked-res.apk") }.mapOk {
 			RelinkOutput(
 				it,
@@ -304,6 +298,7 @@ class DaemonProcessClient(
 			}
 		}
 
+	/** Launches the stdout response pump, the stderr log drain, and the process-death watcher. */
 	private fun startReaders(proc: Process) {
 		scope.launch(Dispatchers.IO) {
 			try {
@@ -365,9 +360,8 @@ class DaemonProcessClient(
 
 	/**
 	 * Extracts an output file path from an op response, falling back to a conventional
-	 * location under the configured outDir when the daemon omits the field. The field
-	 * names are the assumed cross-agent contract; the fallback keeps a field-name
-	 * mismatch from becoming a hard failure.
+	 * location under the configured outDir when the daemon omits the field, so a field-name
+	 * mismatch is not a hard failure.
 	 */
 	private fun DaemonReply<JsonObject>.mapFile(
 		field: String,
@@ -413,13 +407,10 @@ class DaemonProcessClient(
 		private val log = LoggerFactory.getLogger(DaemonProcessClient::class.java)
 
 		/**
-		 * The wire-protocol version this client speaks - the shared
-		 * [DaemonResponse.PROTOCOL_VERSION] (:quickbuild:protocol), which the daemon
-		 * stamps into ping/configure success responses; [start] rejects a configure
-		 * reply whose version differs (or is absent) so drift fails loudly at session
-		 * start instead of surfacing as misparsed replies mid-build. A STAGED daemon
-		 * jar can still be older than this client, which is exactly what the check
-		 * catches - sharing the constant only removes the copy-drift failure mode.
+		 * The wire-protocol version this client speaks, shared with the daemon via
+		 * [DaemonResponse.PROTOCOL_VERSION]. [start] rejects a configure reply whose version
+		 * differs or is absent, so drift fails at session start rather than as misparsed
+		 * replies mid-build - a staged daemon jar older than this client is exactly that case.
 		 */
 		const val EXPECTED_PROTOCOL_VERSION = DaemonResponse.PROTOCOL_VERSION
 

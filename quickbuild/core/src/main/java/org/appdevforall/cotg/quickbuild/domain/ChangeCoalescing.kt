@@ -12,10 +12,12 @@ import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 /**
- * One raw watcher observation before coalescing: a path was written/created ([Modified]) or
- * deleted ([Removed]). Distinguishing them at the source is what lets a standalone deletion
- * (a `git pull`/branch-switch/`rm`, which produces no create-or-modify event) reach the
- * build pipeline at all - the gap this closes.
+ * One raw watcher observation before coalescing: a path was written or created ([Modified]),
+ * or deleted ([Removed]).
+ *
+ * The two are distinguished at the source because a standalone deletion (`git pull`,
+ * branch-switch, `rm`) fires no create-or-modify event, so it would otherwise never reach the
+ * build pipeline.
  */
 sealed interface WatchEvent {
 	val file: File
@@ -30,26 +32,16 @@ sealed interface WatchEvent {
 }
 
 /**
- * Coalesces a stream of individual file-change events into batches, so a burst of writes
- * (save-all, git pull, plugin/Termux codegen) becomes ONE quick build instead of many.
- * Pure JVM logic on a coroutine clock - unit-tested with virtual time, no Android.
+ * Coalesces a stream of file-change events into batches, so a burst of writes (save-all, git
+ * pull, codegen) becomes one quick build instead of many. Pure JVM on a coroutine clock -
+ * unit-tested with virtual time.
  *
- * Each batch carries both the modified/created paths and the removed ones (a
- * [ChangedFiles.Known] with its `files` and `removed` sets), so a burst that both edits and
- * deletes files is still one build. The LAST event per path within a burst wins: a
- * create-then-delete collapses to a removal, a delete-then-recreate to a modification.
+ * Each batch carries modified and removed paths together, and the last event per path wins:
+ * create-then-delete collapses to a removal, delete-then-recreate to a modification.
  *
- * Trailing debounce with a hard cap:
- * - the batch is emitted [quietMillis] after the LAST event (each new event resets that
- *   timer) - so a streaming write coalesces into a single batch and a lone save waits
- *   exactly one quiet window;
- * - but never later than [maxMillis] after the FIRST event in the batch - so a very long
- *   continuous write stream (large pull) still fires promptly, with any stragglers picked
- *   up by the orchestrator's follow-up build.
- *
- * Missing an occasional event is tolerable (the orchestrator reconciles and the poll
- * safety net in the watcher backstops it); fragmenting every burst into N builds is not,
- * which is why the debounce lives here rather than relying on the orchestrator alone.
+ * @param quietMillis emit this long after the LAST event; every new event resets the timer.
+ * @param maxMillis hard cap measured from the FIRST event of the batch, so a long continuous
+ *   write stream still fires promptly. Stragglers land in the orchestrator's follow-up build.
  */
 fun Flow<WatchEvent>.coalesceChanges(
 	quietMillis: Long,
@@ -63,10 +55,9 @@ fun Flow<WatchEvent>.coalesceChanges(
 		var capTimer: Job? = null
 
 		suspend fun flush() {
-			// flush() usually runs INSIDE one of the timer jobs. Never cancel the job that
-			// is executing this flush: a self-cancel makes the send() below throw
-			// CancellationException as soon as it has to suspend (busy consumer), silently
-			// dropping the batch - a stale app, the exact invariant this pipeline protects.
+			// flush() usually runs inside one of the timer jobs, and must never cancel the job
+			// executing it: the send() below would then throw CancellationException as soon as
+			// it had to suspend on a busy consumer, silently dropping the batch.
 			val self = currentCoroutineContext()[Job]
 			val snapshot =
 				lock.withLock {

@@ -1,12 +1,15 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
 /**
- * The generation acceptance rule, isolated so it is JVM-testable and stated once.
- *
- * A payload is accepted only when it is STRICTLY newer than the running generation (IQuickBuildTarget contract). Strictly-newer is what makes "an old payload can never replace a newer one" true even when deploys race a reconnect: an equal or older generation is always a replay and must be dropped.
+ * Holds the generation acceptance rule, so it is stated once and JVM-testable.
  */
 final class Generations {
 
+	/**
+	 * Decides whether an incoming payload may replace the running one.
+	 *
+	 * Only a strictly newer generation is accepted (IQuickBuildTarget contract); an equal or older one is a replay from a deploy racing a reconnect and must be dropped.
+	 */
 	static boolean accepts(long runningGeneration, long incomingGeneration) {
 		return incomingGeneration > runningGeneration;
 	}

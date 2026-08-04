@@ -13,17 +13,13 @@ import java.io.InputStream;
 import java.util.Collections;
 
 /**
- * Owner of the payload's resource + asset overrides.
+ * Owns the payload's resource and asset overrides.
  *
- * Resources are applied per {@link ResourceSwapStrategy}. The payload fd in both paths below is the WHOLE relinked resource apk from {@code Aapt2Link} (resources.arsc plus every compiled resource file), not a bare table - a bare table cannot back a file-typed resource (a layout, a drawable XML, an adaptive-icon mipmap XML); see {@code Aapt2Link}'s KDoc.
+ * The payload fd is always the whole relinked resource apk from {@code Aapt2Link}, never a bare table: a bare table cannot back a file-typed resource such as a layout or a drawable XML.
  *
- * API 30+ ({@code RESOURCES_LOADER}): one long-lived {@link ResourcesLoader} whose provider is swapped per payload, loaded with {@link ResourcesProvider#loadFromApk} (not {@code loadFromTable} - that variant explicitly does not serve file-based resources). One loader (not one per generation) because a loader already attached to a Resources object propagates provider changes - every activity attaches the loader once at creation and then follows every future generation for free.
+ * The swap mechanism follows {@link ResourceSwapStrategy}. On API 30+ one long-lived {@link ResourcesLoader} has its provider swapped per payload, loaded with {@link ResourcesProvider#loadFromApk} because {@code loadFromTable} does not serve file-based resources; one loader suffices because an attached loader propagates provider changes, so an activity attaches once and follows every later generation. On API 28/29 the {@link LegacyResourceSwap} shim writes the apk to disk and addAssetPath's it. Below 28 resource payloads are ignored, which is unreachable in practice since the CoGo host needs API 28+ on the same device.
  *
- * API 28/29 ({@code LEGACY_ASSET_PATH}): the degraded {@link LegacyResourceSwap} shim - the received apk bytes are written as-is to a file (already a valid apk/zip, no re-wrapping needed) and addAssetPath'd into the application AssetManager, and the per-deploy activity recreate re-reads values from it. New Resources objects get the current table zip attached via {@link #attachTo} (idempotent).
- *
- * Below 28 ({@code UNSUPPORTED}): resource payloads are ignored (logged once); unreachable in practice since the CoGo host needs API 28+ on the same device.
- *
- * Assets: no in-memory API exists, so the changed-assets zip is extracted to an app-private cache dir and exposed via {@link #overrideAsset}. v1 limitation, documented: this is a LOOKUP path for code that asks the runtime, not a transparent AssetManager override - code reading assets directly through AssetManager still sees the baked-in APK assets until the next proxy app build.
+ * Assets have no in-memory API, so the changed-assets zip is extracted to a cache dir and exposed through {@link #overrideAsset}. That is a lookup path for code that asks the runtime; code reading through AssetManager directly still sees the baked-in APK assets until the next proxy app build.
  */
 final class ResourceStore {
 
@@ -48,7 +44,9 @@ final class ResourceStore {
 	}
 
 	/**
-	 * Extracts a changed-assets zip payload under {@code <cacheRoot>/quickbuild-assets/gen-<generation>}. Closes the fd; throws on failure so the deploy path can roll the payload back.
+	 * Extracts a changed-assets zip into a gen-numbered dir under {@code cacheRoot} and makes it the current override.
+	 *
+	 * Closes the fd, and throws on failure so the deploy path can roll the payload back.
 	 */
 	void applyAssets(ParcelFileDescriptor assetsFd, long generation, File cacheRoot) throws IOException {
 		File destDir = new File(new File(cacheRoot, "quickbuild-assets"), "gen-" + generation);
@@ -67,7 +65,9 @@ final class ResourceStore {
 	}
 
 	/**
-	 * Swaps in a new resource table (an fd to the relinked resource apk - resources.arsc plus every compiled resource file, not a bare table; see class doc). Closes the fd; throws on failure so the deploy path can roll the whole payload back.
+	 * Swaps in a new resource table, using whichever strategy this API level supports.
+	 *
+	 * Closes the fd, and throws on failure so the deploy path can roll the whole payload back.
 	 */
 	void applyTable(ParcelFileDescriptor tableFd, long generation, Context appContext)
 			throws IOException {
@@ -90,7 +90,9 @@ final class ResourceStore {
 	}
 
 	/**
-	 * Attaches the current resource override to {@code resources}: the loader on API 30+, the current table zip on 28/29 (both idempotent per Resources/AssetManager). No-op until the first resource payload arrives. Best-effort by contract - a failed attach is logged, never fatal.
+	 * Attaches the current resource override to a newly created {@code resources}.
+	 *
+	 * Uses the loader on API 30+ and the current table zip on 28/29; both are idempotent, and it is a no-op until the first resource payload arrives. A failed attach is logged, never fatal.
 	 */
 	void attachTo(Resources resources) {
 		if (resources == null) {
@@ -113,7 +115,9 @@ final class ResourceStore {
 	}
 
 	/**
-	 * The extracted override for asset {@code path} (e.g. "data/levels.json"), or null when no deploy changed it. See the class doc for the v1 best-effort limitation.
+	 * Looks up the extracted override for an asset path such as "data/levels.json".
+	 *
+	 * @return null when no deploy changed that asset. See the class doc for what this path does and does not cover.
 	 */
 	File overrideAsset(String path) {
 		File dir = assetOverrideDir;
@@ -122,7 +126,7 @@ final class ResourceStore {
 		}
 		File candidate = new File(dir, path);
 		// Same containment rule as AssetExtractor: a "../" lookup must not resolve
-		// outside the override dir, even though the caller is the app's own asset name.
+		// outside the override dir.
 		try {
 			if (!candidate.getCanonicalPath().startsWith(dir.getCanonicalPath() + File.separator)) {
 				return null;
@@ -134,7 +138,9 @@ final class ResourceStore {
 	}
 
 	/**
-	 * API 28/29 path: persist the received apk bytes as-is (already a valid apk/zip - no re-wrapping needed, see class doc), addAssetPath it into the application AssetManager, flush caches. The deploy's activity recreate then re-resolves from the new table. Any failure throws, so the deploy rolls back and the host is told - a resource change never silently leaves the app on stale resources.
+	 * API 28/29 swap: write the apk to disk, addAssetPath it into the application AssetManager, flush caches.
+	 *
+	 * The deploy's activity recreate then re-resolves from the new table. Any failure throws, so the deploy rolls back and CoGo hears about it rather than the app sitting on stale resources.
 	 */
 	private void applyTableLegacy(ParcelFileDescriptor tableFd, long generation,
 			Context appContext) throws IOException {
@@ -156,7 +162,9 @@ final class ResourceStore {
 	}
 
 	/**
-	 * API 30+ path: swap the provider inside the process-wide loader. loadFromApk (not loadFromTable - see class doc) so file-backed resources resolve from the same apk as the table. TargetApi because lint cannot see the SDK guard (strategy is RESOURCES_LOADER only when SDK >= 30).
+	 * API 30+ swap: replace the provider inside the process-wide loader, creating the loader on first use.
+	 *
+	 * TargetApi because lint cannot see the SDK guard: the strategy is RESOURCES_LOADER only when SDK >= 30.
 	 */
 	@TargetApi(30)
 	private void applyTableWithLoader(ParcelFileDescriptor tableFd) throws IOException {
@@ -179,7 +187,7 @@ final class ResourceStore {
 		}
 	}
 
-	/** TargetApi: reached only on the RESOURCES_LOADER strategy, i.e. SDK >= 30. */
+	/** Adds the process-wide loader to one Resources object. TargetApi: reached only on SDK >= 30. */
 	@TargetApi(30)
 	private void attachLoaderTo(Resources resources) {
 		ResourcesLoader target = loader;
@@ -189,7 +197,8 @@ final class ResourceStore {
 		try {
 			resources.addLoaders(target);
 		} catch (Throwable error) {
-			// Already-attached (or an exotic Resources impl) - never worth crashing over.
+			// Already attached, or an unusual Resources implementation. Not worth
+			// crashing over.
 			RuntimeLog.d("attachTo skipped: " + error);
 		}
 	}

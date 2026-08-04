@@ -5,14 +5,18 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * Stream helper for reading payload fds fully into memory. Dex goes straight into an InMemoryDexClassLoader and nothing ever lands in shared storage; the only disk the payload path touches is the app-PRIVATE {@link PayloadPersistence} store (component-proxying design section 3) plus the extracted-assets cache. Plain Java, JVM-unit-testable.
+ * Reads payload fds fully into memory, with a size cap.
+ *
+ * Dex bytes go straight into an InMemoryDexClassLoader; nothing lands in shared storage. The only disk the payload path touches is the app-private {@link PayloadPersistence} store and the extracted-assets cache.
  */
 final class Streams {
 
 	private static final int BUFFER_SIZE = 16 * 1024;
 
 	/**
-	 * Ceiling for {@link #readFully(InputStream)}. Payload fds arrive as ParcelFileDescriptors, which Binder does not size-limit, and are read fully into memory on a binder thread - without a cap a runaway or hostile payload is an OOM. Every legitimate payload is the dex + resources + assets of a SINGLE app under edit (whole cold-deploy payloads measure in the tens of MB); 256 MB is far above any of those while still well under device RAM, so hitting it always means a corrupt or runaway payload, never a real deploy.
+	 * Ceiling for {@link #readFully(InputStream)}, guarding against an OOM from a runaway payload.
+	 *
+	 * Binder does not size-limit a ParcelFileDescriptor, and payloads are read fully into memory. A legitimate payload is one app's dex, resources and assets, tens of MB even for a whole cold deploy, so hitting 256 MB always means something is wrong.
 	 */
 	static final int MAX_PAYLOAD_BYTES = 256 * 1024 * 1024;
 
@@ -36,7 +40,7 @@ final class Streams {
 	 * Reads {@code in} to exhaustion. Does not close the stream; the caller owns it.
 	 *
 	 * @throws IOException
-	 *             if the stream carries more than {@code maxBytes} bytes; exactly {@code maxBytes} is fine. The read stops at the first over-cap chunk, so no unbounded buffering happens either way.
+	 *             if the stream carries more than {@code maxBytes} bytes; exactly {@code maxBytes} is fine. The read stops at the first over-cap chunk, so it never buffers without bound.
 	 */
 	static byte[] readFully(InputStream in, int maxBytes) throws IOException {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();

@@ -8,23 +8,24 @@ import kotlinx.coroutines.flow.StateFlow
 import org.slf4j.LoggerFactory
 
 /**
- * Shared state between the Android-instantiated [QuickBuildHostService] and the
- * session pipeline. The service can't be constructor-injected (the system creates
- * it), so both sides meet on this registry: the binder writes connections/reports in,
- * the [DeployChannel] and session manager read them out as flows.
+ * Registry of the currently bound proxy app and its reports, shared between the
+ * Android-instantiated [QuickBuildHostService] and the session pipeline.
  *
- * A class (with a process-wide [INSTANCE]) rather than an object so tests get fresh,
- * isolated registries.
+ * The service cannot be constructor-injected because the system creates it, so both sides
+ * meet here: the binder writes connections and reports in, the [DeployChannel] and session
+ * manager read them out as flows. A class with a process-wide [INSTANCE], rather than an
+ * object, so tests get isolated registries.
  */
 class ProxyAppConnections {
 	/**
-	 * The uid the deploy channel accepts calls from - recorded at session start from
-	 * the installed proxy app's PackageManager entry. Null means no live session: every
+	 * The only uid inbound binder calls are accepted from, read from the installed proxy
+	 * app's PackageManager entry at session start. Null means no live session, so every
 	 * inbound call is rejected.
 	 */
 	@Volatile var expectedUid: Int? = null
 		private set
 
+	/** Package name that goes with [expectedUid]; null when no session is live. */
 	@Volatile var expectedPackage: String? = null
 		private set
 
@@ -44,6 +45,7 @@ class ProxyAppConnections {
 	/** Reload/crash/disconnect reports from the proxy app, in arrival order. */
 	val reports: SharedFlow<TargetReport> = _reports
 
+	/** Opens the registry to one proxy app, the only caller accepted until [endSession]. */
 	fun beginSession(
 		packageName: String,
 		uid: Int,
@@ -53,21 +55,25 @@ class ProxyAppConnections {
 		expectedUid = uid
 	}
 
+	/** Closes the registry: no proxy app is accepted again until the next [beginSession]. */
 	fun endSession() {
 		expectedPackage = null
 		expectedUid = null
 		_target.value = null
 	}
 
+	/** Publishes a proxy app that just bound, replacing any previous one. */
 	fun onConnected(connection: ConnectedTarget) {
 		_target.value = connection
 	}
 
+	/** Publishes the loss of the bound proxy app, waking anyone awaiting a verdict. */
 	fun onDisconnected() {
 		_target.value = null
 		_reports.tryEmit(TargetReport.Disconnected)
 	}
 
+	/** Publishes one report from the proxy app to [reports]. */
 	fun report(report: TargetReport) {
 		_reports.tryEmit(report)
 	}

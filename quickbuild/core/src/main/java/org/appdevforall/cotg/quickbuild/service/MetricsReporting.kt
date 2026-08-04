@@ -7,9 +7,11 @@ import org.slf4j.LoggerFactory
 internal val metricsLog: Logger = LoggerFactory.getLogger("QuickBuildMetrics")
 
 /**
- * Metrics can never affect a build: a throwing sink degrades to a logged warning. Every
- * metrics call in this package routes through here, so the guarantee holds wherever the
- * sink is called from rather than per class that remembers to wrap it.
+ * Runs a metrics call and swallows any failure into a logged warning, so metrics can
+ * never break a build.
+ *
+ * Every metrics call in this package goes through here rather than relying on each class
+ * to remember its own try/catch.
  */
 internal inline fun report(block: () -> Unit) {
 	try {

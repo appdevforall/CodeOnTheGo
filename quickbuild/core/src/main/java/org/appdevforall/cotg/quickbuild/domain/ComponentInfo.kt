@@ -10,9 +10,10 @@ enum class ComponentKind {
 }
 
 /**
- * One manifest component fact from the proxy app build's `components` array (schema v2) -
- * the manifest facts the deploy policy and restart UX need, nothing more (intent
- * filters, permissions etc. transfer verbatim in the manifest and are not duplicated).
+ * One manifest component recorded by the proxy app build (setup.json `components`, schema v2).
+ *
+ * Carries only what the deploy policy and restart UX need; intent filters, permissions and
+ * the like transfer verbatim in the manifest and are not duplicated here.
  *
  * @property className the USER class FQN declared in the source manifest.
  * @property proxyClass the generated proxy FQN carried in the transformed manifest;

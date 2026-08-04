@@ -4,31 +4,23 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * Per-project Quick Build scratch trees on app-private storage (ADFA-4930).
+ * Owns the per-project Quick Build scratch trees on app-private storage (ADFA-4930).
  *
- * The pipeline's intermediates (daemon compile/dex/relink outputs, the executor's
- * payload staging) live here rather than under `<project>/.androidide/quickbuild/`,
- * which sits on `/storage/emulated` - FUSE, which pays a ~50x per-file toll versus
- * the app's own ext4-backed private storage. This class owns that layout:
+ * Pipeline intermediates (daemon compile/dex/relink output, executor payload staging) live
+ * here rather than under `<project>/.androidide/quickbuild/`, which sits on FUSE-backed
+ * `/storage/emulated` and costs ~50x per file versus the app's own ext4 storage. [root] is a
+ * Context-derived private directory (`noBackupFilesDir/quickbuild-scratch`); user sources
+ * never move.
  *
  * `<root>/<projectKey>/` - one tree per project
  * - `work/` - executor payload staging (assets zip)
  * - `out/` - daemon output (classes, dex, relinked resources)
  *
- * [root] is a Context-derived private directory (the app wires
- * `noBackupFilesDir/quickbuild-scratch`); user sources never move - only QB-owned
- * intermediates live here.
- *
- * Lifecycle: a tree exists only while its session does. [remove] deletes it on
- * session teardown, and [sweep] reclaims leftovers from dead sessions (process
- * kills, crashes) - including trees of since-deleted projects, which nothing else
- * would ever clean up, since the tree does not die with the project folder.
- * Deleting on teardown is safe: no cross-session content here is load-bearing -
- * every daemon start re-seeds its incremental state from current disk, and the
- * cross-session generation counter deliberately stays OUT of this tree (see
- * [FileGenerationStore]).
- *
- * Pure JVM on purpose - unit tests point [root] at a temp dir.
+ * A tree exists only while its session does: [remove] deletes it on teardown, [sweep]
+ * reclaims leftovers from dead sessions, including trees of since-deleted projects that
+ * nothing else would clean up. Nothing here needs to survive a session - the daemon re-seeds
+ * its incremental state from disk on every start, and the generation counter deliberately
+ * lives outside this tree (see [FileGenerationStore]).
  */
 class QuickBuildScratch(
 	private val root: File,
@@ -46,12 +38,11 @@ class QuickBuildScratch(
 	}
 
 	/**
-	 * Stable directory key for a project: `<sanitized-basename>-<sha256-prefix>`.
+	 * Derives a project's stable directory key: `<sanitized-basename>-<sha256-prefix>`.
 	 *
-	 * The basename is only for human debuggability (sanitized to filename-safe ASCII);
-	 * uniqueness comes from the 64-bit hash of the normalized absolute path, so two
-	 * distinct projects that share a basename (e.g. `a/MyApp` and `b/MyApp`) can never
-	 * collide, and the same project always maps to the same tree across sessions.
+	 * The basename is only for human debuggability; uniqueness comes from the hash of the
+	 * normalized absolute path, so `a/MyApp` and `b/MyApp` cannot collide and a project maps
+	 * to the same tree across sessions.
 	 */
 	fun projectKey(projectRoot: File): String {
 		val normalized = projectRoot.absoluteFile.normalize().path
@@ -66,26 +57,24 @@ class QuickBuildScratch(
 		return "$base-$hash"
 	}
 
+	/** The project's scratch tree; parent of its `work/` and `out/` dirs. */
 	fun treeFor(projectRoot: File): File = File(root, projectKey(projectRoot))
 
-	/** Executor payload-staging dir (was `<project>/.androidide/quickbuild`). */
+	/** The project's executor payload-staging dir. */
 	fun workDirFor(projectRoot: File): File = File(treeFor(projectRoot), "work")
 
-	/** Daemon output dir (was `<project>/.androidide/quickbuild/out`). */
+	/** The project's daemon output dir. */
 	fun outDirFor(projectRoot: File): File = File(treeFor(projectRoot), "out")
 
 	/**
-	 * Disk-space guard: null when the private volume has room, else the user-facing
-	 * failure message. Called before provisioning so a full volume fails in seconds
-	 * with a clear message instead of ENOSPC minutes into the proxy app build or, worse,
-	 * mid-quick-build.
+	 * Checks the private volume for room, returning null when there is enough and the
+	 * user-facing failure message when there is not. Called before provisioning so a full
+	 * volume fails in seconds rather than as ENOSPC minutes into the proxy app build.
 	 *
-	 * Heuristic: a fixed floor ([minFreeBytes], default 100 MB) rather than an
-	 * estimate from project size. Sizing the project would walk its source tree on
-	 * FUSE - the per-file cost this whole class exists to avoid - and intermediates
-	 * do not track source size linearly anyway. 100 MB covers the tens-of-MB trees
-	 * typical projects produce with headroom, while staying small enough not to
-	 * spuriously block the ~1.5 GB-storage device tier this feature targets.
+	 * A fixed floor ([minFreeBytes], default 100 MB) rather than an estimate from project
+	 * size: sizing the project means walking its sources on FUSE, and intermediates do not
+	 * track source size linearly. 100 MB covers the tens-of-MB trees typical projects
+	 * produce without blocking the ~1.5 GB-storage devices this feature targets.
 	 */
 	fun freeSpaceShortfall(): String? {
 		root.mkdirs()
@@ -117,11 +106,10 @@ class QuickBuildScratch(
 	}
 
 	/**
-	 * Reclaims every tree that has no live session: deletes all directories under
-	 * [root] except those keyed by [liveProjectRoots]. Run at session-manager start,
-	 * when nothing is live yet, this clears leftovers from dead sessions and from
-	 * projects deleted since. Only directories are touched - [root] is wholly
-	 * QB-owned, but a stray file is not a tree and is left for whoever wrote it.
+	 * Reclaims every tree that has no live session: deletes all directories under [root]
+	 * except those keyed by [liveProjectRoots]. Run at session-manager start, when nothing is
+	 * live, it clears leftovers from dead sessions and from projects deleted since. Only
+	 * directories are touched; a stray file is not a tree and is left for whoever wrote it.
 	 */
 	fun sweep(liveProjectRoots: Collection<File>) {
 		val liveKeys = liveProjectRoots.map(::projectKey).toSet()

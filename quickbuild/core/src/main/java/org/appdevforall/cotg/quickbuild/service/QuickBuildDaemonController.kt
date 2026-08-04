@@ -11,40 +11,29 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
 import org.slf4j.LoggerFactory
 
 /**
- * One owner for the compile daemon's lifecycle protocol: the daemon-epoch rule, the
- * respawn-supersession cleanup, and the low-memory shrink policy. Extracted from
- * [QuickBuildSessionManager] so the epoch's bump sites and its two guard checks live
- * on one screen instead of 700 lines apart.
+ * Owns the compile daemon's lifecycle protocol: the daemon-epoch rule, the
+ * respawn-supersession cleanup, and the low-memory shrink policy.
  *
- * The epoch counts intentional daemon lifecycle transitions: every `daemon.start` /
- * `daemon.shutdown` the session manager initiates outside the respawn path
- * (provisioning start + its undo, proxy-app-rebuild teardown + restart, session
- * teardown, low-memory shrink). [start] and [shutdown] deliberately do NOT bump it -
- * bumps stay explicit at the call sites via [markIntentionalTransition], for two
- * reasons: the session teardown bumps synchronously before it suspends (a bump inside
- * a suspending [shutdown] would let a concurrent respawn slip through the window), and
- * [respawn]'s cleanup rule counts EXACTLY one transition - an auto-bump inside
- * [shutdown] would make teardown two and silently break it.
- *
- * Call only on the session dispatcher; this class holds no scope of its own.
+ * The epoch counts intentional daemon transitions - every start or shutdown the session
+ * manager initiates outside the respawn path. [start] and [shutdown] deliberately do not
+ * bump it, because the session teardown must bump synchronously before it suspends, and
+ * because [respawn]'s cleanup rule counts exactly one transition, which an auto-bump would
+ * break. Call only on the session dispatcher; this class holds no scope of its own.
  */
 internal class QuickBuildDaemonController(
 	private val daemon: QuickBuildDaemon,
-	/** App-private scratch trees (ADFA-4930); the daemon's output dir lives here. */
+	/** App-private scratch trees; the daemon's output dir lives here. */
 	private val scratch: QuickBuildScratch,
 	private val paths: QuickBuildPaths,
 ) {
 	/**
-	 * [respawn] captures this at effect time and re-checks after its `daemon.start`
-	 * returns: any change means an intentional shutdown superseded the respawn
-	 * mid-flight - a proxy app rebuild's `daemon.shutdown()` racing an in-flight
-	 * respawn - so the respawn discards its result instead of
-	 * reporting [RespawnOutcome.Respawned]. EXACTLY one transition since capture is the
-	 * superseding shutdown itself, so a daemon the stale start brought up is a zombie
-	 * only the respawn knows about - it stops it (the daemon must not coexist with the
-	 * proxy app rebuild's Gradle build, nor outlive a teardown). More than one means a
-	 * successor flow already started a fresh daemon the stale respawn must not touch.
-	 * Only touched on the session dispatcher.
+	 * Count of intentional daemon transitions, used to detect that a respawn was
+	 * superseded while its start was in flight. Only touched on the session dispatcher.
+	 *
+	 * Exactly one transition since a respawn captured the epoch means the superseding
+	 * shutdown itself, so any daemon the stale start brought up is a zombie the respawn
+	 * must stop. More than one means a successor flow already started a fresh daemon the
+	 * stale respawn must leave alone.
 	 */
 	private var daemonEpoch = 0L
 
@@ -52,9 +41,11 @@ internal class QuickBuildDaemonController(
 	private var pendingLowMemoryTeardown = false
 
 	/**
-	 * Records an intentional daemon lifecycle transition. Non-suspending on purpose:
-	 * the session teardown must bump BEFORE its shutdown suspends, so a concurrent
-	 * respawn can never observe the pre-teardown epoch after the teardown began.
+	 * Records an intentional daemon lifecycle transition.
+	 *
+	 * Non-suspending on purpose: the session teardown must bump before its shutdown
+	 * suspends, so a concurrent respawn can never observe the pre-teardown epoch after
+	 * the teardown began.
 	 */
 	fun markIntentionalTransition() {
 		daemonEpoch++
@@ -74,15 +65,15 @@ internal class QuickBuildDaemonController(
 		daemon.shutdown()
 	}
 
-	/** What became of a [respawn]; the manager dispatches/surfaces, this class doesn't. */
+	/** What became of a [respawn]. The manager dispatches on it; this class does not. */
 	sealed interface RespawnOutcome {
 		/** The daemon is up again; the manager re-seeds via the orchestrator. */
 		data object Respawned : RespawnOutcome
 
 		/**
-		 * An intentional transition superseded the respawn (before or during its
-		 * start); the successor flow owns the daemon lifecycle and any zombie daemon
-		 * the stale start brought up has already been stopped here.
+		 * An intentional transition superseded the respawn, before or during its start.
+		 * The successor flow owns the daemon lifecycle, and any zombie daemon the stale
+		 * start brought up was already stopped.
 		 */
 		data object Superseded : RespawnOutcome
 
@@ -92,9 +83,9 @@ internal class QuickBuildDaemonController(
 	}
 
 	/**
-	 * Restarts a dead daemon, guarded by the epoch protocol: [startEpoch] is the
-	 * [epochSnapshot] captured when the respawn effect fired. See [daemonEpoch] for
-	 * the exactly-one-transition cleanup rule applied when the check fails mid-start.
+	 * Restarts a dead daemon unless an intentional transition superseded the attempt.
+	 *
+	 * @param startEpoch the [epochSnapshot] taken when the respawn effect fired
 	 */
 	suspend fun respawn(
 		layout: QuickBuildProjectLayout,
@@ -109,11 +100,9 @@ internal class QuickBuildDaemonController(
 		}
 		val started = daemon.start(configFor(layout, proxyApp))
 		if (startEpoch != daemonEpoch) {
-			// An intentional shutdown (proxy-app-rebuild teardown, session teardown,
-			// low-memory shrink) landed while this respawn's start was in flight.
-			// The superseding flow owns the daemon
-			// lifecycle now: reporting Respawned here would corrupt it. See
-			// [daemonEpoch] for the exactly-one-transition cleanup rule.
+			// An intentional shutdown landed while this respawn's start was in flight, so
+			// the superseding flow owns the daemon lifecycle now. See daemonEpoch for the
+			// exactly-one-transition cleanup rule.
 			if (started is DaemonReply.Ok && daemonEpoch == startEpoch + 1) {
 				log.info("Quick-build daemon respawn outlived an intentional shutdown; stopping its daemon")
 				daemon.shutdown()
@@ -136,18 +125,16 @@ internal class QuickBuildDaemonController(
 	}
 
 	/**
-	 * Tears the daemon down only when the system is genuinely short of memory:
-	 * [ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL] and the cached-process levels above
-	 * it. `RUNNING_MODERATE`/`RUNNING_LOW` fire on transient pressure the OS usually recovers
-	 * from, and a teardown costs a respawn plus a re-seed on the next edit.
+	 * Tears the daemon down, but only when the system is genuinely short of memory:
+	 * [ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL] and the cached-process levels
+	 * above it.
 	 *
-	 * [ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN] is NOT a teardown despite Android numbering
-	 * it (20) above `RUNNING_CRITICAL` (15): it means the UI went away, not that memory is
-	 * short, and backgrounding CoGo is the MIDDLE of the Quick Build loop - the user is
-	 * looking at the proxy app they just edited.
-	 *
-	 * A build in flight ([buildInFlight]) is never interrupted; the teardown defers and the
-	 * manager's state collector retries via [shrinkIfPending] once that build transitions.
+	 * `RUNNING_MODERATE` and `RUNNING_LOW` fire on transient pressure the OS usually
+	 * recovers from, and a teardown costs a respawn plus a re-seed on the next edit.
+	 * [ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN] is excluded despite its higher number:
+	 * it means the UI went away, and backgrounding CoGo is the middle of the Quick Build
+	 * loop. A build in flight is never interrupted; the teardown defers and
+	 * [shrinkIfPending] retries it later.
 	 */
 	suspend fun onTrimMemory(
 		level: Int,
@@ -158,8 +145,8 @@ internal class QuickBuildDaemonController(
 			return
 		}
 		if (level == ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
-			// Not memory pressure - the user just switched away (typically to their own
-			// proxy app, mid-loop). Keep the daemon warm; see this function's KDoc.
+			// Not memory pressure: the user just switched away, typically to their own
+			// proxy app mid-loop. Keep the daemon warm.
 			log.debug("Quick Build: onTrimMemory(UI_HIDDEN); keeping the daemon warm")
 			return
 		}
@@ -168,12 +155,11 @@ internal class QuickBuildDaemonController(
 	}
 
 	/**
-	 * Tears the daemon down for memory pressure, unless a build is in flight - then
-	 * this is a no-op that leaves the pending flag set for the manager's state
-	 * collector to retry once that build's own transition lands. Idempotent: a daemon
-	 * already down, or no pending request at all, is a silent no-op either way - safe
-	 * to call from a repeated `onTrimMemory(CRITICAL)` or from the retry collector
-	 * alike.
+	 * Carries out a deferred low-memory teardown once no build is in flight.
+	 *
+	 * A build in flight leaves the pending flag set for the manager's state collector to
+	 * retry. Idempotent: with no pending request, or a daemon already down, this is a
+	 * silent no-op.
 	 */
 	suspend fun shrinkIfPending(buildInFlight: Boolean) {
 		if (buildInFlight) return
@@ -185,6 +171,7 @@ internal class QuickBuildDaemonController(
 		daemon.shutdown()
 	}
 
+	/** Builds the daemon config for one project layout and proxy app baseline. */
 	private fun configFor(
 		layout: QuickBuildProjectLayout,
 		proxyApp: ProxyAppInfo,
@@ -192,9 +179,9 @@ internal class QuickBuildDaemonController(
 		DaemonConfig(
 			projectRoot = layout.projectRoot,
 			classpath = layout.compileClasspath(),
-			// App-private scratch (ADFA-4930): the daemon's per-file-heavy output tree is
-			// the single biggest FUSE payer, and its scratchFsType reply (the bench-event
-			// field) reports whatever filesystem THIS dir lands on.
+			// App-private scratch: the daemon's output tree writes many small files and
+			// is the biggest cost on FUSE. The daemon's scratchFsType reply reports
+			// whichever filesystem this dir lands on.
 			outDir = scratch.outDirFor(layout.projectRoot),
 			aapt2 = paths.aapt2,
 			d8Jar = paths.d8Jar,

@@ -1,14 +1,16 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
 /**
- * The classloader routing decision shared by every {@link QuickBuildAppComponentFactory} override, extracted from the factory so it is JVM-unit-testable (the factory itself needs the Android framework).
+ * Holds the classloader routing decision every {@link QuickBuildAppComponentFactory} override makes.
  *
- * Catches ONLY ClassNotFoundException: any other failure from the probe (LinkageError etc.) must propagate, because the factory's per-override catch responds by re-instantiating through the default loader - a stronger fallback than merely picking it.
+ * Extracted from the factory so it is JVM-unit-testable without the Android framework.
  */
 final class LoaderRouter {
 
 	/**
-	 * The payload loader when it can serve {@code className} (its parent chain covers the APK, so framework/androidx classes resolve identically), else the default. A null payload loader (no payload live, runtime inert) always yields the default.
+	 * Picks the loader that should instantiate {@code className}: the payload loader when it can serve the class, else the default.
+	 *
+	 * The payload loader's parent chain covers the APK, so framework and androidx classes resolve the same either way. A null payload loader means no payload is live and always yields the default. Only ClassNotFoundException is caught - a LinkageError must propagate, because the factory's own catch then re-instantiates through the default loader, which is a stronger fallback than merely picking it.
 	 */
 	static ClassLoader pick(ClassLoader defaultLoader, ClassLoader payloadLoader, String className) {
 		if (payloadLoader == null) {

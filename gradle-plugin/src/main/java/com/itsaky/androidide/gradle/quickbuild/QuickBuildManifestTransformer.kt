@@ -13,8 +13,9 @@ import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
 /**
- * Kind of a manifest component the Quick Build proxy app proxies. [jsonName] is the
- * `type` value in the setup.json/manifest-info `components` array.
+ * Kind of manifest component the proxy app proxies.
+ *
+ * @property jsonName the `type` value in the setup.json / manifest-info `components` array
  */
 enum class ComponentType(
 	val jsonName: String,
@@ -28,9 +29,10 @@ enum class ComponentType(
 
 /**
  * One component of the user's merged manifest, paired with the proxy generated for it.
- * The custom Application is carried as a component with a null [proxyClass]: nothing
- * addresses it by manifest name, so it keeps the user FQN (the runtime's
- * instantiateApplication already routes it through the payload loader).
+ *
+ * The custom Application appears here with a null [proxyClass]: nothing addresses it by manifest
+ * name, so it keeps the user FQN and the runtime's instantiateApplication routes it through the
+ * payload loader.
  *
  * @property userClass fully-qualified user class.
  * @property proxyClass fully-qualified generated proxy class that replaces it in the
@@ -50,24 +52,21 @@ data class ProxiedComponent(
 )
 
 /**
- * A component left under its real manifest name because
- * [ComponentProxiabilityResolver] rejected it, with that resolver's [reason]. Reported so
- * the calling task can log what it skipped and why.
+ * A component left under its real manifest name because [ComponentProxiabilityResolver] rejected
+ * it, carrying that resolver's reason so the calling task can log what it skipped and why.
  */
 data class UnproxiedComponent(
 	val userClass: String,
 	val reason: String,
 )
 
-/**
- * Result of rewriting a merged manifest for the Quick Build proxy app.
- */
+/** The rewritten manifest plus what the rewrite did to each component. */
 class ManifestTransformResult(
 	val document: Document,
 	val components: List<ProxiedComponent>,
 	val unproxied: List<UnproxiedComponent> = emptyList(),
 ) {
-	/** The proxied activities, in manifest order (view kept for activity-only consumers). */
+	/** The proxied activities, in manifest order. */
 	val activities: List<ProxiedComponent>
 		get() = components.filter { it.type == ComponentType.ACTIVITY }
 
@@ -77,25 +76,16 @@ class ManifestTransformResult(
 }
 
 /**
- * Rewrites a merged Android manifest into the Quick Build proxy-app manifest: every
- * component's android:name is replaced with a
- * generated proxy FQN (stable component names while the user's classes stay swappable in
- * the payload dex), provider authorities that embed the real applicationId move to the
- * proxy-app id, and the `<application>` gains an android:appComponentFactory pointing at
- * the quick-build runtime. Everything else (permissions, icon, label, intent filters,
- * exported/permission attributes, meta-data) is preserved verbatim.
+ * Rewrites a merged Android manifest into the proxy-app manifest: each component's android:name
+ * becomes a generated proxy FQN, and the `<application>` gains an android:appComponentFactory
+ * pointing at the quick-build runtime. Everything else is preserved verbatim.
  *
- * The one exception to "every component is proxied" is whatever [proxiability] rejects:
- * that component keeps its real manifest name, emits no proxy class and no
- * [ProxiedComponent] entry, and is reported in [ManifestTransformResult.unproxied]. The
- * decision lives entirely in [ComponentProxiabilityResolver] - read that, not a second list
- * here.
+ * Components [proxiability] rejects keep their real manifest name, get no proxy class and no
+ * [ProxiedComponent] entry, and are reported in [ManifestTransformResult.unproxied].
  *
- * Attribute combinations the proxy app cannot host yet (android:process on any component,
- * isolated services, multiprocess providers) throw with the component named - the proxy app
- * build fails loud and the session never starts, instead of silently dropping behavior.
- *
- * Pure logic, no Gradle types - unit-testable without a build.
+ * Attributes the proxy app cannot host yet (android:process anywhere, isolated services,
+ * multiprocess providers) throw with the component named, so the build fails loud rather than
+ * silently dropping behavior.
  *
  * @property proxyPackage package for generated proxies, e.g. `com.example.app.quickbuild.proxies`.
  * @property appComponentFactory FQN of the runtime's AppComponentFactory.
@@ -112,7 +102,10 @@ class QuickBuildManifestTransformer(
 		private const val ACTION_MAIN = "android.intent.action.MAIN"
 		private const val CATEGORY_LAUNCHER = "android.intent.category.LAUNCHER"
 
-		/** Manifest-order-per-type proxy simple name (Proxy0Activity, Proxy0Service, ...); must stay stable across pieces. */
+		/**
+		 * Names the [index]-th proxy of [type] (Proxy0Activity, Proxy0Service, ...). The manifest,
+		 * the generated sources and the report all derive names here, so the scheme must not drift.
+		 */
 		fun proxySimpleName(
 			index: Int,
 			type: ComponentType,
@@ -124,10 +117,11 @@ class QuickBuildManifestTransformer(
 	}
 
 	/**
-	 * Parses and rewrites the manifest. Throws [IllegalArgumentException] on a manifest the
-	 * quick path cannot handle (no `<application>`, a component without android:name, or an
-	 * unsupported-for-v1 attribute) - the calling task turns that into a failed proxy app build
-	 * with the message intact.
+	 * Parses and rewrites a merged manifest.
+	 *
+	 * @throws IllegalArgumentException on a manifest the quick path cannot handle - no
+	 *   `<application>`, a component without android:name, or an unsupported attribute. The
+	 *   calling task turns that into a failed build with the message intact.
 	 */
 	fun transform(input: InputStream): ManifestTransformResult {
 		val document = newDocumentBuilderFactory().newDocumentBuilder().parse(input)
@@ -154,9 +148,10 @@ class QuickBuildManifestTransformer(
 	}
 
 	/**
-	 * Records and reports a component [proxiability] rejects, so each caller can bail out of
-	 * its loop with one line. The rejected component is left verbatim - and, critically, must
-	 * not consume a per-type proxy index, or every LATER component of that type would shift.
+	 * Records a component [proxiability] rejects and reports whether the caller should skip it.
+	 *
+	 * A skipped component is left verbatim and must not consume a per-type proxy index, or every
+	 * later component of that type would shift.
 	 */
 	private fun skipProxy(
 		userClass: String,
@@ -295,14 +290,12 @@ class QuickBuildManifestTransformer(
 	}
 
 	/**
-	 * Neutralizes auto-backup on the proxy app. android:backupAgent points at a class that
-	 * travels only in the payload dex (never the installed APK), so the OS backup pass
-	 * would instantiate it through the APK classloader and crash the proxy app in the
-	 * background - a crash the user cannot connect to Quick Build. Backing up a throwaway
-	 * dev harness is pointless anyway, so force allowBackup="false" and drop the backup
-	 * hooks (design contract, application attribute table). Consistent with the loud-reject
-	 * of android:process: here stripping is the semantically-correct handling, not silent
-	 * behavior loss.
+	 * Turns auto-backup off and strips the backup hooks.
+	 *
+	 * android:backupAgent points at a class that travels only in the payload dex, so the OS
+	 * backup pass would instantiate it through the APK classloader and crash the proxy app in
+	 * the background, where the user cannot connect the crash to Quick Build. Backing up a
+	 * throwaway dev harness has no value, so stripping loses nothing.
 	 */
 	private fun neutralizeBackup(application: Element) {
 		application.setAttributeNS(ANDROID_NS, "android:allowBackup", "false")
@@ -311,6 +304,7 @@ class QuickBuildManifestTransformer(
 		}
 	}
 
+	/** Records the custom Application, if the manifest declares one; it gets no proxy. */
 	private fun applicationComponent(
 		application: Element,
 		manifestPackage: String,
@@ -318,10 +312,9 @@ class QuickBuildManifestTransformer(
 		val name = application.getAttributeNS(ANDROID_NS, "name")
 		if (name.isBlank()) return null
 		val userClass = resolveClassName(name, manifestPackage)
-		// Keep the USER class but write it fully qualified, mirroring the FQN rewrite every
-		// proxied component gets: instantiateApplication resolves this name against the payload
-		// dex, so a shorthand left verbatim is fragile. Merged manifests normally carry FQNs
-		// already; this makes it unconditional.
+		// Keep the user class but write it fully qualified: instantiateApplication resolves this
+		// name against the payload dex, so shorthand left verbatim is fragile. Merged manifests
+		// normally carry FQNs already; this makes it unconditional.
 		application.setAttributeNS(ANDROID_NS, "android:name", userClass)
 		return ProxiedComponent(
 			type = ComponentType.APPLICATION,
@@ -331,10 +324,10 @@ class QuickBuildManifestTransformer(
 	}
 
 	/**
-	 * The provider's declared authorities, split on `;`. The proxy app installs under the
-	 * project's real applicationId, so `${applicationId}`-derived authorities already resolve
-	 * correctly and need no rewrite - they pass through verbatim (recorded here only so the
-	 * proxy app report can carry them).
+	 * Reads a provider's declared authorities, split on `;`, for the report only.
+	 *
+	 * The proxy app installs under the project's real applicationId, so authorities pass through
+	 * the manifest verbatim and need no rewrite.
 	 */
 	private fun readAuthorities(provider: Element): List<String> {
 		val raw = provider.getAttributeNS(ANDROID_NS, "authorities")
@@ -355,7 +348,7 @@ class QuickBuildManifestTransformer(
 		return resolveClassName(name, manifestPackage)
 	}
 
-	/** v1 is single-process: any component asking for its own process routes to Standard Run. */
+	/** Fails the build on a component asking for its own process; Quick Build is single-process. */
 	private fun rejectUnsupported(
 		element: Element,
 		tag: String,
@@ -371,13 +364,13 @@ class QuickBuildManifestTransformer(
 	}
 
 	/**
-	 * The on-device resource relink links ONLY the app's own res/ against this manifest, so
-	 * a manifest reference to a LIBRARY-provided resource aborts every resource hot reload
-	 * with aapt2 "resource not found". CoGo's LogSenderPlugin injects exactly one such
-	 * reference into every debug app (android:enabled="@bool/logsender_enabled"; the bool is
-	 * true in the logsender AAR), so inline it here. A general fix - relinking against the
-	 * base APK's resource table - is a tracked followup; until then any NEW library manifest
-	 * ref hits the same wall.
+	 * Replaces the one known library-provided resource reference with its literal value.
+	 *
+	 * The on-device relink links only the app's own res/ against this manifest, so a manifest
+	 * reference to a library resource aborts every resource hot reload with aapt2 "resource not
+	 * found". CoGo's LogSenderPlugin injects exactly one (`@bool/logsender_enabled`, true in the
+	 * logsender AAR). Relinking against the base APK's resource table would fix this generally;
+	 * until then any new library manifest reference hits the same wall.
 	 */
 	private fun inlineLibraryResourceRefs(document: Document) {
 		val all = document.getElementsByTagName("*")
@@ -415,9 +408,9 @@ class QuickBuildManifestTransformer(
 		}
 
 	/**
-	 * Resolves manifest class-name shorthand. The merged manifest normally carries FQNs
-	 * already (the manifest merger expands them); this is a defensive fallback that follows
-	 * the platform's rules against the manifest package attribute.
+	 * Expands manifest class-name shorthand (`.Foo`, `Foo`) against the manifest package.
+	 *
+	 * A fallback: the manifest merger normally expands these already.
 	 */
 	private fun resolveClassName(
 		name: String,
@@ -441,6 +434,7 @@ class QuickBuildManifestTransformer(
 		return result
 	}
 
+	/** A parser factory hardened against XXE: no DOCTYPE, no external entities or DTDs. */
 	private fun newDocumentBuilderFactory(): DocumentBuilderFactory =
 		DocumentBuilderFactory.newInstance().apply {
 			isNamespaceAware = true

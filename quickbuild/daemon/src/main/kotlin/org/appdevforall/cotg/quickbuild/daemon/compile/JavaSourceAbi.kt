@@ -17,40 +17,37 @@ import javax.tools.JavaFileObject
 import javax.tools.ToolProvider
 
 /**
- * The ABI (not the implementation) of the project's `.java` sources, so a Java edit only
- * costs a Kotlin recompile when it could actually change Kotlin bytecode.
+ * Fingerprints the ABI - not the implementation - of the project's `.java` sources, so a
+ * Java edit only costs a Kotlin recompile when it could change Kotlin bytecode.
  *
- * kotlinc reads same-module `.java` files as raw sources (see [IncrementalCompiler]), but
- * the Build Tools API's incremental engine has no dependency tracking over them - it only
- * snapshots jar classpath entries. Without a Java-side signal the only sound choice is to
- * recompile every Kotlin file whenever any `.java` file changes. That is correct but
- * costly, and the great majority of Java edits are method-body edits that no Kotlin class
- * can observe.
+ * kotlinc reads same-module `.java` files as raw sources (see [IncrementalCompiler]), but the
+ * incremental engine tracks no dependencies over them, so without a Java-side signal the only
+ * sound choice is to recompile every Kotlin file on any `.java` edit. Most Java edits are
+ * method-body edits no Kotlin class can observe, hence this fingerprint over declarations only.
  *
- * So: fingerprint each `.java` file's declarations, ignoring method bodies. Two things are
- * deliberately IN the fingerprint even though they look like implementation:
- * - the initializer of a compile-time constant field, because Kotlin inlines Java
- *   constants into its callers' bytecode - a changed value is an ABI change;
- * - annotations, because they reach Kotlin's resolution (nullability in particular).
+ * Two things stay in the fingerprint although they look like implementation: the initializer
+ * of a compile-time constant field, because Kotlin inlines Java constants into its callers'
+ * bytecode, and annotations, because they reach Kotlin's resolution (nullability especially).
  *
- * Parsing is javac's own parser via [JavacTask.parse] - syntax only, no symbol resolution
- * and no classpath, so it costs single-digit milliseconds on a project-sized source set
- * and cannot fail over an unresolved cross-language reference (the very thing that makes
- * the two-pass necessary). Anything unparseable yields `null`, which callers must treat as
- * "assume the ABI changed".
+ * Parsing uses javac's own parser via [JavacTask.parse] - syntax only, no symbol resolution
+ * and no classpath - so it is cheap and cannot fail over the unresolved cross-language
+ * references that make the two-pass compile necessary. Anything unparseable yields null,
+ * which callers must read as "assume the ABI changed".
  */
 object JavaSourceAbi {
 	/**
+	 * One file's ABI.
+	 *
 	 * @property fingerprint hash over the file's declarations, method bodies excluded.
-	 * @property declaredTypeNames every type simple name the file declares, nested
-	 *   included - the names a Kotlin source would have to write to reference it.
+	 * @property declaredTypeNames every type simple name the file declares, nested included -
+	 *   the names a Kotlin source would have to write to reference it.
 	 */
 	data class FileAbi(
 		val fingerprint: String,
 		val declaredTypeNames: Set<String>,
 	)
 
-	/** Per-file ABI, or null if any file could not be parsed (callers must then stay conservative). */
+	/** Fingerprints each of [javaSources]; null if any file could not be parsed. */
 	fun snapshot(javaSources: List<File>): Map<File, FileAbi>? {
 		if (javaSources.isEmpty()) return emptyMap()
 		val compiler = ToolProvider.getSystemJavaCompiler() ?: return null
@@ -76,9 +73,9 @@ object JavaSourceAbi {
 	}
 
 	/**
-	 * Simple names of every type whose ABI differs between [previous] and [current] -
-	 * added, removed, and modified files alike, taking the union of the old and new names
-	 * so a rename or deletion still names the type Kotlin sources may still reference.
+	 * Simple names of every type whose ABI differs between [previous] and [current], covering
+	 * added, removed and modified files. Takes the union of old and new names, so a renamed or
+	 * deleted type is still named for Kotlin sources that may reference it.
 	 */
 	fun changedTypeNames(
 		previous: Map<File, FileAbi>,
@@ -108,6 +105,7 @@ object JavaSourceAbi {
 		return FileAbi(sha256(text.toString()), names)
 	}
 
+	/** Appends this type's declarations to the fingerprint text, recursing into nested types. */
 	private fun ClassTree.render(
 		out: StringBuilder,
 		names: MutableSet<String>,
@@ -145,7 +143,7 @@ object JavaSourceAbi {
 		}
 	}
 
-	/** Everything about a method except its body - that is the whole point. */
+	/** Renders a method's signature, deliberately excluding its body. */
 	private fun MethodTree.renderSignature(owner: String): String =
 		buildString {
 			append("method ").append(owner).append('#').append(name)
@@ -159,10 +157,10 @@ object JavaSourceAbi {
 		}
 
 	/**
-	 * A field's declaration, plus its initializer when the field is a compile-time
-	 * constant: Kotlin bakes `static final` constant values into calling bytecode, so a
-	 * changed value is an ABI change even though nothing about the signature moved. An
-	 * ordinary instance field's initializer is implementation, and is left out.
+	 * Renders a field's declaration, plus its initializer when the field is a compile-time
+	 * constant. Kotlin bakes `static final` constant values into calling bytecode, so a changed
+	 * value is an ABI change even though the signature did not move. An ordinary instance
+	 * field's initializer is implementation and stays out.
 	 */
 	private fun VariableTree.renderSignature(
 		owner: String,

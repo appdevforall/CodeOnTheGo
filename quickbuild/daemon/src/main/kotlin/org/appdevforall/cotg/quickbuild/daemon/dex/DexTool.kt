@@ -9,24 +9,23 @@ import java.nio.file.Path
 import kotlin.io.path.extension
 
 /**
- * Drives D8 over compiled class files to produce `classes.dex`. The r8 jar is supplied
- * by the device (CoGo's provisioned build-tools) at configure time and loaded through
- * its own [URLClassLoader]; everything is invoked reflectively so the daemon carries no
- * AGP/r8 build dependency and works against whatever build-tools version the device
- * ships.
+ * Runs D8 over compiled class files to produce `classes.dex`. The r8 jar comes from the
+ * device's provisioned build-tools at configure time and is loaded through its own
+ * [URLClassLoader], with every call made reflectively, so the daemon needs no AGP or r8 build
+ * dependency and works against whatever build-tools version the device ships.
  */
 class DexTool(
 	d8Jar: File,
 	private val androidJar: File,
 	private val minApi: Int,
 ) : AutoCloseable {
+	/** Outcome of one dex run. */
 	sealed interface Result {
 		/**
 		 * @property stripMillis wall time of the ACC_FINAL-stripping mirror pass.
 		 * @property d8Millis wall time of the d8 invocation itself.
-		 * @property stats what the pass processed. Both steps run over the WHOLE class
-		 *   tree every build, so these counts - not the edit's size - are what their cost
-		 *   scales with, and they are what makes a slow [stripMillis] readable.
+		 * @property stats what the run processed. Both steps cover the whole class tree every
+		 *   build, so their cost scales with these counts rather than with the edit's size.
 		 */
 		data class Success(
 			val dexFile: File,
@@ -43,9 +42,9 @@ class DexTool(
 	private val loader = URLClassLoader(arrayOf(d8Jar.toURI().toURL()), DexTool::class.java.classLoader)
 
 	/**
-	 * Dexes every `.class` under [classesDirs] into `<outDir>/classes.dex`, first
-	 * clearing ACC_FINAL from each class ([FinalStripper]) so the payload matches the
-	 * gen-0 baseline's opened classes and the proxies' `extends` stays verifiable.
+	 * Dexes every `.class` under [classesDirs] into `<outDir>/classes.dex`, first clearing
+	 * ACC_FINAL from each class ([FinalStripper]) so the payload matches the gen-0 baseline's
+	 * opened classes and the proxies' `extends` stays verifiable.
 	 */
 	fun dex(
 		classesDirs: List<File>,
@@ -81,6 +80,7 @@ class DexTool(
 		}
 	}
 
+	/** Builds and runs a D8 command reflectively against the device's r8 jar. */
 	private fun runD8(
 		classFiles: List<Path>,
 		outDir: Path,
@@ -139,7 +139,7 @@ class DexTool(
 		return Opened(opened.values.toList(), bytes)
 	}
 
-	/** What one [openClasses] pass mirrored: the stripped copies, and the bytes it moved. */
+	/** What one [openClasses] pass produced: the stripped copies, and the bytes it read. */
 	private data class Opened(
 		val paths: List<Path>,
 		val bytes: Long,

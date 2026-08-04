@@ -3,52 +3,46 @@ package org.appdevforall.cotg.quickbuild.data
 import java.io.File
 
 /**
- * What the quick path needs to know about the user project's shape. Behind an
- * interface so the executor/session-manager tests run against a temp-dir fake and the
- * app side can later swap in a project-model-backed implementation without touching
- * the pipeline.
+ * What the quick path needs to know about the user project's shape.
+ *
+ * An interface so executor and session-manager tests run against a temp-dir fake, and the app
+ * side can later swap in a project-model-backed implementation without touching the pipeline.
  */
 interface QuickBuildProjectLayout {
+	/** Root directory of the user project. */
 	val projectRoot: File
 
 	/** Every `.kt`/`.java` under the app module's main source roots. */
 	fun allSources(): List<File>
 
+	/** The app module's resource directories, to recompile and relink. */
 	fun resDirs(): List<File>
 
+	/** The app module's asset roots, whose files ship in the payload zip. */
 	fun assetRoots(): List<File>
 
+	/** The app module's `AndroidManifest.xml`. */
 	fun manifest(): File
 
 	/** Compile classpath for the daemon (library jars/AARs' classes). */
 	fun compileClasspath(): List<File>
 
 	/**
-	 * AGP's `stableIds.txt` from the proxy app build's real resource processing
-	 * (`pkg:type/name = 0x7f0xxxxx`), if the proxy app report carried one. Relinks pass this
-	 * to `aapt2 link --stable-ids` so a relink of the project's own res/ - a strict
-	 * subset of what the real build merged in, library AAR resources included - pins
-	 * every resource to the numeric id the baseline manifest was compiled against,
-	 * instead of letting aapt2's type-index assignment drift when a whole resource TYPE
-	 * present in the baseline is absent from the relink. Null when the
-	 * proxy app build didn't report one (older AGP, or a variant whose resource processing
-	 * never produced the file).
+	 * AGP's `stableIds.txt` from the proxy app build (`pkg:type/name = 0x7f0xxxxx`), passed to
+	 * `aapt2 link --stable-ids`. It pins every resource to the numeric id the baseline
+	 * manifest was compiled against, so aapt2's type-index assignment cannot drift when a
+	 * resource type present in the baseline is absent from the relink. Null when the proxy app
+	 * build did not report one.
 	 */
 	fun stableIdsFile(): File?
 
 	/**
-	 * Pre-compiled `.flat` resource units from the proxy app build's real AGP resource
-	 * processing: the project's own `intermediates/merged_res/` closure (which
-	 * transitively carries every dependency AAR's VALUES resources - styles, themes,
-	 * colors, dimens, strings, attrs) plus each resource-providing AAR's separately
-	 * -compiled FILE-based resources (layouts, drawables, anims, ...). A relink of the
-	 * project's own res/ alone can't resolve a resource a dependency AAR provides - e.g.
-	 * Material3's `Theme.Material3.DayNight.NoActionBar`, which a Material3 template's own
-	 * `themes.xml` extends - because the project's own res/ never declares it.
-	 * Passed to `aapt2 link` as `-R` overlays, ordered BEFORE the relink's own
-	 * fresh compile (see `Aapt2Link`'s KDoc for why order matters). Empty when the proxy app
-	 * build didn't report any (older AGP, or a variant whose resource processing never
-	 * produced them) - relinks then see the project's own res/ alone.
+	 * Pre-compiled `.flat` resource units from the proxy app build - the project's
+	 * `merged_res/` closure (carrying every dependency AAR's values resources) plus each
+	 * resource-providing AAR's compiled file resources. Without them a relink cannot resolve
+	 * a resource only a dependency declares, e.g. Material3's
+	 * `Theme.Material3.DayNight.NoActionBar`. Passed to `aapt2 link` as `-R` overlays ordered
+	 * before the relink's own fresh compile (`Aapt2Link`'s KDoc explains why order matters).
 	 */
 	fun libraryResourceFlats(): List<File>
 
@@ -59,31 +53,29 @@ interface QuickBuildProjectLayout {
 	fun watchedFiles(): List<File>
 
 	/**
-	 * The app module's source scope the live reload path can incrementally build. A watched
-	 * code/resource/asset change OUTSIDE this scope is another module's and must go through a proxy app rebuild
-	 * (see [org.appdevforall.cotg.quickbuild.domain.ChangeClassifier]). Distinct from
-	 * [watchedRoots], which spans EVERY module's `src` (so a library edit is seen, not
-	 * silently dropped) - only the app module's slice of that is live-reload-eligible.
+	 * The source scope the live reload path can build incrementally - the app module's. A
+	 * watched change outside it belongs to another module and must go through a proxy app
+	 * rebuild (see [org.appdevforall.cotg.quickbuild.domain.ChangeClassifier]). Narrower than
+	 * [watchedRoots], which spans every module's `src` so a library edit is seen rather than
+	 * silently dropped.
 	 */
 	fun liveReloadScope(): List<File>
 }
 
 /**
- * Convention-based layout for the standard single-app-module project the templates
- * emit: sources in `src/main/{java,kotlin}`, resources in `src/main/res`, assets in
- * `src/main/assets`. Pure JVM on purpose.
+ * Convention-based layout for the standard single-app-module project the templates emit:
+ * sources in `src/main/{java,kotlin}`, resources in `src/main/res`, assets in
+ * `src/main/assets`.
  *
- * @param extraSourceRoots additional source roots the proxy app build reported (`setup.json`
- *   `sourceRoots`) - in practice the KSP/kapt GENERATED roots. Without them a project
- *   using an API-generating processor (Dagger and kin) cannot hot-compile at all: user
- *   code references generated classes the daemon has neither a source nor a classpath
- *   entry for. They are compiled but deliberately NOT watched - Gradle owns `build/`,
- *   and watching it would feed the loop its own output.
- * @param stableIdsFile the proxy app build's reported AGP stable-ids file (`setup.json`
- *   `stableIdsPath`), or null when it didn't report one. See [QuickBuildProjectLayout.stableIdsFile].
- * @param libraryResourceFlats the proxy app build's reported library-resource `.flat` units
- *   (`setup.json` `libraryResourcePaths`), or empty when it didn't report any. See
- *   [QuickBuildProjectLayout.libraryResourceFlats].
+ * @param extraSourceRoots extra source roots from the proxy app build (`setup.json`
+ *   `sourceRoots`), in practice the KSP/kapt generated roots. Without them a project using an
+ *   API-generating processor (Dagger and kin) cannot hot-compile at all. They are compiled
+ *   but deliberately not watched - Gradle owns `build/`, and watching it would feed the loop
+ *   its own output.
+ * @param stableIdsFile see [QuickBuildProjectLayout.stableIdsFile]; null when the proxy app
+ *   build did not report one.
+ * @param libraryResourceFlats see [QuickBuildProjectLayout.libraryResourceFlats]; empty when
+ *   the proxy app build did not report any.
  */
 class DefaultQuickBuildProjectLayout(
 	override val projectRoot: File,
@@ -117,10 +109,9 @@ class DefaultQuickBuildProjectLayout(
 
 	override fun libraryResourceFlats(): List<File> = libraryResourceFlats
 
-	// Watch EVERY module's src (not just the app module's): in a multi-module project a
-	// feature/library edit must be SEEN so it rebaselines, instead of firing no event and
-	// being silently not reloaded. The classifier still live-reloads only [liveReloadScope]
-	// (the app module); other-module edits route to a full build.
+	// Every module's src, not just the app module's: a library edit must be seen so it
+	// rebaselines, rather than firing no event and silently not reloading. The classifier
+	// still live-reloads only liveReloadScope; other-module edits route to a full build.
 	override fun watchedRoots(): List<File> = moduleDirs().map { File(it, "src") }
 
 	override fun watchedFiles(): List<File> =
@@ -137,12 +128,10 @@ class DefaultQuickBuildProjectLayout(
 	override fun liveReloadScope(): List<File> = listOf(File(appModuleDir, "src"))
 
 	/**
-	 * Every Gradle module dir (a dir holding a `build.gradle[.kts]`), always including the
-	 * app module, discovered by a shallow filesystem walk. Skips `build/` intermediates and
-	 * hidden dirs; bounded depth keeps the one-time session-start scan cheap even on a
-	 * deeply-nested reactor. Over-inclusion is harmless (a non-existent `src` is filtered by
-	 * the watcher; a stray module's edit merely rebaselines); under-inclusion would resurrect
-	 * the silent-drop bug, so this errs toward watching more.
+	 * Finds every Gradle module dir (one holding a `build.gradle[.kts]`) by a shallow walk,
+	 * always including the app module. Skips `build/` and hidden dirs, and bounds depth to
+	 * keep the one-time session-start scan cheap. Errs toward including too much: a spurious
+	 * module only costs a rebaseline, while a missed one silently drops its edits.
 	 */
 	private fun moduleDirs(): List<File> {
 		val dirs = LinkedHashSet<File>()
@@ -162,9 +151,8 @@ class DefaultQuickBuildProjectLayout(
 	}
 
 	private companion object {
-		// `:a:b:c:d`-deep module paths are rare; deeper reactors just watch a bit less of
-		// their tail (still correct - those edits fall to the periodic mtime sweep / are
-		// out of the single-module live reload path anyway).
+		// `:a:b:c:d`-deep module paths are rare; a deeper reactor just watches less of its
+		// tail, which stays correct - those edits are outside the live reload path anyway.
 		const val MODULE_SCAN_MAX_DEPTH = 4
 	}
 }

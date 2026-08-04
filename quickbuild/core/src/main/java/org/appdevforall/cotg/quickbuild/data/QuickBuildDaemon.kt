@@ -7,45 +7,40 @@ import java.io.File
 
 /**
  * Typed facade over the warm compile daemon (protocol: quickbuild/core/README.md).
- * The interface exists so the executor and session manager are testable against
- * scripted fakes; [DaemonProcessClient] is the real child-JVM implementation.
  *
- * Contract mirrors the daemon protocol: one request in flight at a time (the
- * orchestrator serializes builds; [DaemonProcessClient] additionally enforces it),
- * and NO method throws for build problems - everything is a [DaemonReply].
+ * An interface so the executor and session manager can be tested against scripted fakes;
+ * [DaemonProcessClient] is the real child-JVM implementation. Mirrors the daemon protocol:
+ * one request in flight at a time, and no method throws for build problems - every outcome
+ * is a [DaemonReply].
  */
 interface QuickBuildDaemon {
 	/** True while the daemon process is alive and configured. */
 	val isRunning: Boolean
 
 	/**
-	 * Filesystem type of the daemon's scratch tree (`ext4`, `f2fs`, `fuse`, ...) as the
-	 * daemon reported it at `configure`; null before a successful configure, or from a
-	 * daemon predating the field. Session-constant, so it is read once per build rather
-	 * than threaded through every reply.
-	 *
-	 * It travels with the build timing because it is the strongest single predictor of
-	 * that timing - the daemon's per-file work costs ~52x more on Android's FUSE-backed
-	 * emulated storage than on the app's own filesystem (ADFA-4128 deep-dive).
+	 * Filesystem type of the daemon's scratch tree (`ext4`, `f2fs`, `fuse`, ...) as reported
+	 * at `configure`; null before a successful configure or from a daemon predating the
+	 * field. Session-constant, so it is read once per build rather than carried on every
+	 * reply. Recorded alongside build timings because it predicts them: per-file work costs
+	 * ~52x more on FUSE-backed emulated storage than on the app's own filesystem
+	 * (ADFA-4128 deep-dive).
 	 */
 	val scratchFsType: String?
 		get() = null
 
 	/**
-	 * Spawn (or respawn) the daemon process and send `configure`. A running daemon is
+	 * Spawns (or respawns) the daemon process and sends `configure`. A running daemon is
 	 * shut down first, so this is also the respawn path after a death.
 	 */
 	suspend fun start(config: DaemonConfig): DaemonReply<Unit>
 
 	/**
-	 * Incremental compile. Per the BTA gotchas in the README, [changedFiles] must be
-	 * the KNOWN changed set; pass ALL sources as changed to seed IC caches.
+	 * Compiles the project incrementally. [changedFiles] must be the known changed set;
+	 * pass all sources as changed to seed the incremental caches.
 	 *
-	 * @param removedFiles sources DELETED since the last build. Threaded into the
-	 *   incremental compiler's removed-sources slot so their outputs are deleted and
-	 *   dependents recompiled (a removed `.java`'s stale `.class` is deleted explicitly,
-	 *   since javac has no incremental removed-files API). Optional and backward-compatible:
-	 *   empty is the pre-Bug-12 behavior.
+	 * @param removedFiles sources deleted since the last build, so their outputs are removed
+	 *   and dependents recompiled. A removed `.java`'s stale `.class` is deleted explicitly -
+	 *   javac has no incremental removed-files API. Empty is supported.
 	 * @return the compiled classes dir plus the .class files this run emitted.
 	 */
 	suspend fun compile(
@@ -54,16 +49,14 @@ interface QuickBuildDaemon {
 		removedFiles: List<File> = emptyList(),
 	): DaemonReply<CompileOutput>
 
-	/** Dex the given class dirs. @return the produced `classes.dex` plus step timings. */
+	/** Dexes [classesDirs] into one `classes.dex`, with the daemon's step timings. */
 	suspend fun dex(classesDirs: List<File>): DaemonReply<DexOutput>
 
 	/**
-	 * aapt2 relink of the project resources; see [RelinkInputs] for the input contract.
+	 * Relinks the project resources with aapt2; see [RelinkInputs] for the input contract.
 	 *
-	 * @return the full relinked resource apk (resources.arsc plus every compiled
-	 *   resource file - layouts, drawable XMLs, adaptive-icon XMLs, ...), not a bare
-	 *   extracted table. A bare table cannot back a file-typed resource; see
-	 *   `Aapt2Link`'s KDoc.
+	 * @return the full relinked resource apk (resources.arsc plus every compiled resource
+	 *   file), not a bare extracted table - a bare table cannot back a file-typed resource.
 	 */
 	suspend fun relink(inputs: RelinkInputs): DaemonReply<RelinkOutput>
 
@@ -74,8 +67,8 @@ interface QuickBuildDaemon {
 	suspend fun shutdown()
 
 	/**
-	 * Called when the daemon process exits WITHOUT a shutdown request (exit != by our
-	 * hand). The session manager routes this into [org.appdevforall.cotg.quickbuild.domain.SessionEvent.DaemonDied].
+	 * Registers a callback for the daemon exiting without a shutdown request. The session
+	 * manager routes it into [org.appdevforall.cotg.quickbuild.domain.SessionEvent.DaemonDied].
 	 */
 	fun setDeathListener(listener: ((exitCode: Int) -> Unit)?)
 }
@@ -84,16 +77,14 @@ interface QuickBuildDaemon {
  * A successful `compile` op's output.
  *
  * @property classesDir directory containing the compiled classes.
- * @property changedClassFiles the .class files this run emitted or rewrote,
- *   '/'-separated relative to [classesDir] — the deploy policy's recompiled-set
- *   signal. Null when the daemon did not report the field (a pre-signal daemon);
- *   the policy then decides conservatively (restart over stale).
- * @property kotlinMillis wall time of the daemon's Kotlin pass; null when unreported
- *   (a pre-timing daemon). Same null convention for every step-timing field below.
+ * @property changedClassFiles the .class files this run emitted or rewrote, '/'-separated
+ *   relative to [classesDir] - the deploy policy's recompiled-set signal. Null when the
+ *   daemon did not report it; the policy then decides conservatively (restart over stale).
+ * @property kotlinMillis wall time of the daemon's Kotlin pass; null when unreported (a
+ *   pre-timing daemon). Same null convention for every step-timing field below.
  * @property javaMillis wall time of the daemon's javac pass.
  * @property stats the phases [kotlinMillis]/[javaMillis] do not cover (output-tree
- *   snapshots, the Java-ABI re-parse) plus this build's counts; null from a daemon that
- *   predates them.
+ *   snapshots, the Java-ABI re-parse) plus this build's counts.
  */
 data class CompileOutput(
 	val classesDir: File,
@@ -117,27 +108,22 @@ data class DexOutput(
 )
 
 /**
- * The `relink` op's inputs, bundled into one value so the executor -> facade -> client
- * chain stops accreting positional parameters (07-23 ARCH-REVIEW). Pure carrier: the
- * wire format is unchanged - [DaemonProcessClient] still serializes each field as its
- * own protocol key.
+ * The `relink` op's inputs, bundled into one value so the executor -> facade -> client chain
+ * stops accreting positional parameters. Pure carrier: [DaemonProcessClient] still
+ * serializes each field as its own protocol key.
  *
- * @property resDirs the project's own `res/` directories to recompile + relink.
- * @property manifest the manifest to link against - the proxy app build's TRANSFORMED
+ * @property resDirs the project's own `res/` directories to recompile and relink.
+ * @property manifest the manifest to link against - the proxy app build's transformed
  *   manifest when available, else the project's raw one.
- * @property stableIdsFile AGP's stable-ids mapping from the proxy app build's real resource
- *   processing ([QuickBuildProjectLayout.stableIdsFile]), if any. Pins the relink's
- *   resource ids to the baseline's so a relink of the project's own res/ (a strict
- *   subset of what the real build merged in) can't shift a resource's numeric id out
- *   from under the manifest the proxy app build already compiled. Null
- *   is a supported, backward-compatible fallback to an unpinned-id relink.
- * @property libraryResources pre-compiled `.flat` resource units from the proxy app build's
- *   real AGP resource processing ([QuickBuildProjectLayout.libraryResourceFlats]) -
- *   the project's own merged_res closure plus every resource-providing AAR's
- *   compiled file resources. Lets a relink resolve a resource a dependency AAR
- *   provides (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`), which the
- *   project's own res/ never declares. Empty is a supported,
- *   backward-compatible fallback to relinking against the project's own res/ alone.
+ * @property stableIdsFile AGP's stable-ids mapping from the proxy app build
+ *   ([QuickBuildProjectLayout.stableIdsFile]). Pins resource ids to the baseline's, so
+ *   relinking the project's own res/ - a strict subset of what the real build merged -
+ *   cannot shift an id out from under the already-compiled manifest. Null relinks unpinned.
+ * @property libraryResources pre-compiled `.flat` resource units from the proxy app build
+ *   ([QuickBuildProjectLayout.libraryResourceFlats]), covering the merged_res closure and
+ *   every resource-providing AAR. Lets a relink resolve resources the project's own res/
+ *   never declares (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`). Empty falls
+ *   back to relinking against the project's own res/ alone.
  */
 data class RelinkInputs(
 	val resDirs: List<File>,

@@ -3,12 +3,10 @@ package org.appdevforall.cotg.quickbuild.daemon.compile
 import org.appdevforall.cotg.quickbuild.daemon.protocol.Diagnostic
 
 /**
- * Parses kotlinc-rendered messages (as delivered through the BTA [KotlinLogger]) into
- * the protocol's structured shape so the IDE can jump to file:line. Renderers vary a
- * little across compiler versions ("file:1:2 message", "file:1:2: error: message"), so
- * the location prefix is matched leniently and anything unparseable degrades to a
- * location-less diagnostic - a build error must never be dropped because its text
- * surprised us.
+ * Turns kotlinc's rendered log messages into structured diagnostics, so the IDE can jump to
+ * file:line. Renderers vary across compiler versions ("file:1:2 message", "file:1:2: error:
+ * message"), so the location prefix is matched leniently and anything unrecognized degrades
+ * to a location-less diagnostic rather than being dropped.
  */
 object KotlincDiagnosticsParser {
 	// <path>.kt:<line>:<column> optionally followed by ":", optionally "error:"/"warning:".
@@ -16,9 +14,11 @@ object KotlincDiagnosticsParser {
 		Regex("""^(.+?\.(?:kt|kts|java)):(\d+):(\d+):?\s+(?:(error|warning):\s*)?(.*)$""", RegexOption.DOT_MATCHES_ALL)
 
 	/**
+	 * Parses one compiler message into a diagnostic, with location when the text carries one.
+	 *
 	 * @param severity the severity implied by the logger channel the message arrived on
-	 *   (error() -> ERROR, warn() -> WARNING); an explicit "error:"/"warning:" prefix in
-	 *   the text wins when present.
+	 *   (error() -> ERROR, warn() -> WARNING); an explicit "error:"/"warning:" prefix in the
+	 *   text wins over it.
 	 */
 	fun parse(
 		message: String,

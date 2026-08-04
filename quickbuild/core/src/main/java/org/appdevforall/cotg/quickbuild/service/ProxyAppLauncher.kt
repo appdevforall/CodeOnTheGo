@@ -1,22 +1,20 @@
 package org.appdevforall.cotg.quickbuild.service
 
 /**
- * Relaunches the proxy app after a restart deploy (design contract section 4, step 3):
- * the runtime persisted the payload and exited; CoGo, being the foreground app while
- * the user edits, starts the launcher proxy activity via an explicit intent and the
- * fresh process boots on the newest persisted generation.
+ * Restarts the proxy app after a restart deploy, so a fresh process boots on the newest
+ * persisted generation (design contract section 4, step 3).
  *
- * Implemented in the app module (needs a Context); an interface here keeps the
+ * Implemented in the app module because it needs a Context; the interface keeps the
  * executor JVM-testable.
  */
 fun interface ProxyAppLauncher {
 	/**
-	 * Relaunches [packageName]. [activityClass] is the launcher proxy FQN from the
-	 * transformed manifest when one is known; null when the launcher is an
-	 * `<activity-alias>` (no proxied activity carries it), in which case the
-	 * implementation launches the package's default launch intent instead.
+	 * Starts [packageName] again.
 	 *
-	 * @return false when the launch could not even be started.
+	 * @param activityClass the launcher proxy FQN from the transformed manifest, or null
+	 *   when the launcher is an `<activity-alias>` that no proxied activity carries - the
+	 *   implementation then uses the package's default launch intent
+	 * @return false when the launch could not be started at all
 	 */
 	fun launch(
 		packageName: String,

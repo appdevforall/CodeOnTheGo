@@ -3,13 +3,12 @@ package org.appdevforall.cotg.quickbuild.domain
 import java.io.DataInputStream
 
 /**
- * The hierarchy facts of one compiled class file: its name, superclass, and directly
- * implemented interfaces - exactly what keeps [DeployPolicy]'s supertype index live
- * across builds. Parsed with a minimal constant-pool walk (no bytecode library): the
- * header fields sit right after the constant pool, so nothing past the interface list
- * is read.
+ * The hierarchy facts of one compiled class file - name, superclass, directly implemented
+ * interfaces - which is what keeps [DeployPolicy]'s supertype index current across builds.
  *
- * Names are in dot form with `$` for nested classes (`com.example.Outer$Inner`).
+ * Parsed by a constant-pool walk rather than a bytecode library; these fields sit right after
+ * the constant pool, so nothing past the interface list is read. Names are in dot form with
+ * `$` for nested classes (`com.example.Outer$Inner`).
  */
 data class ClassHeader(
 	val className: String,
@@ -19,13 +18,13 @@ data class ClassHeader(
 	companion object {
 		private const val CLASS_MAGIC = -0x35014542 // 0xCAFEBABE
 
-		/** @return the parsed header, or null when [bytes] is not a well-formed class file. */
+		/** Parses one class file's header. Null when [bytes] is not a well-formed class file. */
 		fun parse(bytes: ByteArray): ClassHeader? =
 			try {
 				DataInputStream(bytes.inputStream()).use(::parseStream)
 			} catch (e: Exception) {
-				// Truncated/corrupt input; callers skip the file (an over-restart is safe,
-				// a crash here would fail the whole build for one unreadable class).
+				// Truncated or corrupt input; callers skip the file. An over-restart is safe,
+				// whereas throwing would fail the whole build over one unreadable class.
 				null
 			}
 

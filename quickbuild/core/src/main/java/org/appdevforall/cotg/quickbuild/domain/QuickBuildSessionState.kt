@@ -1,41 +1,36 @@
 package org.appdevforall.cotg.quickbuild.domain
 
 /**
- * Quick-build session lifecycle states — one sealed type, not booleans.
+ * Lifecycle states of a quick-build session, as one sealed type rather than a set of booleans.
  *
- * [generation] on the live states is the generation the PROXY APP currently runs — the
- * "running gen N" honesty line derives from it. A compile error keeps the session in
- * [Ready] at the old generation with [Ready.lastFailure] set; the proxy app never moved.
+ * The generation carried by the live states is the one the PROXY APP currently runs, which is
+ * what the "running gen N" line reports. A compile error keeps the session in [Ready] at the
+ * old generation with [Ready.lastFailure] set; the proxy app never moved.
  */
 sealed interface QuickBuildSessionState {
 	/** No session. The Quick Build button starts provisioning. */
 	data object Idle : QuickBuildSessionState
 
 	/**
-	 * The eager proxy app build runs in the background (project open) - no install,
-	 * no daemon, no session. [tapQueued] records a Quick Build tap that landed mid-warm:
-	 * provisioning starts the moment the warm build finishes instead of racing it (two
-	 * concurrent Gradle builds through the tooling server would fail).
+	 * The eager proxy app build is running in the background at project open - no install, no
+	 * daemon, no session.
+	 *
+	 * @param tapQueued a Quick Build tap landed mid-warm, so provisioning starts when the warm
+	 *   build finishes; two concurrent Gradle builds through the tooling server would fail.
 	 */
 	data class Prebuilding(
 		val tapQueued: Boolean = false,
 	) : QuickBuildSessionState
 
 	/**
-	 * Proxy app build + proxy-app install + daemon spawn in progress.
+	 * Proxy app build, proxy-app install and daemon spawn in progress.
 	 *
-	 * [userInitiated] true = a Quick Build TAP is what started this, so the session going
-	 * live is the answer to the user asking - the proxy app is brought to the foreground on
-	 * [SessionEvent.ProvisioningSucceeded] (Bryan's behaviour 2). Nothing launches the proxy
-	 * app after its install otherwise, so without this a first tap would install the app,
-	 * warm the daemon and leave the user staring at the editor. False for a proxy app rebuild
-	 * (also routed through this state): a proxy app rebuild is a full Gradle build that a plain
-	 * save can trigger, and yanking the user out of the editor a minute later is not an
-	 * answer to anything they asked for.
-	 *
-	 * [installAutoRetries] rides along on a proxy app rebuild so an unconfirmed reinstall parks
-	 * back in [Invalidated] with the count intact - it is how the [SessionEvent.HostForegrounded]
-	 * auto-retry stays bounded across park/retry/park cycles (see [Invalidated.installAutoRetries]).
+	 * @param userInitiated a Quick Build tap started this, so the proxy app is brought to the
+	 *   foreground on [SessionEvent.ProvisioningSucceeded] - nothing else launches it after
+	 *   install. False for a proxy app rebuild, which also routes through this state: a plain
+	 *   save can trigger one, and it must not pull the user out of the editor.
+	 * @param installAutoRetries carried through a proxy app rebuild so an unconfirmed reinstall
+	 *   parks back in [Invalidated] with the count intact (see [Invalidated.installAutoRetries]).
 	 */
 	data class Provisioning(
 		val userInitiated: Boolean = false,
@@ -49,16 +44,15 @@ sealed interface QuickBuildSessionState {
 	) : QuickBuildSessionState
 
 	/**
-	 * A quick build is running; the proxy app still runs [deployedGeneration].
+	 * A build is running; the proxy app still runs [deployedGeneration].
 	 *
-	 * [warmingCompiler] true = the in-flight build is the background warm compile ([BuildRoute.WarmCompile]):
-	 * it compiles the sources the proxy app ALREADY runs and deploys nothing, so the status
-	 * surface must not present it as a blocking "Building" (the app is genuinely up to
-	 * date), and a Quick Build tap must trigger a real build instead of being dropped (a
-	 * real build satisfies a mid-build tap by deploying; a warm compile never deploys).
-	 * [pendingCrash] carries a proxy-app crash observed mid-warm-compile so [SessionEvent.WarmCompileFinished]
-	 * lands it as [Ready.lastFailure] instead of swallowing it — the warm compile's "surface
-	 * nothing" contract covers warm-compile OUTCOMES, not crashes of the running generation.
+	 * @param warmingCompiler the in-flight build is the background warm compile
+	 *   ([BuildRoute.WarmCompile]), which recompiles what the proxy app already runs and deploys
+	 *   nothing. The status surface must not present it as blocking, and a tap must trigger a
+	 *   real build rather than be satisfied by it.
+	 * @param pendingCrash a proxy-app crash seen mid-warm-compile, which
+	 *   [SessionEvent.WarmCompileFinished] lands as [Ready.lastFailure]; the warm compile
+	 *   suppresses its own outcome, not crashes of the running generation.
 	 */
 	data class Building(
 		val deployedGeneration: Long,
@@ -67,10 +61,10 @@ sealed interface QuickBuildSessionState {
 	) : QuickBuildSessionState
 
 	/**
-	 * A build just landed; the proxy app runs [generation]. [restarted] true = it landed
-	 * via the process-restart path (service/provider/Application code changed), so the
-	 * proxy app relaunched at its launcher and lost in-process state - the status surface
-	 * says so instead of a plain "reloaded".
+	 * A build just landed; the proxy app runs [generation].
+	 *
+	 * @param restarted it landed via the process-restart path (service/provider/Application code
+	 *   changed), so the proxy app relaunched at its launcher and lost in-process state.
 	 */
 	data class Deployed(
 		val generation: Long,
@@ -79,19 +73,16 @@ sealed interface QuickBuildSessionState {
 	) : QuickBuildSessionState
 
 	/**
-	 * The baseline is stale (manifest/gradle/external build); needs a full Gradle build.
-	 * [awaitingRetry] true = no proxy app rebuild is in flight and the next Quick Build tap or
-	 * [SessionEvent.HostForegrounded] retries it instead of the session having died to
-	 * [Idle]. Two things park here: a proxy app rebuild whose reinstall was never confirmed
-	 * ([SessionEvent.ProxyAppRebuildInstallNotConfirmed]) and a retry that never got the
-	 * device's single Gradle slot ([SessionEvent.ProxyAppRebuildDeferred]).
+	 * The baseline is stale (manifest, gradle, or an external build) and needs a full Gradle
+	 * build.
 	 *
-	 * [installAutoRetries] counts the [SessionEvent.HostForegrounded] auto-retries already
-	 * spent on this unconfirmed reinstall. Once it reaches
-	 * [SessionReducer.MAX_INSTALL_AUTO_RETRIES] the foreground trigger stops re-running
-	 * the proxy app rebuild - a user who keeps declining must not pay a fresh Gradle build on
-	 * every resume, forever. A Quick Build TAP still retries (and resets the budget):
-	 * an explicit ask is fresh consent.
+	 * @param awaitingRetry no proxy app rebuild is in flight, so the next Quick Build tap or
+	 *   [SessionEvent.HostForegrounded] retries it instead of the session dying to [Idle]. Set by
+	 *   [SessionEvent.ProxyAppRebuildInstallNotConfirmed] and [SessionEvent.ProxyAppRebuildDeferred].
+	 * @param installAutoRetries how many [SessionEvent.HostForegrounded] auto-retries this
+	 *   unconfirmed reinstall has already spent. At [SessionReducer.MAX_INSTALL_AUTO_RETRIES] the
+	 *   foreground trigger stops, so a user who keeps declining does not pay a Gradle build on
+	 *   every resume; an explicit tap still retries and resets the budget.
 	 */
 	data class Invalidated(
 		val reason: InvalidationReason,
@@ -100,7 +91,7 @@ sealed interface QuickBuildSessionState {
 		val installAutoRetries: Int = 0,
 	) : QuickBuildSessionState
 
-	/** The compile daemon died; respawn + warm compile in progress. */
+	/** The compile daemon died; respawn and warm compile in progress. */
 	data class Degraded(
 		val deployedGeneration: Long,
 	) : QuickBuildSessionState
@@ -116,142 +107,145 @@ sealed interface SessionFailure {
 		val message: String,
 	) : SessionFailure
 
-	/** The payload crashed in the proxy app (render/lifecycle) — distinct from a compile error. */
+	/** The payload crashed in the proxy app (render or lifecycle), not a compile error. */
 	data class ProxyAppCrash(
 		val summary: String,
 	) : SessionFailure
 }
 
-/** Inputs to [SessionReducer] — from the UI, the orchestrator, and process observers. */
+/** Inputs to [SessionReducer], from the UI, the orchestrator, and process observers. */
 sealed interface SessionEvent {
+	/** The user tapped the Quick Build button. */
 	data object QuickBuildTapped : SessionEvent
 
 	/**
-	 * The user tapped the button while it was showing the stop affordance (Bryan's
-	 * behaviour 5). Only the states that actually own a build the user asked for act on
-	 * it; every other state ignores it, so the shell can dispatch it without checking.
+	 * The user tapped the button while it showed the stop affordance (behaviour 5).
+	 *
+	 * Only states that own a build the user asked for act on it, so the shell can dispatch it
+	 * without checking.
 	 */
 	data object CancelRequested : SessionEvent
 
 	/** Project opened with the feature enabled: warm the proxy app build, defer the install. */
 	data object PrebuildRequested : SessionEvent
 
-	/** The eager proxy app build finished (success or not - a warm failure is not surfaced). */
+	/** The eager proxy app build finished; a warm failure is not surfaced. */
 	data object PrebuildFinished : SessionEvent
 
+	/** The session is live at [generation]. */
 	data class ProvisioningSucceeded(
 		val generation: Long,
 	) : SessionEvent
 
+	/** Provisioning failed; the session drops to Idle and surfaces [message]. */
 	data class ProvisioningFailed(
 		val message: String,
 	) : SessionEvent
 
+	/** A real quick build started; its deploy will move the generation. */
 	data object BuildStarted : SessionEvent
 
 	/**
-	 * The background warm compile started ([BuildRoute.WarmCompile]). A distinct event, not a flag on
-	 * [BuildStarted]: the session enters [QuickBuildSessionState.Building] with
-	 * `warmingCompiler = true` so the status surface keeps reading "up to date" (nothing will
-	 * deploy) and taps/crashes during the warm compile are handled honestly (see [Building]).
+	 * The background warm compile started ([BuildRoute.WarmCompile]).
+	 *
+	 * A distinct event rather than a flag on [BuildStarted] so the session can mark itself
+	 * `warmingCompiler`, which keeps the status surface reading "up to date" and keeps taps and
+	 * crashes during the window handled honestly (see [QuickBuildSessionState.Building]).
 	 */
 	data object WarmCompileStarted : SessionEvent
 
+	/** A build deployed; the proxy app now runs [generation]. */
 	data class BuildSucceeded(
 		val generation: Long,
 		val durationMillis: Long,
 		/** True when the deploy restarted the proxy-app process (component code changed). */
 		val restarted: Boolean = false,
 		/**
-		 * True when a Quick Build TAP is what this build answers, so the deploy landing is
-		 * the moment to bring the proxy app forward (Bryan's behaviour 2). False for a
-		 * build a file write triggered - a save is not the user asking to leave the editor
-		 * (behaviour 3) - and false for a tap the user then cancelled.
+		 * True when this build answers a Quick Build tap, so the deploy landing is the moment to
+		 * bring the proxy app forward (behaviour 2). False for a build a file write triggered -
+		 * a save is not the user asking to leave the editor - and for a tap the user cancelled.
 		 */
 		val userInitiated: Boolean = false,
 	) : SessionEvent
 
+	/** A build did not deploy; the proxy app stays on its current generation. */
 	data class BuildFailed(
 		val failure: SessionFailure,
 	) : SessionEvent
 
 	/**
-	 * The background warm-compile build finished (success or a silently-logged failure).
-	 * Nothing deployed, the generation did not move: Building returns to Ready at the
-	 * deployed generation with no warm-compile OUTCOME surfaced - a warm-compile problem is invisible by
-	 * design (the proxy app build just compiled the same sources green; the next real save
-	 * surfaces anything real). A proxy-app crash observed DURING the warm compile is not a warm-compile
-	 * outcome: it lands as [QuickBuildSessionState.Ready.lastFailure] via
-	 * [QuickBuildSessionState.Building.pendingCrash]. Daemon death during a warm compile does NOT
-	 * arrive here - it stays on the [DaemonDied] recovery path.
+	 * The background warm compile finished, whether green or failed.
+	 *
+	 * Nothing deployed and the generation did not move, so no warm-compile outcome is surfaced:
+	 * it recompiled sources that already built green, and the next real save surfaces anything
+	 * real. A proxy-app crash seen during the window is not a warm-compile outcome and lands as
+	 * [QuickBuildSessionState.Ready.lastFailure]. Daemon death does not arrive here; it stays on
+	 * the [DaemonDied] path.
 	 */
 	data object WarmCompileFinished : SessionEvent
 
+	/** A change the live reload path cannot absorb; the baseline is now stale. */
 	data class InvalidationDetected(
 		val reason: InvalidationReason,
 	) : SessionEvent
 
-	/** The full Gradle proxy app rebuild build has been kicked off. */
+	/** The full Gradle proxy app rebuild has been kicked off. */
 	data object ProxyAppRebuildStarted : SessionEvent
 
 	/**
-	 * The proxy app rebuild's Gradle build succeeded but the proxy-app reinstall was never
-	 * confirmed - no dialog could be shown (CoGo backgrounded), the user cancelled it,
-	 * or it was left untapped until the installer timed out. The session is NOT dead:
-	 * it parks in [QuickBuildSessionState.Invalidated] with `awaitingRetry = true`,
-	 * where the next Quick Build tap or [HostForegrounded] re-runs the proxy app rebuild and
-	 * re-prompts. [deployedGeneration] is the generation the proxy app still runs.
+	 * The proxy app rebuild built fine but its reinstall was never confirmed - no dialog could be
+	 * shown, the user cancelled, or it went untapped until the installer timed out.
+	 *
+	 * The session is not dead: it parks in [QuickBuildSessionState.Invalidated] with
+	 * `awaitingRetry = true`, where the next tap or [HostForegrounded] rebuilds and re-prompts.
 	 */
 	data class ProxyAppRebuildInstallNotConfirmed(
 		val deployedGeneration: Long,
 	) : SessionEvent
 
 	/**
-	 * A parked proxy app rebuild RETRY never started: the device's single Gradle slot was already
-	 * taken (CoGo's own project sync, a Standard Run), so nothing was built and no install
-	 * was prompted. The session parks straight back in
-	 * [QuickBuildSessionState.Invalidated] awaiting a retry, and the attempt is NOT counted
-	 * against [QuickBuildSessionState.Invalidated.installAutoRetries]: that budget bounds
-	 * Gradle builds and install prompts, and a deferred attempt produced neither.
+	 * A parked proxy app rebuild retry never started because the device's single Gradle slot was
+	 * taken, so nothing was built and no install was prompted.
 	 *
-	 * Reachable on exactly the path the park is made of: the invalidation that parks a
-	 * session is by definition a gradle-file change, which is also what makes CoGo's
-	 * ProjectSyncHelper declare NEED_SYNC - so a foreground return can start a sync build
-	 * milliseconds before the [HostForegrounded] retry asks for the same slot. Counting
-	 * that collision spent the whole budget and dropped the session to [Idle] with a
-	 * build-failure banner instead of the install re-prompt.
+	 * The session parks straight back awaiting a retry, and the attempt is NOT charged against
+	 * [QuickBuildSessionState.Invalidated.installAutoRetries] - that budget bounds Gradle builds
+	 * and install prompts, and a deferred attempt produced neither. The collision is routine: the
+	 * gradle-file change that parks a session is also what makes CoGo's ProjectSyncHelper declare
+	 * NEED_SYNC, so a foreground return can start a sync build just before the retry asks for the
+	 * same slot.
 	 */
 	data class ProxyAppRebuildDeferred(
 		val deployedGeneration: Long,
 	) : SessionEvent
 
 	/**
-	 * CoGo's editor came (back) to the foreground. Only meaningful to a session parked
-	 * in [QuickBuildSessionState.Invalidated] with `awaitingRetry = true`: when the
-	 * reinstall ran while CoGo was BACKGROUNDED (e.g. the user was in the proxy app),
-	 * Android DEFERS the PENDING_USER_ACTION broadcast until the app is foregrounded -
-	 * and the dialog-owning subscriber (InstallationResultHandler) is EventBus
-	 * lifecycle-bound (registered onStart, unregistered onStop), so the deferred
-	 * delivery can land before it re-registers and no confirm dialog is ever launched.
-	 * The user saw nothing to tap. Re-running the proxy app rebuild now (with CoGo foreground)
-	 * makes the dialog actually appear. Bounded by
-	 * [QuickBuildSessionState.Invalidated.installAutoRetries]; every other state
-	 * ignores this event.
+	 * CoGo's editor came (back) to the foreground, the first chance to re-prompt an install the
+	 * user never saw.
+	 *
+	 * Only meaningful to a session parked in [QuickBuildSessionState.Invalidated] with
+	 * `awaitingRetry = true`. When the reinstall ran while CoGo was backgrounded, Android defers
+	 * the PENDING_USER_ACTION broadcast until the app returns, and the dialog-owning subscriber is
+	 * EventBus lifecycle-bound (registered onStart), so the deferred delivery can land before it
+	 * re-registers and no dialog is ever launched. Bounded by
+	 * [QuickBuildSessionState.Invalidated.installAutoRetries]; every other state ignores it.
 	 */
 	data object HostForegrounded : SessionEvent
 
 	/**
-	 * A full Gradle build ran OUTSIDE the session (a Standard Run) and completed. The
-	 * baseline may have moved beneath the daemon (regenerated build/ inputs the watcher
-	 * cannot see), so a live session must refresh its baseline from current disk before its
-	 * next build.
+	 * A full Gradle build ran outside the session (a Standard Run) and completed.
+	 *
+	 * It may have regenerated `build/` inputs the watcher cannot see, so a live session must
+	 * refresh its baseline from current disk before its next build.
 	 */
 	data object ExternalBuildCompleted : SessionEvent
 
+	/** The compile daemon died. */
 	data object DaemonDied : SessionEvent
 
+	/** The compile daemon is back and warm. */
 	data object DaemonRespawned : SessionEvent
 
+	/** The proxy app process crashed. */
 	data class ProxyAppCrashed(
 		val summary: String,
 	) : SessionEvent
@@ -262,59 +256,61 @@ sealed interface SessionEvent {
 
 /** Side effects the session manager must run after a transition. */
 sealed interface SessionEffect {
+	/** Build, install and start a session from scratch. */
 	data object StartProvisioning : SessionEffect
 
 	/** Run the proxy app build only - no install, no daemon. */
 	data object StartProxyAppPrebuild : SessionEffect
 
 	/**
-	 * Ask the orchestrator to build now (explicit tap while a session is live).
+	 * Ask the orchestrator to build now.
 	 *
-	 * [userInitiated] carries WHO asked all the way to the deploy, which is what decides
-	 * whether the proxy app is brought forward (Bryan's behaviours 2/3/4). It is a separate
-	 * fact from [BuildRequest.forced]: `forced` is also set by the reconnect catch-up and
-	 * is re-armed after a failure, so reusing it would yank the user out of the editor on a
-	 * stale reconnect or on a save that retried a failed tap.
+	 * @param userInitiated carries who asked all the way to the deploy, which decides whether the
+	 *   proxy app is brought forward. Deliberately separate from [BuildRequest.forced], which the
+	 *   reconnect catch-up also sets and which is re-armed after a failure - reusing it would pull
+	 *   the user out of the editor on a stale reconnect or on a save retrying a failed tap.
 	 */
 	data class TriggerLiveReload(
 		val userInitiated: Boolean,
 	) : SessionEffect
 
 	/**
-	 * Bring the proxy app to the foreground: the answer to a TAP (behaviours 2 and 4).
-	 * Never emitted for a build a file write triggered - a save is not the user asking to
-	 * leave the editor (behaviour 3) - nor after a cancelled tap (behaviour 5).
+	 * Bring the proxy app to the foreground - the answer to a tap.
+	 *
+	 * Never emitted for a build a file write triggered, nor after a cancelled tap.
 	 */
 	data object SwitchToProxyApp : SessionEffect
 
 	/**
-	 * A tap landed while a real build was already in flight. That build deploys anyway, so it
-	 * satisfies the tap's BUILD - this only records that the tap happened, so the deploy
-	 * brings the proxy app forward. Distinct from [TriggerLiveReload] on purpose: forcing a
-	 * second full rebuild behind a build that was about to do the same work would double the
-	 * cost for nothing.
+	 * Record that a tap landed on a real build already in flight, so its deploy brings the proxy
+	 * app forward.
+	 *
+	 * Deliberately not [TriggerLiveReload]: the in-flight build is about to do the same work, so
+	 * forcing a second rebuild behind it would double the cost for nothing.
 	 */
 	data object MarkBuildUserInitiated : SessionEffect
 
 	/**
-	 * Stop the in-flight incremental quick build (behaviour 5). The reducer has already
-	 * moved back to [QuickBuildSessionState.Ready] at the unchanged generation, so nothing
-	 * new deploys and the button returns to the bolt.
+	 * Stop the in-flight incremental quick build (behaviour 5).
+	 *
+	 * The reducer has already returned to [QuickBuildSessionState.Ready] at the unchanged
+	 * generation, so nothing new deploys.
 	 */
 	data object CancelLiveReload : SessionEffect
 
 	/**
-	 * Stop the out-of-process Gradle PROXY APP build (prebuild / provision / proxy app rebuild)
-	 * (behaviour 5). Cancelling the awaiting coroutine alone leaves Gradle running to
-	 * completion, so this has to reach the tooling server's cancellation token.
+	 * Stop the out-of-process Gradle proxy app build (prebuild, provision or rebuild).
+	 *
+	 * Cancelling the awaiting coroutine alone leaves Gradle running to completion, so this has to
+	 * reach the tooling server's cancellation token.
 	 */
 	data object CancelProxyAppBuild : SessionEffect
 
 	/**
-	 * Ask the orchestrator for the background warm compile ([BuildRoute.WarmCompile]) the moment a
-	 * session goes live: pay the daemon's first-compile warm-up (kotlinc JIT + classpath
-	 * snapshot + IC-cache build - measured 12-14s on an 8GB device, 37-50s on 3.6GB even
-	 * for small Kotlin apps) in the provisioning tail instead of on the user's first save.
+	 * Start the background warm compile ([BuildRoute.WarmCompile]) as soon as a session goes live.
+	 *
+	 * Pays the daemon's first-compile warm-up (kotlinc JIT, classpath snapshot, IC-cache build) in
+	 * the provisioning tail instead of on the user's first save.
 	 */
 	data object StartWarmCompile : SessionEffect
 
@@ -322,15 +318,18 @@ sealed interface SessionEffect {
 	data object RunProxyAppRebuild : SessionEffect
 
 	/**
-	 * Refresh the live session's baseline after an external full build: either mark the whole
-	 * incremental baseline dirty (next build recompiles from current disk) or, when the
-	 * external build clobbered the proxy app build artifacts, escalate to a full proxy app rebuild with
-	 * [InvalidationReason.EXTERNAL_FULL_BUILD]. The shell decides which.
+	 * Recover the live session's baseline after an external full build.
+	 *
+	 * The shell chooses: mark the incremental baseline dirty so the next build recompiles from
+	 * current disk, or - if the external build clobbered the proxy app artifacts - escalate to a
+	 * full rebuild with [InvalidationReason.EXTERNAL_FULL_BUILD].
 	 */
 	data object RefreshBaseline : SessionEffect
 
+	/** Bring the compile daemon back up after it died. */
 	data object RespawnDaemon : SessionEffect
 
+	/** Show the user why provisioning failed. */
 	data class SurfaceProvisioningError(
 		val message: String,
 	) : SessionEffect
@@ -339,6 +338,7 @@ sealed interface SessionEffect {
 	data object TeardownSession : SessionEffect
 }
 
+/** The reducer's output: the state to adopt and the effects the shell must then run. */
 data class SessionTransition(
 	val state: QuickBuildSessionState,
 	val effects: List<SessionEffect> = emptyList(),

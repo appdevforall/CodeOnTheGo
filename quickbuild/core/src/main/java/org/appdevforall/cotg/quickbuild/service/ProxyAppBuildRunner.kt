@@ -11,32 +11,28 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Runs the Gradle proxy app builds (first provision + the full-rebuild fallback) and
- * reports what happened as a verdict. This is the orchestrate-vs-execute cut: the
- * runner never reads the live session, never touches the session epoch, and never
- * dispatches - the manager keeps the epoch guard, installs the returned session,
- * starts the watcher, re-surfaces the parked retry message, pokes the orchestrator,
- * and dispatches, because all of that is state ownership.
+ * Runs the Gradle proxy app builds - the first provision and the full-rebuild fallback -
+ * and returns what happened as a verdict.
  *
- * The [superseded] probe each call takes is the manager's epoch check handed in as a
- * closure: the runner asks "was I outlived?" at each point that can be raced, without
- * ever seeing the epoch itself.
- *
- * Call only on the session dispatcher; this class holds no scope of its own.
+ * Executes without owning state: it never reads the live session, touches the session
+ * epoch, or dispatches. The manager does all of that with the returned result. Each call
+ * takes a `superseded` closure, the manager's epoch check, which the runner probes at the
+ * points that can be raced without ever seeing the epoch. Call only on the session
+ * dispatcher; this class holds no scope of its own.
  */
 internal class ProxyAppBuildRunner(
 	private val provisioner: QuickBuildProvisioner,
 	private val daemonController: QuickBuildDaemonController,
 	private val connections: ProxyAppConnections,
-	/** App-private scratch trees (ADFA-4930): disk-space guard + per-project tree. */
+	/** App-private scratch trees: disk-space guard plus the per-project tree. */
 	private val scratch: QuickBuildScratch,
 	private val sessionFactory: LiveSessionFactory,
 	private val generationStoreFactory: (File) -> GenerationStore,
 	private val metrics: QuickBuildMetricsSink,
 ) {
-	/** What became of a [provision]; the manager dispatches, this class doesn't. */
+	/** What became of a [provision]. The manager dispatches on it; this class does not. */
 	sealed interface ProvisionResult {
-		/** The private volume is short before anything ran; nothing to undo. */
+		/** The private volume was short before anything ran, so there is nothing to undo. */
 		data class DiskSpaceShort(
 			val message: String,
 		) : ProvisionResult
@@ -49,10 +45,11 @@ internal class ProxyAppBuildRunner(
 		data object Superseded : ProvisionResult
 
 		/**
-		 * Outlived a session restart while the daemon start was in flight. The runner
-		 * already ended the connection session it began; the manager must stop the
-		 * zombie daemon (on a fresh coroutine - this one is already cancelled by the
-		 * teardown that superseded it) after bumping the daemon epoch.
+		 * Outlived a session restart while the daemon start was in flight.
+		 *
+		 * The runner already ended the connection session it began. The manager must bump
+		 * the daemon epoch and stop the zombie daemon on a fresh coroutine, since this one
+		 * is already cancelled by the teardown that superseded it.
 		 */
 		data object SupersededDuringDaemonStart : ProvisionResult
 
@@ -64,14 +61,15 @@ internal class ProxyAppBuildRunner(
 	}
 
 	/**
-	 * Runs the one-time provision: disk-space guard, the Gradle proxy app build +
-	 * install, the scratch tree, the deploy-channel session, the daemon start, and the
-	 * session assembly. [superseded] is probed after the Gradle build returns and
-	 * after the daemon start returns - the two points a "Restart session" can land.
+	 * Runs the one-time provision: disk-space guard, Gradle proxy app build and install,
+	 * scratch tree, deploy-channel session, daemon start, and session assembly.
+	 *
+	 * @param superseded probed after the Gradle build and after the daemon start, the two
+	 *   points a "Restart session" can land
 	 */
 	suspend fun provision(superseded: () -> Boolean): ProvisionResult {
-		// Disk-space guard (ADFA-4930): fail in seconds with a clear message rather than
-		// let a full private volume ENOSPC minutes into the proxy app build or mid-quick-build.
+		// Fail in seconds with a clear message rather than let a full private volume
+		// ENOSPC minutes into the proxy app build or mid-quick-build.
 		scratch.freeSpaceShortfall()?.let { message ->
 			return ProvisionResult.DiskSpaceShort(message)
 		}
@@ -87,9 +85,9 @@ internal class ProxyAppBuildRunner(
 			}
 
 		if (superseded()) {
-			// "Restart session" landed while the proxy app build ran; the user asked for a
-			// fresh start, so a late success must not resurrect (and a late failure must
-			// not surface) - see the zombie-session scenario in the manager's teardown KDoc.
+			// "Restart session" landed while the proxy app build ran. The user asked for
+			// a fresh start, so a late success must not resurrect and a late failure must
+			// not surface.
 			return ProvisionResult.Superseded
 		}
 
@@ -99,8 +97,8 @@ internal class ProxyAppBuildRunner(
 			}
 
 			is ProvisionOutcome.Success -> {
-				// Scratch tree on app-private storage (ADFA-4930): the executor and daemon
-				// dirs below live here, never under the FUSE-backed project root.
+				// Scratch tree on app-private storage: the executor and daemon dirs below
+				// live here, never under the FUSE-backed project root.
 				when (val prepared = scratch.prepare(outcome.layout.projectRoot)) {
 					is QuickBuildScratch.Preparation.Failed -> {
 						return ProvisionResult.Failed(prepared.message)
@@ -112,8 +110,7 @@ internal class ProxyAppBuildRunner(
 				}
 
 				// Error boundary over the whole session assembly: a throw past this point
-				// (the daemon start, the tracker construction, sessionFactory.create) would
-				// otherwise escape to a session scope with no CoroutineExceptionHandler and
+				// would escape to a session scope with no CoroutineExceptionHandler and
 				// crash CoGo with a uid session already registered.
 				var sessionBegun = false
 				var daemonStarted = false
@@ -163,9 +160,9 @@ internal class ProxyAppBuildRunner(
 		}
 	}
 
-	/** What became of a [rebuildProxyApp]; covers all five real rebuild outcomes. */
+	/** What became of a [rebuildProxyApp]. */
 	sealed interface ProxyAppRebuildResult {
-		/** The Gradle slot was taken; nothing ran. The manager decides park-vs-fail. */
+		/** The Gradle slot was taken so nothing ran. The manager decides park versus fail. */
 		data object BuildSlotBusy : ProxyAppRebuildResult
 
 		/** Outlived a session restart; the manager discards without touching the session. */
@@ -186,8 +183,9 @@ internal class ProxyAppBuildRunner(
 		) : ProxyAppRebuildResult
 
 		/**
-		 * Rebuilt, reinstalled, daemon restarted against the NEW setup's config. The
-		 * manager moves the live session's ProxyAppInfo-derived pieces to this baseline.
+		 * Rebuilt, reinstalled, and the daemon restarted against the new setup's config.
+		 * The manager moves the live session's ProxyAppInfo-derived pieces to this
+		 * baseline.
 		 */
 		data class Succeeded(
 			val proxyApp: ProxyAppInfo,
@@ -196,30 +194,25 @@ internal class ProxyAppBuildRunner(
 	}
 
 	/**
-	 * Runs the full-Gradle proxy app rebuild: daemon teardown, the Gradle build +
-	 * reinstall, the rebuild metric, and (on success) the daemon restart against the
-	 * new setup's config.
+	 * Runs the full-Gradle proxy app rebuild: daemon teardown, Gradle build and
+	 * reinstall, the rebuild metric, then on success the daemon restart against the new
+	 * setup's config.
 	 *
-	 * @param parkedRetry true when this rebuild retries an unconfirmed reinstall from
-	 *   the parked state; a [ProxyAppRebuildResult.BuildSlotBusy] then books NO metric
-	 *   (the build never ran - reporting it would charge a 0 ms failure against the
-	 *   success rate for work that never happened). A FIRST rebuild losing the slot IS
-	 *   surfaced to the user as a failed rebuild, so it books like one.
-	 * @param superseded the manager's epoch check, probed once the Gradle build (and
-	 *   its metric) is done.
+	 * @param parkedRetry true when this retries an unconfirmed reinstall from the parked
+	 *   state. A [ProxyAppRebuildResult.BuildSlotBusy] then books no metric, since the
+	 *   build never ran; a first rebuild losing the slot does surface to the user as a
+	 *   failed rebuild, so it books like one.
+	 * @param superseded the manager's epoch check, probed once the Gradle build and its
+	 *   metric are done
 	 */
 	suspend fun rebuildProxyApp(
 		parkedRetry: Boolean,
 		superseded: () -> Boolean,
 	): ProxyAppRebuildResult {
-		// Free the daemon's ~0.5GB for the Gradle build that is about to peak - on the
-		// 3-4GB target class the two must not coexist. Costless: the daemon's IC state
-		// is untrustworthy after a proxy app rebuild anyway (regenerated inputs it never saw),
-		// and it was going to be re-seeded from scratch regardless; on success it
-		// restarts below with the NEW proxy app info's config - a surviving daemon would keep
-		// serving the OLD configure's classpath, correct only via BTA's full-recompile
-		// fallback. The epoch bump discards a daemon respawn still in flight (a
-		// proxy app rebuild can start from Degraded); see [QuickBuildDaemonController].
+		// Free the daemon's memory for the Gradle build about to peak; on a 3-4GB device
+		// the two must not coexist. Nothing is lost: the daemon's incremental state is
+		// stale after a rebuild anyway, and on success it restarts below against the new
+		// config - a surviving daemon would keep serving the old configure's classpath.
 		daemonController.markIntentionalTransition()
 		daemonController.shutdown()
 
@@ -234,7 +227,7 @@ internal class ProxyAppBuildRunner(
 				ProxyAppRebuildOutcome.Failure(e.message ?: e.javaClass.name)
 			}
 		if (outcome !is ProxyAppRebuildOutcome.BuildSlotBusy || !parkedRetry) {
-			// Only a DEFERRED retry (slot busy while parked) skips metrics - see [parkedRetry].
+			// Only a deferred retry that lost the slot skips metrics; see [parkedRetry].
 			report {
 				metrics.onProxyAppRebuild(
 					isSuccess = outcome is ProxyAppRebuildOutcome.Success,
@@ -259,7 +252,7 @@ internal class ProxyAppBuildRunner(
 			}
 
 			is ProxyAppRebuildOutcome.Success -> {
-				// Restart the daemon torn down above, against the NEW proxy app info's config.
+				// Restart the daemon torn down above, against the new proxy app's config.
 				daemonController.markIntentionalTransition()
 				when (val started = daemonController.start(outcome.layout, outcome.proxyApp)) {
 					is DaemonReply.Ok -> {
@@ -277,9 +270,11 @@ internal class ProxyAppBuildRunner(
 	}
 
 	/**
-	 * True when the proxy app build artifacts the daemon builds against are still on
-	 * disk (the hand-back probe: an external clean that wiped build/ forces a
-	 * rebuild; anything less only needs a baseline refresh).
+	 * True when the proxy app build artifacts the daemon compiles against are still on
+	 * disk.
+	 *
+	 * Used on hand-back: an external clean that wiped `build/` forces a rebuild, while
+	 * anything less only needs a baseline refresh.
 	 */
 	fun proxyAppArtifactsIntact(proxyApp: ProxyAppInfo): Boolean =
 		proxyApp.classpath.all { it.exists() } &&

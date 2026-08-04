@@ -6,14 +6,14 @@ import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes
 
 /**
- * Clears ACC_FINAL from a class file, mirroring the proxy app build's ClassOpener
- * (gradle-plugin). The generated Proxy*Activity classes extend the user's activities,
- * and the dex verifier enforces superclass finality at load time - so every payload dex
- * must carry the recompiled user classes with finality stripped, exactly like the
- * gen-0 baseline the proxy app build produced. Kotlin classes are final by default, which
- * is why this runs on every hot recompile, not just once.
+ * Clears ACC_FINAL from a class file, matching the proxy app build's ClassOpener in the
+ * gradle-plugin. The generated Proxy*Activity classes extend the user's activities and the
+ * dex verifier enforces superclass finality at load time, so every payload dex must carry the
+ * recompiled user classes with finality stripped, exactly as the gen-0 baseline did. Kotlin
+ * classes are final by default, so this runs on every hot recompile rather than once.
  */
 object FinalStripper {
+	/** Returns [classBytes] rewritten with ACC_FINAL cleared on the class and its inner classes. */
 	fun strip(classBytes: ByteArray): ByteArray {
 		val reader = ClassReader(classBytes)
 		val writer = ClassWriter(0)

@@ -1,22 +1,15 @@
 package org.appdevforall.cotg.quickbuild.domain.annotations
 
 /**
- * Which annotations count as processor input for THIS project, derived from the
- * processors the proxy app build reported (`setup.json` `annotationProcessors`, the
- * `ksp` / `kapt` / `annotationProcessor` configurations).
+ * Which annotations count as processor input for this project, derived from the processors the
+ * proxy app build reported (setup.json `annotationProcessors`).
  *
- * Two modes, because getting this wrong in the permissive direction ships stale
- * generated code:
- * - **All processors recognized** - only annotations from those processors' own packages
- *   are input. A Room-only project can edit a Composable, a ViewModel or an Activity on
- *   the live reload path.
- * - **Any processor unrecognized** - ANY annotation is treated as input, except the
- *   language-level ones no processor can meaningfully consume ([LANGUAGE_INERT]). Files
- *   with no annotations at all still take the live reload path, which is most of a real app.
- *
- * An annotation whose name cannot be resolved to a package (no matching import, no
- * qualified use) resolves as input whenever its simple name is one a configured
- * processor is known to consume, and always resolves as input in unrecognized mode.
+ * Two modes, because being permissive here ships stale generated code:
+ * - **Every processor recognized** - only annotations from those processors' own packages are
+ *   input, so a Room-only project can edit a Composable or an Activity on the live reload path.
+ * - **Any processor unrecognized** - every annotation is input except the language-level ones
+ *   no processor can consume ([LANGUAGE_INERT]). Files with no annotations at all still take
+ *   the live reload path, which is most of a real app.
  */
 class AnnotationProcessorProfile private constructor(
 	/** Dependency coordinates as reported by the proxy app build; empty means no processors. */
@@ -42,10 +35,9 @@ class AnnotationProcessorProfile private constructor(
 			if (hasUnrecognized) return true
 			return packages.any { resolved.startsWith("$it.") }
 		}
-		// Unresolvable (star import, same-package annotation, missing import): the simple
-		// name is all we have. Known processor vocabulary wins; otherwise only the
-		// unrecognized-processor mode treats it as input - minus the stdlib names that are
-		// always in scope without an import and can never be processor input.
+		// Unresolvable (star import, same-package annotation, missing import): the simple name
+		// is all we have. Known processor vocabulary wins; otherwise only unrecognized mode
+		// treats it as input, minus the stdlib names that are in scope without an import.
 		if (use.simpleName in LANGUAGE_INERT_NAMES) return false
 		return use.simpleName in simpleNames || hasUnrecognized
 	}
@@ -79,8 +71,10 @@ class AnnotationProcessorProfile private constructor(
 		val NONE = AnnotationProcessorProfile(emptyList(), emptyList(), hasUnrecognized = false)
 
 		/**
-		 * @param coordinates processor dependency coordinates (`group:artifact:version`,
-		 *   or whatever the proxy app build could report - matching is substring-based so a
+		 * Builds the profile for a project's configured processors.
+		 *
+		 * @param coordinates processor dependency coordinates (`group:artifact:version`, or
+		 *   whatever the proxy app build could report - matching is substring-based, so a
 		 *   version-catalog alias like `libs.room.compiler` still identifies Room).
 		 */
 		fun of(coordinates: List<String>): AnnotationProcessorProfile {
@@ -192,10 +186,8 @@ class AnnotationProcessorProfile private constructor(
 			)
 
 		/**
-		 * Coordinate marker -> vocabulary. Substring match against whatever the proxy app
-		 * build reported, so both `androidx.room:room-compiler:2.6.1` and a catalog alias
-		 * (`libs.room.compiler`) identify Room. A coordinate matching nothing here flips
-		 * the profile into the conservative unrecognized mode.
+		 * Coordinate marker -> vocabulary, matched as a substring. A coordinate matching
+		 * nothing here flips the profile into the conservative unrecognized mode.
 		 */
 		private val KNOWN: List<Pair<String, ProcessorSpec>> =
 			listOf(

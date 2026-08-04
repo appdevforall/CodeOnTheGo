@@ -13,11 +13,11 @@ import com.itsaky.androidide.quickbuild.IQuickBuildHost;
 import com.itsaky.androidide.quickbuild.IQuickBuildTarget;
 
 /**
- * The proxy app's end of the deploy channel: binds to CoGo's Quick Build service (the LogSender bind pattern - explicit action + package, BIND_AUTO_CREATE), registers the {@link IQuickBuildTarget} callback, and carries the reload/crash reports back.
+ * The proxy app's end of the deploy channel to CoGo.
  *
- * Connection lifecycle: BIND_AUTO_CREATE keeps the binding alive across a CoGo service restart (the framework reconnects and {@link #onServiceConnected} re-runs connect with the CURRENT running generation, which is how a killed-and-relaunched proxy app catches up to the newest payload). Manual rebinds with backoff cover the cases the framework does not retry: a failed bind call, a dead binding, a null binding.
+ * Binds to CoGo's Quick Build service with an explicit action and package plus BIND_AUTO_CREATE, registers the {@link IQuickBuildTarget} callback, and carries reload and crash reports back. Every remote call is guarded, so losing CoGo degrades the proxy app rather than crashing it.
  *
- * Every remote call is guarded - losing CoGo must degrade the proxy app, never crash it.
+ * BIND_AUTO_CREATE keeps the binding alive across a CoGo service restart: the framework reconnects and {@link #onServiceConnected} re-runs connect with the current running generation, which is how a relaunched proxy app catches up to the newest payload. Manual rebinds with backoff cover what the framework does not retry - a failed bind call, a dead binding, a null binding.
  */
 final class QuickBuildClient implements ServiceConnection {
 
@@ -112,7 +112,7 @@ final class QuickBuildClient implements ServiceConnection {
 		host = null;
 	}
 
-	/** Starts (or re-verifies) the binding. Idempotent; safe to call per activity. */
+	/** Starts the binding to CoGo. Idempotent, so it is safe to call once per activity. */
 	synchronized void bind(Context context) {
 		if (bindRequested) {
 			return;
@@ -124,7 +124,7 @@ final class QuickBuildClient implements ServiceConnection {
 		}
 	}
 
-	/** Best-effort report; a lost host is logged, never fatal. */
+	/** Tells CoGo a generation crashed and was rolled back. Best-effort: a lost host is logged, never fatal. */
 	void reportCrash(long generation, String stackSummary) {
 		IQuickBuildHost current = host;
 		if (current == null) {
@@ -138,7 +138,7 @@ final class QuickBuildClient implements ServiceConnection {
 		}
 	}
 
-	/** Best-effort report; a lost host is logged, never fatal. */
+	/** Tells CoGo a generation reloaded and how long it took. Best-effort: a lost host is logged, never fatal. */
 	void reportReloaded(long generation, long reloadMillis) {
 		IQuickBuildHost current = host;
 		if (current == null) {
@@ -172,6 +172,7 @@ final class QuickBuildClient implements ServiceConnection {
 		}
 	}
 
+	/** Queues one rebind attempt, doubling the delay up to {@link #REBIND_MAX_DELAY_MS}. */
 	private synchronized void scheduleRebind() {
 		if (rebindScheduled) {
 			return;

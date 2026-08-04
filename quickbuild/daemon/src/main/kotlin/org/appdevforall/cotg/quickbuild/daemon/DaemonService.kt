@@ -15,15 +15,16 @@ import java.io.File
 import java.nio.file.Files
 
 /**
- * The stateful op implementations behind the protocol: `configure` builds the session
- * (classpath snapshots, tool wrappers), then `compile`/`dex`/`relink` reuse it - the
- * warm state is the whole point of a daemon. All failures become ok:false
- * responses; the process-level backstop lives in [RequestRouter].
+ * Implements the build ops, holding the warm state between them: `configure` builds the
+ * session (classpath snapshots, tool wrappers) and `compile`/`dex`/`relink` reuse it.
+ * Failures become ok:false responses; the backstop for anything that still throws is
+ * [RequestRouter].
  */
 class DaemonService(
 	private val log: (String) -> Unit = { System.err.println(it) },
 	private val toolchainDiscovery: ToolchainDiscovery = ToolchainDiscovery(),
 ) : DaemonHandlers {
+	/** The warm state one `configure` builds and every later op reuses. */
 	private class Session(
 		val compiler: IncrementalCompiler,
 		val dexTool: DexTool,
@@ -33,6 +34,10 @@ class DaemonService(
 
 	private var session: Session? = null
 
+	/**
+	 * Resolves the toolchain, then builds the session that the later ops reuse. Any missing
+	 * tool or input file fails here rather than mid-build.
+	 */
 	override fun configure(request: ConfigureRequest): DaemonResponse {
 		val aapt2 = request.aapt2?.let { ToolchainDiscovery.Resolution.Found(it) } ?: toolchainDiscovery.resolveAapt2()
 		val d8Jar = request.d8Jar?.let { ToolchainDiscovery.Resolution.Found(it) } ?: toolchainDiscovery.resolveD8Jar()
@@ -62,7 +67,7 @@ class DaemonService(
 		val startedAt = System.currentTimeMillis()
 		session =
 			Session(
-				// androidJar rides on the compile classpath too: the variant compile
+				// androidJar goes on the compile classpath too: the variant compile
 				// classpath from setup.json carries libraries but not the boot jar.
 				compiler =
 					IncrementalCompiler(
@@ -91,13 +96,11 @@ class DaemonService(
 	}
 
 	/**
-	 * The work directory's filesystem type (`ext4`, `f2fs`, `fuse`, ...). Reported once per
-	 * session because it dominates every per-file step: the same class tree costs 52x more
-	 * to rewrite on Android's FUSE-backed emulated storage than on the app's own filesystem
-	 * (ADFA-4128 deep-dive). A timing row without it is uninterpretable.
-	 *
-	 * Best-effort: any failure reports `unknown` rather than failing a configure over
-	 * telemetry.
+	 * The work directory's filesystem type (`ext4`, `f2fs`, `fuse`, ...), reported once per
+	 * session because it dominates every per-file step: rewriting the same class tree costs
+	 * 52x more on Android's FUSE-backed emulated storage than on the app's own filesystem
+	 * [measured on a56, ADFA-4128], so a timing row without it is hard to read. Any failure
+	 * reports `unknown` rather than failing a configure over telemetry.
 	 */
 	private fun scratchFilesystemType(outDir: File): String =
 		runCatching { Files.getFileStore(outDir.toPath()).type() }
@@ -105,6 +108,7 @@ class DaemonService(
 			?.takeIf { it.isNotBlank() }
 			?: "unknown"
 
+	/** Compiles the requested sources and reports the changed class outputs plus phase timings. */
 	override fun compile(request: CompileRequest): DaemonResponse {
 		val session = session ?: return notConfigured(request.id)
 		val startedAt = System.currentTimeMillis()
@@ -133,8 +137,8 @@ class DaemonService(
 							"durationMillis" to durationMillis,
 							"kotlinMillis" to result.kotlinMillis,
 							"javaMillis" to result.javaMillis,
-							// Relative .class paths this run emitted; the CoGo-side
-							// deploy policy intersects them with the component closure.
+							// Relative .class paths this run emitted; the CoGo deploy
+							// policy intersects them with the component closure.
 							"classesChanged" to result.changedClassFiles,
 						) + result.stats.toValues(),
 					diagnostics = result.warnings,
@@ -148,6 +152,7 @@ class DaemonService(
 		}
 	}
 
+	/** Dexes the requested class dirs into the session's `dex` output dir. */
 	override fun dex(request: DexRequest): DaemonResponse {
 		val session = session ?: return notConfigured(request.id)
 		val startedAt = System.currentTimeMillis()
@@ -177,6 +182,7 @@ class DaemonService(
 		}
 	}
 
+	/** Rebuilds the resource apk from the project's res dirs and the library resources. */
 	override fun relink(request: RelinkRequest): DaemonResponse {
 		val session = session ?: return notConfigured(request.id)
 		val startedAt = System.currentTimeMillis()
@@ -197,9 +203,9 @@ class DaemonService(
 					"relink ok: ${result.resourceApk} in ${durationMillis}ms " +
 						"(aapt2compile=${result.compileMillis}ms link=${result.linkMillis}ms)",
 				)
-				// Wire field name kept as "resourcesArsc" for protocol stability even
-				// though the payload is now the full relinked apk, not a bare table -
-				// see Aapt2Link's KDoc.
+				// The wire field stays "resourcesArsc" for protocol stability, though the
+				// payload is now the full relinked apk rather than a bare table - see
+				// Aapt2Link's KDoc.
 				DaemonResponse.ok(
 					request.id,
 					mapOf(

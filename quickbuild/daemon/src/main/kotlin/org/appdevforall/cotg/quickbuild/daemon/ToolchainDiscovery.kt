@@ -3,16 +3,15 @@ package org.appdevforall.cotg.quickbuild.daemon
 import java.io.File
 
 /**
- * Resolves aapt2 / d8.jar / android.jar from an installed Android SDK when a
- * `configure` request omits them (`DaemonProtocol.ConfigureRequest`), so an external
- * caller no longer needs to know CoGo's internal toolchain layout. [env] is injectable
- * ((String) -> String?) so discovery unit-tests without touching the real process
- * environment; it defaults to the real one for on-device use.
+ * Finds aapt2, d8.jar and android.jar under `$ANDROID_HOME` when a `configure` request omits
+ * them, so a caller need not know CoGo's toolchain layout. Highest build-tools and platform
+ * version wins. [env] is injectable so discovery unit-tests without the real process
+ * environment.
  */
 class ToolchainDiscovery(
 	private val env: (String) -> String? = System::getenv,
 ) {
-	/** One resolved toolchain path, or the reason it couldn't be found. */
+	/** One resolved toolchain path, or the reason it could not be found. */
 	sealed interface Resolution {
 		data class Found(
 			val path: String,
@@ -23,10 +22,13 @@ class ToolchainDiscovery(
 		) : Resolution
 	}
 
+	/** Locates the aapt2 binary in the newest build-tools version that has one. */
 	fun resolveAapt2(): Resolution = resolveFromBuildTools("aapt2", "build-tools/<version>/aapt2") { File(it, "aapt2") }
 
+	/** Locates d8.jar in the newest build-tools version that has one. */
 	fun resolveD8Jar(): Resolution = resolveFromBuildTools("d8Jar", "build-tools/<version>/lib/d8.jar") { File(it, "lib/d8.jar") }
 
+	/** Locates android.jar for the highest installed platform API level. */
 	fun resolveAndroidJar(): Resolution {
 		val androidHome = androidHomeValue() ?: return Resolution.Missing(unsetAndroidHome("androidJar"))
 		val platformsDir = File(androidHome, "platforms")
@@ -39,6 +41,7 @@ class ToolchainDiscovery(
 			?: Resolution.Missing(notFound("androidJar", androidHome, "platforms/android-<level>/android.jar"))
 	}
 
+	/** Picks the highest-versioned build-tools dir in which [toolFile] exists. */
 	private fun resolveFromBuildTools(
 		field: String,
 		relativeHint: String,

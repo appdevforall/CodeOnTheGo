@@ -1,28 +1,21 @@
 package org.appdevforall.cotg.quickbuild.domain
 
 /**
- * One generation's end-to-end reload timeline (ADFA-4128 e2e-timing spec): the four
- * device-local timestamps that bound the live-reload loop, from the file-watch trigger
- * to the new code being live in the running proxy app.
+ * One generation's end-to-end reload timeline: the four timestamps that bound the live-reload
+ * loop, from the file-watch trigger to new code running in the proxy app.
  *
- * All four stamps originate on the SAME device (the A56) off ONE monotonic clock
- * (`SystemClock.elapsedRealtime` on device; an injected fake in tests), so their
- * differences are meaningful without any cross-process clock sync - CoGo and the proxy
- * app read the same device-global boot clock. Absolute values are only comparable within
- * a single boot; consumers always read the deltas, never the raw stamps.
+ * All four stamps come off one monotonic device clock (`SystemClock.elapsedRealtime`; an
+ * injected fake in tests), so their differences are meaningful with no cross-process clock
+ * sync. Absolute values compare only within a single boot - read the deltas, never the stamps.
  *
- * Stamp definitions (documented here because the harness and the report both cite them):
- * - [trigger] (t0): the watcher event time for the change that started this build's
- *   batch - the earliest not-yet-built change the build coalesced (see
- *   [LiveReloadOrchestrator]). Captures the queue wait a slow in-flight build imposes.
- * - [compileDone] (t1): compile + dex finished (the deployable classes exist). For a
- *   route with no compile (resources/assets only) this equals [deploySent] - there is no
- *   compile phase, so [compileMillis] then measures relink + packaging instead.
- * - [deploySent] (t2): immediately before the payload is handed to the proxy app over the
- *   binder deploy channel.
- * - [reloadLive] (t3): the proxy app confirmed the new code is live - a hot-swap
- *   `reportReloaded` (fired from the recreated activity's onResume) or a verified restart
- *   reconnect at the deployed generation.
+ * @property trigger t0: the watcher event time of the earliest not-yet-built change this build
+ *   coalesced, so the wait behind a slow in-flight build is included.
+ * @property compileDone t1: compile and dex finished. Equals [deploySent] on a route that runs
+ *   no compile, where [compileMillis] then measures relink and packaging instead.
+ * @property deploySent t2: immediately before the payload goes over the binder deploy channel.
+ * @property reloadLive t3: the proxy app confirmed the new code is live - a hot-swap
+ *   `reportReloaded` from the recreated activity's onResume, or a verified restart reconnect
+ *   at the deployed generation.
  */
 data class E2eTimeline(
 	val generation: Long,
@@ -31,39 +24,40 @@ data class E2eTimeline(
 	val deploySent: Long,
 	val reloadLive: Long,
 	/**
-	 * Per-tool step durations inside [compileMillis]/[stageMillis], as the daemon reported
-	 * them (see the `:quickbuild:daemon` tool wrappers). Null when no step reported a
-	 * duration (a pre-timing daemon, or a route that ran no tools); each field is null when
-	 * that step did not run. Deliberately NOT part of [format]/[parse] - the five-stamp log
-	 * line is a frozen harness contract; step timings travel only through the structured
-	 * metrics sinks (the bench `reload_timeline` event).
+	 * Per-tool step durations as the daemon reported them; null when no step reported one (a
+	 * pre-timing daemon, or a route that ran no tools).
+	 *
+	 * Deliberately not part of [format]/[parse]: the five-stamp log line is a frozen harness
+	 * contract, so step timings travel only through the structured metrics sinks.
 	 */
 	val steps: StepTimings? = null,
 	/**
-	 * The host-side spans that PARTITION the build half of the loop. Null when unmeasured.
-	 * Distinct from [steps], which nests inside them - see [accountedMillis].
+	 * The host-side spans that partition the build half of the loop. Null when unmeasured.
+	 * Distinct from [steps], which nest inside them - see [accountedMillis].
 	 */
 	val spans: HostSpans? = null,
 	/** How much work this build did, for reading a slow row. Null when unreported. */
 	val counts: BuildCounts? = null,
 	/**
-	 * Filesystem the daemon's scratch tree lives on (`ext4`, `f2fs`, `fuse`, ...). Null
-	 * when the daemon did not report one. Session-constant, carried per row because it is
-	 * the strongest single predictor of every duration here: the daemon's per-file work
-	 * costs ~52x more on FUSE-backed emulated storage (ADFA-4128 deep-dive).
+	 * Filesystem the daemon's scratch tree lives on (`ext4`, `f2fs`, `fuse`, ...); null when
+	 * the daemon did not report one.
+	 *
+	 * Session-constant, but carried per row because it predicts every duration here: the
+	 * daemon's per-file work costs about 52x more on FUSE-backed emulated storage
+	 * (ADFA-4128 deep-dive).
 	 */
 	val scratchFsType: String? = null,
 ) {
 	/**
-	 * One build's per-tool durations; every field nullable = "that step did not run/report".
+	 * One build's per-tool durations; a null field means that step did not run or report.
 	 *
-	 * These NEST inside [HostSpans] - kotlin/java/preSnap/postSnap/javaAbiSnap inside
-	 * [HostSpans.compileRpcMillis], strip/d8 inside [HostSpans.dexRpcMillis], the aapt2
-	 * pair inside [HostSpans.relinkRpcMillis]. Never add them to an accounting sum; that
-	 * is what [accountedMillis] is for.
+	 * These nest inside [HostSpans] - kotlin/java/preSnap/postSnap/javaAbiSnap inside
+	 * [HostSpans.compileRpcMillis], strip/d8 inside [HostSpans.dexRpcMillis], the aapt2 pair
+	 * inside [HostSpans.relinkRpcMillis] - so never add them to an accounting sum. That is
+	 * what [accountedMillis] is for.
 	 *
 	 * @property preSnapMillis output-tree walk before the compile.
-	 * @property postSnapMillis output-tree walk after it (yields the changed-class set).
+	 * @property postSnapMillis output-tree walk after it, which yields the changed-class set.
 	 * @property javaAbiSnapMillis re-parse of every `.java` source's declarations.
 	 */
 	data class StepTimings(
@@ -94,9 +88,10 @@ data class E2eTimeline(
 
 	/**
 	 * The host-observed spans of one build, measured around each step the executor drives.
-	 * They are mutually exclusive and all live inside `[trigger, deploySent]`, so together
-	 * with [reloadMillis] they account for [totalMillis] - which is what makes
-	 * [unaccountedMillis] meaningful.
+	 *
+	 * They are mutually exclusive and all sit inside `[trigger, deploySent]`, so with
+	 * [reloadMillis] they account for [totalMillis] - which is what makes [unaccountedMillis]
+	 * meaningful.
 	 *
 	 * @property scanMillis enumerating the project's sources.
 	 * @property compileRpcMillis the whole `compile` round trip, daemon time included.
@@ -131,9 +126,9 @@ data class E2eTimeline(
 	 * @property changedClasses `.class` files this build emitted or rewrote.
 	 * @property classFiles classes the dex step stripped and dexed - the whole tree.
 	 * @property classBytes their total size.
-	 * @property compileOrdinal 1-based compile index within the daemon session; `1` is the
-	 *   session's cold build (it seeds the incremental caches). Reading a cold build as a
-	 *   warm edit is what made a 53 s first build look like a per-edit cost.
+	 * @property compileOrdinal 1-based compile index within the daemon session. `1` is the
+	 *   session's cold build, which seeds the incremental caches, so it must not be read as a
+	 *   warm edit.
 	 */
 	data class BuildCounts(
 		val allSources: Int? = null,
@@ -163,32 +158,22 @@ data class E2eTimeline(
 	val totalMillis: Long get() = reloadLive - trigger
 
 	/**
-	 * How much of [totalMillis] a named span actually measured: the host spans (which
-	 * partition `[trigger, deploySent]`) plus [reloadMillis] (which covers the rest).
+	 * How much of [totalMillis] a named span actually measured: the host spans, which
+	 * partition `[trigger, deploySent]`, plus [reloadMillis] for the rest.
 	 *
-	 * Only [spans] and [reloadMillis] appear here. [steps] are daemon-internal and nest
-	 * inside the host spans, so adding them would double-count.
+	 * [steps] are excluded on purpose - they nest inside the host spans, so counting them
+	 * would double-count.
 	 */
 	val accountedMillis: Long get() = (spans?.totalMillis ?: 0) + reloadMillis
 
 	/**
-	 * The part of the loop no span measured - THE field this event exists for.
+	 * The part of the loop no span measured - the field this event exists for.
 	 *
-	 * The tool timings alone cover only about half a warm edit. The other half - source
-	 * scan, ABI snapshot, output-tree walks, the deploy-policy class-header pass - has no
-	 * span of its own, and reporting it keeps it visible: read only the measured spans and
-	 * javac looks like the bottleneck, when javac is 19-27% of a warm edit
-	 * `[measured on a56]`.
-	 *
-	 * A near-zero residual is the healthy state: on the deep-dive's 13 device rows the
-	 * measured spans reconciled to the total within 5 ms. A residual that GROWS is the
-	 * signal - it means a step is running that nothing times, and the next reader sees the
-	 * gap instead of silently misattributing it to whatever is measured next door.
-	 *
-	 * Known contributors even in the healthy case, all small: changed-asset packaging, and
-	 * the payload bookkeeping between the last measured span and the deploy hand-off.
-	 *
-	 * Zero when [spans] is null (nothing was measured, so nothing is claimed).
+	 * Reporting it keeps unmeasured work visible: the per-tool timings alone cover only about
+	 * half a warm edit `[measured on a56]`, with source scan, ABI snapshot, output-tree walks
+	 * and the deploy-policy class-header pass having no span of their own. A near-zero
+	 * residual is the healthy state; one that grows means a step is running that nothing
+	 * times. Zero when [spans] is null, since nothing was measured.
 	 */
 	val unaccountedMillis: Long get() = if (spans == null) 0 else totalMillis - accountedMillis
 

@@ -9,13 +9,13 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 /**
- * Process-wide owner of the CURRENT payload generation and its classloader.
+ * Owns the current payload generation and its classloader, process-wide.
  *
- * Why a singleton: {@link QuickBuildAppComponentFactory} (instantiated by the framework) and the deploy path both need the same loader; there is exactly one live generation per process, so one volatile snapshot is the natural shape. Generation + loader travel together in an immutable {@link Payload} swapped atomically - a reader can never observe generation N with generation N-1's classes.
+ * A singleton because {@link QuickBuildAppComponentFactory}, which the framework instantiates, and the deploy path need the same loader, and there is exactly one live generation per process. Generation and loader travel together in an immutable {@link Payload} swapped atomically, so a reader can never see generation N with generation N-1's classes.
  *
- * The dex is read fully into a ByteBuffer and loaded through {@link InMemoryDexClassLoader} with the APK classloader as parent: framework/androidx resolve from the APK, user classes exist ONLY in the payload, so parent-first delegation cannot serve a stale user class.
+ * The dex loads through {@link InMemoryDexClassLoader} with the APK classloader as parent: framework and androidx classes resolve from the APK while user classes exist only in the payload, so parent-first delegation cannot serve a stale user class.
  *
- * Boot: {@link #ensureBaseline} loads the baked gen-0 baseline, then swaps in the NEWEST persisted generation ({@link PayloadPersistence}, component-proxying design section 3). Without that, a killed-and-relaunched process would pin its providers and custom Application (instantiated before any binder catch-up, never re-instantiated) to baseline code - silently stale. The persisted store is fingerprint-keyed to the baseline dex, so a rebaseline/reinstall discards it.
+ * At boot {@link #ensureBaseline} loads the baked gen-0 dex, then swaps in the newest persisted generation ({@link PayloadPersistence}); otherwise a relaunched process would pin its providers and custom Application to baseline code.
  */
 final class PayloadStore {
 
@@ -30,7 +30,11 @@ final class PayloadStore {
 	static final long BASELINE_GENERATION = 0L;
 
 	/**
-	 * The app's files dir derived WITHOUT a Context (none exists when the factory first runs): package name from /proc/self/cmdline - the default process name IS the applicationId, and the manifest transformer rejects android:process - and the user id from the uid. Null when the derivation fails; {@link #attachPersistence} heals that later.
+	 * Derives the persist dir without a Context, because none exists when the factory first runs.
+	 *
+	 * Takes the package name from /proc/self/cmdline - the default process name is the applicationId, and the manifest transformer rejects android:process - and the user id from the uid.
+	 *
+	 * @return null when the derivation fails; {@link #attachPersistence} heals that later.
 	 */
 	private static File defaultPersistDir() {
 		InputStream in = null;
@@ -75,7 +79,9 @@ final class PayloadStore {
 	}
 
 	/**
-	 * Applies a new payload atomically. Accepted only when {@code generation} is strictly newer than the running one; a null {@code dex} (resources/assets-only deploy) keeps the current classes and advances the generation.
+	 * Swaps in a new payload atomically, if it is strictly newer than the running one.
+	 *
+	 * A null {@code dex}, meaning a resources or assets-only deploy, keeps the current classes and only advances the generation.
 	 *
 	 * @return true when the payload was accepted and is now current.
 	 */
@@ -98,7 +104,9 @@ final class PayloadStore {
 	}
 
 	/**
-	 * Late-binds the persistence dir from a real Context (first activity). Heals a boot whose pre-Context dir derivation failed; a no-op when boot already resolved it.
+	 * Late-binds the persistence dir from a real Context, at the first activity.
+	 *
+	 * Heals a boot whose pre-Context dir derivation failed; a no-op when boot already resolved it.
 	 */
 	synchronized void attachPersistence(Context context) {
 		if (persistence != null || baselineFingerprint == null) {
@@ -123,7 +131,9 @@ final class PayloadStore {
 	}
 
 	/**
-	 * Loads the baseline (generation 0) from the APK, once, then swaps in the newest persisted generation when one matches this baseline (see the class doc). Reads the asset through the classloader instead of a Context because the factory runs before any Context exists. A missing baseline leaves the store inert (every lookup falls back to the default classloader) - the runtime must never crash an app it was wrongly injected into.
+	 * Loads the gen-0 baseline from the APK once, then swaps in a newer persisted generation if one matches it.
+	 *
+	 * Reads the asset through the classloader rather than a Context, because the factory runs before any Context exists. A missing baseline leaves the store inert, with every lookup falling back to the default classloader, so the runtime never crashes an app it was wrongly injected into.
 	 */
 	synchronized void ensureBaseline(ClassLoader apkLoader) {
 		if (baselineAttempted || apkLoader == null) {
@@ -170,7 +180,9 @@ final class PayloadStore {
 	}
 
 	/**
-	 * Rolls back to a {@link #snapshot}. Keeps the never-silently-stale invariant honest: a failed reload leaves the app VISIBLY on the old generation (the host is told via reportCrash), instead of claiming a generation whose classes never rendered.
+	 * Rolls back to a {@link #snapshot} after a failed reload.
+	 *
+	 * The app then visibly runs the old generation, and the host hears about it via reportCrash, rather than claiming a generation whose classes never rendered.
 	 */
 	synchronized void restore(Payload payload) {
 		current = payload;
@@ -189,7 +201,9 @@ final class PayloadStore {
 	}
 
 	/**
-	 * Boot half of the persisted-generation contract: if a persisted payload matches this baseline, adopt its generation + classes NOW - before any provider/Application instantiates. Resource payloads cannot apply without a Context, so they are stashed for {@link #takePendingBootResources}. Best-effort: any failure keeps the gen-0 baseline (always safe for a fresh install).
+	 * Adopts a matching persisted payload's generation and classes now, before any provider or Application instantiates.
+	 *
+	 * Resource payloads cannot apply without a Context, so they are stashed for {@link #takePendingBootResources}. Any failure keeps the gen-0 baseline, which is always safe.
 	 */
 	private void loadPersisted(ClassLoader apkLoader) {
 		try {

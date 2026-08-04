@@ -5,16 +5,19 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The user-class-to-proxy-class map baked into the proxy app APK as {@code assets/quickbuild/components.json} by the proxy app build - a JSON object of {@code "com.example.MainActivity": "<proxy activity class>"} entries.
+ * Maps a user component class to the proxy class the manifest declares for it.
  *
- * The map exists because the manifest needs STABLE component names (the proxies) while the user's classes stay swappable inside the payload dex: launching the entry activity by its user-class name would bypass the manifest, so the runtime translates through this map first. Plain Java so lookup and parsing are JVM-unit-testable.
+ * Baked into the proxy app APK as {@code assets/quickbuild/components.json}, a JSON object of {@code "com.example.MainActivity": "<proxy activity class>"}. The manifest needs stable component names while the user's classes stay swappable inside the payload dex, so the runtime translates through this map before launching anything.
  */
 final class ComponentMap {
 
 	static final ComponentMap EMPTY = new ComponentMap(Collections.<String, String> emptyMap());
 
 	/**
-	 * Parses the component map; non-string values are dropped rather than rejected so a schema extension never bricks an installed proxy app. Malformed JSON throws {@link IllegalArgumentException}.
+	 * Parses the component map, dropping non-string values so a schema extension never bricks an installed proxy app.
+	 *
+	 * @throws IllegalArgumentException
+	 *             on malformed JSON.
 	 */
 	static ComponentMap parse(String json) {
 		Map<String, Object> obj = MiniJson.parseObject(json);

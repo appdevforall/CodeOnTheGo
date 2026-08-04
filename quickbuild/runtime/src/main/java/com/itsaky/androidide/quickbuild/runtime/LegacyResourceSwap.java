@@ -9,20 +9,18 @@ import java.io.InputStream;
 import java.lang.reflect.Method;
 
 /**
- * The API 28/29 degraded resource path. ResourcesLoader does not exist below API 30, so a resource payload is applied by:
+ * Applies a resource payload on API 28/29, where ResourcesLoader does not exist.
  *
- * 1. persisting the relinked resource apk to a file ({@link #writeResourceApk}; the framework can only mount resources from an apk/zip path - the received bytes are ALREADY a valid apk/zip, aapt2 link's own output with resources.arsc stored uncompressed as the framework requires for mmap, so this is a plain byte copy, no re-wrapping); 2. appending that file to the live AssetManager via the hidden addAssetPath(String) ({@link #addAssetPath}; greylisted-but-callable on 28/29 - never used on 30+, where the ResourcesLoader path applies instead); 3. flushing the Resources caches ({@link #flushCaches}) so the activity recreate that every deploy already performs resolves values from the new table (same package id, same resource ids - the last-added package wins the lookup).
+ * Three steps in order: persist the relinked apk ({@link #writeResourceApk}), append it to the live AssetManager through the hidden addAssetPath ({@link #addAssetPath}), then flush the Resources caches ({@link #flushCaches}) so the activity recreate every deploy performs resolves against the new table. The new package shares the old package id and resource ids; the last-added package wins the lookup.
  *
- * Degraded relative to the loader path, by design: added paths cannot be removed, so each generation appends one more package (bounded by session length, reset by process restart), and a Resources object whose AssetManager is not shared with the application's only picks the table up when {@link ResourceStore#attachTo} reaches it.
- *
- * The payload is the full relinked apk from {@code Aapt2Link} (already a proper apk/zip), so the write is a straight byte copy. It must NOT be re-wrapped: a bare arsc in a synthetic single-entry zip leaves file-backed resources (layouts, drawable XMLs) with no zip entry to resolve against, and they crash on first access.
- *
- * Plain java.io and JVM-unit-tested; the reflective calls can only be exercised on a real 28/29 device.
+ * Degraded relative to the API 30+ loader path, by design: added paths cannot be removed, so each generation appends one more package until the process restarts, and a Resources object with its own AssetManager only picks the table up when {@link ResourceStore#attachTo} reaches it.
  */
 final class LegacyResourceSwap {
 
 	/**
-	 * Appends {@code path} to {@code assets} via the hidden AssetManager.addAssetPath. Idempotent (the framework returns the existing cookie for an already-added path). Throws on any failure so the deploy path can roll the payload back - a resource payload must never be silently dropped (never-stale invariant).
+	 * Mounts the resource apk at {@code path} on the live AssetManager, via the hidden addAssetPath.
+	 *
+	 * Idempotent: the framework returns the existing cookie for an already-added path. Throws on any failure so the deploy path can roll the payload back, because a resource payload must never be silently dropped.
 	 */
 	static void addAssetPath(AssetManager assets, String path) throws IOException {
 		try {
@@ -40,7 +38,9 @@ final class LegacyResourceSwap {
 	}
 
 	/**
-	 * Drops the ResourcesImpl caches (drawables, color state lists, cached typed values) so lookups after an addAssetPath cannot serve values resolved from the old table. updateConfiguration with the CURRENT config is the one public way to force that.
+	 * Drops the cached drawables, color state lists and typed values so lookups cannot serve values from the old table.
+	 *
+	 * updateConfiguration with the current config is the only public way to force that.
 	 */
 	@SuppressWarnings("deprecation")
 	static void flushCaches(Resources resources) {
@@ -48,10 +48,9 @@ final class LegacyResourceSwap {
 	}
 
 	/**
-	 * Writes {@code apk} (the relinked resource apk stream from {@code Aapt2Link} - resources.arsc plus every compiled resource file) into {@code
+	 * Copies the relinked resource apk stream to a gen-numbered zip under {@code dir}, the path the framework mounts.
 	 *
-	<dir>
-	 * /gen-<generation>.zip}. The stream is already a valid apk/zip, so this is a plain byte copy - no re-wrapping (see class doc). The caller owns (and closes) the stream.
+	 * The stream from {@code Aapt2Link} is already a valid apk/zip, so this is a plain byte copy. Do not re-wrap it: a bare arsc in a synthetic single-entry zip leaves file-backed resources such as layouts and drawable XMLs with no zip entry to resolve against, and they crash on first access. The caller owns and closes the stream.
 	 */
 	static File writeResourceApk(InputStream apk, File dir, long generation) throws IOException {
 		byte[] bytes = Streams.readFully(apk);

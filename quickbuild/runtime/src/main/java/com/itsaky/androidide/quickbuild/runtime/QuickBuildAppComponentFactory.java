@@ -9,17 +9,15 @@ import android.content.ContentProvider;
 import android.content.Intent;
 
 /**
- * Routes component instantiation through the CURRENT payload generation's classloader - the mechanism that makes hot reload real: after a payload swap, a recreated activity is instantiated from the NEW loader, and because user classes exist only in the payload dex (never in the APK), the parent-first chain cannot serve a stale copy.
+ * Instantiates every app component through the current payload generation's classloader, which is what makes hot reload work.
  *
- * Services, receivers and providers route the same way (all hooks are API 28+, our floor). Receivers are re-instantiated per delivery so routing alone keeps them current; services, providers and the Application swap via process restart driven by CoGo (component-proxying design, section 4) - the factory's job is only to make every instantiation, including the post-restart one, use the current loader.
+ * After a payload swap a recreated activity comes from the new loader, and since user classes exist only in the payload dex, the parent-first chain cannot serve a stale copy. Services, receivers and providers route the same way; receivers are re-instantiated per delivery so routing alone keeps them current, while services, providers and the Application swap via a process restart that CoGo drives.
  *
- * Declared as {@code android:appComponentFactory} in the runtime's manifest (merged into the generated proxy app; framework instantiates it on API 28+). Deliberately androidx-free - this AAR is injected into arbitrary user apps and must not drag a dependency in.
- *
- * Everything falls back to the framework default path on any failure: an app this factory is injected into must at worst behave like a normal app, never crash because of us.
+ * Declared as {@code android:appComponentFactory} in the runtime manifest, which merges into the generated proxy app; the framework instantiates it on API 28+, this module's floor. Androidx-free on purpose - the AAR is injected into arbitrary user apps and must not drag a dependency in. Every override falls back to the framework default on failure, so an app we are injected into behaves at worst like a normal app.
  */
 public class QuickBuildAppComponentFactory extends AppComponentFactory {
 
-	/** The current payload loader when it can serve {@code className}, else the default; decision in {@link LoaderRouter} (JVM-unit-tested there). */
+	/** Picks the loader for {@code className}; the decision itself lives in {@link LoaderRouter}, where it is unit-tested. */
 	private static ClassLoader pickLoader(ClassLoader defaultLoader, String className) {
 		return LoaderRouter.pick(defaultLoader, PayloadStore.INSTANCE.classLoader(), className);
 	}
@@ -37,6 +35,7 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 		}
 	}
 
+	/** Routes the Application through the payload loader and installs the runtime, the earliest per-process hook. */
 	@Override
 	public Application instantiateApplication(ClassLoader cl, String className)
 			throws InstantiationException, IllegalAccessException, ClassNotFoundException {
@@ -48,8 +47,8 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 			RuntimeLog.e("payload application instantiation failed; using default loader", error);
 			application = super.instantiateApplication(cl, className);
 		}
-		// Earliest per-process hook; the runtime defers Context work to the first
-		// activity because the Application has no base context yet.
+		// The runtime defers Context work to the first activity: the Application has
+		// no base context yet.
 		QuickBuildRuntime.install(application);
 		return application;
 	}

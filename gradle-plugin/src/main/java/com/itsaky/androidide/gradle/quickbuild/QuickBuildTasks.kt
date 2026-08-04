@@ -37,13 +37,12 @@ import javax.tools.JavaFileObject
 import javax.tools.ToolProvider
 
 /**
- * Rewrites the merged manifest for the proxy app and generates the artifacts derived from
- * it: proxy component sources (activities, services, receivers, providers), the
- * proxy-to-user component map (an APK asset), and the manifest-info intermediate consumed
- * by [QuickBuildProxyAppReportTask].
+ * Rewrites the merged manifest for the proxy app and generates everything derived from it: the
+ * proxy component sources, the proxy-to-user component map asset, and the manifest-info
+ * intermediate [QuickBuildProxyAppReportTask] reads.
  *
- * One task for all four outputs so the proxy numbering in the manifest and in the sources
- * can never drift apart.
+ * One task for all four outputs so the proxy numbering in the manifest and in the sources cannot
+ * drift apart.
  */
 abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 	@get:InputFile
@@ -58,18 +57,14 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 	abstract val appComponentFactory: Property<String>
 
 	/**
-	 * The variant's DEPENDENCY class artifacts (each AAR's classes.jar, each jar dependency),
-	 * searched by [ComponentProxiabilityResolver] to skip a library component that cannot be
-	 * proxied - a `final` one from ANY library, not just a hardcoded name.
+	 * The variant's dependency class artifacts, searched by [ComponentProxiabilityResolver] to
+	 * skip a library component that cannot be proxied.
 	 *
-	 * Dependency artifacts specifically, NOT `variant.compileClasspath`: this task PRODUCES
-	 * the merged manifest, which AGP processes before compilation, and `compileClasspath`
-	 * carries the project's own compile outputs (its R jar among them) - wiring that here is
-	 * a genuine circular task dependency. Resolving external dependencies needs nothing this
-	 * project has compiled, so it cycles nowhere. The cost of the narrower view is that a
-	 * class absent from it is ambiguous - project-owned, or a runtime-only library component
-	 * - which is why [ComponentProxiabilityResolver] treats absence as proxiable and names
-	 * the one known runtime-only component instead of inferring it.
+	 * Dependency artifacts, not `variant.compileClasspath`: this task produces the merged
+	 * manifest, which AGP processes before compilation, and `compileClasspath` carries the
+	 * project's own compile outputs - wiring that here is a circular task dependency. The cost is
+	 * that a class absent from this narrower view could be either project-owned or runtime-only,
+	 * which is why the resolver treats absence as proxiable.
 	 */
 	@get:Classpath
 	abstract val dependencyClasspath: ConfigurableFileCollection
@@ -88,6 +83,7 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 	@get:OutputFile
 	abstract val manifestInfoFile: RegularFileProperty
 
+	/** Transforms the manifest, then writes the proxy sources, components asset and manifest info. */
 	@TaskAction
 	fun generate() {
 		val appId = applicationId.get()
@@ -141,8 +137,8 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 			logger.warn("Quick Build: no LAUNCHER activity found in the merged manifest")
 		}
 		result.unproxied.forEach { skipped ->
-			// Lifecycle, not info: a component silently losing its proxy is exactly the kind
-			// of thing someone debugging a stale-code report needs to see without re-running.
+			// Lifecycle, not info: someone debugging a stale-code report needs to see a
+			// component losing its proxy without re-running the build.
 			logger.lifecycle(
 				"Quick Build: '{}' keeps its real manifest name, unproxied ({})",
 				skipped.userClass,
@@ -158,10 +154,9 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 }
 
 /**
- * Diverts ALL project-scope classes out of the APK: the classes pipeline receives an
- * empty jar (so the installed proxy app carries no user code), while the real classes are
- * copied to [payloadClasses] for [QuickBuildPayloadDexTask] and, later, the on-device
- * compile daemon's baseline.
+ * Diverts every project-scope class out of the APK, so the installed proxy app carries no user
+ * code: the classes pipeline gets an all-but-empty jar, and the real classes are copied to
+ * [payloadClasses] for [QuickBuildPayloadDexTask] and the on-device compile daemon's baseline.
  */
 abstract class QuickBuildPayloadTransformTask : DefaultTask() {
 	@get:InputFiles
@@ -171,14 +166,13 @@ abstract class QuickBuildPayloadTransformTask : DefaultTask() {
 	abstract val allDirectories: ListProperty<Directory>
 
 	/**
-	 * The jar handed back to the APK's classes pipeline. Carries the resource R classes
-	 * (`R`, `R$*`) so they stay in the base APK: they are stable across hot edits and are
-	 * referenced by base-APK library code (e.g. the injected LogSender service reads its
-	 * own `R$string`), which loads on the APK classloader and can't see the payload dex.
-	 * The R classes are ALSO diverted into the payload below - harmless duplication, since
-	 * the payload's InMemoryDexClassLoader has the APK loader as parent, so user code
-	 * resolves R from the APK and the payload copy is only there for the daemon's compile
-	 * classpath.
+	 * The jar handed back to the APK's classes pipeline, carrying only the resource R classes.
+	 *
+	 * R stays in the base APK because base-APK library code references it (the injected LogSender
+	 * service reads its own `R$string`) and that code loads on the APK classloader, which cannot
+	 * see the payload dex. R is also diverted into the payload, for the daemon's compile
+	 * classpath; the duplication is harmless because the payload loader's parent is the APK
+	 * loader, so user code resolves R from the APK.
 	 */
 	@get:OutputFile
 	abstract val outputJar: RegularFileProperty
@@ -187,6 +181,7 @@ abstract class QuickBuildPayloadTransformTask : DefaultTask() {
 	@get:OutputDirectory
 	abstract val payloadClasses: DirectoryProperty
 
+	/** Copies the inputs into [payloadClasses], then writes the R-only jar for the APK. */
 	@TaskAction
 	fun divert() {
 		val root = payloadClasses.get().asFile.cleanDirectory()
@@ -200,10 +195,7 @@ abstract class QuickBuildPayloadTransformTask : DefaultTask() {
 		writeRetainedApkJar()
 	}
 
-	/**
-	 * A `.class` entry is an R resource class when its file name is `R.class` or matches
-	 * `R$<name>.class` (the nested `R.string`, `R.layout`, ... holders).
-	 */
+	/** True for `R.class` and the nested `R$string`, `R$layout`, ... holders. */
 	private fun isResourceClass(entryName: String): Boolean {
 		val name = entryName.substringAfterLast('/')
 		return name == "R.class" || (name.startsWith("R$") && name.endsWith(".class"))
@@ -243,18 +235,16 @@ abstract class QuickBuildPayloadTransformTask : DefaultTask() {
 }
 
 /**
- * Builds the baseline payload dex (assets/quickbuild/gen-0.dex) from the diverted project
- * classes plus the generated proxies:
+ * Builds the baseline payload dex (assets/quickbuild/gen-0.dex) from the diverted project classes
+ * plus the generated proxies:
  *
- * 1. strips ACC_FINAL from the diverted classes (Kotlin classes are final by default; the
- *    proxies must extend them, and the dex verifier enforces finality at runtime too);
- * 2. compiles the proxy sources against the opened classes + the variant compile classpath
- *    (a plain in-process javac - the variant's own javac would reject final superclasses,
- *    which is why the proxies are not registered as variant sources);
- * 3. runs D8 over opened classes + proxies + diverted jars into a single classes.dex.
+ * 1. strips ACC_FINAL from the diverted classes, so the proxies can extend them;
+ * 2. compiles the proxy sources with an in-process javac - the variant's own javac would reject
+ *    the still-final superclasses, which is why the proxies are not variant sources;
+ * 3. runs D8 over opened classes, proxies and diverted jars into a single classes.dex.
  *
- * The compiled proxies are also persisted to [proxyClasses] so the on-device daemon can
- * reuse them in every later payload generation.
+ * The compiled proxies also land in [proxyClasses], for the on-device daemon to reuse in every
+ * later payload.
  */
 abstract class QuickBuildPayloadDexTask : DefaultTask() {
 	@get:InputDirectory
@@ -266,9 +256,8 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 	abstract val proxySources: DirectoryProperty
 
 	/**
-	 * The manifest-info intermediate [QuickBuildGenerateSourcesTask] also writes - read here
-	 * only to map a proxy source file back to its target userClass, for
-	 * [checkProxiability]'s pre-compile diagnostic.
+	 * [QuickBuildGenerateSourcesTask]'s manifest-info intermediate, read here only to map a proxy
+	 * source file back to its target userClass for [checkProxiability].
 	 */
 	@get:InputFile
 	abstract val manifestInfoFile: RegularFileProperty
@@ -280,9 +269,9 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 	abstract val bootClasspath: ConfigurableFileCollection
 
 	/**
-	 * The quick-build runtime AAR. Its classes.jar goes on the proxy compile classpath:
-	 * generated proxies call runtime API (QuickBuildGestures), which the variant compile
-	 * classpath never carries - the AAR is injected into the RUNTIME configuration only.
+	 * The quick-build runtime AAR. Its classes.jar goes on the proxy compile classpath because
+	 * generated proxies call runtime API, and the AAR is injected into the runtime configuration
+	 * only, so the variant compile classpath never carries it.
 	 */
 	@get:Classpath
 	abstract val runtimeAar: ConfigurableFileCollection
@@ -299,6 +288,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 	@get:OutputDirectory
 	abstract val proxyClasses: DirectoryProperty
 
+	/** Opens the diverted classes, compiles the proxies against them, and dexes the lot. */
 	@TaskAction
 	fun dex() {
 		val assetsRoot = generatedAssets.get().asFile.cleanDirectory()
@@ -396,32 +386,19 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 		dexFiles.single().copyTo(File(assetsRoot, "quickbuild/gen-0.dex").apply { parentFile.mkdirs() })
 	}
 
-	/** Extracts classes.jar from each [runtimeAar] into the task temp dir (javac and D8 cannot read AARs). */
+	/** Extracts classes.jar from each [runtimeAar]; javac and D8 cannot read an AAR. */
 	private fun extractRuntimeClasses(): List<File> = RuntimeClassesExtractor.extract(runtimeAar.files, temporaryDir)
 
 	/**
-	 * The backstop. [QuickBuildGenerateSourcesTask] already asked
-	 * [ComponentProxiabilityResolver] the same question and skipped what it rejected, but it
-	 * could only search the variant's DEPENDENCY artifacts (see its `dependencyClasspath`
-	 * KDoc). This runs against the real proxy compile classpath, which additionally carries
-	 * the injected runtime AARs and the project's own outputs - so a component only that
-	 * wider view can see is caught here, with one clear line naming it, instead of javac's
-	 * multi-line "cannot inherit from final ..." diagnostic dump.
+	 * Fails the build with one clear line if any proxy targets a class that cannot be extended,
+	 * rather than letting javac dump a "cannot inherit from final ..." diagnostic.
 	 *
-	 * Maps each proxy source file back to its target userClass via [manifestInfoFile] (the
-	 * same intermediate [QuickBuildGenerateSourcesTask] wrote). [payloadRoot] (the divert
-	 * task's diverted project classes) is read via [SupertypeResolver.supertypeIndex] into
-	 * a project-owned class-name set - checked FIRST via
-	 * [ComponentProxiabilityResolver.resolveWithProjectOverride], so it always wins over
-	 * [runtimeClassesJars] + [compileClasspath]: a mixed Kotlin/Java module's compile
-	 * classpath can expose a RAW (pre-[ClassOpener]) copy of the project's own class
-	 * alongside the divert task's opened copy, and every ordinary Kotlin class is `final`
-	 * in that raw form - without the project-owned override this flagged a real corpus
-	 * app's own `MainActivity` as unproxiable (ADFA-4128 regression). A class genuinely
-	 * absent from BOTH the project set and the library search path is still assumed
-	 * project-owned by [ComponentProxiabilityResolver.resolve] and would fail at the javac
-	 * compile immediately below if it's actually not, unchanged from before this check
-	 * existed.
+	 * A backstop for [QuickBuildGenerateSourcesTask], which asked the same question but could
+	 * only search dependency artifacts; this runs against the real proxy compile classpath, which
+	 * also carries the runtime AARs and the project's own outputs.
+	 *
+	 * Classes the project itself compiled ([payloadRoot]) are exempted first, because a mixed
+	 * Kotlin/Java module's classpath can expose a raw, still-final copy of a project class.
 	 */
 	private fun checkProxiability(
 		proxyJavaFiles: List<File>,
@@ -444,9 +421,9 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 			val userClass = userClassByProxyClass[proxyClassName] ?: continue
 			val resolution = resolver.resolveWithProjectOverride(userClass, projectClasses)
 			if (resolution is ComponentProxiabilityResolver.Resolution.Skip) {
-				// Addressed to whoever hits this, which is a CoGo user building their own app -
-				// so it names the action they have (Run/Debug), not a CoGo source file they
-				// cannot edit. The remedy on our side is in quickbuild/core/README.md.
+				// Addressed to a CoGo user building their own app, so it names the action they
+				// have (Run/Debug), not a CoGo source file they cannot edit. The remedy on our
+				// side is in quickbuild/core/README.md.
 				throw GradleException(
 					"Quick Build can't run on this project: the library component '$userClass' " +
 						"can't be proxied (${resolution.reason}). Use Run/Debug to build and run it instead.",
@@ -455,6 +432,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 		}
 	}
 
+	/** Compiles the generated proxy sources with an in-process javac; annotation processing off. */
 	private fun compileProxies(
 		sources: List<File>,
 		classpath: Collection<File>,
@@ -485,8 +463,9 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 }
 
 /**
- * Writes build/quickbuild/setup.json - the proxy-app-build handshake CoGo reads to learn the
- * proxy app id, entry activity, declared activities and the APK to install.
+ * Writes build/quickbuild/setup.json, the handshake CoGo reads after the proxy app build: the
+ * proxy app id, entry activity, declared activities, the APK to install, and everything the
+ * on-device daemon needs to compile and relink.
  */
 abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	@get:InputFile
@@ -520,90 +499,69 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 
 	/**
 	 * Coordinates declared on the variant's `ksp` / `kapt` / `annotationProcessor`
-	 * configurations. Empty for a project with no processors - the common case, and the
-	 * one where the quick path never has to think about stale generated code.
+	 * configurations. Empty for a project with no processors, where the quick path never has to
+	 * think about stale generated code.
 	 */
 	@get:Input
 	abstract val annotationProcessors: ListProperty<String>
 
 	/**
-	 * Every java/kotlin source root of the variant, GENERATED roots included, held as a
-	 * file collection rather than a `ListProperty<String>` of paths.
+	 * Every java/kotlin source root of the variant, generated roots included.
 	 *
-	 * The variant source providers (`variant.sources.java/kotlin.all`) include AGP-generated
-	 * roots contributed as task outputs - e.g. viewBinding/dataBinding wire the
-	 * `dataBindingGenBaseClasses<Variant>` task output in. The configuration cache serializes
-	 * every task field to persist the work graph, and serializing a `ListProperty` REALIZES
-	 * its value at STORE time (before any task runs), which forces those output providers and
-	 * throws `InvalidUserCodeException: querying the mapped value ... before task ... completed`
-	 * - killing every viewBinding-enabled proxy app build. A file collection is
-	 * the one type the configuration cache stores lazily (roots + producer task dependencies,
-	 * resolved only when queried), so store never forces the providers. The absolute root
-	 * paths are read from [files] in [report] - safely, because the report runs after the
-	 * generating tasks (it consumes the APK artifact and is finalizer of `assemble`).
+	 * Must stay a file collection, not a `ListProperty<String>` of paths: some of these roots are
+	 * task outputs (viewBinding wires in `dataBindingGenBaseClasses<Variant>`), and the
+	 * configuration cache realizes a `ListProperty` at store time, before any task has run, which
+	 * throws `InvalidUserCodeException: querying the mapped value ... before task ... completed`.
+	 * A file collection is stored lazily, so [report] can read absolute paths from it at
+	 * execution time.
 	 */
 	@get:InputFiles
 	@get:PathSensitive(PathSensitivity.ABSOLUTE)
 	abstract val sourceRootDirs: ConfigurableFileCollection
 
 	/**
-	 * Directory to probe for AGP's stable-ids file (`InternalArtifactType.STABLE_RESOURCE_IDS_FILE`,
-	 * written by `process<Variant>Resources` as `stableIds.txt`) - conventionally
-	 * `intermediates/stable_resource_ids_file/<variantName>/<taskName>/stableIds.txt`. That type is
-	 * AGP-internal (no public `SingleArtifact`), so rather than pull AGP's internal API onto this
-	 * plugin's classpath, [report] walks this directory at execution time looking for a file named
-	 * `stableIds.txt` - tolerant of the task-name subfolder varying across AGP versions, and of the
-	 * file being entirely absent (older AGP, or a variant whose resource processing never ran it).
+	 * Directory to probe for AGP's `stableIds.txt`, conventionally
+	 * `intermediates/stable_resource_ids_file/<variantName>/<taskName>/`.
 	 *
-	 * Marked [Internal], not [InputFiles]: the directory may not exist yet at configuration time
-	 * (Gradle's input-file validation would reject a declared-but-missing directory), and ordering
-	 * doesn't need Gradle's task-dependency graph here - real resource processing always completes
-	 * before the APK artifact this task already depends on ([apkDirectory]) is produced, so by the
-	 * time [report] runs the directory (if AGP ever writes it) is already populated.
+	 * That artifact type is AGP-internal, with no public `SingleArtifact`, so [report] walks this
+	 * directory at execution time instead of pulling AGP's internal API onto the plugin classpath.
+	 * The walk tolerates the task-name subfolder varying across AGP versions and the file being
+	 * absent entirely.
+	 *
+	 * [Internal] rather than [InputFiles] because the directory may not exist at configuration
+	 * time, which Gradle's input validation would reject. No task-dependency edge is needed:
+	 * resource processing always finishes before the APK artifact this task already depends on.
 	 */
 	@get:Internal
 	abstract val stableIdsSearchDir: DirectoryProperty
 
 	/**
-	 * Directory to probe for AGP's merged_res closure (written by `merge<Variant>Resources`
-	 * as pre-compiled `.flat` units under `intermediates/merged_res/<variantName>/
-	 * merge<Variant>Resources/`) - the project's own resources PLUS, for every VALUES-type
-	 * resource (styles/themes/colors/dimens/strings/attrs), the transitively-flattened
-	 * closure of every dependency AAR's own values. This is AGP's classic Java-side
-	 * resource merger, confirmed on-host by grepping a real `mergeDebugResources --info`
-	 * log: it compiles `.../merged.dir/values/values.xml`, a file that contains the literal
-	 * `Theme.Material3.DayNight.NoActionBar` declaration though the project's own
-	 * `res/values/` never does (a relink of the project's own res/ alone
-	 * can't resolve any resource a dependency AAR provides).
+	 * Directory to probe for AGP's merged_res closure: pre-compiled `.flat` units under
+	 * `intermediates/merged_res/<variantName>/merge<Variant>Resources/`.
 	 *
-	 * That artifact type is AGP-internal too (no public `SingleArtifact`), so [report]
-	 * walks this directory at execution time for every `*.flat` file - tolerant of the
-	 * task-name subfolder varying across AGP versions, and of the directory being entirely
-	 * absent. Marked [Internal] for the same reason as [stableIdsSearchDir]: the directory
-	 * may not exist at configuration time, and ordering doesn't need Gradle's
-	 * task-dependency graph here (real resource processing always precedes the APK
-	 * artifact this task already depends on).
+	 * That closure holds the project's own resources plus, for every VALUES-type resource
+	 * (styles, themes, colors, strings, attrs), the transitively-flattened values of every
+	 * dependency AAR. A relink of the project's own res/ alone cannot resolve a resource only a
+	 * dependency declares. Confirmed on-host: a real `mergeDebugResources` log shows it compiling
+	 * a `values.xml` that declares `Theme.Material3.DayNight.NoActionBar`.
+	 *
+	 * Probed and marked [Internal] for the same reasons as [stableIdsSearchDir].
 	 */
 	@get:Internal
 	abstract val mergedResSearchDir: DirectoryProperty
 
 	/**
-	 * Every resource-providing dependency's separately-compiled FILE-based resources
-	 * (layouts, drawables, anims, menus, ...) - the `ArtifactView` over the variant's
-	 * runtime classpath filtered to the artifact-type attribute value
-	 * `"android-compiled-dependencies-resources"` (`AndroidArtifacts.ArtifactType
-	 * .COMPILED_DEPENDENCIES_RESOURCES`; confirmed by inspecting AGP's own
-	 * `AndroidArtifacts$ArtifactType.class` constant pool, since that type has no public
-	 * accessor). This is NOT part of [mergedResSearchDir]'s closure - confirmed on-host
-	 * that closure has zero FILE-type entries for a real Material3 dependency - and a
-	 * Material3 theme's own item values reference both VALUES and FILE resources, so a
-	 * relink needs BOTH closures or linking still fails - either one missing on its own
-	 * still leaves unresolved references.
+	 * Every dependency's separately-compiled FILE-based resources (layouts, drawables, menus,
+	 * ...): an `ArtifactView` over the runtime classpath filtered to artifact type
+	 * `"android-compiled-dependencies-resources"`, a string literal because AGP exposes no public
+	 * accessor for it.
 	 *
-	 * Held as a `ConfigurableFileCollection`, not a mapped `ListProperty<String>`, for the
-	 * same config-cache-safety reason as [sourceRootDirs]: the artifact
-	 * view's files aren't known at configuration time, and the configuration cache would
-	 * force them at STORE time if this were an eagerly-mapped property.
+	 * Disjoint from [mergedResSearchDir], which carries VALUES resources only. A theme's item
+	 * values reference both kinds, so a relink needs both closures or it still fails on
+	 * unresolved references.
+	 *
+	 * A file collection rather than a mapped `ListProperty<String>`, for the same
+	 * configuration-cache reason as [sourceRootDirs].
 	 */
 	@get:InputFiles
 	@get:PathSensitive(PathSensitivity.NONE)
@@ -612,6 +570,7 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	@get:OutputFile
 	abstract val reportFile: RegularFileProperty
 
+	/** Resolves the built APK and every daemon input, then writes setup.json. */
 	@TaskAction
 	fun report() {
 		val info =
@@ -646,9 +605,8 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 				.orEmpty()
 				.sortedBy { it.name }
 				.map { it.absolutePath }
-		// User-side supertype closures (superclasses + interfaces) of the proxied
-		// components, read from the diverted class headers - the deploy policy's restart
-		// closure is seeded from these.
+		// Supertype closures of the proxied components, read from the diverted class headers.
+		// The deploy policy's restart closure is seeded from these.
 		val supertypeIndex = SupertypeResolver.supertypeIndex(payloadClassesRoot)
 		val supertypes =
 			info.components.associate { component ->
@@ -693,10 +651,9 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	}
 
 	/**
-	 * Walks [stableIdsSearchDir] for a file literally named `stableIds.txt` - see that
-	 * property's KDoc for why this probes rather than hardcodes the AGP task-name subfolder.
-	 * Returns the first match (there should only ever be one per variant); null when the
-	 * directory doesn't exist or contains no such file.
+	 * Finds AGP's `stableIds.txt` under [stableIdsSearchDir], or null if AGP wrote none.
+	 *
+	 * See that property's KDoc for why this walks rather than hardcoding the task-name subfolder.
 	 */
 	private fun findStableIdsFile(): File? =
 		stableIdsSearchDir.orNull
@@ -706,14 +663,11 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 			?.firstOrNull { it.isFile && it.name == "stableIds.txt" }
 
 	/**
-	 * Every pre-compiled `.flat` resource unit a relink needs to resolve a dependency
-	 * AAR's resources: [mergedResSearchDir]'s closure (project res +
-	 * transitively-flattened library VALUES) followed by [dependencyResourceDirs]' FILE
-	 * -based units. Sorted for determinism only - relative order between these two
-	 * doesn't matter (they never declare the same resource by construction: one is
-	 * VALUES-only, the other FILE-only); what matters is that the RELINK'S OWN fresh
-	 * compile is layered on top of ALL of this, which is `Aapt2Link`'s job, not this
-	 * task's - see its KDoc.
+	 * Collects every pre-compiled `.flat` unit a relink needs to resolve a dependency's
+	 * resources: [mergedResSearchDir]'s closure plus [dependencyResourceDirs]' FILE-based units.
+	 *
+	 * Sorted for determinism only. The two sets never declare the same resource, and layering the
+	 * relink's own fresh compile on top of both is `Aapt2Link`'s job, not this task's.
 	 */
 	private fun collectLibraryResourcePaths(): List<String> {
 		val mergedRes =
@@ -734,6 +688,7 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	}
 }
 
+/** Deletes and recreates this directory, so a task never mixes stale output with fresh. */
 private fun File.cleanDirectory(): File {
 	deleteRecursively()
 	mkdirs()

@@ -6,22 +6,14 @@ import java.io.File
 import java.io.IOException
 
 /**
- * [GenerationStore] persisted as a single number in
- * `<project>/.androidide/quickbuild/generation`.
+ * Keeps the generation counter in `<project>/.androidide/quickbuild/generation`.
  *
- * Deliberately NOT in the app-private [QuickBuildScratch] tree (ADFA-4930): scratch is
- * deleted on session teardown and swept when no session is live, while this counter
- * must OUTLIVE sessions - an installed proxy app persists payloads keyed by generation,
- * and only a counter that survives lets a later session stay strictly newer. One tiny
- * write per successful build makes its FUSE cost irrelevant, and living with the
- * project means it dies with the project.
- *
- * A corrupt or unreadable file loads as `null` (fresh session) instead of throwing:
- * the generation counter only needs monotonicity from where it can prove it, and a
- * broken state file must never take the whole quick-build feature down.
- *
- * Writes are temp+rename so a crash mid-write leaves either the old value or the new
- * one, never a torn file.
+ * Lives with the project rather than in the app-private [QuickBuildScratch] tree because
+ * scratch is deleted on session teardown while this counter must outlive sessions: an
+ * installed proxy app keys its payloads by generation, so only a surviving counter lets a
+ * later session stay strictly newer. A corrupt or unreadable file loads as null (fresh
+ * session) so a broken state file cannot take quick build down; writes are temp+rename so a
+ * crash leaves either the old value or the new one, never a torn file.
  */
 class FileGenerationStore(
 	private val file: File,
@@ -51,7 +43,7 @@ class FileGenerationStore(
 	companion object {
 		private val log = LoggerFactory.getLogger(FileGenerationStore::class.java)
 
-		/** The canonical per-project location of the generation file. */
+		/** Builds a store at the canonical per-project location of the generation file. */
 		fun forProject(projectRoot: File): FileGenerationStore = FileGenerationStore(File(projectRoot, ".androidide/quickbuild/generation"))
 	}
 }

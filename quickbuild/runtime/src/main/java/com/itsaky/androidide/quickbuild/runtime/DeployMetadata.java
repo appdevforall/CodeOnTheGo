@@ -5,14 +5,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Parsed form of the {@code metadataJson} argument of {@code IQuickBuildTarget.onPayload} (schema in quickbuild/core/README.md). Plain Java so the parsing is JVM-unit-testable; unknown fields are ignored so the host can extend the schema without breaking already-installed proxy apps.
+ * Parsed form of the {@code metadataJson} argument of {@code IQuickBuildTarget.onPayload}.
+ *
+ * Schema is in quickbuild/core/README.md. Unknown fields are ignored so the host can extend the schema without breaking installed proxy apps.
  */
 final class DeployMetadata {
 
 	static final String REASON_UNKNOWN = "unknown";
 
 	/**
-	 * Parses the deploy metadata. Missing fields fall back to safe defaults (null entry, empty asset list, {@link #REASON_UNKNOWN}); malformed JSON throws {@link IllegalArgumentException} for the caller to handle as a bad payload.
+	 * Parses the deploy metadata, filling missing fields with safe defaults (null entry, empty asset list, {@link #REASON_UNKNOWN}).
+	 *
+	 * @throws IllegalArgumentException
+	 *             on malformed JSON, which the caller treats as a bad payload.
 	 */
 	static DeployMetadata parse(String json) {
 		Map<String, Object> obj = MiniJson.parseObject(json);
@@ -42,7 +47,7 @@ final class DeployMetadata {
 	final String reason;
 
 	/**
-	 * True when this is a restart deploy (string {@code "restart": "true"}, per the MiniJson strings-only convention): the recompiled set touched a service/provider/custom-Application class, so the runtime must persist the payload, ack, and exit instead of hot-swapping (component-proxying design, section 4).
+	 * True when the recompiled set touched a service, provider, or custom Application class, so the runtime must persist the payload, ack, and exit instead of hot-swapping. On the wire this is the string {@code "restart": "true"}, per the MiniJson strings-only convention.
 	 */
 	final boolean restart;
 

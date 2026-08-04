@@ -5,58 +5,51 @@ import java.io.File
 import java.util.zip.ZipFile
 
 /**
- * Shells the device-provisioned aapt2 to rebuild the resource table after a res-only
- * (or mixed) save: compile every res dir to .flat files, then link them against
- * android.jar with the proxy app manifest. The payload the runtime applies is the WHOLE
- * linked apk (`resources.arsc` plus every compiled resource FILE - layouts, drawable
- * XMLs, adaptive-icon XMLs, ...), not a bare extracted table.
+ * Rebuilds the app's resource apk with the device-provisioned aapt2 after a resource edit:
+ * compiles every res dir to `.flat` files, then links them against android.jar with the proxy
+ * app manifest.
  *
- * A bare table cannot back a file-typed resource: `ResourcesProvider.loadFromTable`
- * (API 30+) and the API 28/29 addAssetPath shim both need the file bytes reachable from
- * the SAME archive the table came from. Ship a stripped arsc and an unrelated file-backed
- * resource the app touches on every activity recreate - `ic_launcher.xml`, say - throws
- * `Resources$NotFoundException` after a `strings.xml`-only edit.
+ * The payload the runtime applies is the whole linked apk - `resources.arsc` plus every
+ * compiled resource file - not a bare extracted table. A bare table cannot back a file-typed
+ * resource: `ResourcesProvider.loadFromTable` (API 30+) and the API 28/29 addAssetPath shim
+ * both need the file bytes reachable from the same archive the table came from, so a stripped
+ * arsc throws `Resources$NotFoundException` on the next activity recreate.
  *
- * v1 recompiles and relinks everything on every call: correct-not-clever, and aapt2 on
- * a phone-sized res tree is fast enough for the ~0.3 s tier-0 budget.
+ * v1 recompiles and relinks everything on every call; aapt2 on a phone-sized res tree is fast
+ * enough for the tier-0 budget.
  *
- * Three rules make a relink safe, because it links a strict SUBSET of what the proxy app
- * build's Gradle resource-merge produced (library AAR resources are absent):
+ * A relink links a strict subset of what the proxy app build's resource merge produced (library
+ * AAR resources are absent), so three rules keep it safe:
  *
- *  1. **[stableIds] is mandatory.** aapt2 assigns type ids by declaration order, so a
- *     resource TYPE present in the baseline but absent here shifts every later type down
- *     (`mipmap` 04 -> 03). The proxy app's manifest was compiled once against the BASELINE
- *     table and still encodes `android:icon` as a fixed numeric id, which now resolves to
- *     the wrong type and crashes on recreate. `--stable-ids` pins each resource to the id
- *     AGP gave it.
+ *  1. **[stableIds] is mandatory.** aapt2 assigns type ids by declaration order, so a resource
+ *     type present in the baseline but absent here shifts every later type down (`mipmap`
+ *     04 -> 03). The proxy app's manifest was compiled once against the baseline table and
+ *     still encodes `android:icon` as a fixed numeric id, which would then resolve to the wrong
+ *     type and crash on recreate. `--stable-ids` pins each resource to the id AGP gave it.
  *
- *  2. **[libraryResources] must carry BOTH of AGP's library-resource mechanisms.** A
- *     relink cannot resolve a name the project's own res/ never declares - e.g. a
- *     Material3-themed template extending `Theme.Material3.DayNight.NoActionBar`.
- *     `--auto-add-overlay` does not help; it only relaxes duplicate checks between the
+ *  2. **[libraryResources] must carry both of AGP's library-resource mechanisms**, or a relink
+ *     cannot resolve a name the project's own res/ never declares (a template extending
+ *     `Theme.Material3.DayNight.NoActionBar`, say). VALUES resources - styles, themes, colors,
+ *     dimens, strings, attrs, and anything a style parents against - are flattened transitively
+ *     into the project's own `intermediates/merged_res/`. FILE-based resources - layouts,
+ *     drawables, anims, menus - are not; each library is compiled separately by an
+ *     `ArtifactTransform` keyed on `AndroidArtifacts.ArtifactType.COMPILED_DEPENDENCIES_RESOURCES`.
+ *     A theme's item values reference both kinds, so either piece missing on its own fails the
+ *     link. `--auto-add-overlay` does not help: it only relaxes duplicate checks among the
  *     caller's own inputs.
- *      - VALUES resources (styles/themes/colors/dimens/strings/attrs, and everything a
- *        style parents against) are flattened TRANSITIVELY into the project's own
- *        `intermediates/merged_res/` by AGP's classic resource merger.
- *      - FILE-based resources (layouts, drawables, anims, menus, ...) are NOT in
- *        merged_res; each library is compiled separately by an `ArtifactTransform` keyed
- *        on `AndroidArtifacts.ArtifactType.COMPILED_DEPENDENCIES_RESOURCES`, one `.flat`
- *        per resource.
- *     A theme's own item values reference both kinds (`popupMenuBackground` points at a
- *     drawable), so either piece missing on its own still fails the link.
  *
- *  3. **[flatFiles] goes in as `-R`, ordered LAST among all `-R` args.** aapt2's real
- *     precedence is not the docs' "the last conflicting resource given takes precedence":
- *     a bare positional input ALWAYS loses to ANY `-R` input for the same resource,
- *     whatever the command-line order; only among multiple `-R` inputs does textual order
- *     decide. merged_res carries the project's own resources too, from proxy app build
- *     time - so passing the fresh `aapt2 compile --dir res` output positionally serves
- *     the STALE value for every resource the user just edited.
+ *  3. **The freshly compiled project resources go in as `-R`, ordered last among the `-R`
+ *     args.** aapt2's real precedence is not the docs' "the last conflicting resource wins":
+ *     a bare positional input always loses to any `-R` input for the same resource whatever the
+ *     command-line order, and only among `-R` inputs does textual order decide. merged_res
+ *     carries the project's own resources from proxy app build time, so passing the fresh
+ *     compile positionally would serve the stale value for every resource the user just edited.
  */
 class Aapt2Link(
 	private val aapt2: File,
 	private val androidJar: File,
 ) {
+	/** Outcome of one relink. */
 	sealed interface Result {
 		/**
 		 * @property compileMillis wall time of the per-dir `aapt2 compile` loop.
@@ -74,18 +67,15 @@ class Aapt2Link(
 	}
 
 	/**
-	 * @param stableIds AGP's `stableIds.txt` mapping (`pkg:type/name = 0x7f0xxxxx`) from
-	 *   the proxy app build's real resource processing, if CoGo has one for this project.
-	 *   When present and readable, passed to aapt2 as `--stable-ids` (see class KDoc for
-	 *   why). Null falls back to aapt2's own declaration-order id assignment, unpinned.
-	 * @param libraryResources pre-compiled `.flat` resource units the proxy app build's real
-	 *   AGP resource processing produced (the project's own `intermediates/merged_res/`
-	 *   closure - transitively including every dependency AAR's VALUES resources - plus
-	 *   each resource-providing AAR's separately-compiled FILE-based resources). Feeds a
-	 *   resource an AAR declares (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`)
-	 *   back into the relink so it resolves. Empty leaves only the
-	 *   project's own fresh `resDirs` compile visible, so any library-provided reference
-	 *   fails linking. Order matters - see class KDoc.
+	 * Compiles [resDirs] and links the result into a fresh resource apk under [workDir].
+	 *
+	 * @param stableIds AGP's `stableIds.txt` mapping (`pkg:type/name = 0x7f0xxxxx`) from the
+	 *   proxy app build, if CoGo has one for this project. Passed to aapt2 as `--stable-ids`
+	 *   when readable; null falls back to unpinned declaration-order ids (see class KDoc).
+	 * @param libraryResources pre-compiled `.flat` units from the proxy app build's AGP
+	 *   resource processing - the `intermediates/merged_res/` closure plus each AAR's
+	 *   separately-compiled file-based resources. Empty means any library-provided reference
+	 *   fails to link (see class KDoc).
 	 */
 	fun relink(
 		resDirs: List<File>,
@@ -94,9 +84,9 @@ class Aapt2Link(
 		stableIds: File? = null,
 		libraryResources: List<File> = emptyList(),
 	): Result {
-		// The compiled dir must start EMPTY: relink globs every .flat in it, so a leftover
-		// from a previous run (e.g. a since-deleted resource's .flat) would be swept into
-		// the link as a stale resource. A failed reset therefore fails the relink.
+		// The compiled dir must start empty: the link globs every .flat in it, so a leftover
+		// from a previous run - a since-deleted resource's .flat, say - would be linked in as
+		// a stale resource. A failed reset therefore fails the relink.
 		val compiledDir = File(workDir, "res-compiled")
 		if (!compiledDir.deleteRecursively() && compiledDir.listFiles()?.isNotEmpty() == true) {
 			return Result.Failed(
@@ -151,19 +141,10 @@ class Aapt2Link(
 	}
 
 	/**
-	 * Assembles the `aapt2 link` command line. `internal` (not private) so its
-	 * `--stable-ids` behavior is unit-testable without an aapt2 binary on the test host -
-	 * unlike [relink] itself, which needs a real toolchain end to end (`@EnabledIf`
-	 * `Aapt2LinkTest`).
-	 *
-	 * Every resource input is passed as `-R` (none bare-positional): a bare positional
-	 * input always LOSES to an `-R` overlay for the same resource regardless of textual
-	 * order, so mixing the two would make [libraryResources] (which
-	 * can carry a stale project-owned copy of a resource, via merged_res) win over
-	 * [flatFiles]'s fresh edit if flatFiles were positional. Passing everything as `-R`,
-	 * with [flatFiles] LAST, makes ordering do what "last one wins" actually promises:
-	 * [libraryResources] first (baseline + library resources), [flatFiles] last (today's
-	 * live edit wins on any conflict with the baseline).
+	 * Assembles the `aapt2 link` command line, with every resource input passed as `-R` and
+	 * [flatFiles] last so the user's fresh edit wins over the baseline (see class KDoc, rule 3).
+	 * `internal` rather than private so the `--stable-ids` behavior is unit-testable without an
+	 * aapt2 binary on the test host, unlike [relink] itself.
 	 */
 	internal fun buildLinkArguments(
 		linkedApk: File,
@@ -193,10 +174,9 @@ class Aapt2Link(
 	}
 
 	/**
-	 * Cheap sanity check (entry lookup, no extraction) before shipping [linkedApk] as-is:
-	 * the whole apk is the payload now (see class doc), so a missing table entry would
-	 * mean aapt2 produced a malformed output despite exit 0 - fail loudly rather than
-	 * ship a resource apk the runtime cannot load.
+	 * Checks that [linkedApk] actually contains a resource table before it ships as the
+	 * payload - a missing entry means aapt2 produced malformed output despite exit 0. Entry
+	 * lookup only, no extraction.
 	 */
 	private fun verifyHasTable(linkedApk: File): File {
 		ZipFile(linkedApk).use { zip ->
@@ -211,10 +191,11 @@ class Aapt2Link(
 		val output: String,
 	)
 
+	/** Runs an aapt2 command, capturing its merged output; a launch failure becomes exit -1. */
 	private fun run(command: List<String>): ProcessResult =
 		try {
-			// Merge stdout into stderr-side capture: aapt2 reports errors on stderr,
-			// notes on stdout; the daemon's stdout stays protocol-only regardless.
+			// aapt2 reports errors on stderr and notes on stdout, so both are captured
+			// together. The daemon's own stdout stays protocol-only either way.
 			val process = ProcessBuilder(command).redirectErrorStream(true).start()
 			val output = process.inputStream.bufferedReader().use { it.readText() }
 			val exitCode = process.waitFor()
@@ -226,6 +207,10 @@ class Aapt2Link(
 	// aapt2 messages look like "<path>:<line>: error: <msg>" or "error: <msg>".
 	private val aapt2Line = Regex("""^(?:(.+?):(?:(\d+):)?\s*)?(error|warn(?:ing)?):\s*(.*)$""")
 
+	/**
+	 * Parses aapt2's output into diagnostics, appending a [fallback] error carrying the raw
+	 * output when nothing in it parsed as an error - a non-zero exit must never report clean.
+	 */
 	private fun parseDiagnostics(
 		output: String,
 		fallback: String,

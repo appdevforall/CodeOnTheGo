@@ -3,14 +3,13 @@ package org.appdevforall.cotg.quickbuild.domain
 /**
  * What a successful code-bearing quick build should do to the proxy app.
  *
- * Loader-swap + activity recreate cannot update a live Service/ContentProvider/custom
- * Application instance, so a deploy touching one must restart the proxy-app process
- * instead (the design contract in quickbuild/core/docs/component-proxying-design.md,
- * section 4). A restart is never-stale-safe because a killed-and-relaunched proxy app
- * boots the newest persisted generation and binder catch-up reconciles the rest.
+ * A loader swap plus activity recreate cannot update a live Service, ContentProvider or
+ * custom Application instance, so a deploy touching one must restart the proxy-app process
+ * (component-proxying-design.md section 4). Restarting is safe: the relaunched proxy app boots
+ * the newest persisted generation and binder catch-up reconciles the rest.
  */
 sealed interface DeployDecision {
-	/** Hot swap + activity recreate - today's path. */
+	/** Hot swap the loader and recreate the activity - the usual path. */
 	data object Recreate : DeployDecision
 
 	/** The recompiled set hit the restart closure of [componentClass] (a [kind]). */
@@ -30,26 +29,22 @@ sealed interface DeployDecision {
 }
 
 /**
- * The post-compile restart-vs-recreate decision (design contract section 5). Pure JVM -
- * the decision is deterministic from the recompiled class set, the baseline's component
- * facts, and a supertype index.
+ * Decides restart vs recreate after a successful compile (design contract section 5).
  *
- * Restart closure = {service, provider, custom-Application classes} united with their
- * user-side supertypes and the nested classes (`Outer$` prefix) of either. Receivers and
- * activities are deliberately NOT in it: manifest receivers instantiate fresh per
- * delivery through the factory, and activities are handled by recreate.
+ * The restart closure is the service, provider and custom-Application classes, plus their
+ * user-side supertypes and the nested classes of either. Receivers and activities are
+ * deliberately outside it: manifest receivers are instantiated fresh per delivery through the
+ * factory, and activities are covered by recreate.
  *
- * The supertype index is seeded from the baked `supertypes` chains and kept live via
- * [onClassHierarchy] with each build's parsed class headers - that is what catches
- * re-parenting a component between builds.
+ * Pure JVM: the answer is deterministic from the recompiled class set, the baseline's
+ * component facts, and the supertype index.
  */
 class DeployPolicy(
 	components: List<ComponentInfo>,
 	/**
-	 * False when the baseline's setup.json predates schema v2 (no `components`): the
-	 * restart closure is unknowable AND the installed runtime ignores restart requests,
-	 * so every code-bearing deploy must [DeployDecision.RebuildProxyApp] (self-healing: the
-	 * proxy app rebuild regenerates a v2 baseline).
+	 * False when the baseline's setup.json predates schema v2: the restart closure is
+	 * unknowable and that runtime ignores restart requests, so every code-bearing deploy
+	 * returns [DeployDecision.RebuildProxyApp], which regenerates a v2 baseline.
 	 */
 	private val componentInfoAvailable: Boolean = true,
 ) {
@@ -82,12 +77,12 @@ class DeployPolicy(
 	}
 
 	/**
-	 * Decides for one successful compile.
+	 * Decides what one successful compile's output requires of the running proxy app.
 	 *
 	 * @param changedClassFiles the .class paths this compile emitted (relative,
-	 *   '/'-or-OS-separated, e.g. `com/example/Foo$Bar.class`). Null = unknown
-	 *   recompiled set - decided conservatively (restart when any restart-sensitive
-	 *   component exists), because guessing "no hit" could serve a stale service.
+	 *   '/'-or-OS-separated, e.g. `com/example/Foo$Bar.class`). Null means the recompiled set
+	 *   is unknown, and is answered conservatively - restart whenever any restart-sensitive
+	 *   component exists, since guessing "no hit" could leave a stale service running.
 	 */
 	fun decide(changedClassFiles: Collection<String>?): DeployDecision {
 		if (changedClassFiles != null && changedClassFiles.isEmpty()) return DeployDecision.Recreate

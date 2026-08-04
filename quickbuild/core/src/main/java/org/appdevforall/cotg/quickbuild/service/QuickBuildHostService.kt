@@ -9,14 +9,13 @@ import com.itsaky.androidide.quickbuild.IQuickBuildTarget
 import org.slf4j.LoggerFactory
 
 /**
- * CoGo side of the deploy channel: the generated
- * proxy app binds on launch and registers its [IQuickBuildTarget]; deploys travel back
- * over that callback as fds.
+ * CoGo side of the deploy channel: the proxy app binds on launch and registers its
+ * [IQuickBuildTarget], and deploys travel back over that callback as fds.
  *
- * Security: every inbound call is checked against the uid PackageManager reported for
- * the installed proxy app at session start ([ProxyAppConnections.beginSession]). No
- * session, or any other caller, is rejected with a logged SecurityException - the
- * service is exported, so the uid gate is the whole trust boundary.
+ * The service is exported, so the uid gate is the whole trust boundary: every inbound
+ * call must come from the uid PackageManager reported for the installed proxy app at
+ * session start. Anything else, including any call with no live session, is rejected with
+ * a logged SecurityException.
  */
 class QuickBuildHostService : Service() {
 	private val binder = HostBinder(ProxyAppConnections.INSTANCE)
@@ -29,6 +28,7 @@ class QuickBuildHostService : Service() {
 		return binder
 	}
 
+	/** The AIDL surface the proxy app calls, publishing every accepted call to [connections]. */
 	internal class HostBinder(
 		private val connections: ProxyAppConnections,
 	) : IQuickBuildHost.Stub() {
@@ -77,6 +77,7 @@ class QuickBuildHostService : Service() {
 			connections.onDisconnected()
 		}
 
+		/** Throws unless the caller is the proxy app the live session accepts. */
 		private fun enforceCaller(op: String) {
 			val expected = connections.expectedUid
 			val calling = Binder.getCallingUid()

@@ -4,7 +4,9 @@ import android.content.Context;
 import android.content.Intent;
 
 /**
- * Sends the tap-to-jump intent back to CoGo: an explicit activity intent handled by CoGo's {@code QuickBuildJumpActivity} trampoline, which opens the failing file at the error line in the editor. Explicit (action + package) so no other app can intercept it; best-effort - an older CoGo without the trampoline just logs, never crashes the proxy app.
+ * Sends the tap-to-jump intent that opens the failing file at the error line in CoGo's editor.
+ *
+ * Handled by CoGo's {@code QuickBuildJumpActivity} trampoline. The intent names both action and package so no other app can intercept it.
  */
 final class JumpToEditor {
 
@@ -19,7 +21,11 @@ final class JumpToEditor {
 	/** 1-based, as reported by the compiler. */
 	static final String EXTRA_COLUMN = "com.itsaky.androidide.quickbuild.extra.COLUMN";
 
-	/** Never throws; the overlay tap must not be able to crash the app under test. */
+	/**
+	 * Opens {@code file} at the given position in CoGo's editor, if CoGo can handle it.
+	 *
+	 * Never throws - the overlay tap must not be able to crash the app under test - so an older CoGo without the trampoline only logs.
+	 */
 	static void open(Context context, String file, int line, int column) {
 		if (context == null || file == null) {
 			return;

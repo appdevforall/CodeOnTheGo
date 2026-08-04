@@ -14,16 +14,14 @@ import java.io.Writer
 import java.nio.charset.StandardCharsets
 
 /**
- * Daemon entry point: line-delimited JSON over stdin/stdout, one request in flight at a
- * time (the CoGo orchestrator serializes; the loop is deliberately single-threaded).
+ * Daemon entry point: serves line-delimited JSON over stdin/stdout, one request at a time.
  *
  * Stdout is protocol-only. main() captures the real stdout for responses and redirects
- * System.out to stderr - the in-process Kotlin compiler and other tooling occasionally
- * print to stdout, and a single stray line would corrupt the protocol stream.
+ * System.out to stderr, because the in-process Kotlin compiler and other tooling print to
+ * stdout and one stray line would corrupt the protocol stream.
  *
- * Exit contract (quickbuild/core/README.md): build errors never exit; `shutdown` or stdin
- * EOF exit 0; only a fatal internal error exits non-zero (CoGo treats that as daemon
- * death and respawns).
+ * Exit contract (quickbuild/core/README.md): build errors never exit; `shutdown` or stdin EOF
+ * exit 0; only a fatal internal error exits non-zero, which CoGo treats as daemon death.
  */
 object DaemonMain {
 	@JvmStatic
@@ -42,9 +40,9 @@ object DaemonMain {
 	}
 
 	/**
-	 * The request/response loop, separated from process wiring so it unit-tests against
-	 * in-memory streams. Returns on shutdown or EOF; malformed input replies ok:false
-	 * and keeps serving.
+	 * Runs the request/response loop until shutdown or EOF; malformed input replies ok:false
+	 * and keeps serving. Separated from process wiring so it unit-tests against in-memory
+	 * streams. Single-threaded on purpose - the CoGo orchestrator serializes requests.
 	 */
 	fun serve(
 		input: BufferedReader,

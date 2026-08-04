@@ -4,10 +4,12 @@ import com.google.gson.JsonObject
 import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
 
 /**
- * Encodes the `statusJson` argument of `IQuickBuildTarget.onBuildStatus` (schema in
- * quickbuild/core/README.md). Every value is a STRING on the wire - the runtime's
- * deliberately tiny MiniJson parser reads only strings - and the runtime ignores unknown
- * kinds/fields, so the schema can grow without breaking installed proxy apps.
+ * Builds the `statusJson` argument of `IQuickBuildTarget.onBuildStatus` (schema in
+ * quickbuild/core/README.md).
+ *
+ * Every value must be a STRING on the wire: the runtime's MiniJson parser reads only
+ * strings. It ignores unknown kinds and fields, so the schema can grow without breaking
+ * installed proxy apps.
  */
 object BuildStatusJson {
 	const val KIND_BUILD_FAILED = "build_failed"
@@ -15,10 +17,9 @@ object BuildStatusJson {
 	const val KIND_BUILDING = "building"
 
 	/**
-	 * A build has started - the honesty line: tells the proxy app it is still running
-	 * [runningGeneration] while a newer one compiles, so a slow quick build never reads
-	 * as silence to whoever is looking at the screen. Cleared by the [buildFailed] or
-	 * [buildOk] this attempt eventually sends.
+	 * Tells the proxy app a build has started while it keeps running [runningGeneration],
+	 * so a slow build does not read as silence on screen. Cleared by the [buildFailed] or
+	 * [buildOk] the same attempt eventually sends.
 	 */
 	fun building(runningGeneration: Long): String =
 		JsonObject()
@@ -28,9 +29,9 @@ object BuildStatusJson {
 			}.toString()
 
 	/**
-	 * A compile failure: carries the FIRST error's location plus the first line of its
-	 * message (the overlay is a one-glance surface, not a build log), and how many more
-	 * errors the build reported.
+	 * Reports a compile failure as the first error's location, the first line of its
+	 * message, and a count of the errors not shown. The overlay is a one-glance surface,
+	 * not a build log.
 	 */
 	fun buildFailed(diagnostics: List<BuildDiagnostic>): String {
 		val errors = diagnostics.filter { it.severity == BuildDiagnostic.Severity.ERROR }
@@ -53,6 +54,6 @@ object BuildStatusJson {
 			}.toString()
 	}
 
-	/** A successful build: clears a previously shown failure, renders nothing itself. */
+	/** Reports a successful build, which clears a shown failure and renders nothing itself. */
 	fun buildOk(): String = JsonObject().apply { addProperty("kind", KIND_BUILD_OK) }.toString()
 }

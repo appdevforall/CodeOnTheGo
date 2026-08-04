@@ -3,19 +3,17 @@ package org.appdevforall.cotg.quickbuild.data
 import java.io.File
 
 /**
- * Filesystem locations the quick-build pipeline needs on device. Kept behind an
- * interface so the module stays free of CoGo's `:common` Environment singleton and
- * unit tests can point everything at temp directories.
+ * Filesystem locations the quick-build pipeline needs on device.
  *
- * Staged layout (tonight's contract, produced by the app-side artifact stager from
- * APK assets on every provision — content-keyed staging is deliberately avoided by
- * re-staging each time, so a fixed bundle can never be served stale):
+ * An interface so the module stays free of CoGo's `:common` Environment singleton and unit
+ * tests can point everything at temp directories. The app-side stager re-extracts this
+ * layout from APK assets on every provision, so a stale bundle can never be served:
  *
  * `<ANDROIDIDE_HOME>/quickbuild/`
  * - `quickbuild-runtime.aar` - injected into the proxy app build via
- *   `-Pcotg.quickbuild.runtimeAar` (LogSender AAR pattern)
- * - `daemon/quickbuild-daemon.jar` - runnable daemon jar; its manifest Class-Path
- *   names sibling jars, so the WHOLE runtime classpath is staged in `daemon/`
+ *   `-Pcotg.quickbuild.runtimeAar`
+ * - `daemon/quickbuild-daemon.jar` - runnable daemon jar; its manifest Class-Path names
+ *   sibling jars, so the whole runtime classpath is staged in `daemon/`
  */
 interface QuickBuildPaths {
 	/** The bundled JDK's `java` binary (same discovery the tooling server uses). */
@@ -34,10 +32,10 @@ interface QuickBuildPaths {
 	val d8Jar: File
 
 	/**
-	 * The Compose compiler plugin jar staged next to the daemon jar, version-matched
-	 * to the daemon's bundled Kotlin compiler (NOT the user project's Compose compiler,
-	 * whose version tracks the project's own Kotlin). Passed as -Xplugin when the proxy app
-	 * build reports the project uses Compose.
+	 * The Compose compiler plugin jar staged next to the daemon jar, version-matched to the
+	 * daemon's bundled Kotlin compiler - not the user project's Compose compiler, whose
+	 * version tracks the project's own Kotlin. Passed as -Xplugin when the proxy app build
+	 * reports the project uses Compose.
 	 */
 	val composeCompilerPlugin: File
 
@@ -45,17 +43,17 @@ interface QuickBuildPaths {
 	val androidJar: File
 
 	/**
-	 * Root for per-project scratch trees ([QuickBuildScratch]) on app-private
-	 * (ext4-backed) storage - NOT under the project on `/storage/emulated`, whose
-	 * FUSE layer pays a ~50x per-file toll on the intermediate-heavy quick path
-	 * (ADFA-4930). The app wires a `Context.noBackupFilesDir` subtree.
+	 * Root for per-project scratch trees ([QuickBuildScratch]) on app-private, ext4-backed
+	 * storage - not under the project on `/storage/emulated`, whose FUSE layer costs ~50x
+	 * per file on this intermediate-heavy path (ADFA-4930). The app wires a
+	 * `Context.noBackupFilesDir` subtree.
 	 */
 	val projectScratchRoot: File
 
 	/**
-	 * Full environment for the daemon child process. The host app env must NOT be
-	 * inherited: Android runtime classpath vars crash a standalone OpenJDK on some
-	 * OEM images (same reason ToolingServerRunner clears its env).
+	 * Builds the full environment for the daemon child process. The host app env must not be
+	 * inherited: Android runtime classpath vars crash a standalone OpenJDK on some OEM images
+	 * (the same reason ToolingServerRunner clears its env).
 	 */
 	fun daemonEnvironment(): Map<String, String>
 }

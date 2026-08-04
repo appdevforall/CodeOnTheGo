@@ -5,36 +5,30 @@ import java.io.File
 /**
  * The set of files changed since the last successfully absorbed quick build.
  *
- * [Known] and [Unknown] are deliberately distinct types: an empty [Known] set means
- * "nothing changed" (a no-op save must NOT trigger a recompile), while [Unknown] means
- * "we cannot tell what changed" (crash recovery, missed watcher events) and forces the
- * next build to treat every source as potentially dirty. Conflating the two turns
- * every no-op save into a spurious full recompile.
+ * [Known] and [Unknown] are separate types because an empty [Known] set means "nothing
+ * changed" (a no-op save must not recompile), while [Unknown] means "we cannot tell" (crash
+ * recovery, missed watcher events) and makes the next build treat every source as dirty.
  */
 sealed interface ChangedFiles {
 	/**
-	 * Union of two changed-sets, with per-path last-event-wins reconciliation: the RIGHT
-	 * operand is the newer batch (every union site puts it there), so a path modified in
-	 * one batch then deleted in the next collapses to a removal, and a delete-then-recreate
-	 * to a modification. A plain set union would leave such a path in BOTH sets, and the
-	 * executor would then feed it to the daemon as both changed and removed. [Unknown]
-	 * absorbs everything.
+	 * Union of two changed-sets, reconciled per path with the newer batch winning. [other] is
+	 * always the newer one, so modify-then-delete collapses to a removal and
+	 * delete-then-recreate to a modification; a plain set union would leave the path in both
+	 * sets and the executor would feed it to the daemon as changed AND removed.
 	 */
 	operator fun plus(other: ChangedFiles): ChangedFiles
 
-	/** True only for an empty [Known] set — [Unknown] is never empty. */
+	/** True only for an empty [Known] set - [Unknown] is never empty. */
 	val isEmpty: Boolean
 
 	/**
-	 * @property files the paths modified or created since the last absorbed build.
-	 * @property removed the paths DELETED since then (a `git pull`/branch-switch that drops
-	 *   a tracked file, a Termux `rm`, a file-manager delete). Modeled distinctly from
-	 *   [files] because a removal is classified by path SHAPE alone - the file is gone, so
-	 *   nothing on disk can be re-stat'd - and it routes differently downstream: a removed
-	 *   `.kt`/`.java` feeds the incremental compiler's removed-sources slot (its outputs are
-	 *   deleted and dependents recompiled), while a live edit compiles the file itself. The
-	 *   ADFA-4128 watcher never detected standalone deletions at all, so a deleted
-	 *   class lingered in the running app until an unrelated edit fired a build.
+	 * An enumerated changed-set.
+	 *
+	 * @property files paths modified or created since the last absorbed build.
+	 * @property removed paths deleted since then. Kept separate from [files] because a removal
+	 *   is classified by path shape alone (nothing is left on disk to inspect) and routes
+	 *   differently: a removed `.kt`/`.java` feeds the incremental compiler's removed-sources
+	 *   slot, dropping its outputs and recompiling dependents.
 	 */
 	data class Known(
 		val files: Set<File>,
@@ -63,6 +57,7 @@ sealed interface ChangedFiles {
 		}
 	}
 
+	/** The changed-set could not be enumerated; every source counts as dirty. */
 	data object Unknown : ChangedFiles {
 		override fun plus(other: ChangedFiles): ChangedFiles = Unknown
 

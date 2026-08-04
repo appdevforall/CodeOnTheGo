@@ -6,26 +6,22 @@ import java.io.IOException
 import java.util.jar.JarFile
 
 /**
- * Reads user-side supertype edges from the diverted project classes: the restart closure
- * needs to know which project classes a service/provider/Application extends OR
- * implements, and only class-file headers are needed (a cheap constant-pool read, no
- * method bodies). A supertype NOT compiled by the project (framework/library) lives in
- * the base APK and never hot-swaps, so a walk stops at the first such class.
+ * Builds the project-compiled supertype graph the restart closure needs, by reading class
+ * headers from the diverted project classes.
  *
- * Interfaces are recorded alongside the superclass. A project interface with default
- * method bodies is component code (that is why supertypes are in the restart closure at
- * all), and DeployPolicy's live index counts interface edges via `onClassHierarchy` - so
- * the baked seed must too. Omitting them makes an edit to such an interface at session
- * start a restart-policy false negative (design contract section 5) until the component
- * class itself happens to recompile in-session.
+ * Interfaces count as supertypes, not just superclasses: a project interface with default
+ * method bodies is component code, and DeployPolicy's live index counts interface edges too.
+ * Dropping them makes an edit to such an interface a restart-policy false negative until the
+ * component class itself recompiles in-session.
  */
 internal object SupertypeResolver {
 	/**
-	 * FQN-to-direct-supertypes (superclass first, then interfaces) for every `.class`
-	 * under [payloadClassesRoot] (the divert task's layout: `dirs/N/...` trees and
-	 * `jars/N.jar`). Values include library supertypes too; [chainFor] filters to the
-	 * project-compiled subset. Unreadable entries are skipped - a missing edge degrades
-	 * to "restart decides without that supertype", never a crash.
+	 * Maps each project class to its direct supertypes (superclass first, then interfaces).
+	 *
+	 * @param payloadClassesRoot the divert task's output: `dirs/N/...` trees plus `jars/N.jar`
+	 * @return every class found, including library supertypes; [chainFor] filters to the
+	 *   project-compiled subset. Unreadable entries are skipped - a missing edge degrades to
+	 *   "restart decides without that supertype", never a crash.
 	 */
 	fun supertypeIndex(payloadClassesRoot: File): Map<String, List<String>> {
 		val index = mutableMapOf<String, List<String>>()
@@ -64,10 +60,13 @@ internal object SupertypeResolver {
 	}
 
 	/**
-	 * The project-compiled supertype closure of [className] - superclasses AND
-	 * implemented interfaces, transitively, in breadth-first discovery order (superclass
-	 * before interfaces at each level). Only classes present in [index] (i.e.
-	 * project-compiled) are included; cycles are guarded.
+	 * Walks the transitive supertypes of [className] that the project itself compiled.
+	 *
+	 * A supertype absent from [index] is framework or library code: it lives in the base APK
+	 * and never hot-swaps, so the walk stops there.
+	 *
+	 * @return superclasses and interfaces in breadth-first order, superclass before interfaces
+	 *   at each level
 	 */
 	fun chainFor(
 		className: String,
