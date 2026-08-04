@@ -61,6 +61,10 @@ build. Warm edit, ms, pre-lever-1 `[measured on a56]`:
 - Daemon IPC is free: 20-60 ms on multi-second calls `[measured on a56]`.
 - The "53 s per edit" figure was never a per-edit cost. It was the session's first build, which now
   runs as a background warm compile before the user can save.
+- The warm compile is what makes the *first* save fast, and it is worth **6.1x** on that save:
+  **1.9 s warmed vs 11.5 s unwarmed**, almost all of it cold `kotlinc`. Matched on/off A/B, 3
+  trials per arm, one build, `hello-kotlin` (`corpus/results/20260728T153938Z-seed-ab/`)
+  `[measured on a56]`. Tap-to-`Ready` is unchanged, because the warm compile starts after `Ready`.
 
 ## Not covered here
 

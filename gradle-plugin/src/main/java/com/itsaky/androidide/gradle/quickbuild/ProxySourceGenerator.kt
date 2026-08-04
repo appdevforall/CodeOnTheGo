@@ -5,7 +5,7 @@ package com.itsaky.androidide.gradle.quickbuild
  * manifest name stable while the user hierarchy swaps.
  *
  * Extending is enough (no delegation) because proxy and user class both travel in the payload
- * dex, so a reload swaps them together - see quickbuild/core/README.md, "Proxy-app
+ * dex, so a reload swaps them together - see quickbuild/README.md, "Proxy-app
  * architecture". Bodies vary by type: activities add the gesture hook and a getClassLoader()
  * override, services report to the live-service census, receivers and providers stay empty.
  */

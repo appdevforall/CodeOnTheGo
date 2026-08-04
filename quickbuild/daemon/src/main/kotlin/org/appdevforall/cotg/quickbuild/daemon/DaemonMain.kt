@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets
  * System.out to stderr, because the in-process Kotlin compiler and other tooling print to
  * stdout and one stray line would corrupt the protocol stream.
  *
- * Exit contract (quickbuild/core/README.md): build errors never exit; `shutdown` or stdin EOF
+ * Exit contract (quickbuild/README.md): build errors never exit; `shutdown` or stdin EOF
  * exit 0; only a fatal internal error exits non-zero, which CoGo treats as daemon death.
  */
 object DaemonMain {

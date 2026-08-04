@@ -17,7 +17,7 @@ extracted `Linux-Android/aarch64/libsqlitejdbc.so`, and see whether the connecti
 
 What this would buy: today an edit touching annotation-processor input (a `@Dao`, `@Entity`,
 `@Module`) falls off the live reload path and takes a full proxy app rebuild. The shipped
-classifier ([`domain/annotations/`](../src/main/java/org/appdevforall/cotg/quickbuild/domain/annotations))
+classifier ([`domain/annotations/`](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/annotations))
 already keeps every *other* edit in the same project on live reload.
 
 | Mechanism | Verdict | Cost `[assumed]` | Why |

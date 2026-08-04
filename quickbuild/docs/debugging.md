@@ -6,9 +6,9 @@ paths, the session event log, the adb entry point, and every timeout in the pipe
 
 Assumed already read, and not repeated here:
 
-- [README, "Running it on a device"](../README.md#running-it-on-a-device) - the flag files
+- [README, "Running it on a device"](../core/README.md#running-it-on-a-device) - the flag files
   and the CoGo build you need before any of this works.
-- [README, "There is no single logcat tag"](../README.md#there-is-no-single-logcat-tag) -
+- [README, "There is no single logcat tag"](../core/README.md#there-is-no-single-logcat-tag) -
   the six truncated tags and the three logging processes. This doc gives the rule that
   produced that table, so you can derive a tag the table does not list.
 
@@ -18,7 +18,7 @@ sections 5 and 6 need it, sections 1 to 4 do not.
 
 **Flag files are read once per process.** `FeatureFlags.initialize()` caches on first call and
 never re-reads disk, so creating or deleting a flag file changes nothing until CoGo restarts
-([`FeatureFlags.kt`](../../../common/src/main/java/com/itsaky/androidide/utils/FeatureFlags.kt)).
+([`FeatureFlags.kt`](../../common/src/main/java/com/itsaky/androidide/utils/FeatureFlags.kt)).
 
 ## 1. My edit did not show up: work down this list
 
@@ -45,7 +45,7 @@ answers.
    package slot, so both look identical from the launcher. Three markers:
    - the installed package declares `android:appComponentFactory` =
      `com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory`
-     ([`RealIdInstall.kt`](../src/main/java/org/appdevforall/cotg/quickbuild/domain/RealIdInstall.kt));
+     ([`RealIdInstall.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/RealIdInstall.kt));
    - it logs under the tag `QuickBuildRuntime`;
    - it has a `files/quickbuild/payload/` directory once a deploy has landed.
 
@@ -54,14 +54,14 @@ answers.
 ## 2. Most missing edits were never watched at all
 
 A dropped event is silent: `WatchFilter.isRelevant` returning false costs nothing and warns
-nobody ([`WatchFilter.kt`](../src/main/java/org/appdevforall/cotg/quickbuild/domain/WatchFilter.kt)).
+nobody ([`WatchFilter.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/WatchFilter.kt)).
 
 What is watched:
 
 - **`<module>/src`, one per discovered module** - recursively, for both inotify and the poll
   sweep. Discovery is a walk from the project root bounded to depth 4, skipping `build/` and
   dot-directories, keyed on the presence of a `build.gradle[.kts]`
-  ([`QuickBuildProjectLayout.kt`](../src/main/java/org/appdevforall/cotg/quickbuild/data/QuickBuildProjectLayout.kt)).
+  ([`QuickBuildProjectLayout.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/QuickBuildProjectLayout.kt)).
 - **Named Gradle files, exactly** - `settings.gradle[.kts]`, `gradle.properties`,
   `gradle/libs.versions.toml` at the root, plus `build.gradle[.kts]` per module. Only the
   mtime poll covers these; no inotify watch is registered on their parents.
@@ -81,7 +81,7 @@ What is dropped before the session ever sees it:
 A second drop happens later, at batch-settle: a path reported modified that no longer exists
 and whose shape names no known role (`sed`'s `sedXXXXXX` and kin) is discarded as rename
 noise rather than pushed to a full Gradle build
-([`WatcherBatchReconciler.kt`](../src/main/java/org/appdevforall/cotg/quickbuild/domain/WatcherBatchReconciler.kt)).
+([`WatcherBatchReconciler.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/WatcherBatchReconciler.kt)).
 
 Two timing facts that explain a save that showed up late rather than not at all:
 
@@ -97,7 +97,7 @@ drops. Touch the file after pushing if a scripted edit seems to have been ignore
 
 The host side logs through slf4j and CoGo's binding derives the tag from the **simple class
 name**, then trims it: keep the **last 23 characters**, overwrite the first two with `..`
-([`LogTagUtils.java`](../../../logger/src/main/java/com/itsaky/androidide/utils/LogTagUtils.java),
+([`LogTagUtils.java`](../../logger/src/main/java/com/itsaky/androidide/utils/LogTagUtils.java),
 `LogUtils.MAX_TAG_LENGTH = 23`). Names of 23 characters or fewer are untouched. That is the
 whole rule - apply it to any class and you have its tag.
 
@@ -117,7 +117,7 @@ Every logger in the Quick Build host code, so nothing is missing from a filter:
 ### The one line worth grepping first
 
 `LiveReloadExecutorImpl` emits exactly one structured line per generation
-([`E2eTimeline.kt`](../src/main/java/org/appdevforall/cotg/quickbuild/domain/E2eTimeline.kt)):
+([`E2eTimeline.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/E2eTimeline.kt)):
 
 ```
 quickbuild-e2e: gen=7 trigger=1234 compileDone=2100 deploySent=2140 reloadLive=2560
@@ -148,7 +148,7 @@ adb logcat | grep -iE 'quickbuild|LiveReload|ProxyApp|daemon\(stderr\)'
 ### The daemon has no log of its own
 
 It writes `[quickbuild-daemon] <message>` to stderr
-([`DaemonMain.kt`](../../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonMain.kt)).
+([`DaemonMain.kt`](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonMain.kt)).
 `DaemonProcessClient` drains that and re-logs it as `daemon(stderr): ...` at **warn**, with
 non-JSON stdout as `daemon: ...` at **debug**. There is no daemon log file: if CoGo's process
 dies, that output is gone. Reproduce it standalone with the same command CoGo uses -
@@ -183,16 +183,16 @@ Four traps in that table:
 - **The scratch tree is deleted on session teardown**, so inspect it while the session is
   live. Its directory name is `<sanitized project basename>-<first 16 hex of SHA-256 of the
   normalized absolute project path>`
-  ([`QuickBuildScratch.kt`](../src/main/java/org/appdevforall/cotg/quickbuild/data/QuickBuildScratch.kt)),
+  ([`QuickBuildScratch.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/QuickBuildScratch.kt)),
   so `ls` the parent rather than trying to compute it.
 - **The generation counter's directory is `.androidide`, not `.cg`.** CoGo's project cache dir
   was renamed to `.cg`; this one path is hardcoded to the old name in
-  [`FileGenerationStore.kt`](../src/main/java/org/appdevforall/cotg/quickbuild/data/FileGenerationStore.kt).
+  [`FileGenerationStore.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/FileGenerationStore.kt).
   Never reset it to "get a clean test" - the runtime uses it to reject a payload older than
   what is running.
 - **`resources.arsc` is not a resource table.** It holds the whole relinked resource apk;
   the filename is historical
-  ([`PayloadPersistence.java`](../../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/PayloadPersistence.java)).
+  ([`PayloadPersistence.java`](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/PayloadPersistence.java)).
 - **The baseline is inside the APK, not on disk** - `assets/quickbuild/gen-0.dex`, with the
   component name map at `assets/quickbuild/components.json`.
 
@@ -201,7 +201,7 @@ Four traps in that table:
 With `CodeOnTheGo.qbbench` present, two extra listeners run beside CoGo's shipping analytics
 sink and append to a JSON-lines file. One object per line, each carrying `"v":1` and a
 wall-clock `wallMs`
-([`BenchEventsFile.kt`](../../../app/src/main/java/com/itsaky/androidide/quickbuild/BenchEventsFile.kt)).
+([`BenchEventsFile.kt`](../../app/src/main/java/com/itsaky/androidide/quickbuild/BenchEventsFile.kt)).
 
 ```bash
 adb shell run-as com.itsaky.androidide \
@@ -224,8 +224,8 @@ Seven event types:
 
 The harness string-compares these literals and historical files carry them, so a rename in
 code must not change them
-([`BenchQuickBuildMetricsSink.kt`](../../../app/src/main/java/com/itsaky/androidide/quickbuild/BenchQuickBuildMetricsSink.kt),
-[`BenchStateRecorder.kt`](../../../app/src/main/java/com/itsaky/androidide/quickbuild/BenchStateRecorder.kt)).
+([`BenchQuickBuildMetricsSink.kt`](../../app/src/main/java/com/itsaky/androidide/quickbuild/BenchQuickBuildMetricsSink.kt),
+[`BenchStateRecorder.kt`](../../app/src/main/java/com/itsaky/androidide/quickbuild/BenchStateRecorder.kt)).
 Three will trip you up when grepping:
 
 | In code | On the wire |
@@ -262,7 +262,7 @@ Each line also carries the daemon's counters - `nAllSources`, `nKotlinCompiled`,
 `nJavaSources`, `nChangedClasses`, `nClassFiles`, `classBytes` - plus `compileOrdinal` and
 `scratchFs`, without which a timing row cannot be read at all. What each one means, and why
 those last two are context rather than cost:
-[the protocol reference](../../protocol/README.md#per-build-statistics-what-the-op-did-not-just-how-long-two-compilers-took).
+[the protocol reference](../protocol/README.md#per-build-statistics-what-the-op-did-not-just-how-long-two-compilers-took).
 
 Two of those are spelled differently on the two wires, so grep for the right one: the daemon
 protocol's `nKotlinToCompile` and `scratchFsType` are written here as `nKotlinCompiled` and
@@ -274,7 +274,7 @@ protocol's `nKotlinToCompile` and `scratchFsType` are written here as `nKotlinCo
 fires the first Quick Build tap as the editor initializes, replacing the human's tap. It
 accepts only an existing directory inside the projects folder, so a hostile sender can at
 worst open one of the user's own projects
-([`QuickBuildBenchActivity.kt`](../../../app/src/main/java/com/itsaky/androidide/quickbuild/QuickBuildBenchActivity.kt)).
+([`QuickBuildBenchActivity.kt`](../../app/src/main/java/com/itsaky/androidide/quickbuild/QuickBuildBenchActivity.kt)).
 
 ```bash
 adb shell am start-activity \
@@ -293,7 +293,7 @@ adb shell am start-activity \
   outright.
 
 A third flag, `CodeOnTheGo.qbnoseed`, is inert unless `qbbench` is also on. What it does and
-why it exists: [README, "Running it on a device"](../README.md#running-it-on-a-device).
+why it exists: [README, "Running it on a device"](../core/README.md#running-it-on-a-device).
 
 ## 7. Tunables: every timeout and bound in the pipeline
 

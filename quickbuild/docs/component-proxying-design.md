@@ -51,7 +51,7 @@ compiled into the APK, and `<application>` gains the runtime's `android:appCompo
 Everything else - permissions, icon, label, intent filters, `exported`, meta-data - is preserved
 verbatim. A manifest *change* (adding a component, editing an intent filter) still needs a proxy
 app rebuild; see
-[the boundary](../README.md#the-boundary).
+[the boundary](../core/README.md#the-boundary).
 
 Subclassing works rather than delegation because the proxy and the user class both travel in the
 payload dex, so a reload swaps the whole hierarchy at once.
@@ -96,7 +96,7 @@ order - 1 and 2 are not negotiable against the rest.
 2. **It behaves like the real app.** Same `applicationId`, permissions, icon, label, intent filters
    and components; real resources; the merged manifest preserved verbatim apart from component
    names. Where it cannot, the difference is written down and surfaced to the user -
-   [the boundary](../README.md#the-boundary) and the
+   [the boundary](../core/README.md#the-boundary) and the
    README's Known limitations. **A divergence nobody documented is a bug, not a limitation.**
 3. **New classes, resources and assets plug in quickly and reliably.** Generated component names are
    stable across generations, so a reload never needs a manifest change; user classes travel in a

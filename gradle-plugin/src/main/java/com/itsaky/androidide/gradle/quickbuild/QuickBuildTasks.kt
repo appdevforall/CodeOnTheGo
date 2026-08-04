@@ -448,7 +448,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 			if (resolution is ComponentProxiabilityResolver.Resolution.Skip) {
 				// Addressed to a CoGo user building their own app, so it names the action they
 				// have (Run/Debug), not a CoGo source file they cannot edit. The remedy on our
-				// side is in quickbuild/core/README.md.
+				// side is in quickbuild/README.md.
 				throw GradleException(
 					"Quick Build can't run on this project: the library component '$userClass' " +
 						"can't be proxied (${resolution.reason}). Use Run/Debug to build and run it instead.",

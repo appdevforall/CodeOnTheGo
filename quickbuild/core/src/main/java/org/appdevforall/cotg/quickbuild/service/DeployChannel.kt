@@ -21,7 +21,7 @@ interface DeploySender {
 	 * Delivers one payload to the connected proxy app and waits for it to reload or fail.
 	 *
 	 * All file params are optional per the AIDL contract; [metadataJson] follows the
-	 * schema in quickbuild/core/README.md.
+	 * schema in quickbuild/README.md.
 	 *
 	 * @param generation the payload's generation; the runtime accepts only strictly newer
 	 *   ones, so this must come from the generation tracker and never be replayed

@@ -20,7 +20,7 @@ import java.util.UUID
  * about one file instead of the whole app.
  *
  * Constraints the Kotlin Build Tools API imposes, none of them visible from the calls below
- * (more in quickbuild/core/README.md):
+ * (more in quickbuild/README.md):
  * - Changes must be passed as [SourcesChanges.Known]; `ToBeCalculated` silently degrades to
  *   a full compile.
  * - The shrunk snapshot path is derived from `setRootProjectDir`, so it must be exactly

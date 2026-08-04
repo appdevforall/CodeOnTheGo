@@ -1,10 +1,12 @@
 # Low-spec devices: on-device Gradle is the wall, not Quick Build
 
-**CoGo itself runs on 2 GB devices, and people use it there. Quick Build cannot reach that tier,
-because every session has to start with a full on-device *Gradle* build and that build is what
-fails.** Nothing measured says Quick Build's own runtime is the reason: the live reload loop has
-never failed on its own at any tier tested, and it has never been tested at 2 GB, because
-provisioning never gets far enough to start it.
+**CoGo itself runs on 2 GB devices, and people use it there** - Hal reports community members
+doing so on 32-bit 2 GB hardware (ADFA-4929). **What we have not got working at that tier is the
+full on-device *Gradle* build every Quick Build session must start with.** We never watched one
+fail: all three itel attempts ended at a timeout we chose, so "too slow for us to wait out" is the
+honest claim, and whether it would finish given longer is unmeasured. Nothing measured implicates
+Quick Build's own runtime - the live reload loop has never failed on its own at any tier tested,
+and has never been tested at 2 GB because provisioning never got far enough to start it.
 
 **Decision: accept that floor, or spike Gradle-free provisioning?** This page is the evidence for
 that call - what was measured, why the 1.9 GB device fails, and what is still unknown.

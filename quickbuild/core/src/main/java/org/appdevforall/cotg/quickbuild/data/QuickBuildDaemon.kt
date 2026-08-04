@@ -6,7 +6,7 @@ import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
 import java.io.File
 
 /**
- * Typed facade over the warm compile daemon (protocol: quickbuild/core/README.md).
+ * Typed facade over the warm compile daemon (protocol: quickbuild/README.md).
  *
  * An interface so the executor and session manager can be tested against scripted fakes;
  * [DaemonProcessClient] is the real child-JVM implementation. Mirrors the daemon protocol:

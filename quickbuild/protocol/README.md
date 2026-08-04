@@ -6,7 +6,7 @@ two share, and this file is the reference for all three formats they speak - so 
 described here is a change to three processes at once, and those three are **not** upgraded
 together.
 
-Start at [`../core/README.md`](../core/README.md) for what Quick Build is and how a save flows
+Start at [`../core/README.md`](../README.md) for what Quick Build is and how a save flows
 through it. This file assumes that vocabulary (proxy app, payload, generation, baseline).
 
 ## Three formats, and only one of them lives in this module
@@ -47,7 +47,7 @@ both written by `:gradle-plugin`.
   in-process Kotlin compiler prints to stdout and one stray line would corrupt the stream.
 - The daemon has no log file. Progress goes to stderr, which CoGo drains and re-logs; how to
   read it, and how to run the daemon standalone, are in
-  [debugging.md](../core/docs/debugging.md#the-daemon-has-no-log-of-its-own).
+  [debugging.md](../docs/debugging.md#the-daemon-has-no-log-of-its-own).
 - **One request in flight.** CoGo serializes every call behind a mutex; the daemon's loop is
   single-threaded on purpose.
 - `id` is a caller-assigned integer, echoed on the matching response. Uniqueness is convention;
@@ -263,7 +263,7 @@ string carries everything else the runtime needs to apply them.
   - CoGo then relaunches the launcher proxy, and the fresh process boots the persisted newest
     generation.
   - CoGo-side decision: [`domain/DeployPolicy.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/DeployPolicy.kt).
-    Design contract: [`docs/component-proxying-design.md`](../core/docs/component-proxying-design.md) section 4.
+    Design contract: [`docs/component-proxying-design.md`](../docs/component-proxying-design.md) section 4.
 - **`restart` matches the exact string `"true"`.** Any other value, including `"TRUE"` or a JSON
   boolean, reads as false.
 
@@ -324,7 +324,7 @@ reinstalling CoGo alone changes nothing in a running app.
 | Reorder or remove an AIDL method | silently calls the wrong transaction | never do this |
 
 So a protocol regression that compiles is not caught by any test: see the known test gap in
-[README, "Re-run the whole corpus for any significant change"](../core/README.md#re-run-the-whole-corpus-for-any-significant-change).
+[README, "Re-run the whole corpus for any significant change"](../README.md#re-run-the-whole-corpus-for-any-significant-change).
 
 ## Key files
 
