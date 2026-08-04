@@ -154,6 +154,11 @@ class BuildOutputFragment :
 		searchLayout?.beginSearchMode()
 	}
 
+	/**
+	 * Enables or disables editor line numbers and updates the gutter divider width accordingly.
+	 *
+	 * @param enabled `true` to display line numbers and gutter divider, `false` to hide them.
+	 */
 	fun setLineNumbersEnabled(enabled: Boolean) {
 		val ed = editor ?: return
 		ed.setLineNumberEnabled(enabled)

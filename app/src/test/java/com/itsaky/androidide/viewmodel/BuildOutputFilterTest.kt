@@ -140,6 +140,15 @@ class BuildOutputFilterTest {
 		)
 	}
 
+	@Test
+	fun `filtering with toggles disabled strips prefixes even with empty query`() {
+		val content = prefix(stepDeltaMs = 42) + "compileKotlin\n"
+		assertEquals(
+			"compileKotlin\n",
+			BuildOutputViewModel.filterLines(content, "", showTimestamps = false, showDeltas = false),
+		)
+	}
+
 	private fun prefix(
 		nowMs: Long = 1_722_000_000_000L,
 		stepDeltaMs: Long = 42L,
