@@ -16,12 +16,17 @@ interface QuickBuildProvisioner {
 	 *
 	 * Must not throw: failures come back as [ProvisionOutcome.Failure] and surface in the
 	 * UI.
+	 *
+	 * @return the baseline, its uid, and the layout on success; a message on failure
 	 */
 	suspend fun provision(): ProvisionOutcome
 
 	/**
 	 * Rebuilds and reinstalls the proxy app after an invalidation, moving the session to
 	 * the new baseline. The orchestrator's rebuild protocol brackets this call.
+	 *
+	 * @return the re-read baseline and layout on success; otherwise a failure, an
+	 *   unconfirmed install, or a busy Gradle slot, which callers must not conflate
 	 */
 	suspend fun rebuildProxyApp(): ProxyAppRebuildOutcome
 
@@ -39,10 +44,9 @@ interface QuickBuildProvisioner {
 	 * Stops the proxy app build currently running through Gradle.
 	 *
 	 * Cancelling the coroutine that awaits [provision], [prebuildProxyApp], or
-	 * [rebuildProxyApp] does not stop Gradle, which runs out of process behind a future,
-	 * so a stop has to reach the tooling server's cancellation token. Call only while the
-	 * session owns the Gradle slot: the device has one cancellation token, so issuing it
-	 * blind could kill a Standard Run instead.
+	 * [rebuildProxyApp] does not stop Gradle, which runs out of process behind a future, so
+	 * a stop must reach the tooling server's cancellation token. Call only while the session
+	 * owns the Gradle slot: there is one token, so issuing it blind could kill a Standard Run.
 	 *
 	 * @return true when a cancellation reached Gradle; false, the default, means this
 	 *   implementation cannot cancel and the caller must not claim it stopped anything
@@ -52,13 +56,22 @@ interface QuickBuildProvisioner {
 
 /** What became of a [QuickBuildProvisioner.provision]. */
 sealed interface ProvisionOutcome {
+	/** The proxy app is built, installed, and identified; the session can be assembled. */
 	data class Success(
+		/** The report read from the setup.json this build generated. */
 		val proxyApp: ProxyAppInfo,
 		/** PackageManager uid of the installed proxy app; the deploy-channel gate. */
 		val proxyAppUid: Int,
+		/** Derived from the same setup.json as [proxyApp], never from an earlier one. */
 		val layout: QuickBuildProjectLayout,
 	) : ProvisionOutcome
 
+	/**
+	 * Provisioning did not complete, for any reason from a Gradle failure to a declined
+	 * install.
+	 *
+	 * @property message user-facing failure text; the session tears down and shows it
+	 */
 	data class Failure(
 		val message: String,
 	) : ProvisionOutcome
@@ -74,22 +87,32 @@ sealed interface ProxyAppRebuildOutcome {
 	 * leave the deploy policy blind to components the rebuild just added.
 	 */
 	data class Success(
+		/** The re-read report, which may declare components the old baseline did not. */
 		val proxyApp: ProxyAppInfo,
+		/** Derived from the same re-read setup.json as [proxyApp]. */
 		val layout: QuickBuildProjectLayout,
 	) : ProxyAppRebuildOutcome
 
+	/**
+	 * The rebuild did not complete, so the session is still on the baseline that could not
+	 * take the deploy.
+	 *
+	 * @property message user-facing failure text
+	 */
 	data class Failure(
 		val message: String,
 	) : ProxyAppRebuildOutcome
 
 	/**
 	 * The Gradle build produced a good APK but the OS install confirmation was never
-	 * given (see [InstallOutcome.ConfirmationNotGiven]); [message] carries the
-	 * case-specific user-facing text.
+	 * given (see [InstallOutcome.ConfirmationNotGiven]).
 	 *
 	 * Distinct from [Failure] because nothing needs fixing: re-running the rebuild is
 	 * cheap and simply re-prompts, so the session manager parks in a retryable state
 	 * instead of tearing down.
+	 *
+	 * @property message user-facing text specific to how the confirmation went missing, so
+	 *   it should be shown alongside the retry rather than swapped for a generic prompt
 	 */
 	data class InstallNotConfirmed(
 		val message: String,

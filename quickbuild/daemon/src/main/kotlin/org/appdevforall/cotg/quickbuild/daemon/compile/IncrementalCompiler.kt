@@ -39,6 +39,13 @@ import java.util.UUID
  *
  * Kotlin 2.3 deprecates this [CompilationService] entry point in favor of `KotlinToolchains`;
  * v1 stays on it, and migrating is contained to this class.
+ *
+ * @param classpathJars the module's whole compile classpath, boot jar included; snapshotted once
+ *   in `init`, so changing it means a new instance, never an in-place edit.
+ * @property workDir the daemon-owned scratch root. Also the BTA `rootProjectDir`, which fixes
+ *   where the shrunk snapshot lands - it must not be the user's project dir.
+ * @param compilerPluginJars kotlinc plugin jars, each passed as one `-Xplugin`; session-fixed
+ *   like the classpath.
  */
 @OptIn(ExperimentalBuildToolsApi::class)
 class IncrementalCompiler(
@@ -49,7 +56,11 @@ class IncrementalCompiler(
 	/** Outcome of one compile. */
 	sealed interface Result {
 		/**
+		 * Both passes succeeded, with the outputs they touched and what each phase cost.
+		 *
 		 * @property classesDir single merged output dir for Kotlin and Java classes.
+		 * @property warnings kotlinc's and javac's warnings, already parsed into the protocol
+		 *   shape; a successful compile can still carry them.
 		 * @property changedClassFiles the .class files this compile emitted or rewrote, as
 		 *   '/'-separated paths relative to [classesDir]. The CoGo deploy policy picks
 		 *   restart vs recreate from this, so it must never under-report: computed by diffing
@@ -69,6 +80,12 @@ class IncrementalCompiler(
 			val stats: CompileStats = CompileStats(),
 		) : Result
 
+		/**
+		 * A pass failed; nothing in the output dir should be deployed.
+		 *
+		 * @property diagnostics the errors that stopped the compile, plus any warnings collected
+		 *   before it. Never empty - an unexplained failure is reported as one synthetic error.
+		 */
 		data class Failed(
 			val diagnostics: List<Diagnostic>,
 		) : Result
@@ -137,6 +154,8 @@ class IncrementalCompiler(
 	 * @param allSources every source in the module, not just the edited ones.
 	 * @param changedFiles sources edited since the last compile; pass all of [allSources] on
 	 *   the first compile of a session.
+	 * @param removedFiles sources deleted since the last compile, no longer in [allSources];
+	 *   their stale `.class` outputs are cleaned before anything is compiled.
 	 * @return [Result.Failed] on any compile error, and also when a removed source's stale
 	 *   `.class` could not be deleted.
 	 */
@@ -231,6 +250,9 @@ class IncrementalCompiler(
 	 * Snapshots every .class under [classesDir] as relative path -> (size, mtime). Nanosecond
 	 * [java.nio.file.attribute.FileTime], not millis, so a rewrite inside the same millisecond
 	 * still diffs; missing one would let a changed component class skip the restart policy.
+	 *
+	 * @return '/'-separated relative path -> (size, mtime), empty when the output dir does not
+	 *   exist yet.
 	 */
 	private fun snapshotClassOutputs(): Map<String, Pair<Long, java.nio.file.attribute.FileTime>> {
 		val root = classesDir
@@ -259,6 +281,8 @@ class IncrementalCompiler(
 	 * dex as stale bytecode. The source is gone, so its package comes from the path (see
 	 * [javaClassStem]); the primary class and any nested `Outer$Inner.class` beside it go too.
 	 *
+	 * @param removedFiles this compile's removals; non-`.java` entries are ignored here, since
+	 *   the IC engine owns Kotlin output deletion.
 	 * @return the `.class` files that could not be deleted; [compile] must fail on a non-empty
 	 *   result rather than dex a survivor.
 	 */
@@ -287,6 +311,10 @@ class IncrementalCompiler(
 	 * source root is found. Path-only, since the file is gone. Prefers a `main/java` or
 	 * `main/kotlin` root so a package segment named `java`/`kotlin` deeper in the path isn't
 	 * mistaken for the root; otherwise falls back to the last such segment.
+	 *
+	 * @param javaFile the removed source's path; it need not still exist on disk.
+	 * @return the '/'-separated stem without the `.java` suffix, or null when the path has no
+	 *   `java`/`kotlin` source root or nothing follows it.
 	 */
 	private fun javaClassStem(javaFile: File): String? {
 		val parts = javaFile.invariantSeparatorsPath.split('/')
@@ -299,7 +327,16 @@ class IncrementalCompiler(
 		return parts.subList(rootIdx + 1, parts.size).joinToString("/").removeSuffix(".java")
 	}
 
-	/** Runs the incremental Kotlin pass; a module with no Kotlin sources succeeds immediately. */
+	/**
+	 * Runs the incremental Kotlin pass; a module with no Kotlin sources succeeds immediately.
+	 *
+	 * @param allSources every module source; the `.java` ones go to kotlinc for resolution only.
+	 * @param changedFiles this edit's changes, narrowed by [kotlinFilesToCompile] before the
+	 *   engine sees them.
+	 * @param removedFiles this edit's removals; only the non-`.java` ones are passed on.
+	 * @param logger collects the compiler's messages, which are the only source of diagnostics.
+	 * @return the raw BTA result; anything but `COMPILATION_SUCCESS` fails the compile.
+	 */
 	private fun compileKotlin(
 		allSources: List<File>,
 		changedFiles: List<File>,
@@ -361,16 +398,17 @@ class IncrementalCompiler(
 	 * Decides which Kotlin sources this compile must treat as changed, given the engine
 	 * tracks no dependencies over the `.java` sources it resolves against.
 	 *
-	 * If no Java ABI moved, the answer is exactly the caller's Kotlin changes: Kotlin never
-	 * inlines a Java method body, and Java compile-time constants, which it does inline, are
-	 * part of the ABI hash, so no Kotlin bytecode can differ. Otherwise - or when the ABI is
-	 * unknown (first compile, no system Java compiler, an unparseable source) - every Kotlin
-	 * source is recompiled.
+	 * A stable Java ABI means exactly the caller's Kotlin changes suffice; any ABI move, or an
+	 * ABI that is unknown (first compile, no javac, an unparseable source), recompiles every
+	 * Kotlin source - bluntly, since BTA cannot be told of a non-classpath ABI change.
 	 *
-	 * The second case stays blunt because no sound way to narrow it exists yet: BTA offers no
-	 * way to inject a non-classpath ABI change into its lookup caches, and seeding from Kotlin
-	 * files that lexically name the changed type misses indirect dependents (a `typealias`
-	 * re-exports it under another name whose own ABI does not move). Both leave stale bytecode.
+	 * @param kotlinSources every Kotlin source in the module - the fallback answer.
+	 * @param javaSources every `.java` source, fingerprinted here and compared against the last
+	 *   successful compile's baseline.
+	 * @param changedFiles the caller's changes; the `.java` entries are dropped, since the
+	 *   fingerprint, not the caller, decides what a Java edit costs.
+	 * @return the Kotlin sources to hand the engine as changed; also updates [lastJavaAbiChange]
+	 *   and stages the new baseline, which only a successful compile promotes.
 	 */
 	private fun kotlinFilesToCompile(
 		kotlinSources: List<File>,

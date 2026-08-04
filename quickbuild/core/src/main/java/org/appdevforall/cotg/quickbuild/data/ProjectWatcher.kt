@@ -18,6 +18,9 @@ interface ProjectWatcher {
 	 * Modified and created paths arrive in [ChangedFiles.Known.files], deleted ones in
 	 * [ChangedFiles.Known.removed], with build intermediates and temp files already filtered
 	 * out. Need not be idempotent; the session manager calls it once per live session.
+	 *
+	 * @param onBatch invoked once per coalesced burst, already filtered and debounced. It runs
+	 *   on the implementation's own thread or scope, so it must not block.
 	 */
 	fun start(onBatch: (ChangedFiles.Known) -> Unit)
 

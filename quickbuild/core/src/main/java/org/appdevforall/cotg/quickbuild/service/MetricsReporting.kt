@@ -12,6 +12,9 @@ internal val metricsLog: Logger = LoggerFactory.getLogger("QuickBuildMetrics")
  *
  * Every metrics call in this package goes through here rather than relying on each class
  * to remember its own try/catch.
+ *
+ * @param block the metrics call; must be side-effect-free beyond reporting, since a
+ *   partial run is swallowed and never retried
  */
 internal inline fun report(block: () -> Unit) {
 	try {

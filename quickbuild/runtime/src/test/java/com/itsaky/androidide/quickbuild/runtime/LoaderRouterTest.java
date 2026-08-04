@@ -60,7 +60,11 @@ class LoaderRouterTest {
 		}
 	}
 
-	/** Serves exactly one class name (with a stand-in Class object); CNFE for everything else its parent chain misses. */
+	/**
+	 * Serves exactly one class name, backed by a stand-in Class object.
+	 *
+	 * Anything else its parent chain misses comes back as a ClassNotFoundException.
+	 */
 	private static final class ServingLoader extends ClassLoader {
 
 		private final String served;

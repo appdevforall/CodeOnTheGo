@@ -40,8 +40,14 @@ import org.slf4j.LoggerFactory
  * single-threaded dispatcher - wire it that way.
  */
 class LiveReloadOrchestrator(
+	/** Runs each build; called with at most one request in flight, and never for Gradle routes. */
 	private val executor: LiveReloadExecutor,
+	/** Routes each pending set. Its [BuildRoute.FullGradleBuild] verdicts are escalated, not run. */
 	private val classifier: ChangeClassifier,
+	/**
+	 * Where builds are launched. Cancelling it abandons an in-flight build without returning its
+	 * batch to pending, so prefer [onCancelRequested] for a user stop.
+	 */
 	private val scope: CoroutineScope,
 	/**
 	 * Monotonic clock for the e2e timeline's t0, the trigger stamp threaded into each
@@ -49,6 +55,10 @@ class LiveReloadOrchestrator(
 	 * executor's timebase; the default suits callers that do not measure timing.
 	 */
 	private val now: () -> Long = System::currentTimeMillis,
+	/**
+	 * Receives every event, delivered outside the internal lock on the caller's context, so a
+	 * handler may call back in. It must not throw - an exception propagates into the caller.
+	 */
 	private val onEvent: (OrchestratorEvent) -> Unit,
 ) {
 	private val log = LoggerFactory.getLogger(LiveReloadOrchestrator::class.java)
@@ -101,7 +111,12 @@ class LiveReloadOrchestrator(
 		var job: Job? = null,
 	)
 
-	/** A watcher/editor save event. [ChangedFiles.Unknown] forces a full recompile. */
+	/**
+	 * A watcher/editor save event. [ChangedFiles.Unknown] forces a full recompile.
+	 *
+	 * @param changes the coalesced batch; it is unioned onto whatever is already pending, so a
+	 *   save landing mid-build is never lost.
+	 */
 	suspend fun onFilesChanged(changes: ChangedFiles) {
 		withEvents { events ->
 			markBatchArrivalLocked()
@@ -155,13 +170,12 @@ class LiveReloadOrchestrator(
 		}
 
 	/**
-	 * Abandons the in-flight build on a stop tap, so nothing it produces is deployed or
-	 * rendered, and returns its batch to [pending] for the next save or tap to rebuild.
+	 * Abandons the in-flight build on a stop tap, so nothing it produces is deployed or rendered, and
+	 * returns its batch to [pending] for the next save or tap to rebuild.
 	 *
-	 * Two limits: the daemon protocol has no cancel op, so the compile itself runs to
-	 * completion unheard and the next build may queue behind it; and a stop landing in the
-	 * same scheduler turn as the deploy can report a cancel for a payload the proxy app
-	 * already took, leaving the status line one generation behind.
+	 * Two limits: the daemon has no cancel op, so the compile runs to completion unheard and may
+	 * delay the next build; and a stop in the deploy's own scheduler turn can report a cancel for a
+	 * payload the proxy app already took, leaving the status line one generation behind.
 	 *
 	 * @return true when a build was abandoned; false when there was nothing to cancel, or the
 	 *   in-flight build is the warm compile, which the user never asked for. The caller must
@@ -205,12 +219,11 @@ class LiveReloadOrchestrator(
 
 	/**
 	 * Recovers from a fresh daemon process replacing a dead one (crash, trim-memory teardown,
-	 * deliberate restart). Its incremental caches are empty, but the watcher never stopped,
-	 * so the pending set is still trustworthy.
+	 * deliberate restart). Its caches are empty, but the watcher never stopped, so the pending set
+	 * is still trustworthy.
 	 *
-	 * With nothing pending it re-warms the new daemon without deploying, since the proxy app
-	 * already runs the last deployed generation. With real work pending it marks the whole
-	 * baseline dirty, so the next build recompiles everything and deploys.
+	 * With nothing pending it re-warms the daemon without deploying - the proxy app already runs the
+	 * last generation. With work pending the whole baseline goes dirty and the next build deploys.
 	 */
 	suspend fun onDaemonReplaced() {
 		withEvents { events ->
@@ -239,13 +252,12 @@ class LiveReloadOrchestrator(
 	}
 
 	/**
-	 * Hands the pending set over to a full Gradle proxy app rebuild the session manager just
-	 * started.
+	 * Hands the pending set over to a full Gradle proxy app rebuild the session manager just started.
 	 *
-	 * Everything pending, plus any in-flight build's batch (those files are on disk, so
-	 * Gradle reads them), is marked absorbed-in-progress, and the in-flight build is
-	 * superseded so its late result is discarded. Saves arriving after this call count as not
-	 * absorbed, since Gradle may already have read those files.
+	 * Everything pending, plus any in-flight build's batch (those files are on disk, so Gradle reads
+	 * them), is marked absorbed-in-progress, and the in-flight build is superseded so its late result
+	 * is discarded. Saves arriving after this call count as not absorbed, since Gradle may already
+	 * have read those files.
 	 */
 	suspend fun onProxyAppRebuildStarted() {
 		mutex.withLock {
@@ -309,7 +321,14 @@ class LiveReloadOrchestrator(
 		events.forEach(onEvent)
 	}
 
-	/** Starts a build when one can run now: nothing in flight, no Gradle rebuild, work to do. */
+	/**
+	 * Starts a build when one can run now: nothing in flight, no Gradle rebuild, work to do.
+	 *
+	 * @param events sink for events to emit once the lock is released; this call appends a
+	 *   BuildStarted or an InvalidationRequired, or nothing when no build can start.
+	 * @param autoFollowUp true when chaining off a build that just finished rather than off a
+	 *   user save, which is what lets a repeat failure be reported as diagnostics-unchanged.
+	 */
 	private fun maybeStartBuildLocked(
 		events: MutableList<OrchestratorEvent>,
 		autoFollowUp: Boolean = false,
@@ -372,6 +391,8 @@ class LiveReloadOrchestrator(
 	 * Its batch is empty because it represents no user changes, so a failed warm compile
 	 * unions nothing back into pending; the request's changes are [ChangedFiles.Unknown] so
 	 * the executor still compiles everything.
+	 *
+	 * @param events sink for the one BuildStarted this always appends, drained after the lock.
 	 */
 	private fun startWarmCompileLocked(events: MutableList<OrchestratorEvent>) {
 		pendingWarmCompile = false
@@ -412,7 +433,14 @@ class LiveReloadOrchestrator(
 			onBuildFinished(buildId, outcome)
 		}
 
-	/** Reports one build's outcome and either follows it up or returns its batch to pending. */
+	/**
+	 * Reports one build's outcome and either follows it up or returns its batch to pending.
+	 *
+	 * @param buildId which build is reporting; when it no longer matches the in-flight build a
+	 *   baseline reset superseded it, and the result is discarded instead of rendered.
+	 * @param outcome what the executor returned, or a synthesized InfrastructureFailure when it
+	 *   threw instead of reporting one.
+	 */
 	private suspend fun onBuildFinished(
 		buildId: Long,
 		outcome: BuildOutcome,
@@ -471,14 +499,26 @@ class LiveReloadOrchestrator(
 
 /** What the orchestrator tells its host about a build. */
 sealed interface OrchestratorEvent {
-	/** A build just started; [changes] is the batch it took. */
+	/**
+	 * A build just started; [changes] is the batch it took.
+	 *
+	 * @property buildId identifies this build in the later succeeded/failed event.
+	 * @property route what the classifier decided, which says which steps will run.
+	 * @property changes the batch moved out of pending into this build. A warm compile reports
+	 *   [ChangedFiles.Unknown] here even though it carries no user changes.
+	 */
 	data class BuildStarted(
 		val buildId: Long,
 		val route: BuildRoute,
 		val changes: ChangedFiles,
 	) : OrchestratorEvent
 
-	/** A build deployed successfully. */
+	/**
+	 * A build deployed successfully.
+	 *
+	 * @property buildId the id of the [BuildStarted] this closes.
+	 * @property result the executor's outcome, carrying the generation now live.
+	 */
 	data class BuildSucceeded(
 		val buildId: Long,
 		val result: BuildOutcome.Success,
@@ -494,6 +534,9 @@ sealed interface OrchestratorEvent {
 	/**
 	 * A build did not deploy.
 	 *
+	 * @property buildId the id of the [BuildStarted] this closes.
+	 * @property outcome how it failed; the batch has already returned to pending, so the next
+	 *   save rebuilds it.
 	 * @property diagnosticsUnchanged true when this was an automatic follow-up that failed
 	 *   with exactly the diagnostics of the build it followed, so the status surface can keep
 	 *   its existing rendering. Contract only - no production consumer reads it yet.
@@ -506,7 +549,12 @@ sealed interface OrchestratorEvent {
 		val route: BuildRoute,
 	) : OrchestratorEvent
 
-	/** The changed-set needs a real Gradle build; the session manager owns the fallback. */
+	/**
+	 * The changed-set needs a real Gradle build; the session manager owns the fallback.
+	 *
+	 * @property reason why the live reload path cannot absorb it. Emitted once per pending set,
+	 *   so a second save of the same kind does not re-report it.
+	 */
 	data class InvalidationRequired(
 		val reason: InvalidationReason,
 	) : OrchestratorEvent

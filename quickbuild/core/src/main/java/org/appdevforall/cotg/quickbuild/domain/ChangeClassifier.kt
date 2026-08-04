@@ -30,6 +30,11 @@ class ChangeClassifier(
 	 * [ChangedFiles.Unknown] recompiles everything ON the quick path
 	 * ([BuildRoute.CodeAndResources]), not as a Gradle fallback - unless a processor is
 	 * configured, since an unenumerable change cannot be proven to miss processor input.
+	 *
+	 * @param changes the coalesced changed-set for one build; modified and removed paths are
+	 *   classified alike, by shape.
+	 * @return the cheapest correct route, which is [BuildRoute.FullGradleBuild] as soon as any
+	 *   single path in the set demands it - the verdict is not per file.
 	 */
 	fun classify(changes: ChangedFiles): BuildRoute {
 		val known =
@@ -146,9 +151,13 @@ class ChangeClassifier(
 		}
 
 		/**
-		 * True when [file] is [dir] or lives under it. Compares parent-chain entries by
-		 * equality, so the watcher's absolute paths and unit tests' relative ones both work
-		 * as long as both sides share a base.
+		 * True when [file] is [dir] or lives under it.
+		 *
+		 * @param file the changed path being classified; absolute from the watcher,
+		 *   relative in unit tests.
+		 * @param dir the candidate ancestor, which must share a base with [file] because
+		 *   parent-chain entries are compared by equality, not canonicalized.
+		 * @return true when [file] equals [dir] or [dir] appears in its parent chain.
 		 */
 		private fun isUnder(
 			file: File,
@@ -162,7 +171,13 @@ class ChangeClassifier(
 			return false
 		}
 
-		/** True when [segment] appears as a whole path segment of [file]'s parent chain. */
+		/**
+		 * True when [segment] appears as a whole path segment of [file]'s parent chain.
+		 *
+		 * @param file the changed path; only its directories are scanned, never its own name.
+		 * @param segment one exact directory name to match, e.g. "src", "res" or "assets".
+		 * @return true when some ancestor directory of [file] is named [segment].
+		 */
 		private fun hasSegment(
 			file: File,
 			segment: String,
@@ -176,14 +191,15 @@ class ChangeClassifier(
 		}
 
 		/**
-		 * True when [file]'s path shape alone names a role this classifier knows (Gradle
-		 * config, manifest, code, resource, asset). No filesystem access - the file need not
-		 * exist.
+		 * True when [file]'s path shape alone names a role this classifier knows (Gradle config,
+		 * manifest, code, resource, asset). No filesystem access - the file need not exist.
 		 *
-		 * Lets a caller tell a deleted project file from a vanished path that never had a
-		 * role, such as an atomic-rename tool's temp sibling (`sedXXXXXX`), which is safe to
-		 * drop as noise. That is all it decides - a `true` result does not by itself force a
-		 * fallback for a deletion.
+		 * Lets a caller drop a vanished path that never had a role, such as an atomic-rename
+		 * tool's temp sibling (`sedXXXXXX`), as noise.
+		 *
+		 * @param file the path to weigh; usually one already deleted from disk.
+		 * @return true when the shape names a known role. That alone does not force a Gradle
+		 *   fallback for a deletion - the caller still decides.
 		 */
 		fun hasRecognizedShape(file: File): Boolean = kindOf(file) != FileKind.UNSUPPORTED
 	}

@@ -18,12 +18,11 @@ interface QuickBuildDaemon {
 	val isRunning: Boolean
 
 	/**
-	 * Filesystem type of the daemon's scratch tree (`ext4`, `f2fs`, `fuse`, ...) as reported
-	 * at `configure`; null before a successful configure or from a daemon predating the
-	 * field. Session-constant, so it is read once per build rather than carried on every
-	 * reply. Recorded alongside build timings because it predicts them: per-file work costs
-	 * ~52x more on FUSE-backed emulated storage than on the app's own filesystem
-	 * (ADFA-4128 deep-dive).
+	 * Filesystem type of the daemon's scratch tree (`ext4`, `f2fs`, `fuse`, ...) as reported at
+	 * `configure`; null before a successful configure or from a daemon predating the field.
+	 * Session-constant, so it is read once per build rather than carried on every reply.
+	 * Recorded alongside build timings because it predicts them: per-file work costs ~52x more
+	 * on FUSE-backed emulated storage than on the app's own filesystem (measured for ADFA-4128).
 	 */
 	val scratchFsType: String?
 		get() = null
@@ -31,6 +30,12 @@ interface QuickBuildDaemon {
 	/**
 	 * Spawns (or respawns) the daemon process and sends `configure`. A running daemon is
 	 * shut down first, so this is also the respawn path after a death.
+	 *
+	 * @param config the session-fixed settings; the implementation may retain it for the
+	 *   lifetime of the process, so callers must not mutate the files it names mid-session.
+	 * @return [DaemonReply.Ok] once the daemon is configured and ready for ops, else
+	 *   [DaemonReply.Failed] - a spawn or configure problem is infrastructure, never a
+	 *   [DaemonReply.BuildFailed].
 	 */
 	suspend fun start(config: DaemonConfig): DaemonReply<Unit>
 
@@ -38,6 +43,9 @@ interface QuickBuildDaemon {
 	 * Compiles the project incrementally. [changedFiles] must be the known changed set;
 	 * pass all sources as changed to seed the incremental caches.
 	 *
+	 * @param allSources every `.kt`/`.java` in scope this session, not just the dirty ones -
+	 *   the daemon needs the full set to resolve references and to prune its caches.
+	 * @param changedFiles the sources to treat as dirty; a subset of [allSources].
 	 * @param removedFiles sources deleted since the last build, so their outputs are removed
 	 *   and dependents recompiled. A removed `.java`'s stale `.class` is deleted explicitly -
 	 *   javac has no incremental removed-files API. Empty is supported.
@@ -49,18 +57,31 @@ interface QuickBuildDaemon {
 		removedFiles: List<File> = emptyList(),
 	): DaemonReply<CompileOutput>
 
-	/** Dexes [classesDirs] into one `classes.dex`, with the daemon's step timings. */
+	/**
+	 * Dexes [classesDirs] into one `classes.dex`, with the daemon's step timings.
+	 *
+	 * @param classesDirs class-output directories to merge into the single dex, in the order
+	 *   they should be read; typically the compile output plus the proxy classes.
+	 * @return the produced dex plus timings, or the failure arm the op ended in.
+	 */
 	suspend fun dex(classesDirs: List<File>): DaemonReply<DexOutput>
 
 	/**
 	 * Relinks the project resources with aapt2; see [RelinkInputs] for the input contract.
 	 *
+	 * @param inputs the res dirs, manifest, and optional baseline pinning inputs for this
+	 *   relink, bundled so the signature stops growing.
 	 * @return the full relinked resource apk (resources.arsc plus every compiled resource
 	 *   file), not a bare extracted table - a bare table cannot back a file-typed resource.
 	 */
 	suspend fun relink(inputs: RelinkInputs): DaemonReply<RelinkOutput>
 
-	/** Liveness probe; false when the daemon is missing or unresponsive. */
+	/**
+	 * Liveness probe; false when the daemon is missing or unresponsive.
+	 *
+	 * @return true only on an answered `ping`. Takes the same one-at-a-time request slot as a
+	 *   build op, so it can queue behind an in-flight compile rather than answering at once.
+	 */
 	suspend fun ping(): Boolean
 
 	/** Graceful stop; a subsequent exit is deliberate, not a death. */
@@ -69,6 +90,9 @@ interface QuickBuildDaemon {
 	/**
 	 * Registers a callback for the daemon exiting without a shutdown request. The session
 	 * manager routes it into [org.appdevforall.cotg.quickbuild.domain.SessionEvent.DaemonDied].
+	 *
+	 * @param listener receives the process exit code, on the implementation's own thread, and
+	 *   never for an exit that [shutdown] asked for; null clears it. Only one is held.
 	 */
 	fun setDeathListener(listener: ((exitCode: Int) -> Unit)?)
 }
@@ -98,6 +122,9 @@ data class CompileOutput(
  * A successful `dex` op's output: the produced `classes.dex` plus the daemon's step
  * timings (null when unreported by a pre-timing daemon).
  *
+ * @property dexFile the single `classes.dex` this op produced, ready to stage into a payload.
+ * @property stripMillis wall time of the daemon's class-stripping pass; null when unreported.
+ * @property d8Millis wall time of the d8 invocation itself; null when unreported.
  * @property stats how many classes / bytes the pass moved; null when unreported.
  */
 data class DexOutput(
@@ -135,6 +162,11 @@ data class RelinkInputs(
 /**
  * A successful `relink` op's output: the full relinked resource apk plus the daemon's
  * step timings (null when unreported by a pre-timing daemon).
+ *
+ * @property resourceApk the relinked apk - resources.arsc plus every compiled resource file,
+ *   not a bare table, since a bare table cannot back a file-typed resource.
+ * @property aapt2CompileMillis wall time of the aapt2 compile pass; null when unreported.
+ * @property aapt2LinkMillis wall time of the aapt2 link pass; null when unreported.
  */
 data class RelinkOutput(
 	val resourceApk: File,
@@ -142,7 +174,20 @@ data class RelinkOutput(
 	val aapt2LinkMillis: Long? = null,
 )
 
-/** Everything the daemon needs to know once per session (`configure` op). */
+/**
+ * Everything the daemon needs to know once per session (`configure` op).
+ *
+ * @property projectRoot the user project's root directory, which anchors the daemon's own
+ *   relative bookkeeping.
+ * @property classpath compile classpath: the variant's library jars/AARs plus the proxy app
+ *   build's generated jars (R.jar and kin), which hot compiles reference.
+ * @property outDir directory the daemon writes classes, dex, and relinked resources under; it
+ *   is also the base for the conventional output paths a reply may omit.
+ * @property aapt2 on-device aapt2 binary used for resource compile and link.
+ * @property d8Jar d8/r8 jar the daemon dexes with, in-process.
+ * @property androidJar `android.jar` of the bundled compile SDK, the bootclasspath for compiles.
+ * @property compilerPlugins Kotlin compiler plugin jars (-Xplugin), e.g. Compose; session-fixed.
+ */
 data class DaemonConfig(
 	val projectRoot: File,
 	val classpath: List<File>,
@@ -150,7 +195,6 @@ data class DaemonConfig(
 	val aapt2: File,
 	val d8Jar: File,
 	val androidJar: File,
-	/** Kotlin compiler plugin jars (-Xplugin), e.g. Compose; session-fixed. */
 	val compilerPlugins: List<File> = emptyList(),
 )
 
@@ -161,14 +205,32 @@ data class DaemonConfig(
  * [org.appdevforall.cotg.quickbuild.domain.BuildOutcome.InfrastructureFailure].
  */
 sealed interface DaemonReply<out T> {
+	/**
+	 * The op succeeded.
+	 *
+	 * @property value the op's output; [Unit] for ops that only report success.
+	 */
 	data class Ok<T>(
 		val value: T,
 	) : DaemonReply<T>
 
+	/**
+	 * The user's code failed to build - the pipeline itself is healthy and the daemon stays up.
+	 *
+	 * @property diagnostics compiler errors and warnings to show the user, in the order the
+	 *   daemon reported them. May be empty when the daemon failed without saying why.
+	 */
 	data class BuildFailed(
 		val diagnostics: List<BuildDiagnostic>,
 	) : DaemonReply<Nothing>
 
+	/**
+	 * The pipeline itself broke; nothing can be said about the user's code.
+	 *
+	 * @property message operator-facing reason, safe to log but not written for end users.
+	 * @property daemonDied true when the child process is gone or presumed gone, which is the
+	 *   session manager's signal to respawn rather than retry.
+	 */
 	data class Failed(
 		val message: String,
 		val daemonDied: Boolean = false,

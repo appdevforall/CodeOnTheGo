@@ -10,18 +10,24 @@ import java.util.zip.ZipInputStream;
 /**
  * Extracts a changed-assets zip payload into an app-private override directory.
  *
- * Assets have no in-memory loading API, so this is the one place a payload touches disk (see {@link ResourceStore#overrideAsset}). Entry names arrive over binder and are checked for path traversal before any byte is written. Plain Java, no Android imports, so it stays JVM-unit-testable.
+ * Assets have no in-memory loading API, so this is the one place a payload touches disk (see
+ * {@link ResourceStore#overrideAsset}). Entry names arrive over binder and are checked for path
+ * traversal before any byte is written. Plain Java, no Android imports, so it stays
+ * JVM-unit-testable.
  */
 final class AssetExtractor {
 
 	private static final int BUFFER_SIZE = 16 * 1024;
 
 	/**
-	 * Extracts every file entry of {@code zipStream} under {@code destDir}, overwriting existing files. Does not close the stream; the caller owns it.
+	 * Extracts every file entry of {@code zipStream} under {@code destDir}, overwriting existing
+	 * files. Does not close the stream; the caller owns it.
 	 *
-	 * @return the number of files extracted.
-	 * @throws IOException
-	 *             on I/O failure or when an entry would escape {@code destDir}.
+	 * @param zipStream the changed-assets zip as it arrived over binder; read but never closed
+	 * @param destDir the app-private override directory, created when missing
+	 * @return the number of files extracted, directory entries excluded
+	 * @throws IOException on I/O failure or when an entry would escape {@code destDir}. Extraction
+	 *     stops at that point, so the directory can hold a partial set.
 	 */
 	static int extract(InputStream zipStream, File destDir) throws IOException {
 		if (!destDir.isDirectory() && !destDir.mkdirs()) {
@@ -49,7 +55,14 @@ final class AssetExtractor {
 		return count;
 	}
 
-	/** Writes to a temp file and renames, so a failure mid-copy never leaves a half-written asset. */
+	/**
+	 * Writes to a temp file and renames, so a failure mid-copy never leaves a half-written asset.
+	 *
+	 * @param in the current zip entry's bytes; read to the end of the entry, never closed
+	 * @param target the final path, already checked to sit inside the destination directory
+	 * @throws IOException when a parent directory cannot be created, the copy fails, or the
+	 *     rename into place fails twice
+	 */
 	private static void writeFile(InputStream in, File target) throws IOException {
 		File parent = target.getParentFile();
 		if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {

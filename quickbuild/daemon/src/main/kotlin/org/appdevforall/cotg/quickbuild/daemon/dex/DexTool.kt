@@ -13,6 +13,11 @@ import kotlin.io.path.extension
  * device's provisioned build-tools at configure time and is loaded through its own
  * [URLClassLoader], with every call made reflectively, so the daemon needs no AGP or r8 build
  * dependency and works against whatever build-tools version the device ships.
+ *
+ * @param d8Jar the device's `lib/d8.jar`; opened into a private class loader here and not
+ *   retained, so the caller may not swap it without a new [DexTool].
+ * @property androidJar the platform jar, passed to d8 as library (not program) input.
+ * @property minApi the payload's `minSdkVersion`, which decides what d8 desugars.
  */
 class DexTool(
 	d8Jar: File,
@@ -22,6 +27,9 @@ class DexTool(
 	/** Outcome of one dex run. */
 	sealed interface Result {
 		/**
+		 * D8 produced a dex, with the timings and counts the run cost.
+		 *
+		 * @property dexFile the emitted `classes.dex`, verified to exist before this is built.
 		 * @property stripMillis wall time of the ACC_FINAL-stripping mirror pass.
 		 * @property d8Millis wall time of the d8 invocation itself.
 		 * @property stats what the run processed. Both steps cover the whole class tree every
@@ -34,6 +42,12 @@ class DexTool(
 			val stats: DexStats = DexStats(),
 		) : Result
 
+		/**
+		 * The run produced no usable dex.
+		 *
+		 * @property message caller-facing reason - no input classes, a d8 error, or an r8 jar
+		 *   whose layout does not match what the reflective calls expect.
+		 */
 		data class Failed(
 			val message: String,
 		) : Result
@@ -45,6 +59,13 @@ class DexTool(
 	 * Dexes every `.class` under [classesDirs] into `<outDir>/classes.dex`, first clearing
 	 * ACC_FINAL from each class ([FinalStripper]) so the payload matches the gen-0 baseline's
 	 * opened classes and the proxies' `extends` stays verifiable.
+	 *
+	 * @param classesDirs roots walked recursively; a non-directory entry is skipped, and a later
+	 *   root overwrites an earlier one on the same relative path.
+	 * @param outDir created if absent; receives `classes.dex` and the `opened-classes` mirror,
+	 *   which is wiped at the start of every run.
+	 * @return [Result.Failed] when no `.class` was found, when d8 threw, or when d8 exited clean
+	 *   without writing a dex.
 	 */
 	fun dex(
 		classesDirs: List<File>,
@@ -80,7 +101,14 @@ class DexTool(
 		}
 	}
 
-	/** Builds and runs a D8 command reflectively against the device's r8 jar. */
+	/**
+	 * Builds and runs a D8 command reflectively against the device's r8 jar.
+	 *
+	 * @param classFiles the already-stripped `.class` copies, passed as d8 program inputs.
+	 * @param outDir d8's output dir, written in `DexIndexed` mode.
+	 * @throws java.lang.reflect.InvocationTargetException wrapping any d8 compilation error.
+	 * @throws ReflectiveOperationException when the r8 jar does not expose the expected API.
+	 */
 	private fun runD8(
 		classFiles: List<Path>,
 		outDir: Path,
@@ -115,6 +143,10 @@ class DexTool(
 	 * Mirrors every `.class` under [classesDirs] into [openedRoot] with ACC_FINAL
 	 * cleared. Later roots overwrite earlier ones on a path collision (compile output
 	 * first, proxy classes second - no overlap in practice).
+	 *
+	 * @param classesDirs roots to mirror, in precedence order; non-directories are skipped.
+	 * @param openedRoot deleted recursively first, so it must not be a caller-owned dir.
+	 * @return the stripped copies in first-seen path order, and the total bytes read.
 	 */
 	private fun openClasses(
 		classesDirs: List<File>,
@@ -139,12 +171,18 @@ class DexTool(
 		return Opened(opened.values.toList(), bytes)
 	}
 
-	/** What one [openClasses] pass produced: the stripped copies, and the bytes it read. */
+	/**
+	 * What one [openClasses] pass produced: the stripped copies, and the bytes it read.
+	 *
+	 * @property paths absolute paths under the opened root, deduplicated by relative path.
+	 * @property bytes size of the originals read, not of the rewritten copies.
+	 */
 	private data class Opened(
 		val paths: List<Path>,
 		val bytes: Long,
 	)
 
+	/** Closes the r8 class loader; the instance cannot dex afterwards. */
 	override fun close() {
 		loader.close()
 	}

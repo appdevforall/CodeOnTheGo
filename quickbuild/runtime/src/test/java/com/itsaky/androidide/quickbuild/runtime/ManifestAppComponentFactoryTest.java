@@ -10,15 +10,22 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.NodeList;
 
 /**
- * Regression guard. The runtime AAR must NOT declare {@code android:appComponentFactory}: a debuggable app that also pulls androidx.core (which declares {@code androidx.core.app.CoreComponentFactory}) then fails manifest merge at {@code processDebugMainManifest} - before the proxy app build's merged-manifest transform runs - which killed Quick Build provisioning for every app template. The proxy app build owns the factory (QuickBuildManifestTransformer sets it on the merged manifest). If someone re-adds the attribute to the AAR manifest, this test fails.
+ * Pins that the runtime AAR manifest declares no {@code android:appComponentFactory}.
  *
- * <p>
- * Parses the XML (so the explanatory comment that mentions the attribute name doesn't trip the check) and asserts no element declares an appComponentFactory attribute.
+ * If it did, a debuggable app also pulling androidx.core would fail manifest merge at
+ * {@code processDebugMainManifest} before the proxy build's merged-manifest transform runs -
+ * the failure that once killed Quick Build provisioning for every app template. The proxy app
+ * build owns the factory; the XML is parsed so this comment's mention cannot trip the check.
  */
 class ManifestAppComponentFactoryTest {
 
 	/**
-	 * This module's src/main/AndroidManifest.xml. Gradle runs unit tests with the working directory at the module root, so no search is needed - and nothing here hardcodes the module's path, which a module move would otherwise silently invalidate.
+	 * Resolves this module's src/main/AndroidManifest.xml from the test working directory.
+	 *
+	 * Gradle runs unit tests with the working directory at the module root, so no search is
+	 * needed, and no module path is hardcoded that a module move would silently invalidate.
+	 *
+	 * @return the manifest file; a miss throws rather than letting the test pass vacuously
 	 */
 	private static File locateManifest() {
 		File manifest = new File(System.getProperty("user.dir"), "src/main/AndroidManifest.xml");

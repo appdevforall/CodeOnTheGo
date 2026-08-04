@@ -15,6 +15,10 @@ sealed interface ChangedFiles {
 	 * always the newer one, so modify-then-delete collapses to a removal and
 	 * delete-then-recreate to a modification; a plain set union would leave the path in both
 	 * sets and the executor would feed it to the daemon as changed AND removed.
+	 *
+	 * @param other the NEWER changed-set, whose verdict per path wins over this one's.
+	 * @return the reconciled union; [Unknown] whenever either side is [Unknown], since one
+	 *   unenumerable set makes the whole result unenumerable.
 	 */
 	operator fun plus(other: ChangedFiles): ChangedFiles
 
@@ -53,6 +57,7 @@ sealed interface ChangedFiles {
 			get() = files.isEmpty() && removed.isEmpty()
 
 		companion object {
+			/** The shared "nothing changed" value; a no-op save must not recompile. */
 			val EMPTY = Known(emptySet())
 		}
 	}

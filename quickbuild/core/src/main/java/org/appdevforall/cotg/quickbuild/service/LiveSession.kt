@@ -22,11 +22,17 @@ import org.appdevforall.cotg.quickbuild.domain.annotations.SwitchableAnnotationI
  * new baseline while keeping the orchestrator and its pending-changes bookkeeping.
  */
 internal class LiveSession(
+	/** The installed proxy app's baseline; replaced wholesale by [adoptBaseline]. */
 	var proxyApp: ProxyAppInfo,
+	/** Source, resource, and watch roots derived from the same baseline as [proxyApp]. */
 	var layout: QuickBuildProjectLayout,
+	/** Generation allocator, persisted per project so it survives this session. */
 	val tracker: GenerationTracker,
+	/** Decides which watcher events are worth a build; fixed for the session's lifetime. */
 	val filter: WatchFilter,
+	/** Owns coalescing, routing, and in-flight bookkeeping; survives a baseline swap. */
 	val orchestrator: LiveReloadOrchestrator,
+	/** Started by the manager once the session goes live, and stopped by its teardown. */
 	val watcher: ProjectWatcher,
 	/** Seam a proxy app rebuild swaps a fresh ProxyAppInfo-derived executor into. */
 	val executor: SwitchableExecutor,
@@ -47,10 +53,15 @@ internal class LiveSession(
 	 * Moves this session onto the baseline a proxy app rebuild just installed.
 	 *
 	 * Every ProxyAppInfo-derived piece moves together: leaving one behind lets the deploy
-	 * policy keep routing on provisioning-time facts, so a newly proxied service would
-	 * hot-swap and leave its live instance stale. Callers must already hold both
-	 * delegates, since building them can fail and a failure has to leave the old baseline
-	 * intact.
+	 * policy route on provisioning-time facts, so a newly proxied service would hot-swap
+	 * and leave its live instance stale. Callers must already hold both delegates, since
+	 * building them can fail and a failure must leave the old baseline intact.
+	 *
+	 * @param proxyApp the re-read report for the app just installed
+	 * @param layout the layout derived from that same report, never the previous one
+	 * @param executorDelegate executor built against [proxyApp]; must already be
+	 *   constructed, since building it can throw
+	 * @param annotationImpactDelegate annotation baseline captured against [proxyApp]
 	 */
 	suspend fun adoptBaseline(
 		proxyApp: ProxyAppInfo,
@@ -76,6 +87,9 @@ internal class LiveSession(
  * rebuild the executor from the re-read setup.json (new deploy-policy components,
  * launcher and entry targets). Swapping the delegate keeps the orchestrator's
  * pending-changes bookkeeping.
+ *
+ * @property delegate the executor every call forwards to; volatile because the swap runs
+ *   on the session dispatcher while a build may read it from another thread
  */
 internal class SwitchableExecutor(
 	@Volatile var delegate: LiveReloadExecutor,

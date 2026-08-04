@@ -21,9 +21,11 @@ import org.slf4j.LoggerFactory
  * break. Call only on the session dispatcher; this class holds no scope of its own.
  */
 internal class QuickBuildDaemonController(
+	/** The daemon itself; this class owns when it starts and stops, not what it does. */
 	private val daemon: QuickBuildDaemon,
 	/** App-private scratch trees; the daemon's output dir lives here. */
 	private val scratch: QuickBuildScratch,
+	/** Locations of the bundled aapt2, d8, android.jar, and Compose compiler plugin. */
 	private val paths: QuickBuildPaths,
 ) {
 	/**
@@ -51,10 +53,21 @@ internal class QuickBuildDaemonController(
 		daemonEpoch++
 	}
 
-	/** The current epoch, captured at effect time and passed back into [respawn]. */
+	/**
+	 * The current epoch, captured at effect time and passed back into [respawn].
+	 *
+	 * @return an opaque counter, meaningful only when compared with a later read
+	 */
 	fun epochSnapshot(): Long = daemonEpoch
 
-	/** Starts the daemon against [layout] + [proxyApp]'s config. Never bumps the epoch. */
+	/**
+	 * Starts the daemon against [layout] + [proxyApp]'s config. Never bumps the epoch.
+	 *
+	 * @param layout supplies the project root and compile classpath
+	 * @param proxyApp supplies the baseline facts the config needs, currently whether
+	 *   Compose is enabled
+	 * @return the daemon's reply; callers must treat anything but Ok as "no daemon"
+	 */
 	suspend fun start(
 		layout: QuickBuildProjectLayout,
 		proxyApp: ProxyAppInfo,
@@ -77,6 +90,12 @@ internal class QuickBuildDaemonController(
 		 */
 		data object Superseded : RespawnOutcome
 
+		/**
+		 * The daemon could not be brought back. The session stays degraded rather than
+		 * auto-retrying, which would just spin on a hard-broken daemon.
+		 *
+		 * @property message the daemon's own failure text, or a generic note
+		 */
 		data class Failed(
 			val message: String,
 		) : RespawnOutcome
@@ -85,7 +104,11 @@ internal class QuickBuildDaemonController(
 	/**
 	 * Restarts a dead daemon unless an intentional transition superseded the attempt.
 	 *
+	 * @param layout the live session's layout, unchanged by the daemon's death
+	 * @param proxyApp the live session's current baseline
 	 * @param startEpoch the [epochSnapshot] taken when the respawn effect fired
+	 * @return respawned, superseded, or failed; a superseded result has already stopped any
+	 *   zombie daemon this attempt brought up
 	 */
 	suspend fun respawn(
 		layout: QuickBuildProjectLayout,
@@ -129,12 +152,12 @@ internal class QuickBuildDaemonController(
 	 * [ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL] and the cached-process levels
 	 * above it.
 	 *
-	 * `RUNNING_MODERATE` and `RUNNING_LOW` fire on transient pressure the OS usually
-	 * recovers from, and a teardown costs a respawn plus a re-seed on the next edit.
-	 * [ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN] is excluded despite its higher number:
-	 * it means the UI went away, and backgrounding CoGo is the middle of the Quick Build
-	 * loop. A build in flight is never interrupted; the teardown defers and
-	 * [shrinkIfPending] retries it later.
+	 * `RUNNING_MODERATE` and `RUNNING_LOW` are transient, and `UI_HIDDEN` only means CoGo
+	 * went to the background, which is the middle of the loop - so all three are excluded.
+	 *
+	 * @param level the raw `ComponentCallbacks2` level the host forwarded
+	 * @param buildInFlight true to defer the teardown rather than interrupt a build;
+	 *   [shrinkIfPending] then carries it out once the build lands
 	 */
 	suspend fun onTrimMemory(
 		level: Int,
@@ -160,6 +183,8 @@ internal class QuickBuildDaemonController(
 	 * A build in flight leaves the pending flag set for the manager's state collector to
 	 * retry. Idempotent: with no pending request, or a daemon already down, this is a
 	 * silent no-op.
+	 *
+	 * @param buildInFlight true to leave the request pending for a later call
 	 */
 	suspend fun shrinkIfPending(buildInFlight: Boolean) {
 		if (buildInFlight) return
@@ -171,7 +196,14 @@ internal class QuickBuildDaemonController(
 		daemon.shutdown()
 	}
 
-	/** Builds the daemon config for one project layout and proxy app baseline. */
+	/**
+	 * Builds the daemon config for one project layout and proxy app baseline.
+	 *
+	 * @param layout supplies the project root and the compile classpath
+	 * @param proxyApp supplies whether the Compose compiler plugin must be loaded
+	 * @return the config; its output dir is deliberately app-private scratch, never a path
+	 *   under the FUSE-backed project root
+	 */
 	private fun configFor(
 		layout: QuickBuildProjectLayout,
 		proxyApp: ProxyAppInfo,

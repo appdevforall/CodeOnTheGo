@@ -8,14 +8,25 @@ import java.util.Map;
 /**
  * Reads the runtime's two small JSON schemas: deploy metadata and the component map.
  *
- * Hand-rolled because this AAR carries zero dependencies and android.jar's org.json is a stub in JVM unit tests. It keeps only strings and arrays of strings, but still consumes nested objects, numbers, booleans and nulls so a document with extra fields parses cleanly. Malformed input throws {@link IllegalArgumentException}, which callers treat as a bad payload rather than a crash.
+ * Hand-rolled because this AAR carries zero dependencies and android.jar's org.json is a stub in
+ * JVM unit tests. It keeps only strings and arrays of strings, but still consumes nested objects,
+ * numbers, booleans and nulls so a document with extra fields parses cleanly. Malformed input
+ * throws {@link IllegalArgumentException}, which callers treat as a bad payload rather than a
+ * crash.
  */
 final class MiniJson {
 
 	/**
 	 * Parses {@code json} as a top-level object.
 	 *
-	 * String values map to {@link String} and arrays keep only their string elements as {@code List<String>}; every other value is consumed and dropped.
+	 * String values map to {@link String} and arrays keep only their string elements as
+	 * {@code List<String>}; every other value is consumed and dropped.
+	 *
+	 * @param json the whole document, which must be one object with nothing after it
+	 * @return a mutable insertion-ordered map holding the kept values; keys whose value was
+	 *     dropped are absent entirely
+	 * @throws IllegalArgumentException when {@code json} is null, is not a well-formed object, or
+	 *     carries trailing content
 	 */
 	static Map<String, Object> parseObject(String json) {
 		if (json == null) {
@@ -31,14 +42,26 @@ final class MiniJson {
 		return result;
 	}
 
+	/** The document being read; a parser instance is single-use. */
 	private final String src;
 
+	/** Read cursor into {@link #src}, in chars. */
 	private int pos;
 
+	/**
+	 * @param src the document to read; never null, since {@link #parseObject} checks first
+	 */
 	private MiniJson(String src) {
 		this.src = src;
 	}
 
+	/**
+	 * Consumes the next char, requiring it to be {@code expected}.
+	 *
+	 * @param expected the char the grammar demands here
+	 * @throws IllegalArgumentException when the next char differs, with the cursor left on it so
+	 *     the message points at the right offset
+	 */
 	private void expect(char expected) {
 		if (read() != expected) {
 			pos--;
@@ -46,10 +69,22 @@ final class MiniJson {
 		}
 	}
 
+	/**
+	 * Builds the parse failure, stamped with the current offset.
+	 *
+	 * @param message what the grammar expected at this point
+	 * @return the exception to throw; this method never throws it itself
+	 */
 	private IllegalArgumentException fail(String message) {
 		return new IllegalArgumentException("malformed json at offset " + pos + ": " + message);
 	}
 
+	/**
+	 * The char at the cursor, without consuming it.
+	 *
+	 * @return the current char
+	 * @throws IllegalArgumentException at end of input, so no caller has to bounds-check
+	 */
 	private char peek() {
 		if (pos >= src.length()) {
 			throw fail("unexpected end of input");
@@ -57,12 +92,24 @@ final class MiniJson {
 		return src.charAt(pos);
 	}
 
+	/**
+	 * The char at the cursor, consuming it.
+	 *
+	 * @return the char just consumed
+	 * @throws IllegalArgumentException at end of input
+	 */
 	private char read() {
 		char c = peek();
 		pos++;
 		return c;
 	}
 
+	/**
+	 * Reads an array, keeping only its string elements.
+	 *
+	 * @return the string elements in document order, empty when the array held none
+	 * @throws IllegalArgumentException on a malformed array or at end of input
+	 */
 	private List<String> readArray() {
 		expect('[');
 		List<String> out = new ArrayList<String>();
@@ -88,6 +135,12 @@ final class MiniJson {
 		}
 	}
 
+	/**
+	 * Reads an object, keeping only the entries whose value survived {@link #readValue}.
+	 *
+	 * @return the kept entries in document order; a duplicate key keeps the last value
+	 * @throws IllegalArgumentException on a malformed object or at end of input
+	 */
 	private Map<String, Object> readObject() {
 		expect('{');
 		Map<String, Object> out = new LinkedHashMap<String, Object>();
@@ -117,6 +170,13 @@ final class MiniJson {
 		}
 	}
 
+	/**
+	 * Reads a quoted string, decoding the standard JSON escapes.
+	 *
+	 * @return the decoded string, without its quotes
+	 * @throws IllegalArgumentException on an unknown escape, an unterminated string, or end of
+	 *     input
+	 */
 	private String readString() {
 		expect('"');
 		StringBuilder sb = new StringBuilder();
@@ -164,6 +224,12 @@ final class MiniJson {
 		}
 	}
 
+	/**
+	 * Decodes the four hex digits of a {@code \\u} escape, the cursor being just past the u.
+	 *
+	 * @return the decoded char; a surrogate is returned as-is, so a pair decodes across two calls
+	 * @throws IllegalArgumentException when fewer than four chars remain or they are not hex
+	 */
 	private char readUnicodeEscape() {
 		if (pos + 4 > src.length()) {
 			throw fail("truncated unicode escape");
@@ -178,7 +244,13 @@ final class MiniJson {
 		}
 	}
 
-	/** Returns a String, a List of strings, or null for value types we drop. */
+	/**
+	 * Reads any value, keeping the two types this parser supports.
+	 *
+	 * @return a String, a List of strings, or null for value types we drop; null therefore means
+	 *     "consumed and dropped", never "the JSON literal null"
+	 * @throws IllegalArgumentException on malformed input or at end of input
+	 */
 	private Object readValue() {
 		char c = peek();
 		if (c == '"') {
@@ -195,7 +267,14 @@ final class MiniJson {
 		return null;
 	}
 
-	/** Consumes a number / true / false / null token without interpreting it. */
+	/**
+	 * Consumes a number / true / false / null token without interpreting it.
+	 *
+	 * Stops at the first structural char or whitespace, so it never validates the token's shape.
+	 *
+	 * @throws IllegalArgumentException when the cursor sits on a structural char, i.e. there is
+	 *     no token here at all
+	 */
 	private void skipLiteral() {
 		int start = pos;
 		while (pos < src.length()) {
@@ -210,6 +289,7 @@ final class MiniJson {
 		}
 	}
 
+	/** Advances the cursor past any whitespace; safe at end of input, where it does nothing. */
 	private void skipWhitespace() {
 		while (pos < src.length() && Character.isWhitespace(src.charAt(pos))) {
 			pos++;

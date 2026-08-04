@@ -5,7 +5,10 @@ import static com.google.common.truth.Truth.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * Banner-text edges: a build_failed status can arrive with any subset of file/line/message (the wire schema makes every field optional), and the rendered text must degrade cleanly instead of printing "null" or dangling separators.
+ * Covers the banner-text edges when a build_failed status arrives only partly filled in.
+ *
+ * The wire schema makes file, line and message all optional, so the rendered text must degrade
+ * cleanly on any subset instead of printing "null" or leaving dangling separators.
  */
 class OverlayStateTextEdgeTest {
 

@@ -5,7 +5,10 @@ import static com.google.common.truth.Truth.assertThat;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** Exercises the Object-typed census seams; the Service-typed entry points are one-line delegates verified on-device. */
+/**
+ * Exercises the Object-typed census seams; the Service-typed entry points are one-line
+ * delegates verified on-device.
+ */
 class ServiceTrackerTest {
 
 	@Test

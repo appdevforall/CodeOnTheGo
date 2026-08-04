@@ -32,10 +32,15 @@ import java.io.File
  * that decision onward lives in [PayloadDeployer].
  */
 class LiveReloadExecutorImpl(
+	/** Warm compile/dex/relink server; a death mid-build surfaces as a daemon-died outcome. */
 	private val daemon: QuickBuildDaemon,
+	/** Binder channel to the running proxy app; also carries the build-status notifications. */
 	private val deploy: DeploySender,
+	/** Source, resource, and manifest roots of the user's module, re-read on every build. */
 	private val layout: QuickBuildProjectLayout,
+	/** The user app's entry activity FQN, echoed to the runtime in payload metadata. */
 	private val entryActivity: String,
+	/** Allocates generations; only a build that reaches deploy is allowed to burn one. */
 	private val generations: GenerationTracker,
 	/** Scratch dir for payload staging (the changed-assets zip). */
 	private val workDir: File,
@@ -57,10 +62,15 @@ class LiveReloadExecutorImpl(
 	 * intent.
 	 */
 	private val launcherActivity: String? = null,
+	/** Relaunches the proxy app on the restart path. Null makes a restart deploy fail honestly. */
 	private val launcher: ProxyAppLauncher? = null,
+	/** How long a restart deploy waits for the runtime to exit before calling it unsupported. */
 	private val restartDisconnectTimeoutMillis: Long = DEFAULT_RESTART_DISCONNECT_TIMEOUT_MILLIS,
+	/** How long a relaunched proxy app gets to boot, bind, and report its generation. */
 	private val restartReconnectTimeoutMillis: Long = DEFAULT_RESTART_RECONNECT_TIMEOUT_MILLIS,
+	/** Builds the changed-assets zip; injected so the packaging step is unit-testable. */
 	private val assetPackager: AssetPackager = AssetPackager(),
+	/** Monotonic clock for the e2e timeline; must be the one the orchestrator stamps t0 with. */
 	private val clock: () -> Long = System::currentTimeMillis,
 	/**
 	 * Local sink for the per-generation e2e timing line. The default logs one structured
@@ -110,6 +120,9 @@ class LiveReloadExecutorImpl(
 	 *
 	 * A compile error shows; a success clears a previously shown failure. Best-effort by
 	 * contract.
+	 *
+	 * @param outcome the build's verdict; only compile errors and successes say anything,
+	 *   because every other outcome already has a surface of its own
 	 */
 	private fun notifyProxyApp(outcome: BuildOutcome) {
 		try {
@@ -141,6 +154,9 @@ class LiveReloadExecutorImpl(
 	 *
 	 * The metrics call is guarded so a misbehaving sink degrades to a warning rather than
 	 * failing a build the user already saw reload.
+	 *
+	 * @param timeline the finished timeline; reported only for a build that actually went
+	 *   live, so a failed build never emits a line the harness would parse
 	 */
 	private fun reportTimeline(timeline: E2eTimeline) {
 		emitTimeline(timeline)
@@ -151,7 +167,13 @@ class LiveReloadExecutorImpl(
 		}
 	}
 
-	/** Runs one build request down its route; [execute] adds the error boundary. */
+	/**
+	 * Runs one build request down its route; [execute] adds the error boundary.
+	 *
+	 * @param request the classified build; its route selects the pipeline and its
+	 *   `forced` flag is what makes an empty change-set still deploy
+	 * @return the outcome for the orchestrator. May throw, which is why [execute] wraps it.
+	 */
 	private suspend fun executeInner(request: BuildRequest): BuildOutcome {
 		val startedAt = clock()
 		val timeline = E2eTimelineRecorder(request.triggeredAtMillis) { daemon.scratchFsType }
@@ -288,6 +310,11 @@ class LiveReloadExecutorImpl(
 	 * [ChangedFiles.Unknown] recompiles everything, re-seeding incremental state. On
 	 * success the compile's changed class headers also feed the policy's supertype index,
 	 * which is what catches re-parenting.
+	 *
+	 * @param changes the classified change-set; only `.kt` and `.java` entries reach the
+	 *   compiler, and removed sources travel separately so their outputs get deleted
+	 * @param timeline mutated in place with this step's spans and counts
+	 * @return the dex plus its deploy decision, or the outcome that ends the build
 	 */
 	private suspend fun compileAndDex(
 		changes: ChangedFiles,
@@ -371,6 +398,11 @@ class LiveReloadExecutorImpl(
 	/**
 	 * Asks the deploy policy for a hot swap or a restart, after teaching it the
 	 * supertypes of every class this compile changed.
+	 *
+	 * @param classesDir the compile's output root, which [changedClassFiles] is relative to
+	 * @param changedClassFiles the changed classes; null means the compiler could not say,
+	 *   which the policy must treat as "anything may have changed", not as "nothing did"
+	 * @return the route the deploy must take; always recreate when no policy is wired
 	 */
 	private fun decideDeploy(
 		classesDir: File,
@@ -389,7 +421,13 @@ class LiveReloadExecutorImpl(
 		return policy.decide(changedClassFiles)
 	}
 
-	/** Rebuilds the resource APK from the project's current resources. */
+	/**
+	 * Rebuilds the resource APK from the project's current resources.
+	 *
+	 * @param timeline mutated in place with the relink's rpc and aapt2 spans
+	 * @return the resource APK, or the outcome that ends the build; aapt2 errors come back
+	 *   as a compile error, since they are the user's resources failing to build
+	 */
 	private suspend fun relink(timeline: E2eTimelineRecorder): Step {
 		val startedAt = clock()
 		val reply =

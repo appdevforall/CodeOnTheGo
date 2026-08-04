@@ -23,7 +23,15 @@ object ProxySourceGenerator {
 	 */
 	private const val CLASS_LOADERS_CLASS = "com.itsaky.androidide.quickbuild.runtime.QuickBuildClassLoaders"
 
-	/** Emits the proxy source for [component]; the Application entry has no proxy. */
+	/**
+	 * Emits the proxy source for [component]; the Application entry has no proxy.
+	 *
+	 * @param component one entry of the manifest transform's component list, whose `proxyClass`
+	 *   must already be assigned.
+	 * @return the complete `.java` source, package declaration included.
+	 * @throws IllegalArgumentException if [component] carries no proxy class, or is the
+	 *   Application entry.
+	 */
 	fun generateSource(component: ProxiedComponent): String {
 		val proxyClass =
 			requireNotNull(component.proxyClass) {
@@ -36,7 +44,12 @@ object ProxySourceGenerator {
 	 * Emits the proxy source for one class pair.
 	 *
 	 * @param proxyClass fully-qualified proxy class name (must contain a package).
-	 * @param userClass fully-qualified user class the proxy extends.
+	 * @param userClass fully-qualified user class the proxy extends. A nested class arrives as a
+	 *   binary name (`Outer$Inner`) and is rewritten to its canonical form for the extends clause.
+	 * @param type which component body to emit; receivers and providers get an empty one.
+	 * @return the complete `.java` source, package declaration included.
+	 * @throws IllegalArgumentException if [proxyClass] has no package, or [type] is
+	 *   [ComponentType.APPLICATION].
 	 */
 	fun generateSource(
 		proxyClass: String,
@@ -84,6 +97,7 @@ object ProxySourceGenerator {
 		}
 	}
 
+	/** Appends the activity-only members: the gesture hook and the getClassLoader() override. */
 	private fun StringBuilder.appendActivityBody() {
 		append('\n')
 		append("\t/**\n")
@@ -108,6 +122,7 @@ object ProxySourceGenerator {
 		append("\t}\n")
 	}
 
+	/** Appends the service-only members: the onCreate/onDestroy pair that reports to the census. */
 	private fun StringBuilder.appendServiceBody() {
 		append('\n')
 		append("\t/**\n")

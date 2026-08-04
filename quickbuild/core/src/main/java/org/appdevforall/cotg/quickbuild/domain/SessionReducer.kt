@@ -7,7 +7,14 @@ package org.appdevforall.cotg.quickbuild.domain
  * effects, so a late or duplicate event can never corrupt the session. The shell logs those.
  */
 class SessionReducer {
-	/** Maps a state and an incoming event to the next state plus the effects to run. */
+	/**
+	 * Maps a state and an incoming event to the next state plus the effects to run.
+	 *
+	 * @param state the session's current state.
+	 * @param event what happened; a state that does not handle it keeps [state] unchanged rather
+	 *   than failing.
+	 * @return the state to adopt and the effects the shell must then run, in order.
+	 */
 	fun reduce(
 		state: QuickBuildSessionState,
 		event: SessionEvent,
@@ -164,7 +171,15 @@ class SessionReducer {
 			}
 		}
 
-	/** Shared by [QuickBuildSessionState.Ready] and [QuickBuildSessionState.Deployed]. */
+	/**
+	 * Shared by [QuickBuildSessionState.Ready] and [QuickBuildSessionState.Deployed].
+	 *
+	 * @param state the live state to return to when the event changes nothing.
+	 * @param generation the generation the proxy app runs, passed separately because the two live
+	 *   states carry it under different property names.
+	 * @param event what happened while the session was live.
+	 * @return the state to adopt and the effects the shell must then run.
+	 */
 	private fun reduceLive(
 		state: QuickBuildSessionState,
 		generation: Long,

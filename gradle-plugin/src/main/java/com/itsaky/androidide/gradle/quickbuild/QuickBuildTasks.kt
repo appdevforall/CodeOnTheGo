@@ -45,6 +45,7 @@ import javax.tools.ToolProvider
  * drift apart.
  */
 abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
+	/** AGP's merged manifest for the variant, the sole input every output here derives from. */
 	@get:InputFile
 	abstract val mergedManifest: RegularFileProperty
 
@@ -69,6 +70,7 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 	@get:Classpath
 	abstract val dependencyClasspath: ConfigurableFileCollection
 
+	/** The rewritten proxy-app manifest, which AGP packages in place of the merged one. */
 	@get:OutputFile
 	abstract val updatedManifest: RegularFileProperty
 
@@ -80,6 +82,7 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 	@get:OutputDirectory
 	abstract val generatedAssets: DirectoryProperty
 
+	/** Manifest facts for the later tasks; not shipped in the APK. */
 	@get:OutputFile
 	abstract val manifestInfoFile: RegularFileProperty
 
@@ -159,9 +162,11 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
  * [payloadClasses] for [QuickBuildPayloadDexTask] and the on-device compile daemon's baseline.
  */
 abstract class QuickBuildPayloadTransformTask : DefaultTask() {
+	/** Jar inputs of the APK's classes pipeline, as AGP's artifact transform hands them over. */
 	@get:InputFiles
 	abstract val allJars: ListProperty<RegularFile>
 
+	/** Directory inputs of the same pipeline: the project's own compiled classes. */
 	@get:InputFiles
 	abstract val allDirectories: ListProperty<Directory>
 
@@ -195,7 +200,13 @@ abstract class QuickBuildPayloadTransformTask : DefaultTask() {
 		writeRetainedApkJar()
 	}
 
-	/** True for `R.class` and the nested `R$string`, `R$layout`, ... holders. */
+	/**
+	 * True for `R.class` and the nested `R$string`, `R$layout`, ... holders.
+	 *
+	 * @param entryName a jar entry name or file name; only the segment after the last `/` is
+	 *   examined, so the package is irrelevant.
+	 * @return true if the entry is an R class of any package.
+	 */
 	private fun isResourceClass(entryName: String): Boolean {
 		val name = entryName.substringAfterLast('/')
 		return name == "R.class" || (name.startsWith("R$") && name.endsWith(".class"))
@@ -247,10 +258,12 @@ abstract class QuickBuildPayloadTransformTask : DefaultTask() {
  * later payload.
  */
 abstract class QuickBuildPayloadDexTask : DefaultTask() {
+	/** The divert task's output: the project classes this task opens and dexes. */
 	@get:InputDirectory
 	@get:PathSensitive(PathSensitivity.RELATIVE)
 	abstract val payloadClasses: DirectoryProperty
 
+	/** The generate task's proxy `.java` sources, compiled here rather than by the variant. */
 	@get:InputDirectory
 	@get:PathSensitive(PathSensitivity.RELATIVE)
 	abstract val proxySources: DirectoryProperty
@@ -262,9 +275,11 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 	@get:InputFile
 	abstract val manifestInfoFile: RegularFileProperty
 
+	/** The variant compile classpath, for javac and as D8's classpath (never program input). */
 	@get:Classpath
 	abstract val compileClasspath: ConfigurableFileCollection
 
+	/** The android.jar boot classpath, for javac and as D8's library input. */
 	@get:Classpath
 	abstract val bootClasspath: ConfigurableFileCollection
 
@@ -386,19 +401,29 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 		dexFiles.single().copyTo(File(assetsRoot, "quickbuild/gen-0.dex").apply { parentFile.mkdirs() })
 	}
 
-	/** Extracts classes.jar from each [runtimeAar]; javac and D8 cannot read an AAR. */
+	/**
+	 * Extracts classes.jar from each [runtimeAar]; javac and D8 cannot read an AAR.
+	 *
+	 * @return the extracted jars, written under the task's temporary directory so they are
+	 *   rewritten on every run rather than declared as an output.
+	 */
 	private fun extractRuntimeClasses(): List<File> = RuntimeClassesExtractor.extract(runtimeAar.files, temporaryDir)
 
 	/**
 	 * Fails the build with one clear line if any proxy targets a class that cannot be extended,
 	 * rather than letting javac dump a "cannot inherit from final ..." diagnostic.
 	 *
-	 * A backstop for [QuickBuildGenerateSourcesTask], which asked the same question but could
-	 * only search dependency artifacts; this runs against the real proxy compile classpath, which
-	 * also carries the runtime AARs and the project's own outputs.
+	 * A backstop for [QuickBuildGenerateSourcesTask], which could only search dependency
+	 * artifacts; this sees the real proxy compile classpath. Classes the project itself compiled
+	 * ([payloadRoot]) are exempted first: a mixed Kotlin/Java classpath can expose a raw copy.
 	 *
-	 * Classes the project itself compiled ([payloadRoot]) are exempted first, because a mixed
-	 * Kotlin/Java module's classpath can expose a raw, still-final copy of a project class.
+	 * @param proxyJavaFiles the generated proxy sources, whose paths under [proxySources] give
+	 *   back the proxy class names the manifest info is keyed by.
+	 * @param payloadRoot the divert task's output, read for the set of project-compiled classes.
+	 * @param runtimeClassesJars the runtime AAR's extracted classes.jars, searched ahead of
+	 *   [compileClasspath].
+	 * @throws org.gradle.api.GradleException naming the first unproxiable component, with the
+	 *   resolver's reason and the action the user has.
 	 */
 	private fun checkProxiability(
 		proxyJavaFiles: List<File>,
@@ -432,7 +457,16 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 		}
 	}
 
-	/** Compiles the generated proxy sources with an in-process javac; annotation processing off. */
+	/**
+	 * Compiles the generated proxy sources with an in-process javac; annotation processing off.
+	 *
+	 * @param sources the proxy `.java` files; an empty list is never passed.
+	 * @param classpath everything the proxies compile against - boot classes, the opened project
+	 *   classes, the runtime AAR and the variant compile classpath.
+	 * @param outputDir destination for the `.class` output; javac creates the package tree.
+	 * @throws org.gradle.api.GradleException if the JVM ships no compiler, or javac fails; the
+	 *   collected diagnostics are appended to the message.
+	 */
 	private fun compileProxies(
 		sources: List<File>,
 		classpath: Collection<File>,
@@ -468,12 +502,15 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
  * on-device daemon needs to compile and relink.
  */
 abstract class QuickBuildProxyAppReportTask : DefaultTask() {
+	/** The generate task's manifest-info intermediate, copied into setup.json. */
 	@get:InputFile
 	abstract val manifestInfoFile: RegularFileProperty
 
+	/** AGP's APK output directory, holding the built proxy APK and its metadata. */
 	@get:InputFiles
 	abstract val apkDirectory: DirectoryProperty
 
+	/** AGP's loader for that metadata; a directory walk is the fallback when it finds nothing. */
 	@get:Internal
 	abstract val builtArtifactsLoader: Property<BuiltArtifactsLoader>
 
@@ -567,6 +604,7 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	@get:PathSensitive(PathSensitivity.NONE)
 	abstract val dependencyResourceDirs: ConfigurableFileCollection
 
+	/** build/quickbuild/setup.json, the one file CoGo reads after the proxy app build. */
 	@get:OutputFile
 	abstract val reportFile: RegularFileProperty
 
@@ -654,6 +692,9 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	 * Finds AGP's `stableIds.txt` under [stableIdsSearchDir], or null if AGP wrote none.
 	 *
 	 * See that property's KDoc for why this walks rather than hardcoding the task-name subfolder.
+	 *
+	 * @return the first `stableIds.txt` found, or null when the directory is unset, absent, or
+	 *   holds no such file - all of which are normal on some AGP versions.
 	 */
 	private fun findStableIdsFile(): File? =
 		stableIdsSearchDir.orNull
@@ -668,6 +709,9 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	 *
 	 * Sorted for determinism only. The two sets never declare the same resource, and layering the
 	 * relink's own fresh compile on top of both is `Aapt2Link`'s job, not this task's.
+	 *
+	 * @return absolute paths of every `.flat` unit found, sorted; empty when neither source
+	 *   exists, which the caller logs rather than treating as an error.
 	 */
 	private fun collectLibraryResourcePaths(): List<String> {
 		val mergedRes =
@@ -688,7 +732,11 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	}
 }
 
-/** Deletes and recreates this directory, so a task never mixes stale output with fresh. */
+/**
+ * Deletes and recreates this directory, so a task never mixes stale output with fresh.
+ *
+ * @return this directory, now empty and existing, for chaining.
+ */
 private fun File.cleanDirectory(): File {
 	deleteRecursively()
 	mkdirs()

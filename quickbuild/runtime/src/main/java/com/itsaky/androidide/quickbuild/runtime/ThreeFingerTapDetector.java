@@ -3,7 +3,11 @@ package com.itsaky.androidide.quickbuild.runtime;
 /**
  * Recognizes three fingers landing within {@link #BURST_WINDOW_MS} of the first touch.
  *
- * Observation only: the caller passes every event through to the app whatever this returns, so normal one- and two-finger interaction is never consumed or delayed. Fires at most once per gesture and resets when the last finger lifts. Takes int action constants that mirror MotionEvent's public values, so the state machine is JVM-unit-testable without android.jar's stubbed MotionEvent.
+ * Observation only: the caller passes every event through to the app whatever this returns, so
+ * normal one- and two-finger interaction is never consumed or delayed. Fires at most once per
+ * gesture and resets when the last finger lifts. Takes int action constants that mirror
+ * MotionEvent's public values, so the state machine is JVM-unit-testable without android.jar's
+ * stubbed MotionEvent.
  */
 final class ThreeFingerTapDetector {
 
@@ -22,13 +26,14 @@ final class ThreeFingerTapDetector {
 	/**
 	 * Advances the gesture state machine with one touch event.
 	 *
-	 * @param actionMasked
-	 *            MotionEvent.getActionMasked()
-	 * @param pointerCount
-	 *            MotionEvent.getPointerCount()
-	 * @param eventTimeMillis
-	 *            MotionEvent.getEventTime()
-	 * @return true exactly when the third pointer of a burst lands, and not again until all fingers lift.
+	 * @param actionMasked MotionEvent.getActionMasked(); anything but the four constants above
+	 *     leaves the state machine untouched
+	 * @param pointerCount MotionEvent.getPointerCount(), the number of fingers down after this
+	 *     event
+	 * @param eventTimeMillis MotionEvent.getEventTime(), an uptime-based millisecond clock; only
+	 *     differences against the gesture start are used, never wall-clock time
+	 * @return true exactly when the third pointer of a burst lands, and not again until all
+	 *     fingers lift
 	 */
 	boolean onTouch(int actionMasked, int pointerCount, long eventTimeMillis) {
 		switch (actionMasked) {

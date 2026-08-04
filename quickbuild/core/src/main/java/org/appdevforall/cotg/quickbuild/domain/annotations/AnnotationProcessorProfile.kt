@@ -14,7 +14,12 @@ package org.appdevforall.cotg.quickbuild.domain.annotations
 class AnnotationProcessorProfile private constructor(
 	/** Dependency coordinates as reported by the proxy app build; empty means no processors. */
 	val processorCoordinates: List<String>,
+	/** Vocabulary of the recognized processors only, deduplicated by [ProcessorSpec.id]. */
 	private val specs: List<ProcessorSpec>,
+	/**
+	 * True when at least one coordinate matched no known processor, which switches the profile
+	 * into the conservative mode where every non-inert annotation counts as input.
+	 */
 	private val hasUnrecognized: Boolean,
 ) {
 	/** False when the project configures no annotation processor at all. */
@@ -23,7 +28,14 @@ class AnnotationProcessorProfile private constructor(
 	private val packages: Set<String> = specs.flatMapTo(mutableSetOf()) { it.annotationPackages }
 	private val simpleNames: Set<String> = specs.flatMapTo(mutableSetOf()) { it.annotationSimpleNames }
 
-	/** True when [use], as written in [facts], can feed a configured processor. */
+	/**
+	 * True when [use], as written in [facts], can feed a configured processor.
+	 *
+	 * @param use one annotation occurrence, name exactly as the source wrote it.
+	 * @param facts the same file's facts, needed for the imports that resolve a simple name.
+	 * @return true when the annotation could be processor input. Deliberately over-inclusive on
+	 *   an unresolvable name: a wrong `false` here would ship stale generated code.
+	 */
 	fun isProcessorInput(
 		use: AnnotationUse,
 		facts: AnnotationFacts,
@@ -42,7 +54,15 @@ class AnnotationProcessorProfile private constructor(
 		return use.simpleName in simpleNames || hasUnrecognized
 	}
 
-	/** FQN of [use] if imports (or the use site itself) pin it down, else null. */
+	/**
+	 * FQN of [use] if imports (or the use site itself) pin it down.
+	 *
+	 * @param use one annotation occurrence; already fully qualified at the use site when its
+	 *   name carries a dot.
+	 * @param facts the same file's facts, read only for its import list.
+	 * @return the resolved FQN, or null when nothing pins the simple name down (star import,
+	 *   same-package annotation, missing import) and the caller must fall back to that name.
+	 */
 	private fun resolve(
 		use: AnnotationUse,
 		facts: AnnotationFacts,
@@ -57,7 +77,9 @@ class AnnotationProcessorProfile private constructor(
 
 	/** One processor's annotation vocabulary. */
 	data class ProcessorSpec(
+		/** Stable key for the processor; two coordinates mapping to it contribute one spec. */
 		val id: String,
+		/** Packages whose annotations this processor consumes; matched as an FQN prefix. */
 		val annotationPackages: Set<String>,
 		/**
 		 * Names this processor consumes, used when an import cannot resolve the use site.
@@ -76,6 +98,8 @@ class AnnotationProcessorProfile private constructor(
 		 * @param coordinates processor dependency coordinates (`group:artifact:version`, or
 		 *   whatever the proxy app build could report - matching is substring-based, so a
 		 *   version-catalog alias like `libs.room.compiler` still identifies Room).
+		 * @return [NONE] for an empty or blank-only list; otherwise a profile that turns
+		 *   conservative as soon as a single coordinate goes unrecognized.
 		 */
 		fun of(coordinates: List<String>): AnnotationProcessorProfile {
 			val cleaned = coordinates.map { it.trim() }.filter { it.isNotEmpty() }

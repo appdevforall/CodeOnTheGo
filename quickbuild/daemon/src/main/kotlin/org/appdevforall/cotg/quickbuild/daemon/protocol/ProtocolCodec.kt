@@ -11,7 +11,14 @@ import com.google.gson.JsonPrimitive
  * so an encoded response is always exactly one line.
  */
 object ProtocolCodec {
-	/** Parses one request line. Never throws: broken input becomes [ParseResult.Malformed]. */
+	/**
+	 * Parses one request line. Never throws: broken input becomes [ParseResult.Malformed].
+	 *
+	 * @param line exactly one JSON object, without its trailing newline; blank lines are the
+	 *   caller's to skip.
+	 * @return [ParseResult.Parsed] with the typed request, or [ParseResult.Malformed] carrying
+	 *   the id when one could be read and [ParseResult.Malformed.UNKNOWN_ID] when it could not.
+	 */
 	fun parse(line: String): ParseResult {
 		val root =
 			try {
@@ -98,7 +105,14 @@ object ProtocolCodec {
 		}
 	}
 
-	/** Encodes a response as one JSON line (no trailing newline). */
+	/**
+	 * Encodes a response as one JSON line (no trailing newline).
+	 *
+	 * @param response its `values` may hold numbers, booleans, collections of strings, or
+	 *   anything else, which is written as its `toString`.
+	 * @return a single line - Gson escapes any newline inside a string - that the caller must
+	 *   terminate itself.
+	 */
 	fun encode(response: DaemonResponse): String {
 		val root = JsonObject()
 		root.addProperty("id", response.id)

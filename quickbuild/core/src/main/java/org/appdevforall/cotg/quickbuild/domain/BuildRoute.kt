@@ -7,7 +7,12 @@ package org.appdevforall.cotg.quickbuild.domain
  * the proxy app never runs stale code.
  */
 sealed interface BuildRoute {
-	/** The session baseline is stale; only a real Gradle build can absorb this change. */
+	/**
+	 * The session baseline is stale; only a real Gradle build can absorb this change.
+	 *
+	 * @property reason what invalidated the baseline; the session manager reports it to the user
+	 *   and decides whether the fallback rebuilds the proxy app.
+	 */
 	data class FullGradleBuild(
 		val reason: InvalidationReason,
 	) : BuildRoute
@@ -15,7 +20,12 @@ sealed interface BuildRoute {
 	/** Resources changed, no code: aapt2 relink, reuse cached dex. */
 	data object ResourcesOnly : BuildRoute
 
-	/** assets/ only: no compile, no relink - deploy the changed asset bytes. */
+	/**
+	 * assets/ only: no compile, no relink - deploy the changed asset bytes.
+	 *
+	 * Changed assets are included in every route's deploy payload; this route only means the
+	 * payload carries nothing else.
+	 */
 	data object AssetsOnly : BuildRoute
 
 	/** Code changed, no resources: incremental compile + incremental dex. */
@@ -23,9 +33,6 @@ sealed interface BuildRoute {
 
 	/** Mixed save: relink AND compile - never serve stale resources beside new code. */
 	data object CodeAndResources : BuildRoute
-
-	// Changed assets ride along in every route's deploy payload; AssetsOnly just means the
-	// payload is nothing else.
 
 	/** Empty known changed-set: nothing to rebuild (a forced tap may still redeploy). */
 	data object NoOp : BuildRoute
@@ -42,7 +49,10 @@ sealed interface BuildRoute {
 
 /** Why a quick-build session baseline can no longer absorb edits on the live reload path. */
 enum class InvalidationReason {
+	/** `AndroidManifest.xml` changed: components, permissions and the proxy transform all move. */
 	MANIFEST_CHANGED,
+
+	/** A Gradle build script, properties file or version catalog changed: the classpath may move. */
 	GRADLE_CONFIG_CHANGED,
 
 	/**

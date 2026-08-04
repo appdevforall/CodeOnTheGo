@@ -44,6 +44,9 @@ import java.util.zip.ZipFile
  *     command-line order, and only among `-R` inputs does textual order decide. merged_res
  *     carries the project's own resources from proxy app build time, so passing the fresh
  *     compile positionally would serve the stale value for every resource the user just edited.
+ *
+ * @property aapt2 the device-provisioned aapt2 binary, run as a subprocess; must be executable.
+ * @property androidJar the platform jar, passed to every link as `-I`.
  */
 class Aapt2Link(
 	private val aapt2: File,
@@ -52,6 +55,10 @@ class Aapt2Link(
 	/** Outcome of one relink. */
 	sealed interface Result {
 		/**
+		 * aapt2 linked a resource apk, with the timings the two phases cost.
+		 *
+		 * @property resourceApk the whole linked apk, verified to contain a `resources.arsc`;
+		 *   this is the payload, not a bare table (see class KDoc).
 		 * @property compileMillis wall time of the per-dir `aapt2 compile` loop.
 		 * @property linkMillis wall time of the `aapt2 link` run.
 		 */
@@ -61,6 +68,12 @@ class Aapt2Link(
 			val linkMillis: Long = 0,
 		) : Result
 
+		/**
+		 * The relink did not produce a usable apk.
+		 *
+		 * @property diagnostics aapt2's own messages where they parsed, and always at least one
+		 *   ERROR - a non-zero exit never reports clean.
+		 */
 		data class Failed(
 			val diagnostics: List<Diagnostic>,
 		) : Result
@@ -69,6 +82,12 @@ class Aapt2Link(
 	/**
 	 * Compiles [resDirs] and links the result into a fresh resource apk under [workDir].
 	 *
+	 * @param resDirs the project's own `res/` roots, each compiled whole; empty means the link
+	 *   carries only [libraryResources].
+	 * @param manifest the proxy app's manifest, already compiled against the baseline table -
+	 *   which is why [stableIds] matters (see class KDoc, rule 1).
+	 * @param workDir the daemon-owned scratch dir; its `res-compiled` subdir is wiped on every
+	 *   call and `linked-res.apk` is overwritten.
 	 * @param stableIds AGP's `stableIds.txt` mapping (`pkg:type/name = 0x7f0xxxxx`) from the
 	 *   proxy app build, if CoGo has one for this project. Passed to aapt2 as `--stable-ids`
 	 *   when readable; null falls back to unpinned declaration-order ids (see class KDoc).
@@ -76,6 +95,8 @@ class Aapt2Link(
 	 *   resource processing - the `intermediates/merged_res/` closure plus each AAR's
 	 *   separately-compiled file-based resources. Empty means any library-provided reference
 	 *   fails to link (see class KDoc).
+	 * @return [Result.Failed] when the scratch dir could not be reset, when either aapt2 phase
+	 *   exited non-zero, or when the output carries no resource table.
 	 */
 	fun relink(
 		resDirs: List<File>,
@@ -145,6 +166,14 @@ class Aapt2Link(
 	 * [flatFiles] last so the user's fresh edit wins over the baseline (see class KDoc, rule 3).
 	 * `internal` rather than private so the `--stable-ids` behavior is unit-testable without an
 	 * aapt2 binary on the test host, unlike [relink] itself.
+	 *
+	 * @param linkedApk the `-o` target; not created here, only named.
+	 * @param manifest the proxy app's manifest, passed verbatim as `--manifest`; neither read
+	 *   nor rewritten here.
+	 * @param flatFiles this run's freshly compiled `.flat` units, appended last so they win.
+	 * @param stableIds null, or a path that does not exist, omits `--stable-ids` entirely.
+	 * @param libraryResources baseline `-R` inputs, emitted ahead of [flatFiles].
+	 * @return the full argv, aapt2's own path included as element 0.
 	 */
 	internal fun buildLinkArguments(
 		linkedApk: File,
@@ -177,6 +206,11 @@ class Aapt2Link(
 	 * Checks that [linkedApk] actually contains a resource table before it ships as the
 	 * payload - a missing entry means aapt2 produced malformed output despite exit 0. Entry
 	 * lookup only, no extraction.
+	 *
+	 * @param linkedApk aapt2's link output, already known to have exited 0.
+	 * @return [linkedApk] unchanged, so the check reads inline at the call site.
+	 * @throws IllegalStateException when the archive holds no `resources.arsc`; [relink] turns
+	 *   it, and any zip-level failure, into a [Result.Failed].
 	 */
 	private fun verifyHasTable(linkedApk: File): File {
 		ZipFile(linkedApk).use { zip ->
@@ -191,7 +225,12 @@ class Aapt2Link(
 		val output: String,
 	)
 
-	/** Runs an aapt2 command, capturing its merged output; a launch failure becomes exit -1. */
+	/**
+	 * Runs an aapt2 command, capturing its merged output; a launch failure becomes exit -1.
+	 *
+	 * @param command the full argv, executable first; run to completion, so the caller blocks.
+	 * @return the exit code and the merged stdout/stderr text, never null and never thrown.
+	 */
 	private fun run(command: List<String>): ProcessResult =
 		try {
 			// aapt2 reports errors on stderr and notes on stdout, so both are captured
@@ -210,6 +249,11 @@ class Aapt2Link(
 	/**
 	 * Parses aapt2's output into diagnostics, appending a [fallback] error carrying the raw
 	 * output when nothing in it parsed as an error - a non-zero exit must never report clean.
+	 *
+	 * @param output aapt2's merged stdout/stderr, parsed line by line; unrecognized lines drop.
+	 * @param fallback prefix for the synthesized error, naming which phase failed.
+	 * @return at least one ERROR diagnostic; the fallback carries the raw output, truncated to
+	 *   2000 characters.
 	 */
 	private fun parseDiagnostics(
 		output: String,

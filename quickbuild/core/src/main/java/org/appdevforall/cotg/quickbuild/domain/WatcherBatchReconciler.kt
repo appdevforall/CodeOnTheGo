@@ -15,8 +15,11 @@ object WatcherBatchReconciler {
 	/**
 	 * Splits [batch] into the files that still exist, the deletions, and the noise to drop.
 	 *
+	 * @param batch the coalesced watcher batch, whose `files` may name paths already gone.
 	 * @param exists whether the path is currently a live file; production passes
 	 *   `File.isFile` (a path that turned into a directory counts as vanished).
+	 * @return the same batch with vanished paths moved to `removed` or dropped; never larger than
+	 *   [batch].
 	 */
 	fun reconcile(
 		batch: ChangedFiles.Known,

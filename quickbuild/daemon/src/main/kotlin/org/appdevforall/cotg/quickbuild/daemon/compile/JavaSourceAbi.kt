@@ -47,7 +47,14 @@ object JavaSourceAbi {
 		val declaredTypeNames: Set<String>,
 	)
 
-	/** Fingerprints each of [javaSources]; null if any file could not be parsed. */
+	/**
+	 * Fingerprints each of [javaSources]; null if any file could not be parsed.
+	 *
+	 * @param javaSources every `.java` in the module; an empty list is a known-empty ABI, not
+	 *   an unknown one.
+	 * @return one entry per input file, or null - which callers must read as "assume the ABI
+	 *   changed", never as "nothing changed".
+	 */
 	fun snapshot(javaSources: List<File>): Map<File, FileAbi>? {
 		if (javaSources.isEmpty()) return emptyMap()
 		val compiler = ToolProvider.getSystemJavaCompiler() ?: return null
@@ -76,6 +83,11 @@ object JavaSourceAbi {
 	 * Simple names of every type whose ABI differs between [previous] and [current], covering
 	 * added, removed and modified files. Takes the union of old and new names, so a renamed or
 	 * deleted type is still named for Kotlin sources that may reference it.
+	 *
+	 * @param previous the last successful compile's snapshot; both maps are keyed by source file.
+	 * @param current this compile's snapshot.
+	 * @return simple names only, nested types included; empty means the Java side is ABI-stable
+	 *   and no Kotlin bytecode can have moved because of it.
 	 */
 	fun changedTypeNames(
 		previous: Map<File, FileAbi>,
@@ -105,7 +117,14 @@ object JavaSourceAbi {
 		return FileAbi(sha256(text.toString()), names)
 	}
 
-	/** Appends this type's declarations to the fingerprint text, recursing into nested types. */
+	/**
+	 * Appends this type's declarations to the fingerprint text, recursing into nested types.
+	 *
+	 * @param out the fingerprint buffer; member order follows source order, so a pure reorder
+	 *   does read as an ABI change.
+	 * @param names collects every simple name declared, this type and its nested ones.
+	 * @param prefix the enclosing type's dotted name, empty at the top level.
+	 */
 	private fun ClassTree.render(
 		out: StringBuilder,
 		names: MutableSet<String>,
@@ -143,7 +162,13 @@ object JavaSourceAbi {
 		}
 	}
 
-	/** Renders a method's signature, deliberately excluding its body. */
+	/**
+	 * Renders a method's signature, deliberately excluding its body.
+	 *
+	 * @param owner the enclosing type's dotted name, so two same-named methods do not collide.
+	 * @return one line of fingerprint text; an annotation member's default value is included,
+	 *   because that default is itself ABI.
+	 */
 	private fun MethodTree.renderSignature(owner: String): String =
 		buildString {
 			append("method ").append(owner).append('#').append(name)
@@ -161,6 +186,11 @@ object JavaSourceAbi {
 	 * constant. Kotlin bakes `static final` constant values into calling bytecode, so a changed
 	 * value is an ABI change even though the signature did not move. An ordinary instance
 	 * field's initializer is implementation and stays out.
+	 *
+	 * @param owner the enclosing type's dotted name.
+	 * @param constantByDefault true for an interface, annotation or enum body, whose fields are
+	 *   implicitly `static final` with no modifiers written.
+	 * @return one line of fingerprint text, carrying the initializer only for a constant.
 	 */
 	private fun VariableTree.renderSignature(
 		owner: String,

@@ -9,6 +9,12 @@ import java.io.DataInputStream
  * Parsed by a constant-pool walk rather than a bytecode library; these fields sit right after
  * the constant pool, so nothing past the interface list is read. Names are in dot form with
  * `$` for nested classes (`com.example.Outer$Inner`).
+ *
+ * @property className the class's own FQN in dot form.
+ * @property superClassName the direct superclass FQN; null only for `java.lang.Object` itself
+ *   and for interfaces, which declare no superclass.
+ * @property interfaceNames the directly implemented interface FQNs, in declaration order;
+ *   inherited ones are not listed, since the header does not carry them.
  */
 data class ClassHeader(
 	val className: String,
@@ -18,7 +24,14 @@ data class ClassHeader(
 	companion object {
 		private const val CLASS_MAGIC = -0x35014542 // 0xCAFEBABE
 
-		/** Parses one class file's header. Null when [bytes] is not a well-formed class file. */
+		/**
+		 * Parses one class file's header.
+		 *
+		 * @param bytes the whole class file; only the prefix through the interface list is read,
+		 *   so a truncated tail is harmless.
+		 * @return the header, or null when the bytes are not a well-formed class file. Callers
+		 *   skip such a file rather than failing the build.
+		 */
 		fun parse(bytes: ByteArray): ClassHeader? =
 			try {
 				DataInputStream(bytes.inputStream()).use(::parseStream)

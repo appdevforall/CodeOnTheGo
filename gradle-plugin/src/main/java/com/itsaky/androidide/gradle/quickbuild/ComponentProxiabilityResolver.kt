@@ -18,6 +18,11 @@ import java.util.jar.JarFile
  * A class [libraryClassBytes] cannot find is assumed project-owned and [Resolution.Proxiable]:
  * at manifest-transform time the project's own classes are not compiled yet, so absence from
  * the dependency artifacts is the only signal available.
+ *
+ * @property libraryClassBytes looks a binary class name up on whatever classpath the caller
+ *   chose, returning the raw `.class` bytes or null when it holds no such class. Called at most
+ *   once per [resolve]; see [byNameOnly] and [searchingClasspath] for the two shipped
+ *   implementations.
  */
 class ComponentProxiabilityResolver(
 	private val libraryClassBytes: (String) -> ByteArray?,
@@ -27,13 +32,25 @@ class ComponentProxiabilityResolver(
 		/** Safe to generate a `Proxy<N><Type> extends userClass` for this component. */
 		data object Proxiable : Resolution
 
-		/** Not safe; [reason] is a short, human-readable explanation for a build log line. */
+		/**
+		 * Not safe; [reason] is a short, human-readable explanation for a build log line.
+		 *
+		 * @property reason why the component was rejected, as a lowercase phrase that reads after
+		 *   a component name. Log text only - nothing branches on it.
+		 */
 		data class Skip(
 			val reason: String,
 		) : Resolution
 	}
 
-	/** Applies both rules to [userClass]: the name list first, then the class file's final flag. */
+	/**
+	 * Applies both rules to [userClass]: the name list first, then the class file's final flag.
+	 *
+	 * @param userClass the component's implementation class, as a dotted binary name resolved
+	 *   from the manifest (so `.MainActivity` has already been expanded against the package).
+	 * @return [Resolution.Skip] with a reason if either rule rejects it, else
+	 *   [Resolution.Proxiable] - including when the class is not on the classpath at all.
+	 */
 	fun resolve(userClass: String): Resolution {
 		UNPROXIABLE_BY_NAME[userClass]?.let { return Resolution.Skip(it) }
 		val bytes = libraryClassBytes(userClass) ?: return Resolution.Proxiable
@@ -51,8 +68,11 @@ class ComponentProxiabilityResolver(
 	 * a project class, and that copy reports final for every ordinary Kotlin class - [resolve]
 	 * alone would then reject the user's own `MainActivity`. [UNPROXIABLE_BY_NAME] still wins.
 	 *
+	 * @param userClass the component's implementation class, as a dotted binary name.
 	 * @param projectClasses project-compiled class names, e.g. the key set of
 	 *   [SupertypeResolver.supertypeIndex] over the divert task's output
+	 * @return [Resolution.Proxiable] for anything in [projectClasses] that
+	 *   [UNPROXIABLE_BY_NAME] does not name; otherwise whatever [resolve] decides.
 	 */
 	fun resolveWithProjectOverride(
 		userClass: String,
@@ -94,6 +114,9 @@ class ComponentProxiabilityResolver(
 		 * Builds a resolver that applies [UNPROXIABLE_BY_NAME] only - with no classpath, the
 		 * final-flag rule never fires. The [QuickBuildManifestTransformer] default, for callers
 		 * that have no classpath to offer.
+		 *
+		 * @return a resolver whose [resolve] answers [Resolution.Proxiable] for every class not
+		 *   in [UNPROXIABLE_BY_NAME].
 		 */
 		fun byNameOnly(): ComponentProxiabilityResolver = ComponentProxiabilityResolver(libraryClassBytes = { null })
 
@@ -104,10 +127,21 @@ class ComponentProxiabilityResolver(
 		 * Pass a classpath matching the decision: the manifest transform passes the variant's
 		 * dependency artifacts, which resolve without compiling anything and so avoid a
 		 * task-graph cycle; the payload dex task passes the real proxy compile classpath.
+		 *
+		 * @param classpath directories and jars to search, in precedence order; entries that are
+		 *   neither, or that cannot be opened, are skipped rather than failing the lookup.
+		 * @return a resolver that applies [UNPROXIABLE_BY_NAME] and then the final-flag rule.
 		 */
 		fun searchingClasspath(classpath: List<File>): ComponentProxiabilityResolver =
 			ComponentProxiabilityResolver(libraryClassBytes = { className -> findClassBytes(className, classpath) })
 
+		/**
+		 * Finds one class's bytes on a mixed directory/jar search path.
+		 *
+		 * @param binaryClassName dotted class name, translated here to its `.class` entry path.
+		 * @param searchPath roots to try in order; the first hit wins.
+		 * @return the class bytes, or null if no root holds that class.
+		 */
 		private fun findClassBytes(
 			binaryClassName: String,
 			searchPath: List<File>,
@@ -124,6 +158,13 @@ class ComponentProxiabilityResolver(
 			return null
 		}
 
+		/**
+		 * Reads one zip entry out of a jar on the search path.
+		 *
+		 * @param jarFile the jar to open; need not actually be a zip.
+		 * @param relativePath the entry name, e.g. `androidx/startup/InitializationProvider.class`.
+		 * @return the entry's bytes, or null if the jar lacks the entry or cannot be read.
+		 */
 		private fun findClassBytesInJar(
 			jarFile: File,
 			relativePath: String,

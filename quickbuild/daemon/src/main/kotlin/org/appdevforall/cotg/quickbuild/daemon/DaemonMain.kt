@@ -24,6 +24,12 @@ import java.nio.charset.StandardCharsets
  * exit 0; only a fatal internal error exits non-zero, which CoGo treats as daemon death.
  */
 object DaemonMain {
+	/**
+	 * Wires the process to the protocol streams and serves until shutdown or EOF.
+	 *
+	 * @param args ignored - the daemon is configured over the protocol, not the command line,
+	 *   so a launcher need pass nothing.
+	 */
 	@JvmStatic
 	fun main(args: Array<String>) {
 		val protocolOut =
@@ -43,6 +49,12 @@ object DaemonMain {
 	 * Runs the request/response loop until shutdown or EOF; malformed input replies ok:false
 	 * and keeps serving. Separated from process wiring so it unit-tests against in-memory
 	 * streams. Single-threaded on purpose - the CoGo orchestrator serializes requests.
+	 *
+	 * @param input one request per line, UTF-8; a null read (EOF) ends the loop. Not closed here.
+	 * @param output receives one encoded response line per request, flushed after each. Must be
+	 *   the real stdout, never the redirected [System.out].
+	 * @param router dispatches each parsed request; its [RequestRouter.Routed.ReplyThenExit]
+	 *   result is what ends the loop on `shutdown`.
 	 */
 	fun serve(
 		input: BufferedReader,

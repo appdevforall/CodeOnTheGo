@@ -13,6 +13,10 @@ import java.io.File
  * reload path.
  */
 class AnnotationBaseline private constructor(
+	/**
+	 * Normalized absolute path -> the facts scanned at baseline. A null VALUE means the file was
+	 * present but unscannable, which is why membership and value are asked separately.
+	 */
 	private val facts: Map<String, AnnotationFacts?>,
 	/**
 	 * Simple type names an annotated file reaches out to: supertypes, `@Database(entities =
@@ -22,19 +26,34 @@ class AnnotationBaseline private constructor(
 	 */
 	val anchorNames: Set<String>,
 ) {
-	/** Facts recorded for [file] at baseline; null both when absent and when unscannable. */
+	/**
+	 * Facts recorded for [file] at baseline.
+	 *
+	 * @param file any path; matched after normalization, so relative and absolute forms agree.
+	 * @return the recorded facts, or null both when the file was absent from the baseline and
+	 *   when it was present but unscannable. Pair with [known] to tell those apart.
+	 */
 	fun factsFor(file: File): AnnotationFacts? = facts[key(file)]
 
-	/** True when [file] existed in the baseline source set (scannable or not). */
+	/**
+	 * True when [file] existed in the baseline source set (scannable or not).
+	 *
+	 * @param file any path; matched after normalization, as in [factsFor].
+	 * @return true when the baseline scan saw the file, whatever the scan produced.
+	 */
 	fun known(file: File): Boolean = facts.containsKey(key(file))
 
 	companion object {
 		/**
 		 * Scans the proxy app build's whole source set into a baseline.
 		 *
-		 * @param sources every source file the proxy app build compiled.
+		 * @param sources every source file the proxy app build compiled. A file missing here is
+		 *   later treated as newly added, so an incomplete list costs rebaselines.
+		 * @param profile which annotations count as processor input, and so which files
+		 *   contribute their referenced type names as anchors.
 		 * @param readText content reader; returning null records the file as unscannable,
 		 *   which makes any later change to it rebaseline.
+		 * @return the baseline every later edit is compared against.
 		 */
 		fun capture(
 			sources: List<File>,
@@ -53,7 +72,13 @@ class AnnotationBaseline private constructor(
 			return AnnotationBaseline(facts, anchors)
 		}
 
-		/** File contents, or null when it cannot be read. */
+		/**
+		 * Reads a source file's text, swallowing any I/O failure.
+		 *
+		 * @param file the source to read; decoded as UTF-8.
+		 * @return the contents, or null when it cannot be read - which callers must treat as
+		 *   "deleted or unreadable", not as an empty file.
+		 */
 		fun readOrNull(file: File): String? = runCatching { file.readText() }.getOrNull()
 
 		private fun key(file: File): String = file.absoluteFile.normalize().path

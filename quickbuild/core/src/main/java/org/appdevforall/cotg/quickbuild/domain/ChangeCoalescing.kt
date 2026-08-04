@@ -20,12 +20,25 @@ import java.io.File
  * build pipeline.
  */
 sealed interface WatchEvent {
+	/** The path the observation is about, as the watcher reported it (absolute on device). */
 	val file: File
 
+	/**
+	 * The path was written or created, so its current bytes are on disk for the build to read.
+	 *
+	 * @property file the written path; a create and a rewrite are not distinguished, since both
+	 *   feed the compiler the same way.
+	 */
 	data class Modified(
 		override val file: File,
 	) : WatchEvent
 
+	/**
+	 * The path was deleted.
+	 *
+	 * @property file the deleted path; nothing is left on disk, so it can only be classified by
+	 *   the shape of the path itself.
+	 */
 	data class Removed(
 		override val file: File,
 	) : WatchEvent
@@ -42,6 +55,8 @@ sealed interface WatchEvent {
  * @param quietMillis emit this long after the LAST event; every new event resets the timer.
  * @param maxMillis hard cap measured from the FIRST event of the batch, so a long continuous
  *   write stream still fires promptly. Stragglers land in the orchestrator's follow-up build.
+ * @return one [ChangedFiles.Known] per quiet-period or cap expiry, never an empty batch; the
+ *   upstream's completion flushes whatever is still accumulating.
  */
 fun Flow<WatchEvent>.coalesceChanges(
 	quietMillis: Long,
@@ -117,7 +132,10 @@ private fun Map<File, WatchEvent>.toChangedFiles(): ChangedFiles.Known {
 
 /** Default debounce for the on-device project watcher (see design-watcher-and-testing.md). */
 object ChangeCoalescingDefaults {
+	/** Quiet period after the last event; short enough that a save still feels immediate. */
 	const val QUIET_MILLIS = 150L
+
+	/** Cap from the batch's first event, so a continuous write stream cannot defer a build. */
 	const val MAX_MILLIS = 1_000L
 
 	/** Channel capacity for the raw pre-coalesce event stream; a burst buffers, never blocks. */

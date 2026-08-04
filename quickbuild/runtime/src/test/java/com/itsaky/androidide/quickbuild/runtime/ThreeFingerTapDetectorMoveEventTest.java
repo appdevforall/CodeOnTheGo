@@ -5,7 +5,11 @@ import static com.google.common.truth.Truth.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * Actions outside the detector's vocabulary (MOVE, POINTER_UP, ...) are pure pass-throughs: they must neither fire nor disturb an in-flight burst - fingers always move a little between landing, and a MOVE that reset the gesture would make the 3-finger tap nearly impossible to perform.
+ * Pins that actions outside the detector's vocabulary are pure pass-throughs.
+ *
+ * MOVE, POINTER_UP and the rest must neither fire the gesture nor disturb an in-flight burst:
+ * fingers always drift a little between landing, so a MOVE that reset the burst would make the
+ * 3-finger tap nearly impossible to perform.
  */
 class ThreeFingerTapDetectorMoveEventTest {
 

@@ -8,6 +8,8 @@ package org.appdevforall.cotg.quickbuild.domain
  * injected fake in tests), so their differences are meaningful with no cross-process clock
  * sync. Absolute values compare only within a single boot - read the deltas, never the stamps.
  *
+ * @property generation the deploy generation this loop delivered; strictly increasing per
+ *   session, and the key a harness joins a row to its build by.
  * @property trigger t0: the watcher event time of the earliest not-yet-built change this build
  *   coalesced, so the wait behind a slow in-flight build is included.
  * @property compileDone t1: compile and dex finished. Equals [deploySent] on a route that runs
@@ -44,7 +46,7 @@ data class E2eTimeline(
 	 *
 	 * Session-constant, but carried per row because it predicts every duration here: the
 	 * daemon's per-file work costs about 52x more on FUSE-backed emulated storage
-	 * (ADFA-4128 deep-dive).
+	 * (measured under ADFA-4128).
 	 */
 	val scratchFsType: String? = null,
 ) {
@@ -56,6 +58,12 @@ data class E2eTimeline(
 	 * inside [HostSpans.relinkRpcMillis] - so never add them to an accounting sum. That is
 	 * what [accountedMillis] is for.
 	 *
+	 * @property kotlinMillis the Kotlin incremental compile.
+	 * @property javaMillis the Java compile, which recompiles every `.java` source today.
+	 * @property stripMillis stripping the class tree down to what d8 is fed.
+	 * @property d8Millis dexing that stripped tree.
+	 * @property aapt2CompileMillis compiling the changed resources; absent on a code-only route.
+	 * @property aapt2LinkMillis relinking the resource table; absent on a code-only route.
 	 * @property preSnapMillis output-tree walk before the compile.
 	 * @property postSnapMillis output-tree walk after it, which yields the changed-class set.
 	 * @property javaAbiSnapMillis re-parse of every `.java` source's declarations.
@@ -80,6 +88,12 @@ data class E2eTimeline(
 					(preSnapMillis ?: 0) + (postSnapMillis ?: 0)
 				}
 
+		/**
+		 * True when no step reported a duration.
+		 *
+		 * @return true when every field is null, which a sink reads as "the daemon reported no
+		 *   step timings" rather than as a build that took no time.
+		 */
 		fun isEmpty(): Boolean =
 			kotlinMillis == null && javaMillis == null && stripMillis == null &&
 				d8Millis == null && aapt2CompileMillis == null && aapt2LinkMillis == null &&
@@ -112,6 +126,12 @@ data class E2eTimeline(
 				(scanMillis ?: 0) + (compileRpcMillis ?: 0) + (policyMillis ?: 0) +
 					(dexRpcMillis ?: 0) + (relinkRpcMillis ?: 0)
 
+		/**
+		 * True when no span was measured.
+		 *
+		 * @return true when every field is null, which is what makes [unaccountedMillis] report
+		 *   zero rather than the whole loop.
+		 */
 		fun isEmpty(): Boolean =
 			scanMillis == null && compileRpcMillis == null && policyMillis == null &&
 				dexRpcMillis == null && relinkRpcMillis == null
@@ -139,6 +159,12 @@ data class E2eTimeline(
 		val classBytes: Long? = null,
 		val compileOrdinal: Long? = null,
 	) {
+		/**
+		 * True when the build reported no counters.
+		 *
+		 * @return true when every field is null; a build that genuinely compiled nothing still
+		 *   reports zeros, so the two cases stay distinguishable.
+		 */
 		fun isEmpty(): Boolean =
 			allSources == null && kotlinCompiled == null && javaSources == null &&
 				changedClasses == null && classFiles == null && classBytes == null &&
@@ -181,6 +207,9 @@ data class E2eTimeline(
 	 * The single structured line CoGo logs per generation. Grep-stable: the harness keys
 	 * on the literal `[LOG_TAG]` prefix, and every field is `name=<long>` so a regex parse
 	 * is unambiguous.
+	 *
+	 * @return the log line, [LOG_TAG] first and the five stamps after it. Carries no step
+	 *   timings, spans or counts - widening it would break the harness's parser.
 	 */
 	fun format(): String =
 		"$LOG_TAG gen=$generation trigger=$trigger compileDone=$compileDone " +
@@ -198,8 +227,12 @@ data class E2eTimeline(
 
 		/**
 		 * Parses a [format] line back into a timeline, tolerating a logcat prefix
-		 * (timestamp/pid/tag) around it. Returns null for any line that does not carry the
-		 * full five-field shape - a partial or unrelated line is not a timeline.
+		 * (timestamp/pid/tag) around it.
+		 *
+		 * @param line one raw logcat line; anything outside the five-field shape is ignored.
+		 * @return the timeline, or null when the line lacks [LOG_TAG] or the full five-field
+		 *   shape - a partial or unrelated line is not a timeline. [steps], [spans] and [counts]
+		 *   are always null, since the line does not carry them.
 		 */
 		fun parse(line: String): E2eTimeline? {
 			if (!line.contains(LOG_TAG)) return null

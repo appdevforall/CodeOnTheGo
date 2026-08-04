@@ -14,10 +14,19 @@ object ClassOpener {
 	/**
 	 * Reports whether a class declares ACC_FINAL. Reads only the class header and never loads
 	 * the class, so it is safe on arbitrary library classes from a compile classpath jar.
+	 *
+	 * @param classBytes a whole, well-formed `.class` file; ASM throws on anything else.
+	 * @return true if the class itself is final, ignoring the finality of its inner classes.
 	 */
 	fun isFinal(classBytes: ByteArray): Boolean = ClassReader(classBytes).access and Opcodes.ACC_FINAL != 0
 
-	/** Rewrites a class with ACC_FINAL cleared on the class itself and on its inner classes. */
+	/**
+	 * Rewrites a class with ACC_FINAL cleared on the class itself and on its inner classes.
+	 *
+	 * @param classBytes a whole, well-formed `.class` file; not modified in place.
+	 * @return the rewritten bytes. Constant pool and frames are copied through unchanged, so the
+	 *   result differs from the input only in the two access flags.
+	 */
 	fun stripFinalModifier(classBytes: ByteArray): ByteArray {
 		val reader = ClassReader(classBytes)
 		val writer = ClassWriter(0)

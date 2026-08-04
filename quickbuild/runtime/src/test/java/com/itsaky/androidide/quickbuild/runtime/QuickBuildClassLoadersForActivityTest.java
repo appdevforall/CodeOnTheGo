@@ -5,7 +5,11 @@ import static com.google.common.truth.Truth.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * forActivity's defense-in-depth contract: with no payload live (the JVM-test reality - ensureBaseline never runs off-device), the fallback loader must come back unchanged, never null - a proxy activity's getClassLoader() must always return a usable loader.
+ * Pins forActivity's defense-in-depth contract: it hands back a usable loader, never null.
+ *
+ * With no payload live - the JVM-test reality, since ensureBaseline never runs off-device - the
+ * fallback loader must come back unchanged, because a proxy activity's getClassLoader() has to
+ * return something usable in every state.
  */
 class QuickBuildClassLoadersForActivityTest {
 

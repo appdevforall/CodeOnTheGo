@@ -18,7 +18,13 @@ enum class QuickBuildTone {
 	ATTENTION,
 }
 
-/** Derives the toolbar tone from the status the session surface already exposes. */
+/**
+ * Derives the toolbar tone from the status the session surface already exposes.
+ *
+ * @receiver the status currently rendered, so tone and status can never disagree.
+ * @return the tone for that status; [QuickBuildTone.READY] also covers [QuickBuildStatus.Hidden],
+ *   where the icon is present but no session is running.
+ */
 fun QuickBuildStatus.toTone(): QuickBuildTone =
 	when (this) {
 		QuickBuildStatus.Hidden,

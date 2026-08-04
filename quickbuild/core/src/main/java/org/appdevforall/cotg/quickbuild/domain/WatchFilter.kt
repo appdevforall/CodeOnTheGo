@@ -13,6 +13,11 @@ import java.io.File
  * of a recognized shape are dropped here - an unrecognized one such as `sed`'s `sedXXXXXX`
  * reaches the coalesced batch and is dropped at batch-settle time by
  * [org.appdevforall.cotg.quickbuild.service.QuickBuildSessionManager.onWatcherBatch].
+ *
+ * @param watchedRoots directories whose subtrees are relevant, `build/` excepted; resolved to
+ *   absolute paths once at construction, so later relative-path callers still match.
+ * @param watchedFiles individual files that are relevant wherever they sit (the manifest and the
+ *   gradle files), matched exactly rather than by subtree.
  */
 class WatchFilter(
 	watchedRoots: Collection<File>,
@@ -21,7 +26,14 @@ class WatchFilter(
 	private val roots = watchedRoots.map { it.absoluteFile }
 	private val files = watchedFiles.mapTo(HashSet()) { it.absoluteFile }
 
-	/** True when the session should react to a change at [file]. */
+	/**
+	 * True when the session should react to a change at [file].
+	 *
+	 * @param file the changed path, absolute or relative; it need not still exist, since deletions
+	 *   are filtered by the same rules.
+	 * @return true to pass the event to the session; false drops it silently, so a watched file
+	 *   wrongly excluded here becomes a stale build with no warning.
+	 */
 	fun isRelevant(file: File): Boolean {
 		val abs = file.absoluteFile
 		if (isTempArtifact(abs.name)) return false
@@ -32,7 +44,14 @@ class WatchFilter(
 		return !hasBuildSegment(abs)
 	}
 
-	/** True when [root] is this file or one of its ancestor directories. */
+	/**
+	 * True when [root] is this file or one of its ancestor directories.
+	 *
+	 * @receiver an absolute path, so the walk terminates at the filesystem root.
+	 * @param root an already-absolute watched root; equality with the receiver counts as a match.
+	 * @return true when the receiver lies in [root]'s subtree, comparing path segments only - no
+	 *   symlink resolution, so a link into a watched root does not match.
+	 */
 	private fun File.startsWith(root: File): Boolean {
 		var current: File? = this
 		while (current != null) {
@@ -42,7 +61,13 @@ class WatchFilter(
 		return false
 	}
 
-	/** True when the path passes through a `build/` dir (Gradle intermediates). */
+	/**
+	 * True when the path passes through a `build/` dir (Gradle intermediates).
+	 *
+	 * @param file the changed path; only its ancestors are examined, so a source file itself named
+	 *   `build` is not excluded.
+	 * @return true to exclude the path as a build intermediate.
+	 */
 	private fun hasBuildSegment(file: File): Boolean {
 		var current: File? = file.parentFile
 		while (current != null) {
@@ -52,7 +77,14 @@ class WatchFilter(
 		return false
 	}
 
-	/** True for names an editor or rename-based tool leaves behind rather than real sources. */
+	/**
+	 * True for names an editor or rename-based tool leaves behind rather than real sources.
+	 *
+	 * @param name the file's simple name, never a path - every test here is a prefix or suffix
+	 *   match on that name alone.
+	 * @return true to drop the event; unrecognized temp shapes return false and are dropped later,
+	 *   at batch-settle time.
+	 */
 	private fun isTempArtifact(name: String): Boolean =
 		name.startsWith(".") ||
 			name.endsWith("~") ||

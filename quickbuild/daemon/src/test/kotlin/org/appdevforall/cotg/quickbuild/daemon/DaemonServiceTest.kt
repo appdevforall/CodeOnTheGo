@@ -104,7 +104,7 @@ class DaemonServiceTest {
 	@Test
 	fun `configure reports the scratch tree's filesystem`() {
 		// Session-constant context for every later timing: per-file work costs ~52x more on
-		// FUSE-backed emulated storage than on a real one (ADFA-4128 deep-dive).
+		// FUSE-backed emulated storage than on a real one (measured under ADFA-4128).
 		val stdlib = TestSdk.kotlinStdlib()
 		val response =
 			service.configure(

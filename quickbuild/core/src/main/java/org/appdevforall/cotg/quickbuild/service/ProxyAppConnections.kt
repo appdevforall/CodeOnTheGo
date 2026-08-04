@@ -45,7 +45,14 @@ class ProxyAppConnections {
 	/** Reload/crash/disconnect reports from the proxy app, in arrival order. */
 	val reports: SharedFlow<TargetReport> = _reports
 
-	/** Opens the registry to one proxy app, the only caller accepted until [endSession]. */
+	/**
+	 * Opens the registry to one proxy app, the only caller accepted until [endSession].
+	 *
+	 * @param packageName the installed proxy app's package, for logging and reporting only
+	 * @param uid the uid PackageManager reports for that package; this is the whole trust
+	 *   boundary of the exported host service, so it must come from PackageManager and
+	 *   never from anything the caller sent
+	 */
 	fun beginSession(
 		packageName: String,
 		uid: Int,
@@ -62,7 +69,12 @@ class ProxyAppConnections {
 		_target.value = null
 	}
 
-	/** Publishes a proxy app that just bound, replacing any previous one. */
+	/**
+	 * Publishes a proxy app that just bound, replacing any previous one.
+	 *
+	 * @param connection the bound target and the generation it reported at connect time;
+	 *   that generation goes stale as soon as a hot swap lands without a rebind
+	 */
 	fun onConnected(connection: ConnectedTarget) {
 		_target.value = connection
 	}
@@ -73,7 +85,12 @@ class ProxyAppConnections {
 		_reports.tryEmit(TargetReport.Disconnected)
 	}
 
-	/** Publishes one report from the proxy app to [reports]. */
+	/**
+	 * Publishes one report from the proxy app to [reports].
+	 *
+	 * @param report the inbound report; dropped silently if the buffer is full, which only
+	 *   ever discards a superseded generation's report
+	 */
 	fun report(report: TargetReport) {
 		_reports.tryEmit(report)
 	}
@@ -86,7 +103,15 @@ class ProxyAppConnections {
 	}
 }
 
-/** A bound proxy app and the generation it reported running at connect time. */
+/**
+ * A bound proxy app and the generation it reported running at connect time.
+ *
+ * @property target the AIDL callback every deploy travels over
+ * @property packageName the proxy app's own report of its package, for logging only - the
+ *   uid gate, not this, is what authorizes the caller
+ * @property runningGeneration fresh only at connect time; it goes stale as soon as a hot
+ *   swap lands without a rebind, so prefer the session's own deploy tally when there is one
+ */
 data class ConnectedTarget(
 	val target: IQuickBuildTarget,
 	val packageName: String,
@@ -95,15 +120,33 @@ data class ConnectedTarget(
 
 /** Feedback from the proxy app after a deploy (or its death). */
 sealed interface TargetReport {
+	/**
+	 * A payload went live.
+	 *
+	 * @property generation the payload's generation, which the waiter matches against its
+	 *   own so a superseded build's report is never mistaken for the current one
+	 * @property reloadMillis the app's own measure of the reload, ending at the recreated
+	 *   activity's onResume
+	 */
 	data class Reloaded(
 		val generation: Long,
 		val reloadMillis: Long,
 	) : TargetReport
 
+	/**
+	 * A payload reached the app but threw in render or lifecycle.
+	 *
+	 * @property generation the payload's generation, matched the same way as [Reloaded]
+	 * @property stackSummary one-line summary of the throwable, surfaced to the user
+	 */
 	data class Crashed(
 		val generation: Long,
 		val stackSummary: String,
 	) : TargetReport
 
+	/**
+	 * The bound app went away. Carries no generation because it answers every waiter, not
+	 * just the one whose payload was in flight.
+	 */
 	data object Disconnected : TargetReport
 }

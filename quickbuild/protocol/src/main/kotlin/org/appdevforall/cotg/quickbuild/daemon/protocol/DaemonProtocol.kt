@@ -2,10 +2,15 @@ package org.appdevforall.cotg.quickbuild.daemon.protocol
 
 /**
  * A request the daemon accepts: one line-delimited JSON object over stdin, answered by one
- * [DaemonResponse] line over stdout. See quickbuild/core/README.md, "Daemon protocol".
+ * [DaemonResponse] line over stdout.
  *
- * These types live in :quickbuild:protocol so the daemon and CoGo's client compile against one
- * definition of the wire shape rather than two conventions pinned only by the README.
+ * These declarations are the protocol: the request types below are the accepted lines, and
+ * [DaemonResponse] is the reply shape. They live in :quickbuild:protocol so the daemon and CoGo's
+ * client compile against one definition of the wire rather than two conventions pinned by prose.
+ *
+ * @property id caller-assigned request id, echoed back on the matching [DaemonResponse] so a
+ *   client can correlate answers on a single stdin/stdout pair. Unique per session by convention;
+ *   the daemon does not enforce it.
  */
 sealed interface DaemonRequest {
 	val id: Long
@@ -14,6 +19,7 @@ sealed interface DaemonRequest {
 /**
  * Opens a session and fixes everything that stays constant for it. Every path arrives absolute.
  *
+ * @property id request id, echoed on the response; see [DaemonRequest.id].
  * @property projectRoot the user project root; identifies the session and is never written to.
  * @property classpath compile classpath jars. Snapshotted once here, which is what lets later
  *   compiles skip per-build classpath re-verification.
@@ -40,6 +46,7 @@ data class ConfigureRequest(
 	val compilerPlugins: List<String> = emptyList(),
 ) : DaemonRequest {
 	companion object {
+		/** Default [minApi]: the lowest API level quick build supports. */
 		const val DEFAULT_MIN_API = 30
 	}
 }
@@ -47,6 +54,7 @@ data class ConfigureRequest(
 /**
  * Compiles the project incrementally.
  *
+ * @property id request id, echoed on the response; see [DaemonRequest.id].
  * @property allSources the full source set, which the IC engine needs on every build.
  * @property changedFiles sources edited since the last build, driving `SourcesChanges.Known`.
  *   CoGo passes all sources here on a session's first build to seed the IC caches.
@@ -60,7 +68,13 @@ data class CompileRequest(
 	val removedFiles: List<String> = emptyList(),
 ) : DaemonRequest
 
-/** Dexes the given classes directories into a single classes.dex. */
+/**
+ * Dexes the given classes directories into a single classes.dex.
+ *
+ * @property id request id, echoed on the response; see [DaemonRequest.id].
+ * @property classesDirs absolute class-tree roots to dex, merged into one output in the order
+ *   given; every `.class` under each is re-dexed, changed or not.
+ */
 data class DexRequest(
 	override val id: Long,
 	val classesDirs: List<String>,
@@ -69,6 +83,10 @@ data class DexRequest(
 /**
  * Recompiles and relinks resources; the response carries the extracted resources.arsc.
  *
+ * @property id request id, echoed on the response; see [DaemonRequest.id].
+ * @property resDirs the project's own `res/` roots to recompile, absolute. Library resources are
+ *   not walked here - they arrive pre-compiled via [libraryResources].
+ * @property manifest absolute path to the merged AndroidManifest.xml the relink links against.
  * @property stableIds AGP's `stableIds.txt` from the proxy app build, passed to `aapt2 link
  *   --stable-ids`. The relink sees only the project's res/, a subset of what the real build
  *   merged, so without this a resource type missing from the relink shifts aapt2's type-index
@@ -86,12 +104,20 @@ data class RelinkRequest(
 	val libraryResources: List<String> = emptyList(),
 ) : DaemonRequest
 
-/** Liveness check; the response stamps the protocol version. */
+/**
+ * Liveness check; the response stamps the protocol version.
+ *
+ * @property id request id, echoed on the response; see [DaemonRequest.id].
+ */
 data class PingRequest(
 	override val id: Long,
 ) : DaemonRequest
 
-/** Ends the session and stops the daemon process. */
+/**
+ * Ends the session and stops the daemon process.
+ *
+ * @property id request id, echoed on the response; see [DaemonRequest.id].
+ */
 data class ShutdownRequest(
 	override val id: Long,
 ) : DaemonRequest
@@ -99,6 +125,13 @@ data class ShutdownRequest(
 /**
  * One compiler or linker message in the protocol shape. Only ERROR and WARNING travel here;
  * anything a tool reports below warning stays on stderr.
+ *
+ * @property severity ERROR or WARNING; a response carrying any ERROR is a failed op.
+ * @property message the tool's text, verbatim and possibly multi-line.
+ * @property file absolute path the message points at, or null when the tool reported no location
+ *   (a whole-invocation failure such as a bad aapt2 argument).
+ * @property line 1-based line in [file], or null when the tool gave none.
+ * @property column 1-based column in [line], or null when the tool gave none.
  */
 data class Diagnostic(
 	val severity: Severity,
@@ -107,6 +140,7 @@ data class Diagnostic(
 	val line: Int? = null,
 	val column: Int? = null,
 ) {
+	/** How bad a [Diagnostic] is; the only two levels the wire format carries. */
 	enum class Severity { ERROR, WARNING }
 }
 
@@ -160,7 +194,14 @@ data class CompileStats(
 	val changedClasses: Int = 0,
 	val compileOrdinal: Long = 0,
 ) {
-	/** Flattens the stats into response values, keyed by the constants below. */
+	/**
+	 * Flattens the stats into response values, keyed by the constants below.
+	 *
+	 * @return every field of this instance, one entry per `KEY_*` constant, ready to merge into
+	 *   [DaemonResponse.values]. Zero-valued fields are emitted too, so a reader cannot tell an
+	 *   unmeasured field from a measured zero - use [fromValues] to detect a daemon that omits
+	 *   the group entirely.
+	 */
 	fun toValues(): Map<String, Any> =
 		mapOf(
 			KEY_PRE_SNAP_MILLIS to preSnapMillis,
@@ -201,6 +242,10 @@ data class CompileStats(
 		 * The null return matters: a daemon predating these fields must not yield a zero-filled
 		 * row, which would read as "measured, and it was free". A single missing key does
 		 * default to 0, so a future daemon may drop one.
+		 *
+		 * @param lookup reads one response value by key as a Long, returning null when the key is
+		 *   absent; the caller owns the numeric coercion from whatever the JSON carried.
+		 * @return the stats, or null if the response carries none of the `KEY_*` keys.
 		 */
 		fun fromValues(lookup: (String) -> Long?): CompileStats? {
 			if (KEYS.none { lookup(it) != null }) return null
@@ -229,7 +274,12 @@ data class DexStats(
 	val classFiles: Int = 0,
 	val classBytes: Long = 0,
 ) {
-	/** Flattens the stats into response values, keyed by the constants below. */
+	/**
+	 * Flattens the stats into response values, keyed by the constants below.
+	 *
+	 * @return both fields, keyed by [KEY_CLASS_FILES] and [KEY_CLASS_BYTES], ready to merge into
+	 *   [DaemonResponse.values].
+	 */
 	fun toValues(): Map<String, Any> =
 		mapOf(
 			KEY_CLASS_FILES to classFiles,
@@ -240,7 +290,12 @@ data class DexStats(
 		const val KEY_CLASS_FILES = "nClassFiles"
 		const val KEY_CLASS_BYTES = "classBytes"
 
-		/** Same absent-vs-zero convention as [CompileStats.fromValues]. */
+		/**
+		 * Same absent-vs-zero convention as [CompileStats.fromValues].
+		 *
+		 * @param lookup reads one response value by key as a Long, returning null when absent.
+		 * @return the stats, or null if the response carries neither key.
+		 */
 		fun fromValues(lookup: (String) -> Long?): DexStats? {
 			val files = lookup(KEY_CLASS_FILES)
 			val bytes = lookup(KEY_CLASS_BYTES)
@@ -258,6 +313,13 @@ data class DexStats(
  * client, and an absent key reads back as null on a newer one. The version is a hard gate that
  * aborts the session on mismatch, and a staged daemon jar can lag the client, so bumping it for
  * an optional field would break the pairing the additive shape exists to support.
+ *
+ * @property id the [DaemonRequest.id] this answers; the client's only correlation handle.
+ * @property ok whether the op succeeded. False implies at least one ERROR in [diagnostics].
+ * @property values op-specific scalars, flat; keys are the `KEY_*` constants and [ResponseKeys].
+ *   Values are JSON scalars only - no nesting - so a client may read one key and ignore the rest.
+ * @property diagnostics compiler and linker messages. Present on success too, since a build can
+ *   succeed with warnings.
  */
 data class DaemonResponse(
 	val id: Long,
@@ -272,16 +334,38 @@ data class DaemonResponse(
 		 */
 		const val PROTOCOL_VERSION = 1
 
+		/**
+		 * Builds a success response, with no diagnostics.
+		 *
+		 * @param id the [DaemonRequest.id] being answered.
+		 * @param values op-specific scalars to return; see [DaemonResponse.values].
+		 * @return an `ok = true` response carrying [values] and an empty diagnostic list.
+		 */
 		fun ok(
 			id: Long,
 			values: Map<String, Any> = emptyMap(),
 		): DaemonResponse = DaemonResponse(id, true, values)
 
+		/**
+		 * Builds a failure response from already-parsed tool messages.
+		 *
+		 * @param id the [DaemonRequest.id] being answered.
+		 * @param diagnostics the messages to report; the caller is expected to include at least
+		 *   one ERROR, since `ok = false` with warnings alone would not explain the failure.
+		 * @return an `ok = false` response with no [values].
+		 */
 		fun failure(
 			id: Long,
 			diagnostics: List<Diagnostic>,
 		): DaemonResponse = DaemonResponse(id, false, emptyMap(), diagnostics)
 
+		/**
+		 * Builds a failure response for a whole-op error with no source location.
+		 *
+		 * @param id the [DaemonRequest.id] being answered.
+		 * @param message the error text, wrapped as a single locationless ERROR [Diagnostic].
+		 * @return an `ok = false` response carrying that one diagnostic.
+		 */
 		fun failure(
 			id: Long,
 			message: String,
@@ -291,6 +375,11 @@ data class DaemonResponse(
 
 /** Outcome of parsing one stdin line. Malformed input never throws past the codec. */
 sealed interface ParseResult {
+	/**
+	 * A line that decoded into a request the daemon can dispatch.
+	 *
+	 * @property request the decoded request; its `id` is the one to answer on.
+	 */
 	data class Parsed(
 		val request: DaemonRequest,
 	) : ParseResult
@@ -300,12 +389,15 @@ sealed interface ParseResult {
 	 *
 	 * @property id the request id when it could be recovered from the broken input, else
 	 *   [UNKNOWN_ID] so the client can still correlate "something failed".
+	 * @property message why the line was rejected, reported back as the failure response's one
+	 *   ERROR diagnostic.
 	 */
 	data class Malformed(
 		val id: Long,
 		val message: String,
 	) : ParseResult {
 		companion object {
+			/** [id] when the broken line yielded no usable request id. No real request uses it. */
 			const val UNKNOWN_ID = -1L
 		}
 	}

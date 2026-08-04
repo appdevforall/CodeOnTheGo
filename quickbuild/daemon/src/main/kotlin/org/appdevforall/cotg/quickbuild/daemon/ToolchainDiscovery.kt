@@ -7,28 +7,57 @@ import java.io.File
  * them, so a caller need not know CoGo's toolchain layout. Highest build-tools and platform
  * version wins. [env] is injectable so discovery unit-tests without the real process
  * environment.
+ *
+ * @property env reads one environment variable by name, returning null when it is unset;
+ *   defaults to the real process environment.
  */
 class ToolchainDiscovery(
 	private val env: (String) -> String? = System::getenv,
 ) {
 	/** One resolved toolchain path, or the reason it could not be found. */
 	sealed interface Resolution {
+		/**
+		 * The tool was located on disk.
+		 *
+		 * @property path absolute path to the resolved tool; the caller may use it as-is.
+		 */
 		data class Found(
 			val path: String,
 		) : Resolution
 
+		/**
+		 * The tool could not be located, and why.
+		 *
+		 * @property message caller-facing reason, naming the missing field and where discovery
+		 *   looked; `configure` reports it verbatim as an error diagnostic.
+		 */
 		data class Missing(
 			val message: String,
 		) : Resolution
 	}
 
-	/** Locates the aapt2 binary in the newest build-tools version that has one. */
+	/**
+	 * Locates the aapt2 binary in the newest build-tools version that has one.
+	 *
+	 * @return [Resolution.Found] with the binary's absolute path, or [Resolution.Missing] when
+	 *   `ANDROID_HOME` is unset or no build-tools version ships aapt2.
+	 */
 	fun resolveAapt2(): Resolution = resolveFromBuildTools("aapt2", "build-tools/<version>/aapt2") { File(it, "aapt2") }
 
-	/** Locates d8.jar in the newest build-tools version that has one. */
+	/**
+	 * Locates d8.jar in the newest build-tools version that has one.
+	 *
+	 * @return [Resolution.Found] with the jar's absolute path, or [Resolution.Missing] when
+	 *   `ANDROID_HOME` is unset or no build-tools version ships `lib/d8.jar`.
+	 */
 	fun resolveD8Jar(): Resolution = resolveFromBuildTools("d8Jar", "build-tools/<version>/lib/d8.jar") { File(it, "lib/d8.jar") }
 
-	/** Locates android.jar for the highest installed platform API level. */
+	/**
+	 * Locates android.jar for the highest installed platform API level.
+	 *
+	 * @return [Resolution.Found] with the jar's absolute path, or [Resolution.Missing] when
+	 *   `ANDROID_HOME` is unset or no installed platform carries an android.jar.
+	 */
 	fun resolveAndroidJar(): Resolution {
 		val androidHome = androidHomeValue() ?: return Resolution.Missing(unsetAndroidHome("androidJar"))
 		val platformsDir = File(androidHome, "platforms")
@@ -41,7 +70,14 @@ class ToolchainDiscovery(
 			?: Resolution.Missing(notFound("androidJar", androidHome, "platforms/android-<level>/android.jar"))
 	}
 
-	/** Picks the highest-versioned build-tools dir in which [toolFile] exists. */
+	/**
+	 * Picks the highest-versioned build-tools dir in which [toolFile] exists.
+	 *
+	 * @param field the `configure` request field this resolves, quoted back in the failure text.
+	 * @param relativeHint the `$ANDROID_HOME`-relative layout searched, for the failure text.
+	 * @param toolFile maps a build-tools version dir to the tool's expected location inside it.
+	 * @return [Resolution.Found] with the tool's absolute path, or [Resolution.Missing].
+	 */
 	private fun resolveFromBuildTools(
 		field: String,
 		relativeHint: String,

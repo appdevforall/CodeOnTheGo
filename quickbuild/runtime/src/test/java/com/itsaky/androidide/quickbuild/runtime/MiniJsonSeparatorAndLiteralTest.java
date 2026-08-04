@@ -7,7 +7,11 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * Separator and literal-token edges of the hand-rolled parser: a missing comma, a value that starts on a separator, and literals terminated by whitespace / ']' / end-of-input. All malformed inputs must throw IllegalArgumentException (the bad-payload contract), never parse to something plausible.
+ * Covers the hand-rolled parser's separator and literal-token edges.
+ *
+ * A missing comma, a value that starts on a separator, and literals terminated by whitespace,
+ * ']' or end-of-input. Every malformed input must throw IllegalArgumentException - the
+ * bad-payload contract - rather than parse into something plausible.
  */
 class MiniJsonSeparatorAndLiteralTest {
 

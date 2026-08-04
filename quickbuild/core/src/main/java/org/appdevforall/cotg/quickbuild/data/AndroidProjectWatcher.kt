@@ -27,6 +27,20 @@ import java.io.File
  * a [pollIntervalMillis] mtime sweep bounds staleness when events are lost. Both feed one
  * raw-event channel -> [WatchFilter] -> [coalesceChanges] debounce -> one [onBatch] per burst.
  * Everything runs on [scope]; [stop] tears it all down.
+ *
+ * @property watchedRoots directory trees walked recursively for both the inotify watches and
+ *   the poll sweep; entries that are not directories are skipped rather than failing.
+ * @property watchedFiles individual files outside [watchedRoots] (gradle config and kin). Only
+ *   the poll covers them - no inotify watch is registered on their parent directories.
+ * @property filter relevance test applied to every raw event before coalescing; drops build
+ *   intermediates and editor temp files.
+ * @property scope coroutine scope the pipeline, poll, and process-reader jobs run in.
+ *   Cancelling it stops the watcher as surely as [stop] does.
+ * @property pollIntervalMillis delay in milliseconds between mtime+size sweeps - the upper
+ *   bound on staleness when inotify drops an event.
+ * @property quietMillis idle gap in milliseconds that ends a burst (see [coalesceChanges]).
+ * @property maxMillis cap in milliseconds on how long one burst may keep accumulating before
+ *   it is emitted regardless of quiet time.
  */
 class AndroidProjectWatcher(
 	private val watchedRoots: List<File>,
@@ -52,6 +66,13 @@ class AndroidProjectWatcher(
 	 */
 	private val fingerprints = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
+	/**
+	 * Starts the coalescing pipeline, registers an inotify observer per watched directory, and
+	 * launches the poll sweep.
+	 *
+	 * @param onBatch invoked once per settled burst, on [scope], after the batch's fingerprints
+	 *   have been restamped. Must not block - it runs inline on the collecting coroutine.
+	 */
 	override fun start(onBatch: (ChangedFiles.Known) -> Unit) {
 		pipelineJob =
 			scope.launch {
@@ -79,6 +100,7 @@ class AndroidProjectWatcher(
 		log.info("Project watcher started: {} inotify dirs + {}ms poll", observers.size, pollIntervalMillis)
 	}
 
+	/** Cancels both jobs, stops and drops every observer, and closes the raw-event channel. */
 	override fun stop() {
 		pollJob?.cancel()
 		pollJob = null
@@ -91,7 +113,12 @@ class AndroidProjectWatcher(
 		rawEvents.close()
 	}
 
-	/** Registers an inotify observer for one directory; subdirectories created later get their own. */
+	/**
+	 * Registers an inotify observer for one directory; subdirectories created later get their own.
+	 *
+	 * @param dir the directory to watch. The observer is appended to [observers] but left
+	 *   unstarted; the caller starts it.
+	 */
 	@Suppress("DEPRECATION") // FileObserver(File,...) is API 29+; minSdk is 28 (B5 targets 28/29).
 	private fun observe(dir: File) {
 		val observer =
@@ -124,7 +151,13 @@ class AndroidProjectWatcher(
 		synchronized(observers) { observers.add(observer) }
 	}
 
-	/** Builds (but does not start) an observer for [dir], appending it to [into]. */
+	/**
+	 * Builds (but does not start) an observer for [dir], appending it to [into].
+	 *
+	 * @param dir the newly created directory to watch.
+	 * @param into collector the caller starts and then merges into [observers], so a live
+	 *   iteration of [observers] cannot see a half-built batch.
+	 */
 	@Suppress("DEPRECATION") // FileObserver(File,...) is API 29+; minSdk is 28 (B5 targets 28/29).
 	private fun observeInto(dir: File, into: MutableList<FileObserver>) {
 		into.add(
@@ -176,12 +209,14 @@ class AndroidProjectWatcher(
 	}
 
 	/**
-	 * Re-records each delivered file's fingerprint once the batch has settled, so the next
-	 * poll sweep does not re-emit it as a phantom second batch (one save, two builds).
-	 * Stamps taken inside an inotify callback can be stale: `adb push` rewrites mtime after
-	 * the CLOSE_WRITE that fingerprinted it, and a MODIFY handler can read mid-write attrs.
-	 * A real later write is still never missed - its own event emits unconditionally, and if
-	 * that event is dropped its stamp differs from the one recorded here.
+	 * Re-records each delivered file's fingerprint once the batch has settled, so the next poll
+	 * sweep does not re-emit it as a phantom second batch (one save, two builds). Stamps taken
+	 * inside an inotify callback can be stale - `adb push` rewrites mtime after the CLOSE_WRITE
+	 * that fingerprinted it. A later real write is still never missed: its own event emits
+	 * unconditionally, and a dropped event leaves a stamp differing from the one recorded here.
+	 *
+	 * @param batch the coalesced set about to be handed to the caller; only its still-existing
+	 *   regular files are restamped, and [ChangedFiles.Known.removed] is deliberately untouched.
 	 */
 	private fun restampSettled(batch: ChangedFiles.Known) {
 		batch.files.forEach { file ->
@@ -192,12 +227,16 @@ class AndroidProjectWatcher(
 	}
 
 	/**
-	 * Fingerprints a live file and emits it - the one choke point for both inotify and the
-	 * poll. Only the poll gates emission on the fingerprint (see [fingerprints] for why
-	 * inotify must not). Directories are dropped: never a compile input, and routing one to
-	 * the classifier would wrongly trip a full rebaseline. Deletions must take the separate
-	 * [reportDeletion] path or the `!isFile` guard here would swallow them.
-	 * Internal so tests can simulate an inotify delivery (FileObserver is inert on the JVM).
+	 * Fingerprints a live file and emits it - the one choke point for both inotify and the poll.
+	 * Only the poll gates emission on the fingerprint (see [fingerprints] for why inotify must
+	 * not). Directories are dropped: never a compile input, and routing one to the classifier
+	 * would wrongly trip a full rebaseline. Deletions must take the separate [reportDeletion]
+	 * path, or the `!isFile` guard here would swallow them. Internal so tests can drive it.
+	 *
+	 * @param file the path that changed; ignored unless it is an existing regular file, so a
+	 *   directory or an already-deleted path is a no-op.
+	 * @param fromPoll true when the mtime sweep found it, which emits only if the fingerprint
+	 *   actually moved; false for an inotify delivery, which always emits.
 	 */
 	internal fun report(
 		file: File,
@@ -216,6 +255,8 @@ class AndroidProjectWatcher(
 	 * [fingerprints] removal makes it fire exactly once whether inotify or the poll notices
 	 * first, and skips paths never tracked (a subdir, or a temp created and gone between
 	 * sweeps). Whether a removal is real work or noise is decided downstream.
+	 *
+	 * @param file the vanished path; ignored unless [fingerprints] was tracking it.
 	 */
 	private fun reportDeletion(file: File) {
 		if (fingerprints.remove(file.absolutePath) != null) {
@@ -223,10 +264,18 @@ class AndroidProjectWatcher(
 		}
 	}
 
+	/** Stamps the current on-disk state as the poll's baseline, without emitting any event. */
 	private fun initFingerprints() {
 		forEachWatchedFile { f -> fingerprints[f.absolutePath] = f.lastModified() xor f.length() }
 	}
 
+	/**
+	 * Visits every regular file currently under [watchedRoots], then each existing entry of
+	 * [watchedFiles].
+	 *
+	 * @param action called per file, not deduplicated - a [watchedFiles] entry that also sits
+	 *   under a watched root is visited twice.
+	 */
 	private inline fun forEachWatchedFile(action: (File) -> Unit) {
 		watchedRoots.filter(File::isDirectory).forEach { root ->
 			root.walkTopDown().filter(File::isFile).forEach(action)

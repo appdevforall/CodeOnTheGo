@@ -16,9 +16,12 @@ object KotlincDiagnosticsParser {
 	/**
 	 * Parses one compiler message into a diagnostic, with location when the text carries one.
 	 *
+	 * @param message one rendered compiler message; may span several lines, and is trimmed here.
 	 * @param severity the severity implied by the logger channel the message arrived on
 	 *   (error() -> ERROR, warn() -> WARNING); an explicit "error:"/"warning:" prefix in the
 	 *   text wins over it.
+	 * @return a diagnostic with file/line/column when the text carried a location, and the
+	 *   whole trimmed message with none when it did not - input is never dropped.
 	 */
 	fun parse(
 		message: String,

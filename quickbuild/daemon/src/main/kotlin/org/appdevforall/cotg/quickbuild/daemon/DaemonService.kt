@@ -19,12 +19,26 @@ import java.nio.file.Files
  * session (classpath snapshots, tool wrappers) and `compile`/`dex`/`relink` reuse it.
  * Failures become ok:false responses; the backstop for anything that still throws is
  * [RequestRouter].
+ *
+ * @property log takes one already-formatted line of human-readable progress; defaults to stderr,
+ *   never stdout, which is protocol-only.
+ * @property toolchainDiscovery fills in any tool path a `configure` request omits; injectable so
+ *   configure unit-tests without a provisioned SDK.
  */
 class DaemonService(
 	private val log: (String) -> Unit = { System.err.println(it) },
 	private val toolchainDiscovery: ToolchainDiscovery = ToolchainDiscovery(),
 ) : DaemonHandlers {
-	/** The warm state one `configure` builds and every later op reuses. */
+	/**
+	 * The warm state one `configure` builds and every later op reuses.
+	 *
+	 * @property compiler holds the IC caches and classpath snapshots, so it must outlive a
+	 *   single compile.
+	 * @property dexTool owns the r8 [java.net.URLClassLoader]; closed when a re-configure
+	 *   replaces the session.
+	 * @property aapt2Link wraps the resolved aapt2 binary and android.jar.
+	 * @property outDir the daemon's scratch root; the `dex` and `res` work dirs hang off it.
+	 */
 	private class Session(
 		val compiler: IncrementalCompiler,
 		val dexTool: DexTool,
@@ -37,6 +51,12 @@ class DaemonService(
 	/**
 	 * Resolves the toolchain, then builds the session that the later ops reuse. Any missing
 	 * tool or input file fails here rather than mid-build.
+	 *
+	 * @param request the session inputs; any of aapt2/d8Jar/androidJar left null is discovered
+	 *   under `$ANDROID_HOME`, and `outDir` is created if absent.
+	 * @return ok with `durationMillis`, the protocol version and the scratch filesystem type;
+	 *   ok:false with one diagnostic per unresolved tool, or naming every input file missing
+	 *   from disk.
 	 */
 	override fun configure(request: ConfigureRequest): DaemonResponse {
 		val aapt2 = request.aapt2?.let { ToolchainDiscovery.Resolution.Found(it) } ?: toolchainDiscovery.resolveAapt2()
@@ -101,6 +121,9 @@ class DaemonService(
 	 * 52x more on Android's FUSE-backed emulated storage than on the app's own filesystem
 	 * [measured on a56, ADFA-4128], so a timing row without it is hard to read. Any failure
 	 * reports `unknown` rather than failing a configure over telemetry.
+	 *
+	 * @param outDir the scratch root, which must already exist for the file store to resolve.
+	 * @return the filesystem type name, or `unknown` if it could not be read.
 	 */
 	private fun scratchFilesystemType(outDir: File): String =
 		runCatching { Files.getFileStore(outDir.toPath()).type() }
@@ -108,7 +131,14 @@ class DaemonService(
 			?.takeIf { it.isNotBlank() }
 			?: "unknown"
 
-	/** Compiles the requested sources and reports the changed class outputs plus phase timings. */
+	/**
+	 * Compiles the requested sources and reports the changed class outputs plus phase timings.
+	 *
+	 * @param request must list every module source in `allSources`, not only the edited ones,
+	 *   and repeat them all in `changedFiles` on a session's first compile.
+	 * @return ok with `classesDir`, the phase timings and the `classesChanged` path list, or
+	 *   ok:false carrying the compiler diagnostics; ok:false if no `configure` ran first.
+	 */
 	override fun compile(request: CompileRequest): DaemonResponse {
 		val session = session ?: return notConfigured(request.id)
 		val startedAt = System.currentTimeMillis()
@@ -152,7 +182,14 @@ class DaemonService(
 		}
 	}
 
-	/** Dexes the requested class dirs into the session's `dex` output dir. */
+	/**
+	 * Dexes the requested class dirs into the session's `dex` output dir.
+	 *
+	 * @param request `classesDirs` are roots scanned recursively; later roots win a path
+	 *   collision, so the compile output goes first and generated proxies after.
+	 * @return ok with `dexFile` and the strip/d8 timings, or ok:false with the d8 failure text;
+	 *   ok:false if no `configure` ran first.
+	 */
 	override fun dex(request: DexRequest): DaemonResponse {
 		val session = session ?: return notConfigured(request.id)
 		val startedAt = System.currentTimeMillis()
@@ -182,7 +219,14 @@ class DaemonService(
 		}
 	}
 
-	/** Rebuilds the resource apk from the project's res dirs and the library resources. */
+	/**
+	 * Rebuilds the resource apk from the project's res dirs and the library resources.
+	 *
+	 * @param request `stableIds` and `libraryResources` are optional on the wire but omitting
+	 *   either risks a wrong-id crash or an unresolvable reference - see [Aapt2Link]'s KDoc.
+	 * @return ok with `resourcesArsc` (the full relinked apk) and the aapt2 timings, or ok:false
+	 *   carrying the aapt2 diagnostics; ok:false if no `configure` ran first.
+	 */
 	override fun relink(request: RelinkRequest): DaemonResponse {
 		val session = session ?: return notConfigured(request.id)
 		val startedAt = System.currentTimeMillis()

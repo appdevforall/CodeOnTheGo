@@ -12,7 +12,13 @@ sealed interface DeployDecision {
 	/** Hot swap the loader and recreate the activity - the usual path. */
 	data object Recreate : DeployDecision
 
-	/** The recompiled set hit the restart closure of [componentClass] (a [kind]). */
+	/**
+	 * The recompiled set hit the restart closure of [componentClass] (a [kind]).
+	 *
+	 * @property kind what the hit component is, so the status surface can name it to the user.
+	 * @property componentClass the USER class FQN of the component whose closure was hit; the
+	 *   first match wins, so it names a cause rather than the complete set of them.
+	 */
 	data class Restart(
 		val kind: ComponentKind,
 		val componentClass: String,
@@ -22,6 +28,8 @@ sealed interface DeployDecision {
 	 * The installed baseline cannot take this deploy safely (it predates the component
 	 * metadata, so its runtime would ignore a restart request and hot-swap = stale).
 	 * The session must fall back to a full proxy app rebuild, which regenerates the baseline.
+	 *
+	 * @property detail human-readable cause, carried into the fallback's user-facing message.
 	 */
 	data class RebuildProxyApp(
 		val detail: String,
@@ -40,6 +48,10 @@ sealed interface DeployDecision {
  * component facts, and the supertype index.
  */
 class DeployPolicy(
+	/**
+	 * The baseline's manifest components as the proxy app build recorded them; components of a
+	 * non-restart kind are kept only for their baked supertype chains.
+	 */
 	components: List<ComponentInfo>,
 	/**
 	 * False when the baseline's setup.json predates schema v2: the restart closure is
@@ -68,6 +80,10 @@ class DeployPolicy(
 	 * Records [className]'s current direct supertypes (superclass + interfaces), parsed
 	 * from the class file this build emitted. Replaces the previous edges for the class,
 	 * so re-parenting drops the old parent from future closures.
+	 *
+	 * @param className the FQN in dot form, `$`-separated for nested classes.
+	 * @param directSupertypes the superclass plus directly implemented interfaces, one level
+	 *   only; the closure walk supplies the transitivity.
 	 */
 	fun onClassHierarchy(
 		className: String,
@@ -83,6 +99,8 @@ class DeployPolicy(
 	 *   '/'-or-OS-separated, e.g. `com/example/Foo$Bar.class`). Null means the recompiled set
 	 *   is unknown, and is answered conservatively - restart whenever any restart-sensitive
 	 *   component exists, since guessing "no hit" could leave a stale service running.
+	 * @return what the deploy must do; [DeployDecision.Recreate] for an empty (non-null) set,
+	 *   because a compile that emitted nothing cannot have touched a component.
 	 */
 	fun decide(changedClassFiles: Collection<String>?): DeployDecision {
 		if (changedClassFiles != null && changedClassFiles.isEmpty()) return DeployDecision.Recreate
@@ -108,7 +126,13 @@ class DeployPolicy(
 		return DeployDecision.Recreate
 	}
 
-	/** The component class plus its transitive supertypes; cycle-guarded. */
+	/**
+	 * The component class plus its transitive supertypes.
+	 *
+	 * @param componentClass FQN in dot form of the restart-sensitive component to walk up from.
+	 * @return [componentClass] plus every supertype reachable through [superEdges], in
+	 *   breadth-first order and cycle-guarded, so a re-parenting loop cannot hang the walk.
+	 */
 	private fun closureOf(componentClass: String): Set<String> {
 		val closure = LinkedHashSet<String>()
 		val queue = ArrayDeque(listOf(componentClass))
@@ -125,7 +149,14 @@ class DeployPolicy(
 		private val RESTART_KINDS =
 			setOf(ComponentKind.SERVICE, ComponentKind.PROVIDER, ComponentKind.APPLICATION)
 
-		/** `com/example/Foo$Bar.class` -> `com.example.Foo$Bar` (backslashes tolerated). */
+		/**
+		 * Turns a compiler-emitted class-file path into the FQN the closure is keyed by.
+		 *
+		 * @param path a relative .class path such as `com/example/Foo$Bar.class`; either
+		 *   separator works, so a Windows-style path needs no pre-normalizing.
+		 * @return the dot-form FQN, e.g. `com.example.Foo$Bar`, nested classes still
+		 *   `$`-separated.
+		 */
 		private fun pathToFqn(path: String): String =
 			path
 				.removeSuffix(".class")

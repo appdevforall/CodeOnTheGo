@@ -28,7 +28,12 @@ class QuickBuildHostService : Service() {
 		return binder
 	}
 
-	/** The AIDL surface the proxy app calls, publishing every accepted call to [connections]. */
+	/**
+	 * The AIDL surface the proxy app calls, publishing every accepted call to [connections].
+	 *
+	 * @property connections supplies the expected uid every inbound call is checked against,
+	 *   and receives whatever survives that check
+	 */
 	internal class HostBinder(
 		private val connections: ProxyAppConnections,
 	) : IQuickBuildHost.Stub() {
@@ -77,7 +82,13 @@ class QuickBuildHostService : Service() {
 			connections.onDisconnected()
 		}
 
-		/** Throws unless the caller is the proxy app the live session accepts. */
+		/**
+		 * Throws unless the caller is the proxy app the live session accepts.
+		 *
+		 * @param op the AIDL method name, for the rejection log and message only
+		 * @throws SecurityException when no session is live, or the calling uid is not the
+		 *   one PackageManager reported for the installed proxy app
+		 */
 		private fun enforceCaller(op: String) {
 			val expected = connections.expectedUid
 			val calling = Binder.getCallingUid()

@@ -6,6 +6,14 @@ import groovy.json.JsonSlurper
 /**
  * Manifest facts CoGo needs after the proxy app build; written by the generate task, merged
  * with the APK path into build/quickbuild/setup.json by the report task.
+ *
+ * @property proxyAppId the proxy app's application id - the project's real applicationId, with no
+ *   suffix, since the proxy app installs in the real app's place.
+ * @property entryActivity user class of the LAUNCHER activity, or null when the manifest declares
+ *   none; CoGo then has nothing to launch after installing.
+ * @property activities user classes of the proxied activities, in manifest order.
+ * @property components every component the transform recorded, the proxy-less Application entry
+ *   included. Empty when read back from a schema-1 intermediate.
  */
 data class ManifestInfo(
 	val proxyAppId: String,
@@ -36,6 +44,9 @@ object QuickBuildJson {
 	 *
 	 * A flat string map plus a "schema" key, so the runtime's ComponentMap parser reads v1 and
 	 * v2 alike. The Application has no proxy and is not in the map.
+	 *
+	 * @param components the transform's components; entries with no proxy class are dropped.
+	 * @return pretty-printed JSON, ready to write as the asset.
 	 */
 	fun componentsJson(components: List<ProxiedComponent>): String {
 		val map = linkedMapOf<String, Any?>("schema" to SCHEMA_VERSION.toString())
@@ -45,7 +56,13 @@ object QuickBuildJson {
 		return pretty(map)
 	}
 
-	/** Intermediate file carrying manifest facts from the generate task to the report task. */
+	/**
+	 * Intermediate file carrying manifest facts from the generate task to the report task.
+	 *
+	 * @param info the facts to serialize.
+	 * @return pretty-printed JSON. Component entries carry no `supertypes` - the classes are not
+	 *   compiled yet at generate time; [proxyAppReportJson] adds them.
+	 */
 	fun manifestInfoJson(info: ManifestInfo): String =
 		pretty(
 			linkedMapOf(
@@ -60,6 +77,19 @@ object QuickBuildJson {
 	/**
 	 * Renders build/quickbuild/setup.json, the report CoGo reads after the proxy app build.
 	 *
+	 * @param info the manifest facts from the generate task's intermediate
+	 * @param apkPath absolute path of the built proxy APK for CoGo to install
+	 * @param classpath absolute jar/dir paths of the variant compile classpath, snapshotted here
+	 *   so the daemon's per-session `configure` needs no re-resolution
+	 * @param proxyClassesDir absolute path of the compiled proxies, which every later payload dex
+	 *   must bundle; null only if the build produced none
+	 * @param manifestPath absolute path of the transformed (proxy-app) manifest every resource
+	 *   relink must link against - the real merged manifest names user classes the proxy app does
+	 *   not declare
+	 * @param payloadJars absolute paths of the generated jars diverted out of the APK (R.jar and
+	 *   kin), which hot compiles reference but no source root owns
+	 * @param composeEnabled true when the project uses Compose, which makes the daemon add its
+	 *   bundled Compose compiler plugin to every compile
 	 * @param supertypes per-userClass supertype chains, project-compiled classes only, merged
 	 *   into each `components` entry; the deploy policy's restart closure comes from these
 	 * @param annotationProcessors coordinates on the variant's `ksp`/`kapt`/
@@ -75,6 +105,7 @@ object QuickBuildJson {
 	 *   processing, passed to `aapt2 link` as `-R` overlays so a relink still resolves
 	 *   resources that only a dependency AAR declares. Empty if this AGP version/variant
 	 *   produced none.
+	 * @return pretty-printed JSON, ready to write as setup.json
 	 */
 	fun proxyAppReportJson(
 		info: ManifestInfo,
@@ -123,7 +154,14 @@ object QuickBuildJson {
 		return pretty(map)
 	}
 
-	/** Parses [manifestInfoJson] output. Throws [IllegalArgumentException] on malformed input. */
+	/**
+	 * Parses [manifestInfoJson] output. Throws [IllegalArgumentException] on malformed input.
+	 *
+	 * @param json the intermediate file's whole text.
+	 * @return the parsed facts. Unknown keys are ignored, so a newer writer stays readable.
+	 * @throws IllegalArgumentException if the text is not a JSON object, carries no application
+	 *   id, or holds a component entry missing `type` or `userClass`.
+	 */
 	fun parseManifestInfo(json: String): ManifestInfo {
 		val map =
 			JsonSlurper().parseText(json) as? Map<*, *>
@@ -148,6 +186,11 @@ object QuickBuildJson {
 	 *
 	 * Intent filters, exported and permission are deliberately absent: they transfer verbatim in
 	 * the manifest and no JSON consumer reads them.
+	 *
+	 * @param component the entry to render.
+	 * @param supertypes the component's project-compiled supertype chain, or null to omit the
+	 *   `supertypes` key entirely - which is how the generate-time intermediate is written.
+	 * @return the entry's key/value pairs, in a stable insertion order.
 	 */
 	private fun componentMap(
 		component: ProxiedComponent,
@@ -168,6 +211,13 @@ object QuickBuildJson {
 		return map
 	}
 
+	/**
+	 * Parses one `components` entry back into a [ProxiedComponent].
+	 *
+	 * @param map the entry as JsonSlurper produced it.
+	 * @return the component; a `supertypes` key, if present, is dropped since only CoGo reads it.
+	 * @throws IllegalArgumentException if `type` is missing or unknown, or `userClass` is missing.
+	 */
 	private fun parseComponent(map: Map<*, *>): ProxiedComponent {
 		val typeName =
 			map["type"] as? String
@@ -188,5 +238,11 @@ object QuickBuildJson {
 		)
 	}
 
+	/**
+	 * Renders a payload map as indented JSON.
+	 *
+	 * @param value the payload; null-valued keys are emitted as JSON null, not dropped.
+	 * @return the pretty-printed text, without a trailing newline.
+	 */
 	private fun pretty(value: Map<String, Any?>): String = JsonOutput.prettyPrint(JsonOutput.toJson(value))
 }

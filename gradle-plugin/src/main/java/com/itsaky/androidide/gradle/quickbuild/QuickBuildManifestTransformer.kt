@@ -34,6 +34,8 @@ enum class ComponentType(
  * name, so it keeps the user FQN and the runtime's instantiateApplication routes it through the
  * payload loader.
  *
+ * @property type which manifest element this came from; the Application is the only type that
+ *   gets no proxy.
  * @property userClass fully-qualified user class.
  * @property proxyClass fully-qualified generated proxy class that replaces it in the
  *   manifest, or null for the Application entry.
@@ -54,13 +56,23 @@ data class ProxiedComponent(
 /**
  * A component left under its real manifest name because [ComponentProxiabilityResolver] rejected
  * it, carrying that resolver's reason so the calling task can log what it skipped and why.
+ *
+ * @property userClass fully-qualified user class, still the component's manifest android:name.
+ * @property reason the resolver's phrase for why it was rejected; log text only.
  */
 data class UnproxiedComponent(
 	val userClass: String,
 	val reason: String,
 )
 
-/** The rewritten manifest plus what the rewrite did to each component. */
+/**
+ * The rewritten manifest plus what the rewrite did to each component.
+ *
+ * @property document the transformed manifest, mutated in place from the parsed input.
+ * @property components every proxied component, in manifest order per type, plus the proxy-less
+ *   Application entry when the manifest declares one.
+ * @property unproxied components left under their real name, for the caller to log.
+ */
 class ManifestTransformResult(
 	val document: Document,
 	val components: List<ProxiedComponent>,
@@ -98,6 +110,7 @@ class QuickBuildManifestTransformer(
 	private val proxiability: ComponentProxiabilityResolver = ComponentProxiabilityResolver.byNameOnly(),
 ) {
 	companion object {
+		/** The android XML namespace every attribute here is read and written through. */
 		const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
 		private const val ACTION_MAIN = "android.intent.action.MAIN"
 		private const val CATEGORY_LAUNCHER = "android.intent.category.LAUNCHER"
@@ -105,6 +118,12 @@ class QuickBuildManifestTransformer(
 		/**
 		 * Names the [index]-th proxy of [type] (Proxy0Activity, Proxy0Service, ...). The manifest,
 		 * the generated sources and the report all derive names here, so the scheme must not drift.
+		 *
+		 * @param index 0-based position among the proxied components of [type] only; a skipped
+		 *   component must not consume an index or every later one of that type shifts.
+		 * @param type the component kind, whose json name becomes the capitalized suffix.
+		 * @return the simple class name, with no package.
+		 * @throws IllegalArgumentException if [type] is [ComponentType.APPLICATION].
 		 */
 		fun proxySimpleName(
 			index: Int,
@@ -119,6 +138,8 @@ class QuickBuildManifestTransformer(
 	/**
 	 * Parses and rewrites a merged manifest.
 	 *
+	 * @param input the merged manifest's bytes; read to the end, and not closed here.
+	 * @return the rewritten document plus the per-component record of what was proxied.
 	 * @throws IllegalArgumentException on a manifest the quick path cannot handle - no
 	 *   `<application>`, a component without android:name, or an unsupported attribute. The
 	 *   calling task turns that into a failed build with the message intact.
@@ -152,6 +173,10 @@ class QuickBuildManifestTransformer(
 	 *
 	 * A skipped component is left verbatim and must not consume a per-type proxy index, or every
 	 * later component of that type would shift.
+	 *
+	 * @param userClass fully-qualified class named by the component's android:name.
+	 * @param unproxied accumulator appended to when the component is rejected.
+	 * @return true if the caller must leave this component alone.
 	 */
 	private fun skipProxy(
 		userClass: String,
@@ -163,6 +188,14 @@ class QuickBuildManifestTransformer(
 		return true
 	}
 
+	/**
+	 * Renames every proxiable `<activity>` to its proxy, then repoints matching aliases.
+	 *
+	 * @param application the `<application>` element, mutated in place.
+	 * @param manifestPackage the manifest's package, for expanding android:name shorthand.
+	 * @param unproxied accumulator for components [skipProxy] rejects.
+	 * @return the proxied activities, in manifest order; skipped ones are absent.
+	 */
 	private fun transformActivities(
 		application: Element,
 		manifestPackage: String,
@@ -205,6 +238,15 @@ class QuickBuildManifestTransformer(
 		return activities
 	}
 
+	/**
+	 * Renames every proxiable `<service>` to its proxy.
+	 *
+	 * @param application the `<application>` element, mutated in place.
+	 * @param manifestPackage the manifest's package, for expanding android:name shorthand.
+	 * @param unproxied accumulator for components [skipProxy] rejects.
+	 * @return the proxied services, in manifest order, each carrying its foregroundServiceType.
+	 * @throws IllegalArgumentException if a service declares android:isolatedProcess.
+	 */
 	private fun transformServices(
 		application: Element,
 		manifestPackage: String,
@@ -236,6 +278,14 @@ class QuickBuildManifestTransformer(
 		}
 	}
 
+	/**
+	 * Renames every proxiable `<receiver>` to its proxy.
+	 *
+	 * @param application the `<application>` element, mutated in place.
+	 * @param manifestPackage the manifest's package, for expanding android:name shorthand.
+	 * @param unproxied accumulator for components [skipProxy] rejects.
+	 * @return the proxied receivers, in manifest order.
+	 */
 	private fun transformReceivers(
 		application: Element,
 		manifestPackage: String,
@@ -259,6 +309,15 @@ class QuickBuildManifestTransformer(
 		}
 	}
 
+	/**
+	 * Renames every proxiable `<provider>` to its proxy.
+	 *
+	 * @param application the `<application>` element, mutated in place.
+	 * @param manifestPackage the manifest's package, for expanding android:name shorthand.
+	 * @param unproxied accumulator for components [skipProxy] rejects.
+	 * @return the proxied providers, in manifest order, each carrying its authorities.
+	 * @throws IllegalArgumentException if a provider declares android:multiprocess.
+	 */
 	private fun transformProviders(
 		application: Element,
 		manifestPackage: String,
@@ -296,6 +355,8 @@ class QuickBuildManifestTransformer(
 	 * backup pass would instantiate it through the APK classloader and crash the proxy app in
 	 * the background, where the user cannot connect the crash to Quick Build. Backing up a
 	 * throwaway dev harness has no value, so stripping loses nothing.
+	 *
+	 * @param application the `<application>` element, mutated in place.
 	 */
 	private fun neutralizeBackup(application: Element) {
 		application.setAttributeNS(ANDROID_NS, "android:allowBackup", "false")
@@ -304,7 +365,14 @@ class QuickBuildManifestTransformer(
 		}
 	}
 
-	/** Records the custom Application, if the manifest declares one; it gets no proxy. */
+	/**
+	 * Records the custom Application, if the manifest declares one; it gets no proxy.
+	 *
+	 * @param application the `<application>` element, whose android:name is rewritten in place to
+	 *   the fully-qualified user class.
+	 * @param manifestPackage the manifest's package, for expanding android:name shorthand.
+	 * @return the Application entry, or null when the manifest names no custom Application.
+	 */
 	private fun applicationComponent(
 		application: Element,
 		manifestPackage: String,
@@ -328,6 +396,9 @@ class QuickBuildManifestTransformer(
 	 *
 	 * The proxy app installs under the project's real applicationId, so authorities pass through
 	 * the manifest verbatim and need no rewrite.
+	 *
+	 * @param provider the `<provider>` element; not modified.
+	 * @return the authorities, blanks dropped, or empty when the attribute is absent.
 	 */
 	private fun readAuthorities(provider: Element): List<String> {
 		val raw = provider.getAttributeNS(ANDROID_NS, "authorities")
@@ -335,6 +406,17 @@ class QuickBuildManifestTransformer(
 		return raw.split(';').filter { it.isNotBlank() }
 	}
 
+	/**
+	 * Reads a component's android:name, insisting it is present.
+	 *
+	 * @param element an `<activity>`, `<service>`, `<receiver>`, or `<provider>` element; read
+	 *   for its android:name only, and not modified.
+	 * @param tag its manifest tag, for the error message only.
+	 * @param index its position among same-tag siblings, for the error message only.
+	 * @param manifestPackage the manifest's package, for expanding android:name shorthand.
+	 * @return the fully-qualified class name.
+	 * @throws IllegalArgumentException if android:name is absent or blank.
+	 */
 	private fun requireComponentName(
 		element: Element,
 		tag: String,
@@ -348,7 +430,15 @@ class QuickBuildManifestTransformer(
 		return resolveClassName(name, manifestPackage)
 	}
 
-	/** Fails the build on a component asking for its own process; Quick Build is single-process. */
+	/**
+	 * Fails the build on a component asking for its own process; Quick Build is single-process.
+	 *
+	 * @param element the component element to vet; only android:process is inspected, and
+	 *   nothing is modified.
+	 * @param tag its manifest tag, for the error message only.
+	 * @param userClass its resolved class name, for the error message only.
+	 * @throws IllegalArgumentException if the component declares a non-blank android:process.
+	 */
 	private fun rejectUnsupported(
 		element: Element,
 		tag: String,
@@ -366,11 +456,12 @@ class QuickBuildManifestTransformer(
 	/**
 	 * Replaces the one known library-provided resource reference with its literal value.
 	 *
-	 * The on-device relink links only the app's own res/ against this manifest, so a manifest
-	 * reference to a library resource aborts every resource hot reload with aapt2 "resource not
-	 * found". CoGo's LogSenderPlugin injects exactly one (`@bool/logsender_enabled`, true in the
-	 * logsender AAR). Relinking against the base APK's resource table would fix this generally;
-	 * until then any new library manifest reference hits the same wall.
+	 * The on-device relink links only the app's own res/, so a manifest reference to a library
+	 * resource aborts every resource hot reload with aapt2 "resource not found". CoGo's
+	 * LogSenderPlugin injects exactly one (`@bool/logsender_enabled`). Relinking against the base
+	 * APK's resource table would fix this generally; until then a new one hits the same wall.
+	 *
+	 * @param document the whole manifest, scanned attribute by attribute and edited in place.
 	 */
 	private fun inlineLibraryResourceRefs(document: Document) {
 		val all = document.getElementsByTagName("*")
@@ -386,7 +477,12 @@ class QuickBuildManifestTransformer(
 		}
 	}
 
-	/** Serializes a transformed manifest to [file]. */
+	/**
+	 * Serializes a transformed manifest to [file].
+	 *
+	 * @param document the transformed manifest.
+	 * @param file destination; overwritten, and its parent directories created if missing.
+	 */
 	fun writeTo(
 		document: Document,
 		file: File,
@@ -397,6 +493,13 @@ class QuickBuildManifestTransformer(
 		transformer.transform(DOMSource(document), StreamResult(file))
 	}
 
+	/**
+	 * Reports whether an activity is the launcher entry point.
+	 *
+	 * @param activity the `<activity>` element; not modified.
+	 * @return true if one intent filter carries both the MAIN action and the LAUNCHER category -
+	 *   split across two filters does not count, matching the framework's own rule.
+	 */
 	private fun isLauncher(activity: Element): Boolean =
 		activity.childElements("intent-filter").any { filter ->
 			filter.childElements("action").any {
@@ -411,6 +514,10 @@ class QuickBuildManifestTransformer(
 	 * Expands manifest class-name shorthand (`.Foo`, `Foo`) against the manifest package.
 	 *
 	 * A fallback: the manifest merger normally expands these already.
+	 *
+	 * @param name the raw android:name value.
+	 * @param manifestPackage the manifest's package; an empty one leaves a bare name unchanged.
+	 * @return the fully-qualified name, returned as-is when it already carries a package.
 	 */
 	private fun resolveClassName(
 		name: String,
@@ -422,6 +529,13 @@ class QuickBuildManifestTransformer(
 			else -> name
 		}
 
+	/**
+	 * Lists this element's direct children with the given tag.
+	 *
+	 * @param tag the tag name to match exactly.
+	 * @return the matching children in document order; direct children only, so a nested
+	 *   `<activity>` inside another element is never picked up.
+	 */
 	private fun Element.childElements(tag: String): List<Element> {
 		val result = mutableListOf<Element>()
 		var node = firstChild
@@ -434,7 +548,11 @@ class QuickBuildManifestTransformer(
 		return result
 	}
 
-	/** A parser factory hardened against XXE: no DOCTYPE, no external entities or DTDs. */
+	/**
+	 * A parser factory hardened against XXE: no DOCTYPE, no external entities or DTDs.
+	 *
+	 * @return a namespace-aware factory; a manifest that declares a DOCTYPE is rejected outright.
+	 */
 	private fun newDocumentBuilderFactory(): DocumentBuilderFactory =
 		DocumentBuilderFactory.newInstance().apply {
 			isNamespaceAware = true

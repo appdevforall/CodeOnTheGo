@@ -9,9 +9,12 @@ import org.appdevforall.cotg.quickbuild.testfixtures.OfflineGuard;
 import org.junit.jupiter.api.Test;
 
 /**
- * Offline guard (ADFA-4128 offline-test-plan touchpoints 7-10) for the `:quickbuild:runtime` AAR -- the code embedded in generated proxy apps that binds to CoGo and hot-reloads payloads over binder IPC. Quick Build must be provably network-free; this runtime opens no sockets. This test scans the module's compiled production classes for any network-API reference in their constant pools and fails, naming the offending class + constant, if one appears. It runs in the normal `test` task, so a regression is caught in CI, not just by a device walk.
+ * Fails if any production class in the `:quickbuild:runtime` AAR references a network API.
  *
- * The runtime is Java-only with no allowed network exceptions. `java/net/URL`/`URI`/`URLClassLoader` are absent from this module's bytes today; none of them is in {@link OfflineGuard#BANNED} either, so adding one for a local `file:` URI would not trip this test.
+ * Covers ADFA-4128 offline-test-plan touchpoints 7-10. The AAR is what generated proxy apps
+ * embed to bind to CoGo and hot-reload payloads over binder IPC, so it must be provably
+ * network-free. The scan reads compiled constant pools and names the offending class plus
+ * constant; it runs in the normal `test` task, so a regression is caught in CI, not on a device.
  */
 class OfflineNetworkGuardTest {
 
@@ -26,7 +29,11 @@ class OfflineNetworkGuardTest {
 	}
 
 	/**
-	 * Proves the detector would genuinely fail if a banned reference appeared, and that the allow-listed local-URL APIs do NOT trip it -- so a green result above is a real signal, not a scanner that can never fire.
+	 * Proves the detector fires on banned bytes and stays quiet on local-URL APIs.
+	 *
+	 * Without it, a green scan could be a scanner that can never fire. `java/net/URL`, `URI` and
+	 * `URLClassLoader` are absent from this module today and absent from
+	 * {@link OfflineGuard#BANNED}, so adding one for a local `file:` URI would not trip the test.
 	 */
 	@Test
 	void detectorFiresOnBannedBytesAndNotOnAllowedBytes() {

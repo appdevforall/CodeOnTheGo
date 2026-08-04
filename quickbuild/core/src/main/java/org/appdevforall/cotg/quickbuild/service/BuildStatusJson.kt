@@ -4,22 +4,31 @@ import com.google.gson.JsonObject
 import org.appdevforall.cotg.quickbuild.domain.BuildDiagnostic
 
 /**
- * Builds the `statusJson` argument of `IQuickBuildTarget.onBuildStatus` (schema in
- * quickbuild/core/README.md).
+ * Builds the `statusJson` argument of `IQuickBuildTarget.onBuildStatus`.
  *
- * Every value must be a STRING on the wire: the runtime's MiniJson parser reads only
- * strings. It ignores unknown kinds and fields, so the schema can grow without breaking
- * installed proxy apps.
+ * The three builders below are the schema: each names its `kind` and the fields that go with
+ * it, and the runtime's `BuildStatus` is the only reader. Every value must be a STRING on the
+ * wire, because the runtime's MiniJson parser reads only strings. It ignores unknown kinds and
+ * fields, so the schema can grow without breaking installed proxy apps.
  */
 object BuildStatusJson {
+	/** `kind` of the [buildFailed] message: a compile error the overlay shows. */
 	const val KIND_BUILD_FAILED = "build_failed"
+
+	/** `kind` of the [buildOk] message: clears whatever failure the overlay is showing. */
 	const val KIND_BUILD_OK = "build_ok"
+
+	/** `kind` of the [building] message: a build is in flight; the overlay says so. */
 	const val KIND_BUILDING = "building"
 
 	/**
 	 * Tells the proxy app a build has started while it keeps running [runningGeneration],
 	 * so a slow build does not read as silence on screen. Cleared by the [buildFailed] or
 	 * [buildOk] the same attempt eventually sends.
+	 *
+	 * @param runningGeneration the generation the app is still running, not the one being
+	 *   built; a caller with nothing truthful to say must not call this at all
+	 * @return the `statusJson` argument for `onBuildStatus`
 	 */
 	fun building(runningGeneration: Long): String =
 		JsonObject()
@@ -32,6 +41,11 @@ object BuildStatusJson {
 	 * Reports a compile failure as the first error's location, the first line of its
 	 * message, and a count of the errors not shown. The overlay is a one-glance surface,
 	 * not a build log.
+	 *
+	 * @param diagnostics every diagnostic the compile produced, in the compiler's order;
+	 *   errors are preferred over warnings when picking the one to show, and an empty list
+	 *   yields a kind-only message
+	 * @return the `statusJson` argument for `onBuildStatus`
 	 */
 	fun buildFailed(diagnostics: List<BuildDiagnostic>): String {
 		val errors = diagnostics.filter { it.severity == BuildDiagnostic.Severity.ERROR }
@@ -54,6 +68,10 @@ object BuildStatusJson {
 			}.toString()
 	}
 
-	/** Reports a successful build, which clears a shown failure and renders nothing itself. */
+	/**
+	 * Reports a successful build, which clears a shown failure and renders nothing itself.
+	 *
+	 * @return the `statusJson` argument for `onBuildStatus`
+	 */
 	fun buildOk(): String = JsonObject().apply { addProperty("kind", KIND_BUILD_OK) }.toString()
 }

@@ -21,22 +21,38 @@ import java.io.File
  * dispatcher; this class holds no scope of its own.
  */
 internal class ProxyAppBuildRunner(
+	/** The door to Gradle; contractually never throws, though this class still guards it. */
 	private val provisioner: QuickBuildProvisioner,
+	/** Daemon lifecycle; every transition here is marked intentional before it runs. */
 	private val daemonController: QuickBuildDaemonController,
+	/** Deploy-channel registry, opened to the proxy app's uid once its install is confirmed. */
 	private val connections: ProxyAppConnections,
 	/** App-private scratch trees: disk-space guard plus the per-project tree. */
 	private val scratch: QuickBuildScratch,
+	/** Assembles the session once every prerequisite is up. */
 	private val sessionFactory: LiveSessionFactory,
+	/** Opens the project's persisted generation counter, keyed by its root directory. */
 	private val generationStoreFactory: (File) -> GenerationStore,
+	/** Analytics port; only the rebuild path books to it, and only through [report]. */
 	private val metrics: QuickBuildMetricsSink,
 ) {
 	/** What became of a [provision]. The manager dispatches on it; this class does not. */
 	sealed interface ProvisionResult {
-		/** The private volume was short before anything ran, so there is nothing to undo. */
+		/**
+		 * The private volume was short before anything ran, so there is nothing to undo.
+		 *
+		 * @property message names the shortfall, and is shown to the user verbatim
+		 */
 		data class DiskSpaceShort(
 			val message: String,
 		) : ProvisionResult
 
+		/**
+		 * Provisioning failed somewhere it could not recover from; any side effect it began
+		 * has already been unwound.
+		 *
+		 * @property message user-facing failure text
+		 */
 		data class Failed(
 			val message: String,
 		) : ProvisionResult
@@ -53,7 +69,13 @@ internal class ProxyAppBuildRunner(
 		 */
 		data object SupersededDuringDaemonStart : ProvisionResult
 
-		/** Everything is up; the manager installs the session and goes live. */
+		/**
+		 * Everything is up; the manager installs the session and goes live.
+		 *
+		 * @property session assembled but inert - its watcher is not started yet
+		 * @property tracker the same allocator the session holds, handed over so the
+		 *   manager can publish the current generation without reaching into the session
+		 */
 		data class Succeeded(
 			val session: LiveSession,
 			val tracker: GenerationTracker,
@@ -66,6 +88,8 @@ internal class ProxyAppBuildRunner(
 	 *
 	 * @param superseded probed after the Gradle build and after the daemon start, the two
 	 *   points a "Restart session" can land
+	 * @return what happened; the two superseded results differ in what the manager must
+	 *   still clean up, so they must not be collapsed
 	 */
 	suspend fun provision(superseded: () -> Boolean): ProvisionResult {
 		// Fail in seconds with a clear message rather than let a full private volume
@@ -168,16 +192,30 @@ internal class ProxyAppBuildRunner(
 		/** Outlived a session restart; the manager discards without touching the session. */
 		data object Superseded : ProxyAppRebuildResult
 
+		/**
+		 * The rebuild failed. The daemon stays down, so the session cannot quick-build
+		 * until a later attempt succeeds.
+		 *
+		 * @property message user-facing failure text
+		 */
 		data class Failed(
 			val message: String,
 		) : ProxyAppRebuildResult
 
-		/** The Gradle build was fine; only the reinstall confirmation is missing. */
+		/**
+		 * The Gradle build was fine; only the reinstall confirmation is missing.
+		 *
+		 * @property message case-specific text telling the user how to re-prompt
+		 */
 		data class InstallNotConfirmed(
 			val message: String,
 		) : ProxyAppRebuildResult
 
-		/** The rebuild succeeded but the daemon refused to come back up on the new config. */
+		/**
+		 * The rebuild succeeded but the daemon refused to come back up on the new config.
+		 *
+		 * @property message the daemon's own failure text, or a generic rejection note
+		 */
 		data class DaemonRestartFailed(
 			val message: String,
 		) : ProxyAppRebuildResult
@@ -188,7 +226,9 @@ internal class ProxyAppBuildRunner(
 		 * baseline.
 		 */
 		data class Succeeded(
+			/** The re-read report, not the provisioning-time snapshot. */
 			val proxyApp: ProxyAppInfo,
+			/** Derived from the same re-read report as [proxyApp]. */
 			val layout: QuickBuildProjectLayout,
 		) : ProxyAppRebuildResult
 	}
@@ -204,6 +244,7 @@ internal class ProxyAppBuildRunner(
 	 *   failed rebuild, so it books like one.
 	 * @param superseded the manager's epoch check, probed once the Gradle build and its
 	 *   metric are done
+	 * @return what happened; the daemon is left down for every result except a success
 	 */
 	suspend fun rebuildProxyApp(
 		parkedRetry: Boolean,
@@ -275,6 +316,10 @@ internal class ProxyAppBuildRunner(
 	 *
 	 * Used on hand-back: an external clean that wiped `build/` forces a rebuild, while
 	 * anything less only needs a baseline refresh.
+	 *
+	 * @param proxyApp the baseline to check; its optional paths count as intact when the
+	 *   baseline never had them, so a pre-v2 setup is not mistaken for a wiped one
+	 * @return true when every artifact the daemon compiles against is still present
 	 */
 	fun proxyAppArtifactsIntact(proxyApp: ProxyAppInfo): Boolean =
 		proxyApp.classpath.all { it.exists() } &&

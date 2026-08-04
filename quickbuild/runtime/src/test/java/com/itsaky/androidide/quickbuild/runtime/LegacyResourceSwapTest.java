@@ -12,7 +12,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The JVM-testable half of the API 28/29 shim: persisting the relinked resource apk to a file addAssetPath can mount. The payload is the full relinked apk already, so writing it is a plain byte copy - it must not be re-wrapped into a synthetic zip. The reflective addAssetPath / cache flush can only run on a real device.
+ * Covers the JVM-testable half of the API 28/29 shim: writing the relinked resource apk to disk.
+ *
+ * The payload is already the full relinked apk, so persisting it is a plain byte copy and must
+ * not be re-wrapped into a synthetic zip. The reflective addAssetPath and the resource cache
+ * flush are device-only and are not exercised here.
  */
 class LegacyResourceSwapTest {
 

@@ -54,6 +54,9 @@ interface QuickBuildPaths {
 	 * Builds the full environment for the daemon child process. The host app env must not be
 	 * inherited: Android runtime classpath vars crash a standalone OpenJDK on some OEM images
 	 * (the same reason ToolingServerRunner clears its env).
+	 *
+	 * @return the complete environment for the child - callers replace rather than merge, so
+	 *   anything the daemon needs (`HOME`, `PATH`, `TMPDIR`, ...) has to be in here.
 	 */
 	fun daemonEnvironment(): Map<String, String>
 }

@@ -14,6 +14,9 @@ import org.slf4j.LoggerFactory
  * The inbound half of the session shell, mirroring the manager's `runEffect` on the way
  * out. It decides only: [route] mutates no session state and dispatches nothing, and the
  * manager applies the returned [Routing].
+ *
+ * @property metrics reported to for every event, through [report], so a failing sink can
+ *   never change what the router decides
  */
 internal class OrchestratorEventRouter(
 	private val metrics: QuickBuildMetricsSink,
@@ -23,6 +26,7 @@ internal class OrchestratorEventRouter(
 	 * declaration order: advance the tally, dispatch the events, then notify.
 	 */
 	data class Routing(
+		/** Dispatched in order, after the tally advances; empty means the event is silent. */
 		val sessionEvents: List<SessionEvent> = emptyList(),
 		/**
 		 * Value the session's deploy tally must advance to before the events dispatch,
@@ -46,10 +50,12 @@ internal class OrchestratorEventRouter(
 	 * Decides what one orchestrator event means for the session, and reports it to
 	 * metrics.
 	 *
+	 * @param event the orchestrator fact to translate
 	 * @param lastDeployedGeneration the session's own deploy tally; -1 before the first
 	 *   deploy or when no session is live
 	 * @param connectedGeneration the bound proxy app's self-reported generation, or null
 	 *   when none is connected
+	 * @return what the manager must apply, in field-declaration order
 	 */
 	fun route(
 		event: OrchestratorEvent,
@@ -127,6 +133,12 @@ internal class OrchestratorEventRouter(
 			}
 		}
 
+	/**
+	 * Narrows a build outcome to the failure shape the session state carries.
+	 *
+	 * @return the user-facing failure; kept total over every outcome, so the two cases
+	 *   that cannot reach here still map rather than throw
+	 */
 	private fun BuildOutcome.toSessionFailure(): SessionFailure =
 		when (this) {
 			is BuildOutcome.CompileError -> SessionFailure.CompileError(diagnostics)

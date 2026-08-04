@@ -5,7 +5,10 @@ import static com.google.common.truth.Truth.assertThat;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
-/** The 3-arg constructor is the no-restart shorthand; it must default restart to false and apply the same null-safety as the full constructor. */
+/**
+ * Pins the 3-arg no-restart shorthand: restart defaults to false and the full constructor's
+ * null-safety applies unchanged.
+ */
 class DeployMetadataConvenienceConstructorTest {
 
 	@Test

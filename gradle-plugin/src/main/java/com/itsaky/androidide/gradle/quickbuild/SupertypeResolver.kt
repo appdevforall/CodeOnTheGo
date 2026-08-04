@@ -65,6 +65,9 @@ internal object SupertypeResolver {
 	 * A supertype absent from [index] is framework or library code: it lives in the base APK
 	 * and never hot-swaps, so the walk stops there.
 	 *
+	 * @param className the binary name (dots, not slashes) to start from; it is never included in
+	 *   the result, and an unknown name yields an empty list.
+	 * @param index the graph from [supertypeIndex], keyed by the same dotted binary names.
 	 * @return superclasses and interfaces in breadth-first order, superclass before interfaces
 	 *   at each level
 	 */
@@ -85,6 +88,14 @@ internal object SupertypeResolver {
 		return chain
 	}
 
+	/**
+	 * Reads one class header into an index entry.
+	 *
+	 * @param classBytes a whole `.class` file; only its header is parsed, so member bytecode may
+	 *   reference types absent from this build.
+	 * @return the class's dotted binary name paired with its direct supertypes, or null for a
+	 *   class that declares none (`java.lang.Object`, `module-info`).
+	 */
 	private fun readHeader(classBytes: ByteArray): Pair<String, List<String>>? {
 		val reader = ClassReader(classBytes)
 		val supertypes =

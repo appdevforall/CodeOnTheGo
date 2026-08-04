@@ -15,7 +15,13 @@ import javax.tools.ToolProvider
  * this path needs no text parsing.
  */
 object JavaCompileStep {
-	/** Outcome of one javac run; [diagnostics] carries warnings even on success. */
+	/**
+	 * Outcome of one javac run; [diagnostics] carries warnings even on success.
+	 *
+	 * @property success javac's own verdict; false also covers a runtime with no compiler.
+	 * @property diagnostics every message javac produced, errors and warnings alike, so the
+	 *   caller must filter by severity rather than assume a non-empty list means failure.
+	 */
 	data class Result(
 		val success: Boolean,
 		val diagnostics: List<Diagnostic>,
@@ -24,8 +30,11 @@ object JavaCompileStep {
 	/**
 	 * Compiles [javaSources] into [outputDir].
 	 *
+	 * @param javaSources every `.java` in the module, not just the edited ones - this pass is
+	 *   not incremental.
 	 * @param classpath the compile classpath; the caller adds the Kotlin output dir so Java
 	 *   can reference Kotlin classes.
+	 * @param outputDir the same dir the Kotlin pass wrote to, so one tree holds both languages.
 	 * @return a failed [Result] rather than an exception when the runtime has no javac.
 	 */
 	fun compile(

@@ -14,10 +14,19 @@ import java.io.IOException
  * later session stay strictly newer. A corrupt or unreadable file loads as null (fresh
  * session) so a broken state file cannot take quick build down; writes are temp+rename so a
  * crash leaves either the old value or the new one, never a torn file.
+ *
+ * @property file the counter file. Need not exist yet, and its parent directory is created on
+ *   first [save]; a sibling `.tmp` beside it is used as the write staging path.
  */
 class FileGenerationStore(
 	private val file: File,
 ) : GenerationStore {
+	/**
+	 * Reads the persisted counter.
+	 *
+	 * @return the stored generation, or null when the file is missing, unreadable, or does not
+	 *   parse as a Long - all of which the caller treats as a fresh session.
+	 */
 	override fun load(): Long? =
 		try {
 			if (file.isFile) file.readText().trim().toLongOrNull() else null
@@ -26,6 +35,15 @@ class FileGenerationStore(
 			null
 		}
 
+	/**
+	 * Persists the counter atomically via temp file plus rename.
+	 *
+	 * @param generation the value to store; the caller guarantees it is strictly greater than
+	 *   any previously saved one, since the installed proxy app keys its payloads by it.
+	 * @throws IOException when the value could not be persisted, including the second rename
+	 *   attempt after clearing the destination. Unlike [load], a failed write is not swallowed
+	 *   - losing it would let a later session reuse a generation.
+	 */
 	override fun save(generation: Long) {
 		file.parentFile?.mkdirs()
 		val tmp = File(file.parentFile, file.name + ".tmp")
@@ -43,7 +61,13 @@ class FileGenerationStore(
 	companion object {
 		private val log = LoggerFactory.getLogger(FileGenerationStore::class.java)
 
-		/** Builds a store at the canonical per-project location of the generation file. */
+		/**
+		 * Builds a store at the canonical per-project location of the generation file.
+		 *
+		 * @param projectRoot the user project's root directory; the file lands at
+		 *   `.androidide/quickbuild/generation` beneath it, and neither need exist yet.
+		 * @return a store for that path; no filesystem access happens until [load] or [save].
+		 */
 		fun forProject(projectRoot: File): FileGenerationStore = FileGenerationStore(File(projectRoot, ".androidide/quickbuild/generation"))
 	}
 }

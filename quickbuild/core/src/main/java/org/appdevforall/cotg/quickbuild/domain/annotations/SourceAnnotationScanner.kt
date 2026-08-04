@@ -23,6 +23,8 @@ object SourceAnnotationScanner {
 	/**
 	 * Extracts one file's facts from its source text.
 	 *
+	 * @param text the whole file, Kotlin or Java; the language is inferred from what the text
+	 *   contains rather than from any extension.
 	 * @return null when the text could not be scanned confidently (unbalanced braces,
 	 *   unterminated comment or raw string). Callers must read that as "assume processor
 	 *   input changed".
@@ -80,7 +82,13 @@ object SourceAnnotationScanner {
 		val maskLines: List<String>,
 	)
 
-	/** Strips comments and builds the literal mask; null when a comment or literal never ends. */
+	/**
+	 * Strips comments and builds the literal mask.
+	 *
+	 * @param text one source file's whole contents, Kotlin or Java.
+	 * @return the code/mask line pair, or null when a block comment or a literal never closes -
+	 *   a half-typed file the caller must not draw conclusions from.
+	 */
 	private fun prepare(text: String): Prepared? {
 		val code = StringBuilder()
 		val mask = StringBuilder()
@@ -196,7 +204,10 @@ object SourceAnnotationScanner {
 	 * [FUNCTION_SIGNATURE] and contributed exactly one net brace. Class bodies, `when` blocks,
 	 * property-initializer lambdas and multi-line signatures all stay in the fingerprint.
 	 *
-	 * @return null when brace nesting does not balance - the caller must not trust the file.
+	 * @param prepared the file to walk; brace counting runs over its mask lines, and the
+	 *   signature match over the code lines at the same indexes.
+	 * @return one flag per line, or null when brace nesting does not balance - the caller must
+	 *   not trust the file.
 	 */
 	private fun markFunctionBodies(prepared: Prepared): BooleanArray? {
 		val result = BooleanArray(prepared.maskLines.size)
@@ -234,8 +245,13 @@ object SourceAnnotationScanner {
 	 *
 	 * A Kotlin use-site target is split into [AnnotationUse.useSiteTarget] so imports still
 	 * resolve the bare name while `@get:Json` and `@field:Json` stay distinct. Argument text
-	 * keeps string literals verbatim and collapses whitespace, so reformatting an annotation
-	 * is a no-op while changing a value is not.
+	 * keeps literals verbatim and collapses whitespace: reformatting is a no-op, a value edit
+	 * is not.
+	 *
+	 * @param prepared the file to walk; `@` and parens are found on the mask lines while the
+	 *   recorded name and argument text are cut from the code lines at the same offsets.
+	 * @return the uses in source order, truncated at the first unbalanced argument list rather
+	 *   than dropped, so a half-typed annotation does not hide the ones above it.
 	 */
 	private fun extractAnnotations(prepared: Prepared): List<AnnotationUse> {
 		val mask = prepared.maskLines.joinToString("\n")
@@ -281,7 +297,14 @@ object SourceAnnotationScanner {
 		return result
 	}
 
-	/** End index (exclusive) of a dotted identifier starting at [start], or [start]. */
+	/**
+	 * End index (exclusive) of a dotted identifier starting at [start].
+	 *
+	 * @param text masked source, so characters inside a literal cannot pass as an identifier.
+	 * @param start index the identifier must begin at; no leading whitespace is skipped.
+	 * @return one past the identifier's last character, or [start] when none begins there; a
+	 *   trailing dot is left to the next token.
+	 */
 	private fun readIdentifierPath(
 		text: String,
 		start: Int,
@@ -294,7 +317,14 @@ object SourceAnnotationScanner {
 		return i
 	}
 
-	/** Index of the `)` closing the `(` at [open], or null when unbalanced. */
+	/**
+	 * Index of the `)` closing the `(` at [open].
+	 *
+	 * @param text masked source, so parentheses inside a string literal are not counted.
+	 * @param open index of the opening `(`; depth is counted from that character onward.
+	 * @return the matching `)` index, or null when the parentheses never balance before the
+	 *   end of the file.
+	 */
 	private fun matchParen(
 		text: String,
 		open: Int,

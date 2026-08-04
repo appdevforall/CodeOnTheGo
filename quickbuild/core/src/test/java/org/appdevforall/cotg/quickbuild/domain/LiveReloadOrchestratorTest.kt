@@ -12,15 +12,15 @@ import java.io.File
 
 /**
  * Pins the concurrency model. The invariant under test:
- * the pending changed-set is never lost — not by a save landing mid-build, not by a
+ * the pending changed-set is never lost - not by a save landing mid-build, not by a
  * failed compile, not by a superseded build.
  *
  * Three tests pin the ways that invariant is easy to break:
- * - "multi-file batch survives a failed compile" — clearing changedSrc BEFORE the compile
+ * - "multi-file batch survives a failed compile" - clearing changedSrc BEFORE the compile
  *   silently drops the user's edits when it fails;
- * - "no-op save does not trigger a build" — conflating an empty changed-set with an
+ * - "no-op save does not trigger a build" - conflating an empty changed-set with an
  *   unknown one runs spurious full recompiles;
- * - "result of a superseded build is discarded" — generation/build-id tagged results.
+ * - "result of a superseded build is discarded" - generation/build-id tagged results.
  */
 class LiveReloadOrchestratorTest {
 	private class GatedExecutor : LiveReloadExecutor {
@@ -183,7 +183,7 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
-	fun `multi-file batch survives a failed compile — nothing is dropped`() =
+	fun `multi-file batch survives a failed compile - nothing is dropped`() =
 		runTest {
 			// Clearing changedSrc before the compile would drop every file in the batch
 			// the moment that compile fails.
@@ -199,7 +199,7 @@ class LiveReloadOrchestratorTest {
 			// batch would fail identically). The failed batch is back in pending.
 			assertThat(executor.requests).hasSize(1)
 
-			// The user fixes B — the next build carries the WHOLE failed batch, not just B.
+			// The user fixes B - the next build carries the WHOLE failed batch, not just B.
 			orchestrator.onFilesChanged(known(srcB))
 			runCurrent()
 
@@ -208,7 +208,7 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
-	fun `plan 1-4 sequence — failed batch unions with mid-build save, fix rebuilds everything`() =
+	fun `plan 1-4 sequence - failed batch unions with mid-build save, fix rebuilds everything`() =
 		runTest {
 			val executor = GatedExecutor()
 			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
@@ -225,7 +225,7 @@ class LiveReloadOrchestratorTest {
 
 			// C arrived mid-build and may contain the fix: rebuild immediately from the
 			// accumulated set {A, B, C}. (Deviation from the plan's diagram, which waits
-			// for the next save — documented in the ticket status doc, wrapper repo.)
+			// for the next save - documented in the ticket status doc, wrapper repo.)
 			assertThat(executor.requests).hasSize(2)
 			assertThat(executor.requests[1].changes).isEqualTo(known(srcA, srcB, srcC))
 
@@ -421,14 +421,14 @@ class LiveReloadOrchestratorTest {
 			executor.finish(0, success(generation = 7))
 			runCurrent()
 
-			// The late result must produce no events — its diagnostics/success are stale.
+			// The late result must produce no events - its diagnostics/success are stale.
 			assertThat(events).isEmpty()
 		}
 
 	@Test
 	fun `immediate follow-up failing with identical diagnostics is flagged unchanged`() =
 		runTest {
-			// The wasted-build case must stay invisible —
+			// The wasted-build case must stay invisible -
 			// the same error must not flash twice at the user.
 			val executor = GatedExecutor()
 			val events = mutableListOf<OrchestratorEvent>()
@@ -488,7 +488,7 @@ class LiveReloadOrchestratorTest {
 			executor.finish(0, compileError())
 			runCurrent()
 
-			// The user saves again (same broken file) — a fresh attempt they asked for:
+			// The user saves again (same broken file) - a fresh attempt they asked for:
 			// identical diagnostics must still be rendered.
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
@@ -556,7 +556,7 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
-	fun `crash recovery — priming with unknown yields one slow-but-correct first build`() =
+	fun `crash recovery - priming with unknown yields one slow-but-correct first build`() =
 		runTest {
 			// After a CoGo restart the watcher history is gone; the session manager primes
 			// the fresh orchestrator with Unknown. First build is full, nothing is lost.

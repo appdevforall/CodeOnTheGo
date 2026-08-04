@@ -22,7 +22,9 @@ import java.io.File
  * functions inherit the caller's confinement.
  */
 internal class PayloadDeployer(
+	/** Deploy channel to the bound proxy app; every wait it exposes is already bounded. */
 	private val deploy: DeploySender,
+	/** Generation allocator, pulled from only on a path that actually sends a payload. */
 	private val generations: GenerationTracker,
 	/** The user app's entry activity FQN, echoed to the runtime in payload metadata. */
 	private val entryActivity: String,
@@ -35,9 +37,13 @@ internal class PayloadDeployer(
 	 * intent.
 	 */
 	private val launcherActivity: String?,
+	/** Relaunches the app. Null makes both the restart path and the retry fail honestly. */
 	private val launcher: ProxyAppLauncher?,
+	/** How long the runtime gets to exit after acking a restart deploy. */
 	private val restartDisconnectTimeoutMillis: Long,
+	/** How long a relaunched app gets to boot, bind, and report its generation. */
 	private val restartReconnectTimeoutMillis: Long,
+	/** Monotonic clock; must be the same one the timeline's earlier stamps came from. */
 	private val clock: () -> Long,
 	/** Hands a completed timeline to the executor's log + analytics channels. */
 	private val reportTimeline: (E2eTimeline) -> Unit,
@@ -45,6 +51,16 @@ internal class PayloadDeployer(
 	/**
 	 * Deploys one build's artifacts by the route [decision] chose, and reports the
 	 * outcome.
+	 *
+	 * @param decision hot swap, process restart, or a refusal that needs a proxy app rebuild
+	 * @param dexFile the payload's classes, or null when no code moved
+	 * @param arscFile the relinked resource APK, or null when resources did not move
+	 * @param assets the packaged changed assets, or null when no asset changed
+	 * @param reason short route tag echoed to the runtime in metadata, for its own logging
+	 * @param startedAt the build's start, used only for the reported duration
+	 * @param recorder mutated in place; stamped with t2 here and t3 once the app confirms
+	 * @return the outcome for the orchestrator; a generation is burned only on a path that
+	 *   actually sends a payload
 	 */
 	suspend fun deploy(
 		decision: DeployDecision,
@@ -72,7 +88,19 @@ internal class PayloadDeployer(
 			}
 		}
 
-	/** Hot-swap path: send the payload and let the running process recreate itself. */
+	/**
+	 * Hot-swap path: send the payload and let the running process recreate itself.
+	 *
+	 * @param generation the already-allocated generation this payload claims
+	 * @param dexFile the payload's classes, or null when no code moved
+	 * @param arscFile the relinked resource APK, or null when resources did not move
+	 * @param assets the packaged changed assets, or null when no asset changed
+	 * @param reason short route tag echoed to the runtime in metadata
+	 * @param startedAt the build's start, used only for the reported duration
+	 * @param recorder stamped with t2 before the send and t3 once the app reports back
+	 * @return success only when the app confirmed the reload; every other result becomes a
+	 *   deploy failure
+	 */
 	private suspend fun deployPayload(
 		generation: Long,
 		dexFile: File?,
@@ -104,10 +132,19 @@ internal class PayloadDeployer(
 	 * the runtime to persist and exit, relaunch it, then check which generation came
 	 * back.
 	 *
-	 * Only a reconnect at the deployed generation counts as success; anything lower means
-	 * the payload did not survive the process death. [DeployResult.Disconnected] before
-	 * the ack leaves the persist uncertain, so the relaunch still proceeds and the
-	 * reconnect check settles it.
+	 * Only a reconnect at the deployed generation counts as success; anything lower means the
+	 * payload was lost. A disconnect before the ack proceeds to relaunch, which settles it.
+	 *
+	 * @param restart the decision, whose component class names the thing that forced a
+	 *   restart and appears in every message this path produces
+	 * @param dexFile the payload's classes, or null when no code moved
+	 * @param arscFile the relinked resource APK, or null when resources did not move
+	 * @param assets the packaged changed assets, or null when no asset changed
+	 * @param reason short route tag echoed to the runtime in metadata
+	 * @param startedAt the build's start, used only for the reported duration
+	 * @param recorder stamped with t2 before the send and t3 once the app reconnects
+	 * @return success only on a reconnect at the deployed generation; a runtime that acked
+	 *   but never exited comes back as a proxy-app-rebuild requirement
 	 */
 	private suspend fun deployRestart(
 		restart: DeployDecision.Restart,
@@ -196,11 +233,18 @@ internal class PayloadDeployer(
 	/**
 	 * Deploys once, and on [DeployResult.NotConnected] launches the app once and retries.
 	 *
-	 * A proxy app reinstall kills the process, and only the proxy app can re-establish
-	 * the AIDL connection, so without this every later deploy fails until the user opens
-	 * the app by hand. Exactly one launch and one retry, so a hard-broken app never turns
-	 * into a retry storm, and the foreground is only taken when a deploy actually needs
-	 * the app.
+	 * A proxy app reinstall kills the process, and only the proxy app can re-establish the
+	 * AIDL connection, so without this every later deploy fails until the user opens it by
+	 * hand. Exactly one launch and one retry, so a hard-broken app never becomes a retry
+	 * storm and the foreground is taken only when a deploy needs it.
+	 *
+	 * @param generation the already-allocated generation both attempts claim; the retry
+	 *   must not allocate a second one
+	 * @param dexFile the payload's classes, or null when no code moved
+	 * @param arscFile the relinked resource APK, or null when resources did not move
+	 * @param assetsZip the changed-assets archive, or null when no asset changed
+	 * @param metadataJson the metadata built for this route, reused verbatim on the retry
+	 * @return the second attempt's result, or the first when no retry was possible
 	 */
 	private suspend fun deployRecovering(
 		generation: Long,
@@ -219,7 +263,18 @@ internal class PayloadDeployer(
 		return deploy.deploy(generation, dexFile, arscFile, assetsZip, metadataJson)
 	}
 
-	/** Builds the payload metadata the runtime reads (schema in quickbuild/core/README.md). */
+	/**
+	 * Builds the payload metadata the runtime reads.
+	 *
+	 * The field set is defined by the two ends and nowhere else: this builder writes it, and the
+	 * runtime's `DeployMetadata` parses it. Adding a field here needs a matching read there.
+	 *
+	 * @param reason short route tag, for the runtime's own logging only
+	 * @param assets supplies the changed-asset paths; null yields an empty array, which is
+	 *   how the runtime is told no asset moved
+	 * @param restart true to ask the runtime to persist and exit rather than hot-swap
+	 * @return the metadata JSON, every value a string per the runtime's MiniJson parser
+	 */
 	private fun metadata(
 		reason: String,
 		assets: AssetPackager.PackagedAssets?,
@@ -239,7 +294,15 @@ internal class PayloadDeployer(
 				if (restart) addProperty("restart", "true")
 			}.toString()
 
-	/** Turns a non-reloaded [DeployResult] into the outcome the user sees. */
+	/**
+	 * Turns a non-reloaded [DeployResult] into the outcome the user sees.
+	 *
+	 * @param result the deploy verdict; [DeployResult.Reloaded] is a caller error and maps
+	 *   to a failure rather than throwing, to keep the mapping total
+	 * @param generation the generation the failed payload claimed, named in the message so
+	 *   the user can tell one failed deploy from another
+	 * @return the deploy failure, with remediation text wherever the user can act
+	 */
 	private fun failureOf(
 		result: DeployResult,
 		generation: Long,

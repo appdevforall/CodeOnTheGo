@@ -64,7 +64,12 @@ class StreamsTest {
 		assertThat(Streams.readFully(new ByteArrayInputStream(data), 64 * 1024)).isEqualTo(data);
 	}
 
-	/** Claims {@code size} zero bytes without allocating them, so the 256 MB default cap is testable in-heap: the capped reader must throw before buffering anywhere near that much. */
+	/**
+	 * Claims {@code size} zero bytes without ever allocating them.
+	 *
+	 * Makes the 256 MB default cap testable in-heap: the capped reader must throw before it
+	 * buffers anywhere near that much.
+	 */
 	private static final class OversizedStream extends java.io.InputStream {
 
 		private long remaining;

@@ -31,11 +31,15 @@ import org.slf4j.LoggerFactory
  * the orchestrator and watcher.
  */
 internal class LiveSessionFactory(
+	/** Warm compile server; shared by every executor this factory builds. */
 	private val daemon: QuickBuildDaemon,
+	/** Deploy channel to the bound proxy app; shared for the same reason as [daemon]. */
 	private val deploy: DeploySender,
 	/** App-private scratch trees (ADFA-4930); executor work dirs live here, off FUSE. */
 	private val scratch: QuickBuildScratch,
+	/** Foregrounds the proxy app for restart deploys and for an explicit tap. */
 	private val launcher: ProxyAppLauncher,
+	/** Analytics port handed to every executor; failures are swallowed at the call sites. */
 	private val metrics: QuickBuildMetricsSink,
 	/**
 	 * Monotonic clock shared by the orchestrator's t0 stamp and the executor's t1-t3, so
@@ -47,10 +51,19 @@ internal class LiveSessionFactory(
 	private val executorFactory: QuickBuildSessionManager.ExecutorFactory?,
 	/** Test seam passed through from the manager. */
 	private val watcherFactory: QuickBuildSessionManager.WatcherFactory,
+	/** The manager's scope, not one of this factory's; its cancellation stops both children. */
 	private val scope: CoroutineScope,
+	/** Delivered synchronously on the session dispatcher, so it must not block. */
 	private val onOrchestratorEvent: (OrchestratorEvent) -> Unit,
 ) {
-	/** Wires a session around the provisioned proxy app, ready to accept edits. */
+	/**
+	 * Wires a session around the provisioned proxy app, ready to accept edits.
+	 *
+	 * @param outcome the successful provision, source of both the layout and the baseline
+	 * @param tracker the project's generation allocator, built by the caller so it
+	 *   outlives a baseline swap
+	 * @return the assembled session; its watcher is created but not yet started
+	 */
 	fun create(
 		outcome: ProvisionOutcome.Success,
 		tracker: GenerationTracker,
@@ -83,6 +96,14 @@ internal class LiveSessionFactory(
 	/**
 	 * Builds the executor for one proxy app baseline. Called again, and swapped in, on
 	 * every proxy app rebuild.
+	 *
+	 * @param proxyApp the baseline to build against; supplies the deploy policy's
+	 *   components, the relink manifest, and both relaunch targets
+	 * @param layout the layout derived from the same baseline
+	 * @param tracker the session's generation allocator, carried across rebuilds
+	 * @return the executor, or whatever the injected test factory returns
+	 * @throws IllegalStateException when [proxyApp] carries no entry activity, which the
+	 *   provisioner rules out for a first provision but a rebuild does not
 	 */
 	fun executorFor(
 		proxyApp: ProxyAppInfo,
@@ -128,9 +149,13 @@ internal class LiveSessionFactory(
 	 * could have moved generated code.
 	 *
 	 * A project with no `ksp`/`kapt`/`annotationProcessor` dependency gets
-	 * [AnnotationImpact.Inactive]. Otherwise the analyzer's baseline is the annotation
-	 * input the proxy app build just ran against, so this is rebuilt on every proxy app
-	 * rebuild (see [SwitchableAnnotationImpact]).
+	 * [AnnotationImpact.Inactive]; otherwise the baseline is the annotation input the proxy
+	 * app build just ran against, so a rebuild replaces it (see [SwitchableAnnotationImpact]).
+	 *
+	 * @param proxyApp the baseline whose declared processors decide active versus inactive
+	 * @param layout supplies the sources the baseline is captured from
+	 * @return an analyzer over the captured baseline, or [AnnotationImpact.Inactive] when
+	 *   the project runs no processors
 	 */
 	fun annotationImpactFor(
 		proxyApp: ProxyAppInfo,

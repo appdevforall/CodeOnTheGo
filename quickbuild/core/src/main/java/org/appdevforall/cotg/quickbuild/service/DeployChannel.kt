@@ -22,6 +22,14 @@ interface DeploySender {
 	 *
 	 * All file params are optional per the AIDL contract; [metadataJson] follows the
 	 * schema in quickbuild/core/README.md.
+	 *
+	 * @param generation the payload's generation; the runtime accepts only strictly newer
+	 *   ones, so this must come from the generation tracker and never be replayed
+	 * @param dexFile the payload's classes, or null when the build changed no code
+	 * @param arscFile the relinked resource APK, or null when resources did not move
+	 * @param assetsZip the changed-assets archive, or null when no asset changed
+	 * @param metadataJson entry activity, changed-asset paths, reason, and restart flag
+	 * @return the proxy app's verdict; every bounded wait surfaces here rather than throwing
 	 */
 	suspend fun deploy(
 		generation: Long,
@@ -47,6 +55,8 @@ interface DeploySender {
 	 * exited before relaunching. Relaunching a still-alive process would resume the old
 	 * code.
 	 *
+	 * @param timeoutMillis upper bound on the wait, sized for a runtime exit rather than a
+	 *   process launch
 	 * @return true when disconnected within [timeoutMillis]
 	 */
 	suspend fun awaitDisconnect(timeoutMillis: Long): Boolean
@@ -55,6 +65,8 @@ interface DeploySender {
 	 * Waits for a proxy app to reconnect, so the restart path can check which generation
 	 * actually booted rather than assume the deployed one.
 	 *
+	 * @param timeoutMillis upper bound on the wait, sized for a cold app start on low-end
+	 *   hardware
 	 * @return the generation the app reports running, or null on timeout
 	 */
 	suspend fun awaitReconnect(timeoutMillis: Long): Long?
@@ -62,15 +74,30 @@ interface DeploySender {
 
 /** Terminal outcome of one deploy attempt. */
 sealed interface DeployResult {
+	/**
+	 * The payload is live: the app loaded it and reported back.
+	 *
+	 * @property reloadMillis the app's own measure of the reload, from payload receipt to
+	 *   the recreated activity's onResume; the only span the host cannot time itself
+	 */
 	data class Reloaded(
 		val reloadMillis: Long,
 	) : DeployResult
 
-	/** The payload reached the app but crashed in render/lifecycle. */
+	/**
+	 * The payload reached the app but crashed in render/lifecycle.
+	 *
+	 * @property stackSummary the runtime's one-line summary of the throwable, shown to the
+	 *   user as the deploy failure
+	 */
 	data class Crashed(
 		val stackSummary: String,
 	) : DeployResult
 
+	/**
+	 * No proxy app was bound, so nothing was sent and nothing is stale. The caller may
+	 * launch the app once and retry (see [PayloadDeployer]'s deploy-recovering path).
+	 */
 	data object NotConnected : DeployResult
 
 	/**
@@ -80,10 +107,21 @@ sealed interface DeployResult {
 	 */
 	data object Disconnected : DeployResult
 
+	/**
+	 * No verdict arrived in time, so whether the payload landed is unknown.
+	 *
+	 * @property timeoutMillis the bound that elapsed, echoed into the user-facing message
+	 */
 	data class TimedOut(
 		val timeoutMillis: Long,
 	) : DeployResult
 
+	/**
+	 * The payload never reached the app: the binder call threw, or a payload file could
+	 * not be opened as a read-only fd.
+	 *
+	 * @property message the binder or IO failure text, shown as the deploy failure
+	 */
 	data class Failed(
 		val message: String,
 	) : DeployResult
@@ -96,6 +134,10 @@ sealed interface DeployResult {
  *
  * Every wait is bounded, so a hung proxy app surfaces as [DeployResult.TimedOut] instead
  * of a stuck build.
+ *
+ * @property connections the registry the bound proxy app and its reports arrive on
+ * @property timeoutMillis bound on one deploy round trip, from the oneway call to the
+ *   matching report
  */
 class DeployChannel(
 	private val connections: ProxyAppConnections,
@@ -183,6 +225,12 @@ class DeployChannel(
 			connections.target.first { it != null }?.runningGeneration
 		}
 
+	/**
+	 * Opens one payload file as a read-only fd for the binder call.
+	 *
+	 * @param file the payload file, or null for an omitted payload slot
+	 * @return the fd the caller must close, or null when [file] was null
+	 */
 	private fun openReadOnly(file: File?): ParcelFileDescriptor? =
 		file?.let { ParcelFileDescriptor.open(it, ParcelFileDescriptor.MODE_READ_ONLY) }
 

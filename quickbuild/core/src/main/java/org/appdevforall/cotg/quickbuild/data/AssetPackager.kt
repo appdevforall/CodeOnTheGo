@@ -16,6 +16,12 @@ class AssetPackager {
 	 * Maps [file] to its path relative to whichever of [assetRoots] contains it, or null if
 	 * none does. Used both to pick asset files out of a changed set and to name their zip
 	 * entries.
+	 *
+	 * @param file candidate path; need not exist, since containment is decided on the path
+	 *   text alone.
+	 * @param assetRoots asset roots to test, in order; the first one containing [file] wins.
+	 * @return the '/'-separated path relative to the matching root, or null when [file] lies
+	 *   under none of them (a root itself never matches - only strict descendants do).
 	 */
 	fun relativeAssetPath(
 		file: File,
@@ -35,8 +41,13 @@ class AssetPackager {
 	/**
 	 * Zips [changedFiles] (only those under an asset root) into [outFile].
 	 *
+	 * @param changedFiles this build's changed set, assets and non-assets mixed; entries
+	 *   outside every asset root are ignored.
+	 * @param assetRoots the module's asset roots, which name the zip entries.
+	 * @param outFile zip to write; overwritten, and its parent directory is created.
 	 * @return the written zip and the relative entry paths, or null when the changed
-	 *   set contains no asset files - callers then omit the assets payload entirely.
+	 *   set contains no asset files - callers then omit the assets payload entirely. A deleted
+	 *   asset still counts toward non-null but writes no entry (absence is the v1 signal).
 	 */
 	fun packageAssets(
 		changedFiles: Collection<File>,
@@ -61,7 +72,15 @@ class AssetPackager {
 		return PackagedAssets(outFile, entries.map { it.first }.sorted())
 	}
 
-	/** A written assets zip and the entry paths inside it. */
+	/**
+	 * A written assets zip and the entry paths inside it.
+	 *
+	 * @property zip the file just written; always exists, even when every changed asset was a
+	 *   deletion and the archive is therefore empty.
+	 * @property relativePaths sorted, '/'-separated asset-relative entry names - the exact
+	 *   strings the deploy metadata's `changedAssets` array carries. Includes deleted assets,
+	 *   which have no entry in [zip].
+	 */
 	data class PackagedAssets(
 		val zip: File,
 		val relativePaths: List<String>,

@@ -11,6 +11,7 @@ fun interface ProxyAppLauncher {
 	/**
 	 * Starts [packageName] again.
 	 *
+	 * @param packageName the installed proxy app's applicationId
 	 * @param activityClass the launcher proxy FQN from the transformed manifest, or null
 	 *   when the launcher is an `<activity-alias>` that no proxied activity carries - the
 	 *   implementation then uses the package's default launch intent

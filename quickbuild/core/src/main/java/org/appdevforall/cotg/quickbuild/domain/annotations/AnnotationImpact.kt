@@ -19,8 +19,10 @@ interface AnnotationImpact {
 	/**
 	 * Checks a build's changed code files against the processor input.
 	 *
-	 * @return a human-readable reason to rebaseline, or null when every changed file is
-	 *   provably outside processor input.
+	 * @param changedCodeFiles the `.kt`/`.java` paths this build would compile, deletions
+	 *   included; other file kinds are the classifier's business, not this one's.
+	 * @return a human-readable reason to rebaseline - the FIRST file that forces one, not all
+	 *   of them - or null when every changed file is provably outside processor input.
 	 */
 	fun escalation(changedCodeFiles: List<File>): String?
 
@@ -38,6 +40,9 @@ interface AnnotationImpact {
  *
  * The Gradle build that just ran is the new baseline; comparing later edits against the
  * pre-rebaseline snapshot would keep charging for changes it already absorbed.
+ *
+ * @property delegate the analyzer in force now; every call reads it, so a swap takes effect on
+ *   the next classification with no re-wiring.
  */
 class SwitchableAnnotationImpact(
 	var delegate: AnnotationImpact,
@@ -62,6 +67,13 @@ class SwitchableAnnotationImpact(
  * Moshi, Glide, AutoValue) generates from declarations and annotation arguments, not statement
  * bodies. Annotation arguments keep their string literals, so an `@Query("SELECT ...")` edit
  * counts as a declaration change rather than a body edit.
+ *
+ * @param profile which annotations this project's processors consume; an unrecognized processor
+ *   widens that to nearly everything.
+ * @param baseline the proxy app build's snapshot, and so the fixed reference point until the
+ *   next rebaseline replaces this analyzer.
+ * @param readText reader for a changed file's CURRENT text; null means deleted or unreadable,
+ *   which is a rebaseline whenever the file fed a processor.
  */
 class AnnotationImpactAnalyzer(
 	private val profile: AnnotationProcessorProfile,
@@ -84,7 +96,14 @@ class AnnotationImpactAnalyzer(
 		return null
 	}
 
-	/** Why [file] forces a rebaseline, or null when it provably misses processor input. */
+	/**
+	 * Why [file] forces a rebaseline, or null when it provably misses processor input.
+	 *
+	 * @param file one changed code file, compared against its baseline facts; it need not still
+	 *   exist, since a deletion is itself an escalation once the file fed a processor.
+	 * @return a short human-readable cause for the user-facing message, or null to keep the
+	 *   file on the live reload path.
+	 */
 	private fun escalationFor(file: File): String? {
 		val old = baseline.factsFor(file)
 		val existedAtBaseline = baseline.known(file)

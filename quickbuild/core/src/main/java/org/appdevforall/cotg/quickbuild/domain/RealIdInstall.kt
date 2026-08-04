@@ -20,7 +20,14 @@ object RealIdInstall {
 	const val QUICK_BUILD_APP_COMPONENT_FACTORY =
 		"com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory"
 
-	/** True when the package installed under the real id is a Quick Build proxy app. */
+	/**
+	 * True when the package installed under the real id is a Quick Build proxy app.
+	 *
+	 * @param installedFactory the installed package's `android:appComponentFactory`, or null when
+	 *   nothing is installed or the manifest declares none.
+	 * @return true only on an exact match with [QUICK_BUILD_APP_COMPONENT_FACTORY]; null and any
+	 *   other factory both mean "not ours".
+	 */
 	fun isQuickBuildProxyApp(installedFactory: String?): Boolean = installedFactory == QUICK_BUILD_APP_COMPONENT_FACTORY
 
 	/**
@@ -28,6 +35,11 @@ object RealIdInstall {
 	 *
 	 * Only when a different build occupies the slot; a fresh slot or Quick Build's own proxy
 	 * app installs without a prompt.
+	 *
+	 * @param realAppInstalled whether anything is installed under the project's real applicationId.
+	 * @param installedFactory that package's `android:appComponentFactory`, or null when unreadable
+	 *   or undeclared - an unreadable one counts as somebody else's build.
+	 * @return true when the user must confirm overwriting a non-Quick-Build package.
 	 */
 	fun quickBuildNeedsClobberConfirm(
 		realAppInstalled: Boolean,
@@ -39,6 +51,11 @@ object RealIdInstall {
 	 *
 	 * Only when a Quick Build proxy app occupies the slot; over a normal app or nothing,
 	 * Standard Run behaves as always.
+	 *
+	 * @param installedFactory the installed package's `android:appComponentFactory`, or null when
+	 *   nothing is installed.
+	 * @return true when a Quick Build proxy app is about to be overwritten, which also ends its
+	 *   session.
 	 */
 	fun standardRunNeedsClobberConfirm(installedFactory: String?): Boolean = isQuickBuildProxyApp(installedFactory)
 
@@ -49,6 +66,13 @@ object RealIdInstall {
 	 * third-party app's data, so the only way past a refusal is a manual uninstall. An
 	 * unreadable cert on either side counts as "cannot prove same origin" and refuses.
 	 *
+	 * @param realApplicationId the project's real applicationId, named back to the user in the
+	 *   refusal.
+	 * @param realAppInstalled whether anything occupies that slot; an empty slot always proceeds.
+	 * @param installedCertSha256 signing-cert SHA-256 of the installed package, or null when it
+	 *   cannot be read - which refuses.
+	 * @param builtCertSha256 signing-cert SHA-256 of the proxy app about to be installed, or null
+	 *   when it cannot be read - which also refuses.
 	 * @return the refusal message, or null to proceed.
 	 */
 	fun signatureRefusal(
@@ -67,7 +91,12 @@ object RealIdInstall {
 		return refusalMessage(realApplicationId)
 	}
 
-	/** The refusal wording: names the reason and the manual way forward. */
+	/**
+	 * The refusal wording: names the reason and the manual way forward.
+	 *
+	 * @param realApplicationId the applicationId to name in the message.
+	 * @return the user-facing wording, ready to show unchanged.
+	 */
 	fun refusalMessage(realApplicationId: String): String =
 		"The installed $realApplicationId was not built by this device's CoGo - " +
 			"Quick Build would have to delete it and its data to install. " +

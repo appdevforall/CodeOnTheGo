@@ -20,6 +20,10 @@ interface QuickBuildMetricsSink {
 	/**
 	 * Records a quick build leaving the queue.
 	 *
+	 * @param buildId orchestrator-unique id, restarting at 1 each session; pair it with the
+	 *   session id minted in [onSessionStarted] to key a row.
+	 * @param route the path chosen for this change-set, never [BuildRoute.FullGradleBuild] -
+	 *   that one leaves the live reload path before a build starts.
 	 * @param changes the coalesced set the route was computed from.
 	 */
 	fun onBuildStarted(
@@ -28,23 +32,43 @@ interface QuickBuildMetricsSink {
 		changes: ChangedFiles,
 	)
 
-	/** Records the build's outcome, successful or not. Pairs 1:1 with [onBuildStarted]. */
+	/**
+	 * Records the build's outcome, successful or not. Pairs 1:1 with [onBuildStarted].
+	 *
+	 * @param buildId the id the matching [onBuildStarted] carried.
+	 * @param outcome how the build ended; only [BuildOutcome.Success] moved the proxy app to a
+	 *   new generation.
+	 */
 	fun onBuildFinished(
 		buildId: Long,
 		outcome: BuildOutcome,
 	)
 
-	/** Records a change set that forced the session off the live reload path. */
+	/**
+	 * Records a change set that forced the session off the live reload path.
+	 *
+	 * @param reason what the live reload path could not absorb; every value costs a full Gradle
+	 *   build.
+	 */
 	fun onInvalidation(reason: InvalidationReason)
 
 	/**
 	 * Records one completed save->live loop, both the end-to-end time and the per-stage split.
 	 * Fired once per successful deploy, keyed by generation id. Defaulted so existing sinks
 	 * stay source-compatible.
+	 *
+	 * @param timeline the four monotonic stamps bounding the loop plus any reported step
+	 *   timings; read its deltas, never its absolute stamps.
 	 */
 	fun onReloadTimeline(timeline: E2eTimeline) {}
 
-	/** Records a finished full proxy app rebuild - the cost of every fallback route. */
+	/**
+	 * Records a finished full proxy app rebuild - the cost of every fallback route.
+	 *
+	 * @param isSuccess whether the rebuild produced an installable proxy app; a declined or
+	 *   unconfirmed install still counts as a failure here.
+	 * @param durationMillis wall-clock cost of the Gradle build, in milliseconds.
+	 */
 	fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,

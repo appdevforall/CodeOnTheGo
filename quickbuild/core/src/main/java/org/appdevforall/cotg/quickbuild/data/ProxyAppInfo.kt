@@ -105,6 +105,8 @@ data class ProxyAppInfo(
 		/**
 		 * Parses a setup.json document.
 		 *
+		 * @param json the raw file contents; anything that is not a JSON object is a parse
+		 *   failure rather than a throw.
 		 * @param baseDir directory the JSON's relative paths resolve against (the project root).
 		 * @return the parsed info, or null when the JSON is malformed or misses a required
 		 *   field - provisioning then fails visibly instead of crashing.
@@ -178,14 +180,27 @@ data class ProxyAppInfo(
 			)
 		}
 
-		/** A JSON array of strings; empty when the key is absent or not an array. */
+		/**
+		 * A JSON array of strings; empty when the key is absent or not an array.
+		 *
+		 * @param key the array-valued key to read.
+		 * @return its string elements in document order, with non-primitive and blank entries
+		 *   dropped rather than treated as an error.
+		 */
 		private fun JsonObject.stringArray(key: String): List<String> =
 			getAsJsonArray(key)
 				?.mapNotNull { it.takeIf(com.google.gson.JsonElement::isJsonPrimitive)?.asString }
 				?.filter { it.isNotBlank() }
 				?: emptyList()
 
-		/** One `components` entry; null (skipped, logged) when malformed or of an unknown type. */
+		/**
+		 * One `components` entry; null (skipped, logged) when malformed or of an unknown type.
+		 *
+		 * @param obj the array element to read, expected to carry at least `type` and
+		 *   `userClass`.
+		 * @return the parsed component, or null to skip it - a missing required field is
+		 *   silent, an unrecognized `type` is logged, and neither fails the whole parse.
+		 */
 		private fun parseComponent(obj: JsonObject): ComponentInfo? {
 			val typeName = obj.firstString("type") ?: return null
 			val kind =
@@ -235,16 +250,37 @@ data class ProxyAppInfo(
 			)
 		}
 
+		/**
+		 * Interprets one path from the JSON.
+		 *
+		 * @param path an absolute path, or one relative to [baseDir].
+		 * @param baseDir the project root relative paths hang off.
+		 * @return the resolved file. Existence is never checked here - a missing input has to
+		 *   surface where it is used, with that step's context.
+		 */
 		private fun resolve(
 			path: String,
 			baseDir: File,
 		): File = File(path).let { if (it.isAbsolute) it else File(baseDir, path) }
 
+		/**
+		 * Reads the first key that carries a usable string, which is how the parser accepts
+		 * legacy aliases for a renamed field.
+		 *
+		 * @param keys candidate key names, most preferred first.
+		 * @return the first non-blank primitive value found, or null when no key yields one.
+		 */
 		private fun JsonObject.firstString(vararg keys: String): String? =
 			keys.firstNotNullOfOrNull { key ->
 				get(key)?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it.isNotBlank() }
 			}
 
+		/**
+		 * Logs a required-field failure at the one call shape [parse] uses to bail out.
+		 *
+		 * @param field the primary key name to name in the log, not the alias that was tried.
+		 * @return always null, so the caller can `return missing(...)` in one line.
+		 */
 		private fun missing(field: String): ProxyAppInfo? {
 			log.error("setup.json is missing required field '{}'", field)
 			return null
