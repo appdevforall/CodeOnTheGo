@@ -93,6 +93,8 @@ The walk goes **up** only. Usages reachable solely through a subclass (`Base.foo
 
 The ticket's three resolution scopes fall out of this one code path rather than being three implementations. Cheap cases stay cheap: a search on a local variable never leaves the open file.
 
+The first three rows need the declaration's path. The file the user is editing is a live `KtFile` built from the editor buffer, whose `virtualFile` is a non-physical `LightVirtualFile`, so the path comes from `backingFilePath` first and the VFS only as a fallback - go-to-definition's derivation. A target that still has no path cannot be confined to one file, but it is still unreferenceable outside its own module, so it falls back to the `internal` row rather than to the last one.
+
 `internal` needs no widening for test sources. There is no test module to widen to - `collectKtModules` builds one `KtSourceModule` per Gradle module from `mainSourceSet` only, and `directFriendDependencies` is empty everywhere.
 
 **R5 - Candidate discovery.** Two tiers, because find usages is run *while* editing and unsaved text must not be invisible:
@@ -102,19 +104,19 @@ The ticket's three resolution scopes fall out of this one code path rather than 
 | open in the editor | the live buffer | `ktSymbolIndex.getCurrentKtFile(path).await()`, awaited **outside** `project.read` |
 | everything else | disk | `ktSymbolIndex.getKtFile(path)` |
 
-The prefilter is `StringSearch.containsWord`, word-boundary exact on the target's simple name. It needs no live-buffer branch of its own: it already reads `FileManager.getActiveDocument(file)` when the file is open, and only falls back to disk otherwise. Its errors are one-directional: a file that mentions the name but contains no usage is parsed and discarded (wasted work, correct result), while a file that does not mention the name cannot contain a named usage.
+The prefilter is `mentionsName`, word-boundary exact on the target's simple name, reading line by line through `FileManager.getReader(path)` - which returns the live document when the file is open and the file itself otherwise, so the two tiers above need no branch of their own. Its errors are one-directional: a file that mentions the name but contains no usage is parsed and discarded (wasted work, correct result), while a file that does not mention the name cannot contain a named usage. An unreadable file drops out of the scan with a log rather than failing the search.
 
 Open documents are tab-count many, so the live tier is free. Without it, a usage the user just typed would be missed entirely - the prefilter would never select the file, so it would never be parsed.
 
-Two pre-existing `StringSearch` limits carry over. It reads only the **first 1 MB** of a file, so a usage past that point is missed; and it scans through one shared static `ByteBuffer` with no synchronisation, so a Kotlin usage search running concurrently with a Java find-references can corrupt the other's scan. Neither is introduced here and neither is fixed here, but the second is worth a ticket.
+Deliberately **not** `StringSearch.containsWord`, the equivalent helper the Java server prefilters with. It reads only the first 1 MB of a file, so a usage below the mark would be silently dropped; it reads through one process-global `ByteBuffer` that the Java server mutates concurrently from its own threads; and it rethrows an unreadable file as a `RuntimeException`, which here would abort the whole search. A name cannot span a line break, so matching per line loses nothing.
 
-Only `KtSimpleNameExpression`s are examined. That is what makes the name filter cheap - it runs on PSI alone, before any resolution - and it is also what implements "convention references are not results": `a + b` contains no `plus` token, so it is never a candidate. The cost is that a **KDoc `[link]`** to the target is not reported, even though go-to-definition navigates from one; a documented gap rather than a decision worth its own machinery in v1.
+Only `KtSimpleNameExpression`s are examined. That is what makes the name filter cheap - it runs on PSI alone, so it runs *before the analysis session is opened*, and a text-prefilter hit whose only mention is a comment or a string literal never costs an analysis-lock acquisition, a FIR session or a match-set restore. It is also what implements "convention references are not results": `a + b` contains no `plus` token, so it is never a candidate. The cost is that a **KDoc `[link]`** to the target is not reported, even though go-to-definition navigates from one; a documented gap rather than a decision worth its own machinery in v1.
 
 **R6 - Identity.** A reference is a usage if its resolved symbol is in the match set. Deciding that across files needs care, because `KaSymbol` is session-scoped and the same declaration exists as two PSI instances - the on-disk `KtFile` cached in the index, and the dangling `KtFile` built from the editor buffer for an open file.
 
 Matching therefore uses `KaSymbolPointer`: `createPointer()` for each match-set member in the caret's session, then `restoreSymbol(session)` **once per candidate session**, then `==` against each resolved candidate symbol inside that session. This is the platform's cross-session identity mechanism, with structural implementations per symbol kind, and it is the direct analogue of the Java server re-deriving its target `Element` inside each compile task.
 
-Locals skip all of it: R4 confines them to one file and therefore one session, where instance equality is valid and cheapest.
+Locals pay almost none of it: R4 confines them to one file, so there is a single candidate session and the pointers restore once.
 
 A pointer that fails to restore drops that session's candidates, with a log. That under-reports rather than reporting something false, which is the safe direction, and it is tested.
 
@@ -136,10 +138,10 @@ There is **no result cap**. See R10 for why one is not needed.
 
 Granularity is per candidate file, and it is load-bearing:
 
-- **One analysis session per candidate file.** A preemption by completion costs one file's work, which is retried once - `findDefinitionAt`'s pattern. One session for the whole search would let a single keystroke discard a whole-workspace scan.
+- **One analysis session per candidate file.** A preemption by completion costs one file's work, which is retried once - `findDefinitionAt`'s pattern. One session for the whole search would let a single keystroke discard a whole-workspace scan. A file preempted *twice* is dropped like any other failed candidate (R12), not rethrown: keystroke-driven work winning the lock must not turn a search with plenty of hits into "no references".
 - **`project.read` per candidate file, never once for the search.** A whole-workspace search holding the read lock start to finish would block every `project.write`, which is what index refresh needs.
 - **The live-document await stays outside `project.read`.** The refresh it waits on needs `project.write`; awaiting it under the read lock deadlocks. Go-to-definition's R10 records the same constraint.
-- `params.cancelChecker` is honoured between files **and** between references within a file.
+- `params.cancelChecker` is honoured per prefiltered file, between candidate files **and** between references within a file. The prefilter checks it per file rather than once for the pass: a whole-workspace scan is seconds of I/O, and cancelling has to stop it rather than let it finish and discard the result.
 
 The prefilter pass runs first, before any analysis, holding no locks. No progress count is shown - `launchCancellableAsyncWithProgress` takes a fixed `@StringRes`, and threading a live count through it would change a shared editor API for a cosmetic gain. No timeout and no file budget: the search finishes or the user cancels.
 
@@ -151,11 +153,13 @@ A file with an **open editor** is still resolved **on** the UI thread. Its `Cont
 
 Reads drop from O(hits) to O(files), peak memory is one line rather than one file (deliberately *not* a per-file content cache - holding every result file's text at once is the wrong trade on a phone), and the main thread does no I/O. This removes the need for a result cap, which would otherwise silently truncate.
 
+Because the publish is now asynchronous, it is also guarded: `showLocations` claims the panel with a request counter and captures `EditorViewModel.currentSearchGeneration`, and the callback publishes only if both still hold. Otherwise a slow request that started first would land last and overwrite the newer search the user is looking at. Panel visibility is committed *with* the rows for the same reason - a publish that never happens (superseded, or the activity recreated mid-read) must not leave the panel open with the "no results" placeholder hidden over the previous query's rows.
+
 Two behaviour changes, both improvements: a hit whose line no longer exists is dropped rather than yielding whatever `Content` returned, and a file whose every hit is stale is omitted rather than contributing an empty group. The grouping and line extraction live in `SearchResultGrouping` so they can be unit-tested; the activity call is a thin shell.
 
 **R11 - Not ready.** No `CompilationEnvironment` for the file (a script, a file outside the content roots), or no analysis session yet, answers empty and logs. There is no "still indexing" signal; that gap is cross-cutting across every LSP feature and is not solved here.
 
-**R12 - Failure isolation.** A resolution failure on one candidate file drops that file and continues - one unparseable file must not lose the whole result. A failure in the target-resolution phase returns empty. Cancellation, including `AnalysisPreemptedException`, propagates rather than being reported as "no references". Nothing propagates an exception to the editor or leaves the progress flashbar up.
+**R12 - Failure isolation.** A resolution failure on one candidate file drops that file and continues - one unparseable file must not lose the whole result. So does an unreadable one in the prefilter pass, and one preempted past `retryingOnPreemption`'s single retry. A failure in the target-resolution phase returns empty. Genuine cancellation propagates rather than being reported as "no references" - but preemption is not that, so it is isolated per file like any other candidate failure. Nothing propagates an exception to the editor or leaves the progress flashbar up.
 
 ## Non-goals
 
@@ -213,12 +217,13 @@ FindReferencesAction.execAction                   lsp/kotlin/actions
                     planFor(target) -> simpleName, matchSet pointers, scope       [R3, R4, R6]
                   }
                 }
-              candidateFiles(plan)                                              [R5]
+              candidateFiles(plan, cancelChecker)                               [R5]
               per candidate file:                        (retried once if preempted) [R9]
                 await live PSI if open                  (outside project.read)
                 env.project.read {
+                  walk name references (PSI only); no hit -> skip the file       [R5]
                   analyzeMaybeDangling(file, COMMAND, cancelChecker) {
-                    restore pointers once, walk name references, compare         [R6]
+                    restore pointers once, compare                              [R6]
                   }
                 } -> locations                                                  [R7]
     <- ReferenceResult(locations)                                               [R8]
@@ -239,7 +244,8 @@ Touched existing components:
 - **`AnalysisPriority` / `AnalysisScheduler`** - the new `COMMAND` tier, plus `retryingOnPreemption`, which holds the two invariants every command's retry depends on: a fresh `ScheduledCancelChecker` per attempt (`preempt()` latches), and re-fetching the `KtFile` inside the attempt ([ADR 0011](../adr/0011-command-analysis-priority.md)).
 - **`GoToDefinitionAction`, `OrganizeImportsAction`, `ImplementMembersAction`** - migrated to `COMMAND`; the latter two gain the retry they never had, and take the delegate `ICancelChecker` rather than a pre-wrapped one since wrapping is now per attempt.
 - **`GoToDefinition.symbolsAt`** - `internal`, so the reference-at-caret resolution is shared rather than duplicated.
-- **`IDELanguageClientImpl.showLocations`** - R10's grouped streaming rewrite.
+- **`services/ModuleDependentsProvider`** - its direct- and refinement-dependents maps are now accumulated across all modules instead of built per module and merged with `Map + Map`, which *replaced* a shared dependency's dependent set. R4's last row reads that map, so a module used by more than one other silently lost every dependent but the last.
+- **`IDELanguageClientImpl.showLocations`** - R10's grouped streaming rewrite, plus its staleness guard.
 - **`TooltipTag`** - one new constant (R1).
 
 Unchanged: `ReferenceParams`/`ReferenceResult`, `ILanguageServer`, `IDEEditor`, and every string resource.
