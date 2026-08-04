@@ -12,12 +12,17 @@ Build already runs a median 3.45x faster than an incremental standard build, ove
 | 2   | Incremental dexing                                | All apps            | 2.1-4.6 s                                     | L      | M    | open         |
 | 4   | Narrow "Java ABI moved -> recompile all Kotlin"   | Mixed Java + Kotlin | 14.9 s, ABI-change edits only                 | L      | M    | open         |
 
-Sequencing: lever 1 had to land first because it masked the win from 2 and 4. 3a gates 3b (disjoint
-risks - stale cache vs stale bytecode - so a bug stays attributable). Lever 4 is last on purpose:
-it is blocked on the same Build Tools API limitation its own KDoc documents, and its target should
-be measured after 1-3 land. Lever 5 (stop re-stripping unchanged classes) is subsumed by lever 1
-already - 4.7-5.5 s down to 0.17-0.33 s `[measured on a56]` - and shares lever 2's cache key, so
-fold it in there rather than scheduling it.
+Sequencing:
+
+- Lever 1 had to land first because it masked the win from 2 and 4.
+- 3a gates 3b: disjoint risks - stale cache vs stale bytecode - so a bug stays attributable.
+- Lever 4 is last on purpose. It is blocked on the same Build Tools API limitation its own KDoc
+  documents, and its target should be measured after 1-3 land.
+- Lever 5 (stop re-stripping unchanged classes) is not scheduled separately. Lever 1 already took
+  it from 4.7-5.5 s to 0.17-0.33 s `[measured on a56]`, and it shares lever 2's cache key, so fold
+  it into lever 2.
+
+Levers 3a/3b are designed in [`incremental-javac-design.md`](incremental-javac-design.md).
 
 ## Where a warm edit goes
 
@@ -51,6 +56,12 @@ build. Warm edit, ms, pre-lever-1 `[measured on a56]`:
 - The tool timings cover only about half a warm edit, so read the analytics event's unaccounted
   **residual** field alongside them.
 
+## Settled - do not re-derive
+
+- Daemon IPC is free: 20-60 ms on multi-second calls `[measured on a56]`.
+- The "53 s per edit" figure was never a per-edit cost. It was the session's first build, which now
+  runs as a background warm compile before the user can save.
+
 ## Not covered here
 
 - **The standard Gradle build's own exposure to the same filesystem toll** - project `build/` dirs
@@ -60,11 +71,5 @@ build. Warm edit, ms, pre-lever-1 `[measured on a56]`:
 - **`readyou`** - a pure-Kotlin 6-file module measuring 13.7 s / 15.2 s before dropping to 2.9 s
   `[measured on a56]`. No javac, no large class tree; nothing above explains it.
 
-Two facts worth not re-deriving: daemon IPC is free (20-60 ms on multi-second calls
-`[measured on a56]`), and the "53 s per edit" figure was never a per-edit cost - it was the
-session's first build, which now runs as a background warm compile before the user can save.
-
-Lever 1 (moving build files off emulated storage) shipped; levers 3a/3b's design is
-[`incremental-javac-design.md`](incremental-javac-design.md). Evidence:
-`20260728T172912Z-sora-deepdive/` and `results/analysis/offfuse-comparison-2026-07-31.md` in
-`CodeOnTheGo-build-benchmark`.
+Evidence: `20260728T172912Z-sora-deepdive/` and
+`results/analysis/offfuse-comparison-2026-07-31.md` in `CodeOnTheGo-build-benchmark`.

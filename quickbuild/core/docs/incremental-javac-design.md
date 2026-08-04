@@ -1,9 +1,12 @@
 # Incremental javac in the Quick Build daemon
 
-**Why this matters:** on a Java-heavy app the daemon recompiles every `.java` file in the module
-on every save, which is how Quick Build ends up *slower* than plain incremental Gradle -
-`sora-editor-full` (214 `.java` files) runs at 0.34-0.40x on warm edits [measured on a56]. This
-is the design for making that pass cost-proportional to the edit. Not built yet.
+Design for making the daemon's javac pass cost-proportional to the edit. **Nothing here is
+implemented.** The two guards below are the correctness argument - preserve them if you change
+this area.
+
+The problem: the daemon recompiles every `.java` file in the module on every save, which is how
+Quick Build ends up slower than plain incremental Gradle on a Java-heavy app. `sora-editor-full`
+(214 `.java` files) runs at 0.34-0.40x on warm edits [measured on a56].
 
 ```mermaid
 flowchart LR
@@ -31,15 +34,15 @@ flowchart LR
 
 ## The design
 
-Nothing here is implemented. Two independent changes, to be built in this order behind a new
-`quickbuild.javac.incremental` flag (default off):
+Two independent changes, built in this order behind a new `quickbuild.javac.incremental` flag
+(default off):
 
 1. **B - reuse the file manager across the session.** Small and self-contained.
 2. **A - compile only the changed files.** The correctness-sensitive half.
 
-B first because the two risks are disjoint - stale cache versus stale bytecode - so a bug stays
-attributable to one of them. A's fallback to a full javac should be wired before its fast path,
-so a guard bug costs speed, not correctness.
+B goes first because the two risks are disjoint - stale cache versus stale bytecode - so a bug
+stays attributable to one of them. Within A, wire the fallback to a full javac before the fast
+path, so a guard bug costs speed rather than correctness.
 
 ## The two guards, which are the whole correctness argument
 
@@ -77,5 +80,5 @@ so a guard bug costs speed, not correctness.
   class recompiling its Java callers, and a compile error *not* promoting the ABI baseline.
 - The a56 sweep needs `javacMs` populated; today's device split is inferred from the c107
   breakdown plus the host curve [inferred].
-- An ABI-changing Java edit still forces a full Kotlin recompile - a separate problem, and what
-  option D above would address.
+- An ABI-changing Java edit still forces a full Kotlin recompile - a separate problem, tracked as
+  lever 4 in `perf-roadmap.md`.

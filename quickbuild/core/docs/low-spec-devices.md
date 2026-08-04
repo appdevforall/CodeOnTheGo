@@ -1,13 +1,13 @@
 # Low-spec devices: on-device Gradle is the wall, not Quick Build
 
-**CoGo itself runs on 2 GB devices, and people use it there.** What is not usable on one is a
-full on-device *Gradle* build - and today every Quick Build session has to start with one. So
-Quick Build cannot reach that tier yet, but nothing we measured says its own runtime is the
-reason: the live reload loop has never failed on its own at any tier tested, and it has never
-been tested at 2 GB, because provisioning never gets far enough to start it.
+**CoGo itself runs on 2 GB devices, and people use it there. Quick Build cannot reach that tier,
+because every session has to start with a full on-device *Gradle* build and that build is what
+fails.** Nothing measured says Quick Build's own runtime is the reason: the live reload loop has
+never failed on its own at any tier tested, and it has never been tested at 2 GB, because
+provisioning never gets far enough to start it.
 
-That is the open question this page exists to frame, and the reason the Gradle-free provisioning
-spike below is worth costing.
+**Decision: accept that floor, or spike Gradle-free provisioning?** This page is the evidence for
+that call - what was measured, why the 1.9 GB device fails, and what is still unknown.
 
 Primary evidence, with the full runbook and cost tables:
 `corpus/results/analysis/c107-lowend-report-2026-07-25.md` in the `CodeOnTheGo-build-benchmark`
@@ -34,15 +34,19 @@ repo.
 ## Why the 1.9 GB device fails
 
 Not a hard RAM wall, and not a direct lmkd kill of the daemon - it is CoGo's own heap sizing
-colliding with the device.
+colliding with the device. CoGo scales the Gradle daemon JVM to device RAM; at 1.9 GB the resulting
+heap is small enough that SerialGC thrashes.
 
-- CoGo scales the Gradle daemon JVM to device RAM, which yields `-Xmx616m` with SerialGC at
-  1.9 GB (against 1304m on the C107) `[measured on itel, c107]`.
-- At that size, SerialGC thrashes: the heap pins at 450-604 MB against the 616 MB ceiling, the
-  daemon burns 200-293% CPU almost entirely on GC, and **Gradle startup plus configuration alone
-  takes ~8.8 minutes** for a trivial project `[measured on itel, debloated + screen-off]`.
-- **A `hello-java` build that takes 82 s on the C107 had not finished when we stopped it at
-  15 minutes** `[measured on itel]`.
+| Gradle daemon on the itel (1.9 GB) | itel | C107 (3.6 GB) |
+| --- | --- | --- |
+| Heap ceiling CoGo picks | `-Xmx616m`, SerialGC | `-Xmx1304m` |
+| Heap in use mid-build | 450-604 MB | - |
+| Daemon CPU, almost all GC | 200-293% | - |
+| Startup + configuration, trivial project | ~8.8 min `[debloated + screen-off]` | - |
+| `hello-java` build | unfinished when we stopped it at 15 min | 82 s |
+
+All rows `[measured on itel, c107]`.
+
 - **Retuning the heap cannot fix it**: there is no RAM to grow into, ~300 MB free mid-build
   `[inferred]`.
 - The Q8 (1.46 GB) never got a build attempt - at idle it already showed 795 MB available, 43 MB
@@ -76,8 +80,8 @@ loop is a far smaller runtime. If a session could be provisioned *without* an on
 build - a baseline prebaked and shipped with the project - the loop might run at 1.9 GB even though
 the setup build cannot `[inferred]`.
 
-- The falsifier is cheap and decisive, which is the main argument for running it: prebake a
-  `hello-java` baseline, push it to the itel, run one warm edit. It completes or it doesn't.
+- The test is cheap and decisive, which is the main argument for running it: prebake a `hello-java`
+  baseline, push it to the itel, run one warm edit. It completes or it doesn't.
 - Payoff: reopens a device tier the mission targets and CoGo already ships to.
 - Cost `[assumed]`: a few days to a first answer; sizing it properly is the spike's own first
   deliverable.

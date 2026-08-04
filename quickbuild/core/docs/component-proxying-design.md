@@ -1,30 +1,28 @@
 # Component proxying
 
-Why the generated proxy app names generated classes in its manifest instead of the user's own,
-which Android components that covers, and how the Gradle plugin builds it. This is the design as
-built (ADFA-4128, the initial implementation) - not a change to something already shipped.
+The generated proxy app names generated `Proxy<N><Type>` classes in its manifest instead of the
+user's own. This page says why, which Android components that covers, how the Gradle plugin builds
+it, and the constraints a change here must not break. It is the design as built (ADFA-4128, the
+initial implementation) - not a change to something already shipped.
 
 ## Why proxy at all
 
 - **The user's classes are deliberately absent from the installed APK.** They travel only in the
   swappable payload dex, so the parent-first classloader chain can never serve a stale copy of a
-  class the user just edited. That absence is what makes "never silently stale" mechanical rather
-  than a matter of care.
+  class the user just edited.
 - **But Android instantiates manifest components by class name**, and the manifest is fixed at
   install time. Changing it means reinstalling - the cost Quick Build exists to avoid.
 - **So the manifest must name a class that is in the APK and never changes**, while the code behind
-  that name changes on every reload.
-- **A generated `Proxy<N><Type> extends <user class>` is that name.**
+  that name changes on every reload. A generated `Proxy<N><Type> extends <user class>` is that name;
   `QuickBuildAppComponentFactory` instantiates it through the current payload generation's loader.
-  The proxy is compiled once, at proxy app build time, and bundled into every payload dex; its
-  `extends` is a *symbolic* reference resolved by name at load time, which is why the same
-  compiled proxy keeps working as the user's class changes underneath it.
-- **The proxy is also where the runtime injects behaviour**, and for activities and services that
-  is what earns it. Activity proxies carry the app-switcher gesture and a `getClassLoader()`
-  override, so by-name resolution - Fragment and Navigation destinations, `LayoutInflater` custom
-  views - can see payload-only classes; service proxies register with the runtime's live-service
-  census. Receiver and provider proxies are empty subclasses: they exist for the stable name
-  alone.
+- **The proxy is compiled once, at proxy app build time**, and bundled into every payload dex. Its
+  `extends` is a *symbolic* reference resolved by name at load time, which is why the same compiled
+  proxy keeps working as the user's class changes underneath it.
+- **The proxy is also where the runtime injects behaviour.** Activity proxies carry the app-switcher
+  gesture and a `getClassLoader()` override, so by-name resolution - Fragment and Navigation
+  destinations, `LayoutInflater` custom views - can see payload-only classes; service proxies
+  register with the runtime's live-service census. Receiver and provider proxies are empty
+  subclasses: they exist for the stable name alone.
 
 ## What has to be proxied
 
@@ -35,17 +33,15 @@ Android instantiates five kinds of class by name from the merged manifest:
 | `<activity>` | `android.app.Activity` | yes | Gains the gesture hook and the `getClassLoader()` override |
 | `<service>` | `android.app.Service` | yes | Registers with the live-service census; swaps by process restart |
 | `<receiver>` | `android.content.BroadcastReceiver` | yes | Manifest-declared only - receivers registered at runtime are ordinary objects and need nothing |
-| `<provider>` | `android.content.ContentProvider` | yes | Swaps by process restart; authorities pass through verbatim |
+| `<provider>` | `android.content.ContentProvider` | yes | Swaps by process restart |
 | `<application android:name>` | `android.app.Application` | **no** | Keeps the user's FQN, which `instantiateApplication` resolves against the payload loader like any other component. A proxy would buy nothing: the runtime's own per-process hook (`QuickBuildRuntime.install`) already runs inside `instantiateApplication`, so there is no behaviour to inject via a subclass |
 
 `<activity-alias>` is not instantiated itself, but its `targetActivity` must follow the activity it
 points at, or the alias would reference a component the manifest no longer declares.
 
-The `Application` is the one object created before anything else in the process and living as long
-as it - apps subclass it to do process-wide setup (a DI graph, logging, a database or WorkManager
-handle) in `onCreate`. Most apps declare none. Because it is instantiated exactly once and never
-re-instantiated, an edit to it (or to one of its user-side supertypes) is in the restart closure:
-the deploy restarts the process rather than hot-swapping. See "Restart vs recreate".
+The `Application` is instantiated exactly once per process and never re-instantiated, so an edit to
+it (or to one of its user-side supertypes) is in the restart closure: the deploy restarts the
+process rather than hot-swapping. See "Restart vs recreate".
 
 ## How: a Gradle plugin rewrites the merged manifest
 
@@ -84,15 +80,15 @@ flowchart LR
 | **Redefine classes in place (Apply Changes / HotSwap style)** | ART's redefinition cannot add or remove classes, methods or fields, so adding a class or a method - routine while developing - falls back to a full build anyway. |
 | **Post-process the built APK inside CoGo instead of using a Gradle plugin** | The merged manifest, the variant's dependency artifacts and the compile classpath only exist inside the Gradle build. Doing it outside means re-implementing manifest merging and losing incrementality. |
 
-**Why the Gradle plugin wins.** It is the only place with the merged manifest as a first-class
-artifact and the variant's real classpath, so proxy generation is an ordinary incremental task
-rather than a bolt-on; CoGo already injects Gradle plugins by init script, so it needs no new seam;
-and everything it produces (`setup.json`, the proxy sources, the payload dex) is a declared task
-output that Gradle caches and invalidates for us.
+**Why the Gradle plugin.** It is the only place with the merged manifest as a first-class artifact
+and the variant's real classpath, so proxy generation is an ordinary incremental task rather than a
+bolt-on; CoGo already injects Gradle plugins by init script, so it needs no new seam; and everything
+it produces (`setup.json`, the proxy sources, the payload dex) is a declared task output that Gradle
+caches and invalidates for us.
 
 ## What the proxy app must satisfy
 
-Every decision below is trying to preserve these. When a change forces a trade-off, trade in this
+Every decision above is trying to preserve these. When a change forces a trade-off, trade in this
 order - 1 and 2 are not negotiable against the rest.
 
 1. **It never silently runs stale code.** Every edit either live-reloads or visibly falls back to a
@@ -115,8 +111,7 @@ order - 1 and 2 are not negotiable against the rest.
 7. **It stays cheap to embed.** The runtime is compiled into the user's app, so it is Java-only with
    no CoGo dependencies - it must not drag `kotlin-stdlib` or anything else into someone's APK.
 8. **Getting from the running app back to the next edit is smooth.** Tap-to-jump and the return
-   gesture exist today, but this one is directional rather than finished: the review-to-edit loop is
-   where the next round of work goes.
+   gesture exist today; the review-to-edit loop is where the next round of work goes.
 
 1-7 hold today. 8 is partial by design.
 
@@ -136,8 +131,6 @@ order - 1 and 2 are not negotiable against the rest.
   listed by name: androidx `InitializationProvider` (resolves itself by hardcoded name) and
   `ProfileInstallReceiver` (absent from some proxy compile classpaths, and absence is
   indistinguishable from project-owned before compilation). Reasons live in that class's KDoc.
-- **The `Application` gets no proxy.** Nothing addresses it by manifest name, and
-  `instantiateApplication` already routes through the payload loader.
 - **Provider authorities pass through verbatim.** The proxy app installs under the project's real
   `applicationId`, so `${applicationId}` resolves exactly as the real app's would.
 - **Unsupported attributes fail the build with the component and attribute named** - no stripping,

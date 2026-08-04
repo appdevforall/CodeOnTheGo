@@ -1,12 +1,13 @@
 # Decision: do the open Quick Build recovery gaps block v1?
 
-Device testing (2026-07-25..28) surfaced five user-facing defects. Two are fixed on this branch;
-three are open, alongside two open relink recovery gaps.
+**Decision: do #87, #89, #91 and the two relink recovery gaps block v1? Proposed: no - all go to
+v1.1.** Correctness is not at risk in any of them - the never-stale invariant holds throughout. What
+is at stake is trust: a live reload path that goes slow, dead, or quiet. The rest of this page is
+the evidence for that call, one section per gap - symptom, root cause with file references, likely
+fix.
 
-Correctness is not at risk in any of them - the never-stale invariant holds throughout. What's at
-stake is trust: a live reload path that goes slow, dead, or quiet.
-
-**Decision: do #87, #89, #91 and the two relink gaps block v1?** Proposed: no - all go to v1.1.
+Device testing (2026-07-25..28) surfaced five user-facing defects. Two are fixed on this branch (see
+the last section); three are open, alongside two open relink recovery gaps.
 
 | Gap | What the user sees | Frequency | Blocks v1? |
 | --- | --- | --- | --- |
@@ -14,7 +15,7 @@ stake is trust: a live reload path that goes slow, dead, or quiet.
 | #91 | Their own app crash is never surfaced; CoGo blames deploy infra | `[unmeasured]` | TBD |
 | #87 | A one-line edit in a Room/KSP project runs a full ~200s rebuild + reinstall | 3/3 when attempted | TBD |
 | Relink crash | A reload that crashes the app repeats the crash at every process boot | Trigger fixed; net still absent | TBD |
-| Relink wedge | A failed relink re-fails on every later save until a gradle-file touch | `[unmeasured]` | TBD |
+| Relink stuck | A failed relink re-fails on every later save until a gradle-file touch | `[unmeasured]` | TBD |
 
 Provenance: `[measured on a56]` = Samsung A56. Untagged prose is code reading against `75483b6eb`.
 
@@ -27,7 +28,7 @@ flowchart LR
     E -->|respawn fails silently| F["Stuck: taps do nothing - #89"]
     E -->|annotation-processor project| H["Escalates to full rebuild - #87"]
     A -->|proxy app crashes on its own| G["Crash undetected - #91"]
-    A -->|relink fails| W["Dirty delta never clears - relink wedge"]
+    A -->|relink fails| W["Dirty delta never clears - relink stuck"]
     A -->|reload crashes on recreate| P["Poisoned generation reapplied - relink crash"]
 ```
 
@@ -87,13 +88,13 @@ flowchart LR
   trigger-independent net: treat a crash during a pending reload as reason to distrust the
   just-applied generation and fall back to the last known-good one.
 
-## Relink wedge - a failed relink never clears its dirty delta
+## Relink stuck - a failed relink never clears its dirty delta
 
-- **Symptom:** once a relink fails, the failing resource rides along in every later build.
+- **Symptom:** once a relink fails, the failing resource is re-queued into every later build.
 - **Root cause:** the orchestrator's never-lose-an-edit invariant
   (`domain/LiveReloadOrchestrator.kt`) re-queues a failed build's whole batch, and there is no
   per-file eviction or auto-retry.
-- **Unwedge today:** touch a gradle file. That classifies `GRADLE_CONFIG_CHANGED` and forces a full
+- **Recovery today:** touch a gradle file. That classifies `GRADLE_CONFIG_CHANGED` and forces a full
   Gradle build, which resets the baseline and absorbs the dirty delta; `PayloadStore` then drops
   any persisted store whose fingerprint no longer matches the new baseline dex.
 - **Likely fix:** an automatic proxy app rebuild on repeated identical relink failure.
