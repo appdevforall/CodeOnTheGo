@@ -146,6 +146,11 @@ class BuildOutputFragment :
 		searchLayout?.beginSearchMode()
 	}
 
+	/**
+	 * Enables or disables editor line numbers and updates the gutter divider width accordingly.
+	 *
+	 * @param enabled `true` to display line numbers and gutter divider, `false` to hide them.
+	 */
 	fun setLineNumbersEnabled(enabled: Boolean) {
 		val ed = editor ?: return
 		ed.setLineNumberEnabled(enabled)
@@ -412,7 +417,12 @@ class BuildOutputFragment :
 
 			// The session file always gets the full text; the editor only shows matching lines
 			val visibleText =
-				BuildOutputViewModel.filterLines(text, buildOutputViewModel.filterText.value)
+				BuildOutputViewModel.filterLines(
+					text,
+					buildOutputViewModel.filterText.value,
+					buildOutputViewModel.showTimestamps.value,
+					buildOutputViewModel.showDeltas.value,
+				)
 
 			withContext(Dispatchers.Main) {
 				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
