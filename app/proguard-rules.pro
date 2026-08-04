@@ -157,9 +157,6 @@
 -keep interface okhttp3.** { *; }
 -dontwarn okhttp3.**
 
-# Stat uploader
--keep class com.itsaky.androidide.stats.** { *; }
-
 # Gson
 -keep class * extends com.google.gson.TypeAdapter
 -keep class * implements com.google.gson.TypeAdapterFactory

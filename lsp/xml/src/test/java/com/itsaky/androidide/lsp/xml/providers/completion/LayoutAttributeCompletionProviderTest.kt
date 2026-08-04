@@ -29,155 +29,162 @@ import org.robolectric.RobolectricTestRunner
 /** @author Akash Yadav */
 @RunWith(RobolectricTestRunner::class)
 class LayoutAttributeCompletionProviderTest : CompletionHelper by CompletionHelperImpl() {
+	@Before
+	fun setup() {
+		XMLLSPTest.initProjectIfNeeded()
+	}
 
-  @Before
-  fun setup() {
-    XMLLSPTest.initProjectIfNeeded()
-  }
+	@Test // prefix: 's'
+	fun `attributes from superclasses must be included`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/TestAttrsFromSuperclass")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isFalse()
+			assertThat(items).isNotEmpty()
+			assertThat(items).contains("android:singleLine") // From TextView
+			assertThat(items).contains("android:scrollbars") // from View
+		}
+	}
 
-  @Test // prefix: 's'
-  fun `attributes from superclasses must be included`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/TestAttrsFromSuperclass")
-      val (isIncomplete, items) = complete()
-      assertThat(isIncomplete).isFalse()
-      assertThat(items).isNotEmpty()
-      assertThat(items).contains("android:singleLine") // From TextView
-      assertThat(items).contains("android:scrollbars") // from View
-    }
-  }
+	@Test // prefix: 'l'
+	fun `attributes from parent's margin layout params must be included`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/TestAttrsFromLayoutParams")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isFalse()
+			assertThat(items).isNotEmpty()
+			assertThat(items).contains("android:lines") // From TextView
+			assertThat(items).contains("android:layout_weight") // from LinearLayout.LayoutParams
+			assertThat(items).contains("android:layout_margin") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginLeft") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginTop") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginRight") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginBottom") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginStart") // from ViewGroup.MarginLayoutParams
+		}
+	}
 
-  @Test // prefix: 'l'
-  fun `attributes from parent's margin layout params must be included`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/TestAttrsFromLayoutParams")
-      val (isIncomplete, items) = complete()
-      assertThat(isIncomplete).isFalse()
-      assertThat(items).isNotEmpty()
-      assertThat(items).contains("android:lines") // From TextView
-      assertThat(items).contains("android:layout_weight") // from LinearLayout.LayoutParams
-      assertThat(items).contains("android:layout_margin") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginLeft") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginTop") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginRight") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginBottom") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginStart") // from ViewGroup.MarginLayoutParams
-    }
-  }
-  
-  @Test // prefix: 'android:l'
-  fun `attributes must be completed when namespace is specified as well`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/TestAttrsWithNamespace")
-      val (isIncomplete, items) = complete()
-      assertThat(isIncomplete).isFalse()
-      assertThat(items).isNotEmpty()
-      assertThat(items).contains("android:lines") // From TextView
-      assertThat(items).contains("android:layout_weight") // from LinearLayout.LayoutParams
-      assertThat(items).contains("android:layout_margin") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginLeft") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginTop") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginRight") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginBottom") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginStart") // from ViewGroup.MarginLayoutParams
-    }
-  }
-  
-  @Test // prefix: 'android:margin'
-  fun `attributes must be completed with a partial prefix`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/TestAttrsWithPartialName")
-      val (isIncomplete, items) = complete()
-      assertThat(isIncomplete).isFalse()
-      assertThat(items).isNotEmpty()
-      assertThat(items).contains("android:layout_margin") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginLeft") // from ViewGroup.MarginLayoutParams
-      assertThat(items).contains("android:layout_marginTop") // from ViewGroup.MarginLayoutParams
-    }
-  }
-  
-  @Test // prefix: 'padding'
-  fun `duplicate attributes must not be included`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/TestNoDuplicateAttrs")
-      val (isIncomplete, items) = complete()
-      assertThat(isIncomplete).isFalse()
-      assertThat(items).isNotEmpty()
-      assertThat(items).contains("android:paddingLeft") // from View
-      assertThat(items).contains("android:paddingRight") // from View
-      assertThat(items).contains("android:paddingTop") // from View
-      assertThat(items).contains("android:paddingBottom") // from View
-      assertThat(items).contains("android:paddingStart") // from View
-      assertThat(items).contains("android:paddingEnd") // from View
-      assertThat(items).doesNotContain("android:padding")
-    }
-  }
-  
-  @Test // prefix: 'layout'
-  fun `attributes from all defined namespaces must be completed`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/TestAttrsWithMultipleNamespaces")
-      val (isIncomplete, items) = complete()
-      assertThat(isIncomplete).isTrue()
-      assertThat(items).isNotEmpty()
-      assertThat(items).contains("material:layout_constraintEnd_toEndOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintEnd_toStartOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintStart_toEndOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintStart_toStartOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintHorizontal_bias") // From ConstraintLayout
-      
-    }
-  }
-  
-  @Test // prefix: 'material:layout'
-  fun `attributes from the defined namespace must be completed`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/TestAttrsWithDefinedNamespace")
-      val (isIncomplete, items) = complete()
-      assertThat(isIncomplete).isTrue()
-      assertThat(items).isNotEmpty()
-      assertThat(items).contains("material:layout_constraintEnd_toEndOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintEnd_toStartOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintStart_toEndOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintStart_toStartOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintHorizontal_bias") // From ConstraintLayout
-      
-      // Attributes no other attributes must be included
-      assertThat(items.filter { !it.startsWith("material:") }).isEmpty()
-    }
-  }
-  
-  @Test // prefix: 'layout'
-  fun `attributes from defined auto namespace must be completed`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/TestAttrsWithMultipleNamespacesAuto")
-      val (isIncomplete, items) = complete()
-      assertThat(isIncomplete).isTrue()
-      assertThat(items).isNotEmpty()
-      assertThat(items).contains("material:layout_constraintEnd_toEndOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintEnd_toStartOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintStart_toEndOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintStart_toStartOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintHorizontal_bias") // From ConstraintLayout
-      
-    }
-  }
-  
-  @Test // prefix: 'material:layout'
-  fun `attributes from the defined auto namespace must be completed`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/TestAttrsWithDefinedNamespaceAuto")
-      val (isIncomplete, items) = complete()
-      assertThat(isIncomplete).isTrue()
-      assertThat(items).isNotEmpty()
-      assertThat(items).contains("material:layout_constraintEnd_toEndOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintEnd_toStartOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintStart_toEndOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintStart_toStartOf") // From ConstraintLayout
-      assertThat(items).contains("material:layout_constraintHorizontal_bias") // From ConstraintLayout
-      
-      // Attributes no other attributes must be included
-      assertThat(items.filter { !it.startsWith("material:") }).isEmpty()
-    }
-  }
+	@Test // prefix: 'android:l'
+	fun `attributes must be completed when namespace is specified as well`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/TestAttrsWithNamespace")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isFalse()
+			assertThat(items).isNotEmpty()
+			assertThat(items).contains("android:lines") // From TextView
+			assertThat(items).contains("android:layout_weight") // from LinearLayout.LayoutParams
+			assertThat(items).contains("android:layout_margin") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginLeft") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginTop") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginRight") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginBottom") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginStart") // from ViewGroup.MarginLayoutParams
+		}
+	}
+
+	@Test // prefix: 'android:margin'
+	fun `attributes must be completed with a partial prefix`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/TestAttrsWithPartialName")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isFalse()
+			assertThat(items).isNotEmpty()
+			assertThat(items).contains("android:layout_margin") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginLeft") // from ViewGroup.MarginLayoutParams
+			assertThat(items).contains("android:layout_marginTop") // from ViewGroup.MarginLayoutParams
+		}
+	}
+
+	@Test // prefix: 'padding'
+	fun `duplicate attributes must not be included`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/TestNoDuplicateAttrs")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isFalse()
+			assertThat(items).isNotEmpty()
+			assertThat(items).contains("android:paddingLeft") // from View
+			assertThat(items).contains("android:paddingRight") // from View
+			assertThat(items).contains("android:paddingTop") // from View
+			assertThat(items).contains("android:paddingBottom") // from View
+			assertThat(items).contains("android:paddingStart") // from View
+			assertThat(items).contains("android:paddingEnd") // from View
+			assertThat(items).doesNotContain("android:padding")
+		}
+	}
+
+	@Test // prefix: 'android:__'
+	fun `removed placeholder attributes must not be included`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/TestNoRemovedPlaceholderAttrs")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isFalse()
+			assertThat(items.filter { it.startsWith("android:__removed") }).isEmpty()
+		}
+	}
+
+	@Test // prefix: 'layout'
+	fun `attributes from all defined namespaces must be completed`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/TestAttrsWithMultipleNamespaces")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isTrue()
+			assertThat(items).isNotEmpty()
+			assertThat(items).contains("material:layout_constraintEnd_toEndOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintEnd_toStartOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintStart_toEndOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintStart_toStartOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintHorizontal_bias") // From ConstraintLayout
+		}
+	}
+
+	@Test // prefix: 'material:layout'
+	fun `attributes from the defined namespace must be completed`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/TestAttrsWithDefinedNamespace")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isTrue()
+			assertThat(items).isNotEmpty()
+			assertThat(items).contains("material:layout_constraintEnd_toEndOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintEnd_toStartOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintStart_toEndOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintStart_toStartOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintHorizontal_bias") // From ConstraintLayout
+
+			// Attributes no other attributes must be included
+			assertThat(items.filter { !it.startsWith("material:") }).isEmpty()
+		}
+	}
+
+	@Test // prefix: 'layout'
+	fun `attributes from defined auto namespace must be completed`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/TestAttrsWithMultipleNamespacesAuto")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isTrue()
+			assertThat(items).isNotEmpty()
+			assertThat(items).contains("material:layout_constraintEnd_toEndOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintEnd_toStartOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintStart_toEndOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintStart_toStartOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintHorizontal_bias") // From ConstraintLayout
+		}
+	}
+
+	@Test // prefix: 'material:layout'
+	fun `attributes from the defined auto namespace must be completed`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/TestAttrsWithDefinedNamespaceAuto")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isTrue()
+			assertThat(items).isNotEmpty()
+			assertThat(items).contains("material:layout_constraintEnd_toEndOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintEnd_toStartOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintStart_toEndOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintStart_toStartOf") // From ConstraintLayout
+			assertThat(items).contains("material:layout_constraintHorizontal_bias") // From ConstraintLayout
+
+			// Attributes no other attributes must be included
+			assertThat(items.filter { !it.startsWith("material:") }).isEmpty()
+		}
+	}
 }
