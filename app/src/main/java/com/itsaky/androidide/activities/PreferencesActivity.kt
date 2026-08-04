@@ -29,106 +29,142 @@ import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPreferencesBinding
 import com.itsaky.androidide.fragments.IDEPreferencesFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.preferences.PluginSettingsEntryPreference
 import com.itsaky.androidide.preferences.addRootPreferences
+import com.itsaky.androidide.preferences.pluginSettingsPreferences
 import com.itsaky.androidide.preferences.IDEPreferences as prefs
 
 class PreferencesActivity : EdgeToEdgeIDEActivity() {
+	@Suppress("ktlint:standard:backing-property-naming")
+	private var _binding: ActivityPreferencesBinding? = null
+	private val binding: ActivityPreferencesBinding
+		get() = checkNotNull(_binding) { "Activity has been destroyed" }
+	private var feedbackButtonManager: FeedbackButtonManager? = null
 
-  private var _binding: ActivityPreferencesBinding? = null
-  private val binding: ActivityPreferencesBinding
-    get() = checkNotNull(_binding) { "Activity has been destroyed" }
-    private var feedbackButtonManager: FeedbackButtonManager? = null
+	/**
+	 * The plugin-contributed rows present in the tree currently on screen. Plugins load
+	 * asynchronously at startup, so a tree built in [onCreate] can miss rows that exist moments
+	 * later; re-reading them on resume also picks up an install, uninstall, enable or disable done
+	 * in the Plugin Manager, with no IDE restart.
+	 */
+	private var contributedPreferences: List<PluginSettingsEntryPreference>? = null
 
-  private val rootFragment by lazy {
-    IDEPreferencesFragment()
-  }
+	private val gestureDetector by lazy {
+		GestureDetector(
+			this,
+			object : GestureDetector.SimpleOnGestureListener() {
+				override fun onLongPress(e: MotionEvent) {
+					binding.root.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+					val currentFragment = supportFragmentManager.findFragmentById(binding.fragmentContainer.id) as? IDEPreferencesFragment
+					val tooltipTag = currentFragment?.getCurrentScreenTooltip() ?: ""
+					TooltipManager.showIdeCategoryTooltip(this@PreferencesActivity, binding.root, tooltipTag)
+				}
+			},
+		)
+	}
 
-  private val gestureDetector by lazy {
-    GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-      override fun onLongPress(e: MotionEvent) {
-        binding.root.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-        val currentFragment = supportFragmentManager.findFragmentById(binding.fragmentContainer.id) as? IDEPreferencesFragment
-        val tooltipTag = currentFragment?.getCurrentScreenTooltip() ?: ""
-        TooltipManager.showIdeCategoryTooltip(this@PreferencesActivity, binding.root, tooltipTag)
-      }
-    })
-  }
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
 
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
+		setSupportActionBar(binding.toolbar)
+		supportActionBar!!.setTitle(R.string.ide_preferences)
+		supportActionBar!!.setDisplayHomeAsUpEnabled(true)
 
-    setSupportActionBar(binding.toolbar)
-    supportActionBar!!.setTitle(R.string.ide_preferences)
-    supportActionBar!!.setDisplayHomeAsUpEnabled(true)
+		binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
 
-    binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+		feedbackButtonManager =
+			FeedbackButtonManager(
+				activity = this,
+				feedbackFab = binding.fabFeedback.root,
+			)
+		feedbackButtonManager?.setupDraggableFab()
 
-      feedbackButtonManager = FeedbackButtonManager(
-          activity = this,
-          feedbackFab = binding.fabFeedback.root,
-      )
-      feedbackButtonManager?.setupDraggableFab()
+		if (savedInstanceState != null) {
+			// The restored fragment already carries its children; only record what it was built from.
+			contributedPreferences = pluginSettingsPreferences()
+			return
+		}
 
-    if (savedInstanceState != null) {
-      return
-    }
+		loadRootFragment()
+	}
 
-    (prefs.children as MutableList?)?.clear()
+	private fun loadRootFragment() {
+		// Snapshot before building the tree: a plugin that loads in between then reads as a change on
+		// the next resume instead of being silently missed.
+		contributedPreferences = pluginSettingsPreferences()
 
-    prefs.addRootPreferences()
+		prefs.clearPreferences()
 
-    val args = Bundle()
-    args.putParcelableArrayList(
-      IDEPreferencesFragment.EXTRA_CHILDREN,
-      ArrayList(prefs.children)
-    )
+		prefs.addRootPreferences()
 
-    rootFragment.arguments = args
-    loadFragment(rootFragment)
-  }
+		val args = Bundle()
+		args.putParcelableArrayList(
+			IDEPreferencesFragment.EXTRA_CHILDREN,
+			ArrayList(prefs.children),
+		)
 
-  override fun onApplySystemBarInsets(insets: Insets) {
-    val binding = _binding ?: return
-    val toolbar: View = binding.toolbar
-    toolbar.setPadding(
-      toolbar.paddingLeft + insets.left,
-      toolbar.paddingTop,
-      toolbar.paddingRight + insets.right,
-      toolbar.paddingBottom
-    )
+		// A fresh instance every time: arguments cannot be set on a fragment whose state was saved.
+		loadFragment(IDEPreferencesFragment().also { it.arguments = args })
+	}
 
-    val fragmentContainer: View = binding.fragmentContainerParent
-    fragmentContainer.setPadding(
-      fragmentContainer.paddingLeft + insets.left,
-      fragmentContainer.paddingTop,
-      fragmentContainer.paddingRight + insets.right,
-      fragmentContainer.paddingBottom
-    )
-  }
+	private fun reloadRootFragmentIfContributedRowsChanged() {
+		// Only while the root screen is showing - rebuilding it under a sub-screen would pop the user
+		// out of the screen they are on.
+		if (supportFragmentManager.backStackEntryCount > 0) {
+			return
+		}
 
-  override fun bindLayout(): View {
-    _binding = ActivityPreferencesBinding.inflate(
-      layoutInflater
-    )
-    return binding.root
-  }
+		if (pluginSettingsPreferences() == contributedPreferences) {
+			return
+		}
 
-  private fun loadFragment(fragment: Fragment) {
-    super.loadFragment(fragment, binding.fragmentContainer.id)
-  }
+		loadRootFragment()
+	}
 
-  override fun onDestroy() {
-    super.onDestroy()
-    _binding = null
-  }
+	override fun onApplySystemBarInsets(insets: Insets) {
+		val binding = _binding ?: return
+		val toolbar: View = binding.toolbar
+		toolbar.setPadding(
+			toolbar.paddingLeft + insets.left,
+			toolbar.paddingTop,
+			toolbar.paddingRight + insets.right,
+			toolbar.paddingBottom,
+		)
 
-  override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-    gestureDetector.onTouchEvent(ev)
-    return super.dispatchTouchEvent(ev)
-  }
+		val fragmentContainer: View = binding.fragmentContainerParent
+		fragmentContainer.setPadding(
+			fragmentContainer.paddingLeft + insets.left,
+			fragmentContainer.paddingTop,
+			fragmentContainer.paddingRight + insets.right,
+			fragmentContainer.paddingBottom,
+		)
+	}
 
-    override fun onResume() {
-        super.onResume()
-        feedbackButtonManager?.loadFabPosition()
-    }
+	override fun bindLayout(): View {
+		_binding =
+			ActivityPreferencesBinding.inflate(
+				layoutInflater,
+			)
+		return binding.root
+	}
+
+	private fun loadFragment(fragment: Fragment) {
+		super.loadFragment(fragment, binding.fragmentContainer.id)
+	}
+
+	override fun onDestroy() {
+		super.onDestroy()
+		_binding = null
+	}
+
+	override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+		gestureDetector.onTouchEvent(ev)
+		return super.dispatchTouchEvent(ev)
+	}
+
+	override fun onResume() {
+		super.onResume()
+		feedbackButtonManager?.loadFabPosition()
+		reloadRootFragmentIfContributedRowsChanged()
+	}
 }
