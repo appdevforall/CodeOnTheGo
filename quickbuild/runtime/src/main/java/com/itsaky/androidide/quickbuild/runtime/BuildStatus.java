@@ -5,7 +5,7 @@ import java.util.Map;
 /**
  * Parsed form of the {@code statusJson} argument of {@code IQuickBuildTarget.onBuildStatus}.
  *
- * Schema is in quickbuild/core/README.md. Every value is a string on the wire because {@link MiniJson} reads only strings. Unknown kinds parse to null and unknown fields are ignored, so CoGo can extend the schema without breaking installed proxy apps.
+ * Schema is in quickbuild/protocol/README.md. Every value is a string on the wire because {@link MiniJson} reads only strings. Unknown kinds parse to null and unknown fields are ignored, so CoGo can extend the schema without breaking installed proxy apps.
  */
 final class BuildStatus {
 

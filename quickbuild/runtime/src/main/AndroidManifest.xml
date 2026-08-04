@@ -22,7 +22,7 @@
 		android:appComponentFactory on the MERGED manifest unconditionally (it both adds it
 		when absent and replaces a library-injected CoreComponentFactory), so the generated
 		proxy app still instantiates components through the payload classloader
-		(quick-build/README.md classloading contract). Do NOT re-add the attribute here.
+		(quickbuild/core/README.md classloading contract). Do NOT re-add the attribute here.
 	-->
 
 

@@ -188,6 +188,9 @@ Design notes for this module live in [`docs/`](docs/); repo-level ADRs are one l
 
 | Doc | What it covers |
 | --- | --- |
+| [`docs/pipeline.md`](docs/pipeline.md) | the class-level map of all eight steps, in pipeline order - read this to find the file that implements a step |
+| [`docs/debugging.md`](docs/debugging.md) | why a save did not show up: watch rules, logcat tags, on-device paths, `bench-events.jsonl`, every timeout |
+| [`../protocol/README.md`](../protocol/README.md) | the three wire formats - daemon protocol, deploy metadata, build status - and how version skew is handled |
 | [`component-proxying-design.md`](docs/component-proxying-design.md) | which components get proxies, the restart closure, the never-proxied list |
 | [`low-spec-devices.md`](docs/low-spec-devices.md) | why 2 GB devices are out of reach today, and what would change that |
 | [`ksp-kapt-feasibility.md`](docs/ksp-kapt-feasibility.md) | what it would take to run annotation processors in the daemon |
@@ -195,4 +198,8 @@ Design notes for this module live in [`docs/`](docs/); repo-level ADRs are one l
 | [`reliability-gaps.md`](docs/reliability-gaps.md) | the known recovery holes, ranked |
 | [`perf-roadmap.md`](docs/perf-roadmap.md) | where the remaining latency is and which levers are worth pulling |
 
-The benchmark corpus, harness and all results live in the standalone `CodeOnTheGo-build-benchmark` repo (formerly `test_app_corpus`); every `corpus/...` path above maps into it, and the benchmark drives CoGo only through the declared interfaces (daemon protocol plus the flag-gated automation interface). Measurement and QA records - methodology, the low-spec runbook, the template QA sweep, the real-world commit survey - live there too. Earlier revisions of this module's docs are preserved in the archived history tag `adfa-4128-history-20260731`. Design history is in Jira ADFA-4128.
+Three things live outside this repo:
+
+- **The benchmark corpus, harness and results**, in the standalone `CodeOnTheGo-build-benchmark` repo - every `corpus/...` path above maps into it. It drives CoGo only through the declared interfaces, so it cannot mask a break in them. Methodology and the QA records (low-spec runbook, template sweep, commit survey) are there too.
+- **Earlier revisions of these docs**, in the archived history tag `adfa-4128-history-20260731`.
+- **Design history**, in Jira ADFA-4128.

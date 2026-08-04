@@ -26,7 +26,7 @@ oneway interface IQuickBuildTarget {
 	 *                        not change.
 	 * @param assetsPayload   a zip of changed asset files, or null.
 	 * @param metadataJson    JSON: entry activity class, changed-asset paths, flags.
-	 *                        Schema in quick-build/README.md.
+	 *                        Schema in quickbuild/protocol/README.md.
 	 */
 	void onPayload(long generation, in @nullable ParcelFileDescriptor dexPayload,
 			in @nullable ParcelFileDescriptor resourcesPayload,
@@ -38,7 +38,7 @@ oneway interface IQuickBuildTarget {
 	 * app would silently keep running old code with no user-visible signal), or that a
 	 * build succeeded (clears a previously shown failure).
 	 *
-	 * @param statusJson JSON with string-only values; schema in quick-build/README.md.
+	 * @param statusJson JSON with string-only values; schema in quickbuild/protocol/README.md.
 	 *                   Unknown kinds and unknown fields are ignored by the runtime, so
 	 *                   the schema can grow without breaking installed proxy apps.
 	 */
