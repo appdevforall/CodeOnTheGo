@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.handlers
 
+import android.os.SystemClock
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
@@ -43,7 +44,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	private var lastStatusLine: String = ""
 
 	private var buildStartTimeMs: Long = System.currentTimeMillis()
-	private var lastOutputTimeMs: Long = buildStartTimeMs
+	private var lastOutputTimeMs: Long = SystemClock.elapsedRealtime()
 
 	private var enabled = true
 	private var activityReference: WeakReference<EditorHandlerActivity> = WeakReference(null)
@@ -105,7 +106,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 
 	private fun resetBuildTimers() {
 		buildStartTimeMs = System.currentTimeMillis()
-		lastOutputTimeMs = buildStartTimeMs
+		lastOutputTimeMs = SystemClock.elapsedRealtime()
 	}
 
 	override fun onBuildSuccessful(tasks: List<String?>) {
@@ -181,11 +182,12 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	 * unprefixed so separator lines stay blank, and the trailing newline is preserved as-is.
 	 */
 	private fun formatOutput(raw: String): String {
-		val now = System.currentTimeMillis()
-		val stepDeltaMs = now - lastOutputTimeMs
-		lastOutputTimeMs = now
+		val nowWallClock = System.currentTimeMillis()
+		val nowMonotonic = SystemClock.elapsedRealtime()
+		val stepDeltaMs = maxOf(0L, nowMonotonic - lastOutputTimeMs)
+		lastOutputTimeMs = nowMonotonic
 
-		val prefix = BuildOutputViewModel.formatLinePrefix(now, stepDeltaMs)
+		val prefix = BuildOutputViewModel.formatLinePrefix(nowWallClock, stepDeltaMs)
 		val hadTrailingNewline = raw.endsWith("\n")
 		val body = if (hadTrailingNewline) raw.dropLast(1) else raw
 		val prefixed =
