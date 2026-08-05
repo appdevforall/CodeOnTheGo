@@ -1,9 +1,7 @@
 package com.itsaky.androidide.templates.manager.models
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import com.google.common.truth.Truth.assertThat
+import org.junit.jupiter.api.Test
 import java.io.File
 
 class CgtFileItemTest {
@@ -21,55 +19,55 @@ class CgtFileItemTest {
 
 	@Test
 	fun displayName_stripsCgtExtension() {
-		assertEquals("core", item("core.cgt").displayName)
-		assertEquals("core", item("core.CGT").displayName) // case-insensitive
+		assertThat(item("core.cgt").displayName).isEqualTo("core")
+		assertThat(item("core.CGT").displayName).isEqualTo("core") // case-insensitive
 	}
 
 	@Test
 	fun displayName_leavesOtherNamesUnchanged() {
-		assertEquals("core", item("core").displayName)
-		assertEquals("my.template.cgt".dropLast(4), item("my.template.cgt").displayName)
-		assertEquals("readme.txt", item("readme.txt").displayName)
+		assertThat(item("core").displayName).isEqualTo("core")
+		assertThat(item("my.template.cgt").displayName).isEqualTo("my.template.cgt".dropLast(4))
+		assertThat(item("readme.txt").displayName).isEqualTo("readme.txt")
 	}
 
 	@Test
 	fun primaryTemplate_isFirst_orEmptyFallback() {
 		val a = TemplateMetadata("A", "da", "1.0")
 		val b = TemplateMetadata("B", "db", "2.0")
-		assertEquals(a, item("x.cgt", listOf(a, b)).primaryTemplate)
+		assertThat(item("x.cgt", listOf(a, b)).primaryTemplate).isEqualTo(a)
 
 		val empty = item("x.cgt", emptyList()).primaryTemplate
-		assertEquals("", empty.name)
-		assertEquals("", empty.version)
+		assertThat(empty.name).isEmpty()
+		assertThat(empty.version).isEmpty()
 	}
 
 	@Test
 	fun hasMultipleTemplates_reflectsCount() {
-		assertFalse(item("x.cgt", listOf(TemplateMetadata("A", "", "1"))).hasMultipleTemplates)
-		assertTrue(
+		assertThat(item("x.cgt", listOf(TemplateMetadata("A", "", "1"))).hasMultipleTemplates).isFalse()
+		assertThat(
 			item("x.cgt", listOf(TemplateMetadata("A", "", "1"), TemplateMetadata("B", "", "1")))
 				.hasMultipleTemplates,
-		)
-		assertFalse(item("x.cgt", emptyList()).hasMultipleTemplates)
+		).isTrue()
+		assertThat(item("x.cgt", emptyList()).hasMultipleTemplates).isFalse()
 	}
 
 	@Test
 	fun versionLabel_prefixesWithV() {
-		assertEquals("v1.0", versionLabel("1.0"))
-		assertEquals("v0.1", versionLabel("0.1"))
-		assertEquals("v1.2.3", versionLabel("1.2.3"))
+		assertThat(versionLabel("1.0")).isEqualTo("v1.0")
+		assertThat(versionLabel("0.1")).isEqualTo("v0.1")
+		assertThat(versionLabel("1.2.3")).isEqualTo("v1.2.3")
 	}
 
 	@Test
 	fun versionLabel_truncatesMoreThanThreeSegments() {
 		// Only the first three dot-separated segments are kept (matches the host Plugin Manager).
-		assertEquals("v1.0.0-build...", versionLabel("1.0.0-build.20260101"))
-		assertEquals("v1.2.3...", versionLabel("1.2.3.4"))
+		assertThat(versionLabel("1.0.0-build.20260101")).isEqualTo("v1.0.0-build...")
+		assertThat(versionLabel("1.2.3.4")).isEqualTo("v1.2.3...")
 	}
 
 	@Test
 	fun versionLabel_blankBecomesEmpty() {
-		assertEquals("", versionLabel(""))
-		assertEquals("", versionLabel("   "))
+		assertThat(versionLabel("")).isEmpty()
+		assertThat(versionLabel("   ")).isEmpty()
 	}
 }

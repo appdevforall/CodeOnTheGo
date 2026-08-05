@@ -1,7 +1,6 @@
 package com.itsaky.androidide.templates.manager.parsing
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -37,11 +36,11 @@ class CgtTemplateReaderTest {
 				),
 			)
 		val result = CgtTemplateReader.readTemplates(input)
-		assertEquals(1, result.size)
-		assertEquals("Basic Activity", result[0].name)
-		assertEquals("Creates a new basic activity", result[0].description)
-		assertEquals("0.1", result[0].version)
-		assertTrue(result[0].optionalTags.isEmpty())
+		assertThat(result).hasSize(1)
+		assertThat(result[0].name).isEqualTo("Basic Activity")
+		assertThat(result[0].description).isEqualTo("Creates a new basic activity")
+		assertThat(result[0].version).isEqualTo("0.1")
+		assertThat(result[0].optionalTags).isEmpty()
 	}
 
 	@Test
@@ -55,8 +54,8 @@ class CgtTemplateReaderTest {
 				),
 			)
 		val result = CgtTemplateReader.readTemplates(input)
-		assertEquals(2, result.size)
-		assertEquals(setOf("Empty", "Login"), result.map { it.name }.toSet())
+		assertThat(result).hasSize(2)
+		assertThat(result.map { it.name }.toSet()).isEqualTo(setOf("Empty", "Login"))
 	}
 
 	@Test
@@ -78,7 +77,7 @@ class CgtTemplateReaderTest {
 			)
 		val tags = CgtTemplateReader.readTemplates(input).single().optionalTags
 		// org.json key iteration order isn't guaranteed, so compare as a set.
-		assertEquals(setOf("language (LANGUAGE)", "minsdk (MIN_SDK)"), tags.toSet())
+		assertThat(tags.toSet()).isEqualTo(setOf("language (LANGUAGE)", "minsdk (MIN_SDK)"))
 	}
 
 	@Test
@@ -97,8 +96,8 @@ class CgtTemplateReaderTest {
 				),
 			)
 		val template = CgtTemplateReader.readTemplates(input).single()
-		assertEquals("Basic Activity", template.name)
-		assertEquals(listOf("language (LANGUAGE)"), template.optionalTags)
+		assertThat(template.name).isEqualTo("Basic Activity")
+		assertThat(template.optionalTags).isEqualTo(listOf("language (LANGUAGE)"))
 	}
 
 	@Test
@@ -110,12 +109,12 @@ class CgtTemplateReaderTest {
 						"""{"name":"T","description":"d","version":"1.0","parameters":{"optional":{"flag":{}}}}""",
 				),
 			)
-		assertEquals(listOf("flag"), CgtTemplateReader.readTemplates(input).single().optionalTags)
+		assertThat(CgtTemplateReader.readTemplates(input).single().optionalTags).isEqualTo(listOf("flag"))
 	}
 
 	@Test
 	fun returnsEmptyWhenNoTemplateJson() {
 		val input = cgt(mapOf("pkg/readme.txt" to "hello", "pkg/template/other.json" to "{}"))
-		assertTrue(CgtTemplateReader.readTemplates(input).isEmpty())
+		assertThat(CgtTemplateReader.readTemplates(input)).isEmpty()
 	}
 }
