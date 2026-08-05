@@ -45,6 +45,9 @@ import java.nio.file.Path
 
 private val logger = LoggerFactory.getLogger("FindUsages")
 
+/** How many times [planWithRetry] runs [planAt], each of which retries a preemption once itself. */
+private const val PLAN_ATTEMPTS = 2
+
 /**
  * Where a usage could possibly be written, derived from the target's visibility (R4).
  *
@@ -95,7 +98,7 @@ internal suspend fun findUsagesAt(params: ReferenceParams): ReferenceResult {
 	}
 
 	return try {
-		val plan = planAt(params) ?: return ReferenceResult.empty()
+		val plan = planWithRetry(params) ?: return ReferenceResult.empty()
 		val candidates = candidateFiles(plan, params.cancelChecker)
 		logger.debug("Usage search for '{}': {} candidate file(s)", plan.simpleName, candidates.size)
 
@@ -117,6 +120,32 @@ internal suspend fun findUsagesAt(params: ReferenceParams): ReferenceResult {
 		logger.warn("Usage search failed for {}", params.file, e)
 		ReferenceResult.empty()
 	}
+}
+
+/**
+ * [planAt], retried on a preemption that outlived its own single retry.
+ *
+ * Without this a *second* preemption escapes as an [AnalysisPreemptedException], which is a
+ * [java.util.concurrent.CancellationException], so [findUsagesAt]'s cancellation branch turns it into
+ * an empty result and the editor flashes "No references found" for a symbol with plenty - the wrong
+ * answer ADR 0011 exists to prevent. [usagesIn] draws the same distinction per candidate file.
+ *
+ * Retrying is cheap here: the plan phase is one file and one short session. Genuine cancellation is
+ * not caught - the delegate throws a plain [java.util.concurrent.CancellationException], not this
+ * subtype.
+ */
+context(env: AbstractCompilationEnvironment)
+private suspend fun planWithRetry(params: ReferenceParams): SearchPlan? {
+	repeat(PLAN_ATTEMPTS) {
+		try {
+			return planAt(params)
+		} catch (e: AnalysisPreemptedException) {
+			logger.debug("Usage search plan for {} was preempted twice; retrying the plan", params.file)
+		}
+	}
+
+	logger.warn("Usage search for {} abandoned: target resolution kept being preempted", params.file)
+	return null
 }
 
 /**

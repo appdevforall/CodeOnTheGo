@@ -140,7 +140,7 @@ There is **no result cap**. See R10 for why one is not needed.
 
 Granularity is per candidate file, and it is load-bearing:
 
-- **One analysis session per candidate file.** A preemption by completion costs one file's work, which is retried once - `findDefinitionAt`'s pattern. One session for the whole search would let a single keystroke discard a whole-workspace scan. A file preempted *twice* is dropped like any other failed candidate (R12), not rethrown: keystroke-driven work winning the lock must not turn a search with plenty of hits into "no references".
+- **One analysis session per candidate file.** A preemption by completion costs one file's work, which is retried once - `findDefinitionAt`'s pattern. The target-resolution phase is retried twice over, because losing *it* loses the whole search rather than one file (R12). One session for the whole search would let a single keystroke discard a whole-workspace scan. A file preempted *twice* is dropped like any other failed candidate (R12), not rethrown: keystroke-driven work winning the lock must not turn a search with plenty of hits into "no references".
 - **`project.read` per candidate file, never once for the search.** A whole-workspace search holding the read lock start to finish would block every `project.write`, which is what index refresh needs.
 - **The live-document await stays outside `project.read`.** The refresh it waits on needs `project.write`; awaiting it under the read lock deadlocks. Go-to-definition's R10 records the same constraint.
 - `params.cancelChecker` is honoured per prefiltered file, between candidate files **and** between references within a file. The prefilter checks it per file rather than once for the pass: a whole-workspace scan is seconds of I/O, and cancelling has to stop it rather than let it finish and discard the result.
@@ -161,7 +161,9 @@ Two behaviour changes, both improvements: a hit whose line no longer exists is d
 
 **R11 - Not ready.** No `CompilationEnvironment` for the file (a script, a file outside the content roots), or no analysis session yet, answers empty and logs. There is no "still indexing" signal; that gap is cross-cutting across every LSP feature and is not solved here.
 
-**R12 - Failure isolation.** A resolution failure on one candidate file drops that file and continues - one unparseable file must not lose the whole result. So does an unreadable one in the prefilter pass, and one preempted past `retryingOnPreemption`'s single retry. A failure in the target-resolution phase returns empty. Genuine cancellation propagates rather than being reported as "no references" - but preemption is not that, so it is isolated per file like any other candidate failure. Nothing propagates an exception to the editor or leaves the progress flashbar up.
+**R12 - Failure isolation.** A resolution failure on one candidate file drops that file and continues - one unparseable file must not lose the whole result. So does an unreadable one in the prefilter pass, and one preempted past `retryingOnPreemption`'s single retry. A failure in the target-resolution phase returns empty.
+
+Preemption is not cancellation, and the two must not share a handler. Both unwind as a `CancellationException`, but a preempted request is still *wanted* - the user is watching the flashbar - so reporting empty for it is a wrong answer, while reporting empty for a cancelled one is invisible (the cancelled coroutine never reaches `onFindReferencesResult`). Hence a candidate file preempted past `retryingOnPreemption`'s single retry drops like any other failed candidate, and the target-resolution phase runs `planAt` twice - up to four underlying attempts - before giving up with a warning. Genuine cancellation short-circuits to empty at any depth. Nothing propagates an exception to the editor or leaves the progress flashbar up.
 
 ## Non-goals
 
@@ -211,7 +213,7 @@ FindReferencesAction.execAction                   lsp/kotlin/actions
          guards: settings.referencesEnabled(), DocumentUtils.isKotlinFile
          compilationEnvironmentFor(params.file) ?: empty                        [R11]
          -> context(env) { findUsagesAt(params) }        navigation/FindUsages.kt
-              planAt(params):                            (retried once if preempted)
+              planWithRetry -> planAt(params):           (twice, each retrying a preemption once) [R12]
                 ktFile = env.ktSymbolIndex.getCurrentKtFile(file).await() ?: empty [R5, R11]
                 env.project.read {
                   target = targetAtCaret(ktFile, offset) navigation/TargetAtCaret.kt [R2]
