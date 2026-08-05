@@ -60,6 +60,14 @@ data class JavaExecutionResult(
 )
 
 class WebServer(private val config: ServerConfig) {
+    // Guards serverSocket's creation/bind (in start(), on a background thread) against a
+    // concurrent close (in stop(), typically from the main thread on Activity#onDestroy()).
+    // Without this, a stop() arriving before start() reaches bind() finds serverSocket not
+    // yet initialized and is a silent no-op (see stop()'s isInitialized check below) -- the
+    // socket then binds anyway a moment later, orphaned, and holds the port until the process
+    // dies. The next start() attempt on that port then fails with "Address already in use."
+    private val lifecycleLock = Any()
+    private var stopRequested = false
     private lateinit var serverSocket       : ServerSocket
     private lateinit var database           : SQLiteDatabase
     private          var databaseTimestamp  : Long    = -1
@@ -77,8 +85,8 @@ class WebServer(private val config: ServerConfig) {
         .create()
     private          val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
     private          var bookshelfTemplateId : Int = -1;
-    private          val HTTP_INTERNAL_SERVER_ERROR = 500
-    private          val HTTP_NOT_FOUND = 404
+    private          val httpInternalServerError = 500
+    private          val httpNotFound = 404
 
     private val contentChunkSize = 1024 * 1024
 
@@ -115,12 +123,15 @@ class WebServer(private val config: ServerConfig) {
      * Causes [start]'s accept loop to exit. No-op if not started or already stopped.
      */
     fun stop() {
-        if (!::serverSocket.isInitialized) return
-        try {
-            serverSocket.close()
+        synchronized(lifecycleLock) {
+            stopRequested = true
+            if (!::serverSocket.isInitialized) return
+            try {
+                serverSocket.close()
 
-        } catch (e: Exception) {
-            log.error("Cannot close server socket: {}", e.message)
+            } catch (e: Exception) {
+                log.error("Cannot close server socket: {}", e.message)
+            }
         }
     }
 
@@ -151,8 +162,14 @@ class WebServer(private val config: ServerConfig) {
             // NEW FEATURE: Log database metadata when debug is enabled
             if (debugEnabled) logDatabaseLastChanged()
 
-            serverSocket = ServerSocket().apply { reuseAddress = true }
-            serverSocket.bind(InetSocketAddress(config.bindName, config.port))
+            synchronized(lifecycleLock) {
+                if (stopRequested) {
+                    log.info("WebServer start() aborted: stop() was called before the socket could be bound.")
+                    return
+                }
+                serverSocket = ServerSocket().apply { reuseAddress = true }
+                serverSocket.bind(InetSocketAddress(config.bindName, config.port))
+            }
             log.info("WebServer started successfully on '{}', port {}.", config.bindName, config.port)
 
             while (true) {
@@ -189,7 +206,7 @@ class WebServer(private val config: ServerConfig) {
                                 try {
                                     val output = socket.outputStream
 
-                                    sendError(PrintWriter(output, true), output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 1")
+                                    sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
 
                                 } catch (e2: Exception) {
                                     log.error("Error sending error response: {}", e2.message)
@@ -310,7 +327,7 @@ class WebServer(private val config: ServerConfig) {
                 "pr/db" -> handleDbEndpoint(writer, output)
                 "pr/pr" -> handlePrEndpoint(writer, output)
                 "pr/ex" -> handleExEndpoint(writer, output)
-                else    -> sendError(writer, output, HTTP_NOT_FOUND, "Not Found", "Path requested: '$path'.")
+                else    -> sendError(writer, output, httpNotFound, "Not Found", "Path requested: '$path'.")
             }
         }
 
@@ -326,8 +343,8 @@ class WebServer(private val config: ServerConfig) {
         // Process database fetch
         try {
             if (cursor.count != 1) {
-                return if (cursor.count == 0) sendError(writer, output, HTTP_NOT_FOUND, "Not Found")
-                else sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - multiple records found when unique record expected, Path requested: '$path'.")
+                return if (cursor.count == 0) sendError(writer, output, httpNotFound, "Not Found")
+                else sendError(writer, output, httpInternalServerError, "Corrupt database - multiple records found when unique record expected, Path requested: '$path'.")
             }
 
             cursor.moveToFirst()
@@ -383,7 +400,7 @@ class WebServer(private val config: ServerConfig) {
             output.flush()
         } catch (e: Exception) {
             log.error("Error processing request: {}", e.message)
-            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error", e.message ?: "")
+            sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
         } finally {
             cursor.close()
         }
@@ -552,7 +569,7 @@ class WebServer(private val config: ServerConfig) {
             sendError(
                 writer,
                 output,
-                HTTP_INTERNAL_SERVER_ERROR,
+                httpInternalServerError,
                 "Internal Server Error 4.1",
                 "Error creating output."
             )
@@ -566,7 +583,7 @@ class WebServer(private val config: ServerConfig) {
 
         } catch (e: Exception) {
             log.error("Error handling /pr/db endpoint: {}", e.message)
-            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 4", "Error generating database table.", true)
+            sendError(writer, output, httpInternalServerError, "Internal Server Error 4", "Error generating database table.", true)
         }
     }
 
@@ -591,7 +608,7 @@ class WebServer(private val config: ServerConfig) {
 
         } catch (e: Exception) {
             log.error("Error handling /pr/bs endpoint: {}", e.message)
-            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
+            sendError(writer, output, httpInternalServerError, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
         }
 
         if (debugEnabled) log.debug("Leaving handleBsEndpoint().")
@@ -663,7 +680,7 @@ second response.
 
         } catch (e: Exception) {
             log.error("Error handling /pr/pr endpoint: {}", e.message)
-            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 6", "Error generating database table.", outputStarted)
+            sendError(writer, output, httpInternalServerError, "Internal Server Error 6", "Error generating database table.", outputStarted)
             
         } finally {
             projectDatabase?.close()
@@ -741,7 +758,7 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
 
         } catch (e: Exception) {
             log.error("Error processing request: {}", e.message)
-            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error", e.message ?: "")
+            sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
             return false
         } finally {
             cursor.close()
@@ -764,9 +781,9 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
             return true
         }
         if (cursor.count == 0)
-            sendError(writer, output, HTTP_NOT_FOUND, "Corrupt database, no rows found, expected one.")
+            sendError(writer, output, httpNotFound, "Corrupt database, no rows found, expected one.")
         else
-            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - found ${cursor.count} rows when 1 was expected.")
+            sendError(writer, output, httpInternalServerError, "Corrupt database - found ${cursor.count} rows when 1 was expected.")
         return false
     }
 
