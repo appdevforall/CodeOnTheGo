@@ -49,6 +49,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.runBlocking
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
@@ -148,8 +149,9 @@ class IDEApplication :
 		 * [Context.getFilesDir] does a real disk check (`File.exists()`) on every call, not just
 		 * the first - callers on the main thread (e.g. Koin's [pluginModule] resolving on first
 		 * navigation to the Extensions Manager) trip StrictMode's DiskReadViolation. Cache it once,
-		 * off-main, during startup (see [DeviceProtectedApplicationLoader]) so later reads are a
-		 * plain field access instead of a syscall.
+		 * off-main, before Koin starts (see the `onCreate()` warmup) so later reads are a plain
+		 * field access instead of a syscall, and pluginModule/templateModule can never be the
+		 * first to trigger the underlying disk read.
 		 */
 		@JvmStatic
 		val cachedFilesDir: File by lazy { instance.filesDir }
@@ -193,6 +195,12 @@ class IDEApplication :
 		// to ANRs when the IDE is launched after device reboot.
 		// https://appdevforall.atlassian.net/browse/ADFA-2026
 		// https://appdevforall-inc-9p.sentry.io/issues/6860179170/events/7177c576e7b3491c9e9746c76f806d37/
+
+		// Warm cachedFilesDir on an IO thread before Koin starts, so pluginModule/templateModule
+		// (resolved on the main thread on first navigation to the Extensions Manager) can never
+		// race the disk read - see cachedFilesDir's doc. The disk access itself runs off-main;
+		// this only blocks onCreate() waiting for that fast, one-time result.
+		runBlocking(Dispatchers.IO) { cachedFilesDir }
 
 		ensureKoinStarted()
 

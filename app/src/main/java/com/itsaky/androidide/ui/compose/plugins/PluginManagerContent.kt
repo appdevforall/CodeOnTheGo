@@ -1,10 +1,10 @@
 package com.itsaky.androidide.ui.compose.plugins
 
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -47,15 +47,11 @@ import com.itsaky.androidide.utils.errorIcon
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
-import com.itsaky.androidide.utils.getFileName
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
+import org.slf4j.LoggerFactory
 
-private const val TAG = "PluginManagerContent"
-private const val PLUGIN_EXTENSION = ".cgp"
-
-private fun Uri.isSupportedPluginFile(activity: ComponentActivity): Boolean =
-	getFileName(activity).endsWith(PLUGIN_EXTENSION, ignoreCase = true)
+private val log = LoggerFactory.getLogger("PluginManagerContent")
 
 private sealed interface PluginManagerDialogState {
 	data object None : PluginManagerDialogState
@@ -116,14 +112,10 @@ fun PluginManagerContent(
 				try {
 					activity.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
 				} catch (e: SecurityException) {
-					Log.w(TAG, "Could not take persistable URI permission", e)
+					log.warn("Could not take persistable URI permission", e)
 				}
 
-				if (!it.isSupportedPluginFile(activity)) {
-					activity.flashError(activity.getString(R.string.msg_unsupported_plugin_file))
-				} else {
-					dialogState = PluginManagerDialogState.InstallConfirm(it)
-				}
+				viewModel.onEvent(PluginManagerUiEvent.FileSelected(it))
 			}
 		}
 
@@ -165,12 +157,18 @@ fun PluginManagerContent(
 						// SAF filters by MIME type, not extension, and .cgp has no registered MIME
 						// type. "application/octet-stream" is what document providers report for
 						// files with an unrecognized extension, so this hides files with a known
-						// type (images, zips, apks, ...) without excluding .cgp files. isSupportedPluginFile
-						// still validates the actual pick, since this is an approximation.
+						// type (images, zips, apks, ...) without excluding .cgp files. The
+						// FileSelected event still validates the actual pick, since this is an
+						// approximation.
 						filePickerLauncher.launch(arrayOf("application/octet-stream"))
-					} catch (_: Exception) {
+					} catch (e: ActivityNotFoundException) {
+						log.warn("No document provider available for the plugin file picker", e)
 						activity.flashError(activity.getString(R.string.msg_no_file_manager))
 					}
+				}
+
+				is PluginManagerUiEffect.ShowInstallConfirmation -> {
+					dialogState = PluginManagerDialogState.InstallConfirm(effect.uri)
 				}
 
 				is PluginManagerUiEffect.ShowUninstallConfirmation -> {
