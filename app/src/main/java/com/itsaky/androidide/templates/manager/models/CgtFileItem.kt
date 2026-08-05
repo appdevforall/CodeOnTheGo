@@ -2,6 +2,11 @@ package com.itsaky.androidide.templates.manager.models
 
 import java.io.File
 
+/**
+ * One `<path>/template/template.json` entry parsed out of a `.cgt` archive. A single `.cgt`
+ * file can bundle more than one of these (see [CgtFileItem.templates]) - e.g. a plugin's
+ * archive offering several related project templates.
+ */
 data class TemplateMetadata(
 	val name: String,
 	val description: String,
@@ -27,6 +32,12 @@ enum class TemplateProvenance {
 	USER,
 }
 
+/**
+ * One `.cgt` file discovered on disk, backing a single card in the Templates tab. [templates]
+ * holds every template the archive bundles (see [TemplateMetadata]); [installed] is true when
+ * [file] lives in `Environment.TEMPLATES_DIR` (the store Gradle reads templates from) rather
+ * than the Downloads folder, and [provenance] (see [TemplateProvenance]) says who put it there.
+ */
 data class CgtFileItem(
 	val file: File,
 	val name: String,
