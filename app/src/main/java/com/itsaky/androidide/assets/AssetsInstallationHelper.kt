@@ -125,26 +125,24 @@ object AssetsInstallationHelper {
 		Brotli4jLoader.ensureAvailability()
 
 		// pre-install hook
-		val isPreInstallSuccessful =
-			try {
-				ASSETS_INSTALLER.preInstall(context, stagingDir)
-				true
-			} catch (e: FileNotFoundException) {
-				logger.error("ZIP file not found: {}", e.message)
-				flashError("File not found - ${e.message}")
-				false
-			} catch (e: ZipException) {
-				logger.error("Invalid ZIP format: {}", e.message)
-				onProgress(Progress("Corrupt zip file ${e.message}"))
-				false
-			} catch (e: IOException) {
-				logger.error("I/O error during preInstall: {}", e.message)
-				onProgress(Progress("Failed to load ${e.message}"))
-				false
-			}
-
-		if (!isPreInstallSuccessful) {
-			return@coroutineScope Result.Failure(IOException("preInstall failed"))
+		// Log/report the failure here for diagnostics, then rethrow so install()'s
+		// runCatching actually observes it -- returning a Result.Failure value here
+		// instead would be silently discarded, since doInstall() otherwise has no
+		// meaningful return value on its success path.
+		try {
+			ASSETS_INSTALLER.preInstall(context, stagingDir)
+		} catch (e: FileNotFoundException) {
+			logger.error("ZIP file not found: {}", e.message)
+			flashError("File not found - ${e.message}")
+			throw e
+		} catch (e: ZipException) {
+			logger.error("Invalid ZIP format: {}", e.message)
+			onProgress(Progress("Corrupt zip file ${e.message}"))
+			throw e
+		} catch (e: IOException) {
+			logger.error("I/O error during preInstall: {}", e.message)
+			onProgress(Progress("Failed to load ${e.message}"))
+			throw e
 		}
 
 		try {

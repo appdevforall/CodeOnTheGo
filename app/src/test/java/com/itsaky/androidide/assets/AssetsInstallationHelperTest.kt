@@ -1,11 +1,20 @@
 package com.itsaky.androidide.assets
 
 import android.content.Context
+import com.aayushatharva.brotli4j.Brotli4jLoader
+import com.itsaky.androidide.app.configuration.CpuArch
+import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.assets.AssetsInstallationHelper.Result.Failure
+import com.itsaky.androidide.utils.flashError
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.mockkStatic
+import io.mockk.unmockkObject
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -59,6 +68,65 @@ class AssetsInstallationHelperTest {
 				"Expected FileNotFoundException as root cause",
 				(failure.cause?.cause) is FileNotFoundException,
 			)
+		}
+
+	@Test
+	fun `install reports Failure when doInstall's own preInstall catch block swallows an exception`() =
+		runBlocking {
+			// Unlike the test above (which mocks doInstall itself to throw, bypassing its
+			// internal try/catch entirely), this lets the real doInstall() run and only
+			// stubs the underlying installer's preInstall, so it actually exercises the
+			// catch-then-rethrow path inside doInstall -- the path ADFA-5037 found silently
+			// swallowing failures by returning a Result.Failure value instead of throwing,
+			// which runCatching in install() can't observe.
+			val helper = AssetsInstallationHelper
+
+			every {
+				helper["checkStorageAccessibility"](any<Context>(), any<AssetsInstallerProgressConsumer>())
+			} returns null
+
+			mockkObject(IDEBuildConfigProvider.Companion)
+			mockkStatic(Brotli4jLoader::class)
+			mockkStatic("com.itsaky.androidide.utils.FlashbarUtilsKt")
+			mockkObject(SplitAssetsInstaller)
+			try {
+				// doInstall() looks up the build's CpuArch before reaching preInstall; the
+				// real IDEBuildConfigProviderImpl needs a live BaseApplication instance to
+				// do that, which isn't available in this unit test, so stub it directly.
+				val buildConfigProvider = mockk<IDEBuildConfigProvider>(relaxed = true)
+				every { buildConfigProvider.cpuArch } returns CpuArch.AARCH64
+				every { IDEBuildConfigProvider.getInstance() } returns buildConfigProvider
+
+				// doInstall() also loads the Brotli native library before reaching
+				// preInstall; it isn't available in this unit test either.
+				every { Brotli4jLoader.ensureAvailability() } just Runs
+
+				// The FileNotFoundException catch block flashes an error via a live
+				// Activity, which also isn't available in this unit test.
+				every { flashError(any<String>()) } just Runs
+
+				coEvery {
+					SplitAssetsInstaller.preInstall(any(), any())
+				} throws FileNotFoundException("assets-arm64-v8a.zip")
+
+				val result = helper.install(ctx)
+
+				assertTrue("Expected Result.Failure", result is Failure)
+				val failure = result as Failure
+				assertTrue(
+					"Expected MissingAssetsEntryException as cause",
+					failure.cause is MissingAssetsEntryException,
+				)
+				assertTrue(
+					"Expected FileNotFoundException as root cause",
+					(failure.cause?.cause) is FileNotFoundException,
+				)
+			} finally {
+				unmockkObject(SplitAssetsInstaller)
+				unmockkStatic("com.itsaky.androidide.utils.FlashbarUtilsKt")
+				unmockkStatic(Brotli4jLoader::class)
+				unmockkObject(IDEBuildConfigProvider.Companion)
+			}
 		}
 
 	@Test
