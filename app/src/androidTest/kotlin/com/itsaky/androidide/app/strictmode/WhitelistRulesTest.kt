@@ -73,7 +73,7 @@ class WhitelistRulesTest {
 			stackTraceElement("com.google.firebase.components.Lazy", "get", "Lazy.java", 53),
 			stackTraceElement("com.google.firebase.FirebaseApp", "isDataCollectionDefaultEnabled", "FirebaseApp.java", 371),
 			stackTraceElement("com.google.firebase.analytics.connector.AnalyticsConnectorImpl", "getInstance", "play-services-measurement-api@@22.1.2", 31),
-			stackTraceElement("com.google.firebase.FirebaseApp\$UserUnlockReceiver", "onReceive", "FirebaseApp.java", 672),
+			stackTraceElement("com.google.firebase.FirebaseApp\$UserUnlockReceiver", "onReceive", "FirebaseApp.java", 672)
 			// @formatter:on
 		)
 	}
@@ -84,7 +84,7 @@ class WhitelistRulesTest {
 			stackTraceElement("com.itsaky.androidide.utils.ServiceLoader", "parse"),
 			stackTraceElement(
 				"com.itsaky.androidide.app.configuration.IJdkDistributionProvider\$Companion",
-				"_instance_delegate\$lambda\$0",
+				"_instance_delegate\$lambda\$0"
 			),
 		)
 	}
@@ -95,7 +95,7 @@ class WhitelistRulesTest {
 			stackTraceElement("java.io.File", "exists"),
 			stackTraceElement(
 				"com.itsaky.androidide.activities.OnboardingActivity",
-				"checkToolsIsInstalled",
+				"checkToolsIsInstalled"
 			),
 		)
 	}
@@ -203,33 +203,6 @@ class WhitelistRulesTest {
 			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
 			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
 			stackTraceElement("com.mediatek.res.ResOptExtImpl", "putCacheList"),
-			// @formatter:on
-		)
-	}
-
-	@Test
-	fun allow_DiskRead_on_TelemetryConsentPrefsResolution() {
-		assertAllowed<DiskReadViolation>(
-			// @formatter:off
-			stackTraceElement("java.io.File", "exists"),
-			stackTraceElement("android.app.ContextImpl", "getDataDir"),
-			stackTraceElement("android.app.ContextImpl", "getPreferencesDir"),
-			stackTraceElement("android.app.ContextImpl", "getSharedPreferencesPath"),
-			stackTraceElement("android.app.ContextImpl", "getSharedPreferences"),
-			stackTraceElement("com.itsaky.androidide.preferences.internal.StatPreferences", "getPrefs"),
-			stackTraceElement("com.itsaky.androidide.preferences.internal.StatPreferences", "getTelemetryConsent"),
-			// @formatter:on
-		)
-	}
-
-	@Test
-	fun allow_DiskRead_on_TelemetryConsentFirstRead() {
-		assertAllowed<DiskReadViolation>(
-			// @formatter:off
-			stackTraceElement("android.os.StrictMode\$AndroidBlockGuardPolicy", "onReadFromDisk"),
-			stackTraceElement("android.app.SharedPreferencesImpl", "awaitLoadedLocked"),
-			stackTraceElement("android.app.SharedPreferencesImpl", "getString"),
-			stackTraceElement("com.itsaky.androidide.preferences.internal.StatPreferences", "getTelemetryConsent"),
 			// @formatter:on
 		)
 	}

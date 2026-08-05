@@ -5,7 +5,6 @@ import android.os.strictmode.DiskWriteViolation
 import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.app.strictmode.FrameMatcher.Companion.anyOf
 import com.itsaky.androidide.app.strictmode.FrameMatcher.Companion.classAndMethod
-import com.itsaky.androidide.app.strictmode.FrameMatcher.Companion.classEquals
 import android.os.strictmode.Violation as StrictModeViolation
 
 /**
@@ -101,17 +100,17 @@ object WhitelistEngine {
 						listOf(
 							classAndMethod(
 								"com.google.firebase.internal.DataCollectionConfigStorage",
-								"readAutoDataCollectionEnabled",
+								"readAutoDataCollectionEnabled"
 							),
 							classAndMethod(
 								"com.google.firebase.internal.DataCollectionConfigStorage",
-								"<init>",
+								"<init>"
 							),
 						),
 						listOf(
 							classAndMethod(
 								"com.google.firebase.FirebaseApp\$UserUnlockReceiver",
-								"onReceive",
+								"onReceive"
 							),
 						),
 					),
@@ -204,10 +203,7 @@ object WhitelistEngine {
 
 				matchFramesInOrder(
 					classAndMethod("com.itsaky.androidide.utils.ServiceLoader", "parse"),
-					classAndMethod(
-						"com.itsaky.androidide.app.configuration.IJdkDistributionProvider\$Companion",
-						"_instance_delegate\$lambda\$0",
-					),
+					classAndMethod("com.itsaky.androidide.app.configuration.IJdkDistributionProvider\$Companion", "_instance_delegate\$lambda\$0"),
 				)
 			}
 
@@ -331,26 +327,6 @@ object WhitelistEngine {
 							classAndMethod("com.mediatek.res.ResOptExtImpl", "putCacheList"),
 						),
 					),
-				)
-			}
-
-			rule {
-				ofType<DiskReadViolation>()
-				allow(
-					"""
-					StatPreferences stores the telemetry consent in device-protected
-					SharedPreferences. Resolving and loading that file is a once-per-process
-					read on the startup path that gates telemetry init (ADFA-4942), and cannot
-					be deferred.
-					""".trimIndent(),
-				)
-
-				matchFramesInOrder(
-					anyOf(
-						classAndMethod("android.app.ContextImpl", "getSharedPreferences"),
-						classAndMethod("android.app.SharedPreferencesImpl", "awaitLoadedLocked"),
-					),
-					classEquals("com.itsaky.androidide.preferences.internal.StatPreferences"),
 				)
 			}
 		}
