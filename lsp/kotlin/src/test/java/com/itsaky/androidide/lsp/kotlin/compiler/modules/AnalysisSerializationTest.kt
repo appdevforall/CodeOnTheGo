@@ -422,18 +422,31 @@ class AnalysisSerializationTest : KtLspTest() {
 	 * ADR 0011's central property. Two user-invoked commands must not discard each other - before
 	 * [AnalysisPriority.COMMAND] existed they both ran at [AnalysisPriority.INTERACTIVE], where the
 	 * newer one superseded the older and the older silently produced nothing.
+	 *
+	 * The holder polls its own checker while waiting. Preemption is cooperative, so a holder that only
+	 * blocks would keep the lock even when wrongly flagged, the second command could not enter before
+	 * the release either way, and the entry assertions alone would pass with
+	 * [AnalysisPriority.supersedesSamePriority] set on [AnalysisPriority.COMMAND].
 	 */
 	@Test(timeout = 10_000)
 	fun `a command does not supersede an in-flight command`() {
+		val holderChecker = ScheduledCancelChecker(ICancelChecker.NOOP)
 		val holding = CountDownLatch(1)
 		val release = CountDownLatch(1)
+		val firstPreempted = AtomicBoolean(false)
 		val secondEntered = AtomicBoolean(false)
 
 		val first =
 			Thread {
-				withAnalysisLock(AnalysisPriority.COMMAND, ScheduledCancelChecker(ICancelChecker.NOOP)) {
-					holding.countDown()
-					release.await()
+				try {
+					withAnalysisLock(AnalysisPriority.COMMAND, holderChecker) {
+						holding.countDown()
+						while (!release.await(10, TimeUnit.MILLISECONDS)) {
+							holderChecker.abortIfCancelled()
+						}
+					}
+				} catch (e: AnalysisPreemptedException) {
+					firstPreempted.set(true)
 				}
 			}
 		first.start()
@@ -455,6 +468,7 @@ class AnalysisSerializationTest : KtLspTest() {
 		first.join(5_000)
 		second.join(5_000)
 
+		assertThat(firstPreempted.get()).isFalse()
 		assertThat(enteredWhileHeld).isFalse()
 		assertThat(secondEntered.get()).isTrue()
 	}

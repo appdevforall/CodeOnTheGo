@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.models.Location
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
+import io.github.rosemoe.sora.text.Content
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -72,6 +73,29 @@ class SearchResultGroupingTest {
 
 		assertThat(results).hasSize(1)
 		assertThat(results[0].match).isEqualTo("ort")
+	}
+
+	@Test
+	fun `an open file's rows come from its buffer, not its saved bytes`() {
+		val file = folder.newFile("Buffered.kt")
+		file.writeText("saved text\n")
+
+		val results =
+			SearchResultGrouping.resultsFor(file, listOf(location(file, 0, 4, 0, 10)), Content("fun target() {}"))
+
+		assertThat(results).hasSize(1)
+		assertThat(results[0].line).isEqualTo("fun target() {}")
+		assertThat(results[0].match).isEqualTo("target")
+	}
+
+	@Test
+	fun `a hit past the end of the buffer is dropped`() {
+		// The Content overload filters out-of-range lines itself, before the shared row builder sees them.
+		val file = File("StaleBuffer.kt")
+
+		val results = SearchResultGrouping.resultsFor(file, listOf(location(file, 1, 0, 1, 3)), Content("only"))
+
+		assertThat(results).isEmpty()
 	}
 
 	@Test
