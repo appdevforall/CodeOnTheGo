@@ -29,7 +29,6 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.zip.ZipInputStream
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
 
@@ -174,27 +173,7 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 					val assetPath = ToolsManager.getCommonAsset("$entryName.br")
 					assets.open(assetPath).use { assetStream ->
 						BrotliInputStream(assetStream).use { brotliStream ->
-							ZipInputStream(brotliStream).use { pluginZip ->
-								var pluginEntry = pluginZip.nextEntry
-								while (pluginEntry != null) {
-									if (!pluginEntry.isDirectory) {
-										val targetPath = pluginDirPath.resolve(pluginEntry.name).normalize()
-										// Security check: prevent path traversal attacks
-										if (!targetPath.startsWith(pluginDirPath)) {
-											throw IllegalStateException(
-												"Zip entry '${pluginEntry.name}' would escape target directory",
-											)
-										}
-										val targetFile = targetPath.toFile()
-										targetFile.parentFile?.mkdirs()
-										logger.debug("Extracting '{}' to {}", pluginEntry.name, targetFile)
-										targetFile.outputStream().use { output ->
-											pluginZip.copyTo(output)
-										}
-									}
-									pluginEntry = pluginZip.nextEntry
-								}
-							}
+							AssetsInstallationHelper.extractZipToDir(brotliStream, pluginDirPath)
 						}
 					}
 					logger.debug("Completed extracting plugin artifacts")
