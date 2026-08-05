@@ -132,7 +132,10 @@ class WebServer(
 
 	/**
 	 * Stops the server by closing the listening socket. Safe to call from any thread.
-	 * Causes [start]'s accept loop to exit. No-op if not started or already stopped.
+	 * Causes [start]'s accept loop to exit. If [start] hasn't bound the socket yet --
+	 * including if it hasn't been called at all -- this still records that a stop was
+	 * requested, so [start] aborts before binding instead of leaving an orphaned,
+	 * unstoppable listener; only the socket-close side of shutdown is a no-op then.
 	 */
 	fun stop() {
 		synchronized(lifecycleLock) {
@@ -236,6 +239,17 @@ class WebServer(
 		} finally {
 			if (::serverSocket.isInitialized) {
 				serverSocket.close()
+			}
+			// database is opened before the stopRequested check that can abort start()
+			// early (and before the accept loop on every other exit path), so it must be
+			// closed here too, not just serverSocket -- isInitialized guards the case
+			// where opening it above failed and this finally still runs.
+			if (::database.isInitialized) {
+				try {
+					database.close()
+				} catch (e: Exception) {
+					log.error("Cannot close database: {}", e.message)
+				}
 			}
 			TrafficStats.clearThreadStatsTag()
 		}
