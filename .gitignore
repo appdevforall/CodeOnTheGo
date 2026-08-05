@@ -176,6 +176,7 @@ assets/gradle-*.zip
 app/src/release/assets/database/documentation.db
 app/src/main/assets/database/documentation
 app/src/main/assets/database/documentation.db
+app/src/main/assets/kotlin-compiler-carrier.apk
 
 # AI plugin development artifacts (moved to plugin-examples repo)
 *.cgp

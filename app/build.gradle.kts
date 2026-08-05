@@ -36,6 +36,15 @@ plugins {
 	alias(libs.plugins.google.services)
 }
 
+// Forces :subprojects:kotlin-compiler-carrier to configure eagerly, ahead of app's own
+// configuration. Without this, org.gradle.configureondemand=true (gradle.properties) only
+// reaches that project lazily via copyKotlinCompilerCarrierToAssets's cross-project dependsOn,
+// which trips "DefaultClassLoaderScope must be locked before it can be used to compute a
+// classpath" for this (com.android.application) target specifically -- plugin-api, referenced
+// the same way by copyPluginApiJarToAssets below, doesn't hit this because app already
+// configures it naturally as a real compile dependency.
+evaluationDependsOn(":subprojects:kotlin-compiler-carrier")
+
 fun propOrEnv(name: String): String =
 	project.findProperty(name) as String?
 		?: System.getenv(name)
@@ -407,6 +416,36 @@ tasks.register("downloadDocDb") {
 			project.logger.lifecycle("Failed to fetch documentation.db info: ${e.message}")
 		}
 	}
+}
+
+// Copies the Kotlin Analysis API "carrier" APK -- built by :subprojects:kotlin-compiler-carrier,
+// which bundles the isolated lsp:kotlin-compiler-impl module + the downloaded analysis-api jar --
+// straight into app's own assets, so it ships in the base APK and D8 never merges it into app's own
+// classes*.dex. KotlinCompilerLoader (lsp:kotlin) extracts and DexClassLoader-loads it lazily on
+// first Kotlin file interaction (ADFA-5010). Unlike plugin-api.jar/the big installer zips below, this
+// doesn't need the root assets/ + assets-<arch>.zip pipeline -- it's a few MB, not hundreds, and
+// belongs in the base APK unconditionally rather than an optional first-run download.
+tasks.register("copyKotlinCompilerCarrierToAssets") {
+	// Deliberately avoids project(":subprojects:kotlin-compiler-carrier").layout... here: eagerly
+	// cross-referencing that (com.android.application) project's layout from within app's own
+	// configuration trips a "classloader scope must be locked" Gradle failure under
+	// org.gradle.configureondemand=true. A plain rootDir-relative path sidesteps it; only the
+	// (lazy, string-based) dependsOn below needs to resolve the other project's task.
+	dependsOn(":subprojects:kotlin-compiler-carrier:assembleV8Release")
+	val sourceFile =
+		rootProject.layout.projectDirectory
+			.dir("subprojects/kotlin-compiler-carrier/build/outputs/apk/v8/release")
+			.file("kotlin-compiler-carrier-v8-release-unsigned.apk")
+	val destFile = layout.projectDirectory.file("src/main/assets/kotlin-compiler-carrier.apk")
+	inputs.file(sourceFile)
+	outputs.file(destFile)
+	doLast {
+		sourceFile.asFile.copyTo(destFile.asFile, overwrite = true)
+	}
+}
+
+tasks.named("preBuild") {
+	dependsOn("copyKotlinCompilerCarrierToAssets")
 }
 
 tasks.register("copyPluginApiJarToAssets") {
