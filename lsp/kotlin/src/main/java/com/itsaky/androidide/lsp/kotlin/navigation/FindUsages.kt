@@ -161,10 +161,12 @@ private fun KaSession.planFor(target: CaretTarget): SearchPlan? {
 
 	val simpleName = prefilterName(symbol) ?: return null
 
+	val matchSet = matchSet(symbol)
+
 	return SearchPlan(
 		simpleName = simpleName,
-		matchSet = matchSet(symbol).map { it.createPointer() },
-		scope = scopeOf(symbol, declaration, pathOf(declaration)),
+		matchSet = matchSet.map { it.createPointer() },
+		scope = scopeOf(symbol, declaration, pathOf(declaration), matchSet),
 	)
 }
 
@@ -262,12 +264,17 @@ private fun KaSession.prefilterName(symbol: KaDeclarationSymbol): String? {
 	return named?.name?.asString()?.takeUnless { it.isEmpty() }
 }
 
-/** [symbol]'s search scope, per R4's visibility ladder. */
+/**
+ * [symbol]'s search scope, per R4's visibility ladder.
+ *
+ * [matchSet] widens the module case: see the dependents comment below.
+ */
 context(env: AbstractCompilationEnvironment)
 private fun KaSession.scopeOf(
 	symbol: KaDeclarationSymbol,
 	declaration: PsiElement,
 	declarationPath: Path?,
+	matchSet: List<KaSymbol>,
 ): UsageSearchScope {
 	val fileOnly = declarationPath?.let(UsageSearchScope::SingleFile)
 
@@ -292,18 +299,26 @@ private fun KaSession.scopeOf(
 
 	// Anything more visible can be referenced from any module that depends on this one. Dependents,
 	// not all modules: a module that cannot see the declaration cannot reference it.
-	val dependents =
-		KotlinModuleDependentsProvider
-			.getInstance(env.project)
-			.getTransitiveDependents(module)
-			.filterIsInstance<KtModule>()
+	//
+	// Every match-set member contributes its own module and dependents, not just the target's. A call
+	// written against a workspace `Base.foo` declared in a *dependency* module is a usage of the
+	// override (R3), and that module is not a dependent of the override's own - so scoping to the
+	// target's dependents alone would never look at it.
+	val provider = KotlinModuleDependentsProvider.getInstance(env.project)
+	val roots = LinkedHashSet<KtModule>()
+	roots.add(module)
+	for (member in matchSet) {
+		val memberDeclaration = member.sourcePsiSafe<PsiElement>() ?: continue
+		moduleOf(memberDeclaration)?.let(roots::add)
+	}
 
-	return UsageSearchScope.Modules(
-		buildList {
-			add(module)
-			addAll(dependents)
-		},
-	)
+	val searched = LinkedHashSet<KtModule>()
+	for (root in roots) {
+		searched.add(root)
+		provider.getTransitiveDependents(root).filterIsInstanceTo(searched)
+	}
+
+	return UsageSearchScope.Modules(searched.toList())
 }
 
 context(env: AbstractCompilationEnvironment)

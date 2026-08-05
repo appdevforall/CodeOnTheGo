@@ -188,6 +188,40 @@ class FindUsagesTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a call dispatched through a supertype in a dependency module is a usage of the override`() {
+		source("lib", "DepBase.kt", "package lib\n\nopen class DepBase {\n\topen fun paint() {}\n}")
+		val call = source("lib", "DepBaseUse.kt", "package lib\n\nfun caller(b: DepBase) { b.paint() }")
+		val override =
+			source(
+				"app",
+				"DepDerived.kt",
+				"package app\n\nimport lib.DepBase\n\nclass DepDerived : DepBase() {\n\toverride fun paint() {}\n}",
+			)
+
+		// The call is written in lib, a *dependency* of app rather than a dependent of it, so scoping to
+		// the override's own module and its dependents would never look at it.
+		assertThat(usagesAt(override, "override fun paint", delta = 14))
+			.isEqualTo(expected(call, "paint() }"))
+	}
+
+	@Test
+	fun `an override is scoped to its supertype's module as well as its own`() {
+		source("lib", "ScopeBase.kt", "package lib\n\nopen class ScopeBase {\n\topen fun tick() {}\n}")
+		val override =
+			source(
+				"app",
+				"ScopeDerived.kt",
+				"package app\n\nimport lib.ScopeBase\n\nclass ScopeDerived : ScopeBase() {\n\toverride fun tick() {}\n}",
+			)
+
+		val scope = scopeAt(override, "override fun tick", delta = 14)
+
+		assertThat(scope).isInstanceOf(UsageSearchScope.Modules::class.java)
+		// app, the override's own module, plus lib, its supertype's. lib's dependents re-add app.
+		assertThat((scope as UsageSearchScope.Modules).modules.map { it.id }).containsExactly("app", "lib")
+	}
+
+	@Test
 	fun `an override of a library member does not match unrelated calls to it`() {
 		// The up-walk stops at the workspace boundary: with Any.toString in the match set this would
 		// report every .toString() call in the workspace.

@@ -74,7 +74,7 @@ Order matters, and it makes the two features answer differently from one identic
 **R3 - Match set.** Assembled once, in the caret's analysis session:
 
 - The target symbol, normalised through `fakeOverrideOriginal`. A call `derived.foo()` where `Derived` does not redeclare `foo` resolves to a substituted fake override, not to `Base.foo`, so both sides of every comparison are normalised.
-- Its supers, via `allOverriddenSymbols`, **stopping at the workspace boundary**. So a call dispatched through a workspace `Base.foo` counts as a usage of `Derived.foo`. Library supers are excluded: including them would make a usage search on an overridden `toString` match every `.toString()` call in the workspace, and a library super can never yield a reportable result anyway.
+- Its supers, via `allOverriddenSymbols`, **stopping at the workspace boundary**. So a call dispatched through a workspace `Base.foo` counts as a usage of `Derived.foo`, wherever `Base` lives - which is why R4's scope unions the supers' modules too. Library supers are excluded: including them would make a usage search on an overridden `toString` match every `.toString()` call in the workspace, and a library super can never yield a reportable result anyway.
 - When the target is a classifier, its **constructors**. Otherwise `Foo()` - which resolves to the constructor, not the class (go-to-definition's R4) - would not count as a usage of `class Foo`, and the feature would miss every instantiation. The reverse expansion is not applied: a target that *is* a specific constructor stays that constructor, because asking for usages of one overload is a deliberate act.
 
 The walk goes **up** only. Usages reachable solely through a subclass (`Base.foo` searched, `derived.foo()` written) are not found - that needs a workspace inheritor search, and `DirectInheritorsProvider.computeIndex()` rebuilds its entire index on every call.
@@ -89,9 +89,11 @@ The walk goes **up** only. Usages reachable solely through a subclass (`Base.foo
 | `private` top-level declaration | containing file (Kotlin private top-level is file-private) |
 | `private` class/object member | containing file |
 | `internal` | the target's module |
-| `protected`, `public`, default | the target's module + its transitive dependents (`KotlinModuleDependentsProvider.getTransitiveDependents`) |
+| `protected`, `public`, default | every match-set member's module + its transitive dependents (`KotlinModuleDependentsProvider.getTransitiveDependents`) |
 
 The ticket's three resolution scopes fall out of this one code path rather than being three implementations. Cheap cases stay cheap: a search on a local variable never leaves the open file.
+
+The last row unions **every match-set member's** module, not just the target's, because R3's up-walk and R4's dependents pull in opposite directions. With `Base` in `lib` and `Derived` in `app`, a `base.paint()` call written in `lib` is a usage of `Derived.paint` - but `lib` is a *dependency* of `app`, not a dependent, so the target's own module and dependents would never look at it. Library supers are already out of the match set, so the union cannot escape the workspace. The first three rows need no union: `private` cannot override, and this project model has no friend modules, so `internal` cannot be overridden across one.
 
 The first three rows need the declaration's path. The file the user is editing is a live `KtFile` built from the editor buffer, whose `virtualFile` is a non-physical `LightVirtualFile`, so the path comes from `backingFilePath` first and the VFS only as a fallback - go-to-definition's derivation. A target that still has no path cannot be confined to one file, but it is still unreferenceable outside its own module, so it falls back to the `internal` row rather than to the last one.
 
@@ -186,7 +188,7 @@ Two behaviour changes, both improvements: a hit whose line no longer exists is d
 8. A local variable's usages are confined to its file.
 9. `Foo()` is reported as a usage of `class Foo`.
 10. An `import` of the target is reported as a usage.
-11. A call dispatched via a workspace `Base.foo` is reported as a usage of `Derived.foo`.
+11. A call dispatched via a workspace `Base.foo` is reported as a usage of `Derived.foo`, including when `Base` lives in a module `Derived`'s depends on.
 12. A usage search on an override of `toString` does **not** report unrelated `.toString()` calls.
 13. A usage typed into an open, unsaved file is reported.
 14. A target with no usages flashes "No references found".
