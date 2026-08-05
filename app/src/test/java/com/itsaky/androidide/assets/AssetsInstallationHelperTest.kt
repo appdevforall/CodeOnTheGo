@@ -8,11 +8,13 @@ import com.itsaky.androidide.assets.AssetsInstallationHelper.Result.Failure
 import com.itsaky.androidide.utils.flashError
 import io.mockk.Runs
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.runBlocking
@@ -105,9 +107,17 @@ class AssetsInstallationHelperTest {
 				// Activity, which also isn't available in this unit test.
 				every { flashError(any<String>()) } just Runs
 
+				val stagingDirSlot = slot<Path>()
 				coEvery {
-					SplitAssetsInstaller.preInstall(any(), any())
+					SplitAssetsInstaller.preInstall(any(), capture(stagingDirSlot))
 				} throws FileNotFoundException("assets-arm64-v8a.zip")
+
+				// Stubbed (rather than left to call the real implementation) because the
+				// real postInstall() chmods paths under Environment.BUILD_TOOLS_DIR, which
+				// requires Environment.init() -- unrelated to what this test verifies.
+				coEvery {
+					SplitAssetsInstaller.postInstall(any(), any())
+				} just Runs
 
 				val result = helper.install(ctx)
 
@@ -120,6 +130,16 @@ class AssetsInstallationHelperTest {
 				assertTrue(
 					"Expected FileNotFoundException as root cause",
 					(failure.cause?.cause) is FileNotFoundException,
+				)
+
+				// A preInstall failure must not skip the symmetric cleanup that a
+				// successful install would get: postInstall() (closes installer
+				// resources) and deleting the staging directory.
+				coVerify(exactly = 1) { SplitAssetsInstaller.postInstall(any(), any()) }
+				assertTrue("Expected stagingDir to have been captured", stagingDirSlot.isCaptured)
+				assertFalse(
+					"Expected staging directory to be deleted even though preInstall failed",
+					Files.exists(stagingDirSlot.captured),
 				)
 			} finally {
 				unmockkObject(SplitAssetsInstaller)
