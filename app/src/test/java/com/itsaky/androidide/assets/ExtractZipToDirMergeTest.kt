@@ -25,7 +25,7 @@ class ExtractZipToDirMergeTest {
 	// (e.g. how android-sdk.zip is packaged) is exercised separately by
 	// AssetsInstallationHelperTest's `extractZipToDir creates parent directories for
 	// nested entries with no directory entries` and `extractZipToDir rejects a file
-	// entry whose pre-existing symlinked parent escapes destDir`.
+	// entry whose pre-existing symlinked grandparent escapes destDir`.
 	private fun zipOf(vararg entries: Pair<String, String>): ByteArrayInputStream {
 		val bos = ByteArrayOutputStream()
 		ZipOutputStream(bos).use { zip ->

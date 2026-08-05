@@ -16,7 +16,12 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.FileNotFoundException
+import java.io.IOException
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -83,7 +88,7 @@ class AssetsInstallationHelperTest {
 	}
 
 	@Test
-	fun `extractZipToDir rejects a file entry whose pre-existing symlinked parent escapes destDir`() {
+	fun `extractZipToDir rejects a file entry whose pre-existing symlinked grandparent escapes destDir`() {
 		val destDir = Files.createTempDirectory("extract-zip-to-dir-test")
 		val outsideDir = Files.createTempDirectory("extract-zip-to-dir-outside")
 		try {
@@ -93,8 +98,16 @@ class AssetsInstallationHelperTest {
 			val zipBytes =
 				ByteArrayOutputStream().use { baos ->
 					ZipOutputStream(baos).use { zos ->
-						// No directory entry for "linked/", matching how android-sdk.zip is packaged.
-						zos.putNextEntry(ZipEntry("linked/nested.txt"))
+						// Two levels below the symlink ("linked/sub/nested.txt", no directory
+						// entries), not one: for a one-level entry ("linked/nested.txt"),
+						// destFile.parent IS the symlink, so Files.createDirectories() throws
+						// FileAlreadyExistsException (NOFOLLOW_LINKS rejects the existing
+						// symlink-to-dir) before the toRealPath() guard below it ever runs. One
+						// level deeper, createDirectories() silently traverses the symlink to
+						// create "sub" for real inside outsideDir, and only then does the
+						// toRealPath() check on destFile.parent fire -- which is what this test
+						// exercises.
+						zos.putNextEntry(ZipEntry("linked/sub/nested.txt"))
 						zos.write(content.toByteArray())
 						zos.closeEntry()
 					}
@@ -105,8 +118,36 @@ class AssetsInstallationHelperTest {
 				AssetsInstallationHelper.extractZipToDir(ByteArrayInputStream(zipBytes), destDir)
 			}
 		} finally {
-			outsideDir.toFile().deleteRecursively()
-			destDir.toFile().deleteRecursively()
+			outsideDir.deleteRecursivelyWithoutFollowingLinks()
+			destDir.deleteRecursivelyWithoutFollowingLinks()
 		}
+	}
+
+	// Deletes a directory tree without following symlinks it contains, unlike
+	// File.deleteRecursively(). Files.walkFileTree() doesn't follow symlinks unless
+	// FileVisitOption.FOLLOW_LINKS is passed (it isn't here), so a symlink is visited
+	// as a leaf via visitFile() -- deleting it unlinks the link itself, never the
+	// target it points to. Needed because the symlink test above symlinks out of destDir.
+	private fun Path.deleteRecursivelyWithoutFollowingLinks() {
+		Files.walkFileTree(
+			this,
+			object : SimpleFileVisitor<Path>() {
+				override fun visitFile(
+					file: Path,
+					attrs: BasicFileAttributes,
+				): FileVisitResult {
+					Files.delete(file)
+					return FileVisitResult.CONTINUE
+				}
+
+				override fun postVisitDirectory(
+					dir: Path,
+					exc: IOException?,
+				): FileVisitResult {
+					Files.delete(dir)
+					return FileVisitResult.CONTINUE
+				}
+			},
+		)
 	}
 }
