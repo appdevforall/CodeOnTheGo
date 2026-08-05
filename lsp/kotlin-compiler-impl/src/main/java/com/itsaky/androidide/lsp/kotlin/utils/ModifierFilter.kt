@@ -4,20 +4,48 @@ import com.itsaky.androidide.lsp.kotlin.completion.DeclarationContext
 import com.itsaky.androidide.lsp.kotlin.completion.DeclarationKind
 import org.jetbrains.kotlin.com.intellij.psi.tree.TokenSet
 import org.jetbrains.kotlin.lexer.KtModifierKeywordToken
-import org.jetbrains.kotlin.lexer.KtTokens.*
+import org.jetbrains.kotlin.lexer.KtTokens.ABSTRACT_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.ACTUAL_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.ANNOTATION_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.COMPANION_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.CONST_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.CROSSINLINE_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.DATA_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.ENUM_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.EXPECT_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.EXTERNAL_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.FINAL_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.FUN_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.INFIX_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.INLINE_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.INNER_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.INTERNAL_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.LATEINIT_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.MODALITY_MODIFIERS
+import org.jetbrains.kotlin.lexer.KtTokens.MODIFIER_KEYWORDS_ARRAY
+import org.jetbrains.kotlin.lexer.KtTokens.NOINLINE_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.OPEN_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.OPERATOR_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.PRIVATE_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.PROTECTED_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.PUBLIC_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.REIFIED_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.SEALED_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.SUSPEND_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.TAILREC_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.VALUE_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.VARARG_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.VISIBILITY_MODIFIERS
 
 /**
  * Helper for filtering modifier keywords for keyword completions.
  */
 internal object ModifierFilter {
-
 	/**
 	 * Returns which modifier keywords are valid to suggest given the
 	 * current context, declaration kind, and already-present modifiers.
 	 */
-	fun validModifiers(
-		ctx: AnalysisContext,
-	): Set<KtModifierKeywordToken> {
+	fun validModifiers(ctx: AnalysisContext): Set<KtModifierKeywordToken> {
 		val existing = ctx.existingModifiers
 		val declCtx = ctx.declarationContext
 		val declKind = ctx.declarationKind
@@ -26,10 +54,12 @@ internal object ModifierFilter {
 		candidates -= existing
 
 		// remove mutually exclusive groups
-		if (VISIBILITY_MODIFIERS.types.any { it in existing })
+		if (VISIBILITY_MODIFIERS.types.any { it in existing }) {
 			candidates -= VISIBILITY_MODIFIERS.types()
-		if (MODALITY_MODIFIERS.types.any { it in existing })
+		}
+		if (MODALITY_MODIFIERS.types.any { it in existing }) {
 			candidates -= MODALITY_MODIFIERS.types()
+		}
 
 		when (declCtx) {
 			DeclarationContext.INTERFACE_BODY -> {
@@ -44,61 +74,97 @@ internal object ModifierFilter {
 				// local declarations: only a small subset of modifiers are legal
 				candidates.retainAll(
 					setOf(
-						INLINE_KEYWORD, NOINLINE_KEYWORD, CROSSINLINE_KEYWORD,
-						SUSPEND_KEYWORD, TAILREC_KEYWORD,
-						DATA_KEYWORD,         // local data class (Kotlin 1.9+)
+						INLINE_KEYWORD,
+						NOINLINE_KEYWORD,
+						CROSSINLINE_KEYWORD,
+						SUSPEND_KEYWORD,
+						TAILREC_KEYWORD,
+						DATA_KEYWORD, // local data class (Kotlin 1.9+)
 						INNER_KEYWORD,
-					)
+					),
 				)
 			}
 
 			DeclarationContext.OBJECT_BODY,
 			DeclarationContext.TOP_LEVEL,
-			DeclarationContext.SCRIPT_TOP_LEVEL -> candidates -= INNER_KEYWORD     // inner only valid inside a class
+			DeclarationContext.SCRIPT_TOP_LEVEL,
+			-> {
+				candidates -= INNER_KEYWORD
+			}
 
-			else -> Unit
+			// inner only valid inside a class
+
+			else -> {
+				Unit
+			}
 		}
 
 		when (declKind) {
 			DeclarationKind.PROPERTY_VAL -> {
-				candidates -= setOf(
-					LATEINIT_KEYWORD,  // lateinit requires var
-					VARARG_KEYWORD,
-					NOINLINE_KEYWORD, CROSSINLINE_KEYWORD,
-					TAILREC_KEYWORD, OPERATOR_KEYWORD, INFIX_KEYWORD,
-					INNER_KEYWORD, COMPANION_KEYWORD, DATA_KEYWORD,
-					ENUM_KEYWORD, ANNOTATION_KEYWORD, SEALED_KEYWORD,
-					VALUE_KEYWORD,
-				)
+				candidates -=
+					setOf(
+						LATEINIT_KEYWORD, // lateinit requires var
+						VARARG_KEYWORD,
+						NOINLINE_KEYWORD,
+						CROSSINLINE_KEYWORD,
+						TAILREC_KEYWORD,
+						OPERATOR_KEYWORD,
+						INFIX_KEYWORD,
+						INNER_KEYWORD,
+						COMPANION_KEYWORD,
+						DATA_KEYWORD,
+						ENUM_KEYWORD,
+						ANNOTATION_KEYWORD,
+						SEALED_KEYWORD,
+						VALUE_KEYWORD,
+					)
 
 				// const only on top-level or companion object val
-				if (declCtx !in setOf(
+				if (declCtx !in
+					setOf(
 						DeclarationContext.TOP_LEVEL,
 						DeclarationContext.OBJECT_BODY,
-						DeclarationContext.SCRIPT_TOP_LEVEL
+						DeclarationContext.SCRIPT_TOP_LEVEL,
 					)
-				)
+				) {
 					candidates -= CONST_KEYWORD
+				}
 			}
 
 			DeclarationKind.PROPERTY_VAR -> {
-				candidates -= setOf(
-					CONST_KEYWORD,     // const requires val
-					VARARG_KEYWORD, NOINLINE_KEYWORD, CROSSINLINE_KEYWORD,
-					TAILREC_KEYWORD, OPERATOR_KEYWORD, INFIX_KEYWORD,
-					INNER_KEYWORD, COMPANION_KEYWORD, DATA_KEYWORD,
-					ENUM_KEYWORD, ANNOTATION_KEYWORD, SEALED_KEYWORD,
-					VALUE_KEYWORD,
-				)
+				candidates -=
+					setOf(
+						CONST_KEYWORD, // const requires val
+						VARARG_KEYWORD,
+						NOINLINE_KEYWORD,
+						CROSSINLINE_KEYWORD,
+						TAILREC_KEYWORD,
+						OPERATOR_KEYWORD,
+						INFIX_KEYWORD,
+						INNER_KEYWORD,
+						COMPANION_KEYWORD,
+						DATA_KEYWORD,
+						ENUM_KEYWORD,
+						ANNOTATION_KEYWORD,
+						SEALED_KEYWORD,
+						VALUE_KEYWORD,
+					)
 			}
 
 			DeclarationKind.FUN -> {
-				candidates -= setOf(
-					LATEINIT_KEYWORD, CONST_KEYWORD, VARARG_KEYWORD,
-					INNER_KEYWORD, COMPANION_KEYWORD, DATA_KEYWORD,
-					ENUM_KEYWORD, ANNOTATION_KEYWORD, SEALED_KEYWORD,
-					VALUE_KEYWORD,
-				)
+				candidates -=
+					setOf(
+						LATEINIT_KEYWORD,
+						CONST_KEYWORD,
+						VARARG_KEYWORD,
+						INNER_KEYWORD,
+						COMPANION_KEYWORD,
+						DATA_KEYWORD,
+						ENUM_KEYWORD,
+						ANNOTATION_KEYWORD,
+						SEALED_KEYWORD,
+						VALUE_KEYWORD,
+					)
 				// abstract fun can't be inline/tailrec/external simultaneously
 				if (ABSTRACT_KEYWORD in existing) {
 					candidates -= setOf(INLINE_KEYWORD, TAILREC_KEYWORD, EXTERNAL_KEYWORD)
@@ -106,16 +172,23 @@ internal object ModifierFilter {
 			}
 
 			DeclarationKind.CLASS -> {
-				candidates -= setOf(
-					LATEINIT_KEYWORD, CONST_KEYWORD,
-					VARARG_KEYWORD, NOINLINE_KEYWORD, CROSSINLINE_KEYWORD,
-					TAILREC_KEYWORD, OPERATOR_KEYWORD, INFIX_KEYWORD,
-					REIFIED_KEYWORD,
-				)
+				candidates -=
+					setOf(
+						LATEINIT_KEYWORD,
+						CONST_KEYWORD,
+						VARARG_KEYWORD,
+						NOINLINE_KEYWORD,
+						CROSSINLINE_KEYWORD,
+						TAILREC_KEYWORD,
+						OPERATOR_KEYWORD,
+						INFIX_KEYWORD,
+						REIFIED_KEYWORD,
+					)
 
 				// sealed is a modality modifier and conflicts with open/final/abstract
-				if (SEALED_KEYWORD in existing)
+				if (SEALED_KEYWORD in existing) {
 					candidates -= setOf(OPEN_KEYWORD, FINAL_KEYWORD, ABSTRACT_KEYWORD)
+				}
 
 				// value class requires @JvmInline in practice, but `value` keyword is valid
 			}
@@ -124,22 +197,32 @@ internal object ModifierFilter {
 				// interfaces are implicitly abstract; most modifiers don't apply
 				candidates.retainAll(
 					setOf(
-						PUBLIC_KEYWORD, PROTECTED_KEYWORD, PRIVATE_KEYWORD, INTERNAL_KEYWORD,
-						EXPECT_KEYWORD, ACTUAL_KEYWORD,
-						SEALED_KEYWORD,       // sealed interface
-						EXTERNAL_KEYWORD, FUN_KEYWORD,  // fun interface
-					)
+						PUBLIC_KEYWORD,
+						PROTECTED_KEYWORD,
+						PRIVATE_KEYWORD,
+						INTERNAL_KEYWORD,
+						EXPECT_KEYWORD,
+						ACTUAL_KEYWORD,
+						SEALED_KEYWORD, // sealed interface
+						EXTERNAL_KEYWORD,
+						FUN_KEYWORD, // fun interface
+					),
 				)
 			}
 
 			DeclarationKind.OBJECT -> {
 				candidates.retainAll(
 					setOf(
-						PUBLIC_KEYWORD, PROTECTED_KEYWORD, PRIVATE_KEYWORD, INTERNAL_KEYWORD,
-						EXPECT_KEYWORD, ACTUAL_KEYWORD, EXTERNAL_KEYWORD,
-						DATA_KEYWORD,          // data object (Kotlin 1.9+)
+						PUBLIC_KEYWORD,
+						PROTECTED_KEYWORD,
+						PRIVATE_KEYWORD,
+						INTERNAL_KEYWORD,
+						EXPECT_KEYWORD,
+						ACTUAL_KEYWORD,
+						EXTERNAL_KEYWORD,
+						DATA_KEYWORD, // data object (Kotlin 1.9+)
 						COMPANION_KEYWORD,
-					)
+					),
 				)
 			}
 
@@ -154,7 +237,9 @@ internal object ModifierFilter {
 				// the exclusion rules above already handled mutual exclusions.
 			}
 
-			else -> Unit
+			else -> {
+				Unit
+			}
 		}
 
 		// expect and actual are mutually exclusive
@@ -170,9 +255,7 @@ internal object ModifierFilter {
 		return candidates
 	}
 
-	private fun TokenSet.types(): Set<KtModifierKeywordToken> =
-		types.filterIsInstance<KtModifierKeywordToken>().toSet()
+	private fun TokenSet.types(): Set<KtModifierKeywordToken> = types.filterIsInstance<KtModifierKeywordToken>().toSet()
 
-	private operator fun TokenSet.contains(token: KtModifierKeywordToken): Boolean =
-		this.contains(token)
+	private operator fun TokenSet.contains(token: KtModifierKeywordToken): Boolean = this.contains(token)
 }

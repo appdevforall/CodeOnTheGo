@@ -12,21 +12,21 @@ import org.jetbrains.kotlin.com.intellij.psi.search.GlobalSearchScope
 internal abstract class AbstractKtModule(
 	override val project: Project,
 	override val directRegularDependencies: List<KtModule>,
-) : KtModule, KaModuleBase() {
-
+) : KaModuleBase(),
+	KtModule {
 	private val searchScopeLock = Any()
-	private var _baseSearchScope: GlobalSearchScope? = null
+	private var baseSearchScope: GlobalSearchScope? = null
 	private var _contentScope: GlobalSearchScope? = null
 
 	private fun maybeCreateScopesLocked() {
-		val searchScope = _baseSearchScope
+		val searchScope = baseSearchScope
 		if (searchScope != null) {
 			return
 		}
 
-		_baseSearchScope = computeBaseContentScope()
+		baseSearchScope = computeBaseContentScope()
 		_contentScope = KaContentScopeProvider.getInstance(project).getRefinedContentScope(this)
-		Sentry.addBreadcrumb("createSearchScopes(mod=$this, base=${_baseSearchScope?.hashCode()}, content=${_contentScope?.hashCode()})")
+		Sentry.addBreadcrumb("createSearchScopes(mod=$this, base=${baseSearchScope?.hashCode()}, content=${_contentScope?.hashCode()})")
 	}
 
 	/**
@@ -45,22 +45,24 @@ internal abstract class AbstractKtModule(
 	fun invalidateSearchScope() {
 		synchronized(searchScopeLock) {
 			Sentry.addBreadcrumb("invalidateSearchScope(mod=$this)")
-			_baseSearchScope = null
+			baseSearchScope = null
 			_contentScope = null
 		}
 	}
 
 	override val baseContentScope: GlobalSearchScope
-		get() = synchronized(searchScopeLock) {
-			maybeCreateScopesLocked()
-			checkNotNull(_baseSearchScope) { "failed to create base content scope" }
-		}
+		get() =
+			synchronized(searchScopeLock) {
+				maybeCreateScopesLocked()
+				checkNotNull(baseSearchScope) { "failed to create base content scope" }
+			}
 
 	override val contentScope: GlobalSearchScope
-		get() = synchronized(searchScopeLock) {
-			maybeCreateScopesLocked()
-			checkNotNull(_contentScope) { "failed to create content refined scope" }
-		}
+		get() =
+			synchronized(searchScopeLock) {
+				maybeCreateScopesLocked()
+				checkNotNull(_contentScope) { "failed to create content refined scope" }
+			}
 
 	override val directDependsOnDependencies: List<KtModule>
 		get() = emptyList()
@@ -70,9 +72,9 @@ internal abstract class AbstractKtModule(
 
 	@OptIn(KaExperimentalApi::class)
 	override val moduleDescription: String
-		get() = "module '$id' (ref=${hashCode()}, baseScope=${_baseSearchScope?.hashCode()}, contentScope=${_contentScope?.hashCode()}, deps=${directRegularDependencies.joinToString { it.id }})"
+		get() =
+			"module '$id' (ref=${hashCode()}, baseScope=${baseSearchScope?.hashCode()}, " +
+				"contentScope=${_contentScope?.hashCode()}, deps=${directRegularDependencies.joinToString { it.id }})"
 
-	override fun toString(): String {
-		return id
-	}
+	override fun toString(): String = id
 }
