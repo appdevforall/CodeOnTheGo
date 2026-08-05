@@ -111,7 +111,7 @@ use the JSON form (see `PluginManifest.kt`).
 ## Theme-aware icons
 
 The plugin manager renders a different icon based on whether the system
-is in light or dark mode (`PluginListAdapter.kt:61`). To opt in, ship
+is in light or dark mode (`PluginListItem.kt:69-70`). To opt in, ship
 two raster icons in your plugin and point at them from the manifest.
 
 ### Where the files go
@@ -139,7 +139,7 @@ manifest matches the path the loader will find.
 - **JPEG**
 
 **Not supported:** raw SVG, Android vector drawable XML (compiled or
-not). Icons are decoded with Glide (`PluginListAdapter.kt:69`), which
+not). Icons are decoded with `BitmapFactory` (`FileImage.kt:102`), which
 handles raster formats only. Convert SVG sources to PNG yourself
 before bundling.
 
@@ -251,7 +251,7 @@ manifest value (use `assets/icon_day.png`, not `/assets/icon_day.png`).
 
 **Wrong icon shows for the current theme**
 
-The selection happens in `PluginListAdapter.kt:61` via
+The selection happens in `PluginListItem.kt:69-70` via
 `isSystemInDarkMode()`. Verify your device is actually in the theme
 you expect (system Settings → Display). Also verify both files
 extracted to the device:

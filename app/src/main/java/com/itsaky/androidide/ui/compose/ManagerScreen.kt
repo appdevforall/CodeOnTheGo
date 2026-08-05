@@ -19,12 +19,15 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -35,6 +38,9 @@ import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import com.itsaky.androidide.viewmodels.TemplateManagerViewModel
 import kotlinx.coroutines.launch
+
+/** Matches Material's conventional disabled-content alpha; M3 has no ContentAlpha equivalent. */
+private const val DISABLED_ALPHA = 0.38f
 
 private const val TAB_PLUGINS = 0
 private const val TAB_TEMPLATES = 1
@@ -61,6 +67,7 @@ fun ManagerScreen(
 	val pagerState = rememberPagerState(pageCount = { 2 })
 	val coroutineScope = rememberCoroutineScope()
 	val rootView = LocalView.current
+	val pluginUiState by pluginViewModel.uiState.collectAsStateWithLifecycle()
 
 	fun showTooltip() {
 		TooltipManager.showIdeCategoryTooltip(activity, rootView, TooltipTag.PLUGIN_MANAGER)
@@ -103,11 +110,17 @@ fun ManagerScreen(
 		floatingActionButton = {
 			if (pagerState.currentPage == TAB_PLUGINS) {
 				FloatingActionButton(
-					onClick = { pluginViewModel.onEvent(PluginManagerUiEvent.OpenFilePicker) },
+					onClick = {
+						if (!pluginUiState.isInstalling) {
+							pluginViewModel.onEvent(PluginManagerUiEvent.OpenFilePicker)
+						}
+					},
 					modifier =
-						Modifier.pointerInput(Unit) {
-							detectTapGestures(onLongPress = { showTooltip() })
-						},
+						Modifier
+							.alpha(if (pluginUiState.isInstalling) DISABLED_ALPHA else 1f)
+							.pointerInput(Unit) {
+								detectTapGestures(onLongPress = { showTooltip() })
+							},
 				) {
 					Icon(
 						painter = painterResource(R.drawable.ic_add),
