@@ -653,7 +653,7 @@ class WebServer(
 		var outputStarted = false
 
 		try {
-			outputStarted = realHandleBsEndpoint(writer, output)
+			outputStarted = realHandleBsEndpoint(writer, output) { outputStarted = true }
 		} catch (e: Exception) {
 			log.error("Error handling /pr/bs endpoint: {}", e.message)
 			sendError(writer, output, httpInternalServerError, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
@@ -702,41 +702,7 @@ class WebServer(
 					SQLiteDatabase.OPEN_READONLY,
 				)
 
-/* I disagree with CodeRabbit's message, reproduced below. However, the
-	IDE's "Problems" window says that outputStarted is "always false."
-
-	While writeNormalToClient() can fail in the middle of execution,
-	making the error reporting code more complicated is likely to
-	introduce more bugs, rather than helping fix existing ones. --DS, 23-Feb-2026
-
-			482-494: ⚠️ Potential issue | 🟡 Minor
-
-outputStarted is set too late to protect error handling.
-
-If writeNormalToClient throws after headers are written, outputStarted remains false and the
-catch path will send a second response. Set/propagate this flag before the first write (e.g.,
-via a mutable flag passed into realHandlePrEndpoint or by setting it just before
-writeNormalToClient and preserving it on exceptions).
-
-Also applies to: 502-557
-
-🤖 Prompt for AI Agents
-
-Verify each finding against the current code and only fix it if needed.
-
-In `@app/src/main/java/com/itsaky/androidide/localWebServer/WebServer.kt` around
-lines 482 - 494, The catch block can send a second response because
-outputStarted is only set after realHandlePrEndpoint returns; ensure the
-"response started" flag is set before any write occurs by changing
-realHandlePrEndpoint to accept and update a mutable flag (e.g., pass a
-BooleanWrapper/MutableBoolean or an AtomicBoolean named outputStarted into
-realHandlePrEndpoint) or by setting outputStarted immediately before the first
-call to writeNormalToClient inside realHandlePrEndpoint; then have
-realHandlePrEndpoint update that flag as soon as headers/body begin to be
-written so sendError(writer, ...) checks the accurate flag and avoids sending a
-second response.
- */
-			outputStarted = realHandlePrEndpoint(writer, output, projectDatabase)
+			outputStarted = realHandlePrEndpoint(writer, output, projectDatabase) { outputStarted = true }
 		} catch (e: Exception) {
 			log.error("Error handling /pr/pr endpoint: {}", e.message)
 			sendError(writer, output, httpInternalServerError, "Internal Server Error 6", "Error generating database table.", outputStarted)
@@ -752,11 +718,15 @@ second response.
 	 *
 	 * @param writer PrintWriter for sending HTTP headers and control output.
 	 * @param output OutputStream for writing the response body bytes.
+	 * @param markOutputStarted Invoked right before the first response byte is written, so the
+	 *   caller's "did we already respond" flag is accurate even if the write itself then fails
+	 *   partway through -- not just after this function returns.
 	 * @return `true` if the templated response was written to the client, `false` if an error response was sent or no output was produced.
 	 */
 	private fun realHandleBsEndpoint(
 		writer: PrintWriter,
 		output: java.io.OutputStream,
+		markOutputStarted: () -> Unit,
 	): Boolean {
 		if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
 
@@ -827,6 +797,7 @@ ORDER BY BC.category,
 
 		if (debugEnabled) log.debug("Bookshelf result is '{}'.", String(result))
 
+		markOutputStarted()
 		writeNormalToClient(writer, output, String(result))
 
 		if (debugEnabled) log.debug("Leaving realHandleBsEndpoint().")
@@ -856,12 +827,16 @@ ORDER BY BC.category,
 	 * @param writer PrintWriter used for writing HTTP response headers.
 	 * @param output OutputStream used for writing the HTTP response body.
 	 * @param projectDatabase Read-only SQLiteDatabase containing the `recent_project_table`.
+	 * @param markOutputStarted Invoked right before the first response byte is written, so the
+	 *   caller's "did we already respond" flag is accurate even if the write itself then fails
+	 *   partway through -- not just after this function returns.
 	 * @return `true` if an HTML response was written to the client.
 	 */
 	private fun realHandlePrEndpoint(
 		writer: PrintWriter,
 		output: java.io.OutputStream,
 		projectDatabase: SQLiteDatabase,
+		markOutputStarted: () -> Unit,
 	): Boolean {
 		if (debugEnabled) log.debug("Entering realHandlePrEndpoint().")
 
@@ -913,6 +888,7 @@ ORDER BY last_modified DESC"""
 		// May output a lot of stuff but better too much than too little. --DS, 23-Feb-2026
 		if (debugEnabled) log.debug("html is '{}'.", html)
 
+		markOutputStarted()
 		writeNormalToClient(writer, output, html)
 
 		if (debugEnabled) log.debug("Leaving realHandlePrEndpoint().")
