@@ -53,7 +53,7 @@ class PluginManagerViewModel(
 	val uiState: StateFlow<PluginManagerUiState> = _uiState.asStateFlow()
 
 	// Channel for one-time UI effects
-	private val _uiEffect = Channel<PluginManagerUiEffect>()
+	private val _uiEffect = Channel<PluginManagerUiEffect>(Channel.BUFFERED)
 	val uiEffect = _uiEffect.receiveAsFlow()
 
 	// Current operation tracking
@@ -143,7 +143,7 @@ class PluginManagerViewModel(
 					_uiState.update {
 						it.copy(isLoading = false)
 					}
-					_uiEffect.trySend(
+					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(
 							R.string.msg_plugin_load_failed,
 							listOf(exception.message ?: ""),
@@ -170,15 +170,15 @@ class PluginManagerViewModel(
 				.onSuccess { success ->
 					if (success) {
 						Log.d(TAG, "Plugin enabled successfully: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_enabled))
+						_uiEffect.send(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_enabled))
 						loadPlugins()
 					} else {
 						Log.w(TAG, "Failed to enable plugin: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_enable_failed))
+						_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_plugin_enable_failed))
 					}
 				}.onFailure { exception ->
 					Log.e(TAG, "Error enabling plugin: $pluginId", exception)
-					_uiEffect.trySend(
+					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(
 							R.string.msg_plugin_enable_error,
 							listOf(exception.message ?: ""),
@@ -202,15 +202,15 @@ class PluginManagerViewModel(
 				.onSuccess { success ->
 					if (success) {
 						Log.d(TAG, "Plugin disabled successfully: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_disabled))
+						_uiEffect.send(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_disabled))
 						loadPlugins()
 					} else {
 						Log.w(TAG, "Failed to disable plugin: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_disable_failed))
+						_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_plugin_disable_failed))
 					}
 				}.onFailure { exception ->
 					Log.e(TAG, "Error disabling plugin: $pluginId", exception)
-					_uiEffect.trySend(
+					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(
 							R.string.msg_plugin_disable_error,
 							listOf(exception.message ?: ""),
@@ -229,7 +229,7 @@ class PluginManagerViewModel(
 		val plugin = _uiState.value.plugins.find { it.metadata.id == pluginId }
 		if (plugin != null) {
 			viewModelScope.launch {
-				_uiEffect.trySend(PluginManagerUiEffect.ShowUninstallConfirmation(plugin))
+				_uiEffect.send(PluginManagerUiEffect.ShowUninstallConfirmation(plugin))
 			}
 		}
 	}
@@ -246,16 +246,16 @@ class PluginManagerViewModel(
 				.onSuccess { success ->
 					if (success) {
 						Log.d(TAG, "Plugin uninstalled successfully: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_uninstalled))
+						_uiEffect.send(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_uninstalled))
 						loadPlugins()
-						_uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
+						_uiEffect.send(PluginManagerUiEffect.ShowRestartPrompt)
 					} else {
 						Log.w(TAG, "Failed to uninstall plugin: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_uninstall_failed))
+						_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_plugin_uninstall_failed))
 					}
 				}.onFailure { exception ->
 					Log.e(TAG, "Error uninstalling plugin: $pluginId", exception)
-					_uiEffect.trySend(
+					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(
 							R.string.msg_plugin_uninstall_error,
 							listOf(exception.message ?: ""),
@@ -310,16 +310,16 @@ class PluginManagerViewModel(
 					.installPluginFromFile(tempFile)
 					.onSuccess {
 						Log.d(TAG, "Plugin installed successfully")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_installed))
+						_uiEffect.send(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_installed))
 						loadPlugins()
-						_uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
+						_uiEffect.send(PluginManagerUiEffect.ShowRestartPrompt)
 
 						if (deleteSourceAfterInstall) {
 							deleteSourceDocument(uri)
 						}
 					}.onFailure { exception ->
 						Log.e(TAG, "Failed to install plugin", exception)
-						_uiEffect.trySend(
+						_uiEffect.send(
 							PluginManagerUiEffect.ShowError(
 								R.string.msg_plugin_install_failed,
 								listOf(exception.message ?: ""),
@@ -328,7 +328,7 @@ class PluginManagerViewModel(
 					}
 			} catch (exception: Exception) {
 				Log.e(TAG, "Error installing plugin from URI", exception)
-				_uiEffect.trySend(
+				_uiEffect.send(
 					PluginManagerUiEffect.ShowError(
 						R.string.msg_plugin_install_failed,
 						listOf(exception.message ?: ""),
@@ -356,7 +356,7 @@ class PluginManagerViewModel(
 		val incoming = pluginRepository.getPluginMetadataFromFile(tempFile).getOrNull()
 		if (incoming == null) {
 			Log.w(TAG, "Failed to read plugin metadata from ${tempFile.name}; aborting install")
-			_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file))
+			_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file))
 			return true
 		}
 
@@ -383,7 +383,7 @@ class PluginManagerViewModel(
 					deleteSourceAfterInstall = deleteSourceAfterInstall,
 				)
 			}
-		_uiEffect.trySend(effect)
+		_uiEffect.send(effect)
 		return true
 	}
 
@@ -392,13 +392,13 @@ class PluginManagerViewModel(
 			try {
 				val deleted = DocumentsContract.deleteDocument(contentResolver, uri)
 				if (!deleted) {
-					_uiEffect.trySend(
+					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
 					)
 				}
 			} catch (e: Exception) {
 				Log.w(TAG, "Failed to delete source document", e)
-				_uiEffect.trySend(
+				_uiEffect.send(
 					PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
 				)
 			}
@@ -410,7 +410,7 @@ class PluginManagerViewModel(
 	 */
 	private fun openFilePicker() {
 		viewModelScope.launch {
-			_uiEffect.trySend(PluginManagerUiEffect.OpenFilePicker)
+			_uiEffect.send(PluginManagerUiEffect.OpenFilePicker)
 		}
 	}
 
@@ -426,9 +426,9 @@ class PluginManagerViewModel(
 				}
 
 			if (isSupported) {
-				_uiEffect.trySend(PluginManagerUiEffect.ShowInstallConfirmation(uri))
+				_uiEffect.send(PluginManagerUiEffect.ShowInstallConfirmation(uri))
 			} else {
-				_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_unsupported_plugin_file))
+				_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_unsupported_plugin_file))
 			}
 		}
 	}
@@ -438,7 +438,7 @@ class PluginManagerViewModel(
 	 */
 	private fun showPluginDetails(plugin: PluginInfo) {
 		viewModelScope.launch {
-			_uiEffect.trySend(PluginManagerUiEffect.ShowPluginDetails(plugin))
+			_uiEffect.send(PluginManagerUiEffect.ShowPluginDetails(plugin))
 		}
 	}
 

@@ -199,8 +199,14 @@ class IDEApplication :
 		// Warm cachedFilesDir on an IO thread before Koin starts, so pluginModule/templateModule
 		// (resolved on the main thread on first navigation to the Extensions Manager) can never
 		// race the disk read - see cachedFilesDir's doc. The disk access itself runs off-main;
-		// this only blocks onCreate() waiting for that fast, one-time result.
-		runBlocking(Dispatchers.IO) { cachedFilesDir }
+		// this only blocks onCreate() waiting for that fast, one-time result. Only safe when
+		// credential-protected storage is already unlocked - instance.filesDir uses the default
+		// (credential-protected) Context and throws during Direct Boot. When locked, the warmup
+		// instead runs from CredentialProtectedApplicationLoader.load(), which only proceeds once
+		// that storage is confirmed accessible.
+		if (isUserUnlocked) {
+			runBlocking(Dispatchers.IO) { cachedFilesDir }
+		}
 
 		ensureKoinStarted()
 

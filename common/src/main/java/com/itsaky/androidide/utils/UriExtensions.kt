@@ -4,7 +4,9 @@ import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.util.Log
+import org.slf4j.LoggerFactory
+
+private val log = LoggerFactory.getLogger("UriExtensions")
 
 fun Uri.getFileName(context: Context): String = getFileName(context.contentResolver)
 
@@ -21,9 +23,10 @@ fun Uri.getFileName(contentResolver: ContentResolver): String {
 				}
 			}
 		} catch (e: SecurityException) {
-			Log.w("UriExtensions", "SecurityException while reading URI: $scheme://$authority", e)
-		} catch (e: Exception) {
-			Log.w("UriExtensions", "Unexpected error while reading URI: $scheme://$authority", e)
+			log.warn("Denied access while reading URI: {}://{}", scheme, authority, e)
+		} catch (e: IllegalArgumentException) {
+			// No registered provider for this URI, or the provider rejected the query args.
+			log.warn("No provider could resolve URI: {}://{}", scheme, authority, e)
 		}
 
 		return unknownFileLabel

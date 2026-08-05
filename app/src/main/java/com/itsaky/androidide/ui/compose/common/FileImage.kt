@@ -17,7 +17,25 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
+
+private val log = LoggerFactory.getLogger("FileImage")
+private const val LOG_THROTTLE_MILLIS = 5_000L
+private val lastIconLoadFailureLoggedAt = AtomicLong(0L)
+
+/** Logs at most once every [LOG_THROTTLE_MILLIS] - a bad icon file can recompose repeatedly. */
+private fun logIconLoadFailureThrottled(
+	message: String,
+	cause: Throwable,
+) {
+	val now = System.currentTimeMillis()
+	val last = lastIconLoadFailureLoggedAt.get()
+	if (now - last >= LOG_THROTTLE_MILLIS && lastIconLoadFailureLoggedAt.compareAndSet(last, now)) {
+		log.warn(message, cause)
+	}
+}
 
 /**
  * Renders [file] as an image, decoded off the main thread, falling back to [placeholder] while
@@ -47,8 +65,10 @@ fun FileImage(
 					} catch (e: CancellationException) {
 						throw e
 					} catch (e: SecurityException) {
+						logIconLoadFailureThrottled("Denied access while loading an icon", e)
 						null
 					} catch (e: OutOfMemoryError) {
+						logIconLoadFailureThrottled("Out of memory while loading an icon", e)
 						null
 					}
 				}
@@ -83,9 +103,7 @@ private fun decodeBounded(
 	if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
 	var inSampleSize = 1
-	while (bounds.outWidth / (inSampleSize * 2) >= maxDimensionPx &&
-		bounds.outHeight / (inSampleSize * 2) >= maxDimensionPx
-	) {
+	while (maxOf(bounds.outWidth, bounds.outHeight) / (inSampleSize * 2) >= maxDimensionPx) {
 		inSampleSize *= 2
 	}
 
