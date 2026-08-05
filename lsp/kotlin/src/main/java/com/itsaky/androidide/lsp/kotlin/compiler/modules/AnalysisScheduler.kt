@@ -144,7 +144,6 @@ internal inline fun <R> retryingOnPreemption(
 		attempt(ScheduledCancelChecker(delegate))
 	}
 
-@PublishedApi
 internal val schedulerLogger: Logger = LoggerFactory.getLogger("AnalysisScheduler")
 
 /**

@@ -147,7 +147,7 @@ Granularity is per candidate file, and it is load-bearing:
 - **The live-document await stays outside `project.read`.** The refresh it waits on needs `project.write`; awaiting it under the read lock deadlocks. Go-to-definition's R10 records the same constraint.
 - `params.cancelChecker` is honoured per prefiltered file, between candidate files **and** between references within a file. The prefilter checks it per file rather than once for the pass: a whole-workspace scan is seconds of I/O, and cancelling has to stop it rather than let it finish and discard the result.
 
-The prefilter pass runs first, before any analysis, holding no locks. No progress count is shown - `launchCancellableAsyncWithProgress` takes a fixed `@StringRes`, and threading a live count through it would change a shared editor API for a cosmetic gain. No timeout and no file budget: the search finishes or the user cancels.
+The prefilter pass runs first, before any analysis, and takes no *analysis* lock at all (`computeFiles` takes `project.read` per file to resolve one path to a `VirtualFile`, but nothing is held across the pass). No progress count is shown - `launchCancellableAsyncWithProgress` takes a fixed `@StringRes`, and threading a live count through it would change a shared editor API for a cosmetic gain. No timeout and no file budget: the search finishes or the user cancels.
 
 **R10 - Panel cost.** `IDELanguageClientImpl.showLocations` used to read each result file **in full, once per hit, on the main thread** (`FileIOUtils.readFile2String` inside the per-location loop, plus an `exists()` stat per hit). That is a main-thread I/O violation and O(hits) file reads; Java's find-references had it too and simply rarely produced enough hits to hurt.
 
@@ -208,7 +208,7 @@ Preemption is not cancellation, and the two must not share a handler. Both unwin
 
 Resolution goes through the Analysis API and PSI only; the symbol indexes are never consulted - see [ADR 0010](../adr/0010-navigation-resolves-via-analysis-api.md). That decision is load-bearing here for a second reason: there is no reference-search infrastructure to fall back on. `analysis-api-standalone-embeddable-for-ide` ships no `ReferencesSearch`, no `PsiSearchHelper` and no word index, and `KtFileMetadata` records declarations only. The search is built here.
 
-```
+```text
 FindReferencesAction.execAction                   lsp/kotlin/actions
   -> ILspEditor.findReferences()                  editor (unchanged: progress flashbar + cancel checker)
     -> KotlinLanguageServer.findReferences(params)

@@ -83,10 +83,10 @@ internal class SearchPlan(
  * Computes the usage result for [params].
  *
  * Structured so that no lock spans the whole search (R9): the target is resolved under one short
- * `project.read`, candidate files are selected with no lock at all, and each candidate then takes its
- * own read lock and analysis session. A whole-workspace search holding either for its full duration
- * would block index refresh (which needs `project.write`) and would lose all its work to a single
- * keystroke.
+ * `project.read`, candidate selection holds nothing across the pass (`computeFiles` takes `project.read`
+ * per file, for one path lookup), and each candidate then takes its own read lock and analysis session.
+ * A whole-workspace search holding either for its full duration would block index refresh (which needs
+ * `project.write`) and would lose all its work to a single keystroke.
  */
 context(env: AbstractCompilationEnvironment)
 internal suspend fun findUsagesAt(params: ReferenceParams): ReferenceResult {

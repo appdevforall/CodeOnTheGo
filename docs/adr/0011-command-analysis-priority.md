@@ -28,7 +28,7 @@ Find usages (ADFA-4824) makes this acute. It is user-invoked, runs one analysis 
 
 **Add a fourth priority, `COMMAND`, for user-invoked commands, ordered between `DIAGNOSTICS` and `INTERACTIVE`, with `supersedesSamePriority = false`.**
 
-```
+```text
 INDEXING < DIAGNOSTICS < COMMAND < INTERACTIVE
 ```
 

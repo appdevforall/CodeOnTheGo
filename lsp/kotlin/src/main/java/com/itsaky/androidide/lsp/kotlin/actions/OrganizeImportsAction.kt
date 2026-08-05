@@ -8,6 +8,7 @@ import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.collectImportUsage
@@ -77,7 +78,13 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 				}
 			}
 		}.getOrElse { e ->
-			logger.warn("Failed to organize imports", e)
+			if (e.isAnalysisCancellation()) {
+				// Cancelled, or preempted past the retry above: not a failure, and warn-logging it would
+				// bury the ones that are.
+				logger.debug("Organize imports for {} was cancelled", nioPath, e)
+			} else {
+				logger.warn("Failed to organize imports", e)
+			}
 			emptyList()
 		}
 

@@ -9,6 +9,7 @@ import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.membersToImplement
@@ -97,7 +98,13 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 				}
 			}
 		}.getOrElse { e ->
-			logger.warn("Failed to compute implement-members edit", e)
+			if (e.isAnalysisCancellation()) {
+				// Cancelled, or preempted past the retry above: not a failure, and warn-logging it would
+				// bury the ones that are.
+				logger.debug("Implement-members edit for {} was cancelled", nioPath, e)
+			} else {
+				logger.warn("Failed to compute implement-members edit", e)
+			}
 			emptyList()
 		}
 

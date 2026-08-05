@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp
 
 import com.itsaky.androidide.models.Location
+import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
 import io.github.rosemoe.sora.text.Content
 import org.slf4j.LoggerFactory
@@ -36,13 +37,13 @@ internal object SearchResultGrouping {
 	): List<SearchResult> =
 		locations.mapNotNull { location ->
 			val range = location.range
-			val startLine = lines[range.start.line] ?: return@mapNotNull null
-			val match = matchedText(range.start.line, range.start.column, range.end.line, range.end.column, lines)
+			val lineText = lines[range.start.line] ?: return@mapNotNull null
+			val match = matchedText(lineText, range, lines)
 			if (match == null) {
 				logger.debug("Dropping stale search result in {}", file.name)
 				return@mapNotNull null
 			}
-			SearchResult(range, file, startLine, match)
+			SearchResult(range, file, lineText, match)
 		}
 
 	/** Rows for [locations] in [file], read from the live editor buffer [content]. */
@@ -117,27 +118,29 @@ internal object SearchResultGrouping {
 		}
 	}
 
-	/** The text covered by the range, or null when any line it spans is missing. */
+	/**
+	 * The text [range] covers, given [firstLine] (the text of the line it starts on) and [lines] for the
+	 * rest. Null when any line it spans is missing.
+	 */
 	private fun matchedText(
-		startLine: Int,
-		startColumn: Int,
-		endLine: Int,
-		endColumn: Int,
+		firstLine: String,
+		range: Range,
 		lines: Map<Int, String>,
 	): String? {
-		val first = lines[startLine] ?: return null
-		if (startLine == endLine) {
-			val from = startColumn.coerceIn(0, first.length)
-			return first.substring(from, endColumn.coerceIn(from, first.length))
+		val start = range.start
+		val end = range.end
+		if (start.line == end.line) {
+			val from = start.column.coerceIn(0, firstLine.length)
+			return firstLine.substring(from, end.column.coerceIn(from, firstLine.length))
 		}
 
 		return buildString {
-			append(first.substring(startColumn.coerceIn(0, first.length)))
-			for (line in (startLine + 1) until endLine) {
+			append(firstLine.substring(start.column.coerceIn(0, firstLine.length)))
+			for (line in (start.line + 1) until end.line) {
 				append('\n').append(lines[line] ?: return null)
 			}
-			val lastLine = lines[endLine] ?: return null
-			append('\n').append(lastLine.substring(0, endColumn.coerceIn(0, lastLine.length)))
+			val lastLine = lines[end.line] ?: return null
+			append('\n').append(lastLine.substring(0, end.column.coerceIn(0, lastLine.length)))
 		}
 	}
 }
