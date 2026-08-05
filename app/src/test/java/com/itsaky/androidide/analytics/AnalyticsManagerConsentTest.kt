@@ -4,11 +4,8 @@ package com.itsaky.androidide.analytics
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.analytics.ktx.analytics
 import com.google.firebase.ktx.Firebase
-import com.itsaky.androidide.preferences.internal.StatPreferences
-import com.itsaky.androidide.preferences.internal.TelemetryConsent
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
@@ -29,7 +26,6 @@ class AnalyticsManagerConsentTest {
 		firebaseAnalytics = mockk(relaxed = true)
 		mockkStatic("com.google.firebase.analytics.ktx.AnalyticsKt")
 		every { Firebase.analytics } returns firebaseAnalytics
-		mockkObject(StatPreferences)
 	}
 
 	@After
@@ -38,9 +34,7 @@ class AnalyticsManagerConsentTest {
 	}
 
 	@Test
-	fun `track call with consent declined keeps collection disabled`() {
-		every { StatPreferences.telemetryConsent } returns TelemetryConsent.DECLINED
-
+	fun `track call before initialize keeps collection disabled`() {
 		AnalyticsManager().trackFeatureUsed("editor")
 
 		verify { firebaseAnalytics.setAnalyticsCollectionEnabled(false) }
@@ -48,19 +42,15 @@ class AnalyticsManagerConsentTest {
 	}
 
 	@Test
-	fun `track call with consent unset keeps collection disabled`() {
-		every { StatPreferences.telemetryConsent } returns TelemetryConsent.UNSET
-
-		AnalyticsManager().trackFeatureUsed("editor")
+	fun `metric call before initialize keeps collection disabled`() {
+		AnalyticsManager().trackProjectOpened("/sdcard/project")
 
 		verify { firebaseAnalytics.setAnalyticsCollectionEnabled(false) }
 		verify(exactly = 0) { firebaseAnalytics.setAnalyticsCollectionEnabled(true) }
 	}
 
 	@Test
-	fun `initialize with consent granted enables collection`() {
-		every { StatPreferences.telemetryConsent } returns TelemetryConsent.GRANTED
-
+	fun `initialize enables collection`() {
 		AnalyticsManager().initialize()
 
 		verify(atLeast = 1) { firebaseAnalytics.setAnalyticsCollectionEnabled(true) }
@@ -68,13 +58,11 @@ class AnalyticsManagerConsentTest {
 	}
 
 	@Test
-	fun `initialize re-enables collection on an instance created while consent was unset`() {
-		every { StatPreferences.telemetryConsent } returns TelemetryConsent.UNSET
+	fun `initialize re-enables collection on an instance that already tracked`() {
 		val manager = AnalyticsManager()
 		manager.trackFeatureUsed("editor")
 		verify { firebaseAnalytics.setAnalyticsCollectionEnabled(false) }
 
-		every { StatPreferences.telemetryConsent } returns TelemetryConsent.GRANTED
 		manager.initialize()
 
 		verify { firebaseAnalytics.setAnalyticsCollectionEnabled(true) }

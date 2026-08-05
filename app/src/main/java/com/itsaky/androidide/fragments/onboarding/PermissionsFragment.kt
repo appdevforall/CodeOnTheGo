@@ -57,10 +57,12 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.viewLifecycleScope
+import com.itsaky.androidide.utils.viewLifecycleScopeOrNull
 import com.itsaky.androidide.viewmodel.InstallationState
 import com.itsaky.androidide.viewmodel.InstallationViewModel
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -99,6 +101,7 @@ class PermissionsFragment :
 	}
 
 	private var privacyDialog: AlertDialog? = null
+	private var consentResolutionJob: Job? = null
 	private var isSlideSelected = false
 
 	companion object {
@@ -226,6 +229,7 @@ class PermissionsFragment :
 		super.onDestroyView()
 		privacyDialog?.dismiss()
 		privacyDialog = null
+		consentResolutionJob = null
 		permissionsBinding = null
 		recyclerView = null
 		finishButton = null
@@ -411,13 +415,21 @@ class PermissionsFragment :
 	}
 
 	private fun showPrivacyDialogIfNeeded() {
-		if (StatPreferences.telemetryConsent != TelemetryConsent.UNSET) {
-			return
-		}
-		if (privacyDialog?.isShowing == true) {
+		if (privacyDialog != null || consentResolutionJob?.isActive == true) {
 			return
 		}
 
+		val scope = viewLifecycleScopeOrNull ?: return
+		consentResolutionJob =
+			scope.launch {
+				val consent = withContext(Dispatchers.IO) { StatPreferences.telemetryConsent }
+				if (consent == TelemetryConsent.UNSET && privacyDialog == null) {
+					showPrivacyDialog()
+				}
+			}
+	}
+
+	private fun showPrivacyDialog() {
 		privacyDialog =
 			MaterialAlertDialogBuilder(requireContext())
 				.setTitle(com.itsaky.androidide.resources.R.string.privacy_disclosure_title)

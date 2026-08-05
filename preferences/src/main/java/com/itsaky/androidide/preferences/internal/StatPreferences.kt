@@ -20,7 +20,6 @@ package com.itsaky.androidide.preferences.internal
 import android.content.Context
 import android.content.SharedPreferences
 import com.itsaky.androidide.app.BaseApplication
-import com.itsaky.androidide.utils.allowThreadDiskReads
 
 enum class TelemetryConsent {
 	UNSET,
@@ -43,23 +42,13 @@ object StatPreferences {
 		get() {
 			val app = BaseApplication.baseInstance
 			cachedPrefs?.takeIf { cachedPrefsApp === app }?.let { return it }
-
-			return allowThreadDiskReads(
-				"analytics call sites decide synchronously, on the main thread, whether collection " +
-					"is allowed, so the telemetry consent cannot be resolved off-thread",
-			) {
-				app
-					.createDeviceProtectedStorageContext()
-					.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
-					.also {
-						// Await the asynchronous load here, inside the exemption, so every later
-						// read and write is served from memory and never touches the disk.
-						it.getString(TELEMETRY_CONSENT, null)
-					}
-			}.also {
-				cachedPrefs = it
-				cachedPrefsApp = app
-			}
+			return app
+				.createDeviceProtectedStorageContext()
+				.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
+				.also {
+					cachedPrefs = it
+					cachedPrefsApp = app
+				}
 		}
 
 	var telemetryConsent: TelemetryConsent
