@@ -127,5 +127,5 @@ private fun DetailRow(
 	label: String,
 	value: String,
 ) {
-	Text("$label: $value")
+	Text(stringResource(R.string.label_value, label, value))
 }

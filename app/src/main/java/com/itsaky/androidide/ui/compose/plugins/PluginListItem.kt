@@ -133,14 +133,14 @@ fun PluginListItem(
 								},
 							)
 						}
-						DropdownMenuItem(
-							text = { Text(stringResource(R.string.uninstall_plugin)) },
-							onClick = {
-								menuExpanded = false
-								onUninstall()
-							},
-						)
 					}
+					DropdownMenuItem(
+						text = { Text(stringResource(R.string.uninstall_plugin)) },
+						onClick = {
+							menuExpanded = false
+							onUninstall()
+						},
+					)
 					DropdownMenuItem(
 						text = { Text(stringResource(R.string.plugin_details)) },
 						onClick = {

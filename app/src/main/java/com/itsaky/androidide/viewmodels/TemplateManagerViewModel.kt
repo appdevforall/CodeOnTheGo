@@ -30,7 +30,7 @@ class TemplateManagerViewModel(
 	private val _uiState = MutableStateFlow(TemplateManagerUiState())
 	val uiState: StateFlow<TemplateManagerUiState> = _uiState.asStateFlow()
 
-	private val _uiEffect = Channel<TemplateManagerUiEffect>()
+	private val _uiEffect = Channel<TemplateManagerUiEffect>(Channel.BUFFERED)
 	val uiEffect = _uiEffect.receiveAsFlow()
 
 	init {
@@ -60,7 +60,7 @@ class TemplateManagerViewModel(
 				}.onFailure { exception ->
 					Log.e(TAG, "Failed to load template files", exception)
 					_uiState.update { it.copy(isLoading = false) }
-					_uiEffect.trySend(
+					_uiEffect.send(
 						TemplateManagerUiEffect.ShowError(
 							R.string.msg_template_load_failed,
 							listOf(exception.message ?: ""),
@@ -76,11 +76,11 @@ class TemplateManagerViewModel(
 				.installTemplate(item)
 				.onSuccess {
 					Log.d(TAG, "Template installed successfully: ${item.name}")
-					_uiEffect.trySend(TemplateManagerUiEffect.ShowSuccess(R.string.msg_template_installed))
+					_uiEffect.send(TemplateManagerUiEffect.ShowSuccess(R.string.msg_template_installed))
 					loadTemplates()
 				}.onFailure { exception ->
 					Log.e(TAG, "Failed to install template: ${item.name}", exception)
-					_uiEffect.trySend(
+					_uiEffect.send(
 						TemplateManagerUiEffect.ShowError(
 							R.string.msg_template_install_failed,
 							listOf(exception.message ?: ""),
@@ -96,11 +96,11 @@ class TemplateManagerViewModel(
 				.uninstallTemplate(item)
 				.onSuccess {
 					Log.d(TAG, "Template uninstalled successfully: ${item.name}")
-					_uiEffect.trySend(TemplateManagerUiEffect.ShowSuccess(R.string.msg_template_uninstalled))
+					_uiEffect.send(TemplateManagerUiEffect.ShowSuccess(R.string.msg_template_uninstalled))
 					loadTemplates()
 				}.onFailure { exception ->
 					Log.e(TAG, "Failed to uninstall template: ${item.name}", exception)
-					_uiEffect.trySend(
+					_uiEffect.send(
 						TemplateManagerUiEffect.ShowError(
 							R.string.msg_template_uninstall_failed,
 							listOf(exception.message ?: ""),
@@ -112,7 +112,7 @@ class TemplateManagerViewModel(
 
 	private fun showDeleteConfirmation(item: CgtFileItem) {
 		viewModelScope.launch {
-			_uiEffect.trySend(TemplateManagerUiEffect.ShowDeleteConfirmation(item))
+			_uiEffect.send(TemplateManagerUiEffect.ShowDeleteConfirmation(item))
 		}
 	}
 
@@ -123,11 +123,11 @@ class TemplateManagerViewModel(
 				.deleteDownloadFile(item)
 				.onSuccess {
 					Log.d(TAG, "Deleted download file: ${item.name}")
-					_uiEffect.trySend(TemplateManagerUiEffect.ShowSuccess(R.string.msg_template_deleted))
+					_uiEffect.send(TemplateManagerUiEffect.ShowSuccess(R.string.msg_template_deleted))
 					loadTemplates()
 				}.onFailure { exception ->
 					Log.e(TAG, "Failed to delete download file: ${item.name}", exception)
-					_uiEffect.trySend(
+					_uiEffect.send(
 						TemplateManagerUiEffect.ShowError(
 							R.string.msg_template_delete_failed,
 							listOf(exception.message ?: ""),
@@ -139,13 +139,13 @@ class TemplateManagerViewModel(
 
 	private fun showTemplateDetails(item: CgtFileItem) {
 		viewModelScope.launch {
-			_uiEffect.trySend(TemplateManagerUiEffect.ShowTemplateDetails(item))
+			_uiEffect.send(TemplateManagerUiEffect.ShowTemplateDetails(item))
 		}
 	}
 
 	private fun showTemplateList(item: CgtFileItem) {
 		viewModelScope.launch {
-			_uiEffect.trySend(TemplateManagerUiEffect.ShowTemplateList(item))
+			_uiEffect.send(TemplateManagerUiEffect.ShowTemplateList(item))
 		}
 	}
 }

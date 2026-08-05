@@ -1005,6 +1005,7 @@
 	<string name="cd_redo">Redo</string>
 	<string name="cd_delete">Delete</string>
 	<string name="cd_add">Add</string>
+	<string name="cd_navigate_back">Navigate back</string>
 	<string name="cd_search">Search</string>
 	<string name="cd_diagnostic_error">Error</string>
 	<string name="cd_diagnostic_warning">Warning</string>
@@ -1087,6 +1088,7 @@
 	<string name="label_plugin_author">Author</string>
 	<string name="label_plugin_description">Description</string>
 	<string name="label_plugin_min_ide_version">Min IDE Version</string>
+	<string name="label_value">%1$s: %2$s</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<string name="msg_template_load_failed">Failed to load templates: %1$s</string>
@@ -1267,7 +1269,10 @@
 	<string name="template_provenance_bundled">Bundled</string>
 	<string name="template_provenance_plugin">From plugin</string>
 	<string name="template_provenance_user">Imported</string>
-	<string name="template_contains_count">Contains %1$d templates</string>
+	<plurals name="template_contains_count">
+		<item quantity="one">Contains %1$d template</item>
+		<item quantity="other">Contains %1$d templates</item>
+	</plurals>
 	<string name="action_install_template">Install</string>
 	<string name="action_uninstall_template">Uninstall</string>
 	<string name="action_view_templates">View templates</string>

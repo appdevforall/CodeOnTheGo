@@ -2,7 +2,9 @@ package com.itsaky.androidide.ui.compose
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
@@ -19,9 +21,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.ui.compose.plugins.PluginManagerContent
 import com.itsaky.androidide.ui.compose.templates.TemplateManagerScreen
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
@@ -54,9 +60,15 @@ fun ManagerScreen(
 ) {
 	val pagerState = rememberPagerState(pageCount = { 2 })
 	val coroutineScope = rememberCoroutineScope()
+	val rootView = LocalView.current
+
+	fun showTooltip() {
+		TooltipManager.showIdeCategoryTooltip(activity, rootView, TooltipTag.PLUGIN_MANAGER)
+	}
 
 	Scaffold(
 		modifier = modifier,
+		contentWindowInsets = WindowInsets(0, 0, 0, 0),
 		topBar = {
 			TopAppBar(
 				title = { Text(stringResource(R.string.title_manager)) },
@@ -64,7 +76,7 @@ fun ManagerScreen(
 					IconButton(onClick = { activity.onBackPressedDispatcher.onBackPressed() }) {
 						Icon(
 							painter = painterResource(R.drawable.ic_back),
-							contentDescription = stringResource(android.R.string.cancel),
+							contentDescription = stringResource(R.string.cd_navigate_back),
 						)
 					}
 				},
@@ -74,6 +86,10 @@ fun ManagerScreen(
 							onClick = {
 								UrlManager.openUrl(activity.getString(R.string.url_discover_plugins), null, activity)
 							},
+							modifier =
+								Modifier.pointerInput(Unit) {
+									detectTapGestures(onLongPress = { showTooltip() })
+								},
 						) {
 							Icon(
 								painter = painterResource(R.drawable.ic_download),
@@ -88,6 +104,10 @@ fun ManagerScreen(
 			if (pagerState.currentPage == TAB_PLUGINS) {
 				FloatingActionButton(
 					onClick = { pluginViewModel.onEvent(PluginManagerUiEvent.OpenFilePicker) },
+					modifier =
+						Modifier.pointerInput(Unit) {
+							detectTapGestures(onLongPress = { showTooltip() })
+						},
 				) {
 					Icon(
 						painter = painterResource(R.drawable.ic_add),

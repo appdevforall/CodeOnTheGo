@@ -3,6 +3,7 @@ package com.itsaky.androidide.ui.compose.templates
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,8 +22,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,10 +61,15 @@ fun TemplateListItem(
 		modifier =
 			modifier
 				.fillMaxWidth()
-				.combinedClickable(
-					onClick = { if (item.hasMultipleTemplates) onViewTemplates() },
-					onLongClick = onLongPressTooltip,
-				),
+				.let { cardModifier ->
+					if (item.hasMultipleTemplates) {
+						cardModifier.combinedClickable(onClick = onViewTemplates, onLongClick = onLongPressTooltip)
+					} else {
+						cardModifier.pointerInput(Unit) {
+							detectTapGestures(onLongPress = { onLongPressTooltip() })
+						}
+					}
+				},
 	) {
 		Row(modifier = Modifier.padding(16.dp)) {
 			Column(modifier = Modifier.weight(1f)) {
@@ -81,7 +89,11 @@ fun TemplateListItem(
 
 				if (item.hasMultipleTemplates) {
 					Text(
-						stringResource(R.string.template_contains_count, item.templates.size),
+						pluralStringResource(
+							R.plurals.template_contains_count,
+							item.templates.size,
+							item.templates.size,
+						),
 						style = MaterialTheme.typography.labelSmall,
 						modifier = Modifier.clickable(onClick = onViewTemplates),
 					)
