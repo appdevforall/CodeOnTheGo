@@ -35,7 +35,7 @@ import org.jetbrains.kotlin.analysis.api.symbols.pointers.KaSymbolPointer
 import org.jetbrains.kotlin.analysis.api.symbols.sourcePsiSafe
 import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
-import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
+import org.jetbrains.kotlin.com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtSimpleNameExpression
@@ -387,6 +387,12 @@ internal fun candidateFiles(
 				.asSequence()
 				.filter { it.isSourceModule }
 				.flatMap { it.computeFiles(extended = true) }
+				// A source module's files are .kt *and* .java, and `ktFileFor` rejects a non-Kotlin path
+				// anyway (searching .java is a non-goal). Dropping them here, on the extension alone,
+				// stops a Java-heavy workspace spending most of the prefilter's I/O - the part the user
+				// waits on - reading files whose result is already known to be nothing. The extensions
+				// mirror `DocumentUtils.isKotlinFile`, which is what decides it downstream.
+				.filter { it.extension == "kt" || it.extension == "kts" }
 				.mapNotNull { runCatching { it.toNioPath() }.getOrNull() }
 				.distinct()
 				.filter {
@@ -464,7 +470,7 @@ private suspend fun usagesIn(
 					// prefilter hit whose only mention is a comment or a string literal must not cost an
 					// analysis-lock acquisition, a FIR session and a match-set restore to rule out - and on a
 					// short, common name most candidates are exactly that.
-					val named = namedReferences(ktFile, plan.simpleName)
+					val named = namedReferences(ktFile, plan.simpleName, cancelChecker)
 					if (named.isEmpty()) {
 						emptyList()
 					} else {
@@ -511,14 +517,32 @@ private suspend fun ktFileFor(path: Path): KtFile? =
  * PSI alone, so it can rule a candidate file out before any analysis session is opened. It is also what
  * implements "convention references are not discovered": `a + b` contains no `plus` token, so it is never
  * a candidate.
+ *
+ * Filters during the walk rather than collecting every [KtSimpleNameExpression] and filtering after: on
+ * the case the text prefilter is worst at - a short, common name in a large file - the intermediate list
+ * is the bulk of the allocation, and the walk is long enough to need a cancellation checkpoint of its own.
  */
 private fun namedReferences(
 	ktFile: KtFile,
 	simpleName: String,
-): List<KtSimpleNameExpression> =
-	PsiTreeUtil
-		.collectElementsOfType(ktFile, KtSimpleNameExpression::class.java)
-		.filter { it.getReferencedName() == simpleName }
+	cancelChecker: ICancelChecker,
+): List<KtSimpleNameExpression> {
+	val found = mutableListOf<KtSimpleNameExpression>()
+
+	ktFile.accept(
+		object : PsiRecursiveElementWalkingVisitor() {
+			override fun visitElement(element: PsiElement) {
+				cancelChecker.abortIfCancelled()
+				if (element is KtSimpleNameExpression && element.getReferencedName() == simpleName) {
+					found.add(element)
+				}
+				super.visitElement(element)
+			}
+		},
+	)
+
+	return found
+}
 
 /**
  * The [references] that resolve into [plan]'s match set.

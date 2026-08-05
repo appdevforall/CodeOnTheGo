@@ -106,6 +106,8 @@ The first three rows need the declaration's path. The file the user is editing i
 | open in the editor | the live buffer | `ktSymbolIndex.getCurrentKtFile(path).await()`, awaited **outside** `project.read` |
 | everything else | disk | `ktSymbolIndex.getKtFile(path)` |
 
+A module's files include `.java`, which is a non-goal to search, so candidates are filtered on the extension *before* the read - otherwise a Java-heavy workspace spends most of the prefilter reading files whose result is already known.
+
 The prefilter is `mentionsName`, word-boundary exact on the target's simple name, reading line by line through `FileManager.getReader(path)` - which returns the live document when the file is open and the file itself otherwise, so the two tiers above need no branch of their own. Its errors are one-directional: a file that mentions the name but contains no usage is parsed and discarded (wasted work, correct result), while a file that does not mention the name cannot contain a named usage. An unreadable file drops out of the scan with a log rather than failing the search.
 
 Open documents are tab-count many, so the live tier is free. Without it, a usage the user just typed would be missed entirely - the prefilter would never select the file, so it would never be parsed.

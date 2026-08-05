@@ -276,9 +276,9 @@ class FindUsagesTest : KtLspTest() {
 
 	/**
 	 * Direction 1 of the cross-language split: a Java-source *target* is in scope, because resolving a
-	 * Kotlin reference to it already works. Searching `.java` files for usages is not - and falls out of
-	 * this design rather than needing a special case, since `getKtFile` rejects a non-Kotlin path, so a
-	 * `.java` candidate file is simply skipped.
+	 * Kotlin reference to it already works. Searching `.java` files for usages is not: a source module's
+	 * files include them, so `candidateFiles` drops them on the extension before reading anything, and
+	 * `getKtFile` would reject one anyway.
 	 */
 	@Test
 	fun `a workspace Java declaration is a valid target`() {
