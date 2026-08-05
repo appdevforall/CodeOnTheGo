@@ -298,11 +298,18 @@ spotless {
 		trimTrailingWhitespace()
 		endWithNewline()
 
-		// Eclipse WTP splits strings.xml entries across lines, so exclude it.
+		// Eclipse WTP splits strings.xml entries across lines, so exclude it. LSP test
+		// fixtures (testing/resources/test-project/**/*_template.xml) embed an
+		// "@@cursor@@" marker inside attribute-like text; the formatter splits it
+		// across lines too, breaking the marker lookup, so exclude those as well.
 		target(
 			spotlessTarget(
 				"**/src/*/res/**/*.xml",
-				extraExcludes = arrayOf("**/src/*/res/values*/strings.xml"),
+				extraExcludes =
+					arrayOf(
+						"**/src/*/res/values*/strings.xml",
+						"testing/resources/test-project/**/*_template.xml",
+					),
 			),
 		)
 	}
