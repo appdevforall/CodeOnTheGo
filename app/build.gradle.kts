@@ -298,7 +298,6 @@ dependencies {
 	implementation(projects.gradlePluginConfig)
 	implementation(projects.subprojects.aaptcompiler)
 	implementation(projects.subprojects.javacServices)
-	implementation(projects.subprojects.kotlinAnalysisApi)
 	implementation(projects.subprojects.shizukuApi)
 	implementation(projects.subprojects.shizukuManager)
 	implementation(projects.subprojects.shizukuProvider)
