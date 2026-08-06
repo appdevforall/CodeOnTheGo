@@ -6,7 +6,7 @@ two share, and this file is the reference for all three formats they speak - so 
 described here is a change to three processes at once, and those three are **not** upgraded
 together.
 
-Start at [`../core/README.md`](../README.md) for what Quick Build is and how a save flows
+Start at [`../README.md`](../README.md) for what Quick Build is and how a save flows
 through it. This file assumes that vocabulary (proxy app, payload, generation, baseline).
 
 ## Three formats, and only one of them lives in this module
@@ -324,7 +324,7 @@ reinstalling CoGo alone changes nothing in a running app.
 | Reorder or remove an AIDL method | silently calls the wrong transaction | never do this |
 
 So a protocol regression that compiles is not caught by any test: see the known test gap in
-[README, "Re-run the whole corpus for any significant change"](../README.md#re-run-the-whole-corpus-for-any-significant-change).
+[README, "How to Test"](../README.md#how-to-test).
 
 ## Key files
 

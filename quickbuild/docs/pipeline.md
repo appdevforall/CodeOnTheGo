@@ -1,6 +1,6 @@
 # The Quick Build pipeline, step by step
 
-For anyone who knows which step of a Quick Build is misbehaving and needs the file that implements it. The [README](../core/README.md) has the summary, the terms and the one diagram; this page is the class-level map behind it, in pipeline order.
+For anyone who knows which step of a Quick Build is misbehaving and needs the file that implements it. The [README](../README.md) has the summary, the terms and the one diagram; this page is the class-level map behind it, in pipeline order.
 
 Every claim here was checked against the source on this branch. Where a class name, a callback name or a location differs from an older writeup, this page is the one that matches the code.
 
