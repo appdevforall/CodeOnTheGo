@@ -1012,6 +1012,7 @@
 	<string name="quick_build_reload_crashed">Your app crashed on the last reload. Fix the crash and save. If it keeps crashing, Quick Build cannot clear a bad reload on its own - long-press Quick Build and choose Restart session.</string>
 	<string name="quick_build_relink_stuck">This resource error is now blocking every save, even code-only ones - Quick Build rebuilds all of your resources on each reload. Fix it and save. If the error names something you cannot change, long-press Quick Build and choose Restart session.</string>
 	<string name="quick_build_stale_component_helpers">Reloaded. A running service, content provider or Application object can still be calling the previous version of the code you changed, until it restarts - close and reopen your app to be sure.</string>
+	<string name="quick_build_provisioning">Setting up Quick Build for this project. This runs one full build; after that, saves reload in seconds.</string>
 	<string name="cd_undo">Undo</string>
 	<string name="cd_redo">Redo</string>
 	<string name="cd_delete">Delete</string>

@@ -121,6 +121,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.adfa.constants.CONTENT_KEY
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildNotice
+import org.appdevforall.cotg.quickbuild.domain.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.service.QuickBuildClobberCheck
 import org.appdevforall.cotg.quickbuild.service.QuickBuildSessionManager
 import org.koin.android.ext.android.inject
@@ -272,7 +273,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					// e.g. a watcher-triggered build fails, so push every status
 					// change into a menu refresh or the ATTENTION icon never shows.
 					launch {
-						quickBuild.status.collect { invalidateOptionsMenu() }
+						quickBuild.status.collect { status ->
+							invalidateOptionsMenu()
+							showProvisioningStatus(status)
+						}
 					}
 					launch {
 						quickBuild.userMessages.collect { flashError(it) }
@@ -306,6 +310,32 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					}
 				}
 			}
+		}
+	}
+
+	/**
+	 * Narrates first-run provisioning on the same status line the standard build uses.
+	 *
+	 * Provisioning is minutes of proxy app build, install and daemon spawn during which the only
+	 * feedback was the toolbar icon swapping to the stop glyph - indistinguishable from a hung
+	 * button. The copy leads with the wait being a one-off rather than with its duration, which
+	 * is the part the user actually needs.
+	 *
+	 * Renders for every provision, not only user-initiated ones: a background warm-up already
+	 * maps to [QuickBuildStatus.Hidden], so the only other case that reaches here is a proxy app
+	 * rebuild a save triggered - where the user is waiting on that save just as much. Who asked
+	 * deliberately does not reach the status ([QuickBuildStatus] keeps it out on purpose).
+	 *
+	 * Only clears a status line it wrote itself, so it cannot wipe a project-init or
+	 * plugin-install message that landed while provisioning ran.
+	 */
+	private fun showProvisioningStatus(status: QuickBuildStatus) {
+		if (status is QuickBuildStatus.Provisioning) {
+			ownsProvisioningStatus = true
+			setStatus(getString(string.quick_build_provisioning))
+		} else if (ownsProvisioningStatus) {
+			ownsProvisioningStatus = false
+			setStatus("")
 		}
 	}
 
@@ -431,6 +461,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 */
 	@Volatile
 	private var benchStandardBuildStartMs: Long? = null
+
+	/** Whether the provisioning notice owns the status line, so it only clears its own text. */
+	private var ownsProvisioningStatus = false
 
 	/**
 	 * Bench standard-mode autostart ([QuickBuildBenchAutostart.MODE_STANDARD]): fires the
