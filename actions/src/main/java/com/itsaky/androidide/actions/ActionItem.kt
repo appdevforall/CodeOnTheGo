@@ -86,9 +86,10 @@ interface ActionItem {
 	 * @param isReadOnlyContext `true` if the action is displayed in a context where the
 	 * content is read-only (e.g., a build output or logcat panel), `false` otherwise.
 	 * @return The appropriate tooltip tag for the given context, or an empty string if
-	 * no tooltip is available.
+	 * no tooltip is available. Defaults to [tooltipTag], so an action may override either
+	 * member and every consumer sees the same value (ADFA-4510).
 	 */
-	fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = ""
+	fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = tooltipTag
 
 	/**
 	 * Retrieves the tooltip category for this [ActionItem]. The default is

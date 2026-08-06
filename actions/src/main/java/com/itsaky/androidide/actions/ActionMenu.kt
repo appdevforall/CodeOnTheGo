@@ -35,6 +35,16 @@ interface ActionMenu : ActionItem {
 	 */
 	fun findAction(id: String): ActionItem? = children.find { it.id == id }
 
+	/**
+	 * Find the child action with the given menu item ID.
+	 *
+	 * Child actions are not registered with the [ActionsRegistry], so the registry cannot resolve
+	 * them; a submenu's renderer must look them up here (ADFA-4510).
+	 *
+	 * @return The action item or `null` if not found.
+	 */
+	fun findAction(itemId: Int): ActionItem? = children.find { it.itemId == itemId }
+
 	override fun prepare(data: ActionData) {
 		super.prepare(data)
 		visible = children.isNotEmpty() && isAtLeastOneChildVisible(data)
