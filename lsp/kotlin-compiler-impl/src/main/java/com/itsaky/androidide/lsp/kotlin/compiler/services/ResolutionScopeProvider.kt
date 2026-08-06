@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.itsaky.androidide.lsp.kotlin.compiler.services
 
 import org.jetbrains.kotlin.analysis.api.impl.base.projectStructure.KaBaseResolutionScopeProvider
@@ -9,7 +11,6 @@ import org.jetbrains.kotlin.com.intellij.psi.search.GlobalSearchScope
 import org.slf4j.LoggerFactory
 
 class ResolutionScopeProvider : KaBaseResolutionScopeProvider() {
-
 	companion object {
 		private val logger = LoggerFactory.getLogger(ResolutionScopeProvider::class.java)
 
@@ -24,7 +25,7 @@ class ResolutionScopeProvider : KaBaseResolutionScopeProvider() {
 
 	override fun buildSearchScope(
 		module: KaModule,
-		analyzableModules: Set<KaModule>
+		analyzableModules: Set<KaModule>,
 	): GlobalSearchScope {
 		logger.debug("buildSearchScope(module={}, analyzableModules={})", module, analyzableModules)
 		return super.buildSearchScope(module, analyzableModules)
