@@ -95,7 +95,7 @@ class BuildOutputFragment :
 		setupSearchLayout()
 
 		viewLifecycleOwner.lifecycleScope.launch {
-			restoreWindowFromViewModel()
+			launch { restoreWindowFromViewModel() }
 			launch(Dispatchers.Default) { processLogs() }
 			launch {
 				val content = buildOutputViewModel.getFullContent()
@@ -216,6 +216,9 @@ class BuildOutputFragment :
 					onToggle = { enabled ->
 						EditorPreferences.outputTimestamps = enabled
 						buildOutputViewModel.showTimestamps.value = enabled
+						viewLifecycleOwner.lifecycleScope.launch {
+							renderFiltered()
+						}
 					},
 				),
 				ViewOptionItem(
@@ -224,6 +227,9 @@ class BuildOutputFragment :
 					onToggle = { enabled ->
 						EditorPreferences.outputDeltas = enabled
 						buildOutputViewModel.showDeltas.value = enabled
+						viewLifecycleOwner.lifecycleScope.launch {
+							renderFiltered()
+						}
 					},
 				),
 			)
