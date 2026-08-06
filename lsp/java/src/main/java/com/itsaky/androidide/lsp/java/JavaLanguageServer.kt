@@ -84,6 +84,8 @@ import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Objects
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 class JavaLanguageServer : ILanguageServer {
 	private val completionProvider: CompletionProvider = CompletionProvider()
@@ -96,14 +98,19 @@ class JavaLanguageServer : ILanguageServer {
 	private val timer = AnalyzeTimer { analyzeSelected() }
 	private var cachedCompletion: CachedCompletion
 
-	// Set by setupWithProject(), consumed by ensureProjectReset() on the first real .java-file
-	// interaction after it -- deferred because setupWithProject() is called for every project
-	// open regardless of language (ADFA-5052).
-	@Volatile
-	private var pendingWorkspace: Workspace? = null
+	// Lifecycle of the javac-backed compiler state (NO_MODULE_COMPILER, SourceFileManager,
+	// JavaCompilerProvider), which setupWithProject() defers instead of building eagerly
+	// (ADFA-5052). All reads/writes of pendingWorkspace and compilerLifecycle go through
+	// compilerLifecycleLock, held for the *entire* reset/shutdown, not just the decision to
+	// run one -- otherwise a concurrent getCompiler()/onContentChange() could use a compiler
+	// mid-teardown, or shutdown() could destroy state a reset is still rebuilding.
+	private enum class CompilerLifecycle { PENDING, RESETTING, INITIALIZED, SHUTDOWN }
 
-	@Volatile
-	private var javaCompilerInitialized = false
+	private val compilerLifecycleLock = ReentrantLock()
+
+	// Guarded by compilerLifecycleLock.
+	private var pendingWorkspace: Workspace? = null
+	private var compilerLifecycle = CompilerLifecycle.PENDING
 
 	val settings: IServerSettings
 		get() {
@@ -143,11 +150,17 @@ class JavaLanguageServer : ILanguageServer {
 
 	override fun shutdown() {
 		(this.debugAdapter as? AutoCloseable?)?.close()
-		if (javaCompilerInitialized) {
-			JavaCompilerProvider.getInstance().destroy()
-			SourceFileManager.clearCache()
-			CacheFSInfoSingleton.clearCache()
-			clearCache()
+		compilerLifecycleLock.withLock {
+			// Blocks here if a reset is in flight (RESETTING can only be observed by another
+			// thread while the lock is held, never by us once we've acquired it), so this never
+			// races ensureProjectReset()'s own destroy/rebuild.
+			if (compilerLifecycle == CompilerLifecycle.INITIALIZED) {
+				JavaCompilerProvider.getInstance().destroy()
+				SourceFileManager.clearCache()
+				CacheFSInfoSingleton.clearCache()
+				clearCache()
+			}
+			compilerLifecycle = CompilerLifecycle.SHUTDOWN
 		}
 		EventBus.getDefault().unregister(this)
 		timer.cancel()
@@ -187,47 +200,67 @@ class JavaLanguageServer : ILanguageServer {
 		// and JavaCompilerService.NO_MODULE_COMPILER / SourceFileManager.NO_MODULE eagerly
 		// construct real javac machinery plus a full android.jar scan at class-init, merely by
 		// being referenced (ADFA-5052, mirrors ADFA-5010's KotlinLanguageServer fix).
-		pendingWorkspace = workspace
+		compilerLifecycleLock.withLock {
+			pendingWorkspace = workspace
+			// Leave RESETTING alone: ensureProjectReset()'s own finally block re-checks
+			// pendingWorkspace once it re-acquires the lock, so a project switch mid-reset is
+			// picked up as another PENDING round rather than raced here.
+			if (compilerLifecycle != CompilerLifecycle.RESETTING) {
+				compilerLifecycle = CompilerLifecycle.PENDING
+			}
+		}
 	}
 
 	/**
 	 * Runs the javac-specific project reset deferred by [setupWithProject], for the most
 	 * recently opened project, the first time a real Java file is actually interacted with.
-	 * No-ops if already up to date.
+	 * No-ops if already up to date. Blocks concurrent callers (and [shutdown]) for the entire
+	 * reset, not just the decision to run one.
 	 */
 	private fun ensureProjectReset() {
-		if (pendingWorkspace == null) return
-		val workspace: Workspace
-		synchronized(this) {
-			workspace = pendingWorkspace ?: return
+		compilerLifecycleLock.withLock {
+			if (compilerLifecycle != CompilerLifecycle.PENDING) return
+			val workspace = pendingWorkspace ?: return
 			pendingWorkspace = null
-			javaCompilerInitialized = true
-		}
+			compilerLifecycle = CompilerLifecycle.RESETTING
 
-		// Once we have project initialized
-		// Destory the NO_MODULE_COMPILER instance
-		JavaCompilerService.NO_MODULE_COMPILER.destroy()
+			try {
+				// Once we have project initialized
+				// Destory the NO_MODULE_COMPILER instance
+				JavaCompilerService.NO_MODULE_COMPILER.destroy()
 
-		// Clear cached file managers
-		SourceFileManager.clearCache()
+				// Clear cached file managers
+				SourceFileManager.clearCache()
 
-		// Clear cached JAR file system for R.jar
-		// Using the cached instance will result in completions not being updated for updated resources
-		// TODO Clearing caches for JAR files ending with '/R.jar' is probably not a good idea
-		//    Maybe this could be improved by using data from the AndroidModule project model
-		clearCachesForPaths { path: String -> path.endsWith("/R.jar") }
+				// Clear cached JAR file system for R.jar
+				// Using the cached instance will result in completions not being updated for updated resources
+				// TODO Clearing caches for JAR files ending with '/R.jar' is probably not a good idea
+				//    Maybe this could be improved by using data from the AndroidModule project model
+				clearCachesForPaths { path: String -> path.endsWith("/R.jar") }
 
-		// Clear cached module-specific compilers
-		JavaCompilerProvider.getInstance().destroy()
+				// Clear cached module-specific compilers
+				JavaCompilerProvider.getInstance().destroy()
 
-		// Cache classpath locations
-		for (subModule in workspace.subProjects) {
-			if (subModule !is ModuleProject || subModule.path == workspace.rootProject.path) {
-				continue
+				// Cache classpath locations
+				for (subModule in workspace.subProjects) {
+					if (subModule !is ModuleProject || subModule.path == workspace.rootProject.path) {
+						continue
+					}
+					SourceFileManager.forModule(subModule)
+				}
+				startOrRestartAnalyzeTimer()
+			} finally {
+				// A newer setupWithProject() may have queued another workspace while we were
+				// resetting (see the RESETTING guard above); if so, go back to PENDING instead
+				// of claiming INITIALIZED for a project we didn't actually reset for.
+				compilerLifecycle =
+					if (pendingWorkspace != null) {
+						CompilerLifecycle.PENDING
+					} else {
+						CompilerLifecycle.INITIALIZED
+					}
 			}
-			SourceFileManager.forModule(subModule)
 		}
-		startOrRestartAnalyzeTimer()
 	}
 
 	override fun complete(params: CompletionParams?): CompletionResult {
