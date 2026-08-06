@@ -27,9 +27,8 @@ import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.Insets
 import androidx.core.view.updatePaddingRelative
-import com.blankj.utilcode.util.ClipboardUtils
-import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.BuildConfig
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.SimpleIconTitleDescriptionAdapter
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
@@ -41,248 +40,250 @@ import com.itsaky.androidide.models.SimpleIconTitleDescriptionItem
 import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.BuildInfoUtils
 import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.utils.copyToClipboard
+import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.resolveAttr
-import com.itsaky.androidide.FeedbackButtonManager
 
 class AboutActivity : EdgeToEdgeIDEActivity() {
+	@Suppress("ktlint:standard:backing-property-naming")
+	private var _binding: ActivityAboutBinding? = null
+	private val binding: ActivityAboutBinding
+		get() =
+			checkNotNull(_binding) {
+				"Activity has been destroyed"
+			}
 
-  private var _binding: ActivityAboutBinding? = null
-  private val binding: ActivityAboutBinding
-    get() = checkNotNull(_binding) {
-      "Activity has been destroyed"
-    }
+	override fun bindLayout(): View {
+		_binding = ActivityAboutBinding.inflate(layoutInflater)
+		return _binding!!.root
+	}
 
-  override fun bindLayout(): View {
-    _binding = ActivityAboutBinding.inflate(layoutInflater)
-    return _binding!!.root
-  }
+	private var feedbackButtonManager: FeedbackButtonManager? = null
 
-    private var feedbackButtonManager: FeedbackButtonManager? = null
+	companion object {
+		private var id = 0
+		private val ACTION_WEBSITE = id++
+		private val ACTION_EMAIL = id++
+		private val ACTION_TG_CHANNEL = id++
+		private val ACTION_GH_FORUM = id++
+	}
 
-  companion object {
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
 
-    private var id = 0
-    private val ACTION_WEBSITE = id++
-    private val ACTION_EMAIL = id++
-    private val ACTION_TG_CHANNEL = id++
-    private val ACTION_GH_FORUM = id++
-  }
+		binding.apply {
+			setSupportActionBar(toolbar)
+			supportActionBar!!.setDisplayHomeAsUpEnabled(true)
+			supportActionBar!!.setTitle(R.string.about)
+			toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+			feedbackButtonManager = FeedbackButtonManager(this@AboutActivity, fabFeedback.root)
+			feedbackButtonManager?.setupDraggableFab()
 
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
+			aboutHeader.apply {
+				ideVersion.text = createVersionText()
+				ideVersion.isClickable = true
+				ideVersion.isFocusable = true
+				ideVersion.setBackgroundResource(R.drawable.bg_ripple)
+				ideVersion.setOnClickListener {
+					this@AboutActivity.copyToClipboard(BuildInfoUtils.getBuildInfoHeader())
+					flashSuccess(R.string.copied)
+				}
 
-    binding.apply {
+				supportButton.setOnClickListener {
+					UrlManager.openUrl(getString(R.string.github_sponsors_url), null, this@AboutActivity)
+				}
+			}
 
-      setSupportActionBar(toolbar)
-      supportActionBar!!.setDisplayHomeAsUpEnabled(true)
-      supportActionBar!!.setTitle(R.string.about)
-      toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
-        feedbackButtonManager = FeedbackButtonManager(this@AboutActivity, fabFeedback)
-        feedbackButtonManager?.setupDraggableFab()
+			socials.apply {
+				sectionTitle.setText(R.string.title_socials)
+				sectionItems.adapter = AboutSocialItemsAdapter(createSocialItems(), ::handleActionClick)
+			}
+		}
+	}
 
-      aboutHeader.apply {
-        ideVersion.text = createVersionText()
-        ideVersion.isClickable = true
-        ideVersion.isFocusable = true
-        ideVersion.setBackgroundResource(R.drawable.bg_ripple)
-        ideVersion.setOnClickListener {
-          ClipboardUtils.copyText(BuildInfoUtils.getBuildInfoHeader())
-          flashSuccess(R.string.copied)
-        }
+	override fun onApplySystemBarInsets(insets: Insets) {
+		binding.toolbar.apply {
+			setPaddingRelative(
+				paddingStart + insets.left,
+				paddingTop,
+				paddingEnd + insets.right,
+				paddingBottom,
+			)
+		}
+	}
 
-        supportButton.setOnClickListener {
-          UrlManager.openUrl(getString(R.string.github_sponsors_url), null, this@AboutActivity)
-        }
-      }
+	private fun handleActionClick(action: SimpleIconTitleDescriptionItem) {
+		when (action.id) {
+			ACTION_WEBSITE -> UrlManager.openUrl(BuildInfo.PROJECT_SITE, null, this)
+			ACTION_EMAIL -> UrlManager.openUrl(getString(R.string.mail_to_adfa), null, this)
+			ACTION_GH_FORUM -> UrlManager.openUrl(getString(R.string.github_discussions_url), context = this)
+			ACTION_TG_CHANNEL -> UrlManager.openUrl(getString(R.string.telegram_channel_url), "org.telegram.messenger", this)
+		}
+	}
 
-      socials.apply {
-        sectionTitle.setText(R.string.title_socials)
-        sectionItems.adapter = AboutSocialItemsAdapter(createSocialItems(), ::handleActionClick)
-      }
-    }
-  }
+	private fun createSocialItems(): List<IconTitleDescriptionItem> =
+		mutableListOf<IconTitleDescriptionItem>().apply {
+			add(
+				createSimpleIconTextItem(
+					this@AboutActivity,
+					ACTION_WEBSITE,
+					R.drawable.ic_website,
+					R.string.about_option_website,
+					BuildInfo.PROJECT_SITE,
+				),
+			)
+			add(
+				createSimpleIconTextItem(
+					this@AboutActivity,
+					ACTION_EMAIL,
+					R.drawable.ic_email,
+					R.string.about_option_email,
+					getString(R.string.adfa_email),
+				),
+			)
+			add(
+				createSimpleIconTextItem(
+					this@AboutActivity,
+					ACTION_GH_FORUM,
+					R.drawable.ic_github,
+					R.string.discussions_on_telegram,
+					getString(R.string.github_discussions_url),
+				),
+			)
+			add(
+				createSimpleIconTextItem(
+					this@AboutActivity,
+					ACTION_TG_CHANNEL,
+					R.drawable.ic_telegram,
+					R.string.official_tg_channel,
+					getString(R.string.telegram_channel_url),
+				),
+			)
+		}
 
-  override fun onApplySystemBarInsets(insets: Insets) {
-    binding.toolbar.apply {
-      setPaddingRelative(
-        paddingStart + insets.left,
-        paddingTop,
-        paddingEnd + insets.right,
-        paddingBottom
-      )
-    }
-  }
+	private fun createSimpleIconTextItem(
+		context: Context,
+		id: Int,
+		@DrawableRes icon: Int,
+		@StringRes title: Int,
+		description: CharSequence,
+	): SimpleIconTitleDescriptionItem =
+		SimpleIconTitleDescriptionItem(
+			id,
+			ContextCompat.getDrawable(context, icon),
+			ContextCompat.getString(context, title),
+			description,
+		)
 
-  private fun handleActionClick(action: SimpleIconTitleDescriptionItem) {
-    when (action.id) {
-      ACTION_WEBSITE -> UrlManager.openUrl(BuildInfo.PROJECT_SITE, null, this)
-      ACTION_EMAIL -> UrlManager.openUrl(getString(R.string.mail_to_adfa), null, this)
-      ACTION_GH_FORUM -> UrlManager.openUrl(getString(R.string.github_discussions_url), context = this)
-      ACTION_TG_CHANNEL -> UrlManager.openUrl(getString(R.string.telegram_channel_url), "org.telegram.messenger", this)
-    }
-  }
+/**
+* Create the version name string that should be displayed to the user.
+*
+* Format of the version name string is :
+*
+* `v[version-name]-[variant] ([build-type]/[[UN]OFFICIAL])`
+*/
+	@Suppress("KDocUnresolvedReference")
+	private fun createVersionText(): CharSequence {
+		val builder = SpannableStringBuilder()
+		builder.append("v")
+		builder.append(BasicBuildInfo.formatVersion())
+		builder.append("-")
+		builder.append(IDEBuildConfigProvider.getInstance().cpuAbiName)
+		builder.append(" ")
 
-  private fun createSocialItems(): List<IconTitleDescriptionItem> {
-    return mutableListOf<IconTitleDescriptionItem>().apply {
-      add(
-        createSimpleIconTextItem(
-          this@AboutActivity,
-          ACTION_WEBSITE,
-          R.drawable.ic_website,
-          R.string.about_option_website,
-          BuildInfo.PROJECT_SITE
-        )
-      )
-      add(
-        createSimpleIconTextItem(
-          this@AboutActivity,
-          ACTION_EMAIL,
-          R.drawable.ic_email,
-          R.string.about_option_email,
-          getString(R.string.adfa_email)
-        )
-      )
-      add(
-        createSimpleIconTextItem(
-          this@AboutActivity,
-          ACTION_GH_FORUM,
-          R.drawable.ic_github,
-          R.string.discussions_on_telegram,
-          getString(R.string.github_discussions_url)
-        )
-      )
-      add(
-        createSimpleIconTextItem(
-          this@AboutActivity,
-          ACTION_TG_CHANNEL,
-          R.drawable.ic_telegram,
-          R.string.official_tg_channel,
-          getString(R.string.telegram_channel_url)
-        )
-      )
-    }
-  }
+		val colorPositive = ContextCompat.getColor(this, R.color.color_success)
+		val colorNegative = ContextCompat.getColor(this, R.color.color_error)
 
-  private fun createSimpleIconTextItem(
-    context: Context,
-    id: Int,
-    @DrawableRes icon: Int,
-    @StringRes title: Int,
-    description: CharSequence
-  ): SimpleIconTitleDescriptionItem {
-    return SimpleIconTitleDescriptionItem(
-      id,
-      ContextCompat.getDrawable(context, icon),
-      ContextCompat.getString(context, title),
-      description
-    )
-  }
+		appendBuildType(builder, colorPositive, colorNegative)
 
-  /**
-   * Create the version name string that should be displayed to the user.
-   *
-   * Format of the version name string is :
-   *
-   * `v[version-name]-[variant] ([build-type]/[[UN]OFFICIAL])`
-   */
-  @Suppress("KDocUnresolvedReference")
-  private fun createVersionText(): CharSequence {
-    val builder = SpannableStringBuilder()
-    builder.append("v")
-    builder.append(BasicBuildInfo.formatVersion())
-    builder.append("-")
-    builder.append(IDEBuildConfigProvider.getInstance().cpuAbiName)
-    builder.append(" ")
+		return builder
+	}
 
-    val colorPositive = ContextCompat.getColor(this, R.color.color_success)
-    val colorNegative = ContextCompat.getColor(this, R.color.color_error)
+	private fun appendBuildType(
+		builder: SpannableStringBuilder,
+		@ColorInt
+		colorPositive: Int,
+		@ColorInt
+		colorNegative: Int,
+	) {
+		@Suppress("KotlinConstantConditions")
+		var color =
+			if (BuildConfig.BUILD_TYPE != "release") {
+				colorNegative
+			} else {
+				colorPositive
+			}
 
-    appendBuildType(builder, colorPositive, colorNegative)
+		builder.append("(")
+		appendForegroundSpan(builder, BuildConfig.BUILD_TYPE, color)
 
-    return builder
-  }
+		val isOfficialBuild = BuildInfoUtils.isOfficialBuild(this)
 
-  private fun appendBuildType(
-    builder: SpannableStringBuilder,
-    @ColorInt
-    colorPositive: Int,
-    @ColorInt
-    colorNegative: Int
-  ) {
-    @Suppress("KotlinConstantConditions")
-    var color = if (BuildConfig.BUILD_TYPE != "release") {
-      colorNegative
-    } else {
-      colorPositive
-    }
+		color =
+			if (isOfficialBuild) {
+				colorPositive
+			} else {
+				colorNegative
+			}
 
-    builder.append("(")
-    appendForegroundSpan(builder, BuildConfig.BUILD_TYPE, color)
+		builder.append("/")
+		appendForegroundSpan(
+			builder,
+			BuildInfoUtils.getBuildType(this).lowercase(),
+			color,
+		)
 
-    val isOfficialBuild = BuildInfoUtils.isOfficialBuild(this)
+		builder.append(")")
+	}
 
-    color = if (isOfficialBuild) {
-      colorPositive
-    } else {
-      colorNegative
-    }
+	private fun appendForegroundSpan(
+		builder: SpannableStringBuilder,
+		text: CharSequence,
+		color: Int,
+	) {
+		builder.append(
+			text,
+			ForegroundColorSpan(color),
+			SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE,
+		)
+	}
 
-    builder.append("/")
-    appendForegroundSpan(
-      builder,
-      BuildInfoUtils.getBuildType(this).lowercase(),
-      color
-    )
+	override fun onResume() {
+		super.onResume()
+		feedbackButtonManager?.loadFabPosition()
+	}
 
-    builder.append(")")
-  }
+	override fun onDestroy() {
+		super.onDestroy()
+		_binding = null
+	}
 
-  private fun appendForegroundSpan(
-    builder: SpannableStringBuilder,
-    text: CharSequence,
-    color: Int
-  ) {
-    builder.append(
-      text,
-      ForegroundColorSpan(color),
-      SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
-    )
-  }
+	class AboutSocialItemsAdapter(
+		items: List<IconTitleDescriptionItem>,
+		private val onClickListener: (SimpleIconTitleDescriptionItem) -> Unit,
+	) : SimpleIconTitleDescriptionAdapter(items) {
+		override fun onBindViewHolder(
+			holder: ViewHolder,
+			position: Int,
+		) {
+			super.onBindViewHolder(holder, position)
+			val binding = holder.binding
+			val item = getItem(position) as SimpleIconTitleDescriptionItem
+			val dp8 = binding.icon.context.dpToPx(8f)
+			binding.icon.updatePaddingRelative(dp8, dp8, dp8, dp8)
+			binding.title.setTextAppearance(R.style.TextAppearance_Material3_TitleSmall)
 
-    override fun onResume() {
-        super.onResume()
-        feedbackButtonManager?.loadFabPosition()
-    }
+			binding.description.maxLines = 3
+			binding.description.setTextAppearance(R.style.TextAppearance_Material3_BodySmall)
+			binding.description.setTextColor(binding.description.context.resolveAttr(R.attr.colorPrimary))
 
-  override fun onDestroy() {
-    super.onDestroy()
-    _binding = null
-  }
-
-  class AboutSocialItemsAdapter(
-    items: List<IconTitleDescriptionItem>,
-    private val onClickListener: (SimpleIconTitleDescriptionItem) -> Unit
-  ) : SimpleIconTitleDescriptionAdapter(items) {
-
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-      super.onBindViewHolder(holder, position)
-      val binding = holder.binding
-      val item = getItem(position) as SimpleIconTitleDescriptionItem
-      val dp8 = SizeUtils.dp2px(8f)
-      binding.icon.updatePaddingRelative(dp8, dp8, dp8, dp8)
-      binding.title.setTextAppearance(R.style.TextAppearance_Material3_TitleSmall)
-
-      binding.description.maxLines = 3
-      binding.description.setTextAppearance(R.style.TextAppearance_Material3_BodySmall)
-      binding.description.setTextColor(binding.description.context.resolveAttr(R.attr.colorPrimary))
-
-      binding.root.isClickable = true
-      binding.root.isFocusable = true
-      binding.root.setBackgroundResource(R.drawable.bg_ripple)
-      binding.root.setOnClickListener {
-        onClickListener(item)
-      }
-    }
-  }
+			binding.root.isClickable = true
+			binding.root.isFocusable = true
+			binding.root.setBackgroundResource(R.drawable.bg_ripple)
+			binding.root.setOnClickListener {
+				onClickListener(item)
+			}
+		}
+	}
 }

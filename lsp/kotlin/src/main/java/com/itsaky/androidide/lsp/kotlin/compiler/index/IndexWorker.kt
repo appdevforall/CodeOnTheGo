@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.progress.ICancelChecker
@@ -8,6 +9,7 @@ import com.itsaky.androidide.utils.KeyedDebouncingAction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
@@ -33,116 +35,138 @@ internal class IndexWorker(
 		val path: Path,
 		val ktFile: KtFile,
 	) {
-		override fun equals(other: Any?): Boolean {
-			return path == (other as? ModFileIndexKey)?.path
-		}
+		override fun equals(other: Any?): Boolean = path == (other as? ModFileIndexKey)?.path
 
-		override fun hashCode(): Int {
-			return path.hashCode()
-		}
+		override fun hashCode(): Int = path.hashCode()
 
 		operator fun component1() = path
+
 		operator fun component2() = ktFile
 	}
 
-	suspend fun start() = coroutineScope {
-		var scanCount = 0
-		var sourceIndexCount = 0
+	suspend fun start() =
+		coroutineScope {
+			var scanCount = 0
+			var sourceIndexCount = 0
 
-		val modifiedFileIndexer = KeyedDebouncingAction<ModFileIndexKey>(
-			scope = scope,
-			debounceDuration = CompilationEnvironment.DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION
-		) { (path, ktFile), cancelChecker ->
-			logger.debug("Indexing modified file: {}", path)
-			indexSourceFile(project, ktFile, fileIndex, sourceIndex, cancelChecker)
-			sourceIndexCount++
-		}
-
-		while (isActive) {
-			// Defensive guard: if the project was disposed out from under us (e.g. a disposal
-			// path that didn't first drain this worker), stop instead of calling PsiManager on a
-			// disposed project, which throws "Project is already disposed" (APPDEVFORALL-17R).
-			if (project.isDisposed) break
-
-			when (val cmd = queue.take()) {
-				is IndexCommand.RemoveFromIndex -> {
-					val filePath = cmd.path.pathString
-					fileIndex.remove(filePath)
-					sourceIndex.removeBySource(filePath)
+			val modifiedFileIndexer =
+				KeyedDebouncingAction<ModFileIndexKey>(
+					scope = scope,
+					debounceDuration = CompilationEnvironment.DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
+				) { (path, ktFile), cancelChecker ->
+					logger.debug("Indexing modified file: {}", path)
+					try {
+						indexSourceFile(project, ktFile, fileIndex, sourceIndex, cancelChecker)
+						sourceIndexCount++
+					} catch (e: AnalysisPreemptedException) {
+						// Preempted by higher-priority analysis; re-queue so the edit still gets indexed.
+						logger.debug("Indexing of modified file {} preempted; re-queueing", path)
+						scope.launch { submitCommand(IndexCommand.IndexModifiedFile(ktFile)) }
+					}
 				}
 
-				is IndexCommand.IndexSourceFile -> {
-					if (cmd.vf.fileSystem.protocol != "file") {
-						logger.warn("Unknown source file protocol: {}", cmd.vf.path)
-						continue
-					}
+			while (isActive) {
+				// Defensive guard: if the project was disposed out from under us (e.g. a disposal
+				// path that didn't first drain this worker), stop instead of calling PsiManager on a
+				// disposed project, which throws "Project is already disposed" (APPDEVFORALL-17R).
+				if (project.isDisposed) break
 
-					if (project.isDisposed) break
-
-					val ktFile = project.read {
-						PsiManager.getInstance(project)
-							.findFile(cmd.vf) as? KtFile
-					}
-
-					if (ktFile == null) {
-						// probably a non-kotlin file
-						continue
-					}
-
-					indexSourceFile(
-						project = project,
-						ktFile = ktFile,
-						fileIndex = fileIndex,
-						symbolsIndex = sourceIndex,
-						cancelChecker = ICancelChecker.NOOP
-					)
-
-					sourceIndexCount++
-				}
-
-				is IndexCommand.IndexModifiedFile -> {
-					modifiedFileIndexer.schedule(
-						ModFileIndexKey(
-							cmd.ktFile.backingFilePath!!,
-							cmd.ktFile
+				when (val cmd = queue.take()) {
+					is IndexCommand.RemoveFromIndex -> {
+						applyRemovals(
+							first = cmd,
+							fileIndex = fileIndex,
+							sourceIndex = sourceIndex,
+							pollNext = { queue.pollIndexQueue() },
+							pushBack = { queue.pushBackIndexQueue(it) },
 						)
-					)
-				}
-
-				IndexCommand.IndexingComplete -> {
-					logger.info(
-						"Indexing complete: scanned={}, sourceIndexCount={}",
-						scanCount,
-						sourceIndexCount,
-					)
-				}
-
-				is IndexCommand.ScanSourceFile -> {
-					if (project.isDisposed) break
-
-					val ktFile = project.read {
-						PsiManager.getInstance(project).findFile(cmd.vf) as? KtFile
-					}
-						?: continue
-
-					val newFile = ktFile.toMetadata(project, isIndexed = false)
-					val existingFile = fileIndex.get(newFile.filePath)
-					if (KtFileMetadata.shouldBeSkipped(existingFile, newFile)) {
-						continue
 					}
 
-					fileIndex.upsert(newFile)
-					scanCount++
-				}
+					is IndexCommand.IndexSourceFile -> {
+						if (cmd.vf.fileSystem.protocol != "file") {
+							logger.warn("Unknown source file protocol: {}", cmd.vf.path)
+							continue
+						}
 
-				IndexCommand.SourceScanningComplete -> {
-					logger.info("Scanning complete. Found {} files to index.", scanCount)
-				}
+						if (project.isDisposed) break
 
-				IndexCommand.Stop -> break
+						val ktFile =
+							project.read {
+								PsiManager
+									.getInstance(project)
+									.findFile(cmd.vf) as? KtFile
+							}
+
+						if (ktFile == null) {
+							// probably a non-kotlin file
+							continue
+						}
+
+						try {
+							indexSourceFile(
+								project = project,
+								ktFile = ktFile,
+								fileIndex = fileIndex,
+								symbolsIndex = sourceIndex,
+								// A real (cancellable) checker so the scheduler can preempt this pass
+								// in favour of completion/diagnostics.
+								cancelChecker = ICancelChecker.Default(),
+							)
+
+							sourceIndexCount++
+						} catch (e: AnalysisPreemptedException) {
+							// Preempted by higher-priority analysis; re-queue so the file still gets indexed.
+							logger.debug("Indexing of {} preempted; re-queueing", cmd.vf.path)
+							scope.launch { submitCommand(cmd) }
+						}
+					}
+
+					is IndexCommand.IndexModifiedFile -> {
+						modifiedFileIndexer.schedule(
+							ModFileIndexKey(
+								cmd.ktFile.backingFilePath!!,
+								cmd.ktFile,
+							),
+						)
+					}
+
+					IndexCommand.IndexingComplete -> {
+						logger.info(
+							"Indexing complete: scanned={}, sourceIndexCount={}",
+							scanCount,
+							sourceIndexCount,
+						)
+					}
+
+					is IndexCommand.ScanSourceFile -> {
+						if (project.isDisposed) break
+
+						val ktFile =
+							project.read {
+								PsiManager.getInstance(project).findFile(cmd.vf) as? KtFile
+							}
+								?: continue
+
+						val newFile = ktFile.toMetadata(project, isIndexed = false)
+						val existingFile = fileIndex.get(newFile.filePath)
+						if (KtFileMetadata.shouldBeSkipped(existingFile, newFile)) {
+							continue
+						}
+
+						fileIndex.upsert(newFile)
+						scanCount++
+					}
+
+					IndexCommand.SourceScanningComplete -> {
+						logger.info("Scanning complete. Found {} files to index.", scanCount)
+					}
+
+					IndexCommand.Stop -> {
+						break
+					}
+				}
 			}
 		}
-	}
 
 	suspend fun submitCommand(cmd: IndexCommand) {
 		when (cmd) {
@@ -159,4 +183,51 @@ internal class IndexWorker(
 			}
 		}
 	}
+}
+
+/**
+ * Apply [first] plus any consecutive, immediately-available [IndexCommand.RemoveFromIndex]
+ * commands as a single batched removal.
+ *
+ * The symbol removals and the per-file metadata removals are each collapsed into one
+ * batched call — [JvmSymbolIndex.removeBySources] and [KtFileMetadataIndex.removeAll], a
+ * single SQLite transaction apiece — instead of issuing one `DELETE` per file (one
+ * transaction each), which is the N+1 this fix targets (Sentry APPDEVFORALL-SE).
+ *
+ * [pollNext] returns the next already-queued index command without blocking, or `null`
+ * when none is ready. A polled command that is *not* a removal is handed to [pushBack] so
+ * it is processed (in order) on the next loop iteration rather than dropped.
+ *
+ * @param first      The removal command that triggered this batch.
+ * @param fileIndex  Per-file metadata index; removed via the batched [KtFileMetadataIndex.removeAll].
+ * @param sourceIndex Symbol index; removed via the batched [JvmSymbolIndex.removeBySources].
+ * @param pollNext   Non-blocking poll of the next queued index command.
+ * @param pushBack   Returns a non-removal command to the front of the queue.
+ */
+internal suspend fun applyRemovals(
+	first: IndexCommand.RemoveFromIndex,
+	fileIndex: KtFileMetadataIndex,
+	sourceIndex: JvmSymbolIndex,
+	pollNext: () -> IndexCommand?,
+	pushBack: (IndexCommand) -> Unit,
+) {
+	val paths = ArrayList<String>()
+	paths.add(first.path.pathString)
+
+	while (true) {
+		val next = pollNext() ?: break
+		if (next is IndexCommand.RemoveFromIndex) {
+			paths.add(next.path.pathString)
+		} else {
+			// Not batchable — return it so the main loop handles it next, in order.
+			pushBack(next)
+			break
+		}
+	}
+
+	// Collapse all per-file metadata removals into a single transaction.
+	fileIndex.removeAll(paths)
+
+	// Collapse all symbol removals into a single transaction.
+	sourceIndex.removeBySources(paths)
 }

@@ -17,8 +17,8 @@
 
 package com.itsaky.androidide.lsp.api;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
 import com.itsaky.androidide.lsp.debug.IDebugClient;
 import com.itsaky.androidide.lsp.models.CodeActionItem;
 import com.itsaky.androidide.lsp.models.DiagnosticItem;
@@ -27,8 +27,9 @@ import com.itsaky.androidide.lsp.models.PerformCodeActionParams;
 import com.itsaky.androidide.lsp.models.ShowDocumentParams;
 import com.itsaky.androidide.lsp.models.ShowDocumentResult;
 import com.itsaky.androidide.models.Location;
-
+import com.itsaky.androidide.models.Range;
 import java.io.File;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -38,75 +39,95 @@ import java.util.List;
  */
 public interface ILanguageClient {
 
-  /**
-   * Get the {@link IDebugClient} implementation to handle debugger functions.
-   *
-   * @return The {@link IDebugClient} instance.
-   */
-  @Nullable
-  default IDebugClient getDebugClient() {
-    return null;
-  }
+	/**
+	 * Get the {@link IDebugClient} implementation to handle debugger functions.
+	 *
+	 * @return The {@link IDebugClient} instance.
+	 */
+	@Nullable
+	default IDebugClient getDebugClient() {
+		return null;
+	}
 
-  /**
-   * Publish the diagnostics result (allow the user to see them).
-   *
-   * @param result The diagnostic result.
-   */
-  void publishDiagnostics(DiagnosticResult result);
+	/**
+	 * Get the diagnostic item in the given file at the given character position.
+	 *
+	 * @param file
+	 *            The file to search diagnostics in.
+	 * @param line
+	 *            The line.
+	 * @param column
+	 *            The column.
+	 * @return The diagnostic item or <code>null</code> if none was found.
+	 */
+	@Nullable
+	DiagnosticItem getDiagnosticAt(File file, int line, int column);
 
-  /**
-   * Get the diagnostic item in the given file at the given character position.
-   *
-   * @param file   The file to search diagnostics in.
-   * @param line   The line.
-   * @param column The column.
-   * @return The diagnostic item or <code>null</code> if none was found.
-   */
-  @Nullable
-  DiagnosticItem getDiagnosticAt(File file, int line, int column);
+	/**
+	 * Get all diagnostics in the given file whose range overlaps the given range.
+	 *
+	 * @param file
+	 *            The file to search diagnostics in.
+	 * @param range
+	 *            The range to look for diagnostics in.
+	 * @return The overlapping diagnostics, in document order. Never {@code null}.
+	 */
+	@NonNull
+	default List<DiagnosticItem> getDiagnosticsInRange(File file, Range range) {
+		return Collections.emptyList();
+	}
 
-  /**
-   * Perform the given code action.
-   *
-   * @param params The parameters describing the actions to perform.
-   */
-  void performCodeAction(PerformCodeActionParams params);
+	default void performCodeAction(CodeActionItem actionItem) {
+		if (actionItem == null) {
+			return;
+		}
+		performCodeAction(new PerformCodeActionParams(actionItem));
+	}
 
-  default void performCodeAction(CodeActionItem actionItem) {
-    if (actionItem == null) {
-      return;
-    }
-    performCodeAction(new PerformCodeActionParams(actionItem));
-  }
+	/**
+	 * Perform the given code action.
+	 *
+	 * @param file
+	 *            The file in which the given action must be performed.
+	 * @param actionItem
+	 *            The action item describing the action.
+	 * @noinspection unused
+	 */
+	@Deprecated
+	default void performCodeAction(File file, CodeActionItem actionItem) {
+		performCodeAction(actionItem);
+	}
 
-  /**
-   * Perform the given code action.
-   *
-   * @param file       The file in which the given action must be performed.
-   * @param actionItem The action item describing the action.
-   * @noinspection unused
-   */
-  @Deprecated
-  default void performCodeAction(File file, CodeActionItem actionItem) {
-    performCodeAction(actionItem);
-  }
+	/**
+	 * Perform the given code action.
+	 *
+	 * @param params
+	 *            The parameters describing the actions to perform.
+	 */
+	void performCodeAction(PerformCodeActionParams params);
 
-  /**
-   * Notification sent by the language server to tell the client that it should open the given file
-   * and select the range from the params.
-   *
-   * @param params The params for showing the document.
-   * @return The result of the show document request. Servers can use this result to perform further
-   * action.
-   */
-  ShowDocumentResult showDocument(ShowDocumentParams params);
+	/**
+	 * Publish the diagnostics result (allow the user to see them).
+	 *
+	 * @param result
+	 *            The diagnostic result.
+	 */
+	void publishDiagnostics(DiagnosticResult result);
 
-  /**
-   * Notification sent by the language server to tell teh client client to show the given locations
-   * to the user.
-   *
-   * @param locations The location to show.
-   */
-  void showLocations(List<Location> locations);
+	/**
+	 * Notification sent by the language server to tell the client that it should open the given file and select the range from the params.
+	 *
+	 * @param params
+	 *            The params for showing the document.
+	 * @return The result of the show document request. Servers can use this result to perform further action.
+	 */
+	ShowDocumentResult showDocument(ShowDocumentParams params);
+
+	/**
+	 * Notification sent by the language server to tell teh client client to show the given locations to the user.
+	 *
+	 * @param locations
+	 *            The location to show.
+	 */
+	void showLocations(List<Location> locations);
 }

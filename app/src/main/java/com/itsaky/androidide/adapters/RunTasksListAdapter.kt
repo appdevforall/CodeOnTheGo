@@ -77,7 +77,7 @@ class RunTasksListAdapter
 				TooltipManager.showIdeCategoryTooltip(
 					context = binding.root.context,
 					anchorView = binding.root,
-					tag = TooltipTag.PROJECT_GRADLE_TASKS,
+					tag = TooltipTag.gradleTaskTooltipTag(task.path),
 				)
 				true
 			}

@@ -35,22 +35,21 @@ scripts\install-git-hooks.bat
 ```
 ## Source code format
 
-- Indents : 2-space
-- Java : `GoogleStyle`. Either use `google-java-format` or
-  import [this](https://raw.githubusercontent.com/google/styleguide/gh-pages/intellij-java-google-style.xml)
-  code style.
-- Kotlin: Use [`ktfmt`](https://plugins.jetbrains.com/plugin/14912-ktfmt) IntelliJ Plugin and set
-  the code style to `Google (internal)`
-  . [`Learn more`](https://github.com/facebook/ktfmt#intellij-android-studio-and-other-jetbrains-ides)
-  .
-- XML : Default Android Studio formatter with 2-space indentations.
+Formatting is enforced by **Spotless** (`ratchetFrom = origin/stage`, so only changed lines are
+checked). Run `./gradlew spotlessApply` before pushing; CI fails on unformatted changed lines.
+
+- **Indentation:** tabs. **Line endings:** LF.
+- **Java:** the Eclipse formatter (config `spotless.eclipse-java.xml`), with member sorting and import ordering.
+- **Kotlin** and `*.gradle.kts`: `ktlint`.
+- **XML:** the Eclipse WTP formatter (config `spotless.eclipse-xml.prefs`).
 
 ## Propose a change
 
 Before proposing a change, please open an issue and discuss it with our team.
 
-**The `dev` branch is protected and requires all commits to be signed with your GPG key and the
-commit history to be linear.**
+**Branch model.** `stage` is the protected default/integration branch; `main` is the release
+branch. Base feature branches on `stage` and open pull requests back into `stage` — never branch
+from `main` or target it directly. `main` only ever receives merges from `stage`, for releases.
 See [protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/about-protected-branches)
 .
 

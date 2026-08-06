@@ -65,7 +65,7 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 
       feedbackButtonManager = FeedbackButtonManager(
           activity = this,
-          feedbackFab = binding.fabFeedback,
+          feedbackFab = binding.fabFeedback.root,
       )
       feedbackButtonManager?.setupDraggableFab()
 

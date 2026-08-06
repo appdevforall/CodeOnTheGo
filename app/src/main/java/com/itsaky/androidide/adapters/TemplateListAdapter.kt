@@ -17,17 +17,17 @@
 
 package com.itsaky.androidide.adapters
 
-import android.widget.ImageView
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
-import com.blankj.utilcode.util.ConvertUtils
 import com.bumptech.glide.Glide
 import com.google.android.material.shape.CornerFamily
 import com.itsaky.androidide.adapters.TemplateListAdapter.ViewHolder
 import com.itsaky.androidide.databinding.LayoutTemplateListItemBinding
 import com.itsaky.androidide.templates.Template
+import com.itsaky.androidide.utils.dpToPx
 
 /**
  * [RecyclerView.Adapter] for showing templates in a [RecyclerView].
@@ -39,7 +39,6 @@ class TemplateListAdapter(
 	private val onClick: ((Template<*>, ViewHolder) -> Unit)? = null,
 	private val onLongClick: ((Template<*>, View) -> Unit)? = null,
 ) : RecyclerView.Adapter<ViewHolder>() {
-
 	private val templates = templates.toMutableList()
 
 	class ViewHolder(
@@ -64,29 +63,29 @@ class TemplateListAdapter(
 		holder: ViewHolder,
 		position: Int,
 	) {
-
-        holder.binding.apply {
-            val template = templates[position]
-            if (template == Template.EMPTY) {
+		holder.binding.apply {
+			val template = templates[position]
+			if (template == Template.EMPTY) {
 				root.visibility = View.INVISIBLE
 				return@apply
 			}
 
-            templateName.text = template.templateNameStr
-            if (template.thumbData != null) {
-                templateIcon.scaleType = ImageView.ScaleType.FIT_CENTER
-                Glide.with(templateIcon.context)
-                    .asBitmap()
-                    .load(template.thumbData)
-                    .into(templateIcon)
-            } else {
-                templateIcon.setImageResource(template.thumb)
-            }
+			templateName.text = template.templateNameStr
+			if (template.thumbData != null) {
+				templateIcon.scaleType = ImageView.ScaleType.FIT_CENTER
+				Glide
+					.with(templateIcon.context)
+					.asBitmap()
+					.load(template.thumbData)
+					.into(templateIcon)
+			} else {
+				templateIcon.setImageResource(template.thumb)
+			}
 
 			templateIcon.shapeAppearanceModel =
 				templateIcon.shapeAppearanceModel
 					.toBuilder()
-					.setAllCorners(CornerFamily.ROUNDED, ConvertUtils.dp2px(8f).toFloat())
+					.setAllCorners(CornerFamily.ROUNDED, templateIcon.context.dpToPx(8f).toFloat())
 					.build()
 
 			root.setOnClickListener {

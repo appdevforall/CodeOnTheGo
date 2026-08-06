@@ -29,8 +29,7 @@ dependencies {
 	kapt(libs.google.auto.service)
 	compileOnly(projects.subprojects.frameworkStubs)
 
-	api(libs.logging.logback.core)
-	api(libs.logging.logback.classic)
+	api(libs.tooling.slf4j)
 
 	implementation(projects.buildInfo)
 	implementation(libs.google.auto.service.annotations)

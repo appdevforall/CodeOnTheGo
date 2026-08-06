@@ -16,13 +16,18 @@ HOOKS_DIR="${TOP_DIR}/.githooks/${HOOK_NAME}"
 
 echo "[*] Running ${HOOK_NAME} hooks..."
 
-# Find all executable files in the hooks directory and sort them
-for hook in $(find "$HOOKS_DIR" -type f -executable | sort); do
+# Run each executable hook in sorted order. Null-delimited (find -print0 | sort
+# -z | read -d '') tolerates paths with spaces, newlines, or glob characters;
+# process substitution keeps the loop in the main shell so a hook failure exits
+# the dispatcher. `-executable` is deliberately avoided (a GNU primary BSD/macOS
+# find rejects) in favor of a per-file `[ -x ]` test.
+while IFS= read -r -d '' hook; do
+	[ -x "$hook" ] || continue
 	echo "[*] Running $(basename "$hook")..."
 	"$hook" || {
 		echo "[!] Hook $(basename "$hook") failed"
 		exit 1
 	}
-done
+done < <(find "$HOOKS_DIR" -type f -print0 | sort -z)
 
 echo "[*] All ${HOOK_NAME} hooks passed"

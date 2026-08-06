@@ -53,6 +53,16 @@ class KtFileMetadataIndex(
 	suspend fun remove(filePath: String) = backing.removeBySource(filePath)
 
 	/**
+	 * Remove the metadata records for every path in [filePaths] as a single
+	 * batched, transactional operation.
+	 *
+	 * Equivalent to calling [remove] once per path, but issues the deletes as one
+	 * transaction instead of N — see [Index.removeBySources]. Paths not present in
+	 * the index are ignored.
+	 */
+	suspend fun removeAll(filePaths: Collection<String>) = backing.removeBySources(filePaths)
+
+	/**
 	 * Return the [KtFileMetadata] for [filePath], or `null` if the file is
 	 * not present in the index.
 	 */

@@ -242,7 +242,6 @@
   <string name="idepref_buildnrun_summary">Gradle inşasını yapılandırın.</string>
   <string name="configure">Yapılandır</string>
   <string name="about">Hakkında</string>
-  <string name="idepref_github_summary">Code on the Go açık kaynaktır!</string>
   <string name="idepref_channel_summary">Son güncellemeler için abone olun.</string>
   <string name="idepref_group_summary">Özellikleri, sorunları ve iyileştirmeleri burada tartışın.</string>
   <string name="idepref_changelog_summary">Bu sürümde yeni ne var?</string>
@@ -340,12 +339,6 @@
   <string name="msg_tasks_to_run">Takip eden görevler sırayla çalıştırılacak. Tekrar \'Çalıştır\' tuşuna basarak doğrulayın.\n\n%1$s</string>
   <string name="msg_loading_tasks">Görevler yükleniyor...</string>
   <!-- GIT -->
-  <string name="git_clone">Kopya oluştur</string>
-  <string name="git_clone_repo">Git deposu klonla</string>
-  <string name="git_clone_repo_url">Depo Linki</string>
-  <string name="git_clone_in_progress">Depo klonlanıyor</string>
-  <string name="git_clone_success">Depo başarıyla klonlandı</string>
-  <string name="git_clone_failed">Depo klonlama başarısız</string>
   <string name="msg_select_attr">Aşağıdaki listeden bir öznitelik seç</string>
   <string name="action_show_hierarchy">Düzen aşamalarını göster</string>
   <string name="idepref_editor_colorScheme">Renk Şeması</string>

@@ -1,0 +1,14 @@
+# Local, machine-specific settings (not shared)
+settings.local.json
+
+# Claude Code worktrees
+worktrees/
+# Local plan/scratch artifacts, if any
+/plans/
+
+# Session/runtime artifacts
+projects/
+todos/
+shell-snapshots/
+statsig/
+.credentials.json

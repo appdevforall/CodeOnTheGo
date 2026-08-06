@@ -34,10 +34,12 @@ import com.itsaky.androidide.plugins.manager.loaders.toPluginMetadata
 import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.context.PluginContextImpl
+import com.itsaky.androidide.plugins.manager.context.PluginLifecycleDispatcher
 import com.itsaky.androidide.plugins.manager.context.PluginLoggerImpl
 import com.itsaky.androidide.plugins.manager.context.PluginRegistry
 import com.itsaky.androidide.plugins.manager.context.ResourceManagerImpl
 import com.itsaky.androidide.plugins.manager.context.ServiceRegistryImpl
+import com.itsaky.androidide.plugins.manager.context.SharedServiceRegistry
 import com.itsaky.androidide.plugins.manager.documentation.PluginDocumentationManager
 import com.itsaky.androidide.plugins.manager.project.PluginProjectManager
 import com.itsaky.androidide.plugins.manager.services.IdeTemplateServiceImpl
@@ -114,6 +116,8 @@ class PluginManager private constructor(
      * silently drop on the floor during the early-boot window.
      */
     private val pendingFileChangeCallbacks = java.util.concurrent.CopyOnWriteArraySet<(File?) -> Unit>()
+    private val pendingContentChangeCallbacks =
+        java.util.concurrent.CopyOnWriteArraySet<(String, Int, Int, String) -> Unit>()
 
     private val delegatingEditorProvider = object : IdeEditorServiceImpl.EditorProvider {
         private fun current(): IdeEditorServiceImpl.EditorProvider? = editorProvider
@@ -175,6 +179,16 @@ class PluginManager private constructor(
             pendingFileChangeCallbacks.remove(callback)
             current()?.removeFileChangeCallback(callback)
         }
+        override fun addContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {
+            pendingContentChangeCallbacks.add(callback)
+            current()?.addContentChangeCallback(callback)
+        }
+        override fun removeContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {
+            pendingContentChangeCallbacks.remove(callback)
+            current()?.removeContentChangeCallback(callback)
+        }
+        override fun showInlineSuggestion(pluginId: String, text: String) { current()?.showInlineSuggestion(pluginId, text) }
+        override fun dismissInlineSuggestion(pluginId: String) { current()?.dismissInlineSuggestion(pluginId) }
     }
 
     // Configurable permissions for different services
@@ -203,7 +217,8 @@ class PluginManager private constructor(
     private val loadFailures = ConcurrentHashMap<String, String>()
     private val pluginRegistry = PluginRegistry(context)
     private val securityManager = PluginSecurityManager()
-    private val serviceRegistry = ServiceRegistryImpl()
+    private val serviceRegistry = SharedServiceRegistry()
+    private val lifecycleDispatcher = PluginLifecycleDispatcher()
     
     private val pluginsDir = File(context.filesDir, "plugins")
     private val documentationManager = PluginDocumentationManager(context)
@@ -576,6 +591,7 @@ class PluginManager private constructor(
                 logger.info("Registered build actions for plugin: ${manifest.id}")
             }
             buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
+            lifecycleDispatcher.notifyActivated(manifest.id)
         }.onFailure { e ->
             logger.error("Failed to activate  plugin: ${manifest.id}", e)
             loadedPlugin.isEnabled = false
@@ -684,6 +700,9 @@ class PluginManager private constructor(
 
             PluginFragmentFactory.unregisterAllClassLoadersForPlugin(pluginId)
 
+            // Drop lifecycle listeners this plugin registered; its classloader is going away.
+            lifecycleDispatcher.removeAllFrom(pluginId)
+
             File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).let { dir ->
                 if (dir.exists()) dir.deleteRecursively()
             }
@@ -765,6 +784,7 @@ class PluginManager private constructor(
             removePluginState(pluginId)
             crashTracker.removeCrashCount(pluginId)
             cleanupPluginCacheFiles(pluginId)
+            lifecycleDispatcher.notifyUninstalled(pluginId)
             logger.info("Plugin uninstall completed successfully: $pluginId")
         } else {
             logger.error("Failed to uninstall plugin: $pluginId - file not found or could not be deleted")
@@ -920,6 +940,7 @@ class PluginManager private constructor(
             loadedPlugin.plugin.deactivate()
             loadedPlugin.isEnabled = false
             savePluginState(pluginId, false)
+            lifecycleDispatcher.notifyDeactivated(pluginId)
 
             logger.info("Disabled plugin: $pluginId")
             true
@@ -941,6 +962,7 @@ class PluginManager private constructor(
         }
         loadedPlugin.isEnabled = false
         savePluginState(pluginId, false)
+        lifecycleDispatcher.notifyDeactivated(pluginId)
         logger.warn("Force-disabled plugin due to crashes: $pluginId")
     }
 
@@ -993,7 +1015,8 @@ class PluginManager private constructor(
 
     fun getLoadedPluginIds(): Set<String> = loadedPlugins.keys.toSet()
 
-    fun getServiceRegistry(): ServiceRegistry = serviceRegistry
+    fun getServiceRegistry(): ServiceRegistry =
+        serviceRegistry.asRegistry(SharedServiceRegistry.HOST_PROVIDER_ID)
     
     /**
      * Set the activity provider to enable UI operations in plugins
@@ -1023,11 +1046,17 @@ class PluginManager private constructor(
             pendingFileChangeCallbacks.forEach { cb ->
                 runCatching { previous.removeFileChangeCallback(cb) }
             }
+            pendingContentChangeCallbacks.forEach { cb ->
+                runCatching { previous.removeContentChangeCallback(cb) }
+            }
         }
         this.editorProvider = provider
         if (provider != null) {
             pendingFileChangeCallbacks.forEach { cb ->
                 runCatching { provider.addFileChangeCallback(cb) }
+            }
+            pendingContentChangeCallbacks.forEach { cb ->
+                runCatching { provider.addContentChangeCallback(cb) }
             }
         }
     }
@@ -1353,7 +1382,14 @@ class PluginManager private constructor(
                 classLoader = classLoader,
                 assetManager = resourceContext.assets
             ),
-            pluginId = pluginId
+            pluginId = pluginId,
+            sharedServices = serviceRegistry,
+            lifecycleDispatcher = lifecycleDispatcher,
+            pluginInfoProvider = { id ->
+                loadedPlugins[id]?.let {
+                    PluginInfo(it.toPluginMetadata(), it.isEnabled, isLoaded = true)
+                }
+            }
         )
     }
 
@@ -1536,7 +1572,14 @@ class PluginManager private constructor(
             eventBus = eventBus,
             logger = PluginLoggerImpl(pluginId, logger),
             resources = ResourceManagerImpl(pluginId, pluginsDir, classLoader),
-            pluginId = pluginId
+            pluginId = pluginId,
+            sharedServices = serviceRegistry,
+            lifecycleDispatcher = lifecycleDispatcher,
+            pluginInfoProvider = { id ->
+                loadedPlugins[id]?.let {
+                    PluginInfo(it.toPluginMetadata(), it.isEnabled, isLoaded = true)
+                }
+            }
         )
     }
 

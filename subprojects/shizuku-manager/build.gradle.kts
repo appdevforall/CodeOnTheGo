@@ -55,7 +55,6 @@ dependencies {
 	implementation(libs.libsu.core)
 	implementation(libs.common.hiddenApiBypass)
 	implementation(libs.boringssl)
-	implementation(libs.bcpkix.jdk18on)
 
 	//noinspection UseTomlInstead
 	implementation("org.lsposed.libcxx:libcxx:${BuildConfig.NDK_VERSION}")

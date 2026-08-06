@@ -176,10 +176,14 @@ class IdeProjectServiceImpl(
     }
 
     private fun getDefaultAllowedPaths(): List<String> {
-        return listOf(
-            "/storage/emulated/0/AndroidIDEProjects",
-            "/sdcard/AndroidIDEProjects",
-            System.getProperty("user.home", "/") + "/AndroidIDEProjects",
+        val projectsDirPaths = runCatching { Environment.PROJECTS_DIR }.getOrNull()?.let { dir ->
+            listOfNotNull(dir.absolutePath, runCatching { dir.canonicalPath }.getOrNull())
+        }.orEmpty()
+
+        return projectsDirPaths + listOf(
+            "/storage/emulated/0/CodeOnTheGoProjects",
+            "/sdcard/CodeOnTheGoProjects",
+            System.getProperty("user.home", "/") + "/CodeOnTheGoProjects",
             "/tmp/AndroidIDEProject" // Allow temporary project for demo purposes
         )
     }

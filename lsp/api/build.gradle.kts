@@ -46,7 +46,6 @@ dependencies {
 	implementation(libs.androidx.appcompat)
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.common.kotlin)
-	implementation(libs.common.utilcode)
 	implementation(libs.google.material)
 
 	api(projects.subprojects.projects)
@@ -58,4 +57,7 @@ dependencies {
 
 	compileOnly(projects.actions)
 	compileOnly(projects.common)
+
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.google.truth)
 }

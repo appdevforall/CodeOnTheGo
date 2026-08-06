@@ -35,8 +35,6 @@ import java.nio.IntBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Objects;
 import java.util.stream.IntStream;
 
@@ -50,16 +48,8 @@ import javac.internal.jimage.decompressor.Decompressor;
  * to the jimage file provided by the shipped JDK by tools running on JDK 8.
  */
 public class BasicImageReader implements AutoCloseable {
-    @SuppressWarnings("removal")
     private static boolean isSystemProperty(String key, String value, String def) {
-        // No lambdas during bootstrap
-        return AccessController.doPrivileged(
-            new PrivilegedAction<Boolean>() {
-                @Override
-                public Boolean run() {
-                    return value.equals(System.getProperty(key, def));
-                }
-            });
+        return value.equals(System.getProperty(key, def));
     }
 
     static private final boolean IS_64_BIT =
@@ -83,7 +73,6 @@ public class BasicImageReader implements AutoCloseable {
     private final ImageStringsReader stringsReader;
     private final Decompressor decompressor;
 
-    @SuppressWarnings("removal")
     protected BasicImageReader(Path path, ByteOrder byteOrder)
             throws IOException {
         this.imagePath = Objects.requireNonNull(path);
@@ -105,29 +94,21 @@ public class BasicImageReader implements AutoCloseable {
             channel = null;
         } else {
             channel = FileChannel.open(imagePath, StandardOpenOption.READ);
-            // No lambdas during bootstrap
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    if (BasicImageReader.class.getClassLoader() == null) {
-                        try {
-                            Class<?> fileChannelImpl =
-                                Class.forName("sun.nio.ch.FileChannelImpl");
-                            Method setUninterruptible =
-                                    fileChannelImpl.getMethod("setUninterruptible");
-                            setUninterruptible.invoke(channel);
-                        } catch (ClassNotFoundException |
-                                 NoSuchMethodException |
-                                 IllegalAccessException |
-                                 InvocationTargetException ex) {
-                            // fall thru - will only happen on JDK-8 systems where this code
-                            // is only used by tools using jrt-fs (non-critical.)
-                        }
-                    }
-
-                    return null;
+            if (BasicImageReader.class.getClassLoader() == null) {
+                try {
+                    Class<?> fileChannelImpl =
+                        Class.forName("sun.nio.ch.FileChannelImpl");
+                    Method setUninterruptible =
+                            fileChannelImpl.getMethod("setUninterruptible");
+                    setUninterruptible.invoke(channel);
+                } catch (ClassNotFoundException |
+                         NoSuchMethodException |
+                         IllegalAccessException |
+                         InvocationTargetException ex) {
+                    // fall thru - will only happen on JDK-8 systems where this code
+                    // is only used by tools using jrt-fs (non-critical.)
                 }
-            });
+            }
         }
 
         // If no memory map yet and 64 bit jvm then memory map entire file

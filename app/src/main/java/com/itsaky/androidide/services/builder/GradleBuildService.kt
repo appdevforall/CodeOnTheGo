@@ -25,8 +25,6 @@ import android.content.Intent
 import android.os.IBinder
 import android.text.TextUtils
 import androidx.core.app.NotificationManagerCompat
-import com.blankj.utilcode.util.ResourceUtils
-import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.analytics.gradle.BuildCompletedMetric
@@ -49,10 +47,10 @@ import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
-import com.itsaky.androidide.tooling.api.IToolingApiClient
-import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
+import com.itsaky.androidide.tooling.api.IToolingApiClient
+import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
@@ -70,6 +68,8 @@ import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.ResourceUtils
+import com.itsaky.androidide.utils.ZipUtils
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
@@ -166,7 +166,7 @@ class GradleBuildService :
 			}
 		} ?: "unknown"
 
-	internal fun nextBuildId(runType: BuildRunType): BuildId =
+	override fun nextBuildId(runType: BuildRunType): BuildId =
 		BuildId(
 			buildSessionId = buildSessionId,
 			buildId = buildId.incrementAndGet(),
@@ -344,7 +344,6 @@ class GradleBuildService :
 			'W' -> logger.warn(params.message)
 			'E' -> logger.error(params.message)
 			'I' -> logger.info(params.message)
-
 			else -> logger.trace(params.message)
 		}
 	}
@@ -408,9 +407,10 @@ class GradleBuildService :
 					),
 			)
 
-			EventBus.getDefault()
+			EventBus
+				.getDefault()
 				.post(
-					BuildStartedEvent(buildInfo)
+					BuildStartedEvent(buildInfo),
 				)
 
 			eventListener?.prepareBuild(buildInfo)
@@ -450,16 +450,18 @@ class GradleBuildService :
 		)
 
 		buildServiceScope.launch {
-			ProjectManagerImpl.getInstance()
+			ProjectManagerImpl
+				.getInstance()
 				.indexingServiceManager
 				.onBuildCompleted()
 		}
 
-		EventBus.getDefault()
+		EventBus
+			.getDefault()
 			.post(
 				BuildCompletedEvent(
 					result = result,
-				)
+				),
 			)
 	}
 
@@ -549,7 +551,7 @@ class GradleBuildService :
 		try {
 			val projectDir = ProjectManagerImpl.getInstance().projectDir
 			val files = ZipUtils.unzipFile(extracted, projectDir)
-			if (files != null && files.isNotEmpty()) {
+			if (files.isNotEmpty()) {
 				return GradleWrapperCheckResult(true)
 			}
 		} catch (e: IOException) {
@@ -632,9 +634,9 @@ class GradleBuildService :
 				} catch (e: Throwable) {
 					if (BuildPreferences.isScanEnabled &&
 						(
-								e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
-										e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
-								)
+							e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
+								e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
+						)
 					) {
 						BuildPreferences.isScanEnabled = false
 

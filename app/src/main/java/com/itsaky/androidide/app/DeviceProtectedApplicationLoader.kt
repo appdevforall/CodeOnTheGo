@@ -1,5 +1,7 @@
 package com.itsaky.androidide.app
 
+import android.os.Build
+import android.provider.Settings
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -13,16 +15,19 @@ import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
-import com.itsaky.androidide.handlers.SentryDiagnosticsContext
+import com.itsaky.androidide.handlers.GlitchTipDiagnosticsContext
+import com.itsaky.androidide.logging.provider.IdeLogRouter
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
+import io.sentry.Breadcrumb
 import io.sentry.Sentry
-import io.sentry.SentryReplayOptions.SentryReplayQuality
+import io.sentry.SentryLevel
 import io.sentry.android.core.SentryAndroid
+import io.sentry.protocol.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -31,6 +36,7 @@ import org.greenrobot.eventbus.EventBus
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 import kotlin.system.exitProcess
 
 /**
@@ -67,16 +73,48 @@ internal object DeviceProtectedApplicationLoader :
 			),
 		)
 
-		SentryAndroid.init(app) { options ->
-			// Reduce replay quality to LOW to prevent OOM
-			// This reduces screenshot compression to 10 and bitrate to 50kbps
-			// (defaults to MEDIUM quality)
-			options.sessionReplay.quality = SentryReplayQuality.LOW
-			options.environment =
-				if (BuildConfig.DEBUG) IDEApplication.SENTRY_ENV_DEV else IDEApplication.SENTRY_ENV_PROD
+		runCatching {
+			// Initialize the Sentry SDK; it reports to our GlitchTip backend
+			// (GlitchTip is Sentry-protocol-compatible), so the SDK types stay io.sentry.
+			SentryAndroid.init(app) { options ->
+				options.environment =
+					if (BuildConfig.DEBUG) IDEApplication.GLITCHTIP_ENV_DEV else IDEApplication.GLITCHTIP_ENV_PROD
 
-			// Enrich every Sentry event with app-specific diagnostic context.
-			SentryDiagnosticsContext.install(options)
+				// Enrich every GlitchTip event with app-specific diagnostic context.
+				GlitchTipDiagnosticsContext.install(options)
+			}
+
+			// Forward INFO+ logs to GlitchTip as breadcrumbs (never as events; crash events are
+			// only ever sent via explicit Sentry.captureException calls elsewhere). INFO matches
+			// the old SentryAppender's setMinimumBreadcrumbLevel(Level.INFO) - that threshold is
+			// independent of setMinimumLevel(Level.WARN), which only gated the separate,
+			// unused "Sentry Logs" feature.
+			IdeLogRouter.addSink { level, loggerName, message, _ ->
+				if (level.toInt() >= Level.INFO.toInt()) {
+					Sentry.addBreadcrumb(
+						Breadcrumb().apply {
+							category = loggerName
+							this.message = message
+							this.level =
+								when (level) {
+									Level.ERROR -> SentryLevel.ERROR
+									Level.WARN -> SentryLevel.WARNING
+									Level.INFO -> SentryLevel.INFO
+									else -> SentryLevel.DEBUG
+								}
+						},
+					)
+				}
+			}
+
+			Sentry.setUser(
+				User().apply {
+					id = Settings.Secure.getString(app.contentResolver, Settings.Secure.ANDROID_ID)
+					username = "${Build.MANUFACTURER} ${Build.MODEL}"
+				},
+			)
+		}.onFailure {
+			logger.error("Failed to initialize crash and log reporting", it)
 		}
 
 		ShizukuSettings.initialize()
@@ -121,7 +159,7 @@ internal object DeviceProtectedApplicationLoader :
 		exception: Throwable,
 	) {
 		// we can't write logs to files, nor we can show the crash handler
-		// activity to the user. Just report to Sentry and exit.
+		// activity to the user. Just report to GlitchTip and exit.
 
 		Sentry.captureException(exception)
 		IDEApplication.instance.uncaughtExceptionHandler?.uncaughtException(thread, exception)

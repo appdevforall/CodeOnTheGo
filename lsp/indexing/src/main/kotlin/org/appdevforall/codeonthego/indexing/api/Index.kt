@@ -69,6 +69,16 @@ interface WritableIndex<T : Indexable> {
     suspend fun removeBySource(sourceId: String)
 
     /**
+     * Remove all entries from the given sources in a single transaction.
+     *
+     * Equivalent to calling [removeBySource] for each id, but issues the
+     * deletes as one batched, transactional operation instead of N
+     * sequential statements. Implementations should chunk the ids so the
+     * generated SQL stays within parameter limits.
+     */
+    suspend fun removeBySources(sourceIds: Collection<String>)
+
+    /**
      * Remove all entries.
      */
     suspend fun clear()

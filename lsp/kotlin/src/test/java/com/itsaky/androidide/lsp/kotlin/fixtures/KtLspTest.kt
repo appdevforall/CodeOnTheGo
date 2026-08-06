@@ -1,8 +1,11 @@
 package com.itsaky.androidide.lsp.kotlin.fixtures
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.toMetadata
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.progress.ICancelChecker
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaFunctionCall
@@ -21,9 +24,20 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 abstract class KtLspTest {
+	/** Source modules for this test class. Override to exercise inter-module resolution. */
+	internal open val moduleSpecs: List<TestSourceModuleSpec> =
+		listOf(TestSourceModuleSpec("src"))
+
+	/**
+	 * See [KtLspTestEnvironment]'s parameter of the same name. Override to `true` only for tests that
+	 * open a document and drive resolution/ranges through the live KtFile it produces - the default
+	 * `false` makes such files non-physical, which production never hits.
+	 */
+	internal open val enableParserEventSystem: Boolean = false
+
 	@get:Rule
 	@PublishedApi
-	internal val lspTestRule = KtLspTestRule()
+	internal val lspTestRule = KtLspTestRule({ moduleSpecs }, { enableParserEventSystem })
 
 	internal val env: KtLspTestEnvironment
 		get() = lspTestRule.env
@@ -31,8 +45,14 @@ abstract class KtLspTest {
 	protected fun createSourceFile(
 		relativePath: String,
 		content: String,
+	): KtFile = createSourceFile(moduleSpecs.first().name, relativePath, content)
+
+	protected fun createSourceFile(
+		moduleName: String,
+		relativePath: String,
+		content: String,
 	): KtFile {
-		val file = env.createSourceFile(relativePath, content)
+		val file = env.createSourceFile(moduleName, relativePath, content)
 		// See the comment in `analyzeMaybeDanglingForTest` below: freshly-created files are invisible to
 		// unqualified name resolution until they're registered with the symbol index's file metadata,
 		// which in production happens via the background indexer. Do that synchronously here so every
@@ -45,6 +65,21 @@ abstract class KtLspTest {
 		file: KtFile,
 		action: KaSession.() -> R,
 	): R = env.analyze(file, action)
+
+	/**
+	 * Runs [action] in a dangling-aware analysis session for [ktFile], the way an interactive request
+	 * (completion, code action) does. Tests have no upstream cancellation source, hence [ICancelChecker.NOOP].
+	 */
+	internal fun <R> analyzeMaybeDanglingForTest(
+		ktFile: KtFile,
+		action: KaSession.() -> R,
+	): R =
+		env.project.read {
+			analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, noopCancelChecker(), action)
+		}
+
+	/** A fresh scheduler-aware checker with no upstream cancellation source, for call sites that require one. */
+	internal fun noopCancelChecker(): ScheduledCancelChecker = ScheduledCancelChecker(ICancelChecker.NOOP)
 
 	/** Resolves [call] to a function call and runs [action] inside the analyze block. */
 	protected fun <R> analyzeMaybeDanglingForTest(
@@ -62,11 +97,9 @@ abstract class KtLspTest {
 		// does in production.
 		val ktFile = call.containingKtFile
 		runBlocking { env.ktSymbolIndex.fileIndex.upsert(ktFile.toMetadata(env.project, isIndexed = false)) }
-		return env.project.read {
-			analyzeMaybeDangling(ktFile) {
-				val resolved = call.resolveToCall()?.successfulFunctionCallOrNull()
-				action(resolved)
-			}
+		return analyzeMaybeDanglingForTest(ktFile) {
+			val resolved = call.resolveToCall()?.successfulFunctionCallOrNull()
+			action(resolved)
 		}
 	}
 }

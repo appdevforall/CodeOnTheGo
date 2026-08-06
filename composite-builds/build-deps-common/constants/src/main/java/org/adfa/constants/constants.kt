@@ -63,6 +63,10 @@ const val LOCAL_MAVEN_REPO_FOLDER_DEST = "localMvnRepository"
 @Suppress("SdCardPath")
 const val MAVEN_LOCAL_REPOSITORY = "/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST"
 
+// Plugin maven-repo overlay (plugin-api + plugin-builder coordinates + marker)
+const val PLUGIN_MAVEN_REPO_ZIP_NAME = "plugin-maven-repo.zip"
+const val PLUGIN_MAVEN_REPO_ZIP_BR = "${PLUGIN_MAVEN_REPO_ZIP_NAME}.br"
+
 // Tooltips
 const val CONTENT_KEY = "CONTENT_KEY"
 const val CONTENT_TITLE_KEY = "CONTENT_TITLE_KEY"

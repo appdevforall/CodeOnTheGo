@@ -31,8 +31,6 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 import javac.internal.jimage.ImageReader;
 import javac.internal.jimage.ImageReader.Node;
@@ -46,7 +44,6 @@ import com.itsaky.androidide.javac.config.JavacConfigProvider;
  * but also compiled and delivered as part of the jrtfs.jar to support access
  * to the jimage file provided by the shipped JDK by tools running on JDK 8.
  */
-@SuppressWarnings("removal")
 abstract class SystemImage {
 
     abstract Node findNode(String path) throws IOException;
@@ -87,20 +84,13 @@ abstract class SystemImage {
     static final Path explodedModulesDir;
 
     static {
-        PrivilegedAction<String> pa = SystemImage::findHome;
-        RUNTIME_HOME = AccessController.doPrivileged(pa);
+        RUNTIME_HOME = findHome();
 
         FileSystem fs = FileSystems.getDefault();
         moduleImageFile = fs.getPath(RUNTIME_HOME, "lib", "modules");
         explodedModulesDir = fs.getPath(RUNTIME_HOME, "modules");
 
-        modulesImageExists = AccessController.doPrivileged(
-            new PrivilegedAction<Boolean>() {
-                @Override
-                public Boolean run() {
-                    return Files.isRegularFile(moduleImageFile);
-                }
-            });
+        modulesImageExists = Files.isRegularFile(moduleImageFile);
     }
 
     /**

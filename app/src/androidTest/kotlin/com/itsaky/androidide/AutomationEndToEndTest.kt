@@ -4,32 +4,30 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.advancePastWelcomeScreen
 import com.itsaky.androidide.helper.clickFirstAccessibilityNodeByText
+import com.itsaky.androidide.helper.configureAutomationBuildPreferences
 import com.itsaky.androidide.helper.ensureOnHomeScreenBeforeCreateProject
 import com.itsaky.androidide.helper.grantAllRequiredPermissionsThroughOnboardingUi
+import com.itsaky.androidide.helper.handlePrivacyDisclosure
 import com.itsaky.androidide.helper.initializeProjectRunAssembleTasksAndCancelBuild
 import com.itsaky.androidide.helper.selectProjectTemplate
 import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
-import com.itsaky.androidide.resources.R as ResourcesR
 import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.OnboardingScreen
+import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.setProjectName
-import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
 private const val LAUNCH_SETTLE_DELAY_MS = 1_000L
-private const val PRIVACY_DIALOG_TIMEOUT_MS = 2_000L
 private const val PERMISSIONS_ASSERTION_TIMEOUT_MS = 3_000L
 private const val KOTLIN_LANGUAGE_TEMPLATE_COUNT = 7
 
@@ -42,198 +40,176 @@ private const val KOTLIN_LANGUAGE_TEMPLATE_COUNT = 7
  */
 @RunWith(AndroidJUnit4::class)
 class AutomationEndToEndTest : TestCase() {
+	private val targetContext
+		get() = InstrumentationRegistry.getInstrumentation().targetContext
 
-    private val targetContext
-        get() = InstrumentationRegistry.getInstrumentation().targetContext
+	@Test
+	fun test_endToEnd() =
+		run {
+			// ── Launch ──
 
-    private val acceptText: String
-        get() = targetContext.getString(ResourcesR.string.privacy_disclosure_accept)
+			step("Launch app") {
+				ActivityScenario.launch(SplashActivity::class.java)
+				Thread.sleep(LAUNCH_SETTLE_DELAY_MS)
+			}
 
-    private val learnMoreText: String
-        get() = targetContext.getString(ResourcesR.string.privacy_disclosure_learn_more)
+			// ── Welcome Screen ──
 
-    private val dialogTitle: String
-        get() = targetContext.getString(ResourcesR.string.privacy_disclosure_title)
+			step("Verify welcome screen") {
+				OnboardingScreen {
+					greetingTitle.isVisible()
+					greetingSubtitle.isVisible()
+					nextButton {
+						isVisible()
+						isClickable()
+					}
+				}
+			}
 
-    @Test
-    fun test_endToEnd() = run {
+			advancePastWelcomeScreen()
 
-        // ── Launch ──
+			// ── Permissions Screen (with privacy disclosure dialog overlay) ──
 
-        step("Launch app") {
-            ActivityScenario.launch(SplashActivity::class.java)
-            Thread.sleep(LAUNCH_SETTLE_DELAY_MS)
-        }
+			handlePrivacyDisclosure()
 
-        // ── Welcome Screen ──
+			val required = PermissionsHelper.getRequiredPermissions(targetContext)
 
-        step("Verify welcome screen") {
-            OnboardingScreen {
-                greetingTitle.isVisible()
-                greetingSubtitle.isVisible()
-                nextButton {
-                    isVisible()
-                    isClickable()
-                }
-            }
-        }
+			step("Verify all permission items") {
+				flakySafely(timeoutMs = PERMISSIONS_ASSERTION_TIMEOUT_MS) {
+					PermissionScreen {
+						title { isVisible() }
+						subTitle { isVisible() }
+						rvPermissions {
+							isVisible()
+							isDisplayed()
+						}
+						assertEquals(required.size, rvPermissions.getSize())
 
-        advancePastWelcomeScreen()
+						rvPermissions {
+							required.forEachIndexed { index, item ->
+								childAt<PermissionScreen.PermissionItem>(index) {
+									title {
+										isVisible()
+										hasText(item.title)
+									}
+									description {
+										isVisible()
+										hasText(item.description)
+									}
+									grantButton {
+										isVisible()
+										if (!item.isGranted && !item.isOptional) {
+											isClickable()
+											hasText(R.string.title_grant)
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
 
-        // ── Permissions Screen (with privacy disclosure dialog overlay) ──
+			grantAllRequiredPermissionsThroughOnboardingUi()
 
-        step("Verify privacy disclosure dialog") {
-            val d = device.uiDevice
-            val title = d.findObject(UiSelector().text(dialogTitle))
-            assertTrue("Dialog title missing", title.waitForExists(PRIVACY_DIALOG_TIMEOUT_MS))
-            assertTrue("Accept button missing", d.findObject(UiSelector().text(acceptText)).exists())
-            assertTrue("Learn more button missing", d.findObject(UiSelector().text(learnMoreText)).exists())
-        }
+			step("Confirm all permissions granted") {
+				flakySafely(timeoutMs = PERMISSIONS_ASSERTION_TIMEOUT_MS) {
+					assertTrue(PermissionsHelper.areAllPermissionsGranted(targetContext))
+				}
+			}
 
-        step("Accept privacy disclosure") {
-            clickFirstAccessibilityNodeByText(acceptText)
-            device.uiDevice.waitForIdle()
-        }
+			step("Confirm all grant buttons disabled") {
+				device.uiDevice.waitForIdle()
+				PermissionScreen {
+					rvPermissions {
+						required.indices.forEach { index ->
+							childAt<PermissionScreen.PermissionItem>(index) {
+								grantButton {
+									isNotEnabled()
+								}
+							}
+						}
+					}
+				}
+			}
 
-        step("Verify privacy dialog does not reappear") {
-            assertFalse(
-                "Dialog should not reappear",
-                device.uiDevice.findObject(UiSelector().text(dialogTitle)).exists(),
-            )
-        }
+			step("Tap Finish installation") {
+				// The button is in the gesture exclusion zone — use accessibility click
+				clickFirstAccessibilityNodeByText("Finish installation")
+			}
 
-        val required = PermissionsHelper.getRequiredPermissions(targetContext)
+			step("Wait for IDE setup to complete") {
+				waitForMainHomeOrEditorUi(device.uiDevice)
+			}
 
-        step("Verify all permission items") {
-            flakySafely(timeoutMs = PERMISSIONS_ASSERTION_TIMEOUT_MS) {
-                PermissionScreen {
-                    title { isVisible() }
-                    subTitle { isVisible() }
-                    rvPermissions {
-                        isVisible()
-                        isDisplayed()
-                    }
-                    assertEquals(required.size, rvPermissions.getSize())
+			configureAutomationBuildPreferences()
 
-                    rvPermissions {
-                        required.forEachIndexed { index, item ->
-                            childAt<PermissionScreen.PermissionItem>(index) {
-                                title {
-                                    isVisible()
-                                    hasText(item.title)
-                                }
-                                description {
-                                    isVisible()
-                                    hasText(item.description)
-                                }
-                                grantButton {
-                                    isVisible()
-                                    isClickable()
-                                    hasText(R.string.title_grant)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+			// ── Phase 2: Project creation + build across default and Kotlin template variants ──
 
-        grantAllRequiredPermissionsThroughOnboardingUi()
+			ensureOnHomeScreenBeforeCreateProject()
 
-        step("Confirm all permissions granted") {
-            flakySafely(timeoutMs = PERMISSIONS_ASSERTION_TIMEOUT_MS) {
-                assertTrue(PermissionsHelper.areAllPermissionsGranted(targetContext))
-            }
-        }
+			data class TemplateConfig(
+				val label: String,
+				val templateResId: Int,
+				val projectName: String,
+				val visibleLabelOverride: String? = null,
+				val useKotlinLanguage: Boolean = false,
+			)
 
-        step("Confirm all grant buttons disabled") {
-            device.uiDevice.waitForIdle()
-            PermissionScreen {
-                rvPermissions {
-                    required.indices.forEach { index ->
-                        childAt<PermissionScreen.PermissionItem>(index) {
-                            grantButton {
-                                isNotEnabled()
-                            }
-                        }
-                    }
-                }
-            }
-        }
+			val defaultLanguageTemplates =
+				listOf(
+					TemplateConfig("No Activity", R.string.template_no_activity, "TestNoActivity"),
+					TemplateConfig("Empty Activity", R.string.template_empty, "TestEmptyActivity"),
+					TemplateConfig("Basic Activity", R.string.template_basic, "TestBasicActivity"),
+					TemplateConfig(
+						"Navigation Drawer",
+						R.string.template_navigation_drawer,
+						"TestNavigationDrawer",
+						visibleLabelOverride = "Navigation Drawer",
+					),
+					TemplateConfig("Bottom Nav Activity", R.string.template_navigation_tabs, "TestBottomNavActivity"),
+					TemplateConfig(
+						"No AndroidX",
+						R.string.template_no_AndroidX,
+						"TestNoAndroidX",
+						visibleLabelOverride = "No AndroidX",
+					),
+					TemplateConfig("Tabbed Activity", R.string.template_tabs, "TestTabbedActivity"),
+					TemplateConfig("Compose Activity", R.string.template_compose, "TestComposeActivity"),
+				)
 
-        step("Tap Finish installation") {
-            // The button is in the gesture exclusion zone — use accessibility click
-            clickFirstAccessibilityNodeByText("Finish installation")
-        }
+			val kotlinLanguageTemplates =
+				defaultLanguageTemplates.take(KOTLIN_LANGUAGE_TEMPLATE_COUNT).map { config ->
+					config.copy(
+						label = "Kotlin ${config.label}",
+						projectName = "Kt${config.projectName}",
+						useKotlinLanguage = true,
+					)
+				}
 
-        step("Wait for IDE setup to complete") {
-            waitForMainHomeOrEditorUi(device.uiDevice)
-        }
+			val templates = defaultLanguageTemplates + kotlinLanguageTemplates
 
-        // ── Phase 2: Project creation + build across default and Kotlin template variants ──
+			for ((index, config) in templates.withIndex()) {
+				step("Create+build template ${index + 1}/${templates.size}: ${config.label}") {
+					clickCreateProjectHomeScreen()
+				}
+				selectProjectTemplate(
+					"Select ${config.label} template",
+					config.templateResId,
+					config.visibleLabelOverride,
+				)
+				if (config.useKotlinLanguage) {
+					selectKotlinLanguage()
+				}
+				setProjectName(config.projectName)
+				clickCreateProjectProjectSettings()
+				initializeProjectRunAssembleTasksAndCancelBuild()
 
-        ensureOnHomeScreenBeforeCreateProject()
+				if (index < templates.lastIndex) {
+					ensureOnHomeScreenBeforeCreateProject()
+				}
+			}
 
-        data class TemplateConfig(
-            val label: String,
-            val templateResId: Int,
-            val projectName: String,
-            val visibleLabelOverride: String? = null,
-            val useKotlinLanguage: Boolean = false,
-        )
-
-        val defaultLanguageTemplates = listOf(
-            TemplateConfig("No Activity", R.string.template_no_activity, "TestNoActivity"),
-            TemplateConfig("Empty Activity", R.string.template_empty, "TestEmptyActivity"),
-            TemplateConfig("Basic Activity", R.string.template_basic, "TestBasicActivity"),
-            TemplateConfig(
-                "Navigation Drawer",
-                R.string.template_navigation_drawer,
-                "TestNavigationDrawer",
-                visibleLabelOverride = "Navigation Drawer",
-            ),
-            TemplateConfig("Bottom Nav Activity", R.string.template_navigation_tabs, "TestBottomNavActivity"),
-            TemplateConfig(
-                "No AndroidX",
-                R.string.template_no_AndroidX,
-                "TestNoAndroidX",
-                visibleLabelOverride = "No AndroidX",
-            ),
-            TemplateConfig("Tabbed Activity", R.string.template_tabs, "TestTabbedActivity"),
-            TemplateConfig("Compose Activity", R.string.template_compose, "TestComposeActivity"),
-        )
-
-        val kotlinLanguageTemplates = defaultLanguageTemplates.take(KOTLIN_LANGUAGE_TEMPLATE_COUNT).map { config ->
-            config.copy(
-                label = "Kotlin ${config.label}",
-                projectName = "Kt${config.projectName}",
-                useKotlinLanguage = true,
-            )
-        }
-
-        val templates = defaultLanguageTemplates + kotlinLanguageTemplates
-
-        for ((index, config) in templates.withIndex()) {
-            step("Create+build template ${index + 1}/${templates.size}: ${config.label}") {
-                clickCreateProjectHomeScreen()
-            }
-            selectProjectTemplate(
-                "Select ${config.label} template",
-                config.templateResId,
-                config.visibleLabelOverride,
-            )
-            if (config.useKotlinLanguage) {
-                selectKotlinLanguage()
-            }
-            setProjectName(config.projectName)
-            clickCreateProjectProjectSettings()
-            initializeProjectRunAssembleTasksAndCancelBuild()
-
-            if (index < templates.lastIndex) {
-                ensureOnHomeScreenBeforeCreateProject()
-            }
-        }
-
-        // ── Future phases (preferences, more templates, etc.) go here ──
-    }
+			// ── Future phases (preferences, more templates, etc.) go here ──
+		}
 }

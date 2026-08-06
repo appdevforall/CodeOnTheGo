@@ -19,6 +19,8 @@ package com.itsaky.androidide.projects.builder
 
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lookup.Lookup.Key
+import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.messages.result.BuildCancellationRequestResult
@@ -69,6 +71,13 @@ interface BuildService {
 	 * @see executeTasks
 	 */
 	fun executeTasks(tasks: List<String>): CompletableFuture<TaskExecutionResult>
+
+	/**
+	 * Generates the next [BuildId] for a build of the given [runType]. Callers that build a
+	 * [TaskExecutionMessage] themselves (e.g. to pass extra Gradle args) use this to obtain a
+	 * session-correct build id. The default implementation returns [BuildId.Unknown].
+	 */
+	fun nextBuildId(runType: BuildRunType): BuildId = BuildId.Unknown
 
 	/**
 	 * Execute the given tasks.

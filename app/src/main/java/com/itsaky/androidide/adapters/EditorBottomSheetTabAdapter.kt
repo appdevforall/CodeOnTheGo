@@ -37,6 +37,7 @@ import com.itsaky.androidide.plugins.manager.pluginCategory
 import com.itsaky.androidide.plugins.manager.pluginTooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.FeatureFlags
+import org.appdevforall.cotg.profiler.ProfilerFragment
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Constructor
 
@@ -55,7 +56,8 @@ class EditorBottomSheetTabAdapter(
 		const val TAB_DIAGNOSTICS = 3
 		const val TAB_SEARCH_RESULTS = 4
 		const val TAB_DEBUGGER = 5
-        const val TAB_GIT = 6
+		const val TAB_GIT = 6
+		const val TAB_PROFILER = 7
 	}
 
 	private val allTabs =
@@ -114,14 +116,24 @@ class EditorBottomSheetTabAdapter(
 				),
 			)
 
-            add(
-                Tab(
-                    title = fragmentActivity.getString(R.string.git_title),
-                    fragmentClass = GitBottomSheetFragment::class.java,
-                    itemId = TAB_GIT,
-                    tooltipTag = TooltipTag.PROJECT_GIT,
-                ),
-            )
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.git_title),
+					fragmentClass = GitBottomSheetFragment::class.java,
+					itemId = TAB_GIT,
+					tooltipTag = TooltipTag.PROJECT_GIT,
+				),
+			)
+
+			if (FeatureFlags.isExperimentsEnabled) {
+				add(
+					Tab(
+						title = fragmentActivity.getString(R.string.profiler_title),
+						fragmentClass = ProfilerFragment::class.java,
+						itemId = TAB_PROFILER,
+					),
+				)
+			}
 		}
 
 	private val tabs = MutableList(allTabs.size) { allTabs[it] }
@@ -254,7 +266,10 @@ class EditorBottomSheetTabAdapter(
 		}
 	}
 
-	private fun registerPluginFragmentClassLoader(tabItemId: Long, fragment: Fragment) {
+	private fun registerPluginFragmentClassLoader(
+		tabItemId: Long,
+		fragment: Fragment,
+	) {
 		try {
 			val plugin = pluginExtensions[tabItemId] ?: return
 			val pluginManager = getPluginManager() ?: return
@@ -266,7 +281,7 @@ class EditorBottomSheetTabAdapter(
 				PluginFragmentFactory.registerPluginClassLoader(
 					pluginId,
 					classLoader,
-					listOf(fragmentClassName)
+					listOf(fragmentClassName),
 				)
 				logger.debug("Registered classloader for bottom sheet fragment {} from plugin {}", fragmentClassName, pluginId)
 			}
@@ -349,7 +364,10 @@ class EditorBottomSheetTabAdapter(
 		return if (pluginId != null) pluginCategory(pluginId) else TooltipCategory.CATEGORY_IDE
 	}
 
-	private data class PluginTabData(val tabItem: TabItem, val plugin: UIExtension)
+	private data class PluginTabData(
+		val tabItem: TabItem,
+		val plugin: UIExtension,
+	)
 
 	private fun addPluginTabs() {
 		try {
@@ -405,9 +423,10 @@ class EditorBottomSheetTabAdapter(
 						title = data.tabItem.title,
 						fragmentClass = Fragment::class.java, // Placeholder, actual fragment from factory
 						itemId = startIndex + index + 1000L, // Offset to avoid conflicts
-						tooltipTag = data.tabItem.tooltipTag
-							?: pluginId?.let { pluginTooltipTag(it, data.tabItem.id) }
-							?: TooltipTag.PROJECT_PLUGIN_TAB,
+						tooltipTag =
+							data.tabItem.tooltipTag
+								?: pluginId?.let { pluginTooltipTag(it, data.tabItem.id) }
+								?: TooltipTag.PROJECT_PLUGIN_TAB,
 					)
 
 				// Store the fragment factory and the extension for later use
