@@ -26,8 +26,8 @@ class KotlinCompilerLoader(
 
 	private fun extractCarrierApk(): File {
 		val dir = context.getDir(CARRIER_DIR_NAME, Context.MODE_PRIVATE)
-		val dest = File(dir, CARRIER_APK_ASSET_NAME)
-		val markerFile = File(dir, "$CARRIER_APK_ASSET_NAME.marker")
+		val dest = File(dir, CARRIER_APK_FILE_NAME)
+		val markerFile = File(dir, "$CARRIER_APK_FILE_NAME.marker")
 
 		// The main APK's own mtime as a cheap "has the app been updated/reinstalled since we
 		// last extracted" marker -- avoids re-extracting on every process start.
@@ -36,7 +36,7 @@ class KotlinCompilerLoader(
 
 		if (!dest.exists() || previousMarker != currentMarker) {
 			logger.info("Extracting Kotlin compiler carrier APK to {}", dest)
-			context.assets.open(CARRIER_APK_ASSET_NAME).use { input ->
+			context.assets.open(CARRIER_APK_ASSET_PATH).use { input ->
 				dest.outputStream().use { output -> input.copyTo(output) }
 			}
 			markerFile.writeText(currentMarker)
@@ -112,7 +112,8 @@ class KotlinCompilerLoader(
 
 	companion object {
 		private const val CARRIER_DIR_NAME = "kotlin_compiler"
-		private const val CARRIER_APK_ASSET_NAME = "kotlin-compiler-carrier.apk"
+		private const val CARRIER_APK_FILE_NAME = "kotlin-compiler-carrier.apk"
+		private const val CARRIER_APK_ASSET_PATH = "data/common/$CARRIER_APK_FILE_NAME"
 		private const val FACTORY_CLASS_NAME =
 			"com.itsaky.androidide.lsp.kotlin.compiler.KotlinCompilerSessionFactoryImpl"
 		private val logger = LoggerFactory.getLogger(KotlinCompilerLoader::class.java)

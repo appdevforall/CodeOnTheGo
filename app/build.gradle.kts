@@ -435,7 +435,7 @@ tasks.register("copyKotlinCompilerCarrierToAssets") {
 		rootProject.layout.projectDirectory
 			.dir("subprojects/kotlin-compiler-carrier/build/outputs/apk/v8/release")
 			.file("kotlin-compiler-carrier-v8-release-unsigned.apk")
-	val destFile = layout.projectDirectory.file("src/main/assets/kotlin-compiler-carrier.apk")
+	val destFile = layout.projectDirectory.file("src/main/assets/data/common/kotlin-compiler-carrier.apk")
 	inputs.file(sourceFile)
 	outputs.file(destFile)
 	doLast {
