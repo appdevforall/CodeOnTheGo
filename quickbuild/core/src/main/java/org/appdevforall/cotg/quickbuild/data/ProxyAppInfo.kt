@@ -93,7 +93,7 @@ data class ProxyAppInfo(
 		get() = schema >= COMPONENT_SCHEMA_VERSION
 
 	companion object {
-		private val log = LoggerFactory.getLogger(ProxyAppInfo::class.java)
+		private val log = LoggerFactory.getLogger("QB-ProxyAppInfo")
 
 		/**
 		 * The setup.json schema version that introduced `components` and runtime restart

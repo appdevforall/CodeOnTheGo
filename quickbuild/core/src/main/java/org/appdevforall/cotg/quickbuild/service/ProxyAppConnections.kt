@@ -96,7 +96,7 @@ class ProxyAppConnections {
 	}
 
 	companion object {
-		private val log = LoggerFactory.getLogger(ProxyAppConnections::class.java)
+		private val log = LoggerFactory.getLogger("QB-ProxyConnections")
 
 		/** Process-wide registry the Android service and the Koin graph both use. */
 		val INSTANCE = ProxyAppConnections()

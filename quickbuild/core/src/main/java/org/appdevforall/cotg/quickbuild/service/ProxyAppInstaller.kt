@@ -347,7 +347,7 @@ class ProxyAppInstaller(
 	}
 
 	companion object {
-		private val log = LoggerFactory.getLogger(ProxyAppInstaller::class.java)
+		private val log = LoggerFactory.getLogger("QB-ProxyInstaller")
 
 		/** Long, because the user has to tap through PackageInstaller and Play Protect. */
 		const val DEFAULT_TIMEOUT_MILLIS = 180_000L

@@ -80,7 +80,7 @@ class AnnotationImpactAnalyzer(
 	private val baseline: AnnotationBaseline,
 	private val readText: (File) -> String? = AnnotationBaseline::readOrNull,
 ) : AnnotationImpact {
-	private val log = LoggerFactory.getLogger(AnnotationImpactAnalyzer::class.java)
+	private val log = LoggerFactory.getLogger("QB-AnnotationImpact")
 
 	override val active: Boolean get() = profile.hasProcessors
 

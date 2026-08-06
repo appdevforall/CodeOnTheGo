@@ -497,7 +497,7 @@ class DaemonProcessClient(
 	private fun List<File>.toJsonPaths(): JsonArray = JsonArray().also { array -> forEach { array.add(it.absolutePath) } }
 
 	companion object {
-		private val log = LoggerFactory.getLogger(DaemonProcessClient::class.java)
+		private val log = LoggerFactory.getLogger("QB-DaemonClient")
 
 		/**
 		 * The wire-protocol version this client speaks, shared with the daemon via

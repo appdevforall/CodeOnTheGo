@@ -6,11 +6,11 @@ paths, the session event log, the adb entry point, and every timeout in the pipe
 
 Assumed already read, and not repeated here:
 
-- [README, "Running it on a device"](../core/README.md#running-it-on-a-device) - the flag files
+- [README, "Running it on a device"](../README.md#running-it-on-a-device) - the flag files
   and the CoGo build you need before any of this works.
-- [README, "There is no single logcat tag"](../core/README.md#there-is-no-single-logcat-tag) -
-  the six truncated tags and the three logging processes. This doc gives the rule that
-  produced that table, so you can derive a tag the table does not list.
+- [README, "Every Quick Build log line is tagged `QB-`"](../README.md#every-quick-build-log-line-is-tagged-qb-) -
+  the tag convention and the three logging processes. Section 3 here is the same convention
+  from the debugging side, with the filters.
 
 Two flags recur. `CodeOnTheGo.exp` in `Download/` turns Quick Build on at all.
 `CodeOnTheGo.qbbench`, alongside it, turns on the session event log and the adb entry point -
@@ -31,14 +31,14 @@ answers.
 2. **Did a build start?** Filter logcat on the session tag (section 3). Every state
    transition logs
    `Quick-build session: <from> -> <to> on <event>`
-   from `QuickBuildSessionManager`. No transition means no batch reached the session.
+   under `QB-SessionManager`. No transition means no batch reached the session.
 3. **Did the classifier send it to Gradle instead?** The same line carries the reason:
    `... on InvalidationDetected(reason=MANIFEST_CHANGED)` and its seven siblings. That is a
    proxy app rebuild, not a live reload - it is slow and it prompts for an install, but it is
    the never-stale invariant working, not a bug.
 4. **Did the compile fail?** A compile error produces no payload, so the session stays
    `Ready` at the old generation and the proxy app shows its error overlay. Look for
-   diagnostics on the executor tag.
+   diagnostics under `QB-ReloadExecutor`.
 5. **Where did the time go?** One line per generation, `quickbuild-e2e:`, section 3.
    It is the fastest way to see whether a save reached the device at all.
 6. **Is the app on screen actually the proxy app?** A Standard Run install occupies the same
@@ -46,7 +46,7 @@ answers.
    - the installed package declares `android:appComponentFactory` =
      `com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory`
      ([`RealIdInstall.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/RealIdInstall.kt));
-   - it logs under the tag `QuickBuildRuntime`;
+   - it logs under the tag `QB-Runtime`;
    - it has a `files/quickbuild/payload/` directory once a deploy has landed.
 
    A Standard Run install has none of the three.
@@ -93,30 +93,32 @@ Two timing facts that explain a save that showed up late rather than not at all:
 fingerprint and is invisible to it; only inotify catches it, and inotify is the channel that
 drops. Touch the file after pushing if a scripted edit seems to have been ignored.
 
-## 3. Logcat tags are truncated, so guessing a tag does not work
+## 3. One prefix finds every tag: `QB-`
 
-The host side logs through slf4j and CoGo's binding derives the tag from the **simple class
-name**, then trims it: keep the **last 23 characters**, overwrite the first two with `..`
+```bash
+adb logcat | grep QB-
+```
+
+Every Quick Build logger - CoGo's, and the runtime's inside the proxy app - is named
+explicitly with a `QB-` prefix, so that one grep is the whole feature and no tag has to be
+guessed. Each tag is still usable on its own (`adb logcat -s QB-SessionManager`). To list
+the current set rather than trust a doc:
+
+```bash
+grep -rn 'getLogger("QB-' quickbuild app/src/main/java/com/itsaky/androidide
+```
+
+The prefix exists because CoGo's slf4j binding trims any tag over **23 characters** to its
+last 23, overwriting the first two with `..`
 ([`LogTagUtils.java`](../../logger/src/main/java/com/itsaky/androidide/utils/LogTagUtils.java),
-`LogUtils.MAX_TAG_LENGTH = 23`). Names of 23 characters or fewer are untouched. That is the
-whole rule - apply it to any class and you have its tag.
-
-Every logger in the Quick Build host code, so nothing is missing from a filter:
-
-- 23 characters or fewer, tag equals the class name: `AndroidProjectWatcher`,
-  `AndroidProxyAppLauncher`, `BenchEventsFile`, `DaemonProcessClient`, `DeployChannel`,
-  `FileGenerationStore`, `LiveReloadExecutorImpl`, `LiveReloadOrchestrator`,
-  `LiveSessionFactory`, `OrchestratorEventRouter`, `PayloadDeployer`,
-  `ProxyAppBuildRunner`, `ProxyAppConnections`, `ProxyAppInfo`, `ProxyAppInstaller`,
-  `QuickBuildAction`, `QuickBuildBenchActivity`, `QuickBuildHostService`,
-  `QuickBuildJumpActivity`.
-- One logger is named by a string rather than a class and so has no long form:
-  `QuickBuildMetrics`, declared in `MetricsReporting.kt`.
-- Longer, tag truncated: the six in the README table.
+`LogUtils.MAX_TAG_LENGTH = 23`). Class-derived names used to blow that limit and arrive
+unsearchable, e.g. `QuickBuildSessionManager` as `..ckBuildSessionManager`. So a new logger
+must be an explicit name of 23 characters or fewer, prefix included; `LogUtilsTest` pins both
+the trim and the hyphen the prefix relies on `[measured on host]`.
 
 ### The one line worth grepping first
 
-`LiveReloadExecutorImpl` emits exactly one structured line per generation
+`QB-ReloadExecutor` emits exactly one structured line per generation
 ([`E2eTimeline.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/E2eTimeline.kt)):
 
 ```
@@ -136,20 +138,20 @@ in `reload_timeline` (section 5).
 ### Filter sets
 
 ```bash
-# precise
-adb logcat -s QuickBuildRuntime ..ckBuildSessionManager LiveReloadOrchestrator \
-  LiveReloadExecutorImpl PayloadDeployer DaemonProcessClient DeployChannel \
-  ProxyAppInstaller ..BuildDaemonController
-
-# blunt, but hard to get wrong
-adb logcat | grep -iE 'quickbuild|LiveReload|ProxyApp|daemon\(stderr\)'
+# the reload loop only, when everything is too noisy
+adb logcat -s QB-Runtime QB-SessionManager QB-Orchestrator QB-ReloadExecutor \
+  QB-PayloadDeployer QB-DaemonClient QB-DeployChannel QB-ProxyInstaller \
+  QB-DaemonController
 ```
+
+`-s` needs every tag spelled right to show anything, so prefer `grep QB-` unless the volume
+is a real problem.
 
 ### The daemon has no log of its own
 
 It writes `[quickbuild-daemon] <message>` to stderr
 ([`DaemonMain.kt`](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonMain.kt)).
-`DaemonProcessClient` drains that and re-logs it as `daemon(stderr): ...` at **warn**, with
+`QB-DaemonClient` drains that and re-logs it as `daemon(stderr): ...` at **warn**, with
 non-JSON stdout as `daemon: ...` at **debug**. There is no daemon log file: if CoGo's process
 dies, that output is gone. Reproduce it standalone with the same command CoGo uses -
 `<JAVA> -jar <daemon dir>/quickbuild-daemon.jar`, cwd set to the daemon dir, with a clean
@@ -293,7 +295,7 @@ adb shell am start-activity \
   outright.
 
 A third flag, `CodeOnTheGo.qbnoseed`, is inert unless `qbbench` is also on. What it does and
-why it exists: [README, "Running it on a device"](../core/README.md#running-it-on-a-device).
+why it exists: [README, "Running it on a device"](../README.md#running-it-on-a-device).
 
 ## 7. Tunables: every timeout and bound in the pipeline
 

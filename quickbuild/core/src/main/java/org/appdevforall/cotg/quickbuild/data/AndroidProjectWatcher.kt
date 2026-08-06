@@ -284,7 +284,7 @@ class AndroidProjectWatcher(
 	}
 
 	private companion object {
-		private val log = LoggerFactory.getLogger(AndroidProjectWatcher::class.java)
+		private val log = LoggerFactory.getLogger("QB-ProjectWatcher")
 		private const val DEFAULT_POLL_MILLIS = 2_000L
 
 		/** Deletion bits: a file removed from, or moved out of, a watched dir. */

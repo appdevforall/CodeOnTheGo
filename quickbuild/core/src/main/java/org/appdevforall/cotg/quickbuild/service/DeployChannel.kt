@@ -235,7 +235,7 @@ class DeployChannel(
 		file?.let { ParcelFileDescriptor.open(it, ParcelFileDescriptor.MODE_READ_ONLY) }
 
 	companion object {
-		private val log = LoggerFactory.getLogger(DeployChannel::class.java)
+		private val log = LoggerFactory.getLogger("QB-DeployChannel")
 
 		/** Reload itself is ~40ms; the margin covers a cold proxy-app relaunch. */
 		const val DEFAULT_TIMEOUT_MILLIS = 15_000L

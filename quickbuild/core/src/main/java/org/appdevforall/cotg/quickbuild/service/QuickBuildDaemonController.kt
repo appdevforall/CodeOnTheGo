@@ -223,6 +223,6 @@ internal class QuickBuildDaemonController(
 		)
 
 	private companion object {
-		private val log = LoggerFactory.getLogger(QuickBuildDaemonController::class.java)
+		private val log = LoggerFactory.getLogger("QB-DaemonController")
 	}
 }

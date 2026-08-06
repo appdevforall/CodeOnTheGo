@@ -40,6 +40,6 @@ class AndroidProxyAppLauncher(
 		}
 
 	private companion object {
-		private val log = LoggerFactory.getLogger(AndroidProxyAppLauncher::class.java)
+		private val log = LoggerFactory.getLogger("QB-ProxyLauncher")
 	}
 }

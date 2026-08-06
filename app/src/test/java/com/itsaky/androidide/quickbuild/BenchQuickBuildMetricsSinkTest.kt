@@ -121,6 +121,7 @@ class BenchQuickBuildMetricsSinkTest {
 				InvalidationReason.EXTERNAL_FULL_BUILD to "EXTERNAL_FULL_BUILD",
 				InvalidationReason.ANNOTATION_PROCESSOR_INPUT_CHANGED to "ANNOTATION_PROCESSOR_INPUT_CHANGED",
 				InvalidationReason.OUTDATED_BASELINE to "OUTDATED_BASELINE",
+				InvalidationReason.RELOAD_PIPELINE_FAILED to "RELOAD_PIPELINE_FAILED",
 				InvalidationReason.INSTALL_NOT_CONFIRMED to "INSTALL_NOT_CONFIRMED",
 			)
 		// The table must cover every reason, or a new reason would ship unpinned.

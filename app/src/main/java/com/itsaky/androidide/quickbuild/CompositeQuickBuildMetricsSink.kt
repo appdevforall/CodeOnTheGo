@@ -51,6 +51,6 @@ class CompositeQuickBuildMetricsSink(
 	) = fanOut { it.onProxyAppRebuild(isSuccess, durationMillis) }
 
 	companion object {
-		private val log = LoggerFactory.getLogger(CompositeQuickBuildMetricsSink::class.java)
+		private val log = LoggerFactory.getLogger("QB-MetricsSink")
 	}
 }

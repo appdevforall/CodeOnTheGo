@@ -104,7 +104,7 @@ class QuickBuildHostService : Service() {
 	}
 
 	companion object {
-		private val log = LoggerFactory.getLogger(QuickBuildHostService::class.java)
+		private val log = LoggerFactory.getLogger("QB-HostService")
 
 		/** Matches the manifest intent-filter and the runtime's bind intent. */
 		const val ACTION_QUICK_BUILD = "com.itsaky.androidide.QUICK_BUILD_ACTION"

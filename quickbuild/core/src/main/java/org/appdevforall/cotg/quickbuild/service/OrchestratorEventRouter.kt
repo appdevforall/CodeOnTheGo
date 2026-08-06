@@ -155,6 +155,6 @@ internal class OrchestratorEventRouter(
 		}
 
 	private companion object {
-		private val log = LoggerFactory.getLogger(OrchestratorEventRouter::class.java)
+		private val log = LoggerFactory.getLogger("QB-EventRouter")
 	}
 }

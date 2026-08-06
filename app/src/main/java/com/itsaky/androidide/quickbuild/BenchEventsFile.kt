@@ -51,6 +51,6 @@ class BenchEventsFile(
 		/** Bench-events protocol version; bump on any incompatible line-shape change. */
 		const val V = 1
 
-		private val log = LoggerFactory.getLogger(BenchEventsFile::class.java)
+		private val log = LoggerFactory.getLogger("QB-BenchEvents")
 	}
 }

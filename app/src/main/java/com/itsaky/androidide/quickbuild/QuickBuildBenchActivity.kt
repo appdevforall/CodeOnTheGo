@@ -125,6 +125,6 @@ class QuickBuildBenchActivity : Activity() {
 		 */
 		const val EXTRA_MODE = "com.itsaky.androidide.quickbuild.extra.MODE"
 
-		private val log = LoggerFactory.getLogger(QuickBuildBenchActivity::class.java)
+		private val log = LoggerFactory.getLogger("QB-BenchActivity")
 	}
 }

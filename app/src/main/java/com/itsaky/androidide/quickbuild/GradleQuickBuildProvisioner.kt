@@ -363,7 +363,7 @@ class GradleQuickBuildProvisioner(
 		}
 
 	companion object {
-		private val log = LoggerFactory.getLogger(GradleQuickBuildProvisioner::class.java)
+		private val log = LoggerFactory.getLogger("QB-Provisioner")
 
 		/**
 		 * A [ProvisionOutcome.Failure] sends the session back to Idle, where returning to

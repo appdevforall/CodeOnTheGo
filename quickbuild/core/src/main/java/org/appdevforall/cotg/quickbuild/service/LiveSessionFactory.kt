@@ -171,6 +171,6 @@ internal class LiveSessionFactory(
 	}
 
 	private companion object {
-		private val log = LoggerFactory.getLogger(LiveSessionFactory::class.java)
+		private val log = LoggerFactory.getLogger("QB-SessionFactory")
 	}
 }

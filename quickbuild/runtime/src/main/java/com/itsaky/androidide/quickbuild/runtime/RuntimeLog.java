@@ -3,14 +3,14 @@ package com.itsaky.androidide.quickbuild.runtime;
 import android.util.Log;
 
 /**
- * The runtime's only logging entry point, under one tag so a device walk can follow a whole reload with a single logcat filter.
+ * The runtime's only logging entry point, under one tag so a device walk can follow a whole reload with a single logcat filter. The tag carries the same QB- prefix every Quick Build tag does, so one grep spans this process and CoGo's.
  *
  * Calls android.util.Log directly, because this AAR ships into arbitrary user apps and must not carry a logging dependency. Every call is guarded because android.util.Log is an unmocked stub in JVM unit tests and throws there; on device it never throws, so the guard costs nothing.
  */
 final class RuntimeLog {
 
 	/** The single logcat tag every runtime message carries. */
-	static final String TAG = "QuickBuildRuntime";
+	static final String TAG = "QB-Runtime";
 
 	/**
 	 * Logs at debug level, for the step-by-step detail of a reload.

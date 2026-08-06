@@ -471,7 +471,7 @@ class LiveReloadExecutorImpl(
 	}
 
 	private companion object {
-		private val log = LoggerFactory.getLogger(LiveReloadExecutorImpl::class.java)
+		private val log = LoggerFactory.getLogger("QB-ReloadExecutor")
 
 		/**
 		 * How long the runtime gets to exit after acking a restart deploy. Far more than

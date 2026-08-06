@@ -22,7 +22,7 @@ import java.util.zip.ZipInputStream
  * (a recurring CoGo bug shape); re-extracting a few MB once per session is cheap.
  */
 object QuickBuildArtifactStager {
-	private val log = LoggerFactory.getLogger(QuickBuildArtifactStager::class.java)
+	private val log = LoggerFactory.getLogger("QB-ArtifactStager")
 
 	private const val ASSET_RUNTIME_AAR = "data/common/quickbuild-runtime.aar"
 	private const val ASSET_DAEMON_ZIP = "data/common/quickbuild-daemon.zip"

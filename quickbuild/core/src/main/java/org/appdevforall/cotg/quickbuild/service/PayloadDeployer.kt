@@ -343,6 +343,6 @@ internal class PayloadDeployer(
 		}
 
 	private companion object {
-		private val log = LoggerFactory.getLogger(PayloadDeployer::class.java)
+		private val log = LoggerFactory.getLogger("QB-PayloadDeployer")
 	}
 }

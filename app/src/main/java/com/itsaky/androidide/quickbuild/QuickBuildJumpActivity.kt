@@ -68,6 +68,6 @@ class QuickBuildJumpActivity : Activity() {
 		const val EXTRA_LINE = "com.itsaky.androidide.quickbuild.extra.LINE"
 		const val EXTRA_COLUMN = "com.itsaky.androidide.quickbuild.extra.COLUMN"
 
-		private val log = LoggerFactory.getLogger(QuickBuildJumpActivity::class.java)
+		private val log = LoggerFactory.getLogger("QB-JumpActivity")
 	}
 }

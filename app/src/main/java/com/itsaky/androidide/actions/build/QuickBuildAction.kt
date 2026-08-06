@@ -141,7 +141,7 @@ class QuickBuildAction(
 	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_QUICK_BUILD
 
 	companion object {
-		private val log = LoggerFactory.getLogger(QuickBuildAction::class.java)
+		private val log = LoggerFactory.getLogger("QB-Action")
 
 		const val ID = "ide.editor.build.quickBuild"
 

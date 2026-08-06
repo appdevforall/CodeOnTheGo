@@ -4,7 +4,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 @PublishedApi
-internal val metricsLog: Logger = LoggerFactory.getLogger("QuickBuildMetrics")
+internal val metricsLog: Logger = LoggerFactory.getLogger("QB-Metrics")
 
 /**
  * Runs a metrics call and swallows any failure into a logged warning, so metrics can

@@ -327,6 +327,6 @@ internal class ProxyAppBuildRunner(
 			proxyApp.transformedManifest?.isFile != false
 
 	private companion object {
-		private val log = LoggerFactory.getLogger(ProxyAppBuildRunner::class.java)
+		private val log = LoggerFactory.getLogger("QB-ProxyBuildRunner")
 	}
 }

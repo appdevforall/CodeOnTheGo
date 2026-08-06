@@ -59,7 +59,7 @@ class FileGenerationStore(
 	}
 
 	companion object {
-		private val log = LoggerFactory.getLogger(FileGenerationStore::class.java)
+		private val log = LoggerFactory.getLogger("QB-GenerationStore")
 
 		/**
 		 * Builds a store at the canonical per-project location of the generation file.
