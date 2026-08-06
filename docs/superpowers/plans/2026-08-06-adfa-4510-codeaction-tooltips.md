@@ -60,13 +60,32 @@ flox activate -d flox/local -- ./gradlew spotlessApply
 
 Expected: BUILD SUCCESSFUL. The trailing blank lines are removed and all four files are reindented to tabs.
 
-- [ ] **Step 3: Prove the change is whitespace-only**
+- [ ] **Step 3: Prove the change is formatting-only**
+
+ktlint does more than reindent, so `git diff -w` will NOT be empty. Expect these
+behaviour-preserving normalisations, and nothing else:
+
+- blank line removed after a declaration opens
+- parameter lists exploded one-per-line with a trailing comma
+- block bodies collapsed to expression bodies (`{ return x }` becomes `= x`)
+- enum entries gaining a trailing comma and `;`
+- a `a; b` one-liner split onto two lines
 
 ```bash
-git diff -w --stat
+git diff -w
 ```
 
-Expected: **empty output.** `-w` ignores whitespace, so an empty diff proves no code changed. If anything is listed, Spotless made a semantic change — stop and investigate before committing.
+Read every hunk. Each must fall into the list above. If you see a changed
+identifier, literal, condition, or call argument — anything that could alter
+behaviour — STOP and report BLOCKED without committing.
+
+Then prove it compiles:
+
+```bash
+flox activate -d flox/local -- ./gradlew :actions:compileV8DebugKotlin :lsp:java:compileV8DebugKotlin
+```
+
+Expected: BUILD SUCCESSFUL.
 
 - [ ] **Step 4: Confirm the files are now tab-indented**
 
@@ -83,10 +102,11 @@ git add actions/src/main/java/com/itsaky/androidide/actions/ActionItem.kt \
         actions/src/main/java/com/itsaky/androidide/actions/ActionMenu.kt \
         lsp/java/src/main/java/com/itsaky/androidide/lsp/java/actions/diagnostics/VariableToStatementAction.kt \
         lsp/java/src/main/java/com/itsaky/androidide/lsp/java/actions/diagnostics/FieldToBlockAction.kt
-git commit -m "style(ADFA-4510): reindent files to tabs ahead of edits
+git commit -m "style(ADFA-4510): reformat files to tabs ahead of edits
 
-Spotless ratchets whole files, so reindenting these four up front keeps the
-following commits pure logic. Verified whitespace-only with git diff -w."
+Spotless ratchets whole files, so reformatting these four up front keeps the
+following commits pure logic. ktlint normalisations only -- tabs, trailing
+commas, expression bodies. No behaviour change; both modules compile."
 ```
 
 ---
