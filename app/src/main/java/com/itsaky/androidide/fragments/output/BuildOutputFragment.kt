@@ -450,7 +450,6 @@ class BuildOutputFragment :
 			if (visibleText.isEmpty()) {
 				return
 			}
-			BuildOutputViewModel.filterLines(text, buildOutputViewModel.filterText.value)
 
 			withContext(Dispatchers.Main) {
 				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
@@ -466,10 +465,8 @@ class BuildOutputFragment :
 						// clearOutput() or renderFiltered() may have run since the file append.
 						if (editorGen == editorContentGeneration) {
 							appendBatch(visibleText)
-							emptyStateViewModel.setEmpty(false)
+							updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 						}
-						appendBatch(visibleText)
-						updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 					} else {
 						// Timeout: defer append until layout is ready (same as restoreWindowFromViewModel)
 						viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
