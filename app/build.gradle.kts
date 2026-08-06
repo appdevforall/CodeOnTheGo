@@ -34,6 +34,7 @@ plugins {
 	// Sentry gradle plugin; the SDK it wires up reports to our GlitchTip backend.
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
+	alias(libs.plugins.kotlin.compose)
 }
 
 fun propOrEnv(name: String): String =
@@ -93,6 +94,9 @@ android {
 				// Skip TreeSitter native library loading in tests
 				it.systemProperty("java.library.path", System.getProperty("java.library.path"))
 				it.systemProperty("androidide.test.mode", "true")
+				// JUnit Platform, so JUnit Jupiter tests run; the vintage engine dependency
+				// below keeps existing JUnit 4/Robolectric tests running unchanged.
+				it.useJUnitPlatform()
 			}
 		}
 	}
@@ -180,6 +184,10 @@ android {
 		targetCompatibility = JavaVersion.VERSION_17
 		isCoreLibraryDesugaringEnabled = true
 	}
+
+	buildFeatures {
+		compose = true
+	}
 }
 
 // Sentry gradle plugin config (crash reporting to GlitchTip).
@@ -263,6 +271,17 @@ dependencies {
 	implementation(libs.google.flexbox)
 	implementation(libs.libsu.core)
 
+	// Compose (plugin/template manager screen; ADR 0009)
+	implementation(platform(libs.compose.bom))
+	implementation(libs.compose.runtime)
+	implementation(libs.compose.ui)
+	implementation(libs.compose.foundation)
+	implementation(libs.compose.material3)
+	implementation(libs.compose.activity)
+	implementation(libs.compose.ui.tooling.preview)
+	implementation(libs.androidx.lifecycle.runtime.compose)
+	debugImplementation(libs.compose.ui.tooling)
+
 	// Kotlin
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.common.kotlin)
@@ -325,6 +344,10 @@ dependencies {
 
 	testImplementation(projects.testing.unit)
 	testImplementation(libs.core.tests.anroidx.arch)
+	testImplementation(libs.tests.junit.jupiter)
+	testRuntimeOnly(libs.tests.junit.platformLauncher)
+	// Keeps existing JUnit 4/Robolectric tests running under the JUnit Platform.
+	testRuntimeOnly(libs.tests.junit.vintageEngine)
 	androidTestImplementation(projects.common)
 	androidTestImplementation(projects.testing.android) {
 		exclude(group = "com.google.protobuf", module = "protobuf-lite")

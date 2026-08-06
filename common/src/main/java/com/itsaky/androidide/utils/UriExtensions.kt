@@ -1,32 +1,38 @@
 package com.itsaky.androidide.utils
 
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.util.Log
+import org.slf4j.LoggerFactory
 
-fun Uri.getFileName(context: Context): String {
-    val unknownFileLabel = "Unknown File"
-    if (scheme == "content") {
-        try {
-            context.contentResolver.query(this, null, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (nameIndex >= 0) {
-                        return cursor.getString(nameIndex) ?: unknownFileLabel
-                    }
-                }
-            }
-        } catch (e: SecurityException) {
-            Log.w("UriExtensions", "SecurityException while reading URI: ${scheme}://${authority}", e)
-        } catch (e: Exception) {
-            Log.w("UriExtensions", "Unexpected error while reading URI: ${scheme}://${authority}", e)
-        }
+private val log = LoggerFactory.getLogger("UriExtensions")
 
-        return unknownFileLabel
-    }
+fun Uri.getFileName(context: Context): String = getFileName(context.contentResolver)
 
-    val fallbackName = path?.substringAfterLast('/') ?: unknownFileLabel
-    val decodedName = Uri.decode(fallbackName)
-    return decodedName.ifBlank { unknownFileLabel }
+fun Uri.getFileName(contentResolver: ContentResolver): String {
+	val unknownFileLabel = "Unknown File"
+	if (scheme == "content") {
+		try {
+			contentResolver.query(this, null, null, null, null)?.use { cursor ->
+				if (cursor.moveToFirst()) {
+					val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+					if (nameIndex >= 0) {
+						return cursor.getString(nameIndex) ?: unknownFileLabel
+					}
+				}
+			}
+		} catch (e: SecurityException) {
+			log.warn("Denied access while reading URI: {}://{}", scheme, authority, e)
+		} catch (e: IllegalArgumentException) {
+			// No registered provider for this URI, or the provider rejected the query args.
+			log.warn("No provider could resolve URI: {}://{}", scheme, authority, e)
+		}
+
+		return unknownFileLabel
+	}
+
+	val fallbackName = path?.substringAfterLast('/') ?: unknownFileLabel
+	val decodedName = Uri.decode(fallbackName)
+	return decodedName.ifBlank { unknownFileLabel }
 }

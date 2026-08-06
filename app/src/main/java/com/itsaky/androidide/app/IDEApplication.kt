@@ -29,6 +29,7 @@ import androidx.work.Configuration
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
+import com.itsaky.androidide.di.templateModule
 import com.itsaky.androidide.handlers.GlitchTipDiagnosticsContext
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.treesitter.TreeSitter
@@ -48,11 +49,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.runBlocking
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.lang.Thread.UncaughtExceptionHandler
 
 const val EXIT_CODE_CRASH = 1
@@ -141,6 +144,17 @@ class IDEApplication :
 
 		@JvmStatic
 		fun getPluginManager(): PluginManager? = CredentialProtectedApplicationLoader.pluginManager
+
+		/**
+		 * [Context.getFilesDir] does a real disk check (`File.exists()`) on every call, not just
+		 * the first - callers on the main thread (e.g. Koin's [pluginModule] resolving on first
+		 * navigation to the Extensions Manager) trip StrictMode's DiskReadViolation. Cache it once,
+		 * off-main, before Koin starts (see the `onCreate()` warmup) so later reads are a plain
+		 * field access instead of a syscall, and pluginModule/templateModule can never be the
+		 * first to trigger the underlying disk read.
+		 */
+		@JvmStatic
+		val cachedFilesDir: File by lazy { instance.filesDir }
 	}
 
 	override fun onActivityPostPaused(activity: Activity) {
@@ -182,6 +196,18 @@ class IDEApplication :
 		// https://appdevforall.atlassian.net/browse/ADFA-2026
 		// https://appdevforall-inc-9p.sentry.io/issues/6860179170/events/7177c576e7b3491c9e9746c76f806d37/
 
+		// Warm cachedFilesDir on an IO thread before Koin starts, so pluginModule/templateModule
+		// (resolved on the main thread on first navigation to the Extensions Manager) can never
+		// race the disk read - see cachedFilesDir's doc. The disk access itself runs off-main;
+		// this only blocks onCreate() waiting for that fast, one-time result. Only safe when
+		// credential-protected storage is already unlocked - instance.filesDir uses the default
+		// (credential-protected) Context and throws during Direct Boot. When locked, the warmup
+		// instead runs from CredentialProtectedApplicationLoader.load(), which only proceeds once
+		// that storage is confirmed accessible.
+		if (isUserUnlocked) {
+			runBlocking(Dispatchers.IO) { cachedFilesDir }
+		}
+
 		ensureKoinStarted()
 
 		coroutineScope.launch(Dispatchers.Default) {
@@ -208,7 +234,7 @@ class IDEApplication :
 		runCatching { GlobalContext.get() }.getOrNull()?.let { return }
 		startKoin {
 			androidContext(this@IDEApplication)
-			modules(coreModule, pluginModule)
+			modules(coreModule, pluginModule, templateModule)
 		}
 	}
 

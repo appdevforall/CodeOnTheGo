@@ -79,6 +79,10 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			return
 		}
 
+		// Storage is confirmed accessible here, so it's safe to warm IDEApplication.cachedFilesDir
+		// now for devices that were still locked (Direct Boot) when onCreate() ran its own warmup.
+		withContext(Dispatchers.IO) { IDEApplication.cachedFilesDir }
+
 		if (!_isLoaded.compareAndSet(false, true)) {
 			// Another call already claimed initialization (e.g. a concurrent retry after
 			// user unlock); avoid running the rest of this method twice.

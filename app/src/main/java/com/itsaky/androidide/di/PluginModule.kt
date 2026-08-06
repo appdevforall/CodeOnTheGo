@@ -12,22 +12,23 @@ import java.io.File
 /**
  * Koin module for plugin-related dependencies
  */
-val pluginModule = module {
+val pluginModule =
+	module {
 
-    // Repository
-    single<PluginRepository> {
-        PluginRepositoryImpl(
-            pluginManagerProvider = { IDEApplication.getPluginManager() },
-            pluginsDir = File(androidContext().filesDir, "plugins")
-        )
-    }
+		// Repository
+		single<PluginRepository> {
+			PluginRepositoryImpl(
+				pluginManagerProvider = { IDEApplication.getPluginManager() },
+				pluginsDir = File(IDEApplication.cachedFilesDir, "plugins"),
+			)
+		}
 
-    // ViewModel
-    viewModel {
-        PluginManagerViewModel(
-            pluginRepository = get(),
-            contentResolver = androidContext().contentResolver,
-            filesDir = androidContext().filesDir
-        )
-    }
-}
+		// ViewModel
+		viewModel {
+			PluginManagerViewModel(
+				pluginRepository = get(),
+				contentResolver = androidContext().contentResolver,
+				filesDir = IDEApplication.cachedFilesDir,
+			)
+		}
+	}
