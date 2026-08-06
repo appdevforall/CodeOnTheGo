@@ -60,7 +60,7 @@ class DeployPolicy(
 	 */
 	private val componentInfoAvailable: Boolean = true,
 ) {
-	private val restartComponents = components.filter { it.kind in RESTART_KINDS }
+	private val restartComponents = components.filter { it.kind in RESTART_SENSITIVE_KINDS }
 
 	/** class -> direct supertypes. Seeded from the baked chains, replaced per class by [onClassHierarchy]. */
 	private val superEdges = HashMap<String, Set<String>>()
@@ -146,9 +146,6 @@ class DeployPolicy(
 	}
 
 	private companion object {
-		private val RESTART_KINDS =
-			setOf(ComponentKind.SERVICE, ComponentKind.PROVIDER, ComponentKind.APPLICATION)
-
 		/**
 		 * Turns a compiler-emitted class-file path into the FQN the closure is keyed by.
 		 *

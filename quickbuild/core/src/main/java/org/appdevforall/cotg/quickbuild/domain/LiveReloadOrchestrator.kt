@@ -7,6 +7,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.slf4j.LoggerFactory
+import java.io.File
 
 /**
  * Schedules quick builds: at most one in flight, with everything else coalesced into a
@@ -29,7 +30,10 @@ import org.slf4j.LoggerFactory
  * they may carry the fix; retrying an unchanged batch would fail identically, so it waits for
  * the next save. A follow-up failing with identical diagnostics sets
  * [OrchestratorEvent.BuildFailed.diagnosticsUnchanged] so the status surface can skip a
- * re-render.
+ * re-render. A pipeline failure (not a compile error) that repeats identically escalates to a
+ * proxy app rebuild once - see [recordFailureLocked]. A repeating aapt2 rejection does not
+ * escalate but is flagged as blocking on [OrchestratorEvent.BuildFailed.relinkStuck], so the
+ * host can name the recovery instead of leaving the user to guess - see [blocksEveryBuild].
  *
  * Proxy-app-rebuild protocol: the session manager calls [onProxyAppRebuildStarted] when it
  * kicks off Gradle, then [onBaselineReset] or [onProxyAppRebuildFailed]. Only changes that
@@ -61,7 +65,7 @@ class LiveReloadOrchestrator(
 	 */
 	private val onEvent: (OrchestratorEvent) -> Unit,
 ) {
-	private val log = LoggerFactory.getLogger(LiveReloadOrchestrator::class.java)
+	private val log = LoggerFactory.getLogger("QB-Orchestrator")
 
 	private val mutex = Mutex()
 	private var pending: ChangedFiles = ChangedFiles.Known.EMPTY
@@ -92,6 +96,34 @@ class LiveReloadOrchestrator(
 
 	/** Diagnostics of the last CompileError, for the duplicate-follow-up guard. */
 	private var lastCompileDiagnostics: List<BuildDiagnostic>? = null
+
+	/**
+	 * The previous surfaced build's failure, for the repeat-failure escalation. Cleared by any
+	 * success, so only a consecutive run of failures counts.
+	 */
+	private var lastFailure: BuildOutcome? = null
+
+	/** How many surfaced builds in a row have failed with exactly [lastFailure]. */
+	private var identicalFailures = 0
+
+	/**
+	 * Spent once the repeat-failure escalation has asked for a proxy app rebuild, and cleared
+	 * only by a success or a completed rebuild.
+	 *
+	 * This is the loop guard. A failed proxy app rebuild leaves the latch spent, so the next
+	 * identical failure escalates nothing: the session degrades to plain build failures rather
+	 * than rebuilding on every save forever.
+	 */
+	private var repeatFailureEscalated = false
+
+	/**
+	 * Spent once a repeating aapt2 rejection has been reported as blocking, and cleared by the
+	 * same things that clear the failure tally - a success or a fresh baseline.
+	 *
+	 * One report per streak, because the message asks the user to do something: repeating it on
+	 * every save would train them to dismiss it.
+	 */
+	private var relinkStuckReported = false
 
 	/** Requested background warm compile (post-provisioning); dropped once any real build runs. */
 	private var pendingWarmCompile = false
@@ -286,6 +318,10 @@ class LiveReloadOrchestrator(
 			awaitingAbsorption = null
 			invalidationReported = false
 			lastCompileDiagnostics = null
+			// A fresh baseline is a genuinely new situation, so a later stuck relink gets its
+			// own escalation. Deliberately NOT cleared by onProxyAppRebuildFailed, which is
+			// what keeps a failing rebuild from being re-requested.
+			clearFailureTallyLocked()
 			maybeStartBuildLocked(events)
 		}
 	}
@@ -457,6 +493,7 @@ class LiveReloadOrchestrator(
 			when (outcome) {
 				is BuildOutcome.Success -> {
 					lastCompileDiagnostics = null
+					clearFailureTallyLocked()
 					events +=
 						OrchestratorEvent.BuildSucceeded(
 							buildId,
@@ -479,21 +516,121 @@ class LiveReloadOrchestrator(
 					val diagnostics = (outcome as? BuildOutcome.CompileError)?.diagnostics
 					val unchanged =
 						flight.autoFollowUp && diagnostics != null && diagnostics == lastCompileDiagnostics
+					val relinkStuck =
+						flight.route !is BuildRoute.WarmCompile &&
+							diagnostics != null &&
+							diagnostics == lastCompileDiagnostics &&
+							!relinkStuckReported &&
+							blocksEveryBuild(diagnostics)
+					if (relinkStuck) relinkStuckReported = true
 					// A warm compile's failure is never surfaced, so priming
 					// lastCompileDiagnostics from it would make the next real build's identical
 					// failure report diagnosticsUnchanged for an error the user never saw.
 					if (diagnostics != null && flight.route !is BuildRoute.WarmCompile) {
 						lastCompileDiagnostics = diagnostics
 					}
-					events += OrchestratorEvent.BuildFailed(buildId, outcome, unchanged, flight.route)
+					events +=
+						OrchestratorEvent.BuildFailed(buildId, outcome, unchanged, flight.route, relinkStuck)
 
-					if (newSavesArrivedMidBuild) {
+					if (recordFailureLocked(flight.route, outcome)) {
+						// The live reload path has proved it cannot clear this on its own, and
+						// the batch has just been returned to pending - so every later save
+						// would re-fail identically. Hand the pending set to Gradle instead.
+						// Starting no follow-up build here: the session manager is about to
+						// call onProxyAppRebuildStarted, and a build launched now would only
+						// be superseded. invalidationReported keeps a classifier verdict
+						// landing in the same window from launching a second rebuild over it.
+						repeatFailureEscalated = true
+						identicalFailures = 0
+						invalidationReported = true
+						log.warn(
+							"Quick build #{} failed identically twice running ({}); escalating to a proxy app rebuild",
+							buildId,
+							outcome,
+						)
+						events +=
+							OrchestratorEvent.InvalidationRequired(InvalidationReason.RELOAD_PIPELINE_FAILED)
+					} else if (newSavesArrivedMidBuild) {
 						// A mid-build save may be the fix; rebuild from the accumulated set.
 						maybeStartBuildLocked(events, autoFollowUp = true)
 					}
 				}
 			}
 		}
+	}
+
+	/**
+	 * Tallies one failed build and says whether the live reload path has proved it cannot
+	 * recover from this failure on its own.
+	 *
+	 * Only a failure that is NOT the user's own code counts:
+	 * - A compile error - kotlinc's or aapt2's - is the user's to fix, and its diagnostics are
+	 *   already on screen. Gradle would reject it just as surely, ~200s slower, and a proxy app
+	 *   rebuild that fails drops the whole session to Idle - so auto-escalating a resource typo
+	 *   would be a worse defect than the stuck state it was meant to clear.
+	 * - A daemon death has its own respawn recovery ([onDaemonReplaced]).
+	 * - [BuildOutcome.RequiresProxyAppRebuild] already escalates by itself.
+	 *
+	 * What is left is the pipeline failing for a reason no edit can reach - a relink that
+	 * cannot resolve the baseline's library resource snapshot, a broken tool invocation. The
+	 * same failure twice running is the evidence: the second build ran against whatever the
+	 * user changed in between and failed identically anyway.
+	 *
+	 * @param route the failed build's route; a warm compile is never surfaced, so it never
+	 *   escalates and never contributes to the tally.
+	 * @param outcome how the build failed; compared whole, so any difference restarts the tally.
+	 * @return true when this failure should escalate to a proxy app rebuild - at most once,
+	 *   until a success or a completed rebuild clears the latch.
+	 */
+	private fun recordFailureLocked(
+		route: BuildRoute,
+		outcome: BuildOutcome,
+	): Boolean {
+		if (route is BuildRoute.WarmCompile) return false
+		identicalFailures = if (outcome == lastFailure) identicalFailures + 1 else 1
+		lastFailure = outcome
+		val pipelineFault = outcome is BuildOutcome.InfrastructureFailure && !outcome.daemonDied
+		return pipelineFault &&
+			identicalFailures >= ESCALATE_AFTER_IDENTICAL_FAILURES &&
+			!repeatFailureEscalated
+	}
+
+	/**
+	 * Whether these diagnostics will fail every later build until the user fixes them, whatever
+	 * they save next - the "stuck relink" shape.
+	 *
+	 * True only for an aapt2 rejection, recognised by every error naming a resource file. That
+	 * is sound because the relink links the project's whole `res/` tree from disk rather than
+	 * the changed set: once a resource is unlinkable, the pending set is irrelevant and even a
+	 * pure-code save takes the relink path and fails identically. It is also why a *kotlinc*
+	 * error is excluded despite persisting the same way - the file the user is editing is the
+	 * file the error names, so nothing about it is surprising, and there is no case where no
+	 * edit could fix it.
+	 *
+	 * @param diagnostics the failed build's diagnostics, warnings included.
+	 * @return true when there is at least one error and every error names a resource path.
+	 */
+	private fun blocksEveryBuild(diagnostics: List<BuildDiagnostic>): Boolean {
+		val errors = diagnostics.filter { it.severity == BuildDiagnostic.Severity.ERROR }
+		return errors.isNotEmpty() &&
+			errors.all { it.file != null && ChangeClassifier.namesResource(File(it.file)) }
+	}
+
+	/** Forgets the failure streak and re-arms the escalation; the pipeline works again. */
+	private fun clearFailureTallyLocked() {
+		lastFailure = null
+		identicalFailures = 0
+		repeatFailureEscalated = false
+		relinkStuckReported = false
+	}
+
+	private companion object {
+		/**
+		 * How many identical consecutive pipeline failures escalate to a proxy app rebuild.
+		 * Two, so a one-off (a dropped RPC, a transient IO error) costs a retry rather than a
+		 * full Gradle build.
+		 */
+		const val ESCALATE_AFTER_IDENTICAL_FAILURES = 2
 	}
 }
 
@@ -540,6 +677,9 @@ sealed interface OrchestratorEvent {
 	 * @property diagnosticsUnchanged true when this was an automatic follow-up that failed
 	 *   with exactly the diagnostics of the build it followed, so the status surface can keep
 	 *   its existing rendering. Contract only - no production consumer reads it yet.
+	 * @property relinkStuck true when a repeating aapt2 rejection is now blocking every build,
+	 *   whatever the user saves - the host should say so, once per streak. Set at most once
+	 *   until a success or a fresh baseline; see `LiveReloadOrchestrator.blocksEveryBuild`.
 	 */
 	data class BuildFailed(
 		val buildId: Long,
@@ -547,6 +687,7 @@ sealed interface OrchestratorEvent {
 		val diagnosticsUnchanged: Boolean = false,
 		/** What the build was for - a [BuildRoute.WarmCompile] failure is not user-visible. */
 		val route: BuildRoute,
+		val relinkStuck: Boolean = false,
 	) : OrchestratorEvent
 
 	/**

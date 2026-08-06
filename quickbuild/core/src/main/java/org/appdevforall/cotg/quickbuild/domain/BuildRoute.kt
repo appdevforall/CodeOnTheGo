@@ -47,6 +47,30 @@ sealed interface BuildRoute {
 	data object WarmCompile : BuildRoute
 }
 
+/**
+ * Whether this route recompiles user code, so a deploy from it can have replaced classes a
+ * live service or provider still holds ([QuickBuildNotice.STALE_COMPONENT_HELPERS]).
+ *
+ * A forced [BuildRoute.NoOp] recompiles the whole module, so it counts; a resource or asset
+ * change moves no class file. Says nothing about whether anything DEPLOYED - a
+ * [BuildRoute.WarmCompile] recompiles everything and deploys nothing, so a caller reasoning
+ * about the running app has to exclude it separately.
+ */
+val BuildRoute.recompilesCode: Boolean
+	get() =
+		when (this) {
+			BuildRoute.CodeOnly,
+			BuildRoute.CodeAndResources,
+			BuildRoute.NoOp,
+			BuildRoute.WarmCompile,
+			-> true
+
+			BuildRoute.ResourcesOnly,
+			BuildRoute.AssetsOnly,
+			is BuildRoute.FullGradleBuild,
+			-> false
+		}
+
 /** Why a quick-build session baseline can no longer absorb edits on the live reload path. */
 enum class InvalidationReason {
 	/** `AndroidManifest.xml` changed: components, permissions and the proxy transform all move. */
@@ -85,6 +109,18 @@ enum class InvalidationReason {
 	 * service/provider stale. Rebaselining regenerates setup.json and reinstalls.
 	 */
 	OUTDATED_BASELINE,
+
+	/**
+	 * The live reload path itself keeps failing - the same infrastructure failure twice running,
+	 * for something no edit can clear (a relink that cannot resolve the baseline's library
+	 * resource snapshot, a tool invocation that is broken for this baseline). Only a fresh
+	 * baseline can absorb the pending set. Like [INSTALL_NOT_CONFIRMED] this one comes from the
+	 * session, not from a file change; unlike the others it is reported at most once per
+	 * baseline, so a rebuild that fails leaves plain build failures rather than rebuilding
+	 * again. Never raised for a compile error - see
+	 * `LiveReloadOrchestrator.recordFailureLocked`.
+	 */
+	RELOAD_PIPELINE_FAILED,
 
 	/**
 	 * A proxy app rebuild produced a good APK but the OS install prompt was never confirmed.

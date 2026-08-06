@@ -202,5 +202,18 @@ class ChangeClassifier(
 		 *   fallback for a deletion - the caller still decides.
 		 */
 		fun hasRecognizedShape(file: File): Boolean = kindOf(file) != FileKind.UNSUPPORTED
+
+		/**
+		 * True when [file]'s path shape says it is an Android resource - under a `res/`
+		 * directory inside `src/`. No filesystem access.
+		 *
+		 * Lets a caller attribute a diagnostic to aapt2 rather than to kotlinc without
+		 * plumbing the producing tool through [BuildOutcome.CompileError]: the two never mix
+		 * in one outcome, because a failed compile returns before the relink runs.
+		 *
+		 * @param file the path a diagnostic named.
+		 * @return true when the path is a resource under the app's sources.
+		 */
+		fun namesResource(file: File): Boolean = kindOf(file) == FileKind.RESOURCE
 	}
 }

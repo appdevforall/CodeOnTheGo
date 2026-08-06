@@ -20,6 +20,8 @@ import org.appdevforall.cotg.quickbuild.domain.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.BuildRequest
 import org.appdevforall.cotg.quickbuild.domain.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
+import org.appdevforall.cotg.quickbuild.domain.ComponentInfo
+import org.appdevforall.cotg.quickbuild.domain.ComponentKind
 import org.appdevforall.cotg.quickbuild.domain.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.LiveReloadExecutor
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
@@ -2675,5 +2677,221 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle)
 			assertThat(watcher).isNull()
+		}
+
+	/**
+	 * A provision whose baseline declares [components] - the only fact the stale-helper
+	 * warning keys on, since whether such a component is currently INSTANTIATED is unknowable
+	 * from here.
+	 */
+	private fun provisionWithComponents(vararg components: ComponentInfo): ProvisionOutcome {
+		val base = defaultProvisionOutcome() as ProvisionOutcome.Success
+		return base.copy(proxyApp = base.proxyApp.copy(components = components.toList()))
+	}
+
+	private val syncService = ComponentInfo(ComponentKind.SERVICE, "com.example.SyncService")
+
+	@Test
+	fun `a crashing reload tells the user how to recover, every time it crashes`() =
+		runTest {
+			// The accepted limitation is that a crashing payload redeploys and crashes again
+			// until the session is restarted. The bug was the SILENCE: the ATTENTION icon
+			// alone never says that only a session restart clears it. Repeated deliberately -
+			// each reload reproduces the crash, so each one has to say so.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+
+			connections.report(TargetReport.Crashed(0, "NPE in onCreate"))
+			advanceUntilIdle()
+
+			assertThat(notices).containsExactly(QuickBuildNotice.RELOAD_CRASHED)
+			// The failure itself still lands on the status surface; the notice is the remedy,
+			// not a replacement for it.
+			assertThat(manager.status.value)
+				.isEqualTo(QuickBuildStatus.Failed(0, SessionFailure.ProxyAppCrash("NPE in onCreate")))
+			// Not the error channel's business: userMessages is what the host flashes
+			// verbatim, and this copy lives in the app's string resources.
+			assertThat(userMessages).isEmpty()
+
+			connections.report(TargetReport.Crashed(1, "NPE in onCreate"))
+			advanceUntilIdle()
+			assertThat(notices)
+				.containsExactly(QuickBuildNotice.RELOAD_CRASHED, QuickBuildNotice.RELOAD_CRASHED)
+		}
+
+	@Test
+	fun `a hot-swap deploy warns once per session that a live service still calls the old code`() =
+		runTest {
+			provisionOutcome = { provisionWithComponents(syncService) }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			// The deploy landed by hot swap (restarted = false), so the running service keeps
+			// calling the previous copies of whatever this build recompiled.
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+			assertThat(notices).containsExactly(QuickBuildNotice.STALE_COMPONENT_HELPERS)
+
+			// Once per session: the gap holds for every later hot swap, and re-flashing it on
+			// each save would bury the notices that report something happening.
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(executed).hasSize(2)
+			assertThat(notices).containsExactly(QuickBuildNotice.STALE_COMPONENT_HELPERS)
+		}
+
+	@Test
+	fun `a repeating aapt2 rejection tells the user it is now blocking every save`() =
+		runTest {
+			// The relink links the whole res/ tree from disk, so an unlinkable resource fails
+			// every later build - including a pure-code save, whose own edit is fine. The status
+			// surface only ever shows the diagnostics, never that they are now stopping
+			// everything, and the case no edit can fix (a reference missing from the proxy app
+			// build's resource snapshot) then looks like the feature simply died.
+			val strings = File(projectRoot, "app/src/main/res/values/strings.xml")
+			val aapt2Error =
+				BuildOutcome.CompileError(
+					listOf(
+						BuildDiagnostic(
+							BuildDiagnostic.Severity.ERROR,
+							"resource style/Theme.Library not found",
+							strings.path,
+							4,
+							9,
+						),
+					),
+				)
+			scriptedOutcomes += aapt2Error
+			scriptedOutcomes += aapt2Error
+			scriptedOutcomes += aapt2Error
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+
+			strings.parentFile!!.mkdirs()
+			strings.writeText("<resources/>")
+			manager.save(strings)
+			advanceUntilIdle()
+			// One rejection is an ordinary compile error; the user is looking at the file.
+			assertThat(notices).isEmpty()
+
+			// A pure-code save drags the still-pending resource back in and re-fails identically.
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(executed.last().route).isEqualTo(BuildRoute.CodeAndResources)
+			assertThat(notices).containsExactly(QuickBuildNotice.RELINK_STUCK)
+
+			// Once per streak: the message asks the user to act, so repeating it on every save
+			// would train them to dismiss it. Nothing escalated - the session stays live at the
+			// old generation with the diagnostics on screen, never-stale intact.
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(notices).containsExactly(QuickBuildNotice.RELINK_STUCK)
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Ready(0, SessionFailure.CompileError(aapt2Error.diagnostics)),
+				)
+		}
+
+	@Test
+	fun `a restarting deploy does not warn about stale helpers - the process was relaunched`() =
+		runTest {
+			// The restart closure hit, so the whole process came back on the new payload.
+			// Warning here would be a lie about the one path that has no gap.
+			provisionOutcome = { provisionWithComponents(syncService) }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+			scriptedOutcomes += BuildOutcome.Success(1, 5, restarted = true)
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Deployed(1, 5, restarted = true))
+			assertThat(notices).isEmpty()
+		}
+
+	@Test
+	fun `a resource-only deploy does not warn about stale helpers - no class was recompiled`() =
+		runTest {
+			// Nothing a component calls moved, so there is no stale copy to warn about.
+			provisionOutcome = { provisionWithComponents(syncService) }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+
+			val strings =
+				File(projectRoot, "app/src/main/res/values/strings.xml").apply {
+					parentFile!!.mkdirs()
+					writeText("<resources/>")
+				}
+
+			manager.save(strings)
+			advanceUntilIdle()
+
+			assertThat(executed.single().route).isEqualTo(BuildRoute.ResourcesOnly)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+			assertThat(notices).isEmpty()
+		}
+
+	@Test
+	fun `an app with no restart-sensitive component never warns about stale helpers`() =
+		runTest {
+			// Activities and receivers are outside the restart closure because recreate and
+			// per-delivery instantiation already refresh them - nothing survives to go stale.
+			provisionOutcome = {
+				provisionWithComponents(
+					ComponentInfo(ComponentKind.ACTIVITY, "com.example.MainActivity", launcher = true),
+					ComponentInfo(ComponentKind.RECEIVER, "com.example.BootReceiver"),
+				)
+			}
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+			assertThat(notices).isEmpty()
+		}
+
+	@Test
+	fun `the stale-helper warning is owed again after a session restart`() =
+		runTest {
+			// Once per SESSION, not once per process: the next session may be a different
+			// project, and the user has to hear it there too.
+			provisionOutcome = { provisionWithComponents(syncService) }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(notices).containsExactly(QuickBuildNotice.STALE_COMPONENT_HELPERS)
+
+			manager.restartSession()
+			advanceUntilIdle()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			assertThat(notices)
+				.containsExactly(
+					QuickBuildNotice.STALE_COMPONENT_HELPERS,
+					QuickBuildNotice.STALE_COMPONENT_HELPERS,
+				)
 		}
 }

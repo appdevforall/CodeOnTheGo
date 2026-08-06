@@ -19,6 +19,17 @@ enum class ComponentKind {
 }
 
 /**
+ * The kinds whose live instance a loader swap cannot update, so a recompile inside their
+ * restart closure forces a process restart ([DeployPolicy]).
+ *
+ * One home for the set, because two rules key off it: the restart decision, and the
+ * [QuickBuildNotice.STALE_COMPONENT_HELPERS] warning that fires when one of these merely
+ * EXISTS and the deploy hot-swapped instead.
+ */
+val RESTART_SENSITIVE_KINDS: Set<ComponentKind> =
+	setOf(ComponentKind.SERVICE, ComponentKind.PROVIDER, ComponentKind.APPLICATION)
+
+/**
  * One manifest component recorded by the proxy app build (setup.json `components`, schema v2).
  *
  * Carries only what the deploy policy and restart UX need; intent filters, permissions and

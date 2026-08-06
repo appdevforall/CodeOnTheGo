@@ -22,6 +22,7 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
 import org.appdevforall.cotg.quickbuild.data.QuickBuildPaths
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
+import org.appdevforall.cotg.quickbuild.domain.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.ComponentKind
 import org.appdevforall.cotg.quickbuild.domain.GenerationStore
@@ -34,11 +35,13 @@ import org.appdevforall.cotg.quickbuild.domain.QuickBuildMetricsSink
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildSessionState
 import org.appdevforall.cotg.quickbuild.domain.QuickBuildStatus
+import org.appdevforall.cotg.quickbuild.domain.RESTART_SENSITIVE_KINDS
 import org.appdevforall.cotg.quickbuild.domain.SessionEffect
 import org.appdevforall.cotg.quickbuild.domain.SessionEvent
 import org.appdevforall.cotg.quickbuild.domain.SessionReducer
 import org.appdevforall.cotg.quickbuild.domain.WatchFilter
 import org.appdevforall.cotg.quickbuild.domain.WatcherBatchReconciler
+import org.appdevforall.cotg.quickbuild.domain.recompilesCode
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -212,6 +215,17 @@ class QuickBuildSessionManager(
 	/** The in-flight provision, prebuild, or proxy app rebuild; cancelled by [teardown]. */
 	private var sessionWork: Job? = null
 
+	/**
+	 * True once [QuickBuildNotice.STALE_COMPONENT_HELPERS] has been shown for this session.
+	 *
+	 * The gap holds for every hot-swap deploy, so re-flashing it on each save would bury the
+	 * notices that report something happening. Cleared by [provision], the one path that can owe
+	 * the warning again - the next session may be a different project. A proxy app rebuild
+	 * deliberately does NOT re-arm it: the fact is about the app being edited, not about one
+	 * deploy. Only touched on [dispatcher].
+	 */
+	private var staleComponentHelpersNoticed = false
+
 	/** Owns the daemon lifecycle protocol; see [QuickBuildDaemonController]. */
 	private val daemonController = QuickBuildDaemonController(daemon, scratch, paths)
 
@@ -256,6 +270,13 @@ class QuickBuildSessionManager(
 		scope.launch {
 			connections.reports.collect { report ->
 				if (report is TargetReport.Crashed) {
+					// Accepted limitation, but not a silent one: a payload broken for a
+					// reason no edit reaches redeploys on every later reload, and the
+					// ATTENTION icon alone would leave the user watching it crash with no
+					// idea that only a session restart clears it. Told on every crash, not
+					// once: each reload reproduces it, and the report cannot tell a bad
+					// payload from a bug in the code the user just wrote.
+					surfaceNotice(QuickBuildNotice.RELOAD_CRASHED)
 					dispatch(SessionEvent.ProxyAppCrashed(report.stackSummary))
 				}
 			}
@@ -604,6 +625,7 @@ class QuickBuildSessionManager(
 
 			is ProxyAppBuildRunner.ProvisionResult.Succeeded -> {
 				live = result.session
+				staleComponentHelpersNoticed = false
 				// Build ids restart per session; give the sink its session boundary.
 				report { metrics.onSessionStarted() }
 				// The reload path is change-driven, not save-driven: any source of a
@@ -641,7 +663,41 @@ class QuickBuildSessionManager(
 				// silently like every other best-effort status push.
 				if (session != null) notifyBuilding(generation)
 			}
+			if (event is OrchestratorEvent.BuildSucceeded) noticeStaleComponentHelpers(event, session)
+			// The orchestrator decides when a repeating aapt2 rejection has become blocking; all
+			// that is owed here is saying it, since the status surface only ever shows the
+			// diagnostics and never that they are now stopping every save.
+			if (event is OrchestratorEvent.BuildFailed && event.relinkStuck) {
+				surfaceNotice(QuickBuildNotice.RELINK_STUCK)
+			}
 		}
+	}
+
+	/**
+	 * Warns, once per session, that a landed hot swap left a live service, provider or custom
+	 * `Application` calling the previous copies of the classes it just replaced.
+	 *
+	 * The restart closure ([org.appdevforall.cotg.quickbuild.domain.DeployPolicy]) covers a
+	 * component's own code and its supertypes and restarts the process on a hit; what it
+	 * cannot see is a helper class the component merely calls. That gap is accepted, so the
+	 * only thing owed to the user is saying it out loud.
+	 *
+	 * @param event the deploy that landed; a warm compile deployed nothing, a restart deploy
+	 *   already relaunched the process, and a route that moved no class file cannot have
+	 *   staled anything
+	 * @param session the live session, read for the baseline's component list; null means the
+	 *   session went away and there is nothing truthful to say
+	 */
+	private fun noticeStaleComponentHelpers(
+		event: OrchestratorEvent.BuildSucceeded,
+		session: LiveSession?,
+	) {
+		if (staleComponentHelpersNoticed || session == null) return
+		if (event.route is BuildRoute.WarmCompile || !event.route.recompilesCode) return
+		if (event.result.restarted) return
+		if (session.proxyApp.components.none { it.kind in RESTART_SENSITIVE_KINDS }) return
+		staleComponentHelpersNoticed = true
+		surfaceNotice(QuickBuildNotice.STALE_COMPONENT_HELPERS)
 	}
 
 	/**
@@ -868,6 +924,6 @@ class QuickBuildSessionManager(
 	}
 
 	private companion object {
-		private val log = LoggerFactory.getLogger(QuickBuildSessionManager::class.java)
+		private val log = LoggerFactory.getLogger("QB-SessionManager")
 	}
 }

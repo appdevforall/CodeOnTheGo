@@ -62,6 +62,31 @@ class LiveReloadOrchestratorTest {
 			listOf(BuildDiagnostic(BuildDiagnostic.Severity.ERROR, "expecting ')'", "B.kt", 7, 13)),
 		)
 
+	/**
+	 * A relink that fails for something no edit can reach - the daemon could not link at all,
+	 * as opposed to aapt2 rejecting the user's XML (which is a [compileError]).
+	 */
+	private fun relinkFailure() = BuildOutcome.InfrastructureFailure("relink: library resource snapshot is missing R.txt")
+
+	/**
+	 * aapt2 rejecting the project's resources. Every error names a file under `res/`, which is
+	 * how the orchestrator tells an aapt2 rejection from a kotlinc one - the two never mix in
+	 * one outcome, because a failed compile returns before the relink runs.
+	 */
+	private fun resourceError() =
+		BuildOutcome.CompileError(
+			listOf(
+				BuildDiagnostic(
+					BuildDiagnostic.Severity.ERROR,
+					"resource style/Theme.Library not found",
+					resLayout,
+					12,
+					5,
+				),
+			),
+		)
+
+	private val resLayout = "app/src/main/res/layout/activity_main.xml"
 	private val srcA = "app/src/main/java/com/example/A.kt"
 	private val srcB = "app/src/main/java/com/example/B.kt"
 	private val srcC = "app/src/main/java/com/example/C.kt"
@@ -1097,5 +1122,300 @@ class LiveReloadOrchestratorTest {
 			runCurrent()
 
 			assertThat(events.filterIsInstance<OrchestratorEvent.BuildSucceeded>()).hasSize(1)
+		}
+
+	@Test
+	fun `a relink failure that repeats identically escalates to a proxy app rebuild`() =
+		runTest {
+			// The stuck-relink gap: the failed batch returns to pending, so the broken resource
+			// is dragged into every later build and re-fails - including builds whose own edit
+			// was pure code. Nothing on the live reload path can clear it.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(resLayout))
+			runCurrent()
+			executor.finish(0, relinkFailure())
+			runCurrent()
+			// One failure is not evidence: it may have been transient.
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).isEmpty()
+
+			// A later code save drags the still-pending resource back in and fails identically.
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			assertThat(executor.requests[1].route).isEqualTo(BuildRoute.CodeAndResources)
+			executor.finish(1, relinkFailure())
+			runCurrent()
+
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>())
+				.containsExactly(
+					OrchestratorEvent.InvalidationRequired(InvalidationReason.RELOAD_PIPELINE_FAILED),
+				)
+			// The failure is still reported: the fallback is visible, not a silent swallow.
+			assertThat(events.filterIsInstance<OrchestratorEvent.BuildFailed>()).hasSize(2)
+			// Nothing else was launched to be superseded by the rebuild.
+			assertThat(executor.requests).hasSize(2)
+
+			// Never-stale: the whole batch is still pending, so the rebuild absorbs it - and a
+			// save landing before the rebuild starts still carries both earlier edits.
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+			assertThat(executor.requests[2].changes).isEqualTo(known(resLayout, srcA, srcB))
+		}
+
+	@Test
+	fun `a proxy app rebuild that fails is not requested again - no rebuild-fail-rebuild loop`() =
+		runTest {
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(resLayout))
+			runCurrent()
+			executor.finish(0, relinkFailure())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(1, relinkFailure())
+			runCurrent()
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).hasSize(1)
+
+			// The rebuild ran and failed; the batch comes back and quick builds resume.
+			orchestrator.onProxyAppRebuildStarted()
+			orchestrator.onProxyAppRebuildFailed()
+			runCurrent()
+
+			// Two more identical failures must NOT ask for another rebuild.
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+			executor.finish(2, relinkFailure())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcC))
+			runCurrent()
+			executor.finish(3, relinkFailure())
+			runCurrent()
+
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).hasSize(1)
+		}
+
+	@Test
+	fun `a successful rebuild re-arms the escalation`() =
+		runTest {
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(resLayout))
+			runCurrent()
+			executor.finish(0, relinkFailure())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(1, relinkFailure())
+			runCurrent()
+			orchestrator.onProxyAppRebuildStarted()
+			orchestrator.onBaselineReset()
+			runCurrent()
+
+			// A fresh baseline, and the pipeline breaks again: that deserves its own rebuild.
+			orchestrator.onFilesChanged(known(resLayout))
+			runCurrent()
+			executor.finish(2, relinkFailure())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(3, relinkFailure())
+			runCurrent()
+
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).hasSize(2)
+		}
+
+	@Test
+	fun `a repeated compile error never escalates - it is the user's code, not the pipeline`() =
+		runTest {
+			// Escalating here would run a ~200s Gradle build that rejects the same code, and a
+			// failed proxy app rebuild drops the session to Idle - worse than the compile error.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(resLayout))
+			runCurrent()
+			executor.finish(0, compileError())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(1, compileError())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+			executor.finish(2, compileError())
+			runCurrent()
+
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).isEmpty()
+		}
+
+	@Test
+	fun `a daemon death does not escalate - it has its own respawn recovery`() =
+		runTest {
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			val died = BuildOutcome.InfrastructureFailure("daemon exited", daemonDied = true)
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(0, died)
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+			executor.finish(1, died)
+			runCurrent()
+
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).isEmpty()
+		}
+
+	@Test
+	fun `two different pipeline failures do not escalate - only an identical repeat is evidence`() =
+		runTest {
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(resLayout))
+			runCurrent()
+			executor.finish(0, BuildOutcome.InfrastructureFailure("aapt2 link: broken pipe"))
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(1, BuildOutcome.InfrastructureFailure("scratch dir is full"))
+			runCurrent()
+
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).isEmpty()
+		}
+
+	@Test
+	fun `a failed warm compile never escalates`() =
+		runTest {
+			// A warm compile's failure is not user-visible, so it must not drag the user into a
+			// full Gradle build either.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onWarmCompileRequested()
+			runCurrent()
+			executor.finish(0, relinkFailure())
+			runCurrent()
+			orchestrator.onWarmCompileRequested()
+			runCurrent()
+			executor.finish(1, relinkFailure())
+			runCurrent()
+
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).isEmpty()
+		}
+
+	@Test
+	fun `a repeating aapt2 rejection is flagged as blocking every build`() =
+		runTest {
+			// The other half of the stuck-relink gap. aapt2 links the whole res/ tree from disk,
+			// not the changed set, so an unlinkable resource fails every later build whatever the
+			// user saves next - and the one they cannot fix by editing (a reference the proxy
+			// app build's resource snapshot lacks) leaves the session dead with no explanation.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(resLayout))
+			runCurrent()
+			executor.finish(0, resourceError())
+			runCurrent()
+			// One rejection is an ordinary compile error - the user is looking at the file.
+			assertThat(events.filterIsInstance<OrchestratorEvent.BuildFailed>().map { it.relinkStuck })
+				.containsExactly(false)
+
+			// A pure-code save drags the still-pending resource back in and fails identically.
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			assertThat(executor.requests[1].route).isEqualTo(BuildRoute.CodeAndResources)
+			executor.finish(1, resourceError())
+			runCurrent()
+
+			assertThat(events.filterIsInstance<OrchestratorEvent.BuildFailed>().map { it.relinkStuck })
+				.containsExactly(false, true)
+			// Saying it is all this does: no escalation, so a resource typo never costs a ~200s
+			// Gradle build and a failed one can never drop the session to Idle.
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).isEmpty()
+			// Never-stale is untouched - the whole batch is still pending.
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+			assertThat(executor.requests[2].changes).isEqualTo(known(resLayout, srcA, srcB))
+		}
+
+	@Test
+	fun `a repeating kotlinc error is not flagged as blocking - it names the file being edited`() =
+		runTest {
+			// Same shape as the aapt2 case and deliberately not flagged: the error names the file
+			// the user is working in, so nothing about it is surprising, and there is no variant
+			// of it that no edit can fix. Flagging it would fire on ordinary mid-typing saves.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(0, compileError())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+			executor.finish(1, compileError())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcC))
+			runCurrent()
+			executor.finish(2, compileError())
+			runCurrent()
+
+			assertThat(events.filterIsInstance<OrchestratorEvent.BuildFailed>().map { it.relinkStuck })
+				.containsExactly(false, false, false)
+		}
+
+	@Test
+	fun `the blocking flag is raised once per streak and re-armed by a success`() =
+		runTest {
+			// The message asks the user to do something, so repeating it on every save would
+			// train them to dismiss it. A success means the resources link again, which makes a
+			// later stuck relink a genuinely new situation.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onFilesChanged(known(resLayout))
+			runCurrent()
+			executor.finish(0, resourceError())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(1, resourceError())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+			executor.finish(2, resourceError())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcC))
+			runCurrent()
+			executor.finish(3, success(generation = 1))
+			runCurrent()
+			orchestrator.onFilesChanged(known(resLayout))
+			runCurrent()
+			executor.finish(4, resourceError())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			executor.finish(5, resourceError())
+			runCurrent()
+
+			assertThat(events.filterIsInstance<OrchestratorEvent.BuildFailed>().map { it.relinkStuck })
+				.containsExactly(false, true, false, false, true)
 		}
 }

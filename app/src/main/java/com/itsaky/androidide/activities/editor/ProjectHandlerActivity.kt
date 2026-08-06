@@ -278,12 +278,28 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						quickBuild.userMessages.collect { flashError(it) }
 					}
 					launch {
-						// Neutral notices, deliberately NOT on the error channel: a build the
-						// user chose to stop is not a failure and must not read like one.
+						// Session messages whose copy lives here rather than in
+						// :quickbuild:core (it has no R). Deliberately NOT the error channel,
+						// which flashes everything red: each notice picks its own tone, so a
+						// build the user chose to stop does not read as a failure while a
+						// reload that keeps crashing does.
 						quickBuild.notices.collect { notice ->
 							when (notice) {
 								QuickBuildNotice.BUILD_CANCELLED -> {
 									flashInfo(getString(string.info_build_cancelled))
+								}
+
+								QuickBuildNotice.RELOAD_CRASHED -> {
+									flashError(getString(string.quick_build_reload_crashed))
+								}
+
+								QuickBuildNotice.RELINK_STUCK -> {
+									flashError(getString(string.quick_build_relink_stuck))
+								}
+
+								QuickBuildNotice.STALE_COMPONENT_HELPERS -> {
+									// The deploy worked, so this is advisory, not an error.
+									flashInfo(getString(string.quick_build_stale_component_helpers))
 								}
 							}
 						}
