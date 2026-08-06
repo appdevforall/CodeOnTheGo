@@ -96,6 +96,15 @@ class JavaLanguageServer : ILanguageServer {
 	private val timer = AnalyzeTimer { analyzeSelected() }
 	private var cachedCompletion: CachedCompletion
 
+	// Set by setupWithProject(), consumed by ensureProjectReset() on the first real .java-file
+	// interaction after it -- deferred because setupWithProject() is called for every project
+	// open regardless of language (ADFA-5052).
+	@Volatile
+	private var pendingWorkspace: Workspace? = null
+
+	@Volatile
+	private var javaCompilerInitialized = false
+
 	val settings: IServerSettings
 		get() {
 			return _settings ?: JavaServerSettings
@@ -123,10 +132,10 @@ class JavaLanguageServer : ILanguageServer {
 
 		val projectManager = ProjectManagerImpl.getInstance()
 		projectManager.indexingServiceManager.register(
-			service = JvmLibraryIndexingService(context = BaseApplication.baseInstance)
+			service = JvmLibraryIndexingService(context = BaseApplication.baseInstance),
 		)
 		projectManager.indexingServiceManager.register(
-			service = JvmGeneratedIndexingService(context = BaseApplication.baseInstance)
+			service = JvmGeneratedIndexingService(context = BaseApplication.baseInstance),
 		)
 
 		JavaSnippetRepository.init()
@@ -134,10 +143,12 @@ class JavaLanguageServer : ILanguageServer {
 
 	override fun shutdown() {
 		(this.debugAdapter as? AutoCloseable?)?.close()
-		JavaCompilerProvider.getInstance().destroy()
-		SourceFileManager.clearCache()
-		CacheFSInfoSingleton.clearCache()
-		clearCache()
+		if (javaCompilerInitialized) {
+			JavaCompilerProvider.getInstance().destroy()
+			SourceFileManager.clearCache()
+			CacheFSInfoSingleton.clearCache()
+			clearCache()
+		}
 		EventBus.getDefault().unregister(this)
 		timer.cancel()
 	}
@@ -163,10 +174,35 @@ class JavaLanguageServer : ILanguageServer {
 	override fun setupWithProject(workspace: Workspace) {
 		LSPEditorActions.ensureActionsMenuRegistered(JavaCodeActionsMenu)
 
-		(ProjectManagerImpl.getInstance()
-			.indexingServiceManager
-			.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?)
-			?.refresh()
+		(
+			ProjectManagerImpl
+				.getInstance()
+				.indexingServiceManager
+				.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?
+		)?.refresh()
+
+		// Deferred to ensureProjectReset(), run on the first real .java-file interaction instead
+		// of here -- this method runs for every project open regardless of language
+		// (DefaultLanguageServerRegistry dispatches to all registered servers unconditionally),
+		// and JavaCompilerService.NO_MODULE_COMPILER / SourceFileManager.NO_MODULE eagerly
+		// construct real javac machinery plus a full android.jar scan at class-init, merely by
+		// being referenced (ADFA-5052, mirrors ADFA-5010's KotlinLanguageServer fix).
+		pendingWorkspace = workspace
+	}
+
+	/**
+	 * Runs the javac-specific project reset deferred by [setupWithProject], for the most
+	 * recently opened project, the first time a real Java file is actually interacted with.
+	 * No-ops if already up to date.
+	 */
+	private fun ensureProjectReset() {
+		if (pendingWorkspace == null) return
+		val workspace: Workspace
+		synchronized(this) {
+			workspace = pendingWorkspace ?: return
+			pendingWorkspace = null
+			javaCompilerInitialized = true
+		}
 
 		// Once we have project initialized
 		// Destory the NO_MODULE_COMPILER instance
@@ -196,8 +232,7 @@ class JavaLanguageServer : ILanguageServer {
 
 	override fun complete(params: CompletionParams?): CompletionResult {
 		val compiler = getCompiler(params!!.file)
-		if (!settings.completionsEnabled() || !completionProvider.canComplete(params.file)
-		) {
+		if (!settings.completionsEnabled() || !completionProvider.canComplete(params.file)) {
 			return CompletionResult.EMPTY
 		}
 
@@ -265,8 +300,7 @@ class JavaLanguageServer : ILanguageServer {
 		}
 	}
 
-	override fun formatCode(params: FormatCodeParams?): CodeFormatResult =
-		CodeFormatProvider(settings).format(params)
+	override fun formatCode(params: FormatCodeParams?): CodeFormatResult = CodeFormatProvider(settings).format(params)
 
 	override fun handleFailure(failure: LSPFailure?): Boolean {
 		return when (failure!!.type) {
@@ -285,6 +319,7 @@ class JavaLanguageServer : ILanguageServer {
 		if (!DocumentUtils.isJavaFile(file)) {
 			return JavaCompilerService.NO_MODULE_COMPILER
 		}
+		ensureProjectReset()
 		val module =
 			ProjectManagerImpl.getInstance().findModuleForFile(file!!)
 				?: return JavaCompilerService.NO_MODULE_COMPILER
@@ -313,6 +348,8 @@ class JavaLanguageServer : ILanguageServer {
 		if (!DocumentUtils.isJavaFile(event.changedFile)) {
 			return
 		}
+
+		ensureProjectReset()
 
 		// TODO Find an alternative to efficiently update changeDelta in JavaCompilerService instance
 		JavaCompilerService.NO_MODULE_COMPILER.onDocumentChange(event)
