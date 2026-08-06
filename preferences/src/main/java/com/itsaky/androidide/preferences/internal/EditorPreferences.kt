@@ -133,25 +133,25 @@ object EditorPreferences {
 		}
 
 	var outputWordWrap: Boolean
-		get() = prefManager.getBoolean(OUTPUT_WORD_WRAP, true)
+		get() = prefManager.getBoolean(OUTPUT_WORD_WRAP, false)
 		set(value) {
 			prefManager.putBoolean(OUTPUT_WORD_WRAP, value)
 		}
 
 	var outputLineNumbers: Boolean
-		get() = prefManager.getBoolean(OUTPUT_LINE_NUMBERS, true)
+		get() = prefManager.getBoolean(OUTPUT_LINE_NUMBERS, false)
 		set(value) {
 			prefManager.putBoolean(OUTPUT_LINE_NUMBERS, value)
 		}
 
 	var outputTimestamps: Boolean
-		get() = prefManager.getBoolean(OUTPUT_TIMESTAMPS, true)
+		get() = prefManager.getBoolean(OUTPUT_TIMESTAMPS, false)
 		set(value) {
 			prefManager.putBoolean(OUTPUT_TIMESTAMPS, value)
 		}
 
 	var outputDeltas: Boolean
-		get() = prefManager.getBoolean(OUTPUT_DELTAS, true)
+		get() = prefManager.getBoolean(OUTPUT_DELTAS, false)
 		set(value) {
 			prefManager.putBoolean(OUTPUT_DELTAS, value)
 		}
