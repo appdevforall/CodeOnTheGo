@@ -818,6 +818,24 @@ flox activate -d flox/local -- ./gradlew :app:assembleV8Debug --parallel --max-w
 
 Expected: BUILD SUCCESSFUL. This takes several minutes.
 
+- [ ] **Step 4b: Build and side-load the assets payload**
+
+`:app:assembleV8Debug` does NOT bundle the large assets. A debug install reads them from a
+side-loaded zip, and without it the app comes up with no project templates, no Termux bootstrap, no
+Android SDK, and no `documentation.db` — so no project can be opened and no tooltip can ever
+resolve. `SplitAssetsInstaller` reads `Environment.SPLIT_ASSETS_ZIP`
+(`common/.../Environment.java:143`), which is `/sdcard/Download/assets-<arch>.zip`.
+
+```bash
+flox activate -d flox/local -- ./gradlew :app:assembleV8Assets
+adb -s emulator-5554 push app/build/outputs/assets/assets-arm64-v8a.zip \
+  /sdcard/Download/assets-arm64-v8a.zip
+```
+
+The payload is ~1.1GB and the on-device install runs at next launch. Confirm afterwards:
+`adb -s emulator-5554 shell run-as com.itsaky.androidide ls files/home/.cg/templates` must be
+non-empty, and `databases/documentation.db` must exist.
+
 - [ ] **Step 5: Confirm the emulator is up and install**
 
 ```bash
