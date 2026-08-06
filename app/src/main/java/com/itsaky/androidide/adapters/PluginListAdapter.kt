@@ -2,9 +2,11 @@
 package com.itsaky.androidide.adapters
 
 import android.view.LayoutInflater
+import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupMenu
+import androidx.annotation.StringRes
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -21,11 +23,13 @@ import java.io.File
 class PluginListAdapter(
 	private val onActionClick: (PluginInfo, Action) -> Unit,
 ) : ListAdapter<PluginInfo, PluginListAdapter.PluginViewHolder>(PluginDiffCallback()) {
-	enum class Action {
-		ENABLE,
-		DISABLE,
-		UNINSTALL,
-		DETAILS,
+	enum class Action(
+		@StringRes val labelRes: Int,
+	) {
+		ENABLE(R.string.enable_plugin),
+		DISABLE(R.string.disable_plugin),
+		UNINSTALL(R.string.uninstall_plugin),
+		DETAILS(R.string.plugin_action_details),
 	}
 
 	override fun onCreateViewHolder(
@@ -63,7 +67,8 @@ class PluginListAdapter(
 					} else {
 						"v$version"
 					}
-				pluginAuthor.text = "by ${plugin.metadata.author}"
+				pluginAuthor.text =
+					itemView.context.getString(R.string.plugin_author_by, plugin.metadata.author)
 
 				val iconPath =
 					if (itemView.context.isSystemInDarkMode()) {
@@ -88,16 +93,14 @@ class PluginListAdapter(
 					pluginIcon.setImageResource(R.drawable.ic_extension)
 				}
 
-				// Set status
 				val statusText =
 					when {
-						!plugin.isLoaded -> "Not Loaded"
-						!plugin.isEnabled -> "Disabled"
-						else -> "Enabled"
+						!plugin.isLoaded -> R.string.plugin_status_not_loaded
+						!plugin.isEnabled -> R.string.plugin_status_disabled
+						else -> R.string.plugin_status_enabled
 					}
-				pluginStatus.text = statusText
+				pluginStatus.setText(statusText)
 
-				// Set status color
 				val statusColor =
 					when {
 						!plugin.isLoaded -> R.color.error
@@ -131,30 +134,28 @@ class PluginListAdapter(
 			plugin: PluginInfo,
 		) {
 			val popup = PopupMenu(view.context, view)
+			val actions = menuActionsFor(plugin)
 
-			// Add menu items based on plugin state
-			if (plugin.isLoaded) {
-				if (plugin.isEnabled) {
-					popup.menu.add(0, 1, 0, "Disable")
-				} else {
-					popup.menu.add(0, 2, 0, "Enable")
-				}
-				popup.menu.add(0, 3, 0, "Uninstall")
+			actions.forEachIndexed { index, action ->
+				popup.menu.add(Menu.NONE, index, index, action.labelRes)
 			}
-			popup.menu.add(0, 4, 0, "Details")
 
 			popup.setOnMenuItemClickListener { menuItem ->
-				when (menuItem.itemId) {
-					1 -> onActionClick(plugin, Action.DISABLE)
-					2 -> onActionClick(plugin, Action.ENABLE)
-					3 -> onActionClick(plugin, Action.UNINSTALL)
-					4 -> onActionClick(plugin, Action.DETAILS)
-				}
+				onActionClick(plugin, actions[menuItem.itemId])
 				true
 			}
 
 			popup.show()
 		}
+
+		private fun menuActionsFor(plugin: PluginInfo): List<Action> =
+			buildList {
+				if (plugin.isLoaded) {
+					add(if (plugin.isEnabled) Action.DISABLE else Action.ENABLE)
+					add(Action.UNINSTALL)
+				}
+				add(Action.DETAILS)
+			}
 	}
 }
 

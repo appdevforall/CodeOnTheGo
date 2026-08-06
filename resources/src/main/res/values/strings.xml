@@ -907,7 +907,12 @@
 	<string name="enable_plugin">Enable</string>
 	<string name="disable_plugin">Disable</string>
 	<string name="uninstall_plugin">Uninstall</string>
+	<string name="plugin_action_details">Details</string>
 	<string name="plugin_details">Plugin Details</string>
+	<string name="plugin_author_by">by %1$s</string>
+	<string name="plugin_status_enabled">Enabled</string>
+	<string name="plugin_status_disabled">Disabled</string>
+	<string name="plugin_status_not_loaded">Not Loaded</string>
 	<string name="plugin_permissions">Permissions</string>
 	<string name="plugin_dependencies">Dependencies</string>
 
