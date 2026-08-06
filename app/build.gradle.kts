@@ -440,8 +440,125 @@ tasks.register("copyKotlinCompilerCarrierToAssets") {
 	outputs.file(destFile)
 	doLast {
 		sourceFile.asFile.copyTo(destFile.asFile, overwrite = true)
+		optimizeCarrierApkPngs(destFile.asFile)
 	}
 }
+
+// The carrier APK's res/ entries (pulled in transitively, e.g. androidx.core's notification
+// backgrounds) are dead weight -- this APK is never installed or its resources loaded; it's only
+// ever opened as a raw dex source via DexClassLoader (ADFA-5010). Shrinks them with pngquant
+// (a lossy, palette-based recompression) purely for size; correctness of the images themselves
+// is moot since nothing ever renders them. Some are AAPT2-compiled nine-patches (npTc/npOl
+// chunks) that pngquant's re-encode will strip -- fine here, would not be elsewhere.
+// Skips quietly if pngquant isn't installed, since this runs unconditionally via preBuild.
+fun optimizeCarrierApkPngs(apkFile: File) {
+	if (!isPngquantAvailable()) {
+		project.logger.info("pngquant not found on PATH; skipping carrier APK PNG optimization")
+		return
+	}
+
+	val rawEntries = readRawZipEntries(apkFile)
+	val sizeByName =
+		ZipFile(apkFile).use { zip ->
+			zip
+				.entries()
+				.asSequence()
+				.filter { !it.isDirectory }
+				.associate { it.name to it.size }
+		}
+
+	val pngNames = rawEntries.keys.filter { it.startsWith("res/") && it.endsWith(".png", ignoreCase = true) }
+	if (pngNames.isEmpty()) {
+		return
+	}
+
+	// Under the project tree, not the system temp dir: pngquant is snap-confined here and
+	// cannot read files under /tmp.
+	val tempDir =
+		layout.buildDirectory
+			.dir("tmp/carrierPngquant")
+			.get()
+			.asFile
+	tempDir.deleteRecursively()
+	tempDir.mkdirs()
+	var savedBytes = 0L
+	var shrunkCount = 0
+	try {
+		val quantized = mutableMapOf<String, ByteArray>()
+		ZipFile(apkFile).use { zip ->
+			for (name in pngNames) {
+				val original = zip.getInputStream(zip.getEntry(name)).use { it.readBytes() }
+				val workFile = File(tempDir, name.substringAfterLast('/'))
+				workFile.writeBytes(original)
+				@Suppress("DEPRECATION")
+				project.exec {
+					commandLine(
+						"pngquant",
+						"--force",
+						"--ext",
+						".png",
+						"--skip-if-larger",
+						"--quality=65-100",
+						workFile.absolutePath,
+					)
+					isIgnoreExitValue = true
+				}
+				if (workFile.exists() && workFile.length() in 1 until original.size.toLong()) {
+					val newBytes = workFile.readBytes()
+					quantized[name] = newBytes
+					savedBytes += original.size - newBytes.size
+					shrunkCount++
+				}
+			}
+		}
+
+		if (quantized.isEmpty()) {
+			project.logger.info("pngquant found nothing to shrink in ${apkFile.name}'s res/ entries")
+			return
+		}
+
+		val tempZip = File(apkFile.parentFile, "${apkFile.name}.pngquant.tmp")
+		RawZipWriter(tempZip).use { writer ->
+			for ((name, raw) in rawEntries) {
+				val newBytes = quantized[name]
+				if (newBytes != null) {
+					val crc = CRC32().apply { update(newBytes) }.value
+					writer.addEntry(
+						name,
+						ZipEntry.STORED,
+						crc,
+						newBytes.size.toLong(),
+						newBytes.size.toLong(),
+						ByteArrayInputStream(newBytes),
+					)
+				} else {
+					val size = sizeByName.getValue(name)
+					writer.addEntry(
+						name,
+						raw.method,
+						raw.crc,
+						size,
+						raw.data.size.toLong(),
+						ByteArrayInputStream(raw.data),
+					)
+				}
+			}
+		}
+		Files.move(tempZip.toPath(), apkFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+		project.logger.lifecycle(
+			"pngquant shrank $shrunkCount/${pngNames.size} PNG(s) in ${apkFile.name}'s res/ (saved ${savedBytes / 1024}KB)",
+		)
+	} finally {
+		tempDir.deleteRecursively()
+	}
+}
+
+fun isPngquantAvailable(): Boolean =
+	try {
+		ProcessBuilder("pngquant", "--version").start().waitFor() == 0
+	} catch (_: Exception) {
+		false
+	}
 
 tasks.named("preBuild") {
 	dependsOn("copyKotlinCompilerCarrierToAssets")
