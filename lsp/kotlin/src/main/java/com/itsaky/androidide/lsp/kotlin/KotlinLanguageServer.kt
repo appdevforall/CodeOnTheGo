@@ -103,6 +103,12 @@ class KotlinLanguageServer : ILanguageServer {
 	override fun shutdown() {
 		EventBus.getDefault().unregister(this)
 		scope.cancel("LSP is being shut down")
+		// Unregister before closing: once closed, loader.currentSession() is null and the
+		// session's action objects (bound to this session's DexClassLoader) would otherwise
+		// stay wired into the shared, app-wide editor actions menu -- executable, but with a
+		// classloader that no longer matches anything a future session hands out.
+		loader.currentSession()?.unregisterCodeActions()
+		codeActionsRegistered = false
 		loader.close()
 		initialized = false
 	}

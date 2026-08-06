@@ -34,6 +34,10 @@ internal class KotlinCompilerSessionImpl(
 		LSPEditorActions.ensureActionsMenuRegistered(KotlinCodeActionsMenu)
 	}
 
+	override fun unregisterCodeActions() {
+		LSPEditorActions.ensureActionsMenuUnregistered(KotlinCodeActionsMenu)
+	}
+
 	override fun openFileIfNeeded(activeDocumentFiles: List<Path>) {
 		activeDocumentFiles.forEach { file ->
 			compiler.compilationEnvironmentFor(file)?.openFileIfNeeded(file)

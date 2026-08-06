@@ -59,8 +59,17 @@ class AddImportAction : BaseKotlinCodeAction() {
 
 		val (env, action) = extra
 		val nioPath = data.requireFile().toPath()
+		// Safe cast: env is normally an AbstractCompilationEnvironment (same isolated dex, same
+		// classloader). A failed cast here means the diagnostic outlived the session that
+		// produced it (e.g. a stale action from a torn-down session) -- degrade to no edits
+		// rather than crash.
+		val abstractEnv =
+			env as? AbstractCompilationEnvironment ?: run {
+				logger.warn("compilationEnv is not an AbstractCompilationEnvironment: {}", env)
+				return emptyMap()
+			}
 		return withContext(Dispatchers.IO) {
-			computeImportCandidates(env as AbstractCompilationEnvironment, nioPath, action.referenceName)
+			computeImportCandidates(abstractEnv, nioPath, action.referenceName)
 		}
 	}
 
