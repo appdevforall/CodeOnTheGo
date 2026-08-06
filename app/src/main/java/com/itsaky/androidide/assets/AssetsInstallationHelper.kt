@@ -9,6 +9,7 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment.DEFAULT_ROOT
 import com.itsaky.androidide.utils.useEntriesEach
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -220,10 +221,15 @@ object AssetsInstallationHelper {
 		} finally {
 			// Always run postInstall so zip/FS resources are closed (e.g. SplitAssetsInstaller.zipFile),
 			// and always clean up the staging dir -- on any exit path, including a preInstall
-			// failure. Both are runCatching so a cleanup failure can't replace whatever
+			// failure or one of the parallel installerJobs failing. postInstall() runs under
+			// NonCancellable: when a job above throws, this coroutineScope is already
+			// Cancelling by the time this finally block runs, and postInstall()'s own
+			// withContext(Dispatchers.IO) would otherwise throw CancellationException at that
+			// suspension point before its body -- the real cleanup -- ever executes. Both
+			// cleanup calls are runCatching so a cleanup failure can't replace whatever
 			// exception is already propagating out of the try block above (e.g. the very
 			// preInstall failure logAndRethrow just rethrew).
-			runCatching { ASSETS_INSTALLER.postInstall(context, stagingDir) }
+			runCatching { withContext(NonCancellable) { ASSETS_INSTALLER.postInstall(context, stagingDir) } }
 				.onFailure { e ->
 					if (e is CancellationException) throw e
 					logger.warn("postInstall failed", e)
