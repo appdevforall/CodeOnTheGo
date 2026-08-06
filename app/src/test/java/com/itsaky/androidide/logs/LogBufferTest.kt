@@ -20,6 +20,7 @@ package com.itsaky.androidide.logs
 import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.utils.ILogger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -92,5 +93,17 @@ class LogBufferTest {
 		buffer.append(ILogger.Level.DEBUG, "debug\n")
 		buffer.append(ILogger.Level.ERROR, "error\n")
 		assertEquals("debug\nerror\n", buffer.snapshotAll())
+	}
+
+	@Test
+	fun `isEmpty reflects appends and clears`() {
+		val buffer = LogBuffer(trimOnEntryCount = 10, maxEntryCount = 5)
+		assertTrue(buffer.isEmpty)
+
+		buffer.append(null, "a\n")
+		assertFalse(buffer.isEmpty)
+
+		buffer.clear()
+		assertTrue(buffer.isEmpty)
 	}
 }

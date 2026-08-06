@@ -6,6 +6,7 @@ import com.itsaky.androidide.lsp.actions.CommentLineAction
 import com.itsaky.androidide.lsp.actions.IActionsMenuProvider
 import com.itsaky.androidide.lsp.actions.UncommentLineAction
 import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
+import com.itsaky.androidide.lsp.kotlin.actions.GoToDefinitionAction
 import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
 import com.itsaky.androidide.lsp.kotlin.actions.NullSafetyAction
 import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
@@ -30,6 +31,7 @@ object KotlinCodeActionsMenu : IActionsMenuProvider {
 				KT_LINE_COMMENT_TOKEN,
 				TooltipTag.EDITOR_CODE_ACTIONS_KT_UNCOMMENT,
 			),
+			GoToDefinitionAction(),
 			AddImportAction(),
 			OrganizeImportsAction(),
 			SurroundWithTryCatchAction(),

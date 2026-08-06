@@ -31,17 +31,18 @@ internal class Compiler(
 		get() = defaultCompilationEnv.parser
 
 	init {
-		defaultCompilationEnv = CompilationEnvironment(
-			name = "default",
-			kind = CompilationKind.Default,
-			workspace = workspace,
-			ktProject = projectModel,
-			intellijPluginRoot = intellijPluginRoot,
-			jdkHome = jdkHome,
-			jdkRelease = jdkRelease,
-			languageVersion = languageVersion,
-			enableParserEventSystem = true,
-		)
+		defaultCompilationEnv =
+			CompilationEnvironment(
+				name = "default",
+				kind = CompilationKind.Default,
+				workspace = workspace,
+				ktProject = projectModel,
+				intellijPluginRoot = intellijPluginRoot,
+				jdkHome = jdkHome,
+				jdkRelease = jdkRelease,
+				languageVersion = languageVersion,
+				enableParserEventSystem = true,
+			)
 
 		// must be initialized AFTER the compilation env has been initialized
 		fileSystem =
@@ -63,10 +64,18 @@ internal class Compiler(
 		throw IllegalStateException("Cannot get compilation kind for file: ${file.pathString}. It may not be supported.")
 	}
 
+	/**
+	 * The environment for [file], or null when there is none. A `.kts` has no environment yet;
+	 * this returns null for it rather than letting the kind-based overload's
+	 * [UnsupportedOperationException] escape into an LSP request on an open build script.
+	 */
 	fun compilationEnvironmentFor(file: Path): CompilationEnvironment? {
 		if (!DocumentUtils.isKotlinFile(file)) return null
 
-		return compilationEnvironmentFor(compilationKindFor(file))
+		val kind = compilationKindFor(file)
+		if (kind == CompilationKind.Script) return null
+
+		return compilationEnvironmentFor(kind)
 	}
 
 	fun compilationEnvironmentFor(compilationKind: CompilationKind): CompilationEnvironment =
