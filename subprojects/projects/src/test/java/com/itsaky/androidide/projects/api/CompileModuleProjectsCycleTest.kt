@@ -1,0 +1,213 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.itsaky.androidide.projects.api
+
+import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.project.AndroidModels
+import com.itsaky.androidide.project.GradleModels
+import com.itsaky.androidide.projects.ProjectManagerImpl
+import org.junit.After
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * Verifies [AndroidModule.getCompileModuleProjects] (via [ModuleProject.getCompileModuleProjects])
+ * terminates on a *cyclic* project-dependency graph instead of recursing until the stack overflows
+ * (ADFA-4329 / Sentry).
+ *
+ * This builds a cyclic graph of *real* [AndroidModule] instances backed by protobuf project models
+ * (each module's [AndroidModels.VariantDependencies] references the next module as a `Project`
+ * library), registers them in a real [Workspace] on the production [ProjectManagerImpl], and drives
+ * the actual production traversal in [AndroidModule.getCompileModuleProjects].
+ *
+ * On the pre-fix code (no visited-set guard) a cycle a -> b -> a recurses
+ * `a.getCompileModuleProjects -> b.getCompileModuleProjects -> a.getCompileModuleProjects -> ...`
+ * forever and blows the stack with [StackOverflowError]. With the fix it terminates and each module
+ * is expanded at most once.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(manifest = Config.NONE)
+class CompileModuleProjectsCycleTest {
+
+  @After
+  fun tearDown() {
+    runCatching { ProjectManagerImpl.getInstance().workspace = null }
+  }
+
+  /**
+   * Build a real [AndroidModule] at Gradle [path] whose compile-scope project dependencies are
+   * [moduleDeps] (Gradle project paths). The dependency graph is encoded exactly the way the tooling
+   * layer encodes it: a [AndroidModels.GraphItem] in the main artifact's compile graph keyed to a
+   * [AndroidModels.Library] of type [AndroidModels.LibraryType.Project] that points at the dependency
+   * module via [AndroidModels.ProjectInfo.getProjectPath].
+   */
+  private fun androidModule(path: String, moduleDeps: List<String>): AndroidModule {
+    val mainArtifact = AndroidModels.ArtifactDependencies.newBuilder()
+    val variantDeps = AndroidModels.VariantDependencies.newBuilder().setName("debug")
+
+    for (depPath in moduleDeps) {
+      val key = "project$depPath"
+      mainArtifact.addCompileDependency(
+        AndroidModels.GraphItem.newBuilder().setKey(key).build(),
+      )
+      variantDeps.putLibraries(
+        key,
+        AndroidModels.Library.newBuilder()
+          .setKey(key)
+          .setType(AndroidModels.LibraryType.Project)
+          .setProjectInfo(
+            AndroidModels.ProjectInfo.newBuilder()
+              .setBuildId(":")
+              .setProjectPath(depPath)
+              .build(),
+          )
+          .build(),
+      )
+    }
+    variantDeps.setMainArtifact(mainArtifact.build())
+
+    val androidProject = AndroidModels.AndroidProject.newBuilder()
+      .setProjectType(AndroidModels.ProjectType.LibraryProject)
+      .setVariantDependencies(variantDeps.build())
+      .build()
+
+    val gradleProject = GradleModels.GradleProject.newBuilder()
+      .setName(path.trimStart(':'))
+      .setPath(path)
+      .setProjectDirPath("/tmp/cycle-test${path.replace(':', '/')}")
+      .setBuildDirPath("/tmp/cycle-test${path.replace(':', '/')}/build")
+      .setBuildScriptPath("/tmp/cycle-test${path.replace(':', '/')}/build.gradle")
+      .setAndroidProject(androidProject)
+      .build()
+
+    return AndroidModule(gradleProject)
+  }
+
+  /** Install a real [Workspace] containing the given [modules] on the production [ProjectManagerImpl]. */
+  private fun installWorkspace(vararg modules: ModuleProject) {
+    val root = GradleProject(
+      GradleModels.GradleProject.newBuilder().setName("root").setPath(":").build(),
+    )
+    ProjectManagerImpl.getInstance().workspace =
+      Workspace(rootProject = root, subProjects = modules.toList(), syncIssues = emptyList())
+  }
+
+  /** A two-node cycle (`:a -> :b -> :a`) terminates and expands each module exactly once. */
+  @Test(timeout = 30_000)
+  fun `terminates on a two-node module dependency cycle`() {
+    // a -> b -> a (compile scope, real AndroidModule instances)
+    val a = androidModule(":a", listOf(":b"))
+    val b = androidModule(":b", listOf(":a"))
+    installWorkspace(a, b)
+
+    // Pre-fix: a -> b -> a -> b -> ... until StackOverflowError.
+    // With the fix: terminates; each module expanded at most once.
+    val result = a.getCompileModuleProjects()
+
+    assertThat(result.map { it.path }).containsExactly(":b", ":a")
+  }
+
+  /** A self-dependency (`:a -> :a`) terminates and reports the module once. */
+  @Test(timeout = 30_000)
+  fun `terminates on a self dependency cycle`() {
+    val a = androidModule(":a", listOf(":a"))
+    installWorkspace(a)
+
+    val result = a.getCompileModuleProjects()
+
+    assertThat(result.map { it.path }).containsExactly(":a")
+  }
+
+  /** A longer cycle (`:a -> :b -> :c -> :a`) terminates and expands each module at most once. */
+  @Test(timeout = 30_000)
+  fun `terminates on a longer cycle and expands each module at most once`() {
+    // a -> b -> c -> a
+    val a = androidModule(":a", listOf(":b"))
+    val b = androidModule(":b", listOf(":c"))
+    val c = androidModule(":c", listOf(":a"))
+    installWorkspace(a, b, c)
+
+    val result = a.getCompileModuleProjects()
+
+    assertThat(result.map { it.path }).containsExactly(":b", ":c", ":a")
+  }
+
+  /** A diamond (shared dependency reached by two paths) terminates and is not flagged as a cycle. */
+  @Test(timeout = 30_000)
+  fun `diamond shared dependency terminates and is not treated as a cycle`() {
+    // a -> b -> d, a -> c -> d. `d` is a shared dependency reached by two paths, NOT a cycle:
+    // it must be expanded (no infinite loop) and must not trip the cycle guard.
+    val a = androidModule(":a", listOf(":b", ":c"))
+    val b = androidModule(":b", listOf(":d"))
+    val c = androidModule(":c", listOf(":d"))
+    val d = androidModule(":d", emptyList())
+    installWorkspace(a, b, c, d)
+
+    val result = a.getCompileModuleProjects()
+
+    // Terminates (timeout would fail otherwise) and reaches every module in the diamond.
+    assertThat(result.map { it.path }.toSet()).containsExactly(":b", ":c", ":d")
+  }
+
+  /** [AndroidModule.getCompileClasspaths] terminates on a cyclic module graph (`:a -> :b -> :a`). */
+  @Test(timeout = 30_000)
+  fun `getCompileClasspaths terminates on a cyclic module graph`() {
+    // a -> b -> a. Pre-fix the sibling classpath traversal had no cross-module guard, so
+    // a.getCompileClasspaths -> b.getCompileClasspaths -> a.getCompileClasspaths -> ... overflowed
+    // the stack just like getCompileModuleProjects did. With the fix it terminates.
+    val a = androidModule(":a", listOf(":b"))
+    val b = androidModule(":b", listOf(":a"))
+    installWorkspace(a, b)
+
+    val result = a.getCompileClasspaths()
+
+    // Terminates (timeout would fail otherwise) and still contributes this module's own classpaths.
+    assertThat(result).contains(a.getGeneratedJar())
+  }
+
+  /** [AndroidModule.getCompileClasspaths] terminates on a self-dependency cycle (`:a -> :a`). */
+  @Test(timeout = 30_000)
+  fun `getCompileClasspaths terminates on a self dependency cycle`() {
+    val a = androidModule(":a", listOf(":a"))
+    installWorkspace(a)
+
+    val result = a.getCompileClasspaths()
+
+    assertThat(result).contains(a.getGeneratedJar())
+  }
+
+  /**
+   * [ModuleProject.formatDependencyCycle] renders the loop starting at the first occurrence of the
+   * repeated module, for two-node, self, and longer cycles.
+   */
+  @Test
+  fun `formatDependencyCycle renders the loop from the first occurrence of the repeated module`() {
+    // Two-node, self, and longer cycles render as the chain the user must break.
+    assertThat(ModuleProject.formatDependencyCycle(listOf(":a", ":b"), ":a"))
+      .isEqualTo(":a -> :b -> :a")
+    assertThat(ModuleProject.formatDependencyCycle(listOf(":a"), ":a"))
+      .isEqualTo(":a -> :a")
+    assertThat(ModuleProject.formatDependencyCycle(listOf(":a", ":b", ":c"), ":a"))
+      .isEqualTo(":a -> :b -> :c -> :a")
+    // The chain starts at the FIRST occurrence of the repeated node, dropping any prefix before it.
+    assertThat(ModuleProject.formatDependencyCycle(listOf(":a", ":b", ":c"), ":b"))
+      .isEqualTo(":b -> :c -> :b")
+  }
+}

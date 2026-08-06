@@ -86,15 +86,21 @@ class JavaModule(
 
 	override fun getModuleClasspaths(): Set<File> = mutableSetOf(classesJar)
 
-	override fun getCompileClasspaths(excludeSourceGeneratedClassPath: Boolean): Set<File> {
+	override fun getCompileClasspaths(
+		excludeSourceGeneratedClassPath: Boolean,
+		visited: MutableSet<String>,
+	): Set<File> {
+		// Guard against cyclic project-dependency graphs: contribute each module's classpaths once.
+		if (!visited.add(path)) {
+			return emptySet()
+		}
+
 		val classpaths =
 			if (excludeSourceGeneratedClassPath) mutableSetOf() else getModuleClasspaths().toMutableSet()
 
 		getCompileModuleProjects().forEach {
 			classpaths.addAll(
-				it.getCompileClasspaths(
-					excludeSourceGeneratedClassPath
-				)
+				it.getCompileClasspaths(excludeSourceGeneratedClassPath, visited)
 			)
 		}
 
@@ -121,8 +127,25 @@ class JavaModule(
 
 	override fun getRuntimeDexFiles(): Set<File> = emptySet()
 
-	override fun getCompileModuleProjects(): List<ModuleProject> {
+	override fun getCompileModuleProjects(
+		visited: MutableSet<String>,
+		recursionPath: ArrayDeque<String>,
+	): List<ModuleProject> {
 		val root = IProjectManager.getInstance().workspace ?: return emptyList()
+
+		// True cycle guard (defensive: this override is non-recursive — it returns only direct
+		// compile-scope module dependencies — so it cannot itself extend the recursion path, but the
+		// check keeps behavior consistent with AndroidModule if that ever changes).
+		if (recursionPath.contains(path)) {
+			reportDependencyCycle(recursionPath, path)
+			return emptyList()
+		}
+
+		// Already fully expanded elsewhere (a diamond / shared dependency, not a cycle): dedup.
+		if (!visited.add(path)) {
+			return emptyList()
+		}
+
 		return this.dependencyList
 			.filter { it.hasModule() && it.scope == SCOPE_COMPILE }
 			.mapNotNull { root.findByPath(it.module.projectPath) }
