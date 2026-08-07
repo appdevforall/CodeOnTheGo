@@ -10,6 +10,7 @@ android {
 }
 
 dependencies {
+	api(libs.asm)
 	api(libs.google.protobuf.java)
 	api(libs.google.protobuf.kotlin)
 	api(libs.kotlinx.coroutines.core)
@@ -19,7 +20,6 @@ dependencies {
 	api(projects.logger)
 	api(projects.lsp.indexing)
 	api(projects.lsp.jvmSymbolModels)
-	api(projects.subprojects.kotlinAnalysisApi)
 	api(projects.subprojects.projects)
 
 	testImplementation(projects.testing.unit)

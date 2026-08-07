@@ -30,15 +30,11 @@ import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
-import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
-import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
-import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
-import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_INDEX_KEY
-import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_META_INDEX_KEY
-import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
-import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
-import com.itsaky.androidide.lsp.kotlin.navigation.findDefinitionAt
-import com.itsaky.androidide.lsp.kotlin.signaturehelp.doSignatureHelp
+import com.itsaky.androidide.lsp.kotlin.api.IKotlinCompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.api.IKotlinCompilerSession
+import com.itsaky.androidide.lsp.kotlin.api.KT_SOURCE_FILE_INDEX_KEY
+import com.itsaky.androidide.lsp.kotlin.api.KT_SOURCE_FILE_META_INDEX_KEY
+import com.itsaky.androidide.lsp.kotlin.loader.KotlinCompilerLoader
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.DefinitionParams
@@ -49,7 +45,6 @@ import com.itsaky.androidide.lsp.models.ReferenceParams
 import com.itsaky.androidide.lsp.models.ReferenceResult
 import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
-import com.itsaky.androidide.lsp.util.LSPEditorActions
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -70,22 +65,19 @@ import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import org.jetbrains.kotlin.config.JvmTarget
-import org.jetbrains.kotlin.config.LanguageVersion
-import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
-import java.nio.file.Paths
 
 class KotlinLanguageServer : ILanguageServer {
 	private var _client: ILanguageClient? = null
 	private var _settings: IServerSettings? = null
 	private var initialized = false
+	private var workspace: Workspace? = null
 
 	private val scope =
 		CoroutineScope(SupervisorJob() + CoroutineName(KotlinLanguageServer::class.simpleName!!))
-	private var projectModel: KotlinProjectModel? = null
-	private var compiler: Compiler? = null
+
+	private val loader = KotlinCompilerLoader(BaseApplication.baseInstance)
 
 	override val serverId: String = SERVER_ID
 
@@ -111,26 +103,59 @@ class KotlinLanguageServer : ILanguageServer {
 	override fun shutdown() {
 		EventBus.getDefault().unregister(this)
 		scope.cancel("LSP is being shut down")
-		compiler?.close()
+		// Unregister before closing: once closed, loader.currentSession() is null and the
+		// session's action objects (bound to this session's DexClassLoader) would otherwise
+		// stay wired into the shared, app-wide editor actions menu -- executable, but with a
+		// classloader that no longer matches anything a future session hands out.
+		loader.currentSession()?.unregisterCodeActions()
+		codeActionsRegistered = false
+		loader.close()
 		initialized = false
 	}
 
 	override fun connectClient(client: ILanguageClient?) {
 		this._client = client
-		this.compiler?.updateLanguageClient(client)
+		loader.currentSession()?.updateLanguageClient(client)
 	}
-
-	/** Returns the [CompilationEnvironment] responsible for [file], or null if the compiler is not ready. */
-	internal fun compilationEnvironmentFor(file: Path): CompilationEnvironment? = compiler?.compilationEnvironmentFor(file)
 
 	override fun applySettings(settings: IServerSettings?) {
 		this._settings = settings
 	}
 
+	/**
+	 * The session, creating it (extracting and DexClassLoader-loading the carrier APK) on
+	 * the first call for a Kotlin file -- not eagerly in [setupWithProject], which used to
+	 * pay this cost for every project open, Kotlin or not.
+	 */
+	private fun ensureSession(): IKotlinCompilerSession? {
+		val ws = workspace ?: return null
+		return loader
+			.getOrCreateSession(
+				workspace = ws,
+				jdkHome = Environment.JAVA_HOME.toPath(),
+				jdkRelease = IJdkDistributionProvider.DEFAULT_JAVA_RELEASE,
+				jdkVersionString = IJdkDistributionProvider.DEFAULT_JAVA_VERSION,
+				languageClient = client,
+			).also { session ->
+				if (!codeActionsRegistered) {
+					session.registerCodeActions()
+					codeActionsRegistered = true
+				}
+			}
+	}
+
+	private var codeActionsRegistered = false
+
+	/**
+	 * The environment for [file], loading the compiler on first Kotlin-file-gated call if
+	 * needed. Public: the code actions that move with the isolated compiler module (e.g.
+	 * `OrganizeImportsAction`, `ImplementMembersAction`) reach back through this to get the
+	 * concrete environment they need for advanced operations, same as before this refactor.
+	 */
+	fun compilationEnvironmentFor(file: Path): IKotlinCompilationEnvironment? = ensureSession()?.compilationEnvironmentFor(file)
+
 	override fun setupWithProject(workspace: Workspace) {
 		logger.info("setupWithProject called, initialized={}", initialized)
-
-		LSPEditorActions.ensureActionsMenuRegistered(KotlinCodeActionsMenu)
 
 		val context = BaseApplication.baseInstance
 		val indexingServiceManager =
@@ -163,47 +188,17 @@ class KotlinLanguageServer : ILanguageServer {
 
 		jvmLibraryIndexingService?.refresh()
 
-		val jdkHome = Environment.JAVA_HOME.toPath()
-		val jdkRelease = IJdkDistributionProvider.DEFAULT_JAVA_RELEASE
-		val intellijPluginRoot = Paths.get(context.applicationInfo.sourceDir)
+		this.workspace = workspace
 
-		val jvmTarget =
-			JvmTarget.fromString(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
-				?: JvmTarget.JVM_21
+		val session = loader.currentSession()
+		if (session != null) {
+			// A session already exists (a Kotlin file was opened before this re-setup, e.g. on
+			// project reload) -- refresh its project model and pick up files that are already open.
+			session.updateProjectModel(workspace)
 
-		val jvmPlatform = JvmPlatforms.jvmPlatformByTargetVersion(jvmTarget)
-
-		if (!initialized) {
-			logger.info("Creating initial analysis session")
-
-			val model = KotlinProjectModel()
-			model.update(workspace, jvmPlatform)
-			this.projectModel = model
-
-			val compiler =
-				Compiler(
-					workspace = workspace,
-					projectModel = model,
-					intellijPluginRoot = intellijPluginRoot,
-					jdkHome = jdkHome,
-					jdkRelease = jdkRelease,
-					languageVersion = LanguageVersion.LATEST_STABLE,
-				)
-
-			compiler.updateLanguageClient(client)
-			this.compiler = compiler
-		} else {
-			logger.info("Updating project model")
-			projectModel?.update(workspace, jvmPlatform)
-		}
-
-		// Open already open files
-		// we won't get an event for these
-		FileManager.activeDocuments.ifNotEmpty {
-			forEach { document ->
-				compiler
-					?.compilationEnvironmentFor(document.file)
-					?.openFileIfNeeded(document.file)
+			FileManager.activeDocuments.ifNotEmpty {
+				val activeFiles = map { it.file }
+				session.openFileIfNeeded(activeFiles)
 			}
 		}
 
@@ -218,10 +213,7 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		logger.debug("complete(position={}, file={})", params.position, params.file)
-		return compiler
-			?.compilationEnvironmentFor(params.file)
-			?.let { context(it) { codeComplete(params) } }
-			?: CompletionResult.EMPTY
+		return compilationEnvironmentFor(params.file)?.complete(params) ?: CompletionResult.EMPTY
 	}
 
 	override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
@@ -246,10 +238,7 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		logger.debug("findDefinition(position={}, file={})", params.position, params.file)
-		return compiler
-			?.compilationEnvironmentFor(params.file)
-			?.let { context(it) { findDefinitionAt(params) } }
-			?: DefinitionResult.empty()
+		return compilationEnvironmentFor(params.file)?.findDefinition(params) ?: DefinitionResult.empty()
 	}
 
 	override suspend fun expandSelection(params: ExpandSelectionParams): Range = params.selection
@@ -264,10 +253,7 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		logger.debug("signatureHelp(position={}, file={})", params.position, params.file)
-		return compiler
-			?.compilationEnvironmentFor(params.file)
-			?.let { context(it) { doSignatureHelp(params) } }
-			?: SignatureHelp.empty()
+		return compilationEnvironmentFor(params.file)?.signatureHelp(params) ?: SignatureHelp.empty()
 	}
 
 	override suspend fun analyze(file: Path): DiagnosticResult {
@@ -287,10 +273,7 @@ class KotlinLanguageServer : ILanguageServer {
 			return DiagnosticResult.NO_UPDATE
 		}
 
-		return compiler
-			?.compilationEnvironmentFor(file)
-			?.let { context(it) { collectDiagnosticsFor(file, createJobCancelChecker()) } }
-			?: DiagnosticResult.NO_UPDATE
+		return compilationEnvironmentFor(file)?.collectDiagnostics(file, createJobCancelChecker()) ?: DiagnosticResult.NO_UPDATE
 	}
 
 	@Subscribe(threadMode = ThreadMode.ASYNC)
@@ -300,9 +283,7 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		compiler
-			?.compilationEnvironmentFor(event.openedFile)
-			?.onFileOpen(event.openedFile)
+		compilationEnvironmentFor(event.openedFile)?.onFileOpen(event.openedFile)
 	}
 
 	@Subscribe(threadMode = ThreadMode.ASYNC)
@@ -312,9 +293,7 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		compiler
-			?.compilationEnvironmentFor(event.changedFile)
-			?.onFileContentChanged(event.changedFile)
+		compilationEnvironmentFor(event.changedFile)?.onFileContentChanged(event.changedFile)
 	}
 
 	@Subscribe(threadMode = ThreadMode.ASYNC)
@@ -324,9 +303,7 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		compiler
-			?.compilationEnvironmentFor(event.closedFile)
-			?.onFileClosed(event.closedFile)
+		compilationEnvironmentFor(event.closedFile)?.onFileClosed(event.closedFile)
 	}
 
 	@Subscribe(threadMode = ThreadMode.ASYNC)
@@ -336,16 +313,14 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		compiler
-			?.compilationEnvironmentFor(event.savedFile)
-			?.onFileSaved(event.savedFile)
+		compilationEnvironmentFor(event.savedFile)?.onFileSaved(event.savedFile)
 	}
 
 	@Subscribe
 	@Suppress("unused")
 	fun onBuildCompleted(event: BuildCompletedEvent) {
 		Sentry.addBreadcrumb("onBuildCompleted: result=${event.result}")
-		compiler?.refreshSources()
+		loader.currentSession()?.refreshSources()
 	}
 
 	@Subscribe
@@ -357,7 +332,7 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		scope.launch {
-			runCatching { compiler?.compilationEnvironmentFor(path) }
+			runCatching { compilationEnvironmentFor(path) }
 				.getOrNull()
 				?.onFileCreated(path)
 		}
@@ -372,7 +347,7 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		scope.launch {
-			runCatching { compiler?.compilationEnvironmentFor(path) }
+			runCatching { compilationEnvironmentFor(path) }
 				.getOrNull()
 				?.onFileRemoved(path)
 		}
@@ -391,27 +366,21 @@ class KotlinLanguageServer : ILanguageServer {
 			if (!oldIsKotlinFile && newIsKotlinFile) {
 				// only the new file is a Kotlin file
 				// so just submit it for indexing
-				compiler
-					?.compilationEnvironmentFor(toPath)
-					?.onFileCreated(toPath)
+				compilationEnvironmentFor(toPath)?.onFileCreated(toPath)
 				return@launch
 			}
 
 			if (oldIsKotlinFile && !newIsKotlinFile) {
 				// only the old file was a Kotlin file
 				// so just remove it from the index
-				compiler
-					?.compilationEnvironmentFor(fromPath)
-					?.onFileRemoved(fromPath)
+				compilationEnvironmentFor(fromPath)?.onFileRemoved(fromPath)
 				return@launch
 			}
 
-			val fromKind = runCatching { compiler?.compilationKindFor(fromPath) }.getOrNull()
-			val toKind = runCatching { compiler?.compilationKindFor(toPath) }.getOrNull()
-			val fromEnv = fromKind?.let { compiler?.compilationEnvironmentFor(it) }
-			val toEnv = toKind?.let { compiler?.compilationEnvironmentFor(it) }
+			val fromEnv = runCatching { compilationEnvironmentFor(fromPath) }.getOrNull()
+			val toEnv = runCatching { compilationEnvironmentFor(toPath) }.getOrNull()
 
-			if (fromKind != null && fromEnv == toEnv && toEnv != null) {
+			if (fromEnv != null && fromEnv === toEnv) {
 				// file was renamed within the same compilation environment
 				toEnv.onFileMoved(fromPath, toPath)
 				return@launch

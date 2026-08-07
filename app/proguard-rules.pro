@@ -29,42 +29,6 @@
 # Builder model implementations
 -keep class com.itsaky.androidide.builder.model.** { *; }
 
-# lsp/kotlin registers its own IntelliJ project/application services -- some
-# by class name in lsp/kotlin/src/main/resources/META-INF/kt-lsp/kt-lsp.xml,
-# the rest via ::class literals in
-# lsp/kotlin/.../registrar/AnalysisApiServiceProviders.kt, which PicoContainer
-# then instantiates reflectively via each class's no-arg constructor. A
-# ::class literal doesn't count as an actual `new` call to R8, so it kept
-# stripping "unused" no-arg constructors one class at a time as each was
-# discovered on-device (ClassNotFoundException on DirectInheritorsProvider,
-# then a PicoInitializationException on ModuleDependentsProvider's missing
-# constructor). Keep the whole package rather than list every implementation
-# class in AnalysisApiServiceProviders.kt individually.
--keep class com.itsaky.androidide.lsp.kotlin.compiler.services.** { *; }
-
-# Kotlin Analysis API (bundled in subprojects/kotlin-analysis-api, used by the
-# Kotlin LSP). subprojects/kotlin-analysis-api/consumer-rules.pro keeps every
-# class this jar's own IntelliJ plugin XML descriptors and ServiceLoader
-# entries reference by name, but on-device testing kept surfacing distinct
-# reflection paths that narrow list didn't cover -- not just inside this jar,
-# but in other lsp/kotlin runtime dependencies too (Caffeine picks a cache
-# implementation from dozens of codegenned variant classes at runtime; a
-# protobuf-lite message field is resolved by name string; lsp/kotlin's own
-# kt-lsp.xml above; and a NullPointerException deep in IntelliJ's own
-# JavaCoreApplicationEnvironment bootstrap, verified absent on an unshrunk
-# debug build). Each fix was quick but the next gap kept appearing elsewhere
-# in the same dependency graph, so rather than keep discovering them one
-# on-device crash at a time, keep every runtime dependency lsp/kotlin pulls in
-# whole. This gives up the dex-size reduction for this whole dependency graph;
-# see ADFA-3604 for the size trade-off.
--keep class org.jetbrains.kotlin.** { *; }
--keep class com.github.benmanes.caffeine.** { *; }
--keep class kotlin.reflect.** { *; }
--keep class kotlin.script.** { *; }
--keep class kotlinx.coroutines.internal.** { *; }
--keep class one.util.streamex.** { *; }
--keep class gnu.trove.** { *; }
-
 # Eclipse
 -keep class org.eclipse.** { *; }
 
