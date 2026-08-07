@@ -63,6 +63,11 @@ class LogFilterBarController(
 
 	init {
 		binding.levelChipsScroll.isVisible = showLevelChips
+
+		chipsByLevel.values.forEach { chip ->
+			chip.isVisible = showLevelChips
+		}
+
 		binding.filterInput.setText(initialText)
 		chipsByLevel.forEach { (level, chip) ->
 			chip.isChecked = level in initialLevels
