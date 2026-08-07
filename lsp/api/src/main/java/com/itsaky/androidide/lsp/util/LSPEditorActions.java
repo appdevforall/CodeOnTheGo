@@ -41,10 +41,40 @@ public class LSPEditorActions {
 
     final var editorActions = (ActionMenu) action;
     for (final var item : provider.getActions()) {
-      if (editorActions.findAction(item.getId()) != null) {
-        continue;
+      // Replace rather than skip: a stale entry with the same ID may belong to a previous
+      // language server session (e.g. a prior project's DexClassLoader-loaded compiler
+      // module), whose action objects are bound to a now-dead classloader. Keeping it around
+      // would let it later execute against data produced by the new session, causing a
+      // ClassCastException between two same-named-but-differently-loaded classes.
+      final var existing = editorActions.findAction(item.getId());
+      if (existing != null) {
+        editorActions.removeAction(existing);
       }
       editorActions.addAction(item);
+    }
+  }
+
+  /**
+   * Removes every action in {@code provider}'s menu from the shared editor actions menu,
+   * matched by ID. Call this when a language server session (and the classloader its action
+   * objects are bound to, e.g. a {@code DexClassLoader}-loaded module) is being shut down, so
+   * a dead session's actions cannot outlive it in the shared, app-wide {@link ActionsRegistry}.
+   */
+  public static void ensureActionsMenuUnregistered(IActionsMenuProvider provider) {
+    final var registry = ActionsRegistry.getInstance();
+    final var action =
+        registry.findAction(ActionItem.Location.EDITOR_TEXT_ACTIONS, CodeActionsMenu.ID);
+
+    if (action == null) {
+      return;
+    }
+
+    final var editorActions = (ActionMenu) action;
+    for (final var item : provider.getActions()) {
+      final var existing = editorActions.findAction(item.getId());
+      if (existing != null) {
+        editorActions.removeAction(existing);
+      }
     }
   }
 }

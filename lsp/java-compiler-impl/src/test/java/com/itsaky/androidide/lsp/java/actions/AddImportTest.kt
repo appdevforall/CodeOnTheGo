@@ -20,6 +20,7 @@ package com.itsaky.androidide.lsp.java.actions
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.java.JavaLSPTest
 import com.itsaky.androidide.lsp.java.actions.diagnostics.AddImportAction
+import com.itsaky.androidide.lsp.java.providers.JavaDiagnosticProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -44,7 +45,11 @@ class AddImportTest {
       openFile("actions/AddImportAction")
       val diagnostic =
         runBlocking {
-          server.analyze(file!!).diagnostics.firstOrNull {
+          // Bypass JavaLanguageServer.analyze() -- it now routes through the DexClassLoader
+          // carrier (ADFA-5053), which isn't available in this unit test environment. Test the
+          // isolated provider directly instead, same as before ADFA-5053 for the resident
+          // JavaLanguageServer.getCompiler()-based path.
+          JavaDiagnosticProvider().analyze(file!!).diagnostics.firstOrNull {
             it.code == "compiler.err.cant.resolve.location"
           }
         }

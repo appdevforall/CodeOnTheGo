@@ -17,7 +17,9 @@
 package com.itsaky.androidide.lsp.java.providers
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.lsp.internal.model.CachedCompletion
 import com.itsaky.androidide.lsp.java.JavaLSPTest
+import com.itsaky.androidide.lsp.java.models.JavaServerSettings
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.progress.ICancelChecker
@@ -85,10 +87,13 @@ class JavaCompletionProviderTest {
   }
 
   private fun completionTitles(pos: Position): List<CharSequence> {
-    return JavaLSPTest.server
-      .complete(
-        CompletionParams(pos, JavaLSPTest.file!!, ICancelChecker.NOOP).apply { prefix = "" })
-      .items
-      .map { it.ideLabel }
+    // Bypass JavaLanguageServer.complete() -- it now routes through the DexClassLoader carrier
+    // (ADFA-5053), which isn't available in this unit test environment. Test the isolated
+    // provider directly instead, mirroring what JavaCompilerSessionImpl.complete() does.
+    val params =
+      CompletionParams(pos, JavaLSPTest.file!!, ICancelChecker.NOOP).apply { prefix = "" }
+    val provider = CompletionProvider()
+    provider.reset(JavaLSPTest.getCompiler(), JavaServerSettings.getInstance(), CachedCompletion.EMPTY) {}
+    return provider.complete(params).items.map { it.ideLabel }
   }
 }

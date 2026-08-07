@@ -24,6 +24,7 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfoResult
 import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadListResponse
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
+import com.itsaky.androidide.lsp.java.api.IJavaCompilerSession
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
@@ -106,6 +107,12 @@ internal class JavaDebugAdapter :
 				"Unable to get current instance of JavaDebugAdapter"
 			},
 		): JavaDebugAdapter = checkNotNull(currentInstance(), message)
+	}
+
+	/** The current javac session, or null if the carrier hasn't been loaded yet this session. */
+	private fun currentCompilerSession(): IJavaCompilerSession? {
+		val lsp = ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
+		return (lsp as? JavaLanguageServer?)?.currentCompilerSession()
 	}
 
 	private fun connVm(): VmConnection {
@@ -530,7 +537,7 @@ internal class JavaDebugAdapter :
 			event =
 				BreakpointHitEvent(
 					remoteClient = vm.client,
-					location = location.asLspLocation(),
+					location = location.asLspLocation(session = currentCompilerSession()),
 					threadId = thread.uniqueID().toString(),
 				),
 		)
@@ -548,7 +555,7 @@ internal class JavaDebugAdapter :
 			event =
 				LspStepEvent(
 					remoteClient = vm.client,
-					location = location.asLspLocation(),
+					location = location.asLspLocation(session = currentCompilerSession()),
 					threadId = thread.uniqueID().toString(),
 				),
 		)

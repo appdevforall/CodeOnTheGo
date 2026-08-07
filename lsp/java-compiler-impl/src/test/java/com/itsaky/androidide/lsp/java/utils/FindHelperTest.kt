@@ -19,6 +19,8 @@ package com.itsaky.androidide.lsp.java.utils
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.java.JavaLSPTest
+import com.itsaky.androidide.lsp.java.models.JavaServerSettings
+import com.itsaky.androidide.lsp.java.providers.DefinitionProvider
 import com.itsaky.androidide.lsp.models.DefinitionParams
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.progress.ICancelChecker
@@ -49,7 +51,11 @@ class FindHelperTest {
       // Find definition for 'field' class of type 'String'
       val position = Position(9, 7)
       val params = DefinitionParams(file!!, position, ICancelChecker.NOOP)
-      val definitions = runBlocking { server.findDefinition(params) }
+      val definitions =
+        runBlocking {
+          DefinitionProvider(getCompiler(), JavaServerSettings.getInstance(), params.cancelChecker)
+            .findDefinition(params)
+        }
       assertThat(definitions).isNotNull()
       assertThat(definitions.locations).hasSize(1)
       assertThat(definitions.locations[0].range.contains(Position(6, 20))).isTrue()

@@ -38,10 +38,8 @@ dependencies {
 	kapt(projects.annotationProcessors)
 
 	implementation(libs.androidide.ts)
-	implementation(libs.androidide.ts.java)
 	implementation(platform(libs.sora.bom))
 	implementation(libs.common.editor)
-	implementation(libs.common.javaparser)
 	implementation(libs.androidx.annotation)
 	implementation(libs.google.guava)
 	implementation(libs.google.gson)
@@ -54,14 +52,15 @@ dependencies {
 	implementation(projects.editorApi)
 	implementation(projects.resources)
 	implementation(projects.lsp.api)
+	implementation(projects.lsp.javaApi)
 	implementation(projects.lsp.jvmSymbolIndex)
 	implementation(projects.subprojects.libjdwp)
 	implementation(projects.subprojects.javacFs)
-	implementation(projects.subprojects.javacServices)
 	implementation(projects.idetooltips)
 
-	implementation(libs.composite.javac)
-	implementation(libs.composite.javapoet)
+	// JavaServerSettings' formatter options are resident config, not part of javac's dex
+	// bloat (ADFA-4549 didn't flag google-java-format) -- kept resident like javac-fs, with
+	// lsp-java-compiler-impl seeing it via compileOnly so the type identity matches.
 	implementation(libs.composite.googleJavaFormat)
 
 	implementation(libs.androidx.core.ktx)
