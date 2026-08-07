@@ -46,8 +46,6 @@ class ExtractVariableSheet : BottomSheetDialogFragment() {
 			// The sheet's window is torn down with the fragment's view, so dispose with it.
 			setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
 			setContent {
-				// IdeTheme, not a bare MaterialTheme: the latter falls back to Material's purple
-				// baseline and ignores the user's theme, so the sheet would not match the editor.
 				IdeTheme {
 					val state by viewModel.uiState.collectAsStateWithLifecycle()
 					ExtractVariableSheetContent(

@@ -46,7 +46,6 @@ fun ExtractVariableSheetContent(
 		modifier =
 			modifier
 				.fillMaxWidth()
-				// The bottom system navigation bar must never be drawn under or intercepted.
 				.navigationBarsPadding()
 				.padding(horizontal = 24.dp, vertical = 16.dp),
 		verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -155,7 +154,10 @@ private fun OptionList(
 	monospace: Boolean,
 	onSelect: (Int) -> Unit,
 ) {
-	Column(Modifier.selectableGroup()) {
+	Column(
+		modifier = Modifier.selectableGroup(),
+		verticalArrangement = Arrangement.spacedBy(8.dp),
+	) {
 		options.forEachIndexed { index, option ->
 			Row(
 				verticalAlignment = Alignment.CenterVertically,
@@ -170,9 +172,9 @@ private fun OptionList(
 			) {
 				RadioButton(
 					selected = index == selected,
-					// Null so the row, not the button, is the single accessibility target.
 					onClick = null,
 				)
+
 				Text(
 					text = option,
 					style =
