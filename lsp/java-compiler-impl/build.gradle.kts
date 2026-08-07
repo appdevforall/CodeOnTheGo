@@ -42,16 +42,27 @@ kapt {
 dependencies {
 	kapt(projects.annotationProcessors)
 
-	implementation(libs.androidide.ts)
-	implementation(libs.androidide.ts.java)
+	// Resident (bundled in the main app dex via editor/editor-api/lsp:java/etc.) -- like the
+	// appcompat/material block below, `implementation` here would duplicate these, including
+	// their native .so payloads, into the isolated carrier dex alongside the identical resident
+	// copies, breaking type identity across the DexClassLoader boundary (see docs/adr/0012).
+	// The carrier's DexClassLoader resolves them from its parent (the resident classloader)
+	// instead.
+	compileOnly(libs.androidide.ts)
+	compileOnly(libs.androidide.ts.java)
 	implementation(platform(libs.sora.bom))
-	implementation(libs.common.editor)
+	compileOnly(libs.common.editor)
 	implementation(libs.common.javaparser)
 	implementation(libs.androidx.annotation)
 	implementation(libs.google.guava)
 	implementation(libs.google.gson)
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.common.kotlin)
+	// Resident (bundled via common's `api`) -- needed to translate CancelAbort (isolated-only,
+	// never classloader-identity-safe to check from resident code) into CancellationException
+	// (this same, single resident copy, safe to check from either side) before it crosses back
+	// out of JavaCompilerSessionImpl. compileOnly for the same reason as the block above.
+	compileOnly(libs.common.kotlin.coroutines.core)
 
 	// The actual javac fork -- this is the payload this module exists to isolate. NOT
 	// libs.composite.javac (the aggregate): that also pulls in java-compiler, which must stay
@@ -99,4 +110,7 @@ dependencies {
 	// sourceset) doesn't extend to the test compile classpath, so these need their own entries.
 	testImplementation(projects.lsp.java)
 	testImplementation(libs.composite.javaCompiler)
+	// JavaSelectionProviderTest references sora-editor's Content directly; same compileOnly
+	// test-classpath gap as above.
+	testImplementation(libs.common.editor)
 }
