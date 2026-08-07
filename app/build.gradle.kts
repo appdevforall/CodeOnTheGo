@@ -36,6 +36,15 @@ plugins {
 	alias(libs.plugins.google.services)
 }
 
+// Forces :subprojects:java-compiler-carrier to configure eagerly, ahead of app's own
+// configuration. Without this, org.gradle.configureondemand=true (gradle.properties) only
+// reaches that project lazily via copyJavaCompilerCarrierToAssets's cross-project dependsOn,
+// which trips "DefaultClassLoaderScope must be locked before it can be used to compute a
+// classpath" for this (com.android.application) target specifically -- plugin-api, referenced
+// the same way by copyPluginApiJarToAssets below, doesn't hit this because app already
+// configures it naturally as a real compile dependency.
+evaluationDependsOn(":subprojects:java-compiler-carrier")
+
 fun propOrEnv(name: String): String =
 	project.findProperty(name) as String?
 		?: System.getenv(name)
@@ -406,6 +415,32 @@ tasks.register("downloadDocDb") {
 			project.logger.lifecycle("Failed to fetch documentation.db info: ${e.message}")
 		}
 	}
+}
+
+// Copies the isolated javac carrier APK -- built by :subprojects:java-compiler-carrier, which
+// bundles lsp:java-compiler-impl (the vendored javac fork + its LSP consumers) -- straight into
+// app's own assets, so it ships in the base APK and D8 never merges it into app's own
+// classes*.dex. JavaCompilerLoader (lsp:java) extracts and DexClassLoader-loads it lazily on
+// first real .java-file interaction (ADFA-5053, mirrors ADR 0011's Kotlin precedent). No PNG
+// optimization needed here (unlike the Kotlin carrier) -- this module has no resources at all.
+tasks.register("copyJavaCompilerCarrierToAssets") {
+	// See evaluationDependsOn(":subprojects:java-compiler-carrier") above for why this avoids
+	// project(":subprojects:java-compiler-carrier").layout... here.
+	dependsOn(":subprojects:java-compiler-carrier:assembleV8Release")
+	val sourceFile =
+		rootProject.layout.projectDirectory
+			.dir("subprojects/java-compiler-carrier/build/outputs/apk/v8/release")
+			.file("java-compiler-carrier-v8-release-unsigned.apk")
+	val destFile = layout.projectDirectory.file("src/main/assets/data/common/java-compiler-carrier.apk")
+	inputs.file(sourceFile)
+	outputs.file(destFile)
+	doLast {
+		sourceFile.asFile.copyTo(destFile.asFile, overwrite = true)
+	}
+}
+
+tasks.named("preBuild") {
+	dependsOn("copyJavaCompilerCarrierToAssets")
 }
 
 tasks.register("copyPluginApiJarToAssets") {
