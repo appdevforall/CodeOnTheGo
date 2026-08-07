@@ -17,11 +17,9 @@
 package com.itsaky.androidide.lsp.java.models;
 
 import androidx.annotation.NonNull;
-import com.google.googlejavaformat.java.JavaFormatterOptions;
 import com.itsaky.androidide.lsp.util.PrefBasedServerSettings;
 import com.itsaky.androidide.managers.PreferenceManager;
 import com.itsaky.androidide.preferences.internal.JavaPreferences;
-import com.itsaky.androidide.utils.VMUtils;
 
 /**
  * Server settings for the java language server.
@@ -49,20 +47,14 @@ public class JavaServerSettings extends PrefBasedServerSettings {
     return true;
   }
 
-  public JavaFormatterOptions getFormatterOptions() {
-    return JavaFormatterOptions.builder().formatJavadoc(true).style(getStyle()).build();
-  }
-
-  public JavaFormatterOptions.Style getStyle() {
-    if (getCodeStyle() == JavaServerSettings.CODE_STYLE_AOSP) {
-
-      return JavaFormatterOptions.Style.AOSP;
-    }
-
-    return JavaFormatterOptions.Style.GOOGLE;
-  }
-
-  private int getCodeStyle() {
+  /**
+   * {@link #CODE_STYLE_AOSP} or {@link #CODE_STYLE_GOOGLE}. Plain data rather than a
+   * google-java-format {@code JavaFormatterOptions}/{@code Style} value: this settings class
+   * stays resident, but google-java-format -- like javac -- is isolated in the DexClassLoader
+   * carrier (ADFA-5053), so the isolated {@code CodeFormatProvider} builds the real
+   * {@code JavaFormatterOptions} itself from this code.
+   */
+  public int getCodeStyle() {
     final PreferenceManager prefs = getPrefs();
     if (prefs != null) {
       if (prefs.getBoolean(KEY_JAVA_PREF_GOOGLE_CODE_STYLE, false)) {

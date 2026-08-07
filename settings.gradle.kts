@@ -148,6 +148,7 @@ include(
 	":subprojects:framework-stubs",
 	":subprojects:hidden-apis",
 	":subprojects:hidden-apis-compat",
+	":subprojects:java-compiler-carrier",
 	":subprojects:javac-fs",
 	":subprojects:javac-services",
 	":subprojects:kotlin-analysis-api",

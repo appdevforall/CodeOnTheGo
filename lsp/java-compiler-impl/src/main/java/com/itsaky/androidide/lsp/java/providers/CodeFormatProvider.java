@@ -23,6 +23,7 @@ import androidx.annotation.NonNull;
 import com.google.common.collect.ImmutableList;
 import com.google.googlejavaformat.java.Formatter;
 import com.google.googlejavaformat.java.FormatterException;
+import com.google.googlejavaformat.java.JavaFormatterOptions;
 import com.google.googlejavaformat.java.Replacement;
 import com.itsaky.androidide.lsp.api.IServerSettings;
 import com.itsaky.androidide.lsp.java.models.JavaServerSettings;
@@ -55,7 +56,12 @@ public class CodeFormatProvider {
     try {
       final StopWatch watch = new StopWatch("Code formatting");
       final String content = params.getContent().toString();
-      final Formatter formatter = new Formatter(settings.getFormatterOptions());
+      final JavaFormatterOptions.Style style =
+          settings.getCodeStyle() == JavaServerSettings.CODE_STYLE_AOSP
+              ? JavaFormatterOptions.Style.AOSP
+              : JavaFormatterOptions.Style.GOOGLE;
+      final Formatter formatter =
+          new Formatter(JavaFormatterOptions.builder().formatJavadoc(true).style(style).build());
 
       if (params.getRange() == Range.NONE) {
         String formatted;

@@ -288,7 +288,6 @@ dependencies {
 	implementation(projects.eventbusEvents)
 	implementation(projects.gradlePluginConfig)
 	implementation(projects.subprojects.aaptcompiler)
-	implementation(projects.subprojects.javacServices)
 	implementation(projects.subprojects.kotlinAnalysisApi)
 	implementation(projects.subprojects.shizukuApi)
 	implementation(projects.subprojects.shizukuManager)

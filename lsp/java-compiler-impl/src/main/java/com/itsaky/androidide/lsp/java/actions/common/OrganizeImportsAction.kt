@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.java.actions.common
 
 import com.google.googlejavaformat.java.FormatterException
 import com.google.googlejavaformat.java.ImportOrderer
+import com.google.googlejavaformat.java.JavaFormatterOptions
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
@@ -49,7 +50,13 @@ class OrganizeImportsAction : BaseJavaCodeAction() {
       val content = editor.text
       val server = data[JavaLanguageServer::class.java]
       val settings = server!!.settings as JavaServerSettings
-      val output = ImportOrderer.reorderImports(content.toString(), settings.style)
+      val style =
+        if (settings.codeStyle == JavaServerSettings.CODE_STYLE_AOSP) {
+          JavaFormatterOptions.Style.AOSP
+        } else {
+          JavaFormatterOptions.Style.GOOGLE
+        }
+      val output = ImportOrderer.reorderImports(content.toString(), style)
       watch.log()
       output
     } catch (e: FormatterException) {

@@ -58,11 +58,6 @@ dependencies {
 	implementation(projects.subprojects.javacFs)
 	implementation(projects.idetooltips)
 
-	// JavaServerSettings' formatter options are resident config, not part of javac's dex
-	// bloat (ADFA-4549 didn't flag google-java-format) -- kept resident like javac-fs, with
-	// lsp-java-compiler-impl seeing it via compileOnly so the type identity matches.
-	implementation(libs.composite.googleJavaFormat)
-
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.common.kotlin)
 

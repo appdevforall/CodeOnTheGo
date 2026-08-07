@@ -53,13 +53,27 @@ dependencies {
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.common.kotlin)
 
-	// The actual javac fork -- this is the payload this module exists to isolate.
-	implementation(libs.composite.javac)
-	implementation(libs.composite.javapoet)
+	// The actual javac fork -- this is the payload this module exists to isolate. NOT
+	// libs.composite.javac (the aggregate): that also pulls in java-compiler, which must stay
+	// resident-only (see docs/adr/0012) -- duplicating it here would break type identity
+	// across the DexClassLoader boundary for CacheFSInfo/Context/etc.
+	implementation(libs.composite.jdkCompiler)
 	implementation(projects.subprojects.javacServices)
 
-	// Resident (kept in lsp/java -- not part of javac's dex bloat); see lsp/java/build.gradle.kts.
-	compileOnly(libs.composite.googleJavaFormat)
+	// google-java-format uses javac's own parser internally, so -- like javac itself -- it's
+	// heavy and isolated, not resident: JavaServerSettings (resident) exposes only a plain
+	// code-style int, and CodeFormatProvider builds the real JavaFormatterOptions here.
+	implementation(libs.composite.googleJavaFormat)
+
+	// Resident (java-compiler: jdkx.*/zipfs2.* + the relocated fs-adjacent leaf classes) --
+	// this module's own source (SourceFileObject, etc.) references these types directly.
+	compileOnly(libs.composite.javaCompiler)
+
+	// javapoet (used by JavaPoetUtils.kt's code-generation actions) is lightweight and stays
+	// fully resident -- templates-api/templates-impl need it unconditionally for the "New
+	// Project" wizard, unrelated to javac. compileOnly here avoids duplicating it into the
+	// carrier alongside that resident copy.
+	compileOnly(libs.composite.javapoet)
 
 	// Resident modules, visible at compile time but never bundled into this module's own
 	// output -- `implementation` here would duplicate their classes into the isolated
@@ -80,7 +94,9 @@ dependencies {
 	compileOnly(projects.subprojects.projects)
 
 	testImplementation(projects.testing.lsp)
-	// The moved tests construct/drive a resident JavaLanguageServer directly; compileOnly (main
-	// sourceset) doesn't extend to the test compile classpath, so this needs its own entry.
+	// The moved tests construct/drive a resident JavaLanguageServer directly, and reference
+	// java-compiler types (jdkx.tools.Diagnostic, etc.) directly too; compileOnly (main
+	// sourceset) doesn't extend to the test compile classpath, so these need their own entries.
 	testImplementation(projects.lsp.java)
+	testImplementation(libs.composite.javaCompiler)
 }

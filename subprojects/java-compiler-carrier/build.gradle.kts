@@ -15,14 +15,28 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import com.itsaky.androidide.build.config.BuildConfig
+
 plugins {
-  kotlin("jvm")
+	id("com.android.application")
+	id("kotlin-android")
+}
+
+android {
+	namespace = "${BuildConfig.PACKAGE_NAME}.javacompilercarrier"
+
+	// This APK is never installed -- only its classes.dex is read, via DexClassLoader, by
+	// JavaCompilerLoader in lsp:java. Shrinking/obfuscating it would require porting over the
+	// javac fork's own keep rules for no benefit (see ADFA-3604 -- the same "ship intact rather
+	// than shrink" call already made for the analogous Kotlin carrier, ADFA-5010).
+	buildTypes {
+		release {
+			isMinifyEnabled = false
+			isShrinkResources = false
+		}
+	}
 }
 
 dependencies {
-  // javapoet itself stays fully resident (see lsp/java-compiler-impl/build.gradle.kts) --
-  // templates-api/templates-impl (the "New Project" wizard) need it unconditionally, unlike
-  // javac. So unlike jdk-compiler's identical-looking dependency, this one stays `api`: there's
-  // no isolated consumer to duplicate java-compiler's classes into.
-  api(projects.buildDeps.javaCompiler)
+	implementation(projects.lsp.javaCompilerImpl)
 }
