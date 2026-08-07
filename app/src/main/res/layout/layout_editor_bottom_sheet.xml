@@ -71,46 +71,53 @@
 		android:layout_below="@id/tabs"
 		android:layout_margin="8dp">
 
-		<com.google.android.material.button.MaterialButton
-			android:id="@+id/search_output_action"
-			style="@style/EditorBottomSheet.OutputActionButton"
-			android:text="@string/log_action_search"
-			app:layout_constrainedWidth="true"
+		<HorizontalScrollView
+			android:id="@+id/output_actions_scroll"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:fadeScrollbars="true"
+			android:scrollbars="horizontal"
 			app:layout_constraintBottom_toBottomOf="parent"
-			app:layout_constraintEnd_toStartOf="@id/filter_output_action"
-			app:layout_constraintHorizontal_bias="0.0"
-			app:layout_constraintHorizontal_chainStyle="packed"
+			app:layout_constraintEnd_toStartOf="@id/view_options_output_action"
 			app:layout_constraintStart_toStartOf="parent"
-			app:layout_constraintTop_toTopOf="parent" />
+			app:layout_constraintTop_toTopOf="parent">
+
+			<LinearLayout
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:orientation="horizontal">
+
+				<com.google.android.material.button.MaterialButton
+					android:id="@+id/search_output_action"
+					style="@style/EditorBottomSheet.OutputActionButton"
+					android:text="@string/log_action_search" />
+
+				<com.google.android.material.button.MaterialButton
+					android:id="@+id/filter_output_action"
+					style="@style/EditorBottomSheet.OutputActionButton"
+					android:text="@string/log_action_filter" />
+
+				<com.google.android.material.button.MaterialButton
+					android:id="@+id/share_output_action"
+					style="@style/EditorBottomSheet.OutputActionButton"
+					android:text="@string/log_action_share" />
+
+				<com.google.android.material.button.MaterialButton
+					android:id="@+id/clear_output_action"
+					style="@style/EditorBottomSheet.OutputActionButton"
+					android:text="@string/log_action_clear" />
+			</LinearLayout>
+		</HorizontalScrollView>
 
 		<com.google.android.material.button.MaterialButton
-			android:id="@+id/filter_output_action"
-			style="@style/EditorBottomSheet.OutputActionButton"
-			android:text="@string/log_action_filter"
-			app:layout_constrainedWidth="true"
-			app:layout_constraintBottom_toBottomOf="parent"
-			app:layout_constraintEnd_toStartOf="@id/share_output_action"
-			app:layout_constraintStart_toEndOf="@id/search_output_action"
-			app:layout_constraintTop_toTopOf="parent" />
-
-		<com.google.android.material.button.MaterialButton
-			android:id="@+id/share_output_action"
-			style="@style/EditorBottomSheet.OutputActionButton"
-			android:text="@string/log_action_share"
-			app:layout_constrainedWidth="true"
-			app:layout_constraintBottom_toBottomOf="parent"
-			app:layout_constraintEnd_toStartOf="@id/clear_output_action"
-			app:layout_constraintStart_toEndOf="@id/filter_output_action"
-			app:layout_constraintTop_toTopOf="parent" />
-
-		<com.google.android.material.button.MaterialButton
-			android:id="@+id/clear_output_action"
-			style="@style/EditorBottomSheet.OutputActionButton"
-			android:text="@string/log_action_clear"
-			app:layout_constrainedWidth="true"
+			android:id="@+id/view_options_output_action"
+			style="@style/Widget.Material3.Button.IconButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:contentDescription="@string/cd_output_view_options"
+			app:icon="@drawable/ic_tune"
 			app:layout_constraintBottom_toBottomOf="parent"
 			app:layout_constraintEnd_toStartOf="@id/word_wrap_output_action"
-			app:layout_constraintStart_toEndOf="@id/share_output_action"
 			app:layout_constraintTop_toTopOf="parent" />
 
 		<com.google.android.material.button.MaterialButton
