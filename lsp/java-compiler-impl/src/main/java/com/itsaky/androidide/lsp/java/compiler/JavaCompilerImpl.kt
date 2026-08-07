@@ -65,18 +65,21 @@ class JavaCompilerImpl(
 			withStopWatch("${if (file is SourceFileObject) "[${file.path.name}] " else ""}Prune method bodies") { watch ->
 				val contentBuilder = StringBuilder(content)
 
-				return@withStopWatch TSJavaParser.parse(file).use { parseResult ->
+				// TSJavaParser.parse() returns a result owned by its own LRU cache (see
+				// TSParseCache), which closes the tree on eviction -- closing it here too,
+				// e.g. via .use{}, would double-close it and use-after-free it on the next
+				// cache hit for this file.
+				val parseResult = TSJavaParser.parse(file)
 
-					prune(
-						contentBuilder,
-						parseResult.tree,
-						compilerConfig.completionInfo?.cursor?.index ?: -1,
-					)
+				prune(
+					contentBuilder,
+					parseResult.tree,
+					compilerConfig.completionInfo?.cursor?.index ?: -1,
+				)
 
-					watch.log()
+				watch.log()
 
-					return@use contentBuilder
-				}
+				contentBuilder
 			}
 
 		return super.parse(filename, pruned)

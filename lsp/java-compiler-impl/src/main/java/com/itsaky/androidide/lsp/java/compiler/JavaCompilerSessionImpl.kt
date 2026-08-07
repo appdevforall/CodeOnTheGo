@@ -17,6 +17,7 @@
 package com.itsaky.androidide.lsp.java.compiler
 
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
+import com.itsaky.androidide.javac.services.CancelAbort
 import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider
 import com.itsaky.androidide.lsp.internal.model.CachedCompletion
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
@@ -50,6 +51,7 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import jdkx.tools.JavaFileObject
+import kotlinx.coroutines.CancellationException
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.util.Objects
@@ -96,6 +98,10 @@ class JavaCompilerSessionImpl : IJavaCompilerSession {
 	}
 
 	override fun close() {
+		// Mirrors resetProject(): NO_MODULE_COMPILER accumulates state via onContentChange()'s
+		// unconditional onDocumentChange() calls too, and each session now owns its own
+		// discardable DexClassLoader -- nothing can reach back to release it once replaced.
+		JavaCompilerService.NO_MODULE_COMPILER.destroy()
 		JavaCompilerProvider.getInstance().destroy()
 		SourceFileManager.clearCache()
 	}
@@ -130,27 +136,49 @@ class JavaCompilerSessionImpl : IJavaCompilerSession {
 		return completionProvider.complete(params)
 	}
 
-	override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
-		val compiler = getCompiler(params.file)
-		return ReferenceProvider(compiler, params.cancelChecker).findReferences(params)
-	}
+	override suspend fun findReferences(params: ReferenceParams): ReferenceResult =
+		translatingCancelAbort {
+			val compiler = getCompiler(params.file)
+			ReferenceProvider(compiler, params.cancelChecker).findReferences(params)
+		}
 
-	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
-		val compiler = getCompiler(params.file)
-		return DefinitionProvider(compiler, settings, params.cancelChecker).findDefinition(params)
-	}
+	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult =
+		translatingCancelAbort {
+			val compiler = getCompiler(params.file)
+			DefinitionProvider(compiler, settings, params.cancelChecker).findDefinition(params)
+		}
 
-	override suspend fun expandSelection(params: ExpandSelectionParams): Range {
-		val compiler = getCompiler(params.file)
-		return JavaSelectionProvider(compiler).expandSelection(params)
-	}
+	override suspend fun expandSelection(params: ExpandSelectionParams): Range =
+		translatingCancelAbort {
+			val compiler = getCompiler(params.file)
+			JavaSelectionProvider(compiler).expandSelection(params)
+		}
 
-	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
-		val compiler = getCompiler(params.file)
-		return SignatureProvider(compiler, params.cancelChecker).signatureHelp(params)
-	}
+	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp =
+		translatingCancelAbort {
+			val compiler = getCompiler(params.file)
+			SignatureProvider(compiler, params.cancelChecker).signatureHelp(params)
+		}
 
-	override suspend fun analyze(file: Path): DiagnosticResult = diagnosticProvider.analyze(file)
+	override suspend fun analyze(file: Path): DiagnosticResult = translatingCancelAbort { diagnosticProvider.analyze(file) }
+
+	/**
+	 * javac's cancellation signal, [CancelAbort], is thrown deep inside the isolated fork
+	 * (`NBAttr`/`NBParserFactory`/`NBEnter`/`NBMemberEnter` via `CancelService.abortIfCanceled`)
+	 * and is only classloader-identity-safe to recognize on this, the side that threw it --
+	 * resident callers (`JavaLanguageServer`, `IDEEditor`) can't `is CancelAbort` it, and
+	 * previously silently lost that recognition entirely when it crossed back out unwrapped
+	 * (they'd log a routine cancellation as a real failure). Translating it here, into
+	 * [CancellationException] -- a single resident copy safe to check from either side, per
+	 * `compileOnly(libs.common.kotlin.coroutines.core)` in this module's build file -- restores
+	 * that recognition across the boundary.
+	 */
+	private inline fun <T> translatingCancelAbort(block: () -> T): T =
+		try {
+			block()
+		} catch (e: CancelAbort) {
+			throw CancellationException("javac operation was cancelled", e)
+		}
 
 	override fun onContentChange(event: DocumentChangeEvent) {
 		// TODO Find an alternative to efficiently update changeDelta in JavaCompilerService instance

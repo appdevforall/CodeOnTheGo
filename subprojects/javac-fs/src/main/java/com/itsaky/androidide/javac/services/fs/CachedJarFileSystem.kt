@@ -24,6 +24,7 @@ import openjdk.tools.javac.file.RelativePath.RelativeDirectory
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A cached file system for JAR files.
@@ -39,7 +40,11 @@ class CachedJarFileSystem(
 		private val log = LoggerFactory.getLogger(CachedJarFileSystem::class.java)
 	}
 
-	internal val packages = mutableMapOf<RelativeDirectory, Path>()
+	// ConcurrentHashMap: written by resident classpath indexing (JarFsClasspathReader) and read
+	// by the isolated compiler (JarPackageProviderImpl.getPackages, which returns this same live
+	// map) through the shared CachingJarFileSystemProvider singleton -- across both threads and,
+	// since ADFA-5053, the resident/isolated classloader boundary too.
+	internal val packages: MutableMap<RelativeDirectory, Path> = ConcurrentHashMap()
 
 	override fun close() {
 		// Do nothing

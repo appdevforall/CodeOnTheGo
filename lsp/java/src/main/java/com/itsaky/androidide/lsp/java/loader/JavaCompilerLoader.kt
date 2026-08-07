@@ -28,7 +28,9 @@ import java.io.File
  * Extracts the javac carrier APK from assets and loads it via [DexClassLoader] on first use,
  * so the vendored javac fork (ADFA-5053) is never resident in the main app dex or
  * classloaded until a real `.java`-file interaction actually needs it. Mirrors
- * `KotlinCompilerLoader`'s construction (ADR 0011), which mirrors `PluginLoader`'s.
+ * `plugin-manager`'s `PluginLoader` construction -- the same lazy-`DexClassLoader` pattern
+ * ADFA-5010's `KotlinCompilerLoader`/ADR 0011 applies to the Kotlin Analysis API, a concurrent
+ * sibling effort not yet merged into `stage` as of this change (see docs/adr/0012).
  */
 class JavaCompilerLoader(
 	private val context: Context,
@@ -95,8 +97,10 @@ class JavaCompilerLoader(
 	fun currentSession(): IJavaCompilerSession? = session
 
 	fun close() {
-		session?.close()
-		session = null
+		synchronized(this) {
+			session?.close()
+			session = null
+		}
 	}
 
 	companion object {

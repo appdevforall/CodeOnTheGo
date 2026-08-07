@@ -138,8 +138,14 @@ class JavaLanguageServer : ILanguageServer {
 		compilerLifecycleLock.withLock {
 			// Blocks here if a reset is in flight (RESETTING can only be observed by another
 			// thread while the lock is held, never by us once we've acquired it), so this never
-			// races ensureProjectReset()'s own destroy/rebuild.
-			if (compilerLifecycle == CompilerLifecycle.INITIALIZED) {
+			// races ensureProjectReset()'s own destroy/rebuild. Gated on whether a session
+			// actually exists, not on compilerLifecycle == INITIALIZED: setupWithProject() sets
+			// PENDING again on every project switch even once the carrier's already loaded (see
+			// setupWithProject() below), so a switch queued without a .java-file interaction yet
+			// leaves state at PENDING while loader.currentSession() still holds a live session
+			// from the previous project -- gating on INITIALIZED alone would skip teardown here
+			// and leak that session's DexClassLoader.
+			if (loader.currentSession() != null) {
 				// Unregister before closing: once closed, loader.currentSession() is null and the
 				// session's action objects (bound to this session's DexClassLoader) would
 				// otherwise stay wired into the shared, app-wide editor actions menu.
@@ -243,13 +249,30 @@ class JavaLanguageServer : ILanguageServer {
 			session
 		}
 
+	// complete() and formatCode() aren't suspend (fixed by the ILanguageServer contract), so --
+	// like onContentChange() below -- they can hold compilerLifecycleLock across both
+	// ensureProjectReset() and the actual use of the session it returns: releasing the lock in
+	// between would let a concurrent reset destroy() the session's compilers right after this
+	// thread resolved it but before it's used.
 	override fun complete(params: CompletionParams?): CompletionResult {
 		if (params == null || !settings.completionsEnabled()) {
 			return CompletionResult.EMPTY
 		}
-		return ensureProjectReset()?.complete(params) ?: CompletionResult.EMPTY
+		return compilerLifecycleLock.withLock {
+			ensureProjectReset()?.complete(params) ?: CompletionResult.EMPTY
+		}
 	}
 
+	// findReferences/findDefinition/expandSelection/signatureHelp/analyze are suspend (also
+	// fixed by the contract), so they can't use the same withLock pattern: the Kotlin compiler
+	// rejects a suspension point inside a Lock-based critical section outright (risk of blocking
+	// a thread pool while suspended), regardless of whether the call actually suspends. The
+	// residual window between ensureProjectReset() and use is narrower than it looks, though:
+	// JavaCompilerProvider.forModule()/destroy() (what getCompiler() and resetProject() actually
+	// touch) are already mutually `synchronized`, so a concurrent reset can't corrupt the
+	// provider map underneath a call started here -- it can only race the destruction of the one
+	// JavaCompilerService instance already in use, a narrower, pre-existing hazard (predates
+	// ADFA-5053) left as-is rather than papered over with a lock the compiler won't allow anyway.
 	override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
 		if (!settings.referencesEnabled()) {
 			return ReferenceResult(emptyList())
@@ -296,7 +319,10 @@ class JavaLanguageServer : ILanguageServer {
 		}
 	}
 
-	override fun formatCode(params: FormatCodeParams?): CodeFormatResult = ensureProjectReset()?.formatCode(params) ?: CodeFormatResult.NONE
+	override fun formatCode(params: FormatCodeParams?): CodeFormatResult =
+		compilerLifecycleLock.withLock {
+			ensureProjectReset()?.formatCode(params) ?: CodeFormatResult.NONE
+		}
 
 	override fun handleFailure(failure: LSPFailure?): Boolean =
 		when (failure!!.type) {
