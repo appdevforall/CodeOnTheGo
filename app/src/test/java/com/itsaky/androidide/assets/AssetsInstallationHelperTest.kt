@@ -1,12 +1,22 @@
 package com.itsaky.androidide.assets
 
 import android.content.Context
+import com.aayushatharva.brotli4j.Brotli4jLoader
+import com.itsaky.androidide.app.configuration.CpuArch
+import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.assets.AssetsInstallationHelper.Result.Failure
+import io.mockk.Runs
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.mockkStatic
+import io.mockk.slot
+import io.mockk.unmockkAll
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -27,37 +37,98 @@ import java.util.zip.ZipOutputStream
 
 class AssetsInstallationHelperTest {
 	private val ctx: Context = mockk(relaxed = true)
+	private val helper = AssetsInstallationHelper
 
 	@Before
 	fun setup() {
-		mockkObject(AssetsInstallationHelper)
+		mockkObject(helper)
+		every {
+			helper["checkStorageAccessibility"](any<Context>(), any<AssetsInstallerProgressConsumer>())
+		} returns null
+	}
+
+	@After
+	fun tearDown() {
+		unmockkAll()
+	}
+
+	private fun assertMissingAssetFailure(result: AssetsInstallationHelper.Result): Failure {
+		assertTrue("Expected Result.Failure", result is Failure)
+		val failure = result as Failure
+		assertTrue(
+			"Expected MissingAssetsEntryException as cause",
+			failure.cause is MissingAssetsEntryException,
+		)
+		assertTrue(
+			"Expected FileNotFoundException as root cause",
+			(failure.cause?.cause) is FileNotFoundException,
+		)
+		return failure
 	}
 
 	@Test
 	fun `install with missing asset skips glitchtip`() =
 		runBlocking {
-			val helper = AssetsInstallationHelper
-
-			every {
-				helper["checkStorageAccessibility"](any<Context>(), any<AssetsInstallerProgressConsumer>())
-			} returns null
-
 			coEvery {
 				helper["doInstall"](any<Context>(), any<AssetsInstallerProgressConsumer>())
 			} throws FileNotFoundException("data/common/gradle.zip.br")
 
-			val result = helper.install(ctx)
+			val failure = assertMissingAssetFailure(helper.install(ctx))
 
-			assertTrue("Expected Result.Failure", result is Failure)
-			val failure = result as Failure
 			assertFalse("Should skip GlitchTip report", failure.shouldReportToGlitchTip)
-			assertTrue(
-				"Expected MissingAssetsEntryException as cause",
-				failure.cause is MissingAssetsEntryException,
-			)
-			assertTrue(
-				"Expected FileNotFoundException as root cause",
-				(failure.cause?.cause) is FileNotFoundException,
+		}
+
+	@Test
+	fun `install reports Failure when doInstall's own preInstall catch block swallows an exception`() =
+		runBlocking {
+			// Unlike the test above (which mocks doInstall itself to throw, bypassing its
+			// internal try/catch entirely), this lets the real doInstall() run and only
+			// stubs the underlying installer's preInstall, so it actually exercises the
+			// catch-then-rethrow path inside doInstall -- the path ADFA-5037 found silently
+			// swallowing failures by returning a Result.Failure value instead of throwing,
+			// which runCatching in install() can't observe.
+			//
+			// This relies on AssetsInstaller.CURRENT_INSTALLER resolving to SplitAssetsInstaller,
+			// which only holds for debug builds (see AssetsInstaller.kt's USE_BUNDLED_ASSETS).
+			// Run via :app:testV8DebugUnitTest, which satisfies that -- a bare aggregate `test`
+			// task fanning out to other build variants would silently bypass this stub instead
+			// of exercising the intended code path.
+			mockkObject(IDEBuildConfigProvider.Companion)
+			mockkStatic(Brotli4jLoader::class)
+			mockkObject(SplitAssetsInstaller)
+
+			// doInstall() looks up the build's CpuArch before reaching preInstall; the
+			// real IDEBuildConfigProviderImpl needs a live BaseApplication instance to
+			// do that, which isn't available in this unit test, so stub it directly.
+			val buildConfigProvider = mockk<IDEBuildConfigProvider>(relaxed = true)
+			every { buildConfigProvider.cpuArch } returns CpuArch.AARCH64
+			every { IDEBuildConfigProvider.getInstance() } returns buildConfigProvider
+
+			// doInstall() also loads the Brotli native library before reaching
+			// preInstall; it isn't available in this unit test either.
+			every { Brotli4jLoader.ensureAvailability() } just Runs
+
+			val stagingDirSlot = slot<Path>()
+			coEvery {
+				SplitAssetsInstaller.preInstall(any(), capture(stagingDirSlot))
+			} throws FileNotFoundException("assets-arm64-v8a.zip")
+
+			// Stubbed (rather than left to call the real implementation) because the
+			// real postInstall() chmods paths under Environment.BUILD_TOOLS_DIR, which
+			// requires Environment.init() -- unrelated to what this test verifies.
+			coEvery {
+				SplitAssetsInstaller.postInstall(any(), any())
+			} just Runs
+
+			assertMissingAssetFailure(helper.install(ctx))
+
+			// A preInstall failure must not skip the symmetric cleanup that a
+			// successful install would get: postInstall() (closes installer
+			// resources) and deleting the staging directory.
+			coVerify(exactly = 1) { SplitAssetsInstaller.postInstall(any(), any()) }
+			assertFalse(
+				"Expected staging directory to be deleted even though preInstall failed",
+				Files.exists(stagingDirSlot.captured),
 			)
 		}
 

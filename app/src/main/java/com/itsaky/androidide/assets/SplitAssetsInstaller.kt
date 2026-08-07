@@ -7,6 +7,7 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.TerminalInstaller
 import com.itsaky.androidide.utils.retryOnceOnNoSuchFile
+import com.itsaky.androidide.utils.throwIfNotSuccess
 import com.itsaky.androidide.utils.withTempZipChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,6 +21,7 @@ import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipFile
@@ -111,8 +113,10 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 									retryOnceOnNoSuchFile(
 										onFirstFailure = { Files.createDirectories(stagingDir) },
 										onSecondFailure = { e2 ->
-											logger.error("Failed to open temporary bootstrap zip after retry", e2)
-											return@withContext
+											throw IOException(
+												context.getString(R.string.terminal_installation_failed_low_storage),
+												e2,
+											)
 										},
 									) {
 										withTempZipChannel(
@@ -131,9 +135,11 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 										)
 									}
 
-								if (result !is TerminalInstaller.InstallResult.Success) {
-									logger.error("Failed to install terminal: {}", result)
-								}
+								// Every non-Success result must throw, or this entry's async job reports
+								// STATUS_FINISHED and install() sees no failure even though the terminal
+								// never installed -- shared with BundledAssetsInstaller's equivalent
+								// branch so the two can't drift out of sync again.
+								result.throwIfNotSuccess(context)
 
 								logger.debug("Completed extracting 'bootstrap.zip' to dir: {}", stagingDir)
 							}

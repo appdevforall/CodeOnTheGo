@@ -9,6 +9,7 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.TerminalInstaller
 import com.itsaky.androidide.utils.retryOnceOnNoSuchFile
+import com.itsaky.androidide.utils.throwIfNotSuccess
 import com.itsaky.androidide.utils.withTempZipChannel
 import com.itsaky.androidide.utils.writeBrotliAssetToPath
 import kotlinx.coroutines.Dispatchers
@@ -132,23 +133,11 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 							)
 						}
 
-					when (result) {
-						is TerminalInstaller.InstallResult.Success -> {}
-
-						is TerminalInstaller.InstallResult.Error.Interactive -> {
-							throw IOException("${result.title}: ${result.message}")
-						}
-
-						is TerminalInstaller.InstallResult.Error.IsSecondaryUser -> {
-							throw IOException(
-								context.getString(R.string.terminal_installation_failed_secondary_user),
-							)
-						}
-
-						is TerminalInstaller.InstallResult.NotInstalled -> {
-							throw IllegalStateException("Terminal installation failed: NotInstalled state")
-						}
-					}
+					// Every non-Success result must throw, or this entry's async job reports
+					// STATUS_FINISHED and install() sees no failure even though the terminal
+					// never installed -- shared with SplitAssetsInstaller's equivalent branch
+					// so the two can't drift out of sync again.
+					result.throwIfNotSuccess(context)
 				}
 
 				DOCUMENTATION_DB -> {
