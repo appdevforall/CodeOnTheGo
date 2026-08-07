@@ -133,6 +133,7 @@ include(
 	":lsp:models",
 	":lsp:indexing",
 	":lsp:java",
+	":lsp:java-api",
 	":lsp:jvm-symbol-index",
 	":lsp:jvm-symbol-models",
 	":lsp:kotlin",
