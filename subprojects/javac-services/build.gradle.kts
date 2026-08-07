@@ -20,6 +20,7 @@ dependencies {
 	implementation(libs.google.guava)
 	implementation(projects.common)
 	implementation(projects.logger)
+	implementation(projects.subprojects.javacFs)
 
 	api(libs.composite.javac)
 

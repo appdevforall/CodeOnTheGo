@@ -56,6 +56,7 @@ dependencies {
 	implementation(projects.lsp.api)
 	implementation(projects.lsp.jvmSymbolIndex)
 	implementation(projects.subprojects.libjdwp)
+	implementation(projects.subprojects.javacFs)
 	implementation(projects.subprojects.javacServices)
 	implementation(projects.idetooltips)
 
