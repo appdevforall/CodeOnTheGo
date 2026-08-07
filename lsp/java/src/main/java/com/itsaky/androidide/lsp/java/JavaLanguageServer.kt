@@ -249,17 +249,25 @@ class JavaLanguageServer : ILanguageServer {
 					SourceFileManager.forModule(subModule)
 				}
 				startOrRestartAnalyzeTimer()
-			} finally {
-				// A newer setupWithProject() may have queued another workspace while we were
-				// resetting (see the RESETTING guard above); if so, go back to PENDING instead
-				// of claiming INITIALIZED for a project we didn't actually reset for.
-				compilerLifecycle =
-					if (pendingWorkspace != null) {
-						CompilerLifecycle.PENDING
-					} else {
-						CompilerLifecycle.INITIALIZED
-					}
+			} catch (e: Exception) {
+				// Re-queue the workspace so the next real .java-file interaction retries the
+				// reset, instead of a half-destroyed/half-rebuilt state being silently claimed as
+				// INITIALIZED (pendingWorkspace is already null by this point).
+				log.warn("Failed to reset javac project state; will retry on next interaction", e)
+				pendingWorkspace = workspace
+				compilerLifecycle = CompilerLifecycle.PENDING
+				throw e
 			}
+
+			// A newer setupWithProject() may have queued another workspace while we were
+			// resetting (see the RESETTING guard above); if so, go back to PENDING instead of
+			// claiming INITIALIZED for a project we didn't actually reset for.
+			compilerLifecycle =
+				if (pendingWorkspace != null) {
+					CompilerLifecycle.PENDING
+				} else {
+					CompilerLifecycle.INITIALIZED
+				}
 		}
 	}
 
@@ -326,6 +334,13 @@ class JavaLanguageServer : ILanguageServer {
 			return DiagnosticResult.NO_UPDATE
 		}
 
+		// diagnosticProvider.analyze() builds its own JavaCompilerService directly (bypassing
+		// getCompiler()), and analysis is often the first real .java-file interaction in a
+		// session (auto-triggered on file open, ahead of any completion request) -- without this,
+		// the R.jar/file-manager caches this reset clears would never get cleared for this
+		// project, and diagnostics could resolve against a stale previous project's classpath.
+		ensureProjectReset()
+
 		return if (!settings.codeAnalysisEnabled()) {
 			DiagnosticResult.NO_UPDATE
 		} else {
@@ -352,11 +367,17 @@ class JavaLanguageServer : ILanguageServer {
 		if (!DocumentUtils.isJavaFile(file)) {
 			return JavaCompilerService.NO_MODULE_COMPILER
 		}
-		ensureProjectReset()
-		val module =
-			ProjectManagerImpl.getInstance().findModuleForFile(file!!)
-				?: return JavaCompilerService.NO_MODULE_COMPILER
-		return JavaCompilerProvider.get(module)
+		// Held across ensureProjectReset() *and* the provider lookup (ReentrantLock is
+		// reentrant, so ensureProjectReset()'s own withLock nests fine): otherwise a concurrent
+		// reset for a newer project could destroy() the provider's compilers in the gap between
+		// this thread's reset finishing and its JavaCompilerProvider.get() call.
+		return compilerLifecycleLock.withLock {
+			ensureProjectReset()
+			val module =
+				ProjectManagerImpl.getInstance().findModuleForFile(file!!)
+					?: return@withLock JavaCompilerService.NO_MODULE_COMPILER
+			JavaCompilerProvider.get(module)
+		}
 	}
 
 	private fun updateCachedCompletion(cachedCompletion: CachedCompletion) {
@@ -382,16 +403,20 @@ class JavaLanguageServer : ILanguageServer {
 			return
 		}
 
-		ensureProjectReset()
+		// See getCompiler(): held across the reset *and* the provider lookup/use so a concurrent
+		// reset can't destroy() these compilers in between.
+		compilerLifecycleLock.withLock {
+			ensureProjectReset()
 
-		// TODO Find an alternative to efficiently update changeDelta in JavaCompilerService instance
-		JavaCompilerService.NO_MODULE_COMPILER.onDocumentChange(event)
-		val module =
-			getInstance()
-				.findModuleForFile(event.changedFile)
-		if (module != null) {
-			val compiler = JavaCompilerProvider.get(module)
-			compiler.onDocumentChange(event)
+			// TODO Find an alternative to efficiently update changeDelta in JavaCompilerService instance
+			JavaCompilerService.NO_MODULE_COMPILER.onDocumentChange(event)
+			val module =
+				getInstance()
+					.findModuleForFile(event.changedFile)
+			if (module != null) {
+				val compiler = JavaCompilerProvider.get(module)
+				compiler.onDocumentChange(event)
+			}
 		}
 		startOrRestartAnalyzeTimer()
 	}
