@@ -8,8 +8,10 @@ honest claim, and whether it would finish given longer is unmeasured. Nothing me
 Quick Build's own runtime - the live reload loop has never failed on its own at any tier tested,
 and has never been tested at 2 GB because provisioning never got far enough to start it.
 
-**Decision: accept that floor, or spike Gradle-free provisioning?** This page is the evidence for
-that call - what was measured, why the 1.9 GB device fails, and what is still unknown.
+**Decided (Bryan, 2026-08-05): the 4 GB tier is the target; 1.9 GB moves to a later ticket.** Two
+devices now measure at 4 GB nominal and both run a full session, so that tier is where hardening
+effort pays off. The Gradle-free-provisioning spike below is the 1.9 GB answer and is not being
+scoped now - it stays on this page as the evidence for whoever picks that ticket up.
 
 Primary evidence, with the full runbook and cost tables:
 `corpus/results/analysis/c107-lowend-report-2026-07-25.md` in the `CodeOnTheGo-build-benchmark`
@@ -21,6 +23,7 @@ repo.
 | --- | --- | --- | --- |
 | A56 | 8 GB | works | works - reference device `[measured on a56]` |
 | C107 | 3.6 GB | works | works: Ready on 21/30 corpus apps `[measured on c107]` |
+| Galaxy A06 | 3.55 GB | works | works: 78 measured edits over 22 of 30 apps `[measured on a06]` |
 | itel A667L | 1.9 GB | too slow to use - see below | never reached `[measured on itel]` |
 | incar Q8 | 1.46 GB | not attempted | not reached `[measured on Q8]` |
 
@@ -30,8 +33,28 @@ repo.
 - **The C107 gains more from Quick Build than the A56 does**, not less: across the 19 edits
   measured on both, its speedup is higher on all 19 (median 1.77x), saving a median 17.5 s per
   edit against 3.1 s on the A56 `[measured on c107]`.
-- **Where the floor actually sits is unknown.** We have no device between 1.9 GB and 3.6 GB, so
-  "3.6 GB works, 1.9 GB does not" is the whole of what we know `[measured on c107, itel]`.
+- **The A06 shows the same pattern.** On its own build with scratch off FUSE, Quick Build beats the
+  standard incremental build by a median **5.72x** over 52 matched edits across 20 apps, against
+  4.23x on the A56 measured the same way `[measured on a06, a56]`. Compare those two to each other
+  only, not to the 3.45x corpus headline - that is the FUSE-era A56 sweep and a different basis.
+- **At the 4 GB tier, CPU decides the experience, not RAM** - but the two 4 GB devices have never
+  been measured against each other on comparable terms. Each was compared to the A56 instead, and
+  the two comparisons sit in different eras:
+
+  | Comparison | Build | Apps matched | Result |
+  | --- | --- | --- | --- |
+  | C107 vs A56 | same build, `C-d-0728-1154`, scratch on FUSE | 21 of 21 | C107 **3.5x** slower `[measured on c107, a56]` |
+  | A06 vs A56 | scratch off FUSE, `C-d-0802-0824` / `C-d-0731-2251` | 7 of 7 | A06 **2.5x** slower `[measured on a06, a56]` |
+
+  Chaining those through the A56 puts the C107 at ~1.4x the A06, but the chain crosses the
+  scratch-off-FUSE change - worth 1.38x on the A56 alone across the same 7 apps
+  `[measured on a56]` - so treat the A06-vs-C107 gap as `[inferred]`, not measured. What is solid
+  is the ordering and that both 4 GB devices are usable. The A06's eight Cortex-A55 cores with no
+  big core are the likely reason it still trails the A56 `[inferred]`. So "4 GB device" is not a
+  performance class on its own - do not treat one 4 GB measurement as covering the tier.
+- **Where the floor actually sits is still unknown.** Both 4 GB-tier devices we own sit within
+  50 MB of each other, so they do not narrow the gap: "~3.6 GB works, 1.9 GB does not" remains the
+  whole of what we know `[measured on a06, c107, itel]`.
 
 ## Why the 1.9 GB device fails
 
@@ -75,7 +98,7 @@ the first is measured `[measured on itel]`.
 - **Where an uncapped build would land is unmeasured.** Nobody has run one to completion or to a
   self-reported failure on this device.
 
-## Decision: accept the current floor, or spike Gradle-free provisioning?
+## The 1.9 GB option, for the later ticket: spike Gradle-free provisioning
 
 The lever follows from the mechanism: what dies is the big Gradle daemon JVM, and the live reload
 loop is a far smaller runtime. If a session could be provisioned *without* an on-device Gradle
@@ -91,6 +114,8 @@ the setup build cannot `[inferred]`.
 ## Still unmeasured
 
 - **The warm live reload loop at 1.9 GB** - the headline unknown, and what the spike would settle.
+- **The Gradle daemon heap CoGo picks on the A06**, and whether `GRADLE_METASPACE_MB` (192 to 384)
+  is right for a 4 GB device with eight small cores - an open question for Akash `[unmeasured]`.
 - Share of the target audience near 2 GB `[unmeasured - needs market-share data]`.
 - Anything between 1.9 GB and 3.6 GB; we own no such device.
 - `2048` and `ruler` reach Ready but every edit GAPs on a deploy failure on both tiers, while the
