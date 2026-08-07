@@ -47,89 +47,87 @@ import org.slf4j.LoggerFactory;
 
 public class DefinitionProvider extends CancelableServiceProvider {
 
-  public static final List<Location> NOT_SUPPORTED = Collections.emptyList();
-  private static final Logger LOG = LoggerFactory.getLogger(DefinitionProvider.class);
-  private final JavaCompilerService compiler;
-  private final IServerSettings settings;
-  private Path file;
-  private Position position;
-  private int line, column;
+	public static final List<Location> NOT_SUPPORTED = Collections.emptyList();
+	private static final Logger LOG = LoggerFactory.getLogger(DefinitionProvider.class);
+	private final JavaCompilerService compiler;
+	private final IServerSettings settings;
+	private Path file;
+	private Position position;
+	private int line, column;
 
-  public DefinitionProvider(JavaCompilerService compiler, IServerSettings settings,
-      ICancelChecker cancelChecker) {
-    super(cancelChecker);
-    this.compiler = compiler;
-    this.settings = settings;
-  }
+	public DefinitionProvider(JavaCompilerService compiler, IServerSettings settings,
+			ICancelChecker cancelChecker) {
+		super(cancelChecker);
+		this.compiler = compiler;
+		this.settings = settings;
+	}
 
-  @NonNull
-  public DefinitionResult findDefinition(@NonNull DefinitionParams params) {
-    this.file = params.getFile();
+	public List<Location> findDefinition() {
+		abortIfCancelled();
+		final SynchronizedTask compile = compiler.compile(file);
+		abortIfCancelled();
+		final Element element = compile.get(task -> NavigationHelper.findElement(task, file, line, column, this));
 
-    // 1-based line and column index
-    this.line = params.getPosition().getLine() + 1;
-    this.column = params.getPosition().getColumn() + 1;
-    this.position = new Position(this.line, this.column);
-    final List<Location> locations = findDefinition();
+		if (element == null) {
+			LOG.error("Cannot find element at line: {} and column: {}", line, column);
+			return NOT_SUPPORTED;
+		}
 
-    LOG.debug("Found {} definitions...", locations.size());
-    return new DefinitionResult(locations);
-  }
+		IJavaDefinitionProvider provider = null;
 
-  public List<Location> findDefinition() {
-    abortIfCancelled();
-    final SynchronizedTask compile = compiler.compile(file);
-    abortIfCancelled();
-    final Element element =
-        compile.get(task -> NavigationHelper.findElement(task, file, line, column, this));
+		if (element.asType().getKind() == TypeKind.ERROR) {
+			provider = new ErroneousDefinitionProvider(position, file, compiler, settings, this);
+		} else if (NavigationHelper.isLocal(element)) {
+			provider = new LocalDefinitionProvider(position, file, compiler, settings, this);
+		}
 
-    if (element == null) {
-      LOG.error("Cannot find element at line: {} and column: {}", line, column);
-      return NOT_SUPPORTED;
-    }
+		if (provider == null) {
+			final String className = className(element);
+			if (TextUtils.isEmpty(className)) {
+				LOG.error("No class name found for element: {}", element);
+				return NOT_SUPPORTED;
+			}
 
-    IJavaDefinitionProvider provider = null;
+			final Optional<JavaFileObject> optional = compiler.findAnywhere(className);
+			if (!optional.isPresent()) {
+				LOG.error("Cannot find source file for class: {}", className);
+				return NOT_SUPPORTED;
+			}
 
-    if (element.asType().getKind() == TypeKind.ERROR) {
-      provider = new ErroneousDefinitionProvider(position, file, compiler, settings, this);
-    } else if (NavigationHelper.isLocal(element)) {
-      provider = new LocalDefinitionProvider(position, file, compiler, settings, this);
-    }
+			final JavaFileObject jfo = optional.get();
+			if (DocumentUtils.isSameFile(Paths.get(jfo.toUri()), file)) {
+				provider = new LocalDefinitionProvider(position, file, compiler, settings, this);
+			} else {
+				provider = new RemoteDefinitionProvider(position, file, compiler, settings, this).setOtherFile(jfo);
+			}
+		}
 
-    if (provider == null) {
-      final String className = className(element);
-      if (TextUtils.isEmpty(className)) {
-        LOG.error("No class name found for element: {}", element);
-        return NOT_SUPPORTED;
-      }
+		return provider.findDefinition(element);
+	}
 
-      final Optional<JavaFileObject> optional = compiler.findAnywhere(className);
-      if (!optional.isPresent()) {
-        LOG.error("Cannot find source file for class: {}", className);
-        return NOT_SUPPORTED;
-      }
+	@NonNull
+	public DefinitionResult findDefinition(@NonNull DefinitionParams params) {
+		this.file = params.getFile();
 
-      final JavaFileObject jfo = optional.get();
-      if (DocumentUtils.isSameFile(Paths.get(jfo.toUri()), file)) {
-        provider = new LocalDefinitionProvider(position, file, compiler, settings, this);
-      } else {
-        provider =
-            new RemoteDefinitionProvider(position, file, compiler, settings, this).setOtherFile(jfo);
-      }
-    }
+		// 1-based line and column index
+		this.line = params.getPosition().getLine() + 1;
+		this.column = params.getPosition().getColumn() + 1;
+		this.position = new Position(this.line, this.column);
+		final List<Location> locations = findDefinition();
 
-    return provider.findDefinition(element);
-  }
+		LOG.debug("Found {} definitions...", locations.size());
+		return new DefinitionResult(locations);
+	}
 
-  private String className(Element element) {
-    while (element != null) {
-      abortIfCancelled();
-      if (element instanceof TypeElement) {
-        TypeElement type = (TypeElement) element;
-        return type.getQualifiedName().toString();
-      }
-      element = element.getEnclosingElement();
-    }
-    return "";
-  }
+	private String className(Element element) {
+		while (element != null) {
+			abortIfCancelled();
+			if (element instanceof TypeElement) {
+				TypeElement type = (TypeElement) element;
+				return type.getQualifiedName().toString();
+			}
+			element = element.getEnclosingElement();
+		}
+		return "";
+	}
 }

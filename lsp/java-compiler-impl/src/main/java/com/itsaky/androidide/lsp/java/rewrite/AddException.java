@@ -32,70 +32,69 @@ import openjdk.source.util.Trees;
 
 public class AddException extends Rewrite {
 
-  final String className, methodName;
-  final String[] erasedParameterTypes;
-  final String exceptionType;
+	final String className, methodName;
+	final String[] erasedParameterTypes;
+	final String exceptionType;
 
-  public AddException(String className, String methodName, String[] erasedParameterTypes,
-      String exceptionType
-  ) {
-    this.className = className;
-    this.methodName = methodName;
-    this.erasedParameterTypes = erasedParameterTypes;
-    this.exceptionType = exceptionType;
-  }
+	public AddException(String className, String methodName, String[] erasedParameterTypes,
+			String exceptionType) {
+		this.className = className;
+		this.methodName = methodName;
+		this.erasedParameterTypes = erasedParameterTypes;
+		this.exceptionType = exceptionType;
+	}
 
-  @NonNull
-  @Override
-  public Map<Path, TextEdit[]> rewrite(@NonNull CompilerProvider compiler) {
-    Path file = compiler.findTypeDeclaration(className);
-    if (file == CompilerProvider.NOT_FOUND) {
-      return CANCELLED;
-    }
+	@NonNull
+	@Override
+	public Map<Path, TextEdit[]> rewrite(@NonNull CompilerProvider compiler) {
+		Path file = compiler.findTypeDeclaration(className);
+		if (file == CompilerProvider.NOT_FOUND) {
+			return CANCELLED;
+		}
 
-    SynchronizedTask synchronizedTask = compiler.compile(file);
-    return synchronizedTask.get(task -> {
-      Trees trees = Trees.instance(task.task);
-      final var type = task.task.getElements().getTypeElement(className);
-      if (type == null) {
-        return CANCELLED;
-      }
+		SynchronizedTask synchronizedTask = compiler.compile(file);
+		return synchronizedTask.get(task -> {
+			Trees trees = Trees.instance(task.task);
+			final var type = task.task.getElements().getTypeElement(className);
+			if (type == null) {
+				return CANCELLED;
+			}
 
-      ExecutableElement methodElement = FindHelper.findMethod(task, className, methodName,
-          erasedParameterTypes);
-      if (methodElement == null) {
-        return CANCELLED;
-      }
+			ExecutableElement methodElement = FindHelper.findMethod(task, className, methodName,
+					erasedParameterTypes);
+			if (methodElement == null) {
+				return CANCELLED;
+			}
 
-      final var methodTree = trees.getTree(methodElement);
-      if (methodTree == null || methodTree.getBody() == null) {
-        return CANCELLED;
-      }
+			final var methodTree = trees.getTree(methodElement);
+			if (methodTree == null || methodTree.getBody() == null) {
+				return CANCELLED;
+			}
 
-      final var pos = trees.getSourcePositions();
-      final var lines = task.root().getLineMap();
+			final var pos = trees.getSourcePositions();
+			final var lines = task.root().getLineMap();
 
-      final var index = pos.getStartPosition(task.root(), methodTree.getBody());
-      int line = (int) lines.getLineNumber(index);
-      int column = (int) lines.getColumnNumber(index);
-      Position insertPos = new Position(line - 1, column - 1);
-      String simpleName = exceptionType;
-      int lastDot = simpleName.lastIndexOf('.');
-      if (lastDot != -1) {
-        simpleName = exceptionType.substring(lastDot + 1);
-      }
+			final var index = pos.getStartPosition(task.root(), methodTree.getBody());
+			int line = (int) lines.getLineNumber(index);
+			int column = (int) lines.getColumnNumber(index);
+			Position insertPos = new Position(line - 1, column - 1);
+			String simpleName = exceptionType;
+			int lastDot = simpleName.lastIndexOf('.');
+			if (lastDot != -1) {
+				simpleName = exceptionType.substring(lastDot + 1);
+			}
 
-      String insertText;
-      if (methodTree.getThrows().isEmpty()) {
-        insertText = "throws " + simpleName + " ";
-      } else {
-        insertText = ", " + simpleName + " ";
-      }
+			String insertText;
+			if (methodTree.getThrows().isEmpty()) {
+				insertText = "throws " + simpleName + " ";
+			} else {
+				insertText = ", " + simpleName + " ";
+			}
 
-      TextEdit insertThrows = new TextEdit(new Range(insertPos, insertPos), insertText);
-      // TODO add import if needed
-      TextEdit[] edits = {insertThrows};
-      return Collections.singletonMap(file, edits);
-    });
-  }
+			TextEdit insertThrows = new TextEdit(new Range(insertPos, insertPos), insertText);
+			// TODO add import if needed
+			TextEdit[] edits = {insertThrows};
+			return Collections.singletonMap(file, edits);
+		});
+	}
 }

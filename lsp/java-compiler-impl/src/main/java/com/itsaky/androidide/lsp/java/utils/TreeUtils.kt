@@ -31,45 +31,38 @@ import openjdk.source.tree.Tree.Kind.METHOD
  * @author Akash Yadav
  */
 class TreeUtils {
+	companion object {
+		@JvmStatic
+		fun isType(tree: Tree?): Boolean = isType(tree?.kind)
 
-  companion object {
-    @JvmStatic
-    fun isType(tree: Tree?): Boolean {
-      return isType(tree?.kind)
-    }
+		@JvmStatic
+		fun isType(kind: Tree.Kind?): Boolean {
+			kind ?: return false
 
-    @JvmStatic
-    fun isType(kind: Tree.Kind?): Boolean {
-      kind ?: return false
+			return when (kind) {
+				CLASS,
+				INTERFACE,
+				ANNOTATION_TYPE,
+				ENUM,
+				-> true
 
-      return when (kind) {
-        CLASS,
-        INTERFACE,
-        ANNOTATION_TYPE,
-        ENUM -> true
-        else -> false
-      }
-    }
+				else -> false
+			}
+		}
 
-    @JvmStatic
-    fun isMethod(tree: Tree?): Boolean {
-      return isMethod(tree?.kind)
-    }
+		@JvmStatic
+		fun isMethod(tree: Tree?): Boolean = isMethod(tree?.kind)
 
-    @JvmStatic
-    fun isMethod(kind: Tree.Kind?): Boolean {
-      return kind == METHOD
-    }
+		@JvmStatic
+		fun isMethod(kind: Tree.Kind?): Boolean = kind == METHOD
 
-    @JvmStatic
-    fun isConstructor(tree: Tree?): Boolean {
-      tree ?: return false
-      return tree.kind == METHOD && (tree as MethodTree).name.contentEquals("<init>")
-    }
+		@JvmStatic
+		fun isConstructor(tree: Tree?): Boolean {
+			tree ?: return false
+			return tree.kind == METHOD && (tree as MethodTree).name.contentEquals("<init>")
+		}
 
-    @JvmStatic
-    fun isMethodOrConstructor(tree: Tree?): Boolean {
-      return isMethod(tree) || isConstructor(tree)
-    }
-  }
+		@JvmStatic
+		fun isMethodOrConstructor(tree: Tree?): Boolean = isMethod(tree) || isConstructor(tree)
+	}
 }

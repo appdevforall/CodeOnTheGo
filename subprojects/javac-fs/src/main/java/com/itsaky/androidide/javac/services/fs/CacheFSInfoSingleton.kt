@@ -28,35 +28,36 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 object CacheFSInfoSingleton : CacheFSInfo() {
+	const val TEST_PROP_ENABLED_ON_JVM = "ide.testing.javac.fsCache.isEnabledOnJVM"
+	private val log = LoggerFactory.getLogger(CacheFSInfoSingleton::class.java)
 
-  const val TEST_PROP_ENABLED_ON_JVM = "ide.testing.javac.fsCache.isEnabledOnJVM"
-  private val log = LoggerFactory.getLogger(CacheFSInfoSingleton::class.java)
+	/**
+	 * Caches information about the given [Path].
+	 */
+	@JvmOverloads
+	fun cache(
+		file: Path,
+		cacheJarClasspath: Boolean = true,
+	) {
+		if (System.getProperty(TEST_PROP_ENABLED_ON_JVM, null) != "true") {
+			if (VMUtils.isJvm) {
+				return
+			}
+		}
 
-  /**
-   * Caches information about the given [Path].
-   */
-  @JvmOverloads
-  fun cache(file: Path, cacheJarClasspath: Boolean = true) {
+		try {
+			// Cache canonical path
+			getCanonicalFile(file)
 
-    if (System.getProperty(TEST_PROP_ENABLED_ON_JVM, null) != "true") {
-      if (VMUtils.isJvm) {
-        return
-      }
-    }
+			// Cache attributes
+			getAttributes(file)
 
-    try {
-      // Cache canonical path
-      getCanonicalFile(file)
-
-      // Cache attributes
-      getAttributes(file)
-
-      // Cache jar classpath if requested
-      if (cacheJarClasspath) {
-        getJarClassPath(file)
-      }
-    } catch (err: Throwable) {
-      log.warn("Failed to cache jar file: {}", file, err)
-    }
-  }
+			// Cache jar classpath if requested
+			if (cacheJarClasspath) {
+				getJarClassPath(file)
+			}
+		} catch (err: Throwable) {
+			log.warn("Failed to cache jar file: {}", file, err)
+		}
+	}
 }

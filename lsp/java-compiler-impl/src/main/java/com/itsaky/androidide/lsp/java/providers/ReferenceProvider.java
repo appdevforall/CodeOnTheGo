@@ -41,119 +41,119 @@ import openjdk.source.util.TreePath;
 
 public class ReferenceProvider extends CancelableServiceProvider {
 
-  public static final List<Location> NOT_SUPPORTED = Collections.emptyList();
-  private final CompilerProvider compiler;
-  private Path file;
-  private int line, column;
+	public static final List<Location> NOT_SUPPORTED = Collections.emptyList();
+	private final CompilerProvider compiler;
+	private Path file;
+	private int line, column;
 
-  public ReferenceProvider(CompilerProvider compiler, ICancelChecker checker) {
-    super(checker);
-    this.compiler = compiler;
-  }
+	public ReferenceProvider(CompilerProvider compiler, ICancelChecker checker) {
+		super(checker);
+		this.compiler = compiler;
+	}
 
-  @NonNull
-  public ReferenceResult findReferences(@NonNull ReferenceParams params) {
-    this.file = params.getFile();
+	public List<Location> find() {
+		abortIfCancelled();
+		final SynchronizedTask synchronizedTask = compiler.compile(file);
 
-    // 1-based line and column indexes
-    this.line = params.getPosition().getLine() + 1;
-    this.column = params.getPosition().getColumn() + 1;
+		// findTypeReferences and findMemberReferences initiate another compilation task
+		// However, initiating a compilation task while another compilation is in progress will result in a deadlock
+		// Therefore, we return a supplier from the current synchronized task and
+		final Supplier<List<Location>> result = synchronizedTask.get(
+				task -> {
+					abortIfCancelled();
+					Element element = NavigationHelper.findElement(task, file, line, column, this);
+					if (element == null) {
+						return () -> NOT_SUPPORTED;
+					}
 
-    List<Location> locations;
-    try {
-      locations = find();
-    } catch (Exception err) {
-      if (!CancelChecker.isCancelled(err)) {
-        throw err;
-      }
-      locations = new ArrayList<>();
-    }
+					if (NavigationHelper.isLocal(element)) {
+						// findReferences method here uses the compilation task object
+						// however, finding the references lazily using supplier will leak this task
+						final var references = findReferences(task);
+						return () -> references;
+					}
 
-    return new ReferenceResult(locations);
-  }
+					if (NavigationHelper.isType(element)) {
+						TypeElement type = (TypeElement) element;
+						String className = type.getQualifiedName().toString();
+						return () -> findTypeReferences(className);
+					}
 
-  public List<Location> find() {
-    abortIfCancelled();
-    final SynchronizedTask synchronizedTask = compiler.compile(file);
+					if (NavigationHelper.isMember(element)) {
+						final var parentClass = (TypeElement) element.getEnclosingElement();
+						final var className = parentClass.getQualifiedName().toString();
 
-    // findTypeReferences and findMemberReferences initiate another compilation task
-    // However, initiating a compilation task while another compilation is in progress will result in a deadlock
-    // Therefore, we return a supplier from the current synchronized task and
-    final Supplier<List<Location>> result = synchronizedTask.get(
-        task -> {
-          abortIfCancelled();
-          Element element = NavigationHelper.findElement(task, file, line, column, this);
-          if (element == null) {
-            return () -> NOT_SUPPORTED;
-          }
+						var memberName = element.getSimpleName().toString();
+						if (memberName.equals("<init>")) {
+							memberName = parentClass.getSimpleName().toString();
+						}
 
-          if (NavigationHelper.isLocal(element)) {
-            // findReferences method here uses the compilation task object
-            // however, finding the references lazily using supplier will leak this task
-            final var references = findReferences(task);
-            return () -> references;
-          }
+						String finalMemberName = memberName;
+						return () -> findMemberReferences(className, finalMemberName);
+					}
 
-          if (NavigationHelper.isType(element)) {
-            TypeElement type = (TypeElement) element;
-            String className = type.getQualifiedName().toString();
-            return () -> findTypeReferences(className);
-          }
+					return () -> NOT_SUPPORTED;
+				});
 
-          if (NavigationHelper.isMember(element)) {
-            final var parentClass = (TypeElement) element.getEnclosingElement();
-            final var className = parentClass.getQualifiedName().toString();
+		return result.get();
+	}
 
-            var memberName = element.getSimpleName().toString();
-            if (memberName.equals("<init>")) {
-              memberName = parentClass.getSimpleName().toString();
-            }
+	@NonNull
+	public ReferenceResult findReferences(@NonNull ReferenceParams params) {
+		this.file = params.getFile();
 
-            String finalMemberName = memberName;
-            return () -> findMemberReferences(className, finalMemberName);
-          }
+		// 1-based line and column indexes
+		this.line = params.getPosition().getLine() + 1;
+		this.column = params.getPosition().getColumn() + 1;
 
-          return () -> NOT_SUPPORTED;
-        });
+		List<Location> locations;
+		try {
+			locations = find();
+		} catch (Exception err) {
+			if (!CancelChecker.isCancelled(err)) {
+				throw err;
+			}
+			locations = new ArrayList<>();
+		}
 
-    return result.get();
-  }
+		return new ReferenceResult(locations);
+	}
 
-  private List<Location> findTypeReferences(String className) {
-    abortIfCancelled();
-    Path[] files = compiler.findTypeReferences(className);
-    if (files.length == 0) {
-      return Collections.emptyList();
-    }
+	private List<Location> findMemberReferences(String className, String memberName) {
+		abortIfCancelled();
+		final var files = compiler.findMemberReferences(className, memberName);
+		if (files.length == 0) {
+			return Collections.emptyList();
+		}
 
-    abortIfCancelled();
-    return compiler.compile(files).get(this::findReferences);
-  }
+		abortIfCancelled();
+		return compiler.compile(files).get(this::findReferences);
+	}
 
-  private List<Location> findMemberReferences(String className, String memberName) {
-    abortIfCancelled();
-    final var files = compiler.findMemberReferences(className, memberName);
-    if (files.length == 0) {
-      return Collections.emptyList();
-    }
+	private List<Location> findReferences(CompileTask task) {
+		abortIfCancelled();
+		Element element = NavigationHelper.findElement(task, file, line, column, this);
+		List<TreePath> paths = new ArrayList<>();
+		for (CompilationUnitTree root : task.roots) {
+			abortIfCancelled();
+			new FindReferences(task.task, element).scan(root, paths);
+		}
+		List<Location> locations = new ArrayList<>();
+		for (TreePath p : paths) {
+			abortIfCancelled();
+			locations.add(FindHelper.location(task, p));
+		}
+		return locations;
+	}
 
-    abortIfCancelled();
-    return compiler.compile(files).get(this::findReferences);
-  }
+	private List<Location> findTypeReferences(String className) {
+		abortIfCancelled();
+		Path[] files = compiler.findTypeReferences(className);
+		if (files.length == 0) {
+			return Collections.emptyList();
+		}
 
-  private List<Location> findReferences(CompileTask task) {
-    abortIfCancelled();
-    Element element = NavigationHelper.findElement(task, file, line, column, this);
-    List<TreePath> paths = new ArrayList<>();
-    for (CompilationUnitTree root : task.roots) {
-      abortIfCancelled();
-      new FindReferences(task.task, element).scan(root, paths);
-    }
-    List<Location> locations = new ArrayList<>();
-    for (TreePath p : paths) {
-      abortIfCancelled();
-      locations.add(FindHelper.location(task, p));
-    }
-    return locations;
-  }
+		abortIfCancelled();
+		return compiler.compile(files).get(this::findReferences);
+	}
 }

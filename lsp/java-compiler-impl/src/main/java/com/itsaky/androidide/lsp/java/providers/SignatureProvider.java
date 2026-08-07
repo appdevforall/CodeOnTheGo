@@ -65,327 +65,324 @@ import openjdk.source.util.Trees;
 
 public class SignatureProvider extends CancelableServiceProvider {
 
-  public static final SignatureHelp NOT_SUPPORTED =
-      new SignatureHelp(Collections.emptyList(), -1, -1);
-  private final CompilerProvider compiler;
+	public static final SignatureHelp NOT_SUPPORTED = new SignatureHelp(Collections.emptyList(), -1, -1);
+	private final CompilerProvider compiler;
 
-  public SignatureProvider(CompilerProvider compiler, ICancelChecker cancelChecker) {
-    super(cancelChecker);
-    this.compiler = compiler;
-  }
+	public SignatureProvider(CompilerProvider compiler, ICancelChecker cancelChecker) {
+		super(cancelChecker);
+		this.compiler = compiler;
+	}
 
-  @NonNull
-  public SignatureHelp signatureHelp(@NonNull SignatureHelpParams params) {
-    return signatureHelp(
-        params.getFile(), params.getPosition().getLine(), params.getPosition().getColumn());
-  }
+	@NonNull
+	public SignatureHelp signatureHelp(Path file, int l, int c) {
 
-  @NonNull
-  public SignatureHelp signatureHelp(Path file, int l, int c) {
+		// 1-based line and column index
+		final int line = l + 1;
+		final int column = c + 1;
 
-    // 1-based line and column index
-    final int line = l + 1;
-    final int column = c + 1;
+		// TODO prune
+		SynchronizedTask synchronizedTask = compiler.compile(file);
+		abortIfCancelled();
+		return synchronizedTask.get(
+				task -> {
+					long cursor = task.root().getLineMap().getPosition(line, column);
+					TreePath path = new FindInvocationAt(task.task, this).scan(task.root(), cursor);
+					if (path == null) {
+						return NOT_SUPPORTED;
+					}
+					if (path.getLeaf() instanceof MethodInvocationTree) {
+						MethodInvocationTree invoke = (MethodInvocationTree) path.getLeaf();
+						List<ExecutableElement> overloads = methodOverloads(task, invoke);
+						List<SignatureInformation> signatures = new ArrayList<>();
+						for (ExecutableElement method : overloads) {
+							SignatureInformation info = info(method);
+							addSourceInfo(task, method, info);
+							addFancyLabel(info);
+							signatures.add(info);
+						}
+						int activeSignature = activeSignature(task, path, invoke.getArguments(), overloads);
+						int activeParameter = activeParameter(task, invoke.getArguments(), cursor);
+						return new SignatureHelp(signatures, activeSignature, activeParameter);
+					}
+					if (path.getLeaf() instanceof NewClassTree) {
+						NewClassTree invoke = (NewClassTree) path.getLeaf();
+						List<ExecutableElement> overloads = constructorOverloads(task, invoke);
+						List<SignatureInformation> signatures = new ArrayList<>();
+						for (ExecutableElement method : overloads) {
+							SignatureInformation info = info(method);
+							addSourceInfo(task, method, info);
+							addFancyLabel(info);
+							signatures.add(info);
+						}
+						int activeSignature = activeSignature(task, path, invoke.getArguments(), overloads);
+						int activeParameter = activeParameter(task, invoke.getArguments(), cursor);
+						return new SignatureHelp(signatures, activeSignature, activeParameter);
+					}
+					return NOT_SUPPORTED;
+				});
+	}
 
-    // TODO prune
-    SynchronizedTask synchronizedTask = compiler.compile(file);
-    abortIfCancelled();
-    return synchronizedTask.get(
-        task -> {
-          long cursor = task.root().getLineMap().getPosition(line, column);
-          TreePath path = new FindInvocationAt(task.task, this).scan(task.root(), cursor);
-          if (path == null) {
-            return NOT_SUPPORTED;
-          }
-          if (path.getLeaf() instanceof MethodInvocationTree) {
-            MethodInvocationTree invoke = (MethodInvocationTree) path.getLeaf();
-            List<ExecutableElement> overloads = methodOverloads(task, invoke);
-            List<SignatureInformation> signatures = new ArrayList<>();
-            for (ExecutableElement method : overloads) {
-              SignatureInformation info = info(method);
-              addSourceInfo(task, method, info);
-              addFancyLabel(info);
-              signatures.add(info);
-            }
-            int activeSignature = activeSignature(task, path, invoke.getArguments(), overloads);
-            int activeParameter = activeParameter(task, invoke.getArguments(), cursor);
-            return new SignatureHelp(signatures, activeSignature, activeParameter);
-          }
-          if (path.getLeaf() instanceof NewClassTree) {
-            NewClassTree invoke = (NewClassTree) path.getLeaf();
-            List<ExecutableElement> overloads = constructorOverloads(task, invoke);
-            List<SignatureInformation> signatures = new ArrayList<>();
-            for (ExecutableElement method : overloads) {
-              SignatureInformation info = info(method);
-              addSourceInfo(task, method, info);
-              addFancyLabel(info);
-              signatures.add(info);
-            }
-            int activeSignature = activeSignature(task, path, invoke.getArguments(), overloads);
-            int activeParameter = activeParameter(task, invoke.getArguments(), cursor);
-            return new SignatureHelp(signatures, activeSignature, activeParameter);
-          }
-          return NOT_SUPPORTED;
-        });
-  }
+	@NonNull
+	public SignatureHelp signatureHelp(@NonNull SignatureHelpParams params) {
+		return signatureHelp(
+				params.getFile(), params.getPosition().getLine(), params.getPosition().getColumn());
+	}
 
-  private List<ExecutableElement> methodOverloads(
-      CompileTask task, @NonNull MethodInvocationTree method) {
-    abortIfCancelled();
-    if (method.getMethodSelect() instanceof IdentifierTree) {
-      IdentifierTree id = (IdentifierTree) method.getMethodSelect();
-      return scopeOverloads(task, id);
-    }
-    if (method.getMethodSelect() instanceof MemberSelectTree) {
-      MemberSelectTree select = (MemberSelectTree) method.getMethodSelect();
-      return memberOverloads(task, select);
-    }
-    throw new RuntimeException(method.getMethodSelect().toString());
-  }
+	private int activeParameter(
+			@NonNull CompileTask task, @NonNull List<? extends ExpressionTree> arguments, long cursor) {
+		abortIfCancelled();
+		SourcePositions pos = Trees.instance(task.task).getSourcePositions();
+		CompilationUnitTree root = task.root();
+		for (int i = 0; i < arguments.size(); i++) {
+			long end = pos.getEndPosition(root, arguments.get(i));
+			if (cursor <= end) {
+				return i;
+			}
+		}
+		return arguments.size();
+	}
 
-  @NonNull
-  private List<ExecutableElement> scopeOverloads(@NonNull CompileTask task, IdentifierTree method) {
-    abortIfCancelled();
-    Trees trees = Trees.instance(task.task);
-    TreePath path = trees.getPath(task.root(), method);
-    Scope scope = trees.getScope(path);
-    List<ExecutableElement> list = new ArrayList<>();
-    Predicate<CharSequence> filter = name -> method.getName().contentEquals(name);
-    // TODO add static imports
-    for (Element member : ScopeHelper.scopeMembers(task, scope, filter)) {
-      if (member.getKind() == ElementKind.METHOD) {
-        list.add((ExecutableElement) member);
-      }
-    }
-    return list;
-  }
+	private int activeSignature(
+			CompileTask task,
+			TreePath invocation,
+			List<? extends ExpressionTree> arguments,
+			List<ExecutableElement> overloads) {
+		abortIfCancelled();
+		for (int i = 0; i < overloads.size(); i++) {
+			if (isCompatible(task, invocation, arguments, overloads.get(i))) {
+				return i;
+			}
+		}
+		return 0;
+	}
 
-  @NonNull
-  private List<ExecutableElement> memberOverloads(
-      @NonNull CompileTask task, @NonNull MemberSelectTree method) {
-    abortIfCancelled();
-    Trees trees = Trees.instance(task.task);
-    TreePath path = trees.getPath(task.root(), method.getExpression());
-    boolean isStatic = trees.getElement(path) instanceof TypeElement;
-    Scope scope = trees.getScope(path);
-    TypeElement type = typeElement(trees.getTypeMirror(path));
+	private void addFancyLabel(@NonNull SignatureInformation info) {
+		abortIfCancelled();
+		StringJoiner join = new StringJoiner(", ");
+		for (ParameterInformation p : info.getParameters()) {
+			join.add(p.getLabel());
+		}
+		info.setLabel(info.getLabel() + "(" + join + ")");
+	}
 
-    if (type == null) {
-      return Collections.emptyList();
-    }
+	private void addSourceInfo(
+			@NonNull CompileTask task,
+			@NonNull ExecutableElement method,
+			@NonNull SignatureInformation info) {
+		abortIfCancelled();
+		final var type = (TypeElement) method.getEnclosingElement();
+		final var className = type.getQualifiedName().toString();
+		final var methodName = method.getSimpleName().toString();
+		final var erasedParameterTypes = FindHelper.erasedParameterTypes(task, method);
+		final var file = compiler.findAnywhere(className);
 
-    List<ExecutableElement> list = new ArrayList<>();
-    for (Element member : task.task.getElements().getAllMembers(type)) {
-      if (member.getKind() != ElementKind.METHOD) {
-        continue;
-      }
-      if (!member.getSimpleName().contentEquals(method.getIdentifier())) {
-        continue;
-      }
-      if (isStatic != member.getModifiers().contains(Modifier.STATIC)) {
-        continue;
-      }
-      if (!trees.isAccessible(scope, member, (DeclaredType) type.asType())) {
-        continue;
-      }
-      list.add((ExecutableElement) member);
-    }
-    return list;
-  }
+		if (!file.isPresent()) {
+			return;
+		}
 
-  private TypeElement typeElement(TypeMirror type) {
-    abortIfCancelled();
-    if (type instanceof DeclaredType) {
-      DeclaredType declared = (DeclaredType) type;
-      return (TypeElement) declared.asElement();
-    }
-    if (type instanceof TypeVariable) {
-      TypeVariable variable = (TypeVariable) type;
-      return typeElement(variable.getUpperBound());
-    }
-    return null;
-  }
+		final var parse = compiler.parse(file.get());
+		final var source = FindHelper.findMethod(parse, className, methodName, erasedParameterTypes);
+		if (source == null) {
+			return;
+		}
 
-  @NonNull
-  private List<ExecutableElement> constructorOverloads(
-      @NonNull CompileTask task, @NonNull NewClassTree method) {
-    abortIfCancelled();
-    Trees trees = Trees.instance(task.task);
-    TreePath path = trees.getPath(task.root(), method.getIdentifier());
-    Scope scope = trees.getScope(path);
-    TypeElement type = (TypeElement) trees.getElement(path);
-    List<ExecutableElement> list = new ArrayList<>();
-    for (Element member : task.task.getElements().getAllMembers(type)) {
-      if (member.getKind() != ElementKind.CONSTRUCTOR) {
-        continue;
-      }
-      if (!trees.isAccessible(scope, member, (DeclaredType) type.asType())) {
-        continue;
-      }
-      list.add((ExecutableElement) member);
-    }
-    return list;
-  }
+		final var path = Trees.instance(task.task).getPath(parse.root, source);
+		final var docTree = DocTrees.instance(task.task).getDocCommentTree(path);
 
-  @NonNull
-  private SignatureInformation info(@NonNull ExecutableElement method) {
-    abortIfCancelled();
-    SignatureInformation info = new SignatureInformation();
-    info.setLabel(method.getSimpleName().toString());
-    if (method.getKind() == ElementKind.CONSTRUCTOR) {
-      info.setLabel(method.getEnclosingElement().getSimpleName().toString());
-    }
-    info.setParameters(parameters(method));
-    return info;
-  }
+		if (docTree != null) {
+			info.setDocumentation(MarkdownHelper.asMarkupContent(docTree));
+		}
 
-  @NonNull
-  private List<ParameterInformation> parameters(@NonNull ExecutableElement method) {
-    abortIfCancelled();
-    List<ParameterInformation> list = new ArrayList<>();
-    for (VariableElement p : method.getParameters()) {
-      list.add(parameter(p));
-    }
-    return list;
-  }
+		info.setParameters(parametersFromSource(source));
+	}
 
-  @NonNull
-  private ParameterInformation parameter(@NonNull VariableElement p) {
-    abortIfCancelled();
-    ParameterInformation info = new ParameterInformation();
-    info.setLabel(ShortTypePrinter.NO_PACKAGE.print(p.asType()));
-    return info;
-  }
+	@NonNull
+	private List<ExecutableElement> constructorOverloads(
+			@NonNull CompileTask task, @NonNull NewClassTree method) {
+		abortIfCancelled();
+		Trees trees = Trees.instance(task.task);
+		TreePath path = trees.getPath(task.root(), method.getIdentifier());
+		Scope scope = trees.getScope(path);
+		TypeElement type = (TypeElement) trees.getElement(path);
+		List<ExecutableElement> list = new ArrayList<>();
+		for (Element member : task.task.getElements().getAllMembers(type)) {
+			if (member.getKind() != ElementKind.CONSTRUCTOR) {
+				continue;
+			}
+			if (!trees.isAccessible(scope, member, (DeclaredType) type.asType())) {
+				continue;
+			}
+			list.add((ExecutableElement) member);
+		}
+		return list;
+	}
 
-  private void addSourceInfo(
-      @NonNull CompileTask task,
-      @NonNull ExecutableElement method,
-      @NonNull SignatureInformation info
-  ) {
-    abortIfCancelled();
-    final var type = (TypeElement) method.getEnclosingElement();
-    final var className = type.getQualifiedName().toString();
-    final var methodName = method.getSimpleName().toString();
-    final var erasedParameterTypes = FindHelper.erasedParameterTypes(task, method);
-    final var file = compiler.findAnywhere(className);
+	@NonNull
+	private SignatureInformation info(@NonNull ExecutableElement method) {
+		abortIfCancelled();
+		SignatureInformation info = new SignatureInformation();
+		info.setLabel(method.getSimpleName().toString());
+		if (method.getKind() == ElementKind.CONSTRUCTOR) {
+			info.setLabel(method.getEnclosingElement().getSimpleName().toString());
+		}
+		info.setParameters(parameters(method));
+		return info;
+	}
 
-    if (!file.isPresent()) {
-      return;
-    }
+	private boolean isCompatible(
+			CompileTask task,
+			TreePath invocation,
+			List<? extends ExpressionTree> arguments,
+			ExecutableElement overload) {
+		abortIfCancelled();
+		if (arguments.size() > overload.getParameters().size()) {
+			return false;
+		}
+		for (int i = 0; i < arguments.size(); i++) {
+			ExpressionTree argument = arguments.get(i);
+			TypeMirror argumentType = Trees.instance(task.task).getTypeMirror(new TreePath(invocation, argument));
+			TypeMirror parameterType = overload.getParameters().get(i).asType();
+			if (!isCompatible(task, argumentType, parameterType)) {
+				return false;
+			}
+		}
+		return true;
+	}
 
-    final var parse = compiler.parse(file.get());
-    final var source = FindHelper.findMethod(parse, className, methodName, erasedParameterTypes);
-    if (source == null) {
-      return;
-    }
+	private boolean isCompatible(CompileTask task, TypeMirror argument, TypeMirror parameter) {
+		abortIfCancelled();
+		if (argument instanceof ErrorType) {
+			return true;
+		}
+		if (argument instanceof PrimitiveType) {
+			argument = task.task.getTypes().boxedClass((PrimitiveType) argument).asType();
+		}
+		if (parameter instanceof PrimitiveType) {
+			parameter = task.task.getTypes().boxedClass((PrimitiveType) parameter).asType();
+		}
+		if (argument instanceof ArrayType) {
+			if (!(parameter instanceof ArrayType)) {
+				return false;
+			}
+			ArrayType argumentA = (ArrayType) argument;
+			ArrayType parameterA = (ArrayType) parameter;
+			return isCompatible(task, argumentA.getComponentType(), parameterA.getComponentType());
+		}
+		if (argument instanceof DeclaredType) {
+			if (!(parameter instanceof DeclaredType)) {
+				return false;
+			}
+			argument = task.task.getTypes().erasure(argument);
+			parameter = task.task.getTypes().erasure(parameter);
+			return argument.toString().equals(parameter.toString());
+		}
+		return true;
+	}
 
-    final var path = Trees.instance(task.task).getPath(parse.root, source);
-    final var docTree = DocTrees.instance(task.task).getDocCommentTree(path);
+	@NonNull
+	private List<ExecutableElement> memberOverloads(
+			@NonNull CompileTask task, @NonNull MemberSelectTree method) {
+		abortIfCancelled();
+		Trees trees = Trees.instance(task.task);
+		TreePath path = trees.getPath(task.root(), method.getExpression());
+		boolean isStatic = trees.getElement(path) instanceof TypeElement;
+		Scope scope = trees.getScope(path);
+		TypeElement type = typeElement(trees.getTypeMirror(path));
 
-    if (docTree != null) {
-      info.setDocumentation(MarkdownHelper.asMarkupContent(docTree));
-    }
+		if (type == null) {
+			return Collections.emptyList();
+		}
 
-    info.setParameters(parametersFromSource(source));
-  }
+		List<ExecutableElement> list = new ArrayList<>();
+		for (Element member : task.task.getElements().getAllMembers(type)) {
+			if (member.getKind() != ElementKind.METHOD) {
+				continue;
+			}
+			if (!member.getSimpleName().contentEquals(method.getIdentifier())) {
+				continue;
+			}
+			if (isStatic != member.getModifiers().contains(Modifier.STATIC)) {
+				continue;
+			}
+			if (!trees.isAccessible(scope, member, (DeclaredType) type.asType())) {
+				continue;
+			}
+			list.add((ExecutableElement) member);
+		}
+		return list;
+	}
 
-  private void addFancyLabel(@NonNull SignatureInformation info) {
-    abortIfCancelled();
-    StringJoiner join = new StringJoiner(", ");
-    for (ParameterInformation p : info.getParameters()) {
-      join.add(p.getLabel());
-    }
-    info.setLabel(info.getLabel() + "(" + join + ")");
-  }
+	private List<ExecutableElement> methodOverloads(
+			CompileTask task, @NonNull MethodInvocationTree method) {
+		abortIfCancelled();
+		if (method.getMethodSelect() instanceof IdentifierTree) {
+			IdentifierTree id = (IdentifierTree) method.getMethodSelect();
+			return scopeOverloads(task, id);
+		}
+		if (method.getMethodSelect() instanceof MemberSelectTree) {
+			MemberSelectTree select = (MemberSelectTree) method.getMethodSelect();
+			return memberOverloads(task, select);
+		}
+		throw new RuntimeException(method.getMethodSelect().toString());
+	}
 
-  @NonNull
-  private List<ParameterInformation> parametersFromSource(MethodTree source) {
-    abortIfCancelled();
-    List<ParameterInformation> list = new ArrayList<>();
-    for (VariableTree p : source.getParameters()) {
-      ParameterInformation info = new ParameterInformation();
-      info.setLabel(p.getType() + " " + p.getName());
-      list.add(info);
-    }
-    return list;
-  }
+	@NonNull
+	private ParameterInformation parameter(@NonNull VariableElement p) {
+		abortIfCancelled();
+		ParameterInformation info = new ParameterInformation();
+		info.setLabel(ShortTypePrinter.NO_PACKAGE.print(p.asType()));
+		return info;
+	}
 
-  private int activeParameter(
-      @NonNull CompileTask task, @NonNull List<? extends ExpressionTree> arguments, long cursor) {
-    abortIfCancelled();
-    SourcePositions pos = Trees.instance(task.task).getSourcePositions();
-    CompilationUnitTree root = task.root();
-    for (int i = 0; i < arguments.size(); i++) {
-      long end = pos.getEndPosition(root, arguments.get(i));
-      if (cursor <= end) {
-        return i;
-      }
-    }
-    return arguments.size();
-  }
+	@NonNull
+	private List<ParameterInformation> parameters(@NonNull ExecutableElement method) {
+		abortIfCancelled();
+		List<ParameterInformation> list = new ArrayList<>();
+		for (VariableElement p : method.getParameters()) {
+			list.add(parameter(p));
+		}
+		return list;
+	}
 
-  private int activeSignature(
-      CompileTask task,
-      TreePath invocation,
-      List<? extends ExpressionTree> arguments,
-      List<ExecutableElement> overloads) {
-    abortIfCancelled();
-    for (int i = 0; i < overloads.size(); i++) {
-      if (isCompatible(task, invocation, arguments, overloads.get(i))) {
-        return i;
-      }
-    }
-    return 0;
-  }
+	@NonNull
+	private List<ParameterInformation> parametersFromSource(MethodTree source) {
+		abortIfCancelled();
+		List<ParameterInformation> list = new ArrayList<>();
+		for (VariableTree p : source.getParameters()) {
+			ParameterInformation info = new ParameterInformation();
+			info.setLabel(p.getType() + " " + p.getName());
+			list.add(info);
+		}
+		return list;
+	}
 
-  private boolean isCompatible(
-      CompileTask task,
-      TreePath invocation,
-      List<? extends ExpressionTree> arguments,
-      ExecutableElement overload) {
-    abortIfCancelled();
-    if (arguments.size() > overload.getParameters().size()) {
-      return false;
-    }
-    for (int i = 0; i < arguments.size(); i++) {
-      ExpressionTree argument = arguments.get(i);
-      TypeMirror argumentType =
-          Trees.instance(task.task).getTypeMirror(new TreePath(invocation, argument));
-      TypeMirror parameterType = overload.getParameters().get(i).asType();
-      if (!isCompatible(task, argumentType, parameterType)) {
-        return false;
-      }
-    }
-    return true;
-  }
+	@NonNull
+	private List<ExecutableElement> scopeOverloads(@NonNull CompileTask task, IdentifierTree method) {
+		abortIfCancelled();
+		Trees trees = Trees.instance(task.task);
+		TreePath path = trees.getPath(task.root(), method);
+		Scope scope = trees.getScope(path);
+		List<ExecutableElement> list = new ArrayList<>();
+		Predicate<CharSequence> filter = name -> method.getName().contentEquals(name);
+		// TODO add static imports
+		for (Element member : ScopeHelper.scopeMembers(task, scope, filter)) {
+			if (member.getKind() == ElementKind.METHOD) {
+				list.add((ExecutableElement) member);
+			}
+		}
+		return list;
+	}
 
-  private boolean isCompatible(CompileTask task, TypeMirror argument, TypeMirror parameter) {
-    abortIfCancelled();
-    if (argument instanceof ErrorType) {
-      return true;
-    }
-    if (argument instanceof PrimitiveType) {
-      argument = task.task.getTypes().boxedClass((PrimitiveType) argument).asType();
-    }
-    if (parameter instanceof PrimitiveType) {
-      parameter = task.task.getTypes().boxedClass((PrimitiveType) parameter).asType();
-    }
-    if (argument instanceof ArrayType) {
-      if (!(parameter instanceof ArrayType)) {
-        return false;
-      }
-      ArrayType argumentA = (ArrayType) argument;
-      ArrayType parameterA = (ArrayType) parameter;
-      return isCompatible(task, argumentA.getComponentType(), parameterA.getComponentType());
-    }
-    if (argument instanceof DeclaredType) {
-      if (!(parameter instanceof DeclaredType)) {
-        return false;
-      }
-      argument = task.task.getTypes().erasure(argument);
-      parameter = task.task.getTypes().erasure(parameter);
-      return argument.toString().equals(parameter.toString());
-    }
-    return true;
-  }
+	private TypeElement typeElement(TypeMirror type) {
+		abortIfCancelled();
+		if (type instanceof DeclaredType) {
+			DeclaredType declared = (DeclaredType) type;
+			return (TypeElement) declared.asElement();
+		}
+		if (type instanceof TypeVariable) {
+			TypeVariable variable = (TypeVariable) type;
+			return typeElement(variable.getUpperBound());
+		}
+		return null;
+	}
 }

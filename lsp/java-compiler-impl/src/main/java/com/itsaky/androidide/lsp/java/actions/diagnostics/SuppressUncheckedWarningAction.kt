@@ -32,57 +32,57 @@ import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
 class SuppressUncheckedWarningAction : BaseJavaCodeAction() {
+	override val id = "ide.editor.lsp.java.diagnostics.suppressUncheckedWarning"
+	override var label: String = ""
+	private val diagnosticCode = DiagnosticCode.UNCHECKED.id
 
-  override val id = "ide.editor.lsp.java.diagnostics.suppressUncheckedWarning"
-  override var label: String = ""
-  private val diagnosticCode = DiagnosticCode.UNCHECKED.id
+	override val titleTextRes: Int = R.string.action_suppress_unchecked_warning
 
-  override val titleTextRes: Int = R.string.action_suppress_unchecked_warning
+	companion object {
+		private val log = LoggerFactory.getLogger(SuppressUncheckedWarningAction::class.java)
+	}
 
-  companion object {
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-    private val log = LoggerFactory.getLogger(SuppressUncheckedWarningAction::class.java)
-  }
+		if (!visible ||
+			!data.hasRequiredData(com.itsaky.androidide.lsp.models.DiagnosticItem::class.java)
+		) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
+		if (diagnosticCode != diagnostic.code) {
+			markInvisible()
+			return
+		}
+	}
 
-    if (!visible || !data.hasRequiredData(
-        com.itsaky.androidide.lsp.models.DiagnosticItem::class.java)
-    ) {
-      markInvisible()
-      return
-    }
+	override suspend fun execAction(data: ActionData): Any {
+		val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
+		val compiler =
+			JavaCompilerProvider.get(IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
+		val file = data.requirePath()
+		return compiler.compile(file).get { task ->
+			val warnedMethod = CodeActionUtils.findMethod(task, diagnostic.range)
+			return@get AddSuppressWarningAnnotation(
+				warnedMethod.className,
+				warnedMethod.methodName,
+				warnedMethod.erasedParameterTypes,
+			)
+		}
+	}
 
-    val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
-    if (diagnosticCode != diagnostic.code) {
-      markInvisible()
-      return
-    }
-  }
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result !is AddSuppressWarningAnnotation) {
+			log.warn("Unable to suppress 'unchecked' warning")
+			return
+		}
 
-  override suspend fun execAction(data: ActionData): Any {
-    val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
-    val compiler =
-      JavaCompilerProvider.get(
-        IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
-    val file = data.requirePath()
-    return compiler.compile(file).get { task ->
-      val warnedMethod = CodeActionUtils.findMethod(task, diagnostic.range)
-      return@get AddSuppressWarningAnnotation(
-        warnedMethod.className,
-        warnedMethod.methodName,
-        warnedMethod.erasedParameterTypes
-      )
-    }
-  }
-
-  override fun postExec(data: ActionData, result: Any) {
-    if (result !is AddSuppressWarningAnnotation) {
-      log.warn("Unable to suppress 'unchecked' warning")
-      return
-    }
-
-    performCodeAction(data, result)
-  }
+		performCodeAction(data, result)
+	}
 }

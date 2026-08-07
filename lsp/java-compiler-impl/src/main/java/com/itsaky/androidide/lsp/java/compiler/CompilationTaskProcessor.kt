@@ -19,7 +19,7 @@ package com.itsaky.androidide.lsp.java.compiler
 
 import openjdk.source.tree.CompilationUnitTree
 import openjdk.tools.javac.api.JavacTaskImpl
-import java.util.function.*
+import java.util.function.Consumer
 
 /**
  * A compilation task processor process the [JavacTaskImpl]. Usually, a processor decides what files
@@ -28,11 +28,13 @@ import java.util.function.*
  * @author Akash Yadav
  */
 fun interface CompilationTaskProcessor {
-
-  /**
-   * Process the given [JavacTaskImpl]. The processor is responsible for parsing and analyzing the
-   * task. For each parsed [CompilationUnitTree], [processCompilationUnit] must be called.
-   */
-  @Throws(Throwable::class)
-  fun process(task: JavacTaskImpl, processCompilationUnit: Consumer<CompilationUnitTree>)
+	/**
+* Process the given [JavacTaskImpl]. The processor is responsible for parsing and analyzing the
+* task. For each parsed [CompilationUnitTree], [processCompilationUnit] must be called.
+*/
+	@Throws(Throwable::class)
+	fun process(
+		task: JavacTaskImpl,
+		processCompilationUnit: Consumer<CompilationUnitTree>,
+	)
 }

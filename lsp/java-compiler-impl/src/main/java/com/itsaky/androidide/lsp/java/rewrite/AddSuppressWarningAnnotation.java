@@ -32,48 +32,47 @@ import openjdk.source.util.Trees;
 
 public class AddSuppressWarningAnnotation extends Rewrite {
 
-  final String className, methodName;
-  final String[] erasedParameterTypes;
+	final String className, methodName;
+	final String[] erasedParameterTypes;
 
-  public AddSuppressWarningAnnotation(
-      String className, String methodName, String[] erasedParameterTypes) {
-    this.className = className;
-    this.methodName = methodName;
-    this.erasedParameterTypes = erasedParameterTypes;
-  }
+	public AddSuppressWarningAnnotation(
+			String className, String methodName, String[] erasedParameterTypes) {
+		this.className = className;
+		this.methodName = methodName;
+		this.erasedParameterTypes = erasedParameterTypes;
+	}
 
-  @NonNull
-  @Override
-  public Map<Path, TextEdit[]> rewrite(@NonNull CompilerProvider compiler) {
-    Path file = compiler.findTypeDeclaration(className);
-    if (file == CompilerProvider.NOT_FOUND) {
-      return CANCELLED;
-    }
-    SynchronizedTask synchronizedTask = compiler.compile(file);
-    return synchronizedTask.get(
-        task -> {
-          final var trees = Trees.instance(task.task);
-          final var methodElement =
-              FindHelper.findMethod(task, className, methodName, erasedParameterTypes);
-          if (methodElement == null) {
-            return CANCELLED;
-          }
-          final var methodTree = trees.getTree(methodElement);
-          if (methodTree == null) {
-            return CANCELLED;
-          }
-          final var startMethod = (int) trees.getSourcePositions()
-              .getStartPosition(task.root(), methodTree);
-          final var lines = task.root().getLineMap();
-          final var line = (int) lines.getLineNumber(startMethod);
-          final var column = (int) lines.getColumnNumber(startMethod);
-          final var startLine = (int) lines.getStartPosition(line);
-          final var indent = EditorUtilKt.indentationString(startMethod - startLine);
-          final var insertText = "@SuppressWarnings(\"unchecked\")\n" + indent;
-          final var insertPoint = new Position(line - 1, column - 1);
-          final var edits = new TextEdit[]{
-              new TextEdit(new Range(insertPoint, insertPoint), insertText)};
-          return Collections.singletonMap(file, edits);
-        });
-  }
+	@NonNull
+	@Override
+	public Map<Path, TextEdit[]> rewrite(@NonNull CompilerProvider compiler) {
+		Path file = compiler.findTypeDeclaration(className);
+		if (file == CompilerProvider.NOT_FOUND) {
+			return CANCELLED;
+		}
+		SynchronizedTask synchronizedTask = compiler.compile(file);
+		return synchronizedTask.get(
+				task -> {
+					final var trees = Trees.instance(task.task);
+					final var methodElement = FindHelper.findMethod(task, className, methodName, erasedParameterTypes);
+					if (methodElement == null) {
+						return CANCELLED;
+					}
+					final var methodTree = trees.getTree(methodElement);
+					if (methodTree == null) {
+						return CANCELLED;
+					}
+					final var startMethod = (int) trees.getSourcePositions()
+							.getStartPosition(task.root(), methodTree);
+					final var lines = task.root().getLineMap();
+					final var line = (int) lines.getLineNumber(startMethod);
+					final var column = (int) lines.getColumnNumber(startMethod);
+					final var startLine = (int) lines.getStartPosition(line);
+					final var indent = EditorUtilKt.indentationString(startMethod - startLine);
+					final var insertText = "@SuppressWarnings(\"unchecked\")\n" + indent;
+					final var insertPoint = new Position(line - 1, column - 1);
+					final var edits = new TextEdit[]{
+							new TextEdit(new Range(insertPoint, insertPoint), insertText)};
+					return Collections.singletonMap(file, edits);
+				});
+	}
 }

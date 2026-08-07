@@ -31,29 +31,28 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 class MultipleClassImportEditHandler(
-  private val classes: Set<String>,
-  private val imported: Set<String>,
-  file: Path
+	private val classes: Set<String>,
+	private val imported: Set<String>,
+	file: Path,
 ) : AdvancedJavaEditHandler(file) {
+	companion object {
+		private val log = LoggerFactory.getLogger(MultipleClassImportEditHandler::class.java)
+	}
 
-  companion object {
-
-    private val log = LoggerFactory.getLogger(MultipleClassImportEditHandler::class.java)
-  }
-
-  override fun performEdits(
-    compiler: JavaCompilerService,
-    editor: CodeEditor,
-    completionItem: com.itsaky.androidide.lsp.models.CompletionItem
-  ) {
-    val edits = mutableListOf<com.itsaky.androidide.lsp.models.TextEdit>()
-    for (className in classes) {
-      try {
-        edits.addAll(EditHelper.addImportIfNeeded(compiler, file, imported, className))
-      } catch (err: Throwable) {
-        log.error("Unable to compute edits to perform import for class: {}", className)
-      }
-    }
-    com.itsaky.androidide.lsp.util.RewriteHelper.performEdits(edits, editor)
-  }
+	override fun performEdits(
+		compiler: JavaCompilerService,
+		editor: CodeEditor,
+		completionItem: com.itsaky.androidide.lsp.models.CompletionItem,
+	) {
+		val edits = mutableListOf<com.itsaky.androidide.lsp.models.TextEdit>()
+		for (className in classes) {
+			try {
+				edits.addAll(EditHelper.addImportIfNeeded(compiler, file, imported, className))
+			} catch (err: Throwable) {
+				log.error("Unable to compute edits to perform import for class: {}", className)
+			}
+		}
+		com.itsaky.androidide.lsp.util.RewriteHelper
+			.performEdits(edits, editor)
+	}
 }

@@ -32,9 +32,8 @@ import java.nio.file.Path
 abstract class BaseJavaServiceProvider(
 	protected val file: Path,
 	protected val compiler: JavaCompilerService,
-	protected val settings: IServerSettings
+	protected val settings: IServerSettings,
 ) {
-
 	/** Abort the completion if cancelled. */
 	fun abortCompletionIfCancelled() {
 		ProgressManager.abortIfCancelled()

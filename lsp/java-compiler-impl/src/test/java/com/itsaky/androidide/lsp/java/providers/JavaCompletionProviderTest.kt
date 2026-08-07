@@ -31,69 +31,68 @@ import org.robolectric.RobolectricTestRunner
 /** @author Akash Yadav */
 @RunWith(RobolectricTestRunner::class)
 class JavaCompletionProviderTest {
+	@Before
+	fun setup() {
+		JavaLSPTest.setup()
+	}
 
-  @Before
-  fun setup() {
-    JavaLSPTest.setup()
-  }
+	@Test
+	fun locals() {
+		JavaLSPTest.apply {
+			openFile("completion/LocalsCompletionTest")
 
-  @Test
-  fun locals() {
-    JavaLSPTest.apply {
-      openFile("completion/LocalsCompletionTest")
+			val pos = cursorPosition()
+			val items = completionTitles(pos)
+			assertThat(items).containsAtLeast("aaString", "aaInt", "aaFloat", "aaDouble", "args")
+		}
+	}
 
-      val pos = cursorPosition()
-      val items = completionTitles(pos)
-      assertThat(items).containsAtLeast("aaString", "aaInt", "aaFloat", "aaDouble", "args")
-    }
-  }
+	fun members() {
+		JavaLSPTest.apply {
+			// Complete members of String
+			openFile("completion/MembersCompletionTest")
 
-  fun members() {
-    JavaLSPTest.apply {
-      // Complete members of String
-      openFile("completion/MembersCompletionTest")
+			val pos = cursorPosition()
+			val items = completionTitles(pos)
+			assertThat(items)
+				.containsAtLeast("getClass", "toLowerCase", "toUpperCase", "substring", "charAt")
+		}
+	}
 
-      val pos = cursorPosition()
-      val items = completionTitles(pos)
-      assertThat(items)
-        .containsAtLeast("getClass", "toLowerCase", "toUpperCase", "substring", "charAt")
-    }
-  }
+	@Test
+	fun lambdaVariableMemberAccess() {
+		JavaLSPTest.apply {
+			// Complete members of Throwable
+			openFile("completion/LambdaMembersCompletionTest")
 
-  @Test
-  fun lambdaVariableMemberAccess() {
-    JavaLSPTest.apply {
-      // Complete members of Throwable
-      openFile("completion/LambdaMembersCompletionTest")
+			val pos = cursorPosition()
+			val items = completionTitles(pos)
+			assertThat(items)
+				.containsAtLeast("getMessage", "getCause", "getStackTrace", "printStackTrace")
+		}
+	}
 
-      val pos = cursorPosition()
-      val items = completionTitles(pos)
-      assertThat(items)
-        .containsAtLeast("getMessage", "getCause", "getStackTrace", "printStackTrace")
-    }
-  }
+	@Test
+	fun staticAccess() {
+		JavaLSPTest.apply {
+			// Complete static members of String
+			openFile("completion/StaticMembersCompletionTest")
 
-  @Test
-  fun staticAccess() {
-    JavaLSPTest.apply {
-      // Complete static members of String
-      openFile("completion/StaticMembersCompletionTest")
+			val pos = cursorPosition()
+			val items = completionTitles(pos)
+			assertThat(items)
+				.containsAtLeast("format", "join", "valueOf", "CASE_INSENSITIVE_ORDER", "class")
+		}
+	}
 
-      val pos = cursorPosition()
-      val items = completionTitles(pos)
-      assertThat(items)
-        .containsAtLeast("format", "join", "valueOf", "CASE_INSENSITIVE_ORDER", "class")
-    }
-  }
-
-  private fun completionTitles(pos: Position): List<CharSequence> {
-    // Bypass JavaLanguageServer.complete() -- it now routes through the DexClassLoader carrier
-    // (ADFA-5053), which isn't available in this unit test environment. Test the isolated
-    // provider directly instead, mirroring what JavaCompilerSessionImpl.complete() does.
-    val params =
-      CompletionParams(pos, JavaLSPTest.file!!, ICancelChecker.NOOP).apply { prefix = "" }
-    val provider = CompletionProvider()
-    provider.reset(JavaLSPTest.getCompiler(), JavaServerSettings.getInstance(), CachedCompletion.EMPTY) {}
-    return provider.complete(params).items.map { it.ideLabel }
-  }
+	private fun completionTitles(pos: Position): List<CharSequence> {
+		// Bypass JavaLanguageServer.complete() -- it now routes through the DexClassLoader carrier
+		// (ADFA-5053), which isn't available in this unit test environment. Test the isolated
+		// provider directly instead, mirroring what JavaCompilerSessionImpl.complete() does.
+		val params =
+			CompletionParams(pos, JavaLSPTest.file!!, ICancelChecker.NOOP).apply { prefix = "" }
+		val provider = CompletionProvider()
+		provider.reset(JavaLSPTest.getCompiler(), JavaServerSettings.getInstance(), CachedCompletion.EMPTY) {}
+		return provider.complete(params).items.map { it.ideLabel }
+	}
 }

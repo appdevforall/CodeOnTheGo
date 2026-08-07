@@ -26,11 +26,14 @@ import java.net.URI
  *
  * @author Akash Yadav
  */
-class TSParseResult(file: JavaFileObject, val tree: TSTree) : AutoCloseable {
-  val uri: URI = file.toUri()
-  val fileModified: Long = file.lastModified
+class TSParseResult(
+	file: JavaFileObject,
+	val tree: TSTree,
+) : AutoCloseable {
+	val uri: URI = file.toUri()
+	val fileModified: Long = file.lastModified
 
-  override fun close() {
-    tree.close()
-  }
+	override fun close() {
+		tree.close()
+	}
 }

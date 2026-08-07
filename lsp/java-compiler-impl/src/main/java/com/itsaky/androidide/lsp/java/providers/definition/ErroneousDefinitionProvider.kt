@@ -39,52 +39,55 @@ import java.nio.file.Paths
  * @author Akash Yadav
  */
 class ErroneousDefinitionProvider(
-  position: Position,
-  completingFile: Path,
-  compiler: JavaCompilerService,
-  settings: IServerSettings, cancelChecker: ICancelChecker,
+	position: Position,
+	completingFile: Path,
+	compiler: JavaCompilerService,
+	settings: IServerSettings,
+	cancelChecker: ICancelChecker,
 ) : IJavaDefinitionProvider(position, completingFile, compiler, settings, cancelChecker) {
+	override fun doFindDefinition(element: Element): List<Location> {
+		val name = element.simpleName ?: return DefinitionProvider.NOT_SUPPORTED
+		val parent = element.enclosingElement as? TypeElement ?: return DefinitionProvider.NOT_SUPPORTED
+		val className = parent.qualifiedName.toString()
+		val memberName = name.toString()
+		return findAllMembers(className, memberName)
+	}
 
-  override fun doFindDefinition(element: Element): List<Location> {
-    val name = element.simpleName ?: return DefinitionProvider.NOT_SUPPORTED
-    val parent = element.enclosingElement as? TypeElement ?: return DefinitionProvider.NOT_SUPPORTED
-    val className = parent.qualifiedName.toString()
-    val memberName = name.toString()
-    return findAllMembers(className, memberName)
-  }
+	private fun findAllMembers(
+		className: String,
+		memberName: String,
+	): List<Location> {
+		val otherFile = compiler.findAnywhere(className)
+		abortIfCancelled()
+		if (!otherFile.isPresent) {
+			log.error("Cannot find source file for class: {}", className)
+			return emptyList()
+		}
 
-  private fun findAllMembers(className: String, memberName: String): List<Location> {
-    val otherFile = compiler.findAnywhere(className)
-    abortIfCancelled()
-    if (!otherFile.isPresent) {
-      log.error("Cannot find source file for class: {}", className)
-      return emptyList()
-    }
+		val fileAsSource = SourceFileObject(file)
+		var sources = listOf(fileAsSource, otherFile.get())
+		if (isSameFile(Paths.get(otherFile.get().toUri()), file)) {
+			sources = listOf<JavaFileObject>(fileAsSource)
+		}
 
-    val fileAsSource = SourceFileObject(file)
-    var sources = listOf(fileAsSource, otherFile.get())
-    if (isSameFile(Paths.get(otherFile.get().toUri()), file)) {
-      sources = listOf<JavaFileObject>(fileAsSource)
-    }
+		abortIfCancelled()
 
-    abortIfCancelled()
+		return compiler.compile(sources).get { task ->
+			val locations = mutableListOf<Location>()
+			val trees = Trees.instance(task.task)
+			val elements = task.task.elements
+			val parentClass = elements.getTypeElement(className)
 
-    return compiler.compile(sources).get { task ->
-      val locations = mutableListOf<Location>()
-      val trees = Trees.instance(task.task)
-      val elements = task.task.elements
-      val parentClass = elements.getTypeElement(className)
+			abortIfCancelled()
+			for (member in elements.getAllMembers(parentClass)) {
+				if (!member.simpleName.contentEquals(memberName)) continue
+				val path = trees.getPath(member) ?: continue
+				val location = FindHelper.location(task, path, memberName)
+				abortIfCancelled()
+				locations.add(location)
+			}
 
-      abortIfCancelled()
-      for (member in elements.getAllMembers(parentClass)) {
-        if (!member.simpleName.contentEquals(memberName)) continue
-        val path = trees.getPath(member) ?: continue
-        val location = FindHelper.location(task, path, memberName)
-        abortIfCancelled()
-        locations.add(location)
-      }
-
-      locations
-    }
-  }
+			locations
+		}
+	}
 }

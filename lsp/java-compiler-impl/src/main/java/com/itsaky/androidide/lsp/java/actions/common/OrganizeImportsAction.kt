@@ -17,71 +17,74 @@ import io.github.rosemoe.sora.widget.CodeEditor
 import org.slf4j.LoggerFactory
 
 class OrganizeImportsAction : BaseJavaCodeAction() {
+	override val id: String = "lsp_java_organizeImports"
+	override var label: String = ""
+	override val titleTextRes: Int = string.action_organize_imports
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS
 
-  override val id: String = "lsp_java_organizeImports"
-  override var label: String = ""
-  override val titleTextRes: Int = string.action_organize_imports
-  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS
+	companion object {
+		private val log = LoggerFactory.getLogger(OrganizeImportsAction::class.java)
+	}
 
-  companion object {
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		if (!visible) {
+			return
+		}
 
-    private val log = LoggerFactory.getLogger(OrganizeImportsAction::class.java)
-  }
+		if (!data.hasRequiredData(CodeEditor::class.java)) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    if (!visible) {
-      return
-    }
+		visible = true
+		enabled = true
+	}
 
-    if (!data.hasRequiredData(CodeEditor::class.java)) {
-      markInvisible()
-      return
-    }
+	override suspend fun execAction(data: ActionData): Any {
+		val watch =
+			com.itsaky.androidide.utils
+				.StopWatch("Organize imports")
+		return try {
+			val editor = data.requireEditor()
+			val content = editor.text
+			val server = data[JavaLanguageServer::class.java]
+			val settings = server!!.settings as JavaServerSettings
+			val style =
+				if (settings.codeStyle == JavaServerSettings.CODE_STYLE_AOSP) {
+					JavaFormatterOptions.Style.AOSP
+				} else {
+					JavaFormatterOptions.Style.GOOGLE
+				}
+			val output = ImportOrderer.reorderImports(content.toString(), style)
+			watch.log()
+			output
+		} catch (e: FormatterException) {
+			log.error("Failed to reorder imports", e)
+			false
+		}
+	}
 
-    visible = true
-    enabled = true
-  }
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		super.postExec(data, result)
+		if (result is String) {
+			if (result.isNotEmpty()) {
+				val editor = data.requireEditor()
+				val cursor = editor.cursor.left()
 
-  override suspend fun execAction(data: ActionData): Any {
-    val watch = com.itsaky.androidide.utils.StopWatch("Organize imports")
-    return try {
-      val editor = data.requireEditor()
-      val content = editor.text
-      val server = data[JavaLanguageServer::class.java]
-      val settings = server!!.settings as JavaServerSettings
-      val style =
-        if (settings.codeStyle == JavaServerSettings.CODE_STYLE_AOSP) {
-          JavaFormatterOptions.Style.AOSP
-        } else {
-          JavaFormatterOptions.Style.GOOGLE
-        }
-      val output = ImportOrderer.reorderImports(content.toString(), style)
-      watch.log()
-      output
-    } catch (e: FormatterException) {
-      log.error("Failed to reorder imports", e)
-      false
-    }
-  }
+				editor.text.apply {
+					val endLine = getLine(lineCount - 1)
+					replace(0, 0, lineCount - 1, endLine.length + endLine.lineSeparator.length, result)
+				}
 
-  override fun postExec(data: ActionData, result: Any) {
-    super.postExec(data, result)
-    if (result is String) {
-      if (result.isNotEmpty()) {
-        val editor = data.requireEditor()
-        val cursor = editor.cursor.left()
-
-        editor.text.apply {
-          val endLine = getLine(lineCount - 1)
-          replace(0, 0, lineCount - 1, endLine.length + endLine.lineSeparator.length, result)
-        }
-
-        (editor as? IEditor?)?.also {
-          it.setSelectionAround(cursor)
-          editor.ensureSelectionVisible()
-        }
-      }
-    }
-  }
+				(editor as? IEditor?)?.also {
+					it.setSelectionAround(cursor)
+					editor.ensureSelectionVisible()
+				}
+			}
+		}
+	}
 }

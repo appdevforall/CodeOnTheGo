@@ -27,10 +27,8 @@ import com.itsaky.androidide.javac.services.compiler.ReusableContext
  * @author Akash Yadav
  */
 class JCReusableCompiler : ReusableCompiler() {
-
-  override fun onCreateContext(): ReusableContext {
-    return super.onCreateContext().also {
-      JavaCompilerImpl.preRegister(context = it, replace = true)
-    }
-  }
+	override fun onCreateContext(): ReusableContext =
+		super.onCreateContext().also {
+			JavaCompilerImpl.preRegister(context = it, replace = true)
+		}
 }

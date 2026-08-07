@@ -33,59 +33,59 @@ import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
 class VariableToStatementAction : BaseJavaCodeAction() {
+	override val id: String = "ide.editor.lsp.java.diagnostics.variableToStatement"
+	override var label: String = ""
+	private val diagnosticCode = DiagnosticCode.UNUSED_LOCAL.id
 
-  override val id: String = "ide.editor.lsp.java.diagnostics.variableToStatement"
-  override var label: String = ""
-  private val diagnosticCode = DiagnosticCode.UNUSED_LOCAL.id
+	override val titleTextRes: Int = R.string.action_convert_to_statement
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
 
-  override val titleTextRes: Int = R.string.action_convert_to_statement
-  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
+	companion object {
+		private val log = LoggerFactory.getLogger(VariableToStatementAction::class.java)
+	}
 
-  companion object {
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-    private val log = LoggerFactory.getLogger(VariableToStatementAction::class.java)
-  }
+		if (!visible) {
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		if (!data.hasRequiredData(com.itsaky.androidide.lsp.models.DiagnosticItem::class.java)) {
+			markInvisible()
+			return
+		}
 
-    if (!visible) {
-      return
-    }
+		val diagnostic = data.get(com.itsaky.androidide.lsp.models.DiagnosticItem::class.java)!!
+		if (diagnosticCode != diagnostic.code) {
+			markInvisible()
+			return
+		}
 
-    if (!data.hasRequiredData(com.itsaky.androidide.lsp.models.DiagnosticItem::class.java)) {
-      markInvisible()
-      return
-    }
+		visible = true
+		enabled = true
+	}
 
-    val diagnostic = data.get(com.itsaky.androidide.lsp.models.DiagnosticItem::class.java)!!
-    if (diagnosticCode != diagnostic.code) {
-      markInvisible()
-      return
-    }
+	override suspend fun execAction(data: ActionData): Any {
+		val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
+		val compiler =
+			JavaCompilerProvider.get(IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
+		val path = data.requirePath()
 
-    visible = true
-    enabled = true
-  }
+		return compiler.compile(path).get {
+			ConvertVariableToStatement(path, findPosition(it, diagnostic.range.start))
+		}
+	}
 
-  override suspend fun execAction(data: ActionData): Any {
-    val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
-    val compiler =
-      JavaCompilerProvider.get(
-        IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
-    val path = data.requirePath()
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result !is ConvertVariableToStatement) {
+			log.warn("Unable to convert variable to statement")
+			return
+		}
 
-    return compiler.compile(path).get {
-      ConvertVariableToStatement(path, findPosition(it, diagnostic.range.start))
-    }
-  }
-
-  override fun postExec(data: ActionData, result: Any) {
-    if (result !is ConvertVariableToStatement) {
-      log.warn("Unable to convert variable to statement")
-      return
-    }
-
-    performCodeAction(data, result)
-  }
+		performCodeAction(data, result)
+	}
 }

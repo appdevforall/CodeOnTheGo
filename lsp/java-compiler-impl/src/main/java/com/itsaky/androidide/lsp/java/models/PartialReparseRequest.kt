@@ -23,4 +23,7 @@ package com.itsaky.androidide.lsp.java.models
  * @param cursor The position of the cursor (1-based).
  * @author Akash Yadav
  */
-data class PartialReparseRequest(@JvmField val cursor: Long, @JvmField val contents: String)
+data class PartialReparseRequest(
+	@JvmField val cursor: Long,
+	@JvmField val contents: String,
+)

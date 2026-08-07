@@ -28,27 +28,28 @@ import openjdk.tools.javac.util.Context
  * @property completionInfo Information about the completion
  * @author Akash Yadav
  */
-class JavaCompilerConfig(context: Context) {
-  init {
-    context.put(compilerConfigKey, this)
-  }
+class JavaCompilerConfig(
+	context: Context,
+) {
+	init {
+		context.put(compilerConfigKey, this)
+	}
 
-  var files: Collection<JavaFileObject>? = null
-  var completionInfo: CompletionInfo? = null
+	var files: Collection<JavaFileObject>? = null
+	var completionInfo: CompletionInfo? = null
 
-  companion object {
+	companion object {
+		@JvmField val compilerConfigKey = Context.Key<JavaCompilerConfig>()
 
-    @JvmField val compilerConfigKey = Context.Key<JavaCompilerConfig>()
-
-    @JvmStatic
-    fun instance(context: Context): JavaCompilerConfig {
-      var instance = context.get(compilerConfigKey)
-      if (instance == null) {
-        instance = JavaCompilerConfig(context)
-      }
-      return instance
-    }
-  }
+		@JvmStatic
+		fun instance(context: Context): JavaCompilerConfig {
+			var instance = context.get(compilerConfigKey)
+			if (instance == null) {
+				instance = JavaCompilerConfig(context)
+			}
+			return instance
+		}
+	}
 }
 
 /**
@@ -57,4 +58,6 @@ class JavaCompilerConfig(context: Context) {
  * @property cursor The cursor position for the completion.
  * @author Akash Yadav
  */
-data class CompletionInfo(val cursor: Position)
+data class CompletionInfo(
+	val cursor: Position,
+)

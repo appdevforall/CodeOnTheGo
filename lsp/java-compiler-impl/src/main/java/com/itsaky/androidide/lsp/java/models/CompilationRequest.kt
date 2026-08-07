@@ -31,11 +31,11 @@ import java.util.function.Consumer
  * @author Akash Yadav
  */
 data class CompilationRequest
-@JvmOverloads
-constructor(
-  @JvmField val sources: Collection<JavaFileObject>,
-  @JvmField val partialRequest: PartialReparseRequest? = null,
-  @JvmField
-  val compilationTaskProcessor: CompilationTaskProcessor = DefaultCompilationTaskProcessor(),
-  @JvmField var configureContext: Consumer<Context>? = null
-)
+	@JvmOverloads
+	constructor(
+		@JvmField val sources: Collection<JavaFileObject>,
+		@JvmField val partialRequest: PartialReparseRequest? = null,
+		@JvmField
+		val compilationTaskProcessor: CompilationTaskProcessor = DefaultCompilationTaskProcessor(),
+		@JvmField var configureContext: Consumer<Context>? = null,
+	)

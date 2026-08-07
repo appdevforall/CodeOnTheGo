@@ -51,138 +51,140 @@ import java.util.function.Predicate
  * @author Akash Yadav
  */
 class ScopeCompletionProvider(
-  completingFile: Path,
-  cursor: Long,
-  compiler: JavaCompilerService,
-  settings: IServerSettings,
+	completingFile: Path,
+	cursor: Long,
+	compiler: JavaCompilerService,
+	settings: IServerSettings,
 ) : IJavaCompletionProvider(cursor, completingFile, compiler, settings) {
+	override fun doComplete(
+		task: CompileTask,
+		path: TreePath,
+		partial: String,
+		endsWithParen: Boolean,
+	): CompletionResult {
+		val trees = Trees.instance(task.task)
+		val list: MutableList<CompletionItem> = ArrayList()
+		val scope = trees.getScope(path)
+		val matchLevels = HashMap<String, MatchLevel>()
+		val filter =
+			Predicate<CharSequence?> {
+				if (it == null || it.isEmpty()) {
+					return@Predicate false
+				}
 
-  override fun doComplete(
-    task: CompileTask,
-    path: TreePath,
-    partial: String,
-    endsWithParen: Boolean,
-  ): CompletionResult {
-    val trees = Trees.instance(task.task)
-    val list: MutableList<CompletionItem> = ArrayList()
-    val scope = trees.getScope(path)
-    val matchLevels = HashMap<String, MatchLevel>()
-    val filter =
-      Predicate<CharSequence?> {
-        if (it == null || it.isEmpty()) {
-          return@Predicate false
-        }
+				var name = it
+				if (it.contains('(')) {
+					name = it.substring(0, it.lastIndexOf('('))
+				}
 
-        var name = it
-        if (it.contains('(')) {
-          name = it.substring(0, it.lastIndexOf('('))
-        }
+				val level = matchLevel(name, partial)
+				matchLevels[name.toString()] = level
+				return@Predicate level != NO_MATCH
+			}
 
-        val level = matchLevel(name, partial)
-        matchLevels[name.toString()] = level
-        return@Predicate level != NO_MATCH
-      }
+		abortCompletionIfCancelled()
+		for (member in ScopeHelper.scopeMembers(task, scope, filter)) {
+			var name = member.simpleName.toString()
+			if (name.contains('(')) {
+				name = name.substring(0, name.lastIndexOf('('))
+			}
 
-    abortCompletionIfCancelled()
-    for (member in ScopeHelper.scopeMembers(task, scope, filter)) {
-      var name = member.simpleName.toString()
-      if (name.contains('(')) {
-        name = name.substring(0, name.lastIndexOf('('))
-      }
+			val matchLevel = matchLevels.getOrDefault(name, NO_MATCH)
 
-      val matchLevel = matchLevels.getOrDefault(name, NO_MATCH)
+			if (member.kind == METHOD) {
+				val method = member as ExecutableElement
+				// path is the method; go up one more level to get the class
+				val parentPath = path.parentPath.parentPath
+				list.add(overrideIfPossible(task, parentPath, method, endsWithParen, matchLevel, partial))
+			} else {
+				list.add(item(task, member, matchLevel))
+			}
+		}
 
-      if (member.kind == METHOD) {
-        val method = member as ExecutableElement
-        val parentPath = path.parentPath /*method*/.parentPath /*class*/
-        list.add(overrideIfPossible(task, parentPath, method, endsWithParen, matchLevel, partial))
-      } else {
-        list.add(item(task, member, matchLevel))
-      }
-    }
+		log.info("...found  {} scope members", list.size)
 
-    log.info("...found  {} scope members", list.size)
+		return CompletionResult(list)
+	}
 
-    return CompletionResult(list)
-  }
+/**
+* Override the given method if it is overridable.
+*
+* @param task The compilation task.
+* @param parentPath The tree path of the parent class.
+* @param method The method to override if possible.
+* @param endsWithParen Does the statement at cursor ends with a parenthesis?
+* @return The completion item.
+*/
+	private fun overrideIfPossible(
+		task: CompileTask,
+		parentPath: TreePath,
+		method: ExecutableElement,
+		endsWithParen: Boolean,
+		matchLevel: MatchLevel,
+		partial: String,
+	): CompletionItem {
+		if (parentPath.leaf.kind != CLASS) {
+			// Can only override if the cursor is directly in a class declaration
+			return method(task, listOf(method), !endsWithParen, matchLevel, partial)
+		}
 
-  /**
-   * Override the given method if it is overridable.
-   *
-   * @param task The compilation task.
-   * @param parentPath The tree path of the parent class.
-   * @param method The method to override if possible.
-   * @param endsWithParen Does the statement at cursor ends with a parenthesis?
-   * @return The completion item.
-   */
-  private fun overrideIfPossible(
-    task: CompileTask,
-    parentPath: TreePath,
-    method: ExecutableElement,
-    endsWithParen: Boolean,
-    matchLevel: MatchLevel,
-    partial: String
-  ): CompletionItem {
-    if (parentPath.leaf.kind != CLASS) {
-      // Can only override if the cursor is directly in a class declaration
-      return method(task, listOf(method), !endsWithParen, matchLevel, partial)
-    }
+		abortCompletionIfCancelled()
+		val types = task.task.types
+		val parentElement =
+			Trees.instance(task.task).getElement(parentPath)
+				?: // Can't get further information for overriding this method
+				return method(task, listOf(method), !endsWithParen, matchLevel, partial)
+		val type = parentElement.asType() as DeclaredType
+		val enclosing = method.enclosingElement
+		val isFinalClass = enclosing.modifiers.contains(FINAL)
+		val isNotOverridable =
+			(
+				method.modifiers.contains(STATIC) ||
+					method.modifiers.contains(FINAL) ||
+					method.modifiers.contains(PRIVATE)
+			)
+		if (
+			isFinalClass ||
+			isNotOverridable ||
+			!types.isAssignable(type, enclosing.asType()) ||
+			parentPath.leaf !is ClassTree
+		) {
+			// Override is not possible
+			return method(task, listOf(method), !endsWithParen, matchLevel, partial)
+		}
 
-    abortCompletionIfCancelled()
-    val types = task.task.types
-    val parentElement =
-      Trees.instance(task.task).getElement(parentPath)
-        ?: // Can't get further information for overriding this method
-        return method(task, listOf(method), !endsWithParen, matchLevel, partial)
-    val type = parentElement.asType() as DeclaredType
-    val enclosing = method.enclosingElement
-    val isFinalClass = enclosing.modifiers.contains(FINAL)
-    val isNotOverridable =
-      (method.modifiers.contains(STATIC) ||
-          method.modifiers.contains(FINAL) ||
-          method.modifiers.contains(PRIVATE))
-    if (
-      isFinalClass ||
-      isNotOverridable ||
-      !types.isAssignable(type, enclosing.asType()) ||
-      parentPath.leaf !is ClassTree
-    ) {
-      // Override is not possible
-      return method(task, listOf(method), !endsWithParen, matchLevel, partial)
-    }
+		// Print the method details and the annotations
+		// Print the method details and the annotations
+		val builder: Builder
+		try {
+			builder = buildMethod(method, types, type)
+		} catch (error: Throwable) {
+			log.error("Cannot override method:{} err={}", method.simpleName, error.message)
+			return method(task, listOf(method), !endsWithParen, matchLevel, partial)
+		}
 
-    // Print the method details and the annotations
-    // Print the method details and the annotations
-    val builder: Builder
-    try {
-      builder = buildMethod(method, types, type)
-    } catch (error: Throwable) {
-      log.error("Cannot override method:{} err={}", method.simpleName, error.message)
-      return method(task, listOf(method), !endsWithParen, matchLevel, partial)
-    }
+		val imports = mutableSetOf<String>()
+		val methodSpec = builder.build()
+		val insertText = print(methodSpec, imports, false)
 
-    val imports = mutableSetOf<String>()
-    val methodSpec = builder.build()
-    val insertText = print(methodSpec, imports, false)
+		abortCompletionIfCancelled()
 
-    abortCompletionIfCancelled()
+		val item = JavaCompletionItem()
+		item.ideLabel = methodSpec.name
+		item.completionKind = com.itsaky.androidide.lsp.models.CompletionItemKind.METHOD
+		item.detail = method.returnType.toString() + " " + method
+		item.ideSortText = item.ideLabel
+		item.insertText = insertText
+		item.insertTextFormat = SNIPPET
+		item.snippetDescription = describeSnippet(partial)
+		item.matchLevel = matchLevel
+		item.data = data(task, method, 1)
+		if (item.additionalTextEdits == null) {
+			item.additionalTextEdits = mutableListOf()
+		}
 
-    val item = JavaCompletionItem()
-    item.ideLabel = methodSpec.name
-    item.completionKind = com.itsaky.androidide.lsp.models.CompletionItemKind.METHOD
-    item.detail = method.returnType.toString() + " " + method
-    item.ideSortText = item.ideLabel
-    item.insertText = insertText
-    item.insertTextFormat = SNIPPET
-    item.snippetDescription = describeSnippet(partial)
-    item.matchLevel = matchLevel
-    item.data = data(task, method, 1)
-    if (item.additionalTextEdits == null) {
-      item.additionalTextEdits = mutableListOf()
-    }
-
-    imports.removeIf { "java.lang." == it || fileImports.contains(it) || filePackage == it }
-    item.additionalEditHandler = MultipleClassImportEditHandler(imports, fileImports, file)
-    return item
-  }
+		imports.removeIf { "java.lang." == it || fileImports.contains(it) || filePackage == it }
+		item.additionalEditHandler = MultipleClassImportEditHandler(imports, fileImports, file)
+		return item
+	}
 }

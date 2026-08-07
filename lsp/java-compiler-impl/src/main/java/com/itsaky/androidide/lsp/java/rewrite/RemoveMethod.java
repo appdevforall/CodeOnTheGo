@@ -28,40 +28,39 @@ import openjdk.source.util.Trees;
 
 public class RemoveMethod extends Rewrite {
 
-  final String className, methodName;
-  final String[] erasedParameterTypes;
+	final String className, methodName;
+	final String[] erasedParameterTypes;
 
-  public RemoveMethod(String className, String methodName, String[] erasedParameterTypes) {
-    this.className = className;
-    this.methodName = methodName;
-    this.erasedParameterTypes = erasedParameterTypes;
-  }
+	public RemoveMethod(String className, String methodName, String[] erasedParameterTypes) {
+		this.className = className;
+		this.methodName = methodName;
+		this.erasedParameterTypes = erasedParameterTypes;
+	}
 
-  @NonNull
-  @Override
-  public Map<Path, TextEdit[]> rewrite(CompilerProvider compiler) {
-    Path file = compiler.findTypeDeclaration(className);
-    if (file == CompilerProvider.NOT_FOUND) {
-      return CANCELLED;
-    }
+	@NonNull
+	@Override
+	public Map<Path, TextEdit[]> rewrite(CompilerProvider compiler) {
+		Path file = compiler.findTypeDeclaration(className);
+		if (file == CompilerProvider.NOT_FOUND) {
+			return CANCELLED;
+		}
 
-    return compiler
-        .compile(file)
-        .get(
-            task -> {
-              final var methodElement =
-                  FindHelper.findMethod(task, className, methodName, erasedParameterTypes);
-              if (methodElement == null) {
-                return CANCELLED;
-              }
+		return compiler
+				.compile(file)
+				.get(
+						task -> {
+							final var methodElement = FindHelper.findMethod(task, className, methodName, erasedParameterTypes);
+							if (methodElement == null) {
+								return CANCELLED;
+							}
 
-              final var methodTree = Trees.instance(task.task).getTree(methodElement);
-              if (methodTree == null) {
-                return CANCELLED;
-              }
+							final var methodTree = Trees.instance(task.task).getTree(methodElement);
+							if (methodTree == null) {
+								return CANCELLED;
+							}
 
-              TextEdit[] edits = {EditHelper.removeTree(task.task, task.root(), methodTree)};
-              return Collections.singletonMap(file, edits);
-            });
-  }
+							TextEdit[] edits = {EditHelper.removeTree(task.task, task.root(), methodTree)};
+							return Collections.singletonMap(file, edits);
+						});
+	}
 }

@@ -32,12 +32,14 @@ import java.nio.file.Path
  * @param file The file in which this edit will be performed.
  * @author Akash Yadav
  */
-class ClassImportEditHandler(val imports: Set<String>, file: Path) : AdvancedJavaEditHandler(file) {
-
+class ClassImportEditHandler(
+	val imports: Set<String>,
+	file: Path,
+) : AdvancedJavaEditHandler(file) {
 	override fun performEdits(
 		compiler: JavaCompilerService,
 		editor: CodeEditor,
-		completionItem: CompletionItem
+		completionItem: CompletionItem,
 	) {
 		val data = completionItem.data as? ClassCompletionData ?: return
 		val className = data.className

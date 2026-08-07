@@ -27,41 +27,41 @@ import openjdk.source.util.Trees
 
 /** @author Akash Yadav */
 fun positionForImports(className: String, task: ParseTask): Position {
-  return positionForImports(className, task.task, task.root)
+return positionForImports(className, task.task, task.root)
 }
 
 fun positionForImports(className: String, task: CompileTask): Position {
-  return positionForImports(className, task.task, task.root())
+return positionForImports(className, task.task, task.root())
 }
 
 fun positionForImports(className: String, task: JavacTask, root: CompilationUnitTree): Position {
-  val imports = root.imports
-  for (i in imports) {
-    val next = i.qualifiedIdentifier.toString()
-    if (className < next) {
-      return insertBefore(task, root, i)
-    }
-  }
-  if (imports.isNotEmpty()) {
-    val last = imports[imports.size - 1]
-    return insertAfter(task, root, last)
-  }
+val imports = root.imports
+for (i in imports) {
+	val next = i.qualifiedIdentifier.toString()
+	if (className < next) {
+	return insertBefore(task, root, i)
+	}
+}
+if (imports.isNotEmpty()) {
+	val last = imports[imports.size - 1]
+	return insertAfter(task, root, last)
+}
 
-  return if (root.getPackage() != null) {
-    insertAfter(task, root, root.getPackage())
-  } else Position(0, 0)
+return if (root.getPackage() != null) {
+	insertAfter(task, root, root.getPackage())
+} else Position(0, 0)
 }
 
 fun insertBefore(task: JavacTask, root: CompilationUnitTree, tree: Tree): Position {
-  val pos = Trees.instance(task).sourcePositions
-  val offset = pos.getStartPosition(root, tree)
-  val line = root.lineMap.getLineNumber(offset).toInt()
-  return Position(line - 1, 0)
+val pos = Trees.instance(task).sourcePositions
+val offset = pos.getStartPosition(root, tree)
+val line = root.lineMap.getLineNumber(offset).toInt()
+return Position(line - 1, 0)
 }
 
 fun insertAfter(task: JavacTask, root: CompilationUnitTree, tree: Tree): Position {
-  val pos = Trees.instance(task).sourcePositions
-  val offset = pos.getStartPosition(root, tree)
-  val line = root.lineMap.getLineNumber(offset).toInt()
-  return Position(line, 0)
+val pos = Trees.instance(task).sourcePositions
+val offset = pos.getStartPosition(root, tree)
+val line = root.lineMap.getLineNumber(offset).toInt()
+return Position(line, 0)
 }

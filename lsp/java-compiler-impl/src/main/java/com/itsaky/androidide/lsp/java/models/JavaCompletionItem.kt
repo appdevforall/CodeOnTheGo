@@ -33,45 +33,42 @@ import com.itsaky.androidide.lsp.models.TextEdit
  * @author Akash Yadav
  */
 class JavaCompletionItem(
-  label: String,
-  detail: String,
-  insertText: String?,
-  insertTextFormat: InsertTextFormat?,
-  sortText: String?,
-  command: Command?,
-  kind: CompletionItemKind,
-  matchLevel: MatchLevel,
-  additionalTextEdits: List<TextEdit>?,
-  data: ICompletionData?,
-
-  // Override the default edit handler
-  editHandler: IEditHandler = BaseJavaEditHandler()
-) :
-  CompletionItem(
-    label,
-    detail,
-    insertText,
-    insertTextFormat,
-    sortText,
-    command,
-    kind,
-    matchLevel,
-    additionalTextEdits,
-    data,
-    editHandler
-  ) {
-
-  constructor() :
-    this(
-      "", // label
-      "", // detail
-      null, // insertText
-      null, // insertTextFormat
-      null, // sortText
-      null, // command
-      CompletionItemKind.NONE, // kind
-      MatchLevel.NO_MATCH, // match level
-      ArrayList(), // additionalEdits
-      null // data
-    )
+	label: String,
+	detail: String,
+	insertText: String?,
+	insertTextFormat: InsertTextFormat?,
+	sortText: String?,
+	command: Command?,
+	kind: CompletionItemKind,
+	matchLevel: MatchLevel,
+	additionalTextEdits: List<TextEdit>?,
+	data: ICompletionData?,
+	// Override the default edit handler
+	editHandler: IEditHandler = BaseJavaEditHandler(),
+) : CompletionItem(
+		label,
+		detail,
+		insertText,
+		insertTextFormat,
+		sortText,
+		command,
+		kind,
+		matchLevel,
+		additionalTextEdits,
+		data,
+		editHandler,
+	) {
+	constructor() :
+		this(
+			"", // label
+			"", // detail
+			null, // insertText
+			null, // insertTextFormat
+			null, // sortText
+			null, // command
+			CompletionItemKind.NONE, // kind
+			MatchLevel.NO_MATCH, // match level
+			ArrayList(), // additionalEdits
+			null, // data
+		)
 }

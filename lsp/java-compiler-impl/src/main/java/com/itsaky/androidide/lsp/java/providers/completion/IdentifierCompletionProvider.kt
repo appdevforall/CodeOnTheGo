@@ -27,55 +27,54 @@ import java.nio.file.Path
 
 /** @author Akash Yadav */
 class IdentifierCompletionProvider(
-  completingFile: Path,
-  cursor: Long,
-  compiler: JavaCompilerService,
-  settings: IServerSettings
+	completingFile: Path,
+	cursor: Long,
+	compiler: JavaCompilerService,
+	settings: IServerSettings,
 ) : IJavaCompletionProvider(cursor, completingFile, compiler, settings) {
+	override fun doComplete(
+		task: CompileTask,
+		path: TreePath,
+		partial: String,
+		endsWithParen: Boolean,
+	): CompletionResult {
+		val list = mutableListOf<CompletionItem>()
 
-  override fun doComplete(
-    task: CompileTask,
-    path: TreePath,
-    partial: String,
-    endsWithParen: Boolean,
-  ): CompletionResult {
-    val list = mutableListOf<CompletionItem>()
+		abortCompletionIfCancelled()
 
-    abortCompletionIfCancelled()
+		val snippets =
+			SnippetCompletionProvider(cursor, file, compiler, settings)
+				.complete(task, path, partial, endsWithParen)
+		list.addAll(snippets.items)
 
-    val snippets =
-      SnippetCompletionProvider(cursor, file, compiler, settings)
-        .complete(task, path, partial, endsWithParen)
-    list.addAll(snippets.items)
+		val scopeMembers =
+			ScopeCompletionProvider(file, cursor, compiler, settings)
+				.complete(task, path, partial, endsWithParen)
+		list.addAll(scopeMembers.items)
 
-    val scopeMembers =
-      ScopeCompletionProvider(file, cursor, compiler, settings)
-        .complete(task, path, partial, endsWithParen)
-    list.addAll(scopeMembers.items)
+		abortCompletionIfCancelled()
+		val staticImports =
+			StaticImportCompletionProvider(file, cursor, compiler, settings, path.compilationUnit)
+				.complete(task, path, partial, endsWithParen)
+		list.addAll(staticImports.items)
 
-    abortCompletionIfCancelled()
-    val staticImports =
-      StaticImportCompletionProvider(file, cursor, compiler, settings, path.compilationUnit)
-        .complete(task, path, partial, endsWithParen)
-    list.addAll(staticImports.items)
+		if (CompletionResult.TRIM_TO_MAX && list.size < CompletionResult.MAX_ITEMS) {
+			val allLower: Boolean = settings.shouldMatchAllLowerCase()
+			if (allLower || (partial.isNotEmpty() && Character.isUpperCase(partial[0]))) {
+				abortCompletionIfCancelled()
+				val classNames =
+					ClassNamesCompletionProvider(file, cursor, compiler, settings, path.compilationUnit)
+						.complete(task, path, partial, endsWithParen)
+				list.addAll(classNames.items)
+			}
+		}
 
-    if (CompletionResult.TRIM_TO_MAX && list.size < CompletionResult.MAX_ITEMS) {
-      val allLower: Boolean = settings.shouldMatchAllLowerCase()
-      if (allLower || partial.isNotEmpty() && Character.isUpperCase(partial[0])) {
-        abortCompletionIfCancelled()
-        val classNames =
-          ClassNamesCompletionProvider(file, cursor, compiler, settings, path.compilationUnit)
-            .complete(task, path, partial, endsWithParen)
-        list.addAll(classNames.items)
-      }
-    }
+		abortCompletionIfCancelled()
+		val keywords =
+			KeywordCompletionProvider(file, cursor, compiler, settings)
+				.complete(task, path, partial, endsWithParen)
+		list.addAll(keywords.items)
 
-    abortCompletionIfCancelled()
-    val keywords =
-      KeywordCompletionProvider(file, cursor, compiler, settings)
-        .complete(task, path, partial, endsWithParen)
-    list.addAll(keywords.items)
-
-    return CompletionResult(list)
-  }
+		return CompletionResult(list)
+	}
 }

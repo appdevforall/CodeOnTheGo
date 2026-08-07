@@ -40,72 +40,73 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 class SnippetCompletionProvider(
-  cursor: Long,
-  completingFile: Path,
-  compiler: JavaCompilerService,
-  settings: IServerSettings
+	cursor: Long,
+	completingFile: Path,
+	compiler: JavaCompilerService,
+	settings: IServerSettings,
 ) : IJavaCompletionProvider(cursor, completingFile, compiler, settings) {
+	override fun doComplete(
+		task: CompileTask,
+		path: TreePath,
+		partial: String,
+		endsWithParen: Boolean,
+	): CompletionResult {
+		val scope = findSnippetScope(path) ?: return CompletionResult.EMPTY
+		val indent = spacesBeforeCursor(task.root().sourceFile.getCharContent(true))
+		val snippets = mutableListOf<ISnippet>()
 
-  override fun doComplete(
-    task: CompileTask,
-    path: TreePath,
-    partial: String,
-    endsWithParen: Boolean
-  ): CompletionResult {
-    val scope = findSnippetScope(path) ?: return CompletionResult.EMPTY
-    val indent = spacesBeforeCursor(task.root().sourceFile.getCharContent(true))
-    val snippets = mutableListOf<ISnippet>()
+		// add global snippets, if any
+		JavaSnippetRepository.snippets[JavaSnippetScope.GLOBAL]?.let { snippets.addAll(it) }
 
-    // add global snippets, if any
-    JavaSnippetRepository.snippets[JavaSnippetScope.GLOBAL]?.let { snippets.addAll(it) }
+		val snippetScope =
+			when (scope.leaf) {
+				is CompilationUnitTree -> JavaSnippetScope.TOP_LEVEL
+				is ClassTree -> JavaSnippetScope.MEMBER
+				is MethodTree -> JavaSnippetScope.LOCAL
+				else -> null
+			}
 
-    val snippetScope =
-      when (scope.leaf) {
-        is CompilationUnitTree -> JavaSnippetScope.TOP_LEVEL
-        is ClassTree -> JavaSnippetScope.MEMBER
-        is MethodTree -> JavaSnippetScope.LOCAL
-        else -> null
-      }
+		// add snippets for the current scope
+		snippetScope?.let { JavaSnippetRepository.snippets[it]?.let { list -> snippets.addAll(list) } }
 
-    // add snippets for the current scope
-    snippetScope?.let { JavaSnippetRepository.snippets[it]?.let { list -> snippets.addAll(list) } }
+		val items = mutableListOf<CompletionItem>()
 
-    val items = mutableListOf<CompletionItem>()
+		for (snippet in snippets) {
+			val matchLevel = matchLevel(snippet.prefix, partial)
+			if (matchLevel == MatchLevel.NO_MATCH) {
+				continue
+			}
 
-    for (snippet in snippets) {
-      val matchLevel = matchLevel(snippet.prefix, partial)
-      if (matchLevel == MatchLevel.NO_MATCH) {
-        continue
-      }
+			items.add(snippetItem(snippet, matchLevel, partial, indent))
+		}
 
-      items.add(snippetItem(snippet, matchLevel, partial, indent))
-    }
+		return CompletionResult(items)
+	}
 
-    return CompletionResult(items)
-  }
+	private fun spacesBeforeCursor(charContent: CharSequence?): Int {
+		charContent ?: return 0
+		var start = cursor.toInt()
+		while (start >= 0) {
+			val c = charContent[start]
+			if (c == '\n' || !c.isWhitespace()) {
+				break
+			}
+			--start
+		}
+		return TextUtils.countLeadingSpaceCount(
+			charContent.substring(start, cursor.toInt()),
+			EditorPreferences.tabSize,
+		)
+	}
 
-  private fun spacesBeforeCursor(charContent: CharSequence?): Int {
-    charContent ?: return 0
-    var start = cursor.toInt()
-    while (start >= 0) {
-      val c = charContent[start]
-      if (c == '\n' || !c.isWhitespace()) {
-        break
-      }
-      --start
-    }
-    return TextUtils.countLeadingSpaceCount(charContent.substring(start, cursor.toInt()),
-      EditorPreferences.tabSize)
-  }
-
-  private fun findSnippetScope(path: TreePath?): TreePath? {
-    var scope = path
-    while (scope != null) {
-      if (scope.leaf.let { it is CompilationUnitTree || it is ClassTree || it is MethodTree }) {
-        return scope
-      }
-      scope = scope.parentPath
-    }
-    return null
-  }
+	private fun findSnippetScope(path: TreePath?): TreePath? {
+		var scope = path
+		while (scope != null) {
+			if (scope.leaf.let { it is CompilationUnitTree || it is ClassTree || it is MethodTree }) {
+				return scope
+			}
+			scope = scope.parentPath
+		}
+		return null
+	}
 }

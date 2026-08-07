@@ -29,8 +29,10 @@ import io.github.rosemoe.sora.widget.CodeEditor
  * @author Akash Yadav
  */
 open class BaseJavaEditHandler : DefaultEditHandler() {
-
-	override fun executeCommand(editor: CodeEditor, command: Command?) {
+	override fun executeCommand(
+		editor: CodeEditor,
+		command: Command?,
+	) {
 		if (editor is ILspEditor) {
 			editor.executeCommand(command)
 			return

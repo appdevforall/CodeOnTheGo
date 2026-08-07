@@ -32,24 +32,23 @@ import java.io.File
  * @author Akash Yadav
  */
 class FindReferencesAction : BaseJavaCodeAction() {
+	override val titleTextRes: Int = R.string.action_find_references
+	override val id: String = "ide.editor.lsp.java.findReferences"
+	override var label: String = ""
+	override var requiresUIThread: Boolean = true
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIND_REFS
 
-  override val titleTextRes: Int = R.string.action_find_references
-  override val id: String = "ide.editor.lsp.java.findReferences"
-  override var label: String = ""
-  override var requiresUIThread: Boolean = true
-  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIND_REFS
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		if (!visible || !data.hasRequiredData(CodeEditor::class.java, File::class.java)) {
+			markInvisible()
+			return
+		}
+	}
 
-    if (!visible || !data.hasRequiredData(CodeEditor::class.java, File::class.java)) {
-      markInvisible()
-      return
-    }
-  }
-
-  override suspend fun execAction(data: ActionData): Any {
-    val editor = data[CodeEditor::class.java]!!
-    return (editor as? ILspEditor)?.findReferences() ?: false
-  }
+	override suspend fun execAction(data: ActionData): Any {
+		val editor = data[CodeEditor::class.java]!!
+		return (editor as? ILspEditor)?.findReferences() ?: false
+	}
 }

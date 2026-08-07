@@ -23,15 +23,14 @@ package com.itsaky.androidide.lsp.java.utils
  * @author Akash Yadav
  */
 class TestUtils {
-  companion object {
-    @JvmStatic
-    fun isTestEnvironment(): Boolean {
-      return try {
-        Class.forName("org.robolectric.RobolectricTestRunner")
-        true
-      } catch (error: ClassNotFoundException) {
-        false
-      }
-    }
-  }
+	companion object {
+		@JvmStatic
+		fun isTestEnvironment(): Boolean =
+			try {
+				Class.forName("org.robolectric.RobolectricTestRunner")
+				true
+			} catch (error: ClassNotFoundException) {
+				false
+			}
+	}
 }

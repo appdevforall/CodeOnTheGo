@@ -37,109 +37,114 @@ import java.util.Optional;
 
 public class PrettyPrintingVisitor extends DefaultPrettyPrinterVisitor {
 
-  public PrettyPrintingVisitor(PrinterConfiguration configuration) {
-    super(configuration);
-  }
+	public PrettyPrintingVisitor(PrinterConfiguration configuration) {
+		super(configuration);
+	}
 
-  public PrettyPrintingVisitor(PrinterConfiguration configuration, SourcePrinter printer) {
-    super(configuration, printer);
-  }
+	public PrettyPrintingVisitor(PrinterConfiguration configuration, SourcePrinter printer) {
+		super(configuration, printer);
+	}
 
-  @Override
-  public void visit(Name n, Void arg) {
-    printOrphanCommentsBeforeThisChildNode(n);
-    printComment(n.getComment(), arg);
-    printer.print(n.getIdentifier());
-    printOrphanCommentsEnding(n);
-  }
+	@Override
+	public void visit(ClassOrInterfaceType n, Void arg) {
+		printOrphanCommentsBeforeThisChildNode(n);
+		printComment(n.getComment(), arg);
 
-  @Override
-  public void visit(SimpleName n, Void arg) {
-    printOrphanCommentsBeforeThisChildNode(n);
-    printComment(n.getComment(), arg);
+		printAnnotations(n.getAnnotations(), false, arg);
 
-    String identifier = n.getIdentifier();
-    printer.print(getSimpleName(identifier));
-  }
+		n.getName().accept(this, arg);
 
-  @Override
-  public void visit(ClassOrInterfaceType n, Void arg) {
-    printOrphanCommentsBeforeThisChildNode(n);
-    printComment(n.getComment(), arg);
+		if (n.isUsingDiamondOperator()) {
+			printer.print("<>");
+		} else {
+			printTypeArgs(n, arg);
+		}
+	}
 
-    printAnnotations(n.getAnnotations(), false, arg);
+	@Override
+	public void visit(Name n, Void arg) {
+		printOrphanCommentsBeforeThisChildNode(n);
+		printComment(n.getComment(), arg);
+		printer.print(n.getIdentifier());
+		printOrphanCommentsEnding(n);
+	}
 
-    n.getName().accept(this, arg);
+	@Override
+	public void visit(SimpleName n, Void arg) {
+		printOrphanCommentsBeforeThisChildNode(n);
+		printComment(n.getComment(), arg);
 
-    if (n.isUsingDiamondOperator()) {
-      printer.print("<>");
-    } else {
-      printTypeArgs(n, arg);
-    }
-  }
+		String identifier = n.getIdentifier();
+		printer.print(getSimpleName(identifier));
+	}
 
-  protected void printOrphanCommentsBeforeThisChildNode(final Node node) {
-    if (!getOption(DefaultPrinterConfiguration.ConfigOption.PRINT_COMMENTS).isPresent()) return;
-    if (node instanceof Comment) return;
+	protected void printOrphanCommentsBeforeThisChildNode(final Node node) {
+		if (!getOption(DefaultPrinterConfiguration.ConfigOption.PRINT_COMMENTS).isPresent())
+			return;
+		if (node instanceof Comment)
+			return;
 
-    Node parent = node.getParentNode().orElse(null);
-    if (parent == null) return;
-    List<Node> everything = new ArrayList<>(parent.getChildNodes());
-    sortByBeginPosition(everything);
-    int positionOfTheChild = -1;
-    for (int i = 0; i < everything.size(); ++i) { // indexOf is by equality, so this
-      // is used to index by identity
-      if (everything.get(i) == node) {
-        positionOfTheChild = i;
-        break;
-      }
-    }
-    if (positionOfTheChild == -1) {
-      throw new AssertionError("I am not a child of my parent.");
-    }
-    int positionOfPreviousChild = -1;
-    for (int i = positionOfTheChild - 1; i >= 0 && positionOfPreviousChild == -1; i--) {
-      if (!(everything.get(i) instanceof Comment)) positionOfPreviousChild = i;
-    }
-    for (int i = positionOfPreviousChild + 1; i < positionOfTheChild; i++) {
-      Node nodeToPrint = everything.get(i);
-      if (!(nodeToPrint instanceof Comment))
-        throw new RuntimeException(
-            "Expected comment, instead "
-                + nodeToPrint.getClass()
-                + ". Position of previous child: "
-                + positionOfPreviousChild
-                + ", position of child "
-                + positionOfTheChild);
-      nodeToPrint.accept(this, null);
-    }
-  }
+		Node parent = node.getParentNode().orElse(null);
+		if (parent == null)
+			return;
+		List<Node> everything = new ArrayList<>(parent.getChildNodes());
+		sortByBeginPosition(everything);
+		int positionOfTheChild = -1;
+		for (int i = 0; i < everything.size(); ++i) { // indexOf is by equality, so this
+			// is used to index by identity
+			if (everything.get(i) == node) {
+				positionOfTheChild = i;
+				break;
+			}
+		}
+		if (positionOfTheChild == -1) {
+			throw new AssertionError("I am not a child of my parent.");
+		}
+		int positionOfPreviousChild = -1;
+		for (int i = positionOfTheChild - 1; i >= 0 && positionOfPreviousChild == -1; i--) {
+			if (!(everything.get(i) instanceof Comment))
+				positionOfPreviousChild = i;
+		}
+		for (int i = positionOfPreviousChild + 1; i < positionOfTheChild; i++) {
+			Node nodeToPrint = everything.get(i);
+			if (!(nodeToPrint instanceof Comment))
+				throw new RuntimeException(
+						"Expected comment, instead "
+								+ nodeToPrint.getClass()
+								+ ". Position of previous child: "
+								+ positionOfPreviousChild
+								+ ", position of child "
+								+ positionOfTheChild);
+			nodeToPrint.accept(this, null);
+		}
+	}
 
-  private Optional<ConfigurationOption> getOption(
-      DefaultPrinterConfiguration.ConfigOption cOption) {
-    return configuration.get(new DefaultConfigurationOption(cOption));
-  }
+	protected void printOrphanCommentsEnding(final Node node) {
+		if (!getOption(DefaultPrinterConfiguration.ConfigOption.PRINT_COMMENTS).isPresent())
+			return;
 
-  protected void printOrphanCommentsEnding(final Node node) {
-    if (!getOption(DefaultPrinterConfiguration.ConfigOption.PRINT_COMMENTS).isPresent()) return;
+		List<Node> everything = new ArrayList<>(node.getChildNodes());
+		sortByBeginPosition(everything);
+		if (everything.isEmpty()) {
+			return;
+		}
 
-    List<Node> everything = new ArrayList<>(node.getChildNodes());
-    sortByBeginPosition(everything);
-    if (everything.isEmpty()) {
-      return;
-    }
+		int commentsAtEnd = 0;
+		boolean findingComments = true;
+		while (findingComments && commentsAtEnd < everything.size()) {
+			Node last = everything.get(everything.size() - 1 - commentsAtEnd);
+			findingComments = (last instanceof Comment);
+			if (findingComments) {
+				commentsAtEnd++;
+			}
+		}
+		for (int i = 0; i < commentsAtEnd; i++) {
+			everything.get(everything.size() - commentsAtEnd + i).accept(this, null);
+		}
+	}
 
-    int commentsAtEnd = 0;
-    boolean findingComments = true;
-    while (findingComments && commentsAtEnd < everything.size()) {
-      Node last = everything.get(everything.size() - 1 - commentsAtEnd);
-      findingComments = (last instanceof Comment);
-      if (findingComments) {
-        commentsAtEnd++;
-      }
-    }
-    for (int i = 0; i < commentsAtEnd; i++) {
-      everything.get(everything.size() - commentsAtEnd + i).accept(this, null);
-    }
-  }
+	private Optional<ConfigurationOption> getOption(
+			DefaultPrinterConfiguration.ConfigOption cOption) {
+		return configuration.get(new DefaultConfigurationOption(cOption));
+	}
 }

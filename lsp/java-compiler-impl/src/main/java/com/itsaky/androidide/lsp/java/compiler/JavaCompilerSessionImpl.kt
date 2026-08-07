@@ -175,7 +175,10 @@ class JavaCompilerSessionImpl : IJavaCompilerSession {
 		diagnosticProvider.clearTimestamp(file)
 	}
 
-	override fun findSourceFilePath(module: ModuleProject, className: String): String? {
+	override fun findSourceFilePath(
+		module: ModuleProject,
+		className: String,
+	): String? {
 		val fo = JavaCompilerProvider.get(module).findAnywhere(className).orElse(null) ?: return null
 		if (fo.kind != JavaFileObject.Kind.SOURCE || fo !is SourceFileObject) {
 			return null

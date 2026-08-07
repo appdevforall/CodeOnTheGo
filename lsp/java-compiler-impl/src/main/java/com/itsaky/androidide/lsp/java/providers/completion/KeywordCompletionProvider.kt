@@ -36,127 +36,125 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 class KeywordCompletionProvider(
-  completingFile: Path,
-  cursor: Long,
-  compiler: JavaCompilerService,
-  settings: IServerSettings
+	completingFile: Path,
+	cursor: Long,
+	compiler: JavaCompilerService,
+	settings: IServerSettings,
 ) : IJavaCompletionProvider(cursor, completingFile, compiler, settings) {
+	override fun doComplete(
+		task: CompileTask,
+		path: TreePath,
+		partial: String,
+		endsWithParen: Boolean,
+	): CompletionResult {
+		if (partial.isBlank()) {
+			return CompletionResult.EMPTY
+		}
 
-  override fun doComplete(
-    task: CompileTask,
-    path: TreePath,
-    partial: String,
-    endsWithParen: Boolean,
-  ): CompletionResult {
+		val level: Tree = findKeywordLevel(path)
+		var keywords = arrayOf<String>()
+		when (level) {
+			is CompilationUnitTree -> keywords = TOP_LEVEL_KEYWORDS
+			is ClassTree -> keywords = CLASS_BODY_KEYWORDS
+			is MethodTree -> keywords = METHOD_BODY_KEYWORDS
+		}
 
-    if (partial.isBlank()) {
-      return CompletionResult.EMPTY
-    }
+		abortCompletionIfCancelled()
+		val list = mutableListOf<CompletionItem>()
+		for (k in keywords) {
+			val matchLevel = matchLevel(k, partial)
+			if (matchLevel == NO_MATCH) {
+				continue
+			}
 
-    val level: Tree = findKeywordLevel(path)
-    var keywords = arrayOf<String>()
-    when (level) {
-      is CompilationUnitTree -> keywords = TOP_LEVEL_KEYWORDS
-      is ClassTree -> keywords = CLASS_BODY_KEYWORDS
-      is MethodTree -> keywords = METHOD_BODY_KEYWORDS
-    }
+			list.add(keyword(k, partial, 100))
+		}
 
-    abortCompletionIfCancelled()
-    val list = mutableListOf<CompletionItem>()
-    for (k in keywords) {
-      val matchLevel = matchLevel(k, partial)
-      if (matchLevel == NO_MATCH) {
-        continue
-      }
+		return CompletionResult(list)
+	}
 
-      list.add(keyword(k, partial, 100))
-    }
+	private fun findKeywordLevel(treePath: TreePath): Tree {
+		var path: TreePath? = treePath
+		while (path != null) {
+			if (path.leaf is CompilationUnitTree || path.leaf is ClassTree || path.leaf is MethodTree) {
+				return path.leaf
+			}
+			path = path.parentPath
+		}
+		throw RuntimeException("empty path")
+	}
 
-    return CompletionResult(list)
-  }
-
-  private fun findKeywordLevel(treePath: TreePath): Tree {
-    var path: TreePath? = treePath
-    while (path != null) {
-      if (path.leaf is CompilationUnitTree || path.leaf is ClassTree || path.leaf is MethodTree) {
-        return path.leaf
-      }
-      path = path.parentPath
-    }
-    throw RuntimeException("empty path")
-  }
-
-  companion object {
-    private val TOP_LEVEL_KEYWORDS =
-      arrayOf(
-        "package",
-        "import",
-        "public",
-        "private",
-        "protected",
-        "abstract",
-        "class",
-        "interface",
-        "@interface",
-        "extends",
-        "implements"
-      )
-    private val CLASS_BODY_KEYWORDS =
-      arrayOf(
-        "public",
-        "private",
-        "protected",
-        "static",
-        "final",
-        "native",
-        "synchronized",
-        "abstract",
-        "default",
-        "class",
-        "interface",
-        "void",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "true",
-        "false",
-        "null"
-      )
-    private val METHOD_BODY_KEYWORDS =
-      arrayOf(
-        "new",
-        "assert",
-        "try",
-        "catch",
-        "finally",
-        "throw",
-        "return",
-        "break",
-        "case",
-        "continue",
-        "default",
-        "do",
-        "while",
-        "for",
-        "switch",
-        "if",
-        "else",
-        "instanceof",
-        "var",
-        "final",
-        "class",
-        "void",
-        "boolean",
-        "int",
-        "long",
-        "float",
-        "double",
-        "synchronized",
-        "true",
-        "false",
-        "null"
-      )
-  }
+	companion object {
+		private val TOP_LEVEL_KEYWORDS =
+			arrayOf(
+				"package",
+				"import",
+				"public",
+				"private",
+				"protected",
+				"abstract",
+				"class",
+				"interface",
+				"@interface",
+				"extends",
+				"implements",
+			)
+		private val CLASS_BODY_KEYWORDS =
+			arrayOf(
+				"public",
+				"private",
+				"protected",
+				"static",
+				"final",
+				"native",
+				"synchronized",
+				"abstract",
+				"default",
+				"class",
+				"interface",
+				"void",
+				"boolean",
+				"int",
+				"long",
+				"float",
+				"double",
+				"true",
+				"false",
+				"null",
+			)
+		private val METHOD_BODY_KEYWORDS =
+			arrayOf(
+				"new",
+				"assert",
+				"try",
+				"catch",
+				"finally",
+				"throw",
+				"return",
+				"break",
+				"case",
+				"continue",
+				"default",
+				"do",
+				"while",
+				"for",
+				"switch",
+				"if",
+				"else",
+				"instanceof",
+				"var",
+				"final",
+				"class",
+				"void",
+				"boolean",
+				"int",
+				"long",
+				"float",
+				"double",
+				"synchronized",
+				"true",
+				"false",
+				"null",
+			)
+	}
 }

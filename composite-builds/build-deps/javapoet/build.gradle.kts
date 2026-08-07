@@ -16,13 +16,13 @@
  */
 
 plugins {
-  kotlin("jvm")
+	kotlin("jvm")
 }
 
 dependencies {
-  // javapoet itself stays fully resident (see lsp/java-compiler-impl/build.gradle.kts) --
-  // templates-api/templates-impl (the "New Project" wizard) need it unconditionally, unlike
-  // javac. So unlike jdk-compiler's identical-looking dependency, this one stays `api`: there's
-  // no isolated consumer to duplicate java-compiler's classes into.
-  api(projects.buildDeps.javaCompiler)
+	// javapoet itself stays fully resident (see lsp/java-compiler-impl/build.gradle.kts) --
+	// templates-api/templates-impl (the "New Project" wizard) need it unconditionally, unlike
+	// javac. So unlike jdk-compiler's identical-looking dependency, this one stays `api`: there's
+	// no isolated consumer to duplicate java-compiler's classes into.
+	api(projects.buildDeps.javaCompiler)
 }

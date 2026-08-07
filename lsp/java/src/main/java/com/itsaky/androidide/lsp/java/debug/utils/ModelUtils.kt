@@ -19,7 +19,10 @@ private val logger = LoggerFactory.getLogger("ModelUtilsKt")
  * no `.java` file has been touched this session) -- source-path resolution is skipped in that
  * case, same as when no matching source is found.
  */
-fun Location.asLspLocation(useDeclTypeName: Boolean = true, session: IJavaCompilerSession?): LspLocation {
+fun Location.asLspLocation(
+	useDeclTypeName: Boolean = true,
+	session: IJavaCompilerSession?,
+): LspLocation {
 	val projectManager = ProjectManagerImpl.getInstance()
 	val path =
 		session?.let { s ->

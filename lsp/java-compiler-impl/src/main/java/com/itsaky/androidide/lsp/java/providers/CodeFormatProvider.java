@@ -43,77 +43,73 @@ import org.slf4j.LoggerFactory;
  */
 public class CodeFormatProvider {
 
-  private static final Logger LOG = LoggerFactory.getLogger(CodeFormatProvider.class);
+	private static final Logger LOG = LoggerFactory.getLogger(CodeFormatProvider.class);
 
-  private final JavaServerSettings settings;
+	private final JavaServerSettings settings;
 
-  public CodeFormatProvider(IServerSettings settings) {
-    assert settings instanceof JavaServerSettings;
-    this.settings = (JavaServerSettings) settings;
-  }
+	public CodeFormatProvider(IServerSettings settings) {
+		assert settings instanceof JavaServerSettings;
+		this.settings = (JavaServerSettings) settings;
+	}
 
-  public CodeFormatResult format(FormatCodeParams params) {
-    try {
-      final StopWatch watch = new StopWatch("Code formatting");
-      final String content = params.getContent().toString();
-      final JavaFormatterOptions.Style style =
-          settings.getCodeStyle() == JavaServerSettings.CODE_STYLE_AOSP
-              ? JavaFormatterOptions.Style.AOSP
-              : JavaFormatterOptions.Style.GOOGLE;
-      final Formatter formatter =
-          new Formatter(JavaFormatterOptions.builder().formatJavadoc(true).style(style).build());
+	public CodeFormatResult format(FormatCodeParams params) {
+		try {
+			final StopWatch watch = new StopWatch("Code formatting");
+			final String content = params.getContent().toString();
+			final JavaFormatterOptions.Style style = settings.getCodeStyle() == JavaServerSettings.CODE_STYLE_AOSP
+					? JavaFormatterOptions.Style.AOSP
+					: JavaFormatterOptions.Style.GOOGLE;
+			final Formatter formatter = new Formatter(JavaFormatterOptions.builder().formatJavadoc(true).style(style).build());
 
-      if (params.getRange() == Range.NONE) {
-        String formatted;
-        try {
-          formatted = formatter.formatSource(content);
-        } catch (FormatterException e) {
-          e.printStackTrace();
-          formatted = content;
-        }
-        return CodeFormatResult.forWholeContent(content, formatted);
-      }
+			if (params.getRange() == Range.NONE) {
+				String formatted;
+				try {
+					formatted = formatter.formatSource(content);
+				} catch (FormatterException e) {
+					e.printStackTrace();
+					formatted = content;
+				}
+				return CodeFormatResult.forWholeContent(content, formatted);
+			}
 
-      final Collection<com.google.common.collect.Range<Integer>> ranges =
-          getCharRanges(content, params.getRange());
+			final Collection<com.google.common.collect.Range<Integer>> ranges = getCharRanges(content, params.getRange());
 
-      final ImmutableList<Replacement> replacements =
-          formatter.getFormatReplacements(content, ranges);
+			final ImmutableList<Replacement> replacements = formatter.getFormatReplacements(content, ranges);
 
-      watch.log();
-      return createResult(replacements);
-    } catch (Throwable e) {
-      LOG.error("Failed to format code.", e);
-      return CodeFormatResult.NONE;
-    }
-  }
+			watch.log();
+			return createResult(replacements);
+		} catch (Throwable e) {
+			LOG.error("Failed to format code.", e);
+			return CodeFormatResult.NONE;
+		}
+	}
 
-  private CodeFormatResult createResult(final ImmutableList<Replacement> replacements) {
-    final CodeFormatResult result = new CodeFormatResult(true);
-    for (final Replacement replacement : replacements) {
-      final com.google.common.collect.Range<Integer> range = replacement.getReplaceRange();
-      final IndexedTextEdit edit = new IndexedTextEdit();
-      edit.setNewText(replacement.getReplacementString());
-      edit.setStart(range.lowerEndpoint());
-      edit.setEnd(range.upperEndpoint());
-      result.getIndexedTextEdits().add(edit);
-    }
-    return result;
-  }
+	private CodeFormatResult createResult(final ImmutableList<Replacement> replacements) {
+		final CodeFormatResult result = new CodeFormatResult(true);
+		for (final Replacement replacement : replacements) {
+			final com.google.common.collect.Range<Integer> range = replacement.getReplaceRange();
+			final IndexedTextEdit edit = new IndexedTextEdit();
+			edit.setNewText(replacement.getReplacementString());
+			edit.setStart(range.lowerEndpoint());
+			edit.setEnd(range.upperEndpoint());
+			result.getIndexedTextEdits().add(edit);
+		}
+		return result;
+	}
 
-  @NonNull
-  private Collection<com.google.common.collect.Range<Integer>> getCharRanges(
-      final String content, @NonNull final Range range) {
+	@NonNull
+	private Collection<com.google.common.collect.Range<Integer>> getCharRanges(
+			final String content, @NonNull final Range range) {
 
-    int start, end;
-    if (range == Range.NONE) {
-      start = 0;
-      end = content.length();
-    } else {
-      start = range.getStart().requireIndex();
-      end = range.getEnd().requireIndex();
-    }
+		int start, end;
+		if (range == Range.NONE) {
+			start = 0;
+			end = content.length();
+		} else {
+			start = range.getStart().requireIndex();
+			end = range.getEnd().requireIndex();
+		}
 
-    return ImmutableList.of(closedOpen(start, end));
-  }
+		return ImmutableList.of(closedOpen(start, end));
+	}
 }

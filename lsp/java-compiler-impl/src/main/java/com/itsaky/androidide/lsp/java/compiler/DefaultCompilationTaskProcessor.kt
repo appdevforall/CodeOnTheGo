@@ -28,20 +28,22 @@ import java.util.function.Consumer
  * @author Akash Yadav
  */
 class DefaultCompilationTaskProcessor : CompilationTaskProcessor {
+	override fun process(
+		task: JavacTaskImpl,
+		processCompilationUnit: Consumer<CompilationUnitTree>,
+	) {
+		val watch = StopWatch("Process compilation task")
+		val trees = task.parse()
+		watch.lapFromLast("Parsed treees")
 
-  override fun process(task: JavacTaskImpl, processCompilationUnit: Consumer<CompilationUnitTree>) {
-    val watch = StopWatch("Process compilation task")
-    val trees = task.parse()
-    watch.lapFromLast("Parsed treees")
+		trees.forEach(processCompilationUnit::accept)
+		watch.lapFromLast("Processed trees")
 
-    trees.forEach(processCompilationUnit::accept)
-    watch.lapFromLast("Processed trees")
-    
 //    val entered = JavacTaskUtil.enterTrees(task, trees)
 //    watch.lapFromLast("Entered trees")
 //
 //    val analyzed = JavacTaskUtil.analyze(task, entered)
-    task.analyze()
-    watch.lapFromLast("Analyzed all trees")
-  }
+		task.analyze()
+		watch.lapFromLast("Analyzed all trees")
+	}
 }

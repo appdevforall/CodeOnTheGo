@@ -95,5 +95,8 @@ interface IJavaCompilerSession : AutoCloseable {
 	 * path rather than a `SourceFileObject`, since that type lives only on this side of the
 	 * classloader boundary.
 	 */
-	fun findSourceFilePath(module: ModuleProject, className: String): String?
+	fun findSourceFilePath(
+		module: ModuleProject,
+		className: String,
+	): String?
 }

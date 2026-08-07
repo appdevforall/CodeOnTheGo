@@ -28,40 +28,36 @@ import com.itsaky.androidide.preferences.internal.JavaPreferences;
  */
 public class JavaServerSettings extends PrefBasedServerSettings {
 
-  public static final String KEY_JAVA_PREF_GOOGLE_CODE_STYLE = JavaPreferences.GOOGLE_CODE_STYLE;
-  public static final int CODE_STYLE_AOSP = 0;
-  public static final int CODE_STYLE_GOOGLE = 1;
-  private static JavaServerSettings instance;
+	public static final String KEY_JAVA_PREF_GOOGLE_CODE_STYLE = JavaPreferences.GOOGLE_CODE_STYLE;
+	public static final int CODE_STYLE_AOSP = 0;
+	public static final int CODE_STYLE_GOOGLE = 1;
+	private static JavaServerSettings instance;
 
-  @NonNull
-  public static JavaServerSettings getInstance() {
-    if (instance == null) {
-      instance = new JavaServerSettings();
-    }
+	@NonNull
+	public static JavaServerSettings getInstance() {
+		if (instance == null) {
+			instance = new JavaServerSettings();
+		}
 
-    return instance;
-  }
+		return instance;
+	}
 
-  @Override
-  public boolean diagnosticsEnabled() {
-    return true;
-  }
+	@Override
+	public boolean diagnosticsEnabled() {
+		return true;
+	}
 
-  /**
-   * {@link #CODE_STYLE_AOSP} or {@link #CODE_STYLE_GOOGLE}. Plain data rather than a
-   * google-java-format {@code JavaFormatterOptions}/{@code Style} value: this settings class
-   * stays resident, but google-java-format -- like javac -- is isolated in the DexClassLoader
-   * carrier (ADFA-5053), so the isolated {@code CodeFormatProvider} builds the real
-   * {@code JavaFormatterOptions} itself from this code.
-   */
-  public int getCodeStyle() {
-    final PreferenceManager prefs = getPrefs();
-    if (prefs != null) {
-      if (prefs.getBoolean(KEY_JAVA_PREF_GOOGLE_CODE_STYLE, false)) {
-        return CODE_STYLE_GOOGLE;
-      }
-    }
+	/**
+	 * {@link #CODE_STYLE_AOSP} or {@link #CODE_STYLE_GOOGLE}. Plain data rather than a google-java-format {@code JavaFormatterOptions}/{@code Style} value: this settings class stays resident, but google-java-format -- like javac -- is isolated in the DexClassLoader carrier (ADFA-5053), so the isolated {@code CodeFormatProvider} builds the real {@code JavaFormatterOptions} itself from this code.
+	 */
+	public int getCodeStyle() {
+		final PreferenceManager prefs = getPrefs();
+		if (prefs != null) {
+			if (prefs.getBoolean(KEY_JAVA_PREF_GOOGLE_CODE_STYLE, false)) {
+				return CODE_STYLE_GOOGLE;
+			}
+		}
 
-    return CODE_STYLE_AOSP;
-  }
+		return CODE_STYLE_AOSP;
+	}
 }

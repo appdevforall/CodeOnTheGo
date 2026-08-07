@@ -31,23 +31,23 @@ import java.util.Map;
 
 public class AddImport extends Rewrite {
 
-  @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-  public final String className;
+	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+	public final String className;
 
-  final Path file;
+	final Path file;
 
-  public AddImport(Path file, String className) {
-    this.file = file;
-    this.className = className;
-  }
+	public AddImport(Path file, String className) {
+		this.file = file;
+		this.className = className;
+	}
 
-  @NonNull
-  @Override
-  public Map<Path, TextEdit[]> rewrite(@NonNull CompilerProvider compiler) {
-    final ParseTask task = compiler.parse(file);
-    Position point = InsertUtilsKt.positionForImports(className, task);
-    String text = "import " + className + ";\n";
-    return Collections.singletonMap(
-        file, new TextEdit[] {new TextEdit(new Range(point, point), text)});
-  }
+	@NonNull
+	@Override
+	public Map<Path, TextEdit[]> rewrite(@NonNull CompilerProvider compiler) {
+		final ParseTask task = compiler.parse(file);
+		Position point = InsertUtilsKt.positionForImports(className, task);
+		String text = "import " + className + ";\n";
+		return Collections.singletonMap(
+				file, new TextEdit[]{new TextEdit(new Range(point, point), text)});
+	}
 }
