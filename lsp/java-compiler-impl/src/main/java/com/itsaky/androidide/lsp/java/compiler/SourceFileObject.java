@@ -21,13 +21,13 @@ import com.google.common.base.MoreObjects;
 import com.itsaky.androidide.projects.FileManager;
 import com.itsaky.androidide.utils.DocumentUtils;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.Writer;
 import java.net.URI;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Objects;
@@ -45,8 +45,23 @@ public class SourceFileObject implements JavaFileObject {
 		return null;
 	}
 
+	// toRealPath() resolves symlinks the same way Files.isSameFile() effectively does; falls back
+	// to a plain absolute+normalized path if the file doesn't exist yet (toRealPath requires it).
+	private static Path resolveCanonicalPath(Path path) {
+		try {
+			return path.toRealPath();
+		} catch (IOException e) {
+			return path.toAbsolutePath().normalize();
+		}
+	}
+
 	/** path is the absolute path to this file on disk */
 	final Path path;
+	/**
+	 * Identity key for equals()/hashCode(), separate from {@link #path}: the two paths compared in equals() may be textually different (a symlink, or a relative vs. canonicalized form) yet refer to the same file, so both sides need to hash the same normalized value. Resolved once here rather than via a live {@code Files.isSameFile} check per comparison, which has no hash of its own to key off of.
+	 */
+	private final Path canonicalPath;
+
 	/** contents is the text in this file, or null if we should use the text in FileStore */
 	String contents;
 
@@ -61,6 +76,7 @@ public class SourceFileObject implements JavaFileObject {
 		if (!DocumentUtils.isJavaFile(path))
 			throw new RuntimeException(path + " is not a java source");
 		this.path = path;
+		this.canonicalPath = resolveCanonicalPath(path);
 		this.contents = contents;
 		this.modified = modified;
 	}
@@ -79,14 +95,9 @@ public class SourceFileObject implements JavaFileObject {
 			return false;
 		}
 		final SourceFileObject that = (SourceFileObject) o;
-		try {
-			return this.path != null && that.path != null
-					&& Files.isSameFile(this.path, that.path)
-					&& Objects.equals(contents, that.contents)
-					&& Objects.equals(modified, that.modified);
-		} catch (Exception e) {
-			return false;
-		}
+		return Objects.equals(this.canonicalPath, that.canonicalPath)
+				&& Objects.equals(contents, that.contents)
+				&& Objects.equals(modified, that.modified);
 	}
 
 	@Override
@@ -128,7 +139,7 @@ public class SourceFileObject implements JavaFileObject {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(path, contents, modified);
+		return Objects.hash(canonicalPath, contents, modified);
 	}
 
 	@Override

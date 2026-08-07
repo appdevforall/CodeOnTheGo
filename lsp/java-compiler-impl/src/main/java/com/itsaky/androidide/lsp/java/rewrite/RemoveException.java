@@ -190,7 +190,7 @@ public class RemoveException extends Rewrite {
 		CharSequence contents = contents(root);
 		for (int i = (int) end; i < contents.length(); i++) {
 			if (contents.charAt(i) == ',') {
-				if (contents.charAt(i + 1) == ' ') {
+				if (i + 1 < contents.length() && contents.charAt(i + 1) == ' ') {
 					return i + 2;
 				} else {
 					return i + 1;

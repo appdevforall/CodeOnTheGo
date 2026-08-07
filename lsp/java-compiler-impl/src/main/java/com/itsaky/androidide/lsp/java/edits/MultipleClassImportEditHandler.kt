@@ -52,7 +52,14 @@ class MultipleClassImportEditHandler(
 				log.error("Unable to compute edits to perform import for class: {}", className)
 			}
 		}
+
+		// Each edit's position is computed independently against the same pre-edit AST, but
+		// RewriteHelper applies them in sequence against the same live buffer -- an earlier
+		// insertion shifts every line after it, invalidating a later edit's pre-computed
+		// position. Applying bottom-to-top instead avoids that: inserting at a lower line never
+		// shifts anything above it, so every not-yet-applied edit's position stays valid.
+		val orderedEdits = edits.sortedByDescending { it.range.start }
 		com.itsaky.androidide.lsp.util.RewriteHelper
-			.performEdits(edits, editor)
+			.performEdits(orderedEdits, editor)
 	}
 }

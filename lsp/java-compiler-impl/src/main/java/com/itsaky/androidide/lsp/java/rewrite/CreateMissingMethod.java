@@ -83,12 +83,15 @@ public class CreateMissingMethod extends Rewrite {
 			final TreePath path = trees.getPath(task.root(), call);
 			final String returnType = methodFinder.getReturnType();
 			Path sourceFile = file;
+			// null if the call is inside a field/static initializer rather than a method body --
+			// there's no enclosing MethodTree to report modifiers from or insert relative to.
 			MethodTree currentMethod = surroundingMethod(path);
 			final var insertTextBuilder = new StringBuilder("\n");
 
 			final var indent = EditorUtilKt.getIndentationString();
 
-			final var isStatic = currentMethod.getModifiers().getFlags().contains(Modifier.STATIC) ||
+			final var isStatic = (currentMethod != null
+					&& currentMethod.getModifiers().getFlags().contains(Modifier.STATIC)) ||
 					methodFinder.isStaticAccess();
 
 			insertTextBuilder.append(
@@ -115,9 +118,12 @@ public class CreateMissingMethod extends Rewrite {
 				insertPoint = insertAtEndOfClass(task.task, compilationUnit, enclosingClass);
 				sourceFile = Paths.get(compilationUnit.getSourceFile().toUri());
 			} else {
+				if (currentMethod == null) {
+					return CANCELLED;
+				}
 				compilationUnit = task.root();
 				enclosingClass = surroundingClass(path);
-				insertPoint = insertAfter(task.task, compilationUnit, surroundingMethod(path));
+				insertPoint = insertAfter(task.task, compilationUnit, currentMethod);
 			}
 
 			final int indentSpaces = indent(task.task, compilationUnit, enclosingClass) + EditorPreferences.INSTANCE.getTabSize();
@@ -209,7 +215,12 @@ public class CreateMissingMethod extends Rewrite {
 	private String guessParameterNameFromType(TypeMirror type) {
 		if (type instanceof DeclaredType) {
 			DeclaredType declared = (DeclaredType) type;
+			// An anonymous class's simple name is empty per the language spec -- fall through to
+			// argCount-based naming (see guessParameterName) instead of throwing on charAt(0).
 			Name name = declared.asElement().getSimpleName();
+			if (name.length() == 0) {
+				return "";
+			}
 			return "" + Character.toLowerCase(name.charAt(0)) + name.subSequence(1, name.length());
 		} else {
 			return "";
@@ -251,6 +262,7 @@ public class CreateMissingMethod extends Rewrite {
 		throw new RuntimeException("No surrounding class");
 	}
 
+	/** Returns {@code null} if {@code call} has no enclosing method (e.g. a field/static initializer). */
 	private MethodTree surroundingMethod(TreePath call) {
 		while (call != null) {
 			if (call.getLeaf() instanceof MethodTree) {
@@ -258,6 +270,6 @@ public class CreateMissingMethod extends Rewrite {
 			}
 			call = call.getParentPath();
 		}
-		throw new RuntimeException("No surrounding method");
+		return null;
 	}
 }

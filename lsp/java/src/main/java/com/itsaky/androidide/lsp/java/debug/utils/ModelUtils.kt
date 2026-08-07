@@ -6,6 +6,7 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.sun.jdi.Location
 import org.slf4j.LoggerFactory
+import java.io.File
 import com.itsaky.androidide.lsp.debug.model.Location as LspLocation
 
 private val logger = LoggerFactory.getLogger("ModelUtilsKt")
@@ -62,10 +63,23 @@ fun Location.asLspLocation(
 				path = path,
 			)
 		} else {
-			Source(
-				name = sourceName(),
-				path = sourcePath(),
-			)
+			// sourcePath() is JDI-synthetic (package-relative, e.g. "com/example/Foo.java"), not a
+			// filesystem path -- resolving it against each module's compile source directories
+			// works even without a session (e.g. the very first breakpoint hit before any
+			// .java-file interaction has loaded the carrier), unlike findSourceFilePath() above.
+			val relativePath = sourcePath().replace('/', File.separatorChar)
+			val resolvedPath = findSourceFileByRelativePath(relativePath)
+			if (resolvedPath != null) {
+				Source(name = sourceName(), path = resolvedPath)
+			} else {
+				logger.warn(
+					"Could not resolve a real source file for location {} (relative path '{}'); " +
+						"navigating to it will silently fail since this isn't a filesystem path.",
+					this,
+					relativePath,
+				)
+				Source(name = sourceName(), path = sourcePath())
+			}
 		}
 
 	return LspLocation(
@@ -76,3 +90,15 @@ fun Location.asLspLocation(
 		column = null,
 	)
 }
+
+private fun findSourceFileByRelativePath(relativePath: String): String? =
+	ProjectManagerImpl
+		.getInstance()
+		.workspace
+		?.subProjects
+		?.filterIsInstance<ModuleProject>()
+		?.asSequence()
+		?.flatMap { it.getCompileSourceDirectories() }
+		?.map { File(it, relativePath) }
+		?.firstOrNull { it.isFile }
+		?.absolutePath

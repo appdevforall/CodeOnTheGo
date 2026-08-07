@@ -71,7 +71,15 @@ public class GenerateRecordConstructor extends Rewrite {
 		return synchronizedTask.get(
 				task -> {
 					TypeElement typeElement = task.task.getElements().getTypeElement(className);
+					if (typeElement == null) {
+						LOG.warn("Unable to resolve type element for class: {}", this.className);
+						return CANCELLED;
+					}
 					ClassTree typeTree = Trees.instance(task.task).getTree(typeElement);
+					if (typeTree == null) {
+						LOG.warn("Unable to resolve class tree for class: {}", this.className);
+						return CANCELLED;
+					}
 					List<VariableTree> fields = fieldsNeedingInitialization(typeTree);
 					String parameters = generateParameters(task, fields);
 					String initializers = generateInitializers(fields);
