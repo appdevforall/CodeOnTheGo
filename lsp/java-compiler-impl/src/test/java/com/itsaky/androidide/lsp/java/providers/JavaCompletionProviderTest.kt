@@ -47,6 +47,7 @@ class JavaCompletionProviderTest {
 		}
 	}
 
+	@Test
 	fun members() {
 		JavaLSPTest.apply {
 			// Complete members of String
