@@ -101,7 +101,14 @@ public class CacheFSInfo extends FSInfo {
         }
     }
 
-    protected Optional<BasicFileAttributes> getAttributes(Path file) {
+    // public, not protected: JavacFileManager (openjdk.tools.javac.file, isolated in the javac
+    // carrier per ADFA-5053) calls this directly on a CacheFSInfo instance, which is resident
+    // (loaded by the parent classloader). ART treats the two as different runtime packages
+    // despite the identical package name, since same-package/protected access is resolved by
+    // classloader identity, not just the package string -- protected access across that
+    // boundary throws IllegalAccessError at runtime, caught by on-device testing, not by the
+    // build or unit tests.
+    public Optional<BasicFileAttributes> getAttributes(Path file) {
         return attributeCache.computeIfAbsent(file, this::maybeReadAttributes);
     }
 

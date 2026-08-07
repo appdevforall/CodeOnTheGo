@@ -102,7 +102,10 @@ public abstract class RelativePath implements Comparable<RelativePath> {
      */
     public static class RelativeDirectory extends RelativePath {
 
-        static RelativeDirectory forPackage(CharSequence packageName) {
+        // public, not package-private: JavacFileManager/JRTIndex (isolated in the javac carrier
+        // per ADFA-5053) call this on RelativeDirectory, which is resident -- same
+        // cross-classloader access rationale as CacheFSInfo.getAttributes above.
+        public static RelativeDirectory forPackage(CharSequence packageName) {
             return new RelativeDirectory(packageName.toString().replace('.', '/'));
         }
 
@@ -158,7 +161,10 @@ public abstract class RelativePath implements Comparable<RelativePath> {
      * Internally, the file separator is always '/'. It never ends in '/'.
      */
     public static class RelativeFile extends RelativePath {
-        static RelativeFile forClass(CharSequence className, JavaFileObject.Kind kind) {
+        // public, not package-private: JavacFileManager (isolated in the javac carrier per
+        // ADFA-5053) calls this on RelativeFile, which is resident -- same cross-classloader
+        // access rationale as CacheFSInfo.getAttributes above.
+        public static RelativeFile forClass(CharSequence className, JavaFileObject.Kind kind) {
             return new RelativeFile(className.toString().replace('.', '/') + kind.extension);
         }
 
