@@ -23,6 +23,34 @@ Steps 1, 2 and 7 run once per baseline. Steps 3-6 are the per-save loop. Step 8 
 
 Turns the user's project into an installable proxy app whose manifest names never change, with all user code moved into a swappable payload dex.
 
+```mermaid
+flowchart TB
+    gradleExt["Gradle + AGP<br/><i>merged manifest, variant classpath, stable ids</i>"]:::ext
+    sources["User project<br/><i>sources, resources, manifest, deps</i>"]:::ext
+    runtimeAar["quickbuild:runtime AAR<br/><i>compiled into the proxy app</i>"]:::ext
+    provisioner["CoGo session control (step 2)<br/><i>decides when it runs, reads the outputs</i>"]:::ext
+
+    subgraph plugin ["QuickBuildPlugin - generates the proxy app, once per baseline"]
+        entry["Wire into the variant<br/><i>(QuickBuildPlugin) also detects Compose</i>"]
+        manifest["Transform the manifest<br/><i>(QuickBuildManifestTransformer) rejects android:process</i>"]
+        proxygen["Generate proxy sources<br/><i>(ProxySourceGenerator) one proxy per component</i>"]
+        dextask["Build the payload dex<br/><i>(QuickBuildPayloadDexTask) bakes the gen-0 baseline</i>"]
+        json[("setup.json<br/><i>(QuickBuildProxyAppReportTask) the CoGo handshake</i>")]
+    end
+
+    gradleExt -- "merged manifest" --> manifest
+    sources -- "user sources" --> dextask
+    manifest -- "proxied manifest" --> proxygen
+    proxygen -- "proxy sources" --> dextask
+    runtimeAar -- "runtime classes" --> dextask
+    entry --> manifest
+    entry --> json
+    dextask -- "proxy app APK<br/>(libraries + resources + gen-0,<br/>NO loose user classes)" --> provisioner
+    json -- "setup.json" --> provisioner
+
+    classDef ext stroke-dasharray: 6 4,stroke-width:1.5px
+```
+
 - Applied by `AndroidIDEGradlePlugin` when the `PROPERTY_QUICK_BUILD_ENABLED` property is set, and only to **debuggable application variants** (`variant.debuggable`, read in `onVariants`).
 - Fails the build immediately if `-Pcotg.quickbuild.runtimeAar` is missing or does not point at a file. The runtime AAR is added to the variant's **runtime** configuration only, never the compile classpath.
 - Compose is detected in `finalizeDsl`, from either `buildFeatures.compose` or the `org.jetbrains.kotlin.plugin.compose` plugin, and reported to the daemon through `setup.json`.
@@ -46,6 +74,49 @@ Manifest and proxy-source detail, if the symptom is a wrong or missing proxy:
 ## Step 2: Session control and provisioning (`:quickbuild:core` `service/` + `:app`)
 
 Owns the session lifecycle. A pure reducer decides transitions; the manager executes their effects.
+
+```mermaid
+flowchart TB
+    ui["Editor toolbar<br/><i>(QuickBuildAction) lightning tap starts/stops</i>"]:::ext
+    buildExt["Proxy app build (step 1)<br/><i>proxy app APK + setup.json</i>"]:::ext
+    pkginst["Android PackageInstaller<br/><i>may require a user confirm dialog</i>"]:::ext
+    proxyapp["Proxy app process"]:::ext
+    daemonExt["quickbuild:daemon process (step 5)"]:::ext
+
+    subgraph mgr ["Session control - turns reducer decisions into real work"]
+        reducer["Decide state transitions<br/><i>(SessionReducer) pure; off-ramps Invalidated/Degraded</i>"]
+        manager["Dispatch reducer effects<br/><i>(QuickBuildSessionManager) owns the live session</i>"]
+        factory["Assemble the live session<br/><i>(LiveSessionFactory) wires executor + orchestrator + watcher</i>"]
+        prov["Run the proxy app build<br/><i>(GradleQuickBuildProvisioner) returns ProxyAppInfo</i>"]
+        scratch["Manage the scratch tree<br/><i>(QuickBuildScratch) app-private f2fs; free-space guard</i>"]
+        clobber["Check the installed slot<br/><i>(QuickBuildClobberCheck) refuses foreign signatures</i>"]
+        installer["Install the proxy app<br/><i>(ProxyAppInstaller) fail-fast if no dialog can show</i>"]
+        launcher["Launch the proxy app<br/><i>(ProxyAppLauncher) fires the launcher proxy activity</i>"]
+        conns["Track live AIDL sessions<br/><i>(ProxyAppConnections) keyed by package + uid</i>"]
+        daemonCtl["Own the daemon lifecycle<br/><i>(QuickBuildDaemonController) spawn, epoch, respawn, shrink</i>"]
+        warm["Fire the warm compile<br/><i>(LiveReloadOrchestrator) deploys nothing, lowest priority</i>"]
+    end
+
+    ui -- "start/stop tap" --> manager
+    manager <-- "events / effects" --> reducer
+    manager --> prov
+    prov -- "build invocation" --> buildExt
+    buildExt -- "APK + setup.json" --> prov
+    manager --> scratch
+    prov --> factory
+    prov --> clobber
+    clobber --> installer
+    installer -- "install session" --> pkginst
+    pkginst -- "SUCCESS / PENDING_USER_ACTION /<br/>ABORTED / FAILURE" --> installer
+    manager --> launcher
+    launcher -- "launch intent" --> proxyapp
+    proxyapp -- "outbound AIDL bind" --> conns
+    manager --> daemonCtl
+    daemonCtl -- "configure request" --> daemonExt
+    manager --> warm
+
+    classDef ext stroke-dasharray: 6 4,stroke-width:1.5px
+```
 
 - [SessionReducer](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/SessionReducer.kt) is **total** - an unknown (state, event) pair keeps the current state and produces no effects, so a late or duplicate event cannot corrupt a session.
 - [QuickBuildSessionManager](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/QuickBuildSessionManager.kt) holds the reducer and the live session. Everything stateful runs on one dispatcher, which **must** be single-threaded; effects are `launch`ed rather than run inline so a dispatch never re-enters itself.
@@ -75,6 +146,35 @@ The proxy app binds back to CoGo on launch; [ProxyAppConnections](../core/src/ma
 
 Turns raw filesystem events into one deduped changed-file set per save burst. It decides no routes.
 
+```mermaid
+flowchart TB
+    editor["CodeOnTheGo<br/><i>editor saves</i>"]:::ext
+    git["git"]:::ext
+    termux["Termux process"]:::ext
+    plugin["Plugin file I/O"]:::ext
+    fs["Project folder"]:::ext
+    orch["Build orchestration (step 4)<br/><i>the only consumer; it owns the classifier</i>"]:::ext
+
+    subgraph watch ["Watch and normalize - one truthful changed-file set per burst"]
+        watcher["Capture file changes<br/><i>(ProjectWatcher port, AndroidProjectWatcher impl) inotify + poll</i>"]
+        filter["Drop never-build files<br/><i>(WatchFilter) build outputs, temp files</i>"]
+        coalesce["Debounce, then reconcile<br/><i>(ChangeCoalescing, then WatcherBatchReconciler)</i>"]
+        shape["Recognize file shapes<br/><i>(ChangeClassifier.hasRecognizedShape) reconcile, not route</i>"]
+    end
+
+    editor -- "saved files" --> fs
+    git -- "pulled files" --> fs
+    termux -- "written files" --> fs
+    plugin -- "updated files" --> fs
+    fs -- "inotify events + poll" --> watcher
+    watcher -- "raw file events" --> filter
+    filter -- "filtered file events" --> coalesce
+    coalesce <--> shape
+    coalesce -- "changed-file batch<br/>(no route decided)" --> orch
+
+    classDef ext stroke-dasharray: 6 4,stroke-width:1.5px
+```
+
 - [ProjectWatcher](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/ProjectWatcher.kt) is the port; [AndroidProjectWatcher](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/AndroidProjectWatcher.kt) is the only implementation. It is a hybrid by necessity: `FileObserver` for latency, plus an mtime+size poll sweep because the project sits on FUSE, which drops inotify events under load.
 - Triggering is on file change from **any** source - the editor, a Termux script, a plugin write, a `git pull` - never on an editor save event.
 - Watched files outside the watched roots (the gradle config files and kin) are covered by the poll only; no inotify watch is registered on their parents.
@@ -94,6 +194,47 @@ Turns raw filesystem events into one deduped changed-file set per save burst. It
 ## Step 4: Live reload orchestration (`:quickbuild:core` `domain/` + `service/`)
 
 The batch arrives, the classifier picks a route, and the live-reload routes are sequenced and run. This is the never-stale contract: a wrong route means stale code.
+
+```mermaid
+flowchart TB
+    changesIn["Changed-file batch (step 3)<br/><i>truthful, deduped, no route decided</i>"]:::ext
+    sessionExt["Session control (steps 2 / 7)<br/><i>only it can run Gradle, so FullGradleBuild goes UP</i>"]:::ext
+    daemonExt["quickbuild:daemon (step 5)<br/><i>compile / dex / relink over stdio JSON</i>"]:::ext
+    deployExt["Deploy and reload (step 6)"]:::ext
+    metricsExt["Observability (step 8)"]:::ext
+    scratchExt[("Scratch tree (app-private f2fs)<br/><i>work/ + out/ per project</i>")]:::ext
+
+    subgraph build ["LiveReloadOrchestrator - decides the route, then sequences the build"]
+        classifier["Classify the change<br/><i>(ChangeClassifier) the never-stale contract</i>"]
+        annot["Judge annotation impact<br/><i>(AnnotationImpact port) kapt/KSP input -> FullGradleBuild</i>"]
+        orch["Serialize builds; hold pending<br/><i>one build in flight; results build-id tagged</i>"]
+        exec["Run the live reload route<br/><i>(LiveReloadExecutorImpl) route -> daemon ops + deploy</i>"]
+        client["Talk to the daemon<br/><i>(DaemonProcessClient) one request in flight</i>"]
+        assets["Package changed assets<br/><i>(AssetPackager) staged in the scratch work dir</i>"]
+        policy["Decide hot swap vs restart<br/><i>(DeployPolicy) service/provider/Application -> restart</i>"]
+        deployer["Hand the payload over<br/><i>(PayloadDeployer) hot swap, restart, retry once</i>"]
+        gen[("Generation counter<br/><i>(GenerationTracker + FileGenerationStore) monotone</i>")]
+        timeline["Stamp host spans<br/><i>(E2eTimelineRecorder) residual = untimed work</i>"]
+    end
+
+    changesIn -- "changed-file batch" --> classifier
+    annot -- "annotation impact" --> classifier
+    classifier -. "FullGradleBuild route:<br/>needs proxy app rebuild" .-> sessionExt
+    classifier -- "live reload route + batch" --> orch
+    orch -- "one batch, in order" --> exec
+    exec -- "compile / dex / relink ops" --> client
+    client <--> daemonExt
+    exec --> assets
+    assets -- "staged asset zip" --> scratchExt
+    client -- "changed classes" --> policy
+    policy -- "hot swap or restart" --> deployer
+    exec --> gen
+    deployer -- "payload (gen N+1)<br/>+ metadata (reason, restart)" --> deployExt
+    orch --> timeline
+    timeline -- "span timings" --> metricsExt
+
+    classDef ext stroke-dasharray: 6 4,stroke-width:1.5px
+```
 
 [LiveReloadOrchestrator](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/LiveReloadOrchestrator.kt) runs the live-reload path only. A `FullGradleBuild` verdict is escalated as `OrchestratorEvent.InvalidationRequired` and never executed here, because session control owns Gradle, the install prompts and the device's single Gradle slot. What it guarantees:
 
@@ -131,6 +272,46 @@ Adding a file type or a route touches more than the classifier: `WatchFilter` (a
 
 A warm, pure-JVM child process on the bundled JDK. It holds the incremental caches between builds, which is the biggest latency lever.
 
+```mermaid
+flowchart TB
+    cogo["CoGo DaemonProcessClient (step 4)<br/><i>the only caller; one request at a time</i>"]:::ext
+    jdk["Bundled JDK + build-tools<br/><i>kotlinc via BTA, javac, d8.jar, aapt2</i>"]:::ext
+    scratchExt[("Scratch out dir (app-private f2fs)<br/><i>class trees, dex, relinked resource apk</i>")]:::ext
+    proj["Project sources + variant classpath<br/><i>from setup.json via configure</i>"]:::ext
+
+    subgraph daemon ["quickbuild:daemon - warm compile, dex and relink"]
+        router["Route stdio requests<br/><i>(DaemonMain + RequestRouter) pins protocolVersion</i>"]
+        tooldisc["Resolve the toolchain<br/><i>(ToolchainDiscovery) never guesses, fails by name</i>"]
+        ic["Compile Kotlin incrementally<br/><i>(IncrementalCompiler) BTA with an explicit changed set</i>"]
+        javac["Compile Java in-process<br/><i>(JavaCompileStep + JavaSourceAbi) all .java</i>"]
+        strip["Clear ACC_FINAL on classes<br/><i>(FinalStripper) so proxies can extend user classes</i>"]
+        dex["Dex to one classes.dex<br/><i>(DexTool) d8, min-api 30, no desugaring</i>"]
+        aapt["Relink the resource apk<br/><i>(Aapt2Link) full relink with --stable-ids</i>"]
+        diag["Parse compiler diagnostics<br/><i>(KotlincDiagnosticsParser) file / line / column</i>"]
+        stats["Collect per-op statistics<br/><i>millis + counts, compileOrdinal, scratchFsType</i>"]
+    end
+
+    cogo -- "requests (line JSON)" --> router
+    router -- "responses ok/diagnostics" --> cogo
+    router --> tooldisc
+    tooldisc -- "tool paths" --> jdk
+    router --> ic
+    ic -- "kotlin classes" --> javac
+    javac -- "merged class tree" --> strip
+    strip -- "final-cleared classes" --> dex
+    router --> aapt
+    ic -- "compiler output" --> diag
+    diag -- "structured diagnostics" --> router
+    proj -- "sources + classpath" --> ic
+    ic -- "class trees" --> scratchExt
+    dex -- "classes.dex" --> scratchExt
+    aapt -- "resource apk" --> scratchExt
+    router --> stats
+    stats -- "counters merged into the response" --> router
+
+    classDef ext stroke-dasharray: 6 4,stroke-width:1.5px
+```
+
 - [DaemonMain](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonMain.kt) owns the serve loop, the stdout/stderr split and the exit contract. Those are wire behavior, so they are stated once in [the protocol reference](../protocol/README.md#transport-rules) rather than here.
 - [DaemonService](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonService.kt) holds the warm state - `configure` builds the session, `compile` / `dex` / `relink` reuse it. [RequestRouter](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/protocol/RequestRouter.kt) is the backstop that turns an escaped exception into an `ok:false` response.
 - The wire types live in `:quickbuild:protocol` ([DaemonProtocol.kt](../protocol/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/protocol/DaemonProtocol.kt)) so client and daemon cannot drift; [ProtocolCodec](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/protocol/ProtocolCodec.kt) is pure string functions.
@@ -150,6 +331,44 @@ Resources are relinked by [Aapt2Link](../daemon/src/main/kotlin/org/appdevforall
 ## Step 6: Deploy and reload (`:quickbuild:runtime`)
 
 The Java-only AAR inside the proxy app. It receives payload file descriptors over uid-checked AIDL and makes the new generation the running code.
+
+```mermaid
+flowchart TB
+    host["CoGo QuickBuildHostService + DeployChannel<br/><i>payload fds, gated on the proxy app's uid</i>"]:::ext
+    framework["Android framework<br/><i>pins Context#getClassLoader to the base APK loader</i>"]:::ext
+    usercode["User classes + proxies<br/><i>exist ONLY in the payload dex</i>"]:::ext
+    cogoUi["CoGo (editor)<br/><i>jump trampoline + return target</i>"]:::ext
+
+    subgraph rt ["quickbuild:runtime - makes gen N+1 the running code"]
+        runtime["Bind outbound to CoGo<br/><i>(QuickBuildRuntime) only the proxy app can re-establish it</i>"]
+        clientRt["Receive deploys<br/><i>(QuickBuildClient) payload fds + DeployMetadata</i>"]
+        store[("Payload store<br/><i>(PayloadStore + Generations) current gen's dex + arsc</i>")]
+        persist[("Persisted payloads<br/><i>(PayloadPersistence) fingerprint-keyed to the baseline</i>")]
+        factory["Instantiate components<br/><i>(QuickBuildAppComponentFactory) from the current gen</i>"]
+        loaders["Route by-name class loads<br/><i>(QuickBuildClassLoaders + LoaderRouter) getClassLoader()</i>"]
+        res["Swap the resource table<br/><i>(ResourceSwapStrategy) ResourcesLoader on 30+, shim on 28/29</i>"]
+        tracker["Recreate live components<br/><i>(ActivityTracker / ServiceTracker) the activity stack</i>"]
+        overlay["Show build status<br/><i>(StatusOverlay) still on the last good generation</i>"]
+        gestures["Watch for 3-finger tap<br/><i>(QuickBuildGestures) observation only, never consumes</i>"]
+    end
+
+    host -- "payload fds + metadata,<br/>build status JSON" --> clientRt
+    runtime -- "outbound bind" --> host
+    clientRt -- "payload (dex + resource apk)" --> store
+    clientRt -- "accepted deploy" --> persist
+    store -- "current gen loader" --> factory
+    factory --> usercode
+    store -- "payload loader" --> loaders
+    clientRt -- "new resource apk" --> res
+    clientRt -- "hot-swap deploy" --> tracker
+    clientRt -- "restart deploy:<br/>persist, ack, exit" --> persist
+    framework -.-> loaders
+    clientRt -- "build_failed status" --> overlay
+    overlay -- "JUMP_TO_ERROR intent" --> cogoUi
+    gestures -- "3-finger tap:<br/>bring CoGo forward" --> cogoUi
+
+    classDef ext stroke-dasharray: 6 4,stroke-width:1.5px
+```
 
 CoGo's side of the channel:
 
@@ -189,6 +408,40 @@ Behavior worth knowing before changing any of it:
 
 The only fallback. Every state that cannot be trusted ends in a fresh proxy app build.
 
+```mermaid
+flowchart TB
+    triggers["Invalidation triggers<br/><i>manifest / gradle / dep / processor-input edit, daemon death</i>"]:::ext
+    buildExt["Proxy app build (step 1)"]:::ext
+    pkginst["Android PackageInstaller<br/><i>reinstall confirm dialog</i>"]:::ext
+    user["User / lifecycle events<br/><i>lightning tap, HostForegrounded</i>"]:::ext
+    proxyapp["Proxy app process"]:::ext
+
+    subgraph rebase ["Proxy app rebuild and recovery - run by session control"]
+        inval["Park awaiting retry<br/><i>(Invalidated) saves accumulate; foreground retry MAX 2</i>"]
+        degraded["Respawn after daemon death<br/><i>(Degraded) respawn + background warm compile</i>"]
+        runner["Re-run the proxy app build<br/><i>(ProxyAppBuildRunner) daemon down for the Gradle peak</i>"]
+        hash["Decide reinstall vs reuse<br/><i>reinstall ONLY if the app's bytes changed</i>"]
+        confirm["Handle the confirm dialog<br/><i>(ProxyAppInstaller) no showable dialog -> fail fast</i>"]
+        discard["Reset payloads + scratch<br/><i>persisted payloads discarded; generation store survives</i>"]
+        handback["Refresh from Standard Run<br/><i>a completed Standard Run build refreshes the baseline</i>"]
+    end
+
+    triggers --> inval
+    triggers --> degraded
+    inval -- "retry trigger (tap /<br/>bounded foreground)" --> runner
+    user --> inval
+    runner --> buildExt
+    buildExt -- "new baseline" --> hash
+    hash -- "bytes changed" --> confirm
+    confirm <--> pkginst
+    runner --> discard
+    confirm -- "confirmed install" --> proxyapp
+    handback --> runner
+    degraded -- "respawn + warm compile request" --> runner
+
+    classDef ext stroke-dasharray: 6 4,stroke-width:1.5px
+```
+
 There is **no rebuild-orchestrator class**. The reducer's `Invalidated` state decides when, and session control executes it:
 
 1. [ProxyAppBuildRunner.rebuildProxyApp](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/ProxyAppBuildRunner.kt) shuts the daemon down **first**, to free its memory for the Gradle peak - on a 3-4 GB device the two must not coexist. Nothing is lost: the daemon's incremental state is stale after a rebuild anyway, and a survivor would keep serving the old configure's classpath.
@@ -212,6 +465,34 @@ Handback works in both directions: a completed Standard Run build raises `Invali
 ## Step 8: Observability (`domain/QuickBuildMetricsSink` + `:app` sinks)
 
 One port, several guarded listeners. Instrumentation must never affect a build, so every call site guards and every sink swallows.
+
+```mermaid
+flowchart TB
+    pipeline["Quick Build pipeline (steps 2-7)<br/><i>session, build and timing callbacks</i>"]:::ext
+    firebase["Firebase Analytics<br/><i>25-param cap, enforced by a unit test</i>"]:::ext
+    harness["Benchmark harness (adb)<br/><i>tails the events file; flag-gated</i>"]:::ext
+    flags["Flag files in Download/<br/><i>.exp gates the feature, .qbbench the interface</i>"]:::ext
+
+    subgraph obs ["Observability - measure without perturbing a build"]
+        port["Accept per-build metrics<br/><i>(QuickBuildMetricsSink) the domain port</i>"]
+        composite["Fan out to listeners<br/><i>(CompositeQuickBuildMetricsSink) each delegate guarded</i>"]
+        analytics["Ship analytics events<br/><i>(AnalyticsQuickBuildMetricsSink) timing partition + residual</i>"]
+        bench["Mirror to the bench log<br/><i>(BenchQuickBuildMetricsSink + BenchStateRecorder) jsonl</i>"]
+        benchact["Open project + fire first tap<br/><i>(QuickBuildBenchActivity) exported, flag-gated</i>"]
+    end
+
+    pipeline -- "per-build callbacks" --> port
+    port --> composite
+    composite --> analytics
+    analytics -- "capped events" --> firebase
+    composite --> bench
+    bench -- "bench-events.jsonl" --> harness
+    harness -- "BENCH_OPEN_PROJECT intent" --> benchact
+    flags -.-> bench
+    flags -.-> benchact
+
+    classDef ext stroke-dasharray: 6 4,stroke-width:1.5px
+```
 
 | Sink | When it runs | File |
 | --- | --- | --- |
