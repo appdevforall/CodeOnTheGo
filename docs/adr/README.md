@@ -24,3 +24,4 @@ Format is lightweight **MADR / Nygard**: Context → Decision → Consequences �
 | [0008](0008-retain-androidide-namespace.md) | Retain the `com.itsaky.androidide` namespace after rebrand | Proposed |
 | [0009](0009-jetpack-compose-for-new-ui.md) | Build new UI in Jetpack Compose, not XML Views | Proposed |
 | [0010](0010-navigation-resolves-via-analysis-api.md) | Kotlin navigation resolves via the Analysis API, not the symbol index | Proposed |
+| [0012](0012-lazy-load-javac-via-dexclassloader.md) | Lazy-load the embedded javac fork via a carrier APK + DexClassLoader | Proposed |
