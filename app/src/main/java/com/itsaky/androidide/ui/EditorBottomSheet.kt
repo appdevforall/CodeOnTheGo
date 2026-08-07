@@ -55,6 +55,7 @@ import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.fragments.output.SearchableOutputFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.fragments.output.ViewOptionsOutputFragment
 import com.itsaky.androidide.fragments.output.WrappableOutputFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -298,6 +299,14 @@ class EditorBottomSheet
 			}
 			binding.wordWrapOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_WORD_WRAP))
 
+			binding.viewOptionsOutputAction.setOnClickListener {
+				val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
+				if (fragment is ViewOptionsOutputFragment) {
+					fragment.showViewOptions(it)
+				}
+			}
+			binding.viewOptionsOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_VIEW_OPTIONS))
+
 			binding.headerContainer.setOnClickListener {
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 			}
@@ -332,6 +341,8 @@ class EditorBottomSheet
 			binding.filterOutputAction.setOnLongClickListener(null)
 			binding.wordWrapOutputAction.setOnClickListener(null)
 			binding.wordWrapOutputAction.setOnLongClickListener(null)
+			binding.viewOptionsOutputAction.setOnClickListener(null)
+			binding.viewOptionsOutputAction.setOnLongClickListener(null)
 			binding.copyDiagnosticsFab.setOnClickListener(null)
 			binding.headerContainer.setOnClickListener(null)
 			removeOnLayoutChangeListener(fabLayoutChangeListener)
@@ -670,6 +681,7 @@ class EditorBottomSheet
 			val showShareAndClear = isExpanded && currentFragment is ShareableOutputFragment
 			val showSearchAndFilter = isExpanded && currentFragment is SearchableOutputFragment
 			val showWordWrap = isExpanded && currentFragment is WrappableOutputFragment
+			val showViewOptions = isExpanded && currentFragment is ViewOptionsOutputFragment
 			val showCopy =
 				isExpanded &&
 					currentFragment != null &&
@@ -680,7 +692,8 @@ class EditorBottomSheet
 			binding.searchOutputAction.isVisible = showSearchAndFilter
 			binding.filterOutputAction.isVisible = showSearchAndFilter
 			binding.wordWrapOutputAction.isVisible = showWordWrap
-			binding.outputActions.isVisible = showShareAndClear || showSearchAndFilter || showWordWrap
+			binding.viewOptionsOutputAction.isVisible = showViewOptions
+			binding.outputActions.isVisible = showShareAndClear || showSearchAndFilter || showWordWrap || showViewOptions
 			binding.copyDiagnosticsFab.isVisible = showCopy
 
 			if (showWordWrap) {
