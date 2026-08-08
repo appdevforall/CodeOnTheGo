@@ -20,14 +20,14 @@ package com.itsaky.androidide.projects.classpath
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider
 import com.itsaky.androidide.utils.FileProvider
-import java.io.File
-import java.nio.file.Files
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.File
+import java.nio.file.Files
 
 /**
  * Regression test for ADFA-3364: a corrupt/truncated/zero-byte JAR among the classpath entries
@@ -38,83 +38,83 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.DEFAULT_VALUE_STRING)
 class JarFsClasspathReaderCorruptJarTest {
+	private lateinit var tmpDir: File
+	private lateinit var validJar: File
+	private lateinit var corruptJar: File
+	private lateinit var zeroByteJar: File
 
-  private lateinit var tmpDir: File
-  private lateinit var validJar: File
-  private lateinit var corruptJar: File
-  private lateinit var zeroByteJar: File
+	@Before
+	fun setUp() {
+		// The provider caches by normalized path; start clean so prior runs cannot mask behavior.
+		CachingJarFileSystemProvider.clearCache()
 
-  @Before
-  fun setUp() {
-    // The provider caches by normalized path; start clean so prior runs cannot mask behavior.
-    CachingJarFileSystemProvider.clearCache()
+		tmpDir = Files.createTempDirectory("adfa3364").toFile()
 
-    tmpDir = Files.createTempDirectory("adfa3364").toFile()
+		// A genuinely valid JAR known to contain android.content.Context.
+		val sourceAndroidJar =
+			FileProvider
+				.testProjectRoot()
+				.resolve("app/src/main/resources/android.jar")
+				.toFile()
+		assertThat(sourceAndroidJar.exists()).isTrue()
 
-    // A genuinely valid JAR known to contain android.content.Context.
-    val sourceAndroidJar =
-      FileProvider.testProjectRoot()
-        .resolve("app/src/main/resources/android.jar")
-        .toFile()
-    assertThat(sourceAndroidJar.exists()).isTrue()
+		// Copy it to a unique temp path so the FS-provider cache key is distinct per run.
+		validJar = File(tmpDir, "valid.jar")
+		sourceAndroidJar.copyTo(validJar, overwrite = true)
 
-    // Copy it to a unique temp path so the FS-provider cache key is distinct per run.
-    validJar = File(tmpDir, "valid.jar")
-    sourceAndroidJar.copyTo(validJar, overwrite = true)
+		// A truncated JAR: take the first 64 bytes of a real JAR. It has the local-file-header
+		// signature but no valid end-of-central-directory record -> ZipException on open/walk.
+		corruptJar = File(tmpDir, "corrupt.jar")
+		val head = sourceAndroidJar.inputStream().use { it.readNBytes(64) }
+		corruptJar.writeBytes(head)
 
-    // A truncated JAR: take the first 64 bytes of a real JAR. It has the local-file-header
-    // signature but no valid end-of-central-directory record -> ZipException on open/walk.
-    corruptJar = File(tmpDir, "corrupt.jar")
-    val head = sourceAndroidJar.inputStream().use { it.readNBytes(64) }
-    corruptJar.writeBytes(head)
+		// A zero-byte file with a .jar extension -> also unreadable as a zip.
+		zeroByteJar = File(tmpDir, "empty.jar")
+		zeroByteJar.writeBytes(ByteArray(0))
+	}
 
-    // A zero-byte file with a .jar extension -> also unreadable as a zip.
-    zeroByteJar = File(tmpDir, "empty.jar")
-    zeroByteJar.writeBytes(ByteArray(0))
-  }
+	@After
+	fun tearDown() {
+		CachingJarFileSystemProvider.clearCache()
+		tmpDir.deleteRecursively()
+	}
 
-  @After
-  fun tearDown() {
-    CachingJarFileSystemProvider.clearCache()
-    tmpDir.deleteRecursively()
-  }
+	/**
+	 * A corrupt JAR must be skipped (its ZipException caught) with the valid JAR still indexed -
+	 * an uncaught ZipException propagates out of [JarFsClasspathReader.listClasses] and aborts
+	 * indexing entirely.
+	 *
+	 * Corrupt JAR is listed FIRST so that, if the exception aborts the loop, the valid JAR after it
+	 * never gets indexed either (stronger assertion that indexing did not abort).
+	 */
+	@Test
+	fun corruptJarDoesNotAbortIndexingOfRemainingEntries() {
+		val classes =
+			JarFsClasspathReader()
+				.listClasses(listOf(corruptJar, zeroByteJar, validJar))
 
-  /**
-   * On the FIX branch: the corrupt JAR is skipped (ZipException caught) and the valid JAR is still
-   * indexed. On the pre-fix baseline: the ZipException from the corrupt JAR propagates out of
-   * [JarFsClasspathReader.listClasses] and this test fails with that exception.
-   *
-   * Corrupt JAR is listed FIRST so that, if the exception aborts the loop, the valid JAR after it
-   * never gets indexed either (stronger assertion that indexing did not abort).
-   */
-  @Test
-  fun corruptJarDoesNotAbortIndexingOfRemainingEntries() {
-    val classes =
-      JarFsClasspathReader()
-        .listClasses(listOf(corruptJar, zeroByteJar, validJar))
+		// The valid JAR after the corrupt ones must have been fully indexed.
+		val context = classes.firstOrNull { it.name == "android.content.Context" }
+		assertThat(context).isNotNull()
+		assertThat(context!!.packageName).isEqualTo("android.content")
 
-    // The valid JAR after the corrupt ones must have been fully indexed.
-    val context = classes.firstOrNull { it.name == "android.content.Context" }
-    assertThat(context).isNotNull()
-    assertThat(context!!.packageName).isEqualTo("android.content")
+		// Sanity: a non-trivial number of classes were indexed from the valid jar.
+		assertThat(classes.size).isGreaterThan(100)
+	}
 
-    // Sanity: a non-trivial number of classes were indexed from the valid jar.
-    assertThat(classes.size).isGreaterThan(100)
-  }
+	/**
+	 * The reader must EXPOSE the skipped JARs (not just log them) so the caller can name the offending
+	 * dependency to the user and offer a recovery path (re-sync) instead of silently dropping symbols.
+	 */
+	@Test
+	fun unreadableJarsAreCollectedForUserReporting() {
+		val reader = JarFsClasspathReader()
+		reader.listClasses(listOf(corruptJar, zeroByteJar, validJar))
 
-  /**
-   * The reader must EXPOSE the skipped JARs (not just log them) so the caller can name the offending
-   * dependency to the user and offer a recovery path (re-sync) instead of silently dropping symbols.
-   */
-  @Test
-  fun unreadableJarsAreCollectedForUserReporting() {
-    val reader = JarFsClasspathReader()
-    reader.listClasses(listOf(corruptJar, zeroByteJar, validJar))
-
-    val skipped = reader.unreadableJars.map { it.name }.toSet()
-    // Both the truncated and the zero-byte JAR are reported...
-    assertThat(skipped).containsExactly("corrupt.jar", "empty.jar")
-    // ...and the valid JAR is NOT reported as unreadable.
-    assertThat(skipped).doesNotContain("valid.jar")
-  }
+		val skipped = reader.unreadableJars.map { it.name }.toSet()
+		// Both the truncated and the zero-byte JAR are reported...
+		assertThat(skipped).containsExactly("corrupt.jar", "empty.jar")
+		// ...and the valid JAR is NOT reported as unreadable.
+		assertThat(skipped).doesNotContain("valid.jar")
+	}
 }
