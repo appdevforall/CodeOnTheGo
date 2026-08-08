@@ -65,9 +65,13 @@ import com.itsaky.androidide.plugins.extensions.ProjectSearchExtension
 import com.itsaky.androidide.plugins.extensions.ProjectSearchRequest
 import com.itsaky.androidide.plugins.extensions.ProjectSearchResult
 import com.itsaky.androidide.plugins.extensions.ProjectSearchSection
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.projectDir
+import com.itsaky.androidide.quickbuild.BenchEventsFile
+import com.itsaky.androidide.quickbuild.QuickBuildBenchAutostart
+import com.itsaky.androidide.quickbuild.resolve
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.services.builder.GradleBuildService
@@ -91,9 +95,11 @@ import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
+import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.onLongPress
@@ -115,7 +121,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.adfa.constants.CONTENT_KEY
+import org.appdevforall.cotg.quickbuild.domain.QuickBuildNotice
+import org.appdevforall.cotg.quickbuild.domain.QuickBuildStatus
+import org.appdevforall.cotg.quickbuild.service.QuickBuildClobberCheck
+import org.appdevforall.cotg.quickbuild.service.QuickBuildSessionManager
 import org.koin.android.ext.android.inject
+import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
@@ -237,17 +248,134 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 	}
 
+	/**
+	 * Low-spec device support (ADFA-4128): forward the framework signal so a live
+	 * Quick Build session can give back the compile daemon's heap under memory pressure.
+	 * See [QuickBuildSessionManager.onTrimMemory] for the per-level decision and the
+	 * (lazy, auto-healing) re-warm path - nothing else is required here. Genuine memory
+	 * pressure is the ONLY thing that reclaims the daemon: backgrounding CoGo (the user
+	 * switching to their running proxy app mid-loop) deliberately keeps it warm, matching
+	 * the standard Gradle build daemon's lifetime policy.
+	 */
+	override fun onTrimMemory(level: Int) {
+		super.onTrimMemory(level)
+		quickBuildSessionManager()?.onTrimMemory(level)
+	}
+
 	private fun observeStates() {
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.STARTED) {
 				launch {
 					buildViewModel.buildState.collect { onBuildStateChanged(it) }
 				}
+				quickBuildSessionManager()?.let { quickBuild ->
+					// ADFA-4128: the toolbar icon reads the session status
+					// pull-style in prepare(); nothing else rebuilds the toolbar when
+					// e.g. a watcher-triggered build fails, so push every status
+					// change into a menu refresh or the ATTENTION icon never shows.
+					launch {
+						quickBuild.status.collect { status ->
+							invalidateOptionsMenu()
+							showProvisioningStatus(status)
+						}
+					}
+					launch {
+						quickBuild.userMessages.collect { flashError(it.resolve(this@ProjectHandlerActivity)) }
+					}
+					launch {
+						// Session messages whose copy lives here rather than in
+						// :quickbuild:core (it has no R). Deliberately NOT the error channel,
+						// which flashes everything red: each notice picks its own tone, so a
+						// build the user chose to stop does not read as a failure while a
+						// reload that keeps crashing does.
+						quickBuild.notices.collect { notice ->
+							when (notice) {
+								QuickBuildNotice.BUILD_CANCELLED -> {
+									flashInfo(getString(string.info_build_cancelled))
+								}
+
+								QuickBuildNotice.RELOAD_CRASHED -> {
+									flashError(getString(string.quick_build_reload_crashed))
+								}
+
+								QuickBuildNotice.RELINK_STUCK -> {
+									flashError(getString(string.quick_build_relink_stuck))
+								}
+
+								QuickBuildNotice.STALE_COMPONENT_HELPERS -> {
+									// The deploy worked, so this is advisory, not an error.
+									flashInfo(getString(string.quick_build_stale_component_helpers))
+								}
+
+								QuickBuildNotice.PROXY_APP_WONT_STAY_UP -> {
+									// The one notice that gets a dialog: the user is in a closed
+									// loop (saving cannot help, relaunching restarts the crash),
+									// and the only way out is an action buried in a long-press
+									// menu. A flash they can miss would leave them stuck.
+									showProxyAppWontStayUpDialog()
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}
 
+	/**
+	 * Offers the one action that clears a proxy app which will not stay open.
+	 *
+	 * A dialog rather than a flash because every other affordance the user would reach for is a
+	 * dead end - saving rebuilds a payload with nowhere to land, and the deploy failure's own
+	 * "relaunch to reconnect" restarts the same crash. Restart session drops the session to
+	 * Idle so the next tap re-provisions, which is what actually replaces the broken app.
+	 *
+	 * Dismissible: the user may prefer to fix their startup crash first and restart afterwards,
+	 * and the notice is raised again if the streak continues past a success.
+	 */
+	private fun showProxyAppWontStayUpDialog() {
+		if (isFinishing || isDestroyed) {
+			return
+		}
+		newMaterialDialogBuilder(this)
+			.setTitle(string.quick_build_wont_stay_up_title)
+			.setMessage(string.quick_build_wont_stay_up_message)
+			.setPositiveButton(string.quick_build_wont_stay_up_restart) { dialog, _ ->
+				dialog.dismiss()
+				quickBuildSessionManager()?.restartSession()
+			}.setNegativeButton(string.quick_build_wont_stay_up_dismiss) { dialog, _ ->
+				dialog.dismiss()
+			}.show()
+	}
+
+	/**
+	 * Narrates first-run provisioning on the same status line the standard build uses.
+	 *
+	 * Provisioning is minutes of proxy app build, install and daemon spawn during which the only
+	 * feedback was the toolbar icon swapping to the stop glyph - indistinguishable from a hung
+	 * button. The copy leads with the wait being a one-off rather than with its duration, which
+	 * is the part the user actually needs.
+	 *
+	 * Renders for every provision, not only user-initiated ones: a background warm-up already
+	 * maps to [QuickBuildStatus.Hidden], so the only other case that reaches here is a proxy app
+	 * rebuild a save triggered - where the user is waiting on that save just as much. Who asked
+	 * deliberately does not reach the status ([QuickBuildStatus] keeps it out on purpose).
+	 *
+	 * Only clears a status line it wrote itself, so it cannot wipe a project-init or
+	 * plugin-install message that landed while provisioning ran.
+	 */
+	private fun showProvisioningStatus(status: QuickBuildStatus) {
+		if (status is QuickBuildStatus.Provisioning) {
+			ownsProvisioningStatus = true
+			setStatus(getString(string.quick_build_provisioning))
+		} else if (ownsProvisioningStatus) {
+			ownsProvisioningStatus = false
+			setStatus("")
+		}
+	}
+
 	private fun onBuildStateChanged(state: BuildState) {
+		val isBenchStandardResult = benchStandardBuildEnded(state)
 		editorViewModel.isBuildInProgress = (state is BuildState.InProgress)
 		when (state) {
 			is BuildState.Idle -> {
@@ -267,8 +395,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			}
 
 			is BuildState.AwaitingInstall -> {
-				installApk(state)
-				buildViewModel.installationAttempted()
+				if (isBenchStandardResult) {
+					// Bench standard build: the measurement ends at the build result, and
+					// an unattended bench run must not pop the install dialog.
+					buildViewModel.installationAttempted()
+				} else {
+					installApk(state)
+					buildViewModel.installationAttempted()
+				}
 			}
 
 			is BuildState.AwaitingPluginInstall -> {
@@ -280,6 +414,25 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	private fun installApk(state: BuildState.AwaitingInstall) {
+		// Confirm-on-switch (ADFA-4128): Quick Build and Standard Run share the one package
+		// slot (the real applicationId). When a Quick Build proxy app currently occupies it,
+		// this Standard Run install replaces it, so confirm before clobbering it.
+		val realAppId = projectRealApplicationId()
+		if (realAppId != null && quickBuildClobberCheck()?.standardRunNeedsConfirm(realAppId) == true) {
+			confirmBuildTypeSwitch(
+				getString(string.quick_build_switch_to_standard_title),
+				getString(string.quick_build_switch_to_standard_message, realAppId),
+			) {
+				// The Quick Build session's installed baseline is about to be replaced; stop it.
+				quickBuildSessionManager()?.restartSession()
+				doInstallApk(state)
+			}
+			return
+		}
+		doInstallApk(state)
+	}
+
+	private fun doInstallApk(state: BuildState.AwaitingInstall) {
 		apkInstallationViewModel.installApk(
 			context = this,
 			apk = state.apkFile,
@@ -294,6 +447,200 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				currentTab = BottomSheetViewModel.TAB_PROFILER,
 			)
 		}
+	}
+
+	/**
+	 * The Quick Build session manager (ADFA-4128), or null when the feature is off.
+	 * Gated exactly like the action's registration in EditorActivityActions - the
+	 * experiments flag only, no SDK check: Quick Build works from API 28, where a degraded
+	 * resource shim covers 28/29. Resolving the Koin singleton is cheap -
+	 * nothing spawns until the first quick build runs.
+	 *
+	 * Protected (not private): [EditorHandlerActivity]'s split-button dropdown
+	 * calls this too, to trigger a quick build / restart from the long-press menu.
+	 */
+	protected fun quickBuildSessionManager(): QuickBuildSessionManager? {
+		if (!FeatureFlags.isExperimentsEnabled) {
+			return null
+		}
+		return runCatching { GlobalContext.get().get<QuickBuildSessionManager>() }
+			.onFailure { logger.error("Quick Build session manager unavailable", it) }
+			.getOrNull()
+	}
+
+	/**
+	 * ADFA-4128 benchmark: a bench re-open of the ALREADY-OPEN project arrives here
+	 * (single-top editor), not through project init. Claim + fire, mirroring the
+	 * [onProjectInitialized] claim site. While the project is still initializing the
+	 * latch is left armed - the init-path claim will consume it. The standard-mode path
+	 * exists so the harness can measure a post-edit INCREMENTAL standard build on the
+	 * warm Gradle daemon (a force-stop + fresh open would cold-start the daemon).
+	 */
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		if (!FeatureFlags.isQuickBuildBenchEnabled || editorViewModel.isInitializing) return
+		val canonical =
+			runCatching { File(IProjectManager.getInstance().projectDirPath).canonicalPath }.getOrNull()
+				?: return
+		when (QuickBuildBenchAutostart.claim(canonical)) {
+			QuickBuildBenchAutostart.MODE_QUICK_BUILD -> quickBuildSessionManager()?.onQuickBuildTapped()
+			QuickBuildBenchAutostart.MODE_STANDARD -> fireBenchStandardBuild()
+			else -> Unit
+		}
+	}
+
+	/**
+	 * Start time of an in-flight bench standard build ([fireBenchStandardBuild]), or null
+	 * when none is running. Written on the project-init path, read on the build-state
+	 * collector - hence volatile.
+	 */
+	@Volatile
+	private var benchStandardBuildStartMs: Long? = null
+
+	/** Whether the provisioning notice owns the status line, so it only clears its own text. */
+	private var ownsProvisioningStatus = false
+
+	/**
+	 * Bench standard-mode autostart ([QuickBuildBenchAutostart.MODE_STANDARD]): fires the
+	 * standard Run build exactly as the toolbar action would for a single-application
+	 * project, stamping bench events around it so the harness reads the build duration.
+	 * The post-build install is suppressed in [onBuildStateChanged] - the measurement ends
+	 * at the build result, and an unattended run must not pop an install dialog.
+	 */
+	private fun fireBenchStandardBuild() {
+		val module = IProjectManager.getInstance().getAndroidAppModules().firstOrNull()
+		val variant = module?.getSelectedVariant()
+		if (module == null || variant == null) {
+			logger.warn("Bench standard build: no application module/variant to build")
+			return
+		}
+		benchStandardBuildStartMs = System.currentTimeMillis()
+		benchEventsFile()?.append("standard_build_started") {
+			put("project", IProjectManager.getInstance().projectDirPath)
+			put("module", module.path)
+			put("variant", variant.name)
+		}
+		buildViewModel.runQuickBuild(module, variant, launchInDebugMode = false)
+	}
+
+	/**
+	 * Emits the bench standard build's terminal event and clears the latch. Returns true
+	 * iff [state] is the terminal result of an in-flight bench standard build - the caller
+	 * uses that to suppress the install this state would normally trigger. [BuildState] is
+	 * a distinct-until-changed StateFlow, so the pre-fire Idle can never re-emit; any
+	 * non-InProgress state seen while the latch is armed IS the result.
+	 */
+	private fun benchStandardBuildEnded(state: BuildState): Boolean {
+		val startMs = benchStandardBuildStartMs ?: return false
+		if (state is BuildState.InProgress) return false
+		benchStandardBuildStartMs = null
+		val isSuccess =
+			state is BuildState.AwaitingInstall ||
+				state is BuildState.Success ||
+				state is BuildState.AwaitingPluginInstall
+		benchEventsFile()?.append("standard_build_finished") {
+			put("isSuccess", isSuccess)
+			put("durationMs", System.currentTimeMillis() - startMs)
+		}
+		return true
+	}
+
+	/** The bench JSON-lines event writer, or null when bench flags are off. */
+	private fun benchEventsFile(): BenchEventsFile? {
+		if (!FeatureFlags.isQuickBuildBenchEnabled) {
+			return null
+		}
+		return runCatching { GlobalContext.get().get<BenchEventsFile>() }
+			.onFailure { logger.error("Bench events file unavailable", it) }
+			.getOrNull()
+	}
+
+	/**
+	 * The Quick Build confirm-on-switch check (ADFA-4128), or null when the feature is off.
+	 * Gated exactly like [quickBuildSessionManager].
+	 */
+	protected fun quickBuildClobberCheck(): QuickBuildClobberCheck? {
+		if (!FeatureFlags.isExperimentsEnabled) {
+			return null
+		}
+		return runCatching { GlobalContext.get().get<QuickBuildClobberCheck>() }
+			.onFailure { logger.error("Quick Build clobber check unavailable", it) }
+			.getOrNull()
+	}
+
+	/**
+	 * Quick Build install gate (ADFA-4128): the proxy app installs under the project's real
+	 * applicationId. When a different build (the Standard Run app) currently occupies that
+	 * id, installing the proxy app replaces it, so confirm first and run [onConfirmed] only on
+	 * accept; otherwise [onConfirmed] runs immediately. A third-party occupant (different
+	 * signing cert) is caught authoritatively by the provisioner's signature check, which
+	 * refuses rather than clobbers.
+	 */
+	fun ensureQuickBuildClobberConfirmed(onConfirmed: () -> Unit) {
+		val realAppId = projectRealApplicationId()
+		val clobberCheck = quickBuildClobberCheck()
+		if (realAppId == null || clobberCheck == null || !clobberCheck.quickBuildNeedsConfirm(realAppId)) {
+			onConfirmed()
+			return
+		}
+		confirmBuildTypeSwitch(
+			getString(string.quick_build_switch_to_quick_title),
+			getString(string.quick_build_switch_to_quick_message, realAppId),
+			onConfirmed,
+		)
+	}
+
+	private fun projectRealApplicationId(): String? {
+		val projectManager = IProjectManager.getInstance()
+		val module =
+			projectManager.getAndroidAppModules().firstOrNull()
+				?: projectManager.getAndroidModules().firstOrNull()
+				?: return null
+		return module
+			.getSelectedVariant()
+			?.mainArtifact
+			?.applicationId
+			?.takeIf { it.isNotBlank() }
+	}
+
+	/**
+	 * The confirm-on-switch dialog (ADFA-4128): switching build type overwrites whatever
+	 * currently occupies the project's real applicationId, so the confirm is destructive-styled
+	 * and nothing installs before accept. Decline (button, back, or outside touch) leaves the
+	 * installed app untouched.
+	 */
+	private fun confirmBuildTypeSwitch(
+		title: String,
+		message: String,
+		onConfirm: () -> Unit,
+	) {
+		val dialog =
+			newMaterialDialogBuilder(this)
+				.setTitle(title)
+				.setMessage(message)
+				.setPositiveButton(string.quick_build_switch_confirm) { d, _ ->
+					d.dismiss()
+					onConfirm()
+				}.setNegativeButton(android.R.string.cancel) { d, _ -> d.dismiss() }
+				.show()
+		// Destructive styling: the confirm action replaces an installed app, so it must
+		// not read as the default affirmative.
+		dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(
+			resolveAttr(com.itsaky.androidide.resources.R.attr.colorError),
+		)
+	}
+
+	/**
+	 * Hand-back (ADFA-4128): called by [EditorBuildEventListener] whenever ANY
+	 * external Gradle build finishes - success OR failure, Run button or "Run Gradle
+	 * tasks". Even a failed build can have rewritten build/ outputs of the modules that
+	 * DID compile (paths the quick-build watcher deliberately does not watch), so a live
+	 * session refreshes its baseline from current disk either way. Over-refreshing is safe: it only
+	 * marks the baseline untrusted. The session's own proxy app builds also land here, but
+	 * the reducer drops the event in Provisioning/Prebuilding.
+	 */
+	fun onExternalGradleBuildFinished() {
+		quickBuildSessionManager()?.onStandardRunCompleted()
 	}
 
 	private fun showPluginInstallDialog(cgpFile: File) {
@@ -353,6 +700,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			// of the project
 			ProjectManagerImpl.getInstance().destroy()
 
+			// ADFA-4128: the Quick Build session manager is a process-wide Koin
+			// singleton that outlives this activity, and its provisioner reads
+			// IProjectManager.getInstance().projectDirPath fresh at build time rather
+			// than a snapshot. Without this, closing a project while its eager prebuild
+			// (or a live session) is still in flight lets that work silently keep
+			// running once projectPath flips to whatever project opens next - either
+			// racing the next project's own prebuild() into a permanent no-op (the
+			// reducer treats a second PrebuildRequested while already Prebuilding as a
+			// no-op) or building against the wrong directory. restartSession() is a
+			// verified no-op when nothing is live (SessionReducerTest: "idle plus
+			// SessionRestartRequested is a no-op").
+			quickBuildSessionManager()?.restartSession()
+
 			editorViewModel.isInitializing = false
 			editorViewModel.isBuildInProgress = false
 		}
@@ -363,8 +723,21 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		val service =
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
-		editorViewModel.isBuildInProgress = service?.isBuildInProgress == true
+		// The USER-visible flag, not the raw one: Quick Build's proxy app build occupies the same
+		// Gradle slot on every project open, and latching the raw flag here left the editor
+		// stuck showing "building" (progress bar + cancel label) for a build nobody started -
+		// and, with its listener suppressed, nothing would ever clear it.
+		editorViewModel.isBuildInProgress = service?.isUserVisibleBuildInProgress == true
 		editorViewModel.isInitializing = initializingFuture?.isDone == false
+
+		// ADFA-4128: a proxy app rebuild reinstall that ran while CoGo was backgrounded never
+		// showed its confirm dialog - Android defers the PENDING_USER_ACTION broadcast
+		// until the app is foregrounded, and the dialog-owning subscriber
+		// (InstallationResultHandler via BaseEditorActivity) is EventBus lifecycle-bound
+		// (registered onStart), so the deferred delivery can land before it re-registers.
+		// Returning here is the first chance to re-prompt. No-op unless the session is
+		// parked awaiting that retry (auto-retries are bounded by the reducer).
+		quickBuildSessionManager()?.onHostForegrounded()
 
 		invalidateOptionsMenu()
 	}
@@ -787,6 +1160,32 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		setStatus(getString(string.msg_project_initialized))
 		editorViewModel.isInitializing = false
 		invalidateOptionsMenu()
+
+		// ADFA-4128 benchmark: if QuickBuildBenchActivity armed an autostart for THIS
+		// project, claim it now - the adb-driven stand-in for the human's tap. Bench-flag
+		// only; claim() is a one-shot, matched by canonical path. Claimed BEFORE prebuild so
+		// a standard-mode bench build runs alone on the daemon instead of racing the eager
+		// proxy app build.
+		val benchMode =
+			if (FeatureFlags.isQuickBuildBenchEnabled) {
+				runCatching { File(IProjectManager.getInstance().projectDirPath).canonicalPath }
+					.getOrNull()
+					?.let(QuickBuildBenchAutostart::claim)
+			} else {
+				null
+			}
+
+		// ADFA-4128: eager quick-build proxy app build, AFTER the normal sync so it
+		// rides the warm Gradle daemon instead of fighting it. Fire-and-forget on the
+		// session manager's own thread; installs nothing until the first tap.
+		if (benchMode != QuickBuildBenchAutostart.MODE_STANDARD) {
+			quickBuildSessionManager()?.prebuild()
+		}
+
+		when (benchMode) {
+			QuickBuildBenchAutostart.MODE_QUICK_BUILD -> quickBuildSessionManager()?.onQuickBuildTapped()
+			QuickBuildBenchAutostart.MODE_STANDARD -> fireBenchStandardBuild()
+		}
 
 		if (mFindInProjectDialog?.isShowing == true) {
 			mFindInProjectDialog!!.dismiss()

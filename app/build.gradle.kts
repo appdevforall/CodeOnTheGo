@@ -3,6 +3,7 @@
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import org.json.JSONObject
 import java.io.BufferedOutputStream
 import java.io.ByteArrayInputStream
@@ -318,6 +319,7 @@ dependencies {
 	implementation(projects.floatingWindow)
 	implementation(projects.gitCore)
 	implementation(projects.profiler)
+	implementation(projects.quickbuild.core)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -361,6 +363,69 @@ dependencies {
 
 	// Pebble template engine
 	implementation("io.pebbletemplates:pebble:4.1.1")
+}
+
+// Quick Build (ADFA-4128): stage the runtime AAR + daemon (jar + runtime classpath)
+// into APK assets, mirroring the LogSender AAR flow in AndroidIDEAssetsPlugin. The
+// artifacts are extracted to <ANDROIDIDE_HOME>/quickbuild/ at session start
+// (QuickBuildArtifactStager).
+evaluationDependsOn(":quickbuild:runtime")
+evaluationDependsOn(":quickbuild:daemon")
+
+val quickBuildDaemonZip =
+	tasks.register<Zip>("quickBuildDaemonZip") {
+		archiveFileName.set("quickbuild-daemon.zip")
+		destinationDirectory.set(layout.buildDirectory.dir("intermediates/quickbuild"))
+		val daemonProject = rootProject.project(":quickbuild:daemon")
+		dependsOn(daemonProject.tasks.named("daemonJar"))
+		from(daemonProject.tasks.named("daemonJar"))
+		// The daemon jar's manifest Class-Path names these by file name; they must sit
+		// next to the jar after extraction.
+		from(daemonProject.configurations.named("runtimeClasspath"))
+		// Compose compiler plugin, version-matched to the daemon's compiler; the stable
+		// name is the contract EnvironmentQuickBuildPaths.composeCompilerPlugin reads.
+		from(daemonProject.configurations.named("composeCompilerPlugin")) {
+			rename { "compose-compiler-plugin.jar" }
+		}
+	}
+
+androidComponents.onVariants { variant ->
+	val variantName = variant.name.replaceFirstChar(Char::uppercaseChar)
+	val flavorName = variant.flavorName!!
+
+	val copyRuntimeAar =
+		tasks.register<AddFileToAssetsTask>("copy${variantName}QuickBuildRuntimeAar") {
+			val runtimeProject = rootProject.project(":quickbuild:runtime")
+			dependsOn(
+				runtimeProject.tasks.named(
+					"assemble${flavorName.replaceFirstChar(Char::uppercaseChar)}Release",
+				),
+			)
+			inputFile.set(
+				runtimeProject.layout.buildDirectory.file(
+					"outputs/aar/quickbuild-runtime-$flavorName-release.aar",
+				),
+			)
+			baseAssetsPath.set("data/common")
+			// Flavor-agnostic asset name: the runtime AAR is pure Java, both flavors
+			// produce identical bits, and the stager doesn't need to care.
+			fileName.set("quickbuild-runtime.aar")
+		}
+	variant.sources.assets?.addGeneratedSourceDirectory(
+		copyRuntimeAar,
+		AddFileToAssetsTask::outputDirectory,
+	)
+
+	val copyDaemonZip =
+		tasks.register<AddFileToAssetsTask>("copy${variantName}QuickBuildDaemonZip") {
+			dependsOn(quickBuildDaemonZip)
+			inputFile.set(quickBuildDaemonZip.flatMap { it.archiveFile })
+			baseAssetsPath.set("data/common")
+		}
+	variant.sources.assets?.addGeneratedSourceDirectory(
+		copyDaemonZip,
+		AddFileToAssetsTask::outputDirectory,
+	)
 }
 
 tasks.register("downloadDocDb") {

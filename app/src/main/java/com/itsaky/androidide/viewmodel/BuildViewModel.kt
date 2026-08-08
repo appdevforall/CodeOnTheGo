@@ -29,12 +29,24 @@ class BuildViewModel : ViewModel() {
 	private val _buildState = MutableStateFlow<BuildState>(BuildState.Idle)
 	val buildState: StateFlow<BuildState> = _buildState
 
+	/**
+	 * @param beforeBuild work that must finish BEFORE the build starts but AFTER the
+	 *   in-progress reservation below - flushing unsaved editor buffers, so the build is of
+	 *   what the user sees. It runs here rather than in the caller for three reasons, each of
+	 *   which was a real bug: launching it caller-side reopened the reserve-then-work race the
+	 *   guard below exists to close (two taps both reading Idle during a slow save on emulated
+	 *   storage), left the build unordered against anything else the caller issued, and let the
+	 *   build start from a coroutine scope the caller's own teardown had already cancelled.
+	 *   Throwing aborts the build and lands in [BuildState.Error] - building stale on-disk
+	 *   content is exactly what saving first is meant to prevent.
+	 */
 	fun runQuickBuild(
 		module: AndroidModule,
 		variant: AndroidModels.AndroidVariant,
 		launchInDebugMode: Boolean,
 		launchProfilerAfterInstall: Boolean = false,
 		gradleArgs: List<String> = emptyList(),
+		beforeBuild: suspend () -> Unit = {},
 	) {
 		if (_buildState.value is BuildState.InProgress) {
 			log.warn("Build is already in progress. Ignoring new request.")
@@ -51,6 +63,8 @@ class BuildViewModel : ViewModel() {
 			}
 
 			try {
+				beforeBuild()
+
 				val isPluginProject =
 					withContext(Dispatchers.IO) {
 						IProjectManager.getInstance().isPluginProject()

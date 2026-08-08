@@ -28,6 +28,7 @@ import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
+import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
@@ -45,6 +46,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
+import com.itsaky.androidide.actions.build.QuickBuildAction
 import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.activities.PluginManagerActivity
@@ -74,6 +76,7 @@ import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.OpenedFilesCache
+import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
@@ -85,6 +88,7 @@ import com.itsaky.androidide.plugins.manager.ui.PluginUiActionManager
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
+import com.itsaky.androidide.quickbuild.QuickBuildErrorJumpEvent
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
 import com.itsaky.androidide.shortcuts.ShortcutContext
 import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
@@ -107,6 +111,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
+import org.appdevforall.cotg.quickbuild.domain.QuickBuildTone
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
@@ -552,12 +557,20 @@ open class EditorHandlerActivity :
 				hint = getToolbarContentDescription(action, data),
 				onClick = { if (action.enabled) registry.executeAction(action, data) },
 				onLongClick = {
-					TooltipManager.showTooltip(
-						context = this,
-						anchorView = content.projectActionsToolbar,
-						category = action.retrieveTooltipCategory(),
-						tag = action.retrieveTooltipTag(false),
-					)
+					// Quick Build is a split button: long-press opens the
+					// Quick Build / Standard Run / Restart session / Use real app ID /
+					// Help dropdown instead of the plain tooltip every other toolbar
+					// action shows.
+					if (action.id == QuickBuildAction.ID) {
+						showQuickBuildDropdownMenu(content.projectActionsToolbar, data)
+					} else {
+						TooltipManager.showTooltip(
+							context = this,
+							anchorView = content.projectActionsToolbar,
+							category = action.retrieveTooltipCategory(),
+							tag = action.retrieveTooltipTag(false),
+						)
+					}
 				},
 				onHover = { anchor ->
 					TooltipManager.cancelScheduledDismiss()
@@ -575,6 +588,53 @@ open class EditorHandlerActivity :
 				shouldAddMargin = !isLast,
 			)
 		}
+	}
+
+	/**
+	 * Quick Build's split-button dropdown. "Quick Build" and "Standard Run"
+	 * re-execute the same [ActionItem]s the toolbar's own taps do, so the refresh-baseline-on-
+	 * return hand-back (wired at the Run button's install callback) fires the same way no
+	 * matter which entry point started the build. "Restart session" is the escape hatch
+	 * for a stuck daemon/proxy app; "Help" reuses the tooltip already wired via
+	 * [QuickBuildAction.retrieveTooltipTag] (E3).
+	 */
+	private fun showQuickBuildDropdownMenu(
+		anchor: View,
+		data: ActionData,
+	) {
+		val registry = getInstance() as DefaultActionsRegistry
+		val popup = PopupMenu(this, anchor)
+		popup.menuInflater.inflate(R.menu.menu_quick_build, popup.menu)
+		popup.setOnMenuItemClickListener { item ->
+			when (item.itemId) {
+				R.id.action_quick_build -> {
+					// Through the registry, same as Standard Run below, so the menu entry
+					// and the toolbar tap share one code path (incl. the analytics event).
+					val quickBuild = registry.findAction(EDITOR_TOOLBAR, QuickBuildAction.ID)
+					if (quickBuild != null) registry.executeAction(quickBuild, data)
+					true
+				}
+
+				R.id.action_quick_build_restart_session -> {
+					quickBuildSessionManager()?.restartSession()
+					true
+				}
+
+				R.id.action_quick_build_help -> {
+					TooltipManager.showIdeCategoryTooltip(
+						context = this,
+						anchorView = anchor,
+						tag = TooltipTag.EDITOR_TOOLBAR_QUICK_BUILD,
+					)
+					true
+				}
+
+				else -> {
+					false
+				}
+			}
+		}
+		popup.show()
 	}
 
 	private fun createToolbarActionData(): ActionData {
@@ -605,6 +665,17 @@ open class EditorHandlerActivity :
 			when (action.id) {
 				QuickRunAction.ID -> {
 					string.cd_toolbar_quick_run
+				}
+
+				QuickBuildAction.ID -> {
+					// Behaviour 1: while a quick build runs this button IS the stop button, so
+					// the spoken label has to move with the icon - a screen reader announcing
+					// "Quick Build" over a stop affordance is a bug the user cannot see around.
+					if (QuickBuildAction.currentTone() == QuickBuildTone.BUILDING) {
+						string.cd_toolbar_cancel_build
+					} else {
+						string.cd_quick_build
+					}
 				}
 
 				"ide.editor.syncProject" -> {
@@ -1274,6 +1345,17 @@ open class EditorHandlerActivity :
 		if (event.key == EditorPreferences.FONT_SIZE) {
 			syncPluginUiFontSize()
 		}
+	}
+
+	/**
+	 * Tap on the Quick Build proxy app's error overlay (ADFA-4128): the
+	 * QuickBuildJumpActivity trampoline validated the file and posts this event; open
+	 * the failing file at the error. Compiler positions are 1-based, editor is 0-based.
+	 */
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onQuickBuildErrorJump(event: QuickBuildErrorJumpEvent) {
+		val position = Position((event.line - 1).coerceAtLeast(0), (event.column - 1).coerceAtLeast(0))
+		openFileAndSelect(event.file, Range(position, position))
 	}
 
 	private fun syncPluginUiFontSize() {
