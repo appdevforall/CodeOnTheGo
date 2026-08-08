@@ -90,10 +90,14 @@ class BuildOutputViewModel(
 	 * Appends text to the session file. File I/O is performed on a background dispatcher; call from
 	 * any thread. Prefer calling before switching to Main so disk write does not block the UI.
 	 */
-	suspend fun append(text: String) {
+	suspend fun append(
+		text: String,
+		isCurrentSession: () -> Boolean = { true },
+	) {
 		if (text.isEmpty()) return
 		withContext(Dispatchers.IO) {
 			lock.withLock {
+				if (!isCurrentSession()) return@withLock
 				try {
 					FileOutputStream(sessionFile, true).use {
 						it.write(text.toByteArray(StandardCharsets.UTF_8))
@@ -108,12 +112,12 @@ class BuildOutputViewModel(
 	}
 
 	/**
-	 * Returns the last [WINDOW_SIZE_CHARS] characters from the session file for the editor to
+	 * Returns the last [EDITOR_WINDOW_MAX_CHARS] characters from the session file for the editor to
 	 * display (e.g. initial view or after rotation). Returns empty string if no content.
 	 */
 	fun getWindowForEditor(): String =
 		lock.withLock {
-			readTailFromFile(sessionFile, WINDOW_SIZE_CHARS)
+			readTailFromFile(sessionFile, EDITOR_WINDOW_MAX_CHARS)
 		}
 
 	/**
@@ -194,6 +198,20 @@ class BuildOutputViewModel(
 	}
 
 	companion object {
+		internal const val EDITOR_WINDOW_MAX_CHARS = 512 * 1024
+
+		internal fun wouldExceedEditorWindow(
+			currentChars: Int,
+			incomingChars: Int,
+		): Boolean = currentChars > EDITOR_WINDOW_MAX_CHARS - incomingChars
+
+		internal fun fitEditorWindow(content: String): String =
+			if (content.length <= EDITOR_WINDOW_MAX_CHARS) {
+				content
+			} else {
+				content.takeLast(EDITOR_WINDOW_MAX_CHARS)
+			}
+
 		// Must mirror formatLinePrefix exactly; the round-trip is covered by BuildOutputFilterTest.
 		// Anchored to line start so timestamp-shaped text inside a message is never stripped.
 		private val PREFIX_REGEX =
@@ -261,10 +279,8 @@ class BuildOutputViewModel(
 		}
 
 		private const val SESSION_FILE_NAME = "build_output_session.txt"
-		private const val WINDOW_SIZE_CHARS = 512 * 1024
-
 		/** Max length of [cachedContentSnapshot] to bound memory. */
-		private const val CACHE_SNAPSHOT_MAX_CHARS = WINDOW_SIZE_CHARS
+		private const val CACHE_SNAPSHOT_MAX_CHARS = EDITOR_WINDOW_MAX_CHARS
 		private val log = org.slf4j.LoggerFactory.getLogger(BuildOutputViewModel::class.java)
 	}
 }
