@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+	<!--
+		Package visibility (API 30+ filtering): the proxy app binds CoGo's deploy service,
+		queries CoGo's launch intent (3-finger return gesture) and starts CoGo's
+		jump-to-error trampoline. Declared here so every generated proxy app inherits it
+		via manifest merge.
+	-->
+	<queries>
+		<package android:name="com.itsaky.androidide" />
+	</queries>
+
+	<!--
+		This AAR deliberately does NOT declare android:appComponentFactory.
+		It once did, but a debuggable app that also pulls androidx.core (which declares
+		androidx.core.app.CoreComponentFactory) then fails manifest merge with
+		"Attribute application@appComponentFactory ... is also present at [androidx.core]"
+		BEFORE the proxy app build's merged-manifest transform runs - killing every template that
+		reaches manifest merge with androidx.core on the classpath (i.e. all app templates).
+		The proxy app build OWNS the factory: QuickBuildManifestTransformer.transform() sets
+		android:appComponentFactory on the MERGED manifest unconditionally (it both adds it
+		when absent and replaces a library-injected CoreComponentFactory), so the generated
+		proxy app still instantiates components through the payload classloader
+		(quickbuild/README.md classloading contract). Do NOT re-add the attribute here.
+	-->
+
+
+</manifest>
