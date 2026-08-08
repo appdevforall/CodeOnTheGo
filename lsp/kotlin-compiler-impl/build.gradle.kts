@@ -36,8 +36,8 @@ dependencies {
 	compileOnly(projects.resources)
 	compileOnly(projects.idetooltips)
 
-	implementation(libs.common.kotlin)
-	implementation(libs.common.kotlin.coroutines.core)
-	implementation(libs.common.kotlin.coroutines.android)
-	implementation(libs.sentry.android.core)
+	compileOnly(libs.common.kotlin)
+	compileOnly(libs.common.kotlin.coroutines.core)
+	compileOnly(libs.common.kotlin.coroutines.android)
+	compileOnly(libs.sentry.android.core)
 }
