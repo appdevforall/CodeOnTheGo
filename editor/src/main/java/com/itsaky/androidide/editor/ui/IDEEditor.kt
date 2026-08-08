@@ -60,7 +60,6 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentSelectedEvent
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
-import com.itsaky.androidide.lsp.java.utils.CancelChecker
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DefinitionParams
 import com.itsaky.androidide.lsp.models.DefinitionResult
@@ -95,6 +94,7 @@ import io.github.rosemoe.sora.widget.IDEEditorSearcher
 import io.github.rosemoe.sora.widget.component.EditorAutoCompletion
 import io.github.rosemoe.sora.widget.component.EditorBuiltinComponent
 import io.github.rosemoe.sora.widget.component.EditorTextActionWindow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -1357,12 +1357,17 @@ open class IDEEditor
 				invokeOnCompletion { err -> logError(err, action) }
 			}
 
+		private fun isCancelled(err: Throwable?): Boolean {
+			err ?: return false
+			return err is CancellationException || isCancelled(err.cause)
+		}
+
 		private fun logError(
 			err: Throwable?,
 			action: String,
 		) {
 			err ?: return
-			if (CancelChecker.isCancelled(err)) {
+			if (isCancelled(err)) {
 				log.warn("{} has been cancelled", action)
 			} else {
 				log.error("{} failed", action)

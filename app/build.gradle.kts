@@ -36,6 +36,15 @@ plugins {
 	alias(libs.plugins.google.services)
 }
 
+// Forces :subprojects:java-compiler-carrier to configure eagerly, ahead of app's own
+// configuration. Without this, org.gradle.configureondemand=true (gradle.properties) only
+// reaches that project lazily via copyJavaCompilerCarrierToAssets's cross-project dependsOn,
+// which trips "DefaultClassLoaderScope must be locked before it can be used to compute a
+// classpath" for this (com.android.application) target specifically -- plugin-api, referenced
+// the same way by copyPluginApiJarToAssets below, doesn't hit this because app already
+// configures it naturally as a real compile dependency.
+evaluationDependsOn(":subprojects:java-compiler-carrier")
+
 fun propOrEnv(name: String): String =
 	project.findProperty(name) as String?
 		?: System.getenv(name)
@@ -288,7 +297,6 @@ dependencies {
 	implementation(projects.eventbusEvents)
 	implementation(projects.gradlePluginConfig)
 	implementation(projects.subprojects.aaptcompiler)
-	implementation(projects.subprojects.javacServices)
 	implementation(projects.subprojects.kotlinAnalysisApi)
 	implementation(projects.subprojects.shizukuApi)
 	implementation(projects.subprojects.shizukuManager)
@@ -407,6 +415,44 @@ tasks.register("downloadDocDb") {
 			project.logger.lifecycle("Failed to fetch documentation.db info: ${e.message}")
 		}
 	}
+}
+
+// Copies the isolated javac carrier APK -- built by :subprojects:java-compiler-carrier, which
+// bundles lsp:java-compiler-impl (the vendored javac fork + its LSP consumers) -- straight into
+// app's own assets, so it ships in the base APK and D8 never merges it into app's own
+// classes*.dex. JavaCompilerLoader (lsp:java) extracts and DexClassLoader-loads it lazily on
+// first real .java-file interaction (ADFA-5053, mirrors ADR 0011's Kotlin precedent). No PNG
+// optimization needed here (unlike the Kotlin carrier) -- this module has no resources at all.
+tasks.register("copyJavaCompilerCarrierToAssets") {
+	// The source directory below is AGP's own Provider<Directory> for the release variant's real
+	// APK output (see releaseApkOutputDir in java-compiler-carrier's build.gradle.kts) --
+	// wiring inputs.dir() to it, rather than a hardcoded path guessing the output filename
+	// ("-unsigned", versioned, etc.), ties Gradle's dependency tracking to the actual producing
+	// task (packageV8Release) instead of just dependsOn ordering, which intermittently raced the
+	// file's own write-to-disk on some CI runs (ADFA-5053) even though locally it usually won
+	// the race. See evaluationDependsOn(":subprojects:java-compiler-carrier") above for why this
+	// avoids project(":subprojects:java-compiler-carrier").layout... here.
+	dependsOn(":subprojects:java-compiler-carrier:assembleV8Release")
+	@Suppress("UNCHECKED_CAST")
+	val sourceDir =
+		project(":subprojects:java-compiler-carrier").extensions.extraProperties["releaseApkOutputDir"]
+			as Provider<Directory>
+	val destFile = layout.projectDirectory.file("src/main/assets/data/common/java-compiler-carrier.apk")
+	inputs.dir(sourceDir)
+	outputs.file(destFile)
+	doLast {
+		val apkFile =
+			sourceDir
+				.get()
+				.asFileTree
+				.matching { include("*.apk") }
+				.singleFile
+		apkFile.copyTo(destFile.asFile, overwrite = true)
+	}
+}
+
+tasks.named("preBuild") {
+	dependsOn("copyJavaCompilerCarrierToAssets")
 }
 
 tasks.register("copyPluginApiJarToAssets") {

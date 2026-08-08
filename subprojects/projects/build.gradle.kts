@@ -31,7 +31,7 @@ dependencies {
 	implementation(projects.logger)
 	implementation(projects.lookup)
 	implementation(projects.shared)
-	implementation(projects.subprojects.javacServices)
+	implementation(projects.subprojects.javacFs)
 	implementation(projects.subprojects.xmlUtils)
 
 	implementation(libs.common.io)

@@ -1,14 +1,12 @@
 package com.itsaky.androidide.lsp.java.debug.utils
 
 import com.itsaky.androidide.lsp.debug.model.Source
-import com.itsaky.androidide.lsp.java.JavaCompilerProvider
-import com.itsaky.androidide.lsp.java.compiler.SourceFileObject
+import com.itsaky.androidide.lsp.java.api.IJavaCompilerSession
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.sun.jdi.Location
-import jdkx.tools.JavaFileObject
 import org.slf4j.LoggerFactory
-import kotlin.jvm.optionals.getOrNull
+import java.io.File
 import com.itsaky.androidide.lsp.debug.model.Location as LspLocation
 
 private val logger = LoggerFactory.getLogger("ModelUtilsKt")
@@ -18,55 +16,70 @@ private val logger = LoggerFactory.getLogger("ModelUtilsKt")
  *
  * @param useDeclTypeName Whether to the [Location.declaringType] to get the name of the declaring
  * type of this location.
+ * @param session The current javac session, or null if the carrier hasn't been loaded yet (e.g.
+ * no `.java` file has been touched this session) -- source-path resolution is skipped in that
+ * case, same as when no matching source is found.
  */
-fun Location.asLspLocation(useDeclTypeName: Boolean = true): LspLocation {
+fun Location.asLspLocation(
+	useDeclTypeName: Boolean = true,
+	session: IJavaCompilerSession?,
+): LspLocation {
 	val projectManager = ProjectManagerImpl.getInstance()
-	val fo =
-		projectManager.workspace
-			?.subProjects
-			?.filterIsInstance<ModuleProject>()
-			?.mapNotNull { moduleProject ->
-				val service = JavaCompilerProvider.get(moduleProject)
-				var fo: JavaFileObject? = null
-				if (useDeclTypeName) {
-					val className = declaringType().name()
-					logger.debug("finding source file for decl class: '{}'", className)
-					fo = service.findAnywhere(declaringType().name()).getOrNull()
-				}
+	val path =
+		session?.let { s ->
+			projectManager.workspace
+				?.subProjects
+				?.filterIsInstance<ModuleProject>()
+				?.mapNotNull { moduleProject ->
+					var path: String? = null
+					if (useDeclTypeName) {
+						val className = declaringType().name()
+						logger.debug("finding source file for decl class: '{}'", className)
+						path = s.findSourceFilePath(moduleProject, className)
+					}
 
-				if (fo == null) {
-					val className =
-						this
-							.sourcePath()
-							.replace('/', '.')
-							.substringBeforeLast(".java")
-					logger.debug("finding source file for class: '{}'", className)
-					fo = service.findAnywhere(className).getOrNull()
-				}
+					if (path == null) {
+						val className =
+							this
+								.sourcePath()
+								.replace('/', '.')
+								.substringBeforeLast(".java")
+						logger.debug("finding source file for class: '{}'", className)
+						path = s.findSourceFilePath(moduleProject, className)
+					}
 
-				if (fo != null && (fo.kind != JavaFileObject.Kind.SOURCE || fo !is SourceFileObject)) {
-					logger.debug("FileObject {} ({}) is not a source file", fo, fo.javaClass)
-					fo = null
-				}
+					if (path == null) {
+						logger.info("No source found for location: {}", this)
+					}
 
-				if (fo == null) {
-					logger.info("No source found for location: {}", this)
-				}
-
-				return@mapNotNull fo as SourceFileObject?
-			}?.firstOrNull() // TODO: Maybe allow the user to choose which source file to open?
+					path
+				}?.firstOrNull() // TODO: Maybe allow the user to choose which source file to open?
+		}
 
 	val source =
-		if (fo != null) {
+		if (path != null) {
 			Source(
-				name = fo.name.substringAfterLast('/'),
-				path = fo.name,
+				name = path.substringAfterLast('/'),
+				path = path,
 			)
 		} else {
-			Source(
-				name = sourceName(),
-				path = sourcePath(),
-			)
+			// sourcePath() is JDI-synthetic (package-relative, e.g. "com/example/Foo.java"), not a
+			// filesystem path -- resolving it against each module's compile source directories
+			// works even without a session (e.g. the very first breakpoint hit before any
+			// .java-file interaction has loaded the carrier), unlike findSourceFilePath() above.
+			val relativePath = sourcePath().replace('/', File.separatorChar)
+			val resolvedPath = findSourceFileByRelativePath(relativePath)
+			if (resolvedPath != null) {
+				Source(name = sourceName(), path = resolvedPath)
+			} else {
+				logger.warn(
+					"Could not resolve a real source file for location {} (relative path '{}'); " +
+						"navigating to it will silently fail since this isn't a filesystem path.",
+					this,
+					relativePath,
+				)
+				Source(name = sourceName(), path = sourcePath())
+			}
 		}
 
 	return LspLocation(
@@ -77,3 +90,15 @@ fun Location.asLspLocation(useDeclTypeName: Boolean = true): LspLocation {
 		column = null,
 	)
 }
+
+private fun findSourceFileByRelativePath(relativePath: String): String? =
+	ProjectManagerImpl
+		.getInstance()
+		.workspace
+		?.subProjects
+		?.filterIsInstance<ModuleProject>()
+		?.asSequence()
+		?.flatMap { it.getCompileSourceDirectories() }
+		?.map { File(it, relativePath) }
+		?.firstOrNull { it.isFile }
+		?.absolutePath

@@ -30,5 +30,11 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 dependencies {
-  api(projects.buildDeps.javaCompiler)
+  // compileOnly, not api: java-compiler must stay resident-only when jdk-compiler is consumed
+  // by the isolated javac carrier (ADFA-5053) -- an `api` dependency here would propagate to
+  // every consumer's runtime/packaging classpath regardless of how *they* declare their own
+  // dependency on this module, duplicating CacheFSInfo/Context/etc. into the carrier dex. The
+  // `javac` aggregate module (composite-builds/build-deps/javac) still `api`s both modules
+  // itself for its own (resident-only) consumers.
+  compileOnly(projects.buildDeps.javaCompiler)
 }

@@ -17,9 +17,6 @@
 -keep class javax.** { *; }
 -keep class jdkx.** { *; }
 
-# keep javac classes
--keep class openjdk.** { *; }
-
 # Android builder model interfaces
 -keep class com.android.** { *; }
 
