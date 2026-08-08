@@ -53,11 +53,11 @@ dependencies {
 	implementation(platform(libs.sora.bom))
 	compileOnly(libs.common.editor)
 	implementation(libs.common.javaparser)
-	implementation(libs.androidx.annotation)
-	implementation(libs.google.guava)
-	implementation(libs.google.gson)
-	implementation(libs.androidx.core.ktx)
-	implementation(libs.common.kotlin)
+	compileOnly(libs.androidx.annotation)
+	compileOnly(libs.google.guava)
+	compileOnly(libs.google.gson)
+	compileOnly(libs.androidx.core.ktx)
+	compileOnly(libs.common.kotlin)
 	// Resident (bundled via common's `api`) -- needed to translate CancelAbort (isolated-only,
 	// never classloader-identity-safe to check from resident code) into CancellationException
 	// (this same, single resident copy, safe to check from either side) before it crosses back
