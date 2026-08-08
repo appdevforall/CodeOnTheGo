@@ -425,21 +425,32 @@ tasks.register("downloadDocDb") {
 // doesn't need the root assets/ + assets-<arch>.zip pipeline -- it's a few MB, not hundreds, and
 // belongs in the base APK unconditionally rather than an optional first-run download.
 tasks.register("copyKotlinCompilerCarrierToAssets") {
-	// Deliberately avoids project(":subprojects:kotlin-compiler-carrier").layout... here: eagerly
-	// cross-referencing that (com.android.application) project's layout from within app's own
-	// configuration trips a "classloader scope must be locked" Gradle failure under
-	// org.gradle.configureondemand=true. A plain rootDir-relative path sidesteps it; only the
-	// (lazy, string-based) dependsOn below needs to resolve the other project's task.
+	// The source directory below is AGP's own Provider<Directory> for the release variant's real
+	// APK output (see releaseApkOutputDir in kotlin-compiler-carrier's build.gradle.kts) --
+	// wiring inputs.dir() to it, rather than a hardcoded path guessing the output filename
+	// ("-unsigned", versioned, etc.), ties Gradle's dependency tracking to the actual producing
+	// task (packageV8Release) instead of just dependsOn ordering, which intermittently raced the
+	// file's own write-to-disk on some CI runs (same defect as ADFA-5053's
+	// copyJavaCompilerCarrierToAssets, fixed there the same way). See
+	// evaluationDependsOn(":subprojects:kotlin-compiler-carrier") above for why reading its
+	// extraProperty here, rather than project(...).layout... directly, avoids the "classloader
+	// scope must be locked" failure under org.gradle.configureondemand=true.
 	dependsOn(":subprojects:kotlin-compiler-carrier:assembleV8Release")
-	val sourceFile =
-		rootProject.layout.projectDirectory
-			.dir("subprojects/kotlin-compiler-carrier/build/outputs/apk/v8/release")
-			.file("kotlin-compiler-carrier-v8-release-unsigned.apk")
+	@Suppress("UNCHECKED_CAST")
+	val sourceDir =
+		project(":subprojects:kotlin-compiler-carrier").extensions.extraProperties["releaseApkOutputDir"]
+			as Provider<Directory>
 	val destFile = layout.projectDirectory.file("src/main/assets/data/common/kotlin-compiler-carrier.apk")
-	inputs.file(sourceFile)
+	inputs.dir(sourceDir)
 	outputs.file(destFile)
 	doLast {
-		sourceFile.asFile.copyTo(destFile.asFile, overwrite = true)
+		val apkFile =
+			sourceDir
+				.get()
+				.asFileTree
+				.matching { include("*.apk") }
+				.singleFile
+		apkFile.copyTo(destFile.asFile, overwrite = true)
 		optimizeCarrierApkPngs(destFile.asFile)
 	}
 }
