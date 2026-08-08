@@ -40,6 +40,23 @@ kapt {
 }
 
 dependencies {
+	// javac-services' (and this module's own) compileOnly androidx-heavy deps (sora-editor,
+	// appcompat, material, lsp:indexing, etc.) pull androidx.annotation/kotlin-stdlib/
+	// org.jetbrains:annotations at high versions on the compile classpath, but being compileOnly
+	// they're absent from the runtime classpath -- which then only sees AGP's unconditionally
+	// injected viewbinding's much lower transitive pins for the same artifacts. AGP's
+	// compile/runtime consistency check fails to reconcile the two. Constraining these three (not
+	// adding a dependency: each is already reachable via viewbinding, just at the wrong version)
+	// harmonizes both classpaths at the version already used everywhere else in the project,
+	// without adding a new edge. All three are a few KB of interfaces/annotations with no
+	// resources, unlike the androidx.core duplication this whole compileOnly effort exists to
+	// avoid -- see ADFA-5068.
+	constraints {
+		implementation(libs.androidx.annotation)
+		implementation(libs.common.kotlin.stdlib)
+		implementation(libs.common.jetbrains.annotations)
+	}
+
 	kapt(projects.annotationProcessors)
 
 	// Resident (bundled in the main app dex via editor/editor-api/lsp:java/etc.) -- like the
