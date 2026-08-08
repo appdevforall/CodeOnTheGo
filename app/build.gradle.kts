@@ -424,18 +424,30 @@ tasks.register("downloadDocDb") {
 // first real .java-file interaction (ADFA-5053, mirrors ADR 0011's Kotlin precedent). No PNG
 // optimization needed here (unlike the Kotlin carrier) -- this module has no resources at all.
 tasks.register("copyJavaCompilerCarrierToAssets") {
-	// See evaluationDependsOn(":subprojects:java-compiler-carrier") above for why this avoids
-	// project(":subprojects:java-compiler-carrier").layout... here.
+	// The source directory below is AGP's own Provider<Directory> for the release variant's real
+	// APK output (see releaseApkOutputDir in java-compiler-carrier's build.gradle.kts) --
+	// wiring inputs.dir() to it, rather than a hardcoded path guessing the output filename
+	// ("-unsigned", versioned, etc.), ties Gradle's dependency tracking to the actual producing
+	// task (packageV8Release) instead of just dependsOn ordering, which intermittently raced the
+	// file's own write-to-disk on some CI runs (ADFA-5053) even though locally it usually won
+	// the race. See evaluationDependsOn(":subprojects:java-compiler-carrier") above for why this
+	// avoids project(":subprojects:java-compiler-carrier").layout... here.
 	dependsOn(":subprojects:java-compiler-carrier:assembleV8Release")
-	val sourceFile =
-		rootProject.layout.projectDirectory
-			.dir("subprojects/java-compiler-carrier/build/outputs/apk/v8/release")
-			.file("java-compiler-carrier-v8-release-unsigned.apk")
+	@Suppress("UNCHECKED_CAST")
+	val sourceDir =
+		project(":subprojects:java-compiler-carrier").extensions.extraProperties["releaseApkOutputDir"]
+			as Provider<Directory>
 	val destFile = layout.projectDirectory.file("src/main/assets/data/common/java-compiler-carrier.apk")
-	inputs.file(sourceFile)
+	inputs.dir(sourceDir)
 	outputs.file(destFile)
 	doLast {
-		sourceFile.asFile.copyTo(destFile.asFile, overwrite = true)
+		val apkFile =
+			sourceDir
+				.get()
+				.asFileTree
+				.matching { include("*.apk") }
+				.singleFile
+		apkFile.copyTo(destFile.asFile, overwrite = true)
 	}
 }
 
