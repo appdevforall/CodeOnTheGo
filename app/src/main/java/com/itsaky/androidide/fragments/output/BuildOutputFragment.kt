@@ -37,8 +37,6 @@ import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
@@ -60,7 +58,7 @@ class BuildOutputFragment :
 
 	override val currentEditor: IDEEditor? get() = editor
 
-	private val logChannel = Channel<String>(Channel.UNLIMITED)
+	private val outputBuffer = BuildOutputBuffer()
 
 	private var searchLayout: EditorSearchLayout? = null
 	private var filterBar: LogFilterBarController? = null
@@ -78,6 +76,11 @@ class BuildOutputFragment :
 	// in-flight batch flush drained before the replacement can detect it and drop itself.
 	@Volatile
 	private var editorContentGeneration = 0
+
+	@Volatile
+	private var visibleEditorChars = 0
+	@Volatile
+	private var editorSourceChars = 0
 	private val noMatchTracker = FilterNoMatchTracker()
 
 	// Reads view state (bar visibility), so evaluate it on the main thread.
@@ -98,7 +101,7 @@ class BuildOutputFragment :
 			launch { restoreWindowFromViewModel() }
 			launch(Dispatchers.Default) { processLogs() }
 			launch {
-				val content = buildOutputViewModel.getFullContent()
+				val content = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
 				buildOutputViewModel.setCachedSnapshot(content)
 			}
 			launch {
@@ -126,10 +129,14 @@ class BuildOutputFragment :
 			val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
 			val filtered =
 				withContext(Dispatchers.Default) {
-					BuildOutputViewModel.filterLines(window, query, showTimestamps, showDeltas)
+					BuildOutputViewModel.fitEditorWindow(
+						BuildOutputViewModel.filterLines(window, query, showTimestamps, showDeltas),
+					)
 				}
 			withContext(Dispatchers.Main) {
 				editor?.setText(filtered)
+				visibleEditorChars = filtered.length
+				editorSourceChars = window.length
 				val isSourceEmpty = window.isBlank()
 				updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
 				if (noMatchTracker.onRender(isSourceEmpty = isSourceEmpty, isFilteredEmpty = filtered.isBlank())) {
@@ -287,57 +294,79 @@ class BuildOutputFragment :
 		}.also { filterBar = it }
 	}
 
-	private suspend fun restoreWindowFromViewModel() {
-		val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
-		val content =
-			BuildOutputViewModel.filterLines(
-				window,
-				buildOutputViewModel.filterText.value,
-				buildOutputViewModel.showTimestamps.value,
-				buildOutputViewModel.showDeltas.value,
-			)
-		val query = buildOutputViewModel.filterText.value
-		val isSourceEmpty = window.isBlank()
-		val isFilteredEmpty = content.isBlank()
+	private suspend fun restoreWindowFromViewModel() =
+		withContext(Dispatchers.Default) {
+			val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
+			val content =
+				BuildOutputViewModel.fitEditorWindow(
+					BuildOutputViewModel.filterLines(
+						window,
+						buildOutputViewModel.filterText.value,
+						buildOutputViewModel.showTimestamps.value,
+						buildOutputViewModel.showDeltas.value,
+					),
+				)
+			val generationAtRestore = editorContentGeneration
+			val visibleCharsAtRestore = visibleEditorChars
+			val sourceCharsAtRestore = editorSourceChars
+			fun isRestoreCurrent() =
+				editorContentGeneration == generationAtRestore &&
+					visibleEditorChars == visibleCharsAtRestore &&
+					editorSourceChars == sourceCharsAtRestore
+			val isSourceEmpty = window.isBlank()
+			val isFilteredEmpty = content.isBlank()
 
-		withContext(Dispatchers.Main) {
-			updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
-			noMatchTracker.prime(isFilteredEmpty)
-			if (!isSourceEmpty && isFilteredEmpty) {
-				editor?.setText("")
-				onContentReplaced()
-			}
-		}
-
-		if (content.isEmpty()) return
-		withContext(Dispatchers.Main) {
-			val editor = this@BuildOutputFragment.editor ?: return@withContext
-			val layoutCompleted =
-				withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-					editor.awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
+			withContext(Dispatchers.Main) {
+				updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
+				noMatchTracker.prime(isFilteredEmpty)
+				if (!isSourceEmpty && isFilteredEmpty) {
+					editorContentMutex.withLock {
+						if (isRestoreCurrent()) {
+							editor?.setText("")
+							visibleEditorChars = 0
+							editorSourceChars = window.length
+							onContentReplaced()
+						}
+					}
 				}
-			if (layoutCompleted != null) {
-				editor.appendBatch(content)
-				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
-			} else {
-				// Timeout: defer append until layout is ready so content is not lost
-				val generationAtRestore = editorContentGeneration
-				val job =
-					viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-						editor.run {
-							awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
-							editorContentMutex.withLock {
-								if (editorContentGeneration == generationAtRestore) {
-									appendBatch(content)
-									updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+			}
+
+			if (content.isEmpty()) return@withContext
+			withContext(Dispatchers.Main) {
+				val editor = this@BuildOutputFragment.editor ?: return@withContext
+				val layoutCompleted =
+					withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+						editor.awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
+					}
+				if (layoutCompleted != null) {
+					editorContentMutex.withLock {
+						if (isRestoreCurrent()) {
+							editor.appendBatch(content)
+							visibleEditorChars += content.length
+							editorSourceChars = window.length
+							updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+						}
+					}
+				} else {
+					// Timeout: defer append until layout is ready so content is not lost
+					val job =
+						viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+							editor.run {
+								awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
+								editorContentMutex.withLock {
+									if (isRestoreCurrent()) {
+										appendBatch(content)
+										visibleEditorChars += content.length
+										editorSourceChars = window.length
+										updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+									}
 								}
 							}
 						}
-					}
-				job.join()
+					job.join()
+				}
 			}
 		}
-	}
 
 	override fun onDestroyView() {
 		searchLayout = null
@@ -351,13 +380,13 @@ class BuildOutputFragment :
 		// Avoid forcing the activityViewModels lazy init (which calls requireActivity())
 		// when the fragment is detached, otherwise an IllegalStateException is thrown.
 		if (!isAdded || activity == null) return
-		while (logChannel.tryReceive().isSuccess) {
-			// Discard: these lines belong to the session being cleared.
-		}
 		// Invalidate in-flight flushes before deleting content, so a batch drained from the
-		// channel earlier cannot re-seed the cleared session.
+		// buffer earlier cannot re-seed the cleared session.
 		sessionGeneration++
+		outputBuffer.clear()
 		editorContentGeneration++
+		visibleEditorChars = 0
+		editorSourceChars = 0
 		noMatchTracker.reset()
 		buildOutputViewModel.clear()
 		super.clearOutput()
@@ -377,55 +406,22 @@ class BuildOutputFragment :
 
 	fun appendOutput(output: String?) {
 		if (!output.isNullOrEmpty()) {
-			logChannel.trySend(output)
-		}
-	}
-
-	/**
-	 * Ensures the string ends with a newline character (`\n`).
-	 * Useful for maintaining correct formatting when concatenating log lines.
-	 */
-	private fun String.ensureNewline(): String = if (endsWith('\n')) this else "$this\n"
-
-	/**
-	 * Immediately drains (consumes) all available messages from the channel into the [buffer].
-	 *
-	 * This is a **non-blocking** operation that enables batching, grouping hundreds of pending lines
-	 * into a single memory operation to avoid saturating the UI queue.
-	 */
-	private fun ReceiveChannel<String>.drainTo(buffer: StringBuilder) {
-		var result = tryReceive()
-		while (result.isSuccess) {
-			val line = result.getOrNull()
-			if (!line.isNullOrEmpty()) {
-				buffer.append(line.ensureNewline())
-			}
-			result = tryReceive()
+			outputBuffer.offer(output, sessionGeneration)
 		}
 	}
 
 	/**
 	 * Main log orchestrator: Consumes, Batches, and Dispatches.
 	 *
-	 * 1. Suspends (zero CPU usage) until the first log arrives.
-	 * 2. Wakes up and drains the entire queue (Batching).
-	 * 3. Sends the complete block to the UI in a single pass.
+	 * Suspends until bounded output is available, then sends one bounded batch to the UI.
 	 */
-	private suspend fun processLogs() =
-		with(StringBuilder()) {
-			for (firstLine in logChannel) {
-				val sessionGenAtDrain = sessionGeneration
-				val editorGenAtDrain = editorContentGeneration
-				append(firstLine.ensureNewline())
-				logChannel.drainTo(this)
-
-				if (isNotEmpty()) {
-					val batchText = toString()
-					clear()
-					flushToEditor(batchText, sessionGenAtDrain, editorGenAtDrain)
-				}
-			}
+	private suspend fun processLogs() {
+		while (true) {
+			val batch = outputBuffer.takeBatch()
+			val editorGenAtDrain = editorContentGeneration
+			flushToEditor(batch.text, batch.sessionGeneration, editorGenAtDrain)
 		}
+	}
 
 	/**
 	 * Performs the safe UI update on the Main Thread.
@@ -443,7 +439,10 @@ class BuildOutputFragment :
 			// A clear (new build) after this batch was drained invalidates session append.
 			if (sessionGen != sessionGeneration) return
 
-			buildOutputViewModel.append(text)
+			buildOutputViewModel.append(text) { sessionGen == sessionGeneration }
+			if (sessionGen != sessionGeneration) return
+			val refreshEditorWindow =
+				BuildOutputViewModel.wouldExceedEditorWindow(editorSourceChars, text.length)
 
 			// The session file always gets the full text; the editor only shows matching lines
 			val visibleText =
@@ -453,13 +452,41 @@ class BuildOutputFragment :
 					buildOutputViewModel.showTimestamps.value,
 					buildOutputViewModel.showDeltas.value,
 				)
-			if (visibleText.isEmpty()) {
+			if (visibleText.isEmpty() && !refreshEditorWindow) {
+				withContext(Dispatchers.Main) {
+					if (sessionGen == sessionGeneration) editorSourceChars += text.length
+				}
 				return
 			}
+			val refreshedWindow =
+				if (refreshEditorWindow) {
+					val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
+					withContext(Dispatchers.Default) {
+						Pair(
+							BuildOutputViewModel.fitEditorWindow(
+								BuildOutputViewModel.filterLines(
+									window,
+									buildOutputViewModel.filterText.value,
+									buildOutputViewModel.showTimestamps.value,
+									buildOutputViewModel.showDeltas.value,
+								),
+							),
+							window.length,
+						)
+					}
+				} else {
+					null
+				}
 
 			withContext(Dispatchers.Main) {
 				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
-				if (visibleText.isEmpty()) {
+				if (editorGen != editorContentGeneration) return@withContext
+				if (refreshedWindow != null) {
+					editorContentGeneration++
+					editor?.setText(refreshedWindow.first)
+					visibleEditorChars = refreshedWindow.first.length
+					editorSourceChars = refreshedWindow.second
+					onContentReplaced()
 					return@withContext
 				}
 				editor?.run {
@@ -471,6 +498,8 @@ class BuildOutputFragment :
 						// clearOutput() or renderFiltered() may have run since the file append.
 						if (editorGen == editorContentGeneration) {
 							appendBatch(visibleText)
+							visibleEditorChars += visibleText.length
+							editorSourceChars += text.length
 							updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 						}
 					} else {
@@ -481,6 +510,8 @@ class BuildOutputFragment :
 								editorContentMutex.withLock {
 									if (editorGen == editorContentGeneration) {
 										appendBatch(visibleText)
+										visibleEditorChars += visibleText.length
+										editorSourceChars += text.length
 										updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 									}
 								}
