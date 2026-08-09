@@ -151,9 +151,6 @@ android {
 			excludes += "intellij.java.frontback.psi.impl.xml"
 			// jgit's OSGi bundle localization data; unused outside an OSGi runtime.
 			excludes += "OSGI-INF/l10n/plugin.properties"
-			// Each androidx artifact ships its own copy of the identical Apache 2.0 LICENSE.txt at a
-			// unique per-artifact path, so pickFirsts can't dedupe them (no path collision to resolve).
-			excludes += "META-INF/androidx/**/LICENSE.txt"
 
 			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
 			pickFirsts += "kotlin/reflect/reflect.kotlin_builtins"
