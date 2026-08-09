@@ -29,6 +29,7 @@ object TooltipTag {
 	const val OUTPUT_SEARCH = "output.search"
 	const val OUTPUT_FILTER = "output.filter"
 	const val OUTPUT_WORD_WRAP = "output.wordwrap"
+	const val OUTPUT_VIEW_OPTIONS = "output.viewoptions"
 	const val PROJECT_BUILD_OUTPUT = "project.buildoutput"
 	const val PROJECT_GRADLE_TASKS = "project.gradle.tasks"
 	const val PROJECT_RUN_GRADLE_TASKS = "project.run.gradle.tasks"
