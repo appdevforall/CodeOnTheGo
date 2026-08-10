@@ -28,7 +28,10 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -78,50 +81,53 @@ fun TemplateManagerScreen(
 	var dialogState by remember { mutableStateOf<TemplateManagerDialogState>(TemplateManagerDialogState.None) }
 	var selectedTemplateDetails by remember { mutableStateOf<TemplateMetadata?>(null) }
 	val rootView = LocalView.current
+	val lifecycleOwner = LocalLifecycleOwner.current
 
 	fun showTooltip() {
 		TooltipManager.showIdeCategoryTooltip(activity, rootView, TooltipTag.TEMPLATE_MANAGER)
 	}
 
-	LaunchedEffect(viewModel) {
-		viewModel.uiEffect.collect { effect ->
-			when (effect) {
-				is TemplateManagerUiEffect.ShowError -> {
-					val message = activity.getString(effect.messageResId, *effect.formatArgs.toTypedArray())
-					val builder =
-						activity
-							.flashbarBuilder(duration = if (effect.formatArgs.isEmpty()) 5000L else DURATION_INDEFINITE)
-							.errorIcon()
-							.message(message)
-					if (effect.formatArgs.isNotEmpty()) {
-						builder
-							.positiveActionText(R.string.copy)
-							.positiveActionTapListener { bar ->
-								activity
-									.getSystemService(ClipboardManager::class.java)
-									?.setPrimaryClip(
-										ClipData.newPlainText(activity.getString(R.string.msg_template_error_clip_label), message),
-									)
-								bar.dismiss()
-							}
+	LaunchedEffect(viewModel, lifecycleOwner) {
+		lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+			viewModel.uiEffect.collect { effect ->
+				when (effect) {
+					is TemplateManagerUiEffect.ShowError -> {
+						val message = activity.getString(effect.messageResId, *effect.formatArgs.toTypedArray())
+						val builder =
+							activity
+								.flashbarBuilder(duration = if (effect.formatArgs.isEmpty()) 5000L else DURATION_INDEFINITE)
+								.errorIcon()
+								.message(message)
+						if (effect.formatArgs.isNotEmpty()) {
+							builder
+								.positiveActionText(R.string.copy)
+								.positiveActionTapListener { bar ->
+									activity
+										.getSystemService(ClipboardManager::class.java)
+										?.setPrimaryClip(
+											ClipData.newPlainText(activity.getString(R.string.msg_template_error_clip_label), message),
+										)
+									bar.dismiss()
+								}
+						}
+						builder.showOnUiThread()
 					}
-					builder.showOnUiThread()
-				}
 
-				is TemplateManagerUiEffect.ShowSuccess -> {
-					activity.flashSuccess(activity.getString(effect.messageResId))
-				}
+					is TemplateManagerUiEffect.ShowSuccess -> {
+						activity.flashSuccess(activity.getString(effect.messageResId))
+					}
 
-				is TemplateManagerUiEffect.ShowDeleteConfirmation -> {
-					dialogState = TemplateManagerDialogState.DeleteConfirm(effect.item)
-				}
+					is TemplateManagerUiEffect.ShowDeleteConfirmation -> {
+						dialogState = TemplateManagerDialogState.DeleteConfirm(effect.item)
+					}
 
-				is TemplateManagerUiEffect.ShowTemplateDetails -> {
-					dialogState = TemplateManagerDialogState.FileDetails(effect.item)
-				}
+					is TemplateManagerUiEffect.ShowTemplateDetails -> {
+						dialogState = TemplateManagerDialogState.FileDetails(effect.item)
+					}
 
-				is TemplateManagerUiEffect.ShowTemplateList -> {
-					dialogState = TemplateManagerDialogState.TemplateList(effect.item)
+					is TemplateManagerUiEffect.ShowTemplateList -> {
+						dialogState = TemplateManagerDialogState.TemplateList(effect.item)
+					}
 				}
 			}
 		}

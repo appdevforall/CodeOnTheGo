@@ -79,6 +79,7 @@ fun ManagerScreen(
 		topBar = {
 			TopAppBar(
 				title = { Text(stringResource(R.string.title_manager)) },
+				windowInsets = WindowInsets(0, 0, 0, 0),
 				navigationIcon = {
 					IconButton(onClick = { activity.onBackPressedDispatcher.onBackPressed() }) {
 						Icon(

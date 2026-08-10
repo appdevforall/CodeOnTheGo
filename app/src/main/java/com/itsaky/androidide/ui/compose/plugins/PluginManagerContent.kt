@@ -33,7 +33,10 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -101,6 +104,7 @@ fun PluginManagerContent(
 	val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 	var dialogState by remember { mutableStateOf<PluginManagerDialogState>(PluginManagerDialogState.None) }
 	val rootView = LocalView.current
+	val lifecycleOwner = LocalLifecycleOwner.current
 
 	fun showTooltip() {
 		TooltipManager.showIdeCategoryTooltip(activity, rootView, TooltipTag.PLUGIN_MANAGER)
@@ -119,74 +123,76 @@ fun PluginManagerContent(
 			}
 		}
 
-	LaunchedEffect(viewModel) {
-		viewModel.uiEffect.collect { effect ->
-			when (effect) {
-				is PluginManagerUiEffect.ShowError -> {
-					val message = activity.getString(effect.messageResId, *effect.formatArgs.toTypedArray())
-					val builder =
-						activity
-							.flashbarBuilder(duration = if (effect.formatArgs.isEmpty()) 5000L else DURATION_INDEFINITE)
-							.errorIcon()
-							.message(message)
-					if (effect.formatArgs.isNotEmpty()) {
-						builder
-							.positiveActionText(R.string.copy)
-							.positiveActionTapListener { bar ->
-								activity
-									.getSystemService(ClipboardManager::class.java)
-									?.setPrimaryClip(
-										ClipData.newPlainText(activity.getString(R.string.msg_plugin_error_clip_label), message),
-									)
-								bar.dismiss()
-							}
+	LaunchedEffect(viewModel, lifecycleOwner) {
+		lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+			viewModel.uiEffect.collect { effect ->
+				when (effect) {
+					is PluginManagerUiEffect.ShowError -> {
+						val message = activity.getString(effect.messageResId, *effect.formatArgs.toTypedArray())
+						val builder =
+							activity
+								.flashbarBuilder(duration = if (effect.formatArgs.isEmpty()) 5000L else DURATION_INDEFINITE)
+								.errorIcon()
+								.message(message)
+						if (effect.formatArgs.isNotEmpty()) {
+							builder
+								.positiveActionText(R.string.copy)
+								.positiveActionTapListener { bar ->
+									activity
+										.getSystemService(ClipboardManager::class.java)
+										?.setPrimaryClip(
+											ClipData.newPlainText(activity.getString(R.string.msg_plugin_error_clip_label), message),
+										)
+									bar.dismiss()
+								}
+						}
+						builder.showOnUiThread()
 					}
-					builder.showOnUiThread()
-				}
 
-				is PluginManagerUiEffect.ShowSuccess -> {
-					activity.flashSuccess(activity.getString(effect.messageResId))
-				}
-
-				is PluginManagerUiEffect.ShowPluginDetails -> {
-					dialogState = PluginManagerDialogState.Details(effect.plugin)
-				}
-
-				is PluginManagerUiEffect.OpenFilePicker -> {
-					try {
-						// SAF filters by MIME type, not extension, and .cgp has no registered MIME
-						// type. "application/octet-stream" is what document providers report for
-						// files with an unrecognized extension, so this hides files with a known
-						// type (images, zips, apks, ...) without excluding .cgp files. The
-						// FileSelected event still validates the actual pick, since this is an
-						// approximation.
-						filePickerLauncher.launch(arrayOf("application/octet-stream"))
-					} catch (e: ActivityNotFoundException) {
-						log.warn("No document provider available for the plugin file picker", e)
-						activity.flashError(activity.getString(R.string.msg_no_file_manager))
+					is PluginManagerUiEffect.ShowSuccess -> {
+						activity.flashSuccess(activity.getString(effect.messageResId))
 					}
-				}
 
-				is PluginManagerUiEffect.ShowInstallConfirmation -> {
-					dialogState = PluginManagerDialogState.InstallConfirm(effect.uri)
-				}
+					is PluginManagerUiEffect.ShowPluginDetails -> {
+						dialogState = PluginManagerDialogState.Details(effect.plugin)
+					}
 
-				is PluginManagerUiEffect.ShowUninstallConfirmation -> {
-					dialogState = PluginManagerDialogState.UninstallConfirm(effect.plugin)
-				}
+					is PluginManagerUiEffect.OpenFilePicker -> {
+						try {
+							// SAF filters by MIME type, not extension, and .cgp has no registered MIME
+							// type. "application/octet-stream" is what document providers report for
+							// files with an unrecognized extension, so this hides files with a known
+							// type (images, zips, apks, ...) without excluding .cgp files. The
+							// FileSelected event still validates the actual pick, since this is an
+							// approximation.
+							filePickerLauncher.launch(arrayOf("application/octet-stream"))
+						} catch (e: ActivityNotFoundException) {
+							log.warn("No document provider available for the plugin file picker", e)
+							activity.flashError(activity.getString(R.string.msg_no_file_manager))
+						}
+					}
 
-				is PluginManagerUiEffect.ShowRestartPrompt -> {
-					DialogUtils.showRestartPrompt(activity)
-				}
+					is PluginManagerUiEffect.ShowInstallConfirmation -> {
+						dialogState = PluginManagerDialogState.InstallConfirm(effect.uri)
+					}
 
-				is PluginManagerUiEffect.ShowOverwriteConfirmation -> {
-					dialogState =
-						PluginManagerDialogState.OverwriteConfirm(
-							existing = effect.existing,
-							incomingMetadata = effect.incomingMetadata,
-							uri = effect.uri,
-							deleteSourceAfterInstall = effect.deleteSourceAfterInstall,
-						)
+					is PluginManagerUiEffect.ShowUninstallConfirmation -> {
+						dialogState = PluginManagerDialogState.UninstallConfirm(effect.plugin)
+					}
+
+					is PluginManagerUiEffect.ShowRestartPrompt -> {
+						DialogUtils.showRestartPrompt(activity)
+					}
+
+					is PluginManagerUiEffect.ShowOverwriteConfirmation -> {
+						dialogState =
+							PluginManagerDialogState.OverwriteConfirm(
+								existing = effect.existing,
+								incomingMetadata = effect.incomingMetadata,
+								uri = effect.uri,
+								deleteSourceAfterInstall = effect.deleteSourceAfterInstall,
+							)
+					}
 				}
 			}
 		}
