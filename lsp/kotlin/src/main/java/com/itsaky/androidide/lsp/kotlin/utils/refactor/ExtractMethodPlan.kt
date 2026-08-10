@@ -75,7 +75,11 @@ sealed interface ExtractionRefusal {
 	/** The selection is neither one expression nor whole statements inside one block (R2). */
 	data object NotASingleRegion : ExtractionRefusal
 
-	/** Two or more locals declared inside the region are read after it (R7). */
+	/**
+	 * The region declares something the code after it still needs, and a single returned value cannot
+	 * carry it (R7): two or more locals, a destructuring declaration, a local `fun` or class, or a
+	 * local the following code reassigns. [names] is what is in the way, so the message can name it.
+	 */
 	data class MultipleOutputs(
 		val names: List<String>,
 	) : ExtractionRefusal
@@ -100,6 +104,12 @@ sealed interface ExtractionRefusal {
 
 	/** A parameter or return type that cannot be written out as source (R5). */
 	data object UnrenderableType : ExtractionRefusal
+
+	/**
+	 * A property accessor's `field` (R4). The backing field is reachable only from inside the
+	 * accessor, so the reference would move verbatim into the new function and stop resolving.
+	 */
+	data object UsesBackingField : ExtractionRefusal
 }
 
 /**

@@ -365,4 +365,218 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 			apply(content, buildExtractMethodRewrites(result.fileText, candidate, "total")!!),
 		)
 	}
+
+	@Test
+	fun `an it bound by a lambda inside the region is not turned into a parameter`() {
+		val content =
+			"""
+			package p
+			fun log(n: Int) {}
+			fun demo(names: List<Int>, extra: Int) {
+				names.forEach { log(it + extra) }
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "names.forEach", "names.forEach { log(it + extra) }")
+
+		val candidate = plan(content, start, end).candidates.single()
+
+		// `it` belongs to a lambda the region carries with it, so it is not captured from outside.
+		assertEquals(listOf("names", "extra"), candidate.parameters.map { it.name })
+	}
+
+	@Test
+	fun `a destructuring declaration read after the region is declined`() {
+		val content =
+			"""
+			package p
+			data class Point(val a: Int, val b: Int)
+			fun demo(p: Point): Int {
+				val (x, y) = p
+				return x + y
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "val (x, y)", "val (x, y) = p")
+
+		val refusal = plan(content, start, end).refusal
+
+		assertTrue(refusal is ExtractionRefusal.MultipleOutputs)
+		assertEquals(listOf("x", "y"), (refusal as ExtractionRefusal.MultipleOutputs).names)
+	}
+
+	@Test
+	fun `an output reassigned after the region is declined`() {
+		val content =
+			"""
+			package p
+			fun compute(): Int = 1
+			fun demo(flag: Boolean): Int {
+				var result = compute()
+				if (flag) result = 0
+				return result
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "var result", "var result = compute()")
+
+		val refusal = plan(content, start, end).refusal
+
+		// A `val` at the call site cannot carry an output the following code assigns to.
+		assertTrue(refusal is ExtractionRefusal.MultipleOutputs)
+		assertEquals(listOf("result"), (refusal as ExtractionRefusal.MultipleOutputs).names)
+	}
+
+	@Test
+	fun `an inferred type parameter is declined even though the region names no type`() {
+		val content =
+			"""
+			package p
+			fun <T> pick(a: T, b: T): T = a
+			fun <T> demo(a: T, b: T): T {
+				return pick(a, b)
+			}
+			""".trimIndent()
+
+		assertEquals(
+			ExtractionRefusal.UsesTypeParameter("T"),
+			plan(content, content.indexOf("pick(a, b)") + 1).refusal,
+		)
+	}
+
+	@Test
+	fun `a labelled return targeting an outer lambda is declined`() {
+		val content =
+			"""
+			package p
+			fun demo(items: List<Int>) {
+				items.forEach outer@{ item ->
+					listOf(item).forEach {
+						if (it < 0) return@outer
+						println(it)
+					}
+				}
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "listOf(item).forEach {", "\t\t}")
+
+		// The nearest lambda is in the region, but `outer@` is not.
+		assertEquals(ExtractionRefusal.ExitsRegion, plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `an inherited member used inside a with block is not mistaken for the receiver`() {
+		val content =
+			"""
+			package p
+			open class Base { fun helper(): Int = 1 }
+			class Child : Base() {
+				fun demo(n: Int): Int =
+					with(n) {
+						helper() + 1
+					}
+			}
+			""".trimIndent()
+
+		val result = plan(content, content.indexOf("helper() + 1") + 1)
+
+		// `helper()` comes from the supertype, not from `with`'s receiver.
+		assertNull(result.refusal)
+		assertEquals("Int", result.candidates.first { it.label == "helper() + 1" }.returnTypeText)
+	}
+
+	@Test
+	fun `a scope receiver outside the stdlib scoping names is still declined`() {
+		val content =
+			"""
+			package p
+			class Scope { fun item(n: Int) {} }
+			fun column(body: Scope.() -> Unit) {}
+			fun demo() {
+				column {
+					item(1)
+				}
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "item(1)", "item(1)")
+
+		assertEquals(ExtractionRefusal.InnerImplicitReceiver("column"), plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `extracting from a getter inserts the new function after the whole property`() {
+		val content =
+			"""
+			package p
+			class C {
+				var backing: Int = 0
+				var total: Int
+					get() {
+						return backing + 1
+					}
+					set(value) {
+						backing = value
+					}
+			}
+			""".trimIndent()
+
+		val result = plan(content, content.indexOf("backing + 1") + 1)
+		val candidate = result.candidates.first { it.label == "backing + 1" }
+
+		assertEquals(
+			"""
+			package p
+			class C {
+				var backing: Int = 0
+				var total: Int
+					get() {
+						return next()
+					}
+					set(value) {
+						backing = value
+					}
+
+				private fun next(): Int {
+					return backing + 1
+				}
+			}
+			""".trimIndent(),
+			apply(content, buildExtractMethodRewrites(result.fileText, candidate, "next")!!),
+		)
+	}
+
+	@Test
+	fun `a region using the backing field is declined`() {
+		val content =
+			"""
+			package p
+			class C {
+				var n: Int = 0
+					get() {
+						return field + 1
+					}
+			}
+			""".trimIndent()
+
+		assertEquals(
+			ExtractionRefusal.UsesBackingField,
+			plan(content, content.indexOf("field + 1") + 1).refusal,
+		)
+	}
+
+	@Test
+	fun `a parameter whose type cannot be written out is declined`() {
+		val content =
+			"""
+			package p
+			fun demo(): Int {
+				val helper = object {
+					fun value(): Int = 1
+				}
+				return helper.value()
+			}
+			""".trimIndent()
+
+		assertEquals(
+			ExtractionRefusal.UnrenderableType,
+			plan(content, content.indexOf("helper.value()") + 1).refusal,
+		)
+	}
 }
