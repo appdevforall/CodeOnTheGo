@@ -45,9 +45,12 @@ sealed interface ExtractionRegion {
  * when it is neither kind.
  *
  * A bare cursor is always the expression path. A non-empty selection snaps **outward** to whole
- * statements -- a touch selection will not land on a boundary -- but a selection that lies strictly
- * inside one statement is still an expression selection: widening it to the whole statement would
- * silently extract more than the user picked.
+ * statements -- a touch selection will not land on a boundary. When the snapped range is a single
+ * statement and the selection sits strictly inside it, the expression path is preferred instead:
+ * that is what the user's selection actually points at, not the enclosing statement. But if nothing
+ * there is a legal expression target, the snapped statement is used anyway -- a near-miss drag
+ * (e.g. selecting `sum = a + b` and missing the leading `val`) should still extract something,
+ * rather than being refused for landing a few characters short.
  */
 fun resolveExtractionRegion(
 	file: KtFile,
@@ -57,15 +60,14 @@ fun resolveExtractionRegion(
 	val (start, end) = trimToCode(file.text, selectionStart, selectionEnd) ?: return null
 	if (start == end) return expressionRegion(file, selectionStart, selectionEnd)
 
-	val statements = snapToStatements(file, start, end) ?: return expressionRegion(file, selectionStart, selectionEnd)
+	val range = snapToStatements(file, start, end) ?: return expressionRegion(file, selectionStart, selectionEnd)
 
-	val only = statements.singleOrNull()
+	val only = range.statements.singleOrNull()
 	if (only != null && (start > only.textRange.startOffset || end < only.textRange.endOffset)) {
 		expressionRegion(file, selectionStart, selectionEnd)?.let { return it }
 	}
 
-	val block = statements.first().parent as? KtBlockExpression ?: return null
-	return ExtractionRegion.Statements(statements, block)
+	return ExtractionRegion.Statements(range.statements, range.block)
 }
 
 private fun expressionRegion(
@@ -78,6 +80,12 @@ private fun expressionRegion(
 	return ExtractionRegion.Expressions(syntax.expressions, syntax.selectionMatchedInnermost)
 }
 
+/** A run of sibling statements together with the [KtBlockExpression] that holds them. */
+private class StatementRange(
+	val statements: List<KtExpression>,
+	val block: KtBlockExpression,
+)
+
 /**
  * The whole statements `[start, end)` touches, when they are siblings in one [KtBlockExpression].
  *
@@ -88,9 +96,10 @@ private fun snapToStatements(
 	file: KtFile,
 	start: Int,
 	end: Int,
-): List<KtExpression>? {
+): StatementRange? {
+	// end > start is guaranteed by the start == end early-return in resolveExtractionRegion.
 	val first = statementContaining(file, start) ?: return null
-	val last = statementContaining(file, (end - 1).coerceAtLeast(start)) ?: return null
+	val last = statementContaining(file, end - 1) ?: return null
 
 	val block = first.parent as? KtBlockExpression ?: return null
 	if (last.parent !== block) return null
@@ -100,7 +109,7 @@ private fun snapToStatements(
 	val from = statements.indexOfFirst { it === first }
 	val to = statements.indexOfFirst { it === last }
 	if (from < 0 || to < from) return null
-	return statements.subList(from, to + 1).toList()
+	return StatementRange(statements.subList(from, to + 1).toList(), block)
 }
 
 /**
