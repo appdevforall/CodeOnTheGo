@@ -106,7 +106,7 @@ private fun TemplateMetadataDetails(template: TemplateMetadata) {
 	DetailRow(stringResource(R.string.label_template_description), template.description)
 	if (template.optionalTags.isNotEmpty()) {
 		Text(stringResource(R.string.label_template_optional_params), style = MaterialTheme.typography.labelLarge)
-		template.optionalTags.forEach { tag -> Text("• $tag") }
+		template.optionalTags.forEach { tag -> Text(stringResource(R.string.template_optional_tag, tag)) }
 	}
 }
 
@@ -115,7 +115,7 @@ private fun DetailRow(
 	label: String,
 	value: String,
 ) {
-	Text("$label: $value")
+	Text(stringResource(R.string.label_value, label, value))
 }
 
 /** Sub-screen: one card per template bundled inside a multi-template .cgt. */

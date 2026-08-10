@@ -2,7 +2,8 @@ package com.itsaky.androidide.ui.compose
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,12 +20,15 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,6 +41,7 @@ import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import com.itsaky.androidide.viewmodels.TemplateManagerViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Matches Material's conventional disabled-content alpha; M3 has no ContentAlpha equivalent. */
@@ -44,6 +49,30 @@ private const val DISABLED_ALPHA = 0.38f
 
 private const val TAB_PLUGINS = 0
 private const val TAB_TEMPLATES = 1
+
+/**
+ * A `pointerInput(detectTapGestures(onLongPress = ...))` modifier placed on
+ * [FloatingActionButton]/[IconButton] never fires: both append their own `clickable` after the
+ * caller's modifier, so on the `Main` pointer pass their `clickable` (innermost) consumes the
+ * down event before it reaches this composable's own gesture detector. Driving the long-press
+ * off the button's own [MutableInteractionSource] sidesteps the race entirely - it observes the
+ * same press/release stream the button's `clickable` reports, rather than competing for the raw
+ * pointer event.
+ */
+@Composable
+private fun rememberLongPressInteractionSource(onLongPress: () -> Unit): MutableInteractionSource {
+	val interactionSource = remember { MutableInteractionSource() }
+	val isPressed by interactionSource.collectIsPressedAsState()
+	val longPressTimeoutMillis = LocalViewConfiguration.current.longPressTimeoutMillis
+	val currentOnLongPress by rememberUpdatedState(onLongPress)
+	LaunchedEffect(isPressed) {
+		if (isPressed) {
+			delay(longPressTimeoutMillis)
+			currentOnLongPress()
+		}
+	}
+	return interactionSource
+}
 
 /**
  * Root screen for `PluginManagerActivity` (ADFA-4928): a single manager with two tabs, Plugins
@@ -94,10 +123,7 @@ fun ManagerScreen(
 							onClick = {
 								UrlManager.openUrl(activity.getString(R.string.url_discover_plugins), null, activity)
 							},
-							modifier =
-								Modifier.pointerInput(Unit) {
-									detectTapGestures(onLongPress = { showTooltip() })
-								},
+							interactionSource = rememberLongPressInteractionSource { showTooltip() },
 						) {
 							Icon(
 								painter = painterResource(R.drawable.ic_download),
@@ -116,12 +142,8 @@ fun ManagerScreen(
 							pluginViewModel.onEvent(PluginManagerUiEvent.OpenFilePicker)
 						}
 					},
-					modifier =
-						Modifier
-							.alpha(if (pluginUiState.isInstalling) DISABLED_ALPHA else 1f)
-							.pointerInput(Unit) {
-								detectTapGestures(onLongPress = { showTooltip() })
-							},
+					modifier = Modifier.alpha(if (pluginUiState.isInstalling) DISABLED_ALPHA else 1f),
+					interactionSource = rememberLongPressInteractionSource { showTooltip() },
 				) {
 					Icon(
 						painter = painterResource(R.drawable.ic_add),

@@ -2,6 +2,8 @@ package com.itsaky.androidide.templates.manager.parsing
 
 import com.itsaky.androidide.templates.manager.models.TemplateMetadata
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.util.zip.ZipInputStream
 
@@ -14,6 +16,12 @@ import java.util.zip.ZipInputStream
 object CgtTemplateReader {
 	private const val TEMPLATE_JSON_SUFFIX = "/template/template.json"
 
+	// template.json is a small manifest; a legitimate one is a few KB at most. Bounding the
+	// read protects against a corrupt or hostile archive claiming a huge (or streamed,
+	// size-unknown) entry under that name and exhausting memory via an unbounded readBytes().
+	private const val MAX_TEMPLATE_JSON_BYTES = 1 shl 20 // 1 MiB
+	private const val COPY_BUFFER_SIZE = 8 * 1024
+
 	/**
 	 * Reads every `<path>/template/template.json` entry from a `.cgt` zip [input] and returns
 	 * one [TemplateMetadata] per entry (empty if the archive contains none). The stream is
@@ -25,7 +33,7 @@ object CgtTemplateReader {
 			while (true) {
 				val entry = zip.nextEntry ?: break
 				if (!entry.isDirectory && entry.name.endsWith(TEMPLATE_JSON_SUFFIX)) {
-					val json = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
+					val json = JSONObject(readBounded(zip).toString(Charsets.UTF_8))
 					templates.add(
 						TemplateMetadata(
 							name = json.optString("name"),
@@ -39,6 +47,23 @@ object CgtTemplateReader {
 			}
 		}
 		return templates
+	}
+
+	/** Reads the current zip entry, throwing [IOException] instead of exceeding [MAX_TEMPLATE_JSON_BYTES]. */
+	private fun readBounded(zip: ZipInputStream): ByteArray {
+		val out = ByteArrayOutputStream()
+		val buffer = ByteArray(COPY_BUFFER_SIZE)
+		var total = 0
+		while (true) {
+			val read = zip.read(buffer)
+			if (read == -1) break
+			total += read
+			if (total > MAX_TEMPLATE_JSON_BYTES) {
+				throw IOException("template.json entry exceeds $MAX_TEMPLATE_JSON_BYTES bytes")
+			}
+			out.write(buffer, 0, read)
+		}
+		return out.toByteArray()
 	}
 
 	/**

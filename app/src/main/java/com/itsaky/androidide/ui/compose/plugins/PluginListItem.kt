@@ -32,15 +32,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.itsaky.androidide.R
 import com.itsaky.androidide.plugins.PluginInfo
+import com.itsaky.androidide.templates.manager.models.versionLabel
 import com.itsaky.androidide.ui.compose.common.FileImage
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import java.io.File
-
-/** Matches the plugin list's version-chip truncation: `vX.Y.Z...` past three dot-segments. */
-internal fun pluginVersionLabel(version: String): String {
-	val segments = version.split('.')
-	return if (segments.size > 3) "v${segments.take(3).joinToString(".")}..." else "v$version"
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -90,8 +85,11 @@ fun PluginListItem(
 					overflow = TextOverflow.Ellipsis,
 				)
 				Row {
-					Text(pluginVersionLabel(plugin.metadata.version), style = MaterialTheme.typography.labelSmall)
-					Spacer(Modifier.width(8.dp))
+					val versionText = versionLabel(plugin.metadata.version)
+					if (versionText.isNotBlank()) {
+						Text(versionText, style = MaterialTheme.typography.labelSmall)
+						Spacer(Modifier.width(8.dp))
+					}
 					Text(
 						stringResource(R.string.by_author, plugin.metadata.author),
 						style = MaterialTheme.typography.labelSmall,

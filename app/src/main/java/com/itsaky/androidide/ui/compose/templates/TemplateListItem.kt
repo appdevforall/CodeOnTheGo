@@ -108,7 +108,7 @@ fun TemplateListItem(
 						}
 					Text(statusText, color = statusColor, style = MaterialTheme.typography.labelMedium)
 					Text(
-						" - " + stringResource(item.provenance.labelRes()),
+						stringResource(R.string.label_separator) + stringResource(item.provenance.labelRes()),
 						style = MaterialTheme.typography.labelMedium,
 						color = MaterialTheme.colorScheme.onSurfaceVariant,
 					)

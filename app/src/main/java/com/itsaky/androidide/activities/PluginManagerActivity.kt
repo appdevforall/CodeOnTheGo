@@ -36,12 +36,20 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 		try {
 			super.onCreate(savedInstanceState)
 
+			// setContent only registers the composable; its lambda runs later, at first
+			// layout, after onCreate has returned - by which point this try/catch can no
+			// longer see it. Force the Koin `by viewModel()` delegates to resolve here instead,
+			// so a failure (e.g. Environment.TEMPLATES_DIR still null after a partial
+			// DeviceProtectedApplicationLoader init) is caught below rather than crashing.
+			val resolvedPluginViewModel = pluginViewModel
+			val resolvedTemplateViewModel = templateViewModel
+
 			binding.composeView.setContent {
 				ManagerTheme {
 					ManagerScreen(
 						activity = this,
-						pluginViewModel = pluginViewModel,
-						templateViewModel = templateViewModel,
+						pluginViewModel = resolvedPluginViewModel,
+						templateViewModel = resolvedTemplateViewModel,
 					)
 				}
 			}

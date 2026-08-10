@@ -1,11 +1,13 @@
 package com.itsaky.androidide.templates.manager.parsing
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -116,5 +118,17 @@ class CgtTemplateReaderTest {
 	fun returnsEmptyWhenNoTemplateJson() {
 		val input = cgt(mapOf("pkg/readme.txt" to "hello", "pkg/template/other.json" to "{}"))
 		assertThat(CgtTemplateReader.readTemplates(input)).isEmpty()
+	}
+
+	@Test
+	fun throwsInsteadOfReadingAnOversizedTemplateJson() {
+		// A legitimate template.json is a few KB; this stands in for a corrupt/hostile
+		// archive claiming a huge entry under that name, which readTemplates must reject
+		// rather than buffer in full.
+		val oversized = "x".repeat(2 shl 20)
+		val input = cgt(mapOf("pkg/template/template.json" to oversized))
+		assertThrows(IOException::class.java) {
+			CgtTemplateReader.readTemplates(input)
+		}
 	}
 }

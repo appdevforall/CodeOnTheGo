@@ -22,11 +22,12 @@ fun Uri.getFileName(contentResolver: ContentResolver): String {
 					}
 				}
 			}
-		} catch (e: SecurityException) {
-			log.warn("Denied access while reading URI: {}://{}", scheme, authority, e)
-		} catch (e: IllegalArgumentException) {
-			// No registered provider for this URI, or the provider rejected the query args.
-			log.warn("No provider could resolve URI: {}://{}", scheme, authority, e)
+		} catch (e: Exception) {
+			// Broad on purpose: a third-party content provider can throw almost anything
+			// (SecurityException, unresolvable-URI IllegalArgumentException,
+			// CursorWindowAllocationException, a RuntimeException wrapping a dead Binder, ...)
+			// and this is a best-effort display-name lookup, not a critical path.
+			log.warn("Failed to read display name for URI: {}://{}", scheme, authority, e)
 		}
 
 		return unknownFileLabel

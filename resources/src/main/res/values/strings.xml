@@ -1089,6 +1089,8 @@
 	<string name="label_plugin_description">Description</string>
 	<string name="label_plugin_min_ide_version">Min IDE Version</string>
 	<string name="label_value">%1$s: %2$s</string>
+	<string name="template_optional_tag">"- %1$s"</string>
+	<string name="label_separator">" - "</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<string name="msg_template_load_failed">Failed to load templates: %1$s</string>

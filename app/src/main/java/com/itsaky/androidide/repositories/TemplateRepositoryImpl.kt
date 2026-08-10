@@ -74,6 +74,12 @@ class TemplateRepositoryImpl(
 			} catch (e: JSONException) {
 				logger.warn("Failed to parse {}", file.absolutePath, e)
 				return null
+			} catch (e: IllegalArgumentException) {
+				// ZipInputStream.nextEntry throws this for a malformed (non-UTF-8) entry name -
+				// downloadDir is the public Downloads folder, so a corrupt/hostile .cgt is
+				// untrusted input, not a programming error. Skip it like any other bad archive.
+				logger.warn("Failed to parse {}", file.absolutePath, e)
+				return null
 			}
 		if (templates.isEmpty()) return null
 		return CgtFileItem(
