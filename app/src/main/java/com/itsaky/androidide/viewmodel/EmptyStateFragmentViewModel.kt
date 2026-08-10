@@ -27,13 +27,31 @@ import kotlinx.coroutines.flow.update
  */
 class EmptyStateFragmentViewModel : ViewModel() {
 	private val _isEmpty = MutableStateFlow(true)
+	private val _isSourceEmpty = MutableStateFlow(true)
 	private val _emptyMessage = MutableStateFlow<CharSequence>("")
 
+	/** Whether the empty-state layout (not the content layout) should be shown. */
 	val isEmpty = _isEmpty.asStateFlow()
+
+	/**
+	 * Whether the underlying data source has no content at all. Unlike [isEmpty], this is
+	 * independent of any filter UI, so it is the signal to gate content-dependent actions on.
+	 */
+	val isSourceEmpty = _isSourceEmpty.asStateFlow()
+
 	val emptyMessage = _emptyMessage.asStateFlow()
 
+	/** Sets both [isEmpty] and [isSourceEmpty]; they only diverge when a filter UI is active. */
 	fun setEmpty(isEmpty: Boolean) {
+		setEmptyState(isEmpty = isEmpty, isSourceEmpty = isEmpty)
+	}
+
+	fun setEmptyState(
+		isEmpty: Boolean,
+		isSourceEmpty: Boolean,
+	) {
 		_isEmpty.update { isEmpty }
+		_isSourceEmpty.update { isSourceEmpty }
 	}
 
 	fun setEmptyMessage(emptyMessage: CharSequence) {

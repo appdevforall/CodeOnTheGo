@@ -20,7 +20,7 @@
 	<string name="need_help">Need Help?</string>
 	<string name="ide_preferences">IDE preferences</string>
 	<string name="discussions_on_telegram">Support and discussions forum</string>
-	<string name="official_tg_channel">Official Telegram channel</string>
+	<string name="official_tg_channel">Announcements on Telegram</string>
 	<string name="msg_empty_view">No data</string>
 	<string name="title_terminal">Terminal</string>
 	<string name="reset">Reset</string>
@@ -687,6 +687,8 @@
 	<string name="msg_emptyview_idelogs">Logs from the IDE are shown here.</string>
 	<string name="msg_emptyview_diagnostics">Open a file to show its diagnostic results</string>
 	<string name="log_filter_hint">Filter lines</string>
+	<string name="msg_no_filter_matches">No matching log entries found.</string>
+	<string name="msg_no_search_matches">No search matches found.</string>
 	<string name="log_action_filter">Filter</string>
 	<string name="log_action_search">Search</string>
 	<string name="log_action_share">Share</string>
@@ -697,6 +699,9 @@
 	<string name="log_filter_level_info">Info</string>
 	<string name="log_filter_level_warning">Warning</string>
 	<string name="log_filter_level_error">Error</string>
+	<string name="log_filter_line_numbers">Line numbers</string>
+	<string name="log_filter_timestamps">Timestamps</string>
+	<string name="log_filter_deltas">Time deltas</string>
 	<string name="tooltip_search_output">Search in output</string>
 	<string name="tooltip_filter_output">Filter output</string>
 	<string name="msg_emptyview_buildoutput">"Build the application or run a task to see its build output here. "</string>
@@ -896,6 +901,7 @@
 	<string name="plugin_manager">Plugin Manager</string>
 	<string name="plugin_manager_title">Plugin Manager</string>
 	<string name="plugin_manager_summary">Manage IDE plugins and extensions</string>
+	<string name="msg_open_plugin_settings_failed">Could not open this plugin\'s settings</string>
 	<string name="plugins">Plugins</string>
 	<string name="no_plugins_installed">No plugins installed</string>
 	<string name="no_plugins_installed_hint">Tap the + button to install your first plugin</string>
@@ -908,7 +914,12 @@
 	<string name="enable_plugin">Enable</string>
 	<string name="disable_plugin">Disable</string>
 	<string name="uninstall_plugin">Uninstall</string>
+	<string name="plugin_action_details">Details</string>
 	<string name="plugin_details">Plugin Details</string>
+	<string name="plugin_author_by">by %1$s</string>
+	<string name="plugin_status_enabled">Enabled</string>
+	<string name="plugin_status_disabled">Disabled</string>
+	<string name="plugin_status_not_loaded">Not Loaded</string>
 	<string name="plugin_permissions">Permissions</string>
 	<string name="plugin_dependencies">Dependencies</string>
 
@@ -1031,6 +1042,7 @@
 	<!-- Output actions content descriptions -->
 	<string name="cd_enable_word_wrap">Enable word wrap</string>
 	<string name="cd_disable_word_wrap">Disable word wrap</string>
+	<string name="cd_output_view_options">View options</string>
 
 	<string name="unknown_error">"An unknown error occurred."</string>
 	<string name="build_in_progress_warning">A build is already in progress. Ignoring new request.</string>

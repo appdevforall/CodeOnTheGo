@@ -52,8 +52,10 @@ import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
+import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.fragments.output.SearchableOutputFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.fragments.output.ViewOptionsOutputFragment
 import com.itsaky.androidide.fragments.output.WrappableOutputFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -127,6 +129,8 @@ class EditorBottomSheet
 		private val buildOutputViewModel by (context as FragmentActivity).viewModels<BuildOutputViewModel>()
 		private lateinit var mediator: TabLayoutMediator
 		private var shareJob: Job? = null
+		private var fragmentEmptyStateJob: Job? = null
+		private var currentObservedFragment: Fragment? = null
 
 		// BottomSheetBehavior repositions the sheet after layout without triggering onSlide,
 		// so refresh the FABs afterward
@@ -235,8 +239,14 @@ class EditorBottomSheet
 							}
 						} finally {
 							if (isAttachedToWindow) {
-								binding.shareOutputAction.isEnabled = true
-								binding.clearOutputAction.isEnabled = true
+								// The share job is still active while its own finally runs, so it must be
+								// cleared first or updateActionButtonsEnabledState would keep the share and
+								// clear actions disabled. Also re-read the current tab: it may have changed
+								// since the share started.
+								shareJob = null
+								val current = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
+								val isCurrentEmpty = (current as? EmptyStateFragment<*>)?.isSourceEmpty == true
+								updateActionButtonsEnabledState(isSourceEmpty = isCurrentEmpty)
 							}
 						}
 					}
@@ -289,6 +299,14 @@ class EditorBottomSheet
 			}
 			binding.wordWrapOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_WORD_WRAP))
 
+			binding.viewOptionsOutputAction.setOnClickListener {
+				val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
+				if (fragment is ViewOptionsOutputFragment) {
+					fragment.showViewOptions(it)
+				}
+			}
+			binding.viewOptionsOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_VIEW_OPTIONS))
+
 			binding.headerContainer.setOnClickListener {
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 			}
@@ -305,6 +323,9 @@ class EditorBottomSheet
 		override fun onDetachedFromWindow() {
 			shareJob?.cancel()
 			shareJob = null
+			currentObservedFragment = null
+			fragmentEmptyStateJob?.cancel()
+			fragmentEmptyStateJob = null
 			if (this::mediator.isInitialized) {
 				mediator.detach()
 			}
@@ -320,6 +341,8 @@ class EditorBottomSheet
 			binding.filterOutputAction.setOnLongClickListener(null)
 			binding.wordWrapOutputAction.setOnClickListener(null)
 			binding.wordWrapOutputAction.setOnLongClickListener(null)
+			binding.viewOptionsOutputAction.setOnClickListener(null)
+			binding.viewOptionsOutputAction.setOnLongClickListener(null)
 			binding.copyDiagnosticsFab.setOnClickListener(null)
 			binding.headerContainer.setOnClickListener(null)
 			removeOnLayoutChangeListener(fabLayoutChangeListener)
@@ -658,6 +681,7 @@ class EditorBottomSheet
 			val showShareAndClear = isExpanded && currentFragment is ShareableOutputFragment
 			val showSearchAndFilter = isExpanded && currentFragment is SearchableOutputFragment
 			val showWordWrap = isExpanded && currentFragment is WrappableOutputFragment
+			val showViewOptions = isExpanded && currentFragment is ViewOptionsOutputFragment
 			val showCopy =
 				isExpanded &&
 					currentFragment != null &&
@@ -668,7 +692,8 @@ class EditorBottomSheet
 			binding.searchOutputAction.isVisible = showSearchAndFilter
 			binding.filterOutputAction.isVisible = showSearchAndFilter
 			binding.wordWrapOutputAction.isVisible = showWordWrap
-			binding.outputActions.isVisible = showShareAndClear || showSearchAndFilter || showWordWrap
+			binding.viewOptionsOutputAction.isVisible = showViewOptions
+			binding.outputActions.isVisible = showShareAndClear || showSearchAndFilter || showWordWrap || showViewOptions
 			binding.copyDiagnosticsFab.isVisible = showCopy
 
 			if (showWordWrap) {
@@ -678,6 +703,53 @@ class EditorBottomSheet
 				}
 				updateWordWrapButtonState(isEnabled)
 			}
+
+			observeCurrentFragmentEmptyState(currentFragment)
+		}
+
+		private fun observeCurrentFragmentEmptyState(fragment: Fragment?) {
+			if (fragment === currentObservedFragment && fragmentEmptyStateJob?.isActive == true) {
+				return
+			}
+
+			fragmentEmptyStateJob?.cancel()
+			fragmentEmptyStateJob = null
+			currentObservedFragment = fragment
+
+			if (fragment !is EmptyStateFragment<*> || !fragment.isAdded || fragment.isDetached || fragment.host == null) {
+				updateActionButtonsEnabledState(isSourceEmpty = false)
+				return
+			}
+
+			val flow =
+				fragment.isSourceEmptyFlow ?: run {
+					updateActionButtonsEnabledState(isSourceEmpty = false)
+					return
+				}
+
+			val activity = context as FragmentActivity
+			fragmentEmptyStateJob =
+				activity.lifecycleScope.launch {
+					activity.repeatOnLifecycle(Lifecycle.State.STARTED) {
+						flow.collectLatest { isSourceEmpty ->
+							if (fragment.isAdded && !fragment.isDetached) {
+								updateActionButtonsEnabledState(isSourceEmpty = isSourceEmpty)
+							}
+						}
+					}
+				}
+		}
+
+		// Gates on source content, not the fragment's isEmpty: that flag stays false while a
+		// filter UI is active even when there is nothing to share, clear, or search.
+		private fun updateActionButtonsEnabledState(isSourceEmpty: Boolean) {
+			val hasContent = !isSourceEmpty
+			val isSharing = shareJob?.isActive == true
+			val canShareOrClear = hasContent && !isSharing
+			binding.searchOutputAction.isEnabled = hasContent
+			binding.filterOutputAction.isEnabled = hasContent
+			binding.shareOutputAction.isEnabled = canShareOrClear
+			binding.clearOutputAction.isEnabled = canShareOrClear
 		}
 
 		// The bottom-anchored FAB goes off-screen when the bottom sheet is collapsed.

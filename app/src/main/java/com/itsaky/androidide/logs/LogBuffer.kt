@@ -98,6 +98,9 @@ class LogBuffer(
 			}
 		}
 
+	val isEmpty: Boolean
+		@Synchronized get() = entries.isEmpty()
+
 	@Synchronized
 	fun clear() {
 		entries.clear()
