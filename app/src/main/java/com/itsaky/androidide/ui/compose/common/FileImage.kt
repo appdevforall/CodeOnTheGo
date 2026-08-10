@@ -103,8 +103,13 @@ private fun decodeBounded(
 	if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
 	var inSampleSize = 1
-	while (maxOf(bounds.outWidth, bounds.outHeight) / (inSampleSize * 2) >= maxDimensionPx) {
-		inSampleSize *= 2
+	// maxDimensionPx <= 0 (e.g. a sub-pixel Dp at a low density) would otherwise make the
+	// loop condition (a non-negative quotient >= a non-positive bound) permanently true,
+	// hanging on an unbounded doubling of inSampleSize. Skip downsampling in that case.
+	if (maxDimensionPx > 0) {
+		while (maxOf(bounds.outWidth, bounds.outHeight) / (inSampleSize * 2) >= maxDimensionPx) {
+			inSampleSize *= 2
+		}
 	}
 
 	val decodeOptions = BitmapFactory.Options().apply { this.inSampleSize = inSampleSize }
