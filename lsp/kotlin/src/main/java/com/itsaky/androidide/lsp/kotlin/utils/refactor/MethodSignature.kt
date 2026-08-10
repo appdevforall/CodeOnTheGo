@@ -167,10 +167,11 @@ internal fun KaSession.buildCandidate(
 	// a `var` and does not parse -- so the new member goes after the whole property (R4). The accessor
 	// itself stays the capture boundary everywhere else.
 	val anchor = (enclosing as? KtPropertyAccessor)?.property ?: enclosing
+	val isLocalTarget = anchor.parent is KtBlockExpression
 	val modifiers =
 		buildList {
 			// A local function joins a block, and a visibility modifier on one does not compile.
-			if (anchor.parent !is KtBlockExpression) add("private")
+			if (!isLocalTarget) add("private")
 			if (usesSuspend(elements)) add("suspend")
 		}
 
@@ -192,7 +193,10 @@ internal fun KaSession.buildCandidate(
 			returnTypeText = returnTypeText,
 			body = body,
 			callSite = callSite,
-			insertOffset = anchor.textRange.endOffset,
+			// A local function is only visible from its declaration onward, so it has to go *before* the
+			// anchor that calls it. Sound in general: everything the anchor's body can reach is already
+			// declared above the anchor. Every other target keeps the new member after its anchor (R4).
+			insertOffset = if (isLocalTarget) anchor.textRange.startOffset else anchor.textRange.endOffset,
 			insertIndent = leadingIndentAt(fileText, anchor.textRange.startOffset),
 		),
 	)
@@ -284,20 +288,62 @@ private fun KaSession.capturedParameters(
 			}
 		if (!seen.add(key)) continue
 
+		val name = reference.getReferencedName()
+		// Only a value can be passed. A local `fun`, class or object declared outside the region goes
+		// out of scope once the region moves, and handing it over as a parameter of its own return type
+		// is not the same program (R5).
+		if (symbol !is KaVariableSymbol) {
+			return CaptureResult.Refused(ExtractionRefusal.CapturedLocalDeclaration(name))
+		}
+
 		val typeText =
 			renderedSymbolType(symbol) ?: return CaptureResult.Refused(ExtractionRefusal.UnrenderableType)
 		// The signature must print the declared type, but the region may be leaning on a smart cast to
 		// something narrower: the declared type breaks the moved body, the narrowed one breaks the call
-		// site. Asked only of values, since a smart cast is the only thing that can make the two differ.
-		if (symbol is KaVariableSymbol) {
-			val usedTypeText = renderedTypeOrNull(reference)
-			if (usedTypeText != null && usedTypeText != typeText) {
-				return CaptureResult.Refused(ExtractionRefusal.SmartCastParameter(reference.getReferencedName()))
+		// site.
+		when (val used = usedTypeOf(reference)) {
+			// An intersection (`A & B`) cannot be printed at all, but the declared type just rendered
+			// fine, so the two differ and this is a smart cast however it would have been spelled.
+			UsedType.Unrenderable -> {
+				return CaptureResult.Refused(ExtractionRefusal.SmartCastParameter(name))
+			}
+
+			is UsedType.Rendered -> {
+				if (used.text != typeText) {
+					return CaptureResult.Refused(ExtractionRefusal.SmartCastParameter(name))
+				}
+			}
+
+			UsedType.Absent -> {
+				Unit
 			}
 		}
-		parameters += MethodParameter(name = reference.getReferencedName(), typeText = typeText)
+		parameters += MethodParameter(name = name, typeText = typeText)
 	}
 	return CaptureResult.Captured(parameters)
+}
+
+/**
+ * The type of a reference as the region uses it.
+ *
+ * [Unrenderable] is kept apart from [Absent] on purpose: folding them together is what let a smart
+ * cast to an intersection type pass as "no information" and emit the declared type.
+ */
+private sealed interface UsedType {
+	data object Absent : UsedType
+
+	data object Unrenderable : UsedType
+
+	data class Rendered(
+		val text: String,
+	) : UsedType
+}
+
+@OptIn(KaExperimentalApi::class)
+private fun KaSession.usedTypeOf(expression: KtExpression): UsedType {
+	val rendered =
+		runCatching { expression.expressionType?.let { renderName(it) } }.getOrNull() ?: return UsedType.Absent
+	return if (isUnrenderable(rendered)) UsedType.Unrenderable else UsedType.Rendered(rendered)
 }
 
 /** Either the derived parameter list or the reason there cannot be one. */
@@ -511,8 +557,13 @@ private fun targetLoopFor(jump: KtExpressionWithLabel): KtLoopExpression? {
 	return null
 }
 
+/** An accessor's type parameters live on its property, the same place its receiver does. */
 private fun typeParameterNamesOf(enclosing: KtDeclaration): List<String> =
-	(enclosing as? KtNamedFunction)?.typeParameters?.mapNotNull { it.name }.orEmpty()
+	when (enclosing) {
+		is KtNamedFunction -> enclosing.typeParameters.mapNotNull { it.name }
+		is KtPropertyAccessor -> enclosing.property.typeParameters.mapNotNull { it.name }
+		else -> emptyList()
+	}
 
 /**
  * The name of the enclosing function's type parameter the region *writes out*, or null. A filtered
@@ -635,8 +686,9 @@ private fun KaSession.implicitReceiverLambdaFor(reference: KtSimpleNameExpressio
 		val callSource =
 			(reference.parent as? KtCallExpression)?.takeIf { it.calleeExpression === reference } ?: reference
 		val call = callSource.resolveToCall()
-		// An assignment target resolves to the whole compound access, which is not a member call and
-		// would otherwise slip through carrying its receiver with it: `n += 1` inside `apply { }`.
+		// Defensive only. A compound assignment (`n += 1` inside `apply { }`) redirects to the whole
+		// compound access, but the resolver flags that redirect and still hands back a plain variable
+		// access, so the branch above already catches it in this version.
 		val applied =
 			call?.successfulCallOrNull<KaCallableMemberCall<*, *>>()?.partiallyAppliedSymbol
 				?: call?.successfulCallOrNull<KaCompoundVariableAccessCall>()?.variableCall?.partiallyAppliedSymbol

@@ -82,6 +82,83 @@ class ExtractMethodEditTest {
 	}
 
 	@Test
+	fun `an insertion before the region puts the call site first`() {
+		// A local-function target: the new function is declared ahead of the one that calls it, so the
+		// descending-order invariant now puts the call site at the head of the list.
+		val span = TextSpan(file.indexOf("a + b"), file.indexOf("a + b") + "a + b".length)
+		val rewrites =
+			buildExtractMethodRewrites(
+				file,
+				candidate(
+					span,
+					ExtractedBody.ExpressionBody(needsReturn = true),
+					CallSiteForm.Call,
+					parameters = listOf(MethodParameter("a", "Int"), MethodParameter("b", "Int")),
+					returnTypeText = "Int",
+				).copy(insertOffset = enclosingStart, modifiers = emptyList()),
+				"total",
+			)
+
+		assertNotNull(rewrites)
+		assertEquals(2, rewrites!!.size)
+		assertTrue(
+			"the call site must come first when the insertion precedes the region",
+			rewrites[0].span.start > rewrites[1].span.start,
+		)
+		assertEquals(span, rewrites[0].span)
+		assertEquals(enclosingStart, rewrites[1].span.start)
+	}
+
+	@Test
+	fun `an insertion before the region declares the function ahead of its anchor`() {
+		val span = TextSpan(file.indexOf("a + b"), file.indexOf("a + b") + "a + b".length)
+		val rewrites =
+			buildExtractMethodRewrites(
+				file,
+				candidate(
+					span,
+					ExtractedBody.ExpressionBody(needsReturn = true),
+					CallSiteForm.Call,
+					parameters = listOf(MethodParameter("a", "Int"), MethodParameter("b", "Int")),
+					returnTypeText = "Int",
+				).copy(insertOffset = enclosingStart, modifiers = emptyList()),
+				"total",
+			)
+
+		assertEquals(
+			"package p\n" +
+				"class C {\n" +
+				"\tfun total(a: Int, b: Int): Int {\n" +
+				"\t\treturn a + b\n" +
+				"\t}\n" +
+				"\n" +
+				"\tfun demo(a: Int, b: Int): Int {\n" +
+				"\t\tval sum = total(a, b)\n" +
+				"\t\treturn sum\n" +
+				"\t}\n" +
+				"}\n",
+			apply(file, rewrites!!),
+		)
+	}
+
+	@Test
+	fun `an insertion inside the region is rejected`() {
+		val span = TextSpan(file.indexOf("a + b"), file.indexOf("a + b") + "a + b".length)
+		val rewrites =
+			buildExtractMethodRewrites(
+				file,
+				candidate(
+					span,
+					ExtractedBody.ExpressionBody(needsReturn = true),
+					CallSiteForm.Call,
+				).copy(insertOffset = span.start + 1),
+				"total",
+			)
+
+		assertNull(rewrites)
+	}
+
+	@Test
 	fun `an expression region becomes a call and a returning function`() {
 		val span = TextSpan(file.indexOf("a + b"), file.indexOf("a + b") + "a + b".length)
 		val rewrites =
