@@ -1,0 +1,132 @@
+package com.itsaky.androidide.lsp.kotlin.utils.refactor
+
+import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
+import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.lsp.kotlin.utils.renderName
+import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
+import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
+import org.jetbrains.kotlin.analysis.api.types.KaType
+import org.jetbrains.kotlin.com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.psi.KtDeclarationWithBody
+import org.jetbrains.kotlin.psi.KtExpression
+import org.jetbrains.kotlin.psi.KtFile
+import org.slf4j.LoggerFactory
+import java.nio.file.Path
+
+private val logger = LoggerFactory.getLogger("ExtractVariablePlanner")
+
+/**
+ * Computes the whole [ExtractionPlan] in one background analysis pass.
+ *
+ * The current [KtFile] is fetched *before* entering [read] -- blocking on
+ * `getCurrentKtFile(...).get()` inside `project.read` deadlocks.
+ *
+ * Returns an empty plan both when there is genuinely nothing to extract and whenever anything in
+ * this pipeline throws: the action framework only catches [IllegalArgumentException] and this runs on
+ * a scope with no exception handler, so an uncaught throw would crash the app. Degrading to an empty
+ * plan is always safe -- the action reports "nothing to extract" instead of rewriting anything.
+ */
+internal fun buildExtractionPlan(
+	env: AbstractCompilationEnvironment,
+	nioPath: Path,
+	selectionStart: Int,
+	selectionEnd: Int,
+	documentVersion: Int,
+	cancelChecker: ScheduledCancelChecker,
+): ExtractionPlan =
+	runCatching {
+		val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return ExtractionPlan.empty()
+		env.project.read {
+			val syntax = candidateExpressionsAt(ktFile, selectionStart, selectionEnd)
+			if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)
+
+			analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
+				val candidates = syntax.expressions.mapNotNull { candidateFor(it) }
+				ExtractionPlan(
+					fileText = ktFile.text,
+					documentVersion = documentVersion,
+					candidates = candidates,
+					// Only meaningful while the innermost candidate survived filtering; otherwise the
+					// user's selection no longer corresponds to the first option shown.
+					selectionMatchedCandidate =
+						syntax.selectionMatchedInnermost &&
+							candidates.firstOrNull()?.span?.start ==
+							syntax.expressions
+								.first()
+								.textRange.startOffset,
+				)
+			}
+		}
+	}.getOrElse { error ->
+		logger.warn("Failed to build extract-variable plan for {}", nioPath, error)
+		ExtractionPlan.empty()
+	}
+
+/**
+ * Turns one syntactic candidate into a [CandidateExpression], or null when it should not be offered.
+ *
+ * Dropped when the expression produces no useful value (`Unit`, `Nothing` -- `val u = println(x)`
+ * compiles but is pointless) or when nothing remains of its legal scope chain.
+ */
+@OptIn(KaExperimentalApi::class)
+private fun KaSession.candidateFor(expression: KtExpression): CandidateExpression? {
+	val type = runCatching { expression.expressionType }.getOrNull()
+	if (type == null || isValuelessType(type)) return null
+
+	val frames = truncateAtCeiling(enclosingScopeFrames(expression), referencedDeclarationCeiling(expression))
+	if (frames.isEmpty()) return null
+
+	val span = TextSpan(expression.textRange.startOffset, expression.textRange.endOffset)
+	val scopes = frames.map { scopeOptionFor(expression, span, it) }
+	val takenNames = visibleNamesAt(expression)
+
+	return CandidateExpression(
+		label = collapseForLabel(expression.text),
+		span = span,
+		suggestedName = suggestVariableName(expression, runCatching { renderName(type) }.getOrNull(), takenNames),
+		takenNames = takenNames,
+		scopes = scopes,
+	)
+}
+
+/** Builds one scope option, resolving its occurrence set and fixing up expression-body details. */
+private fun KaSession.scopeOptionFor(
+	expression: KtExpression,
+	span: TextSpan,
+	frame: ScopeFrame,
+): ScopeOption {
+	val matches = findOccurrences(expression, frame.scopeElement, frame.searchRange)
+	val writes = writeOffsetsFor(expression, frame.scopeElement)
+	val occurrences = excludeUnsoundOccurrences(matches, span, writes)
+
+	val anchorForm =
+		when (val form = frame.anchorForm) {
+			is AnchorForm.ConvertExpressionBody -> form.copy(needsReturn = expressionBodyNeedsReturn(frame.scopeElement))
+			else -> form
+		}
+
+	return ScopeOption(label = frame.label, anchorForm = anchorForm, occurrences = occurrences)
+}
+
+/**
+ * Whether converting an expression body to a block body needs a `return`.
+ *
+ * False only for a `Unit`-returning function, where `return expr` on a non-`Unit` expression would
+ * not compile and is unnecessary anyway. Defaults to true, which is right for everything else
+ * including property accessors.
+ */
+private fun KaSession.expressionBodyNeedsReturn(bodyExpression: PsiElement): Boolean {
+	val declaration = bodyExpression.parent as? KtDeclarationWithBody ?: return true
+	val returnType =
+		runCatching { ((declaration as? KtDeclaration)?.symbol as? KaCallableSymbol)?.returnType }.getOrNull()
+			?: return true
+	return !isValuelessType(returnType)
+}
+
+/** `Unit` and `Nothing` carry no value worth binding to a `val`. */
+private fun KaSession.isValuelessType(type: KaType): Boolean = runCatching { type.isUnitType || type.isNothingType }.getOrDefault(false)
