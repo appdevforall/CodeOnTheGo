@@ -71,7 +71,7 @@ injected `com.itsaky.androidide.plugins.build` `1.0.0` marker.
 The `plugins {}` example above uses AGP `8.8.2` / Kotlin `2.1.21` — the versions the
 dev/CI repo resolves online. A plugin built **on-device** resolves AGP and the Kotlin
 Gradle plugin from the harvested on-device `localMvnRepository`, which currently ships
-only **AGP `8.11.0`** and **Kotlin `1.9.22`**. Request those versions for an on-device
+only **AGP `8.13.1`** and **Kotlin `2.3.0`**. Request those versions for an on-device
 build, or offline resolution of the build plugins fails.
 
 Also declare AGP `apply false` in the **root** `build.gradle.kts` (as the standard CoGo
@@ -79,8 +79,8 @@ project template does):
 
 ```kotlin
 plugins {
-    id("com.android.application") apply false version "8.11.0"
-    id("com.android.library") apply false version "8.11.0"
+    id("com.android.application") apply false version "8.13.1"
+    id("com.android.library") apply false version "8.13.1"
 }
 ```
 
