@@ -539,6 +539,22 @@
 	<string name="msg_extract_variable_name_taken">That name is already used</string>
 	<string name="msg_extract_variable_nothing_to_extract">No expression to extract here</string>
 	<string name="msg_extract_variable_file_changed">The file changed. Try extracting again.</string>
+
+	<!-- Extract method refactoring (Kotlin) -->
+	<string name="action_extract_method">Extract method</string>
+	<string name="title_extract_method">Extract method</string>
+	<string name="label_extract_method_signature">Signature</string>
+	<string name="msg_extract_method_file_changed">The file changed. Try extracting again.</string>
+	<string name="msg_extract_method_not_single_region">Select an expression, or whole statements inside one block</string>
+	<string name="msg_extract_method_multiple_outputs">The selection produces more than one value: %1$s</string>
+	<string name="msg_extract_method_reassigns_outer_var">The selection assigns to %1$s, which is declared outside it</string>
+	<string name="msg_extract_method_exits_region">The selection jumps out of itself with return, break or continue</string>
+	<string name="msg_extract_method_inner_implicit_receiver">The selection uses members of the enclosing %1$s receiver</string>
+	<string name="msg_extract_method_uses_type_parameter">The selection uses type parameter %1$s</string>
+	<string name="msg_extract_method_unrenderable_type">A type in the selection cannot be written out</string>
+	<string name="msg_extract_method_uses_backing_field">The selection uses field, which only exists inside this accessor</string>
+	<string name="msg_extract_method_smart_cast_parameter">The selection uses %1$s under a smart cast that cannot be written outside it</string>
+	<string name="msg_extract_method_captured_local_declaration">The selection uses %1$s, which goes out of scope once the selection moves</string>
 	<string name="msg_select_fields">Select fields</string>
 	<string name="msg_no_fields_selected">No fields selected</string>
 	<string name="msg_no_fields_found">No fields found</string>

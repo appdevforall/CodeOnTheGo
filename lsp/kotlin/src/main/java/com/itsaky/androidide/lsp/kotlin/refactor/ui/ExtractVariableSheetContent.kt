@@ -6,14 +6,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,9 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.NameProblem
 import com.itsaky.androidide.resources.R
 
 /**
@@ -134,67 +129,3 @@ fun ExtractVariableSheetContent(
 		}
 	}
 }
-
-@Composable
-private fun LabelledSection(
-	label: String,
-	content: @Composable () -> Unit,
-) {
-	Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-		Text(text = label, style = MaterialTheme.typography.labelLarge)
-		content()
-	}
-}
-
-/** A radio group. Expression text is monospaced so a candidate reads as the code it is. */
-@Composable
-private fun OptionList(
-	options: List<String>,
-	selected: Int,
-	monospace: Boolean,
-	onSelect: (Int) -> Unit,
-) {
-	Column(
-		modifier = Modifier.selectableGroup(),
-		verticalArrangement = Arrangement.spacedBy(8.dp),
-	) {
-		options.forEachIndexed { index, option ->
-			Row(
-				verticalAlignment = Alignment.CenterVertically,
-				modifier =
-					Modifier
-						.fillMaxWidth()
-						.selectable(
-							selected = index == selected,
-							role = Role.RadioButton,
-							onClick = { onSelect(index) },
-						),
-			) {
-				RadioButton(
-					selected = index == selected,
-					onClick = null,
-				)
-
-				Text(
-					text = option,
-					style =
-						if (monospace) {
-							MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
-						} else {
-							MaterialTheme.typography.bodyMedium
-						},
-					modifier = Modifier.padding(start = 8.dp),
-				)
-			}
-		}
-	}
-}
-
-/** The message shown under the name field for each way a name can be unusable. */
-internal fun NameProblem.messageRes(): Int =
-	when (this) {
-		NameProblem.Blank -> R.string.msg_extract_variable_name_blank
-		NameProblem.NotAnIdentifier -> R.string.msg_extract_variable_name_invalid
-		NameProblem.Keyword -> R.string.msg_extract_variable_name_keyword
-		NameProblem.AlreadyTaken -> R.string.msg_extract_variable_name_taken
-	}
