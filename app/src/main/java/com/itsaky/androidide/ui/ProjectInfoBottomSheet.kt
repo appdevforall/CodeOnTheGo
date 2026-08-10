@@ -7,166 +7,183 @@ import android.view.ViewGroup
 import android.widget.Toast
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.itsaky.androidide.databinding.LayoutProjectInfoSheetBinding
+import com.itsaky.androidide.models.ProjectFile
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.utils.ProjectDetails
+import com.itsaky.androidide.utils.capitalizeString
 import com.itsaky.androidide.utils.formatDate
 import com.itsaky.androidide.utils.loadProjectDetails
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.termux.shared.interact.ShareUtils.copyTextToClipboard
 import kotlinx.coroutines.launch
-import com.itsaky.androidide.models.ProjectFile
 
 class ProjectInfoBottomSheet : BottomSheetDialogFragment() {
-    companion object {
-        fun newInstance(project: ProjectFile, recent: RecentProject?): ProjectInfoBottomSheet {
-            val args = Bundle()
-            args.putString("name", project.name)
-            args.putString("path", project.path)
-            args.putString("created", project.createdAt)
-            args.putString("modified", project.lastModified)
+	companion object {
+		fun newInstance(
+			project: ProjectFile,
+			recent: RecentProject?,
+		): ProjectInfoBottomSheet {
+			val args = Bundle()
+			args.putString("name", project.name)
+			args.putString("path", project.path)
+			args.putString("created", project.createdAt)
+			args.putString("modified", project.lastModified)
 
-            args.putString("template", recent?.templateName)
-            args.putString("lang", recent?.language)
+			args.putString("template", recent?.templateName)
+			args.putString("lang", recent?.language)
 
-            val fragment = ProjectInfoBottomSheet()
-            fragment.arguments = args
-            return fragment
-        }
-    }
+			val fragment = ProjectInfoBottomSheet()
+			fragment.arguments = args
+			return fragment
+		}
+	}
 
-    private var _binding: LayoutProjectInfoSheetBinding? = null
-    private val binding get() = _binding!!
+	private var _binding: LayoutProjectInfoSheetBinding? = null
+	val binding get() = _binding!!
 
-    private val pName by lazy { arguments?.getString("name") ?: "" }
-    private val pPath by lazy { arguments?.getString("path") ?: "" }
-    private val pCreated by lazy { arguments?.getString("created") }
-    private val pModified by lazy { arguments?.getString("modified") }
+	private val pName by lazy { arguments?.getString("name") ?: "" }
+	private val pPath by lazy { arguments?.getString("path") ?: "" }
+	private val pCreated by lazy { arguments?.getString("created") }
+	private val pModified by lazy { arguments?.getString("modified") }
 
-    private val pTemplate by lazy { arguments?.getString("template") }
-    private val pLang by lazy { arguments?.getString("lang") }
+	private val pTemplate by lazy { arguments?.getString("template") }
+	private val pLang by lazy { arguments?.getString("lang") }
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View {
-        _binding = LayoutProjectInfoSheetBinding.inflate(inflater, container, false)
-        return binding.root
-    }
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		_binding = LayoutProjectInfoSheetBinding.inflate(inflater, container, false)
+		return binding.root
+	}
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
-        bindGeneral()
+		bindGeneral()
 
-        setLoadingState(true)
+		setLoadingState(true)
 
-        viewLifecycleScope.launch {
-            val details = loadProjectDetails(pPath, requireContext())
+		viewLifecycleScope.launch {
+			val details = loadProjectDetails(pPath, requireContext())
 
-            if (isAdded && _binding != null) {
-                bindStructure(details)
-                bindBuildSetup(details)
-                setLoadingState(false)
-            }
-        }
+			if (isAdded && _binding != null) {
+				bindStructure(details)
+				bindBuildSetup(details)
+				setLoadingState(false)
+			}
+		}
 
-        binding.btnClose.setOnClickListener { dismiss() }
-    }
+		binding.btnClose.setOnClickListener { dismiss() }
+	}
 
-    // -----------------------------
-    // GENERAL
-    // -----------------------------
-    private fun bindGeneral() {
-        val unknown = getString(R.string.unknown)
+	// -----------------------------
+	// GENERAL
+	// -----------------------------
+	private fun bindGeneral() {
+		val unknown = getString(R.string.unknown)
 
-        binding.infoName.setLabelAndValue(
-            getString(R.string.project_info_name),
-            pName
-        )
+		binding.infoName.setLabelAndValue(
+			getString(R.string.project_info_name),
+			pName,
+		)
 
-        binding.infoLocation.setLabelAndValue(
-            getString(R.string.project_info_path),
-            pPath
-        )
-        binding.infoLocation.setOnClickListener { copyToClipboard(pPath) }
+		binding.infoLocation.setLabelAndValue(
+			getString(R.string.project_info_path),
+			pPath,
+		)
+		binding.infoLocation.setOnClickListener { copyToClipboard(pPath) }
 
-        binding.infoTemplate.setLabelAndValue(
-            getString(R.string.project_info_template),
-            pTemplate ?: unknown
-        )
+		binding.infoTemplate.setLabelAndValue(
+			getString(R.string.project_info_template),
+			pTemplate ?: unknown,
+		)
 
-        binding.infoCreatedAt.setLabelAndValue(
-            getString(R.string.date_created_label),
-            formatDate(pCreated ?: unknown)
-        )
+		binding.infoCreatedAt.setLabelAndValue(
+			getString(R.string.date_created_label),
+			formatDate(pCreated ?: unknown),
+		)
 
-        binding.infoModifiedAt.setLabelAndValue(
-            getString(R.string.date_modified_label),
-            formatDate(pModified ?: unknown)
-        )
-    }
+		binding.infoModifiedAt.setLabelAndValue(
+			getString(R.string.date_modified_label),
+			formatDate(pModified ?: unknown),
+		)
+	}
 
-    // -----------------------------
-    // STRUCTURE
-    // -----------------------------
-    private fun bindStructure(details: ProjectDetails) {
-        binding.infoSize.setLabelAndValue(
-            getString(R.string.project_info_size), details.sizeFormatted
-        )
-        binding.infoFilesCount.setLabelAndValue(
-            getString(R.string.project_info_files_count), details.numberOfFiles.toString()
-        )
-    }
+	// -----------------------------
+	// STRUCTURE
+	// -----------------------------
+	private fun bindStructure(details: ProjectDetails) {
+		binding.infoSize.setLabelAndValue(
+			getString(R.string.project_info_size),
+			details.sizeFormatted,
+		)
+		binding.infoFilesCount.setLabelAndValue(
+			getString(R.string.project_info_files_count),
+			details.numberOfFiles.toString(),
+		)
+	}
 
-    // -----------------------------
-    // BUILD SETUP
-    // -----------------------------
-    private fun bindBuildSetup(details: ProjectDetails) {
-        val unknown = getString(R.string.unknown)
+	// -----------------------------
+	// BUILD SETUP
+	// -----------------------------
+	private fun bindBuildSetup(details: ProjectDetails) {
+		val unknown = getString(R.string.unknown)
 
-        binding.infoLanguage.setLabelAndValue(
-            getString(R.string.wizard_language),
-            pLang ?: unknown
-        )
-        binding.infoGradleVersion.setLabelAndValue(
-            getString(R.string.project_info_gradle_v),
-            details.gradleVersion
-        )
-        binding.infoKotlinVersion.setLabelAndValue(
-            getString(R.string.project_info_kotlin_v),
-            details.kotlinVersion
-        )
-        binding.infoJavaVersion.setLabelAndValue(
-            getString(R.string.project_info_java_v),
-            details.javaVersion
-        )
-    }
+		val languageToDisplay =
+			pLang?.takeIf { it.isNotBlank() && !it.equals(unknown, ignoreCase = true) }
+				?: details.language.takeIf {
+					it.isNotBlank() && !it.equals(unknown, ignoreCase = true)
+				} ?: unknown
 
-    private fun setLoadingState(isLoading: Boolean) {
-        if (isLoading) {
-            binding.progressHeavyData.visibility = View.VISIBLE
-            binding.containerHeavyData.visibility = View.GONE
-        } else {
-            binding.progressHeavyData.visibility = View.GONE
+		binding.infoLanguage.setLabelAndValue(
+			getString(R.string.wizard_language),
+			languageToDisplay.capitalizeString(),
+		)
+		binding.infoGradleVersion.setLabelAndValue(
+			getString(R.string.project_info_gradle_v),
+			details.gradleVersion,
+		)
+		binding.infoKotlinVersion.setLabelAndValue(
+			getString(R.string.project_info_kotlin_v),
+			details.kotlinVersion,
+		)
+		binding.infoJavaVersion.setLabelAndValue(
+			getString(R.string.project_info_java_v),
+			details.javaVersion,
+		)
+	}
 
-            binding.containerHeavyData.apply {
-                alpha = 0f
-                visibility = View.VISIBLE
-                animate()
-                    .alpha(1f)
-                    .setDuration(300)
-                    .start()
-            }
-        }
-    }
+	private fun setLoadingState(isLoading: Boolean) {
+		if (isLoading) {
+			binding.progressHeavyData.visibility = View.VISIBLE
+			binding.containerHeavyData.visibility = View.GONE
+		} else {
+			binding.progressHeavyData.visibility = View.GONE
 
-    private fun copyToClipboard(value: String) {
-        copyTextToClipboard(context, value)
-        Toast.makeText(requireContext(), getString(R.string.copied), Toast.LENGTH_SHORT).show()
-    }
+			binding.containerHeavyData.apply {
+				alpha = 0f
+				visibility = View.VISIBLE
+				animate()
+					.alpha(1f)
+					.setDuration(300)
+					.start()
+			}
+		}
+	}
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
+	private fun copyToClipboard(value: String) {
+		copyTextToClipboard(context, value)
+		Toast.makeText(requireContext(), getString(R.string.copied), Toast.LENGTH_SHORT).show()
+	}
+
+	override fun onDestroyView() {
+		super.onDestroyView()
+		_binding = null
+	}
 }
