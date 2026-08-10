@@ -3,11 +3,17 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 import com.itsaky.androidide.lsp.kotlin.utils.renderName
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.analysis.api.resolution.KaCallableMemberCall
+import org.jetbrains.kotlin.analysis.api.resolution.KaImplicitReceiverValue
+import org.jetbrains.kotlin.analysis.api.resolution.KaReceiverValue
+import org.jetbrains.kotlin.analysis.api.resolution.successfulCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaBackingFieldSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaNamedFunctionSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaReceiverParameterSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaValueParameterSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaVariableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.markers.KaNamedSymbol
@@ -23,10 +29,13 @@ import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtContinueExpression
 import org.jetbrains.kotlin.psi.KtDeclaration
 import org.jetbrains.kotlin.psi.KtExpression
-import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtFunctionLiteral
+import org.jetbrains.kotlin.psi.KtLabeledExpression
+import org.jetbrains.kotlin.psi.KtLambdaArgument
+import org.jetbrains.kotlin.psi.KtLambdaExpression
 import org.jetbrains.kotlin.psi.KtLoopExpression
 import org.jetbrains.kotlin.psi.KtNameReferenceExpression
+import org.jetbrains.kotlin.psi.KtNamedDeclaration
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtPropertyAccessor
@@ -35,18 +44,18 @@ import org.jetbrains.kotlin.psi.KtReturnExpression
 import org.jetbrains.kotlin.psi.KtSecondaryConstructor
 import org.jetbrains.kotlin.psi.KtSimpleNameExpression
 import org.jetbrains.kotlin.psi.KtTypeReference
+import org.jetbrains.kotlin.psi.KtValueArgument
+import org.jetbrains.kotlin.psi.KtValueArgumentList
 
 /** The name of the statement-range suggestion; there is no expression to read a name from (R12). */
 private const val STATEMENT_RANGE_NAME = "extracted"
 
 private const val COMPOSABLE_FQ_NAME = "androidx.compose.runtime.Composable"
 
-/**
- * Receiver-binding scoping functions. `let`, `also` and `forEach` are absent on purpose: they bind
- * `it`, which is a captured declaration and becomes an ordinary parameter (R5).
- */
-private val RECEIVER_SCOPING_FUNCTIONS =
-	setOf("with", "apply", "run", "buildString", "buildList", "buildMap", "buildSet")
+/** What a receiver-binding lambda is called in the refusal when it is not a call argument. */
+private const val UNNAMED_SCOPING_CONSTRUCT = "lambda"
+
+private const val BACKING_FIELD_NAME = "field"
 
 /** Either a derived candidate or the reason there is not one. */
 internal sealed interface SignatureResult {
@@ -75,19 +84,28 @@ internal fun KaSession.buildCandidate(
 	val span = TextSpan(first.textRange.startOffset, last.textRange.endOffset)
 	val enclosing = enclosingDeclaration(first) ?: return refuse(ExtractionRefusal.NotASingleRegion)
 
-	typeParameterIn(enclosing, elements)?.let { return refuse(ExtractionRefusal.UsesTypeParameter(it)) }
+	val typeParameterNames = typeParameterNamesOf(enclosing)
+	typeParameterIn(typeParameterNames, elements)?.let { return refuse(ExtractionRefusal.UsesTypeParameter(it)) }
+	if (usesBackingField(enclosing, elements)) return refuse(ExtractionRefusal.UsesBackingField)
 	innerImplicitReceiver(enclosing, elements, span)?.let { return refuse(ExtractionRefusal.InnerImplicitReceiver(it)) }
 	reassignedOuterVar(enclosing, elements, span)?.let { return refuse(ExtractionRefusal.ReassignsOuterVar(it)) }
 
 	val tailReturn = !isExpression && isTailReturn(elements, span)
 	if (!tailReturn && hasExit(elements, span)) return refuse(ExtractionRefusal.ExitsRegion)
 
-	val outputs = if (isExpression) emptyList() else outputsOf(enclosing, elements, span)
-	if (outputs.size > 1) {
-		return refuse(ExtractionRefusal.MultipleOutputs(outputs.mapNotNull { it.name }))
+	val outputs = if (isExpression) RegionOutputs.NONE else outputsOf(enclosing, elements, span)
+	// Only a single plain `val`/`var` can come back as the return value. Everything else the region
+	// declares and the following code still needs -- a second local, a destructuring entry, a local
+	// `fun`, or a local reassigned afterwards -- is refused rather than silently dropped (R7).
+	if (outputs.declarations.size > 1 ||
+		outputs.declarations.any { it !is KtProperty } ||
+		outputs.writtenAfter.isNotEmpty()
+	) {
+		return refuse(ExtractionRefusal.MultipleOutputs(outputs.declarations.mapNotNull { it.name }))
 	}
+	val output = outputs.declarations.singleOrNull() as? KtProperty
 	// The tail-return exception holds only when nothing else flows out (R8).
-	if (tailReturn && outputs.isNotEmpty()) return refuse(ExtractionRefusal.ExitsRegion)
+	if (tailReturn && output != null) return refuse(ExtractionRefusal.ExitsRegion)
 
 	val parameters = capturedParameters(enclosing, elements, span) ?: return refuse(ExtractionRefusal.UnrenderableType)
 
@@ -101,8 +119,8 @@ internal fun KaSession.buildCandidate(
 				enclosingReturnType(enclosing) ?: return refuse(ExtractionRefusal.UnrenderableType)
 			}
 
-			outputs.size == 1 -> {
-				renderedDeclarationType(outputs.single()) ?: return refuse(ExtractionRefusal.UnrenderableType)
+			output != null -> {
+				renderedDeclarationType(output) ?: return refuse(ExtractionRefusal.UnrenderableType)
 			}
 
 			else -> {
@@ -110,21 +128,30 @@ internal fun KaSession.buildCandidate(
 			}
 		}.takeUnless { it == "Unit" }
 
+	// The syntactic check above misses an inferred type argument, which names no type anywhere in the
+	// region. The rendered signature is the last place to catch it before it is emitted (R10).
+	renderedTypeParameterIn(typeParameterNames, parameters.map { it.typeText } + listOfNotNull(returnTypeText))
+		?.let { return refuse(ExtractionRefusal.UsesTypeParameter(it)) }
+
 	val body =
 		when {
 			isExpression -> ExtractedBody.ExpressionBody(needsReturn = returnTypeText != null)
-			outputs.size == 1 -> ExtractedBody.StatementBody(trailingReturn = "return ${outputs.single().name.orEmpty()}")
+			output != null -> ExtractedBody.StatementBody(trailingReturn = "return ${output.name.orEmpty()}")
 			else -> ExtractedBody.StatementBody(trailingReturn = null)
 		}
 
 	val callSite =
 		when {
 			tailReturn -> CallSiteForm.Return
-			outputs.size == 1 -> CallSiteForm.AssignOutput(outputs.single().name.orEmpty())
+			output != null -> CallSiteForm.AssignOutput(output.name.orEmpty())
 			else -> CallSiteForm.Call
 		}
 
 	val takenNames = takenNamesFor(enclosing)
+	// A getter is not a place a function can follow -- inserting there lands between the accessors of
+	// a `var` and does not parse -- so the new member goes after the whole property (R4). The accessor
+	// itself stays the capture boundary everywhere else.
+	val anchor = (enclosing as? KtPropertyAccessor)?.property ?: enclosing
 
 	return SignatureResult.Success(
 		ExtractMethodCandidate(
@@ -144,8 +171,8 @@ internal fun KaSession.buildCandidate(
 			returnTypeText = returnTypeText,
 			body = body,
 			callSite = callSite,
-			insertOffset = enclosing.textRange.endOffset,
-			insertIndent = leadingIndentAt(fileText, enclosing.textRange.startOffset),
+			insertOffset = anchor.textRange.endOffset,
+			insertIndent = leadingIndentAt(fileText, anchor.textRange.startOffset),
 		),
 	)
 }
@@ -219,9 +246,15 @@ private fun KaSession.capturedParameters(
 				}
 
 				// `it` has no source PSI, so it would otherwise read as "not captured" and be dropped.
+				// Its binding lambda stands in for the missing declaration: captured only when that
+				// lambda is outside the region, and keyed on the lambda so that an `it` bound inside the
+				// region cannot evict a genuinely captured outer one.
 				symbol is KaValueParameterSymbol &&
 					reference.getReferencedName() == StandardNames.IMPLICIT_LAMBDA_PARAMETER_NAME.asString() -> {
-					"it"
+					val lambda =
+						PsiTreeUtil.getParentOfType(reference, KtFunctionLiteral::class.java, true) ?: continue
+					if (inRegion(lambda, span)) continue
+					lambda
 				}
 
 				else -> {
@@ -264,34 +297,57 @@ private fun KaSession.enclosingReturnType(enclosing: KtDeclaration): String? =
 		?.takeUnless(::isUnrenderable)
 
 /**
- * Locals declared inside the region and read after it (R7). Exactly one is supported.
+ * What the region declares that the code after it still uses (R7).
  *
- * "Read after it" is a textual-offset test inside the enclosing declaration, which is sound because
- * a local is only in scope after its own declaration in the same block.
+ * Every named declaration counts, not just [KtProperty]: a destructuring entry, a local `fun` and a
+ * local class are all things the following code can reference, and none of them can be returned.
+ * They are collected so [buildCandidate] can refuse them -- omitting them is what produced a call
+ * site referring to names that no longer exist.
+ *
+ * [writtenAfter] is the subset the following code assigns to. The call site emits a `val`, so even a
+ * single such output cannot be honoured.
+ */
+private class RegionOutputs(
+	val declarations: List<KtNamedDeclaration>,
+	val writtenAfter: List<KtNamedDeclaration>,
+) {
+	companion object {
+		val NONE = RegionOutputs(emptyList(), emptyList())
+	}
+}
+
+/**
+ * "Used after the region" is a textual-offset test inside the enclosing declaration, which is sound
+ * because a local is only in scope after its own declaration in the same block.
  */
 private fun KaSession.outputsOf(
 	enclosing: KtDeclaration,
 	elements: List<KtExpression>,
 	span: TextSpan,
-): List<KtProperty> {
-	val declared = descendantsOf(elements, KtProperty::class.java)
-	if (declared.isEmpty()) return emptyList()
+): RegionOutputs {
+	val declared = descendantsOf(elements, KtNamedDeclaration::class.java)
+	if (declared.isEmpty()) return RegionOutputs.NONE
 
-	val laterReads =
+	val laterReferences =
 		PsiTreeUtil
 			.collectElementsOfType(enclosing, KtSimpleNameExpression::class.java)
 			.filter { it.textRange.startOffset >= span.end }
-			.mapNotNull {
-				runCatching {
-					it.mainReference
-						?.resolveToSymbols()
-						?.firstOrNull()
-						?.psi
-				}.getOrNull()
-			}.toSet()
+	val read = laterReferences.filterNot { it.isWriteTarget() }.mapNotNullTo(mutableSetOf()) { resolvedPsi(it) }
+	val written = laterReferences.filter { it.isWriteTarget() }.mapNotNullTo(mutableSetOf()) { resolvedPsi(it) }
 
-	return declared.filter { it in laterReads }
+	return RegionOutputs(
+		declarations = declared.filter { it in read || it in written },
+		writtenAfter = declared.filter { it in written },
+	)
 }
+
+private fun KaSession.resolvedPsi(reference: KtSimpleNameExpression): PsiElement? =
+	runCatching {
+		reference.mainReference
+			?.resolveToSymbols()
+			?.firstOrNull()
+			?.psi
+	}.getOrNull()
 
 /**
  * A `var` declared inside the enclosing declaration but outside the region, assigned inside it.
@@ -305,9 +361,9 @@ private fun KaSession.reassignedOuterVar(
 	for (reference in simpleNamesIn(elements)) {
 		if (!reference.isWriteTarget()) continue
 		val symbol =
-			runCatching { reference.mainReference?.resolveToSymbols()?.firstOrNull() }.getOrNull() as? KaVariableSymbol
-				?: continue
-		if (symbol.isVal) continue
+			runCatching {
+				(reference.mainReference?.resolveToSymbols()?.firstOrNull() as? KaVariableSymbol)?.takeIf { !it.isVal }
+			}.getOrNull() ?: continue
 		val declarationPsi = runCatching { symbol.psi }.getOrNull() ?: continue
 		if (!PsiTreeUtil.isAncestor(enclosing, declarationPsi, true)) continue
 		if (inRegion(declarationPsi, span)) continue
@@ -337,13 +393,47 @@ private fun hasExit(
 ): Boolean {
 	for (returnExpression in descendantsOf(elements, KtReturnExpression::class.java)) {
 		// An unlabelled `return` always targets the enclosing named declaration, which is outside the
-		// region by construction. A labelled one is fine only when its lambda is inside the region.
-		if (returnExpression.getLabelName() == null) return true
-		val lambda = PsiTreeUtil.getParentOfType(returnExpression, KtFunctionLiteral::class.java, true)
-		if (lambda == null || !inRegion(lambda, span)) return true
+		// region by construction. A labelled one targets the lambda carrying that label, which is not
+		// necessarily the nearest one -- `return@outer` from a nested lambda still leaves the region.
+		val label = returnExpression.getLabelName() ?: return true
+		val target = labelledLambdaFor(returnExpression, label) ?: return true
+		if (!inRegion(target, span)) return true
 	}
 	return hasLoopExit(elements, span)
 }
+
+/** The lambda `return@[label]` targets: the innermost enclosing one carrying that label. */
+private fun labelledLambdaFor(
+	returnExpression: KtReturnExpression,
+	label: String,
+): KtFunctionLiteral? {
+	var lambda = PsiTreeUtil.getParentOfType(returnExpression, KtFunctionLiteral::class.java, true)
+	while (lambda != null) {
+		if (lambdaLabel(lambda) == label) return lambda
+		lambda = PsiTreeUtil.getParentOfType(lambda, KtFunctionLiteral::class.java, true)
+	}
+	return null
+}
+
+/**
+ * The label a `return@` can name this lambda by: its explicit `label@` if it has one, otherwise the
+ * name of the function it is an argument to.
+ */
+private fun lambdaLabel(lambda: KtFunctionLiteral): String? {
+	val lambdaExpression = lambda.parent as? KtLambdaExpression ?: return null
+	(lambdaExpression.parent as? KtLabeledExpression)?.getLabelName()?.let { return it }
+	return callOwning(lambdaExpression)?.calleeName()
+}
+
+/** The call [lambdaExpression] is an argument of, trailing or parenthesised. */
+private fun callOwning(lambdaExpression: KtLambdaExpression): KtCallExpression? =
+	when (val argument = lambdaExpression.parent) {
+		is KtLambdaArgument -> argument.parent as? KtCallExpression
+		is KtValueArgument -> (argument.parent as? KtValueArgumentList)?.parent as? KtCallExpression
+		else -> null
+	}
+
+private fun KtCallExpression.calleeName(): String? = (calleeExpression as? KtNameReferenceExpression)?.getReferencedName()
 
 private fun hasLoopExit(
 	elements: List<KtExpression>,
@@ -358,16 +448,21 @@ private fun hasLoopExit(
 	}
 }
 
+private fun typeParameterNamesOf(enclosing: KtDeclaration): List<String> =
+	(enclosing as? KtNamedFunction)?.typeParameters?.mapNotNull { it.name }.orEmpty()
+
 /**
- * The name of the enclosing function's type parameter the region uses, or null. A filtered copy of
- * the type-parameter list with its bounds is the alternative, and deciding "is `T` referenced" from
- * rendered type text is exactly the fragility that rules it out (R10).
+ * The name of the enclosing function's type parameter the region *writes out*, or null. A filtered
+ * copy of the type-parameter list with its bounds is the alternative, and deciding "is `T`
+ * referenced" from rendered type text is exactly the fragility that rules it out (R10).
+ *
+ * This catches only a type the region names. A type argument the region gets by inference names
+ * nothing at all, and is caught by [renderedTypeParameterIn] once the signature exists.
  */
 private fun typeParameterIn(
-	enclosing: KtDeclaration,
+	names: List<String>,
 	elements: List<KtExpression>,
 ): String? {
-	val names = (enclosing as? KtNamedFunction)?.typeParameters?.mapNotNull { it.name }.orEmpty()
 	if (names.isEmpty()) return null
 
 	val typeTexts =
@@ -376,9 +471,43 @@ private fun typeParameterIn(
 	return names.firstOrNull { name -> typeTexts.any { it == name || it.containsWord(name) } }
 }
 
+/**
+ * The type parameter that leaked into the derived signature, or null.
+ *
+ * `fun <T> demo(a: T, b: T) { pick(a, b) }` names `T` nowhere in the region, but the parameters
+ * render as `T` -- and the new function has no type-parameter list to bind it. Checking the rendered
+ * strings is the only place that shows up before the text is emitted.
+ */
+private fun renderedTypeParameterIn(
+	names: List<String>,
+	renderedTypes: List<String>,
+): String? {
+	if (names.isEmpty()) return null
+	return names.firstOrNull { name -> renderedTypes.any { it == name || it.containsWord(name) } }
+}
+
 /** Whole-word containment, so `T` does not match `Type`. */
 private fun String.containsWord(word: String): Boolean =
 	Regex("(^|[^A-Za-z0-9_])" + Regex.escape(word) + "($|[^A-Za-z0-9_])").containsMatchIn(this)
+
+/**
+ * Whether the region reads or writes a property accessor's backing field (R4).
+ *
+ * `field` is in scope only inside the accessor, so it would move verbatim into the new function and
+ * stop resolving. Gated on the enclosing declaration being an accessor, which costs nothing
+ * everywhere else, and confirmed against the resolved symbol so a local that happens to be called
+ * `field` is not mistaken for it.
+ */
+private fun KaSession.usesBackingField(
+	enclosing: KtDeclaration,
+	elements: List<KtExpression>,
+): Boolean {
+	if (enclosing !is KtPropertyAccessor) return false
+	return simpleNamesIn(elements).any { reference ->
+		reference.getReferencedName() == BACKING_FIELD_NAME &&
+			runCatching { reference.mainReference?.resolveToSymbols()?.firstOrNull() }.getOrNull() is KaBackingFieldSymbol
+	}
+}
 
 /**
  * The scoping construct whose implicit receiver the region uses unqualified, or null (R9).
@@ -386,52 +515,57 @@ private fun String.containsWord(word: String): Boolean =
  * Turning that receiver into a parameter would mean qualifying every unqualified member access
  * inside the extracted body -- editing the interior of the moved code, which this refactoring does
  * not do. Android code leans on `with`/`apply` heavily, so the message names the construct.
+ *
+ * The question is asked of the resolved call rather than of a list of known scoping-function names:
+ * a name list both over-refuses (an inherited member or an outer-class member reached with no
+ * qualifier is not the receiver's) and under-refuses (it cannot know about `coroutineScope`,
+ * `buildAnnotatedString`, or any Compose scope). A receiver that is implicit and belongs to a lambda
+ * between the region and the enclosing declaration is exactly what does not survive the move.
  */
 private fun KaSession.innerImplicitReceiver(
 	enclosing: KtDeclaration,
 	elements: List<KtExpression>,
 	span: TextSpan,
 ): String? {
-	val construct = enclosingScopingCall(elements.first(), enclosing) ?: return null
-	val enclosingClass = PsiTreeUtil.getParentOfType(enclosing, KtClassOrObject::class.java, true)
-
 	for (reference in simpleNamesIn(elements)) {
+		// A qualified selector already has its receiver written out next to it.
 		val parent = reference.parent
 		if (parent is KtQualifiedExpression && parent.selectorExpression === reference) continue
-		if (parent is KtCallExpression && parent.calleeExpression !== reference) continue
 
-		val symbol =
-			runCatching { reference.mainReference?.resolveToSymbols()?.firstOrNull() }.getOrNull() as? KaCallableSymbol
-				?: continue
-		val declarationPsi = runCatching { symbol.psi }.getOrNull() ?: continue
-
-		// A local or a member of the class the new function joins needs nothing.
-		if (PsiTreeUtil.isAncestor(enclosing, declarationPsi, true)) continue
-		if (enclosingClass != null && PsiTreeUtil.isAncestor(enclosingClass, declarationPsi, true)) continue
-		// A top-level declaration resolves unchanged from anywhere in the file.
-		if (declarationPsi.parent is KtFile) continue
-		// Anything else reached without a qualifier came in through the scoping receiver.
-		if (inRegion(declarationPsi, span)) continue
-		return construct
+		val lambda = implicitReceiverLambdaFor(reference) ?: continue
+		if (inRegion(lambda, span)) continue
+		if (!PsiTreeUtil.isAncestor(enclosing, lambda, true)) continue
+		return (lambda.parent as? KtLambdaExpression)?.let { callOwning(it)?.calleeName() } ?: UNNAMED_SCOPING_CONSTRUCT
 	}
 	return null
 }
 
-/** The callee name of the nearest receiver-binding scoping call between [element] and [enclosing]. */
-private fun enclosingScopingCall(
-	element: PsiElement,
-	enclosing: KtDeclaration,
-): String? {
-	var current: PsiElement? = element
-	while (current != null && current !== enclosing) {
-		if (current is KtFunctionLiteral) {
-			val call = PsiTreeUtil.getParentOfType(current, KtCallExpression::class.java, true)
-			val callee = (call?.calleeExpression as? KtNameReferenceExpression)?.getReferencedName()
-			if (callee != null && callee in RECEIVER_SCOPING_FUNCTIONS) return callee
-		}
-		current = current.parent
-	}
-	return null
+/**
+ * The lambda supplying [reference]'s implicit receiver, or null when it has none or the receiver
+ * comes from somewhere that survives the move (a class, the enclosing function's own receiver).
+ */
+private fun KaSession.implicitReceiverLambdaFor(reference: KtSimpleNameExpression): KtFunctionLiteral? =
+	runCatching {
+		// A callee name does not resolve to a call on its own; its call expression does.
+		val callSource =
+			(reference.parent as? KtCallExpression)?.takeIf { it.calleeExpression === reference } ?: reference
+		val applied =
+			callSource
+				.resolveToCall()
+				?.successfulCallOrNull<KaCallableMemberCall<*, *>>()
+				?.partiallyAppliedSymbol
+		receiverLambda(applied?.dispatchReceiver) ?: receiverLambda(applied?.extensionReceiver)
+	}.getOrNull()
+
+private fun receiverLambda(receiver: KaReceiverValue?): KtFunctionLiteral? {
+	val owner = (receiver as? KaImplicitReceiverValue)?.symbol ?: return null
+	// A lambda's receiver reports itself either as the anonymous function or as that function's
+	// receiver parameter, and only the former carries the PSI.
+	val psi =
+		runCatching { owner.psi }.getOrNull()
+			?: runCatching { (owner as? KaReceiverParameterSymbol)?.owningCallableSymbol?.psi }.getOrNull()
+			?: return null
+	return psi as? KtFunctionLiteral ?: (psi as? KtLambdaExpression)?.functionLiteral
 }
 
 /** `suspend` is added when the region calls one, or touches `coroutineContext` (R10). */
