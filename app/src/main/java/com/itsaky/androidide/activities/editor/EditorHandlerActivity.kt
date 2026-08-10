@@ -30,6 +30,7 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams
 import android.widget.TextView
 import androidx.collection.MutableIntObjectMap
+import androidx.core.content.IntentCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.doOnNextLayout
@@ -48,6 +49,7 @@ import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.activities.PluginManagerActivity
+import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.EditorEvents
@@ -55,6 +57,7 @@ import com.itsaky.androidide.app.EditorProviderImpl
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.FileActionPopupWindowBinding
 import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
+import com.itsaky.androidide.deeplink.PendingDeepLinkOpen
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
@@ -71,9 +74,13 @@ import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
+import com.itsaky.androidide.models.DeepLinkOpenRequest
+import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.OpenedFilesCache
+import com.itsaky.androidide.models.PendingFileRequest
+import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
@@ -83,6 +90,7 @@ import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.manager.ui.PluginToolbarHost
 import com.itsaky.androidide.plugins.manager.ui.PluginUiActionManager
 import com.itsaky.androidide.preferences.internal.EditorPreferences
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
@@ -90,17 +98,23 @@ import com.itsaky.androidide.shortcuts.ShortcutContext
 import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
 import com.itsaky.androidide.shortcuts.ShortcutManager
 import com.itsaky.androidide.tasks.executeAsync
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
 import com.itsaky.androidide.utils.EditorActivityActions
 import com.itsaky.androidide.utils.EditorSidebarActions
+import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ImageUtils
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
+import com.itsaky.androidide.utils.findValidProjects
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.forEachViewRecursively
 import com.itsaky.androidide.utils.hasVisibleDialog
+import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
+import com.itsaky.androidide.utils.resolveWithinDirectory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -109,6 +123,7 @@ import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.koin.android.ext.android.inject
 import java.io.File
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
@@ -156,6 +171,8 @@ open class EditorHandlerActivity :
 			}
 		}
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
+
+	private val analyticsManager: IAnalyticsManager by inject()
 
 	private var pluginEditorProvider: EditorProviderImpl? = null
 
@@ -328,6 +345,26 @@ open class EditorHandlerActivity :
 	override fun onDestroy() {
 		super.onDestroy()
 		ActionContextProvider.clearActivity(this)
+
+		// Drain any deep-link-triggered "close then reopen a different project" request recorded by
+		// confirmProjectCloseThenOpen's onClosed callback. This deliberately waits until onDestroy --
+		// which only runs once the framework has committed to tearing this singleTask instance down --
+		// rather than firing startActivity() synchronously right after finish(), because the two calls
+		// racing could otherwise have the new PROJECT_PATH redelivered to this dying instance via
+		// onNewIntent (which never reads it) instead of a genuinely new instance's onCreate.
+		PendingDeepLinkOpen.value?.let { pending ->
+			PendingDeepLinkOpen.value = null
+			val root = File(pending.projectRoot)
+			val ctx = applicationContext
+			recordProjectOpenedBookkeeping(ctx, root, project = null, analyticsManager = analyticsManager)
+			ctx.startActivity(
+				Intent(ctx, EditorActivityKt::class.java).apply {
+					putExtra("PROJECT_PATH", pending.projectRoot)
+					pending.fileRequest?.let { putExtra(PendingFileRequest.EXTRA_KEY, it) }
+					addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+				},
+			)
+		}
 	}
 
 	override fun onResume() {
@@ -711,8 +748,22 @@ open class EditorHandlerActivity :
 						editor.setSelection(0, 0)
 						return@postInLifecycle
 					}
-					editor.validateRange(selection)
-					editor.setSelection(selection)
+					// EditorFeatures.validateRange mutates Position in place. For a file that was
+					// just opened (new CodeEditorView), that same `selection` instance was also handed
+					// to the view's constructor, whose own async content-load pipeline calls
+					// validateRange/setSelection on it again once the file finishes reading. If this
+					// call runs first -- while the document is still the freshly-constructed empty
+					// one line -- it clamps the shared Position down to (0,0) *before* the real
+					// content loads, permanently corrupting the value the constructor's own pipeline
+					// later relies on. Validate/apply a defensive copy here instead, so this call can
+					// never corrupt the shared instance regardless of which side runs first.
+					val safeSelection =
+						Range(
+							Position(selection.start.line, selection.start.column),
+							Position(selection.end.line, selection.end.column),
+						)
+					editor.validateRange(safeSelection)
+					editor.setSelection(safeSelection)
 				}
 			}
 		}
@@ -1731,7 +1782,10 @@ open class EditorHandlerActivity :
 		confirmProjectClose()
 	}
 
-	private fun performCloseAllFiles(manualFinish: Boolean) {
+	private fun performCloseAllFiles(
+		manualFinish: Boolean,
+		onClosed: (() -> Unit)? = null,
+	) {
 		val pluginManager = IDEApplication.getPluginManager()
 		val fileCount = editorViewModel.getOpenedFileCount()
 		for (i in 0 until fileCount) {
@@ -1756,10 +1810,11 @@ open class EditorHandlerActivity :
 
 		if (manualFinish) {
 			finish()
+			onClosed?.invoke()
 		}
 	}
 
-	private fun confirmProjectClose() {
+	private fun confirmProjectClose(onClosed: (() -> Unit)? = null) {
 		val content = contentOrNull ?: return
 		val builder = newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_project_close)
@@ -1775,7 +1830,7 @@ open class EditorHandlerActivity :
 				(content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
 			}
 
-			performCloseAllFiles(manualFinish = true)
+			performCloseAllFiles(manualFinish = true, onClosed = onClosed)
 		}
 
 		// OPTION 2: Save and close
@@ -1785,7 +1840,7 @@ open class EditorHandlerActivity :
 			saveAllAsync(notify = false) {
 				runOnUiThread {
 					if (contentOrNull == null) return@runOnUiThread
-					performCloseAllFiles(manualFinish = true)
+					performCloseAllFiles(manualFinish = true, onClosed = onClosed)
 				}
 				recentProjectsViewModel.updateProjectModifiedDate(
 					editorViewModel.getProjectName(),
@@ -1794,5 +1849,104 @@ open class EditorHandlerActivity :
 		}
 
 		builder.show()
+	}
+
+	/**
+	 * Entry point used only by the deep-link [onNewIntent] routing below: shows the same,
+	 * unmodified confirm-close dialog as [doConfirmProjectClose], but [onClosed] runs once the user
+	 * actually confirms a close (save-or-discard) -- never on Cancel, which leaves the current
+	 * project open exactly as it was.
+	 */
+	private fun confirmProjectCloseThenOpen(onClosed: () -> Unit) {
+		confirmProjectClose(onClosed)
+	}
+
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		setIntent(intent)
+
+		val request =
+			IntentCompat.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
+				?: return
+
+		lifecycleScope.launch(Dispatchers.IO) {
+			val projectDir = findValidProjects(Environment.PROJECTS_DIR).find { it.name == request.projectName }
+			withContext(Dispatchers.Main) {
+				if (projectDir == null) {
+					flashError(getString(string.msg_deeplink_project_not_found, request.projectName))
+					return@withContext
+				}
+
+				if (IProjectManager.getInstance().workspace != null &&
+					projectDir.absolutePath == IProjectManager.getInstance().projectDirPath
+				) {
+					// Requirement #2: same project already open -- no-op project-wise, just navigate.
+					request.fileRequest?.let { applyDeepLinkFileRequest(it) }
+					return@withContext
+				}
+
+				// Requirement #3: a different project is open. Reuse the existing, unmodified
+				// confirm-close dialog; only record the pending open if the user actually confirms --
+				// see onDestroy() for why the reopen itself waits until this instance is torn down.
+				confirmProjectCloseThenOpen {
+					PendingDeepLinkOpen.value = DeepLinkOpenRequest(projectDir.absolutePath, request.fileRequest)
+				}
+			}
+		}
+	}
+
+	override fun postProjectInit(
+		isSuccessful: Boolean,
+		failure: TaskExecutionResult.Failure?,
+	) {
+		super.postProjectInit(isSuccessful, failure)
+		if (!isSuccessful) return
+
+		// Covers requirement #1 (cold open + file) and the tail of requirement #3 (a fresh
+		// EditorActivityKt instance always runs the normal init pipeline, whether started by
+		// MainActivity.openProject or by this activity's own onDestroy() hand-off).
+		val request =
+			IntentCompat.getParcelableExtra(intent, PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
+				?: return
+		intent.removeExtra(PendingFileRequest.EXTRA_KEY) // don't reapply on a later config-change recreate
+		applyDeepLinkFileRequest(request)
+	}
+
+	/**
+	 * Applies a deep-link file/line/column request to the *currently open* project. [request]'s
+	 * file path is attacker-controllable URL input, so it's resolved through
+	 * [resolveWithinDirectory] rather than a bare [File] constructor -- see that function's docs for
+	 * why a lexical `..` check alone isn't enough.
+	 */
+	private fun applyDeepLinkFileRequest(request: PendingFileRequest) {
+		val projectDir = File(IProjectManager.getInstance().projectDirPath)
+		val file = resolveWithinDirectory(projectDir, request.filePath)
+		if (file == null || !file.exists()) {
+			flashError(getString(string.msg_deeplink_file_not_found, request.filePath))
+			return
+		}
+
+		// URL line/column are 1-based; internal Position is 0-based.
+		var line = 0
+		var column = 0
+		request.lineRaw?.let { raw ->
+			val parsed = raw.toIntOrNull()
+			if (parsed == null || parsed <= 0) {
+				flashError(getString(string.msg_deeplink_invalid_line, raw))
+			} else {
+				line = parsed - 1
+			}
+		}
+		request.columnRaw?.let { raw ->
+			val parsed = raw.toIntOrNull()
+			if (parsed == null || parsed <= 0) {
+				flashError(getString(string.msg_deeplink_invalid_column, raw))
+			} else {
+				column = parsed - 1
+			}
+		}
+
+		val pos = Position(line, column)
+		openFileAndSelect(file, Range(pos, pos))
 	}
 }
