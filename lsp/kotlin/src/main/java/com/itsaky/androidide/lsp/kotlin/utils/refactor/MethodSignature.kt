@@ -4,6 +4,8 @@ import com.itsaky.androidide.lsp.kotlin.utils.renderName
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaCallableMemberCall
+import org.jetbrains.kotlin.analysis.api.resolution.KaCompoundArrayAccessCall
+import org.jetbrains.kotlin.analysis.api.resolution.KaCompoundVariableAccessCall
 import org.jetbrains.kotlin.analysis.api.resolution.KaImplicitReceiverValue
 import org.jetbrains.kotlin.analysis.api.resolution.KaReceiverValue
 import org.jetbrains.kotlin.analysis.api.resolution.successfulCallOrNull
@@ -14,6 +16,7 @@ import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaNamedFunctionSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaReceiverParameterSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaValueParameterSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaVariableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.markers.KaNamedSymbol
@@ -29,6 +32,7 @@ import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtContinueExpression
 import org.jetbrains.kotlin.psi.KtDeclaration
 import org.jetbrains.kotlin.psi.KtExpression
+import org.jetbrains.kotlin.psi.KtExpressionWithLabel
 import org.jetbrains.kotlin.psi.KtFunctionLiteral
 import org.jetbrains.kotlin.psi.KtLabeledExpression
 import org.jetbrains.kotlin.psi.KtLambdaArgument
@@ -37,12 +41,14 @@ import org.jetbrains.kotlin.psi.KtLoopExpression
 import org.jetbrains.kotlin.psi.KtNameReferenceExpression
 import org.jetbrains.kotlin.psi.KtNamedDeclaration
 import org.jetbrains.kotlin.psi.KtNamedFunction
+import org.jetbrains.kotlin.psi.KtParameter
 import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtPropertyAccessor
 import org.jetbrains.kotlin.psi.KtQualifiedExpression
 import org.jetbrains.kotlin.psi.KtReturnExpression
 import org.jetbrains.kotlin.psi.KtSecondaryConstructor
 import org.jetbrains.kotlin.psi.KtSimpleNameExpression
+import org.jetbrains.kotlin.psi.KtThisExpression
 import org.jetbrains.kotlin.psi.KtTypeReference
 import org.jetbrains.kotlin.psi.KtValueArgument
 import org.jetbrains.kotlin.psi.KtValueArgumentList
@@ -107,7 +113,11 @@ internal fun KaSession.buildCandidate(
 	// The tail-return exception holds only when nothing else flows out (R8).
 	if (tailReturn && output != null) return refuse(ExtractionRefusal.ExitsRegion)
 
-	val parameters = capturedParameters(enclosing, elements, span) ?: return refuse(ExtractionRefusal.UnrenderableType)
+	val parameters =
+		when (val captured = capturedParameters(enclosing, elements, span)) {
+			is CaptureResult.Captured -> captured.parameters
+			is CaptureResult.Refused -> return refuse(captured.refusal)
+		}
 
 	val returnTypeText =
 		when {
@@ -128,10 +138,15 @@ internal fun KaSession.buildCandidate(
 			}
 		}.takeUnless { it == "Unit" }
 
+	val receiverTypeText = receiverTypeTextOf(enclosing)
+
 	// The syntactic check above misses an inferred type argument, which names no type anywhere in the
-	// region. The rendered signature is the last place to catch it before it is emitted (R10).
-	renderedTypeParameterIn(typeParameterNames, parameters.map { it.typeText } + listOfNotNull(returnTypeText))
-		?.let { return refuse(ExtractionRefusal.UsesTypeParameter(it)) }
+	// region. The rendered signature is the last place to catch it before it is emitted (R10), and it
+	// has to cover every slot the signature prints -- the receiver included.
+	renderedTypeParameterIn(
+		typeParameterNames,
+		parameters.map { it.typeText } + listOfNotNull(returnTypeText, receiverTypeText),
+	)?.let { return refuse(ExtractionRefusal.UsesTypeParameter(it)) }
 
 	val body =
 		when {
@@ -152,6 +167,12 @@ internal fun KaSession.buildCandidate(
 	// a `var` and does not parse -- so the new member goes after the whole property (R4). The accessor
 	// itself stays the capture boundary everywhere else.
 	val anchor = (enclosing as? KtPropertyAccessor)?.property ?: enclosing
+	val modifiers =
+		buildList {
+			// A local function joins a block, and a visibility modifier on one does not compile.
+			if (anchor.parent !is KtBlockExpression) add("private")
+			if (usesSuspend(elements)) add("suspend")
+		}
 
 	return SignatureResult.Success(
 		ExtractMethodCandidate(
@@ -165,8 +186,8 @@ internal fun KaSession.buildCandidate(
 				},
 			takenNames = takenNames,
 			annotations = if (usesComposable(elements)) listOf("@Composable") else emptyList(),
-			modifiers = if (usesSuspend(elements)) listOf("private", "suspend") else listOf("private"),
-			receiverTypeText = (enclosing as? KtNamedFunction)?.receiverTypeReference?.text,
+			modifiers = modifiers,
+			receiverTypeText = receiverTypeText,
 			parameters = parameters,
 			returnTypeText = returnTypeText,
 			body = body,
@@ -220,14 +241,14 @@ private fun <T : PsiElement> descendantsOf(
  * declaration but outside the region itself. Anything else -- a class member, a top-level
  * declaration, an import -- resolves unchanged from the new function's body (R5).
  *
- * Returns null when a type cannot be rendered as source, which declines the extraction rather than
- * emitting text that will not compile.
+ * Declines rather than emitting text that will not compile: a type that cannot be written out as
+ * source, or a value the region only uses through a smart cast.
  */
 private fun KaSession.capturedParameters(
 	enclosing: KtDeclaration,
 	elements: List<KtExpression>,
 	span: TextSpan,
-): List<MethodParameter>? {
+): CaptureResult {
 	val parameters = mutableListOf<MethodParameter>()
 	val seen = mutableSetOf<Any>()
 
@@ -263,10 +284,31 @@ private fun KaSession.capturedParameters(
 			}
 		if (!seen.add(key)) continue
 
-		val typeText = renderedSymbolType(symbol) ?: return null
+		val typeText =
+			renderedSymbolType(symbol) ?: return CaptureResult.Refused(ExtractionRefusal.UnrenderableType)
+		// The signature must print the declared type, but the region may be leaning on a smart cast to
+		// something narrower: the declared type breaks the moved body, the narrowed one breaks the call
+		// site. Asked only of values, since a smart cast is the only thing that can make the two differ.
+		if (symbol is KaVariableSymbol) {
+			val usedTypeText = renderedTypeOrNull(reference)
+			if (usedTypeText != null && usedTypeText != typeText) {
+				return CaptureResult.Refused(ExtractionRefusal.SmartCastParameter(reference.getReferencedName()))
+			}
+		}
 		parameters += MethodParameter(name = reference.getReferencedName(), typeText = typeText)
 	}
-	return parameters
+	return CaptureResult.Captured(parameters)
+}
+
+/** Either the derived parameter list or the reason there cannot be one. */
+private sealed interface CaptureResult {
+	data class Captured(
+		val parameters: List<MethodParameter>,
+	) : CaptureResult
+
+	data class Refused(
+		val refusal: ExtractionRefusal,
+	) : CaptureResult
 }
 
 /** A type that cannot be written out as source -- anonymous, intersection, or a resolution error. */
@@ -325,7 +367,12 @@ private fun KaSession.outputsOf(
 	elements: List<KtExpression>,
 	span: TextSpan,
 ): RegionOutputs {
-	val declared = descendantsOf(elements, KtNamedDeclaration::class.java)
+	// Lambdas and parameters are named declarations too, and neither can be referenced after the
+	// region. Dropping them keeps the short-circuit below meaningful for any region holding a lambda,
+	// and keeps a lambda's "<anonymous>" out of a refusal message.
+	val declared =
+		descendantsOf(elements, KtNamedDeclaration::class.java)
+			.filterNot { it is KtFunctionLiteral || it is KtParameter }
 	if (declared.isEmpty()) return RegionOutputs.NONE
 
 	val laterReferences =
@@ -439,13 +486,29 @@ private fun hasLoopExit(
 	elements: List<KtExpression>,
 	span: TextSpan,
 ): Boolean {
-	val jumps =
+	val jumps: List<KtExpressionWithLabel> =
 		descendantsOf(elements, KtBreakExpression::class.java) +
 			descendantsOf(elements, KtContinueExpression::class.java)
 	return jumps.any { jump ->
-		val loop = PsiTreeUtil.getParentOfType(jump, KtLoopExpression::class.java, true)
+		val loop = targetLoopFor(jump)
 		loop == null || !inRegion(loop, span)
 	}
+}
+
+/**
+ * The loop a `break`/`continue` leaves: the innermost enclosing one, or the one its label names.
+ *
+ * Reading the label matters for the same reason it does for a labelled `return` -- `break@outer` from
+ * a nested loop inside the region leaves the region, however local the nearest loop looks.
+ */
+private fun targetLoopFor(jump: KtExpressionWithLabel): KtLoopExpression? {
+	var loop = PsiTreeUtil.getParentOfType(jump, KtLoopExpression::class.java, true)
+	val label = jump.getLabelName() ?: return loop
+	while (loop != null) {
+		if ((loop.parent as? KtLabeledExpression)?.getLabelName() == label) return loop
+		loop = PsiTreeUtil.getParentOfType(loop, KtLoopExpression::class.java, true)
+	}
+	return null
 }
 
 private fun typeParameterNamesOf(enclosing: KtDeclaration): List<String> =
@@ -533,12 +596,34 @@ private fun KaSession.innerImplicitReceiver(
 		if (parent is KtQualifiedExpression && parent.selectorExpression === reference) continue
 
 		val lambda = implicitReceiverLambdaFor(reference) ?: continue
-		if (inRegion(lambda, span)) continue
-		if (!PsiTreeUtil.isAncestor(enclosing, lambda, true)) continue
-		return (lambda.parent as? KtLambdaExpression)?.let { callOwning(it)?.calleeName() } ?: UNNAMED_SCOPING_CONSTRUCT
+		if (isBoundOutsideRegion(enclosing, lambda, span)) return constructNameFor(lambda)
+	}
+
+	// A bare `this` names the receiver without going through a call, so no resolved call reports it.
+	// Left undetected it does not fail to compile -- it silently becomes the enclosing class instance,
+	// which is worse.
+	for (thisExpression in descendantsOf(elements, KtThisExpression::class.java)) {
+		val symbol =
+			runCatching {
+				thisExpression.instanceReference.mainReference
+					?.resolveToSymbols()
+					?.firstOrNull()
+			}.getOrNull()
+		val lambda = lambdaOwning(symbol) ?: continue
+		if (isBoundOutsideRegion(enclosing, lambda, span)) return constructNameFor(lambda)
 	}
 	return null
 }
+
+/** Whether [lambda] binds its receiver between the region and [enclosing], so the move loses it. */
+private fun isBoundOutsideRegion(
+	enclosing: KtDeclaration,
+	lambda: KtFunctionLiteral,
+	span: TextSpan,
+): Boolean = !inRegion(lambda, span) && PsiTreeUtil.isAncestor(enclosing, lambda, true)
+
+private fun constructNameFor(lambda: KtFunctionLiteral): String =
+	(lambda.parent as? KtLambdaExpression)?.let { callOwning(it)?.calleeName() } ?: UNNAMED_SCOPING_CONSTRUCT
 
 /**
  * The lambda supplying [reference]'s implicit receiver, or null when it has none or the receiver
@@ -549,24 +634,42 @@ private fun KaSession.implicitReceiverLambdaFor(reference: KtSimpleNameExpressio
 		// A callee name does not resolve to a call on its own; its call expression does.
 		val callSource =
 			(reference.parent as? KtCallExpression)?.takeIf { it.calleeExpression === reference } ?: reference
+		val call = callSource.resolveToCall()
+		// An assignment target resolves to the whole compound access, which is not a member call and
+		// would otherwise slip through carrying its receiver with it: `n += 1` inside `apply { }`.
 		val applied =
-			callSource
-				.resolveToCall()
-				?.successfulCallOrNull<KaCallableMemberCall<*, *>>()
-				?.partiallyAppliedSymbol
+			call?.successfulCallOrNull<KaCallableMemberCall<*, *>>()?.partiallyAppliedSymbol
+				?: call?.successfulCallOrNull<KaCompoundVariableAccessCall>()?.variableCall?.partiallyAppliedSymbol
+				?: call?.successfulCallOrNull<KaCompoundArrayAccessCall>()?.getterCall?.partiallyAppliedSymbol
 		receiverLambda(applied?.dispatchReceiver) ?: receiverLambda(applied?.extensionReceiver)
 	}.getOrNull()
 
-private fun receiverLambda(receiver: KaReceiverValue?): KtFunctionLiteral? {
-	val owner = (receiver as? KaImplicitReceiverValue)?.symbol ?: return null
+private fun receiverLambda(receiver: KaReceiverValue?): KtFunctionLiteral? = lambdaOwning((receiver as? KaImplicitReceiverValue)?.symbol)
+
+/** The lambda [symbol] belongs to, when it is a lambda's receiver rather than a class's. */
+private fun lambdaOwning(symbol: KaSymbol?): KtFunctionLiteral? {
+	if (symbol == null) return null
 	// A lambda's receiver reports itself either as the anonymous function or as that function's
 	// receiver parameter, and only the former carries the PSI.
 	val psi =
-		runCatching { owner.psi }.getOrNull()
-			?: runCatching { (owner as? KaReceiverParameterSymbol)?.owningCallableSymbol?.psi }.getOrNull()
+		runCatching { symbol.psi }.getOrNull()
+			?: runCatching { (symbol as? KaReceiverParameterSymbol)?.owningCallableSymbol?.psi }.getOrNull()
 			?: return null
 	return psi as? KtFunctionLiteral ?: (psi as? KtLambdaExpression)?.functionLiteral
 }
+
+/**
+ * The receiver the new function must repeat, or null (R4).
+ *
+ * An accessor's receiver is declared on its property (`val Foo.x get() = ...`), not on the accessor,
+ * so reading only the accessor drops it and the moved body's unqualified members stop resolving.
+ */
+private fun receiverTypeTextOf(enclosing: KtDeclaration): String? =
+	when (enclosing) {
+		is KtNamedFunction -> enclosing.receiverTypeReference?.text
+		is KtPropertyAccessor -> enclosing.property.receiverTypeReference?.text
+		else -> null
+	}
 
 /** `suspend` is added when the region calls one, or touches `coroutineContext` (R10). */
 private fun KaSession.usesSuspend(elements: List<KtExpression>): Boolean {

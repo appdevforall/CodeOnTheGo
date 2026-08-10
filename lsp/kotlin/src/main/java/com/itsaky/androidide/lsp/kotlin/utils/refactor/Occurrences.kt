@@ -147,11 +147,14 @@ internal fun KaSession.referencedDeclarationCeiling(candidate: KtExpression): Ps
  * A declaration outside the candidate's own scopes -- a class member, a top-level property, anything
  * from a library -- constrains nothing; only locals and parameters do.
  *
- * The implicit lambda parameter needs its own case: `it` has **no source PSI**, so the ordinary
- * psi-based lookup finds nothing and would report "unconstrained", happily hoisting `it.length` clean
- * out of its lambda into code that does not compile. A value-parameter symbol with no PSI, referenced
- * by the name `it`, *is* by definition the implicit parameter of the innermost enclosing lambda -- a
- * property of the language, not a guess about the text.
+ * The implicit-lambda-parameter branch below is **defensive, and unreachable in this Kotlin
+ * version**: `it` resolves to a value-parameter symbol whose PSI is the enclosing
+ * [KtFunctionLiteral] (`KtFakeSourceElementKind.ItLambdaParameter` is an allowed fake element kind),
+ * so the ordinary psi-based lookup already constrains it to that lambda. It is kept because a
+ * value-parameter symbol with no PSI referenced by the name `it` *is* by definition the implicit
+ * parameter of the innermost enclosing lambda -- a property of the language, not a guess about the
+ * text -- and without it a future version that stops supplying the PSI would silently hoist
+ * `it.length` clean out of its lambda into code that does not compile.
  */
 private fun constrainingBodyFor(
 	reference: KtSimpleNameExpression,

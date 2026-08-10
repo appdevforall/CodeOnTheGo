@@ -562,6 +562,208 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a compound assignment through a receiver lambda is declined`() {
+		val content =
+			"""
+			package p
+			class Counter { var n = 0 }
+			fun demo(c: Counter) {
+				c.apply {
+					n += 1
+				}
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "n += 1", "n += 1")
+
+		// The assignment resolves to a compound access, not a member call, and used to slip through.
+		assertEquals(ExtractionRefusal.InnerImplicitReceiver("apply"), plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `an increment through a receiver lambda is declined`() {
+		val content =
+			"""
+			package p
+			class Counter { var n = 0 }
+			fun demo(c: Counter) {
+				c.apply {
+					n++
+				}
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "n++", "n++")
+
+		assertEquals(ExtractionRefusal.InnerImplicitReceiver("apply"), plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a bare this inside a receiver lambda is declined`() {
+		val content =
+			"""
+			package p
+			class Foo(val n: Int)
+			fun log(f: Foo) {}
+			fun demo(f: Foo) {
+				f.apply {
+					log(this)
+				}
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "log(this)", "log(this)")
+
+		assertEquals(ExtractionRefusal.InnerImplicitReceiver("apply"), plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a this inside a lambda that does not rebind it is not declined`() {
+		val content =
+			"""
+			package p
+			class Foo {
+				fun log(f: Foo) {}
+				fun demo(items: List<Int>) {
+					items.forEach {
+						log(this)
+					}
+				}
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "log(this)", "log(this)")
+
+		// `forEach` binds `it`, not `this`, so `this` still means the Foo instance after the move.
+		assertNull(plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a type parameter reaching only the receiver is declined`() {
+		val content =
+			"""
+			package p
+			fun log(s: String) {}
+			fun <T> List<T>.summarize() {
+				log("size=" + size)
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "log(\"size=\" + size)", "log(\"size=\" + size)")
+
+		// Nothing in the region names `T`; only the copied receiver does.
+		assertEquals(ExtractionRefusal.UsesTypeParameter("T"), plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a labelled break targeting an outer loop is declined`() {
+		val content =
+			"""
+			package p
+			fun demo(rows: List<List<Int>>) {
+				outer@ for (row in rows) {
+					for (cell in row) {
+						if (cell < 0) break@outer
+						println(cell)
+					}
+				}
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "for (cell in row)", "\t\t}")
+
+		assertEquals(ExtractionRefusal.ExitsRegion, plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a labelled continue targeting an outer loop is declined`() {
+		val content =
+			"""
+			package p
+			fun demo(rows: List<List<Int>>) {
+				outer@ for (row in rows) {
+					for (cell in row) {
+						if (cell < 0) continue@outer
+						println(cell)
+					}
+				}
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "for (cell in row)", "\t\t}")
+
+		assertEquals(ExtractionRefusal.ExitsRegion, plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a local function target gets no visibility modifier`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int): Int {
+				fun inner(b: Int): Int {
+					return b * 2
+				}
+				return inner(a)
+			}
+			""".trimIndent()
+
+		val result = plan(content, content.indexOf("b * 2") + 1)
+		val candidate = result.candidates.first { it.label == "b * 2" }
+
+		// `private fun` inside a block does not compile.
+		assertEquals(emptyList<String>(), candidate.modifiers)
+		assertEquals(
+			"""
+			package p
+			fun demo(a: Int): Int {
+				fun inner(b: Int): Int {
+					return doubled(b)
+				}
+
+				fun doubled(b: Int): Int {
+					return b * 2
+				}
+				return inner(a)
+			}
+			""".trimIndent(),
+			apply(content, buildExtractMethodRewrites(result.fileText, candidate, "doubled")!!),
+		)
+	}
+
+	@Test
+	fun `an extension property accessor keeps its receiver`() {
+		val content =
+			"""
+			package p
+			class Foo(val n: Int)
+			fun Foo.bar(): Int = n * 2
+			val Foo.doubled: Int
+				get() {
+					return bar() + 1
+				}
+			""".trimIndent()
+
+		val result = plan(content, content.indexOf("bar() + 1") + 1)
+		val candidate = result.candidates.first { it.label == "bar() + 1" }
+
+		assertEquals("Foo", candidate.receiverTypeText)
+	}
+
+	@Test
+	fun `a smart-cast parameter is declined`() {
+		val content =
+			"""
+			package p
+			fun demo(value: Any): Int {
+				if (value is String) {
+					return value.length + 1
+				}
+				return 0
+			}
+			""".trimIndent()
+
+		// `value: Any` breaks the moved body; `value: String` breaks the call site.
+		assertEquals(
+			ExtractionRefusal.SmartCastParameter("value"),
+			plan(content, content.indexOf("value.length + 1") + 1).refusal,
+		)
+	}
+
+	@Test
 	fun `a parameter whose type cannot be written out is declined`() {
 		val content =
 			"""
