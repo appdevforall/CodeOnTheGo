@@ -81,6 +81,23 @@ class ExtractMethodRegionTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a partial selection with no expression candidate still snaps to the statement`() {
+		// Skips the leading `val`, as a touch drag that starts a little late routinely does. Both
+		// ends land inside the same KtProperty, which is a declaration, not a legal expression
+		// target, so the expression path has nothing to offer and the snapped statement wins.
+		val start = twoStatements.indexOf("sum")
+		val end = twoStatements.indexOf("a + b") + "a + b".length
+
+		val region = region(twoStatements, start, end)
+
+		assertTrue(region is ExtractionRegion.Statements)
+		assertEquals(
+			listOf("val sum = a + b"),
+			(region as ExtractionRegion.Statements).statements.map { it.text },
+		)
+	}
+
+	@Test
 	fun `a selection spanning two different blocks resolves to nothing`() {
 		val content =
 			"""
