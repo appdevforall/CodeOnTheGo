@@ -119,6 +119,14 @@ sealed interface ExtractionRefusal {
 	data class SmartCastParameter(
 		val name: String,
 	) : ExtractionRefusal
+
+	/**
+	 * A local `fun`, class or object the region uses but does not contain (R5). It goes out of scope
+	 * once the region moves, and only values can be handed over as parameters.
+	 */
+	data class CapturedLocalDeclaration(
+		val name: String,
+	) : ExtractionRefusal
 }
 
 /**

@@ -704,23 +704,115 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 		val result = plan(content, content.indexOf("b * 2") + 1)
 		val candidate = result.candidates.first { it.label == "b * 2" }
 
-		// `private fun` inside a block does not compile.
+		// `private fun` inside a block does not compile, and a local function is only visible from its
+		// declaration onward -- so it must land *before* the function that calls it.
 		assertEquals(emptyList<String>(), candidate.modifiers)
 		assertEquals(
 			"""
 			package p
 			fun demo(a: Int): Int {
-				fun inner(b: Int): Int {
-					return doubled(b)
-				}
-
 				fun doubled(b: Int): Int {
 					return b * 2
+				}
+
+				fun inner(b: Int): Int {
+					return doubled(b)
 				}
 				return inner(a)
 			}
 			""".trimIndent(),
 			apply(content, buildExtractMethodRewrites(result.fileText, candidate, "doubled")!!),
+		)
+	}
+
+	@Test
+	fun `a local target inserts the new function before the call site`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int): Int {
+				fun inner(b: Int): Int {
+					return b * 2
+				}
+				return inner(a)
+			}
+			""".trimIndent()
+
+		val result = plan(content, content.indexOf("b * 2") + 1)
+		val candidate = result.candidates.first { it.label == "b * 2" }
+
+		assertTrue(candidate.insertOffset < candidate.span.start)
+	}
+
+	@Test
+	fun `a type parameter on an extension property is declined`() {
+		val content =
+			"""
+			package p
+			val <T> List<T>.doubled: Int
+				get() {
+					return size * 2
+				}
+			""".trimIndent()
+		val (start, end) = selection(content, "return size * 2", "return size * 2")
+
+		// The accessor's type parameters live on its property, the same place its receiver does.
+		assertEquals(ExtractionRefusal.UsesTypeParameter("T"), plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a smart cast to an intersection type is declined`() {
+		val content =
+			"""
+			package p
+			interface A { fun a(): Int }
+			interface B { fun b(): Int }
+			fun demo(x: Any): Int {
+				if (x is A && x is B) {
+					return x.a() + x.b()
+				}
+				return 0
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "return x.a() + x.b()", "return x.a() + x.b()")
+
+		// The narrowed type cannot be written out at all, which is not the same as not knowing it.
+		assertEquals(ExtractionRefusal.SmartCastParameter("x"), plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a captured local function is declined`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int): Int {
+				fun helper(): Int = 1
+				return helper() + a
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "return helper() + a", "return helper() + a")
+
+		assertEquals(
+			ExtractionRefusal.CapturedLocalDeclaration("helper"),
+			plan(content, start, end).refusal,
+		)
+	}
+
+	@Test
+	fun `a captured local class is declined`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int): Int {
+				class Holder(val n: Int)
+				return Holder(a).n
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "return Holder(a).n", "return Holder(a).n")
+
+		assertEquals(
+			ExtractionRefusal.CapturedLocalDeclaration("Holder"),
+			plan(content, start, end).refusal,
 		)
 	}
 
