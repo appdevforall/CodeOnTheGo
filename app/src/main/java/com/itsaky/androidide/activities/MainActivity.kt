@@ -24,7 +24,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import androidx.activity.OnBackPressedCallback
-import org.koin.androidx.viewmodel.ext.android.viewModel
+import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -34,35 +34,39 @@ import androidx.transition.doOnEnd
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
-import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
+import com.itsaky.androidide.fragments.MainFragment
+import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
+import com.itsaky.androidide.localWebServer.ServerConfig
+import com.itsaky.androidide.localWebServer.WebServer
+import com.itsaky.androidide.models.DeepLinkRequest
+import com.itsaky.androidide.models.PendingFileRequest
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
-import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R.string
-import com.itsaky.androidide.templates.ITemplateProvider
-import com.itsaky.androidide.utils.DialogUtils
-import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.FeatureFlags
-import com.itsaky.androidide.utils.UrlManager
-import com.itsaky.androidide.utils.findValidProjects
-import com.itsaky.androidide.utils.flashInfo
-import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
-import com.itsaky.androidide.utils.MainScreenActions
-import com.itsaky.androidide.fragments.MainFragment
-import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
 import com.itsaky.androidide.shortcuts.ShortcutContext
 import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
 import com.itsaky.androidide.shortcuts.ShortcutManager
-import com.itsaky.androidide.utils.getCreatedTime
-import com.itsaky.androidide.utils.getLastModifiedTime
+import com.itsaky.androidide.templates.ITemplateProvider
+import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.MainScreenActions
+import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
+import com.itsaky.androidide.utils.findValidProjects
+import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.utils.hasVisibleDialog
+import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_CLONE_REPO
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
@@ -74,12 +78,10 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.itsaky.androidide.localWebServer.ServerConfig
-import com.itsaky.androidide.localWebServer.WebServer
 import org.koin.android.ext.android.inject
+import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.slf4j.LoggerFactory
 import java.io.File
-import com.itsaky.androidide.utils.hasVisibleDialog
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 	private val log = LoggerFactory.getLogger(MainActivity::class.java)
@@ -119,7 +121,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private val binding: ActivityMainBinding
 		get() = checkNotNull(_binding)
 
-		override fun onCreate(savedInstanceState: Bundle?) {
+	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
 		MainScreenActions.register(this)
@@ -127,7 +129,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		// Start WebServer after installation is complete
 		startWebServer()
 
-		if (savedInstanceState == null) { openLastProject() }
+		val deepLinkRequest =
+			IntentCompat.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
+		if (deepLinkRequest != null) {
+			handleDeepLinkRequest(deepLinkRequest)
+		} else if (savedInstanceState == null) {
+			openLastProject()
+		}
 
 		if (FeatureFlags.isExperimentsEnabled) {
 			binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
@@ -172,21 +180,21 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		}
 	}
 
-	override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-		return shortcutManager.dispatch(
+	override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+		shortcutManager.dispatch(
 			event = event,
 			context = ShortcutContext.MAIN,
 			focusView = currentFocus,
 			hasModal = supportFragmentManager.hasVisibleDialog(),
 			executionContext = mainShortcutExecutionContext,
 		) || super.dispatchKeyEvent(event)
-	}
 
 	private val mainShortcutExecutionContext by lazy {
 		ShortcutExecutionContext(
-			ideShortcutActions = IdeShortcutActions {
-				ActionData.create(this)
-			},
+			ideShortcutActions =
+				IdeShortcutActions {
+					ActionData.create(this)
+				},
 		)
 	}
 
@@ -245,16 +253,22 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	 */
 	private fun recreateVisibleFragmentView() {
 		when (viewModel.currentScreen.value) {
-			SCREEN_MAIN ->
-				supportFragmentManager.beginTransaction()
+			SCREEN_MAIN -> {
+				supportFragmentManager
+					.beginTransaction()
 					.setReorderingAllowed(true)
 					.replace(R.id.main, MainFragment())
 					.commitNow()
-			SCREEN_SAVED_PROJECTS ->
-				supportFragmentManager.beginTransaction()
+			}
+
+			SCREEN_SAVED_PROJECTS -> {
+				supportFragmentManager
+					.beginTransaction()
 					.setReorderingAllowed(true)
 					.replace(R.id.saved_projects_view, RecentProjectsFragment())
 					.commitNow()
+			}
+
 			else -> { }
 		}
 	}
@@ -318,7 +332,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				TOOLTIPS_WEB_VIEW -> binding.tooltipWebView
 				SCREEN_SAVED_PROJECTS -> binding.savedProjectsView
 				SCREEN_DELETE_PROJECTS -> binding.deleteProjectsView
-        SCREEN_CLONE_REPO -> binding.cloneRepositoryView
+				SCREEN_CLONE_REPO -> binding.cloneRepositoryView
 				else -> throw IllegalArgumentException("Invalid screen id: '$screen'")
 			}
 
@@ -329,7 +343,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			binding.tooltipWebView,
 			binding.savedProjectsView,
 			binding.deleteProjectsView,
-            binding.cloneRepositoryView,
+			binding.cloneRepositoryView,
 		)) {
 			fragment.isVisible = fragment == currentFragment
 		}
@@ -365,20 +379,25 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			val validProjects = findValidProjects(Environment.PROJECTS_DIR)
 			val lastOpenedPath = GeneralPreferences.lastOpenedProject
 
-			val projectToOpen = validProjects.find { it.absolutePath == lastOpenedPath }
-				?: validProjects.maxByOrNull { it.lastModified() }
+			val projectToOpen =
+				validProjects.find { it.absolutePath == lastOpenedPath }
+					?: validProjects.maxByOrNull { it.lastModified() }
 
 			withContext(Dispatchers.Main) {
 				when {
-        	projectToOpen != null -> handleOpenProject(projectToOpen)
+					projectToOpen != null -> {
+						handleOpenProject(projectToOpen)
+					}
 
-        	lastOpenedPath.isNotBlank() && lastOpenedPath != GeneralPreferences.NO_OPENED_PROJECT -> {
-        		if (!File(lastOpenedPath).exists()) {
-        			flashInfo(string.msg_opened_project_does_not_exist)
-        		}
-        	}
+					lastOpenedPath.isNotBlank() && lastOpenedPath != GeneralPreferences.NO_OPENED_PROJECT -> {
+						if (!File(lastOpenedPath).exists()) {
+							flashInfo(string.msg_opened_project_does_not_exist)
+						}
+					}
 
-        	else -> Unit
+					else -> {
+						Unit
+					}
 				}
 			}
 		}
@@ -402,23 +421,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.show()
 	}
 
-	internal fun openProject(root: File, project: RecentProject? = null, hasTemplateIssues: Boolean = false) {
-		ProjectManagerImpl.getInstance().projectPath = root.absolutePath
-        GeneralPreferences.lastOpenedProject = root.absolutePath
-        
-        lifecycleScope.launch(Dispatchers.IO) {
-            val location = root.absolutePath
-            val recentProject = project ?: RecentProject(
-                name = root.name,
-                location = location,
-                createdAt = getCreatedTime(location).toString(),
-                lastModified = getLastModifiedTime(location).toString()
-            )
-            viewModel.saveProjectToRecents(recentProject)
-        }
-
-		// Track project open in Firebase Analytics
-        analyticsManager.trackProjectOpened(root.absolutePath)
+	internal fun openProject(
+		root: File,
+		project: RecentProject? = null,
+		hasTemplateIssues: Boolean = false,
+		pendingFileRequest: PendingFileRequest? = null,
+	) {
+		recordProjectOpenedBookkeeping(applicationContext, root, project, analyticsManager)
 
 		if (isFinishing) {
 			return
@@ -427,21 +436,28 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		val intent =
 			Intent(this, EditorActivityKt::class.java).apply {
 				putExtra("PROJECT_PATH", root.absolutePath)
-                if (hasTemplateIssues) {
-                    putExtra("HAS_TEMPLATE_ISSUES", true)
-                }
+				if (hasTemplateIssues) {
+					putExtra("HAS_TEMPLATE_ISSUES", true)
+				}
+				pendingFileRequest?.let { putExtra(PendingFileRequest.EXTRA_KEY, it) }
 				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 			}
 
 		startActivity(intent)
 	}
 
-    private fun startWebServer() {
+	private fun startWebServer() {
 		lifecycleScope.launch(Dispatchers.IO) {
 			try {
 				val dbFile = Environment.DOC_DB
 				log.info("Starting WebServer - using database file from: {}", dbFile.absolutePath)
-				val server = WebServer(ServerConfig(databasePath = dbFile.absolutePath, fileDirPath = applicationContext.filesDir.absolutePath))
+				val server =
+					WebServer(
+						ServerConfig(
+							databasePath = dbFile.absolutePath,
+							fileDirPath = applicationContext.filesDir.absolutePath,
+						),
+					)
 				webServer = server
 				server.start()
 			} catch (e: Exception) {
@@ -454,6 +470,29 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
+		setIntent(intent)
+		IntentCompat
+			.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
+			?.let { handleDeepLinkRequest(it) }
+	}
+
+	/**
+	 * Resolves [request]'s project name to an on-disk project directory and opens it -- called when
+	 * [DeepLinkActivity] has already determined no project is currently loaded. A deep-link-triggered
+	 * open bypasses [GeneralPreferences.confirmProjectOpen]: tapping the link is itself an explicit
+	 * request for this specific project, so re-confirming it would be redundant friction.
+	 */
+	private fun handleDeepLinkRequest(request: DeepLinkRequest) {
+		lifecycleScope.launch(Dispatchers.IO) {
+			val projectDir = findValidProjects(Environment.PROJECTS_DIR).find { it.name == request.projectName }
+			withContext(Dispatchers.Main) {
+				if (projectDir == null) {
+					flashError(getString(string.msg_deeplink_project_not_found, request.projectName))
+					return@withContext
+				}
+				openProject(projectDir, pendingFileRequest = request.fileRequest)
+			}
+		}
 	}
 
 	override fun onDestroy() {
