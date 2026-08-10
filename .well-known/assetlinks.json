@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.itsaky.androidide",
+      "sha256_cert_fingerprints": [
+        "TODO_REPLACE_WITH_RELEASE_SIGNING_SHA256_FINGERPRINT"
+      ]
+    }
+  }
+]
