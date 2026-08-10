@@ -97,6 +97,22 @@
             android:exported="true"
             android:theme="@style/Theme.AndroidIDE" />
         <activity
+            android:name=".activities.DeepLinkActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="www.appdevforall.org"
+                    android:pathPrefix="/device/open/project/" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".activities.editor.EditorActivityKt"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|fontScale"
             android:launchMode="singleTask"
