@@ -110,6 +110,15 @@ sealed interface ExtractionRefusal {
 	 * accessor, so the reference would move verbatim into the new function and stop resolving.
 	 */
 	data object UsesBackingField : ExtractionRefusal
+
+	/**
+	 * A captured value the region uses through a smart cast (R5). Its declared type does not compile
+	 * in the new body and its narrowed type does not compile at the call site, so neither emission is
+	 * faithful (ADR 0013).
+	 */
+	data class SmartCastParameter(
+		val name: String,
+	) : ExtractionRefusal
 }
 
 /**
