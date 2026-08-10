@@ -25,3 +25,4 @@ Format is lightweight **MADR / Nygard**: Context → Decision → Consequences �
 | [0009](0009-jetpack-compose-for-new-ui.md) | Build new UI in Jetpack Compose, not XML Views | Proposed |
 | [0010](0010-navigation-resolves-via-analysis-api.md) | Kotlin navigation resolves via the Analysis API, not the symbol index | Proposed |
 | [0011](0011-command-analysis-priority.md) | User-invoked commands get their own analysis priority | Proposed |
+| [0012](0012-refactoring-ui-lives-in-the-owning-lsp-module.md) | Refactoring UI lives in the owning LSP module | Proposed |
