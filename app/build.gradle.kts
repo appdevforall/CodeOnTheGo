@@ -3,6 +3,9 @@
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import org.adfa.constants.GRADLE_API_NAME_JAR_BR
+import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
+import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.json.JSONObject
 import java.io.BufferedOutputStream
 import java.io.ByteArrayInputStream
@@ -552,8 +555,8 @@ fun createAssetsZip(arch: String) {
 		arrayOf(
 			androidSdkName,
 			"localMvnRepository.zip",
-			"gradle-8.14.3-bin.zip",
-			"gradle-api-8.14.3.jar.zip",
+			"$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
+			"$GRADLE_API_NAME_JAR_ZIP",
 			"documentation.db",
 			bootstrapName,
 			"plugin-artifacts.zip",
@@ -1197,15 +1200,15 @@ val debugAssets =
 			"debug",
 		),
 		Asset(
-			"assets/gradle-8.14.3-bin.zip",
-			"https://appdevforall.org/dev-assets/debug/gradle-8.14.3-bin.zip",
-			"gradle-8.14.3-bin.zip",
+			"assets/$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
+			"https://appdevforall.org/dev-assets/debug/$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
+			"$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
 			"debug",
 		),
 		Asset(
-			"assets/gradle-api-8.14.3.jar.zip",
-			"https://appdevforall.org/dev-assets/debug/gradle-api-8.14.3.jar.zip",
-			"gradle-api-8.14.3.jar.zip",
+			"assets/$GRADLE_API_NAME_JAR_ZIP",
+			"https://appdevforall.org/dev-assets/debug/$GRADLE_API_NAME_JAR_ZIP",
+			"$GRADLE_API_NAME_JAR_ZIP",
 			"debug",
 		),
 		Asset(
@@ -1225,15 +1228,15 @@ val debugAssets =
 val releaseAssets =
 	listOf(
 		Asset(
-			"assets/release/common/data/common/gradle-8.14.3-bin.zip.br",
-			"https://appdevforall.org/dev-assets/release/gradle-8.14.3-bin.zip.br",
-			"gradle-8.14.3-bin.zip.br",
+			"assets/release/common/data/common/$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br",
+			"https://appdevforall.org/dev-assets/release/$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br",
+			"$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br",
 			"release",
 		),
 		Asset(
-			"assets/release/common/data/common/gradle-api-8.14.3.jar.br",
-			"https://appdevforall.org/dev-assets/release/gradle-api-8.14.3.jar.br",
-			"gradle-api-8.14.3.jar.br",
+			"assets/release/common/data/common/$GRADLE_API_NAME_JAR_BR",
+			"https://appdevforall.org/dev-assets/release/$GRADLE_API_NAME_JAR_BR",
+			"$GRADLE_API_NAME_JAR_BR",
 			"release",
 		),
 		Asset(
