@@ -225,19 +225,24 @@ class ExtractMethodEditTest {
 	}
 
 	@Test
-	fun `a CRLF file keeps CRLF`() {
+	fun `a multi-line CRLF region is reindented and keeps CRLF throughout`() {
+		// Mirrors "a multi-line statement range is reindented under the new function" with \r\n in
+		// place of every \n, so reindent's split(newline) path -- the CRLF-sensitive code -- actually
+		// runs, not just the declaration builder's own append(newline) calls.
 		val text =
 			"package p\r\n" +
 				"fun demo(a: Int) {\r\n" +
-				"\tprintln(a)\r\n" +
+				"\tif (a > 0) {\r\n" +
+				"\t\tprintln(a)\r\n" +
+				"\t}\r\n" +
 				"}\r\n"
-		val start = text.indexOf("println(a)")
+		val start = text.indexOf("if (a > 0)")
 		val rewrites =
 			buildExtractMethodRewrites(
 				text,
 				ExtractMethodCandidate(
 					label = "region",
-					span = TextSpan(start, start + "println(a)".length),
+					span = TextSpan(start, text.indexOf("\t}\r\n}") + 2),
 					suggestedName = "extracted",
 					takenNames = emptySet(),
 					annotations = emptyList(),
@@ -253,8 +258,50 @@ class ExtractMethodEditTest {
 				"report",
 			)!!
 
-		assertTrue(rewrites.all { !it.newText.contains("\n") || it.newText.contains("\r\n") })
-		assertTrue(apply(text, rewrites).contains("\r\nprivate fun report(a: Int) {\r\n"))
+		assertEquals(
+			"package p\r\n" +
+				"fun demo(a: Int) {\r\n" +
+				"\treport(a)\r\n" +
+				"}\r\n" +
+				"\r\n" +
+				"private fun report(a: Int) {\r\n" +
+				"\tif (a > 0) {\r\n" +
+				"\t\tprintln(a)\r\n" +
+				"\t}\r\n" +
+				"}\r\n",
+			apply(text, rewrites),
+		)
+	}
+
+	@Test
+	fun `a Unit-valued expression omits the return type and the return keyword`() {
+		val span = TextSpan(file.indexOf("a + b"), file.indexOf("a + b") + "a + b".length)
+		val rewrites =
+			buildExtractMethodRewrites(
+				file,
+				candidate(
+					span,
+					ExtractedBody.ExpressionBody(needsReturn = false),
+					CallSiteForm.Call,
+					returnTypeText = null,
+				),
+				"log",
+			)!!
+
+		assertEquals(
+			"package p\n" +
+				"class C {\n" +
+				"\tfun demo(a: Int, b: Int): Int {\n" +
+				"\t\tval sum = log()\n" +
+				"\t\treturn sum\n" +
+				"\t}\n" +
+				"\n" +
+				"\tprivate fun log() {\n" +
+				"\t\ta + b\n" +
+				"\t}\n" +
+				"}\n",
+			apply(file, rewrites),
+		)
 	}
 
 	@Test
