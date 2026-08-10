@@ -22,7 +22,8 @@ android {
 kotlin {
 	compilerOptions {
 		jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-		// Emit metadata the on-device Kotlin compiler (1.9.22) can read (<= 2.0.0).
+		// Emit metadata every supported on-device Kotlin compiler can read (<= 2.0.0), so a
+		// device still on an older bundled toolchain keeps working after a KOTLIN_VERSION bump.
 		// This jar ships in the plugin-api coordinate on-device plugins compile against.
 		apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
 		languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
