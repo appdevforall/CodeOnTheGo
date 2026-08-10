@@ -246,7 +246,7 @@ internal fun KaSession.writeOffsetsFor(
 }
 
 /** Whether this reference is being written to rather than read. */
-private fun KtSimpleNameExpression.isWriteTarget(): Boolean {
+internal fun KtSimpleNameExpression.isWriteTarget(): Boolean {
 	val parent = parent
 	if (parent is KtBinaryExpression && parent.left === this && parent.operationToken in ASSIGNMENT_TOKENS) return true
 	if (parent is KtUnaryExpression && parent.operationToken in INCREMENT_TOKENS) return true
