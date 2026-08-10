@@ -139,11 +139,11 @@ data class CandidateExpression(
  * candidate, meaning they already expressed which expression they want and the UI should not ask.
  */
 data class ExtractionPlan(
-	val fileText: String,
-	val documentVersion: Int,
+	override val fileText: String,
+	override val documentVersion: Int,
 	val candidates: List<CandidateExpression>,
 	val selectionMatchedCandidate: Boolean,
-) {
+) : RefactoringPlan {
 	val isEmpty: Boolean get() = candidates.isEmpty()
 
 	companion object {
