@@ -103,7 +103,7 @@ fun suggestVariableName(
 			?: typeName?.let(::nameFromType)
 			?: FALLBACK_NAME
 	val sanitised = base.takeIf { isIdentifier(it) && it !in HARD_KEYWORDS } ?: FALLBACK_NAME
-	return makeUnique(sanitised, takenNames)
+	return uniqueName(sanitised, takenNames)
 }
 
 private fun nameFromShape(expression: KtExpression): String? =
@@ -144,7 +144,7 @@ private fun nameFromType(typeName: String): String? =
 private fun String.decapitaliseFirst(): String = if (isEmpty()) this else this[0].lowercaseChar() + substring(1)
 
 /** `size` -> `size1` -> `size2` until nothing in [takenNames] matches. */
-private fun makeUnique(
+internal fun uniqueName(
 	base: String,
 	takenNames: Set<String>,
 ): String {
