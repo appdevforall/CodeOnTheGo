@@ -94,6 +94,7 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_KT_GOTO_DEF = "editor.codeactions.kotlin.gotodef"
 	const val EDITOR_CODE_ACTIONS_KT_FIND_REFS = "editor.codeactions.kotlin.findrefs"
 	const val EDITOR_CODE_ACTIONS_KT_EXTRACT_VARIABLE = "editor.codeactions.kotlin.extractvariable"
+	const val EDITOR_CODE_ACTIONS_KT_EXTRACT_METHOD = "editor.codeactions.kotlin.extractmethod"
 
 	const val EXIT_TO_MAIN = "exit.to.main"
 

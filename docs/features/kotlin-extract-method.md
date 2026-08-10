@@ -1,7 +1,7 @@
 # Kotlin extract method (K2 LSP)
 
 - **Ticket:** ADFA-5080 (subtask of ADFA-3317; split out of ADFA-4826, which now covers extract variable only)
-- **Status:** Requirements only - not implemented
+- **Status:** Implemented
 - **Module:** `lsp/kotlin`
 - **Vocabulary:** the term is **method**, matching the ticket and the already-fixed tooltip tag `editor.codeactions.kotlin.extractmethod`, even though the refactoring's output is a Kotlin `fun`.
 
@@ -149,8 +149,11 @@ Including inherited names is a correctness requirement, not a nicety: a private 
 | `InnerImplicitReceiver` | the selection uses members of an enclosing `with`/`apply` receiver |
 | `UsesTypeParameter` | the selection uses type parameter `<T>` |
 | `UnrenderableType` | a type in the selection cannot be written out |
+| `UsesBackingField` | the selection uses the property's backing field, only reachable inside this accessor |
+| `SmartCastParameter` | the selection uses `<name>` under a smart cast that does not hold outside it |
+| `CapturedLocalDeclaration` | the selection uses `<name>`, which goes out of scope once the selection moves |
 
-Five of the seven are actionable - they tell the user what to change - and two of them (`ReassignsOuterVar`, `InnerImplicitReceiver`) are common enough that a generic message would read as the feature being broken. Given how much of this design is "decline cleanly", the refusal text is a first-class part of the feature. New entries in `resources/.../values/strings.xml`, picked up by the next translation batch.
+Eight of the ten are actionable - they tell the user what to change - and several (`ReassignsOuterVar`, `InnerImplicitReceiver`, `UsesBackingField`) are common enough that a generic message would read as the feature being broken. Given how much of this design is "decline cleanly", the refusal text is a first-class part of the feature. New entries in `resources/.../values/strings.xml`, picked up by the next translation batch.
 
 The refusal lives on `ExtractMethodPlan` only; extract variable keeps its single "nothing to extract" behaviour unchanged.
 
