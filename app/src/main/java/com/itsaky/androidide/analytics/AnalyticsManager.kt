@@ -44,15 +44,20 @@ interface IAnalyticsManager {
 }
 
 class AnalyticsManager : IAnalyticsManager {
+	@Volatile
+	private var consentGranted = false
+
 	private val analytics: FirebaseAnalytics by lazy {
 		Firebase.analytics.apply {
-			setAnalyticsCollectionEnabled(true)
+			setAnalyticsCollectionEnabled(consentGranted)
 		}
 	}
 
 	private var sessionStartTime: Long = 0
 
 	override fun initialize() {
+		consentGranted = true
+		analytics.setAnalyticsCollectionEnabled(true)
 		trackAppOpen()
 		startSession()
 	}
