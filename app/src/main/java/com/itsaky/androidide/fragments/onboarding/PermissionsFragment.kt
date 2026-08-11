@@ -28,6 +28,7 @@ import android.view.ViewGroup
 import android.view.animation.Animation
 import android.view.animation.AnimationUtils
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.core.net.toUri
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -41,22 +42,27 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.OnboardingActivity
 import com.itsaky.androidide.adapters.onboarding.OnboardingPermissionsAdapter
+import com.itsaky.androidide.app.DeviceProtectedApplicationLoader
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.LayoutOnboardingPermissionsBinding
 import com.itsaky.androidide.events.InstallationEvent
-import com.itsaky.androidide.preferences.internal.prefManager
+import com.itsaky.androidide.preferences.internal.StatPreferences
+import com.itsaky.androidide.preferences.internal.TelemetryConsent
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.utils.OverlayPermissionGuide
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.isAtLeastR
+import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.viewLifecycleScope
+import com.itsaky.androidide.utils.viewLifecycleScopeOrNull
 import com.itsaky.androidide.viewmodel.InstallationState
 import com.itsaky.androidide.viewmodel.InstallationViewModel
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -74,7 +80,7 @@ class PermissionsFragment :
 	private var permissionsBinding: LayoutOnboardingPermissionsBinding? = null
 	private var recyclerView: RecyclerView? = null
 	private var finishButton: MaterialButton? = null
-    private lateinit var pulseAnimation: Animation
+	private lateinit var pulseAnimation: Animation
 
 	private val storagePermissionRequestLauncher =
 		registerForActivityResult(
@@ -94,9 +100,12 @@ class PermissionsFragment :
 		PermissionsHelper.getRequiredPermissions(requireContext())
 	}
 
+	private var privacyDialog: AlertDialog? = null
+	private var consentResolutionJob: Job? = null
+	private var isSlideSelected = false
+
 	companion object {
 		private val logger = LoggerFactory.getLogger(PermissionsFragment::class.java)
-		private const val KEY_PRIVACY_DISCLOSURE_SHOWN = "privacy.disclosure.shown"
 
 		private var awaitingOverlayGrantResult = false
 
@@ -152,14 +161,17 @@ class PermissionsFragment :
 
 	override fun onResume() {
 		super.onResume()
-        (activity as? OnboardingActivity)?.setOnboardingChromeVisible(false)
+		(activity as? OnboardingActivity)?.setOnboardingChromeVisible(false)
 		onPermissionsUpdated()
+		if (isSlideSelected) {
+			showPrivacyDialogIfNeeded()
+		}
 	}
 
-    override fun onPause() {
-        (activity as? OnboardingActivity)?.setOnboardingChromeVisible(true)
-        super.onPause()
-    }
+	override fun onPause() {
+		(activity as? OnboardingActivity)?.setOnboardingChromeVisible(true)
+		super.onPause()
+	}
 
 	private fun observeViewModelState() {
 		viewLifecycleScope.launch {
@@ -176,7 +188,10 @@ class PermissionsFragment :
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 				viewModel.events.collect { event ->
 					when (event) {
-						is InstallationEvent.ShowError -> activity?.flashError(event.message)
+						is InstallationEvent.ShowError -> {
+							activity?.flashError(event.message)
+						}
+
 						is InstallationEvent.InstallationResultEvent -> {}
 					}
 				}
@@ -189,18 +204,22 @@ class PermissionsFragment :
 			is InstallationState.InstallationPending -> {
 				disableFinishButton()
 			}
+
 			is InstallationState.InstallationGranted -> {
 				enableFinishButton()
 			}
+
 			is InstallationState.Installing -> {
-                disableFinishButton()
+				disableFinishButton()
 			}
+
 			is InstallationState.InstallationComplete -> {
 				finishButton?.text = getString(R.string.finish_installation)
 				activity?.flashSuccess(getString(R.string.ide_setup_complete))
 			}
+
 			is InstallationState.InstallationError -> {
-                enableFinishButton()
+				enableFinishButton()
 				finishButton?.text = getString(R.string.finish_installation)
 			}
 		}
@@ -208,6 +227,9 @@ class PermissionsFragment :
 
 	override fun onDestroyView() {
 		super.onDestroyView()
+		privacyDialog?.dismiss()
+		privacyDialog = null
+		consentResolutionJob = null
 		permissionsBinding = null
 		recyclerView = null
 		finishButton = null
@@ -228,20 +250,20 @@ class PermissionsFragment :
 		viewModel.onPermissionsUpdated(allGranted)
 	}
 
-    private fun handlePostOverlayPermissionState() {
-       if (!awaitingOverlayGrantResult) {
-          return
-       }
-       awaitingOverlayGrantResult = false
+	private fun handlePostOverlayPermissionState() {
+		if (!awaitingOverlayGrantResult) {
+			return
+		}
+		awaitingOverlayGrantResult = false
 
-       viewLifecycleScope.launch {
-          viewLifecycleOwner.withResumed {
-             if (!PermissionsHelper.canDrawOverlays(requireContext())) {
-                OverlayPermissionGuide.showRestrictedSettingsDialog(requireContext())
-             }
-          }
-       }
-    }
+		viewLifecycleScope.launch {
+			viewLifecycleOwner.withResumed {
+				if (!PermissionsHelper.canDrawOverlays(requireContext())) {
+					OverlayPermissionGuide.showRestrictedSettingsDialog(requireContext())
+				}
+			}
+		}
+	}
 
 	private fun startIdeSetup() {
 		viewLifecycleScope.launch {
@@ -261,13 +283,14 @@ class PermissionsFragment :
 					builder.title(getString(R.string.ide_setup_in_progress))
 				},
 			) { flashbar, _ ->
-				val progressJob = launch(Dispatchers.Main) {
-					viewModel.installationProgress.collect { progress ->
-						if (progress.isNotEmpty()) {
-							flashbar.flashbarView.setMessage(progress)
+				val progressJob =
+					launch(Dispatchers.Main) {
+						viewModel.installationProgress.collect { progress ->
+							if (progress.isNotEmpty()) {
+								flashbar.flashbarView.setMessage(progress)
+							}
 						}
 					}
-				}
 
 				viewModel.startIdeSetup(requireContext())
 
@@ -280,8 +303,14 @@ class PermissionsFragment :
 								}
 								true
 							}
-							is InstallationState.InstallationError -> true
-							else -> false
+
+							is InstallationState.InstallationError -> {
+								true
+							}
+
+							else -> {
+								false
+							}
 						}
 					}
 				} finally {
@@ -293,34 +322,44 @@ class PermissionsFragment :
 
 	private fun requestPermission(permission: String) {
 		when (permission) {
-			Manifest.permission_group.STORAGE -> requestStoragePermission()
-			Manifest.permission.REQUEST_INSTALL_PACKAGES ->
+			Manifest.permission_group.STORAGE -> {
+				requestStoragePermission()
+			}
+
+			Manifest.permission.REQUEST_INSTALL_PACKAGES -> {
 				requestSettingsTogglePermission(
 					Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
 				)
+			}
 
-			Manifest.permission.SYSTEM_ALERT_WINDOW -> requestOverlayPermission()
-			Manifest.permission.POST_NOTIFICATIONS ->
+			Manifest.permission.SYSTEM_ALERT_WINDOW -> {
+				requestOverlayPermission()
+			}
+
+			Manifest.permission.POST_NOTIFICATIONS -> {
 				requestSettingsTogglePermission(
 					Settings.ACTION_APP_NOTIFICATION_SETTINGS,
 					setData = false,
 				)
+			}
 		}
 	}
 
-    private fun requestOverlayPermission() {
-       val state = PermissionsHelper.getOverlayPermissionState(requireContext())
+	private fun requestOverlayPermission() {
+		val state = PermissionsHelper.getOverlayPermissionState(requireContext())
 
-       when (state) {
-           PermissionsHelper.OverlayPermissionState.UNSUPPORTED -> {
-               flashError(getString(R.string.permission_overlay_unsupported_hint))
-           }
-           PermissionsHelper.OverlayPermissionState.REQUESTABLE -> {
-               awaitingOverlayGrantResult = requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-           }
-           PermissionsHelper.OverlayPermissionState.GRANTED -> {}
-       }
-    }
+		when (state) {
+			PermissionsHelper.OverlayPermissionState.UNSUPPORTED -> {
+				flashError(getString(R.string.permission_overlay_unsupported_hint))
+			}
+
+			PermissionsHelper.OverlayPermissionState.REQUESTABLE -> {
+				awaitingOverlayGrantResult = requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+			}
+
+			PermissionsHelper.OverlayPermissionState.GRANTED -> {}
+		}
+	}
 
 	private fun requestStoragePermission() {
 		if (isAtLeastR()) {
@@ -367,36 +406,50 @@ class PermissionsFragment :
 	}
 
 	override fun onSlideSelected() {
-		if (!isPrivacyDisclosureShown()) {
-			showPrivacyDialog()
-		}
+		isSlideSelected = true
+		showPrivacyDialogIfNeeded()
 	}
 
 	override fun onSlideDeselected() {
+		isSlideSelected = false
+	}
+
+	private fun showPrivacyDialogIfNeeded() {
+		if (privacyDialog != null || consentResolutionJob?.isActive == true) {
+			return
+		}
+
+		val scope = viewLifecycleScopeOrNull ?: return
+		consentResolutionJob =
+			scope.launch {
+				val consent = withContext(Dispatchers.IO) { StatPreferences.telemetryConsent }
+				if (consent == TelemetryConsent.UNSET && privacyDialog == null) {
+					showPrivacyDialog()
+				}
+			}
 	}
 
 	private fun showPrivacyDialog() {
-		MaterialAlertDialogBuilder(requireContext())
-			.setTitle(com.itsaky.androidide.resources.R.string.privacy_disclosure_title)
-			.setMessage(com.itsaky.androidide.resources.R.string.privacy_disclosure_message)
-			.setPositiveButton(com.itsaky.androidide.resources.R.string.privacy_disclosure_accept) { dialog, _ ->
-				markPrivacyDisclosureAsShown()
-				dialog.dismiss()
-			}
-			.setNeutralButton(com.itsaky.androidide.resources.R.string.privacy_disclosure_learn_more) { _, _ ->
-				openPrivacyPolicy()
-				markPrivacyDisclosureAsShown()
-			}
-			.setCancelable(false)
-			.show()
-	}
-
-	private fun isPrivacyDisclosureShown(): Boolean {
-		return prefManager.getBoolean(KEY_PRIVACY_DISCLOSURE_SHOWN, false)
-	}
-
-	private fun markPrivacyDisclosureAsShown() {
-		prefManager.putBoolean(KEY_PRIVACY_DISCLOSURE_SHOWN, true)
+		privacyDialog =
+			MaterialAlertDialogBuilder(requireContext())
+				.setTitle(com.itsaky.androidide.resources.R.string.privacy_disclosure_title)
+				.setMessage(com.itsaky.androidide.resources.R.string.privacy_disclosure_message)
+				.setPositiveButton(com.itsaky.androidide.resources.R.string.privacy_disclosure_accept) { dialog, _ ->
+					StatPreferences.telemetryConsent = TelemetryConsent.GRANTED
+					DeviceProtectedApplicationLoader.onTelemetryConsentGranted(IDEApplication.instance)
+					dialog.dismiss()
+				}.setNegativeButton(com.itsaky.androidide.resources.R.string.privacy_disclosure_decline) { dialog, _ ->
+					StatPreferences.telemetryConsent = TelemetryConsent.DECLINED
+					Sentry.close()
+					dialog.dismiss()
+				}.setNeutralButton(com.itsaky.androidide.resources.R.string.privacy_disclosure_learn_more, null)
+				.setCancelable(false)
+				.show()
+				.also { dialog ->
+					dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+						openPrivacyPolicy()
+					}
+				}
 	}
 
 	private fun openPrivacyPolicy() {
@@ -409,15 +462,15 @@ class PermissionsFragment :
 		}
 	}
 
-    private fun enableFinishButton() {
-        finishButton?.isEnabled = true
-        if (!isTestMode()) {
-            finishButton?.startAnimation(pulseAnimation)
-        }
-    }
+	private fun enableFinishButton() {
+		finishButton?.isEnabled = true
+		if (!isTestMode()) {
+			finishButton?.startAnimation(pulseAnimation)
+		}
+	}
 
-    private fun disableFinishButton() {
-        finishButton?.isEnabled = false
-        finishButton?.clearAnimation()
-    }
+	private fun disableFinishButton() {
+		finishButton?.isEnabled = false
+		finishButton?.clearAnimation()
+	}
 }
