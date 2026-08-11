@@ -18,8 +18,7 @@
 package com.itsaky.androidide.models
 
 import android.net.Uri
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -31,31 +30,31 @@ class DeepLinkRequestTest {
 	@Test
 	fun `project only`() {
 		val request = parse("https://www.appdevforall.org/device/open/project/MyApp")
-		assertEquals(DeepLinkRequest(projectName = "MyApp"), request)
+		assertThat(request).isEqualTo(DeepLinkRequest(projectName = "MyApp"))
 	}
 
 	@Test
 	fun `project and file`() {
 		val request = parse("https://www.appdevforall.org/device/open/project/MyApp/file/Main.kt")
-		assertEquals(
-			DeepLinkRequest(
-				projectName = "MyApp",
-				fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = null, columnRaw = null),
-			),
-			request,
-		)
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "MyApp",
+					fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = null, columnRaw = null),
+				),
+			)
 	}
 
 	@Test
 	fun `project, file, and line`() {
 		val request = parse("https://www.appdevforall.org/device/open/project/MyApp/file/Main.kt/line/42")
-		assertEquals(
-			DeepLinkRequest(
-				projectName = "MyApp",
-				fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = "42", columnRaw = null),
-			),
-			request,
-		)
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "MyApp",
+					fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = "42", columnRaw = null),
+				),
+			)
 	}
 
 	@Test
@@ -64,13 +63,13 @@ class DeepLinkRequestTest {
 			parse(
 				"https://www.appdevforall.org/device/open/project/MyApp/file/Main.kt/line/42/column/7",
 			)
-		assertEquals(
-			DeepLinkRequest(
-				projectName = "MyApp",
-				fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = "42", columnRaw = "7"),
-			),
-			request,
-		)
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "MyApp",
+					fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = "42", columnRaw = "7"),
+				),
+			)
 	}
 
 	@Test
@@ -79,8 +78,8 @@ class DeepLinkRequestTest {
 			parse(
 				"https://www.appdevforall.org/device/open/project/MyApp/file/app/src/main/Main.kt/line/1",
 			)
-		assertEquals("app/src/main/Main.kt", request?.fileRequest?.filePath)
-		assertEquals("1", request?.fileRequest?.lineRaw)
+		assertThat(request?.fileRequest?.filePath).isEqualTo("app/src/main/Main.kt")
+		assertThat(request?.fileRequest?.lineRaw).isEqualTo("1")
 	}
 
 	@Test
@@ -89,37 +88,85 @@ class DeepLinkRequestTest {
 		// project-name segment itself as the `line` keyword (the first occurrence in the whole path),
 		// discarding the real line/42 suffix that follows `file`.
 		val request = parse("https://www.appdevforall.org/device/open/project/line/file/Main.kt/line/42")
-		assertEquals(
-			DeepLinkRequest(
-				projectName = "line",
-				fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = "42", columnRaw = null),
-			),
-			request,
-		)
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "line",
+					fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = "42", columnRaw = null),
+				),
+			)
 	}
 
 	@Test
 	fun `project name equal to a reserved keyword with no line suffix yields no line`() {
 		val request = parse("https://www.appdevforall.org/device/open/project/line/file/Main.kt")
-		assertEquals(
-			DeepLinkRequest(
-				projectName = "line",
-				fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = null, columnRaw = null),
-			),
-			request,
-		)
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "line",
+					fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = null, columnRaw = null),
+				),
+			)
 	}
 
 	@Test
 	fun `project name equal to the file keyword does not corrupt the file lookup`() {
 		val request = parse("https://www.appdevforall.org/device/open/project/file/file/Main.kt")
-		assertEquals(
-			DeepLinkRequest(
-				projectName = "file",
-				fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = null, columnRaw = null),
-			),
-			request,
-		)
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "file",
+					fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = null, columnRaw = null),
+				),
+			)
+	}
+
+	@Test
+	fun `a file path segment literally named 'line' is preserved when a real line suffix follows`() {
+		// Regression test: line/column are now matched from the end of the path backward, not by the
+		// keyword's first occurrence -- so a directory genuinely named "line" earlier in the file path
+		// is kept as part of the filename as long as a real trailing line/{n} pair follows it.
+		val request =
+			parse("https://www.appdevforall.org/device/open/project/MyApp/file/line/Main.kt/line/42")
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "MyApp",
+					fileRequest = PendingFileRequest(filePath = "line/Main.kt", lineRaw = "42", columnRaw = null),
+				),
+			)
+	}
+
+	@Test
+	fun `a file path segment literally named 'column' is preserved when a real trailing pair follows`() {
+		val request =
+			parse(
+				"https://www.appdevforall.org/device/open/project/MyApp/file/column/Main.kt/line/1/column/7",
+			)
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "MyApp",
+					fileRequest = PendingFileRequest(filePath = "column/Main.kt", lineRaw = "1", columnRaw = "7"),
+				),
+			)
+	}
+
+	@Test
+	fun `a file path that is only 'line' plus one segment is read as the keyword -- known limitation`() {
+		// Documents, rather than fixes, a case the previous test's approach can't resolve: with
+		// nothing else in the path, `file/line/Main.kt` is structurally identical to a real line
+		// suffix -- there's no delimiter in this URL scheme to tell "a directory named line" apart
+		// from "the line keyword" when it's the only content after `file`. Locking in current
+		// behavior so a future change doesn't alter it silently.
+		val request = parse("https://www.appdevforall.org/device/open/project/MyApp/file/line/Main.kt")
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "MyApp",
+					fileRequest = PendingFileRequest(filePath = "", lineRaw = "Main.kt", columnRaw = null),
+				),
+			)
 	}
 
 	@Test
@@ -128,29 +175,29 @@ class DeepLinkRequestTest {
 			parse(
 				"https://www.appdevforall.org/device/open/project/MyApp/file/Main.kt/line/abc/column/xyz",
 			)
-		assertEquals("abc", request?.fileRequest?.lineRaw)
-		assertEquals("xyz", request?.fileRequest?.columnRaw)
+		assertThat(request?.fileRequest?.lineRaw).isEqualTo("abc")
+		assertThat(request?.fileRequest?.columnRaw).isEqualTo("xyz")
 	}
 
 	@Test
 	fun `missing project segment yields null`() {
-		assertNull(parse("https://www.appdevforall.org/device/open/MyApp"))
+		assertThat(parse("https://www.appdevforall.org/device/open/MyApp")).isNull()
 	}
 
 	@Test
 	fun `project segment with no name yields null`() {
-		assertNull(parse("https://www.appdevforall.org/device/open/project"))
-		assertNull(parse("https://www.appdevforall.org/device/open/project/"))
+		assertThat(parse("https://www.appdevforall.org/device/open/project")).isNull()
+		assertThat(parse("https://www.appdevforall.org/device/open/project/")).isNull()
 	}
 
 	@Test
 	fun `file keyword with no name yields no file request`() {
 		val request = parse("https://www.appdevforall.org/device/open/project/MyApp/file")
-		assertEquals(DeepLinkRequest(projectName = "MyApp", fileRequest = null), request)
+		assertThat(request).isEqualTo(DeepLinkRequest(projectName = "MyApp", fileRequest = null))
 	}
 
 	@Test
 	fun `null uri yields null`() {
-		assertNull(DeepLinkRequest.parse(null))
+		assertThat(DeepLinkRequest.parse(null)).isNull()
 	}
 }
