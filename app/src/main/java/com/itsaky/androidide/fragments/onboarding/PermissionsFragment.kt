@@ -23,13 +23,13 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.Animation
 import android.view.animation.AnimationUtils
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.core.net.toUri
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -38,18 +38,19 @@ import androidx.recyclerview.widget.RecyclerView
 import com.github.appintro.SlidePolicy
 import com.github.appintro.SlideSelectionListener
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.OnboardingActivity
 import com.itsaky.androidide.adapters.onboarding.OnboardingPermissionsAdapter
 import com.itsaky.androidide.app.DeviceProtectedApplicationLoader
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.databinding.LayoutDialogPrivacyConsentBinding
 import com.itsaky.androidide.databinding.LayoutOnboardingPermissionsBinding
 import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.preferences.internal.TelemetryConsent
 import com.itsaky.androidide.tasks.doAsyncWithProgress
+import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.OverlayPermissionGuide
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.flashError
@@ -430,36 +431,33 @@ class PermissionsFragment :
 	}
 
 	private fun showPrivacyDialog() {
-		privacyDialog =
-			MaterialAlertDialogBuilder(requireContext())
-				.setTitle(com.itsaky.androidide.resources.R.string.privacy_disclosure_title)
-				.setMessage(com.itsaky.androidide.resources.R.string.privacy_disclosure_message)
-				.setPositiveButton(com.itsaky.androidide.resources.R.string.privacy_disclosure_accept) { dialog, _ ->
-					StatPreferences.telemetryConsent = TelemetryConsent.GRANTED
-					DeviceProtectedApplicationLoader.onTelemetryConsentGranted(IDEApplication.instance)
-					dialog.dismiss()
-				}.setNegativeButton(com.itsaky.androidide.resources.R.string.privacy_disclosure_decline) { dialog, _ ->
-					StatPreferences.telemetryConsent = TelemetryConsent.DECLINED
-					Sentry.close()
-					dialog.dismiss()
-				}.setNeutralButton(com.itsaky.androidide.resources.R.string.privacy_disclosure_learn_more, null)
-				.setCancelable(false)
-				.show()
-				.also { dialog ->
-					dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-						openPrivacyPolicy()
-					}
-				}
-	}
+		val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
 
-	private fun openPrivacyPolicy() {
-		try {
-			val privacyPolicyUrl = getString(R.string.privacy_policy_url)
-			val intent = Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
-			startActivity(intent)
-		} catch (e: Exception) {
-			Sentry.captureException(e)
+		// Inflate from the builder's themed context so the dialog-scoped attributes the
+		// layout refers to (body text style, preferred padding) resolve.
+		val binding = LayoutDialogPrivacyConsentBinding.inflate(LayoutInflater.from(builder.context))
+
+		val dialog =
+			builder
+				.setTitle(com.itsaky.androidide.resources.R.string.privacy_disclosure_title)
+				.setView(binding.root)
+				.setCancelable(false)
+				.create()
+
+		binding.privacyAccept.setOnClickListener {
+			StatPreferences.telemetryConsent = TelemetryConsent.GRANTED
+			DeviceProtectedApplicationLoader.onTelemetryConsentGranted(IDEApplication.instance)
+			dialog.dismiss()
 		}
+
+		binding.privacyDecline.setOnClickListener {
+			StatPreferences.telemetryConsent = TelemetryConsent.DECLINED
+			Sentry.close()
+			dialog.dismiss()
+		}
+
+		privacyDialog = dialog
+		dialog.show()
 	}
 
 	private fun enableFinishButton() {
