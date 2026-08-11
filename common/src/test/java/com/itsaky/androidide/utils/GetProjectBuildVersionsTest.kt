@@ -17,7 +17,10 @@ class GetProjectBuildVersionsTest {
 			val root = tempFolder.newFolder("JavaProject")
 			val srcDir = File(root, "app/src/main/java/com/example")
 			srcDir.mkdirs()
-			File(srcDir, "MainActivity.java").writeText("package com.example; public class MainActivity {}")
+			File(
+				srcDir,
+				"MainActivity.java",
+			).writeText("package com.example; public class MainActivity {}")
 
 			val gradleToml = File(root, "gradle")
 			gradleToml.mkdirs()
@@ -45,6 +48,53 @@ class GetProjectBuildVersionsTest {
 
 			val language = readProjectLanguage(root)
 			assertThat(language).isEqualTo("Kotlin")
+		}
+
+	@Test
+	fun `readProjectLanguage identifies Kotlin project with kts files`() =
+		runBlocking {
+			val root = tempFolder.newFolder("KotlinScriptProject")
+			val srcDir = File(root, "app/src/main")
+			srcDir.mkdirs()
+			File(srcDir, "build.gradle.kts").writeText(
+				"""
+				plugins {
+					id("com.android.application")
+				}
+				""".trimIndent(),
+			)
+
+			val language = readProjectLanguage(root)
+
+			assertThat(language).isEqualTo("Kotlin")
+		}
+
+	@Test
+	fun `readProjectLanguage returns Unknown when source tree has no supported files`() =
+		runBlocking {
+			val root = tempFolder.newFolder("UnsupportedProject")
+			val srcDir = File(root, "app/src/main/java/com/example")
+			srcDir.mkdirs()
+			File(srcDir, "MainActivity.xml").writeText(
+				"""
+				<LinearLayout />
+				""".trimIndent(),
+			)
+
+			val language = readProjectLanguage(root)
+
+			assertThat(language).isEqualTo("Unknown")
+		}
+
+	@Test
+	fun `readProjectLanguage returns Unknown for empty source tree`() =
+		runBlocking {
+			val root = tempFolder.newFolder("EmptyProject")
+			File(root, "app/src/main").mkdirs()
+
+			val language = readProjectLanguage(root)
+
+			assertThat(language).isEqualTo("Unknown")
 		}
 
 	@Test
