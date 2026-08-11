@@ -93,12 +93,26 @@ data class DeepLinkRequest(
 						return@let null
 					}
 
-					val lineIdx = segments.indexOfFrom(startIdx, SEGMENT_LINE).takeIf { it >= 0 }
-					val columnIdx = segments.indexOfFrom(startIdx, SEGMENT_COLUMN).takeIf { it >= 0 }
+					// line/column are trailing modifiers, so -- unlike the project/file lookup above --
+					// they're matched from the END of the path backward (column first, then line in
+					// whatever remains), never by searching for the keyword's first occurrence. That
+					// makes a literal "line"/"column" segment earlier in the file path (e.g. a directory
+					// named "line") part of the filename rather than misread as metadata, as long as a
+					// real trailing pair follows it. The one shape this can't resolve: a file path whose
+					// *entire* content is just "line"/"column" plus one more segment, with nothing else
+					// following -- e.g. `file/line/Main.kt` alone -- is indistinguishable from an actual
+					// line suffix; this URL scheme has no delimiter to tell the two apart, so it's read
+					// as the keyword (existing behavior, unchanged).
+					var endIdx = segments.size
+					val columnIdx =
+						(endIdx - 2)
+							.takeIf { it >= startIdx && segments[it] == SEGMENT_COLUMN }
+							?.also { endIdx = it }
+					val lineIdx =
+						(endIdx - 2)
+							.takeIf { it >= startIdx && segments[it] == SEGMENT_LINE }
+							?.also { endIdx = it }
 
-					// filenames may themselves contain '/', so the filename is every segment from
-					// `file` up to (but not including) the next recognized keyword, joined back together
-					val endIdx = listOfNotNull(lineIdx, columnIdx).minOrNull() ?: segments.size
 					val filePath = segments.subList(startIdx, endIdx).joinToString("/")
 
 					PendingFileRequest(
