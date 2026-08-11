@@ -17,7 +17,12 @@
 
 - **Kotlin must be >= 2.4.0.** `kotlin-sdk-server:0.15.0` is compiled against `kotlin-stdlib 2.4.0`; a 2.3.x compiler rejects its metadata. This plan pins **2.4.10** (latest stable). The root repo's catalog pins 2.3.0 — irrelevant, this is a separate build.
 - **Java 17** everywhere (`BuildConfig.JAVA_VERSION`, `CONTRIBUTING.md`).
-- **Every Gradle invocation runs under flox.** The bare shell has JDK 21; flox supplies JDK 17. From `mcp/`, that is `flox activate -d ../flox/local -- ./gradlew <task>`.
+- **Every Gradle invocation runs under flox, launched from the repo root.** The bare shell has JDK 21; flox supplies JDK 17. The env's `on-activate` hook aborts if activated from anywhere but the repo root, so `flox activate -d ../flox/local` from inside `mcp/` **fails**. The working form is:
+
+  ```bash
+  cd /Users/eisen/src/CodeOnTheGo
+  flox activate -d flox/local -- bash -c 'cd mcp && ./gradlew <task>'
+  ```
 - **Tabs, LF line endings.** Root Spotless reaches into `mcp/` — its Kotlin target is `fileTree(rootDir)` matching `**/src/*/kotlin/**/*.kt`, and `kotlinGradle` matches `**/*.gradle.kts`. Nothing excludes top-level standalone dirs. `spotlessApply` runs from the **repo root**, never from `mcp/`.
 - **Do not modify** the root `settings.gradle.kts`, `gradle/libs.versions.toml`, or `.mcp.json`. `mcp/` stays absent from the root build, and its dependencies stay out of the shared catalog.
 - **Bind `127.0.0.1` only.** Never `0.0.0.0` — this is an unauthenticated tool server.
@@ -72,7 +77,7 @@ Isolates the single riskiest thing in this plan — the Kotlin 2.4.0 metadata fl
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: a working `mcp/` Gradle build with `io.modelcontextprotocol:kotlin-sdk-server:0.15.0`, `io.ktor:ktor-server-cio:3.5.1`, `io.modelcontextprotocol:kotlin-sdk-client:0.15.0` (test), `io.ktor:ktor-client-cio:3.5.1` (test), `io.ktor:ktor-client-sse:3.5.1` (test), and `kotlin("test")` on the classpath. `application { mainClass = "com.itsaky.androidide.mcp.MainKt" }`.
+- Produces: a working `mcp/` Gradle build with `io.modelcontextprotocol:kotlin-sdk-server:0.15.0`, `io.ktor:ktor-server-cio:3.5.1`, `io.modelcontextprotocol:kotlin-sdk-client:0.15.0` (test), `io.ktor:ktor-client-cio:3.5.1` (test), and `kotlin("test")` on the classpath. There is **no** `ktor-client-sse` artifact — the client SSE plugin ships inside `ktor-client-core`, which arrives transitively via `kotlin-sdk-client`. `application { mainClass = "com.itsaky.androidide.mcp.MainKt" }`.
 
 - [ ] **Step 1: Copy the Gradle wrapper from the repo root**
 
@@ -113,10 +118,11 @@ dependencies {
 	implementation("io.modelcontextprotocol:kotlin-sdk-server:0.15.0")
 	implementation("io.ktor:ktor-server-cio:3.5.1")
 
+	// The client SSE plugin ships inside ktor-client-core, which arrives via
+	// kotlin-sdk-client. There is no separate ktor-client-sse artifact.
 	testImplementation(kotlin("test"))
 	testImplementation("io.modelcontextprotocol:kotlin-sdk-client:0.15.0")
 	testImplementation("io.ktor:ktor-client-cio:3.5.1")
-	testImplementation("io.ktor:ktor-client-sse:3.5.1")
 }
 
 kotlin {
@@ -163,8 +169,8 @@ class SdkResolutionTest {
 - [ ] **Step 6: Run the test**
 
 ```bash
-cd /Users/eisen/src/CodeOnTheGo/mcp
-flox activate -d ../flox/local -- ./gradlew test --tests '*SdkResolutionTest*'
+cd /Users/eisen/src/CodeOnTheGo
+flox activate -d flox/local -- bash -c "cd mcp && ./gradlew test --tests '*SdkResolutionTest*'"
 ```
 
 Expected: **PASS**. This test has no red phase — it asserts the build resolves, and a build that cannot resolve fails to compile rather than failing an assertion.
@@ -278,8 +284,8 @@ class PingTest {
 - [ ] **Step 2: Run the test to verify it fails**
 
 ```bash
-cd /Users/eisen/src/CodeOnTheGo/mcp
-flox activate -d ../flox/local -- ./gradlew test --tests '*PingTest*'
+cd /Users/eisen/src/CodeOnTheGo
+flox activate -d flox/local -- bash -c "cd mcp && ./gradlew test --tests '*PingTest*'"
 ```
 
 Expected: **compilation failure**, `Unresolved reference: cogoMcpServer`. That is the correct red phase — the test names a function that does not exist yet.
@@ -349,22 +355,22 @@ fun main(args: Array<String>) {
 - [ ] **Step 5: Run the tests to verify they pass**
 
 ```bash
-cd /Users/eisen/src/CodeOnTheGo/mcp
-flox activate -d ../flox/local -- ./gradlew test
+cd /Users/eisen/src/CodeOnTheGo
+flox activate -d flox/local -- bash -c "cd mcp && ./gradlew test"
 ```
 
 Expected: **4 tests pass** (1 from `SdkResolutionTest`, 3 from `PingTest`).
 
 Two known failure modes, both with a determinate fix:
-- `NoTransformationFoundException` or a hang on `connect` — the Ktor **client** needs the SSE plugin. It is installed in the test above; if the error persists, confirm `io.ktor:ktor-client-sse:3.5.1` is on the test classpath.
+- `NoTransformationFoundException` or a hang on `connect` — the Ktor **client** needs the SSE plugin, which the test installs via `install(SSE)`. The plugin class lives in `ktor-client-core` (arriving transitively through `kotlin-sdk-client`); do not try to add `io.ktor:ktor-client-sse`, which does not exist.
 - A 404 on `/mcp` — the route path default differs from `/mcp`. Pass it explicitly: `mcpStreamableHttp(path = "/mcp") { cogoMcpServer() }`.
 
 - [ ] **Step 6: Verify the server runs for real**
 
 ```bash
-cd /Users/eisen/src/CodeOnTheGo/mcp
-flox activate -d ../flox/local -- ./gradlew run &
-sleep 15
+cd /Users/eisen/src/CodeOnTheGo
+flox activate -d flox/local -- bash -c "cd mcp && ./gradlew run" &
+sleep 20
 curl -sS -i -X POST http://127.0.0.1:3000/mcp \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
@@ -413,9 +419,12 @@ scaffolding that proves the transport. adb-backed tools land incrementally.
 
 ## Run
 
+The flox environment's `on-activate` hook aborts unless it is activated from
+the repo root, so activate there and `cd` in afterwards:
+
 ```bash
-# from mcp/
-flox activate -d ../flox/local -- ./gradlew run
+# from the repo root
+flox activate -d flox/local -- bash -c 'cd mcp && ./gradlew run'
 ```
 
 Listens on `http://127.0.0.1:3000/mcp`. Pass a different port as the first
@@ -427,7 +436,8 @@ non-loopback interface would require both TLS and authentication first.
 ## Test
 
 ```bash
-flox activate -d ../flox/local -- ./gradlew test
+# from the repo root
+flox activate -d flox/local -- bash -c 'cd mcp && ./gradlew test'
 ```
 
 ## Register with an MCP client
@@ -460,8 +470,8 @@ once you are actually using it:
 - [ ] **Step 2: Full verification from a clean build**
 
 ```bash
-cd /Users/eisen/src/CodeOnTheGo/mcp
-flox activate -d ../flox/local -- ./gradlew clean test
+cd /Users/eisen/src/CodeOnTheGo
+flox activate -d flox/local -- bash -c "cd mcp && ./gradlew clean test"
 cd /Users/eisen/src/CodeOnTheGo
 flox activate -d flox/local -- ./gradlew spotlessCheck
 ```
@@ -552,7 +562,7 @@ jira issue comment add ADFA-5083 "PR opened into stage. Hello-world server is gr
 
 ## Definition of Done
 
-- [ ] `flox activate -d ../flox/local -- ./gradlew run` from `mcp/` serves `127.0.0.1:3000/mcp`
+- [ ] `flox activate -d flox/local -- bash -c 'cd mcp && ./gradlew run'` from the repo root serves `127.0.0.1:3000/mcp`
 - [ ] All 4 tests pass from a clean build
 - [ ] Root `./gradlew spotlessCheck` passes
 - [ ] `mcp/README.md` documents run, test, and registration
