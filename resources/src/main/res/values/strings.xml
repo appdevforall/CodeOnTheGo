@@ -135,10 +135,12 @@
 	<string name="msg_confirm_open_project">Do you want to open the last opened project? The project was:\n%s</string>
 	<string name="title_close_project">Close this project</string>
 	<string name="msg_opened_project_does_not_exist">Last opened project doesn\'t exist.</string>
+	<string name="msg_deeplink_invalid_link">This link could not be opened.</string>
 	<string name="msg_deeplink_project_not_found">No project named \"%s\" was found.</string>
 	<string name="msg_deeplink_file_not_found">File \"%s\" was not found in the project.</string>
 	<string name="msg_deeplink_invalid_line">\"%s\" is not a valid line number.</string>
 	<string name="msg_deeplink_invalid_column">\"%s\" is not a valid column number.</string>
+	<string name="msg_deeplink_scan_failed">Could not scan projects for this link.</string>
 	<string name="msg_create_new_project">Create new project</string>
 	<string name="msg_open_existing_project">Open a saved project</string>
 	<string name="msg_delete_existing_project">Delete a saved project</string>

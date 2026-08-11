@@ -20,9 +20,11 @@ package com.itsaky.androidide.activities
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.models.DeepLinkRequest
+import com.itsaky.androidide.resources.R.string
 
 /**
  * The sole `<intent-filter>` holder for `https://www.appdevforall.org/device/open/project/...` App
@@ -40,6 +42,9 @@ class DeepLinkActivity : Activity() {
 
 		val request = DeepLinkRequest.parse(intent?.data)
 		if (request == null) {
+			// A Toast, not flashError -- this activity finishes immediately below, tearing down its
+			// window before a view-based Flashbar could ever render.
+			Toast.makeText(this, getString(string.msg_deeplink_invalid_link), Toast.LENGTH_LONG).show()
 			finish()
 			return
 		}
