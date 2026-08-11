@@ -44,23 +44,22 @@ import com.itsaky.androidide.models.Range;
 import com.itsaky.androidide.models.SearchResult;
 import com.itsaky.androidide.tasks.TaskExecutor;
 import com.itsaky.androidide.ui.CodeEditorView;
-import com.itsaky.androidide.utils.FileIOUtils;
 import com.itsaky.androidide.utils.FileUtils;
 import com.itsaky.androidide.utils.FlashbarActivityUtilsKt;
 import com.itsaky.androidide.utils.FlashbarUtilsKt;
 import com.itsaky.androidide.utils.LSPUtils;
 import io.github.rosemoe.sora.lang.diagnostic.DiagnosticsContainer;
-import io.github.rosemoe.sora.text.Content;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import kotlin.Unit;
 import org.slf4j.Logger;
@@ -106,6 +105,9 @@ public class IDELanguageClientImpl implements ILanguageClient {
 	}
 
 	private final Map<File, List<DiagnosticItem>> diagnostics = new HashMap<>();
+
+	/** Identifies the most recent {@link #showLocations(List)} request; older ones must not publish. */
+	private final AtomicInteger showLocationsRequest = new AtomicInteger();
 
 	protected EditorHandlerActivity activity;
 
@@ -271,56 +273,74 @@ public class IDELanguageClientImpl implements ILanguageClient {
 			return;
 		}
 
-		boolean error = locations == null || locations.isEmpty();
-		activity.handleSearchResultVisibility(error);
+		// Claims the panel for this request. The publish below is asynchronous, so without this a slow
+		// request that started first would land last and overwrite the newer search the user is looking at.
+		final int request = showLocationsRequest.incrementAndGet();
 
+		boolean error = locations == null || locations.isEmpty();
 		if (error) {
+			activity.handleSearchResultVisibility(true);
 			activity
 					.setSearchResultAdapter(
 							new SearchListAdapter(Collections.emptyMap(), this::noOp, this::noOp));
 			return;
 		}
 
-		final Map<File, List<SearchResult>> results = new HashMap<>();
-		for (int i = 0; i < locations.size(); i++) {
-			try {
-				final Location loc = locations.get(i);
-				if (loc == null) {
-					continue;
-				}
+		// Group by file first. Reads then cost one pass per file instead of one full read per hit, which
+		// is what this used to do - and it did it on this thread. See SearchResultGrouping.
+		final Map<File, List<Location>> byFile = new LinkedHashMap<>();
+		for (final Location loc : locations) {
+			if (loc == null) {
+				continue;
+			}
+			byFile.computeIfAbsent(loc.getFile().toFile(), f -> new ArrayList<>()).add(loc);
+		}
 
-				final File file = loc.getFile().toFile();
-				if (!file.exists() || !file.isFile()) {
-					continue;
+		// A file with an open editor is resolved here, on the UI thread: its Content is live UI state
+		// that a background thread must not touch, and pulling a few lines out of it is substring work
+		// with no I/O. Everything else is read off this thread below.
+		final Map<File, List<SearchResult>> fromEditors = new HashMap<>();
+		final Map<File, List<Location>> onDisk = new LinkedHashMap<>();
+		for (final Map.Entry<File, List<Location>> entry : byFile.entrySet()) {
+			final var frag = findEditorByFile(entry.getKey());
+			if (frag != null && frag.getEditor() != null) {
+				final List<SearchResult> rows = SearchResultGrouping.INSTANCE.resultsFor(
+						entry.getKey(), entry.getValue(), frag.getEditor().getText());
+				if (!rows.isEmpty()) {
+					fromEditors.put(entry.getKey(), rows);
 				}
-				var frag = findEditorByFile(file);
-				Content content;
-				if (frag != null && frag.getEditor() != null) {
-					content = frag.getEditor().getText();
-				} else {
-					content = new Content(FileIOUtils.readFile2String(file));
-				}
-				final List<SearchResult> matches = results.containsKey(file) ? results.get(file) : new ArrayList<>();
-				Objects.requireNonNull(matches)
-						.add(
-								new SearchResult(
-										loc.getRange(),
-										file,
-										content.getLineString(loc.getRange().getStart().getLine()),
-										content
-												.subContent(
-														loc.getRange().getStart().getLine(),
-														loc.getRange().getStart().getColumn(),
-														loc.getRange().getEnd().getLine(),
-														loc.getRange().getEnd().getColumn())
-												.toString()));
-				results.put(file, matches);
-			} catch (Throwable th) {
-				LOG.error("Failed to show file location", th);
+			} else {
+				onDisk.put(entry.getKey(), entry.getValue());
 			}
 		}
 
-		activity.handleSearchResults(results);
+		if (onDisk.isEmpty()) {
+			publishLocations(fromEditors);
+			return;
+		}
+
+		// Some other search may publish (and bump the generation) while the read is in flight; capture it
+		// here so this request does not overwrite whatever replaced it.
+		final int generation = activity.getEditorViewModel().getCurrentSearchGeneration();
+
+		TaskExecutor.executeAsyncProvideError(
+				() -> SearchResultGrouping.INSTANCE.readFromDisk(onDisk),
+				(result, throwable) -> {
+					if (!canUseActivity()
+							|| request != showLocationsRequest.get()
+							|| generation != activity.getEditorViewModel().getCurrentSearchGeneration()) {
+						// Superseded, or the activity went away. Leave the panel to whoever owns it now: this
+						// request's results would be an answer to a question no longer on screen.
+						return;
+					}
+					final Map<File, List<SearchResult>> merged = new HashMap<>(fromEditors);
+					if (result != null) {
+						merged.putAll(result);
+					} else {
+						LOG.error("Failed to read search result files", throwable);
+					}
+					publishLocations(merged);
+				});
 	}
 
 	private Boolean applyActionEdits(@Nullable final IDEEditor editor, final CodeActionItem action) {
@@ -475,5 +495,15 @@ public class IDELanguageClientImpl implements ILanguageClient {
 
 	private Unit noOp(final Object obj) {
 		return Unit.INSTANCE;
+	}
+
+	/**
+	 * Shows {@code results} in the search panel.
+	 *
+	 * Visibility and rows are committed together: a publish that never happens - superseded, or the activity recreated mid-read - must not leave the panel open with the "no results" placeholder hidden over the previous query's rows.
+	 */
+	private void publishLocations(final Map<File, List<SearchResult>> results) {
+		activity.handleSearchResultVisibility(results.isEmpty());
+		activity.handleSearchResults(results);
 	}
 }

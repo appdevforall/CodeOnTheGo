@@ -8,8 +8,9 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.membersToImplement
 import com.itsaky.androidide.lsp.kotlin.utils.renderOverrideStub
@@ -20,6 +21,7 @@ import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.createJobCancelChecker
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
@@ -52,7 +54,7 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 		val offset = data.requireEditor().cursor.left
 		val env = server.compilationEnvironmentFor(nioPath) ?: return emptyList()
 		// Ties the analysis to this action's coroutine: cancelling the action aborts the queued analysis.
-		return computeImplementMembersEdit(env, nioPath, offset, ScheduledCancelChecker(createJobCancelChecker()))
+		return computeImplementMembersEdit(env, nioPath, offset, createJobCancelChecker())
 	}
 
 	/**
@@ -70,27 +72,39 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 		env: AbstractCompilationEnvironment,
 		nioPath: Path,
 		offset: Int,
-		cancelChecker: ScheduledCancelChecker,
+		cancelChecker: ICancelChecker,
 	): List<TextEdit> =
 		runCatching {
-			val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return emptyList()
-			env.project.read {
-				val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
-				analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
-					val classSymbol = classOrObject.symbol as? KaClassSymbol ?: return@analyzeMaybeDangling emptyList()
-					if (!isImplementable(classSymbol)) return@analyzeMaybeDangling emptyList()
+			// A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
+			// preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and the
+			// action silently inserted nothing. The file is re-fetched per attempt because the preemptor
+			// also refreshed the live PSI.
+			retryingOnPreemption(cancelChecker, "Implement members for $nioPath") { checker ->
+				val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return@retryingOnPreemption emptyList()
+				env.project.read {
+					val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
+					analyzeMaybeDangling(ktFile, AnalysisPriority.COMMAND, checker) {
+						val classSymbol = classOrObject.symbol as? KaClassSymbol ?: return@analyzeMaybeDangling emptyList()
+						if (!isImplementable(classSymbol)) return@analyzeMaybeDangling emptyList()
 
-					val classIndent = classIndentOf(ktFile, classOrObject)
-					val unit = detectIndentUnit(ktFile.text)
-					val memberIndent = memberIndentOf(ktFile, classOrObject, classIndent, unit)
-					val stubs = membersToImplement(classSymbol).mapNotNull { renderOverrideStub(it, memberIndent, unit) }
-					if (stubs.isEmpty()) return@analyzeMaybeDangling emptyList()
+						val classIndent = classIndentOf(ktFile, classOrObject)
+						val unit = detectIndentUnit(ktFile.text)
+						val memberIndent = memberIndentOf(ktFile, classOrObject, classIndent, unit)
+						val stubs = membersToImplement(classSymbol).mapNotNull { renderOverrideStub(it, memberIndent, unit) }
+						if (stubs.isEmpty()) return@analyzeMaybeDangling emptyList()
 
-					buildInsertionEdit(ktFile, classOrObject, stubs, classIndent)
+						buildInsertionEdit(ktFile, classOrObject, stubs, classIndent)
+					}
 				}
 			}
 		}.getOrElse { e ->
-			logger.warn("Failed to compute implement-members edit", e)
+			if (e.isAnalysisCancellation()) {
+				// Cancelled, or preempted past the retry above: not a failure, and warn-logging it would
+				// bury the ones that are.
+				logger.debug("Implement-members edit for {} was cancelled", nioPath, e)
+			} else {
+				logger.warn("Failed to compute implement-members edit", e)
+			}
 			emptyList()
 		}
 
