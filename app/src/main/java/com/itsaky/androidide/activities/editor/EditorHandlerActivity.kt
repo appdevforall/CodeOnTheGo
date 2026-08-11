@@ -1824,9 +1824,22 @@ open class EditorHandlerActivity :
 	// user actually confirmed opening.
 	private var activeProjectCloseDialog: AlertDialog? = null
 
+	// Identifies the most recent deep-link-triggered close request (confirmProjectClose calls with
+	// a non-null onClosed). "Save and close" runs saveAllAsync asynchronously, so an older request's
+	// completion callback can still fire after a newer request's dialog has already been answered --
+	// contentOrNull only turns null once onStop()/onDestroy() runs, well after finish() is called.
+	// Without this token, that late callback would overwrite PendingDeepLinkOpen.value with the
+	// superseded project. Only the request that owns the current token is allowed to act.
+	private var currentDeepLinkCloseToken: Any? = null
+
 	private fun confirmProjectClose(onClosed: (() -> Unit)? = null) {
 		val content = contentOrNull ?: return
 		activeProjectCloseDialog?.dismiss()
+
+		val ownToken = onClosed?.let { Any().also { token -> currentDeepLinkCloseToken = token } }
+
+		fun isStillCurrent() = onClosed == null || currentDeepLinkCloseToken === ownToken
+
 		val builder = newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_project_close)
 		builder.setMessage(string.msg_confirm_project_close)
@@ -1836,6 +1849,7 @@ open class EditorHandlerActivity :
 		// OPTION 1: Close without saving
 		builder.setNeutralButton(string.close_without_saving) { dialog, _ ->
 			dialog.dismiss()
+			if (!isStillCurrent()) return@setNeutralButton
 
 			for (i in 0 until editorViewModel.getOpenedFileCount()) {
 				(content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
@@ -1850,7 +1864,14 @@ open class EditorHandlerActivity :
 
 			saveAllAsync(notify = false) {
 				runOnUiThread {
-					if (contentOrNull == null) return@runOnUiThread
+					if (contentOrNull == null || !isStillCurrent()) return@runOnUiThread
+					// saveAll()'s return value is gradleSaved (whether a build file changed), not
+					// "everything saved successfully" -- check actual editor state instead, so a
+					// failed write (disk full, permission) doesn't silently discard unsaved changes.
+					if (hasUnsavedFiles()) {
+						flashError(string.save_failed)
+						return@runOnUiThread
+					}
 					performCloseAllFiles(manualFinish = true, onClosed = onClosed)
 				}
 				recentProjectsViewModel.updateProjectModifiedDate(
@@ -1941,7 +1962,7 @@ open class EditorHandlerActivity :
 	private fun applyDeepLinkFileRequest(request: PendingFileRequest) {
 		val projectDir = File(IProjectManager.getInstance().projectDirPath)
 		val file = resolveWithinDirectory(projectDir, request.filePath)
-		if (file == null || !file.exists()) {
+		if (file == null || !file.isFile) {
 			flashError(getString(string.msg_deeplink_file_not_found, request.filePath))
 			return
 		}
