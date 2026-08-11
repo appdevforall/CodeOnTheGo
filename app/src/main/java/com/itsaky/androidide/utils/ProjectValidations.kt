@@ -25,13 +25,18 @@ internal fun findValidProjects(projectsRoot: File): List<File> {
  * Resolves [name] directly to `[projectsRoot]/[name]` and validates just that one directory --
  * the O(1) counterpart to [findValidProjects] for callers (e.g. deep links) that already know the
  * exact project name and don't need every project under [projectsRoot] scanned to find it.
+ *
+ * [name] is attacker-controllable (a deep-link URL segment), so it's resolved through
+ * [resolveWithinDirectory] rather than a bare `File(projectsRoot, name)` -- [findValidProjects]
+ * only ever matches against names of directories it already enumerated under [projectsRoot], so it
+ * can't be pointed outside it, but a direct `File(root, name)` join can (e.g. `name = "../../etc"`).
  */
 internal fun findValidProjectByName(
 	projectsRoot: File,
 	name: String,
 ): File? {
 	if (!projectsRoot.isProjectCandidateDir()) return null
-	val candidate = File(projectsRoot, name)
+	val candidate = resolveWithinDirectory(projectsRoot, name) ?: return null
 	return candidate.takeIf { it.isProjectCandidateDir() && isValidProjectDirectory(it) }
 }
 
