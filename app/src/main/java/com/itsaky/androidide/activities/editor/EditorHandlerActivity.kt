@@ -1832,8 +1832,20 @@ open class EditorHandlerActivity :
 	// superseded project. Only the request that owns the current token is allowed to act.
 	private var currentDeepLinkCloseToken: Any? = null
 
+	// True from the moment "Save and close" starts saveAllAsync until its callback runs. saveAllAsync
+	// iterates and mutates editorViewModel's file/editor state on a background coroutine -- a second
+	// confirmProjectClose answered with "Close without saving" while that's in flight would call
+	// performCloseAllFiles synchronously on the main thread against the same state, racing the save.
+	// The token above only stops a stale *result* from winning; it can't stop this concurrent access.
+	private var closeInProgress = false
+
 	private fun confirmProjectClose(onClosed: (() -> Unit)? = null) {
 		val content = contentOrNull ?: return
+		if (closeInProgress) {
+			// A save-and-close is still writing files; dropping this request instead of showing a new
+			// dialog avoids racing that write. The user can retry once it finishes.
+			return
+		}
 		activeProjectCloseDialog?.dismiss()
 
 		val ownToken = onClosed?.let { Any().also { token -> currentDeepLinkCloseToken = token } }
@@ -1862,8 +1874,10 @@ open class EditorHandlerActivity :
 		builder.setPositiveButton(string.save_and_close) { dialog, _ ->
 			dialog.dismiss()
 
+			closeInProgress = true
 			saveAllAsync(notify = false) {
 				runOnUiThread {
+					closeInProgress = false
 					if (contentOrNull == null || !isStillCurrent()) return@runOnUiThread
 					// saveAll()'s return value is gradleSaved (whether a build file changed), not
 					// "everything saved successfully" -- check actual editor state instead, so a
