@@ -6,7 +6,7 @@
 
 Bind the expression at the cursor, or the selected one, to a new local `val`, and replace the occurrences of that expression with the new name.
 
-This is the first *interactive* Kotlin code action: the user chooses an expression, a name, a target scope and whether to replace other occurrences, so it needs a real UI surface rather than a fire-and-forget edit. Where that UI lives is [ADR 0012](../adr/0012-refactoring-ui-lives-in-the-owning-lsp-module.md); what it refuses to do is the decline-rather-than-rewrite principle, recorded as ADR 0013 alongside extract method (ADFA-5080).
+This is the first *interactive* Kotlin code action: the user chooses an expression, a name, a target scope and whether to replace other occurrences, so it needs a real UI surface rather than a fire-and-forget edit. Where that UI lives is [ADR 0012](../adr/0012-refactoring-ui-lives-in-the-owning-lsp-module.md); what it refuses to do is [ADR 0013](../adr/0013-refactorings-decline-rather-than-rewrite.md).
 
 ## Language
 
@@ -264,8 +264,8 @@ Unit tests in `:lsp:kotlin` (`flox activate -d flox/local -- ./gradlew :lsp:kotl
 ## Related
 
 - [ADR 0012](../adr/0012-refactoring-ui-lives-in-the-owning-lsp-module.md) - refactoring UI lives in the owning LSP module
-- ADR 0013 - refactorings decline rather than rewrite unselected code (lands with extract method, ADFA-5080)
+- [ADR 0013](../adr/0013-refactorings-decline-rather-than-rewrite.md) - refactorings decline rather than rewrite unselected code
 - [ADR 0009](../adr/0009-jetpack-compose-for-new-ui.md) - Compose, UDF, `ViewModel` + `StateFlow`
 - [ADR 0010](../adr/0010-navigation-resolves-via-analysis-api.md) - the K2 Analysis API as the Kotlin semantic source of truth
-- ADFA-5080 - extract method, the sibling refactoring; it reuses this vocabulary and these primitives
+- [kotlin-extract-method.md](kotlin-extract-method.md) - ADFA-5080, the sibling refactoring
 - [ARCHITECTURE.md](../../ARCHITECTURE.md)
