@@ -19,12 +19,19 @@ package com.itsaky.androidide.utils
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.Files
 
 class PathTraversalTest {
 	private val baseDir = File("/project/root")
 	private val nulCharacter = 0.toChar()
+
+	@JvmField
+	@Rule
+	val tempFolder = TemporaryFolder()
 
 	@Test
 	fun `plain relative path resolves inside base`() {
@@ -75,5 +82,28 @@ class PathTraversalTest {
 	fun `multi-segment path resolves and normalizes redundant separators`() {
 		val resolved = resolveWithinDirectory(baseDir, "app/src/main/Main.kt")
 		assertEquals(File("/project/root/app/src/main/Main.kt"), resolved)
+	}
+
+	@Test
+	fun `plain file inside a real base directory still resolves`() {
+		val root = tempFolder.newFolder("real-project")
+		File(root, "src").mkdirs()
+		val target = File(root, "src/Main.kt").apply { writeText("fun main() {}") }
+
+		val resolved = resolveWithinDirectory(root, "src/Main.kt")
+		assertEquals(target.canonicalFile, resolved?.canonicalFile)
+	}
+
+	@Test
+	fun `symlink inside base pointing outside it is rejected`() {
+		// Regression test: the lexical/normalize check alone doesn't catch a symlink physically
+		// present inside the project directory (e.g. from a git clone, which supports symlinks) that
+		// points outside it -- resolveWithinDirectory must also verify the real, on-disk path.
+		val root = tempFolder.newFolder("real-project")
+		val outside = tempFolder.newFolder("outside")
+		File(outside, "secret.txt").writeText("secret")
+		Files.createSymbolicLink(File(root, "evil").toPath(), outside.toPath())
+
+		assertNull(resolveWithinDirectory(root, "evil/secret.txt"))
 	}
 }
