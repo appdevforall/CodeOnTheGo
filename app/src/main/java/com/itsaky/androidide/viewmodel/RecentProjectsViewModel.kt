@@ -13,6 +13,7 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
+import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
 import com.itsaky.androidide.utils.readProjectLanguage
@@ -161,9 +162,9 @@ class RecentProjectsViewModel(
 		if (existingProject == null) {
 			val createdAt = getCreatedTime(location)
 			val modifiedAt = getLastModifiedTime(location)
-			val unknown = application.getString(R.string.unknown)
+			val unknown = Language.Unknown.lang
 			val detectedLanguage = readProjectLanguage(File(location))
-			val languageToStore = if (detectedLanguage != "Unknown") detectedLanguage else unknown
+			val languageToStore = if (detectedLanguage != unknown) detectedLanguage else unknown
 			recentProjectDao.insert(
 				RecentProject(
 					location = location,

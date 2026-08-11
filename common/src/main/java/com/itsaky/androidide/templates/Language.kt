@@ -26,4 +26,5 @@ enum class Language(
 ) {
 	Java("Java", "java"),
 	Kotlin("Kotlin", "kt"),
+	Unknown("Unknown", ""),
 }

@@ -10,6 +10,7 @@ import com.itsaky.androidide.databinding.LayoutProjectInfoSheetBinding
 import com.itsaky.androidide.models.ProjectFile
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.roomData.recentproject.RecentProject
+import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.utils.ProjectDetails
 import com.itsaky.androidide.utils.capitalizeString
 import com.itsaky.androidide.utils.formatDate
@@ -133,7 +134,7 @@ class ProjectInfoBottomSheet : BottomSheetDialogFragment() {
 	// BUILD SETUP
 	// -----------------------------
 	private fun bindBuildSetup(details: ProjectDetails) {
-		val unknown = getString(R.string.unknown)
+		val unknown = Language.Unknown.lang
 
 		val languageToDisplay =
 			pLang?.takeIf { it.isNotBlank() && !it.equals(unknown, ignoreCase = true) }

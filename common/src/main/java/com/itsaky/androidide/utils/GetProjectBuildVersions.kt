@@ -106,13 +106,26 @@ suspend fun readJavaVersion(root: File): String =
 		return@withContext match?.groupValues?.get(1) ?: "Unknown"
 	}
 
+/**
+ * Detects the primary programming language of an Android project by scanning its source directory.
+ *
+ * Kotlin source files, including Kotlin script files (`.kts`), take precedence over Java source
+ * files. If no recognized source files are found, or if the expected source directory does not
+ * exist, `"Unknown"` is returned.
+ *
+ * The scan is performed on [Dispatchers.IO] to avoid blocking the calling coroutine.
+ *
+ * @param root the root directory of the project.
+ * @return [Language.Kotlin] if Kotlin source is found, [Language.Java] if only Java
+ * source is found, or [Language.Unknown] if no recognized source is found.
+ */
 suspend fun readProjectLanguage(root: File): String =
 	withContext(Dispatchers.IO) {
 		val srcDir =
 			listOf(
 				File(root, "app/src/main"),
 				File(root, "src/main"),
-			).firstOrNull(File::exists) ?: return@withContext "Unknown"
+			).firstOrNull(File::exists) ?: return@withContext Language.Unknown.lang
 
 		var hasJava = false
 
@@ -126,5 +139,5 @@ suspend fun readProjectLanguage(root: File): String =
 				}
 			}
 
-		if (hasJava) Language.Java.lang else "Unknown"
+		if (hasJava) Language.Java.lang else Language.Unknown.lang
 	}
