@@ -73,9 +73,9 @@ fun resolveWithinDirectory(
 			existingAncestor = existingAncestor.parent ?: return null
 		}
 		if (!existingAncestor.toRealPath().startsWith(realBase)) null else resolved.toFile()
-	} catch (e: InvalidPathException) {
+	} catch (_: InvalidPathException) {
 		null
-	} catch (e: IOException) {
+	} catch (_: IOException) {
 		null
 	}
 }
