@@ -99,6 +99,30 @@ class DeepLinkRequestTest {
 	}
 
 	@Test
+	fun `project name equal to a reserved keyword with no line suffix yields no line`() {
+		val request = parse("https://www.appdevforall.org/device/open/project/line/file/Main.kt")
+		assertEquals(
+			DeepLinkRequest(
+				projectName = "line",
+				fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = null, columnRaw = null),
+			),
+			request,
+		)
+	}
+
+	@Test
+	fun `project name equal to the file keyword does not corrupt the file lookup`() {
+		val request = parse("https://www.appdevforall.org/device/open/project/file/file/Main.kt")
+		assertEquals(
+			DeepLinkRequest(
+				projectName = "file",
+				fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = null, columnRaw = null),
+			),
+			request,
+		)
+	}
+
+	@Test
 	fun `malformed line and column are carried through unparsed, not rejected`() {
 		val request =
 			parse(
