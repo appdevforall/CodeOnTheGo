@@ -129,12 +129,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		// Start WebServer after installation is complete
 		startWebServer()
 
-		val deepLinkRequest =
-			IntentCompat.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
-		if (deepLinkRequest != null) {
-			handleDeepLinkRequest(deepLinkRequest)
-		} else if (savedInstanceState == null) {
-			openLastProject()
+		if (savedInstanceState == null) {
+			val deepLinkRequest =
+				IntentCompat.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
+			if (deepLinkRequest != null) {
+				intent.removeExtra(DeepLinkRequest.EXTRA_KEY) // don't reapply on a later config-change recreate
+				handleDeepLinkRequest(deepLinkRequest)
+			} else {
+				openLastProject()
+			}
 		}
 
 		if (FeatureFlags.isExperimentsEnabled) {
