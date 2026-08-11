@@ -63,9 +63,9 @@ As with extract variable: **no `prepare()` visibility gate** (deciding extractab
 
 Restricting to siblings in one block excludes every hard case - a selection covering half an `if` and half its `else`, a range straddling a lambda boundary - by construction rather than by later filtering, exactly as `isLegalExtractionTarget` excludes expression fragments today.
 
-**R3 - Live offsets and the version guard.** Identical to extract variable: analysis runs against `getCurrentKtFile(path)` fetched *before* entering `project.read`, the plan records the document version, and the version is re-read on confirm with a mismatch refusing the edit. Shared via the `RefactoringPlan` supertype.
+**R3 - Live offsets and the version guard.** Identical to extract variable: analysis runs against `getCurrentKtFile(path)` fetched *before* entering `project.read`, the plan records the document version (on the `RefactoringPlan` supertype), and each action re-reads the version on confirm with a mismatch refusing the edit.
 
-**R4 - Target.** One uniform rule, no target picker: **the new function is inserted as a sibling of the enclosing declaration**, immediately after it. That one rule produces the conventional answer in every context:
+**R4 - Target.** One uniform rule, no target picker: **the new function is inserted as a sibling of the enclosing declaration** - immediately after it, except for a local `fun` target, where it goes immediately *before* it. A local function is only visible from its declaration onward, so it has to be declared above the code that calls it; every other target has no such constraint. That one rule produces the conventional answer in every context:
 
 | The region sits in | The new function becomes |
 |---|---|
@@ -81,7 +81,7 @@ Unlike extract variable there is no scope chain and no ceiling, because anything
 
 - **Order** - first textual appearance in the region, so the signature reads in the order the body uses it.
 - **Names** - the original identifier, unchanged. `it` becomes a parameter literally named `it`, which is legal Kotlin, and the call site passes `it`.
-- **Types** - the resolved type rendered with the existing `renderName(KaType)`. A type that cannot be rendered - an anonymous or intersection type, or a resolution failure - **declines the extraction** (`UnrenderableType`) rather than emitting uncompilable text.
+- **Types** - the resolved type rendered **fully qualified** (`KaTypeRendererForSource.WITH_QUALIFIED_NAMES`), so `java.util.Date` rather than `Date`. Verbose, but a short name resolves only when the file already imports it, and a local's type usually comes from inference rather than a spelled-out type reference - this refactoring adds no imports. A **platform type** is emitted as its lower bound: the renderer prints `String!`, which does not parse, and the lower bound is both what IntelliJ writes and what the moved body already assumes. A type that cannot be rendered - anonymous, intersection, a resolution failure, or a `!` the lower bound did not remove (a platform type on a type *argument*) - **declines the extraction** (`UnrenderableType`) rather than emitting uncompilable text. A value whose type is a class declared inside the enclosing declaration declines too (`CapturedLocalDeclaration`): the value survives the move, its type name does not.
 - **Not editable.** The derived signature is shown read-only (R11). Renaming, reordering or excluding parameters is a desktop-sized dialog; a wrong parameter *name* is fixable afterwards with rename (ADFA-4825), and a wrong parameter *set* is not something the user could correct by hand anyway.
 
 **R6 - Return type and call-site form.** Determined by the region kind and its output:
@@ -95,7 +95,7 @@ Unlike extract variable there is no scope chain and no ceiling, because anything
 
 A region that always throws still declares `Unit`; the exception propagates and the call site behaves identically, so `throw` needs no rule of its own.
 
-**R7 - Outputs.** An output is a local declared inside the region and read after it. Exactly one is supported; **two or more declines** (`MultipleOutputs`, naming them).
+**R7 - Outputs.** An output is a local declared inside the region and read after it. Exactly one plain `val`/`var` is supported; **two or more declines** (`MultipleOutputs`, naming them), and a single output the call site cannot receive back declines separately (`OutputNotReturnable`, naming it) - a destructuring entry or a local `fun`, which a `val` cannot stand in for, or a local the following code reassigns, which a `val` cannot be. The two are distinct refusals because "produces more than one value" is simply untrue of the second, and a refusal that misdescribes the situation teaches nothing.
 
 A `var` declared outside the region and **reassigned inside it declines** (`ReassignsOuterVar`, naming the variable), because Kotlin has no `out` parameters and the faithful emission - a parameter plus `var x = x` at the top of the body - carries a name-shadowing warning into generated code. This is deliberately stricter than dataflow requires: a reassignment whose result is never read afterwards is still refused, because proving that needs real liveness analysis. ADFA-5082 tracks supporting it.
 
@@ -116,7 +116,7 @@ Declined: a `return` anywhere but the tail position, a `break`/`continue` whose 
 **R10 - Modifiers.** Copy nothing from the enclosing declaration; add only what the body needs in order to compile in its new home.
 
 - **Visibility** - always `private`, whether a class member or top-level. Never `internal`, never `open`, no annotations copied, no KDoc generated.
-- **`suspend`** - added when any call in the region resolves to a suspend function, or the region references `coroutineContext`. The call site is necessarily already a suspend context.
+- **`suspend`** - added when any call in the region resolves to a suspend function, or the region references `coroutineContext`. The call site is necessarily already a suspend context. **Not** added for a suspension the region only performs inside a *nested* suspend-typed lambda - `scope.launch { }`, `runBlocking { }`, any `suspend () -> T` parameter: the region carries that lambda with it, so the new function needs no `suspend`, and adding it breaks a call site that is not itself a suspend context. An ordinary inline lambda (`forEach`, `let`, `run`) is not one of these and still propagates `suspend` outwards.
 - **`@Composable`** - added when any call in the region resolves to a `@Composable`-annotated function. This is not polish: CoGo users write Compose apps on the device, and an extracted composable without the annotation does not compile.
 - **Function-level type parameters** - a region referencing a type parameter declared on the *enclosing function* **declines** (`UsesTypeParameter`, naming it). Class-level type parameters need no rule; they stay in scope for a member. A filtered copy of the enclosing type-parameter list with its bounds would mean deciding "is `T` referenced" from rendered type text, which is fragile.
 
@@ -143,7 +143,9 @@ Including inherited names is a correctness requirement, not a nicety: a private 
 | Reason | Message intent |
 |---|---|
 | `NotASingleRegion` | select an expression, or whole statements inside one block |
+| `CouldNotAnalyse` | the analysis could not run - deliberately neutral, since the selection may have been fine |
 | `MultipleOutputs` | the selection produces more than one value |
+| `OutputNotReturnable` | the selection produces `<name>`, which cannot be handed back as a return value |
 | `ReassignsOuterVar` | the selection assigns to `<name>`, declared outside it |
 | `ExitsRegion` | the selection jumps out of itself (`return`/`break`/`continue`) |
 | `InnerImplicitReceiver` | the selection uses members of an enclosing `with`/`apply` receiver |
@@ -153,13 +155,15 @@ Including inherited names is a correctness requirement, not a nicety: a private 
 | `SmartCastParameter` | the selection uses `<name>` under a smart cast that does not hold outside it |
 | `CapturedLocalDeclaration` | the selection uses `<name>`, which goes out of scope once the selection moves |
 
-Eight of the ten are actionable - they tell the user what to change - and several (`ReassignsOuterVar`, `InnerImplicitReceiver`, `UsesBackingField`) are common enough that a generic message would read as the feature being broken. Given how much of this design is "decline cleanly", the refusal text is a first-class part of the feature. New entries in `resources/.../values/strings.xml`, picked up by the next translation batch.
+All but `CouldNotAnalyse` are actionable - they tell the user what to change - and several (`ReassignsOuterVar`, `InnerImplicitReceiver`, `UsesBackingField`) are common enough that a generic message would read as the feature being broken. `CouldNotAnalyse` exists precisely so the others stay truthful: a missing compilation environment, an unreachable `KtFile` or a thrown analysis error must not be reported as `NotASingleRegion`, which blames a selection nothing ever looked at. Given how much of this design is "decline cleanly", the refusal text is a first-class part of the feature. New entries in `resources/.../values/strings.xml`, picked up by the next translation batch.
+
+Cancellation is not a refusal at all: `buildExtractMethodPlan` re-throws `CancellationException` (which `AnalysisPreemptedException` is), so a cancelled action ends silently rather than flashing at a user who has moved on.
 
 The refusal lives on `ExtractMethodPlan` only; extract variable keeps its single "nothing to extract" behaviour unchanged.
 
-**R15 - Edit.** Two regions change - the region becomes a call, and the new function appears after the enclosing declaration - emitted as **two `TextEdit`s in one `DocumentChange`, ordered new-function-first (descending document order)**.
+**R15 - Edit.** Two regions change - the region becomes a call, and the new function appears next to the enclosing declaration - emitted as **two `TextEdit`s in one `DocumentChange`, sorted by descending start offset**.
 
-The ordering is mandatory, not stylistic. `IDELanguageClientImpl.applyActionEdits` iterates the edit list in order and `editInEditor` applies each with **line/column** ranges against whatever the text is at that moment (the `index` in `Position` is ignored). Emitting the call site first would shift the insertion point and corrupt the file.
+The ordering is mandatory, not stylistic. `IDELanguageClientImpl.applyActionEdits` iterates the edit list in order and `editInEditor` applies each with **line/column** ranges against whatever the text is at that moment (the `index` in `Position` is ignored), so an earlier edit must never shift a later one. Which edit leads follows from R4 rather than being fixed: a member or top-level target is inserted *after* its anchor, so the new function leads; a **local `fun` target is inserted before** its anchor, so the call site leads.
 
 **Known consequence:** nothing on that path calls `beginBatchEdit`, so this is **two undo entries**, and a single undo leaves a half-refactored, non-compiling file. This knowingly diverges from `RewriteSpan`'s single-replacement rule, which extract variable relies on. **ADFA-5081** fixes it properly by batching the edit loop in `applyActionEdits`, which benefits every multi-edit action; until it lands, the two-step undo is a stated limitation to be covered in QA.
 
@@ -249,7 +253,7 @@ New files, all in `lsp/kotlin`:
 
 Reused from extract variable unchanged: `TextSpan`, `collapseForLabel`, `candidateExpressionsAt` / `CandidateSyntax`, `isExtractionPosition`, `enclosingExecutableBody`, `NameProblem` + `validateVariableName`, `suggestVariableName`, `detectIndentUnit`, `detectNewline`, `leadingIndentAt`, `lineStartOffset`, `RewriteSpan` + `toTextEdit`, `positionAt`, `renderName`.
 
-Deliberately **not** reused: `ScopeOption`, `AnchorForm` and `CandidateExpression`. Each is shaped by the legal scope chain, which this refactoring does not have (R4) - so the two refactorings share primitives, not the aggregate. What they do share is hoisted into the sealed `RefactoringPlan` (`fileText`, `documentVersion`, the version guard), introduced in the extract-variable PR so this one is purely additive.
+Deliberately **not** reused: `ScopeOption`, `AnchorForm` and `CandidateExpression`. Each is shaped by the legal scope chain, which this refactoring does not have (R4) - so the two refactorings share primitives, not the aggregate. What they do share is hoisted into the sealed `RefactoringPlan` (`fileText` and `documentVersion`), introduced in the extract-variable PR so this one is purely additive. The version *guard* itself - reading the live version and comparing - stays in each action rather than on the supertype, since it needs the `ActionData` and the action's own "file changed" string; hoisting it is a small cleanup, not a shared primitive today.
 
 Nothing outside `lsp/kotlin` changes except `TooltipTag.kt` and `values/strings.xml`. No new module, no new dependency.
 

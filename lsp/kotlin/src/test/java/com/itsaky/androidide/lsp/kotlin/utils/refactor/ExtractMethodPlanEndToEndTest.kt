@@ -1,10 +1,14 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
+import com.itsaky.androidide.progress.ICancelChecker
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CancellationException
 
 /**
  * The parts of the plan that need real resolution: the parameter set, the return type and call-site
@@ -51,8 +55,9 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 		val result = plan(content, content.indexOf("b * a") + 1)
 		val candidate = result.candidates.first { it.label == "b * a" }
 
-		assertEquals(listOf("b" to "Int", "a" to "Int"), candidate.parameters.map { it.name to it.typeText })
-		assertEquals("Int", candidate.returnTypeText)
+		// Types are emitted fully qualified so they resolve without an import the file may not have.
+		assertEquals(listOf("b" to "kotlin.Int", "a" to "kotlin.Int"), candidate.parameters.map { it.name to it.typeText })
+		assertEquals("kotlin.Int", candidate.returnTypeText)
 		assertEquals(listOf("private"), candidate.modifiers)
 	}
 
@@ -94,7 +99,7 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 		val candidate = result.candidates.single()
 
 		assertEquals(CallSiteForm.AssignOutput("doubled"), candidate.callSite)
-		assertEquals("Int", candidate.returnTypeText)
+		assertEquals("kotlin.Int", candidate.returnTypeText)
 	}
 
 	@Test
@@ -152,7 +157,7 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 		val candidate = result.candidates.single()
 
 		assertEquals(CallSiteForm.Return, candidate.callSite)
-		assertEquals("Int", candidate.returnTypeText)
+		assertEquals("kotlin.Int", candidate.returnTypeText)
 		assertEquals(
 			"""
 			package p
@@ -161,7 +166,7 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 				return finish(doubled)
 			}
 
-			private fun finish(doubled: Int): Int {
+			private fun finish(doubled: kotlin.Int): kotlin.Int {
 				return doubled + 1
 			}
 			""".trimIndent(),
@@ -357,7 +362,7 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 					return total(a, b)
 				}
 
-				private fun total(a: Int, b: Int): Int {
+				private fun total(a: kotlin.Int, b: kotlin.Int): kotlin.Int {
 					return a + b
 				}
 			}
@@ -417,11 +422,9 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 			""".trimIndent()
 		val (start, end) = selection(content, "var result", "var result = compute()")
 
-		val refusal = plan(content, start, end).refusal
-
-		// A `val` at the call site cannot carry an output the following code assigns to.
-		assertTrue(refusal is ExtractionRefusal.MultipleOutputs)
-		assertEquals(listOf("result"), (refusal as ExtractionRefusal.MultipleOutputs).names)
+		// A `val` at the call site cannot carry an output the following code assigns to -- which is one
+		// value the call site cannot receive, not "more than one value".
+		assertEquals(ExtractionRefusal.OutputNotReturnable("result"), plan(content, start, end).refusal)
 	}
 
 	@Test
@@ -479,7 +482,7 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 
 		// `helper()` comes from the supertype, not from `with`'s receiver.
 		assertNull(result.refusal)
-		assertEquals("Int", result.candidates.first { it.label == "helper() + 1" }.returnTypeText)
+		assertEquals("kotlin.Int", result.candidates.first { it.label == "helper() + 1" }.returnTypeText)
 	}
 
 	@Test
@@ -533,7 +536,7 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 						backing = value
 					}
 
-				private fun next(): Int {
+				private fun next(): kotlin.Int {
 					return backing + 1
 				}
 			}
@@ -711,7 +714,7 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 			"""
 			package p
 			fun demo(a: Int): Int {
-				fun doubled(b: Int): Int {
+				fun doubled(b: kotlin.Int): kotlin.Int {
 					return b * 2
 				}
 
@@ -853,6 +856,290 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 			ExtractionRefusal.SmartCastParameter("value"),
 			plan(content, content.indexOf("value.length + 1") + 1).refusal,
 		)
+	}
+
+	@Test
+	fun `a file the analysis cannot reach is declined as not analysable, not as a bad selection`() {
+		createSourceFile("Main.kt", "package p\n")
+		val missing = env.sourceRoots.first().resolve("Absent.kt")
+
+		// "Select an expression, or whole statements inside one block" would blame a selection that
+		// never got looked at.
+		assertEquals(
+			ExtractionRefusal.CouldNotAnalyse,
+			buildExtractMethodPlan(env, missing, 0, 0, documentVersion = 1, cancelChecker = noopCancelChecker()).refusal,
+		)
+	}
+
+	@Test
+	fun `cancellation propagates instead of being reported as a refusal`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int): Int {
+				return a * 2
+			}
+			""".trimIndent()
+		createSourceFile("Main.kt", content)
+		val path = env.sourceRoots.first().resolve("Main.kt")
+		val cancelled = ScheduledCancelChecker(ICancelChecker.CANCELLED)
+
+		// A cancelled action has no result to report; swallowing this would flash a message at a user
+		// who already moved on.
+		assertThrows(CancellationException::class.java) {
+			buildExtractMethodPlan(
+				env,
+				path,
+				content.indexOf("a * 2"),
+				content.indexOf("a * 2") + 5,
+				documentVersion = 1,
+				cancelChecker = cancelled,
+			)
+		}
+	}
+
+	@Test
+	fun `a type the file does not import is emitted fully qualified`() {
+		val content =
+			"""
+			package p
+			fun demo() {
+				val d = java.util.Date()
+				println(d.time)
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "println(d.time)", "println(d.time)")
+
+		val result = plan(content, start, end)
+		val candidate = result.candidates.single()
+
+		// `Date` came from inference, so the file names it nowhere and a short name would not resolve.
+		assertEquals(listOf("d" to "java.util.Date"), candidate.parameters.map { it.name to it.typeText })
+		assertEquals(
+			"""
+			package p
+			fun demo() {
+				val d = java.util.Date()
+				extracted(d)
+			}
+
+			private fun extracted(d: java.util.Date) {
+				println(d.time)
+			}
+			""".trimIndent(),
+			apply(content, buildExtractMethodRewrites(result.fileText, candidate, "extracted")!!),
+		)
+	}
+
+	@Test
+	fun `a platform type is emitted as its lower bound rather than as String bang`() {
+		val content =
+			"""
+			package p
+			fun demo() {
+				val v = System.getProperty("k")
+				println(v.length)
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "println(v.length)", "println(v.length)")
+
+		val candidate = plan(content, start, end).candidates.single()
+
+		// `String!` is not Kotlin syntax; the lower bound is what the moved body already assumes.
+		assertEquals(listOf("v" to "kotlin.String"), candidate.parameters.map { it.name to it.typeText })
+	}
+
+	@Test
+	fun `a suspend call inside a nested suspend lambda does not add the suspend modifier`() {
+		val content =
+			"""
+			package p
+			suspend fun work() {}
+			fun launchIt(block: suspend () -> Unit) {}
+			fun demo() {
+				launchIt { work() }
+				println("x")
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "launchIt { work() }", "launchIt { work() }")
+
+		val candidate = plan(content, start, end).candidates.single()
+
+		// `demo` is not a suspend context, so a `suspend fun` here would not compile at the call site.
+		assertEquals(listOf("private"), candidate.modifiers)
+	}
+
+	@Test
+	fun `a suspend call inside an ordinary inline lambda still adds the suspend modifier`() {
+		val content =
+			"""
+			package p
+			suspend fun work(n: Int) {}
+			suspend fun demo(items: List<Int>) {
+				items.forEach { work(it) }
+				println("x")
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "items.forEach", "items.forEach { work(it) }")
+
+		val candidate = plan(content, start, end).candidates.single()
+
+		// `forEach`'s lambda runs in the caller's context, so the suspension is the new function's.
+		assertEquals(listOf("private", "suspend"), candidate.modifiers)
+	}
+
+	@Test
+	fun `statements inside a suspend lambda still add the suspend modifier`() {
+		val content =
+			"""
+			package p
+			suspend fun work() {}
+			fun launchIt(block: suspend () -> Unit) {}
+			fun demo() {
+				launchIt {
+					work()
+				}
+			}
+			""".trimIndent()
+		val start = content.indexOf("work()", content.indexOf("launchIt {"))
+
+		val candidate = plan(content, start, start + "work()".length).candidates.single()
+
+		// The region is *inside* the suspend lambda, so its own call site is a suspend context.
+		assertEquals(listOf("private", "suspend"), candidate.modifiers)
+	}
+
+	@Test
+	fun `a qualified selector is not turned into a parameter`() {
+		val content =
+			"""
+			package p
+			class Holder(val n: Int)
+			fun demo(h: Holder): Int {
+				return h.n + 1
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "return h.n + 1", "return h.n + 1")
+
+		val candidate = plan(content, start, end).candidates.single()
+
+		// `n` resolves through `h` wherever the code lives; passing it would name a nonexistent local.
+		assertEquals(listOf("h"), candidate.parameters.map { it.name })
+	}
+
+	@Test
+	fun `a value typed by a local class is declined rather than emitted`() {
+		val content =
+			"""
+			package p
+			fun demo(): Int {
+				class Holder(val n: Int)
+				val h = Holder(1)
+				return h.n + 1
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "return h.n + 1", "return h.n + 1")
+
+		// `Holder` is out of scope at the insertion point, so no parameter for `h` can be written.
+		assertEquals(
+			ExtractionRefusal.CapturedLocalDeclaration("Holder"),
+			plan(content, start, end).refusal,
+		)
+	}
+
+	@Test
+	fun `a local object used as a qualifier is declined rather than dropped`() {
+		val content =
+			"""
+			package p
+			fun demo(): Int {
+				object Cfg { val n = 1 }
+				return Cfg.n + 1
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "return Cfg.n + 1", "return Cfg.n + 1")
+
+		// A class symbol is not callable, so it used to fail the capture cast and vanish silently.
+		assertEquals(
+			ExtractionRefusal.CapturedLocalDeclaration("Cfg"),
+			plan(content, start, end).refusal,
+		)
+	}
+
+	@Test
+	fun `a tail return in a secondary constructor extracts a Unit function`() {
+		val content =
+			"""
+			package p
+			class Foo {
+				constructor(x: Int) {
+					println(x)
+					return
+				}
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "println(x)", "return")
+
+		val result = plan(content, start, end)
+		val candidate = result.candidates.single()
+
+		// A constructor's symbol returns the constructed class, but its `return` carries no value.
+		assertNull(candidate.returnTypeText)
+		assertEquals(
+			"""
+			package p
+			class Foo {
+				constructor(x: Int) {
+					return tail(x)
+				}
+
+				private fun tail(x: kotlin.Int) {
+					println(x)
+					return
+				}
+			}
+			""".trimIndent(),
+			apply(content, buildExtractMethodRewrites(result.fileText, candidate, "tail")!!),
+		)
+	}
+
+	@Test
+	fun `a single destructuring entry read after the region is not reported as more than one value`() {
+		val content =
+			"""
+			package p
+			data class Point(val a: Int, val b: Int)
+			fun demo(p: Point): Int {
+				val (x, y) = p
+				return x + 1
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "val (x, y)", "val (x, y) = p")
+
+		// One value, in a form the call site cannot receive -- not "more than one value".
+		assertEquals(ExtractionRefusal.OutputNotReturnable("x"), plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a local fun target validates its name against the enclosing block, not the class`() {
+		val content =
+			"""
+			package p
+			class C {
+				fun demo(a: Int): Int {
+					fun inner(b: Int): Int {
+						return b * 2
+					}
+					return inner(a)
+				}
+			}
+			""".trimIndent()
+
+		val candidate = plan(content, content.indexOf("b * 2") + 1).candidates.first { it.label == "b * 2" }
+
+		// A sibling local named `inner` is what the new local `fun` would redeclare; `demo` is not.
+		assertTrue("inner" in candidate.takenNames)
+		assertTrue("demo" !in candidate.takenNames)
 	}
 
 	@Test

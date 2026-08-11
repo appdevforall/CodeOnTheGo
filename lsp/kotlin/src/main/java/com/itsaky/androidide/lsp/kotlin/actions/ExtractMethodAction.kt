@@ -59,11 +59,11 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 	override suspend fun execAction(data: ActionData): ExtractMethodPlan {
 		val server =
 			data.get<KotlinLanguageServer>()
-				?: return ExtractMethodPlan.refused(ExtractionRefusal.NotASingleRegion)
+				?: return ExtractMethodPlan.refused(ExtractionRefusal.CouldNotAnalyse)
 		val nioPath = data.requireFile().toPath()
 		val env =
 			server.compilationEnvironmentFor(nioPath)
-				?: return ExtractMethodPlan.refused(ExtractionRefusal.NotASingleRegion)
+				?: return ExtractMethodPlan.refused(ExtractionRefusal.CouldNotAnalyse)
 
 		val cursor = data.requireEditor().cursor
 		return buildExtractMethodPlan(
@@ -86,7 +86,7 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 
 		val context = data.requireContext()
 		if (result.isEmpty) {
-			flashInfo(refusalMessage(context, result.refusal ?: ExtractionRefusal.NotASingleRegion))
+			flashInfo(refusalMessage(context, result.refusal ?: ExtractionRefusal.CouldNotAnalyse))
 			return
 		}
 
@@ -111,8 +111,22 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 	 * The document version is re-read here rather than trusted from the plan: the editor stays
 	 * reachable while the sheet is open, and applying spans computed against older text would corrupt
 	 * the file. Refusing is always safe; the user can invoke the action again.
+	 *
+	 * Runs from the sheet's click handler, outside `execAction` and so outside every guard the action
+	 * framework provides -- nothing here may throw (R16), hence the [runCatching].
 	 */
 	private fun applyChoice(
+		data: ActionData,
+		plan: ExtractMethodPlan,
+		choice: ExtractMethodChoice,
+	) {
+		runCatching { performChoice(data, plan, choice) }.onFailure { error ->
+			logger.error("Failed to apply the extract-method choice '{}'", choice.name, error)
+			flashError(R.string.msg_cannot_perform_fix)
+		}
+	}
+
+	private fun performChoice(
 		data: ActionData,
 		plan: ExtractMethodPlan,
 		choice: ExtractMethodChoice,
@@ -171,8 +185,16 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 				context.getString(R.string.msg_extract_method_not_single_region)
 			}
 
+			ExtractionRefusal.CouldNotAnalyse -> {
+				context.getString(R.string.msg_extract_method_could_not_analyse)
+			}
+
 			is ExtractionRefusal.MultipleOutputs -> {
 				context.getString(R.string.msg_extract_method_multiple_outputs, refusal.names.joinToString(", "))
+			}
+
+			is ExtractionRefusal.OutputNotReturnable -> {
+				context.getString(R.string.msg_extract_method_output_not_returnable, refusal.name)
 			}
 
 			is ExtractionRefusal.ReassignsOuterVar -> {

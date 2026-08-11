@@ -546,7 +546,9 @@
 	<string name="label_extract_method_signature">Signature</string>
 	<string name="msg_extract_method_file_changed">The file changed. Try extracting again.</string>
 	<string name="msg_extract_method_not_single_region">Select an expression, or whole statements inside one block</string>
+	<string name="msg_extract_method_could_not_analyse">Could not analyse the selection. Try again.</string>
 	<string name="msg_extract_method_multiple_outputs">The selection produces more than one value: %1$s</string>
+	<string name="msg_extract_method_output_not_returnable">The selection produces %1$s, which cannot be handed back as a return value</string>
 	<string name="msg_extract_method_reassigns_outer_var">The selection assigns to %1$s, which is declared outside it</string>
 	<string name="msg_extract_method_exits_region">The selection jumps out of itself with return, break or continue</string>
 	<string name="msg_extract_method_inner_implicit_receiver">The selection uses members of the enclosing %1$s receiver</string>

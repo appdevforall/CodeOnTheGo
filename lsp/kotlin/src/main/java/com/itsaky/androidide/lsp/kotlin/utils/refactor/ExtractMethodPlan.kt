@@ -76,12 +76,27 @@ sealed interface ExtractionRefusal {
 	data object NotASingleRegion : ExtractionRefusal
 
 	/**
-	 * The region declares something the code after it still needs, and a single returned value cannot
-	 * carry it (R7): two or more locals, a destructuring declaration, a local `fun` or class, or a
-	 * local the following code reassigns. [names] is what is in the way, so the message can name it.
+	 * The analysis could not run at all -- no compilation environment, no `KtFile`, or something threw.
+	 * Deliberately neutral: the selection may have been perfectly good, so it must not be blamed the way
+	 * [NotASingleRegion] blames it.
+	 */
+	data object CouldNotAnalyse : ExtractionRefusal
+
+	/**
+	 * The region declares two or more values the code after it still needs, and one return cannot carry
+	 * them (R7). [names] is what is in the way, so the message can name them.
 	 */
 	data class MultipleOutputs(
 		val names: List<String>,
+	) : ExtractionRefusal
+
+	/**
+	 * The region declares exactly one thing the code after it still needs, but the call site cannot
+	 * receive it back (R7): a destructuring entry or a local `fun`, which a `val` cannot stand in for,
+	 * or a local the following code reassigns, which a `val` cannot be.
+	 */
+	data class OutputNotReturnable(
+		val name: String,
 	) : ExtractionRefusal
 
 	/** A `var` declared outside the region is assigned inside it. ADFA-5082 lifts this (R7). */
