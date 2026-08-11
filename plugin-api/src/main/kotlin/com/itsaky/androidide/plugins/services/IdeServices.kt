@@ -155,7 +155,7 @@ interface IdeEditorService {
 
 	/**
 	 * Schedules the given file to be opened in the editor. The open itself runs asynchronously
-	 * on the IDE's editor thread — a `true` return means the request was dispatched, not that
+	 * on the IDE's editor thread - a `true` return means the request was dispatched, not that
 	 * the file is already open or that it exists, is readable, or was handled by this IDE
 	 * rather than delegated (image viewer, another plugin, etc.). Poll [isFileOpen] if you
 	 * need to confirm completion.
@@ -216,11 +216,11 @@ interface IdeEditorService {
 	): Boolean
 
 	/**
-	 * Draws (or moves) a remote peer's cursor — a small colored, named caret badge —
+	 * Draws (or moves) a remote peer's cursor - a small colored, named caret badge -
 	 * inside the editor for [file] at the 0-based [line]/[column]. Cursors are keyed by
 	 * [peerId]: calling again for the same (file, peerId) repositions the existing cursor.
 	 * [peerColor] is an ARGB int. No-op (returns false) if the file isn't open in an editor.
-	 * Visual overlay only — never mutates file content. Requires FILESYSTEM_READ.
+	 * Visual overlay only - never mutates file content. Requires FILESYSTEM_READ.
 	 *
 	 * Default-implemented (no-op) so adding it is a backward-compatible interface extension:
 	 * existing implementers and any prebuilt plugin-api lib keep compiling; the host overrides it.
@@ -307,7 +307,7 @@ interface IdeUIService {
 	 * [com.itsaky.androidide.plugins.extensions.ToolbarAction]'s dynamic providers
 	 * ([com.itsaky.androidide.plugins.extensions.ToolbarAction.iconProvider],
 	 * `isEnabledProvider`, `isVisibleProvider`). Call this after changing plugin state
-	 * that those providers depend on — e.g. to swap a toolbar icon between
+	 * that those providers depend on - e.g. to swap a toolbar icon between
 	 * idle/active/processing states.
 	 *
 	 * Safe to call from any thread; the rebuild is marshalled to the UI thread. A no-op

@@ -4,7 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
-import com.itsaky.androidide.activities.editor.PeerPresenceOverlayManager
+import com.itsaky.androidide.activities.editor.PeerCursorOverlayManager
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.models.Position
@@ -44,7 +44,7 @@ class EditorProviderImpl(
 	private val contentCallbacks =
 		java.util.concurrent.CopyOnWriteArrayList<(String, Int, Int, String) -> Unit>()
 	private val peerPresenceOverlay =
-		PeerPresenceOverlayManager { file ->
+		PeerCursorOverlayManager { file ->
 			activity()?.getEditorForFile(file)?.editor
 		}
 
@@ -368,7 +368,7 @@ class EditorProviderImpl(
 	/**
 	 * Resolves the editor for [file], validates [line] (bounds differ between edits that
 	 * mutate an existing line and those that insert a new one), and runs [block] inside a
-	 * single batched edit on the main thread. `existing = true` requires 0 ≤ line < lineCount;
+	 * single batched edit on the main thread. `existing = true` requires 0 <= line < lineCount;
 	 * `existing = false` allows line == lineCount for "insert at end".
 	 */
 	private inline fun lineEdit(
@@ -434,7 +434,7 @@ class EditorProviderImpl(
 	 * Posts [block] to the main thread and blocks the caller until it finishes. If the main
 	 * thread doesn't process the edit within [MAIN_EDIT_TIMEOUT_SECONDS] the call logs a
 	 * warning and returns `false` rather than hanging the plugin's thread or throwing
-	 * through to an uncaught-exception handler — a deadlocked UI should not be able to take
+	 * through to an uncaught-exception handler - a deadlocked UI should not be able to take
 	 * the IDE down with it.
 	 */
 	private inline fun onMain(crossinline block: () -> Boolean): Boolean {

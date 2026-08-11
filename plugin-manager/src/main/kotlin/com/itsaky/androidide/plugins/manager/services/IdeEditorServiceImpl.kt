@@ -31,7 +31,7 @@ class IdeEditorServiceImpl(
 	 * Remote-collaborator presence: draw, move and clear named peer cursors in open editors.
 	 * Split out of [EditorProvider] so peer presence is a focused, separately-named contract
 	 * rather than three more methods on the broad editor-access surface (interface segregation).
-	 * The host bridge implements both through one object. Visual overlay only — never mutates
+	 * The host bridge implements both through one object. Visual overlay only - never mutates
 	 * file content. Each method defaults to a no-op so an implementer can opt in.
 	 */
 	interface PeerPresenceProvider {
@@ -201,7 +201,7 @@ class IdeEditorServiceImpl(
 	/**
 	 * Null-safe "what file is the user looking at, and am I allowed to see it?" used by every
 	 * read method that short-circuits when there's no current file. Assumes the caller already
-	 * ran [requireRead]. Doesn't log and never throws — that's the whole point: these methods
+	 * ran [requireRead]. Doesn't log and never throws - that's the whole point: these methods
 	 * fire constantly and can't afford to run the full public [getCurrentFile] pipeline on
 	 * each call.
 	 */
@@ -479,7 +479,7 @@ class IdeEditorServiceImpl(
 		}
 
 		// No validator wired by the host: if the editor itself has this file open,
-		// the user is already exposed to it — trust that and allow the read.
+		// the user is already exposed to it - trust that and allow the read.
 		val openInEditor = runCatching { editorProvider.isFileOpen(file) }.getOrDefault(false)
 		if (openInEditor) return true
 
@@ -503,8 +503,8 @@ class IdeEditorServiceImpl(
 	}
 
 	// Canonicalised so symlinked roots don't bypass the check; anchored on File.separator at
-	// the match site so e.g. "/…/CodeOnTheGoProjects" doesn't also admit
-	// "/…/CodeOnTheGoProjectsBackup/".
+	// the match site so e.g. "/.../CodeOnTheGoProjects" doesn't also admit
+	// "/.../CodeOnTheGoProjectsBackup/".
 	private val defaultAllowedPaths: List<String> by lazy {
 		val projects = Environment.PROJECTS_FOLDER
 		listOf(

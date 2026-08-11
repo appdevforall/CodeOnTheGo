@@ -27,26 +27,31 @@ import androidx.preference.PreferenceCategory
  * @author Akash Yadav
  */
 abstract class IPreferenceGroup : BasePreference() {
+	/** The preferences. */
+	abstract val children: List<IPreference>
 
-  /** The preferences. */
-  abstract val children: List<IPreference>
+	/** Adds the given preference to the preferences list. */
+	fun addPreference(preference: IPreference) {
+		(children as MutableList).add(preference)
+	}
 
-  /** Adds the given preference to the preferences list. */
-  fun addPreference(preference: IPreference) {
-    (children as MutableList).add(preference)
-  }
+	/** Removes the given preference. */
+	fun removePreference(preference: IPreference) {
+		(children as MutableList).remove(preference)
+	}
 
-  /** Removes the given preference. */
-  fun removePreference(preference: IPreference) {
-    (children as MutableList).remove(preference)
-  }
+	/** Removes the preference at the given index. */
+	fun removePreference(index: Int) {
+		(children as MutableList).removeAt(index)
+	}
 
-  /** Removes the preference at the given index. */
-  fun removePreference(index: Int) {
-    (children as MutableList).removeAt(index)
-  }
+	/**
+	 * Removes every preference from the preferences list, so the group can be rebuilt from scratch.
+	 * Use this rather than casting [children] at the call site.
+	 */
+	fun clearPreferences() {
+		(children as MutableList).clear()
+	}
 
-  override fun onCreatePreference(context: Context): Preference {
-    return PreferenceCategory(context)
-  }
+	override fun onCreatePreference(context: Context): Preference = PreferenceCategory(context)
 }

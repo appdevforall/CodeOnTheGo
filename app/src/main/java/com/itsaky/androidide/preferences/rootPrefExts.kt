@@ -39,7 +39,8 @@ class ConfigurationPreferences(
 		addPreference(BuildAndRunPreferences())
 		addPreference(TermuxPreferences())
 		addPreference(GitPreferencesScreen())
-        addPreference(PluginManagerEntry())
+		addPreference(PluginManagerEntry())
+		pluginSettingsPreferences().forEach { addPreference(it) }
 
 		addPreference(about)
 	}

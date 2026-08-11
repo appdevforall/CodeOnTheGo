@@ -10,9 +10,9 @@ The surface a plugin binds to is broader than one module. All of the following a
 
 - **The `:plugin-api` module** — package `com.itsaky.androidide.plugins.*`:
   - Core: `IPlugin` (lifecycle), `PluginContext`, `PluginLogger`, `ServiceRegistry`, `ResourceManager`.
-  - Extension interfaces plugins **implement**: `UIExtension`, `EditorExtension`, `EditorTabExtension`, `DocumentationExtension`, `BuildActionExtension`, `SnippetExtension`, `ProjectExtension`, `FileOpenExtension`.
+  - Extension interfaces plugins **implement**: `UIExtension`, `EditorExtension`, `EditorTabExtension`, `DocumentationExtension`, `BuildActionExtension`, `SnippetExtension`, `ProjectExtension`, `FileOpenExtension`, `SettingsExtension`.
   - IDE service interfaces plugins **call** (via `ServiceRegistry.get(X::class.java)`): `IdeProjectService`, `IdeEditorService`, `IdeFileService`, `IdeEnvironmentService`, `IdeArchiveService`, `IdeBuildService`, `IdeUIService`, `IdeEditorTabService`, `IdeTooltipService`, `IdeThemeService`, `IdeFeatureFlagService`, `IdeCommandService`, `IdeTemplateService`, `IdeSnippetService`, `IdeSidebarService`.
-  - Data classes plugins **construct** (e.g. `MenuItem`, `TabItem`, `EditorTabItem`, `NavigationItem`, `ToolbarAction`, `FabAction`, `PluginBuildAction`, `SnippetContribution`, `PluginTooltipEntry`).
+  - Data classes plugins **construct** (e.g. `MenuItem`, `TabItem`, `EditorTabItem`, `NavigationItem`, `ToolbarAction`, `FabAction`, `PluginBuildAction`, `SnippetContribution`, `PluginTooltipEntry`, `PluginSettingsEntry`).
   - Enums / sealed types plugins **reference**: `PluginPermission`, `ShowAsAction`, `ArchiveFormat`, `BuildActionCategory`, `ToolbarActionIds`, `CommandSpec`, `CommandResult`, `ExtractResult`.
 - **Wire/format contracts outside the module:**
   - Manifest `<meta-data>` keys — `plugin.id`, `plugin.name`, `plugin.version`, `plugin.description`, `plugin.author`, `plugin.main_class`, `plugin.min_ide_version`, `plugin.max_ide_version`, `plugin.permissions`, `plugin.sidebar_items`, `plugin.icon_day`, `plugin.icon_night`. Matched **by string** — a rename silently breaks every plugin.

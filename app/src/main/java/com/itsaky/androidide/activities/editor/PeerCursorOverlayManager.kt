@@ -17,7 +17,7 @@ import java.io.File
  *
  * All methods must be called on the main thread (the editor view is touched directly).
  */
-class PeerPresenceOverlayManager(
+class PeerCursorOverlayManager(
 	private val editorForFile: (File) -> CodeEditor?,
 ) {
 	private val markers: HashMap<String, HashMap<String, PeerCursorWindow>> = HashMap()

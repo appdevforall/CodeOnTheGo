@@ -19,6 +19,8 @@ import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.EditorDecorationProvider
 import com.itsaky.androidide.plugins.extensions.FileOpenExtension
 import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
+import com.itsaky.androidide.plugins.extensions.PluginSettingsEntry
+import com.itsaky.androidide.plugins.extensions.SettingsExtension
 import com.itsaky.androidide.plugins.extensions.SnippetExtension
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
@@ -106,18 +108,31 @@ class PluginManager private constructor(
 		fun getAllowedPaths(): List<String>
 	}
 
+	@Volatile
 	private var activityProvider: ActivityProvider? = null
 	private var pathValidator: PluginPathValidator? = null
+
+	@Volatile
 	private var editorProvider: IdeEditorServiceImpl.EditorProvider? = null
 
 	/**
-	 * Callbacks added by plugins before any real provider was set. We hold them here and
-	 * replay onto a real provider when one is registered, so listener registration doesn't
-	 * silently drop on the floor during the early-boot window.
+	 * Stable provider handed to every plugin service that needs the current Activity. Resolving
+	 * through [activityProvider] on each call means services created before the activity registers
+	 * a provider (or after it swaps one in) still see the live value.
 	 */
-	private val pendingFileChangeCallbacks = java.util.concurrent.CopyOnWriteArraySet<(File?) -> Unit>()
-	private val pendingContentChangeCallbacks =
-		java.util.concurrent.CopyOnWriteArraySet<(String, Int, Int, String) -> Unit>()
+	private val delegatingActivityProvider = ActivityProvider { activityProvider?.getCurrentActivity() }
+
+	/**
+	 * Every editor callback registered by a plugin, kept so we can detach them from an outgoing
+	 * [editorProvider] and replay them onto an incoming one — otherwise registration made during
+	 * the early-boot window (or across an editor activity restart) drops on the floor.
+	 *
+	 * Guarded by [editorCallbackLock], which serializes registration against provider swaps so a
+	 * callback can never be left attached to a replaced provider or attached twice to a new one.
+	 */
+	private val editorCallbackLock = Any()
+	private val fileChangeCallbacks = linkedSetOf<(File?) -> Unit>()
+	private val contentChangeCallbacks = linkedSetOf<(String, Int, Int, String) -> Unit>()
 
 	/**
 	 * Stable provider handed to every plugin's [IdeEditorServiceImpl]. Each call delegates to
@@ -232,23 +247,35 @@ class PluginManager private constructor(
 			}
 
 			override fun addFileChangeCallback(callback: (File?) -> Unit) {
-				pendingFileChangeCallbacks.add(callback)
-				current()?.addFileChangeCallback(callback)
+				synchronized(editorCallbackLock) {
+					if (fileChangeCallbacks.add(callback)) {
+						attachFileChangeCallback(editorProvider, callback)
+					}
+				}
 			}
 
 			override fun removeFileChangeCallback(callback: (File?) -> Unit) {
-				pendingFileChangeCallbacks.remove(callback)
-				current()?.removeFileChangeCallback(callback)
+				synchronized(editorCallbackLock) {
+					if (fileChangeCallbacks.remove(callback)) {
+						detachFileChangeCallback(editorProvider, callback)
+					}
+				}
 			}
 
 			override fun addContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {
-				pendingContentChangeCallbacks.add(callback)
-				current()?.addContentChangeCallback(callback)
+				synchronized(editorCallbackLock) {
+					if (contentChangeCallbacks.add(callback)) {
+						attachContentChangeCallback(editorProvider, callback)
+					}
+				}
 			}
 
 			override fun removeContentChangeCallback(callback: (String, Int, Int, String) -> Unit) {
-				pendingContentChangeCallbacks.remove(callback)
-				current()?.removeContentChangeCallback(callback)
+				synchronized(editorCallbackLock) {
+					if (contentChangeCallbacks.remove(callback)) {
+						detachContentChangeCallback(editorProvider, callback)
+					}
+				}
 			}
 
 			override fun showInlineSuggestion(
@@ -268,21 +295,22 @@ class PluginManager private constructor(
 
 	companion object {
 		@Volatile
-		private var instance: PluginManager? = null
+		@Suppress("ktlint:standard:property-naming")
+		private var INSTANCE: PluginManager? = null
 
 		fun getInstance(
 			context: Context,
 			eventBus: Any,
 			logger: PluginLogger,
 		): PluginManager =
-			instance ?: synchronized(this) {
-				instance ?: PluginManager(context, eventBus, logger).also { instance = it }
+			INSTANCE ?: synchronized(this) {
+				INSTANCE ?: PluginManager(context, eventBus, logger).also { INSTANCE = it }
 			}
 
 		/**
 		 * Get the already initialized instance, or null if not yet initialized
 		 */
-		fun getInstance(): PluginManager? = instance
+		fun getInstance(): PluginManager? = INSTANCE
 	}
 
 	private val loadedPlugins = ConcurrentHashMap<String, LoadedPlugin>()
@@ -937,6 +965,33 @@ class PluginManager private constructor(
 			.filterIsInstance<FileOpenExtension>()
 
 	/**
+	 * Get all enabled plugins that contribute rows to the IDE Preferences screen.
+	 */
+	fun getEnabledSettingsExtensions(): List<SettingsExtension> =
+		loadedPlugins.values
+			.filter { it.isEnabled }
+			.map { it.plugin }
+			.filterIsInstance<SettingsExtension>()
+
+	/**
+	 * The IDE Preferences rows contributed by enabled plugins, each paired with its owning plugin
+	 * id. Sorted by [PluginSettingsEntry.order] then title; invisible entries are dropped and a
+	 * plugin that throws is skipped rather than taking down the Preferences screen.
+	 */
+	fun getPluginSettingsEntries(): List<Pair<String, PluginSettingsEntry>> {
+		val extensions =
+			loadedPlugins.entries
+				.filter { it.value.isEnabled }
+				.mapNotNull { (pluginId, loaded) ->
+					(loaded.plugin as? SettingsExtension)?.let { pluginId to it }
+				}
+
+		return collectPluginSettingsEntries(extensions) { pluginId, error ->
+			logger.error("Failed to get settings entries for plugin $pluginId", error)
+		}
+	}
+
+	/**
 	 * Get all enabled plugins that provide editor decorations (additive coloring of editor text).
 	 */
 	fun getEnabledEditorDecorationProviders(): List<EditorDecorationProvider> =
@@ -1105,7 +1160,9 @@ class PluginManager private constructor(
 	fun getServiceRegistry(): ServiceRegistry = serviceRegistry.asRegistry(SharedServiceRegistry.HOST_PROVIDER_ID)
 
 	/**
-	 * Set the activity provider to enable UI operations in plugins
+	 * Set the activity provider to enable UI operations in plugins. Safe to call at any point in
+	 * the lifecycle — plugin services resolve the activity through [delegatingActivityProvider], so
+	 * services created before this call still pick up the provider registered here.
 	 */
 	fun setActivityProvider(provider: ActivityProvider?) {
 		this.activityProvider = provider
@@ -1126,25 +1183,51 @@ class PluginManager private constructor(
 	 * provider and detached from the previous one.
 	 */
 	fun setEditorProvider(provider: IdeEditorServiceImpl.EditorProvider?) {
-		val previous = this.editorProvider
-		if (previous === provider) return
-		if (previous != null) {
-			pendingFileChangeCallbacks.forEach { cb ->
-				runCatching { previous.removeFileChangeCallback(cb) }
-			}
-			pendingContentChangeCallbacks.forEach { cb ->
-				runCatching { previous.removeContentChangeCallback(cb) }
-			}
+		synchronized(editorCallbackLock) {
+			val previous = this.editorProvider
+			if (previous === provider) return
+			fileChangeCallbacks.forEach { detachFileChangeCallback(previous, it) }
+			contentChangeCallbacks.forEach { detachContentChangeCallback(previous, it) }
+			this.editorProvider = provider
+			fileChangeCallbacks.forEach { attachFileChangeCallback(provider, it) }
+			contentChangeCallbacks.forEach { attachContentChangeCallback(provider, it) }
 		}
-		this.editorProvider = provider
-		if (provider != null) {
-			pendingFileChangeCallbacks.forEach { cb ->
-				runCatching { provider.addFileChangeCallback(cb) }
-			}
-			pendingContentChangeCallbacks.forEach { cb ->
-				runCatching { provider.addContentChangeCallback(cb) }
-			}
-		}
+	}
+
+	private fun attachFileChangeCallback(
+		provider: IdeEditorServiceImpl.EditorProvider?,
+		callback: (File?) -> Unit,
+	) {
+		provider ?: return
+		runCatching { provider.addFileChangeCallback(callback) }
+			.onFailure { logger.error("Failed to attach file-change callback to editor provider", it) }
+	}
+
+	private fun detachFileChangeCallback(
+		provider: IdeEditorServiceImpl.EditorProvider?,
+		callback: (File?) -> Unit,
+	) {
+		provider ?: return
+		runCatching { provider.removeFileChangeCallback(callback) }
+			.onFailure { logger.error("Failed to detach file-change callback from editor provider", it) }
+	}
+
+	private fun attachContentChangeCallback(
+		provider: IdeEditorServiceImpl.EditorProvider?,
+		callback: (String, Int, Int, String) -> Unit,
+	) {
+		provider ?: return
+		runCatching { provider.addContentChangeCallback(callback) }
+			.onFailure { logger.error("Failed to attach content-change callback to editor provider", it) }
+	}
+
+	private fun detachContentChangeCallback(
+		provider: IdeEditorServiceImpl.EditorProvider?,
+		callback: (String, Int, Int, String) -> Unit,
+	) {
+		provider ?: return
+		runCatching { provider.removeContentChangeCallback(callback) }
+			.onFailure { logger.error("Failed to detach content-change callback from editor provider", it) }
 	}
 
 	/**
@@ -1214,9 +1297,16 @@ class PluginManager private constructor(
 					val prefsFile = File(context.filesDir, "plugin_states.properties")
 					if (prefsFile.exists()) {
 						val properties = java.util.Properties()
-						properties.load(prefsFile.inputStream())
+						prefsFile.inputStream().use { input ->
+							properties.load(input)
+						}
+
 						properties.remove(pluginId)
-						properties.store(prefsFile.outputStream(), "Plugin states")
+
+						prefsFile.outputStream().use { output ->
+							properties.store(output, "Plugin enabled/disabled states")
+						}
+
 						logger.debug("Removed plugin state: $pluginId")
 					}
 				}
@@ -1265,7 +1355,7 @@ class PluginManager private constructor(
 							override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
 						}
 					},
-				activityProvider = activityProvider,
+				activityProvider = delegatingActivityProvider,
 			)
 		}
 
@@ -1275,7 +1365,7 @@ class PluginManager private constructor(
 			pluginId,
 			"UI",
 		) {
-			IdeUIServiceImpl(activityProvider)
+			IdeUIServiceImpl(delegatingActivityProvider)
 		}
 
 		registerServiceWithErrorHandling(
@@ -1304,7 +1394,7 @@ class PluginManager private constructor(
 			pluginId,
 			"tooltip",
 		) {
-			IdeTooltipServiceImpl(context, pluginId, activityProvider)
+			IdeTooltipServiceImpl(context, pluginId, delegatingActivityProvider)
 		}
 
 		// Editor tab service for plugin editor tab integration
@@ -1314,7 +1404,7 @@ class PluginManager private constructor(
 			pluginId,
 			"editor_tab",
 		) {
-			IdeEditorTabServiceImpl(activityProvider)
+			IdeEditorTabServiceImpl(delegatingActivityProvider)
 		}
 
 		// File service for editing project files
@@ -1515,7 +1605,7 @@ class PluginManager private constructor(
 							override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
 						}
 					},
-				activityProvider = activityProvider,
+				activityProvider = delegatingActivityProvider,
 			)
 		}
 
@@ -1525,7 +1615,7 @@ class PluginManager private constructor(
 			pluginId,
 			"UI",
 		) {
-			IdeUIServiceImpl(activityProvider)
+			IdeUIServiceImpl(delegatingActivityProvider)
 		}
 
 		registerServiceWithErrorHandling(
@@ -1552,7 +1642,7 @@ class PluginManager private constructor(
 			pluginId,
 			"tooltip",
 		) {
-			IdeTooltipServiceImpl(context, pluginId, activityProvider)
+			IdeTooltipServiceImpl(context, pluginId, delegatingActivityProvider)
 		}
 
 		registerServiceWithErrorHandling(
@@ -1561,7 +1651,7 @@ class PluginManager private constructor(
 			pluginId,
 			"editor_tab",
 		) {
-			IdeEditorTabServiceImpl(activityProvider)
+			IdeEditorTabServiceImpl(delegatingActivityProvider)
 		}
 
 		registerServiceWithErrorHandling(

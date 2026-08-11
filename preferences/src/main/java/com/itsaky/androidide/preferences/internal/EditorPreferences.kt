@@ -38,6 +38,9 @@ object EditorPreferences {
 	const val FLAG_PASSWORD = "idepref_editor_flagPassword"
 	const val WORD_WRAP = "idepref_editor_word_wrap"
 	const val OUTPUT_WORD_WRAP = "idepref_output_word_wrap"
+	const val OUTPUT_LINE_NUMBERS = "idepref_output_line_numbers"
+	const val OUTPUT_TIMESTAMPS = "idepref_output_timestamps"
+	const val OUTPUT_DELTAS = "idepref_output_deltas"
 	const val USE_MAGNIFER = "idepref_editor_use_magnifier"
 	const val USE_ICU = "idepref_editor_useIcu"
 	const val USE_SOFT_TAB = "idepref_editor_useSoftTab"
@@ -130,9 +133,27 @@ object EditorPreferences {
 		}
 
 	var outputWordWrap: Boolean
-		get() = prefManager.getBoolean(OUTPUT_WORD_WRAP, true)
+		get() = prefManager.getBoolean(OUTPUT_WORD_WRAP, false)
 		set(value) {
 			prefManager.putBoolean(OUTPUT_WORD_WRAP, value)
+		}
+
+	var outputLineNumbers: Boolean
+		get() = prefManager.getBoolean(OUTPUT_LINE_NUMBERS, false)
+		set(value) {
+			prefManager.putBoolean(OUTPUT_LINE_NUMBERS, value)
+		}
+
+	var outputTimestamps: Boolean
+		get() = prefManager.getBoolean(OUTPUT_TIMESTAMPS, false)
+		set(value) {
+			prefManager.putBoolean(OUTPUT_TIMESTAMPS, value)
+		}
+
+	var outputDeltas: Boolean
+		get() = prefManager.getBoolean(OUTPUT_DELTAS, false)
+		set(value) {
+			prefManager.putBoolean(OUTPUT_DELTAS, value)
 		}
 
 	var useMagnifier: Boolean
