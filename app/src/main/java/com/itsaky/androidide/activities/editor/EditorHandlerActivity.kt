@@ -176,6 +176,7 @@ open class EditorHandlerActivity :
 
 	private val analyticsManager: IAnalyticsManager by inject()
 	private val recentProjectDao: RecentProjectDao by inject()
+	private val pendingDeepLinkOpen: PendingDeepLinkOpen by inject()
 
 	private var pluginEditorProvider: EditorProviderImpl? = null
 
@@ -355,8 +356,8 @@ open class EditorHandlerActivity :
 		// rather than firing startActivity() synchronously right after finish(), because the two calls
 		// racing could otherwise have the new PROJECT_PATH redelivered to this dying instance via
 		// onNewIntent (which never reads it) instead of a genuinely new instance's onCreate.
-		PendingDeepLinkOpen.value?.let { pending ->
-			PendingDeepLinkOpen.value = null
+		pendingDeepLinkOpen.value?.let { pending ->
+			pendingDeepLinkOpen.value = null
 			val root = File(pending.projectRoot)
 			val ctx = applicationContext
 			recordProjectOpenedBookkeeping(recentProjectDao, root, project = null, analyticsManager = analyticsManager)

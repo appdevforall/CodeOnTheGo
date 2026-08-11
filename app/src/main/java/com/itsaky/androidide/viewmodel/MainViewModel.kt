@@ -23,15 +23,10 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.roomData.recentproject.RecentProject
-import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.templates.Template
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -39,84 +34,74 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * @author Akash Yadav
  */
-class MainViewModel(
-    private val recentProjectDao: RecentProjectDao
-) : ViewModel() {
+class MainViewModel : ViewModel() {
+	companion object {
+		// The values assigned to these variables reflect the order in which the screens are presented
+		// to the user. A screen with a lower value is displayed before a screen with a higher value.
+		// For example, SCREEN_MAIN is the first screen visible to the user, followed by SCREEN_TEMPLATE_LIST,
+		// and then SCREEN_TEMPLATE_DETAILS.
+		//
+		// These values are used as unique identifiers for the screens as well as for determining whether
+		// the screen change transition should be forward or backward.
+		const val SCREEN_MAIN = 0
+		const val SCREEN_TEMPLATE_LIST = 1
+		const val SCREEN_TEMPLATE_DETAILS = 2
+		const val TOOLTIPS_WEB_VIEW = 3
+		const val SCREEN_SAVED_PROJECTS = 4
+		const val SCREEN_DELETE_PROJECTS = 5
+		const val SCREEN_CLONE_REPO = 6
+	}
 
-    companion object {
+	private val _currentScreen = MutableLiveData(-1)
+	private val _previousScreen = AtomicInteger(-1)
+	private val _isTransitionInProgress = MutableLiveData(false)
 
-        // The values assigned to these variables reflect the order in which the screens are presented
-        // to the user. A screen with a lower value is displayed before a screen with a higher value.
-        // For example, SCREEN_MAIN is the first screen visible to the user, followed by SCREEN_TEMPLATE_LIST,
-        // and then SCREEN_TEMPLATE_DETAILS.
-        //
-        // These values are used as unique identifiers for the screens as well as for determining whether
-        // the screen change transition should be forward or backward.
-        const val SCREEN_MAIN = 0
-        const val SCREEN_TEMPLATE_LIST = 1
-        const val SCREEN_TEMPLATE_DETAILS = 2
-        const val TOOLTIPS_WEB_VIEW = 3
-        const val SCREEN_SAVED_PROJECTS = 4
-        const val SCREEN_DELETE_PROJECTS = 5
-        const val SCREEN_CLONE_REPO = 6
+	private val cloneRepositoryEventChannel = Channel<String>(Channel.BUFFERED)
 
-        val logger : Logger = LoggerFactory.getLogger(MainViewModel::class.java)
-    }
+	internal val template = MutableLiveData<Template<*>>(null)
+	internal val creatingProject = MutableLiveData(false)
 
-    private val _currentScreen = MutableLiveData(-1)
-    private val _previousScreen = AtomicInteger(-1)
-    private val _isTransitionInProgress = MutableLiveData(false)
+	val currentScreen: LiveData<Int> = _currentScreen
 
-    private val cloneRepositoryEventChannel = Channel<String>(Channel.BUFFERED)
+	val cloneRepositoryEvent = cloneRepositoryEventChannel.receiveAsFlow()
 
-    internal val template = MutableLiveData<Template<*>>(null)
-    internal val creatingProject = MutableLiveData(false)
+	val previousScreen: Int
+		get() = _previousScreen.get()
 
-    val currentScreen: LiveData<Int> = _currentScreen
+	var isTransitionInProgress: Boolean
+		get() = _isTransitionInProgress.value ?: false
+		set(value) {
+			_isTransitionInProgress.value = value
+		}
 
-    val cloneRepositoryEvent = cloneRepositoryEventChannel.receiveAsFlow()
+	fun setScreen(screen: Int) {
+		_previousScreen.set(_currentScreen.value ?: SCREEN_MAIN)
+		_currentScreen.value = screen
+	}
 
-    val previousScreen: Int
-        get() = _previousScreen.get()
+	fun requestCloneRepository(url: String) {
+		viewModelScope.launch {
+			cloneRepositoryEventChannel.send(url)
+		}
+		setScreen(SCREEN_CLONE_REPO)
+	}
 
-    var isTransitionInProgress: Boolean
-        get() = _isTransitionInProgress.value ?: false
-        set(value) {
-            _isTransitionInProgress.value = value
-        }
-
-    fun setScreen(screen: Int) {
-        _previousScreen.set(_currentScreen.value ?: SCREEN_MAIN)
-        _currentScreen.value = screen
-    }
-
-    fun requestCloneRepository(url: String) {
-        viewModelScope.launch {
-            cloneRepositoryEventChannel.send(url)
-        }
-        setScreen(SCREEN_CLONE_REPO)
-    }
-
-    fun postTransition(owner: LifecycleOwner, action: Runnable) {
-        if (isTransitionInProgress) {
-            _isTransitionInProgress.observe(owner, object : Observer<Boolean> {
-                override fun onChanged(t: Boolean) {
-                    _isTransitionInProgress.removeObserver(this)
-                    action.run()
-                }
-            })
-        } else {
-            action.run()
-        }
-    }
-
-    fun saveProjectToRecents(project: RecentProject) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                recentProjectDao.insert(project)
-            } catch (e: Exception) {
-                logger.warn("Failed to save project to recents", e)
-            }
-        }
-    }
+	fun postTransition(
+		owner: LifecycleOwner,
+		action: Runnable,
+	) {
+		if (isTransitionInProgress) {
+			_isTransitionInProgress.observe(
+				owner,
+				object : Observer<Boolean> {
+					override fun onChanged(t: Boolean) {
+						_isTransitionInProgress.removeObserver(this)
+						action.run()
+					}
+				},
+			)
+		} else {
+			action.run()
+		}
+	}
 }

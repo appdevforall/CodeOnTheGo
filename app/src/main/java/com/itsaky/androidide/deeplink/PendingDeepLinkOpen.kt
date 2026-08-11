@@ -26,8 +26,12 @@ import com.itsaky.androidide.models.DeepLinkOpenRequest
  * Deliberately not acted on synchronously inside the close-confirmation dialog's button callback --
  * see [com.itsaky.androidide.activities.editor.EditorHandlerActivity.onDestroy] for why the hand-off
  * must wait until the old, `singleTask` activity instance is guaranteed torn down.
+ *
+ * Koin-provided (`single` in `di/AppModule.kt`) rather than a Kotlin `object`, per ADR 0006 --
+ * still one process-wide instance either way, but this keeps it substitutable in tests and out of
+ * the "hand-rolled singleton" pattern the ADR asks new code to avoid.
  */
-internal object PendingDeepLinkOpen {
+internal class PendingDeepLinkOpen {
 	@Volatile
 	var value: DeepLinkOpenRequest? = null
 }
