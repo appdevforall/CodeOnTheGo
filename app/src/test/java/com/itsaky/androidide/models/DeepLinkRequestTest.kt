@@ -84,6 +84,21 @@ class DeepLinkRequestTest {
 	}
 
 	@Test
+	fun `project name equal to a reserved keyword does not corrupt line parsing`() {
+		// Regression test: a project literally named "line" used to make the parser latch onto the
+		// project-name segment itself as the `line` keyword (the first occurrence in the whole path),
+		// discarding the real line/42 suffix that follows `file`.
+		val request = parse("https://www.appdevforall.org/device/open/project/line/file/Main.kt/line/42")
+		assertEquals(
+			DeepLinkRequest(
+				projectName = "line",
+				fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = "42", columnRaw = null),
+			),
+			request,
+		)
+	}
+
+	@Test
 	fun `malformed line and column are carried through unparsed, not rejected`() {
 		val request =
 			parse(

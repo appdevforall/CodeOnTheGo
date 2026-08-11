@@ -58,6 +58,19 @@ data class DeepLinkRequest(
 		private const val SEGMENT_LINE = "line"
 		private const val SEGMENT_COLUMN = "column"
 
+		/** First index at or after [from] holding [segment], or -1. Unlike [List.indexOf], never
+		 * matches an already-consumed segment earlier in the path -- e.g. a project name that
+		 * happens to equal `"line"` can't be mistaken for the `line` keyword that follows it. */
+		private fun List<String>.indexOfFrom(
+			from: Int,
+			segment: String,
+		): Int {
+			for (i in from until size) {
+				if (this[i] == segment) return i
+			}
+			return -1
+		}
+
 		/**
 		 * Parses a deep-link [Uri] of the form described in [DeepLinkRequest]'s docs. Returns `null` if
 		 * the URI does not contain a `project` segment followed by a name -- i.e. it isn't a deep link
@@ -66,35 +79,32 @@ data class DeepLinkRequest(
 		fun parse(uri: Uri?): DeepLinkRequest? {
 			val segments = uri?.pathSegments ?: return null
 
-			val projectNameIdx = segments.indexOf(SEGMENT_PROJECT) + 1
-			if (projectNameIdx <= 0 || projectNameIdx >= segments.size) {
+			val projectIdx = segments.indexOfFrom(0, SEGMENT_PROJECT)
+			if (projectIdx < 0 || projectIdx + 1 >= segments.size) {
 				return null
 			}
-			val projectName = segments[projectNameIdx]
+			val projectName = segments[projectIdx + 1]
 
-			val fileIdx = segments.indexOf(SEGMENT_FILE).takeIf { it >= 0 }?.plus(1)
+			val fileIdx = segments.indexOfFrom(projectIdx + 2, SEGMENT_FILE)
 			val fileRequest =
-				fileIdx?.let { startIdx ->
+				fileIdx.takeIf { it >= 0 }?.let { fIdx ->
+					val startIdx = fIdx + 1
 					if (startIdx >= segments.size) {
 						return@let null
 					}
 
+					val lineIdx = segments.indexOfFrom(startIdx, SEGMENT_LINE).takeIf { it >= 0 }
+					val columnIdx = segments.indexOfFrom(startIdx, SEGMENT_COLUMN).takeIf { it >= 0 }
+
 					// filenames may themselves contain '/', so the filename is every segment from
 					// `file` up to (but not including) the next recognized keyword, joined back together
-					val endIdx =
-						listOf(SEGMENT_LINE, SEGMENT_COLUMN)
-							.mapNotNull { keyword -> segments.indexOf(keyword).takeIf { it > startIdx } }
-							.minOrNull() ?: segments.size
-
+					val endIdx = listOfNotNull(lineIdx, columnIdx).minOrNull() ?: segments.size
 					val filePath = segments.subList(startIdx, endIdx).joinToString("/")
-
-					val lineIdx = segments.indexOf(SEGMENT_LINE).takeIf { it >= 0 }?.plus(1)
-					val columnIdx = segments.indexOf(SEGMENT_COLUMN).takeIf { it >= 0 }?.plus(1)
 
 					PendingFileRequest(
 						filePath = filePath,
-						lineRaw = lineIdx?.let { segments.getOrNull(it) },
-						columnRaw = columnIdx?.let { segments.getOrNull(it) },
+						lineRaw = lineIdx?.let { segments.getOrNull(it + 1) },
+						columnRaw = columnIdx?.let { segments.getOrNull(it + 1) },
 					)
 				}
 
