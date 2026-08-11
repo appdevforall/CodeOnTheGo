@@ -260,16 +260,6 @@ private fun <T : PsiElement> descendantsOf(
 ): List<T> = elements.flatMap { PsiTreeUtil.collectElementsOfType(it, type) }
 
 /**
- * Whether [reference] is the selector of a qualified expression -- the `n` in `h.n`, the `f` in
- * `h.f()`. A call wraps its callee, so the call expression is what the qualified expression holds.
- */
-private fun isQualifiedSelector(reference: KtSimpleNameExpression): Boolean {
-	val selector = (reference.parent as? KtCallExpression)?.takeIf { it.calleeExpression === reference } ?: reference
-	val parent = selector.parent
-	return parent is KtQualifiedExpression && parent.selectorExpression === selector
-}
-
-/**
  * The name of a class declared inside [enclosing] that [type] is written in terms of, or null.
  *
  * A value of such a type survives the move, but its type name does not resolve at the insertion
@@ -305,12 +295,11 @@ private fun KaSession.capturedParameters(
 	val seen = mutableSetOf<Any>()
 
 	for (reference in simpleNamesIn(elements).sortedBy { it.textRange.startOffset }) {
-		// The selector of a qualified expression already has its receiver written out next to it and
-		// resolves through that receiver wherever the code lives, so it is never a capture. Without this
-		// the `n` in `h.n` became a parameter and the call site passed a name that does not exist.
-		// `innerImplicitReceiver` has the same guard for the same reason.
-		if (isQualifiedSelector(reference)) continue
-
+		// Deliberately no "skip a qualified selector" guard here. A selector can still resolve to a
+		// declaration inside the enclosing declaration -- a local extension `fun` called as `h.twice()`
+		// -- which goes out of scope once the region moves, and skipping it emits a body that no longer
+		// resolves. The ancestor test below already lets every selector resolving to a non-local member
+		// through, which is what a guard would have bought.
 		val resolved =
 			runCatching { reference.mainReference?.resolveToSymbols()?.firstOrNull() }.getOrNull() ?: continue
 		val name = reference.getReferencedName()
@@ -736,8 +725,12 @@ private fun KaSession.innerImplicitReceiver(
 	span: TextSpan,
 ): String? {
 	for (reference in simpleNamesIn(elements)) {
-		// A qualified selector already has its receiver written out next to it.
-		if (isQualifiedSelector(reference)) continue
+		// A qualified selector already has its receiver written out next to it. Deliberately syntactic
+		// and deliberately shallow: a *call* selector (`h.doubled()`) must NOT be skipped, because its
+		// dispatch receiver can still be an implicit one -- a member extension invoked on a `with`
+		// receiver is the pervasive Compose shape (`with(density) { size.toPx() }`).
+		val parent = reference.parent
+		if (parent is KtQualifiedExpression && parent.selectorExpression === reference) continue
 
 		val lambda = implicitReceiverLambdaFor(reference) ?: continue
 		if (isBoundOutsideRegion(enclosing, lambda, span)) return constructNameFor(lambda)
