@@ -21,8 +21,8 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import com.itsaky.androidide.activities.editor.EditorActivityKt
+import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.models.DeepLinkRequest
-import com.itsaky.androidide.projects.IProjectManager
 
 /**
  * The sole `<intent-filter>` holder for `https://www.appdevforall.org/device/open/project/...` App
@@ -44,8 +44,12 @@ class DeepLinkActivity : Activity() {
 			return
 		}
 
+		// ActionContextProvider tracks the live EditorHandlerActivity instance (set in its
+		// onResume, cleared in onDestroy) -- this reflects "is an editor actually on screen",
+		// unlike IProjectManager's workspace, which stays null for the whole duration of a
+		// Gradle sync even while EditorActivityKt is already open and visible.
 		val target =
-			if (IProjectManager.getInstance().workspace != null) {
+			if (ActionContextProvider.getActivity() != null) {
 				EditorActivityKt::class.java
 			} else {
 				MainActivity::class.java
