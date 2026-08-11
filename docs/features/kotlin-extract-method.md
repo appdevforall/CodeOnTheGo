@@ -105,6 +105,8 @@ The refused case is the accumulator loop, which is a genuinely common extraction
 
 **Tail return:** when the region's *last* statement is a `return`, the region contains no other `return`, `break` or `continue`, and there is no other output, the extracted function takes the enclosing function's return type, keeps the `return`, and the call site becomes `return extracted(args)`. "Extract the rest of this function into a helper" is one of the most common real extractions and the enabling check is purely syntactic - last-child kind plus a recursive absence check - so it costs a predicate and one call-site form, not an analysis.
 
+One exception to "the enclosing function's return type": a **secondary constructor** is treated as `Unit`. Its symbol's return type is the constructed class, but its `return` carries no value, so taking that type would emit both a bare `return` in a value-returning function and a call site returning the wrong thing. `return extracted(args)` on a `Unit`-valued call is legal inside a constructor. An `init` block needs no rule - `return` is illegal there, so no tail return can arise.
+
 Declined: a `return` anywhere but the tail position, a `break`/`continue` whose target loop is outside the region, a labelled `return@` whose target is outside it, and a non-local return from an inlined lambda. Each would silently change meaning, since a `return` in the extracted body returns from *it*.
 
 **R9 - Receivers.**
@@ -126,7 +128,7 @@ Declined: a `return` anywhere but the tail position, a `break`/`continue` whose 
 
 Contents, top to bottom: title -> expression chooser (only for an expression region with more than one candidate and no exact selection match) -> name field with its `NameProblem` message -> signature preview -> Cancel/Extract. There is **no scope chooser** (R4) and **no replace-all checkbox** (R13).
 
-The preview is **one monospace line: the signature exactly as it will be emitted** - modifiers, receiver, parameters, return type, e.g. `private suspend fun loadUser(id: String): User`. It wraps rather than truncating. No body preview: the body is the code the user selected and can see behind the sheet, so it moves verbatim and previewing it says nothing new, while the signature is the one derived artefact and the one place the derivation can surprise them.
+The preview is **one monospace line: the signature exactly as it will be emitted** - modifiers, receiver, parameters, return type. Types render fully qualified (R5), so a real preview reads `private suspend fun loadUser(id: kotlin.String): com.example.User`. It wraps rather than truncating. No body preview: the body is the code the user selected and can see behind the sheet, so it moves verbatim and previewing it says nothing new, while the signature is the one derived artefact and the one place the derivation can surprise them.
 
 ADR 0012 defers the shared-UI question until the extract-method surface is known; a single generalised sheet would need a state class where half the fields are meaningless to either caller, so that question stays open rather than being settled from one data point.
 
@@ -169,7 +171,9 @@ The ordering is mandatory, not stylistic. `IDELanguageClientImpl.applyActionEdit
 
 The new function is emitted **fully indented** at the enclosing declaration's own indentation, separated by one blank line, reusing `detectIndentUnit`, `detectNewline`, `leadingIndentAt` and `positionAt`. Code-action edits bypass the editor's auto-indent and `CMD_FORMAT_CODE` is a no-op for Kotlin.
 
-**R16 - Responsiveness and failure isolation.** As extract variable: one background pass at `AnalysisPriority.INTERACTIVE` under a cancel checker tied to the action's coroutine produces the whole plan; the sheet does pure string and offset arithmetic and re-enters no analysis on confirm. Anything thrown in the pipeline degrades to a refusal plus a log line, never an uncaught throw - the action framework catches only `IllegalArgumentException` and this runs on a scope with no exception handler.
+**R16 - Responsiveness and failure isolation.** As extract variable: one background pass at `AnalysisPriority.INTERACTIVE` under a cancel checker tied to the action's coroutine produces the whole plan; the sheet does pure string and offset arithmetic and re-enters no analysis on confirm. Anything thrown in the pipeline degrades to a refusal (`CouldNotAnalyse`) plus a log line, never an uncaught throw - the action framework catches only `IllegalArgumentException` and this runs on a scope with no exception handler.
+
+**`CancellationException` is the one deliberate exception**, and it is re-thrown rather than swallowed - `AnalysisPreemptedException` is one. A cancelled action has no result worth reporting, and `DefaultActionsRegistry.executeAction` launches into a scope whose `invokeOnCompletion` already treats a `CancellationException` as an ordinary cancel, so re-throwing ends the action quietly instead of flashing a message at a user who has moved on. Swallowing it would also break structured concurrency for whatever cancelled the job. The sheet's confirm path is outside the framework's guards entirely, so `ExtractMethodAction.applyChoice` wraps its own body.
 
 ## Non-goals
 

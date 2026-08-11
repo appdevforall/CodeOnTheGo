@@ -1010,21 +1010,40 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
-	fun `a qualified selector is not turned into a parameter`() {
+	fun `a local extension member reached through a qualified call is declined`() {
 		val content =
 			"""
 			package p
 			class Holder(val n: Int)
 			fun demo(h: Holder): Int {
-				return h.n + 1
+				fun Holder.twice(): Int = n * 2
+				return h.twice() + 1
 			}
 			""".trimIndent()
-		val (start, end) = selection(content, "return h.n + 1", "return h.n + 1")
+		val (start, end) = selection(content, "return h.twice() + 1", "return h.twice() + 1")
 
-		val candidate = plan(content, start, end).candidates.single()
+		// A qualified selector is NOT skipped: `twice` is local, so it goes out of scope with the move.
+		assertEquals(
+			ExtractionRefusal.CapturedLocalDeclaration("twice"),
+			plan(content, start, end).refusal,
+		)
+	}
 
-		// `n` resolves through `h` wherever the code lives; passing it would name a nonexistent local.
-		assertEquals(listOf("h"), candidate.parameters.map { it.name })
+	@Test
+	fun `a member extension invoked on a with receiver is declined`() {
+		val content =
+			"""
+			package p
+			class Holder(val n: Int)
+			class Scope { fun Holder.doubled(): Int = n * 2 }
+			fun demo(h: Holder): Int = with(Scope()) { h.doubled() + 1 }
+			""".trimIndent()
+		val (start, end) = selection(content, "h.doubled() + 1", "h.doubled() + 1")
+
+		// `h.doubled()` reads as fully qualified but its *dispatch* receiver is `with`'s. This is the
+		// pervasive Compose shape (`with(density) { size.toPx() }`), so the selector guard in
+		// `innerImplicitReceiver` must stay shallow enough not to skip a call selector.
+		assertEquals(ExtractionRefusal.InnerImplicitReceiver("with"), plan(content, start, end).refusal)
 	}
 
 	@Test
