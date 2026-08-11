@@ -24,9 +24,13 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 import java.io.File
+
+private val log = LoggerFactory.getLogger("ProjectOpenBookkeeping")
 
 /**
  * Marks [root] as the currently open project (singleton state + last-opened pref), records it in
@@ -61,7 +65,16 @@ fun recordProjectOpenedBookkeeping(
 				createdAt = getCreatedTime(location).toString(),
 				lastModified = getLastModifiedTime(location).toString(),
 			)
-		recentProjectDao.insert(recentProject)
+		try {
+			recentProjectDao.insert(recentProject)
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			// This runs on ProcessLifecycleOwner's app-wide scope -- an uncaught exception here would
+			// crash the whole process, not just fail to record one Recents entry. The project-open
+			// state above is already set synchronously, so a Recents-write failure doesn't affect it.
+			log.warn("Failed to record opened project '{}' in Recents", recentProject.name, e)
+		}
 	}
 
 	analyticsManager.trackProjectOpened(root.absolutePath)
