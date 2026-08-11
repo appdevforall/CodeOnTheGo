@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.viewmodel
 
+import android.database.SQLException
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -25,7 +26,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
+import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.Template
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -121,10 +124,12 @@ class MainViewModel(
 				// detected language separately - but never clobber a stored value
 				// with a failed detection.
 				recentProjectDao.insert(project)
-				if (!project.language.equals("Unknown", ignoreCase = true)) {
+				if (!project.language.equals(Language.Unknown.lang, ignoreCase = true)) {
 					recentProjectDao.updateLanguage(project.location, project.language)
 				}
-			} catch (e: Exception) {
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: SQLException) {
 				logger.warn("Failed to save project to recents", e)
 			}
 		}
