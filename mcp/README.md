@@ -3,8 +3,16 @@
 A host-side MCP server for driving Code On The Go from an AI coding agent.
 Runs on the development machine, not on the device. Ticket: ADFA-5083.
 
-Right now it exposes exactly one tool, `ping`. That is deliberate - this is
-scaffolding that proves the transport. adb-backed tools land incrementally.
+The tool surface is deliberately small and grows one tool at a time.
+
+| Tool | Args | Does |
+|---|---|---|
+| `ping` | none | Returns `pong`. Health check for the transport itself. |
+| `is_cogo_installed` | none | Reports whether `com.itsaky.androidide` is installed on the attached device. |
+
+`is_cogo_installed` reports an **error**, not `not installed`, when adb itself
+fails. Not knowing is not the same as knowing the app is absent, and collapsing
+the two would make a missing device look like a missing app.
 
 ## Run
 
@@ -29,8 +37,13 @@ non-loopback interface would require both TLS and authentication first.
 flox activate -d flox/local -- bash -c 'cd mcp && ./gradlew test'
 ```
 
-`PingTest` starts the server on an ephemeral port and drives it with the SDK's
-own MCP client over Streamable HTTP - initialize, tools/list, tools/call.
+Tests drive the server through the real MCP client over Streamable HTTP, not by
+calling handlers directly. No emulator or device is required: `Adb` is a `fun
+interface` over the process boundary, so tool logic is tested with fakes, and
+`SystemAdb` is exercised against `/bin/echo` and `/bin/sh`.
+
+Adding a tool that shells out? Take `Adb` as a parameter rather than calling
+`ProcessBuilder` directly, or it will not be testable without a device.
 
 ## Register with an MCP client
 
