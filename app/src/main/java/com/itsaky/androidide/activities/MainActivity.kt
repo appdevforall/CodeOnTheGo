@@ -63,6 +63,7 @@ import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.MainScreenActions
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
+import com.itsaky.androidide.utils.findValidProjectByName
 import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
@@ -492,7 +493,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		lifecycleScope.launch(Dispatchers.IO) {
 			val projectDir =
 				try {
-					findValidProjects(Environment.PROJECTS_DIR).find { it.name == request.projectName }
+					findValidProjectByName(Environment.PROJECTS_DIR, request.projectName)
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: SecurityException) {

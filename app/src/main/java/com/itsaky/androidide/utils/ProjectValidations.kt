@@ -11,12 +11,28 @@ internal fun File.isProjectCandidateDir(): Boolean = isDirectory && canRead() &&
 internal fun findValidProjects(projectsRoot: File): List<File> {
 	if (!projectsRoot.isProjectCandidateDir()) return emptyList()
 
-	val subdirs = projectsRoot.listFiles()
-		?.filter { it.isProjectCandidateDir() }
-		.orEmpty()
+	val subdirs =
+		projectsRoot
+			.listFiles()
+			?.filter { it.isProjectCandidateDir() }
+			.orEmpty()
 	if (subdirs.isEmpty()) return emptyList()
 
 	return subdirs.filter { dir -> isValidProjectDirectory(dir) }
+}
+
+/**
+ * Resolves [name] directly to `[projectsRoot]/[name]` and validates just that one directory --
+ * the O(1) counterpart to [findValidProjects] for callers (e.g. deep links) that already know the
+ * exact project name and don't need every project under [projectsRoot] scanned to find it.
+ */
+internal fun findValidProjectByName(
+	projectsRoot: File,
+	name: String,
+): File? {
+	if (!projectsRoot.isProjectCandidateDir()) return null
+	val candidate = File(projectsRoot, name)
+	return candidate.takeIf { it.isProjectCandidateDir() && isValidProjectDirectory(it) }
 }
 
 /** Determines if the directory contains a valid Android project structure. */

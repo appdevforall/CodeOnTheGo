@@ -110,7 +110,7 @@ import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ImageUtils
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
-import com.itsaky.androidide.utils.findValidProjects
+import com.itsaky.androidide.utils.findValidProjectByName
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.forEachViewRecursively
@@ -1919,7 +1919,7 @@ open class EditorHandlerActivity :
 		lifecycleScope.launch(Dispatchers.IO) {
 			val projectDir =
 				try {
-					findValidProjects(Environment.PROJECTS_DIR).find { it.name == request.projectName }
+					findValidProjectByName(Environment.PROJECTS_DIR, request.projectName)
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: SecurityException) {
