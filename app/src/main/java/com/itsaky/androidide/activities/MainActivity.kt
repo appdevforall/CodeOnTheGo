@@ -76,6 +76,7 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJ
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -489,7 +490,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	 */
 	private fun handleDeepLinkRequest(request: DeepLinkRequest) {
 		lifecycleScope.launch(Dispatchers.IO) {
-			val projectDir = findValidProjects(Environment.PROJECTS_DIR).find { it.name == request.projectName }
+			val projectDir =
+				try {
+					findValidProjects(Environment.PROJECTS_DIR).find { it.name == request.projectName }
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: SecurityException) {
+					log.error("Failed to scan {} for deep link", Environment.PROJECTS_DIR, e)
+					withContext(Dispatchers.Main) { flashError(getString(string.msg_deeplink_scan_failed)) }
+					return@launch
+				}
 			withContext(Dispatchers.Main) {
 				if (projectDir == null) {
 					flashError(getString(string.msg_deeplink_project_not_found, request.projectName))

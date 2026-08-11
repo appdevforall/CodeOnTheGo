@@ -1881,7 +1881,16 @@ open class EditorHandlerActivity :
 				?: return
 
 		lifecycleScope.launch(Dispatchers.IO) {
-			val projectDir = findValidProjects(Environment.PROJECTS_DIR).find { it.name == request.projectName }
+			val projectDir =
+				try {
+					findValidProjects(Environment.PROJECTS_DIR).find { it.name == request.projectName }
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: SecurityException) {
+					Log.e("EditorHandlerActivity", "Failed to scan ${Environment.PROJECTS_DIR} for deep link", e)
+					withContext(Dispatchers.Main) { flashError(getString(string.msg_deeplink_scan_failed)) }
+					return@launch
+				}
 			withContext(Dispatchers.Main) {
 				if (projectDir == null) {
 					flashError(getString(string.msg_deeplink_project_not_found, request.projectName))
