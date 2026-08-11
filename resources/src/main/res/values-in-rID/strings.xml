@@ -599,9 +599,9 @@
 	<string name="title_privacy">Privasi</string>
 
 	<string name="privacy_disclosure_title">Privasi &amp; analitik</string>
-	<string name="privacy_disclosure_message">Code on the Go menggunakan Firebase Analytics dan GlitchTip untuk membantu kami meningkatkan aplikasi.\n\nFirebase Analytics mengumpulkan data penggunaan anonim untuk membantu kami memahami bagaimana aplikasi digunakan.\n\nGlitchTip membantu kami melacak dan memperbaiki masalah.\n\nTidak ada informasi pribadi yang dikumpulkan atau dibagikan. Semua data diproses sesuai dengan kebijakan privasi kami.</string>
-	<string name="privacy_disclosure_accept">Saya mengerti</string>
-	<string name="privacy_disclosure_learn_more">Pelajari lebih lanjut</string>
+	<string name="privacy_disclosure_message">Code on the Go mengumpulkan informasi penggunaan dan laporan kerusakan anonim untuk membantu kami memperbaiki bug dan meningkatkan aplikasi. Tidak ada informasi pribadi yang dikumpulkan atau dibagikan.\n\nBagikan data anonim akan mengirim informasi ini. Tetap offline tidak mengirim apa pun.</string>
+	<string name="privacy_disclosure_accept">Bagikan data anonim</string>
+	<string name="privacy_disclosure_decline">Tetap offline</string>
 
 	<string name="title_unique_id">ID Unik</string>
 	<string name="title_device">Perangkat</string>

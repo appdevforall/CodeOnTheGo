@@ -38,8 +38,6 @@ fun TestContext<Unit>.handlePrivacyDisclosure() {
 			val d = device.uiDevice
 			val acceptText = targetContext.getString(ResourcesR.string.privacy_disclosure_accept)
 			val declineText = targetContext.getString(ResourcesR.string.privacy_disclosure_decline)
-			val learnMoreText =
-				targetContext.getString(ResourcesR.string.privacy_disclosure_learn_more)
 
 			assertTrue(
 				"Dialog title missing",
@@ -51,10 +49,6 @@ fun TestContext<Unit>.handlePrivacyDisclosure() {
 			assertTrue(
 				"Keep offline button missing",
 				d.findObject(UiSelector().text(declineText)).exists(),
-			)
-			assertTrue(
-				"Learn more button missing",
-				d.findObject(UiSelector().text(learnMoreText)).exists(),
 			)
 
 			clickFirstAccessibilityNodeByText(acceptText)
