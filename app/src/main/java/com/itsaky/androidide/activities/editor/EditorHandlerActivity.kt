@@ -29,6 +29,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.IntentCompat
 import androidx.core.content.res.ResourcesCompat
@@ -1814,8 +1815,16 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	// Tracks the currently-showing confirm-close dialog so a second deep link arriving while one
+	// is already up (onNewIntent can fire repeatedly for a singleTask activity) replaces it
+	// instead of stacking a second dialog -- two stacked dialogs would let either button confirm
+	// PendingDeepLinkOpen.value out from under the other, silently dropping whichever project the
+	// user actually confirmed opening.
+	private var activeProjectCloseDialog: AlertDialog? = null
+
 	private fun confirmProjectClose(onClosed: (() -> Unit)? = null) {
 		val content = contentOrNull ?: return
+		activeProjectCloseDialog?.dismiss()
 		val builder = newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_project_close)
 		builder.setMessage(string.msg_confirm_project_close)
@@ -1848,7 +1857,7 @@ open class EditorHandlerActivity :
 			}
 		}
 
-		builder.show()
+		activeProjectCloseDialog = builder.show()
 	}
 
 	/**
