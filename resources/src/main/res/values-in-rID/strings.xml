@@ -599,7 +599,7 @@
 	<string name="title_privacy">Privasi</string>
 
 	<string name="privacy_disclosure_title">Privasi &amp; analitik</string>
-	<string name="privacy_disclosure_message">Code on the Go mengumpulkan informasi penggunaan dan laporan kerusakan anonim untuk membantu kami memperbaiki bug dan meningkatkan aplikasi. Tidak ada informasi pribadi yang dikumpulkan atau dibagikan.\n\nBagikan data anonim akan mengirim informasi ini. Tetap offline tidak mengirim apa pun.</string>
+	<string name="privacy_disclosure_message">Code on the Go mengumpulkan informasi penggunaan dan laporan kerusakan anonim untuk membantu kami memperbaiki bug dan meningkatkan aplikasi. Tidak ada informasi pribadi yang dikumpulkan atau dibagikan.\n\n<i>Bagikan data anonim</i> akan mengirim informasi ini. <i>Tetap offline</i> tidak mengirim apa pun.</string>
 	<string name="privacy_disclosure_accept">Bagikan data anonim</string>
 	<string name="privacy_disclosure_decline">Tetap offline</string>
 
