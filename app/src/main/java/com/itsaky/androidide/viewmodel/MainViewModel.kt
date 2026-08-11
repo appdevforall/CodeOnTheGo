@@ -30,7 +30,25 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * [ViewModel] for main activity.
+ * [ViewModel] for [com.itsaky.androidide.activities.MainActivity] -- holds the single-Activity,
+ * multi-"screen" navigation state (see the `SCREEN_*` constants) plus one-shot events unrelated to
+ * persisted UI state.
+ *
+ * **Threading:** all mutable state here ([currentScreen], [isTransitionInProgress]) is backed by
+ * [MutableLiveData] set via direct `.value =` assignment, never `postValue` -- every mutator
+ * ([setScreen], the [isTransitionInProgress] setter) must run on the main thread.
+ *
+ * **Screen state:** [currentScreen]/[previousScreen] are mutually exclusive, identified by one of
+ * the `SCREEN_*` constants; `-1` is the sentinel for "no screen yet" rather than `null`, since both
+ * are non-nullable `Int`. [setScreen] records the outgoing screen as [previousScreen] before
+ * advancing [currentScreen] -- there's no history beyond that one step back. [postTransition] runs
+ * its `action` immediately unless [isTransitionInProgress] is true, in which case it defers `action`
+ * until the next transition-complete signal, then detaches its observer (fires at most once).
+ *
+ * **Clone-request event:** [requestCloneRepository] is a one-shot, single-consumer event, not
+ * persisted state -- delivered through a buffered [Channel] exposed as [cloneRepositoryEvent] via
+ * [kotlinx.coroutines.flow.receiveAsFlow]. A URL sent before any collector attaches is buffered, not
+ * dropped, but if more than one collector attaches, only one of them receives a given element.
  *
  * @author Akash Yadav
  */
