@@ -51,6 +51,7 @@ import com.itsaky.androidide.models.PendingFileRequest
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.roomData.recentproject.RecentProject
+import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
 import com.itsaky.androidide.shortcuts.ShortcutContext
 import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
@@ -91,6 +92,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	@Suppress("ktlint:standard:backing-property-naming")
 	private var _binding: ActivityMainBinding? = null
 	private val analyticsManager: IAnalyticsManager by inject()
+	private val recentProjectDao: RecentProjectDao by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
 	private var webServer: WebServer? = null
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
@@ -430,7 +432,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		hasTemplateIssues: Boolean = false,
 		pendingFileRequest: PendingFileRequest? = null,
 	) {
-		recordProjectOpenedBookkeeping(applicationContext, root, project, analyticsManager)
+		recordProjectOpenedBookkeeping(recentProjectDao, root, project, analyticsManager)
 
 		if (isFinishing) {
 			return

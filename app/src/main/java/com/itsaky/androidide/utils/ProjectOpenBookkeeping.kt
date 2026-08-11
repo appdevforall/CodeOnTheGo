@@ -17,14 +17,13 @@
 
 package com.itsaky.androidide.utils
 
-import android.content.Context
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.roomData.recentproject.RecentProject
-import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
+import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
@@ -37,11 +36,15 @@ import java.io.File
  * `openProject` entirely (see
  * [com.itsaky.androidide.activities.editor.EditorHandlerActivity.onDestroy]).
  *
+ * [recentProjectDao] is the caller's Koin-provided instance (`by inject()`), the same one
+ * `di/AppModule.kt` wires into `MainViewModel`/`RecentProjectsViewModel` -- per ADR 0001/0006,
+ * persistence is always acquired through Koin, never by re-deriving the database directly.
+ *
  * Uses [ProcessLifecycleOwner]'s scope rather than a per-activity one, since this can run from an
  * activity's `onDestroy()` after its own `lifecycleScope` has already been cancelled.
  */
 fun recordProjectOpenedBookkeeping(
-	context: Context,
+	recentProjectDao: RecentProjectDao,
 	root: File,
 	project: RecentProject?,
 	analyticsManager: IAnalyticsManager,
@@ -49,8 +52,7 @@ fun recordProjectOpenedBookkeeping(
 	ProjectManagerImpl.getInstance().projectPath = root.absolutePath
 	GeneralPreferences.lastOpenedProject = root.absolutePath
 
-	val scope = ProcessLifecycleOwner.get().lifecycleScope
-	scope.launch(Dispatchers.IO) {
+	ProcessLifecycleOwner.get().lifecycleScope.launch(Dispatchers.IO) {
 		val location = root.absolutePath
 		val recentProject =
 			project ?: RecentProject(
@@ -59,7 +61,7 @@ fun recordProjectOpenedBookkeeping(
 				createdAt = getCreatedTime(location).toString(),
 				lastModified = getLastModifiedTime(location).toString(),
 			)
-		RecentProjectRoomDatabase.getDatabase(context, scope).recentProjectDao().insert(recentProject)
+		recentProjectDao.insert(recentProject)
 	}
 
 	analyticsManager.trackProjectOpened(root.absolutePath)

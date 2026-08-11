@@ -94,6 +94,7 @@ import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
+import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
 import com.itsaky.androidide.shortcuts.ShortcutContext
 import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
@@ -174,6 +175,7 @@ open class EditorHandlerActivity :
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
 	private val analyticsManager: IAnalyticsManager by inject()
+	private val recentProjectDao: RecentProjectDao by inject()
 
 	private var pluginEditorProvider: EditorProviderImpl? = null
 
@@ -357,7 +359,7 @@ open class EditorHandlerActivity :
 			PendingDeepLinkOpen.value = null
 			val root = File(pending.projectRoot)
 			val ctx = applicationContext
-			recordProjectOpenedBookkeeping(ctx, root, project = null, analyticsManager = analyticsManager)
+			recordProjectOpenedBookkeeping(recentProjectDao, root, project = null, analyticsManager = analyticsManager)
 			ctx.startActivity(
 				Intent(ctx, EditorActivityKt::class.java).apply {
 					putExtra("PROJECT_PATH", pending.projectRoot)
