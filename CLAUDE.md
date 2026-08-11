@@ -29,6 +29,17 @@ Every module carries `v7` (`armeabi-v7a`) and `v8` (`arm64-v8a`) flavors, so bui
 
 At least one Android emulator or device is available. Find it with `adb devices -l | grep -v offline`, then target it with the `ANDROID_SERIAL` env var. Note the app is **arm-only** (`v7`/`v8` flavors, no x86) — an x86_64 emulator can't run it (not always even via a translation layer), so testing often needs a **physical arm device** or an arm-translation emulator.
 
+**Font-scale check.** Read the current value first so you can put it back. Each change recreates the activity (only `EditorActivityKt` declares `fontScale` in `configChanges`), so this doubles as a state-restoration test:
+
+```bash
+adb shell settings get system font_scale          # save it (prints "null" if never set)
+adb shell settings put system font_scale 2.0
+adb exec-out screencap -p > /tmp/scale-2.0.png
+adb shell settings put system font_scale 1.0      # restore
+```
+
+At 2.0, look for text cut off mid-word, labels overrunning their control, actions pushed off the bottom with no way to scroll to them, and overlapping rows.
+
 ## Architecture
 
 See **[ARCHITECTURE.md](ARCHITECTURE.md)** — the single source of truth for the module map, layering/data flow, dependency rules, tech stack (DI, async, persistence, networking), state management, and testing strategy. Don't re-document those here; update ARCHITECTURE.md.
@@ -38,6 +49,7 @@ See **[ARCHITECTURE.md](ARCHITECTURE.md)** — the single source of truth for th
 - **Avoid new dependencies** — the build almost certainly already has what's needed. Check `gradle/libs.versions.toml` and `build.gradle.kts` first.
 - **Persistence:** prefer **Room** for relational data and the filesystem/preferences for settings; raw SQLite only for justified exceptions — see [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md).
 - **Protect the two Android system bars** in any UI work: the top status bar (clock, notifications, status icons) and the bottom navigation bar (home, back, recents). Don't draw over or intercept them.
+- **Every screen must survive 2x font scale.** Users with low vision run large system fonts, and a screen that clips or hides content at 2.0 is broken for them. Verify any new or changed screen at font scale **1.0 and 2.0** (see Build & test, Emulator / device) and say in the PR that you did. Text grows, so: use `sp` for text and `dp` for spacing — never an `sp` dimen as a margin or padding; don't box text in a fixed `dp` height or width; give content that can grow somewhere to scroll; and reserve `maxLines`/`singleLine`/`ellipsize` for text that is genuinely disposable.
 - **Plan and size before building.** Prefer **one PR per ticket/use case** — don't force-split a coherent change (splitting has its own overhead when later edits span the pieces). When a change is large, break it into **reviewable commits** — mechanical/refactor commits separate from behavioral ones — and offer review-by-commit. Treat ~500 LOC / ~10 files as a signal to reach for that commit structure, not a hard cap; the ceiling rises as LLM-assisted review matures. For staged multi-commit refactors (e.g. removing a dependency across many files/modules), order stages easiest-to-hardest and independently compile/test each stage (see Build & test's fast-iteration guidance) before moving to the next, so a failure is isolated to the stage that caused it.
 - **Keep docs in step with code.** When you change code, update the docs that describe it in the same change — a module's `README.md`, `ARCHITECTURE.md`, or an ADR — so a doc never outlives the API it documents (see REVIEW.md, Code quality). If the doc fix is out of scope, file a ticket rather than let it drift.
 - `.androidide_root` is a sentinel file tests use to locate the project root — don't delete it.
