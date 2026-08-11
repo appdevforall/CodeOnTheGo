@@ -14,6 +14,24 @@ The tool surface is deliberately small and grows one tool at a time.
 fails. Not knowing is not the same as knowing the app is absent, and collapsing
 the two would make a missing device look like a missing app.
 
+## Self-description
+
+The server describes itself to clients, and `ServerDescriptionTest` enforces it
+rather than leaving it to review:
+
+- `initialize` returns **instructions** explaining that the server drives CoGo
+  over adb, that tools act on adb's default device, and that an adb failure is
+  not a negative answer.
+- Every tool carries a **`title`** as well as a `name` and `description`.
+- `listChanged` is advertised as **`false`**. The tool set is fixed at
+  construction, so claiming otherwise would promise a
+  `notifications/tools/list_changed` that never arrives.
+
+A tool's `description` is the only signal an agent gets about *when* to reach
+for it, so it carries more weight than its length suggests. Adding a tool means
+adding a title and a description that says when to use it - the test will fail
+otherwise.
+
 ## Run
 
 The flox environment's `on-activate` hook aborts unless it is activated from

@@ -13,21 +13,36 @@ const val SERVER_NAME = "cogo-mcp"
 const val SERVER_VERSION = "0.1.0"
 const val COGO_PACKAGE = "com.itsaky.androidide"
 
+private val SERVER_INSTRUCTIONS =
+	"""
+	Drives Code On The Go ($COGO_PACKAGE), an Android IDE that runs on the device
+	itself, by shelling out to adb on the host machine.
+
+	Tools act on whichever device adb selects by default. When several devices are
+	attached, adb's own error is returned rather than a guess at which one you meant.
+
+	A tool reporting an adb failure means the device could not be reached. That is
+	not the same as an answer: it does not mean the app is absent.
+	""".trimIndent()
+
 fun cogoMcpServer(adb: Adb = SystemAdb()): Server {
 	val server =
 		Server(
 			serverInfo = Implementation(name = SERVER_NAME, version = SERVER_VERSION),
 			options =
 				ServerOptions(
-					capabilities = ServerCapabilities(tools = ServerCapabilities.Tools(listChanged = true)),
+					// The tool set is fixed at construction, so there is nothing to notify about.
+					capabilities = ServerCapabilities(tools = ServerCapabilities.Tools(listChanged = false)),
 				),
+			instructions = SERVER_INSTRUCTIONS,
 		)
 
 	// Handler is suspend ClientConnection.(CallToolRequest) -> CallToolResult: the
 	// ClientConnection is the receiver, not a parameter. ping uses neither.
 	server.addTool(
 		name = "ping",
-		description = "Health check. Returns pong.",
+		title = "Ping",
+		description = "Health check. Returns pong. Does not touch the device.",
 		inputSchema = ToolSchema(properties = JsonObject(emptyMap())),
 	) { _ ->
 		CallToolResult(content = listOf(TextContent("pong")))
@@ -35,7 +50,10 @@ fun cogoMcpServer(adb: Adb = SystemAdb()): Server {
 
 	server.addTool(
 		name = "is_cogo_installed",
-		description = "Report whether Code On The Go ($COGO_PACKAGE) is installed on the attached device.",
+		title = "Is Code On The Go installed?",
+		description =
+			"Report whether Code On The Go ($COGO_PACKAGE) is installed on the attached device. " +
+				"Reports an error, not a negative answer, when adb cannot reach a device.",
 		inputSchema = ToolSchema(properties = JsonObject(emptyMap())),
 	) { _ ->
 		isCogoInstalled(adb)
