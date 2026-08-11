@@ -31,9 +31,9 @@
 
 ### Verified API reference (from the 0.15.0 jars, not the README)
 
-The SDK's README on `main` is **ahead of the 0.15.0 release**. Use these signatures, confirmed via `javap` against `kotlin-sdk-server-jvm-0.15.0.jar`:
+Signatures confirmed via `javap` against `kotlin-sdk-server-jvm-0.15.0.jar`, then verified by compiling against them:
 
-- **The tool handler takes TWO parameters**, not one: `suspend (ClientConnection, CallToolRequest) -> CallToolResult`. The README's single-parameter `{ request -> ... }` will not compile.
+- **The tool handler is `suspend ClientConnection.(CallToolRequest) -> CallToolResult`** — `ClientConnection` is the **receiver**, and there is exactly one parameter. `javap` reports this as `Function3` because a Kotlin receiver is compiled to a leading JVM argument; do not read that as two lambda parameters. A no-argument tool is written `{ _ -> CallToolResult(...) }`.
 - `Server(serverInfo: Implementation, options: ServerOptions, ...)`
 - `Implementation(name: String, version: String, title: String = ..., ...)`
 - `ServerOptions(capabilities: ServerCapabilities, enforceStrictCapabilities: Boolean = ..., ...)`
@@ -292,7 +292,7 @@ Expected: **compilation failure**, `Unresolved reference: cogoMcpServer`. That i
 
 - [ ] **Step 3: Write `CogoMcpServer.kt`**
 
-The handler's two parameters are both unused here; that is the real 0.15.0 signature (`ClientConnection`, `CallToolRequest`), and the README's one-parameter form does not compile.
+The handler is a lambda with `ClientConnection` as receiver and `CallToolRequest` as its single parameter; `ping` uses neither.
 
 ```kotlin
 package com.itsaky.androidide.mcp
@@ -319,11 +319,13 @@ fun cogoMcpServer(): Server {
 				),
 		)
 
+	// Handler is suspend ClientConnection.(CallToolRequest) -> CallToolResult: the
+	// ClientConnection is the receiver, not a parameter. ping uses neither.
 	server.addTool(
 		name = "ping",
 		description = "Health check. Returns pong.",
 		inputSchema = ToolSchema(properties = JsonObject(emptyMap())),
-	) { _, _ ->
+	) { _ ->
 		CallToolResult(content = listOf(TextContent("pong")))
 	}
 
