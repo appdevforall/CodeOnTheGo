@@ -37,7 +37,7 @@ If none of these hold, use Room. "It's a small table" or "I already know SQL" ar
 
 The **Recent Projects** feature (`app/.../roomData/recentproject/`, `RecentProjectRoomDatabase`, `@Database version = 4`) is **not** an exception — it uses Room and is the reference example of the default. Extend it (and add new persistence) the same way.
 
-> Note: `idetooltips` still declares Room Gradle deps it doesn't use — remove them (its store is raw SQLite by exception 1). And the `androidx.room:*` strings in `editor`'s `GroovyAutoComplete` are autocomplete suggestions for the *user's* code, not CoGo persistence.
+> Note: the `androidx.room:*` strings in `editor`'s `GroovyAutoComplete` are autocomplete suggestions for the *user's* code, not CoGo persistence.
 
 ## Consequences
 
@@ -51,7 +51,6 @@ The **Recent Projects** feature (`app/.../roomData/recentproject/`, `RecentProje
 - Contributors must justify raw-SQLite use rather than reach for it by habit.
 
 **Follow-ups**
-- Remove the unused Room dependencies from `idetooltips`.
 - Provide shared helper utilities for the raw-SQLite exceptions so they stay consistent and safe (parameterized queries — see SECURITY.md).
 
 ## Alternatives considered
