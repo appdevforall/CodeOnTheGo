@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -11,6 +12,9 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Service for LLM inference operations. Provided by ai-core plugin.
+ *
+ * <p>
+ * {@link LlmBackend} is the one type here that plugins <em>implement</em> rather than call, so it carries only what every backend can answer. Anything a backend may or may not do is a separate interface extending it -- {@link HistoryCapableBackend}, {@link ToolCallingBackend}, {@link CancellableBackend}, {@link ConfigurableBackend} -- and the consumer asks with {@code instanceof} before it calls. A capability is therefore declared by the type, not by a flag a backend can set inconsistently with the methods it overrode.
  */
 public interface LlmInferenceService {
 
@@ -149,7 +153,7 @@ public interface LlmInferenceService {
 	/**
 	 * A backend whose in-flight streaming generation can be cancelled (Stop pressed).
 	 */
-	interface CancellableBackend {
+	interface CancellableBackend extends LlmBackend {
 		/**
 		 * Cancels the streaming generation currently in flight, if any.
 		 */
@@ -157,116 +161,121 @@ public interface LlmInferenceService {
 	}
 
 	/**
-	 * Message in a conversation
+	 * One turn of a conversation: what the user asked, what the model answered, or what a tool returned.
 	 */
 	class ChatMessage {
+		/**
+		 * Creates the message that carries a tool's output back into the next turn.
+		 *
+		 * <p>
+		 * This is the return path for {@link ToolStreamCallback#onToolCall}: the consumer runs the tool, wraps the outcome here, and appends it to the history of the following request. Both correlators travel with it because providers key results differently -- by call id, or by function name -- and a backend can only forward what it was given.
+		 *
+		 * @param toolCallId
+		 *            the {@link ToolCallRequest#callId} this result answers
+		 * @param toolName
+		 *            the {@link ToolCallRequest#name} that was invoked
+		 * @param content
+		 *            the tool's output, already rendered as text
+		 * @return a message with role {@link Role#TOOL}
+		 */
+		@NonNull
+		public static ChatMessage toolResult(@NonNull String toolCallId, @NonNull String toolName, @NonNull String content) {
+			return new ChatMessage(
+					Role.TOOL,
+					Objects.requireNonNull(content, "content must not be null"),
+					Objects.requireNonNull(toolCallId, "toolCallId must not be null"),
+					Objects.requireNonNull(toolName, "toolName must not be null"));
+		}
+
 		/** The role of the message sender */
+		@NonNull
 		public final Role role;
 
 		/** The text content of the message */
+		@NonNull
 		public final String content;
 
+		/** The call this message answers; non-null exactly when {@link #role} is {@link Role#TOOL}. */
+		@Nullable
+		public final String toolCallId;
+
+		/** The tool this message answers for; non-null exactly when {@link #role} is {@link Role#TOOL}. */
+		@Nullable
+		public final String toolName;
+
 		/**
-		 * Creates a chat message.
+		 * Creates a chat message from a conversation participant.
 		 *
 		 * @param role
-		 *            the role of the sender
+		 *            the role of the sender; not {@link Role#TOOL}, which needs the correlators only {@link #toolResult} supplies
 		 * @param content
 		 *            the message content
+		 * @throws IllegalArgumentException
+		 *             if role is {@link Role#TOOL}
 		 */
-		public ChatMessage(Role role, String content) {
+		public ChatMessage(@NonNull Role role, @NonNull String content) {
+			if (role == Role.TOOL) {
+				throw new IllegalArgumentException("A TOOL message must be built with ChatMessage.toolResult(...)");
+			}
+			this.role = Objects.requireNonNull(role, "role must not be null");
+			this.content = Objects.requireNonNull(content, "content must not be null");
+			this.toolCallId = null;
+			this.toolName = null;
+		}
+
+		private ChatMessage(@NonNull Role role, @NonNull String content, @NonNull String toolCallId, @NonNull String toolName) {
 			this.role = role;
 			this.content = content;
+			this.toolCallId = toolCallId;
+			this.toolName = toolName;
 		}
 
 		/** Role of the message sender */
 		public enum Role {
-			USER, ASSISTANT, SYSTEM
+			USER, ASSISTANT, SYSTEM, TOOL
 		}
 	}
 
 	/**
-	 * Specification of a single backend configuration field. Lets the app draw a backend's settings without knowing its API.
+	 * An {@link LlmBackend} that draws its own settings screen. Kept apart from {@code LlmBackend} so that running inference stays independent of presenting a UI: a backend with nothing to configure implements nothing, and the consumer asks with {@code instanceof} before it draws.
 	 */
-	class ConfigFieldSpec {
-		/** Key the value is stored under (e.g. "api_key", "model_path") */
-		public final String key;
-
-		/** Human-readable label for the field */
-		public final String label;
-
-		/** How the field should be rendered */
-		public final ConfigFieldType type;
-
-		/** Whether a value must be supplied */
-		public final boolean required;
-
-		/** Default value, or null if there is none */
-		public final String defaultValue;
-
-		/** Selectable options; empty unless {@code type} is {@link ConfigFieldType#DROPDOWN}. Never null, never mutable. */
-		public final List<String> options;
-
+	interface ConfigurableBackend extends LlmBackend {
 		/**
-		 * Creates a configuration field spec.
-		 *
-		 * @param key
-		 *            the key the value is stored under
-		 * @param label
-		 *            the human-readable label
-		 * @param type
-		 *            how the field should be rendered
-		 * @param required
-		 *            whether a value must be supplied
-		 * @param defaultValue
-		 *            the default value, or null if there is none
-		 * @param options
-		 *            the selectable options, only used when type is DROPDOWN; copied, so later edits to the caller's list do not reach the spec
-		 */
-		public ConfigFieldSpec(@NonNull String key, @NonNull String label, @NonNull ConfigFieldType type,
-				boolean required, @Nullable String defaultValue, @Nullable List<String> options) {
-			this.key = Objects.requireNonNull(key, "key must not be null");
-			this.label = Objects.requireNonNull(label, "label must not be null");
-			this.type = Objects.requireNonNull(type, "type must not be null");
-			this.required = required;
-			this.defaultValue = defaultValue;
-			this.options = options == null
-					? Collections.emptyList()
-					: Collections.unmodifiableList(new ArrayList<>(options));
-		}
-	}
-
-	/**
-	 * Type of a backend configuration field, determining how the app renders it.
-	 */
-	enum ConfigFieldType {
-		TEXT, PASSWORD, FILE_PICKER, DROPDOWN, BOOLEAN
-	}
-
-	/**
-	 * An {@link LlmBackend} that has settings for the user to fill in. Kept apart from {@code LlmBackend} so that running inference stays independent of drawing a settings screen: a backend with nothing to configure implements nothing, and the consumer asks with {@code instanceof} before it draws.
-	 */
-	interface ConfigurableBackend {
-		/**
-		 * Gets the fields the app must draw to configure this backend.
-		 *
-		 * @return the configuration field specs; empty if the settings screen comes from {@link #getSettingsFragmentClassName()} instead
-		 */
-		@NonNull
-		List<ConfigFieldSpec> getConfigSpecs();
-
-		/**
-		 * Gets the fully-qualified name of a {@code Fragment} this backend contributes to draw its own settings. The class must live in the backend's own plugin and declare a public no-argument constructor; the consumer loads it with the backend's classloader and mounts it wherever it presents backend settings. The name is passed as a string so this contract stays free of any dependency on Android UI types.
+		 * Gets the fully-qualified name of the {@code Fragment} this backend contributes to draw its settings. The class must live in the backend's own plugin and declare a public no-argument constructor; the consumer loads it with the backend's classloader and mounts it wherever it presents backend settings. The name is passed as a string so this contract stays free of any dependency on Android UI types.
 		 *
 		 * <p>
-		 * Overriding this supersedes {@link #getConfigSpecs()} as the source of the settings UI, so a backend whose configuration is more than a list of fields -- live model catalogs, credential checks, engine status -- owns that screen instead of flattening it into field specs.
+		 * The backend owns the screen outright -- including where each value is stored, which is why nothing here describes a field or a store. A consumer cannot prefill or write a backend's settings; it can only mount them.
 		 *
-		 * @return the fragment class name, or null to be configured from {@link #getConfigSpecs()} instead
+		 * @return the fragment class name (never null)
 		 */
-		@Nullable
-		default String getSettingsFragmentClassName() {
-			return null;
-		}
+		@NonNull
+		String getSettingsFragmentClassName();
+	}
+
+	/**
+	 * An {@link LlmBackend} that renders earlier turns of a conversation.
+	 *
+	 * <p>
+	 * Implementing this is the declaration: a backend that can only prompt single-turn does not implement it, and the consumer calls {@link LlmBackend#generateStreaming} instead of silently losing the conversation -- which reads to the user as a model that cannot follow one.
+	 */
+	interface HistoryCapableBackend extends LlmBackend {
+		/**
+		 * Generates a streaming reply for a multi-turn conversation.
+		 *
+		 * @param history
+		 *            the conversation history
+		 * @param prompt
+		 *            the current prompt
+		 * @param config
+		 *            the generation configuration
+		 * @param callback
+		 *            the callback to receive tokens and completion events
+		 */
+		void generateStreamingWithHistory(
+				@NonNull List<ChatMessage> history,
+				@NonNull String prompt,
+				@NonNull LlmConfig config,
+				@NonNull StreamCallback callback);
 	}
 
 	/**
@@ -282,7 +291,8 @@ public interface LlmInferenceService {
 		 *            the generation configuration
 		 * @return a future that completes with the generated response
 		 */
-		CompletableFuture<LlmResponse> generate(String prompt, LlmConfig config);
+		@NonNull
+		CompletableFuture<LlmResponse> generate(@NonNull String prompt, @NonNull LlmConfig config);
 
 		/**
 		 * Generates a completion with streaming output.
@@ -294,54 +304,7 @@ public interface LlmInferenceService {
 		 * @param callback
 		 *            the callback to receive tokens and completion events
 		 */
-		void generateStreaming(String prompt, LlmConfig config, StreamCallback callback);
-
-		/**
-		 * Generates a streaming reply for a multi-turn conversation. Implement this together with {@link #supportsHistory()}, which callers are expected to consult first; the default throws rather than answering the last turn alone, because a backend that quietly forgets the conversation reads to the user as a model that cannot follow one. A caller that prefers single-turn to nothing calls {@link #generateStreaming} itself once {@link #supportsHistory()} says no.
-		 *
-		 * @param history
-		 *            the conversation history
-		 * @param prompt
-		 *            the current prompt
-		 * @param config
-		 *            the generation configuration
-		 * @param callback
-		 *            the callback to receive tokens and completion events
-		 * @throws UnsupportedOperationException
-		 *             if this backend does not support multi-turn history
-		 */
-		default void generateStreamingWithHistory(
-				List<ChatMessage> history,
-				String prompt,
-				LlmConfig config,
-				StreamCallback callback) {
-			throw new UnsupportedOperationException("Multi-turn history is not supported by backend: " + getId());
-		}
-
-		/**
-		 * Generates a completion with streaming output and tool calling support. Implement this together with {@link #supportsTools()}, which callers are expected to consult first; the default throws rather than streaming plain text, because tools that are accepted and never called leave the caller waiting on an action the model was never able to take.
-		 *
-		 * @param prompt
-		 *            the input prompt
-		 * @param history
-		 *            the conversation history (can be empty)
-		 * @param config
-		 *            the generation configuration
-		 * @param tools
-		 *            the available tools the LLM can call
-		 * @param callback
-		 *            the callback to receive tokens, tool calls and completion events
-		 * @throws UnsupportedOperationException
-		 *             if this backend does not support tool calling
-		 */
-		default void generateStreamingWithTools(
-				String prompt,
-				List<ChatMessage> history,
-				LlmConfig config,
-				List<ToolDefinition> tools,
-				ToolStreamCallback callback) {
-			throw new UnsupportedOperationException("Tool calling is not supported by backend: " + getId());
-		}
+		void generateStreaming(@NonNull String prompt, @NonNull LlmConfig config, @NonNull StreamCallback callback);
 
 		/**
 		 * Generates a completion based on conversation history.
@@ -354,10 +317,11 @@ public interface LlmInferenceService {
 		 *            the generation configuration
 		 * @return a future that completes with the generated response
 		 */
+		@NonNull
 		CompletableFuture<LlmResponse> generateWithHistory(
-				List<ChatMessage> history,
-				String prompt,
-				LlmConfig config);
+				@NonNull List<ChatMessage> history,
+				@NonNull String prompt,
+				@NonNull LlmConfig config);
 
 		/**
 		 * Gets the sampling temperature this backend works best at, or null to accept the consumer's own.
@@ -380,6 +344,7 @@ public interface LlmInferenceService {
 		 *
 		 * @return the backend identifier
 		 */
+		@NonNull
 		String getId();
 
 		/**
@@ -387,13 +352,14 @@ public interface LlmInferenceService {
 		 *
 		 * @return the backend name
 		 */
+		@NonNull
 		String getName();
 
 		/**
 		 * Gets the system prompt to send with every request to this backend, or null to accept the consumer's own.
 		 *
 		 * <p>
-		 * Prompt wording is model-specific -- how much autonomy a model handles, how literally it copies an example -- so it belongs with the backend that knows the model, not with the consumer that knows the tools. The consumer still owns the call syntax: reproduce {@link SystemPromptRequest#toolCallSyntax} verbatim, or the replies this prompt produces will not parse.
+		 * Prompt wording is model-specific -- how much autonomy a model handles, how literally it copies an example -- so it belongs with the backend that knows the model, not with the consumer that knows the tools. The consumer still owns the call syntax: reproduce {@link SystemPromptRequest#toolCallSyntax} verbatim when it is present, or the replies this prompt produces will not parse.
 		 *
 		 * @param request
 		 *            the tool contract and example material to compose against
@@ -410,24 +376,6 @@ public interface LlmInferenceService {
 		 * @return true if the backend is available, false otherwise
 		 */
 		boolean isAvailable();
-
-		/**
-		 * Whether this backend renders earlier turns of a conversation, and so overrides {@link #generateStreamingWithHistory}. Answer for the backend, not for the model behind it: a backend that can only prompt single-turn says false here and lets the caller decide what to do about it.
-		 *
-		 * @return true if multi-turn history is supported, false otherwise
-		 */
-		default boolean supportsHistory() {
-			return false;
-		}
-
-		/**
-		 * Whether this backend executes tool calls, and so overrides {@link #generateStreamingWithTools}.
-		 *
-		 * @return true if tool calling is supported, false otherwise
-		 */
-		default boolean supportsTools() {
-			return false;
-		}
 	}
 
 	/**
@@ -482,7 +430,8 @@ public interface LlmInferenceService {
 		 *            the error message describing why generation failed
 		 * @return a failed LlmResponse
 		 */
-		public static LlmResponse failure(String error) {
+		@NonNull
+		public static LlmResponse failure(@NonNull String error) {
 			return new LlmResponse(false, null, error, 0, 0);
 		}
 
@@ -497,7 +446,8 @@ public interface LlmInferenceService {
 		 *            the time taken in milliseconds
 		 * @return a successful LlmResponse
 		 */
-		public static LlmResponse success(String text, int tokens, long timeMs) {
+		@NonNull
+		public static LlmResponse success(@NonNull String text, int tokens, long timeMs) {
 			return new LlmResponse(true, text, null, tokens, timeMs);
 		}
 
@@ -505,9 +455,11 @@ public interface LlmInferenceService {
 		public final boolean success;
 
 		/** Generated text (null if not successful) */
+		@Nullable
 		public final String text;
 
 		/** Error message (null if successful) */
+		@Nullable
 		public final String error;
 
 		/** Number of tokens generated in the response */
@@ -516,7 +468,7 @@ public interface LlmInferenceService {
 		/** Time taken to generate the response in milliseconds */
 		public final long timeMs;
 
-		public LlmResponse(boolean success, String text, String error,
+		public LlmResponse(boolean success, @Nullable String text, @Nullable String error,
 				int tokensGenerated, long timeMs) {
 			this.success = success;
 			this.text = text;
@@ -562,15 +514,23 @@ public interface LlmInferenceService {
 	 * The consumer supplies the tool contract; the backend supplies the wording. That split matters: the consumer is the side that parses the model's reply, so a backend that invents its own call syntax produces output nothing reads back -- and it fails silently, as a model that answers in prose rather than calling a tool.
 	 */
 	class SystemPromptRequest {
-		/** The tools the consumer will accept calls for, in the order to present them. Never null, never mutable. */
+		/** The tools the consumer will accept calls for, in the order to present them. Never null; empty when the conversation offers no tools. */
+		@NonNull
 		public final List<ToolDefinition> tools;
 
-		/** The exact envelope the consumer parses back, to be reproduced verbatim in the prompt. */
+		/**
+		 * The exact envelope the consumer parses back, to be reproduced verbatim in the prompt, or null when it parses none.
+		 *
+		 * <p>
+		 * Null is the plain-chat case, and the case of a consumer driving {@link ToolCallingBackend} through a provider's own function calling: there is no text envelope, so a prompt must not instruct the model to emit one. Reproducing an empty envelope is the failure this type exists to prevent -- the model is told to call tools in a syntax nothing reads, and answers in prose instead.
+		 */
+		@Nullable
 		public final String toolCallSyntax;
 
 		/**
 		 * A real path from the user's project for the prompt's examples, so they imply no layout or language the project does not have.
 		 */
+		@Nullable
 		public final String exampleFilePath;
 
 		/**
@@ -579,35 +539,67 @@ public interface LlmInferenceService {
 		 * @param tools
 		 *            the tools to present to the model; copied, so later edits to the caller's list do not reach the request
 		 * @param toolCallSyntax
-		 *            the call envelope the consumer parses
+		 *            the call envelope the consumer parses, or null when it parses none
 		 * @param exampleFilePath
 		 *            a real project path to use in examples, or null when the project has no file to point at
 		 */
-		public SystemPromptRequest(@Nullable List<ToolDefinition> tools, @NonNull String toolCallSyntax,
+		public SystemPromptRequest(@Nullable List<ToolDefinition> tools, @Nullable String toolCallSyntax,
 				@Nullable String exampleFilePath) {
 			this.tools = tools == null
 					? Collections.emptyList()
 					: Collections.unmodifiableList(new ArrayList<>(tools));
-			this.toolCallSyntax = Objects.requireNonNull(toolCallSyntax, "toolCallSyntax must not be null");
+			this.toolCallSyntax = toolCallSyntax;
 			this.exampleFilePath = exampleFilePath;
 		}
+	}
+
+	/**
+	 * An {@link LlmBackend} that reports the model's tool calls as structured calls.
+	 *
+	 * <p>
+	 * Implementing this is the declaration, and it means {@link ToolStreamCallback#onToolCall} will fire for a call the model makes. A backend that merely wants earlier turns implements {@link HistoryCapableBackend} instead: accepting tools and never calling one leaves the consumer waiting on an action the model was never able to take.
+	 */
+	interface ToolCallingBackend extends LlmBackend {
+		/**
+		 * Generates a completion with streaming output and tool calling support.
+		 *
+		 * @param prompt
+		 *            the input prompt
+		 * @param history
+		 *            the conversation history, including any {@link ChatMessage#toolResult} from earlier turns (can be empty)
+		 * @param config
+		 *            the generation configuration
+		 * @param tools
+		 *            the available tools the LLM can call
+		 * @param callback
+		 *            the callback to receive tokens, tool calls and completion events
+		 */
+		void generateStreamingWithTools(
+				@NonNull String prompt,
+				@NonNull List<ChatMessage> history,
+				@NonNull LlmConfig config,
+				@NonNull List<ToolDefinition> tools,
+				@NonNull ToolStreamCallback callback);
 	}
 
 	/**
 	 * A tool call request made by the LLM. Represents the LLM's request to invoke a tool with specific arguments.
 	 *
 	 * <p>
-	 * The backend that reports the call owns the instance; the consumer receiving it in {@link ToolStreamCallback#onToolCall} must treat it, and {@link #args}, as read-only. The fields are not final only because this type shipped before the capability contract did -- see {@code docs/plugin-api.md} on breaking changes.
+	 * Immutable: the backend reporting the call cannot see it change under the consumer running it, and the consumer cannot alter what the model asked for. {@link #args} is copied one level deep, so a value nested inside it is still shared -- do not mutate one.
 	 */
 	class ToolCallRequest {
-		/** Identifier correlating this call with the result the consumer sends back */
-		public String callId;
+		/** Identifier correlating this call with the result the consumer sends back in {@link ChatMessage#toolResult} */
+		@NonNull
+		public final String callId;
 
 		/** Name of the tool to invoke; matches a {@link ToolDefinition#name} the consumer offered */
-		public String name;
+		@NonNull
+		public final String name;
 
-		/** Arguments the model supplied, keyed by parameter name. Held by reference, so callers must not mutate it after publishing the call. */
-		public Map<String, Object> args;
+		/** Arguments the model supplied, keyed by parameter name. Never null; empty when the tool takes none. */
+		@NonNull
+		public final Map<String, Object> args;
 
 		/**
 		 * Creates a tool call request.
@@ -617,12 +609,14 @@ public interface LlmInferenceService {
 		 * @param name
 		 *            the name of the tool to invoke
 		 * @param args
-		 *            the arguments the model supplied; stored by reference, not copied
+		 *            the arguments the model supplied, or null for none; copied, so later edits to the caller's map do not reach the request
 		 */
 		public ToolCallRequest(@NonNull String callId, @NonNull String name, @Nullable Map<String, Object> args) {
-			this.callId = callId;
-			this.name = name;
-			this.args = args;
+			this.callId = Objects.requireNonNull(callId, "callId must not be null");
+			this.name = Objects.requireNonNull(name, "name must not be null");
+			this.args = args == null
+					? Collections.emptyMap()
+					: Collections.unmodifiableMap(new LinkedHashMap<>(args));
 		}
 	}
 
@@ -630,17 +624,20 @@ public interface LlmInferenceService {
 	 * Tool definition for structured function calling. Defines a tool that the LLM can invoke.
 	 *
 	 * <p>
-	 * The consumer composing the request owns the instance; a backend given one in {@link SystemPromptRequest#tools} must treat it, and {@link #parametersSchema}, as read-only. Mutating either after the prompt is composed makes the consumer parse replies against a schema it no longer offered. The fields are not final only because this type shipped before the capability contract did -- see {@code docs/plugin-api.md} on breaking changes.
+	 * Immutable: a backend given one in {@link SystemPromptRequest#tools} cannot rename it or empty its schema, which would leave the consumer parsing replies against a contract it no longer offered. {@link #parametersSchema} is copied one level deep, so a value nested inside it is still shared -- do not mutate one.
 	 */
 	class ToolDefinition {
 		/** The name the model must use to call this tool */
-		public String name;
+		@NonNull
+		public final String name;
 
 		/** What the tool does, in wording meant for the model rather than the user */
-		public String description;
+		@NonNull
+		public final String description;
 
-		/** JSON-schema-shaped description of the parameters. Held by reference, so callers must not mutate it after publishing the definition. */
-		public Map<String, Object> parametersSchema;
+		/** JSON-schema-shaped description of the parameters. Never null; empty when the tool takes no parameters. */
+		@NonNull
+		public final Map<String, Object> parametersSchema;
 
 		/**
 		 * Creates a tool definition.
@@ -650,13 +647,15 @@ public interface LlmInferenceService {
 		 * @param description
 		 *            what the tool does
 		 * @param parametersSchema
-		 *            the parameter schema; stored by reference, not copied
+		 *            the parameter schema, or null when the tool takes no parameters; copied, so later edits to the caller's map do not reach the definition
 		 */
 		public ToolDefinition(@NonNull String name, @NonNull String description,
 				@Nullable Map<String, Object> parametersSchema) {
-			this.name = name;
-			this.description = description;
-			this.parametersSchema = parametersSchema;
+			this.name = Objects.requireNonNull(name, "name must not be null");
+			this.description = Objects.requireNonNull(description, "description must not be null");
+			this.parametersSchema = parametersSchema == null
+					? Collections.emptyMap()
+					: Collections.unmodifiableMap(new LinkedHashMap<>(parametersSchema));
 		}
 	}
 
@@ -689,7 +688,7 @@ public interface LlmInferenceService {
 		void onToken(String token);
 
 		/**
-		 * Called when the LLM makes a tool call. The consumer runs the tool and reports the result back, correlating it by {@link ToolCallRequest#callId}.
+		 * Called when the LLM makes a tool call. The consumer runs the tool and appends the outcome to the next request's history as a {@link ChatMessage#toolResult}, which carries {@link ToolCallRequest#callId} back so a turn's several calls are correlated by id rather than by position.
 		 *
 		 * @param request
 		 *            the tool the model wants called, and the arguments it supplied
