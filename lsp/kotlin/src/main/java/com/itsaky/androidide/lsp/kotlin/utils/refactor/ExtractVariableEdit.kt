@@ -74,12 +74,54 @@ private fun existingBlockRewrite(
 	val last = targets.last()
 	val anchor = form.statementSpans.firstOrNull { it.start <= first.start && first.end <= it.end } ?: return null
 	val lineStart = lineStartOffset(fileText, anchor.start)
+
+	// The statement shares its line with the block's opening brace (a one-line lambda or body). The
+	// line start is then *outside* the block, so the declaration has to go inside the braces instead.
+	if (lineStart < form.contentSpan.start) {
+		return oneLineBlockRewrite(fileText, form, targets, declaration, name)
+	}
+
 	val indent = leadingIndentAt(fileText, anchor.start)
 	val newline = detectNewline(fileText)
 
 	val span = TextSpan(lineStart, last.end)
 	val body = replaceOccurrences(fileText, span, targets, name)
 	return RewriteSpan(span = span, newText = indent + declaration + newline + body)
+}
+
+/**
+ * Puts the declaration inside a block written on one line, moving the block's content and its closing
+ * brace onto their own lines.
+ *
+ * Only the content between the braces is rewritten: the braces, and a lambda's `param ->` header,
+ * stay exactly where they are, so the expansion cannot disturb the call around it.
+ */
+private fun oneLineBlockRewrite(
+	fileText: String,
+	form: AnchorForm.ExistingBlock,
+	targets: List<TextSpan>,
+	declaration: String,
+	name: String,
+): RewriteSpan {
+	val content = form.contentSpan
+	val newline = detectNewline(fileText)
+	val indent = leadingIndentAt(fileText, content.start)
+	val innerIndent = indent + detectIndentUnit(fileText)
+
+	// A block that does not own its braces (a lambda body) stops short of them, leaving a single
+	// space between the content span and the brace on each side. Widen the replaced span over that
+	// gap so it does not survive the rewrite as a stray "{ " or " }".
+	val span = TextSpan(startOfWhitespaceBefore(fileText, content.start), endOfWhitespaceAfter(fileText, content.end))
+	val body = replaceOccurrences(fileText, content, targets, name).trim()
+
+	val newText =
+		buildString {
+			append(newline)
+			append(innerIndent).append(declaration).append(newline)
+			append(innerIndent).append(body).append(newline)
+			append(indent)
+		}
+	return RewriteSpan(span = span, newText = newText)
 }
 
 /** Wraps a braceless statement in a block containing the declaration and the original statement. */
@@ -142,6 +184,16 @@ private fun startOfWhitespaceBefore(
 ): Int {
 	var index = offset.coerceIn(0, text.length)
 	while (index > 0 && text[index - 1].isWhitespace()) index--
+	return index
+}
+
+/** The offset where the run of whitespace starting at [offset] ends. */
+private fun endOfWhitespaceAfter(
+	text: String,
+	offset: Int,
+): Int {
+	var index = offset.coerceIn(0, text.length)
+	while (index < text.length && text[index].isWhitespace()) index++
 	return index
 }
 

@@ -447,4 +447,72 @@ class ExtractVariableEditTest {
 		assertEquals(0, position.column)
 		assertEquals(7, position.index)
 	}
+
+	@Test
+	fun `expands a one-line lambda so the declaration lands inside the braces`() {
+		val text = "fun f(items: List<String>): List<Int> {\n\treturn items.map { it.length + 1 }\n}"
+		val candidate = spanOf(text, "it.length + 1")
+		val form =
+			AnchorForm.ExistingBlock(
+				contentSpan = spanOf(text, " it.length + 1 "),
+				statementSpans = listOf(candidate),
+			)
+
+		val result = rewrite(text, candidate, form, listOf(candidate), "length", replaceAll = false)!!
+
+		assertEquals(
+			"fun f(items: List<String>): List<Int> {\n" +
+				"\treturn items.map {\n" +
+				"\t\tval length = it.length + 1\n" +
+				"\t\tlength\n" +
+				"\t}\n" +
+				"}",
+			apply(text, result),
+		)
+	}
+
+	@Test
+	fun `expanding a one-line lambda keeps its parameter header on the brace line`() {
+		val text = "fun f(items: List<String>): List<Int> {\n\treturn items.map { item -> item.length + 1 }\n}"
+		val candidate = spanOf(text, "item.length + 1")
+		// A lambda body block excludes the `item ->` header, so the header is outside the content span.
+		val form =
+			AnchorForm.ExistingBlock(
+				contentSpan = spanOf(text, " item.length + 1 "),
+				statementSpans = listOf(candidate),
+			)
+
+		val result = rewrite(text, candidate, form, listOf(candidate), "length", replaceAll = false)!!
+
+		assertEquals(
+			"fun f(items: List<String>): List<Int> {\n" +
+				"\treturn items.map { item ->\n" +
+				"\t\tval length = item.length + 1\n" +
+				"\t\tlength\n" +
+				"\t}\n" +
+				"}",
+			apply(text, result),
+		)
+	}
+
+	@Test
+	fun `expands a one-line function body`() {
+		val text = "fun f(n: Int): Int { return n * 2 }"
+		val candidate = spanOf(text, "n * 2")
+		val form =
+			AnchorForm.ExistingBlock(
+				contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
+				statementSpans = listOf(spanOf(text, "return n * 2")),
+			)
+
+		val result = rewrite(text, candidate, form, listOf(candidate), "doubled", replaceAll = false)!!
+
+		assertEquals(
+			"fun f(n: Int): Int {\n" +
+				"\tval doubled = n * 2\n" +
+				"\treturn doubled\n" +
+				"}",
+			apply(text, result),
+		)
+	}
 }
