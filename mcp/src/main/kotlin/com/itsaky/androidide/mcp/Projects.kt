@@ -77,7 +77,7 @@ internal fun describeProjects(listing: ProjectListing): String =
 	}
 
 fun listProjects(adb: Adb): CallToolResult {
-	val result = adb.run(listOf("shell", listProjectsCommand()))
+	val result = adb.shell(listProjectsCommand())
 	if (result.exitCode != 0) {
 		return adbFailure(result)
 	}

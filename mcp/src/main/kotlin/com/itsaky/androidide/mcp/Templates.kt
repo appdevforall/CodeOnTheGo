@@ -13,8 +13,7 @@ private const val INDEX_MEMBER = "templates.json"
 // `ls` exits 1 on an absent directory, and the directory only appears once
 // onboarding has unpacked the templates - so guard it rather than read a
 // pre-onboarding device as an unreachable one.
-private const val LIST_ARCHIVES_COMMAND =
-	"run-as $COGO_PACKAGE sh -c \"ls $TEMPLATES_DIR 2>/dev/null || true\""
+private val LIST_ARCHIVES_COMMAND = runAs("ls $TEMPLATES_DIR 2>/dev/null || true")
 
 private const val NOTHING_INSTALLED =
 	"No project templates are installed yet: $TEMPLATES_DIR is empty or missing. " +
@@ -63,10 +62,10 @@ private fun firstStringField(
 private fun readMemberCommand(
 	archive: String,
 	member: String,
-) = "run-as $COGO_PACKAGE sh -c \"unzip -p $TEMPLATES_DIR/$archive $member\""
+) = runAs("unzip -p $TEMPLATES_DIR/$archive $member")
 
 fun listTemplates(adb: Adb): CallToolResult {
-	val listing = adb.run(listOf("shell", LIST_ARCHIVES_COMMAND))
+	val listing = adb.shell(LIST_ARCHIVES_COMMAND)
 	if (listing.exitCode != 0) {
 		return adbFailure(listing)
 	}
@@ -84,12 +83,12 @@ fun listTemplates(adb: Adb): CallToolResult {
 
 	val described = mutableListOf<String>()
 	for (archive in archives) {
-		val index = adb.run(listOf("shell", readMemberCommand(archive, INDEX_MEMBER)))
+		val index = adb.shell(readMemberCommand(archive, INDEX_MEMBER))
 		if (index.exitCode != 0) {
 			return adbFailure(index)
 		}
 		for (path in parseTemplateIndex(index.stdout)) {
-			val template = adb.run(listOf("shell", readMemberCommand(archive, "$path/template/template.json")))
+			val template = adb.shell(readMemberCommand(archive, "$path/template/template.json"))
 			if (template.exitCode != 0) {
 				return adbFailure(template)
 			}

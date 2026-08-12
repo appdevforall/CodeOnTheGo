@@ -10,8 +10,6 @@ private const val LAST_PROJECT_KEY = "ide_last_project"
 // unescaping.
 private const val NO_OPENED_PROJECT = "<NO_OPENED_PROJECT>"
 
-private const val PROJECT_PREFS_PATH = "shared_prefs/${COGO_PACKAGE}_preferences.xml"
-
 private val EXCLUDED_DIRECTORIES = setOf("build", ".gradle", ".git")
 
 private const val EXCLUSION_NOTE = "build/, .gradle/ and .git/ are excluded."
@@ -47,10 +45,6 @@ private fun unescapeXml(text: String) =
 		.replace("&apos;", "'")
 		// Last, so that an escaped entity such as &amp;lt; does not become a tag.
 		.replace("&amp;", "&")
-
-// The prefs file does not exist until the app writes one, and that must read as
-// empty rather than as an adb failure - hence the `|| true`.
-private fun readProjectPreferencesCommand() = "run-as $COGO_PACKAGE sh -c \"cat $PROJECT_PREFS_PATH 2>/dev/null || true\""
 
 // Projects live on shared storage, which run-as cannot read (the app sandbox's
 // storage view is not part of what run-as enters), so this one runs as the plain
@@ -105,7 +99,7 @@ internal fun describeProjectFiles(
 }
 
 fun listProjectFiles(adb: Adb): CallToolResult {
-	val prefs = adb.run(listOf("shell", readProjectPreferencesCommand()))
+	val prefs = adb.shell(readCogoPreferencesCommand())
 	if (prefs.exitCode != 0) {
 		return adbFailure(prefs)
 	}
@@ -114,7 +108,7 @@ fun listProjectFiles(adb: Adb): CallToolResult {
 		parseLastOpenedProject(prefs.stdout)
 			?: return CallToolResult(content = listOf(TextContent(NO_PROJECT_MESSAGE)))
 
-	val listing = adb.run(listOf("shell", listProjectFilesCommand(projectPath)))
+	val listing = adb.shell(listProjectFilesCommand(projectPath))
 	if (listing.exitCode != 0) {
 		return adbFailure(listing)
 	}
