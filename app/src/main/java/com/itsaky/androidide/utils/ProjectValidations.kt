@@ -35,6 +35,14 @@ internal fun findValidProjectByName(
 	projectsRoot: File,
 	name: String,
 ): File? {
+	// A project name is always a single path segment. resolveWithinDirectory's lexical check only
+	// rejects ".."/a leading separator, so without this, name = "." would resolve to projectsRoot
+	// itself (opening the whole projects directory as "a project" if it happens to satisfy
+	// isValidProjectDirectory), and an embedded separator like "foo/bar" would resolve two levels
+	// deep instead of naming a direct child.
+	if (name.isEmpty() || name == "." || name.contains("/") || name.contains("\\")) {
+		return null
+	}
 	if (!projectsRoot.isProjectCandidateDir()) return null
 	val candidate = resolveWithinDirectory(projectsRoot, name) ?: return null
 	return candidate.takeIf { it.isProjectCandidateDir() && isValidProjectDirectory(it) }
