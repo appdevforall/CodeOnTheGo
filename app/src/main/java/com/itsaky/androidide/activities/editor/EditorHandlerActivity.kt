@@ -350,6 +350,9 @@ open class EditorHandlerActivity :
 	override fun onDestroy() {
 		super.onDestroy()
 		ActionContextProvider.clearActivity(this)
+		// Not dismissing this would leak the dialog's window (WindowLeaked) past this activity's
+		// death -- e.g. a rotation while the confirm-close dialog is showing.
+		activeProjectCloseDialog?.dismiss()
 
 		// Drain any deep-link-triggered "close then reopen a different project" request recorded by
 		// confirmProjectCloseThenOpen's onClosed callback. This deliberately waits until onDestroy --
