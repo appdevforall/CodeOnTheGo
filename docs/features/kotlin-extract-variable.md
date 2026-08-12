@@ -95,6 +95,11 @@ The plan records the document version it was computed against. On confirm, the v
 | `WrapInBraces` | a braceless statement position: `if (c) foo()`, a `when` entry, a braceless loop body | the statement is replaced by a braced block holding the declaration and the original statement |
 | `ConvertExpressionBody` | an expression-bodied function or accessor, `fun area(r: Int) = r * r` | `=` and the body become a block body; `return` is added unless the declaration returns `Unit` |
 
+Each rung is labelled with the construct that owns it -- `fun name`, `getter`, `setter`, `init block`,
+`lambda`, `if block`, `else block`, `for loop`, `while loop`, `do-while loop`, `when branch` -- so the
+`Declare in` list reads as a place rather than as a nesting level. A braced control-structure body is
+wrapped in a container node, so the owner is the block's grandparent, not its parent.
+
 The walk stops after the enclosing named function, accessor or `init` body. A class body or file is never an anchor. Lambda boundaries are crossed during the syntactic walk, then **truncated afterwards** by the innermost scope holding a declaration the candidate references - so a candidate using `it` or a lambda parameter can never be hoisted out of that lambda. `it` needs its own case: it has no source PSI, so a value-parameter symbol with no PSI referenced by the name `it` is taken to be the innermost enclosing lambda's implicit parameter. That is a property of the language, not a guess about the text.
 
 Braceless control-structure bodies are wrapped in a container node, so the `if`/loop is the grandparent; without unwrapping, no braceless body is ever detected and the declaration silently hoists to the enclosing block instead of braces being added.

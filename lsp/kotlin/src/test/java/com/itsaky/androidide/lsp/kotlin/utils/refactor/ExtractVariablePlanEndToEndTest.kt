@@ -409,4 +409,29 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 			result.candidates.map { it.label },
 		)
 	}
+
+	@Test
+	fun `labels a braced if branch by its owner`() {
+		val content =
+			"""
+			package p
+			fun demo(flag: Boolean, a: Int, b: Int): Int {
+				if (flag) {
+					return a + b * 2
+				}
+				return 0
+			}
+			""".trimIndent()
+
+		val target = "a + b * 2"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+
+		assertEquals(
+			listOf("if block", "fun demo"),
+			result.candidates
+				.first()
+				.scopes
+				.map { it.label },
+		)
+	}
 }

@@ -170,19 +170,30 @@ private fun isCeilingBody(scopeElement: PsiElement): Boolean {
 	}
 }
 
-private fun blockLabel(block: KtBlockExpression): String =
-	when (val owner = block.parent) {
+/**
+ * The name shown for a block rung.
+ *
+ * A braceless *or* braced control-structure body is wrapped in a container node, so the `if`/loop is
+ * the block's grandparent; without unwrapping, every braced branch reads as a generic "block". The
+ * container is also what `then`/`else` point at, so the branch check compares against it.
+ */
+private fun blockLabel(block: KtBlockExpression): String {
+	val parent = block.parent
+	val container = parent as? KtContainerNodeForControlStructureBody
+	val branch = container ?: block
+	return when (val owner = container?.parent ?: parent) {
 		is KtNamedFunction -> "fun ${owner.name ?: "<anonymous>"}"
 		is KtPropertyAccessor -> if (owner.isGetter) "getter" else "setter"
 		is KtAnonymousInitializer -> "init block"
 		is KtFunctionLiteral -> "lambda"
-		is KtIfExpression -> if (owner.then === block) "if block" else "else block"
+		is KtIfExpression -> if (owner.then === branch || owner.then?.parent === container) "if block" else "else block"
 		is KtForExpression -> "for loop"
 		is KtWhileExpression -> "while loop"
 		is KtDoWhileExpression -> "do-while loop"
 		is KtWhenEntry -> "when branch"
 		else -> "block"
 	}
+}
 
 private fun declarationLabel(declaration: KtDeclarationWithBody): String =
 	when (declaration) {
