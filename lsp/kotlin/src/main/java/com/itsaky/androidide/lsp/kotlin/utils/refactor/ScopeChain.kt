@@ -22,14 +22,12 @@ import org.jetbrains.kotlin.psi.KtWhileExpression
  *
  * [scopeElement] is the PSI node that *is* the scope, used to decide whether a referenced
  * declaration lives inside it (see [truncateAtCeiling]). [searchRange] bounds the occurrence search
- * for this rung. [statementSpan] is the statement within this scope that contains the candidate --
- * the fallback anchor when only the selected occurrence is replaced.
+ * for this rung.
  */
 data class ScopeFrame(
 	val label: String,
 	val scopeElement: PsiElement,
 	val searchRange: TextSpan,
-	val statementSpan: TextSpan,
 	val anchorForm: AnchorForm,
 )
 
@@ -106,12 +104,10 @@ private fun frameFor(
 	val controlOwner = (parent as? KtContainerNodeForControlStructureBody)?.parent
 
 	if (parent is KtBlockExpression) {
-		val lineStart = lineStartOffset(text, inner.textRange.startOffset)
 		return ScopeFrame(
 			label = blockLabel(parent),
 			scopeElement = parent,
 			searchRange = parent.textRange.let { TextSpan(it.startOffset, it.endOffset) },
-			statementSpan = TextSpan(lineStart, inner.textRange.endOffset),
 			anchorForm =
 				AnchorForm.ExistingBlock(
 					contentSpan = contentSpanOf(parent),
@@ -130,7 +126,6 @@ private fun frameFor(
 			label = bracelessLabel,
 			scopeElement = inner,
 			searchRange = span,
-			statementSpan = span,
 			anchorForm =
 				AnchorForm.WrapInBraces(
 					bodyStart = span.start,
@@ -149,7 +144,6 @@ private fun frameFor(
 			label = declarationLabel(parent),
 			scopeElement = inner,
 			searchRange = span,
-			statementSpan = span,
 			anchorForm =
 				AnchorForm.ConvertExpressionBody(
 					assignStart = assign.textRange.startOffset,
@@ -187,7 +181,6 @@ private fun isCeilingBody(scopeElement: PsiElement): Boolean {
 private fun blockLabel(block: KtBlockExpression): String {
 	val parent = block.parent
 	val container = parent as? KtContainerNodeForControlStructureBody
-	val branch = container ?: block
 	return when (val owner = container?.parent ?: parent) {
 		is KtNamedFunction -> "fun ${owner.name ?: "<anonymous>"}"
 		is KtPropertyAccessor -> if (owner.isGetter) "getter" else "setter"

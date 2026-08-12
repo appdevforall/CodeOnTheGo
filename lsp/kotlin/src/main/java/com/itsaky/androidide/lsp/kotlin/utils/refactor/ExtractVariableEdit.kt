@@ -38,6 +38,9 @@ fun buildExtractVariableRewrite(
 		(if (replaceAll) scope.occurrences else listOf(candidateSpan))
 			.sortedBy { it.start }
 			.takeIf { it.isNotEmpty() } ?: return null
+	// Only targets are bounds-checked against fileText; contentSpan/statementSpans are trusted
+	// unchecked. That is safe only because fileText is the plan's own text, not the live document --
+	// if a caller ever passed live text here instead, those spans would need the same check.
 	if (targets.any { it.end > fileText.length }) return null
 
 	val expression = fileText.substring(candidateSpan.start, candidateSpan.end)

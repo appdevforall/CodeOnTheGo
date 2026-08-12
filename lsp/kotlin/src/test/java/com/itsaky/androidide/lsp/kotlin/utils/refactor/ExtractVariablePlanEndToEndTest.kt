@@ -682,6 +682,40 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `converting a Nothing-returning expression body preserves the signature`() {
+		val content =
+			"""
+			package p
+			fun boom(name: String) = error("bad " + name)
+			fun demo(x: Int?): Int = x ?: boom("missing")
+			""".trimIndent()
+
+		val target = "\"bad \" + name"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "message",
+				replaceAll = false,
+			)!!
+
+		// `boom`'s inferred return type is `Nothing`; folding it into the `Unit` case would drop both
+		// the `return` and the written-out `: Nothing`, and `x ?: boom(...)` would stop compiling.
+		assertEquals(
+			"package p\n" +
+				"fun boom(name: String): Nothing {\n" +
+				"\tval message = \"bad \" + name\n" +
+				"\treturn error(message)\n" +
+				"}\n" +
+				"fun demo(x: Int?): Int = x ?: boom(\"missing\")",
+			apply(content, rewrite),
+		)
+	}
+
+	@Test
 	fun `extracting from a one-line lambda stays inside the lambda`() {
 		val content =
 			"""

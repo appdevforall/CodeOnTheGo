@@ -12,7 +12,6 @@ import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.types.KaType
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.psi.KtCallableDeclaration
-import org.jetbrains.kotlin.psi.KtDeclaration
 import org.jetbrains.kotlin.psi.KtDeclarationWithBody
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtFile
@@ -103,7 +102,8 @@ private fun KaSession.candidateFor(expression: KtExpression): CandidateExpressio
  *
  * Returns null when the rung cannot be honoured: converting an expression body whose return type is
  * neither declared nor renderable would emit a block body that does not compile, and declining is
- * always safe (ADR 0013).
+ * always safe -- the decline-rather-than-rewrite principle that ADR 0013 records, landing alongside
+ * extract method (ADFA-5080).
  */
 private fun KaSession.scopeOptionFor(
 	expression: KtExpression,
@@ -148,12 +148,16 @@ private fun KtDeclarationWithBody.declaresReturnType(): Boolean =
 		else -> false
 	}
 
+/** The declaration's resolved return type, or null when it cannot be resolved. */
+private fun KaSession.returnTypeOf(declaration: KtDeclarationWithBody): KaType? =
+	runCatching { (declaration.symbol as? KaCallableSymbol)?.returnType }.getOrNull()
+
 /** The declaration's return type as source text, shortened where the file can resolve it. */
 private fun KaSession.returnTypeTextOf(
 	declaration: KtDeclarationWithBody,
 	file: KtFile,
 ): String? {
-	val type = runCatching { ((declaration as? KtDeclaration)?.symbol as? KaCallableSymbol)?.returnType }.getOrNull() ?: return null
+	val type = returnTypeOf(declaration) ?: return null
 	val rendered = renderedTypeTextOrNull(type) ?: return null
 	return shortenTypeText(rendered, importedNamesOf(file), starImportedPackagesOf(file))
 }
@@ -162,15 +166,16 @@ private fun KaSession.returnTypeTextOf(
  * Whether converting an expression body to a block body needs a `return`.
  *
  * False only for a `Unit`-returning function, where `return expr` on a non-`Unit` expression would
- * not compile and is unnecessary anyway. Defaults to true, which is right for everything else
+ * not compile and is unnecessary anyway. `Nothing` is deliberately not folded in here even though
+ * [isValuelessType] treats it like `Unit` for the R4 candidate filter -- a `Nothing`-returning
+ * function needs its `return` and its written-out type kept, or a caller using it in a `Nothing`
+ * position (`x ?: boom()`) stops compiling. Defaults to true, which is right for everything else
  * including property accessors.
  */
 private fun KaSession.expressionBodyNeedsReturn(bodyExpression: PsiElement): Boolean {
 	val declaration = bodyExpression.parent as? KtDeclarationWithBody ?: return true
-	val returnType =
-		runCatching { ((declaration as? KtDeclaration)?.symbol as? KaCallableSymbol)?.returnType }.getOrNull()
-			?: return true
-	return !isValuelessType(returnType)
+	val returnType = returnTypeOf(declaration) ?: return true
+	return !runCatching { returnType.isUnitType }.getOrDefault(false)
 }
 
 /** `Unit` and `Nothing` carry no value worth binding to a `val`. */

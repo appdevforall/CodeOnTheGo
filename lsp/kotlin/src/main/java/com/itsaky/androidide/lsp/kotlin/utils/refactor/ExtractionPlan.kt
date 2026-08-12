@@ -115,8 +115,9 @@ data class CandidateExpression(
  *   candidate's own statement through enclosing blocks, crossing a lambda boundary only when nothing
  *   lambda-scoped is referenced, and stopping at the enclosing method body.
  * - **Anchor scope** -- the chain member the user picked. The `val` is declared inside it.
- * - **Anchor point** -- the exact insertion offset: immediately before the first statement *within the
- *   anchor scope* that contains a replaced occurrence.
+ * - **Anchor point** -- the exact insertion offset: the start of the line holding the first statement
+ *   *within the anchor scope* that contains a replaced occurrence, or inside the braces when that
+ *   statement shares its line with a block written on one line.
  * - **Occurrence** -- a site inside the anchor scope that is structurally equal to the candidate *and*
  *   whose every name reference resolves to the same symbol. Sites made unsound by an intervening
  *   reassignment are excluded, so an occurrence set is always safe to replace wholesale.
