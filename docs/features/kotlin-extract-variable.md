@@ -164,6 +164,12 @@ as a single line loses nothing). A multi-line lambda fails the first and keeps i
 block with two semicolon-separated statements on one line satisfies the first but fails the second, so
 it also keeps its shape, with the declaration hoisted above the whole line instead.
 
+A block that fails *both* conditions -- something besides indentation precedes the statement on its
+line, but the block's own content spans more than one line, as in `items.forEach { log(x)\n\tlog(y) }`
+-- is **declined** rather than hoisted. Hoisting would anchor before the block's own opening delimiter,
+outside the scope the user picked, which is unsound whenever anything inside that scope (a lambda's
+`it`, say) is not visible there.
+
 The emitted text is **fully indented**: code-action edits bypass the editor's auto-indent (raw `Content.replace`), and `CMD_FORMAT_CODE` is a no-op for Kotlin. The indent unit is inferred from the file's own lines (a tab if any line is tab-indented, else the smallest positive run of leading spaces, defaulting to a tab), mirroring `ImplementMembersAction`; CRLF is used only when the file already contains it, so the edit never mixes line endings.
 
 **R10 - Responsiveness.** One background analysis pass produces the plan for *all* candidates at once; the sheet then performs pure string and offset arithmetic on it. Nothing re-enters analysis on confirm, which keeps PSI off the UI thread, removes the stale-PSI window, and makes the whole derivation unit-testable without an editor, an activity or Compose. Analysis runs at `AnalysisPriority.INTERACTIVE` under a cancel checker tied to the action's coroutine, so cancelling the action aborts the analysis.

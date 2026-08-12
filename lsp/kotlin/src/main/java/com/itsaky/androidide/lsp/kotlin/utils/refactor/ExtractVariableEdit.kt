@@ -89,6 +89,17 @@ private fun existingBlockRewrite(
 		return oneLineBlockRewrite(fileText, form, targets, declaration, name)
 	}
 
+	// A lambda body's content starts right at its first token with no owned whitespace, so `lineStart`
+	// sits before `contentSpan.start` on plain indentation alone -- that gap must not trigger a
+	// decline. What does mean "outside the block" is *real code* in that gap: the block's own opening
+	// delimiter (a call and its brace, a header) sharing the anchor's line, which only happens for the
+	// multi-line case the one-line check above did not catch. Anchoring there would put the
+	// declaration before that delimiter, outside the scope the user picked. Declining is safe; hoisting
+	// is not.
+	if (form.contentSpan.start > lineStart && fileText.substring(lineStart, form.contentSpan.start).isNotBlank()) {
+		return null
+	}
+
 	val indent = leadingIndentAt(fileText, anchor.start)
 	val newline = detectNewline(fileText)
 
