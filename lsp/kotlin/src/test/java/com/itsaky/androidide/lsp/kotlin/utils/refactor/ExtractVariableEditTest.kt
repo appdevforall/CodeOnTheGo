@@ -515,4 +515,48 @@ class ExtractVariableEditTest {
 			apply(text, result),
 		)
 	}
+
+	@Test
+	fun `widening is a no-op when a one-line lambda has no interior spaces`() {
+		val text = "fun f(items: List<Int>): List<Int> {\n\treturn items.map {it + 1}\n}"
+		val candidate = spanOf(text, "it + 1")
+		val form =
+			AnchorForm.ExistingBlock(
+				contentSpan = candidate,
+				statementSpans = listOf(candidate),
+			)
+
+		val result = rewrite(text, candidate, form, listOf(candidate), "value", replaceAll = false)!!
+
+		assertEquals(
+			"fun f(items: List<Int>): List<Int> {\n" +
+				"\treturn items.map {\n" +
+				"\t\tval value = it + 1\n" +
+				"\t\tvalue\n" +
+				"\t}\n" +
+				"}",
+			apply(text, result),
+		)
+	}
+
+	@Test
+	fun `keeps CRLF line endings when expanding a one-line block`() {
+		val text = "fun f(n: Int): Int { return n * 2 }\r\nval x = 1"
+		val candidate = spanOf(text, "n * 2")
+		val form =
+			AnchorForm.ExistingBlock(
+				contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
+				statementSpans = listOf(spanOf(text, "return n * 2")),
+			)
+
+		val result = rewrite(text, candidate, form, listOf(candidate), "doubled", replaceAll = false)!!
+
+		assertEquals(
+			"fun f(n: Int): Int {\r\n" +
+				"\tval doubled = n * 2\r\n" +
+				"\treturn doubled\r\n" +
+				"}\r\nval x = 1",
+			apply(text, result),
+		)
+	}
 }

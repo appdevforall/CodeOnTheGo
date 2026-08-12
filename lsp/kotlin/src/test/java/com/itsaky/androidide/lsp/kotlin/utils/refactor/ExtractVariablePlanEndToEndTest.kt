@@ -699,4 +699,119 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 			apply(content, rewrite),
 		)
 	}
+
+	@Test
+	fun `extracting from a multi-line lambda with a header on its own line is not collapsed`() {
+		val content =
+			"""
+			package p
+			fun demo(items: List<Int>): List<Int> {
+				return items.map { x ->
+					x + 1
+				}
+			}
+			""".trimIndent()
+
+		val target = "x + 1"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+		// `x` is the lambda's own parameter, so the lambda is still the ceiling.
+		assertEquals(listOf("lambda"), candidate.scopes.map { it.label })
+
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "next",
+				replaceAll = false,
+			)!!
+
+		// The body already starts its own line, so this is the normal path, not the one-line
+		// expansion: the header and the closing brace are left exactly where they were.
+		assertEquals(
+			"package p\n" +
+				"fun demo(items: List<Int>): List<Int> {\n" +
+				"\treturn items.map { x ->\n" +
+				"\t\tval next = x + 1\n" +
+				"\t\tnext\n" +
+				"\t}\n" +
+				"}",
+			apply(content, rewrite),
+		)
+	}
+
+	@Test
+	fun `extracting from a multi-line lambda without a header is not collapsed`() {
+		val content =
+			"""
+			package p
+			fun demo(items: List<Int>): List<Int> {
+				return items.map {
+					it + 1
+				}
+			}
+			""".trimIndent()
+
+		val target = "it + 1"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+		assertEquals(listOf("lambda"), candidate.scopes.map { it.label })
+
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "next",
+				replaceAll = false,
+			)!!
+
+		assertEquals(
+			"package p\n" +
+				"fun demo(items: List<Int>): List<Int> {\n" +
+				"\treturn items.map {\n" +
+				"\t\tval next = it + 1\n" +
+				"\t\tnext\n" +
+				"\t}\n" +
+				"}",
+			apply(content, rewrite),
+		)
+	}
+
+	@Test
+	fun `extracting from a semicolon-joined statement leaves the block multi-line`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int, b: Int): Int {
+				val x = a + 1; return x + b
+			}
+			""".trimIndent()
+
+		val target = "x + b"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "sum",
+				replaceAll = false,
+			)!!
+
+		// A statement already precedes the candidate on this line, but the block itself spans several
+		// lines, so this is not a one-line block: the declaration hoists above the whole line instead
+		// of expanding it, and the two semicolon-joined statements stay together.
+		assertEquals(
+			"package p\n" +
+				"fun demo(a: Int, b: Int): Int {\n" +
+				"\tval sum = x + b\n" +
+				"\tval x = a + 1; return sum\n" +
+				"}",
+			apply(content, rewrite),
+		)
+	}
 }

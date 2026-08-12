@@ -75,9 +75,17 @@ private fun existingBlockRewrite(
 	val anchor = form.statementSpans.firstOrNull { it.start <= first.start && first.end <= it.end } ?: return null
 	val lineStart = lineStartOffset(fileText, anchor.start)
 
-	// The statement shares its line with the block's opening brace (a one-line lambda or body). The
-	// line start is then *outside* the block, so the declaration has to go inside the braces instead.
-	if (lineStart < form.contentSpan.start) {
+	// A block written on one line needs the declaration expanded inside the braces instead of hoisted
+	// above the line. `contentSpan.start` is not a reliable signal by itself: a lambda body's block
+	// does not own its braces, so `contentSpan.start` sits at the body's first token even when that
+	// token starts its own line -- comparing it to `lineStart` alone would misfire on an ordinary
+	// multi-line lambda. Two conditions together are what actually mean "one line": something other
+	// than indentation already precedes the statement on its line (the brace, a header, or a prior
+	// semicolon-separated statement), *and* the block's content itself contains no newline (so
+	// re-emitting it as a single line loses nothing).
+	val linePrefix = fileText.substring(lineStart, anchor.start)
+	val contentIsOneLine = !fileText.substring(form.contentSpan.start, form.contentSpan.end).contains('\n')
+	if (linePrefix.isNotBlank() && contentIsOneLine) {
 		return oneLineBlockRewrite(fileText, form, targets, declaration, name)
 	}
 
