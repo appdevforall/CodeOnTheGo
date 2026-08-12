@@ -44,37 +44,42 @@ fun buildExtractVariableRewrite(
 	val declaration = "val $name = $expression"
 
 	return when (val form = scope.anchorForm) {
-		AnchorForm.ExistingBlock -> existingBlockRewrite(fileText, targets, declaration, name)
+		is AnchorForm.ExistingBlock -> existingBlockRewrite(fileText, form, targets, declaration, name)
 		is AnchorForm.WrapInBraces -> wrapInBracesRewrite(fileText, form, targets, declaration, name)
 		is AnchorForm.ConvertExpressionBody -> convertExpressionBodyRewrite(fileText, form, targets, declaration, name)
 	}
 }
 
 /**
- * Inserts the declaration as its own line before the first served occurrence's line, and rewrites
- * everything from there through the last occurrence.
+ * Inserts the declaration as its own line before the anchor statement, and rewrites everything from
+ * there through the last occurrence.
  *
- * The rewritten span starts at that line's start (not at the occurrence) so the declaration lands on
- * a line of its own at the right indentation, and ends at the last occurrence so untouched trailing
- * code is left alone.
+ * The anchor is the statement *of this scope* that holds the first served occurrence, so picking an
+ * outer rung hoists the declaration above the enclosing statement rather than leaving it where the
+ * inner rung would have put it. The rewritten span starts at that statement's line start so the
+ * declaration lands on a line of its own at the right indentation, and ends at the last occurrence so
+ * untouched trailing code is left alone.
+ *
+ * Null when no statement of the scope contains the occurrence, which would mean the plan and the text
+ * disagree; the caller reports that rather than guessing.
  */
 private fun existingBlockRewrite(
 	fileText: String,
+	form: AnchorForm.ExistingBlock,
 	targets: List<TextSpan>,
 	declaration: String,
 	name: String,
-): RewriteSpan {
+): RewriteSpan? {
 	val first = targets.first()
 	val last = targets.last()
-	val lineStart = lineStartOffset(fileText, first.start)
-	val indent = leadingIndentAt(fileText, first.start)
+	val anchor = form.statementSpans.firstOrNull { it.start <= first.start && first.end <= it.end } ?: return null
+	val lineStart = lineStartOffset(fileText, anchor.start)
+	val indent = leadingIndentAt(fileText, anchor.start)
 	val newline = detectNewline(fileText)
 
-	val body = replaceOccurrences(fileText, TextSpan(lineStart, last.end), targets, name)
-	return RewriteSpan(
-		span = TextSpan(lineStart, last.end),
-		newText = indent + declaration + newline + body,
-	)
+	val span = TextSpan(lineStart, last.end)
+	val body = replaceOccurrences(fileText, span, targets, name)
+	return RewriteSpan(span = span, newText = indent + declaration + newline + body)
 }
 
 /** Wraps a braceless statement in a block containing the declaration and the original statement. */

@@ -25,7 +25,7 @@ class ExtractVariableViewModelTest {
 		occurrences: Int,
 	) = ScopeOption(
 		label = label,
-		anchorForm = AnchorForm.ExistingBlock,
+		anchorForm = AnchorForm.ExistingBlock(contentSpan = TextSpan(0, 100), statementSpans = emptyList()),
 		occurrences = (0 until occurrences).map { TextSpan(it * 10, it * 10 + 5) },
 	)
 

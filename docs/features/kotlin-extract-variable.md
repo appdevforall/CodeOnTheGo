@@ -39,7 +39,9 @@ The chain member the user picked. The `val` is declared inside it.
 How the declaration is woven into an anchor scope, since not all Kotlin scopes are blocks: `ExistingBlock`, `WrapInBraces`, or `ConvertExpressionBody`.
 
 **Anchor point**:
-The exact insertion offset - immediately before the first statement *within the anchor scope* that contains a replaced occurrence.
+The exact insertion offset - the start of the line holding the first statement *within the anchor
+scope* that contains a replaced occurrence. Recorded per rung in the plan (`ExistingBlock`'s
+`statementSpans`), because it is the only thing that makes an outer rung differ from an inner one.
 
 **Occurrence**:
 A site inside the anchor scope that is structurally equal to the candidate *and* whose every name reference resolves to the same declaration. Sites made unsound by an intervening write are excluded, so an occurrence set is always safe to replace wholesale.
@@ -142,6 +144,9 @@ Each chooser is hidden when it has nothing to ask: the expression chooser when t
 
 **R9 - Edit.** Exactly **one** `TextEdit`, built as a `RewriteSpan` covering one contiguous span. `IDELanguageClientImpl.applyActionEdits` applies each edit in its own `runOnUiThread` with no `beginBatchEdit`, and every range is interpreted against the *current* text - so a list of N edits would be applied against positions already shifted by its predecessors and would cost N undo steps with a typing window between each. Occurrences are substituted right-to-left within the span so an earlier substitution cannot shift a later offset.
 
+The span is anchored on the chosen rung's statement, not on the occurrence: for an outer rung the
+declaration goes above the whole enclosing statement, at that statement's indentation.
+
 The emitted text is **fully indented**: code-action edits bypass the editor's auto-indent (raw `Content.replace`), and `CMD_FORMAT_CODE` is a no-op for Kotlin. The indent unit is inferred from the file's own lines (a tab if any line is tab-indented, else the smallest positive run of leading spaces, defaulting to a tab), mirroring `ImplementMembersAction`; CRLF is used only when the file already contains it, so the edit never mixes line endings.
 
 **R10 - Responsiveness.** One background analysis pass produces the plan for *all* candidates at once; the sheet then performs pure string and offset arithmetic on it. Nothing re-enters analysis on confirm, which keeps PSI off the UI thread, removes the stale-PSI window, and makes the whole derivation unit-testable without an editor, an activity or Compose. Analysis runs at `AnalysisPriority.INTERACTIVE` under a cancel checker tied to the action's coroutine, so cancelling the action aborts the analysis.
@@ -169,6 +174,7 @@ The emitted text is **fully indented**: code-action edits bypass the editor's au
 7. The same expression with an intervening reassignment of a `var` it reads offers only the contiguous sound run.
 8. An expression using `it` inside a lambda offers no anchor outside that lambda.
 9. Extracting from `if (c) foo(x + 1)` wraps the branch in braces with the declaration inside.
+9a. With a candidate inside a braced `if` inside a function, picking `fun name` in `Declare in` puts the declaration above the `if`, and picking `if block` puts it inside the branch.
 10. Extracting from `fun area(r: Int): Int = r * r` converts it to a block body with `return`, leaving the declared type alone; extracting from `fun area(r: Int) = r * r` converts it *and* writes `: Int` into the signature.
 11. Extracting from a `Unit`-returning expression-bodied function converts it without adding `return` and without writing a type.
 12. A name that is blank, not an identifier, a hard keyword, or already used disables Extract and shows the matching message.

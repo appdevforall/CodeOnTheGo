@@ -522,6 +522,46 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `picking the outer rung hoists the declaration above the enclosing statement`() {
+		val content =
+			"""
+			package p
+			fun demo(flag: Boolean, a: Int, b: Int): Int {
+				if (flag) {
+					return a + b * 2
+				}
+				return 0
+			}
+			""".trimIndent()
+
+		val target = "a + b * 2"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+		assertEquals(listOf("if block", "fun demo"), candidate.scopes.map { it.label })
+
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes[1],
+				name = "total",
+				replaceAll = false,
+			)!!
+
+		assertEquals(
+			"package p\n" +
+				"fun demo(flag: Boolean, a: Int, b: Int): Int {\n" +
+				"\tval total = a + b * 2\n" +
+				"\tif (flag) {\n" +
+				"\t\treturn total\n" +
+				"\t}\n" +
+				"\treturn 0\n" +
+				"}",
+			apply(content, rewrite),
+		)
+	}
+
+	@Test
 	fun `a Unit-returning expression body gets neither a type nor a return`() {
 		val content =
 			"""
