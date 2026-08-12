@@ -10,6 +10,13 @@ The tool surface is deliberately small and grows one tool at a time.
 | `ping` | none | Returns `pong`. Health check for the transport itself. |
 | `is_cogo_installed` | none | Reports whether `com.itsaky.androidide` is installed on the attached device. |
 | `cogo_home` | none | Brings CoGo to its home screen and confirms it arrived. **Destructive:** force-stops the app and permanently disables auto-open-project. |
+| `list_projects` | none | Valid projects under `/storage/emulated/0/CodeOnTheGoProjects`. |
+| `list_templates` | none | Installed project templates, with descriptions. |
+| `list_project_files` | none | Files in the currently open project, relative to its root. |
+
+The three `list_*` tools drive no UI at all - they are `adb shell` reads. That is
+why they landed first: highest value and lowest cost at once. See
+[PRIORITIES.md](PRIORITIES.md).
 
 `is_cogo_installed` reports an **error**, not `not installed`, when adb itself
 fails. Not knowing is not the same as knowing the app is absent, and collapsing

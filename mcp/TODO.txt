@@ -21,3 +21,5 @@ Create a project from a template
 Open project left drawer
 Open project bottom drawer
 List files in current project
+Save the current project
+Close the current project

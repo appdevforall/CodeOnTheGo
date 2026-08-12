@@ -129,6 +129,46 @@ fun cogoMcpServer(
 		cogoHome(adb, homePollAttempts, homePollDelayMillis)
 	}
 
+	server.addTool(
+		name = "list_projects",
+		title = "List projects",
+		description =
+			"List the Code On The Go projects on the attached device. Scans $COGO_PROJECTS_DIR one level " +
+				"deep and returns only directories the IDE would actually open, so the result is usually " +
+				"shorter than a plain directory listing. Project names may contain spaces. An absent " +
+				"projects directory is a plain answer, not an error. Read-only.",
+		inputSchema = ToolSchema(properties = JsonObject(emptyMap())),
+	) { _ ->
+		listProjects(adb)
+	}
+
+	server.addTool(
+		name = "list_templates",
+		title = "List project templates",
+		description =
+			"List the project templates installed on the device - the same set the new-project wizard " +
+				"offers - with each template's name and description. An empty template directory is a " +
+				"plain answer, not an error: it normally means first-run onboarding has not finished. " +
+				"Read-only.",
+		inputSchema = ToolSchema(properties = JsonObject(emptyMap())),
+	) { _ ->
+		listTemplates(adb)
+	}
+
+	server.addTool(
+		name = "list_project_files",
+		title = "List files in the open project",
+		description =
+			"List the files in the project Code On The Go currently has open, as paths relative to the " +
+				"project root. Generated and VCS directories (build/, .gradle/, .git/) are omitted, and a " +
+				"listing over 500 files is truncated with an explicit TRUNCATED note - a truncated listing " +
+				"is not the whole project. Reports plainly, without an error, when no project is open. " +
+				"Read-only.",
+		inputSchema = ToolSchema(properties = JsonObject(emptyMap())),
+	) { _ ->
+		listProjectFiles(adb)
+	}
+
 	return server
 }
 

@@ -33,6 +33,9 @@ class ServerDescriptionTest {
 					"ping" to "Ping",
 					"is_cogo_installed" to "Is Code On The Go installed?",
 					"cogo_home" to "Go to Code On The Go home",
+					"list_projects" to "List projects",
+					"list_templates" to "List project templates",
+					"list_project_files" to "List files in the open project",
 				),
 				client.listTools().tools.associate { it.name to it.title },
 			)
