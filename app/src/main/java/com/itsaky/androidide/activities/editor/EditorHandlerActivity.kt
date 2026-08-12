@@ -102,6 +102,7 @@ import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
 import com.itsaky.androidide.shortcuts.ShortcutManager
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import com.itsaky.androidide.ui.ARCHIVE_EXTENSIONS
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
@@ -1080,6 +1081,16 @@ open class EditorHandlerActivity :
 			getEditorForFile(file)?.isModified == true
 		}
 
+	/**
+	 * Like [hasUnsavedFiles], but excludes files [CodeEditorView.save] never actually writes (an
+	 * [ARCHIVE_EXTENSIONS] extension, opened read-only) -- those can never leave the "modified"
+	 * state through a save, so counting them as a save failure would block "Save and close" forever.
+	 */
+	private fun hasFilesThatFailedToSave() =
+		editorViewModel.getOpenedFiles().any { file ->
+			getEditorForFile(file)?.isModified == true && file.extension.lowercase() !in ARCHIVE_EXTENSIONS
+		}
+
 	private suspend inline fun <T : Any?> performFileSave(crossinline action: suspend () -> T): T {
 		setFilesSaving(true)
 		try {
@@ -1832,56 +1843,44 @@ open class EditorHandlerActivity :
 		}
 	}
 
-	// Tracks the currently-showing confirm-close dialog so a second deep link arriving while one
-	// is already up (onNewIntent can fire repeatedly for a singleTask activity) replaces it
-	// instead of stacking a second dialog -- two stacked dialogs would let either button confirm
-	// PendingDeepLinkOpen.value out from under the other, silently dropping whichever project the
-	// user actually confirmed opening.
+	// Tracked so onDestroy() can dismiss it (avoiding a leaked window) and so a confirm-close flow
+	// already in progress -- dialog showing, or its "Save and close" still writing files -- can
+	// reject a second, overlapping confirmProjectClose call rather than either stacking a second
+	// dialog or silently swapping out the one the user is already looking at. The two flows this
+	// guards between are the plain manual close (back button, sidebar action, onClosed == null) and
+	// the deep-link close-then-reopen (onClosed sets pendingDeepLinkOpen) -- letting one hijack the
+	// other's dialog would mean a user tapping "Close without saving" on what looks like an ordinary
+	// close ends up with an unrelated deep-linked project opened instead, or vice versa.
 	private var activeProjectCloseDialog: AlertDialog? = null
-
-	// Identifies the most recent deep-link-triggered close request (confirmProjectClose calls with
-	// a non-null onClosed). "Save and close" runs saveAllAsync asynchronously, so an older request's
-	// completion callback can still fire after a newer request's dialog has already been answered --
-	// contentOrNull only turns null once onStop()/onDestroy() runs, well after finish() is called.
-	// Without this token, that late callback would overwrite PendingDeepLinkOpen.value with the
-	// superseded project. Only the request that owns the current token is allowed to act.
-	private var currentDeepLinkCloseToken: Any? = null
-
-	// True from the moment "Save and close" starts saveAllAsync until its callback runs. saveAllAsync
-	// iterates and mutates editorViewModel's file/editor state on a background coroutine -- a second
-	// confirmProjectClose answered with "Close without saving" while that's in flight would call
-	// performCloseAllFiles synchronously on the main thread against the same state, racing the save.
-	// The token above only stops a stale *result* from winning; it can't stop this concurrent access.
-	private var closeInProgress = false
+	private var confirmCloseInProgress = false
 
 	private fun confirmProjectClose(onClosed: (() -> Unit)? = null) {
 		val content = contentOrNull ?: return
-		if (closeInProgress) {
-			// A save-and-close is still writing files; dropping this request instead of showing a new
-			// dialog avoids racing that write. The user can retry once it finishes.
+		if (confirmCloseInProgress) {
+			flashError(string.msg_project_close_in_progress)
 			return
 		}
-		activeProjectCloseDialog?.dismiss()
-
-		val ownToken = onClosed?.let { Any().also { token -> currentDeepLinkCloseToken = token } }
-
-		fun isStillCurrent() = onClosed == null || currentDeepLinkCloseToken === ownToken
+		confirmCloseInProgress = true
 
 		val builder = newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_project_close)
 		builder.setMessage(string.msg_confirm_project_close)
+		builder.setOnCancelListener { confirmCloseInProgress = false }
 
-		builder.setNegativeButton(string.cancel_project_text, null)
+		builder.setNegativeButton(string.cancel_project_text) { dialog, _ ->
+			dialog.dismiss()
+			confirmCloseInProgress = false
+		}
 
 		// OPTION 1: Close without saving
 		builder.setNeutralButton(string.close_without_saving) { dialog, _ ->
 			dialog.dismiss()
-			if (!isStillCurrent()) return@setNeutralButton
 
 			for (i in 0 until editorViewModel.getOpenedFileCount()) {
 				(content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
 			}
 
+			// Activity is finishing either way; no need to reset confirmCloseInProgress.
 			performCloseAllFiles(manualFinish = true, onClosed = onClosed)
 		}
 
@@ -1889,15 +1888,14 @@ open class EditorHandlerActivity :
 		builder.setPositiveButton(string.save_and_close) { dialog, _ ->
 			dialog.dismiss()
 
-			closeInProgress = true
 			saveAllAsync(notify = false) {
 				runOnUiThread {
-					closeInProgress = false
-					if (contentOrNull == null || !isStillCurrent()) return@runOnUiThread
+					confirmCloseInProgress = false
+					if (contentOrNull == null) return@runOnUiThread
 					// saveAll()'s return value is gradleSaved (whether a build file changed), not
 					// "everything saved successfully" -- check actual editor state instead, so a
 					// failed write (disk full, permission) doesn't silently discard unsaved changes.
-					if (hasUnsavedFiles()) {
+					if (hasFilesThatFailedToSave()) {
 						flashError(string.save_failed)
 						return@runOnUiThread
 					}
