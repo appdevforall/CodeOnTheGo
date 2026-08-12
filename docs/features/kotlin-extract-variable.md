@@ -1,7 +1,7 @@
 # Kotlin extract variable (K2 LSP)
 
 - **Ticket:** ADFA-4826 (subtask of ADFA-3317; split out of the closed ADFA-3324 "Refactoring"). Extract method was originally part of this subtask and is now ADFA-5080.
-- **Status:** Implemented in `lsp/kotlin/utils/refactor/` and `lsp/kotlin/refactor/ui/`, pending on-device QA. Still to land in this PR: the `ExtractionPlan` -> `ExtractVariablePlan` rename and the sealed `RefactoringPlan` supertype shared with ADFA-5080 (see [Design](#design)).
+- **Status:** Implemented in `lsp/kotlin/utils/refactor/` and `lsp/kotlin/refactor/ui/`, pending on-device QA. Still to land in this PR: the `ExtractionPlan` -> `ExtractVariablePlan` rename (the sealed `RefactoringPlan` supertype it will sit under has landed).
 - **Module:** `lsp/kotlin`
 
 Bind the expression at the cursor, or the selected one, to a new local `val`, and replace the occurrences of that expression with the new name.
@@ -77,7 +77,7 @@ There is deliberately **no `prepare()` visibility gate**. Deciding whether anyth
 
 From the innermost element the parent chain is walked outwards, collecting legal targets and stopping at the enclosing declaration. Illegal nodes along the way are **skipped rather than terminating the walk**, so `if (c) a else b` is still offered from inside one of its branches. At most 3 candidates, innermost first, deduplicated by range.
 
-An expression is not a legal target when it is: a block, a loop, `return`/`throw`/`break`/`continue`, an operation reference, `super`, a lambda literal, the selector of a qualified expression (`b` in `a.b`), a call's callee (`foo` in `foo(x)`), the left side of an assignment, or a **bare literal**. Excluding bare literals removes the only case where omitting the type annotation could change meaning - an `Int` literal where a `Long` is expected, or a bare `null` inferring `Nothing?`.
+An expression is not a legal target when it is: a block, a loop, `return`/`throw`/`break`/`continue`, an operation reference, `super`, a lambda (the `{ ... }` expression and the literal inside it -- outside its call site the parameter types are gone, so `val v = { it.length + 1 }` does not compile), the selector of a qualified expression (`b` in `a.b`), a call's callee (`foo` in `foo(x)`), the left side of an assignment, or a **bare literal**. Excluding bare literals removes the only case where omitting the type annotation could change meaning - an `Int` literal where a `Long` is expected, or a bare `null` inferring `Nothing?`.
 
 When the trimmed selection exactly equals the innermost candidate's range, the user has already said which expression they mean and the chooser is not shown (`selectionMatchedCandidate`).
 
