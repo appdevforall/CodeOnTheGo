@@ -118,85 +118,24 @@ public class LlmInferenceServiceTest {
 	}
 
 	@Test
-	public void toolCallRequestCoalescesNullArgsToAnEmptyMap() {
-		LlmInferenceService.ToolCallRequest request = new LlmInferenceService.ToolCallRequest("call-1", "build", null);
-
-		assertTrue(request.args.isEmpty());
-	}
-
-	@Test
-	public void toolCallRequestCopiesTheArgsSpine() {
+	public void toolCallRequestKeepsWhatTheModelAskedFor() {
 		Map<String, Object> args = new LinkedHashMap<>();
 		args.put("path", "app/src/Main.kt");
 
 		LlmInferenceService.ToolCallRequest request = new LlmInferenceService.ToolCallRequest("call-1", "read_file", args);
-		args.clear();
 
-		assertEquals(1, request.args.size());
+		assertEquals("call-1", request.callId);
+		assertEquals("read_file", request.name);
 		assertEquals("app/src/Main.kt", request.args.get("path"));
 	}
 
 	@Test
-	public void toolCallRequestPublishesUnmodifiableArgs() {
-		LlmInferenceService.ToolCallRequest request = new LlmInferenceService.ToolCallRequest("call-1", "build", Collections.emptyMap());
-
-		try {
-			request.args.put("path", "app/src/Main.kt");
-			fail("expected UnsupportedOperationException");
-		} catch (UnsupportedOperationException expected) {
-			// the consumer must run the call the model made, not one it rewrote
-		}
-	}
-
-	@Test
-	public void toolCallRequestRejectsAMissingCallId() {
-		try {
-			new LlmInferenceService.ToolCallRequest(null, "build", null);
-			fail("expected NullPointerException");
-		} catch (NullPointerException expected) {
-			// without a call id the consumer cannot correlate the result it sends back
-		}
-	}
-
-	@Test
-	public void toolDefinitionCoalescesNullSchemaToAnEmptyMap() {
+	public void toolDefinitionAcceptsNoParameters() {
 		LlmInferenceService.ToolDefinition definition = new LlmInferenceService.ToolDefinition("build", "Builds the project", null);
 
-		assertTrue(definition.parametersSchema.isEmpty());
-	}
-
-	@Test
-	public void toolDefinitionCopiesTheSchemaSpine() {
-		Map<String, Object> schema = new LinkedHashMap<>();
-		schema.put("type", "object");
-
-		LlmInferenceService.ToolDefinition definition = new LlmInferenceService.ToolDefinition("build", "Builds the project", schema);
-		schema.clear();
-
-		assertEquals(1, definition.parametersSchema.size());
-		assertEquals("object", definition.parametersSchema.get("type"));
-	}
-
-	@Test
-	public void toolDefinitionPublishesAnUnmodifiableSchema() {
-		LlmInferenceService.ToolDefinition definition = new LlmInferenceService.ToolDefinition("build", "Builds the project", Collections.emptyMap());
-
-		try {
-			definition.parametersSchema.put("type", "object");
-			fail("expected UnsupportedOperationException");
-		} catch (UnsupportedOperationException expected) {
-			// the consumer parses replies against the schema it offered, so it must not move
-		}
-	}
-
-	@Test
-	public void toolDefinitionRejectsAMissingName() {
-		try {
-			new LlmInferenceService.ToolDefinition(null, "Builds the project", null);
-			fail("expected NullPointerException");
-		} catch (NullPointerException expected) {
-			// the name is how the model addresses the tool
-		}
+		assertEquals("build", definition.name);
+		assertEquals("Builds the project", definition.description);
+		assertNull(definition.parametersSchema);
 	}
 
 	@Test

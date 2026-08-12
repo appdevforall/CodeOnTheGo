@@ -34,6 +34,38 @@ Legend: `added` = new capability, safe to adopt · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.33 — 2026-08-12
+- **added — Optional LLM backend capabilities** _(ADFA-5095)_ **[verified]**
+  An LLM backend declares what it supports by the interfaces it implements, so a
+  backend can ship as its own plugin and implement only what it can do. The
+  consumer asks with `instanceof` before it calls; a backend that implements none
+  of these is still a valid `LlmBackend`.
+  `LlmInferenceService.HistoryCapableBackend` (`generateStreamingWithHistory`),
+  `ToolCallingBackend` (`generateStreamingWithTools`),
+  `CancellableBackend` (`cancelStreaming`),
+  `ConfigurableBackend` (`getSettingsFragmentClassName` — the backend's own
+  settings `Fragment`, loaded with the backend's classloader).
+- **added — Backend-owned prompt and sampling** _(ADFA-5095)_ **[verified]**
+  A backend supplies the system prompt and temperature its model needs, instead of
+  the consumer hardcoding them per provider. Both are `default` and return null
+  for "no preference"; `getDefaultTemperature()` is a boxed `Float`, so null-check
+  before assigning it to the primitive `LlmConfig.temperature`.
+  `LlmBackend.getSystemPrompt(SystemPromptRequest)`,
+  `LlmBackend.getDefaultTemperature()`, `SystemPromptRequest`.
+- **added — Tool results correlated by call id** _(ADFA-5095)_ **[verified]**
+  A tool's output travels back into the next turn as a message of its own, so a
+  turn's several calls are matched by id rather than by position.
+  `ChatMessage.toolResult(String, String, String)`, `ChatMessage.toolCallId` /
+  `toolName`, `ChatMessage.Role.TOOL`.
+  Adding `Role.TOOL` can break an exhaustive Kotlin `when` over `Role` — add an
+  `else` branch or handle it. Nothing produces a `TOOL` message unless the plugin
+  calls `toolResult` itself.
+- **added — Preferred backend id** _(ADFA-5095)_ **[verified]**
+  A backend can ask which backend the user selected, so one that would otherwise
+  spend seconds and gigabytes preparing itself knows whether it is about to be
+  used — without reading another plugin's preferences.
+  `LlmInferenceService.getPreferredBackendId()` (`default`, null when unset).
+
 ### 26.31 — 2026-07-29
 - **tooling — Plugin API & builder resolvable by Maven coordinate on-device** _(ADFA-4911)_
   The plugin API and the builder Gradle plugin are injected into the on-device

@@ -4,7 +4,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -514,7 +513,7 @@ public interface LlmInferenceService {
 	 * The consumer supplies the tool contract; the backend supplies the wording. That split matters: the consumer is the side that parses the model's reply, so a backend that invents its own call syntax produces output nothing reads back -- and it fails silently, as a model that answers in prose rather than calling a tool.
 	 */
 	class SystemPromptRequest {
-		/** The tools the consumer will accept calls for, in the order to present them. Never null; empty when the conversation offers no tools. */
+		/** The tools the consumer will accept calls for, in the order to present them. Never null; empty when the conversation offers no tools. The list is unmodifiable, but only its spine is copied -- the {@link ToolDefinition}s in it are the consumer's, and a backend must not edit one. */
 		@NonNull
 		public final List<ToolDefinition> tools;
 
@@ -586,20 +585,20 @@ public interface LlmInferenceService {
 	 * A tool call request made by the LLM. Represents the LLM's request to invoke a tool with specific arguments.
 	 *
 	 * <p>
-	 * Immutable: the backend reporting the call cannot see it change under the consumer running it, and the consumer cannot alter what the model asked for. {@link #args} is copied one level deep, so a value nested inside it is still shared -- do not mutate one.
+	 * The backend that reports a call owns the instance; treat it as read-only once {@link ToolStreamCallback#onToolCall} has been given it. The fields are not final and {@link #args} is held by reference, because both shipped that way in 26.28 and tightening them would break an already-built plugin that assigns them. Rewriting one after the fact means the consumer runs a call the model did not make.
 	 */
 	class ToolCallRequest {
 		/** Identifier correlating this call with the result the consumer sends back in {@link ChatMessage#toolResult} */
 		@NonNull
-		public final String callId;
+		public String callId;
 
 		/** Name of the tool to invoke; matches a {@link ToolDefinition#name} the consumer offered */
 		@NonNull
-		public final String name;
+		public String name;
 
-		/** Arguments the model supplied, keyed by parameter name. Never null; empty when the tool takes none. */
-		@NonNull
-		public final Map<String, Object> args;
+		/** Arguments the model supplied, keyed by parameter name; null when the tool takes none */
+		@Nullable
+		public Map<String, Object> args;
 
 		/**
 		 * Creates a tool call request.
@@ -609,14 +608,12 @@ public interface LlmInferenceService {
 		 * @param name
 		 *            the name of the tool to invoke
 		 * @param args
-		 *            the arguments the model supplied, or null for none; copied, so later edits to the caller's map do not reach the request
+		 *            the arguments the model supplied, or null for none; held by reference, so do not edit the map afterwards
 		 */
 		public ToolCallRequest(@NonNull String callId, @NonNull String name, @Nullable Map<String, Object> args) {
-			this.callId = Objects.requireNonNull(callId, "callId must not be null");
-			this.name = Objects.requireNonNull(name, "name must not be null");
-			this.args = args == null
-					? Collections.emptyMap()
-					: Collections.unmodifiableMap(new LinkedHashMap<>(args));
+			this.callId = callId;
+			this.name = name;
+			this.args = args;
 		}
 	}
 
@@ -624,20 +621,20 @@ public interface LlmInferenceService {
 	 * Tool definition for structured function calling. Defines a tool that the LLM can invoke.
 	 *
 	 * <p>
-	 * Immutable: a backend given one in {@link SystemPromptRequest#tools} cannot rename it or empty its schema, which would leave the consumer parsing replies against a contract it no longer offered. {@link #parametersSchema} is copied one level deep, so a value nested inside it is still shared -- do not mutate one.
+	 * The consumer that offers a tool owns the instance; a backend given one in {@link SystemPromptRequest#tools} must treat it as read-only. The fields are not final and {@link #parametersSchema} is held by reference, because both shipped that way in 26.28 and tightening them would break an already-built plugin that assigns them. Renaming a tool or emptying its schema after the prompt is composed leaves the consumer parsing replies against a contract it no longer offered -- and {@link SystemPromptRequest} copies only the list spine, so its copy points at these same instances.
 	 */
 	class ToolDefinition {
 		/** The name the model must use to call this tool */
 		@NonNull
-		public final String name;
+		public String name;
 
 		/** What the tool does, in wording meant for the model rather than the user */
 		@NonNull
-		public final String description;
+		public String description;
 
-		/** JSON-schema-shaped description of the parameters. Never null; empty when the tool takes no parameters. */
-		@NonNull
-		public final Map<String, Object> parametersSchema;
+		/** JSON-schema-shaped description of the parameters; null when the tool takes none */
+		@Nullable
+		public Map<String, Object> parametersSchema;
 
 		/**
 		 * Creates a tool definition.
@@ -647,15 +644,13 @@ public interface LlmInferenceService {
 		 * @param description
 		 *            what the tool does
 		 * @param parametersSchema
-		 *            the parameter schema, or null when the tool takes no parameters; copied, so later edits to the caller's map do not reach the definition
+		 *            the parameter schema, or null when the tool takes no parameters; held by reference, so do not edit the map afterwards
 		 */
 		public ToolDefinition(@NonNull String name, @NonNull String description,
 				@Nullable Map<String, Object> parametersSchema) {
-			this.name = Objects.requireNonNull(name, "name must not be null");
-			this.description = Objects.requireNonNull(description, "description must not be null");
-			this.parametersSchema = parametersSchema == null
-					? Collections.emptyMap()
-					: Collections.unmodifiableMap(new LinkedHashMap<>(parametersSchema));
+			this.name = name;
+			this.description = description;
+			this.parametersSchema = parametersSchema;
 		}
 	}
 

@@ -1591,9 +1591,9 @@ public class com/itsaky/androidide/plugins/services/LlmInferenceService$SystemPr
 }
 
 public class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallRequest {
-	public final field args Ljava/util/Map;
-	public final field callId Ljava/lang/String;
-	public final field name Ljava/lang/String;
+	public field args Ljava/util/Map;
+	public field callId Ljava/lang/String;
+	public field name Ljava/lang/String;
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
 }
 
@@ -1602,9 +1602,9 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 }
 
 public class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolDefinition {
-	public final field description Ljava/lang/String;
-	public final field name Ljava/lang/String;
-	public final field parametersSchema Ljava/util/Map;
+	public field description Ljava/lang/String;
+	public field name Ljava/lang/String;
+	public field parametersSchema Ljava/util/Map;
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
 }
 
