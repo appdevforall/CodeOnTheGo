@@ -342,7 +342,7 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 		assertEquals(
 			"""
 			package p
-			fun area(r: Int) {
+			fun area(r: Int): Int {
 				val square = r * r
 				return square + square
 			}
@@ -458,6 +458,102 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 				.first()
 				.scopes
 				.map { it.label },
+		)
+	}
+
+	@Test
+	fun `converting an inferred-type expression body writes the type out`() {
+		val content =
+			"""
+			package p
+			fun area(r: Int) = r * r
+			""".trimIndent()
+
+		val target = "r * r"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "squared",
+				replaceAll = false,
+			)!!
+
+		assertEquals(
+			"package p\n" +
+				"fun area(r: Int): Int {\n" +
+				"\tval squared = r * r\n" +
+				"\treturn squared\n" +
+				"}",
+			apply(content, rewrite),
+		)
+	}
+
+	@Test
+	fun `a declared return type is not written twice`() {
+		val content =
+			"""
+			package p
+			fun area(r: Int): Int = r * r
+			""".trimIndent()
+
+		val target = "r * r"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "squared",
+				replaceAll = false,
+			)!!
+
+		assertEquals(
+			"package p\n" +
+				"fun area(r: Int): Int {\n" +
+				"\tval squared = r * r\n" +
+				"\treturn squared\n" +
+				"}",
+			apply(content, rewrite),
+		)
+	}
+
+	@Test
+	fun `a Unit-returning expression body gets neither a type nor a return`() {
+		val content =
+			"""
+			package p
+			fun report(value: Int) {
+				println(value)
+			}
+			fun show(text: String) = report(text.length + 1)
+			""".trimIndent()
+
+		val target = "text.length + 1"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "length",
+				replaceAll = false,
+			)!!
+
+		assertEquals(
+			"package p\n" +
+				"fun report(value: Int) {\n" +
+				"\tprintln(value)\n" +
+				"}\n" +
+				"fun show(text: String) {\n" +
+				"\tval length = text.length + 1\n" +
+				"\treport(length)\n" +
+				"}",
+			apply(content, rewrite),
 		)
 	}
 }

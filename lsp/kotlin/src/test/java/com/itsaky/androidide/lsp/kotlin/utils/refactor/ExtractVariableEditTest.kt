@@ -246,6 +246,32 @@ class ExtractVariableEditTest {
 	}
 
 	@Test
+	fun `writes the return type into the signature when the declaration has none`() {
+		val text = "fun area(r: Int) = r * r"
+		val candidate = spanOf(text, "r * r")
+		val form =
+			AnchorForm.ConvertExpressionBody(
+				assignStart = text.indexOf('='),
+				bodyStart = candidate.start,
+				bodyEnd = text.length,
+				indent = "",
+				innerIndent = "\t",
+				needsReturn = true,
+				returnTypeText = "Int",
+			)
+
+		val result = rewrite(text, candidate, form, listOf(candidate), "squared", replaceAll = false)!!
+
+		assertEquals(
+			"fun area(r: Int): Int {\n" +
+				"\tval squared = r * r\n" +
+				"\treturn squared\n" +
+				"}",
+			apply(text, result),
+		)
+	}
+
+	@Test
 	fun `null when there is nothing to replace`() {
 		val text = "fun f() {}"
 		assertNull(
