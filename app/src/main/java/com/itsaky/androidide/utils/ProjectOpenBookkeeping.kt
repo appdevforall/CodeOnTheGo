@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.utils
 
-import android.database.SQLException
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.analytics.IAnalyticsManager
@@ -25,6 +24,7 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -67,13 +67,15 @@ fun recordProjectOpenedBookkeeping(
 			)
 		try {
 			recentProjectDao.insert(recentProject)
-		} catch (e: SQLException) {
-			// This runs on ProcessLifecycleOwner's app-wide scope -- an uncaught exception here would
-			// crash the whole process, not just fail to record one Recents entry. The project-open
-			// state above is already set synchronously, so a Recents-write failure doesn't affect it.
-			// Catches SQLException specifically (Room propagates it, or subtypes like
-			// SQLiteConstraintException, from a failed @Insert) rather than a blanket Exception, so an
-			// unrelated bug here still surfaces instead of being silently swallowed.
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Throwable) {
+			// This runs on ProcessLifecycleOwner's permanent, app-wide scope, which has no
+			// CoroutineExceptionHandler -- unlike the ViewModel-scoped version this replaced, ANY
+			// escaping exception here (not just SQLException; Room's generated insert can also throw
+			// e.g. IllegalStateException from an already-closed database) crashes the whole process,
+			// not just fails to record one Recents entry. The project-open state above is already set
+			// synchronously, so a Recents-write failure doesn't affect it.
 			log.warn("Failed to record opened project '{}' in Recents", recentProject.name, e)
 		}
 	}
