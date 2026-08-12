@@ -6,6 +6,8 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.itsaky.androidide.BuildConfig
+import com.itsaky.androidide.analytics.AttachedDevicesCollector
+import com.itsaky.androidide.analytics.AttachedDevicesMetric
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.strictmode.StrictModeConfig
 import com.itsaky.androidide.app.strictmode.StrictModeManager
@@ -160,7 +162,7 @@ internal object DeviceProtectedApplicationLoader :
 		}
 
 		withContext(Dispatchers.Main) {
-			initializeAnalytics()
+			initializeAnalytics(app)
 		}
 	}
 
@@ -184,10 +186,13 @@ internal object DeviceProtectedApplicationLoader :
 		}
 	}
 
-	private fun initializeAnalytics() {
+	private fun initializeAnalytics(app: IDEApplication) {
 		try {
 			ProcessLifecycleOwner.get().lifecycle.addObserver(this)
 			analyticsManager.initialize()
+			analyticsManager.trackMetric(
+				AttachedDevicesMetric(AttachedDevicesCollector.collect(app)),
+			)
 			logger.info("Firebase Analytics initialized successfully")
 		} catch (e: Exception) {
 			logger.error("Failed to initialize Firebase Analytics", e)

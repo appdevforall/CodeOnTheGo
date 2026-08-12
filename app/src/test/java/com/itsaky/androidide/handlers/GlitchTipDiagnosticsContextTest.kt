@@ -18,6 +18,7 @@
 package com.itsaky.androidide.handlers
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.analytics.AttachedDevicesCollector
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.buildinfo.BuildInfo
 import io.mockk.every
@@ -93,6 +94,24 @@ class GlitchTipDiagnosticsContextTest {
 		// The failing field is simply dropped...
 		assertThat(event.getTag("boot_mode")).isNull()
 		// ...the event is still returned, with every other field intact.
+		assertThat(event.getTag("app_version_name")).isEqualTo(BuildInfo.VERSION_NAME_SIMPLE)
+	}
+
+	@Test
+	fun `attached devices context is included on every event`() {
+		val event = enrichNewEvent()
+
+		assertThat(event.contexts["attached_devices"]).isNotNull()
+	}
+
+	@Test
+	fun `a throwing attached devices collector drops only that section`() {
+		mockkObject(AttachedDevicesCollector)
+		every { AttachedDevicesCollector.collect(any()) } throws RuntimeException("input service dead")
+
+		val event = enrichNewEvent()
+
+		assertThat(event.contexts["attached_devices"]).isNull()
 		assertThat(event.getTag("app_version_name")).isEqualTo(BuildInfo.VERSION_NAME_SIMPLE)
 	}
 }
