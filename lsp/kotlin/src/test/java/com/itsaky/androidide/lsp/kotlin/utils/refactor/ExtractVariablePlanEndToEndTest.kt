@@ -1,6 +1,11 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
+import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
+import org.jetbrains.kotlin.psi.KtBlockExpression
+import org.jetbrains.kotlin.psi.KtIfExpression
+import org.jetbrains.kotlin.psi.KtLambdaExpression
+import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -559,6 +564,67 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 				"}",
 			apply(content, rewrite),
 		)
+	}
+
+	@Test
+	fun `contentSpanOf finds the region inside a block's braces`() {
+		val content =
+			"""
+			package p
+			fun functionBody(a: Int, b: Int): Int {
+				return a + b
+			}
+			fun ifBody(flag: Boolean, a: Int, b: Int): Int {
+				if (flag) {
+					return a + b
+				}
+				return 0
+			}
+			fun lambdaWithHeader(items: List<Int>): List<Int> {
+				return items.map { x -> x + 1 }
+			}
+			fun lambdaWithoutHeader(items: List<Int>): List<Int> {
+				return items.map { it + 1 }
+			}
+			fun emptyBody() {}
+			""".trimIndent()
+		val ktFile = createSourceFile("Main.kt", content)
+		val functions = ktFile.declarations.filterIsInstance<KtNamedFunction>().associateBy { it.name }
+
+		fun contentOf(block: KtBlockExpression): String {
+			val span = contentSpanOf(block)
+			return content.substring(span.start, span.end)
+		}
+
+		assertEquals("\n\treturn a + b\n", contentOf(functions.getValue("functionBody").bodyBlockExpression!!))
+
+		val ifBody = functions.getValue("ifBody").bodyBlockExpression!!
+		val ifThen = PsiTreeUtil.findChildOfType(ifBody, KtIfExpression::class.java)!!.then as KtBlockExpression
+		assertEquals("\n\tif (flag) {\n\t\treturn a + b\n\t}\n\treturn 0\n", contentOf(ifBody))
+		assertEquals("\n\t\treturn a + b\n\t", contentOf(ifThen))
+
+		val lambdaWithHeaderBody =
+			PsiTreeUtil
+				.findChildOfType(
+					functions.getValue("lambdaWithHeader").bodyBlockExpression,
+					KtLambdaExpression::class.java,
+				)!!
+				.bodyExpression!!
+		val lambdaWithHeaderContent = contentOf(lambdaWithHeaderBody)
+		// The `x ->` header belongs to the enclosing function literal, not to this block.
+		assertFalse(lambdaWithHeaderContent.contains("->"))
+		assertEquals("x + 1", lambdaWithHeaderContent.trim())
+
+		val lambdaWithoutHeaderBody =
+			PsiTreeUtil
+				.findChildOfType(
+					functions.getValue("lambdaWithoutHeader").bodyBlockExpression,
+					KtLambdaExpression::class.java,
+				)!!
+				.bodyExpression!!
+		assertEquals("it + 1", contentOf(lambdaWithoutHeaderBody).trim())
+
+		assertEquals("", contentOf(functions.getValue("emptyBody").bodyBlockExpression!!))
 	}
 
 	@Test

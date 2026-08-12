@@ -45,6 +45,9 @@ class ExtractVariableEditTest {
 	/**
 	 * The block rung of a single-block fixture: content is everything between the first `{` and the
 	 * last `}`, and [statements] are the block's direct child statements in source order.
+	 *
+	 * Only correct for a fixture with exactly one brace pair -- a nested one (e.g. a class wrapping a
+	 * function) needs its `AnchorForm.ExistingBlock` built by hand instead.
 	 */
 	private fun existingBlock(
 		text: String,
@@ -207,12 +210,19 @@ class ExtractVariableEditTest {
 	fun `deeper indentation is preserved`() {
 		val text = "class C {\n\tfun f(items: List<Int>) {\n\t\tprintln(items.size * 2)\n\t}\n}"
 		val candidate = spanOf(text, "items.size * 2")
+		// Two brace pairs are nested here, so `existingBlock`'s "first { .. last }" heuristic would
+		// grab the class's braces instead of `fun f`'s -- built by hand for the inner pair instead.
+		val form =
+			AnchorForm.ExistingBlock(
+				contentSpan = spanOf(text, "\n\t\tprintln(items.size * 2)\n\t"),
+				statementSpans = listOf(spanOf(text, "println(items.size * 2)")),
+			)
 
 		val result =
 			rewrite(
 				text,
 				candidate,
-				existingBlock(text, "println(items.size * 2)"),
+				form,
 				listOf(candidate),
 				"size",
 				replaceAll = false,
