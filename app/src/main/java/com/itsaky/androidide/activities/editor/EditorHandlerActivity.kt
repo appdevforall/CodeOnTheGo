@@ -1956,7 +1956,6 @@ open class EditorHandlerActivity :
 		failure: TaskExecutionResult.Failure?,
 	) {
 		super.postProjectInit(isSuccessful, failure)
-		if (!isSuccessful) return
 
 		// Covers requirement #1 (cold open + file) and the tail of requirement #3 (a fresh
 		// EditorActivityKt instance always runs the normal init pipeline, whether started by
@@ -1964,7 +1963,11 @@ open class EditorHandlerActivity :
 		val request =
 			IntentCompat.getParcelableExtra(intent, PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
 				?: return
-		intent.removeExtra(PendingFileRequest.EXTRA_KEY) // don't reapply on a later config-change recreate
+		// Drain the extra regardless of outcome, not just on success -- otherwise a failed sync
+		// leaves it armed, and it fires later on the next unrelated *successful* sync/variant switch,
+		// silently yanking the editor back to this stale request instead of never reapplying.
+		intent.removeExtra(PendingFileRequest.EXTRA_KEY)
+		if (!isSuccessful) return
 		applyDeepLinkFileRequest(request)
 	}
 
