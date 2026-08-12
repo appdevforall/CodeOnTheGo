@@ -1,6 +1,6 @@
 # Documentation Database
 
-Reference for `documentation.db`, the SQLite database backing all in-app help (Tier 1/2/3 tooltips and the Tier 3 web content served by `WebServer`). Read this before touching anything under `localWebServer/`, `idetooltips/`, or `plugin-manager/.../documentation/`, or before writing/editing SQL against this database.
+Reference for `documentation.db`, the SQLite database backing all in-app help: Tier 1/2 tooltips, plus the Tier 3 web content they link to, served by `WebServer`. Read this before touching anything under `localWebServer/`, `idetooltips/`, or `plugin-manager/.../documentation/`, or before writing/editing SQL against this database.
 
 This is a **read-only, prebuilt** database — CoGo never creates or migrates its schema at runtime (see [ADR 0001](adr/0001-prefer-room-for-persistence.md), exception 1). The schema is owned by the separate `OfflineDocumentationTools` project (the `docdb-studio` tool); **never change it from this repo.**
 
@@ -35,7 +35,7 @@ One row per file the web server can serve (HTML, CSS, JS, image, video, PDF, ...
 - **`path`** is the lookup key (indexed via the `UNIQUE` constraint) and is what `WebServer` matches the HTTP request path against. Paths carry a short source prefix to avoid collisions between doc sets, e.g. `k/index.html` (Kotlin) vs `j/index.html` (Java).
 - **`content`** is compressed — Brotli for text-like formats, format-specific compression otherwise (images/video/fonts). `ContentTypes.compression` says which. Content over 1&nbsp;MB is split across multiple rows: the first row's path is the base path, continuation rows are `path-1`, `path-2`, ... (`languageId = 1`), reassembled by `WebServer` before returning.
 - **`templateId`**: `0` (or unset) means `content` is legacy HTML with presentation baked in (the pre-CMS Release 0/1 format). A positive value means `content` is JSON *facts only*, rendered through the matching row in `Templates` (a Pebble template) — the ongoing move to a proper CMS that de-duplicates presentation across near-identical pages (e.g. `sin`/`cos` docs).
-- Two rows with the same `path` but different `languageID` are legitimate (not yet exercised — only `EN-us` currently exists) and are *not* the corruption case; two rows with the same `path` *and* `languageID` would be, and the `UNIQUE(path)` constraint currently doesn't distinguish that (a known schema gap — see the *Rethink* list below).
+- The `UNIQUE(path)` constraint rejects any duplicate `path`, regardless of `languageID` — a second language for an existing path isn't supported yet (only `EN-us` currently exists). Getting there needs an upstream schema change to composite uniqueness on `(path, languageID)` (see *Known rough edges* below).
 
 Dimensions: `Languages(id, value)` (4-letter codes, e.g. `EN-us`); `ContentTypes(id, value, compression)` (MIME type + compression scheme, ~30 rows).
 

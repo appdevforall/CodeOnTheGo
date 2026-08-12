@@ -104,7 +104,7 @@ These structural facts shape every module. Day-to-day build *commands* live in `
 >
 > **Raw SQLite is allowed only when** the database is prebuilt and opened read-only, the data is performance/allocation-critical and needs granular schema control, or the schema is shared across a process/component boundary. Current exceptions: symbol indexing (`lsp/indexing/SQLiteIndex.kt`), tooltips (`idetooltips/ToolTipManager.kt`), in-app/plugin help (`plugin-manager/.../documentation/PluginDocumentationManager.kt`), and the local web server (`app/.../localWebServer/WebServer.kt`). `idetooltips` also declares unused Room Gradle deps (remove them), and the `androidx.room:*` strings in `editor`'s `GroovyAutoComplete` are autocomplete suggestions for the *user's* code, not CoGo persistence.
 >
-> The tooltips and local-web-server exceptions both read `documentation.db`, the prebuilt Tier 1/2/3 help database — see [docs/documentation-database.md](docs/documentation-database.md) for its schema and how each consumer queries it.
+> The tooltip, in-app/plugin-help, and local-web-server exceptions all read `documentation.db`, the prebuilt Tier 1/2/3 help database — see [docs/documentation-database.md](docs/documentation-database.md) for its schema and how each consumer queries it.
 
 ## State Management
 
