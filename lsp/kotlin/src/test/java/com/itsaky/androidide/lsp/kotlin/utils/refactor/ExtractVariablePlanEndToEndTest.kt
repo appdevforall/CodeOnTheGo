@@ -662,4 +662,41 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 			apply(content, rewrite),
 		)
 	}
+
+	@Test
+	fun `extracting from a one-line lambda stays inside the lambda`() {
+		val content =
+			"""
+			package p
+			fun demo(items: List<String>): List<Int> {
+				return items.map { it.length + 1 }
+			}
+			""".trimIndent()
+
+		val target = "it.length + 1"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+		// `it` is lambda-scoped, so the lambda is the ceiling: there is no outer rung to choose.
+		assertEquals(listOf("lambda"), candidate.scopes.map { it.label })
+
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "length",
+				replaceAll = false,
+			)!!
+
+		assertEquals(
+			"package p\n" +
+				"fun demo(items: List<String>): List<Int> {\n" +
+				"\treturn items.map {\n" +
+				"\t\tval length = it.length + 1\n" +
+				"\t\tlength\n" +
+				"\t}\n" +
+				"}",
+			apply(content, rewrite),
+		)
+	}
 }

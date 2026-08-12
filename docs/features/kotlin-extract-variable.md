@@ -147,6 +147,13 @@ Each chooser is hidden when it has nothing to ask: the expression chooser when t
 The span is anchored on the chosen rung's statement, not on the occurrence: for an outer rung the
 declaration goes above the whole enclosing statement, at that statement's indentation.
 
+A block written on one line -- `items.map { it.length + 1 }`, `fun f(n: Int): Int { return n * 2 }`,
+a one-line `if` body -- is expanded instead: the content between the braces moves onto its own line
+with the declaration above it and the closing brace below. Anchoring on the statement's line start
+there would place the declaration *before* the `{`, outside the scope the value belongs to, which
+leaves a lambda's `it` unresolved. The braces themselves and a lambda's `param ->` header are left
+where they are.
+
 The emitted text is **fully indented**: code-action edits bypass the editor's auto-indent (raw `Content.replace`), and `CMD_FORMAT_CODE` is a no-op for Kotlin. The indent unit is inferred from the file's own lines (a tab if any line is tab-indented, else the smallest positive run of leading spaces, defaulting to a tab), mirroring `ImplementMembersAction`; CRLF is used only when the file already contains it, so the edit never mixes line endings.
 
 **R10 - Responsiveness.** One background analysis pass produces the plan for *all* candidates at once; the sheet then performs pure string and offset arithmetic on it. Nothing re-enters analysis on confirm, which keeps PSI off the UI thread, removes the stale-PSI window, and makes the whole derivation unit-testable without an editor, an activity or Compose. Analysis runs at `AnalysisPriority.INTERACTIVE` under a cancel checker tied to the action's coroutine, so cancelling the action aborts the analysis.
@@ -175,6 +182,7 @@ The emitted text is **fully indented**: code-action edits bypass the editor's au
 8. An expression using `it` inside a lambda offers no anchor outside that lambda.
 9. Extracting from `if (c) foo(x + 1)` wraps the branch in braces with the declaration inside.
 9a. With a candidate inside a braced `if` inside a function, picking `fun name` in `Declare in` puts the declaration above the `if`, and picking `if block` puts it inside the branch.
+9b. Extracting from `return items.map { it.length + 1 }` puts the declaration inside the lambda and expands the block over three lines; the same holds for a one-line function body.
 10. Extracting from `fun area(r: Int): Int = r * r` converts it to a block body with `return`, leaving the declared type alone; extracting from `fun area(r: Int) = r * r` converts it *and* writes `: Int` into the signature.
 11. Extracting from a `Unit`-returning expression-bodied function converts it without adding `return` and without writing a type.
 12. A name that is blank, not an identifier, a hard keyword, or already used disables Extract and shows the matching message.
