@@ -9,10 +9,39 @@ The tool surface is deliberately small and grows one tool at a time.
 |---|---|---|
 | `ping` | none | Returns `pong`. Health check for the transport itself. |
 | `is_cogo_installed` | none | Reports whether `com.itsaky.androidide` is installed on the attached device. |
+| `cogo_home` | none | Brings CoGo to its home screen and confirms it arrived. **Destructive:** force-stops the app and permanently disables auto-open-project. |
 
 `is_cogo_installed` reports an **error**, not `not installed`, when adb itself
 fails. Not knowing is not the same as knowing the app is absent, and collapsing
 the two would make a missing device look like a missing app.
+
+### Why `cogo_home` rewrites a preference
+
+You cannot reach home just by launching the app. `MainActivity.onCreate` calls
+`tryOpenLastProject()`, and `GeneralPreferences.autoOpenProjects` defaults to
+**true**, so the real path is Splash -> Onboarding -> MainActivity -> **Editor**.
+
+Clearing `ide_last_project` is not enough either: `tryOpenLastProject()` falls
+back to `validProjects.maxByOrNull { it.lastModified() }`, so it opens *some*
+project regardless. Only `idepref_general_autoOpenProjects = false` prevents it.
+
+So the tool force-stops the app (a running app holds its preferences in memory
+and would write them back over the edit), reads
+`shared_prefs/com.itsaky.androidide_preferences.xml` via `run-as`, rewrites just
+that one key, relaunches `MainActivity` explicitly, and polls
+`dumpsys activity activities` until the resumed activity is `MainActivity`.
+
+Two consequences worth knowing: it needs a **debuggable build** for `run-as`,
+and the preference change **persists** - the app will not auto-open projects
+again until the user turns it back on.
+
+The XML edit happens in Kotlin (`withAutoOpenDisabled`), not in on-device `sed`,
+specifically so it can be tested. The first version used `sed '/KEY/d'` and
+corrupted the file on its second run by deleting the `<map>` tag, which shared a
+line with the boolean. A fake cannot round-trip a file; only a pure function can.
+
+The explicit component is also deliberate: debug builds ship a second LAUNCHER
+activity (LeakCanary), so `monkey -c LAUNCHER` is ambiguous.
 
 ## Self-description
 

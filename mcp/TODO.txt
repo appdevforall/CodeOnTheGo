@@ -1,0 +1,23 @@
+Navigate to new project activity
+Navigate to Open saved project activity
+Navigate to Clone a git project activity
+Navigate to Delete a saved project activity
+Navigate to Home Termux
+Navigate to Main Preferences
+Navigate to General Preferences
+Navigate to Editor Preferences
+Navigate to Build & Run Preferences
+Navigate to Terminal Preferences
+Navigate to Git Preferences
+Navigate to About Cogo
+Navigate to Plugin Manager
+Navigate to Developer Options
+Navigate to Main Help
+Move feedback button (takes 9 options: north, northeast, east, southeast, south, southwest, west, northwest, center) # like a tictactoe board
+List available project templates
+List available pre-existing projects
+Open a specific project
+Create a project from a template
+Open project left drawer
+Open project bottom drawer
+List files in current project

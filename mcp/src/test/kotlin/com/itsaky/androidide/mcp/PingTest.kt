@@ -15,7 +15,7 @@ class PingTest {
 	fun `tools list contains exactly the registered tools`() =
 		withConnectedClient({ cogoMcpServer() }) { client ->
 			assertEquals(
-				setOf("ping", "is_cogo_installed"),
+				setOf("ping", "is_cogo_installed", "cogo_home"),
 				client
 					.listTools()
 					.tools

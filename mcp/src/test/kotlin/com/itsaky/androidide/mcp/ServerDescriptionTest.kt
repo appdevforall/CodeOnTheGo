@@ -32,6 +32,7 @@ class ServerDescriptionTest {
 				mapOf(
 					"ping" to "Ping",
 					"is_cogo_installed" to "Is Code On The Go installed?",
+					"cogo_home" to "Go to Code On The Go home",
 				),
 				client.listTools().tools.associate { it.name to it.title },
 			)
