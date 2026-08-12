@@ -20,7 +20,6 @@ package com.itsaky.androidide.activities
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
-import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import androidx.activity.OnBackPressedCallback
@@ -275,7 +274,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 					.commitNow()
 			}
 
-			else -> { }
+			else -> {}
 		}
 	}
 

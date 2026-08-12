@@ -24,6 +24,7 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
+import com.itsaky.androidide.templates.Language
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -64,9 +65,15 @@ fun recordProjectOpenedBookkeeping(
 				location = location,
 				createdAt = getCreatedTime(location).toString(),
 				lastModified = getLastModifiedTime(location).toString(),
+				language = readProjectLanguage(root),
 			)
 		try {
+			// Insert is IGNOREd for a project already in Recents, so refresh the detected language
+			// separately -- but never clobber a stored value with a failed ("Unknown") detection.
 			recentProjectDao.insert(recentProject)
+			if (!recentProject.language.equals(Language.Unknown.lang, ignoreCase = true)) {
+				recentProjectDao.updateLanguage(recentProject.location, recentProject.language)
+			}
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Throwable) {

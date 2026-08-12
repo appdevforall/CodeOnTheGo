@@ -174,6 +174,17 @@
         <meta-data
             android:name="io.sentry.logs.enabled"
             android:value="true" />
+
+        <!-- Suppress SDK auto-init; re-enabled at runtime only with telemetry consent -->
+        <meta-data
+            android:name="io.sentry.auto-init"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_data_collection_default_enabled"
+            android:value="false" />
         <provider
             android:name=".provider.IDEDocumentsProvider"
             android:authorities="com.itsaky.androidide.documents"
