@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.psi.KtDeclarationWithBody
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtFunctionLiteral
+import org.jetbrains.kotlin.psi.KtLambdaExpression
 import org.jetbrains.kotlin.psi.KtLiteralStringTemplateEntry
 import org.jetbrains.kotlin.psi.KtLoopExpression
 import org.jetbrains.kotlin.psi.KtOperationReferenceExpression
@@ -179,6 +180,7 @@ private fun PsiElement.isAncestorOf(other: PsiElement): Boolean = PsiTreeUtil.is
  *
  * Excluded, and why:
  * - blocks, loops, `return`/`throw`/`break`/`continue` -- no useful value to bind;
+ * - lambdas, literal and wrapper alike -- outside their call site the parameter types are gone;
  * - operator tokens and call callees (`foo` in `foo(x)`) -- fragments, not expressions;
  * - the selector of a qualified expression (`b` in `a.b`) -- only meaningful with its receiver;
  * - the left side of an assignment -- a write target, not a value;
@@ -195,6 +197,9 @@ internal fun KtExpression.isLegalExtractionTarget(): Boolean {
 	if (this is KtOperationReferenceExpression) return false
 	if (this is KtSuperExpression) return false
 	if (this is KtFunctionLiteral) return false
+	// The wrapper around the literal. A hoisted lambda loses the parameter types its call site was
+	// supplying, so `{ it.length + 1 }` becomes uncompilable the moment it leaves the call.
+	if (this is KtLambdaExpression) return false
 	if (isBareLiteral()) return false
 
 	val parent = parent

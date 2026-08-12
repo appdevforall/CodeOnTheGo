@@ -386,4 +386,27 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 			apply(content, rewrite!!),
 		)
 	}
+
+	@Test
+	fun `does not offer the lambda that wraps the expression`() {
+		val content =
+			"""
+			package p
+			fun demo(items: List<String>): List<Int> {
+				return items.map {
+					it.length + 1
+				}
+			}
+			""".trimIndent()
+
+		val target = "it.length + 1"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+
+		// `{ it.length + 1 }` must not appear between the two: a hoisted lambda loses the `it` the call
+		// site was supplying.
+		assertEquals(
+			listOf("it.length + 1", "items.map { it.length + 1 }"),
+			result.candidates.map { it.label },
+		)
+	}
 }
