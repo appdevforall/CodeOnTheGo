@@ -185,7 +185,9 @@ private fun resumedActivity(dumpsys: String): String? =
 		?.split(" ", "}")
 		?.firstOrNull { it.contains("/") }
 
-private fun adbFailure(result: AdbResult): CallToolResult {
+// Shared by every adb-backed tool: a failed call means we do not know, which is
+// never the same as a negative answer.
+internal fun adbFailure(result: AdbResult): CallToolResult {
 	val detail = result.stderr.trim().ifEmpty { result.stdout.trim() }
 	return CallToolResult(
 		content = listOf(TextContent("adb failed (exit ${result.exitCode}): $detail")),
