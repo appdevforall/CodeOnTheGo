@@ -242,6 +242,8 @@ class EditorSearchLayout(
 		findInFileBinding.root.visibility = VISIBLE
 		onSearchModeChanged?.invoke(true)
 
+		refreshSearch()
+
 		findInFileBinding.searchInput.requestFocus()
 		findInFileBinding.searchInput.post {
 			ViewCompat.getWindowInsetsController(findInFileBinding.searchInput)?.show(WindowInsetsCompat.Type.ime())
@@ -291,6 +293,9 @@ class EditorSearchLayout(
 			this.searchInputTextWatcher = null
 			searcher.onClose()
 			onSearchModeChanged?.invoke(false)
+		}
+		if (!searcher.hasQuery()) {
+			refreshSearch()
 		}
 		if (!searcher.hasQuery()) {
 			return
