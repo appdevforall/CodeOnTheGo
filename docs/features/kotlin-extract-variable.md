@@ -154,6 +154,16 @@ there would place the declaration *before* the `{`, outside the scope the value 
 leaves a lambda's `it` unresolved. The braces themselves and a lambda's `param ->` header are left
 where they are.
 
+Whether a block counts as "one line" takes two conditions, not one. A single check against where the
+block's content starts is not enough: a lambda body's block does not own its braces, so its content
+span sits at the body's first token even when that token starts its own line, and comparing that alone
+against the line start would wrongly expand an ordinary multi-line lambda. Both must hold: something
+other than indentation already precedes the statement on its line (the brace, a header, or a prior
+semicolon-separated statement), *and* the block's own content contains no newline (so re-emitting it
+as a single line loses nothing). A multi-line lambda fails the first and keeps its shape; a multi-line
+block with two semicolon-separated statements on one line satisfies the first but fails the second, so
+it also keeps its shape, with the declaration hoisted above the whole line instead.
+
 The emitted text is **fully indented**: code-action edits bypass the editor's auto-indent (raw `Content.replace`), and `CMD_FORMAT_CODE` is a no-op for Kotlin. The indent unit is inferred from the file's own lines (a tab if any line is tab-indented, else the smallest positive run of leading spaces, defaulting to a tab), mirroring `ImplementMembersAction`; CRLF is used only when the file already contains it, so the edit never mixes line endings.
 
 **R10 - Responsiveness.** One background analysis pass produces the plan for *all* candidates at once; the sheet then performs pure string and offset arithmetic on it. Nothing re-enters analysis on confirm, which keeps PSI off the UI thread, removes the stale-PSI window, and makes the whole derivation unit-testable without an editor, an activity or Compose. Analysis runs at `AnalysisPriority.INTERACTIVE` under a cancel checker tied to the action's coroutine, so cancelling the action aborts the analysis.
