@@ -21,14 +21,21 @@ data class TextSpan(
 sealed interface AnchorForm {
 	/**
 	 * The scope already has a `{ ... }` body (function body, `if` block, lambda body, ...), so the
-	 * declaration is simply a new statement line.
+	 * declaration is a new statement line inside it.
 	 *
-	 * Deliberately field-free: the insertion offset and indentation are both derived from the first
-	 * occurrence being served, which is the candidate itself when replacing only one site and an
-	 * earlier statement when replacing all. Storing a precomputed anchor would duplicate that and
-	 * let the two drift apart.
+	 * [statementSpans] are the block's direct child statements, ascending. The anchor point is the
+	 * first of them containing the first served occurrence -- which is what makes an outer rung differ
+	 * from an inner one. Anchoring on the occurrence's own line instead would make every rung of a
+	 * chain produce the same edit.
+	 *
+	 * [contentSpan] is the region *inside* the braces. It tells a block written on one line
+	 * (`items.map { it.length + 1 }`) from a multi-line one, where inserting at the statement's line
+	 * start would put the declaration outside the braces.
 	 */
-	data object ExistingBlock : AnchorForm
+	data class ExistingBlock(
+		val contentSpan: TextSpan,
+		val statementSpans: List<TextSpan>,
+	) : AnchorForm
 
 	/**
 	 * A braceless statement position -- `if (c) foo()`, a `when` entry, a braceless loop body.

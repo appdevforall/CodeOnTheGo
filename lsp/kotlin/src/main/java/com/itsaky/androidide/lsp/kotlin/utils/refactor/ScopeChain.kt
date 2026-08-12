@@ -112,7 +112,12 @@ private fun frameFor(
 			scopeElement = parent,
 			searchRange = parent.textRange.let { TextSpan(it.startOffset, it.endOffset) },
 			statementSpan = TextSpan(lineStart, inner.textRange.endOffset),
-			anchorForm = AnchorForm.ExistingBlock,
+			anchorForm =
+				AnchorForm.ExistingBlock(
+					contentSpan = contentSpanOf(parent),
+					statementSpans =
+						parent.statements.map { TextSpan(it.textRange.startOffset, it.textRange.endOffset) },
+				),
 		)
 	}
 
@@ -240,6 +245,25 @@ private fun bracelessOwnerLabel(
 			null
 		}
 	}
+
+/**
+ * The region inside a block's braces.
+ *
+ * A function, `if` or loop body owns its braces, so they are trimmed off. A lambda body block does not
+ * -- the braces and any `param ->` header belong to the enclosing function literal -- so its own range
+ * already *is* the content, which is what keeps the header on the brace line when the block is
+ * expanded. Deriving this from the block's text rather than from brace PSI keeps one code path for
+ * both shapes.
+ */
+internal fun contentSpanOf(block: KtBlockExpression): TextSpan {
+	val range = block.textRange
+	val text = block.text
+	return if (text.length >= 2 && text.startsWith("{") && text.endsWith("}")) {
+		TextSpan(range.startOffset + 1, range.endOffset - 1)
+	} else {
+		TextSpan(range.startOffset, range.endOffset)
+	}
+}
 
 /** Offset of the start of the line containing [offset]. */
 internal fun lineStartOffset(

@@ -42,6 +42,18 @@ class ExtractVariableEditTest {
 		return spans
 	}
 
+	/**
+	 * The block rung of a single-block fixture: content is everything between the first `{` and the
+	 * last `}`, and [statements] are the block's direct child statements in source order.
+	 */
+	private fun existingBlock(
+		text: String,
+		vararg statements: String,
+	) = AnchorForm.ExistingBlock(
+		contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
+		statementSpans = statements.map { spanOf(text, it) },
+	)
+
 	private fun rewrite(
 		text: String,
 		candidate: TextSpan,
@@ -62,7 +74,15 @@ class ExtractVariableEditTest {
 		val text = "fun f(items: List<Int>) {\n\tprintln(items.size * 2)\n}"
 		val candidate = spanOf(text, "items.size * 2")
 
-		val result = rewrite(text, candidate, AnchorForm.ExistingBlock, listOf(candidate), "size", replaceAll = false)!!
+		val result =
+			rewrite(
+				text,
+				candidate,
+				existingBlock(text, "println(items.size * 2)"),
+				listOf(candidate),
+				"size",
+				replaceAll = false,
+			)!!
 
 		assertEquals(
 			"fun f(items: List<Int>) {\n" +
@@ -85,7 +105,15 @@ class ExtractVariableEditTest {
 		// The user selected the middle one; the declaration must still hoist above the first.
 		val candidate = occurrences[1]
 
-		val result = rewrite(text, candidate, AnchorForm.ExistingBlock, occurrences, "size", replaceAll = true)!!
+		val result =
+			rewrite(
+				text,
+				candidate,
+				existingBlock(text, "println(items.size * 2)", "log(items.size * 2)", "use(items.size * 2)"),
+				occurrences,
+				"size",
+				replaceAll = true,
+			)!!
 
 		assertEquals(
 			"fun f(items: List<Int>) {\n" +
@@ -107,7 +135,15 @@ class ExtractVariableEditTest {
 				"}"
 		val occurrences = allSpansOf(text, "items.size * 2")
 
-		val result = rewrite(text, occurrences[0], AnchorForm.ExistingBlock, occurrences, "size", replaceAll = false)!!
+		val result =
+			rewrite(
+				text,
+				occurrences[0],
+				existingBlock(text, "println(items.size * 2)", "log(items.size * 2)"),
+				occurrences,
+				"size",
+				replaceAll = false,
+			)!!
 
 		assertEquals(
 			"fun f(items: List<Int>) {\n" +
@@ -124,7 +160,15 @@ class ExtractVariableEditTest {
 		val text = "fun f(items: List<Int>) {\n    println(items.size * 2)\n}"
 		val candidate = spanOf(text, "items.size * 2")
 
-		val result = rewrite(text, candidate, AnchorForm.ExistingBlock, listOf(candidate), "size", replaceAll = false)!!
+		val result =
+			rewrite(
+				text,
+				candidate,
+				existingBlock(text, "println(items.size * 2)"),
+				listOf(candidate),
+				"size",
+				replaceAll = false,
+			)!!
 
 		assertEquals(
 			"fun f(items: List<Int>) {\n" +
@@ -140,7 +184,15 @@ class ExtractVariableEditTest {
 		val text = "fun f(items: List<Int>) {\r\n\tprintln(items.size * 2)\r\n}"
 		val candidate = spanOf(text, "items.size * 2")
 
-		val result = rewrite(text, candidate, AnchorForm.ExistingBlock, listOf(candidate), "size", replaceAll = false)!!
+		val result =
+			rewrite(
+				text,
+				candidate,
+				existingBlock(text, "println(items.size * 2)"),
+				listOf(candidate),
+				"size",
+				replaceAll = false,
+			)!!
 
 		assertEquals(
 			"fun f(items: List<Int>) {\r\n" +
@@ -156,7 +208,15 @@ class ExtractVariableEditTest {
 		val text = "class C {\n\tfun f(items: List<Int>) {\n\t\tprintln(items.size * 2)\n\t}\n}"
 		val candidate = spanOf(text, "items.size * 2")
 
-		val result = rewrite(text, candidate, AnchorForm.ExistingBlock, listOf(candidate), "size", replaceAll = false)!!
+		val result =
+			rewrite(
+				text,
+				candidate,
+				existingBlock(text, "println(items.size * 2)"),
+				listOf(candidate),
+				"size",
+				replaceAll = false,
+			)!!
 
 		assertEquals(
 			"class C {\n" +
@@ -278,7 +338,7 @@ class ExtractVariableEditTest {
 			buildExtractVariableRewrite(
 				fileText = text,
 				candidateSpan = TextSpan(0, 3),
-				scope = ScopeOption("scope", AnchorForm.ExistingBlock, emptyList()),
+				scope = ScopeOption("scope", AnchorForm.ExistingBlock(TextSpan(9, 9), emptyList()), emptyList()),
 				name = "value",
 				replaceAll = true,
 			),
@@ -292,10 +352,80 @@ class ExtractVariableEditTest {
 			buildExtractVariableRewrite(
 				fileText = text,
 				candidateSpan = TextSpan(0, 3),
-				scope = ScopeOption("scope", AnchorForm.ExistingBlock, listOf(TextSpan(0, text.length + 5))),
+				scope =
+					ScopeOption(
+						"scope",
+						AnchorForm.ExistingBlock(TextSpan(9, 9), emptyList()),
+						listOf(TextSpan(0, text.length + 5)),
+					),
 				name = "value",
 				replaceAll = true,
 			),
+		)
+	}
+
+	@Test
+	fun `the inner rung declares inside the if block`() {
+		val text =
+			"fun f(flag: Boolean, a: Int, b: Int): Int {\n" +
+				"\tif (flag) {\n" +
+				"\t\treturn a + b * 2\n" +
+				"\t}\n" +
+				"\treturn 0\n" +
+				"}"
+		val candidate = spanOf(text, "a + b * 2")
+		val form =
+			AnchorForm.ExistingBlock(
+				contentSpan = spanOf(text, "\n\t\treturn a + b * 2\n\t"),
+				statementSpans = listOf(spanOf(text, "return a + b * 2")),
+			)
+
+		val result = rewrite(text, candidate, form, listOf(candidate), "total", replaceAll = false)!!
+
+		assertEquals(
+			"fun f(flag: Boolean, a: Int, b: Int): Int {\n" +
+				"\tif (flag) {\n" +
+				"\t\tval total = a + b * 2\n" +
+				"\t\treturn total\n" +
+				"\t}\n" +
+				"\treturn 0\n" +
+				"}",
+			apply(text, result),
+		)
+	}
+
+	@Test
+	fun `the outer rung declares above the enclosing statement`() {
+		val text =
+			"fun f(flag: Boolean, a: Int, b: Int): Int {\n" +
+				"\tif (flag) {\n" +
+				"\t\treturn a + b * 2\n" +
+				"\t}\n" +
+				"\treturn 0\n" +
+				"}"
+		val candidate = spanOf(text, "a + b * 2")
+		// The function block's rung: its statements are the whole `if` and the trailing `return 0`.
+		val form =
+			AnchorForm.ExistingBlock(
+				contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
+				statementSpans =
+					listOf(
+						spanOf(text, "if (flag) {\n\t\treturn a + b * 2\n\t}"),
+						spanOf(text, "return 0"),
+					),
+			)
+
+		val result = rewrite(text, candidate, form, listOf(candidate), "total", replaceAll = false)!!
+
+		assertEquals(
+			"fun f(flag: Boolean, a: Int, b: Int): Int {\n" +
+				"\tval total = a + b * 2\n" +
+				"\tif (flag) {\n" +
+				"\t\treturn total\n" +
+				"\t}\n" +
+				"\treturn 0\n" +
+				"}",
+			apply(text, result),
 		)
 	}
 
