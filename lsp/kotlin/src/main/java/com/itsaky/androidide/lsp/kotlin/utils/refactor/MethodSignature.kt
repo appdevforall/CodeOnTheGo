@@ -1,9 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
-import com.itsaky.androidide.lsp.kotlin.utils.renderName
-import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
-import org.jetbrains.kotlin.analysis.api.renderer.types.impl.KaTypeRendererForSource
 import org.jetbrains.kotlin.analysis.api.resolution.KaCallableMemberCall
 import org.jetbrains.kotlin.analysis.api.resolution.KaCompoundArrayAccessCall
 import org.jetbrains.kotlin.analysis.api.resolution.KaCompoundVariableAccessCall
@@ -70,7 +67,7 @@ private const val BACKING_FIELD_NAME = "field"
 
 private const val COROUTINE_CONTEXT_NAME = "coroutineContext"
 
-/** As [SIGNATURE_TYPE_RENDERER] prints it. A `Unit` return type is left off the signature entirely. */
+/** As [renderedTypeTextOrNull] prints it. A `Unit` return type is left off the signature entirely. */
 private const val UNIT_TYPE_TEXT = "kotlin.Unit"
 
 /** Either a derived candidate or the reason there is not one. */
@@ -400,9 +397,11 @@ private sealed interface UsedType {
 }
 
 private fun KaSession.usedTypeOf(expression: KtExpression): UsedType {
-	val rendered =
-		runCatching { expression.expressionType?.let { renderTypeText(it) } }.getOrNull() ?: return UsedType.Absent
-	return if (isUnrenderable(rendered)) UsedType.Unrenderable else UsedType.Rendered(rendered)
+	val type = runCatching { expression.expressionType }.getOrNull() ?: return UsedType.Absent
+	return runCatching { typeTextOrNull(type) }.fold(
+		onSuccess = { rendered -> rendered?.let { UsedType.Rendered(it) } ?: UsedType.Unrenderable },
+		onFailure = { UsedType.Absent },
+	)
 }
 
 /** Either the derived parameter list or the reason there cannot be one. */
@@ -416,56 +415,17 @@ private sealed interface CaptureResult {
 	) : CaptureResult
 }
 
-/**
- * A type that cannot be written out as source -- anonymous, intersection, a resolution error, or a
- * platform type [renderTypeText] could not reduce (`List<String!>`, where the `!` is on a type
- * argument). `!` is not Kotlin syntax anywhere, so its presence alone settles it.
- */
-private fun isUnrenderable(text: String): Boolean =
-	text.isBlank() ||
-		text.contains("anonymous") ||
-		text.contains("ERROR") ||
-		text.contains(" & ") ||
-		text.contains('!')
-
-/**
- * Types in the emitted signature are rendered **fully qualified**.
- *
- * A short name resolves only when the file already imports it, and a local's type usually comes from
- * inference rather than a spelled-out type reference -- `val d = java.util.Date()` names `Date`
- * nowhere -- so a short name is unresolved as often as not, and this refactoring adds no imports.
- * Verbose, but it always resolves. [receiverTypeTextOf] deliberately stays on source text instead:
- * that text is already in the file.
- */
-@OptIn(KaExperimentalApi::class)
-private val SIGNATURE_TYPE_RENDERER = KaTypeRendererForSource.WITH_QUALIFIED_NAMES
-
-/**
- * One type as the signature would print it, before the [isUnrenderable] check.
- *
- * A platform type is unwrapped to its lower bound: the renderer prints `String!`, which does not
- * parse, and the lower bound is both what IntelliJ writes and what the moved body already assumes.
- * Only the outermost bound is unwrapped, so a `!` on a type argument survives to [isUnrenderable].
- */
-@OptIn(KaExperimentalApi::class)
-private fun KaSession.renderTypeText(type: KaType): String =
-	renderName((type as? KaFlexibleType)?.lowerBound ?: type, SIGNATURE_TYPE_RENDERER)
-
 private fun KaSession.renderedSymbolType(symbol: KaCallableSymbol): String? =
-	runCatching { renderTypeText(symbol.returnType) }.getOrNull()?.takeUnless(::isUnrenderable)
+	runCatching { symbol.returnType }.getOrNull()?.let { renderedTypeTextOrNull(it) }
 
 private fun KaSession.renderedTypeOrNull(expression: KtExpression): String? =
-	runCatching { expression.expressionType?.let { renderTypeText(it) } }.getOrNull()?.takeUnless(::isUnrenderable)
+	runCatching { expression.expressionType }.getOrNull()?.let { renderedTypeTextOrNull(it) }
 
 private fun KaSession.renderedDeclarationType(property: KtProperty): String? =
-	runCatching { (property.symbol as? KaCallableSymbol)?.returnType?.let { renderTypeText(it) } }
-		.getOrNull()
-		?.takeUnless(::isUnrenderable)
+	runCatching { (property.symbol as? KaCallableSymbol)?.returnType }.getOrNull()?.let { renderedTypeTextOrNull(it) }
 
 private fun KaSession.enclosingReturnType(enclosing: KtDeclaration): String? =
-	runCatching { (enclosing.symbol as? KaCallableSymbol)?.returnType?.let { renderTypeText(it) } }
-		.getOrNull()
-		?.takeUnless(::isUnrenderable)
+	runCatching { (enclosing.symbol as? KaCallableSymbol)?.returnType }.getOrNull()?.let { renderedTypeTextOrNull(it) }
 
 /**
  * What the region declares that the code after it still uses (R7).
