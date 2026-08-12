@@ -54,12 +54,16 @@ internal fun isUnrenderableTypeText(text: String): Boolean =
  * A platform type is unwrapped to its lower bound first: the renderer prints `String!`, which does not
  * parse. Only the outermost bound is unwrapped, so a `!` on a type argument still reaches
  * [isUnrenderableTypeText].
+ *
+ * Lets a failure from the renderer itself propagate, so a caller that must tell "the renderer threw"
+ * from "the type is unrenderable" can. [renderedTypeTextOrNull] is the catching form most callers want.
  */
 @OptIn(KaExperimentalApi::class)
-internal fun KaSession.renderedTypeTextOrNull(type: KaType): String? =
-	runCatching { renderName((type as? KaFlexibleType)?.lowerBound ?: type, QUALIFIED_TYPE_RENDERER) }
-		.getOrNull()
-		?.takeUnless(::isUnrenderableTypeText)
+internal fun KaSession.typeTextOrNull(type: KaType): String? =
+	renderName((type as? KaFlexibleType)?.lowerBound ?: type, QUALIFIED_TYPE_RENDERER)
+		.takeUnless(::isUnrenderableTypeText)
+
+internal fun KaSession.renderedTypeTextOrNull(type: KaType): String? = runCatching { typeTextOrNull(type) }.getOrNull()
 
 /**
  * Replaces each qualified name in [rendered] with its simple name when that name already resolves in
