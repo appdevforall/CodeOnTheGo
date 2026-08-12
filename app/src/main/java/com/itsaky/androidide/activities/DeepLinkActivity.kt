@@ -63,11 +63,19 @@ class DeepLinkActivity : Activity() {
 		startActivity(
 			Intent(this, target).apply {
 				putExtra(DeepLinkRequest.EXTRA_KEY, request)
-				// SINGLE_TOP: if `target` is MainActivity and one is already on top of the stack
-				// (e.g. the user was browsing recent projects when the link was tapped), reuse it via
-				// onNewIntent instead of stacking a second instance. EditorActivityKt is singleTask,
-				// so it always reuses its live instance regardless of this flag.
-				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+				// If `target` is MainActivity and one already exists in the task, reuse it via
+				// onNewIntent instead of stacking a second instance -- SINGLE_TOP alone isn't enough
+				// here, since DeepLinkActivity (not MainActivity) is what's actually on top of the
+				// stack at this exact call, so SINGLE_TOP's "already at the top" check never matches;
+				// CLEAR_TOP finds MainActivity anywhere in the task and reuses it via onNewIntent
+				// (combined with SINGLE_TOP, rather than the destroy-and-recreate CLEAR_TOP alone
+				// would do). EditorActivityKt is singleTask, so it always reuses its live instance
+				// regardless of these flags.
+				addFlags(
+					Intent.FLAG_ACTIVITY_NEW_TASK or
+						Intent.FLAG_ACTIVITY_SINGLE_TOP or
+						Intent.FLAG_ACTIVITY_CLEAR_TOP,
+				)
 			},
 		)
 		finish()
