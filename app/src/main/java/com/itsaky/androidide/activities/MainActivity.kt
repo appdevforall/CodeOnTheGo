@@ -63,12 +63,12 @@ import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.MainScreenActions
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
-import com.itsaky.androidide.utils.findValidProjectByName
 import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.hasVisibleDialog
 import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
+import com.itsaky.androidide.utils.resolveDeepLinkProject
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_CLONE_REPO
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
@@ -77,7 +77,6 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJ
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -491,21 +490,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	 */
 	private fun handleDeepLinkRequest(request: DeepLinkRequest) {
 		lifecycleScope.launch(Dispatchers.IO) {
-			val projectDir =
-				try {
-					findValidProjectByName(Environment.PROJECTS_DIR, request.projectName)
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: SecurityException) {
-					log.error("Failed to scan {} for deep link", Environment.PROJECTS_DIR, e)
-					withContext(Dispatchers.Main) { flashError(getString(string.msg_deeplink_scan_failed)) }
-					return@launch
-				}
+			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName) ?: return@launch
 			withContext(Dispatchers.Main) {
-				if (projectDir == null) {
-					flashError(getString(string.msg_deeplink_project_not_found, request.projectName))
-					return@withContext
-				}
 				openProject(projectDir, pendingFileRequest = request.fileRequest)
 			}
 		}

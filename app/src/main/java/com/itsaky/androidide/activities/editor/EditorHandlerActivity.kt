@@ -112,12 +112,12 @@ import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ImageUtils
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
-import com.itsaky.androidide.utils.findValidProjectByName
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.forEachViewRecursively
 import com.itsaky.androidide.utils.hasVisibleDialog
 import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
+import com.itsaky.androidide.utils.resolveDeepLinkProject
 import com.itsaky.androidide.utils.resolveWithinDirectory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -1929,25 +1929,13 @@ open class EditorHandlerActivity :
 				?: return
 
 		lifecycleScope.launch(Dispatchers.IO) {
-			val projectDir =
-				try {
-					findValidProjectByName(Environment.PROJECTS_DIR, request.projectName)
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: SecurityException) {
-					Log.e("EditorHandlerActivity", "Failed to scan ${Environment.PROJECTS_DIR} for deep link", e)
-					withContext(Dispatchers.Main) { flashError(getString(string.msg_deeplink_scan_failed)) }
-					return@launch
-				}
+			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName) ?: return@launch
 			withContext(Dispatchers.Main) {
-				if (projectDir == null) {
-					flashError(getString(string.msg_deeplink_project_not_found, request.projectName))
-					return@withContext
-				}
-
-				if (IProjectManager.getInstance().workspace != null &&
-					projectDir.absolutePath == IProjectManager.getInstance().projectDirPath
-				) {
+				// projectDirPath is set as soon as a project starts opening -- unlike workspace, which
+				// stays null for the whole duration of a Gradle sync -- so this correctly matches the
+				// "already in this project" case even mid-sync, instead of falling through to the
+				// disruptive close-and-reopen confirmation below for a no-op.
+				if (projectDir.absolutePath == IProjectManager.getInstance().projectDirPath) {
 					// Requirement #2: same project already open -- no-op project-wise, just navigate.
 					request.fileRequest?.let { applyDeepLinkFileRequest(it) }
 					return@withContext
