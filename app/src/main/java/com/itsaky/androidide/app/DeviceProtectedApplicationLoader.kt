@@ -162,8 +162,10 @@ internal object DeviceProtectedApplicationLoader :
 		}
 
 		withContext(Dispatchers.Main) {
-			initializeAnalytics(app)
+			initializeAnalytics()
 		}
+
+		trackAttachedDevicesMetric(app)
 	}
 
 	fun onTelemetryConsentGranted(app: IDEApplication) {
@@ -186,16 +188,23 @@ internal object DeviceProtectedApplicationLoader :
 		}
 	}
 
-	private fun initializeAnalytics(app: IDEApplication) {
+	private fun initializeAnalytics() {
 		try {
 			ProcessLifecycleOwner.get().lifecycle.addObserver(this)
 			analyticsManager.initialize()
-			analyticsManager.trackMetric(
-				AttachedDevicesMetric(AttachedDevicesCollector.collect(app)),
-			)
 			logger.info("Firebase Analytics initialized successfully")
 		} catch (e: Exception) {
 			logger.error("Failed to initialize Firebase Analytics", e)
+		}
+	}
+
+	private fun trackAttachedDevicesMetric(app: IDEApplication) {
+		try {
+			analyticsManager.trackMetric(
+				AttachedDevicesMetric(AttachedDevicesCollector.collect(app)),
+			)
+		} catch (e: Exception) {
+			logger.error("Failed to report attached devices metric", e)
 		}
 	}
 

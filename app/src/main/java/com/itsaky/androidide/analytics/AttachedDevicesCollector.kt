@@ -5,6 +5,7 @@ import android.hardware.display.DisplayManager
 import android.os.Build
 import android.view.Display
 import android.view.InputDevice
+import org.slf4j.LoggerFactory
 
 enum class AttachedDeviceClass {
 	MOUSE,
@@ -24,6 +25,8 @@ data class AttachedDevicesSnapshot(
 )
 
 object AttachedDevicesCollector {
+	private val logger = LoggerFactory.getLogger(AttachedDevicesCollector::class.java)
+
 	private val DEVICE_CLASS_BY_SOURCE =
 		mapOf(
 			InputDevice.SOURCE_MOUSE to AttachedDeviceClass.MOUSE,
@@ -62,9 +65,19 @@ object AttachedDevicesCollector {
 
 	fun collect(context: Context): AttachedDevicesSnapshot {
 		val classCounts =
-			runCatching { countInputDeviceClasses() }.getOrDefault(emptyMap())
+			try {
+				countInputDeviceClasses()
+			} catch (e: RuntimeException) {
+				logger.warn("Failed to count input devices", e)
+				emptyMap()
+			}
 		val externalDisplays =
-			runCatching { countExternalDisplays(context) }.getOrDefault(0)
+			try {
+				countExternalDisplays(context)
+			} catch (e: RuntimeException) {
+				logger.warn("Failed to count external displays", e)
+				0
+			}
 		return AttachedDevicesSnapshot(
 			mouseCount = classCounts[AttachedDeviceClass.MOUSE] ?: 0,
 			externalKeyboardCount = classCounts[AttachedDeviceClass.EXTERNAL_KEYBOARD] ?: 0,

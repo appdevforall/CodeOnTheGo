@@ -19,6 +19,7 @@ package com.itsaky.androidide.handlers
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.analytics.AttachedDevicesCollector
+import com.itsaky.androidide.analytics.AttachedDevicesSnapshot
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.buildinfo.BuildInfo
 import io.mockk.every
@@ -98,10 +99,30 @@ class GlitchTipDiagnosticsContextTest {
 	}
 
 	@Test
-	fun `attached devices context is included on every event`() {
+	fun `attached devices context carries every count under its exact key`() {
+		mockkObject(AttachedDevicesCollector)
+		every { AttachedDevicesCollector.collect(any()) } returns
+			AttachedDevicesSnapshot(
+				mouseCount = 1,
+				externalKeyboardCount = 2,
+				touchpadCount = 3,
+				stylusCount = 4,
+				gamepadCount = 5,
+				externalDisplayCount = 6,
+			)
+
 		val event = enrichNewEvent()
 
-		assertThat(event.contexts["attached_devices"]).isNotNull()
+		assertThat(event.contexts["attached_devices"]).isEqualTo(
+			mapOf(
+				"mouse_count" to 1,
+				"external_keyboard_count" to 2,
+				"touchpad_count" to 3,
+				"stylus_count" to 4,
+				"gamepad_count" to 5,
+				"external_display_count" to 6,
+			),
+		)
 	}
 
 	@Test
