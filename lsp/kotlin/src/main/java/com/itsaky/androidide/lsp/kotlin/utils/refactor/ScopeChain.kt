@@ -252,16 +252,17 @@ private fun bracelessOwnerLabel(
  * A function, `if` or loop body owns its braces, so they are trimmed off. A lambda body block does not
  * -- the braces and any `param ->` header belong to the enclosing function literal -- so its own range
  * already *is* the content, which is what keeps the header on the brace line when the block is
- * expanded. Deriving this from the block's text rather than from brace PSI keeps one code path for
- * both shapes.
+ * expanded. Ownership is decided structurally, by the block's parent, rather than by sniffing the
+ * block's own text for a leading `{` and trailing `}`: a lambda body whose sole statement is itself a
+ * lambda literal (`{ x -> { x + 1 } }`) has text that looks brace-owned, and sniffing it would trim off
+ * that inner lambda's own braces and return its interior instead of the outer body's full content.
  */
 internal fun contentSpanOf(block: KtBlockExpression): TextSpan {
 	val range = block.textRange
-	val text = block.text
-	return if (text.length >= 2 && text.startsWith("{") && text.endsWith("}")) {
-		TextSpan(range.startOffset + 1, range.endOffset - 1)
-	} else {
+	return if (block.parent is KtFunctionLiteral) {
 		TextSpan(range.startOffset, range.endOffset)
+	} else {
+		TextSpan(range.startOffset + 1, range.endOffset - 1)
 	}
 }
 

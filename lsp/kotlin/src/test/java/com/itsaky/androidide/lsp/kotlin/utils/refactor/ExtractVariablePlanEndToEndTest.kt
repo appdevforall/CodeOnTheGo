@@ -9,6 +9,7 @@ import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -587,6 +588,9 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 				return items.map { it + 1 }
 			}
 			fun emptyBody() {}
+			fun nestedLambda(items: List<Int>): List<() -> Int> {
+				return items.map { x -> { x + 1 } }
+			}
 			""".trimIndent()
 		val ktFile = createSourceFile("Main.kt", content)
 		val functions = ktFile.declarations.filterIsInstance<KtNamedFunction>().associateBy { it.name }
@@ -625,6 +629,20 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 		assertEquals("it + 1", contentOf(lambdaWithoutHeaderBody).trim())
 
 		assertEquals("", contentOf(functions.getValue("emptyBody").bodyBlockExpression!!))
+
+		// The outer lambda's sole statement is itself a lambda literal, so its text alone (`{ x + 1 }`)
+		// looks brace-owned; the content must still be that whole statement, not the inner lambda's
+		// interior.
+		val nestedOuterLambda =
+			PsiTreeUtil.findChildOfType(
+				functions.getValue("nestedLambda").bodyBlockExpression,
+				KtLambdaExpression::class.java,
+			)!!
+		val nestedOuterBody = nestedOuterLambda.bodyExpression!!
+		assertEquals("{ x + 1 }", contentOf(nestedOuterBody).trim())
+
+		val nestedInnerLambda = PsiTreeUtil.findChildOfType(nestedOuterBody, KtLambdaExpression::class.java)!!
+		assertEquals("x + 1", contentOf(nestedInnerLambda.bodyExpression!!).trim())
 	}
 
 	@Test
@@ -777,6 +795,38 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 				"}",
 			apply(content, rewrite),
 		)
+	}
+
+	@Test
+	fun `declines a lambda whose first statement shares the brace line but the block spans several lines`() {
+		val content =
+			"""
+			package p
+			fun log(n: Int) {}
+			fun demo(items: List<String>) {
+				items.forEach { log(it.length + 1)
+					log(it) }
+			}
+			""".trimIndent()
+
+		val target = "it.length + 1"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+		// `it` is lambda-scoped, so the lambda body is the only legal anchor.
+		assertEquals(listOf("lambda"), candidate.scopes.map { it.label })
+
+		// The statement shares the opening-brace line, but the block itself spans two lines, so this is
+		// not the one-line expansion case. Anchoring at the line start would put the declaration before
+		// the lambda's `{`, where `it` is out of scope -- declining is the only safe outcome here.
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "length",
+				replaceAll = false,
+			)
+		assertNull(rewrite)
 	}
 
 	@Test
