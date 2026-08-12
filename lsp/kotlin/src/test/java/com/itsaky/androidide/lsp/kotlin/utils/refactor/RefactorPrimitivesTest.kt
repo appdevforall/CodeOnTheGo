@@ -1,7 +1,9 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The analysis-free primitives the refactoring is built from: name rules, indentation, soundness. */
@@ -138,5 +140,48 @@ class RefactorPrimitivesTest {
 			listOf(TextSpan(70, 80)),
 			excludeUnsoundOccurrences(listOf(TextSpan(10, 20)), TextSpan(70, 80), writeOffsets = emptyList()),
 		)
+	}
+
+	@Test
+	fun `shortens types from Kotlin's default-imported packages`() {
+		assertEquals("Int", shortenTypeText("kotlin.Int", emptySet(), emptySet()))
+		assertEquals(
+			"List<String>",
+			shortenTypeText("kotlin.collections.List<kotlin.String>", emptySet(), emptySet()),
+		)
+	}
+
+	@Test
+	fun `keeps a type qualified when its short name would not resolve`() {
+		assertEquals("java.util.Date", shortenTypeText("java.util.Date", emptySet(), emptySet()))
+		// An import of the enclosing class is not an import of the nested one.
+		assertEquals(
+			"com.example.Outer.Inner",
+			shortenTypeText("com.example.Outer.Inner", setOf("com.example.Outer"), emptySet()),
+		)
+	}
+
+	@Test
+	fun `shortens a type the file already imports, by name or by star`() {
+		assertEquals("Date", shortenTypeText("java.util.Date", setOf("java.util.Date"), emptySet()))
+		assertEquals("Date", shortenTypeText("java.util.Date", emptySet(), setOf("java.util")))
+		assertEquals(
+			"Flow<Widget>",
+			shortenTypeText(
+				"kotlinx.coroutines.flow.Flow<com.example.Widget>",
+				setOf("kotlinx.coroutines.flow.Flow", "com.example.Widget"),
+				emptySet(),
+			),
+		)
+	}
+
+	@Test
+	fun `unrenderable type text is recognised`() {
+		assertTrue(isUnrenderableTypeText(""))
+		assertTrue(isUnrenderableTypeText("kotlin.collections.List<kotlin.String!>"))
+		assertTrue(isUnrenderableTypeText("<anonymous object>"))
+		assertTrue(isUnrenderableTypeText("ERROR CLASS: unresolved"))
+		assertTrue(isUnrenderableTypeText("kotlin.Any & kotlin.Comparable<*>"))
+		assertFalse(isUnrenderableTypeText("kotlin.Int"))
 	}
 }

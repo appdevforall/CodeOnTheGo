@@ -114,14 +114,30 @@ private fun convertExpressionBodyRewrite(
 	val body = replaceOccurrences(fileText, bodySpan, targets, name)
 	val returned = if (form.needsReturn) "return $body" else body
 
+	// Writing a type means rewriting from the end of the signature, not from the `=`: starting at the
+	// `=` would leave the space in front of it and emit `fun area(r: Int) : Int {`.
+	val spanStart =
+		if (form.returnTypeText == null) form.assignStart else startOfWhitespaceBefore(fileText, form.assignStart)
+	val header = form.returnTypeText?.let { ": $it " } ?: ""
+
 	val newText =
 		buildString {
-			append('{').append(newline)
+			append(header).append('{').append(newline)
 			append(form.innerIndent).append(declaration).append(newline)
 			append(form.innerIndent).append(returned).append(newline)
 			append(form.indent).append('}')
 		}
-	return RewriteSpan(TextSpan(form.assignStart, form.bodyEnd), newText)
+	return RewriteSpan(TextSpan(spanStart, form.bodyEnd), newText)
+}
+
+/** The offset where the run of whitespace ending at [offset] begins. */
+private fun startOfWhitespaceBefore(
+	text: String,
+	offset: Int,
+): Int {
+	var index = offset.coerceIn(0, text.length)
+	while (index > 0 && text[index - 1].isWhitespace()) index--
+	return index
 }
 
 /**

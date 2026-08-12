@@ -93,7 +93,14 @@ The plan records the document version it was computed against. On confirm, the v
 |---|---|---|
 | `ExistingBlock` | the scope already has a `{ ... }` body | a new statement line |
 | `WrapInBraces` | a braceless statement position: `if (c) foo()`, a `when` entry, a braceless loop body | the statement is replaced by a braced block holding the declaration and the original statement |
-| `ConvertExpressionBody` | an expression-bodied function or accessor, `fun area(r: Int) = r * r` | `=` and the body become a block body; `return` is added unless the declaration returns `Unit` |
+| `ConvertExpressionBody` | an expression-bodied function or accessor, `fun area(r: Int) = r * r` | `=` and the body become a block body; `return` is added unless the declaration returns `Unit`; the return type is written into the signature when the declaration does not spell one out, because a block body with no declared type returns `Unit` |
+
+A written-out return type is rendered fully qualified and then shortened to its simple name only where
+that name already resolves in the file -- an exact import, a star import of its package, or a
+default-imported package such as `kotlin.collections`. Everything else stays qualified: verbose, but it
+compiles, and this refactoring adds no imports. When the type cannot be written as source at all
+(anonymous, intersection, an unresolved type, or a platform type the renderer cannot reduce) the rung
+is declined rather than emitting a block body that does not compile.
 
 Each rung is labelled with the construct that owns it -- `fun name`, `getter`, `setter`, `init block`,
 `lambda`, `if block`, `else block`, `for loop`, `while loop`, `do-while loop`, `when branch` -- so the
@@ -162,8 +169,8 @@ The emitted text is **fully indented**: code-action edits bypass the editor's au
 7. The same expression with an intervening reassignment of a `var` it reads offers only the contiguous sound run.
 8. An expression using `it` inside a lambda offers no anchor outside that lambda.
 9. Extracting from `if (c) foo(x + 1)` wraps the branch in braces with the declaration inside.
-10. Extracting from `fun area(r: Int) = r * r` converts it to a block body with `return`.
-11. Extracting from a `Unit`-returning expression-bodied function converts it without adding `return`.
+10. Extracting from `fun area(r: Int): Int = r * r` converts it to a block body with `return`, leaving the declared type alone; extracting from `fun area(r: Int) = r * r` converts it *and* writes `: Int` into the signature.
+11. Extracting from a `Unit`-returning expression-bodied function converts it without adding `return` and without writing a type.
 12. A name that is blank, not an identifier, a hard keyword, or already used disables Extract and shows the matching message.
 13. Editing the file while the sheet is open, then confirming, reports "The file changed. Try extracting again." and leaves the file untouched.
 14. One undo restores the file exactly.

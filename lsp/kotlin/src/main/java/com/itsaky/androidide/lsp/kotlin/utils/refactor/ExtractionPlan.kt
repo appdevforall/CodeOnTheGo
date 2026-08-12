@@ -46,6 +46,10 @@ sealed interface AnchorForm {
 	 * An expression-bodied function or property accessor -- `fun area(r: Int) = r * r`. The `=` and
 	 * the body are replaced by a block body. [needsReturn] is false only when the declaration
 	 * returns `Unit`, where `return` is both unnecessary and wrong for a non-`Unit` expression.
+	 *
+	 * [returnTypeText] is the type to write into the signature, or null when there is nothing to write
+	 * -- the declaration already spells its type out, or the block body infers `Unit` anyway. A block
+	 * body with no declared type returns `Unit`, so `return <value>` without this would not compile.
 	 */
 	data class ConvertExpressionBody(
 		val assignStart: Int,
@@ -54,6 +58,7 @@ sealed interface AnchorForm {
 		val indent: String,
 		val innerIndent: String,
 		val needsReturn: Boolean,
+		val returnTypeText: String? = null,
 	) : AnchorForm
 }
 

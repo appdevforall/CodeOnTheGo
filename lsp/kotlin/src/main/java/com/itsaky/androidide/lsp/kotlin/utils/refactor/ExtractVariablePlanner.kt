@@ -11,10 +11,12 @@ import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.types.KaType
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.psi.KtCallableDeclaration
 import org.jetbrains.kotlin.psi.KtDeclaration
 import org.jetbrains.kotlin.psi.KtDeclarationWithBody
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtPropertyAccessor
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 
@@ -82,7 +84,9 @@ private fun KaSession.candidateFor(expression: KtExpression): CandidateExpressio
 	if (frames.isEmpty()) return null
 
 	val span = TextSpan(expression.textRange.startOffset, expression.textRange.endOffset)
-	val scopes = frames.map { scopeOptionFor(expression, span, it) }
+	val file = expression.containingKtFile
+	val scopes = frames.mapNotNull { scopeOptionFor(expression, span, it, file) }
+	if (scopes.isEmpty()) return null
 	val takenNames = visibleNamesAt(expression)
 
 	return CandidateExpression(
@@ -94,23 +98,64 @@ private fun KaSession.candidateFor(expression: KtExpression): CandidateExpressio
 	)
 }
 
-/** Builds one scope option, resolving its occurrence set and fixing up expression-body details. */
+/**
+ * Builds one scope option, resolving its occurrence set and fixing up expression-body details.
+ *
+ * Returns null when the rung cannot be honoured: converting an expression body whose return type is
+ * neither declared nor renderable would emit a block body that does not compile, and declining is
+ * always safe (ADR 0013).
+ */
 private fun KaSession.scopeOptionFor(
 	expression: KtExpression,
 	span: TextSpan,
 	frame: ScopeFrame,
-): ScopeOption {
+	file: KtFile,
+): ScopeOption? {
 	val matches = findOccurrences(expression, frame.scopeElement, frame.searchRange)
 	val writes = writeOffsetsFor(expression, frame.scopeElement)
 	val occurrences = excludeUnsoundOccurrences(matches, span, writes)
 
 	val anchorForm =
 		when (val form = frame.anchorForm) {
-			is AnchorForm.ConvertExpressionBody -> form.copy(needsReturn = expressionBodyNeedsReturn(frame.scopeElement))
-			else -> form
+			is AnchorForm.ConvertExpressionBody -> {
+				val declaration = frame.scopeElement.parent as? KtDeclarationWithBody
+				val needsReturn = expressionBodyNeedsReturn(frame.scopeElement)
+				val returnTypeText =
+					if (needsReturn && declaration != null && !declaration.declaresReturnType()) {
+						returnTypeTextOf(declaration, file) ?: return null
+					} else {
+						null
+					}
+				form.copy(needsReturn = needsReturn, returnTypeText = returnTypeText)
+			}
+
+			else -> {
+				form
+			}
 		}
 
 	return ScopeOption(label = frame.label, anchorForm = anchorForm, occurrences = occurrences)
+}
+
+/** Whether the declaration spells its return type out, in which case nothing needs writing. */
+private fun KtDeclarationWithBody.declaresReturnType(): Boolean =
+	when (this) {
+		// KtPropertyAccessor.returnTypeReference is deprecated in favour of the identical typeReference.
+		is KtPropertyAccessor -> typeReference != null
+
+		is KtCallableDeclaration -> typeReference != null
+
+		else -> false
+	}
+
+/** The declaration's return type as source text, shortened where the file can resolve it. */
+private fun KaSession.returnTypeTextOf(
+	declaration: KtDeclarationWithBody,
+	file: KtFile,
+): String? {
+	val type = runCatching { ((declaration as? KtDeclaration)?.symbol as? KaCallableSymbol)?.returnType }.getOrNull() ?: return null
+	val rendered = renderedTypeTextOrNull(type) ?: return null
+	return shortenTypeText(rendered, importedNamesOf(file), starImportedPackagesOf(file))
 }
 
 /**
