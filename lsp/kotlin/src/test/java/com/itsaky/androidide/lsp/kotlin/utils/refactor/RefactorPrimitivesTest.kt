@@ -176,6 +176,21 @@ class RefactorPrimitivesTest {
 	}
 
 	@Test
+	fun `a star import is skipped when a colliding name is imported from elsewhere`() {
+		// An explicit import of a different `Date` shadows the star import, so shortening would
+		// resolve to the wrong type.
+		assertEquals(
+			"java.util.Date",
+			shortenTypeText("java.util.Date", setOf("com.example.Date"), setOf("java.util")),
+		)
+		// With nothing colliding, the star import still shortens as before.
+		assertEquals(
+			"Date",
+			shortenTypeText("java.util.Date", emptySet(), setOf("java.util")),
+		)
+	}
+
+	@Test
 	fun `unrenderable type text is recognised`() {
 		assertTrue(isUnrenderableTypeText(""))
 		assertTrue(isUnrenderableTypeText("kotlin.collections.List<kotlin.String!>"))

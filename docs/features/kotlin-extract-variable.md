@@ -1,7 +1,7 @@
 # Kotlin extract variable (K2 LSP)
 
 - **Ticket:** ADFA-4826 (subtask of ADFA-3317; split out of the closed ADFA-3324 "Refactoring"). Extract method was originally part of this subtask and is now ADFA-5080.
-- **Status:** Implemented in `lsp/kotlin/utils/refactor/` and `lsp/kotlin/refactor/ui/`, pending on-device QA. Still to land in this PR: the `ExtractionPlan` -> `ExtractVariablePlan` rename (the sealed `RefactoringPlan` supertype it will sit under has landed).
+- **Status:** Implemented in `lsp/kotlin/utils/refactor/` and `lsp/kotlin/refactor/ui/`, pending on-device QA. Still to land in this PR: the `ExtractionPlan` -> `ExtractVariablePlan` rename under a sealed `RefactoringPlan` supertype, which arrives with extract method (ADFA-5080).
 - **Module:** `lsp/kotlin`
 
 Bind the expression at the cursor, or the selected one, to a new local `val`, and replace the occurrences of that expression with the new name.
@@ -48,7 +48,7 @@ A site inside the anchor scope that is structurally equal to the candidate *and*
 _Avoid_: duplicate, match, usage.
 
 **Refactoring plan**:
-The complete result of the background analysis pass - the sealed `RefactoringPlan`, carrying the analysed `fileText` and its `documentVersion`. Plain data: no PSI, no symbols, no session. `ExtractVariablePlan` is this refactoring's subtype.
+The complete result of the background analysis pass, carrying the analysed `fileText` and its `documentVersion`. Plain data: no PSI, no symbols, no session. Currently `ExtractionPlan`; extract method (ADFA-5080) adds a sealed `RefactoringPlan` supertype and renames this to `ExtractVariablePlan`, its subtype.
 _Avoid_: model, result, context.
 
 **Rewrite span**:
@@ -197,14 +197,14 @@ The emitted text is **fully indented**: code-action edits bypass the editor's au
 7. The same expression with an intervening reassignment of a `var` it reads offers only the contiguous sound run.
 8. An expression using `it` inside a lambda offers no anchor outside that lambda.
 9. Extracting from `if (c) foo(x + 1)` wraps the branch in braces with the declaration inside.
-9a. With a candidate inside a braced `if` inside a function, picking `fun name` in `Declare in` puts the declaration above the `if`, and picking `if block` puts it inside the branch.
-9b. Extracting from `return items.map { it.length + 1 }` puts the declaration inside the lambda and expands the block over three lines; the same holds for a one-line function body.
-10. Extracting from `fun area(r: Int): Int = r * r` converts it to a block body with `return`, leaving the declared type alone; extracting from `fun area(r: Int) = r * r` converts it *and* writes `: Int` into the signature.
-11. Extracting from a `Unit`-returning expression-bodied function converts it without adding `return` and without writing a type.
-12. A name that is blank, not an identifier, a hard keyword, or already used disables Extract and shows the matching message.
-13. Editing the file while the sheet is open, then confirming, reports "The file changed. Try extracting again." and leaves the file untouched.
-14. One undo restores the file exactly.
-15. A file indented with spaces receives space-indented output; a CRLF file keeps CRLF.
+10. With a candidate inside a braced `if` inside a function, picking `fun name` in `Declare in` puts the declaration above the `if`, and picking `if block` puts it inside the branch.
+11. Extracting from `return items.map { it.length + 1 }` puts the declaration inside the lambda and expands the block over three lines; the same holds for a one-line function body.
+12. Extracting from `fun area(r: Int): Int = r * r` converts it to a block body with `return`, leaving the declared type alone; extracting from `fun area(r: Int) = r * r` converts it *and* writes `: Int` into the signature.
+13. Extracting from a `Unit`-returning expression-bodied function converts it without adding `return` and without writing a type.
+14. A name that is blank, not an identifier, a hard keyword, or already used disables Extract and shows the matching message.
+15. Editing the file while the sheet is open, then confirming, reports "The file changed. Try extracting again." and leaves the file untouched.
+16. One undo restores the file exactly.
+17. A file indented with spaces receives space-indented output; a CRLF file keeps CRLF.
 
 ## Design
 

@@ -40,6 +40,11 @@ private val QUALIFIED_NAME = Regex("""[\p{L}_][\p{L}\p{Nd}_]*(?:\.[\p{L}_][\p{L}
  * A type that cannot be written out as source -- anonymous, intersection, a resolution error, or a
  * platform type the renderer could not reduce (`List<String!>`, where the `!` is on a type argument).
  * `!` is not Kotlin syntax anywhere, so its presence alone settles it.
+ *
+ * The `"anonymous"` and `"ERROR"` substring checks are not unambiguous -- a real type named
+ * `com.example.AnonymousUser` or `p.ERRORS` would also match. Both fail safe: a false positive only
+ * declines the rung instead of emitting a block body that does not compile, so the heuristic is left
+ * as-is rather than made precise.
  */
 internal fun isUnrenderableTypeText(text: String): Boolean =
 	text.isBlank() ||
@@ -73,6 +78,10 @@ internal fun KaSession.renderedTypeTextOrNull(type: KaType): String? = runCatchi
  * Purely textual, so it needs no analysis session and is unit-testable on its own. A nested class
  * (`com.example.Outer.Inner`) is only shortened by an import of the nested name itself; an import of
  * the outer class leaves it alone rather than emitting an unresolvable `Inner`.
+ *
+ * A star import is trusted only when nothing else in the file imports the same simple name from a
+ * different package -- that explicit import would resolve first, so writing the short name here would
+ * silently name the wrong type.
  */
 internal fun shortenTypeText(
 	rendered: String,
@@ -82,11 +91,12 @@ internal fun shortenTypeText(
 	QUALIFIED_NAME.replace(rendered) { match ->
 		val qualified = match.value
 		val container = qualified.substringBeforeLast('.')
+		val simpleName = qualified.substringAfterLast('.')
 		val resolvable =
 			qualified in importedNames ||
 				container in DEFAULT_IMPORTED_PACKAGES ||
-				container in starImportedPackages
-		if (resolvable) qualified.substringAfterLast('.') else qualified
+				(container in starImportedPackages && importedNames.none { it.endsWith(".$simpleName") })
+		if (resolvable) simpleName else qualified
 	}
 
 /** The fully qualified names [file] imports by name. Syntactic: no analysis session needed. */
