@@ -116,6 +116,7 @@ public interface LlmInferenceService {
 	 *
 	 * @return the selected backend id, or null when no selection has been expressed
 	 */
+	@Nullable
 	default String getPreferredBackendId() {
 		return null;
 	}
@@ -251,6 +252,7 @@ public interface LlmInferenceService {
 		 *
 		 * @return the configuration field specs; empty if the settings screen comes from {@link #getSettingsFragmentClassName()} instead
 		 */
+		@NonNull
 		List<ConfigFieldSpec> getConfigSpecs();
 
 		/**
@@ -261,6 +263,7 @@ public interface LlmInferenceService {
 		 *
 		 * @return the fragment class name, or null to be configured from {@link #getConfigSpecs()} instead
 		 */
+		@Nullable
 		default String getSettingsFragmentClassName() {
 			return null;
 		}
@@ -362,8 +365,12 @@ public interface LlmInferenceService {
 		 * <p>
 		 * A backend driven by a constrained grammar wants a near-greedy value so it copies arguments rather than inventing them; a cloud model following a high-autonomy prompt usually wants more room. Neither figure is the consumer's to guess.
 		 *
+		 * <p>
+		 * Boxed so that "no preference" is expressible. {@link LlmConfig#temperature} is a primitive, so a consumer must null-check before it assigns: {@code config.temperature = backend.getDefaultTemperature()} unboxes null and throws.
+		 *
 		 * @return the preferred temperature, or null for the consumer's default
 		 */
+		@Nullable
 		default Float getDefaultTemperature() {
 			return null;
 		}
@@ -392,7 +399,8 @@ public interface LlmInferenceService {
 		 *            the tool contract and example material to compose against
 		 * @return the system prompt, or null to use the consumer's default
 		 */
-		default String getSystemPrompt(SystemPromptRequest request) {
+		@Nullable
+		default String getSystemPrompt(@NonNull SystemPromptRequest request) {
 			return null;
 		}
 
@@ -587,13 +595,31 @@ public interface LlmInferenceService {
 
 	/**
 	 * A tool call request made by the LLM. Represents the LLM's request to invoke a tool with specific arguments.
+	 *
+	 * <p>
+	 * The backend that reports the call owns the instance; the consumer receiving it in {@link ToolStreamCallback#onToolCall} must treat it, and {@link #args}, as read-only. The fields are not final only because this type shipped before the capability contract did -- see {@code docs/plugin-api.md} on breaking changes.
 	 */
 	class ToolCallRequest {
+		/** Identifier correlating this call with the result the consumer sends back */
 		public String callId;
+
+		/** Name of the tool to invoke; matches a {@link ToolDefinition#name} the consumer offered */
 		public String name;
+
+		/** Arguments the model supplied, keyed by parameter name. Held by reference, so callers must not mutate it after publishing the call. */
 		public Map<String, Object> args;
 
-		public ToolCallRequest(String callId, String name, Map<String, Object> args) {
+		/**
+		 * Creates a tool call request.
+		 *
+		 * @param callId
+		 *            the identifier correlating this call with its result
+		 * @param name
+		 *            the name of the tool to invoke
+		 * @param args
+		 *            the arguments the model supplied; stored by reference, not copied
+		 */
+		public ToolCallRequest(@NonNull String callId, @NonNull String name, @Nullable Map<String, Object> args) {
 			this.callId = callId;
 			this.name = name;
 			this.args = args;
@@ -602,13 +628,32 @@ public interface LlmInferenceService {
 
 	/**
 	 * Tool definition for structured function calling. Defines a tool that the LLM can invoke.
+	 *
+	 * <p>
+	 * The consumer composing the request owns the instance; a backend given one in {@link SystemPromptRequest#tools} must treat it, and {@link #parametersSchema}, as read-only. Mutating either after the prompt is composed makes the consumer parse replies against a schema it no longer offered. The fields are not final only because this type shipped before the capability contract did -- see {@code docs/plugin-api.md} on breaking changes.
 	 */
 	class ToolDefinition {
+		/** The name the model must use to call this tool */
 		public String name;
+
+		/** What the tool does, in wording meant for the model rather than the user */
 		public String description;
+
+		/** JSON-schema-shaped description of the parameters. Held by reference, so callers must not mutate it after publishing the definition. */
 		public Map<String, Object> parametersSchema;
 
-		public ToolDefinition(String name, String description, Map<String, Object> parametersSchema) {
+		/**
+		 * Creates a tool definition.
+		 *
+		 * @param name
+		 *            the name the model must use to call the tool
+		 * @param description
+		 *            what the tool does
+		 * @param parametersSchema
+		 *            the parameter schema; stored by reference, not copied
+		 */
+		public ToolDefinition(@NonNull String name, @NonNull String description,
+				@Nullable Map<String, Object> parametersSchema) {
 			this.name = name;
 			this.description = description;
 			this.parametersSchema = parametersSchema;
@@ -621,21 +666,33 @@ public interface LlmInferenceService {
 	interface ToolStreamCallback {
 		/**
 		 * Called when generation is complete.
+		 *
+		 * @param response
+		 *            the complete response
 		 */
 		void onComplete(LlmResponse response);
 
 		/**
-		 * Called on error.
+		 * Called when an error occurs.
+		 *
+		 * @param error
+		 *            the error message
 		 */
 		void onError(String error);
 
 		/**
 		 * Called when a text token is received.
+		 *
+		 * @param token
+		 *            the generated token
 		 */
 		void onToken(String token);
 
 		/**
-		 * Called when the LLM makes a tool call.
+		 * Called when the LLM makes a tool call. The consumer runs the tool and reports the result back, correlating it by {@link ToolCallRequest#callId}.
+		 *
+		 * @param request
+		 *            the tool the model wants called, and the arguments it supplied
 		 */
 		void onToolCall(ToolCallRequest request);
 	}
