@@ -3,6 +3,18 @@
 Supersedes `TODO.txt`. Scored 2026-08-11 against a real emulator, not from
 reading the source alone -- several entries changed once measured.
 
+## Status
+
+**Built:** `ping`, `is_cogo_installed`, `cogo_home` (items 6-adjacent), plus the
+top three -- `list_projects` (18), `list_templates` (17), `list_project_files`
+(23). 69 tests.
+
+**Blocked on defects.** A three-lens code review found problems serious enough
+that they outrank every remaining tool below. See "Review defects". Adding tools
+before fixing them multiplies the same mistakes across a wider surface: the
+injection and quoting faults are in the shared command-building idiom, and the
+absent CI means nothing catches a regression on merge.
+
 ## Rubric
 
 **Score = 4·Value + 3·Reach + 2·Verify + 2·Unblocks + 1·Safety** (max 60)
@@ -133,6 +145,41 @@ on-device. Items 1, 2, 3 and 6 all depend on it.
   - This bypasses `DraggableTouchListener` entirely, so the drag itself stays
     untested -- tracked as item 26.
 
+## Review defects
+
+Found 2026-08-11 by three independent reviews (correctness, silent-failure,
+test-quality). Every item was reproduced on `emulator-5554` or by mutating the
+source and re-running the suite -- none is speculative. Fix these before adding
+tools: the faults are in the shared command-building idiom, so each new tool
+copies them.
+
+| Sev | Defect | Where |
+|---|---|---|
+| Critical | **Command injection.** `runAs` wraps its payload in double quotes, and `readMemberCommand` interpolates the archive name and member path -- both device-derived -- unquoted. A crafted `.cgt` executed an arbitrary command on the device during review. Plugins can add archives. | `Templates.kt:62-65`, `CogoDevice.kt:15` |
+| Critical | **`cogo_home` can overwrite every preference.** `cat ... \|\| true` masks a *failed* read as an empty one, and `withAutoOpenDisabled("")` then returns a fresh 3-line document that replaces theme, locale, SDK paths and all. Reported as success. Survives mutation testing: no test catches it, because every fake returns an empty prefs read. | `CogoHome.kt:61-67`, `CogoDevice.kt:19` |
+| Critical | **`list_project_files` reports a project that is not open.** `ide_last_project` is "most recently opened, ever" -- production never writes the sentinel back. After `cogo_home`, the tool confidently describes a project while the IDE sits on its home screen. | `ProjectFiles.kt:34-38` |
+| High | **`SystemAdb.run` throws instead of returning `AdbResult`** when `adb` is not on PATH, bypassing `adbFailure` entirely. | `Adb.kt:37` |
+| High | **No timeout anywhere.** A wedged adb hangs the tool, the request and the agent indefinitely. `cogo_home` makes up to 33 such calls. | `Adb.kt:37-53` |
+| High | **Unreadable projects directory reads as "No projects".** `cd "$dir" \|\| exit 0` cannot be rescued by any exit code; at mode 111 the glob simply fails to expand and stderr is discarded. | `Projects.kt:38-39` |
+| High | **The stderr drain thread is untested.** Removing it passes all 69 tests; 256KB of stderr deadlocks permanently. The test writes 5 bytes -- below any pipe buffer. | `Adb.kt:40-47` |
+| Medium | A stale recorded project path reports "adb failed" when adb worked perfectly. | `ProjectFiles.kt:111` |
+| Medium | An unreadable templates directory reports "not installed yet" *and volunteers onboarding as the cause*. | `Templates.kt:16,68` |
+| Medium | `cogo_home` writes the whole prefs document through argv; measured to break above ~16KB, permanently. | `CogoHome.kt:46-49` |
+| Medium | `resumedActivity` cannot tell "wrong activity" from "could not parse dumpsys", and reports the second as the first. | `CogoHome.kt:98` |
+| Medium | **Nothing runs these tests in CI.** `mcp/` is absent from the root build and from every workflow, so all 69 tests run only by hand. Every gap here is unguarded on merge. | -- |
+| Low | No test asserts any tool `description`, though `ServerDescriptionTest`'s own header and the README both claim it does. | `ServerDescriptionTest.kt` |
+| Low | Nothing pins `host = "127.0.0.1"`, though the README makes a security claim about it. A one-character edit exposes the server to the LAN. | `Main.kt:13` |
+| Low | The "adb shell emits CRLF" comments are false for this adb (measured LF), and the `trim()` calls they justify are dead -- `lineSequence()` already splits CRLF. Meanwhile `withAutoOpenDisabled`, the one parser that does raw string surgery, has **no** CRLF test and grows unboundedly on CRLF input. | five sites |
+
+### The pattern worth remembering
+
+`exitCode` is checked at all 12 call sites. It is nonetheless the wrong signal in
+four of them, because each of those commands was deliberately written to keep the
+*outer* exit status at zero (`|| true`, `|| exit 0`, `unzip -p`). The check is
+real and inspects a value the command guarantees. Guard the inner failure, or
+emit an explicit marker the parser can recognise -- as `listProjectsCommand`
+already does with `NO_PROJECTS_DIR`.
+
 ## Known blockers and gotchas
 
 - **`template.json` is not strict JSON.** `{identifier: "APP_NAME"}` has an
@@ -164,6 +211,15 @@ surface in a release build lets any installed app drive the IDE.
    `PROJECT_PATH`.
 6. **An automation mode suppressing the feedback FAB and tooltip overlays**,
    which intercept coordinate taps.
+7. **Record which project is *currently open*, distinct from the last one ever
+   opened.** This one is not a wish -- it is a defect we inherited.
+   `ide_last_project` is only ever written on open (`MainActivity.kt:407`) and
+   never cleared, so after `cogo_home` the IDE sits on its home screen while the
+   preference still names a project. There is no on-device signal for "nothing is
+   open", so `list_project_files` cannot answer honestly no matter how it is
+   written. Clearing the key on close, or publishing the open project alongside
+   ask 2, fixes it at the source.
 
 If only two were possible: 1 and 2. Reachability plus verifiability is the whole
-problem.
+problem. Ask 7 is the cheapest of the lot and removes a wrong answer rather than
+an inconvenience.

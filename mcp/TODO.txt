@@ -1,3 +1,25 @@
+Scored and prioritised in PRIORITIES.md. This file is the raw backlog.
+
+DONE
+Ping (transport health check)
+Is CoGo installed
+Navigate to Home (cogo_home)
+List available pre-existing projects
+List available project templates
+List files in current project
+
+DEFECTS FOUND IN CODE REVIEW - fix before adding tools
+Quote shell interpolations in Templates.kt (command injection, confirmed executed on device)
+Stop cogo_home overwriting all preferences when the prefs read is masked
+Make SystemAdb return AdbResult instead of throwing when adb is missing
+Add a timeout to SystemAdb (a wedged adb hangs the agent forever)
+Distinguish "unreadable projects dir" from "no projects"
+Report a stale recorded project path as an answer, not "adb failed"
+list_project_files claims a project is open when none is (ide_last_project is "last ever opened")
+Run mcp tests in CI - they run only by hand today
+Assert tool descriptions, and pin host=127.0.0.1
+
+TODO
 Navigate to new project activity
 Navigate to Open saved project activity
 Navigate to Clone a git project activity
@@ -13,13 +35,11 @@ Navigate to About Cogo
 Navigate to Plugin Manager
 Navigate to Developer Options
 Navigate to Main Help
-Move feedback button (takes 9 options: north, northeast, east, southeast, south, southwest, west, northwest, center) # like a tictactoe board
-List available project templates
-List available pre-existing projects
+Move feedback button (9 positions, ratios 0.1/0.5/0.9; setup primitive, writes FabPrefs.xml)
+Test the feedback button drag itself (item 16 bypasses DraggableTouchListener)
 Open a specific project
 Create a project from a template
 Open project left drawer
 Open project bottom drawer
-List files in current project
 Save the current project
 Close the current project
