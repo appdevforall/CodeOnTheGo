@@ -938,8 +938,18 @@ open class EditorHandlerActivity :
 		runAfter: (() -> Unit)?,
 	) {
 		lifecycleScope.launch(Dispatchers.IO) {
-			withContext(NonCancellable) {
-				saveAll(notify, requestSync, processResources, progressConsumer)
+			try {
+				withContext(NonCancellable) {
+					saveAll(notify, requestSync, processResources, progressConsumer)
+				}
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				// A write failure here (e.g. CodeEditorView.save()'s IOException) must not skip
+				// runAfter below -- callers rely on it always running to know the save attempt is
+				// over, successful or not (e.g. confirmProjectClose's closeInProgress guard, which
+				// would otherwise stay stuck true and permanently block closing this activity).
+				Log.e("EditorHandlerActivity", "saveAll failed", e)
 			}
 			withContext(Dispatchers.Main) {
 				runAfter?.invoke()
