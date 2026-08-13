@@ -122,7 +122,15 @@ object TooltipTag {
 	const val PREFS_DEVOPTIONS_DUMPLOGS = "prefs.devoptions.dumplogs"
 	const val PREFS_DEVOPTIONS_LOGSENDER = "prefs.devoptions.logsender"
 
-	const val PLUGIN_MANAGER = "plugin.manager"
+	// Plugin Manager screen
+	const val PLUGIN_MANAGER_TOOLBAR = "plugin.manager.toolbar"
+	const val PLUGIN_MANAGER_DOWNLOAD = "plugin.manager.download"
+	const val PLUGIN_MANAGER_FAB_INSTALL = "plugin.manager.fab.install"
+	const val PLUGIN_MANAGER_EMPTY_STATE = "plugin.manager.emptystate"
+	const val PLUGIN_MANAGER_LIST = "plugin.manager.list"
+	const val PLUGIN_MANAGER_ITEM = "plugin.manager.item"
+	const val PLUGIN_MANAGER_ITEM_MENU = "plugin.manager.item.menu"
+
 	const val TEMPLATE_TABBED_ACTIVITY = "template.tabbed.activity"
 	const val TEMPLATE_LEGACY_PROJECT = "template.legacy.project"
 	const val TEMPLATE_EMPTY_ACTIVITY = "template.empty.activity"

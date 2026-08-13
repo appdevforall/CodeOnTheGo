@@ -115,6 +115,10 @@ class PluginListAdapter(
 				btnMenu.setOnClickListener { view ->
 					showPopupMenu(view, plugin)
 				}
+				btnMenu.setOnLongClickListener {
+					TooltipManager.showIdeCategoryTooltip(it.context, it, TooltipTag.PLUGIN_MANAGER_ITEM_MENU)
+					true
+				}
 
 				// Setup item click for details
 				root.setOnClickListener {
@@ -123,7 +127,7 @@ class PluginListAdapter(
 
 				// Long-press for Plugin Manager tooltip
 				root.setOnLongClickListener {
-					TooltipManager.showIdeCategoryTooltip(it.context, it, TooltipTag.PLUGIN_MANAGER)
+					TooltipManager.showIdeCategoryTooltip(it.context, it, TooltipTag.PLUGIN_MANAGER_ITEM)
 					true
 				}
 			}

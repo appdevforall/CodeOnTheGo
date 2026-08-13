@@ -120,7 +120,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 		menuInflater.inflate(R.menu.menu_plugin_manager, menu)
 		binding.toolbar.post {
 			binding.toolbar.findViewById<View>(R.id.action_discover_plugins)?.setOnLongClickListener { view ->
-				TooltipManager.showIdeCategoryTooltip(this, view, TooltipTag.PLUGIN_MANAGER)
+				TooltipManager.showIdeCategoryTooltip(this, view, TooltipTag.PLUGIN_MANAGER_DOWNLOAD)
 				true
 			}
 		}
@@ -177,23 +177,23 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 	}
 
 	private fun setupTooltipLongPress() {
-		val showTooltip: (View) -> Unit = { view ->
-			TooltipManager.showIdeCategoryTooltip(this, view, TooltipTag.PLUGIN_MANAGER)
+		val showTooltip: (View, String) -> Unit = { view, tag ->
+			TooltipManager.showIdeCategoryTooltip(this, view, tag)
 		}
 		binding.toolbar.setOnLongClickListener {
-			showTooltip(it)
+			showTooltip(it, TooltipTag.PLUGIN_MANAGER_TOOLBAR)
 			true
 		}
 		binding.fabInstallPlugin.setOnLongClickListener {
-			showTooltip(it)
+			showTooltip(it, TooltipTag.PLUGIN_MANAGER_FAB_INSTALL)
 			true
 		}
 		binding.emptyState.setOnLongClickListener {
-			showTooltip(it)
+			showTooltip(it, TooltipTag.PLUGIN_MANAGER_EMPTY_STATE)
 			true
 		}
 		binding.recyclerView.setOnLongClickListener {
-			showTooltip(it)
+			showTooltip(it, TooltipTag.PLUGIN_MANAGER_LIST)
 			true
 		}
 	}
