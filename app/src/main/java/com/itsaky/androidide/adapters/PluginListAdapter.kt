@@ -14,9 +14,10 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.signature.ObjectKey
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.ItemPluginBinding
-import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.PluginInfo
+import com.itsaky.androidide.utils.displayTooltipOnLongPress
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import java.io.File
 
@@ -115,21 +116,24 @@ class PluginListAdapter(
 				btnMenu.setOnClickListener { view ->
 					showPopupMenu(view, plugin)
 				}
-				btnMenu.setOnLongClickListener {
-					TooltipManager.showIdeCategoryTooltip(it.context, it, TooltipTag.PLUGIN_MANAGER_ITEM_MENU)
-					true
-				}
+				btnMenu.displayTooltipOnLongPress(
+					itemView.context,
+					btnMenu,
+					TooltipCategory.CATEGORY_IDE,
+					TooltipTag.PLUGIN_MANAGER_ITEM_MENU,
+				)
 
 				// Setup item click for details
 				root.setOnClickListener {
 					onActionClick(plugin, Action.DETAILS)
 				}
 
-				// Long-press for Plugin Manager tooltip
-				root.setOnLongClickListener {
-					TooltipManager.showIdeCategoryTooltip(it.context, it, TooltipTag.PLUGIN_MANAGER_ITEM)
-					true
-				}
+				root.displayTooltipOnLongPress(
+					itemView.context,
+					root,
+					TooltipCategory.CATEGORY_IDE,
+					TooltipTag.PLUGIN_MANAGER_ITEM,
+				)
 			}
 		}
 
