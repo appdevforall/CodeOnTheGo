@@ -3,6 +3,7 @@
 ## 2026-08-13 - ADFA-5088: individual Preferences/Plugin Manager tooltips + docdb SQL scripts
 
 ### Time Breakdown
+
 | Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
 |---------|-------|-----------------|---------------|----------|
 | Aug 12, 7:38am | Setup & research (branch, ticket, docdb schema + Preferences tag investigation via 2 background agents) | ▏ ~3m | ████ 42m | |
@@ -16,6 +17,7 @@
 *(A ~20.9h overnight gap between the first two phases is excluded from the bars/percentages below as idle time, not work. The last two rows are estimated from context, not re-run through the transcript-analysis script.)*
 
 ### Metrics
+
 | Metric | Duration |
 |--------|----------|
 | Total active wall-clock | ~4h |
@@ -36,6 +38,7 @@
 **What didn't:** "Don't make assumptions about large binary files. They may be maintained and updated outside the repository." (direct user feedback, in response to the stale-DB near-miss)
 
 ### Actions Taken
+
 | Issue | Action Type | Change |
 |-------|-------------|--------|
 | No standing guidance against treating a large binary asset's on-disk content as ground truth without checking provenance | CLAUDE.md | Added a bullet to "Project-specific constraints": check `git ls-files`/`git check-ignore` and how an asset is provisioned before trusting its schema/content — generalizes beyond docdb to ~6 other gitignored, externally-fetched assets in `app/build.gradle.kts` |
