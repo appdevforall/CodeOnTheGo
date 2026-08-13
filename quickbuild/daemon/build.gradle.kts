@@ -106,18 +106,25 @@ dependencies {
 	implementation(libs.google.gson)
 	// ACC_FINAL stripping on recompiled payload classes (proxies extend user classes).
 	implementation(libs.ow2.asm)
-	// The BTA implementation + its runtime deps are loaded from the daemon's runtime
-	// classpath on device (staged alongside the jar), matched to the bundled compiler.
+	// The BTA implementation + its runtime deps are staged alongside the daemon jar on
+	// device and loaded from there. The compiler itself is the exception: ADFA-4931
+	// excludes it from the zip and links the on-device Gradle distribution's copy in, so
+	// this must stay pinned to the distribution's Kotlin (libs.versions.toml's
+	// kotlin-daemon-compiler, asserted against org.adfa.constants.KOTLIN_VERSION).
+	//
 	// kotlin-compiler-runner exists solely to launch/talk to a separate long-lived
 	// "Kotlin compile daemon" JVM over RMI, which IncrementalCompiler never does here
-	// (it always calls useInProcessStrategy()) - dead weight (~17 KB of the ~62 MB
-	// quickbuild-daemon.zip, ADFA-4128 size audit).
-	// kotlin-daemon-client and kotlin-daemon-embeddable looked like the same kind of
-	// dead weight but are NOT: BuildToolsApiBuildICReporter.reportCompileIteration (part
-	// of kotlin-build-tools-impl itself, on the in-process path) references
-	// org.jetbrains.kotlin.daemon.common.CompileIterationResult, which lives in
-	// kotlin-daemon-client - excluding it throws NoClassDefFoundError and failed 12/52
-	// :quickbuild-daemon:test cases. Keep both.
+	// (it always calls useInProcessStrategy()) - dead weight (~17 KB, ADFA-4128 size audit).
+	//
+	// Two others look like the same dead weight and are NOT. Both re-tested by exclusion on
+	// the 2.3.21 graph (ADFA-4931), because the note here used to name kotlin-daemon-client,
+	// which this graph no longer resolves at all:
+	//  - kotlin-daemon-embeddable carries
+	//    org.jetbrains.kotlin.daemon.common.CompileIterationResult, referenced by
+	//    kotlin-build-tools-impl's own BuildToolsApiBuildICReporter on the in-process path.
+	//  - kotlin-reflect - 1.6.10, which is what the 2.3.21 compiler's POM declares rather
+	//    than a stale pin of ours - is needed by the compiler itself. Excluding it fails
+	//    every daemon test that runs a real compile with NoClassDefFoundError.
 	runtimeOnly(libs.kotlin.buildToolsImpl) {
 		exclude(group = "org.jetbrains.kotlin", module = "kotlin-compiler-runner")
 	}
