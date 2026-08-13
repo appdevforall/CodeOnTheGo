@@ -534,6 +534,15 @@ val quickBuildDistLinkedJars =
 			"222fc10a3c22e74d30369bf8a0ca6c4f9372eac7d4a0081e290c256fa4d30fb2",
 		"kotlin-script-runtime-$KOTLIN_VERSION.jar" to
 			"ec61bf1229c837fa9f4255f34ca69816138b73158e7ae9b8d964cf92ca6dfd2e",
+		// These three carry their own version rather than KOTLIN_VERSION, and the daemon pins
+		// each to what the distribution ships (libs.versions.toml, :quickbuild:daemon) purely
+		// so it can be linked from there.
+		"kotlinx-coroutines-core-jvm-1.10.2.jar" to
+			"5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd",
+		"gson-2.13.1.jar" to
+			"94855942d4992f112946d3de1c334e709237b8126d8130bf07807c018a4a2120",
+		"asm-9.9.jar" to
+			"03d99a74ad1ee5c71334ef67437f4ef4fe3488caa7c96d8645abc73c8e2017d4",
 	)
 
 /** The distribution the hashes above were read from; see [quickBuildDistLinkedJars]. */
