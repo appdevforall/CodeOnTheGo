@@ -6,6 +6,8 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.itsaky.androidide.BuildConfig
+import com.itsaky.androidide.analytics.AttachedDevicesCollector
+import com.itsaky.androidide.analytics.AttachedDevicesMetric
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.strictmode.StrictModeConfig
 import com.itsaky.androidide.app.strictmode.StrictModeManager
@@ -162,6 +164,8 @@ internal object DeviceProtectedApplicationLoader :
 		withContext(Dispatchers.Main) {
 			initializeAnalytics()
 		}
+
+		trackAttachedDevicesMetric(app)
 	}
 
 	fun onTelemetryConsentGranted(app: IDEApplication) {
@@ -191,6 +195,16 @@ internal object DeviceProtectedApplicationLoader :
 			logger.info("Firebase Analytics initialized successfully")
 		} catch (e: Exception) {
 			logger.error("Failed to initialize Firebase Analytics", e)
+		}
+	}
+
+	private fun trackAttachedDevicesMetric(app: IDEApplication) {
+		try {
+			analyticsManager.trackMetric(
+				AttachedDevicesMetric(AttachedDevicesCollector.collect(app)),
+			)
+		} catch (e: Exception) {
+			logger.error("Failed to report attached devices metric", e)
 		}
 	}
 

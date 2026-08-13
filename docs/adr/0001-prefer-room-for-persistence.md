@@ -35,6 +35,8 @@ If none of these hold, use Room. "It's a small table" or "I already know SQL" ar
 | In-app / plugin help | `plugin-manager/.../documentation/PluginDocumentationManager.kt` | Prebuilt help-content DB (condition 1). |
 | Local web server | `app/.../localWebServer/WebServer.kt` | Reads databases (incl. project data) it doesn't own, read-only (conditions 1 & 3). |
 
+The tooltips and in-app/plugin-help rows, plus the local web server's Tier 3 serving, all read `documentation.db` — see [docs/documentation-database.md](../documentation-database.md) for its schema and consumers.
+
 The **Recent Projects** feature (`app/.../roomData/recentproject/`, `RecentProjectRoomDatabase`, `@Database version = 4`) is **not** an exception — it uses Room and is the reference example of the default. Extend it (and add new persistence) the same way.
 
 > Note: the `androidx.room:*` strings in `editor`'s `GroovyAutoComplete` are autocomplete suggestions for the *user's* code, not CoGo persistence.
