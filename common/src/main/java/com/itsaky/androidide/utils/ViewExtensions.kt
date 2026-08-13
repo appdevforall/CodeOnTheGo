@@ -30,6 +30,21 @@ fun View.forEachViewRecursively(action: (View) -> Unit) {
 	}
 }
 
+/**
+ * Attaches a long-press listener to this view and, recursively, to every view in its
+ * subtree. [ListView]s and views in [exclude] are skipped along with their subtrees.
+ *
+ * Text fields are skipped by default: a long press inside an [EditText] is the platform
+ * text-editing gesture (select/paste), and hijacking it would e.g. dismiss a dialog when
+ * the user long-presses its input field to paste
+ *
+ * @param exclude Views whose subtrees are left untouched.
+ * @param includeEditTexts Whether to also attach the listener to [EditText]s. Enable only
+ *                 when the listener implements its own text actions, like find-in-project's
+ *                 SearchFieldToolbar.
+ * @param listener Invoked with the long-pressed view; returns `true` if it consumed the
+ *                 event, `false` to let the view's default long-press behavior run.
+ */
 fun View.applyLongPressRecursively(
 	exclude: List<View> = emptyList(),
 	includeEditTexts: Boolean = false,
