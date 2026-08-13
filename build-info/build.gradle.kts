@@ -26,6 +26,7 @@ import com.itsaky.androidide.build.config.publishingVersion
 import com.itsaky.androidide.build.config.releaseVersion
 import com.itsaky.androidide.build.config.replaceContents
 import com.itsaky.androidide.build.config.simpleVersionName
+import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 
 plugins {
 //noinspection JavaPluginLanguageLevel
@@ -76,10 +77,11 @@ tasks.create("generateBuildInfo") {
 						libs.versions.agp.tooling
 							.get(),
 					// The Gradle version AGP_VERSION_LATEST gets exercised against: the
-					// distribution the IDE bundles (GRADLE_DISTRIBUTION_VERSION in
-					// composite-builds/build-deps-common). AGP 9.3.1 refuses to configure
-					// on anything older than 9.5.
-					"AGP_VERSION_GRADLE_LATEST" to "9.6.1",
+					// distribution the IDE bundles. Read from the constant rather than
+					// repeated, because AGP refuses to configure on a distribution older
+					// than it expects (8.11 needed 8.13; 9.3 needs 9.5), so a stale copy
+					// here fails every TestKit test at plugin-application time.
+					"AGP_VERSION_GRADLE_LATEST" to GRADLE_DISTRIBUTION_VERSION,
 					"SNAPSHOTS_REPOSITORY" to VersionUtils.SONATYPE_SNAPSHOTS_REPO,
 					"PUBLIC_REPOSITORY" to VersionUtils.SONATYPE_PUBLIC_REPO,
 				),
