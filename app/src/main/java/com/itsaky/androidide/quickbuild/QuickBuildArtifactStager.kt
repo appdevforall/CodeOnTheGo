@@ -149,14 +149,19 @@ object QuickBuildArtifactStager {
 	 * `quickbuild/` are both under `<ANDROIDIDE_HOME>` - so a symlink costs nothing; a copy is
 	 * the fallback for a filesystem that refuses one.
 	 *
+	 * @param gradleDists parameterised only so tests can point at a fake distribution; production
+	 *   callers take the default.
 	 * @throws FileNotFoundException when the distribution has not been extracted yet. There is
 	 *   deliberately no bundled fallback: the alternative to failing here is a
 	 *   NoClassDefFoundError partway into the user's first compile, which is far harder to read.
 	 */
 	@Throws(IOException::class)
-	private fun linkKotlinCompiler(daemonDir: File) {
+	internal fun linkKotlinCompiler(
+		daemonDir: File,
+		gradleDists: File = Environment.GRADLE_DISTS,
+	) {
 		val jarName = "kotlin-compiler-embeddable-$KOTLIN_VERSION.jar"
-		val source = File(File(Environment.GRADLE_DISTS, GRADLE_DISTRIBUTION_NAME), "lib/$jarName")
+		val source = File(File(gradleDists, GRADLE_DISTRIBUTION_NAME), "lib/$jarName")
 		if (!source.isFile) {
 			throw FileNotFoundException(
 				"Kotlin compiler missing from the on-device Gradle distribution: $source. " +
