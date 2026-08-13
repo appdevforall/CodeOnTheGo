@@ -2,6 +2,7 @@ package com.itsaky.androidide.quickbuild
 
 import android.content.Context
 import androidx.core.content.pm.PackageInfoCompat
+import com.itsaky.androidide.assets.JarLinks
 import com.itsaky.androidide.utils.Environment
 import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
 import org.slf4j.LoggerFactory
@@ -9,7 +10,6 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
-import java.nio.file.Files
 import java.util.zip.ZipInputStream
 
 /**
@@ -179,13 +179,12 @@ object QuickBuildArtifactStager {
 			}
 
 			val target = File(daemonDir, jarName)
-			try {
-				Files.createSymbolicLink(target.toPath(), source.toPath())
+			if (JarLinks.trySymlink(target, source)) {
 				log.info("Linked {} -> {}", target, source)
-			} catch (e: Exception) {
-				// UnsupportedOperationException / IOException / SecurityException all mean the
-				// same thing here: no symlink, so pay the bytes.
-				log.warn("Symlink to {} failed ({}); copying instead", source, e.toString())
+			} else {
+				// The daemon has to have these bytes one way or another, so a filesystem that
+				// refuses links costs us the copy.
+				log.info("Copying {} into the daemon dir instead", source)
 				source.inputStream().use { input -> target.outputStream().use { input.copyTo(it) } }
 			}
 		}
