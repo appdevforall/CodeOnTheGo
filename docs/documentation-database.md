@@ -94,10 +94,11 @@ Schema changes and data edits happen **outside this repo**, in `OfflineDocumenta
 
 ### Writing one-off SQL scripts against this database
 
-Some tickets (e.g. ADFA-5088) ship a one-off `.sql` script under `docs/docdb/` for a `docdb-studio` maintainer to run against the real database, rather than editing it directly through the tool. Two gotchas found writing those scripts:
+Some tickets (e.g. ADFA-5088) ship a one-off `.sql` script under `docs/docdb/` for a `docdb-studio` maintainer to run against the real database, rather than editing it directly through the tool. Gotchas found writing those scripts:
 
 - **Keep each `.system` line simple.** The sqlite3 CLI's `.system` dot-command can hit a content-dependent shell-parsing failure when a line chains multiple operators (`;`, `&&`, `||`, parentheses) — it reproduces for some input strings and not others, so it won't necessarily show up in a quick test. Stick to one plain `command | pipe > file` per `.system` line.
 - **`.bail on` is required for `BEGIN`/`COMMIT` to actually mean atomic.** Without it, a mid-script SQL error prints to stderr but the script *keeps going* — including reaching the final `COMMIT`, which then persists whatever succeeded before the error (verified empirically, not just documented behavior). `.bail` also can't see `.system` shell failures directly, so a failed or empty Brotli payload (which leaves its target file missing or zero-length) needs its own check: insert its `READFILE()` into a throwaway `CREATE TEMP TABLE` guarded by `NOT NULL CHECK (length(content) > 0)` immediately before the real `Content` insert, turning that failure into a real SQL error `.bail` will catch. See `docs/docdb/ADFA-5088-preference-tooltips.sql` for the working pattern.
+- **Don't write Brotli payloads to bare `/tmp/*.br` filenames.** A fixed, guessable name directly under world-writable `/tmp` lets another local user pre-plant a symlink or race the write/read pair between the `.system echo | brotli` write and the `READFILE()` read (CWE-377). Create an owner-only working directory instead — `rm -rf` it, then `mkdir -m 700` it (the mode is set atomically at creation, with no window where it's briefly world-accessible) — write every payload under that directory, and remove it again before `COMMIT`. See the same script for the working pattern.
 
 ## Known rough edges
 
