@@ -331,8 +331,6 @@
 	<string name="title_confirm_project_open">确认打开项目</string>
 	<string name="msg_confirm_project_open">启用后，Code on the Go 在打开上次的项目前会要求确认</string>
 	<string name="msg_error_opening_project">打开项目时出错</string>
-	<string name="title_default_shell">在终端中使用系统 Shell</string>
-	<string name="msg_default_shell">如果选中，终端将使用 \'/system/bin/sh\'</string>
 	<string name="title_general">通用</string>
 	<string name="title_tab_size">制表符大小</string>
 	<string name="msg_tab_size">设置 Tab 键缩进的空格数</string>

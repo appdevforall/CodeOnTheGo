@@ -201,23 +201,3 @@ override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolea
 	return true
 }
 }
-
-@Parcelize
-class UseSytemShell(
-override val key: String = GeneralPreferences.TERMINAL_USE_SYSTEM_SHELL,
-override val title: Int = string.title_default_shell,
-override val summary: Int? = string.msg_default_shell,
-override val icon: Int? = drawable.ic_bash_commands
-) : SwitchPreference() {
-
-override fun onCreatePreference(context: Context): Preference {
-	val pref = super.onCreatePreference(context) as androidx.preference.SwitchPreference
-	pref.isChecked = GeneralPreferences.useSystemShell
-	return pref
-}
-
-override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
-	GeneralPreferences.useSystemShell = newValue as Boolean? ?: GeneralPreferences.useSystemShell
-	return true
-}
-}

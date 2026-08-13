@@ -158,8 +158,6 @@
   <string name="msg_open_projects">यदि चेक किया गया है, तो आईडीई पिछले खुले हुए प्रोजेक्ट को याद रखेगा और इसे अगले स्टार्टअप पर फिर से खोल दिया जाएगा।</string>
   <string name="title_confirm_project_open">प्रोजेक्ट के खोलने की पुष्टि करें</string>
   <string name="msg_confirm_project_open">अंतिम खुली प्रोजेक्ट को खोलने से पहले पूछें।</string>
-  <string name="title_default_shell">टर्मिनल में सिस्टम शेल का उपयोग करें</string>
-  <string name="msg_default_shell">यदि चेक किया गया है, तो टर्मिनल में \'/system/bin/sh\' का उपयोग किया जाएगा।</string>
   <string name="title_general">जनरल</string>
   <string name="title_tab_size">टैब साइज</string>
   <string name="msg_tab_size">टैब के लिए स्पेसेस की संख्या निर्दिष्ट करें</string>
