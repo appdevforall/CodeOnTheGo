@@ -8,6 +8,7 @@ import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
+import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 import org.adfa.constants.KOTLIN_VERSION
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.json.JSONObject
@@ -509,15 +510,54 @@ dependencies {
 evaluationDependsOn(":quickbuild:runtime")
 evaluationDependsOn(":quickbuild:daemon")
 
-// ADFA-4931: the daemon's compiler is the one the on-device Gradle distribution already
-// embeds, so the two versions must be the same number. Checked here rather than trusted,
-// because the failure it prevents surfaces on device as a NoClassDefFoundError partway
-// into a compile, a long way from the constant that caused it.
-val quickBuildCompilerVersionCheck =
-	tasks.register("quickBuildCompilerVersionCheck") {
+// ADFA-4931: jars the daemon loads from the on-device Gradle distribution instead of from the
+// APK. The distribution ships each of these byte for byte, and `gradle-dists/` and
+// `quickbuild/` are both under <ANDROIDIDE_HOME>, so a second copy in the daemon zip bought
+// nothing but download and disk. quickBuildDaemonZip leaves them out;
+// QuickBuildArtifactStager links them into the daemon dir under exactly these names, which is
+// what the daemon jar's manifest Class-Path still expects.
+//
+// The values are the SHA-256 of each jar as gradle-$GRADLE_DISTRIBUTION_VERSION/lib/ ships it,
+// asserted below against what the daemon actually resolves. Re-derive after any distribution
+// bump (and move DIST_JAR_HASHES_FROM with it):
+//   unzip -p assets/$GRADLE_DISTRIBUTION_ARCHIVE_NAME \
+//     "$GRADLE_DISTRIBUTION_NAME/lib/<name>" | shasum -a 256
+val quickBuildDistLinkedJars =
+	mapOf(
+		"kotlin-compiler-embeddable-$KOTLIN_VERSION.jar" to
+			"d3e70fb011675e77ef00f1a68918d3cd91eed26058977d1e3ea2a37a293233af",
+		"kotlin-stdlib-$KOTLIN_VERSION.jar" to
+			"6f64eac736db9434dd6925b4a518b9d1d17177652320c37916cf9ba3ce7d7d7a",
+		"kotlin-build-tools-impl-$KOTLIN_VERSION.jar" to
+			"2cd70396404a0e43c05aaf79a8b35ff3a8ff2e296aedf770f6e5923fbfacae3b",
+		"kotlin-daemon-embeddable-$KOTLIN_VERSION.jar" to
+			"222fc10a3c22e74d30369bf8a0ca6c4f9372eac7d4a0081e290c256fa4d30fb2",
+		"kotlin-script-runtime-$KOTLIN_VERSION.jar" to
+			"ec61bf1229c837fa9f4255f34ca69816138b73158e7ae9b8d964cf92ca6dfd2e",
+	)
+
+/** The distribution the hashes above were read from; see [quickBuildDistLinkedJars]. */
+val quickBuildDistHashesFrom = "9.6.1"
+
+// Checked here rather than trusted: every failure this prevents surfaces on device as a
+// NoClassDefFoundError partway into the user's first compile, a long way from the version
+// bump that caused it.
+val quickBuildDistJarCheck =
+	tasks.register("quickBuildDistJarCheck") {
 		val pinned =
 			libs.versions.kotlin.daemon.compiler
 				.get()
+		val expected = quickBuildDistLinkedJars
+		val distVersion = GRADLE_DISTRIBUTION_VERSION
+		val hashesFrom = quickBuildDistHashesFrom
+		val classpath =
+			files(
+				rootProject
+					.project(":quickbuild:daemon")
+					.configurations
+					.named("runtimeClasspath"),
+			)
+		inputs.files(classpath)
 		doLast {
 			if (pinned != KOTLIN_VERSION) {
 				throw GradleException(
@@ -527,6 +567,59 @@ val quickBuildCompilerVersionCheck =
 						"$GRADLE_DISTRIBUTION_NAME/lib/kotlin-compiler-embeddable-$KOTLIN_VERSION.jar at runtime.",
 				)
 			}
+			if (distVersion != hashesFrom) {
+				throw GradleException(
+					"The Gradle distribution moved to $distVersion but the linked-jar hashes in " +
+						"app/build.gradle.kts were read from $hashesFrom. Re-derive them from the new " +
+						"distribution and move quickBuildDistHashesFrom, or the daemon may link a jar " +
+						"that is no longer the one it was built against.",
+				)
+			}
+
+			val resolved = classpath.files.associateBy { it.name }
+			val digest = MessageDigest.getInstance("SHA-256")
+			expected.forEach { (name, sha) ->
+				val jar =
+					resolved[name] ?: throw GradleException(
+						"$name is listed as linked from the Gradle distribution but is not on the " +
+							"daemon's runtime classpath. Excluding it from the daemon zip would drop a " +
+							"jar nothing puts back. Resolved: ${resolved.keys.sorted()}",
+					)
+				digest.reset()
+				val actual =
+					jar.inputStream().use { input ->
+						val buffer = ByteArray(1 shl 16)
+						while (true) {
+							val read = input.read(buffer)
+							if (read < 0) break
+							digest.update(buffer, 0, read)
+						}
+						digest.digest().joinToString("") { "%02x".format(it) }
+					}
+				if (actual != sha) {
+					throw GradleException(
+						"$name no longer matches the copy gradle-$distVersion ships " +
+							"(expected $sha, resolved $actual from $jar). Quick Build links the " +
+							"distribution's copy in place of this one, so they must be the same bytes. " +
+							"Either drop it from quickBuildDistLinkedJars and let the zip carry it, or " +
+							"re-derive the hash if the distribution genuinely changed.",
+					)
+				}
+			}
+			logger.lifecycle("quickBuildDistJarCheck: verified ${expected.size} jars against gradle-$distVersion")
+		}
+	}
+
+// The names the stager links, travelling with the zip so the device side reads the build's
+// list rather than repeating it.
+val quickBuildDistLinkedJarList =
+	tasks.register("quickBuildDistLinkedJarList") {
+		val names = quickBuildDistLinkedJars.keys.sorted()
+		val listFile = layout.buildDirectory.file("intermediates/quickbuild/dist-linked-jars.txt")
+		inputs.property("names", names)
+		outputs.file(listFile)
+		doLast {
+			listFile.get().asFile.writeText(names.joinToString("\n", postfix = "\n"))
 		}
 	}
 
@@ -534,18 +627,18 @@ val quickBuildDaemonZip =
 	tasks.register<Zip>("quickBuildDaemonZip") {
 		archiveFileName.set("quickbuild-daemon.zip")
 		destinationDirectory.set(layout.buildDirectory.dir("intermediates/quickbuild"))
-		dependsOn(quickBuildCompilerVersionCheck)
+		dependsOn(quickBuildDistJarCheck)
 		val daemonProject = rootProject.project(":quickbuild:daemon")
 		dependsOn(daemonProject.tasks.named("daemonJar"))
 		from(daemonProject.tasks.named("daemonJar"))
 		// The daemon jar's manifest Class-Path names these by file name; they must sit
 		// next to the jar after extraction.
 		from(daemonProject.configurations.named("runtimeClasspath"))
-		// ADFA-4931: except the compiler. The on-device Gradle distribution ships the same
-		// artifact at the same version (~57 MB of it), so shipping a second copy in the APK
-		// bought nothing. QuickBuildArtifactStager links the distribution's copy into the
-		// daemon dir under this name, which is what the manifest Class-Path still expects.
-		exclude("kotlin-compiler-embeddable-*.jar")
+		// ADFA-4931: except the ones the distribution already carries. The stager links those
+		// in at provision time, reading the list this task stages beside them.
+		val linked = quickBuildDistLinkedJars.keys
+		exclude { it.name in linked }
+		from(quickBuildDistLinkedJarList)
 		// Compose compiler plugin, version-matched to the daemon's compiler; the stable
 		// name is the contract EnvironmentQuickBuildPaths.composeCompilerPlugin reads.
 		from(daemonProject.configurations.named("composeCompilerPlugin")) {
