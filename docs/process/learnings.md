@@ -19,6 +19,10 @@
 ## Measuring a real before/after delta
 - To measure an actual size/perf delta for a change (not just estimate it), use `git worktree add <path> <base-commit>`, build there, and diff the artifacts — avoids disturbing the current working tree or stashing.
 
+## SQLite CLI scripting
+- The sqlite3 CLI's `.system` dot-command can hit a content-dependent shell-parsing failure when a line chains multiple operators (`;`, `&&`, `||`, parentheses) — reproduces for some strings and not others, so it won't show up in a quick smoke test. Keep each `.system` line to one plain `command | pipe > file`.
+- `.bail on` is required for a `BEGIN;...COMMIT;`-wrapped script to actually be atomic: without it, a mid-script SQL error prints to stderr but the script keeps going, including reaching the final `COMMIT`, which persists whatever succeeded before the error. `.bail` also can't see `.system` shell failures directly — if a step's success depends on a shell command's exit status, assert it in SQL (e.g. a temp table with a `CHECK` constraint) rather than relying on `.bail` to catch it.
+
 ## Kotlin LSP test harness
 - Disposing the `KtLspTestEnvironment` in a unit test (`env.close()`, or `Disposer.dispose(env.project)`) throws `AssertionError: Write access is allowed inside write-action only`. IntelliJ requires model teardown to run inside a write action. This is why `KtLspTestRule`'s teardown has `env.close()` commented out as "fails in test cases". To dispose deterministically in a test, wrap it: `ApplicationManager.getApplication().runWriteAction { env.close() }`.
 - The index/compilation environment lifecycle is racy: background `IndexWorker` coroutines call `PsiManager.findFile(project)` and will crash with `Project is already disposed` if the project is disposed before the workers are stopped. Always stop & join `KtSymbolIndex.close()` (and cancel related scopes) before `Disposer.dispose(...)`.
