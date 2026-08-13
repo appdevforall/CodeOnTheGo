@@ -23,7 +23,7 @@ kotlin = "2.3.0"
 # The Quick Build daemon's compiler. Must equal org.adfa.constants.KOTLIN_VERSION -- the
 # Kotlin the on-device Gradle distribution embeds -- because the daemon loads that
 # distribution's kotlin-compiler-embeddable instead of shipping its own copy. :app's
-# quickBuildCompilerVersionCheck asserts the two agree.
+# quickBuildDistJarCheck asserts the two agree.
 kotlin-daemon-compiler = "2.3.21"
 kotlin-coroutines = "1.9.0"
 kotlinxCoroutinesCore = "1.10.2"
