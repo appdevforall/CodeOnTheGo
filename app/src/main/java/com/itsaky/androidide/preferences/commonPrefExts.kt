@@ -30,6 +30,7 @@ data class PropertyEntry(
 	val tooltipTag: String = "",
 )
 
+/** The checkboxes for this screen, in display order; each entry's [PropertyEntry.tooltipTag] is that choice's own long-press help. */
 abstract fun getProperties(): List<PropertyEntry>
 
 override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {

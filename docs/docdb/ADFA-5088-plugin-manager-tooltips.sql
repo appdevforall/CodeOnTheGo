@@ -73,9 +73,16 @@ CREATE TEMP TABLE _content_guard (content BLOB NOT NULL CHECK (length(content) >
 -- symlink or race the write/read pair. mkdir -m sets the mode atomically
 -- at creation (no separate chmod, no window with a wider mode); the prior
 -- rm -rf makes each run start from a clean directory it fully owns,
--- rather than trusting one left over from an earlier run.
+-- rather than trusting one left over from an earlier run. mkdir itself
+-- can fail without .bail seeing it (e.g. another process recreates the
+-- path between the rm -rf and the mkdir), so assert the mode really is
+-- 700 before trusting the directory with anything - the same guard-table
+-- trick _content_guard uses for the Brotli payloads below.
 .system rm -rf /tmp/adfa5088-pm-workdir
 .system mkdir -m 700 /tmp/adfa5088-pm-workdir
+.system stat --printf='%a' /tmp/adfa5088-pm-workdir > /tmp/adfa5088-pm-workdir/.mode
+CREATE TEMP TABLE _workdir_guard (mode TEXT NOT NULL CHECK (mode = '700'));
+INSERT INTO _workdir_guard SELECT CAST(READFILE('/tmp/adfa5088-pm-workdir/.mode') AS TEXT);
 
 -- Remove the dead "plugin.manager" tag: no code path can reach it any
 -- more now that every widget has its own tag. Delete the TooltipButtons
