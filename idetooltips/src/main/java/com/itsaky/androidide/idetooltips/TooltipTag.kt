@@ -45,13 +45,11 @@ object TooltipTag {
 	const val PREFS_GENERAL = "prefs.general"
 	const val PREFS_EDITOR = "prefs.editor"
 	const val PREFS_BUILD_RUN = "prefs.buildrun"
-	const val PREFS_GRADLE = "prefs.gradle"
 	const val PREFS_TERMUX = "prefs.termux"
 	const val PREFS_GIT = "prefs.git"
 	const val PREFS_PLUGIN_MANAGER = "prefs.pluginmanager"
 	const val PREFS_ABOUT = "prefs.about"
 	const val PREFS_DEVOPTIONS = "prefs.devoptions"
-	const val PREFS_DEVELOPER = "prefs.developer"
 
 	// Preferences - General screen
 	const val PREFS_GENERAL_UIMODE = "prefs.general.uimode"
