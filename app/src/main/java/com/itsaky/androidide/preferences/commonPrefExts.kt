@@ -23,27 +23,31 @@ import kotlin.reflect.KMutableProperty0
 
 internal abstract class PropertyBasedMultiChoicePreference : MultiChoicePreference() {
 
-  abstract fun getProperties(): Map<String, KMutableProperty0<Boolean>>
+abstract fun getProperties(): Map<String, KMutableProperty0<Boolean>>
 
-  override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
-    val properties = getProperties()
-    val entries = Array(properties.size) { PreferenceChoices.Entry.EMPTY }
+/** Tooltip tags for individual entries, keyed by the same label used in [getProperties]. */
+open fun getEntryTooltipTags(): Map<String, String> = emptyMap()
 
-    var index = 0
-    properties.forEach { (key, property) ->
-      entries[index] = PreferenceChoices.Entry(key, property.get(), property)
-      ++index
-    }
+override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
+	val properties = getProperties()
+	val entryTooltipTags = getEntryTooltipTags()
+	val entries = Array(properties.size) { PreferenceChoices.Entry.EMPTY }
 
-    return entries
-  }
+	var index = 0
+	properties.forEach { (key, property) ->
+	entries[index] = PreferenceChoices.Entry(key, property.get(), property, entryTooltipTags[key] ?: "")
+	++index
+	}
 
-  override fun onChoicesConfirmed(
-    preference: Preference,
-    entries: Array<PreferenceChoices.Entry>
-  ) {
-    entries.forEach { entry ->
-      uncheckedCast<KMutableProperty0<Boolean>>(entry.data).set(entry.isChecked)
-    }
-  }
+	return entries
+}
+
+override fun onChoicesConfirmed(
+	preference: Preference,
+	entries: Array<PreferenceChoices.Entry>
+) {
+	entries.forEach { entry ->
+	uncheckedCast<KMutableProperty0<Boolean>>(entry.data).set(entry.isChecked)
+	}
+}
 }

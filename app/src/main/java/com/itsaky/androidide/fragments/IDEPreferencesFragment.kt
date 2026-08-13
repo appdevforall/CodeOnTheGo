@@ -18,92 +18,118 @@
 package com.itsaky.androidide.fragments
 
 import android.os.Bundle
+import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceGroup
+import androidx.preference.PreferenceGroupAdapter
 import com.google.android.material.transition.MaterialSharedAxis
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_DEVELOPER
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR_XML
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GENERAL
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GRADLE
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TERMUX
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TOP
 import com.itsaky.androidide.preferences.IPreference
 import com.itsaky.androidide.preferences.IPreferenceGroup
 import com.itsaky.androidide.preferences.IPreferenceScreen
+import com.itsaky.androidide.utils.onLongPress
 
 class IDEPreferencesFragment : BasePreferenceFragment() {
+	private var children: List<IPreference> = emptyList()
 
-  private var children: List<IPreference> = emptyList()
+	/** Every preference in this screen, including nested categories' children, keyed by its key. */
+	private var tooltipTagsByKey: Map<String, String> = emptyMap()
 
-  override fun onCreateView(
-    inflater: LayoutInflater,
-    container: ViewGroup?,
-    savedInstanceState: Bundle?
-  ): View {
-    enterTransition = MaterialSharedAxis(MaterialSharedAxis.X, true)
-    reenterTransition = MaterialSharedAxis(MaterialSharedAxis.X, false)
-    exitTransition = MaterialSharedAxis(MaterialSharedAxis.X, true)
-    return super.onCreateView(inflater, container, savedInstanceState)
-  }
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		enterTransition = MaterialSharedAxis(MaterialSharedAxis.X, true)
+		reenterTransition = MaterialSharedAxis(MaterialSharedAxis.X, false)
+		exitTransition = MaterialSharedAxis(MaterialSharedAxis.X, true)
+		return super.onCreateView(inflater, container, savedInstanceState)
+	}
 
-  override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-    super.onCreatePreferences(savedInstanceState, rootKey)
+	override fun onCreatePreferences(
+		savedInstanceState: Bundle?,
+		rootKey: String?,
+	) {
+		super.onCreatePreferences(savedInstanceState, rootKey)
 
-    if (context == null) {
-      return
-    }
+		if (context == null) {
+			return
+		}
 
-    @Suppress("DEPRECATION")
-    this.children = arguments?.getParcelableArrayList(EXTRA_CHILDREN) ?: emptyList()
+		@Suppress("DEPRECATION")
+		this.children = arguments?.getParcelableArrayList(EXTRA_CHILDREN) ?: emptyList()
+		this.tooltipTagsByKey = collectTooltipTags(this.children)
 
-    preferenceScreen.removeAll()
-    addChildren(this.children, preferenceScreen)
-  }
+		preferenceScreen.removeAll()
+		addChildren(this.children, preferenceScreen)
+	}
 
-  private fun addChildren(children: List<IPreference>, pref: PreferenceGroup) {
-    for (child in children) {
-      val preference = child.onCreateView(requireContext())
-      if (child is IPreferenceScreen) {
-        preference.fragment = IDEPreferencesFragment::class.java.name
-        preference.extras.putParcelableArrayList(EXTRA_CHILDREN, ArrayList(child.children))
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
+		listView.onLongPress { e ->
+			val row = listView.findChildViewUnder(e.x, e.y) ?: return@onLongPress
+			val position = listView.getChildAdapterPosition(row)
+			if (position == androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+				return@onLongPress
+			}
 
-        pref.addPreference(preference)
-        continue
-      }
+			val key = (listView.adapter as? PreferenceGroupAdapter)?.getItem(position)?.key ?: return@onLongPress
+			val tag = tooltipTagsByKey[key]?.takeIf { it.isNotEmpty() } ?: PREFS_TOP
 
-      if (child is IPreferenceGroup) {
-        pref.addPreference(preference as PreferenceCategory)
-        addChildren(child.children, preference)
-        continue
-      }
+			row.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+			TooltipManager.showIdeCategoryTooltip(requireContext(), row, tag)
+		}
+	}
 
+	private fun collectTooltipTags(children: List<IPreference>): Map<String, String> {
+		val map = mutableMapOf<String, String>()
 
-      pref.addPreference(preference)
-    }
-  }
+		fun visit(items: List<IPreference>) {
+			for (item in items) {
+				map[item.key] = item.tooltipTag
+				if (item is IPreferenceGroup && item !is IPreferenceScreen) {
+					visit(item.children)
+				}
+			}
+		}
 
-    fun getCurrentScreenTooltip(): String {
-    val firstChildKey = children.firstOrNull()?.key
-    return when (firstChildKey) {
-      "idepref_configure" -> PREFS_TOP
-      "idepref_general_interface" -> PREFS_GENERAL
-      "idepref_editor_common" -> PREFS_EDITOR
-      "idepref_build_gradle" -> PREFS_GRADLE
-      "idepref_build_gradleCommands" -> PREFS_GRADLE
-      "ide.preferences.terminal.debugging" -> PREFS_TERMUX
-      "ide.prefs.developerOptions.debugging" -> PREFS_DEVELOPER
-      "idepref_xml_trimFinalNewLine" -> PREFS_EDITOR_XML
-      else -> PREFS_TOP
-    }
-  }
+		visit(children)
+		return map
+	}
 
-  companion object {
-    const val EXTRA_CHILDREN = "ide.preferences.fragment.children"
-  }
+	private fun addChildren(
+		children: List<IPreference>,
+		pref: PreferenceGroup,
+	) {
+		for (child in children) {
+			val preference = child.onCreateView(requireContext())
+			if (child is IPreferenceScreen) {
+				preference.fragment = IDEPreferencesFragment::class.java.name
+				preference.extras.putParcelableArrayList(EXTRA_CHILDREN, ArrayList(child.children))
+
+				pref.addPreference(preference)
+				continue
+			}
+
+			if (child is IPreferenceGroup) {
+				pref.addPreference(preference as PreferenceCategory)
+				addChildren(child.children, preference)
+				continue
+			}
+
+			pref.addPreference(preference)
+		}
+	}
+
+	companion object {
+		const val EXTRA_CHILDREN = "ide.preferences.fragment.children"
+	}
 }
-
