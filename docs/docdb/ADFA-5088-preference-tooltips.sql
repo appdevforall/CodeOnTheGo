@@ -21,18 +21,40 @@
 --
 -- Apply against the real documentation.db:
 --   sqlite3 documentation.db < ADFA-5088-preference-tooltips.sql
--- The whole script runs inside one transaction (BEGIN/COMMIT below), so a
--- failure partway through leaves the database untouched rather than
--- half-applied.
+-- The whole script runs inside one transaction (BEGIN/COMMIT below) with
+-- `.bail on`, so any failure - a bad SQL statement, or a Brotli payload
+-- caught by the guard below - stops the script and leaves the database
+-- untouched (the open transaction rolls back when the connection closes)
+-- rather than half-applied.
 --
--- The Content section uses `.system echo "<html>" | brotli -Z > /tmp/x.br`
--- immediately before each `INSERT ... READFILE('/tmp/x.br')` so the
--- uncompressed HTML is visible in this script. `.system` and `READFILE()`
--- require the sqlite3 CLI (not a library binding). If `.system` is disabled
--- in your sqlite3 build, run the `echo ... | brotli -Z > file` line yourself
--- via a shell first, then run just the INSERT statements.
+-- For each Content row: `.system rm -f /tmp/x.br` clears any stale file,
+-- `.system echo "<html>" | brotli -Z > /tmp/x.br` writes the compressed
+-- payload (the uncompressed HTML is visible right there in the command),
+-- then `INSERT INTO _content_guard SELECT READFILE('/tmp/x.br')` is a
+-- deliberate assertion: `.system` failures aren't SQL errors and `.bail`
+-- can't see them directly, but a failed or empty Brotli run leaves
+-- /tmp/x.br missing or empty, and _content_guard's `NOT NULL` + `CHECK
+-- (length(content) > 0)` turn that into a real SQL error .bail does catch
+-- - before the real `INSERT INTO Content` below it can run with bad data.
+-- _content_guard is a TEMP table: connection-local, dropped automatically,
+-- never touches the real schema.
+--
+-- `.system`, `.bail`, and `READFILE()` require the sqlite3 CLI (not a
+-- library binding). If `.system` is disabled in your sqlite3 build, run
+-- each `rm -f`/`echo ... | brotli -Z > file` pair yourself via a shell
+-- first, then run just the INSERT statements (the _content_guard
+-- assertion becomes redundant at that point - the file either exists and
+-- is non-empty by the time you run the script, or you'd have already
+-- seen the shell command fail).
 
+.bail on
 BEGIN;
+
+-- A temp table (connection-local, never touches the real schema) whose
+-- CHECK constraint turns a silently-empty or failed Brotli payload into a
+-- real SQL error .bail can catch, before it ever reaches the real Content
+-- table.
+CREATE TEMP TABLE _content_guard (content BLOB NOT NULL CHECK (length(content) > 0));
 
 -- ---------------------------------------------------------------------
 -- Tooltips: idempotent upserts (existing empty stub rows + brand new tags,
@@ -225,199 +247,329 @@ INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (1, 'prefs.about'
 -- then inserts the resulting compressed file with READFILE().
 -- ---------------------------------------------------------------------
 
+.system rm -f /tmp/adfa5088-prefs-general.br
 .system echo "<p>The General screen holds settings that are not specific to the editor or to a single project. Use it to set the app theme, choose a display language, and control how Code on the Go opens the last project on launch.</p><p>Changes here apply immediately and affect the whole app.</p>" | brotli -Z > /tmp/adfa5088-prefs-general.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-general.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/general', 1, 12, READFILE('/tmp/adfa5088-prefs-general.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-general-uimode.br
 .system echo "<p>UI mode sets the color theme for Code on the Go.</p><ul><li><b>Light</b>: always use light colors.</li><li><b>Dark</b>: always use dark colors.</li><li><b>Follow system</b>: match your device's current theme, and switch automatically when it changes.</li></ul>" | brotli -Z > /tmp/adfa5088-prefs-general-uimode.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-general-uimode.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/general/uimode', 1, 12, READFILE('/tmp/adfa5088-prefs-general-uimode.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-general-language.br
 .system echo "<p>Language sets the display language for the Code on the Go interface.</p><p>Choose System Default to use your device language setting, or pick one of the supported languages directly. The app restarts the affected screens to apply the change.</p>" | brotli -Z > /tmp/adfa5088-prefs-general-language.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-general-language.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/general/language', 1, 12, READFILE('/tmp/adfa5088-prefs-general-language.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-general-openlast.br
 .system echo "<p>Open last project controls what happens when you start Code on the Go.</p><p>Turn it on to skip the project list and go straight into your most recent project. Turn it off to see the project list every time.</p>" | brotli -Z > /tmp/adfa5088-prefs-general-openlast.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-general-openlast.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/general/openlast', 1, 12, READFILE('/tmp/adfa5088-prefs-general-openlast.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-general-confirmopen.br
 .system echo "<p>Confirm project opening adds a confirmation step before Code on the Go reopens your last project automatically.</p><p>Use this if you often want to switch to a different project instead of continuing the last one.</p>" | brotli -Z > /tmp/adfa5088-prefs-general-confirmopen.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-general-confirmopen.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/general/confirmopen', 1, 12, READFILE('/tmp/adfa5088-prefs-general-confirmopen.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor.br
 .system echo "<p>The Editor screen holds settings for the code editor: font size, tab size, word wrap, whitespace display, and other editing behavior.</p><p>Formatting options specific to XML files are on a separate sub-screen.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor', 1, 12, READFILE('/tmp/adfa5088-prefs-editor.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-fontsize.br
 .system echo "<p>Font size sets the text size used in the code editor, in sp units.</p><p>Choose a larger value to make code easier to read, or a smaller value to fit more code on the screen. The allowed range is 6 to 32.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-fontsize.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-fontsize.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/fontsize', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-fontsize.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-tabsize.br
 .system echo "<p>Tab size sets the number of spaces that one tab character represents in the editor.</p><p>Pick a value that matches your project code style: 2, 4, 6, or 8 spaces.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-tabsize.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-tabsize.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/tabsize', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-tabsize.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-nonprinting.br
 .system echo "<p>Show non-printing characters controls which invisible characters, such as spaces, tabs, and line breaks, the editor marks visibly.</p><p>Open this setting to choose which kinds to show: leading whitespace, trailing whitespace, whitespace between words, whitespace on empty lines, and line-break marks.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-nonprinting.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-nonprinting.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/nonprinting', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-nonprinting.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-nonprinting-leading.br
 .system echo "<p>Leading marks whitespace characters, such as spaces and tabs, that appear before the first visible character on a line.</p><p>Turn this on to see indentation whitespace clearly.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-nonprinting-leading.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-nonprinting-leading.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/nonprinting/leading', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-nonprinting-leading.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-nonprinting-trailing.br
 .system echo "<p>Trailing marks whitespace characters that appear after the last visible character on a line.</p><p>Turn this on to spot stray trailing spaces or tabs.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-nonprinting-trailing.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-nonprinting-trailing.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/nonprinting/trailing', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-nonprinting-trailing.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-nonprinting-inner.br
 .system echo "<p>Inner marks whitespace characters that appear between words or tokens within a line, rather than at the start or end.</p><p>Turn this on to check for irregular spacing inside a line.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-nonprinting-inner.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-nonprinting-inner.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/nonprinting/inner', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-nonprinting-inner.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-nonprinting-emptylines.br
 .system echo "<p>Empty lines marks whitespace characters on lines that have no visible text, only spaces or tabs.</p><p>Turn this on to spot stray whitespace on otherwise blank lines.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-nonprinting-emptylines.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-nonprinting-emptylines.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/nonprinting/emptylines', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-nonprinting-emptylines.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-nonprinting-linebreaks.br
 .system echo "<p>Line breaks draws a small marker at the end of each line to show where the line break occurs.</p><p>Turn this on to see line endings clearly, for example when comparing files with different line-ending styles.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-nonprinting-linebreaks.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-nonprinting-linebreaks.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/nonprinting/linebreaks', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-nonprinting-linebreaks.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-softtab.br
 .system echo "<p>Use soft tab controls what the editor inserts when you press the Tab key.</p><p>Turn this on to insert spaces instead of a tab character. This can help keep code consistent across editors that render tabs differently.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-softtab.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-softtab.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/softtab', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-softtab.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-wordwrap.br
 .system echo "<p>Word wrap breaks long lines of code into multiple visual lines so they fit within the visible width of the editor.</p><p>The underlying file is not changed; only the way it is displayed changes.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-wordwrap.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-wordwrap.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/wordwrap', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-wordwrap.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-magnifier.br
 .system echo "<p>Enable magnifier shows a zoomed-in view of the text around your finger when you press and hold to select text.</p><p>This makes it easier to position the cursor precisely on a small screen.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-magnifier.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-magnifier.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/magnifier', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-magnifier.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-wordboundaries.br
 .system echo "<p>Use spaces as word boundaries changes how the editor decides what counts as one word when you double-tap to select text.</p><p>When on, only blank space marks the edge of a word. When off, the editor also treats punctuation, such as periods and underscores, as word boundaries.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-wordboundaries.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-wordboundaries.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/wordboundaries', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-wordboundaries.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-matchcase.br
 .system echo "<p>Match completions in lower case controls whether the code editor autocomplete feature is case-sensitive.</p><p>When on, typing in lower case still matches suggestions that use upper case letters, such as class names.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-matchcase.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-matchcase.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/matchcase', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-matchcase.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-deletelines.br
 .system echo "<p>Delete empty lines on backspace changes what happens when you press backspace on a line with no visible text.</p><p>When on, the whole empty line is removed in one step, instead of removing one whitespace character at a time.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-deletelines.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-deletelines.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/deletelines', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-deletelines.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-smartbackspace.br
 .system echo "<p>Smart backspace indent changes what one backspace press removes when the cursor is inside leading indentation.</p><p>When on, it removes a full indent level at once. When off, it removes one character at a time.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-smartbackspace.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-smartbackspace.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/smartbackspace', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-smartbackspace.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-stickyscroll.br
 .system echo "<p>Sticky scroll keeps the header line of the code block you are inside, such as a class or method declaration, visible at the top of the editor while you scroll down through its contents.</p><p>This helps you keep track of context in long files.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-stickyscroll.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-stickyscroll.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/stickyscroll', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-stickyscroll.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-pinlines.br
 .system echo "<p>Pin line numbers keeps the line-number column fixed on the left side of the editor.</p><p>Without this, scrolling a long line horizontally can move the line numbers out of view along with the code.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-pinlines.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-pinlines.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/pinlines', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-pinlines.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-googlestyle.br
 .system echo "<p>Use Google Java Style code formatting applies Google's published conventions for Java source code, such as indentation, spacing, and line-wrapping rules, when you format code.</p><p>Turn this on if your project follows Google's Java style guide.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-googlestyle.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-googlestyle.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/googlestyle', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-googlestyle.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-editor-xml.br
 .system echo "<p>XML formatting options opens a sub-screen of settings that control how Code on the Go formats XML files, separate from the general editor settings.</p>" | brotli -Z > /tmp/adfa5088-prefs-editor-xml.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-editor-xml.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/editor/xml', 1, 12, READFILE('/tmp/adfa5088-prefs-editor-xml.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-trimfinalnewline.br
 .system echo "<p>Trim final new line removes empty lines at the very end of an XML file when the formatter runs.</p><p>This is off by default.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-trimfinalnewline.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-trimfinalnewline.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/trimfinalnewline', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-trimfinalnewline.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-insertfinalnewline.br
 .system echo "<p>Insert final new line adds a single newline character at the end of an XML file if one is not already there.</p><p>Many tools expect files to end this way.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-insertfinalnewline.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-insertfinalnewline.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/insertfinalnewline', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-insertfinalnewline.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-splitattributes.br
 .system echo "<p>Split attributes places each attribute of an XML tag on its own line when the formatter runs.</p><p>This makes tags with many attributes easier to read and to compare in version control.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-splitattributes.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-splitattributes.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/splitattributes', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-splitattributes.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-joincdatalines.br
 .system echo "<p>Join CDATA lines combines the lines of a CDATA section into a single line when the formatter runs.</p><p>CDATA sections hold raw, unescaped text or markup inside an XML file.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-joincdatalines.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-joincdatalines.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/joincdatalines', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-joincdatalines.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-joincommentlines.br
 .system echo "<p>Join comment lines combines adjacent single-line XML comments into one line when the formatter runs.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-joincommentlines.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-joincommentlines.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/joincommentlines', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-joincommentlines.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-joincontentlines.br
 .system echo "<p>Join content lines combines multiple lines of text inside a single XML element into one line when the formatter runs.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-joincontentlines.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-joincontentlines.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/joincontentlines', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-joincontentlines.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-spacebeforeclose.br
 .system echo "<p>Space before empty close tag adds one space before the closing /&gt; of a self-closing XML tag, so the formatter produces &lt;foo /&gt; instead of &lt;foo/&gt;.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-spacebeforeclose.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-spacebeforeclose.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/spacebeforeclose', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-spacebeforeclose.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-preserveemptycontent.br
 .system echo "<p>Preserve empty content keeps an XML element that appears alone on an otherwise empty line as it is, instead of collapsing or moving it during formatting.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-preserveemptycontent.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-preserveemptycontent.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/preserveemptycontent', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-preserveemptycontent.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-preserveattributes.br
 .system echo "<p>Preserve attribute line breaks keeps attributes on the separate lines you already placed them on, instead of collapsing them onto a single line during formatting.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-preserveattributes.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-preserveattributes.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/preserveattributes', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-preserveattributes.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-closebracket.br
 .system echo "<p>Closing bracket on new line places the final closing bracket of a tag, including self-closing tags, on its own new line after the last attribute.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-closebracket.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-closebracket.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/closebracket', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-closebracket.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-trimwhitespace.br
 .system echo "<p>Trim trailing whitespace removes any spaces or tabs left at the end of each line when the formatter runs.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-trimwhitespace.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-trimwhitespace.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/trimwhitespace', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-trimwhitespace.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-maxlinewidth.br
 .system echo "<p>Maximum line width sets the number of characters allowed on a single line before the formatter wraps it onto additional lines.</p><p>The default value is 80 characters.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-maxlinewidth.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-maxlinewidth.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/maxlinewidth', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-maxlinewidth.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-preservenewlines.br
 .system echo "<p>Preserve new lines sets the maximum number of consecutive blank lines the formatter keeps between XML elements.</p><p>Any blank lines beyond this limit are removed. The default is 2.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-preservenewlines.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-preservenewlines.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/preservenewlines', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-preservenewlines.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-splitattribindent.br
 .system echo "<p>Split attributes indent size sets the number of spaces used to indent an attribute placed on its own line by the formatter.</p><p>By default, this is half the editor's tab size.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-splitattribindent.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-splitattribindent.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/splitattribindent', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-splitattribindent.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-xml-emptyelements.br
 .system echo "<p>Empty elements behavior controls how the formatter writes an XML element that has no content.</p><ul><li><b>Expand</b>: write a separate open and close tag, for example &lt;foo&gt;&lt;/foo&gt;.</li><li><b>Collapse</b>: write a single self-closing tag, for example &lt;foo/&gt;.</li><li><b>Ignore</b>: leave the element as it is in the source file.</li></ul><p>The default is Collapse.</p>" | brotli -Z > /tmp/adfa5088-prefs-xml-emptyelements.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-xml-emptyelements.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/xml/emptyelements', 1, 12, READFILE('/tmp/adfa5088-prefs-xml-emptyelements.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-build.br
 .system echo "<p>The Build &amp; Run screen holds settings for the Gradle build and for running your app: additional Gradle command-line flags, and whether to launch the app automatically after installation.</p>" | brotli -Z > /tmp/adfa5088-prefs-build.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-build.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/build', 1, 12, READFILE('/tmp/adfa5088-prefs-build.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-build-autolaunch.br
 .system echo "<p>Launch app after installation controls whether Code on the Go opens your app automatically once a run finishes installing it on the device.</p><p>When off, you need to launch the app yourself.</p>" | brotli -Z > /tmp/adfa5088-prefs-build-autolaunch.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-build-autolaunch.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/build/autolaunch', 1, 12, READFILE('/tmp/adfa5088-prefs-build-autolaunch.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-build-flags.br
 .system echo "<p>Additional Gradle flags lets you turn on extra command-line flags that Code on the Go adds to every Gradle task it runs, such as build and sync.</p><p>Use this to get more detailed logs, use a build cache, or work offline, without typing the flags yourself each time.</p>" | brotli -Z > /tmp/adfa5088-prefs-build-flags.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-build-flags.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/build/flags', 1, 12, READFILE('/tmp/adfa5088-prefs-build-flags.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-build-flags-stacktrace.br
 .system echo "<p>Sets the Gradle --stacktrace flag. When a build fails, Gradle prints the full stack trace of the failure, which can help diagnose the exact cause.</p>" | brotli -Z > /tmp/adfa5088-prefs-build-flags-stacktrace.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-build-flags-stacktrace.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/build/flags/--stacktrace', 1, 12, READFILE('/tmp/adfa5088-prefs-build-flags-stacktrace.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-build-flags-info.br
 .system echo "<p>Sets the Gradle --info flag to produce more detailed log messages as each task runs, rather than just a summary line for each task.</p>" | brotli -Z > /tmp/adfa5088-prefs-build-flags-info.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-build-flags-info.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/build/flags/--info', 1, 12, READFILE('/tmp/adfa5088-prefs-build-flags-info.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-build-flags-debug.br
 .system echo "<p>Sets the Gradle --debug flag. Gradle prints its most detailed log level for every task.</p><p>This produces a lot of output and can make the build noticeably slower. Use it only when you need to diagnose a specific problem.</p>" | brotli -Z > /tmp/adfa5088-prefs-build-flags-debug.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-build-flags-debug.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/build/flags/--debug', 1, 12, READFILE('/tmp/adfa5088-prefs-build-flags-debug.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-build-flags-scan.br
 .system echo "<p>Sets the Gradle --scan flag. After the build finishes, Gradle uploads data about the build and gives you a link to a Build Scan report.</p><p>The report shows detailed information about tasks, dependencies, and timing. This requires network access.</p>" | brotli -Z > /tmp/adfa5088-prefs-build-flags-scan.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-build-flags-scan.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/build/flags/--scan', 1, 12, READFILE('/tmp/adfa5088-prefs-build-flags-scan.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-build-flags-warningmodeall.br
 .system echo "<p>Sets the Gradle --warning-mode all flag. Gradle prints every individual deprecation warning during the build, instead of only a summary count at the end.</p>" | brotli -Z > /tmp/adfa5088-prefs-build-flags-warningmodeall.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-build-flags-warningmodeall.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/build/flags/--warning-mode-all', 1, 12, READFILE('/tmp/adfa5088-prefs-build-flags-warningmodeall.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-build-flags-buildcache.br
 .system echo "<p>Sets the Gradle --build-cache flag. Gradle reuses outputs from a previous build for any task whose inputs have not changed, instead of running that task again.</p><p>This can noticeably speed up repeated builds.</p>" | brotli -Z > /tmp/adfa5088-prefs-build-flags-buildcache.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-build-flags-buildcache.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/build/flags/--build-cache', 1, 12, READFILE('/tmp/adfa5088-prefs-build-flags-buildcache.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-build-flags-offline.br
 .system echo "<p>Sets the Gradle --offline flag. Gradle uses only the dependencies already downloaded to your device and does not attempt any network access.</p><p>The build fails if a required dependency has not been downloaded yet.</p>" | brotli -Z > /tmp/adfa5088-prefs-build-flags-offline.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-build-flags-offline.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/build/flags/--offline', 1, 12, READFILE('/tmp/adfa5088-prefs-build-flags-offline.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-termux.br
 .system echo "<p>The Terminal screen holds settings for the built-in terminal emulator: internal logging, keyboard behavior, crash notifications, and screen margin.</p>" | brotli -Z > /tmp/adfa5088-prefs-termux.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-termux.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/termux', 1, 12, READFILE('/tmp/adfa5088-prefs-termux.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-termux-loglevel.br
 .system echo "<p>Log Level sets how much detail the terminal emulator writes to its own internal log, separate from your app logs.</p><p>Use a higher level only when troubleshooting a terminal problem, since it produces more log output.</p>" | brotli -Z > /tmp/adfa5088-prefs-termux-loglevel.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-termux-loglevel.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/termux/loglevel', 1, 12, READFILE('/tmp/adfa5088-prefs-termux-loglevel.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-termux-keylogging.br
 .system echo "<p>Terminal View Key Logging records each key you press in the terminal to the system log.</p><p>This produces a large amount of log output and can cause performance problems, so it is off by default. Turn it on only to debug a keyboard-related issue.</p>" | brotli -Z > /tmp/adfa5088-prefs-termux-keylogging.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-termux-keylogging.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/termux/keylogging', 1, 12, READFILE('/tmp/adfa5088-prefs-termux-keylogging.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-termux-crashreports.br
 .system echo "<p>Crash Report Notifications controls whether Code on the Go shows a notification after the terminal process crashes.</p><p>The notification lets you view or share a report about the crash. This is on by default.</p>" | brotli -Z > /tmp/adfa5088-prefs-termux-crashreports.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-termux-crashreports.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/termux/crashreports', 1, 12, READFILE('/tmp/adfa5088-prefs-termux-crashreports.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-termux-softkeyboard.br
 .system echo "<p>Soft Keyboard Enabled turns on the terminal's own on-screen keyboard, which includes keys not found on a standard keyboard, such as Ctrl and Esc.</p>" | brotli -Z > /tmp/adfa5088-prefs-termux-softkeyboard.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-termux-softkeyboard.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/termux/softkeyboard', 1, 12, READFILE('/tmp/adfa5088-prefs-termux-softkeyboard.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-termux-nohardkeyboard.br
 .system echo "<p>Soft Keyboard Only If No Hardware shows the on-screen keyboard only when no physical keyboard is connected to your device.</p><p>This is off by default, meaning the on-screen keyboard can show even with a hardware keyboard connected.</p>" | brotli -Z > /tmp/adfa5088-prefs-termux-nohardkeyboard.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-termux-nohardkeyboard.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/termux/nohardkeyboard', 1, 12, READFILE('/tmp/adfa5088-prefs-termux-nohardkeyboard.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-termux-margin.br
 .system echo "<p>Terminal Margin Adjustment changes the terminal view margin to try to prevent the on-screen keyboard from covering part of the terminal or its extra keys row.</p><p>This is on by default. If it causes screen flickering on your device, turn it off.</p>" | brotli -Z > /tmp/adfa5088-prefs-termux-margin.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-termux-margin.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/termux/margin', 1, 12, READFILE('/tmp/adfa5088-prefs-termux-margin.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-git.br
 .system echo "<p>The Git screen sets your author identity for Git: the name and email address recorded on every commit you make from Code on the Go.</p>" | brotli -Z > /tmp/adfa5088-prefs-git.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-git.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/git', 1, 12, READFILE('/tmp/adfa5088-prefs-git.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-git-username.br
 .system echo "<p>User name sets the name recorded as the author on every Git commit you make from Code on the Go.</p>" | brotli -Z > /tmp/adfa5088-prefs-git-username.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-git-username.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/git/username', 1, 12, READFILE('/tmp/adfa5088-prefs-git-username.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-git-useremail.br
 .system echo "<p>User email sets the email address recorded as the author on every Git commit you make from Code on the Go.</p>" | brotli -Z > /tmp/adfa5088-prefs-git-useremail.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-git-useremail.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/git/useremail', 1, 12, READFILE('/tmp/adfa5088-prefs-git-useremail.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-pluginmanager.br
 .system echo "<p>Plugin Manager opens a screen where you can browse, install, remove, and configure plugins that extend Code on the Go with extra features.</p>" | brotli -Z > /tmp/adfa5088-prefs-pluginmanager.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-pluginmanager.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/pluginmanager', 1, 12, READFILE('/tmp/adfa5088-prefs-pluginmanager.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-about.br
 .system echo "<p>About Code on the Go opens a screen with details about the app, such as its version number and credits.</p>" | brotli -Z > /tmp/adfa5088-prefs-about.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-about.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/about', 1, 12, READFILE('/tmp/adfa5088-prefs-about.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-devoptions.br
 .system echo "<p>Developer Options holds experimental and debugging settings for Code on the Go, such as log dumping and log sending controls.</p><p>These settings are meant for troubleshooting, not everyday use.</p>" | brotli -Z > /tmp/adfa5088-prefs-devoptions.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-devoptions.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/devoptions', 1, 12, READFILE('/tmp/adfa5088-prefs-devoptions.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-devoptions-dumplogs.br
 .system echo "<p>Dump logs writes the Code on the Go internal logs to a file at ~/.cg/logs, inside your home directory.</p><p>Turn this on when you need to collect logs to diagnose a problem.</p>" | brotli -Z > /tmp/adfa5088-prefs-devoptions-dumplogs.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-devoptions-dumplogs.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/devoptions/dumplogs', 1, 12, READFILE('/tmp/adfa5088-prefs-devoptions-dumplogs.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-prefs-devoptions-logsender.br
 .system echo "<p>Enable LogSender controls whether Code on the Go shows log output from the apps you run, inside its own log viewer.</p><p>This is on by default. Turn it off if you do not want to see app logs inside the IDE.</p>" | brotli -Z > /tmp/adfa5088-prefs-devoptions-logsender.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-devoptions-logsender.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/devoptions/logsender', 1, 12, READFILE('/tmp/adfa5088-prefs-devoptions-logsender.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
 COMMIT;

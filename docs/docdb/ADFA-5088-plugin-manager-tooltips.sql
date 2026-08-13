@@ -22,18 +22,40 @@
 --
 -- Apply against the real documentation.db:
 --   sqlite3 documentation.db < ADFA-5088-plugin-manager-tooltips.sql
--- The whole script runs inside one transaction (BEGIN/COMMIT below), so a
--- failure partway through leaves the database untouched rather than
--- half-applied.
+-- The whole script runs inside one transaction (BEGIN/COMMIT below) with
+-- `.bail on`, so any failure - a bad SQL statement, or a Brotli payload
+-- caught by the guard below - stops the script and leaves the database
+-- untouched (the open transaction rolls back when the connection closes)
+-- rather than half-applied.
 --
--- The Content section uses `.system echo "<html>" | brotli -Z > /tmp/x.br`
--- immediately before each `INSERT ... READFILE('/tmp/x.br')` so the
--- uncompressed HTML is visible in this script. `.system` and READFILE()
--- require the sqlite3 CLI (not a library binding). If `.system` is
--- disabled in your sqlite3 build, run the `echo ... | brotli -Z > file`
--- line yourself via a shell first, then run just the INSERT statements.
+-- For each Content row: `.system rm -f /tmp/x.br` clears any stale file,
+-- `.system echo "<html>" | brotli -Z > /tmp/x.br` writes the compressed
+-- payload (the uncompressed HTML is visible right there in the command),
+-- then `INSERT INTO _content_guard SELECT READFILE('/tmp/x.br')` is a
+-- deliberate assertion: `.system` failures aren't SQL errors and `.bail`
+-- can't see them directly, but a failed or empty Brotli run leaves
+-- /tmp/x.br missing or empty, and _content_guard's `NOT NULL` + `CHECK
+-- (length(content) > 0)` turn that into a real SQL error .bail does catch
+-- - before the real `INSERT INTO Content` below it can run with bad data.
+-- _content_guard is a TEMP table: connection-local, dropped automatically,
+-- never touches the real schema.
+--
+-- `.system`, `.bail`, and `READFILE()` require the sqlite3 CLI (not a
+-- library binding). If `.system` is disabled in your sqlite3 build, run
+-- each `rm -f`/`echo ... | brotli -Z > file` pair yourself via a shell
+-- first, then run just the INSERT statements (the _content_guard
+-- assertion becomes redundant at that point - the file either exists and
+-- is non-empty by the time you run the script, or you'd have already
+-- seen the shell command fail).
 
+.bail on
 BEGIN;
+
+-- A temp table (connection-local, never touches the real schema) whose
+-- CHECK constraint turns a silently-empty or failed Brotli payload into a
+-- real SQL error .bail can catch, before it ever reaches the real Content
+-- table.
+CREATE TEMP TABLE _content_guard (content BLOB NOT NULL CHECK (length(content) > 0));
 
 -- ---------------------------------------------------------------------
 -- Remove the dead "plugin.manager" tag: no code path can reach it any
@@ -75,25 +97,39 @@ INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (1, 'plugin.manag
 -- Content: Tier 3 HTML pages, one INSERT per Tooltips row above.
 -- ---------------------------------------------------------------------
 
+.system rm -f /tmp/adfa5088-pm-toolbar.br
 .system echo "<p>Plugin Manager lists every plugin currently installed in Code on the Go.</p><p>From here you can install a new plugin from a file, find more plugins online, and open any installed plugin's details or actions.</p>" | brotli -Z > /tmp/adfa5088-pm-toolbar.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-pm-toolbar.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/plugin/manager/toolbar', 1, 12, READFILE('/tmp/adfa5088-pm-toolbar.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-pm-download.br
 .system echo "<p>The download icon opens a webpage where you can find plugins to add to Code on the Go.</p><p>This opens in your browser or an in-app web view, outside Code on the Go itself.</p>" | brotli -Z > /tmp/adfa5088-pm-download.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-pm-download.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/plugin/manager/download', 1, 12, READFILE('/tmp/adfa5088-pm-download.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-pm-fab-install.br
 .system echo "<p>The + button installs a plugin you already have as a file.</p><p>Tap it to open a file picker, choose a plugin package (a .cgp file), and confirm the install. This does not download anything - use the download icon first if you need to find a plugin file.</p>" | brotli -Z > /tmp/adfa5088-pm-fab-install.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-pm-fab-install.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/plugin/manager/fab/install', 1, 12, READFILE('/tmp/adfa5088-pm-fab-install.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-pm-emptystate.br
 .system echo "<p>This message appears when Plugin Manager has no plugins to show.</p><p>Use the download icon at the top of the screen to find plugins, or the + button to install a plugin file you already have.</p>" | brotli -Z > /tmp/adfa5088-pm-emptystate.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-pm-emptystate.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/plugin/manager/emptystate', 1, 12, READFILE('/tmp/adfa5088-pm-emptystate.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-pm-list.br
 .system echo "<p>This list shows every plugin installed in Code on the Go, one row per plugin.</p><p>Each row shows the plugin's name, version, and current status. Tap a row for its details, or use its menu button for more actions.</p>" | brotli -Z > /tmp/adfa5088-pm-list.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-pm-list.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/plugin/manager/list', 1, 12, READFILE('/tmp/adfa5088-pm-list.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-pm-item.br
 .system echo "<p>This row represents one installed plugin.</p><p>It shows the plugin's name, version, and whether it is enabled, disabled, or failed to load. Tap the row to open its full details.</p>" | brotli -Z > /tmp/adfa5088-pm-item.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-pm-item.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/plugin/manager/item', 1, 12, READFILE('/tmp/adfa5088-pm-item.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+.system rm -f /tmp/adfa5088-pm-item-menu.br
 .system echo "<p>This button opens a menu of actions for this plugin.</p><p>Depending on the plugin's current state, the menu can include enabling it, disabling it, uninstalling it, or viewing its details.</p>" | brotli -Z > /tmp/adfa5088-pm-item-menu.br
+INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-pm-item-menu.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/plugin/manager/item/menu', 1, 12, READFILE('/tmp/adfa5088-pm-item-menu.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
 COMMIT;
