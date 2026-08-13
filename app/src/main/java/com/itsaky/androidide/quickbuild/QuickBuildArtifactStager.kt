@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.core.content.pm.PackageInfoCompat
 import com.itsaky.androidide.utils.Environment
 import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
-import org.adfa.constants.KOTLIN_VERSION
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
@@ -36,6 +35,9 @@ object QuickBuildArtifactStager {
 
 	/** Written last, after a complete extraction, so a crash mid-extract leaves no stamp. */
 	internal const val DAEMON_STAMP_FILE = ".staged-for-install"
+
+	/** Written into the daemon zip by :app's `quickBuildDistLinkedJarList`. */
+	internal const val LINKED_JARS_LIST = "dist-linked-jars.txt"
 
 	/** @throws IOException when an asset is missing or extraction fails. */
 	@Throws(IOException::class)
@@ -92,9 +94,9 @@ object QuickBuildArtifactStager {
 
 		val count = extractDaemonZip(openZip(), daemonDir)
 		// Before the stamp: the skip test above reads the stamp and the daemon jar, not the
-		// linked compiler, so stamping a staging whose link failed would skip re-staging forever
+		// linked jars, so stamping a staging whose link failed would skip re-staging forever
 		// and leave the daemon without a compiler until the next install.
-		linkKotlinCompiler(daemonDir)
+		linkDistJars(daemonDir)
 		stamp.writeText(installStamp)
 		log.info("Staged {} daemon files into {}", count, daemonDir)
 		return true
@@ -141,43 +143,71 @@ object QuickBuildArtifactStager {
 	}
 
 	/**
-	 * Put the Kotlin compiler where the daemon jar's manifest Class-Path expects it.
+	 * Put the jars the APK deliberately does not carry where the daemon jar's manifest
+	 * Class-Path expects them.
 	 *
-	 * The APK no longer carries one (ADFA-4931): the on-device Gradle distribution already
-	 * ships the same artifact at the same version, so a second ~57 MB copy in the daemon zip
-	 * was pure duplication. The two are always on one filesystem - `gradle-dists/` and
-	 * `quickbuild/` are both under `<ANDROIDIDE_HOME>` - so a symlink costs nothing; a copy is
-	 * the fallback for a filesystem that refuses one.
+	 * ADFA-4931: the on-device Gradle distribution already ships these artifacts at the same
+	 * versions, byte for byte - the compiler alone is ~57 MB - so a second copy in the daemon
+	 * zip was pure duplication. `gradle-dists/` and `quickbuild/` are always on one filesystem
+	 * (both under `<ANDROIDIDE_HOME>`), so a symlink costs nothing; a copy is the fallback for
+	 * a filesystem that refuses one.
+	 *
+	 * The names come from [LINKED_JARS_LIST], staged into the daemon dir by :app's
+	 * `quickBuildDistLinkedJarList`, so the build's exclusion list and this link step cannot
+	 * drift apart.
 	 *
 	 * @param gradleDists parameterised only so tests can point at a fake distribution; production
 	 *   callers take the default.
-	 * @throws FileNotFoundException when the distribution has not been extracted yet. There is
-	 *   deliberately no bundled fallback: the alternative to failing here is a
-	 *   NoClassDefFoundError partway into the user's first compile, which is far harder to read.
+	 * @throws FileNotFoundException when the list is absent, or when the distribution has not
+	 *   been extracted yet. There is deliberately no bundled fallback: the alternative to
+	 *   failing here is a NoClassDefFoundError partway into the user's first compile, which is
+	 *   far harder to read.
 	 */
 	@Throws(IOException::class)
-	internal fun linkKotlinCompiler(
+	internal fun linkDistJars(
 		daemonDir: File,
 		gradleDists: File = Environment.GRADLE_DISTS,
 	) {
-		val jarName = "kotlin-compiler-embeddable-$KOTLIN_VERSION.jar"
-		val source = File(File(gradleDists, GRADLE_DISTRIBUTION_NAME), "lib/$jarName")
-		if (!source.isFile) {
+		val distLib = File(File(gradleDists, GRADLE_DISTRIBUTION_NAME), "lib")
+		for (jarName in readLinkedJarNames(daemonDir)) {
+			val source = File(distLib, jarName)
+			if (!source.isFile) {
+				throw FileNotFoundException(
+					"$jarName missing from the on-device Gradle distribution: $source. " +
+						"Quick Build loads it from there rather than from the APK.",
+				)
+			}
+
+			val target = File(daemonDir, jarName)
+			try {
+				Files.createSymbolicLink(target.toPath(), source.toPath())
+				log.info("Linked {} -> {}", target, source)
+			} catch (e: Exception) {
+				// UnsupportedOperationException / IOException / SecurityException all mean the
+				// same thing here: no symlink, so pay the bytes.
+				log.warn("Symlink to {} failed ({}); copying instead", source, e.toString())
+				source.inputStream().use { input -> target.outputStream().use { input.copyTo(it) } }
+			}
+		}
+	}
+
+	/**
+	 * The jar names the build left out of the zip for the distribution to supply. A missing or
+	 * empty list means the zip was built without the staging task, which would otherwise show up
+	 * as a first compile failing on a jar nobody linked.
+	 */
+	private fun readLinkedJarNames(daemonDir: File): List<String> {
+		val list = File(daemonDir, LINKED_JARS_LIST)
+		if (!list.isFile) {
 			throw FileNotFoundException(
-				"Kotlin compiler missing from the on-device Gradle distribution: $source. " +
-					"Quick Build loads the compiler from there rather than from the APK.",
+				"$LINKED_JARS_LIST missing from the staged daemon at $daemonDir. It names the jars " +
+					"Quick Build links from the Gradle distribution rather than shipping in the APK.",
 			)
 		}
-
-		val target = File(daemonDir, jarName)
-		try {
-			Files.createSymbolicLink(target.toPath(), source.toPath())
-			log.info("Linked Kotlin compiler {} -> {}", target, source)
-		} catch (e: Exception) {
-			// UnsupportedOperationException / IOException / SecurityException all mean the same
-			// thing here: no symlink, so pay the bytes.
-			log.warn("Symlink to {} failed ({}); copying instead", source, e.toString())
-			source.inputStream().use { input -> target.outputStream().use { input.copyTo(it) } }
+		val names = list.readLines().map(String::trim).filter(String::isNotEmpty)
+		if (names.isEmpty()) {
+			throw FileNotFoundException("$LINKED_JARS_LIST at $list names no jars")
 		}
+		return names
 	}
 }
