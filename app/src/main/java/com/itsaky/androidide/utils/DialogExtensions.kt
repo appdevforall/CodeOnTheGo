@@ -19,6 +19,7 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
 	tooltipTag: String,
 ): AlertDialog {
 	val dialog = this.create()
+	dialog.show()
 
 	fun longPressAction() {
 		val anchor = (context as? Activity)?.window?.decorView ?: return
@@ -67,6 +68,5 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
 		}
 	}
 
-	dialog.show()
 	return dialog
 }
