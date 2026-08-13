@@ -7,6 +7,7 @@ import androidx.preference.Preference
 import com.itsaky.androidide.activities.PluginManagerActivity
 import com.itsaky.androidide.activities.PluginScreenNavigator
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_PLUGIN_MANAGER
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
@@ -18,6 +19,7 @@ class PluginManagerEntry(
 	override val key: String = "idepref_plugin_manager",
 	override val title: Int = string.plugin_manager_title,
 	override val summary: Int? = string.plugin_manager_summary,
+	override val tooltipTag: String = PREFS_PLUGIN_MANAGER,
 ) : BasePreference() {
 	override fun onCreatePreference(context: Context): Preference {
 		return Preference(context)

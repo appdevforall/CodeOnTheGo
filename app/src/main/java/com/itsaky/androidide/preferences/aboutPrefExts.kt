@@ -19,16 +19,18 @@ package com.itsaky.androidide.preferences
 
 import android.content.Intent
 import com.itsaky.androidide.activities.AboutActivity
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_ABOUT
 import com.itsaky.androidide.resources.R
 
 private const val KEY_ABOUT = "idepref_about"
 
 val about =
-  SimpleClickablePreference(
-    key = KEY_ABOUT,
-    title = R.string.idepref_about_title,
-    summary = R.string.idepref_about_summary
-  ) {
-    it.context.startActivity(Intent(it.context, AboutActivity::class.java))
-    true
-  }
+SimpleClickablePreference(
+	key = KEY_ABOUT,
+	title = R.string.idepref_about_title,
+	summary = R.string.idepref_about_summary,
+	tooltipTag = PREFS_ABOUT,
+) {
+	it.context.startActivity(Intent(it.context, AboutActivity::class.java))
+	true
+}

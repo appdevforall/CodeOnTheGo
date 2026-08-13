@@ -18,46 +18,53 @@
 package com.itsaky.androidide.preferences
 
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_DEVOPTIONS
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_DEVOPTIONS_DUMPLOGS
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_DEVOPTIONS_LOGSENDER
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
 internal class DeveloperOptionsScreen(
-  override val key: String = DevOpsPreferences.KEY_DEVOPTS,
-  override val title: Int = R.string.title_developer_options,
-  override val summary: Int? = R.string.idepref_devOptions_summary,
-  override val children: List<IPreference> = mutableListOf()) : IPreferenceScreen() {
+override val key: String = DevOpsPreferences.KEY_DEVOPTS,
+override val title: Int = R.string.title_developer_options,
+override val summary: Int? = R.string.idepref_devOptions_summary,
+override val children: List<IPreference> = mutableListOf(),
+override val tooltipTag: String = PREFS_DEVOPTIONS,
+) : IPreferenceScreen() {
 
-  init {
-    addPreference(DumpLogsPreference())
-    addPreference(EnableLogSenderPreference())
-  }
+init {
+	addPreference(DumpLogsPreference())
+	addPreference(EnableLogSenderPreference())
+}
 }
 
 @Parcelize
 internal class DebuggingPreferences(
-  override val key: String = DevOpsPreferences.KEY_DEVOPTS_DEBUGGING,
-  override val title: Int = R.string.idepref_group_debugging,
-  override val children: List<IPreference> = mutableListOf()) : IPreferenceGroup() {
+override val key: String = DevOpsPreferences.KEY_DEVOPTS_DEBUGGING,
+override val title: Int = R.string.idepref_group_debugging,
+override val children: List<IPreference> = mutableListOf()) : IPreferenceGroup() {
 
-  init {
-    addPreference(DumpLogsPreference())
-    addPreference(EnableLogSenderPreference())
-  }
+init {
+	addPreference(DumpLogsPreference())
+	addPreference(EnableLogSenderPreference())
+}
 }
 
 @Parcelize
 internal class DumpLogsPreference(
-  override val key: String = DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS,
-  override val title: Int = R.string.idepref_devOptions_dumpLogs_title,
-  override val summary: Int? = R.string.idepref_devOptions_dumpLogs_summary) :
-  SwitchPreference(setValue = DevOpsPreferences::dumpLogs::set,
-    getValue = DevOpsPreferences::dumpLogs::get)
+override val key: String = DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS,
+override val title: Int = R.string.idepref_devOptions_dumpLogs_title,
+override val summary: Int? = R.string.idepref_devOptions_dumpLogs_summary,
+override val tooltipTag: String = PREFS_DEVOPTIONS_DUMPLOGS) :
+SwitchPreference(setValue = DevOpsPreferences::dumpLogs::set,
+	getValue = DevOpsPreferences::dumpLogs::get)
 
 @Parcelize
 internal class EnableLogSenderPreference(
-  override val key: String = DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_ENABLE_LOGSENDER,
-  override val title: Int = R.string.idepref_devOptions_enableLogsender_title,
-  override val summary: Int? = R.string.idepref_devOptions_enableLogsender_summary) :
-  SwitchPreference(setValue = DevOpsPreferences::logsenderEnabled::set,
-    getValue = DevOpsPreferences::logsenderEnabled::get)
+override val key: String = DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_ENABLE_LOGSENDER,
+override val title: Int = R.string.idepref_devOptions_enableLogsender_title,
+override val summary: Int? = R.string.idepref_devOptions_enableLogsender_summary,
+override val tooltipTag: String = PREFS_DEVOPTIONS_LOGSENDER) :
+SwitchPreference(setValue = DevOpsPreferences::logsenderEnabled::set,
+	getValue = DevOpsPreferences::logsenderEnabled::get)
