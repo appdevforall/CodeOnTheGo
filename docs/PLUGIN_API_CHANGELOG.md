@@ -52,9 +52,12 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   before assigning it to the primitive `LlmConfig.temperature`.
   `LlmBackend.getSystemPrompt(SystemPromptRequest)`,
   `LlmBackend.getDefaultTemperature()`, `SystemPromptRequest`.
-- **added — Tool results correlated by call id** _(ADFA-5095)_ **[verified]**
+- **added — Tool results correlated by call id and tool name** _(ADFA-5095)_ **[verified]**
   A tool's output travels back into the next turn as a message of its own, so a
-  turn's several calls are matched by id rather than by position.
+  turn's several calls are matched by correlator rather than by position. Both
+  correlators travel with the result because providers key results differently —
+  by call id, or by function name — and a backend can only forward what it was
+  given.
   `ChatMessage.toolResult(String, String, String)`, `ChatMessage.toolCallId` /
   `toolName`, `ChatMessage.Role.TOOL`.
   Adding `Role.TOOL` can break an exhaustive Kotlin `when` over `Role` — add an
