@@ -89,7 +89,7 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 		}
 	}
 
-	private fun collectTooltipTags(children: List<IPreference>): Map<String, String> {
+	internal fun collectTooltipTags(children: List<IPreference>): Map<String, String> {
 		val map = mutableMapOf<String, String>()
 
 		fun visit(items: List<IPreference>) {
