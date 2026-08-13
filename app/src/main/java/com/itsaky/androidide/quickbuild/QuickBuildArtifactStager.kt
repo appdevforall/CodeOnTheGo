@@ -3,11 +3,14 @@ package com.itsaky.androidide.quickbuild
 import android.content.Context
 import androidx.core.content.pm.PackageInfoCompat
 import com.itsaky.androidide.utils.Environment
+import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
+import org.adfa.constants.KOTLIN_VERSION
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
+import java.nio.file.Files
 import java.util.zip.ZipInputStream
 
 /**
@@ -88,6 +91,10 @@ object QuickBuildArtifactStager {
 		Environment.mkdirIfNotExists(daemonDir)
 
 		val count = extractDaemonZip(openZip(), daemonDir)
+		// Before the stamp: the skip test above reads the stamp and the daemon jar, not the
+		// linked compiler, so stamping a staging whose link failed would skip re-staging forever
+		// and leave the daemon without a compiler until the next install.
+		linkKotlinCompiler(daemonDir)
 		stamp.writeText(installStamp)
 		log.info("Staged {} daemon files into {}", count, daemonDir)
 		return true
@@ -130,6 +137,42 @@ object QuickBuildArtifactStager {
 				throw FileNotFoundException("Daemon zip contained no files")
 			}
 			return count
+		}
+	}
+
+	/**
+	 * Put the Kotlin compiler where the daemon jar's manifest Class-Path expects it.
+	 *
+	 * The APK no longer carries one (ADFA-4931): the on-device Gradle distribution already
+	 * ships the same artifact at the same version, so a second ~57 MB copy in the daemon zip
+	 * was pure duplication. The two are always on one filesystem - `gradle-dists/` and
+	 * `quickbuild/` are both under `<ANDROIDIDE_HOME>` - so a symlink costs nothing; a copy is
+	 * the fallback for a filesystem that refuses one.
+	 *
+	 * @throws FileNotFoundException when the distribution has not been extracted yet. There is
+	 *   deliberately no bundled fallback: the alternative to failing here is a
+	 *   NoClassDefFoundError partway into the user's first compile, which is far harder to read.
+	 */
+	@Throws(IOException::class)
+	private fun linkKotlinCompiler(daemonDir: File) {
+		val jarName = "kotlin-compiler-embeddable-$KOTLIN_VERSION.jar"
+		val source = File(File(Environment.GRADLE_DISTS, GRADLE_DISTRIBUTION_NAME), "lib/$jarName")
+		if (!source.isFile) {
+			throw FileNotFoundException(
+				"Kotlin compiler missing from the on-device Gradle distribution: $source. " +
+					"Quick Build loads the compiler from there rather than from the APK.",
+			)
+		}
+
+		val target = File(daemonDir, jarName)
+		try {
+			Files.createSymbolicLink(target.toPath(), source.toPath())
+			log.info("Linked Kotlin compiler {} -> {}", target, source)
+		} catch (e: Exception) {
+			// UnsupportedOperationException / IOException / SecurityException all mean the same
+			// thing here: no symlink, so pay the bytes.
+			log.warn("Symlink to {} failed ({}); copying instead", source, e.toString())
+			source.inputStream().use { input -> target.outputStream().use { input.copyTo(it) } }
 		}
 	}
 }

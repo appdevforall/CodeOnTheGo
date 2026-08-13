@@ -20,6 +20,11 @@ junit-jupiter = "5.10.2"
 anroidx-test-core = "2.2.0"
 koinAndroid = "4.1.1"
 kotlin = "2.3.0"
+# The Quick Build daemon's compiler. Must equal org.adfa.constants.KOTLIN_VERSION -- the
+# Kotlin the on-device Gradle distribution embeds -- because the daemon loads that
+# distribution's kotlin-compiler-embeddable instead of shipping its own copy. :app's
+# quickBuildCompilerVersionCheck asserts the two agree.
+kotlin-daemon-compiler = "2.3.21"
 kotlin-coroutines = "1.9.0"
 kotlinxCoroutinesCore = "1.10.2"
 lifecycleViewmodelKtx = "2.7.0"
@@ -270,10 +275,10 @@ xml-jb-annotations = { module = "org.jetbrains:annotations", version = "24.1.0" 
 git-jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version = "6.8.0.202311291450-r" }
 
 # Quick Build daemon (ADFA-4128): Kotlin Build Tools API incremental engine
-kotlin-buildToolsApi = { module = "org.jetbrains.kotlin:kotlin-build-tools-api", version.ref = "kotlin" }
-kotlin-buildToolsImpl = { module = "org.jetbrains.kotlin:kotlin-build-tools-impl", version.ref = "kotlin" }
+kotlin-buildToolsApi = { module = "org.jetbrains.kotlin:kotlin-build-tools-api", version.ref = "kotlin-daemon-compiler" }
+kotlin-buildToolsImpl = { module = "org.jetbrains.kotlin:kotlin-build-tools-impl", version.ref = "kotlin-daemon-compiler" }
 # Compose compiler plugin, version-matched to the daemon's compiler
-kotlin-composeCompilerPluginEmbeddable = { module = "org.jetbrains.kotlin:kotlin-compose-compiler-plugin-embeddable", version.ref = "kotlin" }
+kotlin-composeCompilerPluginEmbeddable = { module = "org.jetbrains.kotlin:kotlin-compose-compiler-plugin-embeddable", version.ref = "kotlin-daemon-compiler" }
 # Compose runtime for the daemon's compose compile tests (see :quickbuild:daemon)
 composeRuntimeDaemonTests = { module = "androidx.compose.runtime:runtime-android", version = "1.7.3" }
 ow2-asm = { module = "org.ow2.asm:asm", version = "9.7.1" }
