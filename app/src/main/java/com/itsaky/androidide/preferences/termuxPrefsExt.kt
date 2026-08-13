@@ -97,7 +97,8 @@ init {
 class TermuxDebuggingPreferences(
 override val key: String = KEY_TERMUX_DEBUGGING_PREFERENCES,
 override val title: Int = R.string.termux_debugging_preferences_title,
-override val children: List<IPreference> = mutableListOf()
+override val children: List<IPreference> = mutableListOf(),
+override val tooltipTag: String = PREFS_TERMUX,
 ) : IPreferenceGroup() {
 
 init {
@@ -193,7 +194,8 @@ tooltipTag = PREFS_TERMUX_CRASHREPORTS,
 class TermuxKeyboardPreferences(
 override val key: String = KEY_TERMUX_KBD_PREFERENCES,
 override val title: Int = R.string.termux_keyboard_header,
-override val children: List<IPreference> = mutableListOf()
+override val children: List<IPreference> = mutableListOf(),
+override val tooltipTag: String = PREFS_TERMUX,
 ) : IPreferenceGroup() {
 
 init {
@@ -246,7 +248,8 @@ tooltipTag = PREFS_TERMUX_NOHARDKEYBOARD,
 class TermuxViewPreferences(
 override val key: String = KEY_TERMUX_VIEW_PREFERENCES,
 override val title: Int = R.string.termux_terminal_view_view_header,
-override val children: List<IPreference> = mutableListOf()
+override val children: List<IPreference> = mutableListOf(),
+override val tooltipTag: String = PREFS_TERMUX,
 ) : IPreferenceGroup() {
 
 init {

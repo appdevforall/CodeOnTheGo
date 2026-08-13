@@ -23,23 +23,21 @@ import kotlin.reflect.KMutableProperty0
 
 internal abstract class PropertyBasedMultiChoicePreference : MultiChoicePreference() {
 
-abstract fun getProperties(): Map<String, KMutableProperty0<Boolean>>
+/** One checkbox: its label, the property it toggles, and its own tooltip tag (if any). */
+data class PropertyEntry(
+	val label: String,
+	val property: KMutableProperty0<Boolean>,
+	val tooltipTag: String = "",
+)
 
-/** Tooltip tags for individual entries, keyed by the same label used in [getProperties]. */
-open fun getEntryTooltipTags(): Map<String, String> = emptyMap()
+abstract fun getProperties(): List<PropertyEntry>
 
 override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
 	val properties = getProperties()
-	val entryTooltipTags = getEntryTooltipTags()
-	val entries = Array(properties.size) { PreferenceChoices.Entry.EMPTY }
-
-	var index = 0
-	properties.forEach { (key, property) ->
-	entries[index] = PreferenceChoices.Entry(key, property.get(), property, entryTooltipTags[key] ?: "")
-	++index
+	return Array(properties.size) { i ->
+	val entry = properties[i]
+	PreferenceChoices.Entry(entry.label, entry.property.get(), entry.property, entry.tooltipTag)
 	}
-
-	return entries
 }
 
 override fun onChoicesConfirmed(

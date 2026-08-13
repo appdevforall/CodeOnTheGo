@@ -28,7 +28,8 @@ class GitAuthorConfig(
 	override val key: String = "idepref_git_author",
 	override val title: Int = R.string.idepref_git_author_title,
 	override val summary: Int? = R.string.idepref_git_author_summary,
-	override val children: List<IPreference> = mutableListOf()
+	override val children: List<IPreference> = mutableListOf(),
+	override val tooltipTag: String = PREFS_GIT,
 ) : IPreferenceGroup() {
 
 	init {

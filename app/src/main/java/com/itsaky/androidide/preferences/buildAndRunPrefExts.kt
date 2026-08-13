@@ -42,7 +42,6 @@ import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
-import kotlin.reflect.KMutableProperty0
 
 @Parcelize
 class BuildAndRunPreferences(
@@ -64,6 +63,7 @@ private class GradleOptions(
 	override val key: String = "idepref_build_gradle",
 	override val title: Int = string.gradle,
 	override val children: List<IPreference> = mutableListOf(),
+	override val tooltipTag: String = PREFS_BUILD_RUN,
 ) : IPreferenceGroup() {
 
 init {
@@ -82,27 +82,15 @@ private class GradleCommands(
 	@IgnoredOnParcel
 	override val tooltipTag: String = PREFS_BUILDRUN_FLAGS
 
-	override fun getProperties(): Map<String, KMutableProperty0<Boolean>> {
-		return linkedMapOf(
-			"--stacktrace" to ::isStacktraceEnabled,
-			"--info" to ::isInfoEnabled,
-			"--debug" to ::isDebugEnabled,
-			"--scan" to ::isScanEnabled,
-			"--warning-mode all" to ::isWarningModeAllEnabled,
-			"--build-cache" to ::isBuildCacheEnabled,
-			"--offline" to ::isOfflineEnabled,
-		)
-	}
-
-	override fun getEntryTooltipTags(): Map<String, String> {
-		return mapOf(
-			"--stacktrace" to PREFS_BUILDRUN_FLAGS_STACKTRACE,
-			"--info" to PREFS_BUILDRUN_FLAGS_INFO,
-			"--debug" to PREFS_BUILDRUN_FLAGS_DEBUG,
-			"--scan" to PREFS_BUILDRUN_FLAGS_SCAN,
-			"--warning-mode all" to PREFS_BUILDRUN_FLAGS_WARNINGMODEALL,
-			"--build-cache" to PREFS_BUILDRUN_FLAGS_BUILDCACHE,
-			"--offline" to PREFS_BUILDRUN_FLAGS_OFFLINE,
+	override fun getProperties(): List<PropertyEntry> {
+		return listOf(
+			PropertyEntry("--stacktrace", ::isStacktraceEnabled, PREFS_BUILDRUN_FLAGS_STACKTRACE),
+			PropertyEntry("--info", ::isInfoEnabled, PREFS_BUILDRUN_FLAGS_INFO),
+			PropertyEntry("--debug", ::isDebugEnabled, PREFS_BUILDRUN_FLAGS_DEBUG),
+			PropertyEntry("--scan", ::isScanEnabled, PREFS_BUILDRUN_FLAGS_SCAN),
+			PropertyEntry("--warning-mode all", ::isWarningModeAllEnabled, PREFS_BUILDRUN_FLAGS_WARNINGMODEALL),
+			PropertyEntry("--build-cache", ::isBuildCacheEnabled, PREFS_BUILDRUN_FLAGS_BUILDCACHE),
+			PropertyEntry("--offline", ::isOfflineEnabled, PREFS_BUILDRUN_FLAGS_OFFLINE),
 		)
 	}
 }
@@ -112,7 +100,8 @@ private class GradleCommands(
 private class RunOptions(
 	override val key: String = "ide.build.runOptions",
 	override val title: Int = R.string.title_run_options,
-	override val children: List<IPreference> = mutableListOf()
+	override val children: List<IPreference> = mutableListOf(),
+	override val tooltipTag: String = PREFS_BUILD_RUN,
 ) : IPreferenceGroup() {
 
 	init {

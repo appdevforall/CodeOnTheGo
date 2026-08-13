@@ -54,6 +54,7 @@ class InterfaceConfig(
 override val key: String = "idepref_general_interface",
 override val title: Int = string.title_interface,
 override val children: List<IPreference> = mutableListOf(),
+override val tooltipTag: String = PREFS_GENERAL,
 ) : IPreferenceGroup() {
 
 init {
@@ -67,6 +68,7 @@ class ProjectConfig(
 override val key: String = "idepref_general_project",
 override val title: Int = R.string.idepref_general_projectConfig,
 override val children: List<IPreference> = mutableListOf(),
+override val tooltipTag: String = PREFS_GENERAL,
 ) : IPreferenceGroup() {
 
 init {

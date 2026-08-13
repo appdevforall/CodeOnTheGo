@@ -28,7 +28,8 @@ import org.eclipse.lemminx.dom.builder.EmptyElements
 class XMLPreferencesScreen(
 override val key: String = "idepref_editor_xml",
 override val title: Int = string.xml,
-override val children: List<IPreference> = mutableListOf()
+override val children: List<IPreference> = mutableListOf(),
+override val tooltipTag: String = TooltipTag.PREFS_EDITOR_XML,
 ) : IPreferenceGroup() {
 
 init {

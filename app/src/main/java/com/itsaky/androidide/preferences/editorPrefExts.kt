@@ -40,7 +40,6 @@ import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
-import kotlin.reflect.KMutableProperty0
 
 @Parcelize
 class EditorPreferencesScreen(
@@ -63,6 +62,7 @@ private class CommonConfigurations(
 override val key: String = "idepref_editor_common",
 override val title: Int = string.idepref_editor_category_common,
 override val children: List<IPreference> = mutableListOf(),
+override val tooltipTag: String = TooltipTag.PREFS_EDITOR,
 ) : IPreferenceGroup() {
 
 init {
@@ -165,23 +165,13 @@ override val icon: Int? = drawable.ic_drawing,
 override val tooltipTag: String = TooltipTag.PREFS_EDITOR_NONPRINTING,
 ) : PropertyBasedMultiChoicePreference() {
 
-override fun getProperties(): Map<String, KMutableProperty0<Boolean>> {
-	return linkedMapOf(
-	"Leading" to EditorPreferences::drawLeadingWs,
-	"Trailing" to EditorPreferences::drawTrailingWs,
-	"Inner" to EditorPreferences::drawInnerWs,
-	"Empty lines" to EditorPreferences::drawEmptyLineWs,
-	"Line breaks" to EditorPreferences::drawLineBreak
-	)
-}
-
-override fun getEntryTooltipTags(): Map<String, String> {
-	return mapOf(
-	"Leading" to TooltipTag.PREFS_EDITOR_NONPRINTING_LEADING,
-	"Trailing" to TooltipTag.PREFS_EDITOR_NONPRINTING_TRAILING,
-	"Inner" to TooltipTag.PREFS_EDITOR_NONPRINTING_INNER,
-	"Empty lines" to TooltipTag.PREFS_EDITOR_NONPRINTING_EMPTYLINES,
-	"Line breaks" to TooltipTag.PREFS_EDITOR_NONPRINTING_LINEBREAKS
+override fun getProperties(): List<PropertyEntry> {
+	return listOf(
+	PropertyEntry("Leading", EditorPreferences::drawLeadingWs, TooltipTag.PREFS_EDITOR_NONPRINTING_LEADING),
+	PropertyEntry("Trailing", EditorPreferences::drawTrailingWs, TooltipTag.PREFS_EDITOR_NONPRINTING_TRAILING),
+	PropertyEntry("Inner", EditorPreferences::drawInnerWs, TooltipTag.PREFS_EDITOR_NONPRINTING_INNER),
+	PropertyEntry("Empty lines", EditorPreferences::drawEmptyLineWs, TooltipTag.PREFS_EDITOR_NONPRINTING_EMPTYLINES),
+	PropertyEntry("Line breaks", EditorPreferences::drawLineBreak, TooltipTag.PREFS_EDITOR_NONPRINTING_LINEBREAKS),
 	)
 }
 }

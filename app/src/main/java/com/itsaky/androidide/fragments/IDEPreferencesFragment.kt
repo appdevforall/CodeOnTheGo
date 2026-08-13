@@ -25,6 +25,7 @@ import android.view.ViewGroup
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceGroup
 import androidx.preference.PreferenceGroupAdapter
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TOP
@@ -38,6 +39,12 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 
 	/** Every preference in this screen, including nested categories' children, keyed by its key. */
 	private var tooltipTagsByKey: Map<String, String> = emptyMap()
+
+	/**
+	 * This screen's own tag - the fallback for a long-press that lands on empty RecyclerView
+	 * space (no row under the touch point) or on a row with no tooltipTag of its own.
+	 */
+	private var screenTooltipTag: String = PREFS_TOP
 
 	override fun onCreateView(
 		inflater: LayoutInflater,
@@ -63,6 +70,7 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 		@Suppress("DEPRECATION")
 		this.children = arguments?.getParcelableArrayList(EXTRA_CHILDREN) ?: emptyList()
 		this.tooltipTagsByKey = collectTooltipTags(this.children)
+		this.screenTooltipTag = arguments?.getString(EXTRA_SCREEN_TOOLTIP_TAG)?.takeIf { it.isNotEmpty() } ?: PREFS_TOP
 
 		preferenceScreen.removeAll()
 		addChildren(this.children, preferenceScreen)
@@ -74,19 +82,37 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 	) {
 		super.onViewCreated(view, savedInstanceState)
 
-		listView.onLongPress { e ->
-			val row = listView.findChildViewUnder(e.x, e.y) ?: return@onLongPress
-			val position = listView.getChildAdapterPosition(row)
-			if (position == androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+		// Captured once: re-reading the `listView` property from inside the callback (which can
+		// fire after a delay) would hit a field PreferenceFragmentCompat clears in onDestroyView.
+		val recyclerView = listView
+
+		recyclerView.onLongPress { e ->
+			if (!isAdded) {
 				return@onLongPress
 			}
+			val ctx = context ?: return@onLongPress
 
-			val key = (listView.adapter as? PreferenceGroupAdapter)?.getItem(position)?.key ?: return@onLongPress
-			val tag = tooltipTagsByKey[key]?.takeIf { it.isNotEmpty() } ?: PREFS_TOP
+			val row = recyclerView.findChildViewUnder(e.x, e.y)
+			val tag = row?.let { resolveTooltipTag(recyclerView, it) } ?: screenTooltipTag
+			val anchor = row ?: recyclerView
 
-			row.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-			TooltipManager.showIdeCategoryTooltip(requireContext(), row, tag)
+			anchor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+			TooltipManager.showIdeCategoryTooltip(ctx, anchor, tag)
 		}
+	}
+
+	/** The row's own tooltipTag, or null if there's no row at that position or it has none. */
+	private fun resolveTooltipTag(
+		recyclerView: RecyclerView,
+		row: View,
+	): String? {
+		val position = recyclerView.getChildAdapterPosition(row)
+		if (position == RecyclerView.NO_POSITION) {
+			return null
+		}
+
+		val key = (recyclerView.adapter as? PreferenceGroupAdapter)?.getItem(position)?.key ?: return null
+		return tooltipTagsByKey[key]?.takeIf { it.isNotEmpty() }
 	}
 
 	internal fun collectTooltipTags(children: List<IPreference>): Map<String, String> {
@@ -114,6 +140,7 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 			if (child is IPreferenceScreen) {
 				preference.fragment = IDEPreferencesFragment::class.java.name
 				preference.extras.putParcelableArrayList(EXTRA_CHILDREN, ArrayList(child.children))
+				preference.extras.putString(EXTRA_SCREEN_TOOLTIP_TAG, child.tooltipTag)
 
 				pref.addPreference(preference)
 				continue
@@ -131,5 +158,6 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 
 	companion object {
 		const val EXTRA_CHILDREN = "ide.preferences.fragment.children"
+		const val EXTRA_SCREEN_TOOLTIP_TAG = "ide.preferences.fragment.screenTooltipTag"
 	}
 }

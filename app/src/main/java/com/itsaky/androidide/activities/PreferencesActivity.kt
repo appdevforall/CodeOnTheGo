@@ -26,6 +26,8 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPreferencesBinding
 import com.itsaky.androidide.fragments.IDEPreferencesFragment
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.PluginSettingsEntryPreference
 import com.itsaky.androidide.preferences.addRootPreferences
 import com.itsaky.androidide.preferences.pluginSettingsPreferences
@@ -54,6 +56,10 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 		supportActionBar!!.setDisplayHomeAsUpEnabled(true)
 
 		binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+		binding.toolbar.setOnLongClickListener {
+			TooltipManager.showIdeCategoryTooltip(this, binding.toolbar, TooltipTag.PREFS_TOP)
+			true
+		}
 
 		feedbackButtonManager =
 			FeedbackButtonManager(
@@ -89,6 +95,7 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 			IDEPreferencesFragment.EXTRA_CHILDREN,
 			ArrayList(prefs.children),
 		)
+		args.putString(IDEPreferencesFragment.EXTRA_SCREEN_TOOLTIP_TAG, TooltipTag.PREFS_TOP)
 
 		// A fresh instance every time: arguments cannot be set on a fragment whose state was saved.
 		loadFragment(IDEPreferencesFragment().also { it.arguments = args })
