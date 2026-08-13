@@ -159,8 +159,6 @@
   <string name="msg_open_projects">إذا تم تحديده، فسيتذكر IDE آخر مشروع تم فتحه وسيتم إعادة فتحه عند بدء التشغيل التالي.</string>
   <string name="title_confirm_project_open">تأكيد فتح المشروع</string>
   <string name="msg_confirm_project_open">اسأل قبل فتح آخر مشروع مفتوح.</string>
-  <string name="title_default_shell">استخدام shell النظام في الـterminal</string>
-  <string name="msg_default_shell">إذا تم تحديده، سيتم استخدام \'/system/bin/sh\' في التيرمنال.</string>
   <string name="title_general">عام</string>
   <string name="title_tab_size">حجم التبويبة</string>
   <string name="msg_tab_size">حدد عدد المسافات لـ TAB</string>
