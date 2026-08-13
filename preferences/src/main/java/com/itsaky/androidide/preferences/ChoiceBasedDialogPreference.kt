@@ -63,7 +63,9 @@ abstract class ChoiceBasedDialogPreference :
 	) {
 		dialog.listView?.setOnItemLongClickListener { _, view, position, _ ->
 			val tag = choices.getOrNull(position)?.tooltipTag?.takeIf { it.isNotEmpty() } ?: tooltipTag
-			TooltipManager.showIdeCategoryTooltip(preference.context, view, tag)
+			if (tag.isNotEmpty()) {
+				TooltipManager.showIdeCategoryTooltip(preference.context, view, tag)
+			}
 			true
 		}
 	}
