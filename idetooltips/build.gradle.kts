@@ -3,7 +3,6 @@ import com.itsaky.androidide.build.config.BuildConfig
 plugins {
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.android.library)
-	id("kotlin-kapt")
 }
 
 android {
@@ -20,9 +19,6 @@ kotlin {
 }
 
 dependencies {
-	kapt(libs.room.compiler)
-
-	implementation(libs.room.ktx)
 	implementation(libs.google.gson)
 	implementation(libs.google.guava)
 	implementation(libs.androidx.constraintlayout)
