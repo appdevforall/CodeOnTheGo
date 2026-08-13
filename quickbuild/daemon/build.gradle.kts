@@ -103,9 +103,21 @@ dependencies {
 	api(projects.quickbuild.protocol)
 
 	implementation(libs.kotlin.buildToolsApi)
-	implementation(libs.google.gson)
+	// gson and asm follow the on-device Gradle distribution rather than the app: ADFA-4931
+	// links both from there instead of shipping them in the APK, so the version is the
+	// distribution's choice. Hence gson-quickBuildDaemon and not the app-wide google-gson.
+	implementation(libs.gson.quickBuildDaemon)
 	// ACC_FINAL stripping on recompiled payload classes (proxies extend user classes).
 	implementation(libs.ow2.asm)
+
+	constraints {
+		// kotlin-compiler-embeddable asks for coroutines 1.8.0; the distribution runs that same
+		// compiler against 1.10.2, which is both why the upgrade is safe and what makes the jar
+		// linkable at all.
+		runtimeOnly(libs.kotlinx.coroutines.core.jvm.quickBuildDaemon) {
+			because("the on-device Gradle distribution ships this version, which ADFA-4931 links")
+		}
+	}
 	// The BTA implementation + its runtime deps are staged alongside the daemon jar on
 	// device and loaded from there. The compiler itself is the exception: ADFA-4931
 	// excludes it from the zip and links the on-device Gradle distribution's copy in, so
