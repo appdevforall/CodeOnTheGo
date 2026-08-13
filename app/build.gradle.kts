@@ -7,6 +7,8 @@ import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
+import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
+import org.adfa.constants.KOTLIN_VERSION
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.json.JSONObject
 import java.io.BufferedOutputStream
@@ -507,16 +509,43 @@ dependencies {
 evaluationDependsOn(":quickbuild:runtime")
 evaluationDependsOn(":quickbuild:daemon")
 
+// ADFA-4931: the daemon's compiler is the one the on-device Gradle distribution already
+// embeds, so the two versions must be the same number. Checked here rather than trusted,
+// because the failure it prevents surfaces on device as a NoClassDefFoundError partway
+// into a compile, a long way from the constant that caused it.
+val quickBuildCompilerVersionCheck =
+	tasks.register("quickBuildCompilerVersionCheck") {
+		val pinned =
+			libs.versions.kotlin.daemon.compiler
+				.get()
+		doLast {
+			if (pinned != KOTLIN_VERSION) {
+				throw GradleException(
+					"Quick Build's compiler pin (libs.versions.kotlin-daemon-compiler = $pinned) must equal " +
+						"the Kotlin the on-device Gradle distribution embeds " +
+						"(org.adfa.constants.KOTLIN_VERSION = $KOTLIN_VERSION). The daemon loads " +
+						"$GRADLE_DISTRIBUTION_NAME/lib/kotlin-compiler-embeddable-$KOTLIN_VERSION.jar at runtime.",
+				)
+			}
+		}
+	}
+
 val quickBuildDaemonZip =
 	tasks.register<Zip>("quickBuildDaemonZip") {
 		archiveFileName.set("quickbuild-daemon.zip")
 		destinationDirectory.set(layout.buildDirectory.dir("intermediates/quickbuild"))
+		dependsOn(quickBuildCompilerVersionCheck)
 		val daemonProject = rootProject.project(":quickbuild:daemon")
 		dependsOn(daemonProject.tasks.named("daemonJar"))
 		from(daemonProject.tasks.named("daemonJar"))
 		// The daemon jar's manifest Class-Path names these by file name; they must sit
 		// next to the jar after extraction.
 		from(daemonProject.configurations.named("runtimeClasspath"))
+		// ADFA-4931: except the compiler. The on-device Gradle distribution ships the same
+		// artifact at the same version (~57 MB of it), so shipping a second copy in the APK
+		// bought nothing. QuickBuildArtifactStager links the distribution's copy into the
+		// daemon dir under this name, which is what the manifest Class-Path still expects.
+		exclude("kotlin-compiler-embeddable-*.jar")
 		// Compose compiler plugin, version-matched to the daemon's compiler; the stable
 		// name is the contract EnvironmentQuickBuildPaths.composeCompilerPlugin reads.
 		from(daemonProject.configurations.named("composeCompilerPlugin")) {
