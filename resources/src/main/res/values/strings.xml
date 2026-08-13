@@ -664,10 +664,9 @@
 	<string name="title_privacy">Privacy</string>
 
 	<string name="privacy_disclosure_title">Privacy &amp; analytics</string>
-	<string name="privacy_disclosure_message">Code on the Go uses Firebase Analytics and GlitchTip to help us improve the app.\n\nFirebase Analytics collects anonymous usage data to help us understand how the app is used. \n\nGlitchTip helps us track and fix errors.\n\nNo personal information is collected or shared. All data is processed in accordance with our privacy policy.\n\nChoose whether to share this anonymous data. If you choose Keep offline, analytics and crash reports are never sent.</string>
+	<string name="privacy_disclosure_message">Code on the Go collects anonymous usage and crash information to help us fix bugs and improve the app. No personal information is collected or shared.\n\n<i>Share anonymous data</i> sends this information. <i>Keep offline</i> sends nothing at all.</string>
 	<string name="privacy_disclosure_accept">Share anonymous data</string>
 	<string name="privacy_disclosure_decline">Keep offline</string>
-	<string name="privacy_disclosure_learn_more">Learn more</string>
 
 	<string name="title_unique_id">Unique ID</string>
 	<string name="title_device">Device</string>
@@ -1216,7 +1215,6 @@
 	<string name="support_our_work">Support our work</string>
 	<string name="github_sponsors_url">https://github.com/sponsors/appdevforall</string>
 	<string name="docs_url">http://localhost:6174/i/index.html</string>
-	<string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
 	<string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
 	<string name="adfa_email">info@appdevforall.org</string>
 	<string name="mail_to_adfa">mailto:info@appdevforall.org</string>
