@@ -77,20 +77,16 @@ CREATE TEMP TABLE _content_guard (content BLOB NOT NULL CHECK (length(content) >
 .system rm -rf /tmp/adfa5088-pm-workdir
 .system mkdir -m 700 /tmp/adfa5088-pm-workdir
 
--- ---------------------------------------------------------------------
 -- Remove the dead "plugin.manager" tag: no code path can reach it any
 -- more now that every widget has its own tag. Delete the TooltipButtons
 -- row first (it references Tooltips.id via a foreign key).
--- ---------------------------------------------------------------------
 
 DELETE FROM TooltipButtons
 WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'plugin.manager' AND categoryId = 1);
 
 DELETE FROM Tooltips WHERE tag = 'plugin.manager' AND categoryId = 1;
 
--- ---------------------------------------------------------------------
 -- Tooltips: idempotent upserts (all new tags)
--- ---------------------------------------------------------------------
 
 INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (1, 'plugin.manager.toolbar', 'Plugin Manager lists your installed plugins.', 'Use this screen to install a new plugin, open a plugin''s details, or find more plugins. The back button returns to Preferences.')
   ON CONFLICT (categoryId, tag) DO UPDATE SET summary = excluded.summary, detail = excluded.detail;
@@ -113,9 +109,7 @@ INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (1, 'plugin.manag
 INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (1, 'plugin.manager.item.menu', 'More actions for this plugin.', 'Opens a menu with actions for this plugin, such as enable, disable, uninstall, or view details. Which actions appear depends on the plugin''s current state.')
   ON CONFLICT (categoryId, tag) DO UPDATE SET summary = excluded.summary, detail = excluded.detail;
 
--- ---------------------------------------------------------------------
 -- Content: Tier 3 HTML pages, one INSERT per Tooltips row above.
--- ---------------------------------------------------------------------
 
 .system rm -f /tmp/adfa5088-pm-workdir/adfa5088-pm-toolbar.br
 .system echo "<p>Plugin Manager lists every plugin currently installed in Code on the Go.</p><p>From here you can install a new plugin from a file, find more plugins online, and open any installed plugin's details or actions.</p>" | brotli -Z > /tmp/adfa5088-pm-workdir/adfa5088-pm-toolbar.br
@@ -152,5 +146,32 @@ INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/plugin
 INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-pm-workdir/adfa5088-pm-item-menu.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/plugin/manager/item/menu', 1, 12, READFILE('/tmp/adfa5088-pm-workdir/adfa5088-pm-item-menu.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+-- Tier 3 links: without a TooltipButtons row, a tooltip's popup has no way to
+-- surface its Content page - Tier 1 (summary) and Tier 2 (detail) still work
+-- from the Tooltips row alone, but the richer Content page above is otherwise
+-- unreachable. buttonNumberId 1 matches the existing single-button convention
+-- (see e.g. the debugger-panel tooltip). Idempotent: delete then insert, since
+-- TooltipButtons has no unique constraint to upsert against.
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'plugin.manager.toolbar' AND categoryId = 1) AND uri = 'i/plugin/manager/toolbar';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'plugin.manager.toolbar' AND categoryId = 1), 1, 'Learn more', 'i/plugin/manager/toolbar');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'plugin.manager.download' AND categoryId = 1) AND uri = 'i/plugin/manager/download';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'plugin.manager.download' AND categoryId = 1), 1, 'Learn more', 'i/plugin/manager/download');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'plugin.manager.fab.install' AND categoryId = 1) AND uri = 'i/plugin/manager/fab/install';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'plugin.manager.fab.install' AND categoryId = 1), 1, 'Learn more', 'i/plugin/manager/fab/install');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'plugin.manager.emptystate' AND categoryId = 1) AND uri = 'i/plugin/manager/emptystate';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'plugin.manager.emptystate' AND categoryId = 1), 1, 'Learn more', 'i/plugin/manager/emptystate');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'plugin.manager.list' AND categoryId = 1) AND uri = 'i/plugin/manager/list';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'plugin.manager.list' AND categoryId = 1), 1, 'Learn more', 'i/plugin/manager/list');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'plugin.manager.item' AND categoryId = 1) AND uri = 'i/plugin/manager/item';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'plugin.manager.item' AND categoryId = 1), 1, 'Learn more', 'i/plugin/manager/item');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'plugin.manager.item.menu' AND categoryId = 1) AND uri = 'i/plugin/manager/item/menu';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'plugin.manager.item.menu' AND categoryId = 1), 1, 'Learn more', 'i/plugin/manager/item/menu');
 .system rm -rf /tmp/adfa5088-pm-workdir
 COMMIT;

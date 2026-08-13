@@ -76,10 +76,8 @@ CREATE TEMP TABLE _content_guard (content BLOB NOT NULL CHECK (length(content) >
 .system rm -rf /tmp/adfa5088-prefs-workdir
 .system mkdir -m 700 /tmp/adfa5088-prefs-workdir
 
--- ---------------------------------------------------------------------
 -- Tooltips: idempotent upserts (existing empty stub rows + brand new tags,
 -- all in one form so the script can be re-run safely)
--- ---------------------------------------------------------------------
 
 INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (1, 'prefs.general.uimode', 'Choose light mode, dark mode, or match your device''s system setting.', 'This setting controls the color theme of the app. Pick Light, Dark, or Follow system. Follow system switches automatically when your device''s theme changes.')
   ON CONFLICT (categoryId, tag) DO UPDATE SET summary = excluded.summary, detail = excluded.detail;
@@ -261,11 +259,9 @@ INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (1, 'prefs.plugin
 INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (1, 'prefs.about', 'See app version and other information about Code on the Go.', 'This opens the About screen, with details such as the app version and credits.')
   ON CONFLICT (categoryId, tag) DO UPDATE SET summary = excluded.summary, detail = excluded.detail;
 
--- ---------------------------------------------------------------------
 -- Content: Tier 3 HTML pages, one INSERT per Tooltips row above.
 -- Each pair shows the uncompressed HTML via `.system echo ... | brotli -Z`
 -- then inserts the resulting compressed file with READFILE().
--- ---------------------------------------------------------------------
 
 .system rm -f /tmp/adfa5088-prefs-workdir/adfa5088-prefs-general.br
 .system echo "<p>The General screen holds settings that are not specific to the editor or to a single project. Use it to set the app theme, choose a display language, and control how Code on the Go opens the last project on launch.</p><p>Changes here apply immediately and affect the whole app.</p>" | brotli -Z > /tmp/adfa5088-prefs-workdir/adfa5088-prefs-general.br
@@ -592,5 +588,206 @@ INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/
 INSERT INTO _content_guard SELECT READFILE('/tmp/adfa5088-prefs-workdir/adfa5088-prefs-devoptions-logsender.br');
 INSERT INTO Content (path, languageId, contentTypeId, content) VALUES ('i/prefs/devoptions/logsender', 1, 12, READFILE('/tmp/adfa5088-prefs-workdir/adfa5088-prefs-devoptions-logsender.br')) ON CONFLICT (path) DO UPDATE SET content = excluded.content;
 
+-- Tier 3 links: without a TooltipButtons row, a tooltip's popup has no way to
+-- surface its Content page - Tier 1 (summary) and Tier 2 (detail) still work
+-- from the Tooltips row alone, but the richer Content page above is otherwise
+-- unreachable. buttonNumberId 1 matches the existing single-button convention
+-- (see e.g. the debugger-panel tooltip). Idempotent: delete then insert, since
+-- TooltipButtons has no unique constraint to upsert against.
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.general.uimode' AND categoryId = 1) AND uri = 'i/prefs/general/uimode';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.general.uimode' AND categoryId = 1), 1, 'Learn more', 'i/prefs/general/uimode');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.general.language' AND categoryId = 1) AND uri = 'i/prefs/general/language';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.general.language' AND categoryId = 1), 1, 'Learn more', 'i/prefs/general/language');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.general.openlast' AND categoryId = 1) AND uri = 'i/prefs/general/openlast';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.general.openlast' AND categoryId = 1), 1, 'Learn more', 'i/prefs/general/openlast');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.general.confirmopen' AND categoryId = 1) AND uri = 'i/prefs/general/confirmopen';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.general.confirmopen' AND categoryId = 1), 1, 'Learn more', 'i/prefs/general/confirmopen');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.fontsize' AND categoryId = 1) AND uri = 'i/prefs/editor/fontsize';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.fontsize' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/fontsize');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.tabsize' AND categoryId = 1) AND uri = 'i/prefs/editor/tabsize';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.tabsize' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/tabsize');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting' AND categoryId = 1) AND uri = 'i/prefs/editor/nonprinting';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/nonprinting');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.softtab' AND categoryId = 1) AND uri = 'i/prefs/editor/softtab';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.softtab' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/softtab');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.wordwrap' AND categoryId = 1) AND uri = 'i/prefs/editor/wordwrap';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.wordwrap' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/wordwrap');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.magnifier' AND categoryId = 1) AND uri = 'i/prefs/editor/magnifier';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.magnifier' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/magnifier');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.wordboundaries' AND categoryId = 1) AND uri = 'i/prefs/editor/wordboundaries';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.wordboundaries' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/wordboundaries');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.matchcase' AND categoryId = 1) AND uri = 'i/prefs/editor/matchcase';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.matchcase' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/matchcase');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.deletelines' AND categoryId = 1) AND uri = 'i/prefs/editor/deletelines';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.deletelines' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/deletelines');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.smartbackspace' AND categoryId = 1) AND uri = 'i/prefs/editor/smartbackspace';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.smartbackspace' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/smartbackspace');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.stickyscroll' AND categoryId = 1) AND uri = 'i/prefs/editor/stickyscroll';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.stickyscroll' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/stickyscroll');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.pinlines' AND categoryId = 1) AND uri = 'i/prefs/editor/pinlines';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.pinlines' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/pinlines');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.googlestyle' AND categoryId = 1) AND uri = 'i/prefs/editor/googlestyle';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.googlestyle' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/googlestyle');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun' AND categoryId = 1) AND uri = 'i/prefs/build';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun' AND categoryId = 1), 1, 'Learn more', 'i/prefs/build');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.autolaunch' AND categoryId = 1) AND uri = 'i/prefs/build/autolaunch';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.autolaunch' AND categoryId = 1), 1, 'Learn more', 'i/prefs/build/autolaunch');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags' AND categoryId = 1) AND uri = 'i/prefs/build/flags';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags' AND categoryId = 1), 1, 'Learn more', 'i/prefs/build/flags');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.termux.loglevel' AND categoryId = 1) AND uri = 'i/prefs/termux/loglevel';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.termux.loglevel' AND categoryId = 1), 1, 'Learn more', 'i/prefs/termux/loglevel');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.termux.keylogging' AND categoryId = 1) AND uri = 'i/prefs/termux/keylogging';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.termux.keylogging' AND categoryId = 1), 1, 'Learn more', 'i/prefs/termux/keylogging');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.termux.margin' AND categoryId = 1) AND uri = 'i/prefs/termux/margin';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.termux.margin' AND categoryId = 1), 1, 'Learn more', 'i/prefs/termux/margin');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.termux.nohardkeyboard' AND categoryId = 1) AND uri = 'i/prefs/termux/nohardkeyboard';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.termux.nohardkeyboard' AND categoryId = 1), 1, 'Learn more', 'i/prefs/termux/nohardkeyboard');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.termux.softkeyboard' AND categoryId = 1) AND uri = 'i/prefs/termux/softkeyboard';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.termux.softkeyboard' AND categoryId = 1), 1, 'Learn more', 'i/prefs/termux/softkeyboard');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.closebracket' AND categoryId = 1) AND uri = 'i/prefs/xml/closebracket';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.closebracket' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/closebracket');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.emptyelements' AND categoryId = 1) AND uri = 'i/prefs/xml/emptyelements';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.emptyelements' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/emptyelements');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.maxlinewidth' AND categoryId = 1) AND uri = 'i/prefs/xml/maxlinewidth';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.maxlinewidth' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/maxlinewidth');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.preserveattributes' AND categoryId = 1) AND uri = 'i/prefs/xml/preserveattributes';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.preserveattributes' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/preserveattributes');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.preservenewlines' AND categoryId = 1) AND uri = 'i/prefs/xml/preservenewlines';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.preservenewlines' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/preservenewlines');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.spacebeforeclose' AND categoryId = 1) AND uri = 'i/prefs/xml/spacebeforeclose';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.spacebeforeclose' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/spacebeforeclose');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.splitattribindent' AND categoryId = 1) AND uri = 'i/prefs/xml/splitattribindent';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.splitattribindent' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/splitattribindent');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.trimwhitespace' AND categoryId = 1) AND uri = 'i/prefs/xml/trimwhitespace';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.trimwhitespace' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/trimwhitespace');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.devoptions' AND categoryId = 1) AND uri = 'i/prefs/devoptions';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.devoptions' AND categoryId = 1), 1, 'Learn more', 'i/prefs/devoptions');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.devoptions.dumplogs' AND categoryId = 1) AND uri = 'i/prefs/devoptions/dumplogs';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.devoptions.dumplogs' AND categoryId = 1), 1, 'Learn more', 'i/prefs/devoptions/dumplogs');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.devoptions.logsender' AND categoryId = 1) AND uri = 'i/prefs/devoptions/logsender';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.devoptions.logsender' AND categoryId = 1), 1, 'Learn more', 'i/prefs/devoptions/logsender');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting.leading' AND categoryId = 1) AND uri = 'i/prefs/editor/nonprinting/leading';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting.leading' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/nonprinting/leading');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting.trailing' AND categoryId = 1) AND uri = 'i/prefs/editor/nonprinting/trailing';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting.trailing' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/nonprinting/trailing');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting.inner' AND categoryId = 1) AND uri = 'i/prefs/editor/nonprinting/inner';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting.inner' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/nonprinting/inner');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting.emptylines' AND categoryId = 1) AND uri = 'i/prefs/editor/nonprinting/emptylines';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting.emptylines' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/nonprinting/emptylines');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting.linebreaks' AND categoryId = 1) AND uri = 'i/prefs/editor/nonprinting/linebreaks';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.nonprinting.linebreaks' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/nonprinting/linebreaks');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.trimfinalnewline' AND categoryId = 1) AND uri = 'i/prefs/xml/trimfinalnewline';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.trimfinalnewline' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/trimfinalnewline');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.insertfinalnewline' AND categoryId = 1) AND uri = 'i/prefs/xml/insertfinalnewline';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.insertfinalnewline' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/insertfinalnewline');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.splitattributes' AND categoryId = 1) AND uri = 'i/prefs/xml/splitattributes';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.splitattributes' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/splitattributes');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.joincdatalines' AND categoryId = 1) AND uri = 'i/prefs/xml/joincdatalines';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.joincdatalines' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/joincdatalines');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.joincommentlines' AND categoryId = 1) AND uri = 'i/prefs/xml/joincommentlines';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.joincommentlines' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/joincommentlines');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.joincontentlines' AND categoryId = 1) AND uri = 'i/prefs/xml/joincontentlines';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.joincontentlines' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/joincontentlines');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.xml.preserveemptycontent' AND categoryId = 1) AND uri = 'i/prefs/xml/preserveemptycontent';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.xml.preserveemptycontent' AND categoryId = 1), 1, 'Learn more', 'i/prefs/xml/preserveemptycontent');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.stacktrace' AND categoryId = 1) AND uri = 'i/prefs/build/flags/--stacktrace';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.stacktrace' AND categoryId = 1), 1, 'Learn more', 'i/prefs/build/flags/--stacktrace');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.info' AND categoryId = 1) AND uri = 'i/prefs/build/flags/--info';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.info' AND categoryId = 1), 1, 'Learn more', 'i/prefs/build/flags/--info');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.debug' AND categoryId = 1) AND uri = 'i/prefs/build/flags/--debug';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.debug' AND categoryId = 1), 1, 'Learn more', 'i/prefs/build/flags/--debug');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.scan' AND categoryId = 1) AND uri = 'i/prefs/build/flags/--scan';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.scan' AND categoryId = 1), 1, 'Learn more', 'i/prefs/build/flags/--scan');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.warningmodeall' AND categoryId = 1) AND uri = 'i/prefs/build/flags/--warning-mode-all';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.warningmodeall' AND categoryId = 1), 1, 'Learn more', 'i/prefs/build/flags/--warning-mode-all');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.buildcache' AND categoryId = 1) AND uri = 'i/prefs/build/flags/--build-cache';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.buildcache' AND categoryId = 1), 1, 'Learn more', 'i/prefs/build/flags/--build-cache');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.offline' AND categoryId = 1) AND uri = 'i/prefs/build/flags/--offline';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.buildrun.flags.offline' AND categoryId = 1), 1, 'Learn more', 'i/prefs/build/flags/--offline');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.termux.crashreports' AND categoryId = 1) AND uri = 'i/prefs/termux/crashreports';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.termux.crashreports' AND categoryId = 1), 1, 'Learn more', 'i/prefs/termux/crashreports');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.git.username' AND categoryId = 1) AND uri = 'i/prefs/git/username';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.git.username' AND categoryId = 1), 1, 'Learn more', 'i/prefs/git/username');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.git.useremail' AND categoryId = 1) AND uri = 'i/prefs/git/useremail';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.git.useremail' AND categoryId = 1), 1, 'Learn more', 'i/prefs/git/useremail');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.pluginmanager' AND categoryId = 1) AND uri = 'i/prefs/pluginmanager';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.pluginmanager' AND categoryId = 1), 1, 'Learn more', 'i/prefs/pluginmanager');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.about' AND categoryId = 1) AND uri = 'i/prefs/about';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.about' AND categoryId = 1), 1, 'Learn more', 'i/prefs/about');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.general' AND categoryId = 1) AND uri = 'i/prefs/general';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.general' AND categoryId = 1), 1, 'Learn more', 'i/prefs/general');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor' AND categoryId = 1) AND uri = 'i/prefs/editor';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.editor.xml' AND categoryId = 1) AND uri = 'i/prefs/editor/xml';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.editor.xml' AND categoryId = 1), 1, 'Learn more', 'i/prefs/editor/xml');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.termux' AND categoryId = 1) AND uri = 'i/prefs/termux';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.termux' AND categoryId = 1), 1, 'Learn more', 'i/prefs/termux');
+
+DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.git' AND categoryId = 1) AND uri = 'i/prefs/git';
+INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.git' AND categoryId = 1), 1, 'Learn more', 'i/prefs/git');
 .system rm -rf /tmp/adfa5088-prefs-workdir
 COMMIT;
