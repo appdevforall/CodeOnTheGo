@@ -338,8 +338,6 @@
 	<string name="title_confirm_project_open">Confirm project opening</string>
 	<string name="msg_confirm_project_open">When enabled, Code on the Go asks for confirmation before opening the last project.</string>
 	<string name="msg_error_opening_project">Error opening project.</string>
-	<string name="title_default_shell">Use system shell in terminal</string>
-	<string name="msg_default_shell">If checked, \'/system/bin/sh\' will be used in terminal.</string>
 	<string name="title_general">General</string>
 	<string name="title_tab_size">Tab size</string>
 	<string name="msg_tab_size">Set the number of spaces that the tab character indents.</string>
