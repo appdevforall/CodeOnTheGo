@@ -31,6 +31,7 @@ import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeedbackManager
+import com.itsaky.androidide.utils.SqliteMmapConfigurator
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.toCssHex
@@ -86,6 +87,8 @@ object TooltipManager {
 
 			try {
 				SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY).use { database ->
+					SqliteMmapConfigurator.configureMmap(database)
+
 					val lastChange = try {
 						DatabaseVersionResolver.resolveDatabaseVersion(database)
 					} catch (e: Exception) {

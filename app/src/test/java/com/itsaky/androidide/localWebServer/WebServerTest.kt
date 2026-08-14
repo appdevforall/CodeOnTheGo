@@ -2,6 +2,8 @@ package com.itsaky.androidide.localWebServer
 
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
+import android.os.Process
+import android.util.Log
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -35,6 +37,15 @@ class WebServerTest {
 		every {
 			SQLiteDatabase.openDatabase(any(), isNull(), any())
 		} returns mockk<SQLiteDatabase>(relaxed = true)
+
+		// SqliteMmapConfigurator.configureMmap(), called right after openDatabase, uses
+		// Process.is64Bit() and Log.i(); neither is mocked by Android's unit-test stubs
+		// like SQLiteDatabase is, so both throw unless stubbed here.
+		mockkStatic(Process::class)
+		every { Process.is64Bit() } returns true
+
+		mockkStatic(Log::class)
+		every { Log.i(any(), any()) } returns 0
 	}
 
 	@After
