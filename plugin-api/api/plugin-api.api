@@ -1508,31 +1508,50 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun getAvailableBackends ()Ljava/util/List;
 	public abstract fun getBackend (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend;
 	public abstract fun getEmbeddings (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public fun getPreferredBackendId ()Ljava/lang/String;
 	public abstract fun isBackendAvailable (Ljava/lang/String;)Z
 	public abstract fun registerBackend (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend;)V
 	public abstract fun unregisterBackend (Ljava/lang/String;)V
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$CancellableBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun cancelStreaming ()V
+}
+
 public class com/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage {
 	public final field content Ljava/lang/String;
 	public final field role Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+	public final field toolCallId Ljava/lang/String;
+	public final field toolName Ljava/lang/String;
 	public fun <init> (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;Ljava/lang/String;)V
+	public static fun toolResult (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage;
 }
 
 public final class com/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role : java/lang/Enum {
 	public static final field ASSISTANT Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
 	public static final field SYSTEM Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+	public static final field TOOL Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
 	public static final field USER Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
 	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
 	public static fun values ()[Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ConfigurableBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun getSettingsFragmentClassName ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$HistoryCapableBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun generateStreamingWithHistory (Ljava/util/List;Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
 	public abstract fun generate (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;)Ljava/util/concurrent/CompletableFuture;
 	public abstract fun generateStreaming (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback;)V
 	public abstract fun generateWithHistory (Ljava/util/List;Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;)Ljava/util/concurrent/CompletableFuture;
+	public fun getDefaultTemperature ()Ljava/lang/Float;
 	public abstract fun getId ()Ljava/lang/String;
 	public abstract fun getName ()Ljava/lang/String;
+	public fun getSystemPrompt (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$SystemPromptRequest;)Ljava/lang/String;
 	public abstract fun isAvailable ()Z
 }
 
@@ -1564,11 +1583,22 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun onToken (Ljava/lang/String;)V
 }
 
+public class com/itsaky/androidide/plugins/services/LlmInferenceService$SystemPromptRequest {
+	public final field exampleFilePath Ljava/lang/String;
+	public final field toolCallSyntax Ljava/lang/String;
+	public final field tools Ljava/util/List;
+	public fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;)V
+}
+
 public class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallRequest {
 	public field args Ljava/util/Map;
 	public field callId Ljava/lang/String;
 	public field name Ljava/lang/String;
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallingBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun generateStreamingWithTools (Ljava/lang/String;Ljava/util/List;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Ljava/util/List;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ToolStreamCallback;)V
 }
 
 public class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolDefinition {
