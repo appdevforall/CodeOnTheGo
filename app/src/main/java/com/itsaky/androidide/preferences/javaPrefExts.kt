@@ -26,23 +26,25 @@ import kotlinx.parcelize.Parcelize
 
 @Parcelize
 internal class JavaCodeConfigurations(
-override val key: String = "idepref_editor_java",
-override val title: Int = string.idepref_editor_category_java,
-override val children: List<IPreference> = mutableListOf(),
+	override val key: String = "idepref_editor_java",
+	override val title: Int = string.idepref_editor_category_java,
+	override val children: List<IPreference> = mutableListOf(),
 ) : IPreferenceGroup() {
 
-init {
-	addPreference(GoogleCodeStyle())
-}
+	init {
+		addPreference(GoogleCodeStyle())
+	}
 }
 
 /** @author Akash Yadav */
 @Parcelize
 private class GoogleCodeStyle(
-override val key: String = JavaPreferences.GOOGLE_CODE_STYLE,
-override val title: Int = string.idepref_java_useGoogleStyle_title,
-override val summary: Int? = string.idepref_java_useGoogleStyle_summary,
-override val icon: Int? = drawable.ic_format_code,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_GOOGLESTYLE,
-) : SwitchPreference(getValue = JavaPreferences::googleCodeStyle::get,
-setValue = JavaPreferences::googleCodeStyle::set)
+	override val key: String = JavaPreferences.GOOGLE_CODE_STYLE,
+	override val title: Int = string.idepref_java_useGoogleStyle_title,
+	override val summary: Int? = string.idepref_java_useGoogleStyle_summary,
+	override val icon: Int? = drawable.ic_format_code,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_GOOGLESTYLE,
+) : SwitchPreference(
+	getValue = JavaPreferences::googleCodeStyle::get,
+	setValue = JavaPreferences::googleCodeStyle::set
+)

@@ -43,218 +43,254 @@ import kotlinx.parcelize.Parcelize
 
 @Parcelize
 class EditorPreferencesScreen(
-override val key: String = "idepref_editor",
-override val title: Int = string.idepref_editor_title,
-override val summary: Int? = string.idepref_editor_summary,
-override val children: List<IPreference> = mutableListOf(),
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR,
+	override val key: String = "idepref_editor",
+	override val title: Int = string.idepref_editor_title,
+	override val summary: Int? = string.idepref_editor_summary,
+	override val children: List<IPreference> = mutableListOf(),
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR,
 ) : IPreferenceScreen() {
 
-init {
-	addPreference(CommonConfigurations())
-	addPreference(JavaCodeConfigurations())
-	addPreference(XMLPreferencesScreen())
-}
+	init {
+		addPreference(CommonConfigurations())
+		addPreference(JavaCodeConfigurations())
+		addPreference(XMLPreferencesScreen())
+	}
 }
 
 @Parcelize
 private class CommonConfigurations(
-override val key: String = "idepref_editor_common",
-override val title: Int = string.idepref_editor_category_common,
-override val children: List<IPreference> = mutableListOf(),
+	override val key: String = "idepref_editor_common",
+	override val title: Int = string.idepref_editor_category_common,
+	override val children: List<IPreference> = mutableListOf(),
 ) : IPreferenceGroup() {
 
-init {
-	addPreference(TextSize())
-	addPreference(TabSize())
-	addPreference(NonPrintablePaintingFlags())
-	addPreference(UseSoftTab())
-	addPreference(WordWrap())
-	addPreference(UseMagnifier())
-	addPreference(UseICU())
-	addPreference(DeleteEmptyLines())
-	addPreference(DeleteTabs())
-	addPreference(StickyScrollEnabled())
-	addPreference(PinLineNumbersEnabled())
-	addPreference(CompletionsMatchLower())
-}
+	init {
+		addPreference(TextSize())
+		addPreference(TabSize())
+		addPreference(NonPrintablePaintingFlags())
+		addPreference(UseSoftTab())
+		addPreference(WordWrap())
+		addPreference(UseMagnifier())
+		addPreference(UseICU())
+		addPreference(DeleteEmptyLines())
+		addPreference(DeleteTabs())
+		addPreference(StickyScrollEnabled())
+		addPreference(PinLineNumbersEnabled())
+		addPreference(CompletionsMatchLower())
+	}
 }
 
 @Parcelize
 private class TextSize(
-override val key: String = FONT_SIZE,
-override val title: Int = string.idepref_editor_fontsize_title,
-override val summary: Int? = string.idepref_editor_fontsize_summary,
-override val icon: Int? = drawable.ic_text_size,
-override val dialogTitle: Int = string.title_change_text_size,
-override val dialogMessage: Int? = string.msg_editor_font_size,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_FONTSIZE,
+	override val key: String = FONT_SIZE,
+	override val title: Int = string.idepref_editor_fontsize_title,
+	override val summary: Int? = string.idepref_editor_fontsize_summary,
+	override val icon: Int? = drawable.ic_text_size,
+	override val dialogTitle: Int = string.title_change_text_size,
+	override val dialogMessage: Int? = string.msg_editor_font_size,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_FONTSIZE,
 ) : DialogPreference() {
 
-override fun onConfigureDialog(preference: Preference, dialog: MaterialAlertDialogBuilder) {
-	val binding = LayoutTextSizeSliderBinding.inflate(LayoutInflater.from(preference.context))
-	var size = EditorPreferences.fontSize
-	if (size !in 6f..32f) {
-	size = 14f
-	}
-	binding.slider.value = kotlin.math.round(size)
-	binding.slider.setLabelFormatter { it.toString() }
+	override fun onConfigureDialog(preference: Preference, dialog: MaterialAlertDialogBuilder) {
+		val binding = LayoutTextSizeSliderBinding.inflate(LayoutInflater.from(preference.context))
+		var size = EditorPreferences.fontSize
+		if (size !in 6f..32f) {
+			size = 14f
+		}
+		binding.slider.value = kotlin.math.round(size)
+		binding.slider.setLabelFormatter { it.toString() }
 
-	dialog.setView(binding.root)
-	dialog.setPositiveButton(android.R.string.ok) { iface, _ ->
-	iface.dismiss()
-	EditorPreferences.fontSize = binding.slider.value
+		dialog.setView(binding.root)
+		dialog.setPositiveButton(android.R.string.ok) { iface, _ ->
+			iface.dismiss()
+			EditorPreferences.fontSize = binding.slider.value
+		}
+		dialog.setNegativeButton(android.R.string.cancel, null)
+		dialog.setNeutralButton(string.reset) { iface, _ ->
+			iface.dismiss()
+			EditorPreferences.fontSize = 14f
+		}
 	}
-	dialog.setNegativeButton(android.R.string.cancel, null)
-	dialog.setNeutralButton(string.reset) { iface, _ ->
-	iface.dismiss()
-	EditorPreferences.fontSize = 14f
-	}
-}
 }
 
 @Parcelize
 private class UseSoftTab(
-override val key: String = USE_SOFT_TAB,
-override val title: Int = string.idepref_editor_useSoftTabs_title,
-override val summary: Int? = string.idepref_editor_useSoftTabs_summary,
-override val icon: Int? = drawable.ic_space,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_SOFTTAB,
-) : SwitchPreference(setValue = EditorPreferences::useSoftTab::set,
-getValue = EditorPreferences::useSoftTab::get)
+	override val key: String = USE_SOFT_TAB,
+	override val title: Int = string.idepref_editor_useSoftTabs_title,
+	override val summary: Int? = string.idepref_editor_useSoftTabs_summary,
+	override val icon: Int? = drawable.ic_space,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_SOFTTAB,
+) : SwitchPreference(
+	setValue = EditorPreferences::useSoftTab::set,
+	getValue = EditorPreferences::useSoftTab::get
+)
 
 @Parcelize
 private class TabSize(
-override val key: String = TAB_SIZE,
-override val title: Int = string.title_tab_size,
-override val summary: Int? = string.msg_tab_size,
-override val icon: Int? = drawable.ic_tab,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_TABSIZE,
+	override val key: String = TAB_SIZE,
+	override val title: Int = string.title_tab_size,
+	override val summary: Int? = string.msg_tab_size,
+	override val icon: Int? = drawable.ic_tab,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_TABSIZE,
 ) : SingleChoicePreference() {
 
-@IgnoredOnParcel
-private val tabSizes = intArrayOf(2, 4, 6, 8)
+	@IgnoredOnParcel
+	private val tabSizes = intArrayOf(2, 4, 6, 8)
 
-override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
-	val currentTabSize = EditorPreferences.tabSize
-	return Array(tabSizes.size) { index ->
-	PreferenceChoices.Entry(
-		label = tabSizes[index].toString(),
-		_isChecked = currentTabSize == tabSizes[index],
-		data = tabSizes[index]
-	)
+	override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
+		val currentTabSize = EditorPreferences.tabSize
+		return Array(tabSizes.size) { index ->
+			PreferenceChoices.Entry(
+				label = tabSizes[index].toString(),
+				_isChecked = currentTabSize == tabSizes[index],
+				data = tabSizes[index]
+			)
+		}
 	}
-}
 
-override fun onChoiceConfirmed(
-	preference: Preference,
-	entry: PreferenceChoices.Entry?,
-	position: Int
-) {
-	EditorPreferences.tabSize = (entry?.data as? Int?) ?: 4
-}
+	override fun onChoiceConfirmed(
+		preference: Preference,
+		entry: PreferenceChoices.Entry?,
+		position: Int
+	) {
+		EditorPreferences.tabSize = (entry?.data as? Int?) ?: 4
+	}
 }
 
 @Parcelize
 private class NonPrintablePaintingFlags(
-override val key: String = PRINTABLE_CHARS,
-override val title: Int = string.idepref_editor_paintingflags_title,
-override val summary: Int? = string.idepref_editor_paintingflags_summary,
-override val icon: Int? = drawable.ic_drawing,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_NONPRINTING,
+	override val key: String = PRINTABLE_CHARS,
+	override val title: Int = string.idepref_editor_paintingflags_title,
+	override val summary: Int? = string.idepref_editor_paintingflags_summary,
+	override val icon: Int? = drawable.ic_drawing,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_NONPRINTING,
 ) : PropertyBasedMultiChoicePreference() {
 
-override fun getProperties(): List<PreferenceChoices.Entry> {
-	return listOf(
-	propertyEntry("Leading", EditorPreferences::drawLeadingWs, TooltipTag.PREFS_EDITOR_NONPRINTING_LEADING),
-	propertyEntry("Trailing", EditorPreferences::drawTrailingWs, TooltipTag.PREFS_EDITOR_NONPRINTING_TRAILING),
-	propertyEntry("Inner", EditorPreferences::drawInnerWs, TooltipTag.PREFS_EDITOR_NONPRINTING_INNER),
-	propertyEntry("Empty lines", EditorPreferences::drawEmptyLineWs, TooltipTag.PREFS_EDITOR_NONPRINTING_EMPTYLINES),
-	propertyEntry("Line breaks", EditorPreferences::drawLineBreak, TooltipTag.PREFS_EDITOR_NONPRINTING_LINEBREAKS),
-	)
-}
+	override fun getProperties(): List<PreferenceChoices.Entry> {
+		return listOf(
+			propertyEntry(
+				"Leading",
+				EditorPreferences::drawLeadingWs,
+				TooltipTag.PREFS_EDITOR_NONPRINTING_LEADING
+			),
+			propertyEntry(
+				"Trailing",
+				EditorPreferences::drawTrailingWs,
+				TooltipTag.PREFS_EDITOR_NONPRINTING_TRAILING
+			),
+			propertyEntry(
+				"Inner",
+				EditorPreferences::drawInnerWs,
+				TooltipTag.PREFS_EDITOR_NONPRINTING_INNER
+			),
+			propertyEntry(
+				"Empty lines",
+				EditorPreferences::drawEmptyLineWs,
+				TooltipTag.PREFS_EDITOR_NONPRINTING_EMPTYLINES
+			),
+			propertyEntry(
+				"Line breaks",
+				EditorPreferences::drawLineBreak,
+				TooltipTag.PREFS_EDITOR_NONPRINTING_LINEBREAKS
+			),
+		)
+	}
 }
 
 @Parcelize
 private class WordWrap(
-override val key: String = WORD_WRAP,
-override val title: Int = string.idepref_editor_word_wrap_title,
-override val summary: Int? = string.idepref_editor_word_wrap_summary,
-override val icon: Int? = drawable.ic_wrap_text,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_WORDWRAP,
-) : SwitchPreference(setValue = EditorPreferences::wordwrap::set,
-getValue = EditorPreferences::wordwrap::get)
+	override val key: String = WORD_WRAP,
+	override val title: Int = string.idepref_editor_word_wrap_title,
+	override val summary: Int? = string.idepref_editor_word_wrap_summary,
+	override val icon: Int? = drawable.ic_wrap_text,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_WORDWRAP,
+) : SwitchPreference(
+	setValue = EditorPreferences::wordwrap::set,
+	getValue = EditorPreferences::wordwrap::get
+)
 
 @Parcelize
 private class UseMagnifier(
-override val key: String = USE_MAGNIFER,
-override val title: Int = string.idepref_editor_use_magnifier_title,
-override val summary: Int? = string.idepref_editor_use_magnifier_summary,
-override val icon: Int? = drawable.ic_loupe,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_MAGNIFIER,
-) : SwitchPreference(setValue = EditorPreferences::useMagnifier::set,
-getValue = EditorPreferences::useMagnifier::get)
+	override val key: String = USE_MAGNIFER,
+	override val title: Int = string.idepref_editor_use_magnifier_title,
+	override val summary: Int? = string.idepref_editor_use_magnifier_summary,
+	override val icon: Int? = drawable.ic_loupe,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_MAGNIFIER,
+) : SwitchPreference(
+	setValue = EditorPreferences::useMagnifier::set,
+	getValue = EditorPreferences::useMagnifier::get
+)
 
 
 @Parcelize
 private class CompletionsMatchLower(
-override val key: String = COMPLETIONS_MATCH_LOWER,
-override val title: Int = string.idepref_java_matchLower_title,
-override val summary: Int? = string.idepref_java_matchLower_summary,
-override val icon: Int? = drawable.ic_text_lower,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_MATCHCASE,
+	override val key: String = COMPLETIONS_MATCH_LOWER,
+	override val title: Int = string.idepref_java_matchLower_title,
+	override val summary: Int? = string.idepref_java_matchLower_summary,
+	override val icon: Int? = drawable.ic_text_lower,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_MATCHCASE,
 ) : SwitchPreference(
-setValue = EditorPreferences::completionsMatchLower::set,
-getValue = EditorPreferences::completionsMatchLower::get
+	setValue = EditorPreferences::completionsMatchLower::set,
+	getValue = EditorPreferences::completionsMatchLower::get
 )
 
 @Parcelize
 private class UseICU(
-override val key: String = USE_ICU,
-override val title: Int = string.idepref_useIcu_title,
-override val summary: Int? = string.idepref_useIcu_summary,
-override val icon: Int? = drawable.ic_expand_selection,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_WORDBOUNDARIES,
-) : SwitchPreference(setValue = EditorPreferences::useIcu::set,
-getValue = EditorPreferences::useIcu::get)
+	override val key: String = USE_ICU,
+	override val title: Int = string.idepref_useIcu_title,
+	override val summary: Int? = string.idepref_useIcu_summary,
+	override val icon: Int? = drawable.ic_expand_selection,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_WORDBOUNDARIES,
+) : SwitchPreference(
+	setValue = EditorPreferences::useIcu::set,
+	getValue = EditorPreferences::useIcu::get
+)
 
 @Parcelize
 private class DeleteEmptyLines(
-override val key: String = DELETE_EMPTY_LINES,
-override val title: Int = R.string.idepref_deleteEmptyLines_title,
-override val summary: Int? = R.string.idepref_deleteEmptyLines_summary,
-override val icon: Int? = drawable.ic_backspace,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_DELETELINES,
-) : SwitchPreference(setValue = EditorPreferences::deleteEmptyLines::set,
-getValue = EditorPreferences::deleteEmptyLines::get)
+	override val key: String = DELETE_EMPTY_LINES,
+	override val title: Int = R.string.idepref_deleteEmptyLines_title,
+	override val summary: Int? = R.string.idepref_deleteEmptyLines_summary,
+	override val icon: Int? = drawable.ic_backspace,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_DELETELINES,
+) : SwitchPreference(
+	setValue = EditorPreferences::deleteEmptyLines::set,
+	getValue = EditorPreferences::deleteEmptyLines::get
+)
 
 @Parcelize
 private class DeleteTabs(
-override val key: String = DELETE_TABS_ON_BACKSPACE,
-override val title: Int = R.string.idepref_deleteTabs_title,
-override val summary: Int? = R.string.idepref_deleteTabs_summary,
-override val icon: Int? = drawable.ic_backspace,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_SMARTBACKSPACE,
+	override val key: String = DELETE_TABS_ON_BACKSPACE,
+	override val title: Int = R.string.idepref_deleteTabs_title,
+	override val summary: Int? = R.string.idepref_deleteTabs_summary,
+	override val icon: Int? = drawable.ic_backspace,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_SMARTBACKSPACE,
 ) :
-SwitchPreference(setValue = EditorPreferences::deleteTabsOnBackspace::set,
-	getValue = EditorPreferences::deleteTabsOnBackspace::get)
+	SwitchPreference(
+		setValue = EditorPreferences::deleteTabsOnBackspace::set,
+		getValue = EditorPreferences::deleteTabsOnBackspace::get
+	)
 
 @Parcelize
 private class StickyScrollEnabled(
-override val key: String = STICKY_SCROLL_ENABLED,
-override val title: Int = R.string.idepref_editor_stickScroll_title,
-override val summary: Int? = R.string.idepref_editor_stickyScroll_summary,
-override val icon: Int? = drawable.ic_sticky_scroll,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_STICKYSCROLL,
-) : SwitchPreference(setValue = EditorPreferences::stickyScrollEnabled::set,
-getValue = EditorPreferences::stickyScrollEnabled::get)
+	override val key: String = STICKY_SCROLL_ENABLED,
+	override val title: Int = R.string.idepref_editor_stickScroll_title,
+	override val summary: Int? = R.string.idepref_editor_stickyScroll_summary,
+	override val icon: Int? = drawable.ic_sticky_scroll,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_STICKYSCROLL,
+) : SwitchPreference(
+	setValue = EditorPreferences::stickyScrollEnabled::set,
+	getValue = EditorPreferences::stickyScrollEnabled::get
+)
 
 @Parcelize
 private class PinLineNumbersEnabled(
-override val key: String = PIN_LINE_NUMBERS,
-override val title: Int = R.string.idepref_editor_pinLineNumbers_title,
-override val summary: Int? = R.string.idepref_editor_pinLineNumbers_summary,
-override val icon: Int? = drawable.ic_pin,
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR_PINLINES,
-) : SwitchPreference(setValue = EditorPreferences::pinLineNumbers::set,
-getValue = EditorPreferences::pinLineNumbers::get)
+	override val key: String = PIN_LINE_NUMBERS,
+	override val title: Int = R.string.idepref_editor_pinLineNumbers_title,
+	override val summary: Int? = R.string.idepref_editor_pinLineNumbers_summary,
+	override val icon: Int? = drawable.ic_pin,
+	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_PINLINES,
+) : SwitchPreference(
+	setValue = EditorPreferences::pinLineNumbers::set,
+	getValue = EditorPreferences::pinLineNumbers::get
+)
