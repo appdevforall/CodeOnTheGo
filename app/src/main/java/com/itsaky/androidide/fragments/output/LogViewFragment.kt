@@ -302,10 +302,10 @@ abstract class LogViewFragment<V : LogViewModel> :
 				)
 			}
 
-		if (laidOut != null) {
-			editor.appendBatch(chars.toString())
+		if (laidOut != null && editor.appendBatch(chars.toString())) {
+			return
 		} else {
-			log.warn("Editor layout timed out; requesting log re-sync")
+			log.warn("Editor append failed; requesting log re-sync")
 			viewModel.resync()
 		}
 	}
