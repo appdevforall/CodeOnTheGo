@@ -1,6 +1,7 @@
 package com.itsaky.androidide.utils
 
 import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
 import android.os.Process
 import android.util.Log
 import java.io.File
@@ -25,16 +26,21 @@ object SqliteMmapConfigurator {
 		}
 
 		val requestedSize = File(dbPath).length()
-		db.execSQL("PRAGMA mmap_size=$requestedSize")
 
-		val actualSize =
-			db.rawQuery("PRAGMA mmap_size", null).use { c ->
-				if (c.moveToFirst()) c.getLong(0) else -1L
-			}
+		try {
+			db.execSQL("PRAGMA mmap_size=$requestedSize")
 
-		Log.i(
-			TAG,
-			"Enabled mmap for '$dbPath': requested $requestedSize bytes, SQLite granted $actualSize bytes.",
-		)
+			val actualSize =
+				db.rawQuery("PRAGMA mmap_size", null).use { c ->
+					if (c.moveToFirst()) c.getLong(0) else -1L
+				}
+
+			Log.i(
+				TAG,
+				"Enabled mmap for '$dbPath': requested $requestedSize bytes, SQLite granted $actualSize bytes.",
+			)
+		} catch (e: SQLiteException) {
+			Log.w(TAG, "Could not enable mmap for '$dbPath': ${e.message}")
+		}
 	}
 }
