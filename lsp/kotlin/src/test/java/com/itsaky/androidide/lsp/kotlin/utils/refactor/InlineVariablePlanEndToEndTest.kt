@@ -135,7 +135,12 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 		// Matching is by symbol identity, never by name text: the inner `val x` and its use belong to a
 		// different declaration.
 		assertEquals(1, result.references.size)
-		assertEquals(at(content, "x", after = 1), result.references.single().span.start)
+		assertEquals(
+			at(content, "x", after = 1),
+			result.references
+				.single()
+				.span.start,
+		)
 	}
 
 	@Test

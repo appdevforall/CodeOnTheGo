@@ -25,10 +25,13 @@ fun buildInlineVariableRewrites(
 	val text = plan.fileText
 	val targets =
 		when (mode) {
-			InlineMode.ThisReferenceOnly ->
+			InlineMode.ThisReferenceOnly -> {
 				listOfNotNull(plan.references.getOrNull(plan.cursorReferenceIndex)?.takeIf { it.isInlinable })
+			}
 
-			InlineMode.AllReferences -> plan.inlinableReferences
+			InlineMode.AllReferences -> {
+				plan.inlinableReferences
+			}
 		}
 	if (targets.isEmpty()) return null
 	if (targets.any { it.span.end > text.length || it.span.start < 0 }) return null
@@ -95,8 +98,7 @@ private fun declarationDeletion(plan: InlineVariablePlan): RewriteSpan {
 }
 
 /** Whether what follows the declaration on its line is only a comment. */
-private fun isWholeLineComment(suffix: String): Boolean =
-	suffix.startsWith("//") || (suffix.startsWith("/*") && suffix.endsWith("*/"))
+private fun isWholeLineComment(suffix: String): Boolean = suffix.startsWith("//") || (suffix.startsWith("/*") && suffix.endsWith("*/"))
 
 /** The offset of the line terminator at or after [offset], or the end of the text. */
 private fun endOfLineContent(

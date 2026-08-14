@@ -244,7 +244,9 @@ sealed interface InlineReport {
  */
 fun InlineVariablePlan.labelFor(mode: InlineMode): InlineLabel =
 	when (mode) {
-		InlineMode.ThisReferenceOnly -> InlineLabel.ThisReferenceOnly
+		InlineMode.ThisReferenceOnly -> {
+			InlineLabel.ThisReferenceOnly
+		}
 
 		InlineMode.AllReferences -> {
 			val count = inlinableReferences.size
@@ -262,7 +264,9 @@ fun InlineVariablePlan.labelFor(mode: InlineMode): InlineLabel =
  */
 fun InlineVariablePlan.reportFor(mode: InlineMode): InlineReport =
 	when (mode) {
-		InlineMode.ThisReferenceOnly -> InlineReport.InlinedPartially(1, references.size, variableName)
+		InlineMode.ThisReferenceOnly -> {
+			InlineReport.InlinedPartially(1, references.size, variableName)
+		}
 
 		InlineMode.AllReferences -> {
 			val count = inlinableReferences.size

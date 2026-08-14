@@ -161,11 +161,16 @@ private fun KaSession.planFor(
 				exclusion =
 					when {
 						span.start >= cutoff -> InlineExclusion.PastCutoff
+
 						isShadowedAt(read, target, initializerNames) -> InlineExclusion.Shadowed
+
 						initializerUsesImplicitReceiver &&
 							hasReceiverLambdaBetween(target, read) -> InlineExclusion.ReceiverShift
+
 						isSmartCast(read) -> InlineExclusion.SmartCast
+
 						initializerIsFunctionLiteral && isCallee(read) -> InlineExclusion.InvokesLambdaInitializer
+
 						else -> null
 					},
 			)
@@ -370,18 +375,27 @@ private fun declaredNamesIn(
 	site: PsiElement,
 ): Set<String> =
 	when (scope) {
-		is KtBlockExpression ->
+		is KtBlockExpression -> {
 			scope.statements
 				.filter { it.textRange.endOffset <= site.textRange.startOffset }
 				.flatMapTo(mutableSetOf()) { declaredNamesOf(it) }
+		}
 
-		is KtFunctionLiteral -> lambdaParameterNames(scope)
+		is KtFunctionLiteral -> {
+			lambdaParameterNames(scope)
+		}
 
-		is KtNamedFunction -> scope.valueParameters.mapNotNullTo(mutableSetOf()) { it.name }
+		is KtNamedFunction -> {
+			scope.valueParameters.mapNotNullTo(mutableSetOf()) { it.name }
+		}
 
-		is KtPropertyAccessor -> scope.valueParameters.mapNotNullTo(mutableSetOf()) { it.name }
+		is KtPropertyAccessor -> {
+			scope.valueParameters.mapNotNullTo(mutableSetOf()) { it.name }
+		}
 
-		is KtCatchClause -> setOfNotNull(scope.catchParameter?.name)
+		is KtCatchClause -> {
+			setOfNotNull(scope.catchParameter?.name)
+		}
 
 		is KtForExpression -> {
 			val parameter = scope.loopParameter
@@ -389,11 +403,17 @@ private fun declaredNamesIn(
 			(entries + listOfNotNull(parameter?.name)).toSet()
 		}
 
-		is KtWhenExpression -> setOfNotNull(scope.subjectVariable?.name)
+		is KtWhenExpression -> {
+			setOfNotNull(scope.subjectVariable?.name)
+		}
 
-		is KtClassBody -> scope.declarations.mapNotNullTo(mutableSetOf()) { it.name }
+		is KtClassBody -> {
+			scope.declarations.mapNotNullTo(mutableSetOf()) { it.name }
+		}
 
-		else -> emptySet()
+		else -> {
+			emptySet()
+		}
 	}
 
 private fun declaredNamesOf(statement: KtExpression): List<String> =
@@ -475,5 +495,4 @@ private fun KaSession.isSmartCast(reference: KtSimpleNameExpression): Boolean =
 	runCatching { reference.smartCastInfo != null }.getOrDefault(false)
 
 /** Whether the reference is the callee of a call, rather than a value being passed around. */
-private fun isCallee(reference: KtSimpleNameExpression): Boolean =
-	(reference.parent as? KtCallExpression)?.calleeExpression === reference
+private fun isCallee(reference: KtSimpleNameExpression): Boolean = (reference.parent as? KtCallExpression)?.calleeExpression === reference

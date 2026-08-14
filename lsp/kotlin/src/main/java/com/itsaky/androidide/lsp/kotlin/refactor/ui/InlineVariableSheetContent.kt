@@ -95,12 +95,19 @@ fun InlineVariableSheetContent(
 @Composable
 private fun InlineLabel.text(): String =
 	when (this) {
-		InlineLabel.ThisReferenceOnly -> stringResource(R.string.label_inline_variable_this_reference)
+		InlineLabel.ThisReferenceOnly -> {
+			stringResource(R.string.label_inline_variable_this_reference)
+		}
 
-		is InlineLabel.AllAndDelete -> stringResource(R.string.label_inline_variable_all_and_delete, count, name)
+		is InlineLabel.AllAndDelete -> {
+			stringResource(R.string.label_inline_variable_all_and_delete, count, name)
+		}
 
-		is InlineLabel.AllKeepingDeclaration -> stringResource(R.string.label_inline_variable_all_keeping, count, name)
+		is InlineLabel.AllKeepingDeclaration -> {
+			stringResource(R.string.label_inline_variable_all_keeping, count, name)
+		}
 
-		is InlineLabel.PartialKeepingDeclaration ->
+		is InlineLabel.PartialKeepingDeclaration -> {
 			stringResource(R.string.label_inline_variable_partial, count, total, name)
+		}
 	}

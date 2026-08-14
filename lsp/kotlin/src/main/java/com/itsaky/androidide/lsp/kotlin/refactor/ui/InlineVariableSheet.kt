@@ -29,10 +29,11 @@ class InlineVariableSheet : BottomSheetDialogFragment() {
 		container: ViewGroup?,
 		savedInstanceState: Bundle?,
 	): View? {
-		val plan = plan ?: run {
-			dismissAllowingStateLoss()
-			return null
-		}
+		val plan =
+			plan ?: run {
+				dismissAllowingStateLoss()
+				return null
+			}
 
 		return ComposeView(requireContext()).apply {
 			setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
