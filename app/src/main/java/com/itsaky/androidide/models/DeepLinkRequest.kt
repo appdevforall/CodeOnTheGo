@@ -53,6 +53,10 @@ data class DeepLinkRequest(
 	companion object {
 		const val EXTRA_KEY = "com.itsaky.androidide.DEEP_LINK_REQUEST"
 
+		private const val SCHEME = "https"
+		private const val HOST = "www.appdevforall.org"
+		private const val PATH_PREFIX = "/device/open/project/"
+
 		private const val SEGMENT_PROJECT = "project"
 		private const val SEGMENT_FILE = "file"
 		private const val SEGMENT_LINE = "line"
@@ -73,11 +77,23 @@ data class DeepLinkRequest(
 
 		/**
 		 * Parses a deep-link [Uri] of the form described in [DeepLinkRequest]'s docs. Returns `null` if
-		 * the URI does not contain a `project` segment followed by a name -- i.e. it isn't a deep link
-		 * this app understands, not merely a deep link with missing optional parts.
+		 * the URI does not match this scheme/host/path at all, or does not contain a `project` segment
+		 * followed by a name -- i.e. it isn't a deep link this app understands, not merely a deep link
+		 * with missing optional parts.
+		 *
+		 * [DeepLinkActivity][com.itsaky.androidide.activities.DeepLinkActivity] is `exported="true"` (a
+		 * requirement for App Links), which means its `<intent-filter>` data scoping only constrains
+		 * *implicit* intent matching -- any co-installed app can still target it directly with an
+		 * explicit intent carrying an arbitrary [Uri]. Re-checking scheme/host/path prefix here, rather
+		 * than trusting the manifest declaration alone, closes that gap regardless of how the intent
+		 * arrived.
 		 */
 		fun parse(uri: Uri?): DeepLinkRequest? {
-			val segments = uri?.pathSegments ?: return null
+			if (uri == null || uri.scheme != SCHEME || uri.host != HOST || uri.path?.startsWith(PATH_PREFIX) != true) {
+				return null
+			}
+
+			val segments = uri.pathSegments
 
 			val projectIdx = segments.indexOfFrom(0, SEGMENT_PROJECT)
 			if (projectIdx < 0 || projectIdx + 1 >= segments.size) {
@@ -113,11 +129,27 @@ data class DeepLinkRequest(
 							.takeIf { it >= startIdx && segments[it] == SEGMENT_LINE }
 							?.also { endIdx = it }
 
+					// A "line" segment sitting directly in front of a matched "column" pair (e.g.
+					// `.../line/column/7`) isn't part of a keyword-value pair itself -- the slot right
+					// before "column" holds a non-numeric "line" instead of a value -- but it's also not
+					// the ambiguous-filename case the comment above carves out, since it's adjacent to a
+					// keyword that WAS recognized. Report it as an invalid (missing) line value rather
+					// than silently folding "line" into the file path with no line number and no error.
+					val danglingLineRaw =
+						if (lineIdx == null && columnIdx != null &&
+							(columnIdx - 1).let { it >= startIdx && segments[it] == SEGMENT_LINE }
+						) {
+							endIdx = columnIdx - 1
+							"" // present but not a valid integer -> reported to the user, per this class's docs
+						} else {
+							null
+						}
+
 					val filePath = segments.subList(startIdx, endIdx).joinToString("/")
 
 					PendingFileRequest(
 						filePath = filePath,
-						lineRaw = lineIdx?.let { segments.getOrNull(it + 1) },
+						lineRaw = lineIdx?.let { segments.getOrNull(it + 1) } ?: danglingLineRaw,
 						columnRaw = columnIdx?.let { segments.getOrNull(it + 1) },
 					)
 				}

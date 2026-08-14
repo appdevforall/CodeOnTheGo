@@ -200,4 +200,39 @@ class DeepLinkRequestTest {
 	fun `null uri yields null`() {
 		assertThat(DeepLinkRequest.parse(null)).isNull()
 	}
+
+	@Test
+	fun `wrong scheme yields null`() {
+		// DeepLinkActivity is exported (required for App Links), so its intent-filter's data scoping
+		// only constrains implicit intent matching -- an explicit intent from another app can carry
+		// any Uri. This must be rejected here regardless of how the intent arrived.
+		assertThat(parse("http://www.appdevforall.org/device/open/project/MyApp")).isNull()
+	}
+
+	@Test
+	fun `wrong host yields null`() {
+		assertThat(parse("https://evil.example/device/open/project/MyApp")).isNull()
+	}
+
+	@Test
+	fun `wrong path prefix yields null`() {
+		assertThat(parse("https://www.appdevforall.org/some/other/path/project/MyApp")).isNull()
+	}
+
+	@Test
+	fun `a bare 'line' keyword immediately before a 'column' pair is reported as invalid, not swallowed into the path`() {
+		// Regression test: `.../line/column/7` has no numeric value for "line" -- unlike the
+		// swallowed-into-filename ambiguity documented above, "line" here sits directly in front of a
+		// recognized "column" pair, so it must surface as an invalid line rather than silently
+		// becoming part of the file path with no line requested and no error.
+		val request =
+			parse("https://www.appdevforall.org/device/open/project/MyApp/file/Main.kt/line/column/7")
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "MyApp",
+					fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = "", columnRaw = "7"),
+				),
+			)
+	}
 }
