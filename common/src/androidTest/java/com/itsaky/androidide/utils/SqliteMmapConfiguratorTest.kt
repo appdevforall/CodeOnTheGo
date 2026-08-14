@@ -21,15 +21,25 @@ class SqliteMmapConfiguratorTest {
 		val context = InstrumentationRegistry.getInstrumentation().targetContext
 		dbFile = context.getDatabasePath("sqlite_mmap_configurator_test.db")
 		dbFile.delete()
-		db = SQLiteDatabase.openOrCreateDatabase(dbFile, null)
-		db.execSQL("CREATE TABLE Padding (value TEXT)")
-		db.execSQL("INSERT INTO Padding (value) VALUES (?)", arrayOf("x".repeat(4096)))
+
+		SQLiteDatabase.openOrCreateDatabase(dbFile, null).use { writable ->
+			writable.execSQL("CREATE TABLE Padding (value TEXT)")
+			writable.execSQL("INSERT INTO Padding (value) VALUES (?)", arrayOf("x".repeat(4096)))
+		}
+
+		// Every production call site opens OPEN_READONLY (see docs/documentation-database.md);
+		// match that here rather than testing against a writable connection.
+		db = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
 	}
 
 	@After
 	fun tearDown() {
-		db.close()
-		dbFile.delete()
+		if (::db.isInitialized) {
+			db.close()
+		}
+		if (::dbFile.isInitialized) {
+			dbFile.delete()
+		}
 	}
 
 	private fun readMmapSize(): Long =

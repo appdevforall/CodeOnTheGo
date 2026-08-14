@@ -39,13 +39,16 @@ class WebServerTest {
 		} returns mockk<SQLiteDatabase>(relaxed = true)
 
 		// SqliteMmapConfigurator.configureMmap(), called right after openDatabase, uses
-		// Process.is64Bit() and Log.i(); neither is mocked by Android's unit-test stubs
-		// like SQLiteDatabase is, so both throw unless stubbed here.
+		// Process.is64Bit() and Log.i()/Log.w() (the relaxed db mock's rawQuery() returns
+		// a cursor whose moveToFirst() defaults to false, taking the Log.w "not enabled"
+		// branch); none of that is mocked by Android's unit-test stubs like SQLiteDatabase
+		// is, so all three throw unless stubbed here.
 		mockkStatic(Process::class)
 		every { Process.is64Bit() } returns true
 
 		mockkStatic(Log::class)
 		every { Log.i(any(), any()) } returns 0
+		every { Log.w(any(), any<String>()) } returns 0
 	}
 
 	@After
