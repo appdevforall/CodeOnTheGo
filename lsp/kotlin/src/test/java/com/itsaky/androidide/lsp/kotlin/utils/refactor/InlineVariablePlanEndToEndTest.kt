@@ -430,6 +430,99 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a when subject variable is inlined but its declaration is never deleted`() {
+		val content =
+			"""
+			package p
+			fun g(n: Int) = n
+			fun compute(): Int = 1
+			fun demo(): Int {
+				return when (val a = compute()) {
+					1 -> g(a)
+					else -> 0
+				}
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val a") + "val ".length)
+
+		assertEquals(false, result.canDeleteDeclaration)
+		assertEquals(
+			"""
+			package p
+			fun g(n: Int) = n
+			fun compute(): Int = 1
+			fun demo(): Int {
+				return when (val a = compute()) {
+					1 -> g(compute())
+					else -> 0
+				}
+			}
+			""".trimIndent(),
+			apply(content, buildInlineVariableRewrites(result, InlineMode.AllReferences)!!),
+		)
+	}
+
+	@Test
+	fun `a name redeclared later in the target's own block is not inlined`() {
+		val content =
+			"""
+			package p
+			fun f(n: Int) = n
+			fun demo(): Int {
+				val a = 1
+				val x = a + 1
+				val a = 99
+				return f(x)
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val x") + "val ".length)
+
+		assertEquals(InlineExclusion.Shadowed, result.references.single().exclusion)
+	}
+
+	@Test
+	fun `a reference inside a stored lambda is excluded once a write exists`() {
+		val content =
+			"""
+			package p
+			class Button {
+				fun setOnClickListener(listener: () -> Unit) {}
+			}
+			fun show(s: String) {}
+			fun demo(button: Button) {
+				var index = 0
+				val label = "item ${'$'}index"
+				button.setOnClickListener { show(label) }
+				index = 1
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val label") + "val ".length)
+
+		assertEquals(InlineExclusion.DeferredExecution, result.references.single().exclusion)
+		assertEquals(false, result.canDeleteDeclaration)
+	}
+
+	@Test
+	fun `a callable reference initializer in call position is left untouched`() {
+		val content =
+			"""
+			package p
+			fun g(n: Int) = n
+			fun demo(): Int {
+				val f = ::g
+				return f(3)
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val f") + "val ".length)
+
+		assertEquals(InlineExclusion.UnsafeInCalleePosition, result.references.single().exclusion)
+	}
+
+	@Test
 	fun `a shadowed reference is left untouched and the declaration is kept`() {
 		val content =
 			"""
@@ -599,7 +692,7 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 		val result = plan(content, at(content, "val f") + "val ".length)
 
 		// The substitution would be a lambda literal in call position, which needs `.invoke()`.
-		assertEquals(InlineExclusion.InvokesLambdaInitializer, result.references.single().exclusion)
+		assertEquals(InlineExclusion.UnsafeInCalleePosition, result.references.single().exclusion)
 		assertEquals(InlineRefusal.NothingInlinable("f"), result.refusal)
 	}
 

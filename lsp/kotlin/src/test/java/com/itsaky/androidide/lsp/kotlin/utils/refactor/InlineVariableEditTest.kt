@@ -239,6 +239,37 @@ class InlineVariableEditTest {
 	}
 
 	@Test
+	fun `a space-indented file keeps its own indentation on the preserved comment`() {
+		val file =
+			"package p\n" +
+				"fun demo(a: Int, b: Int): Int {\n" +
+				"    val total = a + b // running total\n" +
+				"    return total\n" +
+				"}\n"
+		val result =
+			plan(
+				fileText = file,
+				declaration = "val total = a + b",
+				initializerText = "a + b",
+				// after = 2: the comment text contains "total" too, so it is the third occurrence.
+				references = listOf(reference(file, "total", after = 2)),
+				initializerNeedsParentheses = true,
+				name = "total",
+			)
+
+		val rewrites = buildInlineVariableRewrites(result, InlineMode.AllReferences)
+
+		assertEquals(
+			"package p\n" +
+				"fun demo(a: Int, b: Int): Int {\n" +
+				"    // running total\n" +
+				"    return (a + b)\n" +
+				"}\n",
+			apply(file, rewrites!!),
+		)
+	}
+
+	@Test
 	fun `edits are sorted descending with the declaration deletion last`() {
 		val file =
 			"package p\n" +

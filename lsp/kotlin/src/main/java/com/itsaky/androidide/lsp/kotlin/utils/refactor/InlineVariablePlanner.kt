@@ -31,6 +31,7 @@ import org.jetbrains.kotlin.psi.KtFunctionLiteral
 import org.jetbrains.kotlin.psi.KtLambdaExpression
 import org.jetbrains.kotlin.psi.KtNamedDeclaration
 import org.jetbrains.kotlin.psi.KtNamedFunction
+import org.jetbrains.kotlin.psi.KtObjectDeclaration
 import org.jetbrains.kotlin.psi.KtObjectLiteralExpression
 import org.jetbrains.kotlin.psi.KtParenthesizedExpression
 import org.jetbrains.kotlin.psi.KtPostfixExpression
@@ -144,7 +145,6 @@ private fun KaSession.planFor(
 
 	val initializerNames = namesReadBy(initializer)
 	val initializerUsesImplicitReceiver = readsThroughImplicitReceiver(initializer)
-	val initializerIsFunctionLiteral = initializer is KtLambdaExpression || initializer is KtNamedFunction
 
 	val references =
 		reads.map { read ->
@@ -162,6 +162,8 @@ private fun KaSession.planFor(
 					when {
 						span.start >= cutoff -> InlineExclusion.PastCutoff
 
+						cutoff != Int.MAX_VALUE && isDeferred(read, target) -> InlineExclusion.DeferredExecution
+
 						isShadowedAt(read, target, initializerNames) -> InlineExclusion.Shadowed
 
 						initializerUsesImplicitReceiver &&
@@ -169,7 +171,7 @@ private fun KaSession.planFor(
 
 						isSmartCast(read) -> InlineExclusion.SmartCast
 
-						initializerIsFunctionLiteral && isCallee(read) -> InlineExclusion.InvokesLambdaInitializer
+						initializer !is KtSimpleNameExpression && isCallee(read) -> InlineExclusion.UnsafeInCalleePosition
 
 						else -> null
 					},
@@ -223,9 +225,13 @@ private fun KaSession.planFor(
 		references = references,
 		cursorPosition = resolved.cursorPosition,
 		cursorReferenceIndex = cursorReferenceIndex,
-		// The deletion rule's second clause is not redundant: a `var` whose reads were all inlined can still have a
-		// later `x = 5` assigning to it, so the declaration is still needed.
-		canDeleteDeclaration = inlinable == references.size && targetWriteOffsets.isEmpty(),
+		/*
+		 * The deletion rule's second clause is not redundant: a `var` whose reads were all inlined can
+		 * still have a later `x = 5` assigning to it, so the declaration is still needed. The third
+		 * clause excludes a `when` subject variable and similar shapes: deleting `val a` there takes the
+		 * enclosing `when (val a = ...)` syntax with it, which does not parse.
+		 */
+		canDeleteDeclaration = inlinable == references.size && targetWriteOffsets.isEmpty() && target.parent is KtBlockExpression,
 		modes = modesFor(resolved.cursorPosition, inlinable),
 		refusal = null,
 	)
@@ -366,6 +372,21 @@ private fun isShadowedAt(
 		child = scope
 		scope = scope.parent
 	}
+	/*
+	 * The loop above never inspects the ceiling block's own statements. A name the target's own block
+	 * redeclares after the target and before the reference shadows it too -- Kotlin permits this (it
+	 * is a warning, not an error) -- so it needs the same check, bounded to that span only: a
+	 * statement before the target is exactly what the initializer legitimately resolves to.
+	 */
+	if (scope === ceiling && ceiling is KtBlockExpression) {
+		val shadowing =
+			ceiling.statements
+				.filter {
+					it.textRange.startOffset > target.textRange.endOffset &&
+						it.textRange.endOffset <= child.textRange.startOffset
+				}.flatMapTo(mutableSetOf()) { declaredNamesOf(it) }
+		if (shadowing.any { it in initializerNames }) return true
+	}
 	return false
 }
 
@@ -496,3 +517,20 @@ private fun KaSession.isSmartCast(reference: KtSimpleNameExpression): Boolean =
 
 /** Whether the reference is the callee of a call, rather than a value being passed around. */
 private fun isCallee(reference: KtSimpleNameExpression): Boolean = (reference.parent as? KtCallExpression)?.calleeExpression === reference
+
+/**
+ * Whether [reference] sits inside a lambda, local function or anonymous object between it and
+ * [target]. A body that runs later does not read the value at the offset where its text sits, so once
+ * a write exists at all, the cutoff's textual position cannot judge whether such a reference is safe.
+ */
+private fun isDeferred(
+	reference: KtSimpleNameExpression,
+	target: KtProperty,
+): Boolean {
+	var current: PsiElement? = reference.parent
+	while (current != null && !PsiTreeUtil.isAncestor(current, target, false)) {
+		if (current is KtFunctionLiteral || current is KtNamedFunction || current is KtObjectDeclaration) return true
+		current = current.parent
+	}
+	return false
+}

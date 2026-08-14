@@ -29,8 +29,18 @@ enum class InlineExclusion {
 	/** The reference is used under a smart cast, which an expression cannot carry. */
 	SmartCast,
 
-	/** A lambda initializer in call position, which would need `.invoke()` to compile. */
-	InvokesLambdaInitializer,
+	/**
+	 * The reference is the callee of a call and the initializer is not a bare name -- a lambda or
+	 * anonymous function would need `.invoke()`, a callable reference does not parse there, and a
+	 * qualified access could silently resolve to a different member than `invoke`.
+	 */
+	UnsafeInCalleePosition,
+
+	/**
+	 * The reference is inside a body that may run after a write invalidates the cutoff -- a lambda, a
+	 * local function, or an anonymous object -- so the cutoff's textual position cannot be trusted.
+	 */
+	DeferredExecution,
 }
 
 /**
