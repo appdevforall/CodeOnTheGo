@@ -166,6 +166,37 @@ class LogViewModelTest {
 	}
 
 	@Test
+	fun `clear does not replay stale lines into the next generation`() {
+		val viewModel = TestLogViewModel()
+		viewModel.submit(null, "stale")
+
+		withCollectedEvents(viewModel) { events ->
+			assertEquals("stale\n", (events.receive() as LogViewModel.UiEvent.SetText).text)
+
+			viewModel.clear()
+
+			// Wait for the post-clear snapshot; it must be empty.
+			var event = events.receive()
+			while (event !is LogViewModel.UiEvent.SetText) {
+				event = events.receive()
+			}
+			assertEquals("", event.text)
+
+			// The live stream's replay cache still holds "stale". If stitching is
+			// broken, it is re-delivered before anything submitted after the clear.
+			viewModel.submit(null, "fresh")
+
+			val appended = StringBuilder()
+			while (!appended.endsWith("fresh\n")) {
+				val append = events.receive()
+				assertTrue(append is LogViewModel.UiEvent.Append)
+				appended.append((append as LogViewModel.UiEvent.Append).text)
+			}
+			assertEquals("fresh\n", appended.toString())
+		}
+	}
+
+	@Test
 	fun `resync replays history as a snapshot without clearing`() {
 		val viewModel = TestLogViewModel()
 		viewModel.submit(null, "first")
