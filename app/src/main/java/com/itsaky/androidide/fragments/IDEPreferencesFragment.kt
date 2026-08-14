@@ -104,7 +104,7 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 	}
 
 	/** [EXTRA_SCREEN_TOOLTIP_TAG]'s value, or [PREFS_TOP] if it's missing or blank. */
-	internal fun resolveScreenTooltipTag(rawTag: String?): String = rawTag?.takeIf { it.isNotEmpty() } ?: PREFS_TOP
+	internal fun resolveScreenTooltipTag(rawTag: String?): String = rawTag?.takeIf { it.isNotBlank() } ?: PREFS_TOP
 
 	/** The row's own tooltipTag, or null if there's no row at that position or it has none. */
 	internal fun resolveTooltipTag(

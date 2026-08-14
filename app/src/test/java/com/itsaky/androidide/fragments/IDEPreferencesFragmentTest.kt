@@ -119,8 +119,13 @@ class IDEPreferencesFragmentTest {
 	}
 
 	@Test
-	fun `resolveScreenTooltipTag falls back to PREFS_TOP when the argument is blank`() {
+	fun `resolveScreenTooltipTag falls back to PREFS_TOP when the argument is empty`() {
 		assertThat(IDEPreferencesFragment().resolveScreenTooltipTag("")).isEqualTo(PREFS_TOP)
+	}
+
+	@Test
+	fun `resolveScreenTooltipTag falls back to PREFS_TOP when the argument is whitespace-only`() {
+		assertThat(IDEPreferencesFragment().resolveScreenTooltipTag("  \t")).isEqualTo(PREFS_TOP)
 	}
 
 	@Test
