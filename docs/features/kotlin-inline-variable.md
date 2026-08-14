@@ -84,12 +84,13 @@ The cutoff is a purely textual position, and cannot know that a reference inside
 
 **Known limitation:** the shared `writeOffsetsFor` primitive tests a simple name, so a write through a qualified access - `config.limit = 5` - is not detected as a write at all. A variable whose initializer reads a qualified mutable therefore gets no cutoff. Fixing the shared primitive is out of scope here; extract method also depends on its current behaviour.
 
-**R6 - Per-site exclusions.** Four ways a reference is individually unsound. Each **excludes that reference**, leaving it untouched; none refuses the inline, because each is a property of one site rather than of the target.
+**R6 - Per-site exclusions.** Five ways a reference is individually unsound. Each **excludes that reference**, leaving it untouched; none refuses the inline, because each is a property of one site rather than of the target.
 
+- **Deferred execution.** The reference sits inside a body that runs later than the offset where its text happens to sit - a lambda, a local function, or an anonymous object - so it does not read the value the cutoff (R5) would credit it with: `button.setOnClickListener { show(label) }` followed by a later `index = 1`, where `label`'s initializer read `index`. Once any write exists at all - the cutoff is no longer `Int.MAX_VALUE` - such a reference is excluded outright rather than judged by its textual position relative to the cutoff. Deliberately over-broad: a lambda invoked immediately, `run { show(label) }`, is excluded too even though it runs synchronously and would have been safe. Over-exclusion is this feature's safe direction.
 - **Shadowing.** The initializer reads a name that resolves to something else at the reference. `val a = 1; val x = a + 1; run { val a = 99; f(x) }` would inline to `f(a + 1)` reading the inner `a`. Detected by walking the reference's parents up to the target's own block, checking each intervening scope's declared names - block statements before the site, lambda value parameters and `it`, function parameters, loop and `catch` parameters, destructuring entries, a `when` subject variable, a class or object body - against the set of names the initializer references. The converse case cannot arise: a local's scope runs to the end of its block, so everything the initializer reads is still in scope at every reference. Only shadowing bites.
 - **Receiver shift.** The initializer accesses a member through an implicit receiver, and the reference sits inside a lambda that introduces a different one - the `with(other) { ... }` / `apply` / `run` / `buildString` case. Tested as the conjunction of two cheap questions: does the initializer contain an unqualified reference resolving through an implicit receiver, and is there a receiver-introducing lambda (a `KtFunctionLiteral` whose functional type has a receiver) between the declaration and the reference? Only both together are a problem. This is extract method's `InnerImplicitReceiver` as a per-site exclusion rather than a refusal.
 - **Smart cast.** `val b = a.b; if (b != null) b.length` inlines to `a.b.length`, which does not compile - a smart cast needs a stable value, and a property read is not one. Detected with `smartCastInfo` on the reference (`KaDataFlowProvider`); non-null means excluded.
-- **Invoking a lambda initializer.** When the initializer is a lambda or anonymous function and the reference is the callee of a call - `val f = { n: Int -> n * 2 }` used as `f(3)` - the substitution would be a lambda literal in call position, which needs `.invoke()` to compile. Passing the same `f` as an argument (`list.map(f)`) is unaffected and stays inlinable.
+- **Unsafe in callee position.** The reference is the callee of a call and the initializer is anything but a bare name. A lambda or anonymous function - `val f = { n: Int -> n * 2 }` used as `f(3)` - would need `.invoke()` to compile; the rule is not limited to those two shapes, because a callable reference - `val f = ::g` used as `f(3)` - does not parse there at all, and a qualified initializer - `val f = a.b` used as `f(3)` - would silently prefer a member function `b` over `invoke`. Passing the same `f` as an argument (`list.map(f)`) is unaffected and stays inlinable.
 
 **R7 - An explicit type refuses.** A target declaration carrying an explicit type reference - `val x: Long = 1`, `val s: Any = "text"` - **refuses the whole inline** (`DeclaredTypeIsLoadBearing`, naming the type).
 
@@ -97,9 +98,11 @@ The declared type participates in the initializer's inference and in overload re
 
 Deliberately stricter than necessary - `val x: Long = 1L` is refused too - and stated as such per ADR 0013's preference for a stricter rule over a cleverer one. Explicit types on locals are uncommon in idiomatic Kotlin, and the ones that do appear (pinning a supertype, a nullable, a platform type) are usually exactly the load-bearing cases.
 
-**R8 - Partial inline and the declaration.** The inlinable references (R4-R6) are rewritten; every other reference is left alone. **The declaration is deleted only when nothing is left behind**: every reference was inlined *and* the target has no writes anywhere.
+**R8 - Partial inline and the declaration.** The inlinable references (R4-R6) are rewritten; every other reference is left alone. **The declaration is deleted only when nothing is left behind**: every reference was inlined, the target has no writes anywhere, *and* the declaration sits directly in a block.
 
 The second clause is not redundant. A `var` whose reads were all inlined can still have a later `x = 5` assigning to it, so the declaration is still needed even though no read survives. Removing that write would be dead-store elimination, which is not this refactoring.
+
+The third clause exists because "every reference was inlined" no longer implies the declaration is safe to remove. A `when` subject variable - `when (val a = compute()) { 1 -> g(a); else -> 0 }` - is a `KtProperty` with `isLocal` true like any other target, so its one reference can be inlined same as any other; but its own text is not a statement, it is the `when`'s subject, so deleting it takes `when (val a = ...)` itself with it and leaves code that does not parse. The fix is a deletion guard, not a refusal: rewriting the reference and keeping the declaration is perfectly sound, so this stays a useful partial-shaped result rather than a decline.
 
 **Nothing inlinable refuses** (`NothingInlinable`, naming the variable): every reference excluded or past the cutoff means there is no edit to make, and reporting that is better than a no-op.
 
@@ -197,20 +200,21 @@ Cancellation is not a refusal: the planner re-throws `CancellationException` (`A
 8. `val other = name` referenced in `"hi $other"` produces `"hi $name"`, still in short form.
 9. `var count = 1` read twice, then reassigned, then read again inlines the first two reads, keeps the declaration, and reports 2 of 3.
 10. `val bound = limit + 1` with `limit` reassigned between two references inlines only the first and keeps the declaration.
-11. A reference inside `run { val a = 99; f(x) }`, where the initializer reads an outer `a`, is left untouched and the declaration is kept.
-12. A reference inside `with(other) { ... }`, where the initializer uses the enclosing receiver's members, is left untouched.
-13. `val b = a.b` used as `if (b != null) b.length` leaves the smart-cast reference untouched.
-14. `val x: Long = 1` is refused, and the message names the declared type.
-15. A member property is refused with "only a local variable can be inlined".
-16. `val x: Int` with a later `x = 1` is refused as having no value at its declaration.
-17. A cursor on a destructuring entry is refused specifically, not as "not a variable".
-18. An unused local is refused as never used, and the declaration is **not** deleted.
-19. A cursor on a reference past the cutoff is refused, and no other reference is rewritten.
-20. `val x = 1; return g(x)` on one line inlines to `return g(1)` with the rest of the line intact.
-21. `val total = a + b // running total` leaves `// running total` on its own line, correctly indented.
-22. Editing the file while the sheet is open, then confirming, reports the file-changed message and leaves the file untouched.
-23. Undo restores the file; it currently takes **N+1** undo steps (R12) and intermediate states do not compile.
-24. A space-indented file receives space-indented output; a CRLF file keeps CRLF.
+11. A `when` subject variable's single reference inlines, but its declaration is never deleted - `when (val a = compute()) { 1 -> g(a); else -> 0 }` keeps `val a = compute()` intact inside the `when`.
+12. A reference inside `run { val a = 99; f(x) }`, where the initializer reads an outer `a`, is left untouched and the declaration is kept.
+13. A reference inside `with(other) { ... }`, where the initializer uses the enclosing receiver's members, is left untouched.
+14. `val b = a.b` used as `if (b != null) b.length` leaves the smart-cast reference untouched.
+15. `val x: Long = 1` is refused, and the message names the declared type.
+16. A member property is refused with "only a local variable can be inlined".
+17. `val x: Int` with a later `x = 1` is refused as having no value at its declaration.
+18. A cursor on a destructuring entry is refused specifically, not as "not a variable".
+19. An unused local is refused as never used, and the declaration is **not** deleted.
+20. A cursor on a reference past the cutoff is refused, and no other reference is rewritten.
+21. `val x = 1; return g(x)` on one line inlines to `return g(1)` with the rest of the line intact.
+22. `val total = a + b // running total` leaves `// running total` on its own line, correctly indented.
+23. Editing the file while the sheet is open, then confirming, reports the file-changed message and leaves the file untouched.
+24. Undo restores the file; it currently takes **N+1** undo steps (R12) and intermediate states do not compile.
+25. A space-indented file receives space-indented output; a CRLF file keeps CRLF.
 
 ## Design
 
