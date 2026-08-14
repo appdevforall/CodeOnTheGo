@@ -5,7 +5,10 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
  * cursor already sitting on a reference can single that reference out.
  */
 enum class InlineCursorPosition {
+	/** The cursor was on the declaration's own name. */
 	Declaration,
+
+	/** The cursor was on one of the target's references. */
 	Reference,
 }
 
@@ -41,12 +44,16 @@ data class InlineReference(
 	val isShortTemplateEntry: Boolean,
 	val exclusion: InlineExclusion?,
 ) {
+	/** Whether this reference can be rewritten, meaning nothing excluded it. */
 	val isInlinable: Boolean get() = exclusion == null
 }
 
 /** The two things the user can ask for. */
 enum class InlineMode {
+	/** Rewrites only the reference under the cursor, always keeping the declaration. */
 	ThisReferenceOnly,
+
+	/** Rewrites every reference that can be rewritten, removing the declaration when nothing is left behind. */
 	AllReferences,
 }
 
@@ -128,14 +135,17 @@ data class InlineVariablePlan(
 	val modes: List<InlineMode>,
 	val refusal: InlineRefusal?,
 ) : RefactoringPlan {
+	/** The references that can be rewritten. */
 	val inlinableReferences: List<InlineReference> get() = references.filter { it.isInlinable }
 
+	/** Whether the plan carries a refusal instead of something to apply. */
 	val isRefused: Boolean get() = refusal != null
 
 	/** Whether the mode table leaves the user a decision, and so whether the sheet is shown at all. */
 	val offersChoice: Boolean get() = modes.size > 1
 
 	companion object {
+		/** Builds a plan carrying [refusal] and nothing to apply. */
 		fun refused(
 			refusal: InlineRefusal,
 			fileText: String = "",
@@ -180,18 +190,22 @@ fun modesFor(
  * localised string.
  */
 sealed interface InlineLabel {
+	/** Offers rewriting only the reference under the cursor. */
 	data object ThisReferenceOnly : InlineLabel
 
+	/** Offers rewriting every reference and removing the declaration. */
 	data class AllAndDelete(
 		val count: Int,
 		val name: String,
 	) : InlineLabel
 
+	/** Offers rewriting every reference, keeping the declaration. */
 	data class AllKeepingDeclaration(
 		val count: Int,
 		val name: String,
 	) : InlineLabel
 
+	/** Offers rewriting [count] of [total] references, keeping the declaration. */
 	data class PartialKeepingDeclaration(
 		val count: Int,
 		val total: Int,
@@ -201,16 +215,19 @@ sealed interface InlineLabel {
 
 /** What the flash says afterwards. Same reasoning as [InlineLabel], in the past tense. */
 sealed interface InlineReport {
+	/** Every reference was rewritten and the declaration was removed. */
 	data class InlinedAndRemoved(
 		val count: Int,
 		val name: String,
 	) : InlineReport
 
+	/** Every reference was rewritten but the declaration was kept. */
 	data class InlinedKeepingDeclaration(
 		val count: Int,
 		val name: String,
 	) : InlineReport
 
+	/** [count] of [total] references were rewritten and the declaration was kept. */
 	data class InlinedPartially(
 		val count: Int,
 		val total: Int,
