@@ -80,6 +80,10 @@ Both come from the existing `writeOffsetsFor(candidate, searchRoot)`, called wit
 
 This matches IntelliJ, whose documented behaviour is that *"the variable must be initialized at declaration; if the initial value is modified somewhere in the code, only the occurrences before modification will be inlined."* The alternative - refusing the whole inline - was rejected: it discards a sound refactoring of the references before the write, and a partial result is what a user coming from a desktop IDE already expects here.
 
+The cutoff is a purely textual position, and cannot know that a reference inside a body that runs later - a lambda, a local function, or an anonymous object - does not read the value at the offset where its text happens to sit (`button.setOnClickListener { show(label) }` before a later `index = 1`, where `label` reads `index`). Once any write exists at all, such a reference is excluded outright (`DeferredExecution`, R6) rather than judged by where its text falls relative to the cutoff.
+
+**Known limitation:** the shared `writeOffsetsFor` primitive tests a simple name, so a write through a qualified access - `config.limit = 5` - is not detected as a write at all. A variable whose initializer reads a qualified mutable therefore gets no cutoff. Fixing the shared primitive is out of scope here; extract method also depends on its current behaviour.
+
 **R6 - Per-site exclusions.** Four ways a reference is individually unsound. Each **excludes that reference**, leaving it untouched; none refuses the inline, because each is a property of one site rather than of the target.
 
 - **Shadowing.** The initializer reads a name that resolves to something else at the reference. `val a = 1; val x = a + 1; run { val a = 99; f(x) }` would inline to `f(a + 1)` reading the inner `a`. Detected by walking the reference's parents up to the target's own block, checking each intervening scope's declared names - block statements before the site, lambda value parameters and `it`, function parameters, loop and `catch` parameters, destructuring entries, a `when` subject variable, a class or object body - against the set of names the initializer references. The converse case cannot arise: a local's scope runs to the end of its block, so everything the initializer reads is still in scope at every reference. Only shadowing bites.
@@ -157,7 +161,7 @@ Contents: title -> the two mode buttons with their derived labels -> the substit
 | `DeclaredTypeIsLoadBearing` | `<name>` is declared `<type>`, and its uses need that type (R7) |
 | `NeverUsed` | `<name>` is never used (R4) |
 | `NothingInlinable` | no use of `<name>` can be inlined safely (R8) |
-| `ReferenceNotInlinable` | the value of `<name>` changes before this use (R9) |
+| `ReferenceNotInlinable` | this use of `<name>` cannot be inlined safely (R9) |
 | `CouldNotAnalyse` | the analysis could not run - deliberately neutral, since the cursor may have been fine |
 | `FileChanged` | the file changed while the sheet was open (R3) |
 
@@ -261,6 +265,8 @@ Unit tests in `:lsp:kotlin` (`flox activate -d flox/local -- ./gradlew :lsp:kotl
 - **`InlineVariablePlanTest`** - the pure derivations: R9's mode table and R13's labels and reports, against hand-built plans.
 - **`RefactorPrimitivesTest`** - extended for whatever R6's scope walk factors out syntactically.
 - **`KotlinCodeActionTooltipTagTest`** - one new row (R1).
+
+Every new scope shape added to R6's shadowing walk needs its own end-to-end case in `InlineVariablePlanEndToEndTest` - that walk is where three separate defects have been found in review (a `when` subject variable, a class or object body, and a redeclaration in the target's own block).
 
 There is no `ViewModelTest`, because there is no ViewModel (R13); the label and report derivations are tested in `InlineVariablePlanTest` against hand-built plans instead.
 

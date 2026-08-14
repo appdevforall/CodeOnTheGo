@@ -573,7 +573,7 @@
 	<string name="msg_inline_variable_declared_type">%1$s is declared %2$s, and its uses need that type</string>
 	<string name="msg_inline_variable_never_used">%1$s is never used</string>
 	<string name="msg_inline_variable_nothing_inlinable">No use of %1$s can be inlined safely</string>
-	<string name="msg_inline_variable_reference_not_inlinable">The value of %1$s changes before this use</string>
+	<string name="msg_inline_variable_reference_not_inlinable">This use of %1$s cannot be inlined safely</string>
 	<string name="msg_inline_variable_could_not_analyse">Could not analyse the file. Try again.</string>
 	<string name="msg_inline_variable_file_changed">The file changed. Try inlining again.</string>
 	<plurals name="msg_inline_variable_inlined_all">
