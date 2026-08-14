@@ -449,6 +449,52 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a when subject variable shadowing the initializer's name is not inlined`() {
+		val content =
+			"""
+			package p
+			fun f(n: Int) = n
+			fun demo(): Int {
+				val a = 1
+				val x = a + 1
+				return when (val a = 99) {
+					else -> f(x)
+				}
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val x") + "val ".length)
+
+		// Inlining would produce `f(a + 1)` reading the subject variable's `a`.
+		assertEquals(InlineExclusion.Shadowed, result.references.single().exclusion)
+	}
+
+	@Test
+	fun `a name shadowed in an anonymous object's body is not inlined`() {
+		val content =
+			"""
+			package p
+			fun f(n: Int) = n
+			fun demo(): Int {
+				val a = 1
+				val x = a + 1
+				val holder =
+					object {
+						val a = 99
+
+						fun g(): Int = f(x)
+					}
+				return holder.g()
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val x") + "val ".length)
+
+		// Inlining would produce `f(a + 1)` reading the object's own `a`.
+		assertEquals(InlineExclusion.Shadowed, result.references.single().exclusion)
+	}
+
+	@Test
 	fun `a reference under a different implicit receiver is left untouched`() {
 		val content =
 			"""
@@ -489,6 +535,27 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 		val result = plan(content, at(content, "val text") + "val ".length)
 
 		// Only the conjunction of both questions is a problem; either alone is not.
+		assertNull(result.references.single().exclusion)
+	}
+
+	@Test
+	fun `a receiver lambda is fine where the initializer uses no implicit receiver`() {
+		val content =
+			"""
+			package p
+			class Other {
+				val label: String = "other"
+			}
+			fun demo(other: Other, prefix: String): String {
+				val text = prefix + "!"
+				return with(other) { text }
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val text") + "val ".length)
+
+		// The lambda does introduce a receiver, but the initializer reads only a parameter, so there is
+		// nothing for the receiver shift to break.
 		assertNull(result.references.single().exclusion)
 	}
 

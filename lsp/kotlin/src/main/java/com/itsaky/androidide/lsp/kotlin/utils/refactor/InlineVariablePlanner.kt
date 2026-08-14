@@ -19,6 +19,7 @@ import org.jetbrains.kotlin.psi.KtBlockExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtCallableReferenceExpression
 import org.jetbrains.kotlin.psi.KtCatchClause
+import org.jetbrains.kotlin.psi.KtClassBody
 import org.jetbrains.kotlin.psi.KtClassLiteralExpression
 import org.jetbrains.kotlin.psi.KtCollectionLiteralExpression
 import org.jetbrains.kotlin.psi.KtConstantExpression
@@ -41,6 +42,7 @@ import org.jetbrains.kotlin.psi.KtSimpleNameStringTemplateEntry
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 import org.jetbrains.kotlin.psi.KtSuperExpression
 import org.jetbrains.kotlin.psi.KtThisExpression
+import org.jetbrains.kotlin.psi.KtWhenExpression
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import kotlin.coroutines.cancellation.CancellationException
@@ -185,9 +187,11 @@ private fun KaSession.planFor(
 
 	val inlinable = references.count { it.isInlinable }
 	if (inlinable == 0) {
-		// Unlike the other refusals above, the references are already known here, each carrying the
-		// exclusion that ruled it out -- worth keeping on the plan rather than discarding it the way
-		// InlineVariablePlan.refused()'s empty-references default would.
+		/*
+		 * Unlike the other refusals above, the references are already known here, each carrying the
+		 * exclusion that ruled it out -- worth keeping on the plan rather than discarding it the way
+		 * InlineVariablePlan.refused()'s empty-references default would.
+		 */
 		return InlineVariablePlan(
 			fileText = fileText,
 			documentVersion = documentVersion,
@@ -385,6 +389,10 @@ private fun declaredNamesIn(
 			(entries + listOfNotNull(parameter?.name)).toSet()
 		}
 
+		is KtWhenExpression -> setOfNotNull(scope.subjectVariable?.name)
+
+		is KtClassBody -> scope.declarations.mapNotNullTo(mutableSetOf()) { it.name }
+
 		else -> emptySet()
 	}
 
@@ -398,6 +406,11 @@ private fun declaredNamesOf(statement: KtExpression): List<String> =
 /** A lambda with no declared parameters still declares `it`. */
 private fun lambdaParameterNames(lambda: KtFunctionLiteral): Set<String> {
 	val declared = lambda.valueParameters
+	/*
+	 * Over-approximates: a zero-argument or receiver lambda (`run`, `with`, `apply`, `buildString`)
+	 * binds no `it`. That only ever leaves a reference alone that could have been rewritten, never
+	 * a wrong rewrite, so this stays syntactic rather than asking the Analysis API for the arity.
+	 */
 	if (declared.isEmpty()) return setOf("it")
 	return declared.flatMapTo(mutableSetOf()) { parameter ->
 		parameter.destructuringDeclaration?.entries?.mapNotNull { it.name } ?: listOfNotNull(parameter.name)
