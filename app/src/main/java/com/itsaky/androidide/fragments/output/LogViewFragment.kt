@@ -45,6 +45,7 @@ import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.LogViewModel
 import io.github.rosemoe.sora.widget.style.CursorAnimator
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -62,6 +63,9 @@ abstract class LogViewFragment<V : LogViewModel> :
 	WrappableOutputFragment {
 	companion object {
 		private val log = LoggerFactory.getLogger(LogViewFragment::class.java)
+
+		/** Max time to wait for the editor's layout pass before falling back to a re-sync. */
+		private const val LAYOUT_TIMEOUT_MS = 2000L
 	}
 
 	override val currentEditor: IDEEditor? get() = _binding?.editor
@@ -183,12 +187,16 @@ abstract class LogViewFragment<V : LogViewModel> :
 	}
 
 	private suspend fun observeLogs() {
-		// Wait for the editor's first layout pass. The sora-editor's
+		// Give the editor a chance at its first layout pass. The sora-editor's
 		// LineBreakLayout populates its line-width tracker asynchronously after
 		// layout; appending before that races BlockIntList.set on an empty list.
-		_binding?.editor?.awaitLayout(
-			onForceVisible = { emptyStateViewModel.setEmpty(false) },
-		)
+		_binding?.editor?.let { editor ->
+			withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+				editor.awaitLayout(
+					onForceVisible = { emptyStateViewModel.setEmpty(false) },
+				)
+			}
+		}
 
 		viewModel.uiEvents.collect { event ->
 			when (event) {
@@ -277,16 +285,29 @@ abstract class LogViewFragment<V : LogViewModel> :
 		onContentReplaced()
 	}
 
-	@UiThread
-	private fun append(chars: CharSequence?) {
+	private suspend fun append(chars: CharSequence?) {
 		if (chars == null) {
 			return
 		}
 
 		val editor = _binding?.editor ?: return
-		if (!editor.isReadyToAppend) return
-		editor.appendBatch(chars.toString())
-		emptyStateViewModel.setEmpty(false)
+
+		// Flip to the content child BEFORE waiting for layout
+		updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+
+		val laidOut =
+			withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+				editor.awaitLayout(
+					onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) },
+				)
+			}
+
+		if (laidOut != null) {
+			editor.appendBatch(chars.toString())
+		} else {
+			log.warn("Editor layout timed out; requesting log re-sync")
+			viewModel.resync()
+		}
 	}
 
 	@UiThread

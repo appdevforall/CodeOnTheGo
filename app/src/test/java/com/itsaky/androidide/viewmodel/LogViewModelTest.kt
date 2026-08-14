@@ -166,6 +166,56 @@ class LogViewModelTest {
 	}
 
 	@Test
+	fun `resync replays history as a snapshot without clearing`() {
+		val viewModel = TestLogViewModel()
+		viewModel.submit(null, "first")
+		viewModel.submit(null, "second")
+
+		withCollectedEvents(viewModel) { events ->
+			assertEquals("first\nsecond\n", (events.receive() as LogViewModel.UiEvent.SetText).text)
+
+			viewModel.resync()
+
+			var event = events.receive()
+			while (event !is LogViewModel.UiEvent.SetText) {
+				event = events.receive()
+			}
+			assertEquals("first\nsecond\n", event.text)
+			assertFalse(viewModel.isBufferEmpty)
+		}
+	}
+
+	@Test
+	fun `lines submitted around a resync are neither lost nor duplicated`() {
+		val viewModel = TestLogViewModel()
+		viewModel.submit(null, "old")
+
+		withCollectedEvents(viewModel) { events ->
+			assertEquals("old\n", (events.receive() as LogViewModel.UiEvent.SetText).text)
+
+			viewModel.submit(null, "before")
+			viewModel.resync()
+			viewModel.submit(null, "after")
+
+			// Skip in-flight appends from the previous generation; the resync
+			// snapshot covers everything up to its sequence number...
+			var event = events.receive()
+			while (event !is LogViewModel.UiEvent.SetText) {
+				event = events.receive()
+			}
+			val rendered = StringBuilder(event.text)
+
+			// ...and the rest arrives as appends, exactly once.
+			while (!rendered.endsWith("after\n")) {
+				val append = events.receive()
+				assertTrue(append is LogViewModel.UiEvent.Append)
+				rendered.append((append as LogViewModel.UiEvent.Append).text)
+			}
+			assertEquals("old\nbefore\nafter\n", rendered.toString())
+		}
+	}
+
+	@Test
 	fun `re-collection replays history as a snapshot without duplicates`() {
 		val viewModel = TestLogViewModel()
 		viewModel.submit(null, "line")
