@@ -116,6 +116,11 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 		return tooltipTagsByKey[key]?.takeIf { it.isNotEmpty() }
 	}
 
+	/**
+	 * Recursively walks [children], mapping each preference key to its tooltip tag.
+	 * Nested [IPreferenceScreen] nodes are not descended into. Entries with an empty
+	 * tooltip tag are kept as-is. Throws if two preferences in the tree share a key.
+	 */
 	internal fun collectTooltipTags(children: List<IPreference>): Map<String, String> {
 		val map = mutableMapOf<String, String>()
 
