@@ -318,8 +318,6 @@
 	<string name="title_confirm_project_open">Konfirmasi pembukaan proyek</string>
 	<string name="msg_confirm_project_open">Jika diaktifkan, Code on the Go akan meminta konfirmasi sebelum membuka proyek terakhir.</string>
 	<string name="msg_error_opening_project">Terjadi kesalahan saat membuka proyek.</string>
-	<string name="title_default_shell">Gunakan shell sistem di terminal</string>
-	<string name="msg_default_shell">Jika dicentang, \'/system/bin/sh\' akan digunakan di terminal.</string>
 	<string name="title_general">Umum</string>
 	<string name="title_tab_size">Ukuran tab</string>
 	<string name="msg_tab_size">Atur jumlah spasi yang digunakan oleh karakter tab untuk indentasi.</string>
