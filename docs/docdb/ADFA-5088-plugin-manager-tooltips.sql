@@ -30,12 +30,15 @@
 --
 -- Every Brotli payload is written under /tmp/adfa5088-pm-workdir, an
 -- owner-only (mode 700) directory this script creates fresh and removes
--- at the end - not bare /tmp filenames, which are guessable and world-
--- writable, so another local user could pre-plant a symlink or race the
--- write/read pair (CWE-377). `mkdir -m` sets the mode atomically at
--- creation, and the preceding `rm -rf` means each run starts from a
--- directory it fully owns rather than trusting one left over from an
--- earlier run.
+-- again at the end of a successful run - not bare /tmp filenames, which
+-- are guessable and world-writable, so another local user could pre-plant
+-- a symlink or race the write/read pair (CWE-377). `mkdir -m` sets the
+-- mode atomically at creation, and the preceding `rm -rf` means each run
+-- starts from a directory it fully owns rather than trusting one left
+-- over from an earlier run - including one left behind by a `.bail`
+-- abort part-way through a previous run, since that skips the cleanup at
+-- the end. Don't run two copies of this script at once against the same
+-- database: both would share this one fixed workdir path.
 --
 -- For each Content row: `.system rm -f <workdir>/x.br` clears any stale
 -- file, `.system echo "<html>" | brotli -Z > <workdir>/x.br` writes the

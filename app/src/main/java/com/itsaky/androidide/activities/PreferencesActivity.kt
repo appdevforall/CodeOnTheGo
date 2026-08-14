@@ -57,7 +57,19 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 
 		binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
 		binding.toolbar.setOnLongClickListener {
-			TooltipManager.showIdeCategoryTooltip(this, binding.toolbar, TooltipTag.PREFS_TOP)
+			TooltipManager.showIdeCategoryTooltip(this, binding.toolbar, currentScreenTooltipTag())
+			true
+		}
+
+		// Fallback for a long-press that lands below a short screen's content: the RecyclerView is
+		// wrap_content-sized to its own rows, so on a short screen (e.g. Git, About) it doesn't fill
+		// this NestedScrollView, and the remaining space would otherwise have no tooltip at all.
+		binding.fragmentContainerParent.setOnLongClickListener {
+			TooltipManager.showIdeCategoryTooltip(
+				this,
+				binding.fragmentContainerParent,
+				currentScreenTooltipTag(),
+			)
 			true
 		}
 
@@ -144,6 +156,12 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 
 	private fun loadFragment(fragment: Fragment) {
 		super.loadFragment(fragment, binding.fragmentContainer.id)
+	}
+
+	/** The tag of whichever [IDEPreferencesFragment] screen is currently on top, or [TooltipTag.PREFS_TOP]. */
+	private fun currentScreenTooltipTag(): String {
+		val fragment = supportFragmentManager.findFragmentById(binding.fragmentContainer.id)
+		return (fragment as? IDEPreferencesFragment)?.screenTooltipTag ?: TooltipTag.PREFS_TOP
 	}
 
 	override fun onDestroy() {

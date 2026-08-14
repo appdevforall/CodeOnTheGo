@@ -6,11 +6,12 @@
 -- (Tier 1 `summary` + Tier 2 `detail`) and a matching Content row (Tier 3
 -- HTML page) at a new, item-granular `i/prefs/...` path.
 --
--- Deliberately NOT included: prefs.general, prefs.editor, prefs.editor.xml,
--- prefs.termux, and prefs.git already exist in the real documentation.db
--- with good, real (non-empty) summary/detail text -- these tags are reused
--- as-is for the corresponding screen row, so this script leaves them alone
--- rather than overwriting curated production content with a draft.
+-- Deliberately NOT included: prefs.top, prefs.general, prefs.editor,
+-- prefs.editor.xml, prefs.termux, and prefs.git already exist in the real
+-- documentation.db with good, real (non-empty) summary/detail text -- these
+-- tags are reused as-is for the corresponding screen/toolbar row, so this
+-- script leaves them alone rather than overwriting curated production
+-- content with a draft.
 --
 -- Both Tooltips (UNIQUE(categoryId, tag)) and Content (UNIQUE(path)) are
 -- idempotent `INSERT ... ON CONFLICT ... DO UPDATE` upserts below, so the
@@ -29,12 +30,15 @@
 --
 -- Every Brotli payload is written under /tmp/adfa5088-prefs-workdir, an
 -- owner-only (mode 700) directory this script creates fresh and removes
--- at the end - not bare /tmp filenames, which are guessable and world-
--- writable, so another local user could pre-plant a symlink or race the
--- write/read pair (CWE-377). `mkdir -m` sets the mode atomically at
--- creation, and the preceding `rm -rf` means each run starts from a
--- directory it fully owns rather than trusting one left over from an
--- earlier run.
+-- again at the end of a successful run - not bare /tmp filenames, which
+-- are guessable and world-writable, so another local user could pre-plant
+-- a symlink or race the write/read pair (CWE-377). `mkdir -m` sets the
+-- mode atomically at creation, and the preceding `rm -rf` means each run
+-- starts from a directory it fully owns rather than trusting one left
+-- over from an earlier run - including one left behind by a `.bail`
+-- abort part-way through a previous run, since that skips the cleanup at
+-- the end. Don't run two copies of this script at once against the same
+-- database: both would share this one fixed workdir path.
 --
 -- For each Content row: `.system rm -f <workdir>/x.br` clears any stale
 -- file, `.system echo "<html>" | brotli -Z > <workdir>/x.br` writes the

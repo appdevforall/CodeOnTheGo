@@ -35,16 +35,17 @@ import com.itsaky.androidide.preferences.IPreferenceScreen
 import com.itsaky.androidide.utils.onLongPress
 
 class IDEPreferencesFragment : BasePreferenceFragment() {
-	private var children: List<IPreference> = emptyList()
-
 	/** Every preference in this screen, including nested categories' children, keyed by its key. */
-	private var tooltipTagsByKey: Map<String, String> = emptyMap()
+	internal var tooltipTagsByKey: Map<String, String> = emptyMap()
 
 	/**
 	 * This screen's own tag - the fallback for a long-press that lands on empty RecyclerView
-	 * space (no row under the touch point) or on a row with no tooltipTag of its own.
+	 * space (no row under the touch point) or on a row with no tooltipTag of its own. Also read
+	 * by [com.itsaky.androidide.activities.PreferencesActivity] to resolve the toolbar's and the
+	 * scroll container's long-press tooltip to whichever screen is currently showing.
 	 */
-	private var screenTooltipTag: String = PREFS_TOP
+	internal var screenTooltipTag: String = PREFS_TOP
+		private set
 
 	override fun onCreateView(
 		inflater: LayoutInflater,
@@ -68,12 +69,12 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 		}
 
 		@Suppress("DEPRECATION")
-		this.children = arguments?.getParcelableArrayList(EXTRA_CHILDREN) ?: emptyList()
-		this.tooltipTagsByKey = collectTooltipTags(this.children)
+		val children: List<IPreference> = arguments?.getParcelableArrayList(EXTRA_CHILDREN) ?: emptyList()
+		this.tooltipTagsByKey = collectTooltipTags(children)
 		this.screenTooltipTag = arguments?.getString(EXTRA_SCREEN_TOOLTIP_TAG)?.takeIf { it.isNotEmpty() } ?: PREFS_TOP
 
 		preferenceScreen.removeAll()
-		addChildren(this.children, preferenceScreen)
+		addChildren(children, preferenceScreen)
 	}
 
 	override fun onViewCreated(
@@ -102,7 +103,7 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 	}
 
 	/** The row's own tooltipTag, or null if there's no row at that position or it has none. */
-	private fun resolveTooltipTag(
+	internal fun resolveTooltipTag(
 		recyclerView: RecyclerView,
 		row: View,
 	): String? {
@@ -120,6 +121,7 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 
 		fun visit(items: List<IPreference>) {
 			for (item in items) {
+				check(item.key !in map) { "Duplicate preference key in this screen's tree: ${item.key}" }
 				map[item.key] = item.tooltipTag
 				if (item is IPreferenceGroup && item !is IPreferenceScreen) {
 					visit(item.children)

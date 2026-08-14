@@ -63,7 +63,6 @@ private class GradleOptions(
 	override val key: String = "idepref_build_gradle",
 	override val title: Int = string.gradle,
 	override val children: List<IPreference> = mutableListOf(),
-	override val tooltipTag: String = PREFS_BUILD_RUN,
 ) : IPreferenceGroup() {
 
 init {
@@ -101,7 +100,6 @@ private class RunOptions(
 	override val key: String = "ide.build.runOptions",
 	override val title: Int = R.string.title_run_options,
 	override val children: List<IPreference> = mutableListOf(),
-	override val tooltipTag: String = PREFS_BUILD_RUN,
 ) : IPreferenceGroup() {
 
 	init {

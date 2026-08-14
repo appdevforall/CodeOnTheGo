@@ -47,7 +47,9 @@ abstract class DialogPreference : SimplePreference() {
 		alertDialog.show()
 
 		alertDialog.window?.decorView?.applyLongPressRecursively {
-			TooltipManager.showIdeCategoryTooltip(preference.context, it, tooltipTag)
+			if (tooltipTag.isNotEmpty()) {
+				TooltipManager.showIdeCategoryTooltip(preference.context, it, tooltipTag)
+			}
 			true
 		}
 

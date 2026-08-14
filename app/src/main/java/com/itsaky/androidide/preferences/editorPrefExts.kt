@@ -62,7 +62,6 @@ private class CommonConfigurations(
 override val key: String = "idepref_editor_common",
 override val title: Int = string.idepref_editor_category_common,
 override val children: List<IPreference> = mutableListOf(),
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR,
 ) : IPreferenceGroup() {
 
 init {

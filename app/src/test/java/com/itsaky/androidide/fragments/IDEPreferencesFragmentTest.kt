@@ -1,13 +1,20 @@
 package com.itsaky.androidide.fragments
 
 import android.content.Context
+import android.view.View
 import androidx.preference.Preference
+import androidx.preference.PreferenceGroupAdapter
+import androidx.preference.PreferenceManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.preferences.IPreference
 import com.itsaky.androidide.preferences.IPreferenceGroup
 import com.itsaky.androidide.preferences.IPreferenceScreen
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -64,6 +71,62 @@ class IDEPreferencesFragmentTest {
 		val tags = IDEPreferencesFragment().collectTooltipTags(children)
 
 		assertThat(tags).containsExactly("untagged", "")
+	}
+
+	@Test
+	fun `collectTooltipTags rejects a duplicate key instead of silently overwriting its tag`() {
+		val children =
+			listOf(
+				FakeItem(key = "dup", tooltipTag = "tag.first"),
+				FakeItem(key = "dup", tooltipTag = "tag.second"),
+			)
+
+		assertThrows(IllegalStateException::class.java) {
+			IDEPreferencesFragment().collectTooltipTags(children)
+		}
+	}
+
+	@Test
+	fun `resolveTooltipTag looks up the real adapter position's own tag`() {
+		val recyclerView = buildRecyclerView(keys = listOf("a", "b"))
+		val fragment =
+			IDEPreferencesFragment().apply {
+				tooltipTagsByKey = mapOf("a" to "tag.a", "b" to "tag.b")
+			}
+
+		val rowB = recyclerView.getChildAt(1)
+
+		assertThat(fragment.resolveTooltipTag(recyclerView, rowB)).isEqualTo("tag.b")
+	}
+
+	@Test
+	fun `resolveTooltipTag returns null for a row whose own tag is empty`() {
+		val recyclerView = buildRecyclerView(keys = listOf("a"))
+		val fragment =
+			IDEPreferencesFragment().apply {
+				tooltipTagsByKey = mapOf("a" to "")
+			}
+
+		val rowA = recyclerView.getChildAt(0)
+
+		assertThat(fragment.resolveTooltipTag(recyclerView, rowA)).isNull()
+	}
+
+	/** A real, laid-out RecyclerView backed by a real PreferenceGroupAdapter - not a fake. */
+	private fun buildRecyclerView(keys: List<String>): RecyclerView {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val screen = PreferenceManager(context).createPreferenceScreen(context)
+		keys.forEach { screen.addPreference(Preference(context).apply { key = it }) }
+
+		return RecyclerView(context).apply {
+			layoutManager = LinearLayoutManager(context)
+			adapter = PreferenceGroupAdapter(screen)
+			measure(
+				View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY),
+				View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY),
+			)
+			layout(0, 0, 1000, 1000)
+		}
 	}
 }
 

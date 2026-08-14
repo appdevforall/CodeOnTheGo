@@ -29,7 +29,6 @@ internal class JavaCodeConfigurations(
 override val key: String = "idepref_editor_java",
 override val title: Int = string.idepref_editor_category_java,
 override val children: List<IPreference> = mutableListOf(),
-override val tooltipTag: String = TooltipTag.PREFS_EDITOR,
 ) : IPreferenceGroup() {
 
 init {
