@@ -67,6 +67,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
 		private val ACTION_EMAIL = id++
 		private val ACTION_TG_CHANNEL = id++
 		private val ACTION_GH_FORUM = id++
+		private val ACTION_YOUTUBE = id++
+		private val ACTION_BILIBILI = id++
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -119,6 +121,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
 			ACTION_EMAIL -> UrlManager.openUrl(getString(R.string.mail_to_adfa), null, this)
 			ACTION_GH_FORUM -> UrlManager.openUrl(getString(R.string.github_discussions_url), context = this)
 			ACTION_TG_CHANNEL -> UrlManager.openUrl(getString(R.string.telegram_channel_url), "org.telegram.messenger", this)
+			ACTION_YOUTUBE -> UrlManager.openUrl(getString(R.string.youtube_channel_url), context = this)
+			ACTION_BILIBILI -> UrlManager.openUrl(getString(R.string.bilibili_video_url), context = this)
 		}
 	}
 
@@ -158,6 +162,24 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
 					R.drawable.ic_telegram,
 					R.string.official_tg_channel,
 					getString(R.string.telegram_channel_url),
+				),
+			)
+			add(
+				createSimpleIconTextItem(
+					this@AboutActivity,
+					ACTION_YOUTUBE,
+					R.drawable.ic_youtube,
+					R.string.about_option_youtube,
+					getString(R.string.youtube_channel_url),
+				),
+			)
+			add(
+				createSimpleIconTextItem(
+					this@AboutActivity,
+					ACTION_BILIBILI,
+					R.drawable.ic_bilibili,
+					R.string.about_option_bilibili,
+					getString(R.string.bilibili_video_url),
 				),
 			)
 		}

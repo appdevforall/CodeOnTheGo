@@ -26,13 +26,71 @@ Versions are bare `YY.WW` — two-digit ISO year, two-digit ISO week (`26.30` =
 
 ## Changelog
 
-Newest first. Every change so far is **additive** — no capability has been
-removed or had its signature broken since the plugin system shipped. A future
-breaking change belongs here as a `breaking` row.
+Newest first. Most changes are **additive**; the ones that are not carry a
+`breaking` row saying what breaks and what to do about it. Read the `breaking`
+rows at or below your `min_ide_version` before you bump it.
 
-Legend: `added` = new capability, safe to adopt · `tooling` = API-stability
+Legend: `added` = new capability, safe to adopt · `breaking` = existing plugins
+need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
+
+### 26.33 — 2026-08-12
+- **added — Optional LLM backend capabilities** _(ADFA-5095)_ **[verified]**
+  An LLM backend declares what it supports by the interfaces it implements, so a
+  backend can ship as its own plugin and implement only what it can do. The
+  consumer asks with `instanceof` before it calls; a backend that implements none
+  of these is still a valid `LlmBackend`.
+  `LlmInferenceService.HistoryCapableBackend` (`generateStreamingWithHistory`),
+  `ToolCallingBackend` (`generateStreamingWithTools`),
+  `CancellableBackend` (`cancelStreaming`),
+  `ConfigurableBackend` (`getSettingsFragmentClassName` — the backend's own
+  settings `Fragment`, loaded with the backend's classloader).
+- **added — Backend-owned prompt and sampling** _(ADFA-5095)_ **[verified]**
+  A backend supplies the system prompt and temperature its model needs, instead of
+  the consumer hardcoding them per provider. Both are `default` and return null
+  for "no preference"; `getDefaultTemperature()` is a boxed `Float`, so null-check
+  before assigning it to the primitive `LlmConfig.temperature`.
+  `LlmBackend.getSystemPrompt(SystemPromptRequest)`,
+  `LlmBackend.getDefaultTemperature()`, `SystemPromptRequest`.
+- **breaking — Tool results correlated by call id and tool name** _(ADFA-5095)_ **[verified]**
+  A tool's output travels back into the next turn as a message of its own, so a
+  turn's several calls are matched by correlator rather than by position. Both
+  correlators travel with the result because providers key results differently —
+  by call id, or by function name — and a backend can only forward what it was
+  given.
+  `ChatMessage.toolResult(String, String, String)`, `ChatMessage.toolCallId` /
+  `toolName`, `ChatMessage.Role.TOOL`.
+  **What breaks:** `Role` gains a fourth constant, so an exhaustive Kotlin `when`
+  over it with no `else` stops compiling. A plugin already built against the
+  three-constant enum has the worse failure: the `when` throws
+  `NoWhenBranchMatchedException` with a null message, which reads as an
+  unattributable crash inside the plugin rather than as anything to do with
+  `Role`. A `TOOL` message reaches a backend that never calls `toolResult` — the
+  consumer builds it and passes it in the history — so handling it is not
+  optional for backends. **What to do:** add a `TOOL` branch (routing it as a
+  user turn is fine for a backend with no native function calling) and republish;
+  a `.cgp` that is only reinstalled, not rebuilt, stays exposed.
+- **added — Preferred backend id** _(ADFA-5095)_ **[verified]**
+  A backend can ask which backend the user selected, so one that would otherwise
+  spend seconds and gigabytes preparing itself knows whether it is about to be
+  used — without reading another plugin's preferences.
+  `LlmInferenceService.getPreferredBackendId()` (`default`, null when unset).
+- **breaking — Nullability annotated across the LLM surface** _(ADFA-5095)_
+  Every parameter, return and field on `LlmInferenceService` and the types nested
+  in it now carries `@NonNull` or `@Nullable`, so the contract is stated rather
+  than inferred.
+  **What breaks:** an unannotated Java type reaches Kotlin as a platform type
+  (`String!`) that dereferences without a check; annotated `@Nullable` it becomes
+  `String?`, and every existing dereference stops compiling with "only safe (?.)
+  or non-null asserted (!!.) calls are allowed". This hits **callers**, not just
+  implementors — `LlmResponse.text` / `.error`, `ToolCallRequest.args` and
+  `ToolDefinition.parametersSchema` are the ones consumers touch, and
+  `@NonNull` across `LlmBackend` tightens what an implementor may return.
+  Bytecode is unchanged, so an installed `.cgp` keeps running; the break is at
+  compile time in the plugin repo. **What to do:** `?.`, `.orEmpty()` or an
+  explicit null check at each site — the annotations describe values the API
+  could already return.
 
 ### 26.31 — 2026-07-29
 - **tooling — Plugin API & builder resolvable by Maven coordinate on-device** _(ADFA-4911)_
