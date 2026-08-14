@@ -356,7 +356,7 @@ open class EditorHandlerActivity :
 		activeProjectCloseDialog?.dismiss()
 
 		// Drain any deep-link-triggered "close then reopen a different project" request recorded by
-		// confirmProjectCloseThenOpen's onClosed callback. This deliberately waits until onDestroy --
+		// onNewIntent's confirmProjectClose(onClosed) callback. This deliberately waits until onDestroy --
 		// which only runs once the framework has committed to tearing this singleTask instance down --
 		// rather than firing startActivity() synchronously right after finish(), because the two calls
 		// racing could otherwise have the new PROJECT_PATH redelivered to this dying instance via
@@ -1891,7 +1891,6 @@ open class EditorHandlerActivity :
 			saveAllAsync(notify = false) {
 				runOnUiThread {
 					confirmCloseInProgress = false
-					if (contentOrNull == null) return@runOnUiThread
 					// saveAll()'s return value is gradleSaved (whether a build file changed), not
 					// "everything saved successfully" -- check actual editor state instead, so a
 					// failed write (disk full, permission) doesn't silently discard unsaved changes.
@@ -1899,29 +1898,36 @@ open class EditorHandlerActivity :
 						flashError(string.save_failed)
 						return@runOnUiThread
 					}
-					performCloseAllFiles(manualFinish = true, onClosed = onClosed)
+					recentProjectsViewModel.updateProjectModifiedDate(
+						editorViewModel.getProjectName(),
+					)
+					// contentOrNull can already be null here if the binding was torn down while the
+					// save was in flight -- performCloseAllFiles would NPE on the view manipulation it
+					// does, but onClosed (e.g. arming a pending deep-link project switch) has no such
+					// dependency and must still run, or a confirmed close silently drops it.
+					if (contentOrNull != null) {
+						performCloseAllFiles(manualFinish = true, onClosed = onClosed)
+					} else {
+						onClosed?.invoke()
+					}
 				}
-				recentProjectsViewModel.updateProjectModifiedDate(
-					editorViewModel.getProjectName(),
-				)
 			}
 		}
 
 		activeProjectCloseDialog = builder.show()
 	}
 
-	/**
-	 * Entry point used only by the deep-link [onNewIntent] routing below: shows the same,
-	 * unmodified confirm-close dialog as [doConfirmProjectClose], but [onClosed] runs once the user
-	 * actually confirms a close (save-or-discard) -- never on Cancel, which leaves the current
-	 * project open exactly as it was.
-	 */
-	private fun confirmProjectCloseThenOpen(onClosed: () -> Unit) {
-		confirmProjectClose(onClosed)
-	}
-
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
+
+		// Preserve a not-yet-applied file-navigation request from the previous intent -- postProjectInit
+		// reads it lazily once a sync completes, and setIntent() below would otherwise silently drop it
+		// if this onNewIntent call is for something unrelated to that pending request.
+		if (!intent.hasExtra(PendingFileRequest.EXTRA_KEY)) {
+			IntentCompat
+				.getParcelableExtra(getIntent(), PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
+				?.let { intent.putExtra(PendingFileRequest.EXTRA_KEY, it) }
+		}
 		setIntent(intent)
 
 		val request =
@@ -1931,21 +1937,42 @@ open class EditorHandlerActivity :
 		lifecycleScope.launch(Dispatchers.IO) {
 			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName) ?: return@launch
 			withContext(Dispatchers.Main) {
-				// projectDirPath is set as soon as a project starts opening -- unlike workspace, which
-				// stays null for the whole duration of a Gradle sync -- so this correctly matches the
-				// "already in this project" case even mid-sync, instead of falling through to the
-				// disruptive close-and-reopen confirmation below for a no-op.
-				if (projectDir.absolutePath == IProjectManager.getInstance().projectDirPath) {
-					// Requirement #2: same project already open -- no-op project-wise, just navigate.
-					request.fileRequest?.let { applyDeepLinkFileRequest(it) }
-					return@withContext
-				}
+				// The activity may have started finishing while resolveDeepLinkProject was still
+				// scanning disk -- lifecycleScope only cancels at ON_DESTROY, not the moment isFinishing
+				// first flips true, so this continuation can otherwise still run and try to show the
+				// confirm-close dialog on a dying window.
+				if (isFinishing || isDestroyed) return@withContext
 
-				// Requirement #3: a different project is open. Reuse the existing, unmodified
-				// confirm-close dialog; only record the pending open if the user actually confirms --
-				// see onDestroy() for why the reopen itself waits until this instance is torn down.
-				confirmProjectCloseThenOpen {
-					pendingDeepLinkOpen.value = DeepLinkOpenRequest(projectDir.absolutePath, request.fileRequest)
+				val currentProjectPath = IProjectManager.getInstance().projectDirPath
+				when {
+					currentProjectPath.isBlank() -> {
+						// No project has actually finished initializing in this instance (e.g. it was
+						// recreated after process death without a PROJECT_PATH extra) -- confirmProjectClose
+						// would silently no-op here since contentOrNull is null, dropping the deep link
+						// with no error shown. Route through the same onDestroy()-deferred handoff used for
+						// a confirmed project switch instead of showing a close dialog for a project that,
+						// as far as the user can see, was never really open.
+						pendingDeepLinkOpen.value = DeepLinkOpenRequest(projectDir.absolutePath, request.fileRequest)
+						finish()
+					}
+
+					// projectDirPath is set as soon as a project starts opening -- unlike workspace, which
+					// stays null for the whole duration of a Gradle sync -- so this correctly matches the
+					// "already in this project" case even mid-sync, instead of falling through to the
+					// disruptive close-and-reopen confirmation below for a no-op.
+					projectDir.absolutePath == currentProjectPath -> {
+						// Requirement #2: same project already open -- no-op project-wise, just navigate.
+						request.fileRequest?.let { applyDeepLinkFileRequest(it) }
+					}
+
+					else -> {
+						// Requirement #3: a different project is open. Reuse the existing, unmodified
+						// confirm-close dialog; only record the pending open if the user actually confirms --
+						// see onDestroy() for why the reopen itself waits until this instance is torn down.
+						confirmProjectClose {
+							pendingDeepLinkOpen.value = DeepLinkOpenRequest(projectDir.absolutePath, request.fileRequest)
+						}
+					}
 				}
 			}
 		}
@@ -1976,21 +2003,30 @@ open class EditorHandlerActivity :
 	 * file path is attacker-controllable URL input, so it's resolved through
 	 * [resolveWithinDirectory] rather than a bare [File] constructor -- see that function's docs for
 	 * why a lexical `..` check alone isn't enough.
+	 *
+	 * [resolveWithinDirectory]'s ancestor-symlink walk and the [File.isFile] check both hit disk, so
+	 * -- like [openFile]'s own image check -- this runs off [Dispatchers.IO] rather than blocking the
+	 * main thread the two call sites (`onNewIntent`, [postProjectInit]) invoke this from.
 	 */
 	private fun applyDeepLinkFileRequest(request: PendingFileRequest) {
-		val projectDir = File(IProjectManager.getInstance().projectDirPath)
-		val file = resolveWithinDirectory(projectDir, request.filePath)
-		if (file == null || !file.isFile) {
-			flashError(getString(string.msg_deeplink_file_not_found, request.filePath))
-			return
+		lifecycleScope.launch(Dispatchers.IO) {
+			val projectDir = File(IProjectManager.getInstance().projectDirPath)
+			val file = resolveWithinDirectory(projectDir, request.filePath)?.takeIf { it.isFile }
+
+			withContext(Dispatchers.Main) {
+				if (file == null) {
+					flashError(getString(string.msg_deeplink_file_not_found, request.filePath))
+					return@withContext
+				}
+
+				// URL line/column are 1-based; internal Position is 0-based.
+				val line = zeroBasedOrFlashError(request.lineRaw, string.msg_deeplink_invalid_line)
+				val column = zeroBasedOrFlashError(request.columnRaw, string.msg_deeplink_invalid_column)
+
+				val pos = Position(line, column)
+				openFileAndSelect(file, Range(pos, pos))
+			}
 		}
-
-		// URL line/column are 1-based; internal Position is 0-based.
-		val line = zeroBasedOrFlashError(request.lineRaw, string.msg_deeplink_invalid_line)
-		val column = zeroBasedOrFlashError(request.columnRaw, string.msg_deeplink_invalid_column)
-
-		val pos = Position(line, column)
-		openFileAndSelect(file, Range(pos, pos))
 	}
 
 	/**

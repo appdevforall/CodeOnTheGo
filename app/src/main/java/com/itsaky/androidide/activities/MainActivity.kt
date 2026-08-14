@@ -432,11 +432,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		hasTemplateIssues: Boolean = false,
 		pendingFileRequest: PendingFileRequest? = null,
 	) {
-		recordProjectOpenedBookkeeping(recentProjectDao, root, project, analyticsManager)
-
 		if (isFinishing) {
 			return
 		}
+
+		recordProjectOpenedBookkeeping(recentProjectDao, root, project, analyticsManager)
 
 		val intent =
 			Intent(this, EditorActivityKt::class.java).apply {

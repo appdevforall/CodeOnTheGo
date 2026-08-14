@@ -54,6 +54,7 @@ import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
 import androidx.core.content.ContextCompat
+import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
@@ -102,6 +103,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.DiagnosticClickListener
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.models.DiagnosticItem
+import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.Range
@@ -653,14 +655,30 @@ abstract class BaseEditorActivity :
 	 * building the editor UI.
 	 */
 	override fun onCreate(savedInstanceState: Bundle?) {
+		// DeepLinkActivity routes a deep link to this activity's class only when it believes a live
+		// singleTask instance already exists to handle it via onNewIntent (see
+		// ActionContextProvider.getActivity()'s docs on how that check can still be stale) -- if
+		// Android instead spins up a genuinely new instance, this onCreate runs and onNewIntent
+		// never does, so this is EXTRA_KEY's only other reader on the editor side.
+		val deepLinkRequest =
+			IntentCompat.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
+
 		// The OS can recreate EditorActivity after process death without routing through
 		// MainActivity, leaving the ProjectManagerImpl singleton's lateinit projectPath unset.
-		// Restore it from the saved state, the launch intent, or the last opened project.
-		val restoredProjectPath =
+		// Restore it from the saved state or the launch intent; only fall back to the last opened
+		// project when there's no pending deep link -- otherwise this would silently open the wrong
+		// project instead of the one the link actually requested.
+		val explicitProjectPath =
 			savedInstanceState?.getString(KEY_PROJECT_PATH)?.takeIf { it.isNotBlank() }
 				?: intent?.getStringExtra("PROJECT_PATH")?.takeIf { it.isNotBlank() }
-				?: GeneralPreferences.lastOpenedProject
-					.takeIf { it.isNotBlank() && it != GeneralPreferences.NO_OPENED_PROJECT }
+		val restoredProjectPath =
+			explicitProjectPath
+				?: if (deepLinkRequest == null) {
+					GeneralPreferences.lastOpenedProject
+						.takeIf { it.isNotBlank() && it != GeneralPreferences.NO_OPENED_PROJECT }
+				} else {
+					null
+				}
 		if (restoredProjectPath != null) {
 			ProjectManagerImpl.getInstance().projectPath = restoredProjectPath
 		}
@@ -668,10 +686,16 @@ abstract class BaseEditorActivity :
 
 		// If we still have no project path after every fallback, we cannot safely build the
 		// editor UI (setupToolbar -> getProjectName dereferences the project path). Route the
-		// user back to MainActivity instead of crashing.
+		// user back to MainActivity instead of crashing -- forwarding a pending deep link along so
+		// MainActivity can still resolve and open the requested project, instead of silently
+		// dropping it here.
 		if (ProjectManagerImpl.getInstance().projectDirPath.isBlank()) {
 			log.warn("No project path available in EditorActivity.onCreate(); returning to MainActivity")
-			startActivity(Intent(this, MainActivity::class.java))
+			startActivity(
+				Intent(this, MainActivity::class.java).apply {
+					deepLinkRequest?.let { putExtra(DeepLinkRequest.EXTRA_KEY, it) }
+				},
+			)
 			finish()
 			return
 		}
