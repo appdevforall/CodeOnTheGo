@@ -21,11 +21,11 @@ One read of the target declaration inside the enclosing declaration. Deliberatel
 _Avoid_: occurrence, usage, use site.
 
 **Cutoff**:
-The first offset after the target declaration where the inlined value stops being the value the declaration produced - either a write to the target itself, or a write to a mutable its initializer reads. References before the cutoff are sound; references at or after it are not.
+The first offset after the target declaration where the inlined value stops being the value the declaration produced - either a write to the target itself, or a write to a mutable its initializer reads. References before the cutoff are sound; the one exception is a reference inside a body that runs later than its own text position, which is judged separately regardless of where it sits (R6).
 _Avoid_: barrier, invalidation point, write boundary.
 
 **Inlinable reference**:
-A reference that may be rewritten: before the cutoff, not shadowed, not receiver-shifted, not smart-cast, not a write target, and not an invocation of a lambda initializer. Every other reference is left exactly as it is.
+A reference that may be rewritten: before the cutoff, not deferred, not shadowed, not receiver-shifted, not smart-cast, not unsafe in callee position, and not a write target. Every other reference is left exactly as it is.
 _Avoid_: safe reference, valid usage, eligible reference.
 
 **Partial inline**:
@@ -230,7 +230,7 @@ InlineVariableAction.execAction (background)                lsp/kotlin/actions
            resolveTarget(ktFile, offset)                                                   [R2, R7]
            references(target, enclosingExecutableBody)                                       [R4]
            cutoffAfter(target)                                                               [R5]
-           exclude per site: shadow / receiver / smartcast / invoke                          [R6]
+           exclude per site: deferred / shadow / receiver / smartcast / callee                [R6]
            -> InlineVariablePlan | InlineRefusal                                         [R8, R14]
          }
        }
@@ -264,8 +264,8 @@ Nothing outside `lsp/kotlin` changes except `TooltipTag.kt` and `values/strings.
 
 Unit tests in `:lsp:kotlin` (`flox activate -d flox/local -- ./gradlew :lsp:kotlin:testV7DebugUnitTest`), split so a failure localises to one layer:
 
-- **`InlineVariablePlanEndToEndTest`** - analysis-backed, one case per rule: both cursor positions (R2), the reference set (R4), the cutoff from each cause (R5), one case per per-site exclusion (R6), the explicit-type refusal (R7), the deletion rule including the `var`-with-a-later-write case (R8), mode availability per row of R9's table, and **one case per refusal reason** (R14).
-- **`InlineVariableEditTest`** - pure text: parenthesisation per initializer class, both template forms, the three deletion line shapes, comment preservation, descending edit order, and CRLF preservation (R10-R12).
+- **`InlineVariablePlanEndToEndTest`** - analysis-backed, one case per rule: both cursor positions (R2), the reference set (R4), the cutoff from each cause (R5), one case per per-site exclusion (R6), the explicit-type refusal (R7), the deletion rule including the `var`-with-a-later-write case and the `when`-subject-variable case (R8), mode availability per row of R9's table, and **one case per refusal reason** (R14).
+- **`InlineVariableEditTest`** - pure text: parenthesisation per initializer class, both template forms, the three deletion line shapes, comment preservation on both a tab- and a space-indented fixture, descending edit order, and CRLF preservation (R10-R12).
 - **`InlineVariablePlanTest`** - the pure derivations: R9's mode table and R13's labels and reports, against hand-built plans.
 - **`RefactorPrimitivesTest`** - extended for whatever R6's scope walk factors out syntactically.
 - **`KotlinCodeActionTooltipTagTest`** - one new row (R1).
