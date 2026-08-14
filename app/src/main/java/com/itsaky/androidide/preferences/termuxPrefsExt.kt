@@ -32,7 +32,6 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TERMUX_NOHARDKEYBOARD
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TERMUX_SOFTKEYBOARD
 import com.termux.shared.logger.Logger
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences
-import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import kotlin.reflect.KMutableProperty0
 
@@ -111,11 +110,9 @@ init {
 class TermuxDebuggingLogLevelPreference(
 override val key: String = KEY_TERMUX_DEBUGGING_LOG_LEVEL_PREFERENCE,
 override val title: Int = R.string.log_level_title,
-override val icon: Int? = R.drawable.ic_bug
+override val icon: Int? = R.drawable.ic_bug,
+override val tooltipTag: String = PREFS_TERMUX_LOGLEVEL,
 ) : SingleChoicePreference() {
-
-@IgnoredOnParcel
-override val tooltipTag: String = PREFS_TERMUX_LOGLEVEL
 
 override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
 	val logLevels = Logger.getLogLevelsArray()

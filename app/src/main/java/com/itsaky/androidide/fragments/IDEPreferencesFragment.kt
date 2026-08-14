@@ -71,7 +71,7 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 		@Suppress("DEPRECATION")
 		val children: List<IPreference> = arguments?.getParcelableArrayList(EXTRA_CHILDREN) ?: emptyList()
 		this.tooltipTagsByKey = collectTooltipTags(children)
-		this.screenTooltipTag = arguments?.getString(EXTRA_SCREEN_TOOLTIP_TAG)?.takeIf { it.isNotEmpty() } ?: PREFS_TOP
+		this.screenTooltipTag = resolveScreenTooltipTag(arguments?.getString(EXTRA_SCREEN_TOOLTIP_TAG))
 
 		preferenceScreen.removeAll()
 		addChildren(children, preferenceScreen)
@@ -101,6 +101,9 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 			TooltipManager.showIdeCategoryTooltip(ctx, anchor, tag)
 		}
 	}
+
+	/** [EXTRA_SCREEN_TOOLTIP_TAG]'s value, or [PREFS_TOP] if it's missing or blank. */
+	internal fun resolveScreenTooltipTag(rawTag: String?): String = rawTag?.takeIf { it.isNotEmpty() } ?: PREFS_TOP
 
 	/** The row's own tooltipTag, or null if there's no row at that position or it has none. */
 	internal fun resolveTooltipTag(

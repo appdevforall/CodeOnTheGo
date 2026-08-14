@@ -164,13 +164,13 @@ override val icon: Int? = drawable.ic_drawing,
 override val tooltipTag: String = TooltipTag.PREFS_EDITOR_NONPRINTING,
 ) : PropertyBasedMultiChoicePreference() {
 
-override fun getProperties(): List<PropertyEntry> {
+override fun getProperties(): List<PreferenceChoices.Entry> {
 	return listOf(
-	PropertyEntry("Leading", EditorPreferences::drawLeadingWs, TooltipTag.PREFS_EDITOR_NONPRINTING_LEADING),
-	PropertyEntry("Trailing", EditorPreferences::drawTrailingWs, TooltipTag.PREFS_EDITOR_NONPRINTING_TRAILING),
-	PropertyEntry("Inner", EditorPreferences::drawInnerWs, TooltipTag.PREFS_EDITOR_NONPRINTING_INNER),
-	PropertyEntry("Empty lines", EditorPreferences::drawEmptyLineWs, TooltipTag.PREFS_EDITOR_NONPRINTING_EMPTYLINES),
-	PropertyEntry("Line breaks", EditorPreferences::drawLineBreak, TooltipTag.PREFS_EDITOR_NONPRINTING_LINEBREAKS),
+	propertyEntry("Leading", EditorPreferences::drawLeadingWs, TooltipTag.PREFS_EDITOR_NONPRINTING_LEADING),
+	propertyEntry("Trailing", EditorPreferences::drawTrailingWs, TooltipTag.PREFS_EDITOR_NONPRINTING_TRAILING),
+	propertyEntry("Inner", EditorPreferences::drawInnerWs, TooltipTag.PREFS_EDITOR_NONPRINTING_INNER),
+	propertyEntry("Empty lines", EditorPreferences::drawEmptyLineWs, TooltipTag.PREFS_EDITOR_NONPRINTING_EMPTYLINES),
+	propertyEntry("Line breaks", EditorPreferences::drawLineBreak, TooltipTag.PREFS_EDITOR_NONPRINTING_LINEBREAKS),
 	)
 }
 }

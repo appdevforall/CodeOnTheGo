@@ -40,7 +40,6 @@ import com.itsaky.androidide.preferences.internal.BuildPreferences.isWarningMode
 import com.itsaky.androidide.preferences.internal.BuildPreferences.launchAppAfterInstall
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
-import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
@@ -76,20 +75,18 @@ private class GradleCommands(
 	override val title: Int = string.idepref_build_customgradlecommands_title,
 	override val summary: Int? = string.idepref_build_customgradlecommands_summary,
 	override val icon: Int? = drawable.ic_bash_commands,
+	override val tooltipTag: String = PREFS_BUILDRUN_FLAGS,
 ) : PropertyBasedMultiChoicePreference() {
 
-	@IgnoredOnParcel
-	override val tooltipTag: String = PREFS_BUILDRUN_FLAGS
-
-	override fun getProperties(): List<PropertyEntry> {
+	override fun getProperties(): List<PreferenceChoices.Entry> {
 		return listOf(
-			PropertyEntry("--stacktrace", ::isStacktraceEnabled, PREFS_BUILDRUN_FLAGS_STACKTRACE),
-			PropertyEntry("--info", ::isInfoEnabled, PREFS_BUILDRUN_FLAGS_INFO),
-			PropertyEntry("--debug", ::isDebugEnabled, PREFS_BUILDRUN_FLAGS_DEBUG),
-			PropertyEntry("--scan", ::isScanEnabled, PREFS_BUILDRUN_FLAGS_SCAN),
-			PropertyEntry("--warning-mode all", ::isWarningModeAllEnabled, PREFS_BUILDRUN_FLAGS_WARNINGMODEALL),
-			PropertyEntry("--build-cache", ::isBuildCacheEnabled, PREFS_BUILDRUN_FLAGS_BUILDCACHE),
-			PropertyEntry("--offline", ::isOfflineEnabled, PREFS_BUILDRUN_FLAGS_OFFLINE),
+			propertyEntry("--stacktrace", ::isStacktraceEnabled, PREFS_BUILDRUN_FLAGS_STACKTRACE),
+			propertyEntry("--info", ::isInfoEnabled, PREFS_BUILDRUN_FLAGS_INFO),
+			propertyEntry("--debug", ::isDebugEnabled, PREFS_BUILDRUN_FLAGS_DEBUG),
+			propertyEntry("--scan", ::isScanEnabled, PREFS_BUILDRUN_FLAGS_SCAN),
+			propertyEntry("--warning-mode all", ::isWarningModeAllEnabled, PREFS_BUILDRUN_FLAGS_WARNINGMODEALL),
+			propertyEntry("--build-cache", ::isBuildCacheEnabled, PREFS_BUILDRUN_FLAGS_BUILDCACHE),
+			propertyEntry("--offline", ::isOfflineEnabled, PREFS_BUILDRUN_FLAGS_OFFLINE),
 		)
 	}
 }

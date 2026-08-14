@@ -31,7 +31,6 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.resources.localization.LocaleProvider
-import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
@@ -80,11 +79,9 @@ class UiMode(
 override val key: String = GeneralPreferences.UI_MODE,
 override val title: Int = R.string.idepref_general_uiMode,
 override val summary: Int? = R.string.idepref_general_uiMode_summary,
-override val icon: Int? = R.drawable.ic_ui_mode
+override val icon: Int? = R.drawable.ic_ui_mode,
+override val tooltipTag: String = PREFS_GENERAL_UIMODE,
 ) : SingleChoicePreference() {
-
-@IgnoredOnParcel
-override val tooltipTag: String = PREFS_GENERAL_UIMODE
 
 override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
 	val context = preference.context
@@ -116,11 +113,9 @@ class LocaleSelector(
 override val key: String = GeneralPreferences.SELECTED_LOCALE,
 override val title: Int = R.string.idepref_general_localeSelector_title,
 override val summary: Int? = R.string.idepref_general_localeSelector_summary,
-override val icon: Int? = R.drawable.ic_translate
+override val icon: Int? = R.drawable.ic_translate,
+override val tooltipTag: String = PREFS_GENERAL_LANGUAGE,
 ) : SingleChoicePreference() {
-
-@IgnoredOnParcel
-override val tooltipTag: String = PREFS_GENERAL_LANGUAGE
 
 override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
 	val context = preference.context

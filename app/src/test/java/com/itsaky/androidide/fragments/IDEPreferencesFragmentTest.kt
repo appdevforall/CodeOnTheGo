@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TOP
 import com.itsaky.androidide.preferences.IPreference
 import com.itsaky.androidide.preferences.IPreferenceGroup
 import com.itsaky.androidide.preferences.IPreferenceScreen
@@ -110,6 +111,21 @@ class IDEPreferencesFragmentTest {
 		val rowA = recyclerView.getChildAt(0)
 
 		assertThat(fragment.resolveTooltipTag(recyclerView, rowA)).isNull()
+	}
+
+	@Test
+	fun `resolveScreenTooltipTag falls back to PREFS_TOP when the argument is missing`() {
+		assertThat(IDEPreferencesFragment().resolveScreenTooltipTag(null)).isEqualTo(PREFS_TOP)
+	}
+
+	@Test
+	fun `resolveScreenTooltipTag falls back to PREFS_TOP when the argument is blank`() {
+		assertThat(IDEPreferencesFragment().resolveScreenTooltipTag("")).isEqualTo(PREFS_TOP)
+	}
+
+	@Test
+	fun `resolveScreenTooltipTag passes through a real tag unchanged`() {
+		assertThat(IDEPreferencesFragment().resolveScreenTooltipTag("tag.screen")).isEqualTo("tag.screen")
 	}
 
 	/** A real, laid-out RecyclerView backed by a real PreferenceGroupAdapter - not a fake. */

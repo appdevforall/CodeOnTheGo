@@ -388,7 +388,6 @@
   <string name="btn_opt_in">Katıl</string>
   <string name="title_developer_options">Geliştirici seçenekleri</string>
   <string name="idepref_devOptions_summary">Code on the Go için deneysel/hata ayıklama seçenekleri</string>
-  <string name="idepref_group_debugging">Hata ayıklama</string>
   <string name="idepref_devOptions_dumpLogs_title">Günlükleri kaydet</string>
   <string name="idepref_devOptions_dumpLogs_summary">$HOME/.cg/logs içine Code on the Go günlüklerini kaydet</string>
   <string name="msg_emptyview_applogs">Uygulamanızın günlüklerini burada görüntülemek için debug varyantını çalıştırın.</string>

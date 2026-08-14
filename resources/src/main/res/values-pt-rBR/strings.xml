@@ -388,7 +388,6 @@
   <string name="btn_opt_in">Aceitar</string>
   <string name="title_developer_options">Opções do desenvolvedor</string>
   <string name="idepref_devOptions_summary">Opções experimentais/de depuração para Code on the Go</string>
-  <string name="idepref_group_debugging">Depuração</string>
   <string name="idepref_devOptions_dumpLogs_title">Despejar registros</string>
   <string name="idepref_devOptions_dumpLogs_summary">Despejar registros do Code on the Go para $HOME/.cg/logs</string>
   <string name="msg_emptyview_applogs">Execute a variante de depuração do seu aplicativo para ver os logs aqui.</string>

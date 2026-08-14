@@ -56,6 +56,23 @@ class PluginListAdapter(
 	inner class PluginViewHolder(
 		private val binding: ItemPluginBinding,
 	) : RecyclerView.ViewHolder(binding.root) {
+		init {
+			// Both the anchor views and their tags are fixed per view holder, not per bound plugin -
+			// register once here instead of re-registering an identical listener on every bind().
+			binding.btnMenu.displayTooltipOnLongPress(
+				itemView.context,
+				binding.btnMenu,
+				TooltipCategory.CATEGORY_IDE,
+				TooltipTag.PLUGIN_MANAGER_ITEM_MENU,
+			)
+			binding.root.displayTooltipOnLongPress(
+				itemView.context,
+				binding.root,
+				TooltipCategory.CATEGORY_IDE,
+				TooltipTag.PLUGIN_MANAGER_ITEM,
+			)
+		}
+
 		fun bind(plugin: PluginInfo) {
 			binding.apply {
 				pluginName.text = plugin.metadata.name
@@ -116,24 +133,11 @@ class PluginListAdapter(
 				btnMenu.setOnClickListener { view ->
 					showPopupMenu(view, plugin)
 				}
-				btnMenu.displayTooltipOnLongPress(
-					itemView.context,
-					btnMenu,
-					TooltipCategory.CATEGORY_IDE,
-					TooltipTag.PLUGIN_MANAGER_ITEM_MENU,
-				)
 
 				// Setup item click for details
 				root.setOnClickListener {
 					onActionClick(plugin, Action.DETAILS)
 				}
-
-				root.displayTooltipOnLongPress(
-					itemView.context,
-					root,
-					TooltipCategory.CATEGORY_IDE,
-					TooltipTag.PLUGIN_MANAGER_ITEM,
-				)
 			}
 		}
 

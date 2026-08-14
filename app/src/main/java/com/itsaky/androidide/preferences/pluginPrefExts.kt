@@ -11,6 +11,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_PLUGIN_MANAGER
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.flashError
 import kotlinx.parcelize.Parcelize
 
@@ -103,12 +104,18 @@ data class PluginSettingsEntryPreference(
  * also while the asynchronous plugin load is still in flight - `PreferencesActivity` re-checks on
  * resume and rebuilds the tree if the set changed.
  *
+ * A duplicate [PluginSettingsEntryPreference.key] - two plugins colliding, or one plugin returning
+ * two entries with the same id - is dropped (keeping the first) rather than reaching the
+ * Preferences screen's tree: that tree asserts every key is unique and crashes if it isn't, which
+ * is the right behaviour for a first-party bug but not for third-party plugin data.
+ *
  * [pluginManager] defaults to the running IDE's instance; tests pass their own.
  */
 internal fun pluginSettingsPreferences(
 	pluginManager: PluginManager? = IDEApplication.getPluginManager(),
-): List<PluginSettingsEntryPreference> =
-	pluginManager
+): List<PluginSettingsEntryPreference> {
+	val seenKeys = mutableSetOf<String>()
+	return pluginManager
 		?.getPluginSettingsEntries()
 		?.map { (pluginId, entry) ->
 			PluginSettingsEntryPreference(
@@ -118,4 +125,13 @@ internal fun pluginSettingsPreferences(
 				summaryText = entry.summary,
 				fragmentClassName = entry.fragmentClassName,
 			)
-		}.orEmpty()
+		}
+		?.filter { entry ->
+			seenKeys.add(entry.key).also { isNew ->
+				if (!isNew) {
+					ILogger.ROOT.warn("Dropping plugin settings entry with a duplicate key: {}", entry.key)
+				}
+			}
+		}
+		.orEmpty()
+}

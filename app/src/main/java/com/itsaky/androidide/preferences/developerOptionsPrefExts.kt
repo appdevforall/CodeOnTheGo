@@ -40,18 +40,6 @@ init {
 }
 
 @Parcelize
-internal class DebuggingPreferences(
-override val key: String = DevOpsPreferences.KEY_DEVOPTS_DEBUGGING,
-override val title: Int = R.string.idepref_group_debugging,
-override val children: List<IPreference> = mutableListOf()) : IPreferenceGroup() {
-
-init {
-	addPreference(DumpLogsPreference())
-	addPreference(EnableLogSenderPreference())
-}
-}
-
-@Parcelize
 internal class DumpLogsPreference(
 override val key: String = DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS,
 override val title: Int = R.string.idepref_devOptions_dumpLogs_title,

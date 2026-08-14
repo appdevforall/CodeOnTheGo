@@ -87,6 +87,15 @@ CREATE TEMP TABLE _content_guard (content BLOB NOT NULL CHECK (length(content) >
 CREATE TEMP TABLE _workdir_guard (mode TEXT NOT NULL CHECK (mode = '700'));
 INSERT INTO _workdir_guard SELECT CAST(READFILE('/tmp/adfa5088-prefs-workdir/.mode') AS TEXT);
 
+-- Remove the dead "prefs.gradle" and "prefs.developer" tags: no code path can
+-- reach either any more now that every widget has its own tag. Delete each
+-- TooltipButtons row first (it references Tooltips.id via a foreign key).
+
+DELETE FROM TooltipButtons
+WHERE tooltipId IN (SELECT id FROM Tooltips WHERE tag IN ('prefs.gradle', 'prefs.developer') AND categoryId = 1);
+
+DELETE FROM Tooltips WHERE tag IN ('prefs.gradle', 'prefs.developer') AND categoryId = 1;
+
 -- Tooltips: idempotent upserts (existing empty stub rows + brand new tags,
 -- all in one form so the script can be re-run safely)
 
@@ -785,6 +794,18 @@ INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES 
 
 DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.about' AND categoryId = 1) AND uri = 'i/prefs/about';
 INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.about' AND categoryId = 1), 1, 'Learn more', 'i/prefs/about');
+
+-- The 5 tags below aren't inserted by this script (see "Deliberately NOT
+-- included" above) - they're assumed to already exist in the real database.
+-- Unlike every other tag in this file, that assumption is never verified: a
+-- missing tag makes the tooltipId subquery return NULL, and TooltipButtons
+-- has no NOT NULL/enforced FK on that column, so a wrong assumption here
+-- would silently insert a dead row instead of failing loudly. Assert it.
+CREATE TEMP TABLE _existing_tags_guard (found_count INTEGER NOT NULL CHECK (found_count = 5));
+INSERT INTO _existing_tags_guard
+SELECT COUNT(*) FROM Tooltips
+WHERE categoryId = 1
+AND tag IN ('prefs.general', 'prefs.editor', 'prefs.editor.xml', 'prefs.termux', 'prefs.git');
 
 DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.general' AND categoryId = 1) AND uri = 'i/prefs/general';
 INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.general' AND categoryId = 1), 1, 'Learn more', 'i/prefs/general');
