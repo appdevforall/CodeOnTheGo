@@ -78,14 +78,25 @@ CREATE TEMP TABLE _content_guard (content BLOB NOT NULL CHECK (length(content) >
 -- symlink or race the write/read pair. mkdir -m sets the mode atomically
 -- at creation (no separate chmod, no window with a wider mode); the prior
 -- rm -rf makes each run start from a clean directory it fully owns,
--- rather than trusting one left over from an earlier run. (An earlier
--- version of this script also asserted the mode via `stat --printf`, but
--- that flag is GNU coreutils-only and aborts the whole script with no
--- payload ever written on macOS/BSD stat - removed rather than made
--- portable, since mkdir -m already sets the mode atomically and this was
--- redundant defense-in-depth for a one-off local script.)
+-- rather than trusting one left over from an earlier run. mkdir can still
+-- fail silently from .bail's perspective (e.g. another process recreates
+-- the path between the rm -rf and the mkdir), so assert the directory's
+-- permission string afterward - via `ls -ld | cut -c1-10`, not `stat`,
+-- since stat's flag for this differs between GNU coreutils and BSD/macOS
+-- (an earlier version used `stat --printf` and broke on macOS; `ls -l`'s
+-- 10-character permission-string format is POSIX-specified and portable
+-- to both). A dynamically-generated (mktemp-style) workdir name would
+-- close this race more thoroughly, but doesn't fit this script: each
+-- `.system` line is its own subshell, so a name it generates can't be
+-- carried into later `.system`/READFILE() calls without writing it to
+-- another fixed, guessable file first - the same class of problem.
 .system rm -rf /tmp/adfa5088-prefs-workdir
 .system mkdir -m 700 /tmp/adfa5088-prefs-workdir
+.system ls -ld /tmp/adfa5088-prefs-workdir | cut -c1-10 > /tmp/adfa5088-prefs-workdir/.mode
+-- `cut` (like `ls`) always emits a trailing newline, so the guard compares
+-- against 'drwx------' + LF, not the bare 10-char string.
+CREATE TEMP TABLE _workdir_guard (mode TEXT NOT NULL CHECK (mode = 'drwx------' || char(10)));
+INSERT INTO _workdir_guard SELECT CAST(READFILE('/tmp/adfa5088-prefs-workdir/.mode') AS TEXT);
 
 -- Remove the dead "prefs.gradle" and "prefs.developer" tags: no code path can
 -- reach either any more now that every widget has its own tag. Delete each
