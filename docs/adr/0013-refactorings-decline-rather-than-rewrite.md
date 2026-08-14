@@ -29,8 +29,11 @@ Concretely:
 - **Prefer a stricter rule to a cleverer one** when strictness costs capability and cleverness costs certainty. Extract method refuses a reassigned outer `var` even when the write is provably dead, because proving it needs liveness analysis.
 - **Never emit code that does not compile, and avoid emitting code that warns.** The two modifiers extract method *does* add - `suspend` and `@Composable` - are required precisely because omitting them breaks compilation.
 - **A refusal is a backlog item, not a dead end.** Where the refused case is common, file it: ADFA-5082 tracks the reassigned-`var` output.
+- **Where part of the request is sound, apply that part and say so.** A refactoring has three outcomes, not two: apply, refuse, or **apply partially**. Inline variable (ADFA-4827) is the case that needs the third - a variable whose value is reassigned partway through can be inlined at the references before the write and nowhere after it, so refusing the whole thing would discard a sound transformation of the earlier half. A partial application must report both counts and what it left behind, and it must leave the file compiling on its own, exactly as a full application does. It is not a licence to apply the doubtful part and hope.
 
-This applies to the whole refactoring family, not just extract method. Inline variable and rename inherit it.
+This applies to the whole refactoring family, not just extract method. Inline variable and rename inherit it - inline variable adding the third outcome above, rename presumed to need only the first two until its design says otherwise.
+
+**Out of scope of this decision.** Whether a refactoring may duplicate an expression that is evaluated more than once. Inline variable does, without checking for side effects (see [kotlin-inline-variable.md](../features/kotlin-inline-variable.md)): the emitted code compiles, carries no warning, and is the user's own expression unedited, so nothing above forbids it. Kotlin offers no way to prove purity, so a check would be a heuristic rather than a stricter rule, and this ADR prefers strictness to cleverness in both directions.
 
 ## Consequences
 
@@ -40,12 +43,14 @@ This applies to the whole refactoring family, not just extract method. Inline va
 - Refusal reasons are cheap to specify, cheap to test (one case each) and cheap to QA, where a clever transformation needs its own test matrix and its own failure modes.
 - The rules are stateable in a sentence each, which is what makes the feature docs reviewable by someone who has not read the implementation.
 - Excluding cases by construction keeps the analysis pass small, which matters when it runs on a phone.
+- Partial application recovers capability that an all-or-nothing rule would throw away, without weakening the compile-and-do-not-warn guarantee: the sound part is applied and the doubtful part is simply not touched.
 
 **Negative / costs**
 
 - The refactorings are visibly less capable than a desktop IDE's. Two of extract method's refusals - a reassigned outer `var` (the accumulator loop) and an enclosing `with`/`apply` receiver (pervasive in Android code) - will be hit routinely.
 - The quality of the *messages* becomes load-bearing. A generic refusal reads as a broken feature, so this decision spends translated strings: roughly seven for extract method alone.
 - Users arriving from IntelliJ will read some refusals as regressions rather than as design.
+- A partial application is harder to *report* than either other outcome, and harder to QA: the message has to convey two counts and a surviving declaration in one flash, and every "how many were left behind" case is its own test. A partial result the user misreads as a complete one is the failure mode to watch.
 - The line is a judgement, not a formalism. "Editing the interior of the moved code" is clear in the cases above but will need re-application, case by case, in each future refactoring.
 
 ## Alternatives considered
@@ -61,3 +66,4 @@ This applies to the whole refactoring family, not just extract method. Inline va
 - [ADR 0010](0010-navigation-resolves-via-analysis-api.md) - the K2 Analysis API as the Kotlin semantic source of truth
 - [kotlin-extract-method.md](../features/kotlin-extract-method.md) - R7 to R10 and R14 are this decision applied case by case
 - [kotlin-extract-variable.md](../features/kotlin-extract-variable.md) - the shared vocabulary and primitives
+- [kotlin-inline-variable.md](../features/kotlin-inline-variable.md) - R6 to R9 are this decision applied to a subtractive refactoring, and the origin of the third outcome
