@@ -6,24 +6,35 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.analysis.api.resolution.KaCallableMemberCall
+import org.jetbrains.kotlin.analysis.api.resolution.KaImplicitReceiverValue
+import org.jetbrains.kotlin.analysis.api.resolution.successfulCallOrNull
+import org.jetbrains.kotlin.analysis.api.symbols.KaAnonymousFunctionSymbol
+import org.jetbrains.kotlin.analysis.api.types.KaFunctionType
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.psi.KtArrayAccessExpression
+import org.jetbrains.kotlin.psi.KtBlockExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtCallableReferenceExpression
+import org.jetbrains.kotlin.psi.KtCatchClause
 import org.jetbrains.kotlin.psi.KtClassLiteralExpression
 import org.jetbrains.kotlin.psi.KtCollectionLiteralExpression
 import org.jetbrains.kotlin.psi.KtConstantExpression
 import org.jetbrains.kotlin.psi.KtDestructuringDeclaration
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtForExpression
+import org.jetbrains.kotlin.psi.KtFunctionLiteral
 import org.jetbrains.kotlin.psi.KtLambdaExpression
+import org.jetbrains.kotlin.psi.KtNamedDeclaration
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtObjectLiteralExpression
 import org.jetbrains.kotlin.psi.KtParenthesizedExpression
 import org.jetbrains.kotlin.psi.KtPostfixExpression
 import org.jetbrains.kotlin.psi.KtProperty
+import org.jetbrains.kotlin.psi.KtPropertyAccessor
 import org.jetbrains.kotlin.psi.KtQualifiedExpression
 import org.jetbrains.kotlin.psi.KtSimpleNameExpression
 import org.jetbrains.kotlin.psi.KtSimpleNameStringTemplateEntry
@@ -129,6 +140,10 @@ private fun KaSession.planFor(
 	val declarationEnd = target.textRange.endOffset
 	val cutoff = cutoffAfter(initializer, searchRoot, targetWriteOffsets, declarationEnd)
 
+	val initializerNames = namesReadBy(initializer)
+	val initializerUsesImplicitReceiver = readsThroughImplicitReceiver(initializer)
+	val initializerIsFunctionLiteral = initializer is KtLambdaExpression || initializer is KtNamedFunction
+
 	val references =
 		reads.map { read ->
 			val entry = read.parent as? KtSimpleNameStringTemplateEntry
@@ -141,7 +156,16 @@ private fun KaSession.planFor(
 			InlineReference(
 				span = span,
 				isShortTemplateEntry = entry != null,
-				exclusion = if (span.start >= cutoff) InlineExclusion.PastCutoff else null,
+				exclusion =
+					when {
+						span.start >= cutoff -> InlineExclusion.PastCutoff
+						isShadowedAt(read, target, initializerNames) -> InlineExclusion.Shadowed
+						initializerUsesImplicitReceiver &&
+							hasReceiverLambdaBetween(target, read) -> InlineExclusion.ReceiverShift
+						isSmartCast(read) -> InlineExclusion.SmartCast
+						initializerIsFunctionLiteral && isCallee(read) -> InlineExclusion.InvokesLambdaInitializer
+						else -> null
+					},
 			)
 		}
 
@@ -161,7 +185,23 @@ private fun KaSession.planFor(
 
 	val inlinable = references.count { it.isInlinable }
 	if (inlinable == 0) {
-		return InlineVariablePlan.refused(InlineRefusal.NothingInlinable(name), fileText, documentVersion)
+		// Unlike the other refusals above, the references are already known here, each carrying the
+		// exclusion that ruled it out -- worth keeping on the plan rather than discarding it the way
+		// InlineVariablePlan.refused()'s empty-references default would.
+		return InlineVariablePlan(
+			fileText = fileText,
+			documentVersion = documentVersion,
+			variableName = name,
+			declarationSpan = TextSpan(target.textRange.startOffset, declarationEnd),
+			initializerText = initializer.text,
+			initializerNeedsParentheses = needsParentheses(initializer),
+			references = references,
+			cursorPosition = resolved.cursorPosition,
+			cursorReferenceIndex = cursorReferenceIndex,
+			canDeleteDeclaration = false,
+			modes = emptyList(),
+			refusal = InlineRefusal.NothingInlinable(name),
+		)
 	}
 
 	return InlineVariablePlan(
@@ -288,3 +328,139 @@ private fun needsParentheses(initializer: KtExpression): Boolean =
 
 		else -> true
 	}
+
+/** The names the initializer reads unqualified, which a nested scope could shadow. */
+private fun namesReadBy(initializer: KtExpression): Set<String> =
+	PsiTreeUtil
+		.collectElementsOfType(initializer, KtSimpleNameExpression::class.java)
+		.filterNot { (it.parent as? KtQualifiedExpression)?.selectorExpression === it }
+		.mapTo(mutableSetOf()) { it.getReferencedName() }
+
+/**
+ * Whether a scope between [reference] and the target's own block redeclares a name the initializer
+ * reads.
+ *
+ * The converse case cannot arise: a local's scope runs to the end of its block, so everything the
+ * initializer reads is still in scope at every reference. Only shadowing bites.
+ */
+private fun isShadowedAt(
+	reference: KtSimpleNameExpression,
+	target: KtProperty,
+	initializerNames: Set<String>,
+): Boolean {
+	if (initializerNames.isEmpty()) return false
+	val ceiling = target.parent ?: return false
+	var child: PsiElement = reference
+	var scope: PsiElement? = reference.parent
+	while (scope != null && scope !== ceiling) {
+		if (declaredNamesIn(scope, child).any { it in initializerNames }) return true
+		child = scope
+		scope = scope.parent
+	}
+	return false
+}
+
+/** The names [scope] declares that are already in effect at [site]. */
+private fun declaredNamesIn(
+	scope: PsiElement,
+	site: PsiElement,
+): Set<String> =
+	when (scope) {
+		is KtBlockExpression ->
+			scope.statements
+				.filter { it.textRange.endOffset <= site.textRange.startOffset }
+				.flatMapTo(mutableSetOf()) { declaredNamesOf(it) }
+
+		is KtFunctionLiteral -> lambdaParameterNames(scope)
+
+		is KtNamedFunction -> scope.valueParameters.mapNotNullTo(mutableSetOf()) { it.name }
+
+		is KtPropertyAccessor -> scope.valueParameters.mapNotNullTo(mutableSetOf()) { it.name }
+
+		is KtCatchClause -> setOfNotNull(scope.catchParameter?.name)
+
+		is KtForExpression -> {
+			val parameter = scope.loopParameter
+			val entries = parameter?.destructuringDeclaration?.entries?.mapNotNull { it.name } ?: emptyList()
+			(entries + listOfNotNull(parameter?.name)).toSet()
+		}
+
+		else -> emptySet()
+	}
+
+private fun declaredNamesOf(statement: KtExpression): List<String> =
+	when (statement) {
+		is KtDestructuringDeclaration -> statement.entries.mapNotNull { it.name }
+		is KtNamedDeclaration -> listOfNotNull(statement.name)
+		else -> emptyList()
+	}
+
+/** A lambda with no declared parameters still declares `it`. */
+private fun lambdaParameterNames(lambda: KtFunctionLiteral): Set<String> {
+	val declared = lambda.valueParameters
+	if (declared.isEmpty()) return setOf("it")
+	return declared.flatMapTo(mutableSetOf()) { parameter ->
+		parameter.destructuringDeclaration?.entries?.mapNotNull { it.name } ?: listOfNotNull(parameter.name)
+	}
+}
+
+/**
+ * Whether the initializer reaches a member through an implicit receiver. Half of the receiver-shift
+ * test; on its own it is perfectly fine.
+ */
+private fun KaSession.readsThroughImplicitReceiver(initializer: KtExpression): Boolean =
+	PsiTreeUtil.collectElementsOfType(initializer, KtSimpleNameExpression::class.java).any { reference ->
+		// A qualified selector already has its receiver written out next to it.
+		if ((reference.parent as? KtQualifiedExpression)?.selectorExpression === reference) {
+			false
+		} else {
+			runCatching {
+				val callSource =
+					(reference.parent as? KtCallExpression)?.takeIf { it.calleeExpression === reference } ?: reference
+				val applied =
+					callSource
+						.resolveToCall()
+						?.successfulCallOrNull<KaCallableMemberCall<*, *>>()
+						?.partiallyAppliedSymbol
+				applied?.dispatchReceiver is KaImplicitReceiverValue ||
+					applied?.extensionReceiver is KaImplicitReceiverValue
+			}.getOrDefault(false)
+		} ||
+			// A bare `this` names the receiver without going through a call.
+			PsiTreeUtil.collectElementsOfType(initializer, KtThisExpression::class.java).isNotEmpty()
+	}
+
+/**
+ * Whether a receiver-introducing lambda -- `with`, `apply`, `run`, `buildString`, a Compose scope --
+ * sits between the declaration and [reference]. The other half of the receiver-shift test.
+ */
+private fun KaSession.hasReceiverLambdaBetween(
+	target: KtProperty,
+	reference: KtSimpleNameExpression,
+): Boolean {
+	var current: PsiElement? = reference.parent
+	while (current != null && !PsiTreeUtil.isAncestor(current, target, false)) {
+		if (current is KtFunctionLiteral && introducesReceiver(current)) return true
+		current = current.parent
+	}
+	return false
+}
+
+/**
+ * Whether [lambda]'s functional type has a receiver. Asked of the anonymous function's symbol first,
+ * which does not depend on the expected type having propagated to the lambda expression.
+ */
+private fun KaSession.introducesReceiver(lambda: KtFunctionLiteral): Boolean =
+	runCatching {
+		val symbol = lambda.symbol as? KaAnonymousFunctionSymbol
+		if (symbol?.receiverParameter != null) return true
+		((lambda.parent as? KtLambdaExpression)?.expressionType as? KaFunctionType)?.hasReceiver == true
+	}.getOrDefault(false)
+
+/** Whether the reference is used under a smart cast, which a property read cannot carry. */
+private fun KaSession.isSmartCast(reference: KtSimpleNameExpression): Boolean =
+	runCatching { reference.smartCastInfo != null }.getOrDefault(false)
+
+/** Whether the reference is the callee of a call, rather than a value being passed around. */
+private fun isCallee(reference: KtSimpleNameExpression): Boolean =
+	(reference.parent as? KtCallExpression)?.calleeExpression === reference

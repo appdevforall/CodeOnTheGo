@@ -423,4 +423,138 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 			apply(content, buildInlineVariableRewrites(result, InlineMode.AllReferences)!!),
 		)
 	}
+
+	@Test
+	fun `a shadowed reference is left untouched and the declaration is kept`() {
+		val content =
+			"""
+			package p
+			fun f(n: Int) = n
+			fun demo(): Int {
+				val a = 1
+				val x = a + 1
+				return run {
+					val a = 99
+					f(x)
+				}
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val x") + "val ".length)
+
+		// Inlining would produce `f(a + 1)` reading the inner `a`.
+		assertEquals(1, result.references.size)
+		assertEquals(InlineExclusion.Shadowed, result.references.single().exclusion)
+		assertEquals(InlineRefusal.NothingInlinable("x"), result.refusal)
+	}
+
+	@Test
+	fun `a reference under a different implicit receiver is left untouched`() {
+		val content =
+			"""
+			package p
+			class Other {
+				val label: String = "other"
+			}
+			class Holder {
+				val label: String = "holder"
+
+				fun demo(other: Other): String {
+					val text = label + "!"
+					return with(other) { text }
+				}
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val text") + "val ".length)
+
+		assertEquals(InlineExclusion.ReceiverShift, result.references.single().exclusion)
+	}
+
+	@Test
+	fun `an implicit-receiver initializer is fine where no lambda changes the receiver`() {
+		val content =
+			"""
+			package p
+			class Holder {
+				val label: String = "holder"
+
+				fun demo(): String {
+					val text = label + "!"
+					return text
+				}
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val text") + "val ".length)
+
+		// Only the conjunction of both questions is a problem; either alone is not.
+		assertNull(result.references.single().exclusion)
+	}
+
+	@Test
+	fun `a smart-cast reference is left untouched`() {
+		val content =
+			"""
+			package p
+			class Box(val value: String?)
+			fun demo(box: Box): Int {
+				val b = box.value
+				return if (b != null) b.length else 0
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val b") + "val ".length)
+
+		// `box.value.length` does not compile: a smart cast needs a stable value.
+		assertEquals(2, result.references.size)
+		assertNull(result.references.first().exclusion)
+		assertEquals(InlineExclusion.SmartCast, result.references.last().exclusion)
+		assertEquals(false, result.canDeleteDeclaration)
+	}
+
+	@Test
+	fun `a lambda initializer in call position is left untouched`() {
+		val content =
+			"""
+			package p
+			fun demo(): Int {
+				val f = { n: Int -> n * 2 }
+				return f(3)
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val f") + "val ".length)
+
+		// The substitution would be a lambda literal in call position, which needs `.invoke()`.
+		assertEquals(InlineExclusion.InvokesLambdaInitializer, result.references.single().exclusion)
+		assertEquals(InlineRefusal.NothingInlinable("f"), result.refusal)
+	}
+
+	@Test
+	fun `a lambda initializer passed as an argument stays inlinable`() {
+		val content =
+			"""
+			package p
+			fun call(f: (Int) -> Int): Int = f(1)
+			fun demo(): Int {
+				val f = { n: Int -> n * 2 }
+				return call(f)
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val f") + "val ".length)
+
+		assertNull(result.references.single().exclusion)
+		assertEquals(
+			"""
+			package p
+			fun call(f: (Int) -> Int): Int = f(1)
+			fun demo(): Int {
+				return call({ n: Int -> n * 2 })
+			}
+			""".trimIndent(),
+			apply(content, buildInlineVariableRewrites(result, InlineMode.AllReferences)!!),
+		)
+	}
 }
