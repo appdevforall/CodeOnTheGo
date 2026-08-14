@@ -8,10 +8,12 @@
 --
 -- Deliberately NOT included: prefs.top, prefs.general, prefs.editor,
 -- prefs.editor.xml, prefs.termux, and prefs.git already exist in the real
--- documentation.db with good, real (non-empty) summary/detail text -- these
--- tags are reused as-is for the corresponding screen/toolbar row, so this
--- script leaves them alone rather than overwriting curated production
--- content with a draft.
+-- documentation.db with a real (non-empty) summary -- these tags are reused
+-- as-is for the corresponding screen/toolbar row, so this script leaves
+-- them alone rather than overwriting curated production content with a
+-- draft. (Two of the six have an empty Tier 2 detail; that's an existing,
+-- summary-only state for those tags, not something this script introduces
+-- or needs to fix.)
 --
 -- Both Tooltips (UNIQUE(categoryId, tag)) and Content (UNIQUE(path)) are
 -- idempotent `INSERT ... ON CONFLICT ... DO UPDATE` upserts below, so the
@@ -76,16 +78,14 @@ CREATE TEMP TABLE _content_guard (content BLOB NOT NULL CHECK (length(content) >
 -- symlink or race the write/read pair. mkdir -m sets the mode atomically
 -- at creation (no separate chmod, no window with a wider mode); the prior
 -- rm -rf makes each run start from a clean directory it fully owns,
--- rather than trusting one left over from an earlier run. mkdir itself
--- can fail without .bail seeing it (e.g. another process recreates the
--- path between the rm -rf and the mkdir), so assert the mode really is
--- 700 before trusting the directory with anything - the same guard-table
--- trick _content_guard uses for the Brotli payloads below.
+-- rather than trusting one left over from an earlier run. (An earlier
+-- version of this script also asserted the mode via `stat --printf`, but
+-- that flag is GNU coreutils-only and aborts the whole script with no
+-- payload ever written on macOS/BSD stat - removed rather than made
+-- portable, since mkdir -m already sets the mode atomically and this was
+-- redundant defense-in-depth for a one-off local script.)
 .system rm -rf /tmp/adfa5088-prefs-workdir
 .system mkdir -m 700 /tmp/adfa5088-prefs-workdir
-.system stat --printf='%a' /tmp/adfa5088-prefs-workdir > /tmp/adfa5088-prefs-workdir/.mode
-CREATE TEMP TABLE _workdir_guard (mode TEXT NOT NULL CHECK (mode = '700'));
-INSERT INTO _workdir_guard SELECT CAST(READFILE('/tmp/adfa5088-prefs-workdir/.mode') AS TEXT);
 
 -- Remove the dead "prefs.gradle" and "prefs.developer" tags: no code path can
 -- reach either any more now that every widget has its own tag. Delete each
@@ -795,17 +795,26 @@ INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES 
 DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.about' AND categoryId = 1) AND uri = 'i/prefs/about';
 INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.about' AND categoryId = 1), 1, 'Learn more', 'i/prefs/about');
 
--- The 5 tags below aren't inserted by this script (see "Deliberately NOT
--- included" above) - they're assumed to already exist in the real database.
--- Unlike every other tag in this file, that assumption is never verified: a
--- missing tag makes the tooltipId subquery return NULL, and TooltipButtons
--- has no NOT NULL/enforced FK on that column, so a wrong assumption here
--- would silently insert a dead row instead of failing loudly. Assert it.
-CREATE TEMP TABLE _existing_tags_guard (found_count INTEGER NOT NULL CHECK (found_count = 5));
+-- Neither this script nor the sibling plugin-manager one inserts prefs.top
+-- or the 5 tags below (see "Deliberately NOT included" above) - they're
+-- assumed to already exist in the real database with a real summary.
+-- prefs.top specifically backs three code paths added by this same PR (the
+-- Preferences toolbar long-press, and the fallback for any row or screen
+-- with no tag of its own), so a wrong assumption there is a regression in
+-- this PR's own feature, not just stale pre-existing content. For the other
+-- 5, a missing tag makes the tooltipId subquery in the TooltipButtons block
+-- above return NULL, and TooltipButtons has no NOT NULL/enforced FK on that
+-- column, so a wrong assumption there would silently insert a dead row
+-- instead of failing loudly. Assert existence and a non-empty summary for
+-- all 6 (not detail too - two of the six have an empty Tier 2 detail in the
+-- real database today, which is an existing summary-only state, not a
+-- broken one).
+CREATE TEMP TABLE _existing_tags_guard (found_count INTEGER NOT NULL CHECK (found_count = 6));
 INSERT INTO _existing_tags_guard
 SELECT COUNT(*) FROM Tooltips
 WHERE categoryId = 1
-AND tag IN ('prefs.general', 'prefs.editor', 'prefs.editor.xml', 'prefs.termux', 'prefs.git');
+AND tag IN ('prefs.top', 'prefs.general', 'prefs.editor', 'prefs.editor.xml', 'prefs.termux', 'prefs.git')
+AND length(summary) > 0;
 
 DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.general' AND categoryId = 1) AND uri = 'i/prefs/general';
 INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.general' AND categoryId = 1), 1, 'Learn more', 'i/prefs/general');

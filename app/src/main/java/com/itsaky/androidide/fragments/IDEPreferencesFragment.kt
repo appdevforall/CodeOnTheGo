@@ -64,14 +64,15 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 	) {
 		super.onCreatePreferences(savedInstanceState, rootKey)
 
-		if (context == null) {
-			return
-		}
-
 		@Suppress("DEPRECATION")
 		val children: List<IPreference> = arguments?.getParcelableArrayList(EXTRA_CHILDREN) ?: emptyList()
 		this.tooltipTagsByKey = collectTooltipTags(children)
 		this.screenTooltipTag = resolveScreenTooltipTag(arguments?.getString(EXTRA_SCREEN_TOOLTIP_TAG))
+
+		// Neither read above needs a context; only building the actual preference UI does.
+		if (context == null) {
+			return
+		}
 
 		preferenceScreen.removeAll()
 		addChildren(children, preferenceScreen)

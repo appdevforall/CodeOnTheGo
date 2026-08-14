@@ -8,10 +8,10 @@
 --
 -- None of the new tags below existed before. The old shared "plugin.manager"
 -- tag (a different string from every tag below) is now dead - no code
--- references it any more - so this script deletes it and its one
--- TooltipButtons row, but leaves the Content page that button linked to
--- (i/plugin-install.html) in place, since Content isn't clearly unreachable
--- the way the Tooltips/TooltipButtons rows are.
+-- references it any more - so this script deletes it, its one
+-- TooltipButtons row, and the Content page that button was the only thing
+-- pointing to (i/plugin-install.html) - verified via the real database
+-- that no other TooltipButtons row or app code references that path.
 --
 -- Both Tooltips (UNIQUE(categoryId, tag)) and Content (UNIQUE(path)) are
 -- idempotent `INSERT ... ON CONFLICT ... DO UPDATE` upserts below, so the
@@ -76,25 +76,30 @@ CREATE TEMP TABLE _content_guard (content BLOB NOT NULL CHECK (length(content) >
 -- symlink or race the write/read pair. mkdir -m sets the mode atomically
 -- at creation (no separate chmod, no window with a wider mode); the prior
 -- rm -rf makes each run start from a clean directory it fully owns,
--- rather than trusting one left over from an earlier run. mkdir itself
--- can fail without .bail seeing it (e.g. another process recreates the
--- path between the rm -rf and the mkdir), so assert the mode really is
--- 700 before trusting the directory with anything - the same guard-table
--- trick _content_guard uses for the Brotli payloads below.
+-- rather than trusting one left over from an earlier run. (An earlier
+-- version of this script also asserted the mode via `stat --printf`, but
+-- that flag is GNU coreutils-only and aborts the whole script with no
+-- payload ever written on macOS/BSD stat - removed rather than made
+-- portable, since mkdir -m already sets the mode atomically and this was
+-- redundant defense-in-depth for a one-off local script.)
 .system rm -rf /tmp/adfa5088-pm-workdir
 .system mkdir -m 700 /tmp/adfa5088-pm-workdir
-.system stat --printf='%a' /tmp/adfa5088-pm-workdir > /tmp/adfa5088-pm-workdir/.mode
-CREATE TEMP TABLE _workdir_guard (mode TEXT NOT NULL CHECK (mode = '700'));
-INSERT INTO _workdir_guard SELECT CAST(READFILE('/tmp/adfa5088-pm-workdir/.mode') AS TEXT);
 
 -- Remove the dead "plugin.manager" tag: no code path can reach it any
 -- more now that every widget has its own tag. Delete the TooltipButtons
--- row first (it references Tooltips.id via a foreign key).
+-- row first (it references Tooltips.id via a foreign key). Its uri,
+-- i/plugin-install.html, is the *only* TooltipButtons row that ever
+-- pointed there (verified against the real database) and it isn't
+-- referenced from app code or any other Content row either, so it
+-- becomes genuinely unreachable once this row is gone - delete that
+-- Content row too rather than leaving an orphan behind.
 
 DELETE FROM TooltipButtons
 WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'plugin.manager' AND categoryId = 1);
 
 DELETE FROM Tooltips WHERE tag = 'plugin.manager' AND categoryId = 1;
+
+DELETE FROM Content WHERE path = 'i/plugin-install.html';
 
 -- Tooltips: idempotent upserts (all new tags)
 
