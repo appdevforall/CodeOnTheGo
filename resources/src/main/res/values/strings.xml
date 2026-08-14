@@ -8,6 +8,8 @@
 	<string name="app_name" translatable="false">Code on the Go</string>
 	<string name="about_option_email">Email</string>
 	<string name="about_option_website">Website</string>
+	<string name="about_option_youtube">YouTube</string>
+	<string name="about_option_bilibili">Bilibili</string>
 	<string name="about_footer_alternate" translatable="false">Code on the Go v\u2022 %s</string>
 	<string name="about_footer">Code on the Go %1$s for %2$s</string>
 	<string name="about_subtitle">No computer? No Internet? No problem. Code apps anywhere.</string>
@@ -1216,6 +1218,8 @@
 	<string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
 	<string name="adfa_email">info@appdevforall.org</string>
 	<string name="mail_to_adfa">mailto:info@appdevforall.org</string>
+	<string name="youtube_channel_url">https://youtube.com/@appdevforall</string>
+	<string name="bilibili_video_url">https://www.bilibili.com/video/BV1AUgR6sE3G/</string>
 
 	<!-- AI Agent -->
 	<string name="ai_setting_saved">💾 Saved: %1$s</string>
