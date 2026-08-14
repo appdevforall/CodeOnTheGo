@@ -10,6 +10,7 @@ import com.itsaky.androidide.lsp.kotlin.actions.ExtractVariableAction
 import com.itsaky.androidide.lsp.kotlin.actions.FindReferencesAction
 import com.itsaky.androidide.lsp.kotlin.actions.GoToDefinitionAction
 import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
+import com.itsaky.androidide.lsp.kotlin.actions.InlineVariableAction
 import com.itsaky.androidide.lsp.kotlin.actions.NullSafetyAction
 import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
 import com.itsaky.androidide.lsp.kotlin.actions.SurroundWithTryCatchAction
@@ -45,6 +46,7 @@ class KotlinCodeActionTooltipTagTest {
 				SurroundWithTryCatchAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH,
 				ExtractVariableAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_EXTRACT_VARIABLE,
 				ExtractMethodAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_EXTRACT_METHOD,
+				InlineVariableAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_INLINE_VARIABLE,
 			)
 		assertEquals(expected, actualTags)
 	}

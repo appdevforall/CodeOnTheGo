@@ -1,7 +1,7 @@
 # Kotlin inline variable (K2 LSP)
 
 - **Ticket:** ADFA-4827 (subtask of ADFA-3317; split out of the closed ADFA-3324 "Refactoring")
-- **Status:** Specified. Fourth link in the refactoring stack, based on extract method (ADFA-5080).
+- **Status:** Implemented. Fourth link in the refactoring stack, based on extract method (ADFA-5080).
 - **Module:** `lsp/kotlin`
 
 Replace the references to a local variable with its initializer, and delete the declaration once nothing needs it.
@@ -258,10 +258,11 @@ Unit tests in `:lsp:kotlin` (`flox activate -d flox/local -- ./gradlew :lsp:kotl
 
 - **`InlineVariablePlanEndToEndTest`** - analysis-backed, one case per rule: both cursor positions (R2), the reference set (R4), the cutoff from each cause (R5), one case per per-site exclusion (R6), the explicit-type refusal (R7), the deletion rule including the `var`-with-a-later-write case (R8), mode availability per row of R9's table, and **one case per refusal reason** (R14).
 - **`InlineVariableEditTest`** - pure text: parenthesisation per initializer class, both template forms, the three deletion line shapes, comment preservation, descending edit order, and CRLF preservation (R10-R12).
+- **`InlineVariablePlanTest`** - the pure derivations: R9's mode table and R13's labels and reports, against hand-built plans.
 - **`RefactorPrimitivesTest`** - extended for whatever R6's scope walk factors out syntactically.
 - **`KotlinCodeActionTooltipTagTest`** - one new row (R1).
 
-There is no `ViewModelTest`, because there is no ViewModel (R13); the label and report derivations are tested with the plan instead.
+There is no `ViewModelTest`, because there is no ViewModel (R13); the label and report derivations are tested in `InlineVariablePlanTest` against hand-built plans instead.
 
 The sheet, `prepare()`/`ActionData`, the N+1 undo and the new tooltip row are not unit-testable; they are covered by on-device QA from the acceptance criteria above, recorded in ADFA-4827's "Steps to QA" field.
 
