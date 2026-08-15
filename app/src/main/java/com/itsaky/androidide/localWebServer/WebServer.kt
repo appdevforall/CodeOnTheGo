@@ -25,6 +25,7 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
+import java.nio.ByteBuffer
 import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -76,6 +77,12 @@ class WebServer(
 	private lateinit var serverSocket: ServerSocket
 	private lateinit var database: SQLiteDatabase
 	private var databaseTimestamp: Long = -1
+	// The shared dictionary Content's brotli-compressed rows are compressed against (see
+	// ADFA-5153). Reloaded whenever `database` is (re)opened -- including the debug-override
+	// swap below -- since a different database file may have trained its own dictionary.
+	// Null (no dictionary attached, plain-brotli decode) if this database predates the
+	// dictionary-compression migration -- CompressionDictionary won't exist yet.
+	private var compressionDictionary: ByteBuffer? = null
 	private val log = LoggerFactory.getLogger(WebServer::class.java)
 	private val debugEnabled: Boolean = File(config.debugEnablePath).exists()
 
@@ -85,8 +92,6 @@ class WebServer(
 
 	// Frozen at startup; restart the server to pick up a change.
 	private val clearCacheEnabled: Boolean = File(config.clearCacheEnablePath).exists()
-	private val encodingHeader: String = "Accept-Encoding"
-	private val brotliCompression: String = "br"
 	private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
 	private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
 	private val gson: Gson =
@@ -127,6 +132,37 @@ class WebServer(
 			log.debug("Database last change: {}.", DatabaseVersionResolver.resolveDatabaseVersion(database))
 		} catch (e: Exception) {
 			log.error("Could not retrieve database last change info: {}", e.message)
+		}
+	}
+
+	/**
+	 * Loads the shared Brotli dictionary Content's compressed rows are compressed against (see
+	 * ADFA-5153) into a direct [ByteBuffer] -- brotli4j's `attachDictionary` requires a direct
+	 * buffer, a heap-backed one throws `IllegalArgumentException`. Returns null (logged once)
+	 * if `CompressionDictionary` doesn't exist -- a database that predates the dictionary
+	 * migration -- so callers fall back to plain, dictionary-free brotli decode.
+	 */
+	private fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
+		val tableExists =
+			db.rawQuery(
+				"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
+				null,
+			).use { it.moveToFirst() }
+		if (!tableExists) {
+			log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
+			return null
+		}
+
+		return db.rawQuery("SELECT data FROM CompressionDictionary WHERE id = 1", null).use { cursor ->
+			if (!cursor.moveToFirst()) {
+				log.warn("CompressionDictionary table is empty; decoding brotli content without a dictionary.")
+				return null
+			}
+			val bytes = cursor.getBlob(0)
+			ByteBuffer.allocateDirect(bytes.size).apply {
+				put(bytes)
+				flip()
+			}
 		}
 	}
 
@@ -173,6 +209,7 @@ class WebServer(
 				log.error("Cannot open database: {}", e.message)
 				return
 			}
+			compressionDictionary = loadCompressionDictionary(database)
 
 			// NEW FEATURE: Log database metadata when debug is enabled
 			if (debugEnabled) logDatabaseLastChanged()
@@ -284,8 +321,6 @@ class WebServer(
 		val writer = PrintWriter(output, true)
 		if (debugEnabled) log.debug("  writer is {}.", writer)
 
-		var brotliSupported = false // assume nothing
-
 		// Read the request method line, it is always the first line of the request
 		var requestLine = readLineFromStream(input)
 		if (requestLine == null) {
@@ -317,7 +352,6 @@ class WebServer(
 				headers[requestLine.substring(0, colon).trim().lowercase()] = requestLine.substring(colon + 1).trim()
 			}
 		}
-		brotliSupported = headers["accept-encoding"]?.contains(brotliCompression) == true
 
 		// Playground endpoint: POST only, handled before GET-only check
 		if (false && path == "playground/execute") {
@@ -337,6 +371,7 @@ class WebServer(
 			database.close()
 			database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
 			databaseTimestamp = debugDatabaseTimestamp
+			compressionDictionary = loadCompressionDictionary(database)
 		}
 
 		// Handle the special "pr" endpoint with highest priority
@@ -406,15 +441,16 @@ class WebServer(
 				dbContent = combined.toByteArray()
 			}
 
-			// If a document is stored in brotli form and the client doesn't support that encoding
-			// decompress and send that to the client.
-			// Pebble templates have to be in string form so the retrieved database content may need to be
-			// decompressed.
-			if (compression == "brotli" && (!brotliSupported || templateId > 0)) {
-				dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
+			// Content is compressed at rest with brotli, against the shared dictionary loaded
+			// into compressionDictionary (see ADFA-5153) -- this server always decompresses
+			// before responding, so it never needs to negotiate Content-Encoding with the client.
+			if (compression == "brotli") {
+				dbContent =
+					BrotliInputStream(ByteArrayInputStream(dbContent)).use { stream ->
+						compressionDictionary?.let { stream.attachDictionary(it) }
+						stream.readBytes()
+					}
 				compression = "none"
-			} else if (compression == "brotli") {
-				compression = "br"
 			}
 
 			// If the file is associated with a template, instantiate that template and send the result to the client
@@ -425,7 +461,6 @@ class WebServer(
 			writer.println("HTTP/1.1 200 OK")
 			writer.println("Content-Type: $dbMimeType")
 			writer.println("Content-Length: ${dbContent.size}")
-			if (compression != "none") writer.println("Content-Encoding: $compression")
 			writer.println("Connection: close")
 			writer.println()
 			writer.flush()
@@ -446,7 +481,7 @@ class WebServer(
 	 * @param dbContent JSON bytes that will be parsed and supplied as the template context.
 	 * @param path The request/content path associated with this template (used for diagnostic/logging purposes).
 	 * @param dbMimeType The MIME type of the stored content (used for diagnostic/logging purposes).
-	 * @param compression The compression label of the stored content (e.g., "br", "none") (used for diagnostic/logging purposes).
+	 * @param compression The compression label of the stored content (always "none" by this point, since decompression already happened) (used for diagnostic/logging purposes).
 	 * @return The rendered template encoded as UTF-8 bytes.
 	 * @throws Exception If the template ID is not found, is duplicated in the database, or if template lookup/instantiation fails.
 	 */

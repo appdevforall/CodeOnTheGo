@@ -337,6 +337,11 @@ dependencies {
 
 	// brotli4j
 	implementation(libs.brotli4j)
+	// JVM unit tests (e.g. BrotliDictionaryDecodeTest) run brotli4j's real native decoder, not an
+	// Android target -- without a desktop native on the test classpath, Brotli4jLoader has nothing
+	// to load and every such test fails with UnsatisfiedLinkError. Only linux-x64 is added since
+	// that's the only platform this project's dev machines/CI actually run JVM tests on.
+	testImplementation(libs.brotli4j.linux.x64)
 
 	implementation(libs.common.markwon.core)
 	implementation(libs.common.markwon.linkify)
