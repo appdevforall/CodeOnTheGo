@@ -689,8 +689,20 @@ abstract class BaseEditorActivity :
 		// user back to MainActivity instead of crashing -- forwarding a pending deep link along so
 		// MainActivity can still resolve and open the requested project, instead of silently
 		// dropping it here.
-		if (ProjectManagerImpl.getInstance().projectDirPath.isBlank()) {
-			log.warn("No project path available in EditorActivity.onCreate(); returning to MainActivity")
+		//
+		// A deep link also forces this even when a project path IS already loaded: DeepLinkActivity
+		// routes here only when it believes a live instance already exists to handle the request via
+		// onNewIntent, but that check can be stale (see ActionContextProvider.getActivity()'s docs)
+		// -- Android may spin up this genuinely new instance instead, which inherits whatever project
+		// ProjectManagerImpl's process-wide singleton was last holding, not necessarily the one this
+		// deep link actually targets. Comparing against the project directory's name (matching how
+		// projects live directly under Environment.PROJECTS_DIR) catches that mismatch without an
+		// extra disk scan.
+		val projectDirPath = ProjectManagerImpl.getInstance().projectDirPath
+		val deepLinkTargetsAnotherProject =
+			deepLinkRequest != null && File(projectDirPath).name != deepLinkRequest.projectName
+		if (projectDirPath.isBlank() || deepLinkTargetsAnotherProject) {
+			log.warn("No matching project available in EditorActivity.onCreate(); returning to MainActivity")
 			startActivity(
 				Intent(this, MainActivity::class.java).apply {
 					deepLinkRequest?.let { putExtra(DeepLinkRequest.EXTRA_KEY, it) }

@@ -254,6 +254,14 @@ object AssetsInstallationHelper {
 		destDir: Path,
 	) = extractZipToDir(Files.newInputStream(srcFile), destDir)
 
+	/**
+	 * Mirrors the zip-slip guard in `com.itsaky.androidide.utils.ZipUtils.unzipFile` and
+	 * [com.itsaky.androidide.utils.resolveWithinDirectory] -- three independent implementations of
+	 * the same lexical-reject + normalize-and-verify + symlink-resolve pattern (this one can't be
+	 * shared with `ZipUtils` since that lives in the `common` module, which `app` depends on, not
+	 * the other way around). Any future fix to the containment algorithm below must be applied in
+	 * all three places.
+	 */
 	@WorkerThread
 	internal fun extractZipToDir(
 		srcStream: InputStream,

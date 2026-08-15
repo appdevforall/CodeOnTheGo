@@ -76,13 +76,15 @@ fun recordProjectOpenedBookkeeping(
 			}
 		} catch (e: CancellationException) {
 			throw e
-		} catch (e: Throwable) {
+		} catch (e: Exception) {
 			// This runs on ProcessLifecycleOwner's permanent, app-wide scope, which has no
 			// CoroutineExceptionHandler -- unlike the ViewModel-scoped version this replaced, ANY
-			// escaping exception here (not just SQLException; Room's generated insert can also throw
+			// escaping Exception here (not just SQLException; Room's generated insert can also throw
 			// e.g. IllegalStateException from an already-closed database) crashes the whole process,
 			// not just fails to record one Recents entry. The project-open state above is already set
-			// synchronously, so a Recents-write failure doesn't affect it.
+			// synchronously, so a Recents-write failure doesn't affect it. Deliberately narrower than
+			// Throwable: a genuine JVM Error (OutOfMemoryError, StackOverflowError) should still crash
+			// and get reported rather than being silently downgraded to this warning.
 			log.warn("Failed to record opened project '{}' in Recents", recentProject.name, e)
 		}
 	}

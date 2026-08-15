@@ -408,20 +408,26 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		}
 	}
 
-	private fun handleOpenProject(root: File) {
+	private fun handleOpenProject(
+		root: File,
+		pendingFileRequest: PendingFileRequest? = null,
+	) {
 		if (GeneralPreferences.confirmProjectOpen) {
-			askProjectOpenPermission(root)
+			askProjectOpenPermission(root, pendingFileRequest)
 			return
 		}
-		openProject(root)
+		openProject(root, pendingFileRequest = pendingFileRequest)
 	}
 
-	private fun askProjectOpenPermission(root: File) {
+	private fun askProjectOpenPermission(
+		root: File,
+		pendingFileRequest: PendingFileRequest? = null,
+	) {
 		val builder = DialogUtils.newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_open_project)
 		builder.setMessage(getString(string.msg_confirm_open_project, root.absolutePath))
 		builder.setCancelable(false)
-		builder.setPositiveButton(string.yes) { _, _ -> openProject(root) }
+		builder.setPositiveButton(string.yes) { _, _ -> openProject(root, pendingFileRequest = pendingFileRequest) }
 		builder.setNegativeButton(string.no, null)
 		builder.show()
 	}
@@ -432,11 +438,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		hasTemplateIssues: Boolean = false,
 		pendingFileRequest: PendingFileRequest? = null,
 	) {
+		// Bookkeeping (Recents/analytics/lastOpenedProject) must run regardless of isFinishing --
+		// only the startActivity() below is unsafe from a finishing activity.
+		recordProjectOpenedBookkeeping(recentProjectDao, root, project, analyticsManager)
+
 		if (isFinishing) {
 			return
 		}
-
-		recordProjectOpenedBookkeeping(recentProjectDao, root, project, analyticsManager)
 
 		val intent =
 			Intent(this, EditorActivityKt::class.java).apply {
@@ -478,20 +486,27 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		setIntent(intent)
 		IntentCompat
 			.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
-			?.let { handleDeepLinkRequest(it) }
+			?.let {
+				intent.removeExtra(DeepLinkRequest.EXTRA_KEY) // don't reapply on a later config-change recreate
+				handleDeepLinkRequest(it)
+			}
 	}
 
 	/**
 	 * Resolves [request]'s project name to an on-disk project directory and opens it -- called when
-	 * [DeepLinkActivity] has already determined no project is currently loaded. A deep-link-triggered
-	 * open bypasses [GeneralPreferences.confirmProjectOpen]: tapping the link is itself an explicit
-	 * request for this specific project, so re-confirming it would be redundant friction.
+	 * [DeepLinkActivity] has already determined no project is currently loaded.
+	 *
+	 * This still goes through [handleOpenProject] (honoring [GeneralPreferences.confirmProjectOpen])
+	 * rather than calling [openProject] directly: [MainActivity] is `exported="true"` (required for
+	 * the launcher), so any co-installed app can target it directly with this same extra, bypassing
+	 * [DeepLinkActivity]'s own URI re-validation entirely. Skipping the confirmation gate here would
+	 * let such an app silently force a project open with no user interaction at all.
 	 */
 	private fun handleDeepLinkRequest(request: DeepLinkRequest) {
 		lifecycleScope.launch(Dispatchers.IO) {
 			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName) ?: return@launch
 			withContext(Dispatchers.Main) {
-				openProject(projectDir, pendingFileRequest = request.fileRequest)
+				handleOpenProject(projectDir, pendingFileRequest = request.fileRequest)
 			}
 		}
 	}

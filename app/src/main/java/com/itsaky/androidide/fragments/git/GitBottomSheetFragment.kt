@@ -26,6 +26,7 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.preferences.internal.GitPreferences
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
@@ -437,7 +438,13 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 					.setTitle(R.string.title_files_unsaved)
 					.setMessage(R.string.msg_save_before_git_action)
 					.setPositiveButton(R.string.save_before_git_action) { _, _ ->
-						handler.saveAllAsync { action() }
+						handler.saveAllAsync { succeeded ->
+							if (succeeded) {
+								action()
+							} else {
+								flashError(R.string.save_failed)
+							}
+						}
 					}.setNegativeButton(R.string.no_save_before_git_action) { _, _ ->
 						action()
 					}.setNeutralButton(android.R.string.cancel, null)

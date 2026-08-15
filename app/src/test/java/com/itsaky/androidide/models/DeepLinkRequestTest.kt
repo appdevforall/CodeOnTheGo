@@ -220,6 +220,22 @@ class DeepLinkRequestTest {
 	}
 
 	@Test
+	fun `a bare trailing 'column' keyword with no value is reported as invalid, not swallowed into the path`() {
+		// Regression test: `.../column` with nothing after it can never match the keyword-at-
+		// (size-2) pair check (there's no slot left for a value), so it used to silently fold into
+		// the file path with no error at all -- unlike the equivalent dangling-line-before-column
+		// case below, which was already reported.
+		val request = parse("https://www.appdevforall.org/device/open/project/MyApp/file/Main.kt/column")
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "MyApp",
+					fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = null, columnRaw = ""),
+				),
+			)
+	}
+
+	@Test
 	fun `a bare 'line' keyword immediately before a 'column' pair is reported as invalid, not swallowed into the path`() {
 		// Regression test: `.../line/column/7` has no numeric value for "line" -- unlike the
 		// swallowed-into-filename ambiguity documented above, "line" here sits directly in front of a

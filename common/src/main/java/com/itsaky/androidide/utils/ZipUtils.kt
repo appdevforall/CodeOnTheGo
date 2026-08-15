@@ -19,6 +19,7 @@ package com.itsaky.androidide.utils
 
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 import java.util.zip.ZipFile
 
 object ZipUtils {
@@ -26,6 +27,13 @@ object ZipUtils {
 	 * Extracts every entry of [zipFile] into [destDir], preserving directory structure, and
 	 * returns the list of extracted files. Rejects entries that would extract outside [destDir]
 	 * (zip-slip).
+	 *
+	 * Mirrors the containment checks in
+	 * [com.itsaky.androidide.assets.AssetsInstallationHelper.extractZipToDir] and
+	 * [com.itsaky.androidide.utils.resolveWithinDirectory] (a third, independent implementation of
+	 * the same lexical-reject + normalize-and-verify + symlink-resolve pattern, needed here because
+	 * this `common` module can't depend on `app`, which those two live in). Any future fix to the
+	 * containment algorithm must be applied in all three places.
 	 */
 	@JvmStatic
 	@Throws(IOException::class)
@@ -41,10 +49,22 @@ object ZipUtils {
 			val entries = zip.entries()
 			while (entries.hasMoreElements()) {
 				val entry = entries.nextElement()
+
+				if (entry.name.contains("..") || entry.name.startsWith("/") || entry.name.startsWith("\\")) {
+					throw IOException("Zip entry contains dangerous path components: ${entry.name}")
+				}
+
 				val outFile = File(destDir, entry.name)
 
 				if (!outFile.canonicalPath.startsWith(destDirPath)) {
 					throw IOException("Zip entry is outside of the target directory: ${entry.name}")
+				}
+
+				// The checks above are lexical (entry name) or rely on canonicalPath's own symlink
+				// resolution for a path that may not exist yet -- neither catches writing through an
+				// existing symlink already inside destDir. Reject that up front.
+				if (Files.isSymbolicLink(outFile.toPath())) {
+					throw IOException("Refusing to extract over an existing symlink: ${entry.name}")
 				}
 
 				if (entry.isDirectory) {

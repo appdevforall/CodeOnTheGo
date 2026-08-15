@@ -73,7 +73,10 @@ interface IEditorHandler {
 	/**
 	 * Save all files asynchronously.
 	 *
-	 * @param runAfter A callback function which will be run after the files are saved.
+	 * @param runAfter A callback function which will be run after the save attempt is over, whether
+	 * it succeeded or not, receiving `true` iff every file saved without throwing. Callers that act
+	 * on the saved state (e.g. proceeding with a git operation) must check this rather than assuming
+	 * the callback firing means the save succeeded.
 	 * @see saveAll
 	 */
 	fun saveAllAsync(
@@ -81,7 +84,7 @@ interface IEditorHandler {
 		requestSync: Boolean = true,
 		processResources: Boolean = false,
 		progressConsumer: ((progress: Int, total: Int) -> Unit)? = null,
-		runAfter: (() -> Unit)? = null,
+		runAfter: ((succeeded: Boolean) -> Unit)? = null,
 	)
 
 	/**

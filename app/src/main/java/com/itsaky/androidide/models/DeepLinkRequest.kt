@@ -145,12 +145,26 @@ data class DeepLinkRequest(
 							null
 						}
 
+					// A bare trailing "column" with nothing after it (e.g. ".../file/Main.kt/column") can
+					// never be matched by the keyword-at-(size-2) pair check above -- being the very last
+					// segment itself leaves no slot for a value. Detect it directly and report it the same
+					// way danglingLineRaw does, instead of silently folding "column" into the file path.
+					val danglingColumnRaw =
+						if (columnIdx == null && lineIdx == null &&
+							(endIdx - 1).let { it >= startIdx && segments[it] == SEGMENT_COLUMN }
+						) {
+							endIdx -= 1
+							""
+						} else {
+							null
+						}
+
 					val filePath = segments.subList(startIdx, endIdx).joinToString("/")
 
 					PendingFileRequest(
 						filePath = filePath,
 						lineRaw = lineIdx?.let { segments.getOrNull(it + 1) } ?: danglingLineRaw,
-						columnRaw = columnIdx?.let { segments.getOrNull(it + 1) },
+						columnRaw = columnIdx?.let { segments.getOrNull(it + 1) } ?: danglingColumnRaw,
 					)
 				}
 

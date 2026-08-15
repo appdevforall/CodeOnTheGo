@@ -22,6 +22,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.text.Normalizer
 
 class ProjectValidationsTest {
 	@JvmField
@@ -50,6 +51,20 @@ class ProjectValidationsTest {
 	fun `unknown project name yields null`() {
 		val root = tempFolder.newFolder("projects")
 		assertThat(findValidProjectByName(root, "DoesNotExist")).isNull()
+	}
+
+	@Test
+	fun `NFC-normalized name matches an NFD on-disk project directory`() {
+		// Regression test: a deep link URL is typically NFC-normalized by web tooling, but an
+		// imported project directory (e.g. a git clone authored on macOS, which decomposes
+		// accented filenames to NFD) may not codepoint-match it even though the two look identical.
+		val root = tempFolder.newFolder("projects")
+		val nfc = Normalizer.normalize("Café", Normalizer.Form.NFC)
+		val nfd = Normalizer.normalize("Café", Normalizer.Form.NFD)
+		assertThat(nfd).isNotEqualTo(nfc) // sanity check: the two forms really are distinct strings
+		val project = makeValidProject(root, nfd)
+
+		assertThat(findValidProjectByName(root, nfc)?.canonicalFile).isEqualTo(project.canonicalFile)
 	}
 
 	@Test

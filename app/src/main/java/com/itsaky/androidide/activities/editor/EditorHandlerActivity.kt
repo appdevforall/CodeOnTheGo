@@ -247,6 +247,10 @@ open class EditorHandlerActivity :
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
+		// Registered here, not onResume, so this instance is discoverable via
+		// ActionContextProvider.getActivity() for its whole lifetime -- see that function's docs for
+		// the redundant-open race a gap between onCreate and onResume otherwise leaves open.
+		ActionContextProvider.setActivity(this)
 		setupPluginFragmentFactory()
 		mBuildEventListener.setActivity(this)
 		super.onCreate(savedInstanceState)
@@ -378,7 +382,6 @@ open class EditorHandlerActivity :
 
 	override fun onResume() {
 		super.onResume()
-		ActionContextProvider.setActivity(this)
 		isOpenedFilesSaved.set(false)
 		checkForExternalFileChanges()
 		// Invalidate the options menu to reflect any changes
@@ -936,24 +939,34 @@ open class EditorHandlerActivity :
 		requestSync: Boolean,
 		processResources: Boolean,
 		progressConsumer: ((Int, Int) -> Unit)?,
-		runAfter: (() -> Unit)?,
+		runAfter: ((Boolean) -> Unit)?,
 	) {
 		lifecycleScope.launch(Dispatchers.IO) {
-			try {
-				withContext(NonCancellable) {
-					saveAll(notify, requestSync, processResources, progressConsumer)
+			// The whole body -- not just saveAll() -- runs NonCancellable. onDestroy() cancels
+			// lifecycleScope's Job as soon as it runs; leaving NonCancellable partway through (e.g.
+			// right before invoking runAfter) would let that cancellation surface at the next
+			// suspension point and drop runAfter entirely instead of running it. Callers rely on it
+			// always running (e.g. confirmProjectClose's onClosed, which arms a pending deep-link
+			// project switch and would otherwise vanish with no error if this activity is torn down
+			// while the save is still in flight).
+			withContext(NonCancellable) {
+				val saveSucceeded =
+					try {
+						saveAll(notify, requestSync, processResources, progressConsumer)
+						true
+					} catch (e: CancellationException) {
+						throw e
+					} catch (e: Exception) {
+						// A write failure here (e.g. CodeEditorView.save()'s IOException) must not skip
+						// runAfter below -- callers rely on it always running to know the save attempt is
+						// over, successful or not (e.g. confirmProjectClose's confirmCloseInProgress guard,
+						// which would otherwise stay stuck true and permanently block closing this activity).
+						log.error("saveAll failed", e)
+						false
+					}
+				withContext(Dispatchers.Main) {
+					runAfter?.invoke(saveSucceeded)
 				}
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				// A write failure here (e.g. CodeEditorView.save()'s IOException) must not skip
-				// runAfter below -- callers rely on it always running to know the save attempt is
-				// over, successful or not (e.g. confirmProjectClose's confirmCloseInProgress guard,
-				// which would otherwise stay stuck true and permanently block closing this activity).
-				log.error("saveAll failed", e)
-			}
-			withContext(Dispatchers.Main) {
-				runAfter?.invoke()
 			}
 		}
 	}
@@ -1854,22 +1867,35 @@ open class EditorHandlerActivity :
 	private var activeProjectCloseDialog: AlertDialog? = null
 	private var confirmCloseInProgress = false
 
+	// The onClosed to actually run once the in-flight confirm-close flow resolves. Read at
+	// resolution time rather than captured per-call, so a THIRD overlapping request (e.g. a deep
+	// link C arriving while confirmCloseInProgress is already true for an earlier B) can supersede
+	// B by overwriting this field, instead of being silently dropped by the confirmCloseInProgress
+	// guard below with no way to ever apply it.
+	private var pendingCloseCallback: (() -> Unit)? = null
+
 	private fun confirmProjectClose(onClosed: (() -> Unit)? = null) {
 		val content = contentOrNull ?: return
 		if (confirmCloseInProgress) {
+			pendingCloseCallback = onClosed
 			flashError(string.msg_project_close_in_progress)
 			return
 		}
 		confirmCloseInProgress = true
+		pendingCloseCallback = onClosed
 
 		val builder = newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_project_close)
 		builder.setMessage(string.msg_confirm_project_close)
-		builder.setOnCancelListener { confirmCloseInProgress = false }
+		builder.setOnCancelListener {
+			confirmCloseInProgress = false
+			pendingCloseCallback = null
+		}
 
 		builder.setNegativeButton(string.cancel_project_text) { dialog, _ ->
 			dialog.dismiss()
 			confirmCloseInProgress = false
+			pendingCloseCallback = null
 		}
 
 		// OPTION 1: Close without saving
@@ -1881,20 +1907,22 @@ open class EditorHandlerActivity :
 			}
 
 			// Activity is finishing either way; no need to reset confirmCloseInProgress.
-			performCloseAllFiles(manualFinish = true, onClosed = onClosed)
+			performCloseAllFiles(manualFinish = true, onClosed = pendingCloseCallback)
 		}
 
 		// OPTION 2: Save and close
 		builder.setPositiveButton(string.save_and_close) { dialog, _ ->
 			dialog.dismiss()
 
-			saveAllAsync(notify = false) {
+			saveAllAsync(notify = false) { saveSucceeded ->
 				runOnUiThread {
 					confirmCloseInProgress = false
 					// saveAll()'s return value is gradleSaved (whether a build file changed), not
 					// "everything saved successfully" -- check actual editor state instead, so a
 					// failed write (disk full, permission) doesn't silently discard unsaved changes.
-					if (hasFilesThatFailedToSave()) {
+					// !saveSucceeded is checked too: an exception can abort the save before it even
+					// gets to a given file, which would leave that file's modified flag unchanged.
+					if (!saveSucceeded || hasFilesThatFailedToSave()) {
 						flashError(string.save_failed)
 						return@runOnUiThread
 					}
@@ -1903,12 +1931,12 @@ open class EditorHandlerActivity :
 					)
 					// contentOrNull can already be null here if the binding was torn down while the
 					// save was in flight -- performCloseAllFiles would NPE on the view manipulation it
-					// does, but onClosed (e.g. arming a pending deep-link project switch) has no such
-					// dependency and must still run, or a confirmed close silently drops it.
+					// does, but pendingCloseCallback (e.g. arming a pending deep-link project switch)
+					// has no such dependency and must still run, or a confirmed close silently drops it.
 					if (contentOrNull != null) {
-						performCloseAllFiles(manualFinish = true, onClosed = onClosed)
+						performCloseAllFiles(manualFinish = true, onClosed = pendingCloseCallback)
 					} else {
-						onClosed?.invoke()
+						pendingCloseCallback?.invoke()
 					}
 				}
 			}
@@ -2014,6 +2042,11 @@ open class EditorHandlerActivity :
 			val file = resolveWithinDirectory(projectDir, request.filePath)?.takeIf { it.isFile }
 
 			withContext(Dispatchers.Main) {
+				// The activity may have started finishing while resolveWithinDirectory was still
+				// hitting disk -- lifecycleScope only cancels at ON_DESTROY, not the moment isFinishing
+				// first flips true, so this continuation can otherwise still run and touch a dying
+				// window. Same race onNewIntent already guards against.
+				if (isFinishing || isDestroyed) return@withContext
 				if (file == null) {
 					flashError(getString(string.msg_deeplink_file_not_found, request.filePath))
 					return@withContext

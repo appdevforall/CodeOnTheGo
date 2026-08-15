@@ -28,7 +28,10 @@ import java.nio.file.InvalidPathException
  * be allowed to read/write outside a known root directory.
  *
  * Three layers, mirroring the zip-slip guard in
- * [com.itsaky.androidide.assets.AssetsInstallationHelper.extractZipToDir]:
+ * [com.itsaky.androidide.assets.AssetsInstallationHelper.extractZipToDir] and
+ * `com.itsaky.androidide.utils.ZipUtils.unzipFile` (the `common` module's own copy, needed since
+ * it can't depend on `app` to call this function directly). Any future fix to the containment
+ * algorithm below must be applied in all three places:
  * 1. A lexical reject of `..`/a leading `/` or `\` -- cheap, catches the common case outright.
  * 2. Resolve + normalize against [baseDir] and verify with [java.nio.file.Path.startsWith] (not
  *    string prefix matching, which would wrongly accept `/project` as inside `/project-evil`) --

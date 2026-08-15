@@ -31,6 +31,13 @@ object ActionContextProvider {
 	 * Android delivers `singleTask` intents to a finishing instance's [android.app.Activity.onNewIntent]
 	 * inconsistently (a genuinely new instance can be created instead), so callers that route based
 	 * on "is there a live editor to hand this off to" need this distinction, not just non-null.
+	 *
+	 * [setActivity] is called from `onCreate` (not `onResume`), so an instance is discoverable for
+	 * its entire lifetime rather than leaving a blind window between `onCreate` and `onResume` where
+	 * a caller like [com.itsaky.androidide.activities.DeepLinkActivity] would otherwise see `null` for
+	 * a live instance and start a second, redundant open flow via `MainActivity`. The `isFinishing`/
+	 * `isDestroyed` filter above still excludes an instance that registered but is already tearing
+	 * down.
 	 */
 	fun getActivity(): EditorHandlerActivity? = activityRef?.get()?.takeIf { !it.isFinishing && !it.isDestroyed }
 }

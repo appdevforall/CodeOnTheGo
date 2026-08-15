@@ -1,6 +1,7 @@
 package com.itsaky.androidide.utils
 
 import java.io.File
+import java.text.Normalizer
 import kotlin.collections.filter
 import kotlin.collections.orEmpty
 
@@ -44,8 +45,20 @@ internal fun findValidProjectByName(
 		return null
 	}
 	if (!projectsRoot.isProjectCandidateDir()) return null
-	val candidate = resolveWithinDirectory(projectsRoot, name) ?: return null
-	return candidate.takeIf { it.isProjectCandidateDir() && isValidProjectDirectory(it) }
+
+	// A deep-link name is typically authored/normalized as NFC by web tooling, but an on-disk
+	// project directory imported from elsewhere (e.g. a git clone authored on macOS, which
+	// decomposes accented filenames to NFD) may not codepoint-match it even though the two look
+	// identical. Try both normal forms -- still O(1) filesystem lookups, not a directory scan --
+	// rather than reporting a visually-identical project as "not found".
+	val candidateNames = linkedSetOf(name, Normalizer.normalize(name, Normalizer.Form.NFC), Normalizer.normalize(name, Normalizer.Form.NFD))
+	for (candidateName in candidateNames) {
+		val candidate = resolveWithinDirectory(projectsRoot, candidateName) ?: continue
+		if (candidate.isProjectCandidateDir() && isValidProjectDirectory(candidate)) {
+			return candidate
+		}
+	}
+	return null
 }
 
 /** Determines if the directory contains a valid Android project structure. */

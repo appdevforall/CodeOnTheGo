@@ -47,11 +47,15 @@ suspend fun Activity.resolveDeepLinkProject(
 			throw e
 		} catch (e: SecurityException) {
 			log.error("Failed to scan {} for deep link", projectsRoot, e)
-			withContext(Dispatchers.Main) { flashError(getString(string.msg_deeplink_scan_failed)) }
+			// The activity may have started finishing while the scan above was still hitting disk --
+			// don't flash an error against a dying window.
+			if (!isFinishing && !isDestroyed) {
+				withContext(Dispatchers.Main) { flashError(getString(string.msg_deeplink_scan_failed)) }
+			}
 			return null
 		}
 
-	if (projectDir == null) {
+	if (projectDir == null && !isFinishing && !isDestroyed) {
 		withContext(Dispatchers.Main) {
 			flashError(getString(string.msg_deeplink_project_not_found, projectName))
 		}
