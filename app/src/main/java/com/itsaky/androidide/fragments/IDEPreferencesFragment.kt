@@ -89,7 +89,9 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 		val recyclerView = listView
 
 		recyclerView.onLongPress { e ->
-			if (!isAdded) {
+			// isAdded alone isn't enough: a fragment can stay added (e.g. on the back stack)
+			// while its view is torn down, and the long-press timer can fire after that.
+			if (!isAdded || !recyclerView.isAttachedToWindow) {
 				return@onLongPress
 			}
 			val ctx = context ?: return@onLongPress

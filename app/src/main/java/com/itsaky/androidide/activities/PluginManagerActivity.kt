@@ -8,6 +8,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.HapticFeedbackConstants
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -25,6 +26,7 @@ import com.itsaky.androidide.adapters.PluginListAdapter
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
 import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
@@ -38,6 +40,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.getFileName
+import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import kotlinx.coroutines.launch
@@ -183,7 +186,24 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 		show(binding.toolbar, TooltipTag.PLUGIN_MANAGER_TOOLBAR)
 		show(binding.fabInstallPlugin, TooltipTag.PLUGIN_MANAGER_FAB_INSTALL)
 		show(binding.emptyState, TooltipTag.PLUGIN_MANAGER_EMPTY_STATE)
-		show(binding.recyclerView, TooltipTag.PLUGIN_MANAGER_LIST)
+
+		// A plain setOnLongClickListener on a RecyclerView never fires - it overrides
+		// onTouchEvent() for scroll handling and doesn't run the base View long-press
+		// detection - so empty list space needs the same GestureDetector-based approach
+		// used for IDEPreferencesFragment's RecyclerView. Skipped when a row is under the
+		// touch point since each row already shows its own tooltip (PluginListAdapter).
+		binding.recyclerView.onLongPress { e ->
+			if (binding.recyclerView.findChildViewUnder(e.x, e.y) != null) {
+				return@onLongPress
+			}
+			binding.recyclerView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+			TooltipManager.showTooltip(
+				context = this,
+				anchorView = binding.recyclerView,
+				category = TooltipCategory.CATEGORY_IDE,
+				tag = TooltipTag.PLUGIN_MANAGER_LIST,
+			)
+		}
 	}
 
 	private fun setupFeedbackButton() {

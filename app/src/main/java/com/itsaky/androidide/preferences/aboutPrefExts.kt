@@ -29,8 +29,9 @@ val about =
 		key = KEY_ABOUT,
 		title = R.string.idepref_about_title,
 		summary = R.string.idepref_about_summary,
+		onClick = {
+			it.context.startActivity(Intent(it.context, AboutActivity::class.java))
+			true
+		},
 		tooltipTag = PREFS_ABOUT,
-	) {
-		it.context.startActivity(Intent(it.context, AboutActivity::class.java))
-		true
-	}
+	)

@@ -64,9 +64,9 @@ private class GradleOptions(
 	override val children: List<IPreference> = mutableListOf(),
 ) : IPreferenceGroup() {
 
-init {
-	addPreference(GradleCommands())
-}
+	init {
+		addPreference(GradleCommands())
+	}
 }
 
 @Parcelize
@@ -112,4 +112,4 @@ private class LaunchAppAfterInstall(
 	override val icon: Int? = drawable.ic_open_external,
 	override val tooltipTag: String = PREFS_BUILDRUN_AUTOLAUNCH,
 ) :
-SwitchPreference(setValue = ::launchAppAfterInstall::set, getValue = ::launchAppAfterInstall::get)
+	SwitchPreference(setValue = ::launchAppAfterInstall::set, getValue = ::launchAppAfterInstall::get)

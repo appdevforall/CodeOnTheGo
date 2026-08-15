@@ -18,6 +18,7 @@
 package com.itsaky.androidide.preferences
 
 import android.content.Context
+import android.view.HapticFeedbackConstants
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
@@ -75,6 +76,7 @@ abstract class DialogPreference : SimplePreference() {
 		tag: String,
 	) {
 		if (tag.isNotEmpty()) {
+			anchor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
 			TooltipManager.showIdeCategoryTooltip(context, anchor, tag)
 		}
 	}

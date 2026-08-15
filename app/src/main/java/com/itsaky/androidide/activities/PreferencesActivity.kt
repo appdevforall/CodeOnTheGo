@@ -17,6 +17,7 @@
 package com.itsaky.androidide.activities
 
 import android.os.Bundle
+import android.view.HapticFeedbackConstants
 import android.view.View
 import androidx.core.graphics.Insets
 import androidx.core.os.BundleCompat
@@ -57,6 +58,7 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 
 		binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
 		binding.toolbar.setOnLongClickListener {
+			binding.toolbar.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
 			TooltipManager.showIdeCategoryTooltip(this, binding.toolbar, currentScreenTooltipTag())
 			true
 		}
@@ -65,6 +67,7 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 		// wrap_content-sized to its own rows, so on a short screen (e.g. Git, About) it doesn't fill
 		// this NestedScrollView, and the remaining space would otherwise have no tooltip at all.
 		binding.fragmentContainerParent.setOnLongClickListener {
+			binding.fragmentContainerParent.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
 			TooltipManager.showIdeCategoryTooltip(
 				this,
 				binding.fragmentContainerParent,
