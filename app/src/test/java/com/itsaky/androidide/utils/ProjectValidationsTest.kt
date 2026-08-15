@@ -91,7 +91,13 @@ class ProjectValidationsTest {
 		// The reachable counterpart to the test above: a deep link's project-name URL segment can
 		// never contain "/" (Uri.pathSegments splits on it), so name = ".." alone -- not "../x" --
 		// is the actual traversal shape resolveWithinDirectory's lexical check must catch.
-		val base = tempFolder.newFolder("base")
+		//
+		// base is made a *valid* project (not just a bare directory) so this test actually exercises
+		// that lexical check: with a bare directory, findValidProjectByName would return null either
+		// way -- via the traversal check working correctly, or via isValidProjectDirectory rejecting
+		// an escaped-but-unmarked base -- so the assertion couldn't tell a traversal regression apart
+		// from a passing test.
+		val base = makeValidProject(tempFolder.root, "base")
 		val root = File(base, "projects").apply { mkdirs() }
 
 		assertThat(findValidProjectByName(root, "..")).isNull()
