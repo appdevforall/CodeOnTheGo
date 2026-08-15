@@ -35,7 +35,7 @@ Nothing here has third-party dependencies; the Python is stdlib-only.
 
 # 3. Compare
 uv run --no-project analyze-plugin-impact.py impact \
-    out/reference/full-dump.txt out/candidate/full-dump.txt out/plugins
+	out/reference/full-dump.txt out/candidate/full-dump.txt out/plugins
 ```
 
 To pull the reference APK off a device:
