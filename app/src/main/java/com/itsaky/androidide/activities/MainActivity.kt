@@ -23,6 +23,7 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
 import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
 import androidx.core.view.WindowInsetsCompat
@@ -131,11 +132,17 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		// Start WebServer after installation is complete
 		startWebServer()
 
-		if (savedInstanceState == null) {
-			val deepLinkRequest =
-				IntentCompat.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
+		val deepLinkRequest =
+			IntentCompat.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
+		// A config change this activity doesn't declare (e.g. font scale, day/night) recreates it with
+		// savedInstanceState != null while handleDeepLinkRequest's resolve may still be in flight --
+		// the old instance's lifecycleScope (and its coroutine) is cancelled with it. Gating solely on
+		// savedInstanceState == null would silently lose a not-yet-consumed request instead of
+		// retrying it on the new instance; deepLinkRequest != null is a safe extra signal here since
+		// the extra is only ever removed once handleDeepLinkRequest has actually consumed it (see
+		// there), never eagerly.
+		if (savedInstanceState == null || deepLinkRequest != null) {
 			if (deepLinkRequest != null) {
-				intent.removeExtra(DeepLinkRequest.EXTRA_KEY) // don't reapply on a later config-change recreate
 				handleDeepLinkRequest(deepLinkRequest)
 			} else {
 				openLastProject()
@@ -419,17 +426,26 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		openProject(root, pendingFileRequest = pendingFileRequest)
 	}
 
+	// Tracked so a later overlapping request (e.g. two deep links arriving in quick succession while
+	// GeneralPreferences.confirmProjectOpen is enabled) dismisses the dialog already showing instead
+	// of stacking a second one underneath it -- letting both stack would let the user confirm the
+	// visible (later) one, then unknowingly tap the earlier one now exposed behind it, triggering a
+	// confusing second close-and-reopen inside the editor that just opened. Also dismissed in
+	// onDestroy() to avoid leaking its window.
+	private var activeOpenPermissionDialog: AlertDialog? = null
+
 	private fun askProjectOpenPermission(
 		root: File,
 		pendingFileRequest: PendingFileRequest? = null,
 	) {
+		activeOpenPermissionDialog?.dismiss()
 		val builder = DialogUtils.newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_open_project)
 		builder.setMessage(getString(string.msg_confirm_open_project, root.absolutePath))
 		builder.setCancelable(false)
 		builder.setPositiveButton(string.yes) { _, _ -> openProject(root, pendingFileRequest = pendingFileRequest) }
 		builder.setNegativeButton(string.no, null)
-		builder.show()
+		activeOpenPermissionDialog = builder.show()
 	}
 
 	internal fun openProject(
@@ -486,10 +502,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		setIntent(intent)
 		IntentCompat
 			.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
-			?.let {
-				intent.removeExtra(DeepLinkRequest.EXTRA_KEY) // don't reapply on a later config-change recreate
-				handleDeepLinkRequest(it)
-			}
+			?.let { handleDeepLinkRequest(it) }
 	}
 
 	/**
@@ -504,8 +517,19 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	 */
 	private fun handleDeepLinkRequest(request: DeepLinkRequest) {
 		lifecycleScope.launch(Dispatchers.IO) {
-			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName) ?: return@launch
+			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName)
 			withContext(Dispatchers.Main) {
+				// Only remove the extra once this point is actually reached -- if this coroutine was
+				// cancelled before now (e.g. onDestroy() from a config-change recreate mid-resolve), the
+				// extra stays intact so onCreate's relaxed savedInstanceState check can retry it on the
+				// freshly recreated instance instead of silently losing it.
+				intent.removeExtra(DeepLinkRequest.EXTRA_KEY)
+				// The activity may have started finishing while resolveDeepLinkProject was still
+				// scanning disk -- lifecycleScope only cancels at ON_DESTROY, not the moment isFinishing
+				// first flips true, so this continuation can otherwise still run and show a dialog on a
+				// dying window.
+				if (isFinishing || isDestroyed) return@withContext
+				projectDir ?: return@withContext
 				handleOpenProject(projectDir, pendingFileRequest = request.fileRequest)
 			}
 		}
@@ -514,6 +538,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	override fun onDestroy() {
 		webServer?.stop()
 		ITemplateProvider.getInstance().release()
+		activeOpenPermissionDialog?.dismiss()
 		super.onDestroy()
 		_binding = null
 	}

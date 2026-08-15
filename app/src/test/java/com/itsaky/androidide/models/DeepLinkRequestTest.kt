@@ -220,6 +220,15 @@ class DeepLinkRequestTest {
 	}
 
 	@Test
+	fun `non-canonical scheme and host case still matches`() {
+		// Scheme and host are case-insensitive per RFC 3986 -- an explicit intent from another app
+		// (see the "wrong scheme" test's rationale) could carry either in non-canonical case, and a
+		// semantically valid link must not be rejected over that alone.
+		val request = parse("HTTPS://WWW.APPDEVFORALL.ORG/device/open/project/MyApp")
+		assertThat(request).isEqualTo(DeepLinkRequest(projectName = "MyApp"))
+	}
+
+	@Test
 	fun `a bare trailing 'column' keyword with no value is reported as invalid, not swallowed into the path`() {
 		// Regression test: `.../column` with nothing after it can never match the keyword-at-
 		// (size-2) pair check (there's no slot left for a value), so it used to silently fold into

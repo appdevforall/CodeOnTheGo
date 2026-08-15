@@ -247,13 +247,18 @@ open class EditorHandlerActivity :
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
-		// Registered here, not onResume, so this instance is discoverable via
-		// ActionContextProvider.getActivity() for its whole lifetime -- see that function's docs for
-		// the redundant-open race a gap between onCreate and onResume otherwise leaves open.
-		ActionContextProvider.setActivity(this)
 		setupPluginFragmentFactory()
 		mBuildEventListener.setActivity(this)
 		super.onCreate(savedInstanceState)
+
+		// Registered here (right after super.onCreate() finishes wiring the toolbar/action registry),
+		// not onResume, so this instance is discoverable via ActionContextProvider.getActivity() for
+		// almost its whole lifetime -- see that function's docs for the redundant-open race a gap
+		// between onCreate and onResume otherwise leaves open. Registering before super.onCreate()
+		// returns would instead expose a partially-constructed activity (no toolbar/action registry
+		// yet) to external callers like a floating EditorPanelDockableContent window, which is
+		// explicitly documented to outlive this activity and can act on it at any time.
+		ActionContextProvider.setActivity(this)
 
 		supportFragmentManager.registerFragmentLifecycleCallbacks(pluginFontScalingListener, true)
 		floatingTabController.start()
@@ -352,6 +357,23 @@ open class EditorHandlerActivity :
 		Log.d("EditorHandlerActivity", "Saved open plugin tabs: $openPluginTabIds")
 	}
 
+	// Actually performs a pending "close then reopen a different project" hand-off recorded via
+	// pendingDeepLinkOpen. Shared by onDestroy() (the normal case -- see its docs for why the
+	// hand-off waits until here) and confirmProjectClose's "Save and close" completion (the race
+	// case -- see there for why that path can't always rely on onDestroy() running afterward).
+	private fun performPendingDeepLinkOpen(pending: DeepLinkOpenRequest) {
+		val root = File(pending.projectRoot)
+		val ctx = applicationContext
+		recordProjectOpenedBookkeeping(recentProjectDao, root, project = null, analyticsManager = analyticsManager)
+		ctx.startActivity(
+			Intent(ctx, EditorActivityKt::class.java).apply {
+				putExtra("PROJECT_PATH", pending.projectRoot)
+				pending.fileRequest?.let { putExtra(PendingFileRequest.EXTRA_KEY, it) }
+				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+			},
+		)
+	}
+
 	override fun onDestroy() {
 		super.onDestroy()
 		ActionContextProvider.clearActivity(this)
@@ -367,16 +389,7 @@ open class EditorHandlerActivity :
 		// onNewIntent (which never reads it) instead of a genuinely new instance's onCreate.
 		pendingDeepLinkOpen.value?.let { pending ->
 			pendingDeepLinkOpen.value = null
-			val root = File(pending.projectRoot)
-			val ctx = applicationContext
-			recordProjectOpenedBookkeeping(recentProjectDao, root, project = null, analyticsManager = analyticsManager)
-			ctx.startActivity(
-				Intent(ctx, EditorActivityKt::class.java).apply {
-					putExtra("PROJECT_PATH", pending.projectRoot)
-					pending.fileRequest?.let { putExtra(PendingFileRequest.EXTRA_KEY, it) }
-					addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-				},
-			)
+			performPendingDeepLinkOpen(pending)
 		}
 	}
 
@@ -1962,6 +1975,15 @@ open class EditorHandlerActivity :
 						performCloseAllFiles(manualFinish = true, onClosed = pendingCloseCallback)
 					} else {
 						pendingCloseCallback?.invoke()
+						// contentOrNull == null means this instance is already destroyed (contentOrNull
+						// returns null once isDestroyed) -- onDestroy()'s one-shot drain of
+						// pendingDeepLinkOpen already ran and won't run again for this instance. Without
+						// this, a pending open armed by the callback above would sit stranded until some
+						// unrelated later EditorHandlerActivity instance's onDestroy() happens to find it.
+						pendingDeepLinkOpen.value?.let { pending ->
+							pendingDeepLinkOpen.value = null
+							performPendingDeepLinkOpen(pending)
+						}
 					}
 				}
 			}
@@ -1973,10 +1995,17 @@ open class EditorHandlerActivity :
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
 
+		// Only true for an intent that ISN'T itself requesting a project switch (neither a deep link
+		// nor a plain MainActivity.openProject hand-off) -- e.g. some other explicit re-launch of this
+		// activity. Gating the carry-forward below on this prevents a still-loading project's own
+		// stale file request from getting attached to an unrelated switch to a *different* project.
+		val isProjectSwitchIntent =
+			intent.hasExtra(DeepLinkRequest.EXTRA_KEY) || intent.hasExtra("PROJECT_PATH")
+
 		// Preserve a not-yet-applied file-navigation request from the previous intent -- postProjectInit
 		// reads it lazily once a sync completes, and setIntent() below would otherwise silently drop it
 		// if this onNewIntent call is for something unrelated to that pending request.
-		if (!intent.hasExtra(PendingFileRequest.EXTRA_KEY)) {
+		if (!isProjectSwitchIntent && !intent.hasExtra(PendingFileRequest.EXTRA_KEY)) {
 			IntentCompat
 				.getParcelableExtra(getIntent(), PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
 				?.let { intent.putExtra(PendingFileRequest.EXTRA_KEY, it) }
@@ -2010,38 +2039,7 @@ open class EditorHandlerActivity :
 				// first flips true, so this continuation can otherwise still run and try to show the
 				// confirm-close dialog on a dying window.
 				if (isFinishing || isDestroyed) return@withContext
-
-				val currentProjectPath = IProjectManager.getInstance().projectDirPath
-				when {
-					currentProjectPath.isBlank() -> {
-						// No project has actually finished initializing in this instance (e.g. it was
-						// recreated after process death without a PROJECT_PATH extra) -- confirmProjectClose
-						// would silently no-op here since contentOrNull is null, dropping the deep link
-						// with no error shown. Route through the same onDestroy()-deferred handoff used for
-						// a confirmed project switch instead of showing a close dialog for a project that,
-						// as far as the user can see, was never really open.
-						pendingDeepLinkOpen.value = DeepLinkOpenRequest(projectDir.absolutePath, request.fileRequest)
-						finish()
-					}
-
-					// projectDirPath is set as soon as a project starts opening -- unlike workspace, which
-					// stays null for the whole duration of a Gradle sync -- so this correctly matches the
-					// "already in this project" case even mid-sync, instead of falling through to the
-					// disruptive close-and-reopen confirmation below for a no-op.
-					projectDir.absolutePath == currentProjectPath -> {
-						// Requirement #2: same project already open -- no-op project-wise, just navigate.
-						request.fileRequest?.let { applyDeepLinkFileRequest(it) }
-					}
-
-					else -> {
-						// Requirement #3: a different project is open. Reuse the existing, unmodified
-						// confirm-close dialog; only record the pending open if the user actually confirms --
-						// see onDestroy() for why the reopen itself waits until this instance is torn down.
-						confirmProjectClose {
-							pendingDeepLinkOpen.value = DeepLinkOpenRequest(projectDir.absolutePath, request.fileRequest)
-						}
-					}
-				}
+				switchToProject(projectDir.absolutePath, request.fileRequest)
 			}
 		}
 	}
@@ -2075,20 +2073,49 @@ open class EditorHandlerActivity :
 		val newProjectPath = intent.getStringExtra("PROJECT_PATH")?.takeIf { it.isNotBlank() } ?: return
 		val fileRequest =
 			IntentCompat.getParcelableExtra(intent, PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
+		// Drain regardless of outcome, matching postProjectInit's own explicit drain -- otherwise a
+		// same-project no-op below leaves this armed, and it fires again on a later unrelated sync.
+		intent.removeExtra(PendingFileRequest.EXTRA_KEY)
 
+		switchToProject(newProjectPath, fileRequest)
+	}
+
+	/**
+	 * Shared three-way dispatch for switching this singleTask instance to [newProjectPath]: no
+	 * project loaded yet, the same project already open, or a different project requiring the
+	 * confirm-close-then-reopen handoff. Used by both the deep-link path (onNewIntent, once the
+	 * project name is resolved to a path) and the plain project-switch path ([handlePlainProjectSwitch],
+	 * which already has an absolute path from its caller) -- previously duplicated in both places.
+	 */
+	private fun switchToProject(
+		newProjectPath: String,
+		fileRequest: PendingFileRequest?,
+	) {
 		val currentProjectPath = IProjectManager.getInstance().projectDirPath
 		when {
 			currentProjectPath.isBlank() -> {
+				// No project has actually finished initializing in this instance (e.g. it was
+				// recreated after process death without a PROJECT_PATH extra) -- confirmProjectClose
+				// would silently no-op here since contentOrNull is null, dropping the request with no
+				// error shown. Route through the same onDestroy()-deferred handoff used for a
+				// confirmed project switch instead of showing a close dialog for a project that, as
+				// far as the user can see, was never really open.
 				pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest)
 				finish()
 			}
 
+			// projectDirPath is set as soon as a project starts opening -- unlike workspace, which
+			// stays null for the whole duration of a Gradle sync -- so this correctly matches the
+			// "already in this project" case even mid-sync, instead of falling through to the
+			// disruptive close-and-reopen confirmation below for a no-op.
 			newProjectPath == currentProjectPath -> {
-				// Same project already open -- no-op project-wise, just navigate.
 				fileRequest?.let { applyDeepLinkFileRequest(it) }
 			}
 
 			else -> {
+				// A different project is open. Reuse the existing, unmodified confirm-close dialog;
+				// only record the pending open if the user actually confirms -- see onDestroy() for
+				// why the reopen itself waits until this instance is torn down.
 				confirmProjectClose {
 					pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest)
 				}
@@ -2109,7 +2136,23 @@ open class EditorHandlerActivity :
 	private fun applyDeepLinkFileRequest(request: PendingFileRequest) {
 		lifecycleScope.launch(Dispatchers.IO) {
 			val projectDir = File(IProjectManager.getInstance().projectDirPath)
-			val file = resolveWithinDirectory(projectDir, request.filePath)?.takeIf { it.isFile }
+			val file =
+				try {
+					resolveWithinDirectory(projectDir, request.filePath)?.takeIf { it.isFile }
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: SecurityException) {
+					// resolveWithinDirectory's toRealPath()/Files.exists() walk and the chained
+					// File.isFile() check both hit disk -- resolveDeepLinkProject already treats this
+					// as a real risk for the same kind of I/O one call away.
+					log.error("Failed to resolve deep-link file request for {}", request.filePath, e)
+					withContext(Dispatchers.Main) {
+						if (!isFinishing && !isDestroyed) {
+							flashError(getString(string.msg_deeplink_scan_failed))
+						}
+					}
+					return@launch
+				}
 
 			withContext(Dispatchers.Main) {
 				// The activity may have started finishing while resolveWithinDirectory was still
@@ -2145,7 +2188,10 @@ open class EditorHandlerActivity :
 		raw ?: return 0
 		val parsed = raw.toIntOrNull()
 		if (parsed == null || parsed <= 0) {
-			flashError(getString(invalidMsgRes, raw))
+			// A dangling keyword (a trailing line/column segment with no value after it) is reported
+			// as raw = "" -- show a readable placeholder instead of interpolating literal empty quotes.
+			val shown = raw.ifEmpty { getString(string.msg_deeplink_no_value) }
+			flashError(getString(invalidMsgRes, shown))
 			return 0
 		}
 		return parsed - 1

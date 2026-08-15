@@ -89,7 +89,14 @@ data class DeepLinkRequest(
 		 * arrived.
 		 */
 		fun parse(uri: Uri?): DeepLinkRequest? {
-			if (uri == null || uri.scheme != SCHEME || uri.host != HOST || uri.path?.startsWith(PATH_PREFIX) != true) {
+			// Scheme and host are case-insensitive per RFC 3986 -- an explicit intent from another app
+			// (see this function's own doc on why that's re-validated at all) could carry either in
+			// non-canonical case, and a semantically valid link must not be rejected over that alone.
+			if (uri == null ||
+				!uri.scheme.equals(SCHEME, ignoreCase = true) ||
+				!uri.host.equals(HOST, ignoreCase = true) ||
+				uri.path?.startsWith(PATH_PREFIX) != true
+			) {
 				return null
 			}
 

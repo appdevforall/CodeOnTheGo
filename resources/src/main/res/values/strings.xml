@@ -142,6 +142,7 @@
 	<string name="msg_deeplink_file_not_found">File \"%s\" was not found in the project.</string>
 	<string name="msg_deeplink_invalid_line">\"%s\" is not a valid line number.</string>
 	<string name="msg_deeplink_invalid_column">\"%s\" is not a valid column number.</string>
+	<string name="msg_deeplink_no_value">(no value given)</string>
 	<string name="msg_deeplink_scan_failed">Could not scan projects for this link.</string>
 	<string name="msg_project_close_in_progress">A project close is already in progress. Try again in a moment.</string>
 	<string name="msg_create_new_project">Create new project</string>

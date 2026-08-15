@@ -106,6 +106,7 @@ import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
+import com.itsaky.androidide.models.PendingFileRequest
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
@@ -707,11 +708,23 @@ abstract class BaseEditorActivity :
 			startActivity(
 				Intent(this, MainActivity::class.java).apply {
 					deepLinkRequest?.let { putExtra(DeepLinkRequest.EXTRA_KEY, it) }
+					// This branch is reachable far more often now (any deepLinkTargetsAnotherProject
+					// mismatch, not just a rare cold process-death recreate) -- without CLEAR_TOP, a
+					// MainActivity instance already lower in the back stack (Main -> Open Project ->
+					// Editor) would get a stacked duplicate instead of being reused, leaving back-press
+					// landing on the stale earlier instance instead of exiting.
+					addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 				},
 			)
 			finish()
 			return
 		}
+
+		// The deep link's project already matches what's loaded (a stale liveness check spun up this
+		// new instance instead of redelivering via onNewIntent) -- forward its file/line/column
+		// request through the normal PendingFileRequest pipeline so postProjectInit still applies it
+		// once the project finishes initializing, instead of silently dropping it here.
+		deepLinkRequest?.fileRequest?.let { intent.putExtra(PendingFileRequest.EXTRA_KEY, it) }
 
 		editorViewModel.isBuildInProgress = false
 		editorViewModel.isInitializing = false
