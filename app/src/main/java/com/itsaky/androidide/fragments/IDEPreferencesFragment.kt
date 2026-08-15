@@ -119,7 +119,7 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 		}
 
 		val key = (recyclerView.adapter as? PreferenceGroupAdapter)?.getItem(position)?.key ?: return null
-		return tooltipTagsByKey[key]?.takeIf { it.isNotEmpty() }
+		return tooltipTagsByKey[key]?.takeIf { it.isNotBlank() }
 	}
 
 	/**

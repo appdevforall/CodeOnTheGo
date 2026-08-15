@@ -83,6 +83,27 @@ fun RecyclerView.onLongPress(listener: (MotionEvent) -> Unit) {
 	)
 }
 
+// Views like NestedScrollView/ScrollView override onTouchEvent() for their own drag/fling
+// handling, so a plain setOnLongClickListener never arms the base View's long-press timer -
+// same root cause as RecyclerView.onLongPress above. A GestureDetector forwarded through
+// setOnTouchListener (always returning false, so scrolling still works) sidesteps that.
+fun View.onLongPress(listener: (MotionEvent) -> Unit) {
+	val gestureDetector =
+		GestureDetector(
+			context,
+			object : GestureDetector.SimpleOnGestureListener() {
+				override fun onLongPress(e: MotionEvent) {
+					listener(e)
+				}
+			},
+		)
+
+	setOnTouchListener { _, event ->
+		gestureDetector.onTouchEvent(event)
+		false
+	}
+}
+
 @SuppressLint("ClickableViewAccessibility")
 fun View.setupGestureHandling(
 	onLongPress: (View) -> Unit,

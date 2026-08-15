@@ -193,13 +193,16 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 		// used for IDEPreferencesFragment's RecyclerView. Skipped when a row is under the
 		// touch point since each row already shows its own tooltip (PluginListAdapter).
 		binding.recyclerView.onLongPress { e ->
-			if (binding.recyclerView.findChildViewUnder(e.x, e.y) != null) {
+			// _binding directly, not the checkNotNull-backed binding getter: the ~500ms long-press
+			// timer can fire after the activity (and its binding) is destroyed.
+			val recyclerView = _binding?.recyclerView ?: return@onLongPress
+			if (recyclerView.findChildViewUnder(e.x, e.y) != null) {
 				return@onLongPress
 			}
-			binding.recyclerView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+			recyclerView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
 			TooltipManager.showTooltip(
 				context = this,
-				anchorView = binding.recyclerView,
+				anchorView = recyclerView,
 				category = TooltipCategory.CATEGORY_IDE,
 				tag = TooltipTag.PLUGIN_MANAGER_LIST,
 			)

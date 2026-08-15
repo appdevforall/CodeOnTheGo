@@ -32,6 +32,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.PluginSettingsEntryPreference
 import com.itsaky.androidide.preferences.addRootPreferences
 import com.itsaky.androidide.preferences.pluginSettingsPreferences
+import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.preferences.IDEPreferences as prefs
 
 class PreferencesActivity : EdgeToEdgeIDEActivity() {
@@ -66,14 +67,16 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 		// Fallback for a long-press that lands below a short screen's content: the RecyclerView is
 		// wrap_content-sized to its own rows, so on a short screen (e.g. Git, About) it doesn't fill
 		// this NestedScrollView, and the remaining space would otherwise have no tooltip at all.
-		binding.fragmentContainerParent.setOnLongClickListener {
+		// A plain setOnLongClickListener never fires here - NestedScrollView overrides onTouchEvent()
+		// for its own drag/fling handling, same as RecyclerView - so this needs the GestureDetector-
+		// based View.onLongPress instead.
+		binding.fragmentContainerParent.onLongPress {
 			binding.fragmentContainerParent.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
 			TooltipManager.showIdeCategoryTooltip(
 				this,
 				binding.fragmentContainerParent,
 				currentScreenTooltipTag(),
 			)
-			true
 		}
 
 		feedbackButtonManager =
