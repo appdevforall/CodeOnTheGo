@@ -1,5 +1,54 @@
 # Retrospective Log
 
+## 2026-08-14 - ADFA-5153: shared-dictionary Brotli compression for documentation.db (cross-repo, + docdb-studio fix)
+
+### Time Breakdown
+
+| Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
+|---------|-------|-----------------|---------------|----------|
+| Aug 14 7:48pm | Investigate WebView/dictionary support, discover 3-pipeline fragmentation, iterate schema design | ██▌ 25m | ████████▌ 85m | ⚠ schema redesigned 3x; one ~67min research+background-agent stretch |
+| Aug 14 9:40pm | Implement dictionary pipeline (`populate_db.py`, migration script), kick off real-DB migration | █▌ 15m | █ 10m | |
+| Aug 14 10:06pm | `WebServer.kt` read-side, parallel testing | █▌ 14m | █▌ 15m | ⚠ 3 fix-rerun cycles (2 real gaps, 1 self-inflicted) |
+| Aug 14 10:28pm | Docs, Jira, commits (both repos) | ▌ 7m | ▌ 2m | |
+| Aug 14 10:37pm | On-device deploy & verify | █▌ 14m | █ 10m | ⚠ adb/USB dropped 3x; wrong launcher activity first try |
+| Aug 14 11:10pm | `docdb-studio` fix, push + PRs, architecture review, retro, parallelize migration script | ▌ 5m | ████████▌ 85m | ⚠ pre-push hook silently dirtied an unrelated binary asset (caught, not committed) |
+
+### Metrics
+
+| Metric | Duration |
+|--------|----------|
+| Total wall-clock | ~3h 44m |
+| Hands-on | ~80 min (36%) |
+| Automated agent time | ~144 min (64%) |
+| Idle/testing/away | included in agent time above (background builds/tests ran concurrently with conversation) |
+| Retro analysis time | ~5 min |
+
+### Key Observations
+- The agent worked most independently during the ~67-minute early research stretch (background Explore subagent + WebSearch/WebFetch + `javap` on the real brotli4j jar) and during the final docdb-studio fix — both were genuinely open technical questions resolvable by investigation rather than needing user input, and both surfaced real, non-obvious findings (Compression Dictionary Transport's actual mechanics; a mismatched Brotli dictionary decodes silently wrong rather than failing loudly).
+- Most user interaction was in the schema-design phase: the user corrected the design three times (per-row dictionary/no-dictionary flag → single dictionary embedded in the database → "convert everything, never retrain"). Each correction was a real simplification, but it took ~5 rounds to converge — see the new CLAUDE.md guidance below.
+- Two real, avoidable gaps got caught and fixed during WebServer.kt testing: a missing `Brotli4jLoader.ensureAvailability()` call in a new JVM test (a quick grep of 4 existing call sites would have caught it before the first failed run), and the app module's test dependencies never having a desktop-native brotli4j artifact wired in at all (pre-existing, unrelated to this session, but only surfaced now that a test actually exercised brotli4j's real decoder on JVM).
+- One near-miss handled well, not turned into a mistake: the pre-push hook's Gradle invocation (`spotlessCheck`) silently regenerated an unrelated, already-committed binary asset (`assets/core.cgt`, externally-fetched) — caught via `git status`/`git diff --stat` before staging, restored, and excluded from the commit.
+- **User feedback (direct):** the whole-database migration script (`migrate_content_to_dictionary_brotli.py`) processed ~30,000 Content rows strictly sequentially, each spawning its own `brotli` subprocess — this should have been parallelized proactively rather than accepted as a slow serial run. Fixed post-hoc: a `ThreadPoolExecutor`-based rewrite measured 3-6x faster on synthetic benchmarks, pushed as an update to the still-open PR.
+
+### Feedback
+**What worked:** Not directly asked before the session's main work concluded; the user's engagement pattern (terse directives, decisive corrections, real-device verification) mirrors prior sessions' noted preference for low-friction, high-trust collaboration.
+**What didn't:** "Claude could have offered to parallelize the conversion of the old database format to the new database format. Doing thousands of rows in the content table took a long time and could have been ten times faster with parallelization." (direct user feedback, acted on immediately)
+
+### Actions Taken
+
+| Issue | Action Type | Change |
+|-------|-------------|--------|
+| No guidance to grep for existing native/loader-API call sites before writing new code against one (missed `Brotli4jLoader.ensureAvailability()`) | CLAUDE.md | Added bullet to Project-specific constraints: grep for existing init/loader call sites; verify a version-catalog native/desktop artifact is actually wired as a dependency, not just declared |
+| Pre-push hook's Gradle run silently regenerated an unrelated tracked asset (`assets/core.cgt`) | CLAUDE.md | Extended the existing binary-asset-provenance bullet: any Gradle invocation (including hooks) can silently re-fetch these assets; check `git status`/`git diff --stat` before broad staging |
+| Schema design redirected 3x before converging | CLAUDE.md | Extended "Plan and size before building": for cross-repo/hard-to-migrate schema changes, state the proposed design explicitly and pause for confirmation before writing code |
+| Migration script ran serially over ~30,000 rows instead of being offered/built parallel from the start | CLAUDE.md + code fix | Added standing rule (default per-row batch/migration scripts to parallel execution when dominated by process-spawn/I/O overhead); also parallelized `migrate_content_to_dictionary_brotli.py` itself via `ThreadPoolExecutor`, pushed to the open PR |
+| Brotli dictionary-mismatch decode behavior (silently wrong, not a reliable failure) | learnings.md | New "Brotli with a custom/raw dictionary" section (4 entries: mismatch behavior, direct-`ByteBuffer` requirement, cross-tool verification approach, Python `brotli` package's lack of dictionary support) |
+| ADB/USB flakiness (MTP mode + hub routing dropped the connection repeatedly) | learnings.md | New "Android on-device testing (adb)" section: `lsusb -t`/`/sys/bus/usb/devices/*/speed` diagnosis technique |
+| `monkey -c LAUNCHER` opened LeakCanary's debug-build launcher instead of the app | learnings.md | Same section: use `am start -n <pkg>/.activities.<RealActivity>` explicitly in debug builds bundling LeakCanary |
+| Batch-script parallelization pattern (SQLite thread-safety, `:memory:` vs real file for multi-connection tests) | learnings.md | New "Batch/migration script performance" section (3 entries) |
+| Called `ScheduleWakeup` outside a `/loop` context (self-caught, reverted) | learnings.md | New "Claude Code tooling" section: that tool is `/loop`-mode only; background `Bash` tasks already self-notify |
+| ~67 minutes of empirical pre-verification (WebView/brotli4j internals) before writing code | No action | One-off judgment call on a genuinely non-obvious correctness risk, not a repeatable repo-specific policy |
+
 ## 2026-08-13 - ADFA-5088: individual Preferences/Plugin Manager tooltips + docdb SQL scripts
 
 ### Time Breakdown
