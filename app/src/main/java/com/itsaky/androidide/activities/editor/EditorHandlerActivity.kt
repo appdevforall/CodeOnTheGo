@@ -29,7 +29,6 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
 import android.widget.TextView
-import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.IntentCompat
@@ -1931,6 +1930,18 @@ open class EditorHandlerActivity :
 			pendingCloseCallback = null
 			if (superseding !== onClosed) {
 				confirmProjectClose(superseding)
+			} else {
+				// onNewIntent/handlePlainProjectSwitch already called setIntent() with the abandoned
+				// switch's target (PROJECT_PATH/PendingFileRequest) before this dialog could even show
+				// -- a genuine decline (nothing superseding it) must restore the intent to reflect the
+				// project that's actually staying open, or a later process-death recreate would read
+				// the abandoned target from getIntent() and silently reopen it instead of resuming this
+				// one (see BaseEditorActivity.onCreate's PROJECT_PATH fallback).
+				val stayingProjectPath = IProjectManager.getInstance().projectDirPath
+				if (stayingProjectPath.isNotBlank()) {
+					intent.putExtra("PROJECT_PATH", stayingProjectPath)
+					intent.removeExtra(PendingFileRequest.EXTRA_KEY)
+				}
 			}
 		}
 
@@ -2114,7 +2125,22 @@ open class EditorHandlerActivity :
 			// "already in this project" case even mid-sync, instead of falling through to the
 			// disruptive close-and-reopen confirmation below for a no-op.
 			newProjectPath == currentProjectPath -> {
-				fileRequest?.let { applyDeepLinkFileRequest(it) }
+				if (confirmCloseInProgress) {
+					// A close-confirmation dialog for a *different* project switch is already
+					// showing -- navigating underneath it now would just get silently discarded if
+					// the user goes on to confirm that close.
+					flashError(string.msg_project_close_in_progress)
+				} else {
+					fileRequest?.let { applyDeepLinkFileRequest(it) }
+				}
+			}
+
+			// contentOrNull == null (binding already torn down) would make confirmProjectClose
+			// silently no-op below, dropping this request with no error shown -- the same failure
+			// mode the isBlank() branch above avoids by not depending on confirmProjectClose at all.
+			contentOrNull == null -> {
+				pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest)
+				finish()
 			}
 
 			else -> {
@@ -2171,8 +2197,18 @@ open class EditorHandlerActivity :
 				}
 
 				// URL line/column are 1-based; internal Position is 0-based.
-				val line = zeroBasedOrFlashError(request.lineRaw, string.msg_deeplink_invalid_line)
-				val column = zeroBasedOrFlashError(request.columnRaw, string.msg_deeplink_invalid_column)
+				val (line, lineInvalidRaw) = zeroBasedOrInvalid(request.lineRaw)
+				val (column, columnInvalidRaw) = zeroBasedOrInvalid(request.columnRaw)
+
+				// A dangling keyword (a trailing line/column segment with no value after it) is
+				// reported as raw = "" -- show a readable placeholder instead of literal empty quotes.
+				fun shown(raw: String) = raw.ifEmpty { getString(string.msg_deeplink_no_value) }
+				// At most one Flashbar here -- a malformed URL can have both line and column invalid
+				// at once, and showing both would stack two indefinite-duration bars instead of one.
+				when {
+					lineInvalidRaw != null -> flashError(getString(string.msg_deeplink_invalid_line, shown(lineInvalidRaw)))
+					columnInvalidRaw != null -> flashError(getString(string.msg_deeplink_invalid_column, shown(columnInvalidRaw)))
+				}
 
 				val pos = Position(line, column)
 				openFileAndSelect(file, Range(pos, pos))
@@ -2181,24 +2217,14 @@ open class EditorHandlerActivity :
 	}
 
 	/**
-	 * Converts a 1-based deep-link line/column value to 0-based. A `null` [raw] (segment absent from
-	 * the URL) silently defaults to 0; a present-but-invalid [raw] (fails [String.toIntOrNull] or
-	 * non-positive) also defaults to 0 but reports [invalidMsgRes] to the user -- see
+	 * Converts a 1-based deep-link line/column value to 0-based, paired with the raw value if it
+	 * was present but invalid (fails [String.toIntOrNull] or non-positive) -- a `null` [raw]
+	 * (segment absent from the URL) is never reported, only a present-but-invalid one. See
 	 * [PendingFileRequest]'s docs for why those two cases are distinguished upstream.
 	 */
-	private fun zeroBasedOrFlashError(
-		raw: String?,
-		@StringRes invalidMsgRes: Int,
-	): Int {
-		raw ?: return 0
+	private fun zeroBasedOrInvalid(raw: String?): Pair<Int, String?> {
+		raw ?: return 0 to null
 		val parsed = raw.toIntOrNull()
-		if (parsed == null || parsed <= 0) {
-			// A dangling keyword (a trailing line/column segment with no value after it) is reported
-			// as raw = "" -- show a readable placeholder instead of interpolating literal empty quotes.
-			val shown = raw.ifEmpty { getString(string.msg_deeplink_no_value) }
-			flashError(getString(invalidMsgRes, shown))
-			return 0
-		}
-		return parsed - 1
+		return if (parsed == null || parsed <= 0) 0 to raw else (parsed - 1) to null
 	}
 }

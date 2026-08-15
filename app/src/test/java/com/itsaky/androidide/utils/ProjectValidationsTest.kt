@@ -73,10 +73,27 @@ class ProjectValidationsTest {
 		// entirely (e.g. name = "../outside"). A real deep link supplies this as a decoded URL
 		// segment, so a project sitting just outside the configured projects root must never be
 		// resolvable via a crafted project name.
+		//
+		// This exact input ("../outside" contains a "/") is actually short-circuited by
+		// findValidProjectByName's own separate name.contains("/") guard, never reaching
+		// resolveWithinDirectory's traversal logic -- see the test below for the single-segment
+		// ".." case a real deep link's URL path segment can actually carry (Uri.pathSegments never
+		// contains a literal "/" within one segment).
 		val base = tempFolder.newFolder("base")
 		val root = File(base, "projects").apply { mkdirs() }
 		makeValidProject(base, "outside")
 
 		assertThat(findValidProjectByName(root, "../outside")).isNull()
+	}
+
+	@Test
+	fun `a single-segment 'dot-dot' name is rejected`() {
+		// The reachable counterpart to the test above: a deep link's project-name URL segment can
+		// never contain "/" (Uri.pathSegments splits on it), so name = ".." alone -- not "../x" --
+		// is the actual traversal shape resolveWithinDirectory's lexical check must catch.
+		val base = tempFolder.newFolder("base")
+		val root = File(base, "projects").apply { mkdirs() }
+
+		assertThat(findValidProjectByName(root, "..")).isNull()
 	}
 }

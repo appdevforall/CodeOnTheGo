@@ -45,6 +45,16 @@ class PathTraversalTest {
 	}
 
 	@Test
+	fun `empty relative path is rejected instead of resolving to baseDir itself`() {
+		// Regression test: java.nio.file.Path.resolve("") is a documented no-op, returning the base
+		// path unchanged -- without an explicit empty-string check, the containment check below
+		// would trivially pass and this function would violate its own "returns null" contract,
+		// silently returning baseDir. DeepLinkRequest.parse's own documented "known limitation" (a
+		// file path whose entire content is just the "line" keyword) produces exactly this shape.
+		assertNull(resolveWithinDirectory(baseDir, ""))
+	}
+
+	@Test
 	fun `dot-dot buried in the middle of a path is rejected`() {
 		// The shape produced once android.net.Uri decodes a single raw segment containing an
 		// encoded slash, e.g. the URL segment "foo%2f..%2f..%2fetc%2fpasswd" -- decoded to one

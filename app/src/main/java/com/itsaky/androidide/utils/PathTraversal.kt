@@ -32,7 +32,10 @@ import java.nio.file.InvalidPathException
  * `com.itsaky.androidide.utils.ZipUtils.unzipFile` (the `common` module's own copy, needed since
  * it can't depend on `app` to call this function directly). Any future fix to the containment
  * algorithm below must be applied in all three places:
- * 1. A lexical reject of `..`/a leading `/` or `\` -- cheap, catches the common case outright.
+ * 1. A lexical reject of an empty string, `..`, or a leading `/` or `\` -- cheap, catches the
+ *    common case outright. An empty string is rejected explicitly: [java.nio.file.Path.resolve]
+ *    treats it as a no-op and returns [baseDir] itself unchanged, which would otherwise trivially
+ *    pass the containment check below and violate this function's own "returns null" contract.
  * 2. Resolve + normalize against [baseDir] and verify with [java.nio.file.Path.startsWith] (not
  *    string prefix matching, which would wrongly accept `/project` as inside `/project-evil`) --
  *    this operates on Java's own resolved path, so it isn't fooled by however `..` made it into the
@@ -55,7 +58,7 @@ fun resolveWithinDirectory(
 	baseDir: File,
 	relativePath: String,
 ): File? {
-	if (relativePath.contains("..") || relativePath.startsWith("/") || relativePath.startsWith("\\")) {
+	if (relativePath.isEmpty() || relativePath.contains("..") || relativePath.startsWith("/") || relativePath.startsWith("\\")) {
 		return null
 	}
 
