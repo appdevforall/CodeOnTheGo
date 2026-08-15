@@ -1904,7 +1904,12 @@ open class EditorHandlerActivity :
 	private fun confirmProjectClose(onClosed: (() -> Unit)? = null) {
 		val content = contentOrNull ?: return
 		if (confirmCloseInProgress) {
-			pendingCloseCallback = onClosed
+			// A plain close (onClosed == null, e.g. back button/sidebar) must not erase an
+			// already-armed deep-link switch -- only a request that carries its own callback
+			// supersedes the pending one.
+			if (onClosed != null) {
+				pendingCloseCallback = onClosed
+			}
 			flashError(string.msg_project_close_in_progress)
 			return
 		}

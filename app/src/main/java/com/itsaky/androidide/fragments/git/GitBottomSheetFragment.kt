@@ -439,6 +439,13 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 					.setMessage(R.string.msg_save_before_git_action)
 					.setPositiveButton(R.string.save_before_git_action) { _, _ ->
 						handler.saveAllAsync { succeeded ->
+							// saveAllAsync is owned by the activity's lifecycle and can still invoke
+							// this callback after onDestroyView() clears _binding (e.g. the user
+							// navigated away while the save was in flight) -- action() at this call
+							// site dereferences binding, so bail out before touching it.
+							if (_binding == null) {
+								return@saveAllAsync
+							}
 							if (succeeded) {
 								action()
 							} else {

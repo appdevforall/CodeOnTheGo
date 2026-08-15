@@ -7,6 +7,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -57,5 +58,32 @@ class ZipUtilsTest {
 
 		val escapedFile = File(destDir.parentFile, "evil.txt")
 		assertThat(escapedFile.exists()).isFalse()
+	}
+
+	@Test
+	fun `unzipFile refuses to extract over an existing symlink`() {
+		val destDir = tempFolder.newFolder("dest")
+		val realFile = File(destDir, "real.txt").apply { writeText("original") }
+		val linkPath = File(destDir, "link.txt").toPath()
+		try {
+			Files.createSymbolicLink(linkPath, realFile.toPath())
+		} catch (e: UnsupportedOperationException) {
+			// Symlinks aren't supported on this filesystem -- nothing to test here.
+			return
+		}
+
+		// The symlink's target is inside destDir, so the canonical-path containment check alone
+		// would pass -- this isolates the separate, explicit isSymbolicLink guard.
+		val zipFile = tempFolder.newFile("archive.zip")
+		ZipOutputStream(zipFile.outputStream()).use { zip ->
+			zip.putNextEntry(ZipEntry("link.txt"))
+			zip.write("payload".toByteArray())
+			zip.closeEntry()
+		}
+
+		assertThrows(IOException::class.java) { ZipUtils.unzipFile(zipFile, destDir) }
+
+		assertThat(Files.isSymbolicLink(linkPath)).isTrue()
+		assertThat(realFile.readText()).isEqualTo("original")
 	}
 }
