@@ -77,6 +77,7 @@ class WebServer(
 	private lateinit var serverSocket: ServerSocket
 	private lateinit var database: SQLiteDatabase
 	private var databaseTimestamp: Long = -1
+
 	// The shared dictionary Content's brotli-compressed rows are compressed against (see
 	// ADFA-5153). Reloaded whenever `database` is (re)opened -- including the debug-override
 	// swap below -- since a different database file may have trained its own dictionary.
@@ -144,10 +145,11 @@ class WebServer(
 	 */
 	private fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
 		val tableExists =
-			db.rawQuery(
-				"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
-				null,
-			).use { it.moveToFirst() }
+			db
+				.rawQuery(
+					"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
+					null,
+				).use { it.moveToFirst() }
 		if (!tableExists) {
 			log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
 			return null
