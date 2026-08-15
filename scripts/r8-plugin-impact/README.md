@@ -96,20 +96,40 @@ during the *plugin's* own dexing. They show as `CLASS_ABSENT` and always will;
 they are leaf synthetics with no host counterpart, so they carry no split-brain
 risk.
 
+## Which plugin set to measure
+
+Use the artifact from the last successful **"Update libs from CodeOnTheGo"**
+(`update-libs.yml`) run in the `plugin-examples` repo. That workflow is the only
+one that deploys — it rebuilds every plugin and `scp`s the `.cgp` files to
+`public_html/flags/plugins`, so its artifact is exactly what users have
+installed. `build-plugins.yml` produces CI artifacts only and never deploys.
+
+```bash
+gh run list --workflow=update-libs.yml --limit 5     # find the last success
+gh run download <run-id> -n plugins-cgp -D deployed
+```
+
+Do not measure an ad-hoc local folder of `.cgp` files. Plugin filenames have
+been renamed over time (`templatemanagerplugin` -> `template-manager`,
+`IconsRepository-Plugin` -> `icons-repository`, and others), so a stale local
+copy can silently omit plugins and carry names that no longer exist. Cross-check
+against the workflow's own mapping if in doubt.
+
 ## Baseline from ADFA-5156
 
-Measured 2026-08-15 across 24 plugins, 3,991 call sites, comparing the shipped
+Measured 2026-08-15 against the deployed plugin set (`update-libs.yml` run
+31626494060, 2026-08-12) — 26 plugins, 4,261 call sites — comparing the shipped
 R8-shrunk release against the `-dontshrink` rollback:
 
 | | shipped (shrinking on) | rolled back |
 |---|---:|---:|
-| resolves cleanly | 2,630 | 3,831 |
-| guaranteed `NoSuchMethodError` | 74 (66 real + 8 false positives) | 8 (all false positives) |
-| falls through to plugin dex | 1,287 | 152 (3 D8 synthetics) |
+| resolves cleanly | 2,828 | 4,101 |
+| guaranteed `NoSuchMethodError` | 75 (67 real + 8 false positives) | 8 (all false positives) |
+| falls through to plugin dex | 1,358 | 152 (3 D8 synthetics) |
 
 Zero regressions. Ten plugins carried guaranteed-failure call sites in the
 shipped build: compose-preview 36, sketch-to-ui 20, client-time-tracker 5,
-random-xkcd 5, markdown-previewer 2, project-to-template 2, and ai-assistant /
+random-xkcd 5, ai-assistant 2, markdown-previewer 2, project-to-template 2, and
 ai-literacy-course / keystore-generator / layout-editor 1 each.
 
 **A re-enabled-shrinking build should be measured against these numbers.** The
