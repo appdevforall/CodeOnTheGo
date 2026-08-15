@@ -59,8 +59,11 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 
 		binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
 		binding.toolbar.setOnLongClickListener {
-			binding.toolbar.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-			TooltipManager.showIdeCategoryTooltip(this, binding.toolbar, currentScreenTooltipTag())
+			// _binding directly, not the checkNotNull-backed binding getter: this can run after the
+			// activity is destroyed (see the onLongPress guard below, which needs it for certain).
+			val toolbar = _binding?.toolbar ?: return@setOnLongClickListener true
+			toolbar.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+			TooltipManager.showIdeCategoryTooltip(this, toolbar, currentScreenTooltipTag())
 			true
 		}
 
@@ -71,12 +74,11 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 		// for its own drag/fling handling, same as RecyclerView - so this needs the GestureDetector-
 		// based View.onLongPress instead.
 		binding.fragmentContainerParent.onLongPress {
-			binding.fragmentContainerParent.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-			TooltipManager.showIdeCategoryTooltip(
-				this,
-				binding.fragmentContainerParent,
-				currentScreenTooltipTag(),
-			)
+			// _binding directly: the GestureDetector's ~500ms long-press timer is independent of the
+			// view's own lifecycle and can fire after the activity (and its binding) is destroyed.
+			val container = _binding?.fragmentContainerParent ?: return@onLongPress
+			container.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+			TooltipManager.showIdeCategoryTooltip(this, container, currentScreenTooltipTag())
 		}
 
 		feedbackButtonManager =

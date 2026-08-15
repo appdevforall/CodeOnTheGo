@@ -61,7 +61,7 @@ abstract class ChoiceBasedDialogPreference :
 		dialog: AlertDialog,
 	) {
 		dialog.listView?.setOnItemLongClickListener { _, view, position, _ ->
-			val tag = choices.getOrNull(position)?.tooltipTag?.takeIf { it.isNotEmpty() } ?: tooltipTag
+			val tag = choices.getOrNull(position)?.tooltipTag?.takeIf { it.isNotBlank() } ?: tooltipTag
 			showTooltipIfPresent(preference.context, view, tag)
 			true
 		}

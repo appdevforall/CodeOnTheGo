@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.preferences
 
-import androidx.annotation.RestrictTo
 import androidx.preference.Preference
 
 /**
@@ -76,11 +75,6 @@ interface PreferenceChoices {
 	) {
 		val isChecked: Boolean
 			get() = _isChecked
-
-		companion object {
-			@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
-			val EMPTY = Entry("", false, 0)
-		}
 	}
 }
 

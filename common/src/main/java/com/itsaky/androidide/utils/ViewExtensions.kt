@@ -59,16 +59,18 @@ fun View.applyLongPressRecursively(
 	}
 }
 
+private fun View.longPressGestureDetector(listener: (MotionEvent) -> Unit): GestureDetector =
+	GestureDetector(
+		context,
+		object : GestureDetector.SimpleOnGestureListener() {
+			override fun onLongPress(e: MotionEvent) {
+				listener(e)
+			}
+		},
+	)
+
 fun RecyclerView.onLongPress(listener: (MotionEvent) -> Unit) {
-	val gestureDetector =
-		GestureDetector(
-			context,
-			object : GestureDetector.SimpleOnGestureListener() {
-				override fun onLongPress(e: MotionEvent) {
-					listener(e)
-				}
-			},
-		)
+	val gestureDetector = longPressGestureDetector(listener)
 
 	addOnItemTouchListener(
 		object : RecyclerView.SimpleOnItemTouchListener() {
@@ -87,16 +89,9 @@ fun RecyclerView.onLongPress(listener: (MotionEvent) -> Unit) {
 // handling, so a plain setOnLongClickListener never arms the base View's long-press timer -
 // same root cause as RecyclerView.onLongPress above. A GestureDetector forwarded through
 // setOnTouchListener (always returning false, so scrolling still works) sidesteps that.
+@SuppressLint("ClickableViewAccessibility")
 fun View.onLongPress(listener: (MotionEvent) -> Unit) {
-	val gestureDetector =
-		GestureDetector(
-			context,
-			object : GestureDetector.SimpleOnGestureListener() {
-				override fun onLongPress(e: MotionEvent) {
-					listener(e)
-				}
-			},
-		)
+	val gestureDetector = longPressGestureDetector(listener)
 
 	setOnTouchListener { _, event ->
 		gestureDetector.onTouchEvent(event)

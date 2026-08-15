@@ -75,7 +75,7 @@ abstract class DialogPreference : SimplePreference() {
 		anchor: View,
 		tag: String,
 	) {
-		if (tag.isNotEmpty()) {
+		if (tag.isNotBlank()) {
 			anchor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
 			TooltipManager.showIdeCategoryTooltip(context, anchor, tag)
 		}
