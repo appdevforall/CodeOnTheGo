@@ -159,8 +159,6 @@
   <string name="msg_open_projects">চেক করা থাকলে, IDE শেষ খোলা প্রকল্পটি মনে রাখবে এবং পরবর্তী স্টার্টআপে এটি পুনরায় খোলা হবে৷</string>
   <string name="title_confirm_project_open">প্রকল্প খোলার বিষয়টি নিশ্চিত করুন</string>
   <string name="msg_confirm_project_open">শেষ খোলা প্রকল্প খোলার আগে জিজ্ঞাসা করুন৷</string>
-  <string name="title_default_shell">টার্মিনালে সিস্টেম শেল ব্যবহার করুন</string>
-  <string name="msg_default_shell">চেক করা থাকলে, টার্মিনালে \'/system/bin/sh\' ব্যবহার করা হবে।</string>
   <string name="title_general">সাধারণ</string>
   <string name="title_tab_size">ট্যাবের আকার</string>
   <string name="msg_tab_size">TAB এর জন্য স্পেস সংখ্যা নির্দিষ্ট করুন</string>
