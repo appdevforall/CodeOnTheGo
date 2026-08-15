@@ -1,5 +1,41 @@
 # Retrospective Log
 
+## 2026-08-14 - ADFA-5141: pin doc-db page_size to 2048
+
+### Time Breakdown
+
+| Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
+|---------|-------|-----------------|---------------|----------|
+| Aug 14, 11:57pm | Setup: switch branch, read ticket via Jira CLI | ▎ ~2m | ▏ ~1m | ⚠ `jira` binary not found; real command was `jira-cli` |
+| Aug 14, 11:59pm | Discover doc-db generation lives in a separate repo (`OfflineDocumentationTools`), clone it, implement `PRAGMA page_size` fix, add test, run full suite | | ██████████ 9.5m | |
+| Aug 15, 12:09am | Rename `PAGE_SIZE`→`UI_PAGE_SIZE`, commit, push, open PR, delete empty branch | ▏ ~1m | ███ 3m | |
+| Aug 15, 12:13am | Jira progress comment, retro (transcript analysis, feedback, CLAUDE.md audit + edits, learnings) | ▊ ~2m | ████████ 8m | |
+
+### Metrics
+
+| Metric | Duration |
+|--------|----------|
+| Total wall-clock | ~24 min |
+| Hands-on | ~5 min (21%) |
+| Automated agent time | ~19 min (79%) |
+| Retro analysis time | ~1 min (script run) |
+
+### Key Observations
+- **jira/jira-cli confusion**: CLAUDE.md's Jira instructions assumed the binary is named `jira`; on this machine it's a snap install (`jira-cli`), and the wrong name fails with a misleading `Permission denied` rather than "not found". Cost a few failed attempts before trying `jira-cli` directly. Fixed via CLAUDE.md edit (see Actions).
+- **Good independent-agent stretch**: a single one-word "yes" from the user launched a long unattended phase — Explore agent locates the real doc-db generation repo, clone it, implement + test the fix — with no further hands-on needed until it was ready to commit.
+- **Correctly avoided wasted work in the wrong repo**: the ticket was initially branched in `codeonthego`, but investigation showed the actual fix belongs in `OfflineDocumentationTools`/`docdb-studio`; the empty `codeonthego` branch was cleanly deleted rather than left dangling.
+
+### Feedback
+**What worked:** Good discovery + delegation (agent located the actual doc-db generation repo); fast pace with minimal back-and-forth.
+**What didn't:** Not directly confirmed by the user this round — the jira/jira-cli friction above is an inferred observation from the transcript, not user-flagged.
+
+### Actions Taken
+| Issue | Action Type | Change |
+|-------|-------------|--------|
+| `jira` vs `jira-cli` binary confusion | CLAUDE.md | Jira section now notes the binary may be `jira-cli` (snap) and to check `which jira-cli` before retrying |
+| Doc-db generation location required an agent search to discover | CLAUDE.md | Asset-provenance bullet now points to `OfflineDocumentationTools`/`docdb-studio` and `docs/documentation-database.md` |
+| `jira`/`jira-cli` naming quirk | Learnings | Added "Jira CLI" entry to `docs/process/learnings.md` |
+
 ## 2026-08-13 - ADFA-5088: individual Preferences/Plugin Manager tooltips + docdb SQL scripts
 
 ### Time Breakdown

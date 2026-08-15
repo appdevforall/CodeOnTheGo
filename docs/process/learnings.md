@@ -7,6 +7,9 @@
 ## Git / GitHub
 - Before pushing a follow-up commit to a community PR, check `gh pr view <n> --json headRepositoryOwner` — the PR head is usually on the contributor's **fork**, so a same-named push to `origin` doesn't touch the PR and just creates a confusing dead branch that has to be deleted.
 
+## Jira CLI
+- On a snap install, the Jira CLI binary is named `jira-cli`, not `jira` — running `jira issue view ...` fails with `Permission denied (os error 13)` (a misleading error for "command not found"). If `jira` isn't on PATH, try `jira-cli` before assuming the CLI itself is broken.
+
 ## Android / Kotlin
 - `Handler.removeCallbacks(Runnable)` only removes callbacks posted by that *exact* `Handler` instance, not just the same `Looper` — `Handler(Looper.getMainLooper()).removeCallbacks(x)` won't cancel something posted via a *different* `Handler` bound to the same looper. Any post/cancel pair needs to share one `Handler` instance (see `TaskExecutor.mainThreadHandler`, added when replacing blankj's `ThreadUtils.getMainHandler()`).
 
