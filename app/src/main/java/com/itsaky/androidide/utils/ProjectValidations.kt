@@ -61,6 +61,20 @@ internal fun findValidProjectByName(
 	return null
 }
 
+/**
+ * True if [a] and [b] name the same project, tolerating an NFC/NFD codepoint difference (e.g. an
+ * accented project name authored as NFD on macOS vs. the NFC form a deep-link URL typically
+ * carries) - the same normalization [findValidProjectByName] applies for its filesystem lookup,
+ * but as a direct string comparison here rather than multiple candidate paths.
+ */
+internal fun projectNamesMatch(
+	a: String,
+	b: String,
+): Boolean {
+	if (a == b) return true
+	return Normalizer.normalize(a, Normalizer.Form.NFC) == Normalizer.normalize(b, Normalizer.Form.NFC)
+}
+
 /** Determines if the directory contains a valid Android project structure. */
 fun isValidProjectDirectory(selectedDir: File): Boolean {
 	if (isPluginProject(selectedDir)) {

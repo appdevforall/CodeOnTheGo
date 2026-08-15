@@ -251,4 +251,36 @@ class DeepLinkRequestTest {
 				),
 			)
 	}
+
+	@Test
+	fun `a real line pair followed by a bare trailing 'column' is still parsed, not swallowed whole`() {
+		// Regression test: a bare trailing "column" used to be checked independently against the
+		// original, un-trimmed end -- missing it, then leaving the real "line/5" pair unexamined and
+		// swallowed whole into the file path ("Main.kt/line/5") instead of peeling "column" off first
+		// and re-checking what's left for the line pair it exposes.
+		val request =
+			parse("https://www.appdevforall.org/device/open/project/MyApp/file/Main.kt/line/5/column")
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "MyApp",
+					fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = "5", columnRaw = ""),
+				),
+			)
+	}
+
+	@Test
+	fun `a bare trailing 'line' keyword with no value is reported as invalid, not swallowed into the path`() {
+		// Regression test: symmetric to the bare-trailing-"column" case above, which was already
+		// caught -- a bare trailing "line" used to silently fold into the file path with no line
+		// number and no error at all.
+		val request = parse("https://www.appdevforall.org/device/open/project/MyApp/file/Main.kt/line")
+		assertThat(request)
+			.isEqualTo(
+				DeepLinkRequest(
+					projectName = "MyApp",
+					fileRequest = PendingFileRequest(filePath = "Main.kt", lineRaw = "", columnRaw = null),
+				),
+			)
+	}
 }

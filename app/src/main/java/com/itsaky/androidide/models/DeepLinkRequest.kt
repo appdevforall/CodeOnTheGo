@@ -110,61 +110,63 @@ data class DeepLinkRequest(
 					}
 
 					// line/column are trailing modifiers, so -- unlike the project/file lookup above --
-					// they're matched from the END of the path backward (column first, then line in
-					// whatever remains), never by searching for the keyword's first occurrence. That
-					// makes a literal "line"/"column" segment earlier in the file path (e.g. a directory
-					// named "line") part of the filename rather than misread as metadata, as long as a
-					// real trailing pair follows it. The one shape this can't resolve: a file path whose
-					// *entire* content is just "line"/"column" plus one more segment, with nothing else
-					// following -- e.g. `file/line/Main.kt` alone -- is indistinguishable from an actual
-					// line suffix; this URL scheme has no delimiter to tell the two apart, so it's read
-					// as the keyword (existing behavior, unchanged).
+					// they're matched from the END of the path backward (column peeled off first, then
+					// line against whatever remains), never by searching for the keyword's first
+					// occurrence. That makes a literal "line"/"column" segment earlier in the file path
+					// (e.g. a directory named "line") part of the filename rather than misread as
+					// metadata, as long as a real trailing pair follows it. Peeling column off before
+					// checking for line (rather than computing both against the original, un-trimmed end)
+					// matters for a case like ".../Main.kt/line/5/column": a bare trailing "column" with
+					// no value consumed first re-exposes "line/5" as a real pair for the line check that
+					// follows, instead of two independent checks both missing it against the original end.
+					// The one shape this can't resolve: a file path whose *entire* content is just
+					// "line"/"column" plus one more segment, with nothing else following -- e.g.
+					// `file/line/Main.kt` alone -- is indistinguishable from an actual line suffix; this
+					// URL scheme has no delimiter to tell the two apart, so it's read as the keyword
+					// (existing behavior, unchanged).
 					var endIdx = segments.size
-					val columnIdx =
-						(endIdx - 2)
-							.takeIf { it >= startIdx && segments[it] == SEGMENT_COLUMN }
-							?.also { endIdx = it }
-					val lineIdx =
-						(endIdx - 2)
-							.takeIf { it >= startIdx && segments[it] == SEGMENT_LINE }
-							?.also { endIdx = it }
 
-					// A "line" segment sitting directly in front of a matched "column" pair (e.g.
-					// `.../line/column/7`) isn't part of a keyword-value pair itself -- the slot right
-					// before "column" holds a non-numeric "line" instead of a value -- but it's also not
-					// the ambiguous-filename case the comment above carves out, since it's adjacent to a
-					// keyword that WAS recognized. Report it as an invalid (missing) line value rather
-					// than silently folding "line" into the file path with no line number and no error.
-					val danglingLineRaw =
-						if (lineIdx == null && columnIdx != null &&
-							(columnIdx - 1).let { it >= startIdx && segments[it] == SEGMENT_LINE }
-						) {
-							endIdx = columnIdx - 1
-							"" // present but not a valid integer -> reported to the user, per this class's docs
-						} else {
-							null
+					var columnRaw: String? = null
+					val columnPairIdx = (endIdx - 2).takeIf { it >= startIdx && segments[it] == SEGMENT_COLUMN }
+					if (columnPairIdx != null) {
+						columnRaw = segments[columnPairIdx + 1]
+						endIdx = columnPairIdx
+					} else {
+						// A bare trailing "column" with nothing after it (e.g. ".../file/Main.kt/column")
+						// can never be matched by the pair check above -- being the very last segment
+						// itself leaves no slot for a value. Report it as invalid rather than silently
+						// folding "column" into the file path.
+						val danglingColumnIdx = (endIdx - 1).takeIf { it >= startIdx && segments[it] == SEGMENT_COLUMN }
+						if (danglingColumnIdx != null) {
+							columnRaw = "" // present but not a valid integer -> reported to the user, per this class's docs
+							endIdx = danglingColumnIdx
 						}
+					}
 
-					// A bare trailing "column" with nothing after it (e.g. ".../file/Main.kt/column") can
-					// never be matched by the keyword-at-(size-2) pair check above -- being the very last
-					// segment itself leaves no slot for a value. Detect it directly and report it the same
-					// way danglingLineRaw does, instead of silently folding "column" into the file path.
-					val danglingColumnRaw =
-						if (columnIdx == null && lineIdx == null &&
-							(endIdx - 1).let { it >= startIdx && segments[it] == SEGMENT_COLUMN }
-						) {
-							endIdx -= 1
-							""
-						} else {
-							null
+					var lineRaw: String? = null
+					val linePairIdx = (endIdx - 2).takeIf { it >= startIdx && segments[it] == SEGMENT_LINE }
+					if (linePairIdx != null) {
+						lineRaw = segments[linePairIdx + 1]
+						endIdx = linePairIdx
+					} else {
+						// Same shape as the dangling-column case above, checked against whatever endIdx
+						// the column layer left behind -- covers both a bare trailing "line" with nothing
+						// after it, and a "line" sitting directly in front of a column pair that was just
+						// peeled off (e.g. ".../line/column/7"), where the slot before "column" holds a
+						// non-numeric "line" instead of a value.
+						val danglingLineIdx = (endIdx - 1).takeIf { it >= startIdx && segments[it] == SEGMENT_LINE }
+						if (danglingLineIdx != null) {
+							lineRaw = ""
+							endIdx = danglingLineIdx
 						}
+					}
 
 					val filePath = segments.subList(startIdx, endIdx).joinToString("/")
 
 					PendingFileRequest(
 						filePath = filePath,
-						lineRaw = lineIdx?.let { segments.getOrNull(it + 1) } ?: danglingLineRaw,
-						columnRaw = columnIdx?.let { segments.getOrNull(it + 1) } ?: danglingColumnRaw,
+						lineRaw = lineRaw,
+						columnRaw = columnRaw,
 					)
 				}
 

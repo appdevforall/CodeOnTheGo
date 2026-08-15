@@ -1303,7 +1303,21 @@ open class EditorHandlerActivity :
 				message = getString(string.msg_files_unsaved, TextUtils.join("\n", mapped)),
 				positiveClickListener = { dialog, _ ->
 					dialog.dismiss()
-					saveAllAsync(notify = true, runAfter = { runOnUiThread(invokeAfter) })
+					saveAllAsync(
+						notify = true,
+						runAfter = { succeeded ->
+							runOnUiThread {
+								// Matches the other two saveAllAsync callers this PR touches: a failed save
+								// must not silently re-run invokeAfter as if the files were saved, which
+								// would just re-show this same dialog with no explanation of why.
+								if (!succeeded) {
+									flashError(string.save_failed)
+									return@runOnUiThread
+								}
+								invokeAfter.run()
+							}
+						},
+					)
 				},
 			) { dialog, _ ->
 				dialog.dismiss()
@@ -1887,15 +1901,26 @@ open class EditorHandlerActivity :
 		val builder = newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_project_close)
 		builder.setMessage(string.msg_confirm_project_close)
-		builder.setOnCancelListener {
+
+		// If a later, superseding request (e.g. a second deep link arriving while this dialog was
+		// already showing) overwrote pendingCloseCallback, cancelling *this* dialog must not
+		// silently drop that superseding request too -- give it its own confirmation instead.
+		// confirmCloseInProgress is reset first so the recursive call starts a fresh dialog rather
+		// than hitting the "already in progress" guard above.
+		fun cancelOrDecline() {
 			confirmCloseInProgress = false
+			val superseding = pendingCloseCallback
 			pendingCloseCallback = null
+			if (superseding !== onClosed) {
+				confirmProjectClose(superseding)
+			}
 		}
+
+		builder.setOnCancelListener { cancelOrDecline() }
 
 		builder.setNegativeButton(string.cancel_project_text) { dialog, _ ->
 			dialog.dismiss()
-			confirmCloseInProgress = false
-			pendingCloseCallback = null
+			cancelOrDecline()
 		}
 
 		// OPTION 1: Close without saving
@@ -1960,7 +1985,22 @@ open class EditorHandlerActivity :
 
 		val request =
 			IntentCompat.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
-				?: return
+		if (request == null) {
+			// Not a deep link -- a plain project-switch intent from MainActivity.openProject (Recents,
+			// Clone, Template creation) redelivered here via onNewIntent because this singleTask
+			// instance is already alive for a different project. Without this, the user taps a
+			// different project elsewhere in the app and nothing visibly happens.
+			handlePlainProjectSwitch(intent)
+			return
+		}
+
+		// This is the request's only chance to be consumed: whether it's applied immediately,
+		// deferred via pendingDeepLinkOpen, or dropped because the user cancels the close-project
+		// dialog below, it must not linger on the intent setIntent() just stored. Android redelivers
+		// that same intent verbatim to onCreate() if this process dies and gets recreated later, and
+		// BaseEditorActivity.onCreate() would then wrongly compare a live, unrelated project against
+		// this stale request's projectName and bounce the user out of it.
+		intent.removeExtra(DeepLinkRequest.EXTRA_KEY)
 
 		lifecycleScope.launch(Dispatchers.IO) {
 			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName) ?: return@launch
@@ -2024,6 +2064,36 @@ open class EditorHandlerActivity :
 		intent.removeExtra(PendingFileRequest.EXTRA_KEY)
 		if (!isSuccessful) return
 		applyDeepLinkFileRequest(request)
+	}
+
+	// Handles a plain project-switch intent from MainActivity.openProject (Recents, Clone, or
+	// Template creation) redelivered here via onNewIntent because this singleTask instance is
+	// already alive -- mirrors the deep-link "different project" handling in onNewIntent above
+	// (same no-op-if-already-open check, same confirm-close-then-reopen handoff), just without a
+	// project name to resolve first since the caller already supplies an absolute path directly.
+	private fun handlePlainProjectSwitch(intent: Intent) {
+		val newProjectPath = intent.getStringExtra("PROJECT_PATH")?.takeIf { it.isNotBlank() } ?: return
+		val fileRequest =
+			IntentCompat.getParcelableExtra(intent, PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
+
+		val currentProjectPath = IProjectManager.getInstance().projectDirPath
+		when {
+			currentProjectPath.isBlank() -> {
+				pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest)
+				finish()
+			}
+
+			newProjectPath == currentProjectPath -> {
+				// Same project already open -- no-op project-wise, just navigate.
+				fileRequest?.let { applyDeepLinkFileRequest(it) }
+			}
+
+			else -> {
+				confirmProjectClose {
+					pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest)
+				}
+			}
+		}
 	}
 
 	/**
