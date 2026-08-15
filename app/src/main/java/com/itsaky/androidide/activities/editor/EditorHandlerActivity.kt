@@ -1878,8 +1878,8 @@ open class EditorHandlerActivity :
 
 		if (manualFinish) {
 			finish()
-			onClosed?.invoke()
 		}
+		onClosed?.invoke()
 	}
 
 	// Tracked so onDestroy() can dismiss it (avoiding a leaked window) and so a confirm-close flow

@@ -2,6 +2,7 @@ package com.itsaky.androidide.utils
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Assert.assertThrows
+import org.junit.Assume
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -65,12 +66,15 @@ class ZipUtilsTest {
 		val destDir = tempFolder.newFolder("dest")
 		val realFile = File(destDir, "real.txt").apply { writeText("original") }
 		val linkPath = File(destDir, "link.txt").toPath()
-		try {
-			Files.createSymbolicLink(linkPath, realFile.toPath())
-		} catch (e: UnsupportedOperationException) {
-			// Symlinks aren't supported on this filesystem -- nothing to test here.
-			return
-		}
+		val symlinkCreated =
+			try {
+				Files.createSymbolicLink(linkPath, realFile.toPath())
+				true
+			} catch (e: UnsupportedOperationException) {
+				false
+			}
+		// Report as skipped, not silently passed, on a filesystem without symlink support.
+		Assume.assumeTrue("Symlinks are not supported on this filesystem", symlinkCreated)
 
 		// The symlink's target is inside destDir, so the canonical-path containment check alone
 		// would pass -- this isolates the separate, explicit isSymbolicLink guard.

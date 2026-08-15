@@ -725,6 +725,10 @@ abstract class BaseEditorActivity :
 		// request through the normal PendingFileRequest pipeline so postProjectInit still applies it
 		// once the project finishes initializing, instead of silently dropping it here.
 		deepLinkRequest?.fileRequest?.let { intent.putExtra(PendingFileRequest.EXTRA_KEY, it) }
+		// Consumed here -- mirror EditorHandlerActivity.onNewIntent's own drain of this same extra,
+		// so a launch intent redelivered verbatim after process death doesn't re-navigate to the
+		// same file/line a second time.
+		deepLinkRequest?.let { intent.removeExtra(DeepLinkRequest.EXTRA_KEY) }
 
 		editorViewModel.isBuildInProgress = false
 		editorViewModel.isInitializing = false
