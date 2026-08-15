@@ -387,6 +387,7 @@
   <string name="btn_opt_in">चयन करें</string>
   <string name="title_developer_options">डेवलपर विकल्प</string>
   <string name="idepref_devOptions_summary">Code on the Go के लिए प्रायोगिक/डिबगिंग विकल्प</string>
+  <string name="idepref_group_debugging">डिबगिंग</string>
   <string name="idepref_devOptions_dumpLogs_title">लॉग डंप करें</string>
   <string name="idepref_devOptions_dumpLogs_summary">Code on the Go लॉग को $HOME/.cg/logs डायरेक्टरी में डंप करें</string>
   <string name="msg_emptyview_applogs">अपने एप्लिकेशन के लॉग यहां देखने के लिए उसका डिबग संस्करण चलाएँ।</string>

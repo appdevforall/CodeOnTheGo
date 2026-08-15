@@ -21,7 +21,6 @@ import androidx.annotation.CallSuper
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsaky.androidide.idetooltips.TooltipManager
 
 /**
  * Base class for dialog preferences which allows users to choose from multiple items. Subclasses
@@ -63,9 +62,7 @@ abstract class ChoiceBasedDialogPreference :
 	) {
 		dialog.listView?.setOnItemLongClickListener { _, view, position, _ ->
 			val tag = choices.getOrNull(position)?.tooltipTag?.takeIf { it.isNotEmpty() } ?: tooltipTag
-			if (tag.isNotEmpty()) {
-				TooltipManager.showIdeCategoryTooltip(preference.context, view, tag)
-			}
+			showTooltipIfPresent(preference.context, view, tag)
 			true
 		}
 	}

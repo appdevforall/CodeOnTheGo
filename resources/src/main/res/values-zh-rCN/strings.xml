@@ -671,6 +671,7 @@
 	<string name="btn_opt_in">同意</string>
 	<string name="title_developer_options">开发者选项</string>
 	<string name="idepref_devOptions_summary">Code on the Go 的实验/调试选项</string>
+	<string name="idepref_group_debugging">调试</string>
 	<string name="idepref_devOptions_dumpLogs_title">转储日志</string>
 	<string name="idepref_devOptions_dumpLogs_summary">将 Code on the Go 日志转储到 $HOME/.cg/logs</string>
 	<string name="msg_emptyview_applogs">运行应用的调试版本以在此查看其日志 </string>

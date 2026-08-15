@@ -34,6 +34,18 @@ internal class DeveloperOptionsScreen(
 ) : IPreferenceScreen() {
 
 	init {
+		addPreference(DebuggingPreferences())
+	}
+}
+
+@Parcelize
+internal class DebuggingPreferences(
+	override val key: String = DevOpsPreferences.KEY_DEVOPTS_DEBUGGING,
+	override val title: Int = R.string.idepref_group_debugging,
+	override val children: List<IPreference> = mutableListOf(),
+) : IPreferenceGroup() {
+
+	init {
 		addPreference(DumpLogsPreference())
 		addPreference(EnableLogSenderPreference())
 	}

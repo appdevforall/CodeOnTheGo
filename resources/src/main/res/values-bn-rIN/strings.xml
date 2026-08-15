@@ -388,6 +388,7 @@
   <string name="btn_opt_in">বাছাই করুন</string>
   <string name="title_developer_options">বিকাশকারী অপশনগুলি</string>
   <string name="idepref_devOptions_summary">Code on the Go-এর জন্য পরীক্ষামূলক/ডিবাগিং অপশনগুলি</string>
+  <string name="idepref_group_debugging">ডিবাগিং</string>
   <string name="idepref_devOptions_dumpLogs_title">ডাম্প লগ</string>
   <string name="idepref_devOptions_dumpLogs_summary">Code on the Go লগ ডাম্প করুন $HOME/.cg/logs এ</string>
   <string name="msg_emptyview_applogs">এখানে লগগুলি দেখার জন্য আপনার অ্যাপ্লিকেশনটির ডিবাগ ভ্যারিয়েন্ট টি রান করুন৷</string>

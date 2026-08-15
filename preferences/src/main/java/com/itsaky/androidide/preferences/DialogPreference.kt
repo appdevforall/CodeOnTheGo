@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.preferences
 
+import android.content.Context
+import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -47,9 +49,7 @@ abstract class DialogPreference : SimplePreference() {
 		alertDialog.show()
 
 		alertDialog.window?.decorView?.applyLongPressRecursively {
-			if (tooltipTag.isNotEmpty()) {
-				TooltipManager.showIdeCategoryTooltip(preference.context, it, tooltipTag)
-			}
+			showTooltipIfPresent(preference.context, it, tooltipTag)
 			true
 		}
 
@@ -67,6 +67,17 @@ abstract class DialogPreference : SimplePreference() {
 		preference: Preference,
 		dialog: AlertDialog,
 	) {}
+
+	/** Shows [tag]'s tooltip anchored to [anchor], or does nothing if [tag] is empty. */
+	protected fun showTooltipIfPresent(
+		context: Context,
+		anchor: View,
+		tag: String,
+	) {
+		if (tag.isNotEmpty()) {
+			TooltipManager.showIdeCategoryTooltip(context, anchor, tag)
+		}
+	}
 
 	protected open fun onConfigureDialog(
 		preference: Preference,

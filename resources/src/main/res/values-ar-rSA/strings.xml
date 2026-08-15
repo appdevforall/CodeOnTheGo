@@ -388,6 +388,7 @@
   <string name="btn_opt_in">الاشتراك</string>
   <string name="title_developer_options">خيارات المطور</string>
   <string name="idepref_devOptions_summary">خيارات تجريبية/تصحيح أخطاء Code on the Go</string>
+  <string name="idepref_group_debugging">تصحيح الأخطاء</string>
   <string name="idepref_devOptions_dumpLogs_title">تفريغ السجلات</string>
   <string name="idepref_devOptions_dumpLogs_summary">تفريغ سجلات Code on the Go إلى $HOME/.cg/logs</string>
   <string name="msg_emptyview_applogs">قم بتشغيل النسخة التصحيحية (debug) من تطبيقك لعرض السجلات هنا.</string>

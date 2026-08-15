@@ -61,8 +61,12 @@ data class PluginSettingsEntryPreference(
 	val summaryText: String?,
 	val fragmentClassName: String,
 ) : IPreference() {
+	// Length-prefixing pluginId makes the split point unambiguous regardless of what
+	// characters either id contains - a plain "$pluginId.$entryId" join can collide, e.g.
+	// ("com.example", "ai.agent") and ("com.example.ai", "agent") would otherwise both
+	// produce "com.example.ai.agent".
 	override val key: String
-		get() = "idepref_plugin_settings_$pluginId.$entryId"
+		get() = "idepref_plugin_settings_${pluginId.length}:$pluginId:$entryId"
 
 	// Unused: the row sets a literal title in onCreateView rather than resolving an IDE resource.
 	override val title: Int

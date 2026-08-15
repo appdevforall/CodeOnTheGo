@@ -389,6 +389,7 @@ Dernier projet ouvert : \n%s</string>
   <string name="btn_opt_in">S\'inscrire</string>
   <string name="title_developer_options">Options développeur</string>
   <string name="idepref_devOptions_summary">Options Expérimental/Débogage d\'Code on the Go</string>
+  <string name="idepref_group_debugging">Débogage</string>
   <string name="idepref_devOptions_dumpLogs_title">Vider les logs</string>
   <string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.cg/logs</string>
   <string name="msg_emptyview_applogs">Run the debug variant of your application to view its logs here.</string>

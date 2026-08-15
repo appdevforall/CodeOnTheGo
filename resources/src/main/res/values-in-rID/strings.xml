@@ -611,6 +611,7 @@
 	<string name="btn_opt_in">Setuju</string>
 	<string name="title_developer_options">Opsi Pengembang</string>
 	<string name="idepref_devOptions_summary">Opsi percobaan/debugging untuk Code on the Go</string>
+	<string name="idepref_group_debugging">Debugging</string>
 	<string name="idepref_devOptions_dumpLogs_title">Simpan log</string>
 	<string name="idepref_devOptions_dumpLogs_summary">Simpan log Code on the Go ke $HOME/.androidide/logs</string>
 	<string name="msg_emptyview_applogs">Jalankan varian debug aplikasi Anda untuk melihat log nya di sini.</string>
