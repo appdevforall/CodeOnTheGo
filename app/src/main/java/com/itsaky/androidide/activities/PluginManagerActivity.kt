@@ -40,12 +40,13 @@ import com.itsaky.androidide.utils.getFileName
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import kotlinx.coroutines.launch
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 	companion object {
 		private const val TAG = "PluginManagerActivity"
-		private const val PLUGIN_EXTENSION = ".cgp"
+		private const val PLUGIN_EXTENSION = ".$PLUGIN_ARCHIVE_EXTENSION"
 	}
 
 	@Suppress("ktlint:standard:backing-property-naming")

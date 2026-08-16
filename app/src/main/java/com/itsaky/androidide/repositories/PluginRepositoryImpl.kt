@@ -7,6 +7,7 @@ import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.manager.loaders.toPluginMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 
 /**
@@ -141,7 +142,7 @@ class PluginRepositoryImpl(
 					Log.w(TAG, "Error uninstalling existing plugin: ${e.message}")
 				}
 
-				val fileExtension = if (pluginFile.name.endsWith(".cgp")) ".cgp" else ".apk"
+				val fileExtension = if (pluginFile.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION")) ".$PLUGIN_ARCHIVE_EXTENSION" else ".apk"
 				val finalFileName = "${pluginId}$fileExtension"
 
 				if (!pluginsDir.exists()) {
