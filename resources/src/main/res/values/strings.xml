@@ -1089,6 +1089,20 @@
 	<string name="url_discover_plugins" translatable="false">https://www.appdevforall.org/contribute/</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
+	<string name="msg_invalid_incoming_file">Could not read the file. It may be corrupted or unavailable.</string>
+	<string name="msg_unsupported_file_type">Unsupported file type. Only .cgp and .cgt files can be opened this way.</string>
+	<string name="msg_ide_setup_incomplete">IDE setup has not finished yet. Please try again once setup completes.</string>
+	<string name="title_install_template_collection">Install Template Collection</string>
+	<string name="msg_template_install_confirm">Install \'%1$s\' with the following templates: %2$s?</string>
+	<string name="title_template_already_installed">Template Collection Already Installed</string>
+	<string name="msg_template_name_conflict">A template collection named \'%1$s\' is already installed. What would you like to do?</string>
+	<string name="btn_overwrite">Overwrite</string>
+	<string name="btn_rename_and_install">Rename &amp; Install</string>
+	<string name="hint_new_template_collection_name">New collection name</string>
+	<string name="msg_template_installed">Template collection installed successfully</string>
+	<string name="msg_template_invalid_file">Invalid or corrupted template collection file.</string>
+	<string name="msg_template_install_failed">Failed to install template collection.</string>
+
 	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->

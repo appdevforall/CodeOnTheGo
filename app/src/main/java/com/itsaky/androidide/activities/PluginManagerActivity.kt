@@ -13,6 +13,7 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.CheckBox
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -47,6 +48,9 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 	companion object {
 		private const val TAG = "PluginManagerActivity"
 		private const val PLUGIN_EXTENSION = ".$PLUGIN_ARCHIVE_EXTENSION"
+
+		/** A `.cgp` [Uri] forwarded from [com.itsaky.androidide.activities.ExternalFileInstallActivity]. */
+		const val EXTRA_PENDING_INSTALL_URI = "pending_install_uri"
 	}
 
 	@Suppress("ktlint:standard:backing-property-naming")
@@ -104,6 +108,12 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 			setupTooltipLongPress()
 			setupFeedbackButton()
 			observeViewModel()
+
+			if (savedInstanceState == null) {
+				IntentCompat
+					.getParcelableExtra(intent, EXTRA_PENDING_INSTALL_URI, Uri::class.java)
+					?.let { showInstallConfirmation(it) }
+			}
 		} catch (e: Exception) {
 			// Log the error and finish the activity if something goes wrong
 			e.printStackTrace()

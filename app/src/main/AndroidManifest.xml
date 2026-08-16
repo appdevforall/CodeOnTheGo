@@ -116,6 +116,38 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <!-- Receives a .cgp/.cgt file opened from outside the app (e.g. an email attachment).
+             Neither extension has a registered MIME type, so the incoming intent may be typed
+             (e.g. "application/octet-stream") or untyped (a bare Uri with no type) depending on
+             the sending app - each extension therefore needs both a mimeType-qualified and a
+             mimeType-less <data> variant, each paired with pathPattern for the suffix match.
+             android:host="*" is required alongside pathPattern - the manifest matcher only
+             evaluates pathPattern when host is also present. -->
+        <activity
+            android:name=".activities.ExternalFileInstallActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@style/Theme.AndroidIDE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgp" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgp" />
+                <data android:scheme="content" android:host="*" android:pathPattern=".*\\.cgp" />
+                <data android:scheme="file" android:host="*" android:pathPattern=".*\\.cgp" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgt" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgt" />
+                <data android:scheme="content" android:host="*" android:pathPattern=".*\\.cgt" />
+                <data android:scheme="file" android:host="*" android:pathPattern=".*\\.cgt" />
+            </intent-filter>
+        </activity>
         <activity android:name=".activities.AboutActivity" />
         <activity
             android:name=".activities.editor.FAQActivity"
