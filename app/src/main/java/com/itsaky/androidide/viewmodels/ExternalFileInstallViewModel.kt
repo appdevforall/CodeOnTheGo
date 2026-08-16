@@ -1,24 +1,26 @@
 package com.itsaky.androidide.viewmodels
 
 import android.content.ContentResolver
-import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.provider.IDEFileProvider
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.repositories.TemplateCollectionRepository
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEffect
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEvent
+import com.itsaky.androidide.utils.LastValueGate
 import com.itsaky.androidide.utils.UriFileImporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,6 +49,12 @@ class ExternalFileInstallViewModel(
 		// instead of failing on the very first check.
 		private const val SETUP_WAIT_ATTEMPTS = 10
 		private const val SETUP_WAIT_INTERVAL_MS = 300L
+
+		// Gives Flashbar's async layout-triggered entrance animation (see FlashbarContainerView's
+		// afterMeasured{}) a chance to actually start before Finish tears the window down -
+		// without this, ShowError/ShowSuccess sent immediately before Finish can be dismissed
+		// before ever rendering.
+		private const val FLASH_MESSAGE_DELAY_MS = 300L
 	}
 
 	// Buffered (not rendezvous): onReceived() runs via Dispatchers.Main.immediate right after
@@ -56,19 +64,18 @@ class ExternalFileInstallViewModel(
 	private val _uiEffect = Channel<ExternalFileInstallUiEffect>(capacity = Channel.BUFFERED)
 	val uiEffect = _uiEffect.receiveAsFlow()
 
-	// onReceived() must run exactly once per ViewModel instance: this instance survives a
-	// rotation (so a duplicate call there is a no-op, not a re-processed intent), but is
-	// recreated fresh by Koin after process death (so the fresh instance still processes the
-	// restored intent instead of the call being skipped entirely).
-	private var received = false
+	// onReceived() must run at most once per distinct uri per ViewModel instance: this instance
+	// survives a rotation (so a duplicate call there for the same uri is a no-op, not a
+	// re-processed intent), but is recreated fresh by Koin after process death (so the fresh
+	// instance still processes the restored intent instead of the call being skipped entirely).
+	private val receivedUriGate = LastValueGate<Uri>()
+
+	private val _isInstalling = MutableStateFlow(false)
+	val isInstalling: StateFlow<Boolean> = _isInstalling.asStateFlow()
 
 	/** Call once, from `Activity.onCreate()`, with the VIEW intent's data [Uri]. */
-	fun onReceived(
-		context: Context,
-		uri: Uri,
-	) {
-		if (received) return
-		received = true
+	fun onReceived(uri: Uri) {
+		if (!receivedUriGate.consume(uri)) return
 
 		viewModelScope.launch {
 			val displayName = withContext(Dispatchers.IO) { UriFileImporter.getDisplayName(contentResolver, uri) }
@@ -122,8 +129,10 @@ class ExternalFileInstallViewModel(
 			val baseName = sanitizeBaseName(displayName.substringBeforeLast('.', "templates"))
 
 			if (extension == PLUGIN_ARCHIVE_EXTENSION) {
-				val fileProviderUri = IDEFileProvider.getUriForFile(context, tempFile)
-				_uiEffect.trySend(ExternalFileInstallUiEffect.ForwardToPluginManager(fileProviderUri))
+				// Forwarded as a plain path, not a content:// Uri: both activities run in this
+				// same process and already trust filesDir paths, so PluginManagerViewModel can
+				// install straight from this file instead of copying it a second time.
+				_uiEffect.trySend(ExternalFileInstallUiEffect.ForwardToPluginManager(tempFile.absolutePath))
 			} else {
 				dispatchTemplateInstall(tempFile, baseName)
 			}
@@ -182,11 +191,18 @@ class ExternalFileInstallViewModel(
 		targetBaseName: String,
 		overwrite: Boolean,
 	) {
+		// Guards against a double-tap on Install/Overwrite/Rename firing this twice concurrently -
+		// the second call's renameTo()/copyTo() would otherwise race the first's on the same
+		// tempFile and surface a spurious failure toast.
+		if (_isInstalling.value) return
+		_isInstalling.value = true
+
 		viewModelScope.launch {
 			templateCollectionRepository
 				.installCollection(tempFile, targetBaseName, overwrite)
 				.onSuccess {
 					_uiEffect.trySend(ExternalFileInstallUiEffect.ShowSuccess(R.string.msg_template_installed))
+					delay(FLASH_MESSAGE_DELAY_MS)
 					_uiEffect.trySend(ExternalFileInstallUiEffect.Finish)
 				}.onFailure { exception ->
 					// Deliberately don't delete tempFile or Finish here: the dialog the user was
@@ -195,6 +211,7 @@ class ExternalFileInstallViewModel(
 					Log.e(TAG, "Failed to install template collection", exception)
 					_uiEffect.trySend(ExternalFileInstallUiEffect.ShowError(R.string.msg_template_install_failed))
 				}
+			_isInstalling.value = false
 		}
 	}
 
@@ -215,6 +232,7 @@ class ExternalFileInstallViewModel(
 		@StringRes messageResId: Int,
 	) {
 		_uiEffect.trySend(ExternalFileInstallUiEffect.ShowError(messageResId))
+		delay(FLASH_MESSAGE_DELAY_MS)
 		_uiEffect.trySend(ExternalFileInstallUiEffect.Finish)
 	}
 

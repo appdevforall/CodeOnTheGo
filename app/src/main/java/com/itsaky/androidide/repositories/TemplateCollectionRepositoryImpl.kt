@@ -9,6 +9,7 @@ import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import java.io.File
 
 /**
@@ -19,6 +20,9 @@ import java.io.File
 class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 	private companion object {
 		private const val TAG = "TemplateCollectionRepository"
+
+		/** Base filename of the bundled default templates archive - reserved, never a user collection. */
+		private val RESERVED_BASE_NAME = File(TEMPLATE_CORE_ARCHIVE).nameWithoutExtension
 
 		/** Case-insensitive match by base filename - the only stable "collection identity" available. */
 		private fun findCollisionFile(
@@ -54,7 +58,12 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 
 	override suspend fun findExistingCollision(baseName: String): String? =
 		withContext(Dispatchers.IO) {
-			Environment.TEMPLATES_DIR?.let { findCollisionFile(it, baseName) }?.nameWithoutExtension
+			try {
+				Environment.TEMPLATES_DIR?.let { findCollisionFile(it, baseName) }?.nameWithoutExtension
+			} catch (exception: Exception) {
+				Log.e(TAG, "Failed to check for an existing template collection: $baseName", exception)
+				null
+			}
 		}
 
 	override suspend fun installCollection(
@@ -64,6 +73,10 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 	): Result<Unit> =
 		withContext(Dispatchers.IO) {
 			runCatching {
+				if (targetBaseName.equals(RESERVED_BASE_NAME, ignoreCase = true)) {
+					throw IllegalStateException("\"$targetBaseName\" is a reserved name and cannot be used")
+				}
+
 				val templatesDir =
 					Environment.TEMPLATES_DIR
 						?: throw IllegalStateException("Templates system not available")

@@ -9,13 +9,14 @@ import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.ui.models.PluginInstallSource
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.ui.models.PluginManagerUiState
 import com.itsaky.androidide.ui.models.PluginOperation
 import com.itsaky.androidide.utils.EditorDecorationBridge
+import com.itsaky.androidide.utils.LastValueGate
 import com.itsaky.androidide.utils.UriFileImporter
-import com.itsaky.androidide.utils.fileProviderAuthorityFor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 import java.util.UUID
 
@@ -36,32 +38,22 @@ class PluginManagerViewModel(
 	private val pluginRepository: PluginRepository,
 	private val contentResolver: ContentResolver,
 	private val filesDir: File,
-	packageName: String,
 ) : ViewModel() {
 	private companion object {
 		private const val TAG = "PluginManagerViewModel"
 	}
 
-	private val fileProviderAuthority = fileProviderAuthorityFor(packageName)
-
-	// Tracks the last forwarded-install Uri (from ExternalFileInstallActivity) this instance has
-	// already shown a dialog for. Survives rotation (same ViewModel instance, via the
-	// ViewModelStore) so the dialog isn't re-popped on every rotation, but resets on process
+	// Tracks the last forwarded-install file path (from ExternalFileInstallActivity) this
+	// instance has already shown a dialog for. Survives rotation (same ViewModel instance, via
+	// the ViewModelStore) so the dialog isn't re-popped on every rotation, but resets on process
 	// death (a fresh instance is created), so a process-death-recreated PluginManagerActivity
 	// still shows the dialog instead of silently dropping the forwarded install.
-	private var handledPendingInstallUri: Uri? = null
+	private val pendingInstallGate = LastValueGate<String>()
 
-	/**
-	 * Returns true the first time [uri] is seen by this ViewModel instance - see
-	 * [handledPendingInstallUri] for why this, rather than an Activity `savedInstanceState`
+	/** See [pendingInstallGate] for why this, rather than an Activity `savedInstanceState`
 	 * check, is what correctly distinguishes "already shown after a rotation" from "never shown
-	 * because the process died".
-	 */
-	fun markPendingInstallUriHandled(uri: Uri): Boolean {
-		if (handledPendingInstallUri == uri) return false
-		handledPendingInstallUri = uri
-		return true
-	}
+	 * because the process died". */
+	fun markPendingInstallHandled(filePath: String): Boolean = pendingInstallGate.consume(filePath)
 
 	// Mutable state for internal updates
 	private val _uiState =
@@ -109,17 +101,23 @@ class PluginManagerViewModel(
 
 			is PluginManagerUiEvent.InstallPlugin -> {
 				installPlugin(
-					event.uri,
+					event.source,
 					event.deleteSourceAfterInstall,
 				)
 			}
 
 			is PluginManagerUiEvent.ConfirmOverwrite -> {
 				installPlugin(
-					event.uri,
+					event.source,
 					event.deleteSourceAfterInstall,
 					checkConflict = false,
 				)
+			}
+
+			is PluginManagerUiEvent.CancelPendingInstall -> {
+				if (event.deleteSourceAfterInstall) {
+					viewModelScope.launch { deleteInstallSource(event.source) }
+				}
 			}
 
 			is PluginManagerUiEvent.OpenFilePicker -> {
@@ -286,7 +284,7 @@ class PluginManagerViewModel(
 	}
 
 	private fun installPlugin(
-		uri: Uri,
+		source: PluginInstallSource,
 		deleteSourceAfterInstall: Boolean,
 		checkConflict: Boolean = true,
 	) {
@@ -294,38 +292,46 @@ class PluginManagerViewModel(
 			_currentOperation.value = PluginOperation.Installing
 			_uiState.update { it.copy(isInstalling = true) }
 
-			var tempFile: File? = null
+			// Only a copy this function made itself (ContentUri case) is unconditionally safe to
+			// delete below - a forwarded LocalFile is the caller's file, and its lifecycle is
+			// governed by deleteSourceAfterInstall/deleteInstallSource instead.
+			var ownedTempFile: File? = null
+			var pluginFile: File? = null
 
 			try {
-				tempFile =
-					withContext(Dispatchers.IO) {
-						val fileName = UriFileImporter.getDisplayName(contentResolver, uri)
-						val extension =
-							if (fileName?.endsWith(
-									".cgp",
-									ignoreCase = true,
-								) == true
-							) {
-								".cgp"
-							} else {
-								".apk"
-							}
-						val tempFileName = "temp_plugin_${UUID.randomUUID()}$extension"
-						val tempDir = File(filesDir, "temp").apply { mkdirs() }
-						val tempFile = File(tempDir, tempFileName)
-
-						UriFileImporter.copyUriToFile(contentResolver, uri, tempFile) {
-							Exception("Cannot open file")
+				pluginFile =
+					when (source) {
+						is PluginInstallSource.LocalFile -> {
+							source.file
 						}
-						tempFile
+
+						is PluginInstallSource.ContentUri -> {
+							withContext(Dispatchers.IO) {
+								val fileName = UriFileImporter.getDisplayName(contentResolver, source.uri)
+								val extension =
+									if (fileName?.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) == true) {
+										".$PLUGIN_ARCHIVE_EXTENSION"
+									} else {
+										".apk"
+									}
+								val tempFileName = "temp_plugin_${UUID.randomUUID()}$extension"
+								val tempDir = File(filesDir, "temp").apply { mkdirs() }
+								val tempFile = File(tempDir, tempFileName)
+
+								UriFileImporter.copyUriToFile(contentResolver, source.uri, tempFile) {
+									Exception("Cannot open file")
+								}
+								tempFile
+							}.also { ownedTempFile = it }
+						}
 					}
 
-				if (checkConflict && resolveInstallConflict(tempFile, uri, deleteSourceAfterInstall)) {
+				if (checkConflict && resolveInstallConflict(pluginFile, source, deleteSourceAfterInstall)) {
 					return@launch
 				}
 
 				pluginRepository
-					.installPluginFromFile(tempFile)
+					.installPluginFromFile(pluginFile)
 					.onSuccess {
 						Log.d(TAG, "Plugin installed successfully")
 						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_installed))
@@ -333,7 +339,7 @@ class PluginManagerViewModel(
 						_uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
 
 						if (deleteSourceAfterInstall) {
-							deleteSourceDocument(uri)
+							deleteInstallSource(source)
 						}
 					}.onFailure { exception ->
 						Log.e(TAG, "Failed to install plugin", exception)
@@ -343,6 +349,9 @@ class PluginManagerViewModel(
 								listOf(exception.message ?: ""),
 							),
 						)
+						if (deleteSourceAfterInstall) {
+							deleteInstallSource(source)
+						}
 					}
 			} catch (exception: Exception) {
 				Log.e(TAG, "Error installing plugin from URI", exception)
@@ -352,8 +361,11 @@ class PluginManagerViewModel(
 						listOf(exception.message ?: ""),
 					),
 				)
+				if (deleteSourceAfterInstall) {
+					deleteInstallSource(source)
+				}
 			} finally {
-				tempFile?.let { file ->
+				ownedTempFile?.let { file ->
 					withContext(Dispatchers.IO) {
 						if (file.exists()) {
 							file.delete()
@@ -367,14 +379,15 @@ class PluginManagerViewModel(
 	}
 
 	private suspend fun resolveInstallConflict(
-		tempFile: File,
-		uri: Uri,
+		pluginFile: File,
+		source: PluginInstallSource,
 		deleteSourceAfterInstall: Boolean,
 	): Boolean {
-		val incoming = pluginRepository.getPluginMetadataFromFile(tempFile).getOrNull()
+		val incoming = pluginRepository.getPluginMetadataFromFile(pluginFile).getOrNull()
 		if (incoming == null) {
-			Log.w(TAG, "Failed to read plugin metadata from ${tempFile.name}; aborting install")
+			Log.w(TAG, "Failed to read plugin metadata from ${pluginFile.name}; aborting install")
 			_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file))
+			if (deleteSourceAfterInstall) deleteInstallSource(source)
 			return true
 		}
 
@@ -384,44 +397,54 @@ class PluginManagerViewModel(
 
 		val signaturesMatch =
 			pluginRepository
-				.haveMatchingSignatures(tempFile, existing.metadata.id)
+				.haveMatchingSignatures(pluginFile, existing.metadata.id)
 				.getOrDefault(false)
 
-		val effect =
-			if (!signaturesMatch) {
+		if (!signaturesMatch) {
+			_uiEffect.trySend(
 				PluginManagerUiEffect.ShowError(
 					R.string.msg_plugin_signature_mismatch,
 					listOf(existing.metadata.name),
-				)
-			} else {
-				PluginManagerUiEffect.ShowOverwriteConfirmation(
-					existing = existing,
-					incomingMetadata = incoming,
-					uri = uri,
-					deleteSourceAfterInstall = deleteSourceAfterInstall,
-				)
-			}
-		_uiEffect.trySend(effect)
+				),
+			)
+			if (deleteSourceAfterInstall) deleteInstallSource(source)
+			return true
+		}
+
+		// Deliberately don't delete the source yet: the user still needs to choose Replace or
+		// Cancel. ConfirmOverwrite re-runs installPlugin() to consume it on Replace;
+		// CancelPendingInstall cleans it up if they back out instead.
+		_uiEffect.trySend(
+			PluginManagerUiEffect.ShowOverwriteConfirmation(
+				existing = existing,
+				incomingMetadata = incoming,
+				source = source,
+				deleteSourceAfterInstall = deleteSourceAfterInstall,
+			),
+		)
 		return true
+	}
+
+	private suspend fun deleteInstallSource(source: PluginInstallSource) {
+		when (source) {
+			is PluginInstallSource.LocalFile -> {
+				withContext(Dispatchers.IO) {
+					if (source.file.exists() && !source.file.delete()) {
+						Log.w(TAG, "Failed to delete forwarded install file: ${source.file.absolutePath}")
+					}
+				}
+			}
+
+			is PluginInstallSource.ContentUri -> {
+				deleteSourceDocument(source.uri)
+			}
+		}
 	}
 
 	private suspend fun deleteSourceDocument(uri: Uri) {
 		withContext(Dispatchers.IO) {
 			try {
-				// DocumentsContract.deleteDocument() only works against a real SAF
-				// DocumentsProvider: it calls the provider's special METHOD_DELETE_DOCUMENT via
-				// ContentProvider.call(), and returns true unconditionally unless an exception is
-				// thrown. Our own IDEFileProvider (used for a .cgp forwarded from
-				// ExternalFileInstallActivity) doesn't implement that call - so deleteDocument()
-				// against one of its Uris silently "succeeds" without deleting anything. FileProvider
-				// does properly implement plain delete(), so use that for our own authority instead.
-				val deleted =
-					if (uri.authority == fileProviderAuthority) {
-						contentResolver.delete(uri, null, null) > 0
-					} else {
-						DocumentsContract.deleteDocument(contentResolver, uri)
-					}
-				if (!deleted) {
+				if (!DocumentsContract.deleteDocument(contentResolver, uri)) {
 					_uiEffect.trySend(
 						PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
 					)

@@ -1,6 +1,5 @@
 package com.itsaky.androidide.ui.models
 
-import android.net.Uri
 import androidx.annotation.StringRes
 import com.itsaky.androidide.repositories.TemplateCollectionRepository
 import java.io.File
@@ -19,7 +18,7 @@ sealed class ExternalFileInstallUiEvent {
 
 sealed class ExternalFileInstallUiEffect {
 	data class ForwardToPluginManager(
-		val uri: Uri,
+		val filePath: String,
 	) : ExternalFileInstallUiEffect()
 
 	data class ShowTemplateInstallConfirmation(

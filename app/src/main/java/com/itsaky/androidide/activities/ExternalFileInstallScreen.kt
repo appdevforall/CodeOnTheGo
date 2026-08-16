@@ -9,18 +9,22 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import com.itsaky.androidide.R
 import com.itsaky.androidide.floating.ui.FloatingTheme
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.repositories.TemplateCollectionRepository
+import com.itsaky.androidide.ui.compose.longPressTooltip
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEffect
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEvent
 import com.itsaky.androidide.utils.flashError
@@ -53,6 +57,7 @@ private sealed interface DialogUiState {
 fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 	val context = LocalContext.current
 	var dialogState by remember { mutableStateOf<DialogUiState>(DialogUiState.None) }
+	val isInstalling by viewModel.isInstalling.collectAsState()
 
 	LaunchedEffect(viewModel) {
 		viewModel.uiEffect.collect { effect ->
@@ -60,7 +65,7 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 				is ExternalFileInstallUiEffect.ForwardToPluginManager -> {
 					context.startActivity(
 						Intent(context, PluginManagerActivity::class.java)
-							.putExtra(PluginManagerActivity.EXTRA_PENDING_INSTALL_URI, effect.uri),
+							.putExtra(PluginManagerActivity.EXTRA_PENDING_INSTALL_FILE_PATH, effect.filePath),
 					)
 					(context as? Activity)?.finish()
 				}
@@ -97,6 +102,7 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 			is DialogUiState.InstallConfirm -> {
 				InstallConfirmationDialog(
 					state = state,
+					installEnabled = !isInstalling,
 					onInstall = {
 						viewModel.onEvent(
 							ExternalFileInstallUiEvent.ConfirmTemplateInstall(
@@ -115,6 +121,7 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 			is DialogUiState.NameConflict -> {
 				NameConflictDialog(
 					state = state,
+					installEnabled = !isInstalling,
 					onOverwrite = {
 						viewModel.onEvent(
 							ExternalFileInstallUiEvent.ConfirmTemplateInstall(
@@ -134,6 +141,7 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 			is DialogUiState.Rename -> {
 				RenameDialog(
 					state = state,
+					installEnabled = !isInstalling,
 					suggestName = viewModel::suggestUniqueBaseName,
 					onConfirm = { newName ->
 						viewModel.onEvent(
@@ -157,26 +165,35 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 	}
 }
 
+/** Comma-joined display list of a collection's template names, shared by both confirm dialogs. */
+private fun TemplateCollectionRepository.CollectionInfo.displayTemplateNames(): String = templateNames.joinToString(", ")
+
 @Composable
 private fun InstallConfirmationDialog(
 	state: DialogUiState.InstallConfirm,
+	installEnabled: Boolean,
 	onInstall: () -> Unit,
 	onDismiss: () -> Unit,
 ) {
 	AlertDialog(
 		onDismissRequest = onDismiss,
-		title = { Text(stringResource(R.string.title_install_template_collection)) },
+		title = {
+			Text(
+				stringResource(R.string.title_install_template_collection),
+				modifier = Modifier.longPressTooltip(TooltipTag.EXTERNAL_FILE_INSTALL),
+			)
+		},
 		text = {
 			Text(
 				stringResource(
 					R.string.msg_template_install_confirm,
 					state.suggestedBaseName,
-					state.info.templateNames.joinToString(", "),
+					state.info.displayTemplateNames(),
 				),
 			)
 		},
 		confirmButton = {
-			TextButton(onClick = onInstall) { Text(stringResource(R.string.btn_install)) }
+			TextButton(onClick = onInstall, enabled = installEnabled) { Text(stringResource(R.string.btn_install)) }
 		},
 		dismissButton = {
 			TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
@@ -187,24 +204,30 @@ private fun InstallConfirmationDialog(
 @Composable
 private fun NameConflictDialog(
 	state: DialogUiState.NameConflict,
+	installEnabled: Boolean,
 	onOverwrite: () -> Unit,
 	onRename: () -> Unit,
 	onDismiss: () -> Unit,
 ) {
 	AlertDialog(
 		onDismissRequest = onDismiss,
-		title = { Text(stringResource(R.string.title_template_already_installed)) },
+		title = {
+			Text(
+				stringResource(R.string.title_template_already_installed),
+				modifier = Modifier.longPressTooltip(TooltipTag.EXTERNAL_FILE_INSTALL),
+			)
+		},
 		text = {
 			Text(
 				stringResource(
 					R.string.msg_template_name_conflict,
 					state.existingName,
-					state.info.templateNames.joinToString(", "),
+					state.info.displayTemplateNames(),
 				),
 			)
 		},
 		confirmButton = {
-			TextButton(onClick = onOverwrite) { Text(stringResource(R.string.btn_overwrite)) }
+			TextButton(onClick = onOverwrite, enabled = installEnabled) { Text(stringResource(R.string.btn_overwrite)) }
 		},
 		dismissButton = {
 			Row {
@@ -218,6 +241,7 @@ private fun NameConflictDialog(
 @Composable
 private fun RenameDialog(
 	state: DialogUiState.Rename,
+	installEnabled: Boolean,
 	suggestName: suspend (String) -> String,
 	onConfirm: (String) -> Unit,
 	onDismiss: () -> Unit,
@@ -239,7 +263,12 @@ private fun RenameDialog(
 
 	AlertDialog(
 		onDismissRequest = onDismiss,
-		title = { Text(stringResource(R.string.btn_rename_and_install)) },
+		title = {
+			Text(
+				stringResource(R.string.btn_rename_and_install),
+				modifier = Modifier.longPressTooltip(TooltipTag.EXTERNAL_FILE_INSTALL),
+			)
+		},
 		text = {
 			OutlinedTextField(
 				value = name,
@@ -254,7 +283,7 @@ private fun RenameDialog(
 		confirmButton = {
 			TextButton(
 				onClick = { onConfirm(name.text) },
-				enabled = suggestionReady && name.text.isNotBlank(),
+				enabled = installEnabled && suggestionReady && name.text.isNotBlank(),
 			) {
 				Text(stringResource(R.string.btn_install))
 			}

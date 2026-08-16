@@ -36,7 +36,6 @@ val pluginModule =
 				pluginRepository = get(),
 				contentResolver = androidContext().contentResolver,
 				filesDir = androidContext().filesDir,
-				packageName = androidContext().packageName,
 			)
 		}
 

@@ -13,7 +13,6 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.CheckBox
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -28,6 +27,7 @@ import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.PluginInfo
+import com.itsaky.androidide.ui.models.PluginInstallSource
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
@@ -43,14 +43,20 @@ import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import kotlinx.coroutines.launch
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.koin.androidx.viewmodel.ext.android.viewModel
+import java.io.File
 
 class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 	companion object {
 		private const val TAG = "PluginManagerActivity"
 		private const val PLUGIN_EXTENSION = ".$PLUGIN_ARCHIVE_EXTENSION"
 
-		/** A `.cgp` [Uri] forwarded from [com.itsaky.androidide.activities.ExternalFileInstallActivity]. */
-		const val EXTRA_PENDING_INSTALL_URI = "pending_install_uri"
+		/**
+		 * Absolute path of a `.cgp` file forwarded from
+		 * [com.itsaky.androidide.activities.ExternalFileInstallActivity] - a plain path rather than
+		 * a `content://` Uri, since both activities run in this same process and already trust
+		 * filesDir paths, letting the install skip a redundant ContentResolver copy.
+		 */
+		const val EXTRA_PENDING_INSTALL_FILE_PATH = "pending_install_file_path"
 	}
 
 	@Suppress("ktlint:standard:backing-property-naming")
@@ -80,7 +86,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 					return@let
 				}
 
-				showInstallConfirmation(it)
+				showInstallConfirmation(PluginInstallSource.ContentUri(it))
 			}
 		}
 
@@ -109,19 +115,17 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 			setupFeedbackButton()
 			observeViewModel()
 
-			// No savedInstanceState guard: markPendingInstallUriHandled() is the idempotency
+			// No savedInstanceState guard: markPendingInstallHandled() is the idempotency
 			// check, scoped to the ViewModel instance rather than the Activity's recreation
 			// reason - it survives rotation (skips a duplicate dialog there) but resets on
 			// process death (a fresh ViewModel is created), so a process-death-recreated
 			// instance still shows the dialog instead of silently dropping the forwarded
 			// install. The intent's extra itself is preserved across both cases by the OS.
-			IntentCompat
-				.getParcelableExtra(intent, EXTRA_PENDING_INSTALL_URI, Uri::class.java)
-				?.let { uri ->
-					if (viewModel.markPendingInstallUriHandled(uri)) {
-						showInstallConfirmation(uri, forceDeleteSource = true)
-					}
+			intent.getStringExtra(EXTRA_PENDING_INSTALL_FILE_PATH)?.let { filePath ->
+				if (viewModel.markPendingInstallHandled(filePath)) {
+					showInstallConfirmation(PluginInstallSource.LocalFile(File(filePath)), forceDeleteSource = true)
 				}
+			}
 		} catch (e: Exception) {
 			// Log the error and finish the activity if something goes wrong
 			e.printStackTrace()
@@ -321,21 +325,22 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
 	/**
 	 * @param forceDeleteSource When true (a `.cgp` forwarded from
-	 * [ExternalFileInstallActivity]), [uri] is our own hidden temp copy, not a file the user
+	 * [ExternalFileInstallActivity]), [source] is our own hidden temp copy, not a file the user
 	 * picked - there's no source worth keeping, so the "delete source" checkbox is skipped
 	 * entirely and the temp file is always cleaned up.
 	 */
 	private fun showInstallConfirmation(
-		uri: Uri,
+		source: PluginInstallSource,
 		forceDeleteSource: Boolean = false,
 	) {
 		if (forceDeleteSource) {
 			MaterialAlertDialogBuilder(this)
 				.setTitle(R.string.title_install_plugin)
 				.setPositiveButton(R.string.btn_install) { _, _ ->
-					viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(uri, deleteSourceAfterInstall = true))
-				}.setNegativeButton(android.R.string.cancel, null)
-				.show()
+					viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(source, deleteSourceAfterInstall = true))
+				}.setNegativeButton(android.R.string.cancel) { _, _ ->
+					viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(source, deleteSourceAfterInstall = true))
+				}.show()
 			return
 		}
 
@@ -346,7 +351,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 			.setTitle(R.string.title_install_plugin)
 			.setView(dialogView)
 			.setPositiveButton(R.string.btn_install) { _, _ ->
-				viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(uri, deleteCheckBox.isChecked))
+				viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(source, deleteCheckBox.isChecked))
 			}.setNegativeButton(android.R.string.cancel, null)
 			.show()
 	}
@@ -363,10 +368,13 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 				),
 			).setPositiveButton(R.string.replace) { _, _ ->
 				viewModel.onEvent(
-					PluginManagerUiEvent.ConfirmOverwrite(effect.uri, effect.deleteSourceAfterInstall),
+					PluginManagerUiEvent.ConfirmOverwrite(effect.source, effect.deleteSourceAfterInstall),
 				)
-			}.setNegativeButton(android.R.string.cancel, null)
-			.show()
+			}.setNegativeButton(android.R.string.cancel) { _, _ ->
+				viewModel.onEvent(
+					PluginManagerUiEvent.CancelPendingInstall(effect.source, effect.deleteSourceAfterInstall),
+				)
+			}.show()
 	}
 
 	private fun showUninstallConfirmation(plugin: PluginInfo) {

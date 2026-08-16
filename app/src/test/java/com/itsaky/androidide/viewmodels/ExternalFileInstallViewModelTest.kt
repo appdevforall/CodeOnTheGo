@@ -73,7 +73,7 @@ class ExternalFileInstallViewModelTest {
 	@Test
 	fun `unsupported extension shows error and finishes`() =
 		runTest {
-			viewModel.onReceived(context, sourceUriFor("notes.txt"))
+			viewModel.onReceived(sourceUriFor("notes.txt"))
 
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
@@ -84,7 +84,7 @@ class ExternalFileInstallViewModelTest {
 		runTest {
 			stubPluginManagerAvailable(false)
 
-			viewModel.onReceived(context, sourceUriFor("my-plugin.cgp"))
+			viewModel.onReceived(sourceUriFor("my-plugin.cgp"))
 
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
@@ -95,7 +95,7 @@ class ExternalFileInstallViewModelTest {
 		runTest {
 			stubTemplatesFeatureAvailable(false)
 
-			viewModel.onReceived(context, sourceUriFor("my-templates.cgt"))
+			viewModel.onReceived(sourceUriFor("my-templates.cgt"))
 
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
@@ -106,7 +106,7 @@ class ExternalFileInstallViewModelTest {
 		runTest {
 			stubPluginManagerAvailable(true)
 
-			viewModel.onReceived(context, sourceUriFor("my-plugin.cgp"))
+			viewModel.onReceived(sourceUriFor("my-plugin.cgp"))
 
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ForwardToPluginManager::class.java)
@@ -120,7 +120,7 @@ class ExternalFileInstallViewModelTest {
 			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
 			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
 
-			viewModel.onReceived(context, sourceUriFor("my-templates.cgt"))
+			viewModel.onReceived(sourceUriFor("my-templates.cgt"))
 
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation::class.java)
@@ -137,7 +137,7 @@ class ExternalFileInstallViewModelTest {
 			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
 			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns "my-templates"
 
-			viewModel.onReceived(context, sourceUriFor("my-templates.cgt"))
+			viewModel.onReceived(sourceUriFor("my-templates.cgt"))
 
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowTemplateNameConflict::class.java)
@@ -151,7 +151,7 @@ class ExternalFileInstallViewModelTest {
 			coEvery { templateCollectionRepository.inspectCollection(any()) } returns
 				Result.failure(IllegalArgumentException("no templates"))
 
-			viewModel.onReceived(context, sourceUriFor("broken.cgt"))
+			viewModel.onReceived(sourceUriFor("broken.cgt"))
 
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
@@ -163,8 +163,8 @@ class ExternalFileInstallViewModelTest {
 			stubPluginManagerAvailable(true)
 			val uri = sourceUriFor("my-plugin.cgp")
 
-			viewModel.onReceived(context, uri)
-			viewModel.onReceived(context, uri)
+			viewModel.onReceived(uri)
+			viewModel.onReceived(uri)
 
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ForwardToPluginManager::class.java)
@@ -176,7 +176,7 @@ class ExternalFileInstallViewModelTest {
 		runTest {
 			every { pluginRepository.isPluginManagerAvailable() } returnsMany listOf(false, false, true)
 
-			viewModel.onReceived(context, sourceUriFor("my-plugin.cgp"))
+			viewModel.onReceived(sourceUriFor("my-plugin.cgp"))
 
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ForwardToPluginManager::class.java)

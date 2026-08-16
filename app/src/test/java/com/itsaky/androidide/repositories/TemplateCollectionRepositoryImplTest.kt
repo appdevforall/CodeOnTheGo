@@ -133,4 +133,27 @@ class TemplateCollectionRepositoryImplTest {
 			assertThat(result.isSuccess).isTrue()
 			assertThat(destination.readText()).isNotEqualTo("stale content")
 		}
+
+	@Test
+	fun `installCollection refuses to replace the reserved bundled core archive, even with overwrite`() =
+		runTest {
+			val bundledCore = File(templatesDir, "core.cgt")
+			bundledCore.writeText("bundled default templates")
+			val cgt = buildCgt("Empty Activity")
+
+			val result = repository.installCollection(cgt, "core", overwrite = true)
+
+			assertThat(result.isFailure).isTrue()
+			assertThat(bundledCore.readText()).isEqualTo("bundled default templates")
+		}
+
+	@Test
+	fun `installCollection refuses a reserved name case-insensitively`() =
+		runTest {
+			val cgt = buildCgt("Empty Activity")
+
+			val result = repository.installCollection(cgt, "CORE", overwrite = true)
+
+			assertThat(result.isFailure).isTrue()
+		}
 }

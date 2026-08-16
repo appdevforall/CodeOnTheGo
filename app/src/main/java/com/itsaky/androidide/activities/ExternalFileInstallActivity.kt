@@ -33,6 +33,6 @@ class ExternalFileInstallActivity : IDEActivity() {
 		// (a rotation keeps the same instance, so this is a no-op there), and calling it
 		// unconditionally means a process-death-recreated instance - which starts fresh and
 		// would otherwise never see the restored intent's data - still gets processed.
-		viewModel.onReceived(this, uri)
+		viewModel.onReceived(uri)
 	}
 }
