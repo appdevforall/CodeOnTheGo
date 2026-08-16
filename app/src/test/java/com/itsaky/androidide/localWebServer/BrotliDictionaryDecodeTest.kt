@@ -7,6 +7,7 @@ import org.junit.Assert.assertThrows
 import org.junit.BeforeClass
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.Base64
 
@@ -162,9 +163,15 @@ class BrotliDictionaryDecodeTest {
 
 	@Test
 	fun `decoding dictionary-compressed content without attaching a dictionary fails`() {
+		// Unlike a *wrong* dictionary (whose backward distances resolve into real,
+		// just incorrect, bytes -- silently wrong output, no error), decoding with
+		// no dictionary at all leaves distances that reach into the dictionary
+		// region out of bounds for any spec-compliant decoder, which must reject
+		// the stream as corrupt. Verified empirically: brotli4j throws IOException
+		// here, not an arbitrary Exception subtype.
 		val compressed = Base64.getDecoder().decode(compressedBase64)
 
-		assertThrows(Exception::class.java) {
+		assertThrows(IOException::class.java) {
 			BrotliInputStream(ByteArrayInputStream(compressed)).use { it.readBytes() }
 		}
 	}
