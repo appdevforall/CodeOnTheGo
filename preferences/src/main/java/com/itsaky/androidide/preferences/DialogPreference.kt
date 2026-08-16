@@ -18,14 +18,13 @@
 package com.itsaky.androidide.preferences
 
 import android.content.Context
-import android.view.HapticFeedbackConstants
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.applyLongPressRecursively
+import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 
 /**
  * A preference which shows a dialog when clicked.
@@ -74,12 +73,7 @@ abstract class DialogPreference : SimplePreference() {
 		context: Context,
 		anchor: View,
 		tag: String,
-	) {
-		if (tag.isNotBlank()) {
-			anchor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-			TooltipManager.showIdeCategoryTooltip(context, anchor, tag)
-		}
-	}
+	) = showIdeCategoryTooltipIfPresent(context, anchor, tag)
 
 	protected open fun onConfigureDialog(
 		preference: Preference,

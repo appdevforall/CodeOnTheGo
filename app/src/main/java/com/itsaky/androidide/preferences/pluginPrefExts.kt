@@ -120,24 +120,28 @@ data class PluginSettingsEntryPreference(
 internal fun pluginSettingsPreferences(
 	pluginManager: PluginManager? = IDEApplication.getPluginManager(),
 ): List<PluginSettingsEntryPreference> {
-	val seenKeys = mutableSetOf<String>()
-	return pluginManager
-		?.getPluginSettingsEntries()
-		?.map { (pluginId, entry) ->
-			PluginSettingsEntryPreference(
-				pluginId = pluginId,
-				entryId = entry.id,
-				titleText = entry.title,
-				summaryText = entry.summary,
-				fragmentClassName = entry.fragmentClassName,
-			)
-		}
-		?.filter { entry ->
-			seenKeys.add(entry.key).also { isNew ->
-				if (!isNew) {
-					ILogger.ROOT.warn("Dropping plugin settings entry with a duplicate key: {}", entry.key)
-				}
+	val entries =
+		pluginManager
+			?.getPluginSettingsEntries()
+			?.map { (pluginId, entry) ->
+				PluginSettingsEntryPreference(
+					pluginId = pluginId,
+					entryId = entry.id,
+					titleText = entry.title,
+					summaryText = entry.summary,
+					fragmentClassName = entry.fragmentClassName,
+				)
 			}
+			.orEmpty()
+
+	val seenKeys = mutableSetOf<String>()
+	val result = mutableListOf<PluginSettingsEntryPreference>()
+	for (entry in entries) {
+		if (seenKeys.add(entry.key)) {
+			result.add(entry)
+		} else {
+			ILogger.ROOT.warn("Dropping plugin settings entry with a duplicate key: {}", entry.key)
 		}
-		.orEmpty()
+	}
+	return result
 }

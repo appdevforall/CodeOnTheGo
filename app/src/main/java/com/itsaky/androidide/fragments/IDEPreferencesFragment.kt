@@ -18,7 +18,6 @@
 package com.itsaky.androidide.fragments
 
 import android.os.Bundle
-import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -27,12 +26,12 @@ import androidx.preference.PreferenceGroup
 import androidx.preference.PreferenceGroupAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.transition.MaterialSharedAxis
-import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TOP
 import com.itsaky.androidide.preferences.IPreference
 import com.itsaky.androidide.preferences.IPreferenceGroup
 import com.itsaky.androidide.preferences.IPreferenceScreen
 import com.itsaky.androidide.utils.onLongPress
+import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 
 class IDEPreferencesFragment : BasePreferenceFragment() {
 	/** Every preference in this screen, including nested categories' children, keyed by its key. */
@@ -100,8 +99,7 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 			val tag = row?.let { resolveTooltipTag(recyclerView, it) } ?: screenTooltipTag
 			val anchor = row ?: recyclerView
 
-			anchor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-			TooltipManager.showIdeCategoryTooltip(ctx, anchor, tag)
+			showIdeCategoryTooltipIfPresent(ctx, anchor, tag)
 		}
 	}
 

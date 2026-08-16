@@ -26,3 +26,15 @@ fun View.displayTooltipOnLongPress(
 		true
 	}
 }
+
+/** Shows [tag]'s IDE-category tooltip anchored to [anchor] with haptic feedback, or does nothing if [tag] is blank. */
+fun showIdeCategoryTooltipIfPresent(
+	context: Context,
+	anchor: View,
+	tag: String,
+) {
+	if (tag.isNotBlank()) {
+		anchor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+		TooltipManager.showIdeCategoryTooltip(context, anchor, tag)
+	}
+}
