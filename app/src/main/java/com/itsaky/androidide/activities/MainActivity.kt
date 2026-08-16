@@ -98,6 +98,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private var webServer: WebServer? = null
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
+	// Tracked so a slower, older deep-link resolve (still in flight when a second, faster-resolving
+	// deep link arrives) can tell it's been superseded -- see handleDeepLinkRequest.
+	private var latestDeepLinkRequest: DeepLinkRequest? = null
+
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
@@ -516,20 +520,30 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	 * let such an app silently force a project open with no user interaction at all.
 	 */
 	private fun handleDeepLinkRequest(request: DeepLinkRequest) {
+		latestDeepLinkRequest = request
 		lifecycleScope.launch(Dispatchers.IO) {
 			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName)
 			withContext(Dispatchers.Main) {
-				// Only remove the extra once this point is actually reached -- if this coroutine was
-				// cancelled before now (e.g. onDestroy() from a config-change recreate mid-resolve), the
-				// extra stays intact so onCreate's relaxed savedInstanceState check can retry it on the
-				// freshly recreated instance instead of silently losing it.
-				intent.removeExtra(DeepLinkRequest.EXTRA_KEY)
+				// Only remove the extra (and only if it's still THIS request's -- see below) once this
+				// point is actually reached -- if this coroutine was cancelled before now (e.g.
+				// onDestroy() from a config-change recreate mid-resolve), the extra stays intact so
+				// onCreate's relaxed savedInstanceState check can retry it on the freshly recreated
+				// instance instead of silently losing it.
+				if (latestDeepLinkRequest === request) {
+					intent.removeExtra(DeepLinkRequest.EXTRA_KEY)
+				}
 				// The activity may have started finishing while resolveDeepLinkProject was still
 				// scanning disk -- lifecycleScope only cancels at ON_DESTROY, not the moment isFinishing
 				// first flips true, so this continuation can otherwise still run and show a dialog on a
 				// dying window.
 				if (isFinishing || isDestroyed) return@withContext
 				projectDir ?: return@withContext
+				// A second, faster-resolving deep link superseded this one while it was still resolving
+				// -- reading the ambient intent property above (rather than a reference captured for
+				// THIS call) means this cleanup could otherwise strip the newer request's still-unconsumed
+				// extra, and this stale, slower request must not now bounce the user back to its own
+				// (older) target after they've already been taken to the newer one.
+				if (latestDeepLinkRequest !== request) return@withContext
 				handleOpenProject(projectDir, pendingFileRequest = request.fileRequest)
 			}
 		}

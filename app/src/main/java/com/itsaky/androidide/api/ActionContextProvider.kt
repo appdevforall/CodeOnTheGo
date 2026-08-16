@@ -37,12 +37,14 @@ object ActionContextProvider {
 	 * inconsistently (a genuinely new instance can be created instead), so callers that route based
 	 * on "is there a live editor to hand this off to" need this distinction, not just non-null.
 	 *
-	 * [setActivity] is called from `onCreate` (not `onResume`), so an instance is discoverable for
-	 * its entire lifetime rather than leaving a blind window between `onCreate` and `onResume` where
-	 * a caller like [com.itsaky.androidide.activities.DeepLinkActivity] would otherwise see `null` for
-	 * a live instance and start a second, redundant open flow via `MainActivity`. The `isFinishing`/
-	 * `isDestroyed` filter above still excludes an instance that registered but is already tearing
-	 * down.
+	 * [setActivity] is called from both `onCreate` and `onResume`: `onCreate` closes the blind window
+	 * between `onCreate` and `onResume` where a caller like
+	 * [com.itsaky.androidide.activities.DeepLinkActivity] would otherwise see `null` for a live
+	 * instance and start a second, redundant open flow via `MainActivity`; `onResume` lets an instance
+	 * reclaim this registration whenever it becomes foreground-active again, in case a different,
+	 * stale-duplicate instance briefly registered over it and was destroyed without anything else
+	 * restoring it. The `isFinishing`/`isDestroyed` filter above still excludes an instance that
+	 * registered but is already tearing down.
 	 */
 	fun getActivity(): EditorHandlerActivity? = activityRef?.get()?.takeIf { !it.isFinishing && !it.isDestroyed }
 }

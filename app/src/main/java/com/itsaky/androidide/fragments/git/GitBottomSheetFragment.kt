@@ -446,7 +446,13 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							if (_binding == null) {
 								return@saveAllAsync
 							}
-							if (succeeded) {
+							// succeeded alone means saveAll() didn't throw, not that every file's write
+							// actually landed (a silent per-file failure, e.g. disk full, leaves a file
+							// modified without succeeded going false) -- proceeding to action() (a git
+							// commit/pull) on that alone risks operating on a working tree whose edits
+							// were never written to disk. areFilesModified() reflects the up-to-date
+							// per-file modified state maintained as each file is saved.
+							if (succeeded && handler.areFilesModified() == false) {
 								action()
 							} else {
 								flashError(R.string.save_failed)

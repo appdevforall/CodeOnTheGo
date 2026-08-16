@@ -49,10 +49,11 @@ class DeepLinkActivity : Activity() {
 			return
 		}
 
-		// ActionContextProvider tracks the live EditorHandlerActivity instance (set in its
-		// onCreate, cleared in onDestroy) -- this reflects "is an editor instance already alive
-		// to hand this off to via onNewIntent", unlike IProjectManager's workspace, which stays
-		// null for the whole duration of a Gradle sync even while EditorActivityKt is already open.
+		// ActionContextProvider tracks the live EditorHandlerActivity instance (set in its onCreate
+		// and re-asserted in onResume, cleared in onDestroy) -- this reflects "is an editor instance
+		// already alive to hand this off to via onNewIntent", unlike IProjectManager's workspace,
+		// which stays null for the whole duration of a Gradle sync even while EditorActivityKt is
+		// already open.
 		val target =
 			if (ActionContextProvider.getActivity() != null) {
 				EditorActivityKt::class.java
