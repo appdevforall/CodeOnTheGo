@@ -40,7 +40,7 @@ data object IDEPreferences : BaseIDEPreferences() {
 	override fun writeToParcel(
 		dest: Parcel,
 		flags: Int,
-	) {}
+	) = Unit
 
 	@JvmField
 	val CREATOR =

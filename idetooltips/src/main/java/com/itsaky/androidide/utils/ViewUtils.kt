@@ -5,6 +5,10 @@ import android.view.HapticFeedbackConstants
 import android.view.View
 import com.itsaky.androidide.idetooltips.TooltipManager
 
+/**
+ * Installs a long-click listener on this view that consumes the click, gives haptic
+ * feedback, and shows [tooltipTag]'s tooltip (under [tooltipCategory]) anchored to [anchorView].
+ */
 fun View.displayTooltipOnLongPress(
 	context: Context,
 	anchorView: View,
