@@ -2,7 +2,7 @@ package com.itsaky.androidide.utils
 
 import android.database.sqlite.SQLiteDatabase
 import android.os.Process
-import android.util.Log
+import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
@@ -15,13 +15,26 @@ import java.io.File
  * not something this call needs to handle.
  */
 object SqliteMmapConfigurator {
-	private const val TAG = "SqliteMmapConfigurator"
+	private val logger = LoggerFactory.getLogger(SqliteMmapConfigurator::class.java)
 
+	/**
+	 * Requests memory-mapped IO for [db], sized to its file on disk.
+	 *
+	 * [db] must already be open, and is left open -- this only issues a PRAGMA on the
+	 * caller's connection. The call is synchronous and does both file and SQLite IO, so
+	 * keep it off the main thread; in practice callers invoke it right after opening the
+	 * database, on whatever thread that open happened.
+	 *
+	 * Best effort throughout: on a 32-bit process it does nothing, and any failure is
+	 * logged and swallowed rather than propagated. SQLite may also grant less than the
+	 * requested size, or nothing at all, which is likewise only logged. Nothing here
+	 * changes what a subsequent query returns -- only how fast it runs.
+	 */
 	fun configureMmap(db: SQLiteDatabase) {
 		val dbPath = db.path
 
 		if (!Process.is64Bit()) {
-			Log.i(TAG, "Not enabling mmap for '$dbPath': running in a 32-bit process.")
+			logger.info("Not enabling mmap for '{}': running in a 32-bit process.", dbPath)
 			return
 		}
 
@@ -36,21 +49,25 @@ object SqliteMmapConfigurator {
 				}
 
 			if (actualSize > 0) {
-				Log.i(
-					TAG,
-					"Enabled mmap for '$dbPath': requested $requestedSize bytes, SQLite granted $actualSize bytes.",
+				logger.info(
+					"Enabled mmap for '{}': requested {} bytes, SQLite granted {} bytes.",
+					dbPath,
+					requestedSize,
+					actualSize,
 				)
 			} else {
-				Log.w(
-					TAG,
-					"mmap not enabled for '$dbPath': SQLite granted $actualSize bytes for a request of $requestedSize.",
+				logger.warn(
+					"mmap not enabled for '{}': SQLite granted {} bytes for a request of {}.",
+					dbPath,
+					actualSize,
+					requestedSize,
 				)
 			}
 		} catch (e: Exception) {
 			// This is a best-effort read-performance optimization -- no failure here (a
 			// missing PRAGMA, a low-memory cursor allocation failure, etc.) should ever
 			// break the caller's actual database access.
-			Log.w(TAG, "Could not enable mmap for '$dbPath': ${e.message}")
+			logger.warn("Could not enable mmap for '{}'.", dbPath, e)
 		}
 	}
 }

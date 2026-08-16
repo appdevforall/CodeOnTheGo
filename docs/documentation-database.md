@@ -69,7 +69,7 @@ CREATE TABLE Tooltips (
 
 ## How CoGo talks to this database
 
-All three sites below open the file with `SQLiteDatabase.openDatabase(..., OPEN_READONLY)` — no writes, ever, from this app (see ADR 0001 for why raw SQLite is justified here instead of Room). `WebServer` and `ToolTipManager` (not `PluginDocumentationManager`, which opens read-write) additionally call `SqliteMmapConfigurator.configureMmap()` right after opening, so SQLite memory-maps the whole file on 64-bit processes instead of paging it in via `read()` (ADFA-4979) — a no-op on 32-bit, and any failure degrades to a logged warning rather than blocking the read.
+The two read paths below — `WebServer` and `ToolTipManager` — open the file with `SQLiteDatabase.openDatabase(..., OPEN_READONLY)`; only `PluginDocumentationManager` opens it `OPEN_READWRITE`, to merge in plugin-contributed content (see ADR 0001 for why raw SQLite is justified here instead of Room). Those same two read paths additionally call `SqliteMmapConfigurator.configureMmap()` right after opening, requesting a memory map the size of the file so SQLite pages it in through virtual memory instead of `read()` (ADFA-4979). SQLite may grant less than the request, or nothing at all — that's logged, not enforced. The call is a no-op on 32-bit processes, and any failure degrades to a logged warning rather than blocking the read.
 
 - **`app/.../localWebServer/WebServer.kt`** — serves Tier 3. On each `GET`, runs:
 

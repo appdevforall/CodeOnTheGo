@@ -11,6 +11,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 
+/**
+ * On-device coverage for [SqliteMmapConfigurator]: that the PRAGMA it issues actually
+ * takes effect against a real SQLite connection, which no JVM test can show.
+ */
 @RunWith(AndroidJUnit4::class)
 class SqliteMmapConfiguratorTest {
 	private lateinit var dbFile: File
@@ -27,8 +31,9 @@ class SqliteMmapConfiguratorTest {
 			writable.execSQL("INSERT INTO Padding (value) VALUES (?)", arrayOf("x".repeat(4096)))
 		}
 
-		// Every production call site opens OPEN_READONLY (see docs/documentation-database.md);
-		// match that here rather than testing against a writable connection.
+		// Both call sites that configure mmap -- WebServer and ToolTipManager -- open
+		// OPEN_READONLY (see docs/documentation-database.md); match that here rather than
+		// testing against a writable connection.
 		db = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
 	}
 
