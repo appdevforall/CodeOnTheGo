@@ -8,6 +8,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
+import java.nio.file.FileSystemException
 import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -71,10 +72,16 @@ class ZipUtilsTest {
 				Files.createSymbolicLink(linkPath, realFile.toPath())
 				true
 			} catch (e: UnsupportedOperationException) {
+				// The filesystem itself doesn't support symlinks (e.g. FAT32).
+				false
+			} catch (e: FileSystemException) {
+				// Windows NTFS supports symlinks but requires an elevated/Developer Mode privilege to
+				// create them -- without it, creation fails with this (a permission error), not
+				// UnsupportedOperationException.
 				false
 			}
-		// Report as skipped, not silently passed, on a filesystem without symlink support.
-		Assume.assumeTrue("Symlinks are not supported on this filesystem", symlinkCreated)
+		// Report as skipped, not silently passed, when this environment can't create symlinks.
+		Assume.assumeTrue("Symlinks are not supported/permitted on this filesystem", symlinkCreated)
 
 		// The symlink's target is inside destDir, so the canonical-path containment check alone
 		// would pass -- this isolates the separate, explicit isSymbolicLink guard.

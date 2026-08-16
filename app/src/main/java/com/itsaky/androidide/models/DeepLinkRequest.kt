@@ -76,6 +76,30 @@ data class DeepLinkRequest(
 		}
 
 		/**
+		 * Peels a trailing `keyword`/value pair off the end of `this[startIdx until endIdx]`, or a
+		 * bare, valueless `keyword` at the very last position (e.g. a URL ending in `.../column` with
+		 * nothing after it). Returns the raw value paired with the new `endIdx` (that segment, and its
+		 * value if any, excluded) -- `null` raw if `keyword` wasn't found at all (endIdx unchanged),
+		 * `""` raw if found dangling with no value, e.g. -- see [parse]'s inline docs for why there's
+		 * no numeric check on the paired value itself.
+		 */
+		private fun List<String>.peelTrailingKeyword(
+			startIdx: Int,
+			endIdx: Int,
+			keyword: String,
+		): Pair<String?, Int> {
+			val pairIdx = (endIdx - 2).takeIf { it >= startIdx && this[it] == keyword }
+			if (pairIdx != null) {
+				return this[pairIdx + 1] to pairIdx
+			}
+			val danglingIdx = (endIdx - 1).takeIf { it >= startIdx && this[it] == keyword }
+			if (danglingIdx != null) {
+				return "" to danglingIdx
+			}
+			return null to endIdx
+		}
+
+		/**
 		 * Parses a deep-link [Uri] of the form described in [DeepLinkRequest]'s docs. Returns `null` if
 		 * the URI does not match this scheme/host/path at all, or does not contain a `project` segment
 		 * followed by a name -- i.e. it isn't a deep link this app understands, not merely a deep link
@@ -126,47 +150,23 @@ data class DeepLinkRequest(
 					// matters for a case like ".../Main.kt/line/5/column": a bare trailing "column" with
 					// no value consumed first re-exposes "line/5" as a real pair for the line check that
 					// follows, instead of two independent checks both missing it against the original end.
-					// The one shape this can't resolve: a file path whose *entire* content is just
-					// "line"/"column" plus one more segment, with nothing else following -- e.g.
-					// `file/line/Main.kt` alone -- is indistinguishable from an actual line suffix; this
-					// URL scheme has no delimiter to tell the two apart, so it's read as the keyword
-					// (existing behavior, unchanged).
+					// The shape this can't resolve: any path whose last two segments happen to be
+					// [directory-literally-named "line"/"column", some other segment] -- not just the
+					// degenerate two-segment case (`file/line/Main.kt` alone), but equally a longer one
+					// (`file/foo/line/Notes.txt`, where "foo" is a real preceding directory). Neither is
+					// distinguishable from an actual line/column suffix by position alone, and this URL
+					// scheme has no delimiter to tell them apart -- there's no numeric-lookahead check on
+					// the value segment because that would instead break the *intentional* "malformed but
+					// present" case this class's docs call out (e.g. `.../line/abc`, which must surface as
+					// an invalid line number, not silently become part of the file path). Both read as the
+					// keyword (existing behavior, unchanged); a user who genuinely has a directory named
+					// "line"/"column" must avoid placing the target file's segment where it would be
+					// misread as the value.
 					var endIdx = segments.size
-
-					var columnRaw: String? = null
-					val columnPairIdx = (endIdx - 2).takeIf { it >= startIdx && segments[it] == SEGMENT_COLUMN }
-					if (columnPairIdx != null) {
-						columnRaw = segments[columnPairIdx + 1]
-						endIdx = columnPairIdx
-					} else {
-						// A bare trailing "column" with nothing after it (e.g. ".../file/Main.kt/column")
-						// can never be matched by the pair check above -- being the very last segment
-						// itself leaves no slot for a value. Report it as invalid rather than silently
-						// folding "column" into the file path.
-						val danglingColumnIdx = (endIdx - 1).takeIf { it >= startIdx && segments[it] == SEGMENT_COLUMN }
-						if (danglingColumnIdx != null) {
-							columnRaw = "" // present but not a valid integer -> reported to the user, per this class's docs
-							endIdx = danglingColumnIdx
-						}
-					}
-
-					var lineRaw: String? = null
-					val linePairIdx = (endIdx - 2).takeIf { it >= startIdx && segments[it] == SEGMENT_LINE }
-					if (linePairIdx != null) {
-						lineRaw = segments[linePairIdx + 1]
-						endIdx = linePairIdx
-					} else {
-						// Same shape as the dangling-column case above, checked against whatever endIdx
-						// the column layer left behind -- covers both a bare trailing "line" with nothing
-						// after it, and a "line" sitting directly in front of a column pair that was just
-						// peeled off (e.g. ".../line/column/7"), where the slot before "column" holds a
-						// non-numeric "line" instead of a value.
-						val danglingLineIdx = (endIdx - 1).takeIf { it >= startIdx && segments[it] == SEGMENT_LINE }
-						if (danglingLineIdx != null) {
-							lineRaw = ""
-							endIdx = danglingLineIdx
-						}
-					}
+					val (columnRaw, endIdxAfterColumn) = segments.peelTrailingKeyword(startIdx, endIdx, SEGMENT_COLUMN)
+					endIdx = endIdxAfterColumn
+					val (lineRaw, endIdxAfterLine) = segments.peelTrailingKeyword(startIdx, endIdx, SEGMENT_LINE)
+					endIdx = endIdxAfterLine
 
 					val filePath = segments.subList(startIdx, endIdx).joinToString("/")
 

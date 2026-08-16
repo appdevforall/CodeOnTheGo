@@ -235,7 +235,13 @@ open class EditorHandlerActivity :
 		TSLanguageRegistry.instance.destroy()
 		editorViewModel.removeAllFiles()
 
-		IDEApplication.getPluginManager()?.setEditorProvider(null)
+		// Guarded on pluginEditorProvider (rather than unconditional) so an instance whose onCreate()
+		// returned early because it was already finishing (see onCreate()) -- and which therefore
+		// never registered a provider of its own -- can't null out a DIFFERENT, actually-live
+		// instance's provider out from under it during its own teardown.
+		if (pluginEditorProvider != null) {
+			IDEApplication.getPluginManager()?.setEditorProvider(null)
+		}
 		pluginEditorProvider?.dispose()
 		pluginEditorProvider = null
 	}
@@ -249,6 +255,17 @@ open class EditorHandlerActivity :
 		setupPluginFragmentFactory()
 		mBuildEventListener.setActivity(this)
 		super.onCreate(savedInstanceState)
+
+		// BaseEditorActivity.onCreate() (just run via super.onCreate() above) may have already called
+		// finish() -- e.g. this instance was spun up for a deep link whose project doesn't match what
+		// it holds, or with no project path at all -- and returned; finish() doesn't stop execution
+		// from continuing here. Without this check, the registrations below would unconditionally
+		// clobber process-wide singleton state (ActionContextProvider, the plugin editor provider)
+		// away from whatever OTHER, actually-live instance currently owns it, with nothing to ever
+		// restore it once this doomed instance is eventually torn down.
+		if (isFinishing) {
+			return
+		}
 
 		// Registered here (right after super.onCreate() finishes wiring the toolbar/action registry),
 		// not onResume, so this instance is discoverable via ActionContextProvider.getActivity() for
@@ -1319,11 +1336,13 @@ open class EditorHandlerActivity :
 						notify = true,
 						runAfter = { succeeded ->
 							runOnUiThread {
-								// Matches the other two saveAllAsync callers this PR touches: a failed save
-								// must not silently re-run invokeAfter as if the files were saved, which
-								// would just re-show this same dialog with no explanation of why.
-								if (!succeeded) {
-									flashError(string.save_failed)
+								// Matches confirmProjectClose's identical check: saveAllAsync's succeeded
+								// only means saveAll() didn't throw, not that every file's write actually
+								// landed (a silent per-file failure, e.g. disk full, leaves isModified
+								// true without succeeded going false) -- proceeding to invokeAfter (which
+								// closes/discards these files) on that alone risks silent data loss.
+								if (!succeeded || hasFilesThatFailedToSave()) {
+									flashError(getString(string.save_failed))
 									return@runOnUiThread
 								}
 								invokeAfter.run()
@@ -1909,7 +1928,7 @@ open class EditorHandlerActivity :
 			if (onClosed != null) {
 				pendingCloseCallback = onClosed
 			}
-			flashError(string.msg_project_close_in_progress)
+			flashError(getString(string.msg_project_close_in_progress))
 			return
 		}
 		confirmCloseInProgress = true
@@ -1977,7 +1996,20 @@ open class EditorHandlerActivity :
 					// !saveSucceeded is checked too: an exception can abort the save before it even
 					// gets to a given file, which would leave that file's modified flag unchanged.
 					if (!saveSucceeded || hasFilesThatFailedToSave()) {
-						flashError(string.save_failed)
+						// Routed through the String overload (indefinite duration, must-dismiss) rather
+						// than flashError(Int) (a ~1s auto-dismissing toast) -- a user who looks away
+						// right after tapping "Save and close" must not miss that the close was aborted
+						// and the activity is still open with unsaved changes.
+						flashError(getString(string.save_failed))
+						// A later, superseding request (e.g. a third deep link arriving while this save
+						// was in flight) must not be silently dropped just because THIS attempt's save
+						// failed -- give it its own confirmation, mirroring cancelOrDecline()'s handling
+						// of the identical race on the cancel path.
+						val superseding = pendingCloseCallback
+						pendingCloseCallback = null
+						if (superseding !== onClosed) {
+							confirmProjectClose(superseding)
+						}
 						return@runOnUiThread
 					}
 					recentProjectsViewModel.updateProjectModifiedDate(
@@ -2015,8 +2047,18 @@ open class EditorHandlerActivity :
 		// nor a plain MainActivity.openProject hand-off) -- e.g. some other explicit re-launch of this
 		// activity. Gating the carry-forward below on this prevents a still-loading project's own
 		// stale file request from getting attached to an unrelated switch to a *different* project.
+		// A plain PROJECT_PATH intent re-targeting the project that's already loading (e.g. a bare
+		// Recents re-tap with no file context of its own) is NOT the "unrelated switch to a different
+		// project" this guard exists for -- treating it as one would skip the carry-forward below and
+		// lose a still-pending file request from the original cold-open intent for no reason, since
+		// handlePlainProjectSwitch's own same-project branch only applies whatever fileRequest THIS
+		// intent carries (often none) rather than reading the carried-forward extra itself. A deep
+		// link is always treated as a switch here regardless: its own file target (if any) is applied
+		// directly from the parsed request, never through this carry-forward mechanism, so excluding
+		// it from the carry-forward can't lose anything the deep link path doesn't already handle.
 		val isProjectSwitchIntent =
-			intent.hasExtra(DeepLinkRequest.EXTRA_KEY) || intent.hasExtra("PROJECT_PATH")
+			intent.hasExtra(DeepLinkRequest.EXTRA_KEY) ||
+				intent.getStringExtra("PROJECT_PATH")?.let { it != IProjectManager.getInstance().projectDirPath } == true
 
 		// Preserve a not-yet-applied file-navigation request from the previous intent -- postProjectInit
 		// reads it lazily once a sync completes, and setIntent() below would otherwise silently drop it
@@ -2086,6 +2128,12 @@ open class EditorHandlerActivity :
 	// (same no-op-if-already-open check, same confirm-close-then-reopen handoff), just without a
 	// project name to resolve first since the caller already supplies an absolute path directly.
 	private fun handlePlainProjectSwitch(intent: Intent) {
+		// This instance may already be finishing (e.g. it just armed pendingDeepLinkOpen and called
+		// finish() from switchToProject's isBlank() branch, awaiting its own onDestroy()) -- without
+		// this guard, a second onNewIntent redelivered before that onDestroy() runs could reach the
+		// same isBlank() branch again and overwrite the already-armed request with this one, silently
+		// dropping the original. The deep-link path already guards the same race.
+		if (isFinishing || isDestroyed) return
 		val newProjectPath = intent.getStringExtra("PROJECT_PATH")?.takeIf { it.isNotBlank() } ?: return
 		val fileRequest =
 			IntentCompat.getParcelableExtra(intent, PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
@@ -2129,7 +2177,7 @@ open class EditorHandlerActivity :
 					// A close-confirmation dialog for a *different* project switch is already
 					// showing -- navigating underneath it now would just get silently discarded if
 					// the user goes on to confirm that close.
-					flashError(string.msg_project_close_in_progress)
+					flashError(getString(string.msg_project_close_in_progress))
 				} else {
 					fileRequest?.let { applyDeepLinkFileRequest(it) }
 				}

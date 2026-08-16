@@ -8,6 +8,11 @@ import java.lang.ref.WeakReference
  * to allow decoupled services to trigger UI actions.
  */
 object ActionContextProvider {
+	// IDEApiFacade.runApp() (a suspend fun with no explicit Dispatchers.Main) reads getActivity() with
+	// no guarantee its caller is already on the main thread that writes this -- @Volatile establishes
+	// the same happens-before guarantee this PR's sibling PendingDeepLinkOpen.value already relies on
+	// for the identical cross-thread read/write pattern.
+	@Volatile
 	private var activityRef: WeakReference<EditorHandlerActivity>? = null
 
 	fun setActivity(activity: EditorHandlerActivity) {

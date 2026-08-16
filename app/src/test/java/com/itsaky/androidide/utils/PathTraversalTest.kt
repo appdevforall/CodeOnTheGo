@@ -17,12 +17,13 @@
 
 package com.itsaky.androidide.utils
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import com.google.common.truth.Truth.assertThat
+import org.junit.Assume
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.FileSystemException
 import java.nio.file.Files
 
 class PathTraversalTest {
@@ -36,12 +37,12 @@ class PathTraversalTest {
 	@Test
 	fun `plain relative path resolves inside base`() {
 		val resolved = resolveWithinDirectory(baseDir, "src/Main.kt")
-		assertEquals(File("/project/root/src/Main.kt"), resolved)
+		assertThat(resolved).isEqualTo(File("/project/root/src/Main.kt"))
 	}
 
 	@Test
 	fun `literal dot-dot is rejected`() {
-		assertNull(resolveWithinDirectory(baseDir, "../../etc/passwd"))
+		assertThat(resolveWithinDirectory(baseDir, "../../etc/passwd")).isNull()
 	}
 
 	@Test
@@ -51,7 +52,7 @@ class PathTraversalTest {
 		// would trivially pass and this function would violate its own "returns null" contract,
 		// silently returning baseDir. DeepLinkRequest.parse's own documented "known limitation" (a
 		// file path whose entire content is just the "line" keyword) produces exactly this shape.
-		assertNull(resolveWithinDirectory(baseDir, ""))
+		assertThat(resolveWithinDirectory(baseDir, "")).isNull()
 	}
 
 	@Test
@@ -59,17 +60,17 @@ class PathTraversalTest {
 		// The shape produced once android.net.Uri decodes a single raw segment containing an
 		// encoded slash, e.g. the URL segment "foo%2f..%2f..%2fetc%2fpasswd" -- decoded to one
 		// string, but still containing ".." once decoded.
-		assertNull(resolveWithinDirectory(baseDir, "foo/../../etc/passwd"))
+		assertThat(resolveWithinDirectory(baseDir, "foo/../../etc/passwd")).isNull()
 	}
 
 	@Test
 	fun `leading slash is rejected`() {
-		assertNull(resolveWithinDirectory(baseDir, "/etc/passwd"))
+		assertThat(resolveWithinDirectory(baseDir, "/etc/passwd")).isNull()
 	}
 
 	@Test
 	fun `leading backslash is rejected`() {
-		assertNull(resolveWithinDirectory(baseDir, "\\Windows\\System32"))
+		assertThat(resolveWithinDirectory(baseDir, "\\Windows\\System32")).isNull()
 	}
 
 	@Test
@@ -77,7 +78,7 @@ class PathTraversalTest {
 		// android.net.Uri.pathSegments percent-decodes before this function ever sees the string, so
 		// a URL's "%00" arrives here as a literal NUL character. java.nio.file.Path throws
 		// InvalidPathException for that -- must be caught, not left to crash the caller.
-		assertNull(resolveWithinDirectory(baseDir, "foo" + nulCharacter + ".txt"))
+		assertThat(resolveWithinDirectory(baseDir, "foo" + nulCharacter + ".txt")).isNull()
 	}
 
 	@Test
@@ -85,13 +86,13 @@ class PathTraversalTest {
 		// Intentionally the stricter, simpler substring reject rather than a proper per-segment
 		// check -- project files never legitimately need consecutive dots in a name, so treating
 		// "a..b.txt" the same as an actual ".." traversal segment is an acceptable, safe trade-off.
-		assertNull(resolveWithinDirectory(baseDir, "a..b.txt"))
+		assertThat(resolveWithinDirectory(baseDir, "a..b.txt")).isNull()
 	}
 
 	@Test
 	fun `multi-segment path resolves and normalizes redundant separators`() {
 		val resolved = resolveWithinDirectory(baseDir, "app/src/main/Main.kt")
-		assertEquals(File("/project/root/app/src/main/Main.kt"), resolved)
+		assertThat(resolved).isEqualTo(File("/project/root/app/src/main/Main.kt"))
 	}
 
 	@Test
@@ -101,7 +102,7 @@ class PathTraversalTest {
 		val target = File(root, "src/Main.kt").apply { writeText("fun main() {}") }
 
 		val resolved = resolveWithinDirectory(root, "src/Main.kt")
-		assertEquals(target.canonicalFile, resolved?.canonicalFile)
+		assertThat(resolved?.canonicalFile).isEqualTo(target.canonicalFile)
 	}
 
 	@Test
@@ -112,8 +113,23 @@ class PathTraversalTest {
 		val root = tempFolder.newFolder("real-project")
 		val outside = tempFolder.newFolder("outside")
 		File(outside, "secret.txt").writeText("secret")
-		Files.createSymbolicLink(File(root, "evil").toPath(), outside.toPath())
 
-		assertNull(resolveWithinDirectory(root, "evil/secret.txt"))
+		val symlinkCreated =
+			try {
+				Files.createSymbolicLink(File(root, "evil").toPath(), outside.toPath())
+				true
+			} catch (e: UnsupportedOperationException) {
+				// The filesystem itself doesn't support symlinks (e.g. FAT32).
+				false
+			} catch (e: FileSystemException) {
+				// Windows NTFS supports symlinks but requires an elevated/Developer Mode privilege to
+				// create them -- without it, creation fails with this (a permission error), not
+				// UnsupportedOperationException.
+				false
+			}
+		// Report as skipped, not silently passed, when this environment can't create symlinks.
+		Assume.assumeTrue("Symlinks are not supported/permitted on this filesystem", symlinkCreated)
+
+		assertThat(resolveWithinDirectory(root, "evil/secret.txt")).isNull()
 	}
 }
