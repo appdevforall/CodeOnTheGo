@@ -9,7 +9,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.itsaky.androidide.R
 import com.itsaky.androidide.floating.ui.FloatingTheme
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -57,7 +57,7 @@ private sealed interface DialogUiState {
 fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 	val context = LocalContext.current
 	var dialogState by remember { mutableStateOf<DialogUiState>(DialogUiState.None) }
-	val isInstalling by viewModel.isInstalling.collectAsState()
+	val isInstalling by viewModel.isInstalling.collectAsStateWithLifecycle()
 
 	LaunchedEffect(viewModel) {
 		viewModel.uiEffect.collect { effect ->
