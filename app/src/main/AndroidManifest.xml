@@ -119,8 +119,14 @@
         <!-- Receives a .cgp/.cgt file opened from outside the app (e.g. an email attachment).
              Neither extension has a registered MIME type, so the incoming intent may be typed
              (e.g. "application/octet-stream") or untyped (a bare Uri with no type) depending on
-             the sending app - each extension therefore needs both a mimeType-qualified and a
-             mimeType-less <data> variant, each paired with pathPattern for the suffix match.
+             the sending app. Within a single <intent-filter>, a mimeType on any <data> element
+             applies to the WHOLE filter (verified via `dumpsys package`: every <data> tag in a
+             filter reports the same "StaticType", even ones with no android:mimeType attribute
+             of their own) - so a mimeType-bearing and a mimeType-less variant can't share one
+             filter without the mimeType contaminating the mimeType-less one too. `content` gets
+             OS leniency and matches even when the incoming intent has no explicit type, so one
+             filter with mimeType="*/*" covers both typed and untyped content:// intents; `file`
+             gets no such leniency and needs its typed and untyped cases in separate filters.
              android:host="*" is required alongside pathPattern - the manifest matcher only
              evaluates pathPattern when host is also present. -->
         <activity
@@ -134,8 +140,17 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgp" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgp" />
-                <data android:scheme="content" android:host="*" android:pathPattern=".*\\.cgp" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="file" android:host="*" android:pathPattern=".*\\.cgp" />
             </intent-filter>
             <intent-filter>
@@ -143,8 +158,17 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgt" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgt" />
-                <data android:scheme="content" android:host="*" android:pathPattern=".*\\.cgt" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="file" android:host="*" android:pathPattern=".*\\.cgt" />
             </intent-filter>
         </activity>
