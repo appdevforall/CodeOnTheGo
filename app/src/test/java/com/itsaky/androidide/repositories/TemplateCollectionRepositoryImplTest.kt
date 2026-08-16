@@ -91,6 +91,16 @@ class TemplateCollectionRepositoryImplTest {
 		}
 
 	@Test
+	fun `findExistingCollision matches an uppercase CGT extension`() =
+		runTest {
+			File(templatesDir, "MyTemplates.CGT").writeText("placeholder")
+
+			val match = repository.findExistingCollision("mytemplates")
+
+			assertThat(match).isEqualTo("MyTemplates")
+		}
+
+	@Test
 	fun `findExistingCollision returns null when there is no match`() =
 		runTest {
 			val match = repository.findExistingCollision("does-not-exist")

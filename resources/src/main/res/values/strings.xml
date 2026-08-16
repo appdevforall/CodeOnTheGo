@@ -1016,6 +1016,7 @@
 	<string name="cd_diagnostic_error">Error</string>
 	<string name="cd_diagnostic_warning">Warning</string>
 	<string name="cd_diagnostic_info">Information</string>
+	<string name="cd_show_help">Show help</string>
 
 	<!-- Toolbar content descriptions for TalkBack (match actual function) -->
 	<string name="cd_toolbar_quick_run">Quick run</string>

@@ -6,6 +6,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipManager
 
 /**
@@ -17,11 +19,15 @@ import com.itsaky.androidide.idetooltips.TooltipManager
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun Modifier.longPressTooltip(tag: String): Modifier {
+fun Modifier.longPressTooltip(
+	tag: String,
+	onLongClickLabel: String = stringResource(R.string.cd_show_help),
+): Modifier {
 	val context = LocalContext.current
 	val anchorView = LocalView.current
 	return combinedClickable(
 		onClick = {},
+		onLongClickLabel = onLongClickLabel,
 		onLongClick = { TooltipManager.showIdeCategoryTooltip(context, anchorView, tag) },
 	)
 }

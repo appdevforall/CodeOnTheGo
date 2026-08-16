@@ -23,6 +23,9 @@ package com.itsaky.androidide.utils
  * survives a configuration change (same instance, so a repeat [consume] of the same value is a
  * no-op), but resets after process death (a fresh instance is created), so a process-death
  * recreation still processes a restored pending value instead of silently dropping it.
+ *
+ * Not thread-safe: [lastHandled] is unsynchronized, so call [consume] from a single thread only
+ * (e.g. always from the main thread, as every current call site does).
  */
 class LastValueGate<T> {
 	private var lastHandled: T? = null

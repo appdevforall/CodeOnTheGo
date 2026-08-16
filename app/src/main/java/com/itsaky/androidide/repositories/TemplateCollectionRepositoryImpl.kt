@@ -6,6 +6,7 @@ import com.itsaky.androidide.templates.TemplateRecipe
 import com.itsaky.androidide.templates.impl.TemplateWarning
 import com.itsaky.androidide.templates.impl.zip.ZipTemplateReader
 import com.itsaky.androidide.utils.Environment
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
@@ -30,7 +31,7 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 			baseName: String,
 		): File? =
 			templatesDir
-				.listFiles { file -> file.extension == TEMPLATE_ARCHIVE_EXTENSION }
+				.listFiles { file -> file.extension.equals(TEMPLATE_ARCHIVE_EXTENSION, ignoreCase = true) }
 				?.firstOrNull { it.nameWithoutExtension.equals(baseName, ignoreCase = true) }
 	}
 
@@ -60,6 +61,8 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 		withContext(Dispatchers.IO) {
 			try {
 				Environment.TEMPLATES_DIR?.let { findCollisionFile(it, baseName) }?.nameWithoutExtension
+			} catch (e: CancellationException) {
+				throw e
 			} catch (exception: Exception) {
 				Log.e(TAG, "Failed to check for an existing template collection: $baseName", exception)
 				null
