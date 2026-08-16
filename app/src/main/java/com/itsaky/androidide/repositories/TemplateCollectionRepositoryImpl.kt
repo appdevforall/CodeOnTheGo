@@ -19,6 +19,15 @@ import java.io.File
 class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 	private companion object {
 		private const val TAG = "TemplateCollectionRepository"
+
+		/** Case-insensitive match by base filename - the only stable "collection identity" available. */
+		private fun findCollisionFile(
+			templatesDir: File,
+			baseName: String,
+		): File? =
+			templatesDir
+				.listFiles { file -> file.extension == TEMPLATE_ARCHIVE_EXTENSION }
+				?.firstOrNull { it.nameWithoutExtension.equals(baseName, ignoreCase = true) }
 	}
 
 	override suspend fun inspectCollection(candidateFile: File): Result<TemplateCollectionRepository.CollectionInfo> =
@@ -45,10 +54,7 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 
 	override suspend fun findExistingCollision(baseName: String): String? =
 		withContext(Dispatchers.IO) {
-			Environment.TEMPLATES_DIR
-				?.listFiles { file -> file.extension == TEMPLATE_ARCHIVE_EXTENSION }
-				?.firstOrNull { it.nameWithoutExtension.equals(baseName, ignoreCase = true) }
-				?.nameWithoutExtension
+			Environment.TEMPLATES_DIR?.let { findCollisionFile(it, baseName) }?.nameWithoutExtension
 		}
 
 	override suspend fun installCollection(
@@ -62,15 +68,33 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 					Environment.TEMPLATES_DIR
 						?: throw IllegalStateException("Templates system not available")
 
-				val destFile = File(templatesDir, "$targetBaseName.$TEMPLATE_ARCHIVE_EXTENSION")
-				if (destFile.exists() && !overwrite) {
+				// Reuse the same case-insensitive lookup findExistingCollision() uses, so a
+				// case-variant match (e.g. installing "mytemplates" when "MyTemplates.cgt" is
+				// already there) is caught here too instead of silently creating a duplicate.
+				val existingMatch = findCollisionFile(templatesDir, targetBaseName)
+				if (existingMatch != null && !overwrite) {
 					throw IllegalStateException(
 						"A template collection named \"$targetBaseName\" already exists",
 					)
 				}
 
-				candidateFile.copyTo(destFile, overwrite = true)
-				candidateFile.delete()
+				// Overwrite the existing case-variant file in place (preserving its casing)
+				// rather than create a second, case-differing duplicate.
+				val destFile = existingMatch ?: File(templatesDir, "$targetBaseName.$TEMPLATE_ARCHIVE_EXTENSION")
+				if (destFile.exists() && !destFile.delete()) {
+					throw IllegalStateException("Failed to replace existing file: ${destFile.name}")
+				}
+
+				// Try an atomic move first; File.renameTo() is unreliable on Android even within
+				// the same app's private storage (confirmed on a physical device: it silently
+				// fails here despite temp/ and templates/ both being under filesDir), so fall
+				// back to copy+delete rather than trust it unconditionally.
+				if (!candidateFile.renameTo(destFile)) {
+					candidateFile.copyTo(destFile, overwrite = true)
+					if (!candidateFile.delete()) {
+						Log.w(TAG, "Installed but failed to delete source temp file: ${candidateFile.absolutePath}")
+					}
+				}
 
 				ITemplateProvider.getInstance(reload = true)
 				Unit

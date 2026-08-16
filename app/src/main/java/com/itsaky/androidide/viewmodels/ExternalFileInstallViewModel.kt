@@ -14,14 +14,18 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEffect
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEvent
 import com.itsaky.androidide.utils.UriFileImporter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import java.io.File
+import java.util.UUID
 
 /**
  * Handles a `.cgp`/`.cgt` file opened from outside the app (e.g. an email attachment), backing
@@ -36,6 +40,13 @@ class ExternalFileInstallViewModel(
 	private companion object {
 		private const val TAG = "ExternalFileInstallVM"
 		private val UNSAFE_FILENAME_CHARS = Regex("[\\\\/:*?\"<>|]")
+
+		// A cold OS-triggered launch of this activity can win the race against
+		// IDEApplication's async setup (device-unlock -> CredentialProtectedApplicationLoader.load()),
+		// so isPluginManagerAvailable()/isTemplatesFeatureAvailable() are polled briefly
+		// instead of failing on the very first check.
+		private const val SETUP_WAIT_ATTEMPTS = 10
+		private const val SETUP_WAIT_INTERVAL_MS = 300L
 	}
 
 	// Buffered (not rendezvous): onReceived() runs via Dispatchers.Main.immediate right after
@@ -45,13 +56,22 @@ class ExternalFileInstallViewModel(
 	private val _uiEffect = Channel<ExternalFileInstallUiEffect>(capacity = Channel.BUFFERED)
 	val uiEffect = _uiEffect.receiveAsFlow()
 
+	// onReceived() must run exactly once per ViewModel instance: this instance survives a
+	// rotation (so a duplicate call there is a no-op, not a re-processed intent), but is
+	// recreated fresh by Koin after process death (so the fresh instance still processes the
+	// restored intent instead of the call being skipped entirely).
+	private var received = false
+
 	/** Call once, from `Activity.onCreate()`, with the VIEW intent's data [Uri]. */
 	fun onReceived(
 		context: Context,
 		uri: Uri,
 	) {
+		if (received) return
+		received = true
+
 		viewModelScope.launch {
-			val displayName = UriFileImporter.getDisplayName(contentResolver, uri)
+			val displayName = withContext(Dispatchers.IO) { UriFileImporter.getDisplayName(contentResolver, uri) }
 			val extension = displayName?.substringAfterLast('.', "")?.lowercase()
 
 			if (displayName.isNullOrBlank() || extension.isNullOrBlank()) {
@@ -64,28 +84,37 @@ class ExternalFileInstallViewModel(
 				return@launch
 			}
 
-			if (extension == PLUGIN_ARCHIVE_EXTENSION && !pluginRepository.isPluginManagerAvailable()) {
+			if (extension == PLUGIN_ARCHIVE_EXTENSION &&
+				!awaitAvailable(pluginRepository::isPluginManagerAvailable)
+			) {
 				sendErrorAndFinish(R.string.msg_ide_setup_incomplete)
 				return@launch
 			}
 
-			if (extension == TEMPLATE_ARCHIVE_EXTENSION && !templateCollectionRepository.isTemplatesFeatureAvailable()) {
+			if (extension == TEMPLATE_ARCHIVE_EXTENSION &&
+				!awaitAvailable(templateCollectionRepository::isTemplatesFeatureAvailable)
+			) {
 				sendErrorAndFinish(R.string.msg_ide_setup_incomplete)
 				return@launch
 			}
+
+			val tempDir = File(filesDir, "temp").apply { mkdirs() }
+			val destination = File(tempDir, "incoming_${UUID.randomUUID()}.$extension")
 
 			val tempFile =
 				try {
 					withContext(Dispatchers.IO) {
-						val tempDir = File(filesDir, "temp").apply { mkdirs() }
-						val destination = File(tempDir, "incoming_${System.currentTimeMillis()}.$extension")
 						UriFileImporter.copyUriToFile(contentResolver, uri, destination) {
 							IllegalStateException("Cannot open file")
 						}
 						destination
 					}
+				} catch (e: CancellationException) {
+					withContext(NonCancellable + Dispatchers.IO) { deleteQuietlyBlocking(destination) }
+					throw e
 				} catch (e: Exception) {
 					Log.e(TAG, "Failed to copy incoming file", e)
+					withContext(Dispatchers.IO) { deleteQuietlyBlocking(destination) }
 					sendErrorAndFinish(R.string.msg_invalid_incoming_file)
 					return@launch
 				}
@@ -99,6 +128,14 @@ class ExternalFileInstallViewModel(
 				dispatchTemplateInstall(tempFile, baseName)
 			}
 		}
+	}
+
+	private suspend fun awaitAvailable(check: () -> Boolean): Boolean {
+		repeat(SETUP_WAIT_ATTEMPTS) { attempt ->
+			if (check()) return true
+			if (attempt < SETUP_WAIT_ATTEMPTS - 1) delay(SETUP_WAIT_INTERVAL_MS)
+		}
+		return false
 	}
 
 	private suspend fun dispatchTemplateInstall(
@@ -152,9 +189,11 @@ class ExternalFileInstallViewModel(
 					_uiEffect.trySend(ExternalFileInstallUiEffect.ShowSuccess(R.string.msg_template_installed))
 					_uiEffect.trySend(ExternalFileInstallUiEffect.Finish)
 				}.onFailure { exception ->
+					// Deliberately don't delete tempFile or Finish here: the dialog the user was
+					// just on (install-confirm / name-conflict / rename) stays open so they can
+					// retry - e.g. pick a different name after a collision, or Overwrite instead.
 					Log.e(TAG, "Failed to install template collection", exception)
-					deleteQuietly(tempFile)
-					sendErrorAndFinish(R.string.msg_template_install_failed)
+					_uiEffect.trySend(ExternalFileInstallUiEffect.ShowError(R.string.msg_template_install_failed))
 				}
 		}
 	}
@@ -180,10 +219,12 @@ class ExternalFileInstallViewModel(
 	}
 
 	private suspend fun deleteQuietly(file: File) {
-		withContext(Dispatchers.IO) {
-			if (file.exists()) {
-				file.delete()
-			}
+		withContext(Dispatchers.IO) { deleteQuietlyBlocking(file) }
+	}
+
+	private fun deleteQuietlyBlocking(file: File) {
+		if (file.exists()) {
+			file.delete()
 		}
 	}
 }

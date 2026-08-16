@@ -12,9 +12,11 @@ import com.itsaky.androidide.viewmodel.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -50,6 +52,13 @@ class ExternalFileInstallViewModelTest {
 				contentResolver = context.contentResolver,
 				filesDir = context.filesDir,
 			)
+	}
+
+	@After
+	fun tearDown() {
+		// onReceived() copies into context.filesDir/temp - a real Robolectric app files dir, not
+		// covered by the tempFolder rule above, so it doesn't get cleaned up automatically.
+		File(context.filesDir, "temp").deleteRecursively()
 	}
 
 	private fun sourceUriFor(
@@ -146,6 +155,31 @@ class ExternalFileInstallViewModelTest {
 
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
+		}
+
+	@Test
+	fun `onReceived is idempotent per ViewModel instance`() =
+		runTest {
+			stubPluginManagerAvailable(true)
+			val uri = sourceUriFor("my-plugin.cgp")
+
+			viewModel.onReceived(context, uri)
+			viewModel.onReceived(context, uri)
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ForwardToPluginManager::class.java)
+			verify(exactly = 1) { pluginRepository.isPluginManagerAvailable() }
+		}
+
+	@Test
+	fun `plugin manager becoming available mid-retry still forwards`() =
+		runTest {
+			every { pluginRepository.isPluginManagerAvailable() } returnsMany listOf(false, false, true)
+
+			viewModel.onReceived(context, sourceUriFor("my-plugin.cgp"))
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ForwardToPluginManager::class.java)
 		}
 
 	@Test

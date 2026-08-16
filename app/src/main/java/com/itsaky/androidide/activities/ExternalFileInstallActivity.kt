@@ -29,8 +29,10 @@ class ExternalFileInstallActivity : IDEActivity() {
 			return
 		}
 
-		if (savedInstanceState == null) {
-			viewModel.onReceived(this, uri)
-		}
+		// No savedInstanceState guard here: onReceived() is idempotent per ViewModel instance
+		// (a rotation keeps the same instance, so this is a no-op there), and calling it
+		// unconditionally means a process-death-recreated instance - which starts fresh and
+		// would otherwise never see the restored intent's data - still gets processed.
+		viewModel.onReceived(this, uri)
 	}
 }

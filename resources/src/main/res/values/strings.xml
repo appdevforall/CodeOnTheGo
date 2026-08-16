@@ -1095,7 +1095,7 @@
 	<string name="title_install_template_collection">Install Template Collection</string>
 	<string name="msg_template_install_confirm">Install \'%1$s\' with the following templates: %2$s?</string>
 	<string name="title_template_already_installed">Template Collection Already Installed</string>
-	<string name="msg_template_name_conflict">A template collection named \'%1$s\' is already installed. What would you like to do?</string>
+	<string name="msg_template_name_conflict">A template collection named \'%1$s\' is already installed. The new one contains: %2$s. What would you like to do?</string>
 	<string name="btn_overwrite">Overwrite</string>
 	<string name="btn_rename_and_install">Rename &amp; Install</string>
 	<string name="hint_new_template_collection_name">New collection name</string>

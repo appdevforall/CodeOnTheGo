@@ -39,6 +39,7 @@ private sealed interface DialogUiState {
 
 	data class NameConflict(
 		val existingName: String,
+		val info: TemplateCollectionRepository.CollectionInfo,
 		val tempFile: File,
 	) : DialogUiState
 
@@ -70,10 +71,13 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 				}
 
 				is ExternalFileInstallUiEffect.ShowTemplateNameConflict -> {
-					dialogState = DialogUiState.NameConflict(effect.existingName, effect.tempFile)
+					dialogState = DialogUiState.NameConflict(effect.existingName, effect.info, effect.tempFile)
 				}
 
 				is ExternalFileInstallUiEffect.ShowError -> {
+					// Deliberately doesn't touch dialogState: on an install failure the ViewModel
+					// sends ShowError without a following Finish, so whichever dialog is open
+					// (install-confirm / name-conflict / rename) stays open for the user to retry.
 					flashError(context.getString(effect.messageResId, *effect.formatArgs.toTypedArray()))
 				}
 
@@ -101,11 +105,9 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 								overwrite = false,
 							),
 						)
-						dialogState = DialogUiState.None
 					},
 					onDismiss = {
 						viewModel.onEvent(ExternalFileInstallUiEvent.IgnoreTemplateInstall(state.tempFile))
-						dialogState = DialogUiState.None
 					},
 				)
 			}
@@ -121,12 +123,10 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 								overwrite = true,
 							),
 						)
-						dialogState = DialogUiState.None
 					},
 					onRename = { dialogState = DialogUiState.Rename(state.existingName, state.tempFile) },
 					onDismiss = {
 						viewModel.onEvent(ExternalFileInstallUiEvent.IgnoreTemplateInstall(state.tempFile))
-						dialogState = DialogUiState.None
 					},
 				)
 			}
@@ -143,11 +143,9 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 								overwrite = false,
 							),
 						)
-						dialogState = DialogUiState.None
 					},
 					onDismiss = {
 						viewModel.onEvent(ExternalFileInstallUiEvent.IgnoreTemplateInstall(state.tempFile))
-						dialogState = DialogUiState.None
 					},
 				)
 			}
@@ -196,7 +194,15 @@ private fun NameConflictDialog(
 	AlertDialog(
 		onDismissRequest = onDismiss,
 		title = { Text(stringResource(R.string.title_template_already_installed)) },
-		text = { Text(stringResource(R.string.msg_template_name_conflict, state.existingName)) },
+		text = {
+			Text(
+				stringResource(
+					R.string.msg_template_name_conflict,
+					state.existingName,
+					state.info.templateNames.joinToString(", "),
+				),
+			)
+		},
 		confirmButton = {
 			TextButton(onClick = onOverwrite) { Text(stringResource(R.string.btn_overwrite)) }
 		},
@@ -217,12 +223,17 @@ private fun RenameDialog(
 	onDismiss: () -> Unit,
 ) {
 	var name by remember { mutableStateOf(TextFieldValue(state.existingName)) }
+	var userEdited by remember { mutableStateOf(false) }
 	var suggestionReady by remember { mutableStateOf(false) }
 	val currentSuggestName by rememberUpdatedState(suggestName)
 
 	LaunchedEffect(state.existingName) {
 		val suggested = currentSuggestName(state.existingName)
-		name = TextFieldValue(suggested, selection = TextRange(suggested.length))
+		// Only apply the suggestion if the user hasn't already started typing their own name -
+		// this resolves asynchronously and must not clobber in-progress input.
+		if (!userEdited) {
+			name = TextFieldValue(suggested, selection = TextRange(suggested.length))
+		}
 		suggestionReady = true
 	}
 
@@ -232,7 +243,10 @@ private fun RenameDialog(
 		text = {
 			OutlinedTextField(
 				value = name,
-				onValueChange = { name = it },
+				onValueChange = {
+					name = it
+					userEdited = true
+				},
 				label = { Text(stringResource(R.string.hint_new_template_collection_name)) },
 				singleLine = true,
 			)

@@ -109,11 +109,19 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 			setupFeedbackButton()
 			observeViewModel()
 
-			if (savedInstanceState == null) {
-				IntentCompat
-					.getParcelableExtra(intent, EXTRA_PENDING_INSTALL_URI, Uri::class.java)
-					?.let { showInstallConfirmation(it) }
-			}
+			// No savedInstanceState guard: markPendingInstallUriHandled() is the idempotency
+			// check, scoped to the ViewModel instance rather than the Activity's recreation
+			// reason - it survives rotation (skips a duplicate dialog there) but resets on
+			// process death (a fresh ViewModel is created), so a process-death-recreated
+			// instance still shows the dialog instead of silently dropping the forwarded
+			// install. The intent's extra itself is preserved across both cases by the OS.
+			IntentCompat
+				.getParcelableExtra(intent, EXTRA_PENDING_INSTALL_URI, Uri::class.java)
+				?.let { uri ->
+					if (viewModel.markPendingInstallUriHandled(uri)) {
+						showInstallConfirmation(uri, forceDeleteSource = true)
+					}
+				}
 		} catch (e: Exception) {
 			// Log the error and finish the activity if something goes wrong
 			e.printStackTrace()
@@ -311,7 +319,26 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
 	private fun Uri.isSupportedPluginFile(): Boolean = getFileName(this@PluginManagerActivity).endsWith(PLUGIN_EXTENSION, ignoreCase = true)
 
-	private fun showInstallConfirmation(uri: Uri) {
+	/**
+	 * @param forceDeleteSource When true (a `.cgp` forwarded from
+	 * [ExternalFileInstallActivity]), [uri] is our own hidden temp copy, not a file the user
+	 * picked - there's no source worth keeping, so the "delete source" checkbox is skipped
+	 * entirely and the temp file is always cleaned up.
+	 */
+	private fun showInstallConfirmation(
+		uri: Uri,
+		forceDeleteSource: Boolean = false,
+	) {
+		if (forceDeleteSource) {
+			MaterialAlertDialogBuilder(this)
+				.setTitle(R.string.title_install_plugin)
+				.setPositiveButton(R.string.btn_install) { _, _ ->
+					viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(uri, deleteSourceAfterInstall = true))
+				}.setNegativeButton(android.R.string.cancel, null)
+				.show()
+			return
+		}
+
 		val dialogView = layoutInflater.inflate(R.layout.dialog_install_plugin, null)
 		val deleteCheckBox = dialogView.findViewById<CheckBox>(R.id.checkbox_delete_source)
 
