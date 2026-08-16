@@ -20,6 +20,7 @@ package com.itsaky.androidide.provider
 import android.content.Context
 import android.net.Uri
 import androidx.core.content.FileProvider
+import com.itsaky.androidide.utils.fileProviderUriFor
 import java.io.File
 
 /**
@@ -29,8 +30,6 @@ import java.io.File
  */
 class IDEFileProvider : FileProvider() {
 	companion object {
-		private const val AUTHORITY_SUFFIX = ".providers.fileprovider"
-
 		/**
 		 * Mint a `content://` [Uri] for [file] via this provider, so it can be shared with
 		 * another component in this app without relying on a Uri permission grant to have
@@ -40,6 +39,6 @@ class IDEFileProvider : FileProvider() {
 		fun getUriForFile(
 			context: Context,
 			file: File,
-		): Uri = FileProvider.getUriForFile(context, "${context.packageName}$AUTHORITY_SUFFIX", file)
+		): Uri = context.fileProviderUriFor(file)
 	}
 }

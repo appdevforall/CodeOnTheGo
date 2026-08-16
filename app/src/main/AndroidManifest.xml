@@ -127,8 +127,20 @@
              OS leniency and matches even when the incoming intent has no explicit type, so one
              filter with mimeType="*/*" covers both typed and untyped content:// intents; `file`
              gets no such leniency and needs its typed and untyped cases in separate filters.
+             Both extensions are combined into each filter below (safe: every <data> tag within
+             a given filter shares the same mimeType-or-not shape, so there's no cross-extension
+             contamination), and each extension gets both a lowercase and an UPPERCASE pathPattern
+             - android:pathPattern has no case-insensitive mode, and some senders (e.g. archives
+             re-exported from Windows tools) produce uppercase extensions.
              android:host="*" is required alongside pathPattern - the manifest matcher only
-             evaluates pathPattern when host is also present. -->
+             evaluates pathPattern when host is also present.
+             Known limitation, not fixable via manifest matching: a sender whose content:// Uri
+             path never carries the filename/extension at all (some email providers' attachment
+             Uris look like content://.../message_attachment/12345/0/ATTACHMENT/false) can't match
+             a pathPattern-based filter regardless of type. The only alternative - a pathPattern-
+             less, mimeType="*/*" filter - would register this app as a candidate handler for
+             every file view intent on the device, which is a worse tradeoff than missing those
+             senders. -->
         <activity
             android:name=".activities.ExternalFileInstallActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
@@ -140,36 +152,27 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgp" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.CGP" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgt" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.CGT" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgp" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.CGP" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgt" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.CGT" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="file" android:host="*" android:pathPattern=".*\\.cgp" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgt" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgt" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" android:host="*" android:pathPattern=".*\\.CGP" />
                 <data android:scheme="file" android:host="*" android:pathPattern=".*\\.cgt" />
+                <data android:scheme="file" android:host="*" android:pathPattern=".*\\.CGT" />
             </intent-filter>
         </activity>
         <activity android:name=".activities.AboutActivity" />
