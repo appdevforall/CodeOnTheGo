@@ -270,6 +270,62 @@ class ExternalFileInstallViewModelTest {
 		}
 
 	@Test
+	fun `retrying Install after a failed install actually attempts install again`() =
+		runTest {
+			// Regression test: confirmTemplateInstall() clears pendingConfirmationTempFile on
+			// entry (transferring tempFile's "ownership" to the install attempt) but the dialog is
+			// deliberately left open on failure so the user can retry - if that field isn't
+			// restored, the retry tap's pendingConfirmationTempFile != tempFile guard silently
+			// no-ops forever, permanently stranding the user on an unresponsive dialog.
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+			coEvery { templateCollectionRepository.installCollection(any(), any(), any()) } returnsMany
+				listOf(Result.failure(IllegalStateException("disk full")), Result.success(Unit))
+
+			viewModel.onReceived(sourceUriFor("first.cgt"))
+			val effect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(effect.tempFile, effect.suggestedBaseName, overwrite = false),
+			)
+			assertThat(viewModel.uiEffect.first()).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
+
+			// Retry tap on the still-open dialog must actually attempt the install again, not
+			// silently no-op.
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(effect.tempFile, effect.suggestedBaseName, overwrite = false),
+			)
+			assertThat(viewModel.uiEffect.first()).isInstanceOf(ExternalFileInstallUiEffect.ShowSuccess::class.java)
+			coVerify(exactly = 2) { templateCollectionRepository.installCollection(any(), any(), any()) }
+		}
+
+	@Test
+	fun `cancelling after a failed install still finishes`() =
+		runTest {
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+			coEvery { templateCollectionRepository.installCollection(any(), any(), any()) } returns
+				Result.failure(IllegalStateException("disk full"))
+
+			viewModel.onReceived(sourceUriFor("first.cgt"))
+			val effect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(effect.tempFile, effect.suggestedBaseName, overwrite = false),
+			)
+			assertThat(viewModel.uiEffect.first()).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
+
+			// Cancel/back on the still-open dialog after a failed install must still Finish, not
+			// silently no-op.
+			viewModel.onEvent(ExternalFileInstallUiEvent.IgnoreTemplateInstall(effect.tempFile))
+			assertThat(viewModel.uiEffect.first()).isInstanceOf(ExternalFileInstallUiEffect.Finish::class.java)
+		}
+
+	@Test
 	fun `invalid cgt shows invalid-file error`() =
 		runTest {
 			stubTemplatesFeatureAvailable(true)

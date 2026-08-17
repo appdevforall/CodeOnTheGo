@@ -40,7 +40,7 @@ object ApkInstaller {
 	): Boolean {
 		val isValidApk =
 			withContext(Dispatchers.IO) {
-				apk.exists() && apk.isFile && apk.extension == "apk"
+				apk.exists() && apk.isFile && apk.extension.equals("apk", ignoreCase = true)
 			}
 		if (!isValidApk) {
 			log.error("File is not an APK: {}", apk)

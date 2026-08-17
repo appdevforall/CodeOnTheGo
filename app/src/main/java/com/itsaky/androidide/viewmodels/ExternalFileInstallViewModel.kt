@@ -302,6 +302,12 @@ class ExternalFileInstallViewModel(
 						// they can retry - e.g. pick a different name after a collision, or
 						// Overwrite instead. If a newer request has since superseded this dialog,
 						// there's nothing left on-screen to retry against, so skip ShowError too.
+						// Restore pendingConfirmationTempFile/Generation (cleared above on entry):
+						// a retry tap or Cancel/back on this still-open dialog must match again, or
+						// confirmTemplateInstall()/IgnoreTemplateInstall's guards would treat every
+						// button on it as a permanent no-op from here on.
+						pendingConfirmationTempFile = tempFile
+						pendingConfirmationGeneration = generation
 						_uiEffect.trySend(
 							ExternalFileInstallUiEffect.ShowError(
 								R.string.msg_template_install_failed,
