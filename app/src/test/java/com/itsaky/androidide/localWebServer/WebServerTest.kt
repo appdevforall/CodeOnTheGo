@@ -3,7 +3,6 @@ package com.itsaky.androidide.localWebServer
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
 import android.os.Process
-import android.util.Log
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -38,17 +37,11 @@ class WebServerTest {
 			SQLiteDatabase.openDatabase(any(), isNull(), any())
 		} returns mockk<SQLiteDatabase>(relaxed = true)
 
-		// SqliteMmapConfigurator.configureMmap(), called right after openDatabase, uses
-		// Process.is64Bit() and Log.i()/Log.w() (the relaxed db mock's rawQuery() returns
-		// a cursor whose moveToFirst() defaults to false, taking the Log.w "not enabled"
-		// branch); none of that is mocked by Android's unit-test stubs like SQLiteDatabase
-		// is, so all three throw unless stubbed here.
+		// SqliteMmapConfigurator.configureMmap(), called right after openDatabase, reads
+		// Process.is64Bit(), which Android's unit-test stubs leave throwing. Its logging
+		// needs no stubbing -- that goes through slf4j, not android.util.Log.
 		mockkStatic(Process::class)
 		every { Process.is64Bit() } returns true
-
-		mockkStatic(Log::class)
-		every { Log.i(any(), any()) } returns 0
-		every { Log.w(any(), any<String>()) } returns 0
 	}
 
 	@After

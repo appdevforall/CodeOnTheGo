@@ -40,9 +40,23 @@ object SqliteMmapConfigurator {
 
 		val requestedSize = File(dbPath).length()
 
+		// A zero length means an empty or unstattable file, and PRAGMA mmap_size=0 is
+		// SQLite's way of *disabling* mmap -- so issuing it here would turn off whatever
+		// the platform default was, the opposite of doing nothing on failure.
+		if (requestedSize <= 0L) {
+			logger.warn("Not enabling mmap for '{}': the file reports a length of {} bytes.", dbPath, requestedSize)
+			return
+		}
+
 		try {
 			// PRAGMA mmap_size=N returns the granted size as a result row, and Android's
 			// execSQL() rejects any statement that returns data -- rawQuery() is required.
+			//
+			// The PRAGMA binds to the *connection* that runs it, not to the SQLiteDatabase.
+			// That is invisible today only because Android caps the pool at one connection
+			// for a non-WAL database; opening this one with ENABLE_WRITE_AHEAD_LOGGING would
+			// leave the other connections un-mmap'd while the log line below still claims
+			// success.
 			val actualSize =
 				db.rawQuery("PRAGMA mmap_size=$requestedSize", null).use { c ->
 					if (c.moveToFirst()) c.getLong(0) else -1L

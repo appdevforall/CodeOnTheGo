@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,9 +32,9 @@ class SqliteMmapConfiguratorTest {
 			writable.execSQL("INSERT INTO Padding (value) VALUES (?)", arrayOf("x".repeat(4096)))
 		}
 
-		// Both call sites that configure mmap -- WebServer and ToolTipManager -- open
-		// OPEN_READONLY (see docs/documentation-database.md); match that here rather than
-		// testing against a writable connection.
+		// The one call site that configures mmap, WebServer, opens OPEN_READONLY (see
+		// docs/documentation-database.md); match that here rather than testing against a
+		// writable connection.
 		db = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
 	}
 
@@ -47,10 +48,12 @@ class SqliteMmapConfiguratorTest {
 		}
 	}
 
+	// Returns -1 when the PRAGMA yields no row at all, which is what a build with
+	// SQLITE_MAX_MMAP_SIZE=0 does -- the pragma body is compiled out. Reading column 0
+	// regardless would throw CursorIndexOutOfBoundsException and hide that cause.
 	private fun readMmapSize(): Long =
 		db.rawQuery("PRAGMA mmap_size", null).use { c ->
-			c.moveToFirst()
-			c.getLong(0)
+			if (c.moveToFirst()) c.getLong(0) else -1L
 		}
 
 	// This device's actual bitness decides which branch runs, matching the production
@@ -65,7 +68,18 @@ class SqliteMmapConfiguratorTest {
 		val mmapSizeAfterCall = readMmapSize()
 
 		if (Process.is64Bit()) {
-			assertEquals(dbFile.length(), mmapSizeAfterCall)
+			// Only "at most what was asked for" is guaranteed: SQLite clamps the grant to
+			// SQLITE_MAX_MMAP_SIZE, and a build with that set to 0 grants nothing at all.
+			assertTrue(
+				"SQLite granted $mmapSizeAfterCall bytes for a ${dbFile.length()}-byte file",
+				mmapSizeAfterCall <= dbFile.length(),
+			)
+
+			// This file is a few KB, so on any build that supports mmap at all it fits
+			// entirely -- a non-zero but short grant would be a real bug, not clamping.
+			if (mmapSizeAfterCall > 0) {
+				assertEquals(dbFile.length(), mmapSizeAfterCall)
+			}
 		} else {
 			assertEquals(mmapSizeBeforeCall, mmapSizeAfterCall)
 		}

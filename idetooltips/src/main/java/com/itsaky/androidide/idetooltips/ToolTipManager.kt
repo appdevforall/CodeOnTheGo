@@ -31,7 +31,6 @@ import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeedbackManager
-import com.itsaky.androidide.utils.SqliteMmapConfigurator
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.toCssHex
@@ -87,7 +86,11 @@ object TooltipManager {
 
 			try {
 				SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY).use { database ->
-					SqliteMmapConfigurator.configureMmap(database)
+					// Deliberately no SqliteMmapConfigurator here (ADFA-4979): this path opens
+					// and closes a connection per tooltip, so mmap'ing the whole ~200 MB file
+					// would charge an mmap()/munmap() and a PRAGMA round trip to replace two
+					// small indexed queries' worth of read(). mmap only pays off on a
+					// long-lived connection like WebServer's.
 
 					val lastChange = try {
 						DatabaseVersionResolver.resolveDatabaseVersion(database)

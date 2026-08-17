@@ -69,7 +69,9 @@ CREATE TABLE Tooltips (
 
 ## How CoGo talks to this database
 
-The two read paths below — `WebServer` and `ToolTipManager` — open the file with `SQLiteDatabase.openDatabase(..., OPEN_READONLY)`; only `PluginDocumentationManager` opens it `OPEN_READWRITE`, to merge in plugin-contributed content (see ADR 0001 for why raw SQLite is justified here instead of Room). Those same two read paths additionally call `SqliteMmapConfigurator.configureMmap()` right after opening, requesting a memory map the size of the file so SQLite pages it in through virtual memory instead of `read()` (ADFA-4979). SQLite may grant less than the request, or nothing at all — that's logged, not enforced. The call is a no-op on 32-bit processes, and any failure degrades to a logged warning rather than blocking the read.
+The two read paths below — `WebServer` and `ToolTipManager` — open the file with `SQLiteDatabase.openDatabase(..., OPEN_READONLY)`; only `PluginDocumentationManager` opens it `OPEN_READWRITE`, to merge in plugin-contributed content (see ADR 0001 for why raw SQLite is justified here instead of Room).
+
+Of those, only `WebServer` calls `SqliteMmapConfigurator.configureMmap()` right after opening, requesting a memory map the size of the file so SQLite pages it in through virtual memory instead of `read()` (ADFA-4979). SQLite may grant less than the request, or nothing at all — that's logged, not enforced. The call is a no-op on 32-bit processes, and any failure degrades to a logged warning rather than blocking the read. `ToolTipManager` deliberately does **not** mmap: it opens and closes a connection per tooltip, so mapping the whole file would cost more than the two small indexed queries it saves. mmap only amortizes across a long-lived connection. Two consequences worth knowing before touching this: mapped pages sit outside `cache_size`'s bound and count toward process RSS, and I/O errors against a mapped file surface as an uncatchable SIGBUS rather than a `SQLiteException` — both are being measured in ADFA-5136.
 
 - **`app/.../localWebServer/WebServer.kt`** — serves Tier 3. On each `GET`, runs:
 
