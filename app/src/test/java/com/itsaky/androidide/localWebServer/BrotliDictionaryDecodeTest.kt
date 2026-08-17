@@ -2,13 +2,17 @@ package com.itsaky.androidide.localWebServer
 
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
+import com.aayushatharva.brotli4j.encoder.BrotliOutputStream
+import com.aayushatharva.brotli4j.encoder.Encoder
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertThrows
 import org.junit.BeforeClass
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import java.util.Base64
 
 // Regression coverage for ADFA-5153: documentation.db's Content rows are Brotli-compressed
@@ -174,5 +178,31 @@ class BrotliDictionaryDecodeTest {
 		assertThrows(IOException::class.java) {
 			BrotliInputStream(ByteArrayInputStream(compressed)).use { it.readBytes() }
 		}
+	}
+
+	@Test
+	fun `dictionary-free plugin content fails with a dictionary attached but decodes plain`() {
+		// Regression coverage for the WebServer.decompressBrotli fallback: plugin-contributed
+		// Tier 3 docs (PluginDocumentationManager/BrotliCompressor) are compressed with the same
+		// encoder params (quality 11, window 24) but no dictionary, coexisting in the same Content
+		// table as ADFA-5153-migrated, dictionary-compressed rows.
+		val dictionary = decodeBase64ToDirectBuffer(dictionaryBase64)
+		val plaintext = "plugin-contributed Tier 3 content, compressed with no dictionary"
+		val expected = plaintext.toByteArray(StandardCharsets.UTF_8)
+		val compressed =
+			ByteArrayOutputStream()
+				.apply {
+					BrotliOutputStream(this, Encoder.Parameters().setQuality(11).setWindow(24)).use { it.write(expected) }
+				}.toByteArray()
+
+		assertThrows(IOException::class.java) {
+			BrotliInputStream(ByteArrayInputStream(compressed)).use { stream ->
+				stream.attachDictionary(dictionary)
+				stream.readBytes()
+			}
+		}
+
+		val plainResult = BrotliInputStream(ByteArrayInputStream(compressed)).use { it.readBytes() }
+		assertArrayEquals(expected, plainResult)
 	}
 }

@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -62,6 +63,16 @@ data class JavaExecutionResult(
 	val compileTimeMs: Long,
 	val timeoutLimit: Long,
 )
+
+/**
+ * Copies [bytes] into a direct [ByteBuffer] -- brotli4j's `attachDictionary` requires a direct
+ * buffer, a heap-backed one throws `IllegalArgumentException`.
+ */
+internal fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
+	ByteBuffer.allocateDirect(bytes.size).apply {
+		put(bytes)
+		flip()
+	}
 
 class WebServer(
 	private val config: ServerConfig,
@@ -137,35 +148,99 @@ class WebServer(
 	}
 
 	/**
-	 * Loads the shared Brotli dictionary Content's compressed rows are compressed against (see
-	 * ADFA-5153) into a direct [ByteBuffer] -- brotli4j's `attachDictionary` requires a direct
-	 * buffer, a heap-backed one throws `IllegalArgumentException`. Returns null (logged once)
-	 * if `CompressionDictionary` doesn't exist -- a database that predates the dictionary
-	 * migration -- so callers fall back to plain, dictionary-free brotli decode.
+	 * Loads the shared Brotli dictionary most Content rows are compressed against (see ADFA-5153).
+	 * Returns null (logged) on any failure to load one -- a database that predates the dictionary
+	 * migration, a schema/row anomaly, or any other error -- so callers always fall back to plain,
+	 * dictionary-free brotli decode rather than propagating the failure (see [decompressBrotli]).
 	 */
 	private fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
-		val tableExists =
-			db
-				.rawQuery(
-					"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
-					null,
-				).use { it.moveToFirst() }
-		if (!tableExists) {
-			log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
-			return null
-		}
-
-		return db.rawQuery("SELECT data FROM CompressionDictionary WHERE id = 1", null).use { cursor ->
-			if (!cursor.moveToFirst()) {
-				log.warn("CompressionDictionary table is empty; decoding brotli content without a dictionary.")
+		// Whole body wrapped in one catch-all (matching DatabaseVersionResolver.resolveDatabaseVersion's
+		// pattern) rather than hand-anticipating individual SQLiteExceptions: a caller-visible failure
+		// here must never abort start() or leave a stale dictionary un-retried after a debug-DB swap --
+		// falling back to null (plain, dictionary-free decode) is always the safe choice.
+		return try {
+			val tableExists =
+				db
+					.rawQuery(
+						"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
+						null,
+					).use { it.moveToFirst() }
+			if (!tableExists) {
+				log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
 				return null
 			}
-			val bytes = cursor.getBlob(0)
-			ByteBuffer.allocateDirect(bytes.size).apply {
-				put(bytes)
-				flip()
+
+			db.rawQuery("SELECT data FROM CompressionDictionary WHERE id = 1", null).use { cursor ->
+				if (!cursor.moveToFirst()) {
+					log.warn("CompressionDictionary table is empty; decoding brotli content without a dictionary.")
+					return null
+				}
+				val bytes = cursor.getBlob(0)
+				if (bytes == null) {
+					log.warn("CompressionDictionary row has a NULL data column; decoding brotli content without a dictionary.")
+					return null
+				}
+				toDirectByteBuffer(bytes)
+			}
+		} catch (e: Exception) {
+			log.error("Could not load compression dictionary; decoding brotli content without a dictionary: {}", e.message)
+			null
+		}
+	}
+
+	/**
+	 * Opens [path] as the active database, refreshing every piece of state that depends on which
+	 * database file is active -- [databaseTimestamp], [compressionDictionary], and the per-database
+	 * caches [bookshelfTemplateId]/[templateCache] -- as one atomic operation, so a request never
+	 * observes a database swapped in without its matching dictionary/caches. Only closes the
+	 * previous database once the new one has opened successfully, so a failed swap (this throws)
+	 * leaves the previous, still-open database serving requests rather than leaving [database]
+	 * referencing an already-closed handle.
+	 */
+	private fun switchToDatabase(
+		path: String,
+		timestamp: Long,
+	) {
+		val newDatabase = SQLiteDatabase.openDatabase(path, null, SQLiteDatabase.OPEN_READONLY)
+		if (::database.isInitialized) {
+			try {
+				database.close()
+			} catch (e: Exception) {
+				log.error("Cannot close previous database: {}", e.message)
 			}
 		}
+		database = newDatabase
+		databaseTimestamp = timestamp
+		compressionDictionary = loadCompressionDictionary(database)
+		bookshelfTemplateId = -1
+		templateCache.clear()
+	}
+
+	/**
+	 * Decompresses one Brotli-compressed Content row. Tries the shared dictionary first, since every
+	 * ADFA-5153-migrated row requires it, then falls back to a plain decode for rows that were never
+	 * dictionary-compressed: plugin-contributed Tier 3 docs (PluginDocumentationManager/BrotliCompressor
+	 * compress with no dictionary) or any row served from a pre-migration database. Attaching a
+	 * dictionary to a stream that wasn't compressed against one reliably fails to decode rather than
+	 * silently producing wrong bytes (verified empirically -- see docs/documentation-database.md), so
+	 * this ordering never lets a dictionary-compressed row fall through to the plain path by accident.
+	 */
+	private fun decompressBrotli(content: ByteArray): ByteArray {
+		val dictionary = compressionDictionary
+		if (dictionary != null) {
+			try {
+				return BrotliInputStream(ByteArrayInputStream(content)).use { stream ->
+					stream.attachDictionary(dictionary)
+					stream.readBytes()
+				}
+			} catch (e: IOException) {
+				log.debug(
+					"Dictionary decode failed for a brotli row (likely dictionary-free plugin content); retrying without a dictionary: {}",
+					e.message,
+				)
+			}
+		}
+		return BrotliInputStream(ByteArrayInputStream(content)).use { it.readBytes() }
 	}
 
 	/**
@@ -203,15 +278,12 @@ class WebServer(
 				config.experimentsEnablePath,
 			)
 
-			databaseTimestamp = getDatabaseTimestamp(config.databasePath)
-
 			try {
-				database = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
+				switchToDatabase(config.databasePath, getDatabaseTimestamp(config.databasePath))
 			} catch (e: Exception) {
 				log.error("Cannot open database: {}", e.message)
 				return
 			}
-			compressionDictionary = loadCompressionDictionary(database)
 
 			// NEW FEATURE: Log database metadata when debug is enabled
 			if (debugEnabled) logDatabaseLastChanged()
@@ -343,7 +415,7 @@ class WebServer(
 		var path = parts[1].split("?")[0] // Discard any HTTP query parameters.
 		path = path.substring(1)
 
-		// Read all headers until blank line (needed for Content-Length on POST and Accept-Encoding on GET)
+		// Read all headers until blank line (needed for Content-Length on POST)
 		val headers = mutableMapOf<String, String>()
 		while (true) {
 			requestLine = readLineFromStream(input) ?: break
@@ -369,11 +441,11 @@ class WebServer(
 		// if there is use that for our responses
 		val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
 		if (debugDatabaseTimestamp > databaseTimestamp) {
-			bookshelfTemplateId = -1
-			database.close()
-			database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
-			databaseTimestamp = debugDatabaseTimestamp
-			compressionDictionary = loadCompressionDictionary(database)
+			try {
+				switchToDatabase(config.debugDatabasePath, debugDatabaseTimestamp)
+			} catch (e: Exception) {
+				log.error("Cannot swap to debug database '{}': {}", config.debugDatabasePath, e.message)
+			}
 		}
 
 		// Handle the special "pr" endpoint with highest priority
@@ -443,15 +515,13 @@ class WebServer(
 				dbContent = combined.toByteArray()
 			}
 
-			// Content is compressed at rest with brotli, against the shared dictionary loaded
-			// into compressionDictionary (see ADFA-5153) -- this server always decompresses
-			// before responding, so it never needs to negotiate Content-Encoding with the client.
+			// Content is compressed at rest with brotli -- most rows against the shared dictionary
+			// loaded into compressionDictionary (see ADFA-5153), but plugin-contributed Tier 3 docs
+			// (PluginDocumentationManager/BrotliCompressor) are plain brotli with no dictionary.
+			// This server always decompresses before responding, so it never needs to negotiate
+			// Content-Encoding with the client.
 			if (compression == "brotli") {
-				dbContent =
-					BrotliInputStream(ByteArrayInputStream(dbContent)).use { stream ->
-						compressionDictionary?.let { stream.attachDictionary(it) }
-						stream.readBytes()
-					}
+				dbContent = decompressBrotli(dbContent)
 				compression = "none"
 			}
 
