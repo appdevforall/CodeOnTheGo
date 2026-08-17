@@ -38,6 +38,18 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 			templatesDir
 				.listFiles { file -> file.extension.equals(TEMPLATE_ARCHIVE_EXTENSION, ignoreCase = true) }
 				?.firstOrNull { it.nameWithoutExtension.equals(baseName, ignoreCase = true) }
+
+		/**
+		 * Renames [src] to [dst], falling back to copy+delete - renameTo() is unreliable on-device
+		 * even for a same-directory move (confirmed during this PR). [src] is gone on success
+		 * either way; left untouched on failure.
+		 */
+		private fun moveFile(
+			src: File,
+			dst: File,
+		): Boolean =
+			src.renameTo(dst) ||
+				runCatching { src.copyTo(dst, overwrite = true) }.isSuccess.also { copied -> if (copied) src.delete() }
 	}
 
 	override suspend fun inspectCollection(candidateFile: File): Result<TemplateCollectionRepository.CollectionInfo> =
@@ -140,52 +152,33 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 
 				// Back up (rather than delete) any existing destFile, so it can be put back if
 				// the swap below fails for any reason - the existing collection is only ever
-				// removed once the new one is confirmed successfully in its place. Same
-				// renameTo()-then-copyTo() fallback as the swap below: renameTo() is unreliable
-				// on-device even for a same-directory move (confirmed there during this PR).
+				// removed once the new one is confirmed successfully in its place.
 				val hadExisting = destFile.exists()
 				val backupFile = File(templatesDir, "${destFile.name}.${UUID.randomUUID()}.bak")
-				if (hadExisting) {
-					val backedUp =
-						destFile.renameTo(backupFile) ||
-							runCatching { destFile.copyTo(backupFile, overwrite = true).also { destFile.delete() } }.isSuccess
-					if (!backedUp) {
-						stagingFile.delete()
-						throw IllegalStateException("Failed to back up existing file before replacing: ${destFile.name}")
-					}
+				if (hadExisting && !moveFile(destFile, backupFile)) {
+					stagingFile.delete()
+					throw IllegalStateException("Failed to back up existing file before replacing: ${destFile.name}")
 				}
 
 				// Both files are now on the same volume (templatesDir), so this is a cheap,
 				// same-directory move - renameTo() failing here (as opposed to across the
 				// temp/templates boundary candidateFile itself would have to cross) would be
-				// unexpected, but fall back to a copy anyway.
-				val swapSucceeded =
-					stagingFile.renameTo(destFile) ||
-						runCatching { stagingFile.copyTo(destFile, overwrite = true) }.isSuccess
-
-				if (!swapSucceeded) {
-					if (hadExisting) {
-						val restored =
-							backupFile.renameTo(destFile) ||
-								runCatching { backupFile.copyTo(destFile, overwrite = true) }.isSuccess
-						if (!restored) {
-							// Nothing more we can do here - surface it loudly rather than silently
-							// leaving the user's original collection sitting under the backup's
-							// random filename, invisible to findExistingCollision().
-							log.error(
-								"Failed to restore backup after a failed swap for \"{}\" - original content may still be at: {}",
-								destFile.name,
-								backupFile.name,
-							)
-						} else {
-							backupFile.delete()
-						}
+				// unexpected, but moveFile() falls back to a copy anyway.
+				if (!moveFile(stagingFile, destFile)) {
+					if (hadExisting && !moveFile(backupFile, destFile)) {
+						// Nothing more we can do here - surface it loudly rather than silently
+						// leaving the user's original collection sitting under the backup's
+						// random filename, invisible to findExistingCollision().
+						log.error(
+							"Failed to restore backup after a failed swap for \"{}\" - original content may still be at: {}",
+							destFile.name,
+							backupFile.name,
+						)
 					}
 					stagingFile.delete()
 					throw IllegalStateException("Failed to replace existing file: ${destFile.name}")
 				}
 
-				stagingFile.delete()
 				if (hadExisting && backupFile.exists() && !backupFile.delete()) {
 					log.warn("Installed but failed to delete backup file: {}", backupFile.name)
 				}

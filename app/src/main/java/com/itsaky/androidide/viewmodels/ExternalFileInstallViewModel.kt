@@ -93,11 +93,24 @@ class ExternalFileInstallViewModel(
 	// there's no ordering ambiguity about which file it refers to.
 	private var pendingConfirmationTempFile: File? = null
 
+	// The generation pendingConfirmationTempFile actually belongs to - NOT necessarily
+	// currentRequestGeneration, which can already have moved on to a newer, still-in-flight
+	// request by the time the user taps a button on the dialog still on screen (its onReceived()
+	// bumped the counter synchronously, but hasn't reached supersedePendingConfirmation() yet).
+	// confirmTemplateInstall()/onEvent() must key off this, not the live counter, or a stale
+	// dialog's action gets misattributed to the newer request and can tear the Activity down out
+	// from under it.
+	private var pendingConfirmationGeneration: Int = 0
+
 	private fun isCurrentGeneration(generation: Int) = generation == currentRequestGeneration
 
-	private suspend fun supersedePendingConfirmation(newPendingFile: File?) {
+	private suspend fun supersedePendingConfirmation(
+		newPendingFile: File?,
+		newGeneration: Int,
+	) {
 		pendingConfirmationTempFile?.let { old -> if (old != newPendingFile) deleteQuietly(old) }
 		pendingConfirmationTempFile = newPendingFile
+		pendingConfirmationGeneration = newGeneration
 	}
 
 	/** Call once, from `Activity.onCreate()`/`onNewIntent()`, with the VIEW intent's data [Uri]. */
@@ -164,7 +177,7 @@ class ExternalFileInstallViewModel(
 				// Forwarded as a plain path, not a content:// Uri: both activities run in this
 				// same process and already trust filesDir paths, so PluginManagerViewModel can
 				// install straight from this file instead of copying it a second time.
-				supersedePendingConfirmation(null)
+				supersedePendingConfirmation(null, generation)
 				_uiEffect.trySend(ExternalFileInstallUiEffect.ForwardToPluginManager(tempFile.absolutePath))
 			} else {
 				dispatchTemplateInstall(tempFile, baseName, generation)
@@ -200,7 +213,7 @@ class ExternalFileInstallViewModel(
 			return
 		}
 
-		supersedePendingConfirmation(tempFile)
+		supersedePendingConfirmation(tempFile, generation)
 		// This dialog's buttons must start enabled regardless of whether some earlier,
 		// now-abandoned generation's install is still finishing up in the background (see
 		// confirmTemplateInstall()'s own generation check for the other half of this).
@@ -223,10 +236,16 @@ class ExternalFileInstallViewModel(
 			}
 
 			is ExternalFileInstallUiEvent.IgnoreTemplateInstall -> {
-				if (pendingConfirmationTempFile == event.tempFile) pendingConfirmationTempFile = null
-				viewModelScope.launch {
-					deleteQuietly(event.tempFile)
-					_uiEffect.trySend(ExternalFileInstallUiEffect.Finish)
+				// If this doesn't match, the dialog this event was fired from has already been
+				// superseded (and its tempFile already deleted by supersedePendingConfirmation) -
+				// nothing left on screen to Finish, and Finish-ing anyway would tear down the
+				// Activity out from under whatever newer dialog is now showing.
+				if (pendingConfirmationTempFile == event.tempFile) {
+					pendingConfirmationTempFile = null
+					viewModelScope.launch {
+						deleteQuietly(event.tempFile)
+						_uiEffect.trySend(ExternalFileInstallUiEffect.Finish)
+					}
 				}
 			}
 		}
@@ -241,16 +260,21 @@ class ExternalFileInstallViewModel(
 		// the second call's renameTo()/copyTo() would otherwise race the first's on the same
 		// tempFile and surface a spurious failure toast.
 		if (_isInstalling.value) return
+		// If this doesn't match, the dialog this event was fired from has already been superseded
+		// (its tempFile already deleted by supersedePendingConfirmation) - there's nothing left to
+		// install, and proceeding anyway would mean using currentRequestGeneration as this
+		// install's generation, misattributing it to whatever newer request bumped the counter.
+		if (pendingConfirmationTempFile != tempFile) return
 		_isInstalling.value = true
-		// Captured now: if a newer onReceived() supersedes this one's dialog before this install
-		// finishes (see dispatchTemplateInstall()), this install must neither tear down the
-		// Activity out from under the newer dialog nor touch _isInstalling/pendingConfirmation
-		// state that by then belongs to a completely different request.
-		val generation = currentRequestGeneration
+		// The generation the now-showing dialog was committed under - NOT currentRequestGeneration,
+		// which may already have moved on to a newer, still-in-flight request (see
+		// pendingConfirmationGeneration's kdoc). This install must neither tear down the Activity
+		// out from under that newer request nor touch state that by then belongs to it.
+		val generation = pendingConfirmationGeneration
 		// From here on, tempFile's fate is owned by this install attempt, not "a dialog awaiting
 		// an answer" - a subsequent onReceived() for a different file must not delete it out from
 		// under an install already in flight.
-		if (pendingConfirmationTempFile == tempFile) pendingConfirmationTempFile = null
+		pendingConfirmationTempFile = null
 
 		viewModelScope.launch {
 			templateCollectionRepository
@@ -278,7 +302,12 @@ class ExternalFileInstallViewModel(
 						// they can retry - e.g. pick a different name after a collision, or
 						// Overwrite instead. If a newer request has since superseded this dialog,
 						// there's nothing left on-screen to retry against, so skip ShowError too.
-						_uiEffect.trySend(ExternalFileInstallUiEffect.ShowError(R.string.msg_template_install_failed))
+						_uiEffect.trySend(
+							ExternalFileInstallUiEffect.ShowError(
+								R.string.msg_template_install_failed,
+								listOf(exception.message ?: exception.javaClass.simpleName),
+							),
+						)
 					}
 				}
 			if (isCurrentGeneration(generation)) {
@@ -300,7 +329,10 @@ class ExternalFileInstallViewModel(
 	suspend fun suggestUniqueBaseName(baseName: String): String {
 		var candidate = baseName
 		var suffix = 2
-		while (suffix <= MAX_SUGGESTION_ATTEMPTS && templateCollectionRepository.findExistingCollision(candidate) != null) {
+		// Collision must be checked before the attempt-count bound, not after: checking
+		// `suffix <= MAX` first would let the bound short-circuit the very last candidate's
+		// collision check, silently returning it unverified once the cap is hit.
+		while (templateCollectionRepository.findExistingCollision(candidate) != null && suffix <= MAX_SUGGESTION_ATTEMPTS) {
 			candidate = "$baseName ($suffix)"
 			suffix++
 		}
@@ -317,7 +349,7 @@ class ExternalFileInstallViewModel(
 		// A stale (already-superseded) request never reaches here (see the isCurrentGeneration
 		// check above), so whatever's still pending at this point genuinely belongs to an earlier,
 		// now-being-terminated request and must be cleaned up rather than left dangling.
-		supersedePendingConfirmation(null)
+		supersedePendingConfirmation(null, generation)
 		// See confirmTemplateInstall()'s onSuccess: the Screen suspends on ShowError until the
 		// flashbar is actually shown before processing Finish, so no delay is needed here either.
 		_uiEffect.trySend(ExternalFileInstallUiEffect.ShowError(messageResId))

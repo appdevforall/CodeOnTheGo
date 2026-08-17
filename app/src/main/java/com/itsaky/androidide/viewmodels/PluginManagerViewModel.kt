@@ -75,8 +75,11 @@ class PluginManagerViewModel(
 	// Public read-only state
 	val uiState: StateFlow<PluginManagerUiState> = _uiState.asStateFlow()
 
-	// Channel for one-time UI effects
-	private val _uiEffect = Channel<PluginManagerUiEffect>()
+	// Channel for one-time UI effects. Buffered (not rendezvous): a synchronous decision path
+	// (e.g. handlePendingInstallExtra()'s effect right after onCreate()/onNewIntent()) can
+	// otherwise complete before the Activity's collector actually attaches, silently dropping the
+	// effect - see ExternalFileInstallViewModel's identical reasoning for its own uiEffect.
+	private val _uiEffect = Channel<PluginManagerUiEffect>(capacity = Channel.BUFFERED)
 	val uiEffect = _uiEffect.receiveAsFlow()
 
 	// Current operation tracking
