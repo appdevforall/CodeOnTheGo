@@ -112,11 +112,14 @@ class TemplateCollectionRepositoryImplTest {
 	fun `installCollection copies the archive into TEMPLATES_DIR and deletes the source`() =
 		runTest {
 			val cgt = buildCgt("Empty Activity")
+			val expectedBytes = cgt.readBytes()
 
 			val result = repository.installCollection(cgt, "my-templates", overwrite = false)
 
 			assertThat(result.isSuccess).isTrue()
-			assertThat(File(templatesDir, "my-templates.cgt").exists()).isTrue()
+			val installed = File(templatesDir, "my-templates.cgt")
+			assertThat(installed.exists()).isTrue()
+			assertThat(installed.readBytes()).isEqualTo(expectedBytes)
 			assertThat(cgt.exists()).isFalse()
 		}
 
@@ -132,16 +135,42 @@ class TemplateCollectionRepositoryImplTest {
 		}
 
 	@Test
+	fun `installCollection without overwrite fails against an existing case-variant destination`() =
+		runTest {
+			File(templatesDir, "MyTemplates.CGT").writeText("existing")
+			val cgt = buildCgt("Empty Activity")
+
+			val result = repository.installCollection(cgt, "mytemplates", overwrite = false)
+
+			assertThat(result.isFailure).isTrue()
+		}
+
+	@Test
+	fun `installCollection with overwrite replaces an existing case-variant destination in place`() =
+		runTest {
+			val destination = File(templatesDir, "MyTemplates.CGT")
+			destination.writeText("stale content")
+			val cgt = buildCgt("Empty Activity")
+			val expectedBytes = cgt.readBytes()
+
+			val result = repository.installCollection(cgt, "mytemplates", overwrite = true)
+
+			assertThat(result.isSuccess).isTrue()
+			assertThat(destination.readBytes()).isEqualTo(expectedBytes)
+		}
+
+	@Test
 	fun `installCollection with overwrite replaces the existing destination`() =
 		runTest {
 			val destination = File(templatesDir, "my-templates.cgt")
 			destination.writeText("stale content")
 			val cgt = buildCgt("Empty Activity")
+			val expectedBytes = cgt.readBytes()
 
 			val result = repository.installCollection(cgt, "my-templates", overwrite = true)
 
 			assertThat(result.isSuccess).isTrue()
-			assertThat(destination.readText()).isNotEqualTo("stale content")
+			assertThat(destination.readBytes()).isEqualTo(expectedBytes)
 		}
 
 	@Test
@@ -189,12 +218,42 @@ class TemplateCollectionRepositoryImplTest {
 		}
 
 	@Test
+	fun `installCollection rejects a targetBaseName containing a backslash`() =
+		runTest {
+			val cgt = buildCgt("Empty Activity")
+
+			val result = repository.installCollection(cgt, "evil\\name", overwrite = false)
+
+			assertThat(result.isFailure).isTrue()
+		}
+
+	@Test
+	fun `installCollection rejects a bare dot targetBaseName`() =
+		runTest {
+			val cgt = buildCgt("Empty Activity")
+
+			val result = repository.installCollection(cgt, ".", overwrite = false)
+
+			assertThat(result.isFailure).isTrue()
+		}
+
+	@Test
+	fun `installCollection rejects a blank targetBaseName`() =
+		runTest {
+			val cgt = buildCgt("Empty Activity")
+
+			val result = repository.installCollection(cgt, "   ", overwrite = false)
+
+			assertThat(result.isFailure).isTrue()
+		}
+
+	@Test
 	fun `installCollection preserves the existing collection if the incoming archive cannot be staged`() =
 		runTest {
 			val destination = File(templatesDir, "my-templates.cgt")
 			destination.writeText("stale but valid content")
-			// A candidate that no longer exists can't be renamed or copied into staging, so the
-			// staging step fails before destFile is ever touched.
+			// A candidate that no longer exists can't be copied into staging, so the staging
+			// step fails before destFile is ever touched.
 			val missingCandidate = File(tempFolder.newFolder(), "gone.cgt")
 
 			val result = repository.installCollection(missingCandidate, "my-templates", overwrite = true)
@@ -202,5 +261,19 @@ class TemplateCollectionRepositoryImplTest {
 			assertThat(result.isFailure).isTrue()
 			assertThat(destination.exists()).isTrue()
 			assertThat(destination.readText()).isEqualTo("stale but valid content")
+		}
+
+	@Test
+	fun `installCollection leaves candidateFile untouched so the caller can retry after a failure`() =
+		runTest {
+			// A reserved-name failure happens before any file I-O, so candidateFile must still be
+			// exactly where the caller left it - this is the contract ExternalFileInstallViewModel
+			// relies on to keep the retry dialog usable after a failed install.
+			val cgt = buildCgt("Empty Activity")
+
+			val result = repository.installCollection(cgt, "core", overwrite = true)
+
+			assertThat(result.isFailure).isTrue()
+			assertThat(cgt.exists()).isTrue()
 		}
 }

@@ -17,6 +17,10 @@ import java.io.File
  * Implementation of [TemplateCollectionRepository]. Templates are pure data (a zip archive
  * copied into [Environment.TEMPLATES_DIR]) so, unlike plugins, installing one never requires an
  * app restart - [ITemplateProvider.getInstance] just needs to be reloaded.
+ *
+ * All suspend functions here hop to [Dispatchers.IO] internally, so callers don't need to. On
+ * failure, [installCollection] always leaves its `candidateFile` argument untouched (see that
+ * function's kdoc) so the caller can retry with the same file.
  */
 class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 	private companion object {
@@ -53,6 +57,7 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 					templateNames = templates.map { it.templateNameStr },
 				)
 			}.onFailure { exception ->
+				if (exception is CancellationException) throw exception
 				log.error("Failed to inspect template collection: {}", candidateFile.name, exception)
 			}
 		}
@@ -69,6 +74,11 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 			}
 		}
 
+	/**
+	 * Installs [candidateFile] as `<targetBaseName>.cgt` in [Environment.TEMPLATES_DIR]. On any
+	 * failure (including a validation error), [candidateFile] is left untouched so the caller can
+	 * retry - it's only deleted once the install has fully succeeded.
+	 */
 	override suspend fun installCollection(
 		candidateFile: File,
 		targetBaseName: String,
@@ -116,17 +126,14 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 					throw IllegalArgumentException("Invalid template collection name: \"$targetBaseName\"")
 				}
 
-				// Stage the incoming archive fully under templatesDir before touching destFile,
-				// so a failure while writing the new content never destroys the existing
-				// collection - only once the new file is confirmed on disk do we delete the old
-				// one and swap the staged file into place.
+				// Stage a copy of the incoming archive fully under templatesDir before touching
+				// destFile, so a failure while writing the new content never destroys the
+				// existing collection. candidateFile itself is deliberately left alone here (not
+				// moved/deleted) so that if anything below fails, the caller can retry the whole
+				// call with the same file - it's only deleted once the swap and the provider
+				// reload have both fully succeeded.
 				val stagingFile = File(templatesDir, "${destFile.name}.tmp")
-				if (!candidateFile.renameTo(stagingFile)) {
-					candidateFile.copyTo(stagingFile, overwrite = true)
-					if (!candidateFile.delete()) {
-						log.warn("Installed but failed to delete source temp file: {}", candidateFile.name)
-					}
-				}
+				candidateFile.copyTo(stagingFile, overwrite = true)
 
 				if (destFile.exists() && !destFile.delete()) {
 					stagingFile.delete()
@@ -135,7 +142,8 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 
 				// Both files are now on the same volume (templatesDir), so this is a cheap,
 				// same-directory move - renameTo() failing here (as opposed to across the
-				// temp/templates boundary above) would be unexpected, but fall back anyway.
+				// temp/templates boundary candidateFile itself would have to cross) would be
+				// unexpected, but fall back anyway.
 				if (!stagingFile.renameTo(destFile)) {
 					stagingFile.copyTo(destFile, overwrite = true)
 					if (!stagingFile.delete()) {
@@ -144,8 +152,13 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 				}
 
 				ITemplateProvider.getInstance(reload = true)
+
+				if (!candidateFile.delete()) {
+					log.warn("Installed but failed to delete source temp file: {}", candidateFile.name)
+				}
 				Unit
 			}.onFailure { exception ->
+				if (exception is CancellationException) throw exception
 				log.error("Failed to install template collection: {}", candidateFile.name, exception)
 			}
 		}

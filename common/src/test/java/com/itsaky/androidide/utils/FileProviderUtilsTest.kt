@@ -6,6 +6,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.Test
 
+/** Every `content://` Uri this app mints or checks must agree on the same FileProvider authority string. */
 class FileProviderUtilsTest {
 	@Test
 	fun `fileProviderAuthorityFor appends the fixed suffix to the package name`() {
