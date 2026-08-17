@@ -2,7 +2,7 @@ package com.itsaky.androidide.activities
 
 import android.app.Activity
 import android.content.Intent
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -238,13 +239,15 @@ private fun NameConflictDialog(
 				),
 			)
 		},
+		// Three actions don't fit in AlertDialog's default single-row confirm/dismiss layout
+		// without wrapping awkwardly (e.g. two buttons stacked oddly against the third) - stack
+		// them vertically instead, right-aligned, all within the confirmButton slot (dismissButton
+		// left unset).
 		confirmButton = {
-			TextButton(onClick = onOverwrite, enabled = installEnabled) { Text(stringResource(R.string.btn_overwrite)) }
-		},
-		dismissButton = {
-			Row {
-				TextButton(onClick = onDismiss, enabled = installEnabled) { Text(stringResource(android.R.string.cancel)) }
+			Column(horizontalAlignment = Alignment.End) {
+				TextButton(onClick = onOverwrite, enabled = installEnabled) { Text(stringResource(R.string.btn_overwrite)) }
 				TextButton(onClick = onRename, enabled = installEnabled) { Text(stringResource(R.string.btn_rename_and_install)) }
+				TextButton(onClick = onDismiss, enabled = installEnabled) { Text(stringResource(android.R.string.cancel)) }
 			}
 		},
 	)
