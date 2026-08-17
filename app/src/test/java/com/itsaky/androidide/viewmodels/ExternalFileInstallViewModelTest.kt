@@ -192,6 +192,18 @@ class ExternalFileInstallViewModelTest {
 			assertThat(suggested).isEqualTo("foo (3)")
 		}
 
+	@Test
+	fun `suggestUniqueBaseName gives up after a bounded number of attempts`() =
+		runTest {
+			// A pathological repository that always reports a collision must not hang this
+			// suspend function forever.
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns "always-taken"
+
+			val suggested = viewModel.suggestUniqueBaseName("foo")
+
+			assertThat(suggested).isEqualTo("foo (50)")
+		}
+
 	private fun stubPluginManagerAvailable(available: Boolean) {
 		every { pluginRepository.isPluginManagerAvailable() } returns available
 	}

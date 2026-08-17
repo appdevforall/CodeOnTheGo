@@ -60,15 +60,23 @@ private fun Flashbar.Builder.applyIcon(iconType: IconType): Flashbar.Builder =
 		IconType.INFO -> this.infoIcon()
 	}
 
-private fun Activity.showFlashBar(
+/**
+ * Builds and configures a Flashbar for [msg]/[iconType] (icon, and - for an indefinite error - the
+ * dismiss button), without showing it yet. Shared by [showFlashBar] and [showFlashBarAwaitShown]
+ * so their setup can't silently diverge. Returns `null` for a `null` [msg] (nothing to show).
+ */
+private fun Activity.configureFlashbar(
 	msg: Any?,
 	iconType: IconType,
-	gravity: Flashbar.Gravity = TOP,
-	duration: Long = Flashbar.DURATION_SHORT,
-) {
-	val builder =
-		flashbarBuilder(gravity, duration)
-			.applyIcon(iconType)
+	gravity: Flashbar.Gravity,
+	duration: Long,
+): Flashbar.Builder? {
+	if (msg == null) return null
+	if (msg !is Int && msg !is String) {
+		throw IllegalArgumentException("Message must be String or Int resource")
+	}
+
+	val builder = flashbarBuilder(gravity, duration).applyIcon(iconType)
 
 	// Add a close button if the flashbar is an indefinite error
 	if (duration == DURATION_INDEFINITE && iconType == IconType.ERROR) {
@@ -77,26 +85,20 @@ private fun Activity.showFlashBar(
 	}
 
 	when (msg) {
-		null -> {
-			return
-		}
-
-		is Int -> {
-			builder
-				.message(msg)
-				.showOnUiThread()
-		}
-
-		is String -> {
-			builder
-				.message(msg)
-				.showOnUiThread()
-		}
-
-		else -> {
-			throw IllegalArgumentException("Message must be String or Int resource")
-		}
+		is Int -> builder.message(msg)
+		is String -> builder.message(msg)
 	}
+
+	return builder
+}
+
+private fun Activity.showFlashBar(
+	msg: Any?,
+	iconType: IconType,
+	gravity: Flashbar.Gravity = TOP,
+	duration: Long = Flashbar.DURATION_SHORT,
+) {
+	configureFlashbar(msg, iconType, gravity, duration)?.showOnUiThread()
 }
 
 @JvmOverloads
@@ -154,19 +156,7 @@ private suspend fun Activity.showFlashBarAwaitShown(
 	gravity: Flashbar.Gravity = TOP,
 	duration: Long = Flashbar.DURATION_SHORT,
 ) {
-	val builder = flashbarBuilder(gravity, duration).applyIcon(iconType)
-
-	if (duration == DURATION_INDEFINITE && iconType == IconType.ERROR) {
-		builder.positiveActionText(getString(R.string.dismiss))
-		builder.positiveActionTapListener { it.dismiss() }
-	}
-
-	when (msg) {
-		null -> return
-		is Int -> builder.message(msg)
-		is String -> builder.message(msg)
-		else -> throw IllegalArgumentException("Message must be String or Int resource")
-	}
+	val builder = configureFlashbar(msg, iconType, gravity, duration) ?: return
 
 	val shown = CompletableDeferred<Unit>()
 	builder.barShowListener(

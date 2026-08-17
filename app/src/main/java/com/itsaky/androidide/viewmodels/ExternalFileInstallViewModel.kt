@@ -10,6 +10,7 @@ import com.itsaky.androidide.repositories.TemplateCollectionRepository
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEffect
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEvent
+import com.itsaky.androidide.utils.InstallTempFiles
 import com.itsaky.androidide.utils.LastValueGate
 import com.itsaky.androidide.utils.UriFileImporter
 import kotlinx.coroutines.CancellationException
@@ -27,7 +28,6 @@ import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.util.UUID
 
 /**
  * Handles a `.cgp`/`.cgt` file opened from outside the app (e.g. an email attachment), backing
@@ -52,6 +52,11 @@ class ExternalFileInstallViewModel(
 		// code review notes), so this remains a bounded-poll approximation, not a hard guarantee.
 		private const val SETUP_WAIT_ATTEMPTS = 20
 		private const val SETUP_WAIT_INTERVAL_MS = 400L
+
+		// Bounds suggestUniqueBaseName()'s search - a pathological repository (or a huge run of
+		// pre-existing "foo (2)", "foo (3)", ... collections) must not hang the Rename dialog
+		// forever waiting for a free name.
+		private const val MAX_SUGGESTION_ATTEMPTS = 50
 	}
 
 	// Buffered (not rendezvous): onReceived() runs via Dispatchers.Main.immediate right after
@@ -102,8 +107,7 @@ class ExternalFileInstallViewModel(
 				return@launch
 			}
 
-			val tempDir = File(filesDir, "temp").apply { mkdirs() }
-			val destination = File(tempDir, "incoming_${UUID.randomUUID()}.$extension")
+			val destination = InstallTempFiles.newTempFile(filesDir, "incoming", extension)
 
 			val tempFile =
 				try {
@@ -218,7 +222,7 @@ class ExternalFileInstallViewModel(
 	suspend fun suggestUniqueBaseName(baseName: String): String {
 		var candidate = baseName
 		var suffix = 2
-		while (templateCollectionRepository.findExistingCollision(candidate) != null) {
+		while (suffix <= MAX_SUGGESTION_ATTEMPTS && templateCollectionRepository.findExistingCollision(candidate) != null) {
 			candidate = "$baseName ($suffix)"
 			suffix++
 		}

@@ -15,6 +15,7 @@ import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.ui.models.PluginManagerUiState
 import com.itsaky.androidide.ui.models.PluginOperation
 import com.itsaky.androidide.utils.EditorDecorationBridge
+import com.itsaky.androidide.utils.InstallTempFiles
 import com.itsaky.androidide.utils.LastValueGate
 import com.itsaky.androidide.utils.UriFileImporter
 import kotlinx.coroutines.CancellationException
@@ -31,7 +32,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
-import java.util.UUID
 
 /**
  * ViewModel for the Plugin Manager screen
@@ -340,13 +340,11 @@ class PluginManagerViewModel(
 								val fileName = UriFileImporter.getDisplayName(contentResolver, source.uri)
 								val extension =
 									if (fileName?.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) == true) {
-										".$PLUGIN_ARCHIVE_EXTENSION"
+										PLUGIN_ARCHIVE_EXTENSION
 									} else {
-										".apk"
+										"apk"
 									}
-								val tempFileName = "temp_plugin_${UUID.randomUUID()}$extension"
-								val tempDir = File(filesDir, "temp").apply { mkdirs() }
-								val tempFile = File(tempDir, tempFileName)
+								val tempFile = InstallTempFiles.newTempFile(filesDir, "temp_plugin", extension)
 
 								UriFileImporter.copyUriToFile(contentResolver, source.uri, tempFile) {
 									Exception("Cannot open file")

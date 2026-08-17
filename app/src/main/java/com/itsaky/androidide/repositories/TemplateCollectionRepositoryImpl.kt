@@ -157,7 +157,23 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 						runCatching { stagingFile.copyTo(destFile, overwrite = true) }.isSuccess
 
 				if (!swapSucceeded) {
-					if (hadExisting) backupFile.renameTo(destFile)
+					if (hadExisting) {
+						val restored =
+							backupFile.renameTo(destFile) ||
+								runCatching { backupFile.copyTo(destFile, overwrite = true) }.isSuccess
+						if (!restored) {
+							// Nothing more we can do here - surface it loudly rather than silently
+							// leaving the user's original collection sitting under the backup's
+							// random filename, invisible to findExistingCollision().
+							log.error(
+								"Failed to restore backup after a failed swap for \"{}\" - original content may still be at: {}",
+								destFile.name,
+								backupFile.name,
+							)
+						} else {
+							backupFile.delete()
+						}
+					}
 					stagingFile.delete()
 					throw IllegalStateException("Failed to replace existing file: ${destFile.name}")
 				}
@@ -167,7 +183,22 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 					log.warn("Installed but failed to delete backup file: {}", backupFile.name)
 				}
 
-				ITemplateProvider.getInstance(reload = true)
+				// The file swap above is the operation's real postcondition - it already fully
+				// succeeded by this point. A reload failure here (e.g. templatesDir briefly
+				// unreadable) shouldn't turn that into a reported failure: doing so would leave
+				// destFile installed on disk while the caller believes nothing happened and
+				// retries, immediately hitting a spurious "already exists".
+				try {
+					ITemplateProvider.getInstance(reload = true)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error(
+						"Template collection installed but the provider failed to reload: {}",
+						destFile.name,
+						e,
+					)
+				}
 
 				if (!candidateFile.delete()) {
 					log.warn("Installed but failed to delete source temp file: {}", candidateFile.name)

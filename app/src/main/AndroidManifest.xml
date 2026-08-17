@@ -108,7 +108,12 @@
              (not just orientation etc.) because a recreation mid-dialog (e.g. a system dark/light
              auto-switch, or attaching/detaching a hardware keyboard) would otherwise dismiss the
              forwarded-install dialog while the ViewModel's one-shot "already handled" guard
-             (markPendingInstallHandled) silently blocks it from ever being shown again - ADFA-4934. -->
+             (markPendingInstallHandled) silently blocks it from ever being shown again - ADFA-4934.
+             Accepted tradeoff: since the Activity isn't recreated for these axes and
+             onConfigurationChanged() isn't overridden either, already-inflated view text/theme
+             (e.g. a title set once in onCreate(), or day/night-themed colors) can look stale
+             until the user backs out and re-enters - dialog continuity was judged more important
+             than instant re-theming for this one screen. -->
         <activity
             android:name=".activities.PluginManagerActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|locale|fontScale|density|keyboard|keyboardHidden|navigation" />
@@ -139,18 +144,31 @@
              re-exported from Windows tools) produce uppercase extensions.
              android:host="*" is required alongside pathPattern - the manifest matcher only
              evaluates pathPattern when host is also present.
-             Known limitation, not fixable via manifest matching: a sender whose content:// Uri
-             path never carries the filename/extension at all (some email providers' attachment
-             Uris look like content://.../message_attachment/12345/0/ATTACHMENT/false) can't match
-             a pathPattern-based filter regardless of type. The only alternative - a pathPattern-
+             Known limitations, not fixable via manifest matching:
+             (1) a sender whose content:// Uri path never carries the filename/extension at all
+             (some email providers' attachment Uris look like
+             content://.../message_attachment/12345/0/ATTACHMENT/false) can't match a
+             pathPattern-based filter regardless of type. The only alternative - a pathPattern-
              less, mimeType="*/*" filter - would register this app as a candidate handler for
              every file view intent on the device, which is a worse tradeoff than missing those
-             senders. -->
+             senders.
+             (2) only the fully-lowercase and fully-UPPERCASE forms are covered per extension -
+             a mixed-case extension (e.g. "Plugin.Cgp") matches neither, since pathPattern's
+             matcher supports only literal characters, '.', and '*' (no character classes), and
+             exhaustively enumerating every case permutation (2^3 per 3-letter extension, times
+             two extensions, times three filters below) would bloat this manifest far out of
+             proportion to how rare a genuinely mixed-case sender is in practice (real senders
+             observed so far are consistently either all-lowercase or Windows-style
+             all-UPPERCASE). -->
         <!-- uiMode/locale/fontScale/density/keyboard/keyboardHidden/navigation are handled here
              (not just orientation etc.) because a recreation mid-dialog (e.g. a system dark/light
              auto-switch, or attaching/detaching a hardware keyboard) would otherwise reset the
              Compose dialog state to nothing while the ViewModel's one-shot receivedUriGate guard
-             silently blocks the effect from ever being resent - ADFA-4934. -->
+             silently blocks the effect from ever being resent - ADFA-4934. Since this screen is
+             Compose (unlike PluginManagerActivity), content reading LocalConfiguration/
+             stringResource/isSystemInDarkTheme() still recomposes reactively on these axes even
+             without an Activity recreation, so the same "stale until back-and-return" tradeoff is
+             narrower here than on the View-based screen. -->
         <activity
             android:name=".activities.ExternalFileInstallActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|locale|fontScale|density|keyboard|keyboardHidden|navigation"
