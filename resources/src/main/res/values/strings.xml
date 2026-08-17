@@ -1100,7 +1100,7 @@
 	<string name="btn_overwrite">Overwrite</string>
 	<string name="btn_rename_and_install">Rename &amp; Install</string>
 	<string name="hint_new_template_collection_name">New collection name</string>
-	<string name="msg_template_installed">Template collection installed successfully</string>
+	<string name="msg_template_installed">"%1$s" installed successfully</string>
 	<string name="msg_template_invalid_file">Invalid or corrupted template collection file.</string>
 	<string name="msg_template_install_failed">Failed to install template collection.</string>
 

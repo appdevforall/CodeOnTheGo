@@ -3,6 +3,7 @@ package com.itsaky.androidide.utils
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Shared `filesDir/temp` staging area for the .cgp/.cgt install flows (ExternalFileInstallViewModel,
@@ -16,9 +17,11 @@ object InstallTempFiles {
 
 	// Stale entries can only ever appear once an hour (MAX_AGE_MS), so there's no point
 	// re-scanning the directory on every single newTempFile() call - throttle to once per
-	// interval instead of doing a full listFiles()+lastModified() pass every time.
+	// interval instead of doing a full listFiles()+lastModified() pass every time. An AtomicLong
+	// (rather than a plain var) since newTempFile() can be called concurrently from both
+	// ExternalFileInstallViewModel and PluginManagerViewModel's coroutines.
 	private val SWEEP_INTERVAL_MS = TimeUnit.MINUTES.toMillis(10)
-	private var lastSweepAtMs = 0L
+	private val lastSweepAtMs = AtomicLong(0L)
 
 	/** Creates a uniquely-named `<prefix>_<uuid>.<extension>` file under `filesDir/temp`. */
 	fun newTempFile(
@@ -33,8 +36,11 @@ object InstallTempFiles {
 
 	private fun sweepStaleIfDue(tempDir: File) {
 		val now = System.currentTimeMillis()
-		if (now - lastSweepAtMs < SWEEP_INTERVAL_MS) return
-		lastSweepAtMs = now
+		val last = lastSweepAtMs.get()
+		if (now - last < SWEEP_INTERVAL_MS) return
+		// Loses the race to another concurrent caller -> that caller's sweep already covers this
+		// interval, so skip rather than sweep twice.
+		if (!lastSweepAtMs.compareAndSet(last, now)) return
 
 		val cutoff = now - MAX_AGE_MS
 		tempDir.listFiles()?.forEach { file ->

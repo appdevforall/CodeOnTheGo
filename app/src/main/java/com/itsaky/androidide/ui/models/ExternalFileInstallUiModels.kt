@@ -40,7 +40,10 @@ sealed class ExternalFileInstallUiEffect {
 
 	data class ShowSuccess(
 		@StringRes val messageResId: Int,
-	) : ExternalFileInstallUiEffect()
+		val formatArgs: List<Any> = emptyList(),
+	) : ExternalFileInstallUiEffect() {
+		constructor(@StringRes messageResId: Int, vararg formatArgs: Any) : this(messageResId, formatArgs.toList())
+	}
 
 	object Finish : ExternalFileInstallUiEffect()
 }

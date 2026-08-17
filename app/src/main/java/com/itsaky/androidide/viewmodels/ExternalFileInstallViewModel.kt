@@ -120,16 +120,13 @@ class ExternalFileInstallViewModel(
 				return@launch
 			}
 
-			if (extension == PLUGIN_ARCHIVE_EXTENSION &&
-				!awaitAvailable(pluginRepository::isPluginManagerAvailable)
-			) {
-				sendErrorAndFinish(generation, R.string.msg_ide_setup_incomplete)
-				return@launch
-			}
-
-			if (extension == TEMPLATE_ARCHIVE_EXTENSION &&
-				!awaitAvailable(templateCollectionRepository::isTemplatesFeatureAvailable)
-			) {
+			val featureAvailable =
+				if (extension == PLUGIN_ARCHIVE_EXTENSION) {
+					pluginRepository::isPluginManagerAvailable
+				} else {
+					templateCollectionRepository::isTemplatesFeatureAvailable
+				}
+			if (!awaitAvailable(featureAvailable)) {
 				sendErrorAndFinish(generation, R.string.msg_ide_setup_incomplete)
 				return@launch
 			}
@@ -262,8 +259,11 @@ class ExternalFileInstallViewModel(
 					// The install genuinely happened (the file's on disk in templatesDir) even if
 					// a newer request has since taken over the screen, so still surface the
 					// success - but only tear down the Activity (Finish) if nothing newer is now
-					// relying on it staying alive.
-					_uiEffect.trySend(ExternalFileInstallUiEffect.ShowSuccess(R.string.msg_template_installed))
+					// relying on it staying alive. targetBaseName is included in the message so
+					// the toast is unambiguous even when it overlays a newer, unrelated dialog.
+					_uiEffect.trySend(
+						ExternalFileInstallUiEffect.ShowSuccess(R.string.msg_template_installed, targetBaseName),
+					)
 					if (isCurrentGeneration(generation)) {
 						// The Screen suspends on ShowSuccess until the flashbar's entrance
 						// animation actually finishes (flashSuccessAwaitShown) before processing

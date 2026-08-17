@@ -65,6 +65,11 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 				is ExternalFileInstallUiEffect.ForwardToPluginManager -> {
 					context.startActivity(
 						Intent(context, PluginManagerActivity::class.java)
+							// A Plugin Manager instance may already be running/backgrounded (e.g.
+							// the user had it open, then opened a .cgp attachment) - these flags
+							// reuse that instance via onNewIntent() instead of stacking a second
+							// one on top of it.
+							.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 							.putExtra(PluginManagerActivity.EXTRA_PENDING_INSTALL_FILE_PATH, effect.filePath),
 					)
 					(context as? Activity)?.finish()
@@ -91,7 +96,7 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 				}
 
 				is ExternalFileInstallUiEffect.ShowSuccess -> {
-					flashSuccessAwaitShown(context.getString(effect.messageResId))
+					flashSuccessAwaitShown(context.getString(effect.messageResId, *effect.formatArgs.toTypedArray()))
 				}
 
 				is ExternalFileInstallUiEffect.Finish -> {

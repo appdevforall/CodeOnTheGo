@@ -40,7 +40,9 @@ import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.getFileName
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import java.io.File
@@ -115,17 +117,38 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 			setupFeedbackButton()
 			observeViewModel()
 
-			// No savedInstanceState guard: markPendingInstallHandled() is the idempotency
-			// check, scoped to the ViewModel instance rather than the Activity's recreation
-			// reason - it survives rotation (skips a duplicate dialog there) but resets on
-			// process death (a fresh ViewModel is created), so a process-death-recreated
-			// instance still shows the dialog instead of silently dropping the forwarded
-			// install. The intent's extra itself is preserved across both cases by the OS.
-			intent.getStringExtra(EXTRA_PENDING_INSTALL_FILE_PATH)?.let { filePath ->
-				if (viewModel.markPendingInstallHandled(filePath)) {
+			handlePendingInstallExtra()
+		} catch (e: Exception) {
+			// Log the error and finish the activity if something goes wrong
+			e.printStackTrace()
+			flashError(getString(R.string.msg_plugin_manager_init_failed, e.message))
+			finish()
+		}
+	}
+
+	// ForwardToPluginManager's launch Intent carries FLAG_ACTIVITY_CLEAR_TOP/SINGLE_TOP so a
+	// forwarded install reuses an already-running instance instead of stacking a duplicate one -
+	// which routes the extra through onNewIntent() rather than a fresh onCreate().
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		setIntent(intent)
+		handlePendingInstallExtra()
+	}
+
+	// No savedInstanceState guard: markPendingInstallHandled() is the idempotency check, scoped
+	// to the ViewModel instance rather than the Activity's recreation reason - it survives
+	// rotation (skips a duplicate dialog there) but resets on process death (a fresh ViewModel is
+	// created), so a process-death-recreated instance still shows the dialog instead of silently
+	// dropping the forwarded install. The intent's extra itself is preserved across both cases by
+	// the OS.
+	private fun handlePendingInstallExtra() {
+		intent.getStringExtra(EXTRA_PENDING_INSTALL_FILE_PATH)?.let { filePath ->
+			if (viewModel.markPendingInstallHandled(filePath)) {
+				lifecycleScope.launch {
 					val file = File(filePath)
-					if (file.exists()) {
-						showInstallConfirmation(PluginInstallSource.LocalFile(file), forceDeleteSource = true)
+					val exists = withContext(Dispatchers.IO) { file.exists() }
+					if (exists) {
+						showInstallConfirmation(PluginInstallSource.LocalFile(file))
 					} else {
 						// Can legitimately happen if InstallTempFiles' stale-file sweep (or an
 						// earlier failed cleanup) removed the temp file before this dialog ever
@@ -134,11 +157,6 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 					}
 				}
 			}
-		} catch (e: Exception) {
-			// Log the error and finish the activity if something goes wrong
-			e.printStackTrace()
-			flashError(getString(R.string.msg_plugin_manager_init_failed, e.message))
-			finish()
 		}
 	}
 
@@ -332,17 +350,15 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 	private fun Uri.isSupportedPluginFile(): Boolean = getFileName(this@PluginManagerActivity).endsWith(PLUGIN_EXTENSION, ignoreCase = true)
 
 	/**
-	 * @param forceDeleteSource When true (a `.cgp` forwarded from [ExternalFileInstallActivity]),
+	 * For a [PluginInstallSource.LocalFile] (a `.cgp` forwarded from [ExternalFileInstallActivity]),
 	 * [source] is our own hidden temp copy, not a file the user picked - there's no checkbox to
 	 * offer (deletion isn't optional) and no source worth keeping on decline/cancel either, so
 	 * both the negative button and back-press/tap-outside route to [PluginManagerUiEvent.CancelPendingInstall].
 	 * One shared dialog builder for both cases so a future button/copy change can't be applied to
 	 * only one branch and silently reintroduce a leaked-temp-file bug in the other.
 	 */
-	private fun showInstallConfirmation(
-		source: PluginInstallSource,
-		forceDeleteSource: Boolean = false,
-	) {
+	private fun showInstallConfirmation(source: PluginInstallSource) {
+		val forceDeleteSource = source is PluginInstallSource.LocalFile
 		val dialogView = if (forceDeleteSource) null else layoutInflater.inflate(R.layout.dialog_install_plugin, null)
 		val deleteCheckBox = dialogView?.findViewById<CheckBox>(R.id.checkbox_delete_source)
 		val onCancel = {
