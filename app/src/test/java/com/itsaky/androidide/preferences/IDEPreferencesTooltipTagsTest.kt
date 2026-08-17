@@ -20,11 +20,14 @@ package com.itsaky.androidide.preferences
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
-// Walks the real production tree, unlike IDEPreferencesFragmentTest's collectTooltipTags
-// coverage, which only exercises synthetic fixtures. Duplicate keys are already guarded by
-// collectTooltipTags at runtime; this instead catches two different rows sharing the same
-// tooltipTag (a content bug, not a key collision) - the class of bug that shipped undetected
-// in XMLPreferencesScreen/XMLFormattingOptions.
+/**
+ * Walks the real production tree, unlike
+ * [com.itsaky.androidide.fragments.IDEPreferencesFragmentTest]'s `collectTooltipTags` coverage,
+ * which only exercises synthetic fixtures. Duplicate keys are already guarded by
+ * `collectTooltipTags` at runtime; this instead catches two different rows sharing the same
+ * tooltipTag (a content bug, not a key collision) - the class of bug that shipped undetected
+ * in XMLPreferencesScreen/XMLFormattingOptions.
+ */
 class IDEPreferencesTooltipTagsTest {
 	@Test
 	fun `every non-blank tooltipTag in the real preference tree is unique`() {
