@@ -1,5 +1,7 @@
 package com.itsaky.androidide.utils
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -23,16 +25,22 @@ object InstallTempFiles {
 	private val SWEEP_INTERVAL_MS = TimeUnit.MINUTES.toMillis(10)
 	private val lastSweepAtMs = AtomicLong(0L)
 
-	/** Creates a uniquely-named `<prefix>_<uuid>.<extension>` file under `filesDir/temp`. */
-	fun newTempFile(
+	/**
+	 * Creates a uniquely-named `<prefix>_<uuid>.<extension>` file under `filesDir/temp`. Suspends
+	 * and dispatches to [Dispatchers.IO] internally - mkdirs() and the periodic directory
+	 * sweep/delete below are real filesystem work, so callers don't need their own withContext to
+	 * keep this off the caller's (possibly Main) dispatcher.
+	 */
+	suspend fun newTempFile(
 		filesDir: File,
 		prefix: String,
 		extension: String,
-	): File {
-		val tempDir = File(filesDir, "temp").apply { mkdirs() }
-		sweepStaleIfDue(tempDir)
-		return File(tempDir, "${prefix}_${UUID.randomUUID()}.$extension")
-	}
+	): File =
+		withContext(Dispatchers.IO) {
+			val tempDir = File(filesDir, "temp").apply { mkdirs() }
+			sweepStaleIfDue(tempDir)
+			File(tempDir, "${prefix}_${UUID.randomUUID()}.$extension")
+		}
 
 	private fun sweepStaleIfDue(tempDir: File) {
 		val now = System.currentTimeMillis()
