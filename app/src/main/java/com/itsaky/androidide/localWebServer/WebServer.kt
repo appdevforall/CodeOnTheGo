@@ -90,10 +90,11 @@ class WebServer(
 	private var databaseTimestamp: Long = -1
 
 	// The shared dictionary Content's brotli-compressed rows are compressed against (see
-	// ADFA-5153). Reloaded whenever `database` is (re)opened -- including the debug-override
-	// swap below -- since a different database file may have trained its own dictionary.
-	// Null (no dictionary attached, plain-brotli decode) if this database predates the
-	// dictionary-compression migration -- CompressionDictionary won't exist yet.
+	// ADFA-5153). Reloaded fresh before every content fetch in handleClient() -- not cached
+	// across requests or tied to database-open/swap time -- since a database swap (including
+	// the debug-override one) can bring in a different database with its own different
+	// dictionary. Null (no dictionary attached, plain-brotli decode) if the active database
+	// predates the dictionary-compression migration -- CompressionDictionary won't exist yet.
 	private var compressionDictionary: ByteBuffer? = null
 	private val log = LoggerFactory.getLogger(WebServer::class.java)
 	private val debugEnabled: Boolean = File(config.debugEnablePath).exists()
@@ -190,12 +191,13 @@ class WebServer(
 
 	/**
 	 * Opens [path] as the active database, refreshing every piece of state that depends on which
-	 * database file is active -- [databaseTimestamp], [compressionDictionary], and the per-database
-	 * caches [bookshelfTemplateId]/[templateCache] -- as one atomic operation, so a request never
-	 * observes a database swapped in without its matching dictionary/caches. Only closes the
-	 * previous database once the new one has opened successfully, so a failed swap (this throws)
-	 * leaves the previous, still-open database serving requests rather than leaving [database]
-	 * referencing an already-closed handle.
+	 * database file is active -- [databaseTimestamp] and the per-database caches
+	 * [bookshelfTemplateId]/[templateCache] -- as one atomic operation. Does *not* load
+	 * [compressionDictionary]: a different database can have a different dictionary (or none), so
+	 * that's instead loaded fresh right before each content fetch (see [handleClient]) rather than
+	 * cached here at swap time. Only closes the previous database once the new one has opened
+	 * successfully, so a failed swap (this throws) leaves the previous, still-open database
+	 * serving requests rather than leaving [database] referencing an already-closed handle.
 	 */
 	private fun switchToDatabase(
 		path: String,
@@ -211,7 +213,6 @@ class WebServer(
 		}
 		database = newDatabase
 		databaseTimestamp = timestamp
-		compressionDictionary = loadCompressionDictionary(database)
 		bookshelfTemplateId = -1
 		templateCache.clear()
 	}
@@ -460,6 +461,11 @@ class WebServer(
 				else -> sendError(writer, output, httpNotFound, "Not Found", "Path requested: '$path'.")
 			}
 		}
+
+		// Reloaded fresh for every content fetch, rather than cached from database-open/swap time:
+		// a database swap (just above) can bring in a different dictionary (or none), and this is
+		// the one place that dictionary is actually consumed (see decompressBrotli).
+		compressionDictionary = loadCompressionDictionary(database)
 
 		// Database fetch
 		val query = """

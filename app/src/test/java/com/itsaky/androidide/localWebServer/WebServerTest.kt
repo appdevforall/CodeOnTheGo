@@ -104,10 +104,11 @@ class WebServerTest {
 		assertPortIsFree(port)
 	}
 
-	// ADFA-5153: the compression dictionary must be loaded once, at server startup, and
-	// stay cached in memory for every request thereafter -- never re-fetched per-request.
+	// ADFA-5153: the compression dictionary is reloaded fresh before every content fetch, not
+	// cached from server-startup/database-swap time -- a swap can bring in a database with a
+	// different dictionary (or none), and this is the one place that dictionary is consumed.
 	@Test
-	fun `compression dictionary is loaded once at startup and reused across every request`() {
+	fun `compression dictionary is reloaded before every content fetch, not cached from startup`() {
 		val port = freePort()
 
 		val dictionaryExistsCursor =
@@ -147,9 +148,17 @@ class WebServerTest {
 		try {
 			awaitPortBound(port)
 
+			// Nothing fetches the dictionary merely from starting the server -- only a content
+			// fetch does, so before any request there should be no dictionary query at all yet.
+			verify(exactly = 0) {
+				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+
 			repeat(3) { sendRawGetRequestAndAwaitClose(port, "/some/path") }
 
-			verify(exactly = 1) {
+			// One dictionary load per content fetch, matching the 3 requests -- proving it's
+			// reloaded fresh each time rather than cached across requests.
+			verify(exactly = 3) {
 				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
 			}
 		} finally {
