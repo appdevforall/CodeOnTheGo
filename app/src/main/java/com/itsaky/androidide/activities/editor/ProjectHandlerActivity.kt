@@ -188,6 +188,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	private val buildServiceConnection = GradleBuildServiceConnnection()
 
+	// True once onCreate() has completed past its isFinishing check -- mirrors
+	// EditorHandlerActivity.didCompleteLiveOnCreate. super.onCreate() (BaseEditorActivity) may
+	// already have called finish() for a doomed instance spun up by a stale deep-link liveness
+	// check; finish() doesn't stop execution, so without this flag preDestroy() would unregister
+	// the process-wide build-service Lookup entry and shut down the LSP singleton that an
+	// actually-live sibling instance still depends on.
+	private var didCompleteLiveOnCreate = false
+
 	companion object {
 		private val logger = LoggerFactory.getLogger(ProjectHandlerActivity::class.java)
 
@@ -213,6 +221,16 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		// super.onCreate() may have already called finish() for a doomed instance (see
+		// EditorHandlerActivity.onCreate's own isFinishing guard for the fuller explanation);
+		// finish() doesn't stop execution here, so without this check startServices() below would
+		// unconditionally bind a build service and register a listener that preDestroy() will
+		// later tear down, corrupting the actually-live sibling instance's state.
+		if (isFinishing) {
+			return
+		}
+		didCompleteLiveOnCreate = true
 
 		editorViewModel._isSyncNeeded.observe(this) { isSyncNeeded ->
 			if (!isSyncNeeded) {
@@ -373,7 +391,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		syncNotificationFlashbar?.dismiss()
 		syncNotificationFlashbar = null
 
-		if (isDestroying) {
+		if (didCompleteLiveOnCreate && isDestroying) {
 			releaseServerListener()
 			this.initializingFuture?.cancel(true)
 			this.initializingFuture = null
@@ -381,13 +399,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			doCloseAll()
 		}
 
-		if (IDELanguageClientImpl.isInitialized()) {
+		if (didCompleteLiveOnCreate && IDELanguageClientImpl.isInitialized()) {
 			IDELanguageClientImpl.shutdown()
 		}
 
 		super.preDestroy()
 
-		if (isDestroying) {
+		if (didCompleteLiveOnCreate && isDestroying) {
 			try {
 				stopLanguageServers()
 			} catch (_: Exception) {

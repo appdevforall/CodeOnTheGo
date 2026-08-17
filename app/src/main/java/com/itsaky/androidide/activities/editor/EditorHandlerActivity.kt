@@ -423,6 +423,13 @@ open class EditorHandlerActivity :
 		// death -- e.g. a rotation while the confirm-close dialog is showing.
 		activeProjectCloseDialog?.dismiss()
 
+		// A "Close without saving" confirm deliberately leaves confirmCloseInProgress stuck true
+		// (see there) since this instance is finishing either way -- a later request that arrived in
+		// the window before onDestroy() actually ran got parked here with nothing else left to read
+		// it. Run and clear it now instead of silently orphaning it.
+		pendingCloseCallback?.invoke()
+		pendingCloseCallback = null
+
 		// Drain any deep-link-triggered "close then reopen a different project" request recorded by
 		// onNewIntent's confirmProjectClose(onClosed) callback. This deliberately waits until onDestroy --
 		// which only runs once the framework has committed to tearing this singleTask instance down --
@@ -1966,6 +1973,30 @@ open class EditorHandlerActivity :
 	// guard below with no way to ever apply it.
 	private var pendingCloseCallback: (() -> Unit)? = null
 
+	// Captured in onNewIntent, right before setIntent() replaces the intent, whenever the incoming
+	// intent targets a genuinely different project -- restored by cancelOrDecline()/the "Save and
+	// close" failure branch below if that switch attempt doesn't end up completing, so the staying
+	// project's own still-pending file request (if any) isn't silently lost.
+	private var pendingFileRequestBeforeSwitch: PendingFileRequest? = null
+
+	// Tracked so a slower, older deep-link resolve (still in flight when a second, faster-resolving
+	// deep link arrives via onNewIntent) can tell it's been superseded -- mirrors
+	// MainActivity.latestDeepLinkRequest's identical race on the cold-open path.
+	private var latestDeepLinkRequest: DeepLinkRequest? = null
+
+	private fun restoreIntentToStayingProject() {
+		val stayingProjectPath = IProjectManager.getInstance().projectDirPath
+		if (stayingProjectPath.isBlank()) return
+		intent.putExtra("PROJECT_PATH", stayingProjectPath)
+		val restore = pendingFileRequestBeforeSwitch
+		pendingFileRequestBeforeSwitch = null
+		if (restore != null) {
+			intent.putExtra(PendingFileRequest.EXTRA_KEY, restore)
+		} else {
+			intent.removeExtra(PendingFileRequest.EXTRA_KEY)
+		}
+	}
+
 	private fun confirmProjectClose(onClosed: (() -> Unit)? = null) {
 		val content = contentOrNull ?: return
 		if (confirmCloseInProgress) {
@@ -2008,11 +2039,7 @@ open class EditorHandlerActivity :
 				// restore, and touching the intent here would instead corrupt whatever legitimate
 				// pending state it already holds (e.g. an original cold-open's still-unconsumed file
 				// request, mid-sync).
-				val stayingProjectPath = IProjectManager.getInstance().projectDirPath
-				if (stayingProjectPath.isNotBlank()) {
-					intent.putExtra("PROJECT_PATH", stayingProjectPath)
-					intent.removeExtra(PendingFileRequest.EXTRA_KEY)
-				}
+				restoreIntentToStayingProject()
 			}
 		}
 
@@ -2031,8 +2058,13 @@ open class EditorHandlerActivity :
 				(content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
 			}
 
-			// Activity is finishing either way; no need to reset confirmCloseInProgress.
-			performCloseAllFiles(manualFinish = true, onClosed = pendingCloseCallback)
+			// Activity is finishing either way; no need to reset confirmCloseInProgress. Null out
+			// pendingCloseCallback now so a later request arriving before onDestroy() actually runs
+			// (confirmCloseInProgress stays stuck true) parks its own callback instead of this
+			// already-consumed one being read and invoked again by onDestroy()'s drain below.
+			val onClosedNow = pendingCloseCallback
+			pendingCloseCallback = null
+			performCloseAllFiles(manualFinish = true, onClosed = onClosedNow)
 		}
 
 		// OPTION 2: Save and close
@@ -2061,6 +2093,10 @@ open class EditorHandlerActivity :
 						pendingCloseCallback = null
 						if (superseding !== onClosed) {
 							confirmProjectClose(superseding)
+						} else if (onClosed != null) {
+							// Mirrors cancelOrDecline()'s identical restoration -- this failed "Save and
+							// close" is itself a decline of the switch, and nothing superseded it.
+							restoreIntentToStayingProject()
 						}
 						return@runOnUiThread
 					}
@@ -2129,6 +2165,15 @@ open class EditorHandlerActivity :
 				.getParcelableExtra(getIntent(), PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
 				?.let { intent.putExtra(PendingFileRequest.EXTRA_KEY, it) }
 		}
+		// The reverse case: this IS a switch to a genuinely different project, so the carry-forward
+		// above is skipped and the old intent's own still-pending file request (for the project
+		// that's actually staying open if this switch gets cancelled/declined) would otherwise be
+		// lost the moment setIntent() below replaces it. restoreIntentToStayingProject() puts it back
+		// if that turns out to be what happens.
+		if (isProjectSwitchIntent) {
+			pendingFileRequestBeforeSwitch =
+				IntentCompat.getParcelableExtra(getIntent(), PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
+		}
 		setIntent(intent)
 
 		val request = deepLinkRequest
@@ -2149,6 +2194,10 @@ open class EditorHandlerActivity :
 		// this stale request's projectName and bounce the user out of it.
 		intent.removeExtra(DeepLinkRequest.EXTRA_KEY)
 
+		// Tracked so a second deep link delivered moments later doesn't have its resolve complete
+		// out of order with this one -- mirrors MainActivity.latestDeepLinkRequest's identical race.
+		latestDeepLinkRequest = request
+
 		lifecycleScope.launch(Dispatchers.IO) {
 			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName) ?: return@launch
 			withContext(Dispatchers.Main) {
@@ -2157,6 +2206,9 @@ open class EditorHandlerActivity :
 				// first flips true, so this continuation can otherwise still run and try to show the
 				// confirm-close dialog on a dying window.
 				if (isFinishing || isDestroyed) return@withContext
+				// A newer deep link's onNewIntent call already superseded this one -- switching to
+				// this stale target now would undo the newer request the user actually tapped.
+				if (latestDeepLinkRequest !== request) return@withContext
 				switchToProject(projectDir.absolutePath, request.fileRequest)
 			}
 		}
@@ -2244,6 +2296,13 @@ open class EditorHandlerActivity :
 					flashError(getString(string.msg_project_close_in_progress))
 				} else {
 					fileRequest?.let { applyDeepLinkFileRequest(it) }
+				}
+				if (fileRequest != null) {
+					// This request supersedes whatever onNewIntent's carry-forward guard just
+					// re-armed onto the intent from the PREVIOUS, still-unconsumed request -- leaving
+					// it in place would have postProjectInit silently jump back to that stale target
+					// once the current sync completes, discarding this newer navigation.
+					intent.removeExtra(PendingFileRequest.EXTRA_KEY)
 				}
 			}
 
