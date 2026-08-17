@@ -17,7 +17,9 @@ import com.itsaky.androidide.ui.models.PluginOperation
 import com.itsaky.androidide.utils.EditorDecorationBridge
 import com.itsaky.androidide.utils.LastValueGate
 import com.itsaky.androidide.utils.UriFileImporter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -353,6 +355,8 @@ class PluginManagerViewModel(
 							deleteInstallSource(source)
 						}
 					}
+			} catch (e: CancellationException) {
+				throw e
 			} catch (exception: Exception) {
 				Log.e(TAG, "Error installing plugin from URI", exception)
 				_uiEffect.trySend(
@@ -366,7 +370,7 @@ class PluginManagerViewModel(
 				}
 			} finally {
 				ownedTempFile?.let { file ->
-					withContext(Dispatchers.IO) {
+					withContext(NonCancellable + Dispatchers.IO) {
 						if (file.exists()) {
 							file.delete()
 						}

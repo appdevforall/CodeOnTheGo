@@ -1,6 +1,5 @@
 package com.itsaky.androidide.repositories
 
-import android.util.Log
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.TemplateRecipe
 import com.itsaky.androidide.templates.impl.TemplateWarning
@@ -11,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
+import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
@@ -20,7 +20,7 @@ import java.io.File
  */
 class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 	private companion object {
-		private const val TAG = "TemplateCollectionRepository"
+		private val log = LoggerFactory.getLogger(TemplateCollectionRepositoryImpl::class.java)
 
 		/** Base filename of the bundled default templates archive - reserved, never a user collection. */
 		private val RESERVED_BASE_NAME = File(TEMPLATE_CORE_ARCHIVE).nameWithoutExtension
@@ -45,7 +45,7 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 					}
 
 				if (templates.isEmpty()) {
-					warnings.forEach { Log.w(TAG, "Template read warning: resId=${it.resId}, args=${it.args}") }
+					warnings.forEach { log.warn("Template read warning: resId={}, args={}", it.resId, it.args) }
 					throw IllegalArgumentException("No valid templates found in archive: ${candidateFile.name}")
 				}
 
@@ -53,7 +53,7 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 					templateNames = templates.map { it.templateNameStr },
 				)
 			}.onFailure { exception ->
-				Log.e(TAG, "Failed to inspect template collection: ${candidateFile.absolutePath}", exception)
+				log.error("Failed to inspect template collection: {}", candidateFile.name, exception)
 			}
 		}
 
@@ -64,7 +64,7 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 			} catch (e: CancellationException) {
 				throw e
 			} catch (exception: Exception) {
-				Log.e(TAG, "Failed to check for an existing template collection: $baseName", exception)
+				log.error("Failed to check for an existing template collection: {}", baseName, exception)
 				null
 			}
 		}
@@ -78,6 +78,18 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 			runCatching {
 				if (targetBaseName.equals(RESERVED_BASE_NAME, ignoreCase = true)) {
 					throw IllegalStateException("\"$targetBaseName\" is a reserved name and cannot be used")
+				}
+
+				// targetBaseName ends up as a single path segment below; reject anything that
+				// could make it span multiple segments (or escape templatesDir entirely) before
+				// it ever reaches a File constructor.
+				if (targetBaseName.isBlank() ||
+					targetBaseName.contains('/') ||
+					targetBaseName.contains('\\') ||
+					targetBaseName == "." ||
+					targetBaseName == ".."
+				) {
+					throw IllegalArgumentException("Invalid template collection name: \"$targetBaseName\"")
 				}
 
 				val templatesDir =
@@ -97,25 +109,44 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 				// Overwrite the existing case-variant file in place (preserving its casing)
 				// rather than create a second, case-differing duplicate.
 				val destFile = existingMatch ?: File(templatesDir, "$targetBaseName.$TEMPLATE_ARCHIVE_EXTENSION")
+
+				// Belt-and-braces against the character check above: confirm the resolved path
+				// still lands directly inside templatesDir once symlinks/".." are resolved.
+				if (destFile.canonicalFile.parentFile != templatesDir.canonicalFile) {
+					throw IllegalArgumentException("Invalid template collection name: \"$targetBaseName\"")
+				}
+
+				// Stage the incoming archive fully under templatesDir before touching destFile,
+				// so a failure while writing the new content never destroys the existing
+				// collection - only once the new file is confirmed on disk do we delete the old
+				// one and swap the staged file into place.
+				val stagingFile = File(templatesDir, "${destFile.name}.tmp")
+				if (!candidateFile.renameTo(stagingFile)) {
+					candidateFile.copyTo(stagingFile, overwrite = true)
+					if (!candidateFile.delete()) {
+						log.warn("Installed but failed to delete source temp file: {}", candidateFile.name)
+					}
+				}
+
 				if (destFile.exists() && !destFile.delete()) {
+					stagingFile.delete()
 					throw IllegalStateException("Failed to replace existing file: ${destFile.name}")
 				}
 
-				// Try an atomic move first; File.renameTo() is unreliable on Android even within
-				// the same app's private storage (confirmed on a physical device: it silently
-				// fails here despite temp/ and templates/ both being under filesDir), so fall
-				// back to copy+delete rather than trust it unconditionally.
-				if (!candidateFile.renameTo(destFile)) {
-					candidateFile.copyTo(destFile, overwrite = true)
-					if (!candidateFile.delete()) {
-						Log.w(TAG, "Installed but failed to delete source temp file: ${candidateFile.absolutePath}")
+				// Both files are now on the same volume (templatesDir), so this is a cheap,
+				// same-directory move - renameTo() failing here (as opposed to across the
+				// temp/templates boundary above) would be unexpected, but fall back anyway.
+				if (!stagingFile.renameTo(destFile)) {
+					stagingFile.copyTo(destFile, overwrite = true)
+					if (!stagingFile.delete()) {
+						log.warn("Installed but failed to delete staging file: {}", stagingFile.name)
 					}
 				}
 
 				ITemplateProvider.getInstance(reload = true)
 				Unit
 			}.onFailure { exception ->
-				Log.e(TAG, "Failed to install template collection: ${candidateFile.absolutePath}", exception)
+				log.error("Failed to install template collection: {}", candidateFile.name, exception)
 			}
 		}
 

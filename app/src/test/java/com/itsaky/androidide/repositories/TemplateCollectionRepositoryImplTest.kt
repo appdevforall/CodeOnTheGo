@@ -166,4 +166,41 @@ class TemplateCollectionRepositoryImplTest {
 
 			assertThat(result.isFailure).isTrue()
 		}
+
+	@Test
+	fun `installCollection rejects a targetBaseName containing a path separator`() =
+		runTest {
+			val cgt = buildCgt("Empty Activity")
+
+			val result = repository.installCollection(cgt, "../evil", overwrite = false)
+
+			assertThat(result.isFailure).isTrue()
+			assertThat(File(templatesDir.parentFile, "evil.cgt").exists()).isFalse()
+		}
+
+	@Test
+	fun `installCollection rejects a targetBaseName that is a bare traversal segment`() =
+		runTest {
+			val cgt = buildCgt("Empty Activity")
+
+			val result = repository.installCollection(cgt, "..", overwrite = false)
+
+			assertThat(result.isFailure).isTrue()
+		}
+
+	@Test
+	fun `installCollection preserves the existing collection if the incoming archive cannot be staged`() =
+		runTest {
+			val destination = File(templatesDir, "my-templates.cgt")
+			destination.writeText("stale but valid content")
+			// A candidate that no longer exists can't be renamed or copied into staging, so the
+			// staging step fails before destFile is ever touched.
+			val missingCandidate = File(tempFolder.newFolder(), "gone.cgt")
+
+			val result = repository.installCollection(missingCandidate, "my-templates", overwrite = true)
+
+			assertThat(result.isFailure).isTrue()
+			assertThat(destination.exists()).isTrue()
+			assertThat(destination.readText()).isEqualTo("stale but valid content")
+		}
 }

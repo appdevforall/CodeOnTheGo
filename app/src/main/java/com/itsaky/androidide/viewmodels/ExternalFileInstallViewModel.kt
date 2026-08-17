@@ -2,7 +2,6 @@ package com.itsaky.androidide.viewmodels
 
 import android.content.ContentResolver
 import android.net.Uri
-import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -26,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.UUID
 
@@ -40,7 +40,7 @@ class ExternalFileInstallViewModel(
 	private val filesDir: File,
 ) : ViewModel() {
 	private companion object {
-		private const val TAG = "ExternalFileInstallVM"
+		private val log = LoggerFactory.getLogger(ExternalFileInstallViewModel::class.java)
 		private val UNSAFE_FILENAME_CHARS = Regex("[\\\\/:*?\"<>|]")
 
 		// A cold OS-triggered launch of this activity can win the race against
@@ -120,7 +120,7 @@ class ExternalFileInstallViewModel(
 					withContext(NonCancellable + Dispatchers.IO) { deleteQuietlyBlocking(destination) }
 					throw e
 				} catch (e: Exception) {
-					Log.e(TAG, "Failed to copy incoming file", e)
+					log.error("Failed to copy incoming file", e)
 					withContext(Dispatchers.IO) { deleteQuietlyBlocking(destination) }
 					sendErrorAndFinish(R.string.msg_invalid_incoming_file)
 					return@launch
@@ -153,7 +153,7 @@ class ExternalFileInstallViewModel(
 	) {
 		val info =
 			templateCollectionRepository.inspectCollection(tempFile).getOrElse { exception ->
-				Log.w(TAG, "Invalid template collection file: ${tempFile.name}", exception)
+				log.warn("Invalid template collection file: {}", tempFile.name, exception)
 				deleteQuietly(tempFile)
 				sendErrorAndFinish(R.string.msg_template_invalid_file)
 				return
@@ -208,7 +208,7 @@ class ExternalFileInstallViewModel(
 					// Deliberately don't delete tempFile or Finish here: the dialog the user was
 					// just on (install-confirm / name-conflict / rename) stays open so they can
 					// retry - e.g. pick a different name after a collision, or Overwrite instead.
-					Log.e(TAG, "Failed to install template collection", exception)
+					log.error("Failed to install template collection", exception)
 					_uiEffect.trySend(ExternalFileInstallUiEffect.ShowError(R.string.msg_template_install_failed))
 				}
 			_isInstalling.value = false

@@ -16,7 +16,6 @@ import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -50,15 +49,8 @@ class ExternalFileInstallViewModelTest {
 				pluginRepository = pluginRepository,
 				templateCollectionRepository = templateCollectionRepository,
 				contentResolver = context.contentResolver,
-				filesDir = context.filesDir,
+				filesDir = tempFolder.root,
 			)
-	}
-
-	@After
-	fun tearDown() {
-		// onReceived() copies into context.filesDir/temp - a real Robolectric app files dir, not
-		// covered by the tempFolder rule above, so it doesn't get cleaned up automatically.
-		File(context.filesDir, "temp").deleteRecursively()
 	}
 
 	private fun sourceUriFor(
