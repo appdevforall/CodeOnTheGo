@@ -37,7 +37,7 @@ class PathTraversalTest {
 	@Test
 	fun `plain relative path resolves inside base`() {
 		val resolved = resolveWithinDirectory(baseDir, "src/Main.kt")
-		assertThat(resolved).isEqualTo(File("/project/root/src/Main.kt"))
+		assertThat(resolved).isEqualTo(File(baseDir, "src/Main.kt").absoluteFile)
 	}
 
 	@Test
