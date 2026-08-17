@@ -1,0 +1,42 @@
+package org.appdevforall.cotg.quickbuild.domain.watch
+
+import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
+import org.appdevforall.cotg.quickbuild.domain.classify.ChangeClassifier
+import java.io.File
+
+/**
+ * Reconciles a raw watcher batch into the modified/removed split the pipeline builds against.
+ *
+ * A path reported as modified but already gone is reclassified: with a recognized project-file
+ * shape it is a deletion the modify channel caught (a `git checkout` rename whose target was then
+ * dropped), and without one it is a rename-tool temp dropped as noise - otherwise a stray temp
+ * would push the whole batch to a spurious
+ * [org.appdevforall.cotg.quickbuild.domain.classify.BuildRoute.FullGradleBuild].
+ */
+object WatcherBatchReconciler {
+	/**
+	 * Splits [batch] into the files that still exist, the deletions, and the noise to drop.
+	 *
+	 * @param batch the coalesced watcher batch, whose `files` may name paths already gone.
+	 * @param exists whether the path is currently a live file; production passes
+	 *   `File.isFile` (a path that turned into a directory counts as vanished).
+	 * @return the same batch with vanished paths moved to `removed` or dropped; never larger than
+	 *   [batch].
+	 */
+	fun reconcile(
+		batch: ChangedFiles.Known,
+		exists: (File) -> Boolean,
+	): ChangedFiles.Known {
+		val modified = HashSet<File>()
+		val removed = HashSet<File>()
+		batch.removed.filterTo(removed, ChangeClassifier::hasRecognizedShape)
+		for (file in batch.files) {
+			when {
+				exists(file) -> modified.add(file)
+				ChangeClassifier.hasRecognizedShape(file) -> removed.add(file)
+				// else: unrecognized vanished temp -> drop as noise.
+			}
+		}
+		return ChangedFiles.Known(modified, removed)
+	}
+}
