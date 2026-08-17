@@ -61,13 +61,11 @@ class PluginListAdapter(
 			// register once here instead of re-registering an identical listener on every bind().
 			binding.btnMenu.displayTooltipOnLongPress(
 				itemView.context,
-				binding.btnMenu,
 				TooltipCategory.CATEGORY_IDE,
 				TooltipTag.PLUGIN_MANAGER_ITEM_MENU,
 			)
 			binding.root.displayTooltipOnLongPress(
 				itemView.context,
-				binding.root,
 				TooltipCategory.CATEGORY_IDE,
 				TooltipTag.PLUGIN_MANAGER_ITEM,
 			)

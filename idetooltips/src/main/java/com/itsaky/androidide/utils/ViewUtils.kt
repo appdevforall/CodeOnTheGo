@@ -41,17 +41,16 @@ fun showIdeCategoryTooltipIfPresent(
 
 /**
  * Installs a long-click listener on this view that consumes the click and shows [tooltipTag]'s
- * tooltip (under [tooltipCategory]) anchored to [anchorView], or does nothing if [tooltipTag] is
+ * tooltip (under [tooltipCategory]) anchored to this view, or does nothing if [tooltipTag] is
  * blank. See [showTooltipIfPresent] - no manual haptic feedback here for the same reason.
  */
 fun View.displayTooltipOnLongPress(
 	context: Context,
-	anchorView: View,
 	tooltipCategory: String = TooltipCategory.CATEGORY_IDE,
 	tooltipTag: String,
 ) {
 	this.setOnLongClickListener {
-		showTooltipIfPresent(context, anchorView, tooltipCategory, tooltipTag, playHapticFeedback = false)
+		showTooltipIfPresent(context, this, tooltipCategory, tooltipTag, playHapticFeedback = false)
 		true
 	}
 }
