@@ -385,6 +385,11 @@ class PluginManagerViewModel(
 						}
 					}
 			} catch (e: CancellationException) {
+				// Matches the "always cleaned up regardless of outcome" comment above: cancellation
+				// is itself an outcome the forwarded temp file must not survive.
+				if (source is PluginInstallSource.LocalFile) {
+					withContext(NonCancellable) { deleteInstallSource(source) }
+				}
 				throw e
 			} catch (exception: Exception) {
 				Log.e(TAG, "Error installing plugin from URI", exception)
@@ -482,6 +487,8 @@ class PluginManagerViewModel(
 						PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
 					)
 				}
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				Log.w(TAG, "Failed to delete source document", e)
 				_uiEffect.trySend(

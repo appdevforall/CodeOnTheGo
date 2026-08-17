@@ -41,6 +41,7 @@ import com.itsaky.androidide.utils.flashError
 import com.unnamed.b.atv.model.TreeNode
 import kotlinx.coroutines.launch
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
+import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
@@ -74,7 +75,7 @@ class FileTreeActionHandler : BaseEventHandler() {
 		val context = event[Context::class.java]!! as EditorHandlerActivity
 		context.binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
 
-		val isArchive = event.file.extension.lowercase() in setOf("apk", PLUGIN_ARCHIVE_EXTENSION, "zip")
+		val isArchive = event.file.extension.lowercase() in setOf("apk", PLUGIN_ARCHIVE_EXTENSION, TEMPLATE_ARCHIVE_EXTENSION, "zip")
 		if (!isArchive && MB_10 < event.file.length()) {
 			flashError("File is too big!")
 			log.warn("Cannot open {} as it is too big. File size: {} bytes", event.file, event.file.length())

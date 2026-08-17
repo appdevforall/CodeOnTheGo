@@ -123,7 +123,15 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 			// install. The intent's extra itself is preserved across both cases by the OS.
 			intent.getStringExtra(EXTRA_PENDING_INSTALL_FILE_PATH)?.let { filePath ->
 				if (viewModel.markPendingInstallHandled(filePath)) {
-					showInstallConfirmation(PluginInstallSource.LocalFile(File(filePath)), forceDeleteSource = true)
+					val file = File(filePath)
+					if (file.exists()) {
+						showInstallConfirmation(PluginInstallSource.LocalFile(file), forceDeleteSource = true)
+					} else {
+						// Can legitimately happen if InstallTempFiles' stale-file sweep (or an
+						// earlier failed cleanup) removed the temp file before this dialog ever
+						// got a chance to show it - a clear message beats a generic install error.
+						flashError(getString(R.string.msg_plugin_file_not_found))
+					}
 				}
 			}
 		} catch (e: Exception) {
@@ -324,40 +332,33 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 	private fun Uri.isSupportedPluginFile(): Boolean = getFileName(this@PluginManagerActivity).endsWith(PLUGIN_EXTENSION, ignoreCase = true)
 
 	/**
-	 * @param forceDeleteSource When true (a `.cgp` forwarded from
-	 * [ExternalFileInstallActivity]), [source] is our own hidden temp copy, not a file the user
-	 * picked - there's no source worth keeping, so the "delete source" checkbox is skipped
-	 * entirely and the temp file is always cleaned up.
+	 * @param forceDeleteSource When true (a `.cgp` forwarded from [ExternalFileInstallActivity]),
+	 * [source] is our own hidden temp copy, not a file the user picked - there's no checkbox to
+	 * offer (deletion isn't optional) and no source worth keeping on decline/cancel either, so
+	 * both the negative button and back-press/tap-outside route to [PluginManagerUiEvent.CancelPendingInstall].
+	 * One shared dialog builder for both cases so a future button/copy change can't be applied to
+	 * only one branch and silently reintroduce a leaked-temp-file bug in the other.
 	 */
 	private fun showInstallConfirmation(
 		source: PluginInstallSource,
 		forceDeleteSource: Boolean = false,
 	) {
-		if (forceDeleteSource) {
-			MaterialAlertDialogBuilder(this)
-				.setTitle(R.string.title_install_plugin)
-				.setPositiveButton(R.string.btn_install) { _, _ ->
-					viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(source, deleteSourceAfterInstall = true))
-				}.setNegativeButton(android.R.string.cancel) { _, _ ->
-					viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(source, deleteSourceAfterInstall = true))
-				}.setOnCancelListener {
-					// Dialogs default to cancelable=true: back-press/tap-outside must be treated
-					// the same as the negative button, or the forwarded temp file behind [source]
-					// is leaked forever with no other cleanup path.
-					viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(source, deleteSourceAfterInstall = true))
-				}.show()
-			return
+		val dialogView = if (forceDeleteSource) null else layoutInflater.inflate(R.layout.dialog_install_plugin, null)
+		val deleteCheckBox = dialogView?.findViewById<CheckBox>(R.id.checkbox_delete_source)
+		val onCancel = {
+			if (forceDeleteSource) {
+				viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(source, deleteSourceAfterInstall = true))
+			}
 		}
-
-		val dialogView = layoutInflater.inflate(R.layout.dialog_install_plugin, null)
-		val deleteCheckBox = dialogView.findViewById<CheckBox>(R.id.checkbox_delete_source)
 
 		MaterialAlertDialogBuilder(this)
 			.setTitle(R.string.title_install_plugin)
-			.setView(dialogView)
+			.apply { dialogView?.let { setView(it) } }
 			.setPositiveButton(R.string.btn_install) { _, _ ->
-				viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(source, deleteCheckBox.isChecked))
-			}.setNegativeButton(android.R.string.cancel, null)
+				val deleteSourceAfterInstall = if (forceDeleteSource) true else deleteCheckBox?.isChecked == true
+				viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(source, deleteSourceAfterInstall))
+			}.setNegativeButton(android.R.string.cancel) { _, _ -> onCancel() }
+			.setOnCancelListener { onCancel() }
 			.show()
 	}
 
