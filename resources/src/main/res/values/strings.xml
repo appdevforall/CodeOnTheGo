@@ -1206,6 +1206,7 @@
 
 	<!-- Tooltip Links HTML Template -->
 	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:%2$s;text-decoration:underline;">%3$s</a>]]></string>
+	<string name="tooltip_missing_fallback_html"><![CDATA[Sorry, we don&#8217;t have a tooltip for that. <a href="%1$s">Explore the documentation</a>.]]></string>
 	<string name="title_alert">Send feedback</string>
 
 	<!-- Strings from BaseApplication.java -->
