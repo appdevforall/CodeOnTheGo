@@ -70,7 +70,15 @@ private fun View.longPressGestureDetector(listener: (MotionEvent) -> Unit): Gest
 	)
 
 fun RecyclerView.onLongPress(listener: (MotionEvent) -> Unit) {
-	val gestureDetector = longPressGestureDetector(listener)
+	// Once a long press fires mid-gesture, start intercepting so the eventual ACTION_UP never
+	// reaches the row underneath - otherwise the row's own click still fires alongside the
+	// tooltip (e.g. a long-pressed switch both shows its tooltip and toggles).
+	var longPressHandled = false
+	val gestureDetector =
+		longPressGestureDetector {
+			longPressHandled = true
+			listener(it)
+		}
 
 	addOnItemTouchListener(
 		object : RecyclerView.SimpleOnItemTouchListener() {
@@ -78,8 +86,18 @@ fun RecyclerView.onLongPress(listener: (MotionEvent) -> Unit) {
 				rv: RecyclerView,
 				e: MotionEvent,
 			): Boolean {
+				if (e.actionMasked == MotionEvent.ACTION_DOWN) {
+					longPressHandled = false
+				}
 				gestureDetector.onTouchEvent(e)
-				return false
+				return longPressHandled
+			}
+
+			override fun onTouchEvent(
+				rv: RecyclerView,
+				e: MotionEvent,
+			) {
+				gestureDetector.onTouchEvent(e)
 			}
 		},
 	)

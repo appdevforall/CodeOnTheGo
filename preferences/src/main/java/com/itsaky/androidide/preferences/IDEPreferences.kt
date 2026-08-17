@@ -29,10 +29,6 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 data object IDEPreferences : BaseIDEPreferences() {
 	override val children: List<IPreference> = mutableListOf()
 
-	// Never actually read at runtime today - PreferencesActivity passes the literal
-	// TooltipTag.PREFS_TOP constant for the root fragment instead of this property - but this is
-	// the root container this constant represents, so give it the matching value rather than an
-	// unused empty string.
 	override val tooltipTag: String = TooltipTag.PREFS_TOP
 
 	override fun describeContents(): Int = 0

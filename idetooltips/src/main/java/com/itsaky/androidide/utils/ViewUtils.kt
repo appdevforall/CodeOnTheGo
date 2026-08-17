@@ -7,7 +7,8 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 
 /**
  * Installs a long-click listener on this view that consumes the click and shows [tooltipTag]'s
- * tooltip (under [tooltipCategory]) anchored to [anchorView].
+ * tooltip (under [tooltipCategory]) anchored to [anchorView], or does nothing if [tooltipTag] is
+ * blank.
  *
  * No manual haptic feedback here: the platform already calls `performHapticFeedback` for a
  * [View.OnLongClickListener] that returns `true` (see `View.performLongClick()`), so adding
@@ -20,12 +21,14 @@ fun View.displayTooltipOnLongPress(
 	tooltipTag: String,
 ) {
 	this.setOnLongClickListener {
-		TooltipManager.showTooltip(
-			context = context,
-			anchorView = anchorView,
-			category = tooltipCategory,
-			tag = tooltipTag,
-		)
+		if (tooltipTag.isNotBlank()) {
+			TooltipManager.showTooltip(
+				context = context,
+				anchorView = anchorView,
+				category = tooltipCategory,
+				tag = tooltipTag,
+			)
+		}
 		true
 	}
 }

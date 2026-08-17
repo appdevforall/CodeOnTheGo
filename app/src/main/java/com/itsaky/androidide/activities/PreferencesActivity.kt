@@ -113,7 +113,7 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 			IDEPreferencesFragment.EXTRA_CHILDREN,
 			ArrayList(prefs.children),
 		)
-		args.putString(IDEPreferencesFragment.EXTRA_SCREEN_TOOLTIP_TAG, TooltipTag.PREFS_TOP)
+		args.putString(IDEPreferencesFragment.EXTRA_SCREEN_TOOLTIP_TAG, prefs.tooltipTag)
 
 		// A fresh instance every time: arguments cannot be set on a fragment whose state was saved.
 		loadFragment(IDEPreferencesFragment().also { it.arguments = args })
