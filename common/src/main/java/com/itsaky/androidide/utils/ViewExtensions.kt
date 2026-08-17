@@ -83,6 +83,10 @@ fun RecyclerView.onLongPress(
 	// reaches the row underneath - otherwise the row's own click still fires alongside the
 	// tooltip (e.g. a long-pressed switch both shows its tooltip and toggles).
 	var longPressHandled = false
+	// Set when onInterceptTouchEvent's return value just flipped this event to intercepted:
+	// RecyclerView then redelivers that same event to onTouchEvent below, which must not feed it
+	// to the GestureDetector a second time.
+	var justStartedIntercepting = false
 	val gestureDetector =
 		longPressGestureDetector {
 			longPressHandled = true
@@ -99,13 +103,19 @@ fun RecyclerView.onLongPress(
 					longPressHandled = false
 				}
 				gestureDetector.onTouchEvent(e)
-				return suppressClickAfterLongPress && longPressHandled
+				val intercept = suppressClickAfterLongPress && longPressHandled
+				justStartedIntercepting = intercept
+				return intercept
 			}
 
 			override fun onTouchEvent(
 				rv: RecyclerView,
 				e: MotionEvent,
 			) {
+				if (justStartedIntercepting) {
+					justStartedIntercepting = false
+					return
+				}
 				gestureDetector.onTouchEvent(e)
 			}
 		},
