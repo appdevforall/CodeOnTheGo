@@ -1,4 +1,4 @@
-package com.itsaky.androidide.lsp.kotlin.utils
+package com.itsaky.androidide.lsp.actions
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.models.Position
@@ -9,9 +9,28 @@ import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class SurroundWithTryCatchTest {
+	private companion object {
+		const val KT_CATCH_CLAUSE = "catch (e: Exception)"
+		const val KT_CATCH_BODY = "e.printStackTrace()"
+		const val JAVA_CATCH_CLAUSE = "catch (Exception e)"
+		const val JAVA_CATCH_BODY = "e.printStackTrace();"
+	}
+
+	private fun kotlinEdit(
+		text: String,
+		startLine: Int,
+		endLine: Int,
+	) = computeSurroundWithTryCatchEdit(text, startLine, endLine, KT_CATCH_CLAUSE, KT_CATCH_BODY)
+
+	private fun javaEdit(
+		text: String,
+		startLine: Int,
+		endLine: Int,
+	) = computeSurroundWithTryCatchEdit(text, startLine, endLine, JAVA_CATCH_CLAUSE, JAVA_CATCH_BODY)
+
 	@Test
 	fun `single unindented line is wrapped`() {
-		val edit = computeSurroundWithTryCatchEdit("foo()", 0, 0)
+		val edit = kotlinEdit("foo()", 0, 0)
 		assertThat(edit).isNotNull()
 		assertThat(edit!!.newText).isEqualTo(
 			"try {\n\tfoo()\n} catch (e: Exception) {\n\te.printStackTrace()\n}",
@@ -26,7 +45,7 @@ class SurroundWithTryCatchTest {
 	@Test
 	fun `indented multi-line block preserves and deepens indentation`() {
 		val text = "fun f() {\n\tval a = read()\n\tprocess(a)\n}"
-		val edit = computeSurroundWithTryCatchEdit(text, 1, 2)
+		val edit = kotlinEdit(text, 1, 2)
 		assertThat(edit).isNotNull()
 		assertThat(edit!!.newText).isEqualTo(
 			"\ttry {\n\t\tval a = read()\n\t\tprocess(a)\n\t} catch (e: Exception) {\n\t\te.printStackTrace()\n\t}",
@@ -40,7 +59,7 @@ class SurroundWithTryCatchTest {
 
 	@Test
 	fun `blank lines inside the span are not indented`() {
-		val edit = computeSurroundWithTryCatchEdit("a()\n\nb()", 0, 2)
+		val edit = kotlinEdit("a()\n\nb()", 0, 2)
 		assertThat(edit!!.newText).isEqualTo(
 			"try {\n\ta()\n\n\tb()\n} catch (e: Exception) {\n\te.printStackTrace()\n}",
 		)
@@ -49,7 +68,7 @@ class SurroundWithTryCatchTest {
 	@Test
 	fun `space-indented file produces a spaces-only body`() {
 		val text = "fun f() {\n    val a = read()\n    process(a)\n}"
-		val edit = computeSurroundWithTryCatchEdit(text, 1, 2)
+		val edit = kotlinEdit(text, 1, 2)
 		assertThat(edit).isNotNull()
 		assertThat(edit!!.newText).isEqualTo(
 			"    try {\n        val a = read()\n        process(a)\n" +
@@ -62,15 +81,40 @@ class SurroundWithTryCatchTest {
 	}
 
 	@Test
+	fun `java catch clause and semicolon body are emitted`() {
+		val edit = javaEdit("foo();", 0, 0)
+		assertThat(edit).isNotNull()
+		assertThat(edit!!.newText).isEqualTo(
+			"try {\n\tfoo();\n} catch (Exception e) {\n\te.printStackTrace();\n}",
+		)
+		assertThat(edit.range).isEqualTo(
+			Range(Position(0, 0, 0), Position(0, 6, 6)),
+		)
+	}
+
+	@Test
+	fun `java indented multi-line block preserves and deepens indentation`() {
+		val text = "void f() {\n\tint a = read();\n\tprocess(a);\n}"
+		val edit = javaEdit(text, 1, 2)
+		assertThat(edit).isNotNull()
+		assertThat(edit!!.newText).isEqualTo(
+			"\ttry {\n\t\tint a = read();\n\t\tprocess(a);\n\t} catch (Exception e) {\n\t\te.printStackTrace();\n\t}",
+		)
+		assertThat(edit.range).isEqualTo(
+			Range(Position(1, 0, 11), Position(2, 12, 39)),
+		)
+	}
+
+	@Test
 	fun `whitespace-only span returns null`() {
-		assertThat(computeSurroundWithTryCatchEdit("\n  \n", 0, 1)).isNull()
+		assertThat(kotlinEdit("\n  \n", 0, 1)).isNull()
 	}
 
 	@Test
 	fun `out-of-range span returns null`() {
-		assertThat(computeSurroundWithTryCatchEdit("foo()", 0, 5)).isNull()
-		assertThat(computeSurroundWithTryCatchEdit("foo()", -1, 0)).isNull()
-		assertThat(computeSurroundWithTryCatchEdit("foo()", 2, 1)).isNull()
+		assertThat(kotlinEdit("foo()", 0, 5)).isNull()
+		assertThat(kotlinEdit("foo()", -1, 0)).isNull()
+		assertThat(kotlinEdit("foo()", 2, 1)).isNull()
 	}
 
 	@Test
@@ -96,7 +140,7 @@ class SurroundWithTryCatchTest {
 
 	@Test
 	fun `CRLF file preserves carriage returns and replace indices`() {
-		val edit = computeSurroundWithTryCatchEdit("a()\r\nb()", 0, 1)
+		val edit = kotlinEdit("a()\r\nb()", 0, 1)
 		assertThat(edit).isNotNull()
 		assertThat(edit!!.newText).isEqualTo(
 			"try {\r\n\ta()\r\n\tb()\r\n} catch (e: Exception) {\r\n\te.printStackTrace()\r\n}",
@@ -109,7 +153,7 @@ class SurroundWithTryCatchTest {
 	@Test
 	fun `stray whitespace-only line does not switch a tab file to spaces`() {
 		val text = "fun f() {\n \n\tval a = read()\n\tprocess(a)\n}"
-		val edit = computeSurroundWithTryCatchEdit(text, 2, 3)
+		val edit = kotlinEdit(text, 2, 3)
 		assertThat(edit).isNotNull()
 		assertThat(edit!!.newText).isEqualTo(
 			"\ttry {\n\t\tval a = read()\n\t\tprocess(a)\n\t} catch (e: Exception) {\n\t\te.printStackTrace()\n\t}",
