@@ -12,6 +12,7 @@ import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.UUID
 
 /**
  * Implementation of [TemplateCollectionRepository]. Templates are pure data (a zip archive
@@ -131,24 +132,39 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 				// existing collection. candidateFile itself is deliberately left alone here (not
 				// moved/deleted) so that if anything below fails, the caller can retry the whole
 				// call with the same file - it's only deleted once the swap and the provider
-				// reload have both fully succeeded.
-				val stagingFile = File(templatesDir, "${destFile.name}.tmp")
+				// reload have both fully succeeded. The staging (and backup) filenames carry a
+				// random suffix so two concurrent installCollection() calls targeting the same
+				// destFile never race on the same intermediate path.
+				val stagingFile = File(templatesDir, "${destFile.name}.${UUID.randomUUID()}.tmp")
 				candidateFile.copyTo(stagingFile, overwrite = true)
 
-				if (destFile.exists() && !destFile.delete()) {
+				// Back up (rather than delete) any existing destFile, so it can be put back if
+				// the swap below fails for any reason - the existing collection is only ever
+				// removed once the new one is confirmed successfully in its place.
+				val hadExisting = destFile.exists()
+				val backupFile = File(templatesDir, "${destFile.name}.${UUID.randomUUID()}.bak")
+				if (hadExisting && !destFile.renameTo(backupFile)) {
 					stagingFile.delete()
-					throw IllegalStateException("Failed to replace existing file: ${destFile.name}")
+					throw IllegalStateException("Failed to back up existing file before replacing: ${destFile.name}")
 				}
 
 				// Both files are now on the same volume (templatesDir), so this is a cheap,
 				// same-directory move - renameTo() failing here (as opposed to across the
 				// temp/templates boundary candidateFile itself would have to cross) would be
-				// unexpected, but fall back anyway.
-				if (!stagingFile.renameTo(destFile)) {
-					stagingFile.copyTo(destFile, overwrite = true)
-					if (!stagingFile.delete()) {
-						log.warn("Installed but failed to delete staging file: {}", stagingFile.name)
-					}
+				// unexpected, but fall back to a copy anyway.
+				val swapSucceeded =
+					stagingFile.renameTo(destFile) ||
+						runCatching { stagingFile.copyTo(destFile, overwrite = true) }.isSuccess
+
+				if (!swapSucceeded) {
+					if (hadExisting) backupFile.renameTo(destFile)
+					stagingFile.delete()
+					throw IllegalStateException("Failed to replace existing file: ${destFile.name}")
+				}
+
+				stagingFile.delete()
+				if (hadExisting && backupFile.exists() && !backupFile.delete()) {
+					log.warn("Installed but failed to delete backup file: {}", backupFile.name)
 				}
 
 				ITemplateProvider.getInstance(reload = true)

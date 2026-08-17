@@ -18,6 +18,7 @@ import com.itsaky.androidide.utils.EditorDecorationBridge
 import com.itsaky.androidide.utils.LastValueGate
 import com.itsaky.androidide.utils.UriFileImporter
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
@@ -51,6 +52,12 @@ class PluginManagerViewModel(
 	// death (a fresh instance is created), so a process-death-recreated PluginManagerActivity
 	// still shows the dialog instead of silently dropping the forwarded install.
 	private val pendingInstallGate = LastValueGate<String>()
+
+	// Completed once the first loadPlugins() call (from init{}) has concluded, successfully or
+	// not. resolveInstallConflict() awaits this before consulting _uiState.value.plugins, so an
+	// install confirmed immediately after a cold start can't race the async plugin-list load and
+	// skip the same-ID signature check by seeing an still-empty list.
+	private val initialLoadCompleted = CompletableDeferred<Unit>()
 
 	/** See [pendingInstallGate] for why this, rather than an Activity `savedInstanceState`
 	 * check, is what correctly distinguishes "already shown after a rotation" from "never shown
@@ -117,7 +124,12 @@ class PluginManagerViewModel(
 			}
 
 			is PluginManagerUiEvent.CancelPendingInstall -> {
-				if (event.deleteSourceAfterInstall) {
+				// Only a forwarded LocalFile (our own disposable temp copy) is cleaned up here -
+				// nothing was installed, so a user-picked ContentUri source is never touched on
+				// decline, regardless of deleteSourceAfterInstall (that flag only ever governs
+				// deletion after a *successful* install, matching its "delete after install"
+				// label).
+				if (event.source is PluginInstallSource.LocalFile) {
 					viewModelScope.launch { deleteInstallSource(event.source) }
 				}
 			}
@@ -138,6 +150,7 @@ class PluginManagerViewModel(
 	private fun loadPlugins() {
 		if (!pluginRepository.isPluginManagerAvailable()) {
 			_uiState.update { it.copy(isPluginManagerAvailable = false) }
+			initialLoadCompleted.complete(Unit)
 			return
 		}
 
@@ -173,6 +186,9 @@ class PluginManagerViewModel(
 			EditorDecorationBridge.refresh()
 
 			_currentOperation.value = PluginOperation.None
+			// A no-op if already completed by an earlier loadPlugins() call - only the first
+			// call's outcome matters for initialLoadCompleted's purpose.
+			initialLoadCompleted.complete(Unit)
 		}
 	}
 
@@ -294,13 +310,25 @@ class PluginManagerViewModel(
 			_currentOperation.value = PluginOperation.Installing
 			_uiState.update { it.copy(isInstalling = true) }
 
-			// Only a copy this function made itself (ContentUri case) is unconditionally safe to
-			// delete below - a forwarded LocalFile is the caller's file, and its lifecycle is
-			// governed by deleteSourceAfterInstall/deleteInstallSource instead.
+			// ownedTempFile (the ContentUri case's own temp copy) is what the `finally` block
+			// below cleans up unconditionally. Note pluginRepository.installPluginFromFile()
+			// itself unconditionally deletes whatever `pluginFile` it's given once that's copied
+			// into the plugins directory - that's pre-existing behavior this function doesn't
+			// control (it also affects InstallFileAction.kt's direct callers). What
+			// deleteSourceAfterInstall/deleteInstallSource governs below is the *original*
+			// source's lifecycle instead: a user-picked ContentUri is only ever deleted after a
+			// successful install (see the onSuccess/onFailure split below), while a forwarded
+			// LocalFile temp copy is always cleaned up regardless of outcome.
 			var ownedTempFile: File? = null
 			var pluginFile: File? = null
 
 			try {
+				if (checkConflict) {
+					// See initialLoadCompleted's kdoc: guarantees _uiState.value.plugins reflects
+					// the real installed set before resolveInstallConflict() checks it below.
+					initialLoadCompleted.await()
+				}
+
 				pluginFile =
 					when (source) {
 						is PluginInstallSource.LocalFile -> {
@@ -351,7 +379,10 @@ class PluginManagerViewModel(
 								listOf(exception.message ?: ""),
 							),
 						)
-						if (deleteSourceAfterInstall) {
+						// A failed install deletes nothing but our own disposable temp copy - a
+						// user-picked ContentUri is preserved so they can retry, matching
+						// deleteSourceAfterInstall's "delete after install [succeeds]" meaning.
+						if (source is PluginInstallSource.LocalFile) {
 							deleteInstallSource(source)
 						}
 					}
@@ -365,7 +396,7 @@ class PluginManagerViewModel(
 						listOf(exception.message ?: ""),
 					),
 				)
-				if (deleteSourceAfterInstall) {
+				if (source is PluginInstallSource.LocalFile) {
 					deleteInstallSource(source)
 				}
 			} finally {
@@ -391,7 +422,7 @@ class PluginManagerViewModel(
 		if (incoming == null) {
 			Log.w(TAG, "Failed to read plugin metadata from ${pluginFile.name}; aborting install")
 			_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file))
-			if (deleteSourceAfterInstall) deleteInstallSource(source)
+			if (source is PluginInstallSource.LocalFile) deleteInstallSource(source)
 			return true
 		}
 
@@ -411,7 +442,7 @@ class PluginManagerViewModel(
 					listOf(existing.metadata.name),
 				),
 			)
-			if (deleteSourceAfterInstall) deleteInstallSource(source)
+			if (source is PluginInstallSource.LocalFile) deleteInstallSource(source)
 			return true
 		}
 

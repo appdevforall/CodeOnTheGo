@@ -34,12 +34,18 @@ import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.FlashType.ERROR
 import com.itsaky.androidide.utils.FlashType.INFO
 import com.itsaky.androidide.utils.FlashType.SUCCESS
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 const val DURATION_SHORT = 2000L
 const val DURATION_LONG = 3500L
 const val DURATION_INDEFINITE = Flashbar.DURATION_INDEFINITE
+
+/** Safety net for [Flashbar.OnBarShowListener.onShown] never firing - callers awaiting it are
+ * never blocked indefinitely (e.g. if there's no foreground activity to actually show a bar). */
+private const val FLASH_SHOWN_TIMEOUT_MS = 3000L
 
 val COLOR_SUCCESS = Color.parseColor("#4CAF50")
 val COLOR_ERROR = Color.parseColor("#f44336")
@@ -60,28 +66,36 @@ private fun Activity.showFlashBar(
 	gravity: Flashbar.Gravity = TOP,
 	duration: Long = Flashbar.DURATION_SHORT,
 ) {
-  val builder = flashbarBuilder(gravity, duration)
-    .applyIcon(iconType)
+	val builder =
+		flashbarBuilder(gravity, duration)
+			.applyIcon(iconType)
 
-  // Add a close button if the flashbar is an indefinite error
-  if (duration == DURATION_INDEFINITE && iconType == IconType.ERROR) {
-    builder.positiveActionText(getString(R.string.dismiss))
-    builder.positiveActionTapListener { it.dismiss() }
-  }
+	// Add a close button if the flashbar is an indefinite error
+	if (duration == DURATION_INDEFINITE && iconType == IconType.ERROR) {
+		builder.positiveActionText(getString(R.string.dismiss))
+		builder.positiveActionTapListener { it.dismiss() }
+	}
 
 	when (msg) {
-		null -> return
-		is Int ->
+		null -> {
+			return
+		}
+
+		is Int -> {
 			builder
 				.message(msg)
 				.showOnUiThread()
+		}
 
-		is String ->
-      builder
+		is String -> {
+			builder
 				.message(msg)
 				.showOnUiThread()
+		}
 
-		else -> throw IllegalArgumentException("Message must be String or Int resource")
+		else -> {
+			throw IllegalArgumentException("Message must be String or Int resource")
+		}
 	}
 }
 
@@ -127,6 +141,56 @@ fun Activity.flashSuccess(msg: String?) = showFlashBar(msg, IconType.SUCCESS)
 fun Activity.flashError(msg: String?) = showFlashBar(msg, IconType.ERROR, duration = DURATION_INDEFINITE)
 
 fun Activity.flashInfo(msg: String?) = showFlashBar(msg, IconType.INFO)
+
+/**
+ * Like [showFlashBar], but suspends until the bar's entrance animation has actually finished (or
+ * [FLASH_SHOWN_TIMEOUT_MS] elapses) instead of firing-and-forgetting - for callers (e.g. a
+ * one-shot screen about to finish()) that need the message to be visible before proceeding,
+ * rather than guessing a fixed delay that may or may not outlast the real animation.
+ */
+private suspend fun Activity.showFlashBarAwaitShown(
+	msg: Any?,
+	iconType: IconType,
+	gravity: Flashbar.Gravity = TOP,
+	duration: Long = Flashbar.DURATION_SHORT,
+) {
+	val builder = flashbarBuilder(gravity, duration).applyIcon(iconType)
+
+	if (duration == DURATION_INDEFINITE && iconType == IconType.ERROR) {
+		builder.positiveActionText(getString(R.string.dismiss))
+		builder.positiveActionTapListener { it.dismiss() }
+	}
+
+	when (msg) {
+		null -> return
+		is Int -> builder.message(msg)
+		is String -> builder.message(msg)
+		else -> throw IllegalArgumentException("Message must be String or Int resource")
+	}
+
+	val shown = CompletableDeferred<Unit>()
+	builder.barShowListener(
+		object : Flashbar.OnBarShowListener {
+			override fun onShowing(bar: Flashbar) = Unit
+
+			override fun onShowProgress(
+				bar: Flashbar,
+				progress: Float,
+			) = Unit
+
+			override fun onShown(bar: Flashbar) {
+				shown.complete(Unit)
+			}
+		},
+	)
+
+	runOnUiThread { builder.build().show() }
+	withTimeoutOrNull(FLASH_SHOWN_TIMEOUT_MS) { shown.await() }
+}
+
+suspend fun Activity.flashSuccessAwaitShown(msg: String?) = showFlashBarAwaitShown(msg, IconType.SUCCESS)
+
+suspend fun Activity.flashErrorAwaitShown(msg: String?) = showFlashBarAwaitShown(msg, IconType.ERROR, duration = DURATION_INDEFINITE)
 
 fun Activity.flashSuccess(
 	@StringRes msg: Int,

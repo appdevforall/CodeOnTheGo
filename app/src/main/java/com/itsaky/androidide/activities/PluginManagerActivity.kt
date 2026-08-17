@@ -340,6 +340,11 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 					viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(source, deleteSourceAfterInstall = true))
 				}.setNegativeButton(android.R.string.cancel) { _, _ ->
 					viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(source, deleteSourceAfterInstall = true))
+				}.setOnCancelListener {
+					// Dialogs default to cancelable=true: back-press/tap-outside must be treated
+					// the same as the negative button, or the forwarded temp file behind [source]
+					// is leaked forever with no other cleanup path.
+					viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(source, deleteSourceAfterInstall = true))
 				}.show()
 			return
 		}
@@ -371,6 +376,12 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 					PluginManagerUiEvent.ConfirmOverwrite(effect.source, effect.deleteSourceAfterInstall),
 				)
 			}.setNegativeButton(android.R.string.cancel) { _, _ ->
+				viewModel.onEvent(
+					PluginManagerUiEvent.CancelPendingInstall(effect.source, effect.deleteSourceAfterInstall),
+				)
+			}.setOnCancelListener {
+				// Same reasoning as showInstallConfirmation()'s onCancelListener: back-press must
+				// route through CancelPendingInstall too, or a forwarded source's temp file leaks.
 				viewModel.onEvent(
 					PluginManagerUiEvent.CancelPendingInstall(effect.source, effect.deleteSourceAfterInstall),
 				)

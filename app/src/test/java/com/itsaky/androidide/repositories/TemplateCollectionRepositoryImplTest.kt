@@ -276,4 +276,27 @@ class TemplateCollectionRepositoryImplTest {
 			assertThat(result.isFailure).isTrue()
 			assertThat(cgt.exists()).isTrue()
 		}
+
+	@Test
+	fun `installCollection leaves no stray staging or backup files behind on a fresh install`() =
+		runTest {
+			val cgt = buildCgt("Empty Activity")
+
+			val result = repository.installCollection(cgt, "my-templates", overwrite = false)
+
+			assertThat(result.isSuccess).isTrue()
+			assertThat(templatesDir.listFiles()?.map { it.name }).containsExactly("my-templates.cgt")
+		}
+
+	@Test
+	fun `installCollection leaves no stray staging or backup files behind on an overwrite`() =
+		runTest {
+			File(templatesDir, "my-templates.cgt").writeText("stale content")
+			val cgt = buildCgt("Empty Activity")
+
+			val result = repository.installCollection(cgt, "my-templates", overwrite = true)
+
+			assertThat(result.isSuccess).isTrue()
+			assertThat(templatesDir.listFiles()?.map { it.name }).containsExactly("my-templates.cgt")
+		}
 }

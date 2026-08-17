@@ -43,18 +43,15 @@ class ExternalFileInstallViewModel(
 		private val log = LoggerFactory.getLogger(ExternalFileInstallViewModel::class.java)
 		private val UNSAFE_FILENAME_CHARS = Regex("[\\\\/:*?\"<>|]")
 
-		// A cold OS-triggered launch of this activity can win the race against
-		// IDEApplication's async setup (device-unlock -> CredentialProtectedApplicationLoader.load()),
-		// so isPluginManagerAvailable()/isTemplatesFeatureAvailable() are polled briefly
-		// instead of failing on the very first check.
-		private const val SETUP_WAIT_ATTEMPTS = 10
-		private const val SETUP_WAIT_INTERVAL_MS = 300L
-
-		// Gives Flashbar's async layout-triggered entrance animation (see FlashbarContainerView's
-		// afterMeasured{}) a chance to actually start before Finish tears the window down -
-		// without this, ShowError/ShowSuccess sent immediately before Finish can be dismissed
-		// before ever rendering.
-		private const val FLASH_MESSAGE_DELAY_MS = 300L
+		// A cold OS-triggered launch of this activity can win the race against IDEApplication's
+		// async setup (device-unlock -> CredentialProtectedApplicationLoader.load(), which itself
+		// chains a long, unbounded sequence of Sentry/Firebase/EventBus/WorkManager/Termux/plugin
+		// init work), so isPluginManagerAvailable()/isTemplatesFeatureAvailable() are polled
+		// instead of failing on the very first check. ~8s total gives real cold starts a
+		// realistic margin; there's no true completion signal to await instead (see ADFA-4934
+		// code review notes), so this remains a bounded-poll approximation, not a hard guarantee.
+		private const val SETUP_WAIT_ATTEMPTS = 20
+		private const val SETUP_WAIT_INTERVAL_MS = 400L
 	}
 
 	// Buffered (not rendezvous): onReceived() runs via Dispatchers.Main.immediate right after
@@ -201,8 +198,10 @@ class ExternalFileInstallViewModel(
 			templateCollectionRepository
 				.installCollection(tempFile, targetBaseName, overwrite)
 				.onSuccess {
+					// The Screen suspends on ShowSuccess until the flashbar's entrance animation
+					// actually finishes (flashSuccessAwaitShown) before processing the next
+					// buffered effect, so Finish here doesn't need its own artificial delay.
 					_uiEffect.trySend(ExternalFileInstallUiEffect.ShowSuccess(R.string.msg_template_installed))
-					delay(FLASH_MESSAGE_DELAY_MS)
 					_uiEffect.trySend(ExternalFileInstallUiEffect.Finish)
 				}.onFailure { exception ->
 					// Deliberately don't delete tempFile or Finish here: the dialog the user was
@@ -228,11 +227,12 @@ class ExternalFileInstallViewModel(
 
 	fun sanitizeBaseName(rawName: String): String = rawName.replace(UNSAFE_FILENAME_CHARS, "_").trim().ifBlank { "templates" }
 
-	private suspend fun sendErrorAndFinish(
+	private fun sendErrorAndFinish(
 		@StringRes messageResId: Int,
 	) {
+		// See confirmTemplateInstall()'s onSuccess: the Screen suspends on ShowError until the
+		// flashbar is actually shown before processing Finish, so no delay is needed here either.
 		_uiEffect.trySend(ExternalFileInstallUiEffect.ShowError(messageResId))
-		delay(FLASH_MESSAGE_DELAY_MS)
 		_uiEffect.trySend(ExternalFileInstallUiEffect.Finish)
 	}
 

@@ -27,8 +27,8 @@ import com.itsaky.androidide.repositories.TemplateCollectionRepository
 import com.itsaky.androidide.ui.compose.longPressTooltip
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEffect
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEvent
-import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.flashErrorAwaitShown
+import com.itsaky.androidide.utils.flashSuccessAwaitShown
 import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
 import java.io.File
 
@@ -83,11 +83,15 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 					// Deliberately doesn't touch dialogState: on an install failure the ViewModel
 					// sends ShowError without a following Finish, so whichever dialog is open
 					// (install-confirm / name-conflict / rename) stays open for the user to retry.
-					flashError(context.getString(effect.messageResId, *effect.formatArgs.toTypedArray()))
+					// Awaits the bar's entrance animation instead of returning immediately: this
+					// suspends the collect{} loop above, so a Finish effect buffered right after
+					// this one (see sendErrorAndFinish()) isn't processed - and doesn't tear the
+					// window down - until the message has actually finished appearing.
+					flashErrorAwaitShown(context.getString(effect.messageResId, *effect.formatArgs.toTypedArray()))
 				}
 
 				is ExternalFileInstallUiEffect.ShowSuccess -> {
-					flashSuccess(context.getString(effect.messageResId))
+					flashSuccessAwaitShown(context.getString(effect.messageResId))
 				}
 
 				is ExternalFileInstallUiEffect.Finish -> {
@@ -176,7 +180,10 @@ private fun InstallConfirmationDialog(
 	onDismiss: () -> Unit,
 ) {
 	AlertDialog(
-		onDismissRequest = onDismiss,
+		// Gated on installEnabled (== !isInstalling): once Install is tapped, the ViewModel
+		// starts copying/replacing tempFile on viewModelScope - dismissing here would race
+		// IgnoreTemplateInstall's own delete of that same file against the in-progress install.
+		onDismissRequest = { if (installEnabled) onDismiss() },
 		title = {
 			Text(
 				stringResource(R.string.title_install_template_collection),
@@ -196,7 +203,7 @@ private fun InstallConfirmationDialog(
 			TextButton(onClick = onInstall, enabled = installEnabled) { Text(stringResource(R.string.btn_install)) }
 		},
 		dismissButton = {
-			TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+			TextButton(onClick = onDismiss, enabled = installEnabled) { Text(stringResource(android.R.string.cancel)) }
 		},
 	)
 }
@@ -210,7 +217,7 @@ private fun NameConflictDialog(
 	onDismiss: () -> Unit,
 ) {
 	AlertDialog(
-		onDismissRequest = onDismiss,
+		onDismissRequest = { if (installEnabled) onDismiss() },
 		title = {
 			Text(
 				stringResource(R.string.title_template_already_installed),
@@ -231,8 +238,8 @@ private fun NameConflictDialog(
 		},
 		dismissButton = {
 			Row {
-				TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
-				TextButton(onClick = onRename) { Text(stringResource(R.string.btn_rename_and_install)) }
+				TextButton(onClick = onDismiss, enabled = installEnabled) { Text(stringResource(android.R.string.cancel)) }
+				TextButton(onClick = onRename, enabled = installEnabled) { Text(stringResource(R.string.btn_rename_and_install)) }
 			}
 		},
 	)
@@ -262,7 +269,7 @@ private fun RenameDialog(
 	}
 
 	AlertDialog(
-		onDismissRequest = onDismiss,
+		onDismissRequest = { if (installEnabled) onDismiss() },
 		title = {
 			Text(
 				stringResource(R.string.btn_rename_and_install),
@@ -289,7 +296,7 @@ private fun RenameDialog(
 			}
 		},
 		dismissButton = {
-			TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+			TextButton(onClick = onDismiss, enabled = installEnabled) { Text(stringResource(android.R.string.cancel)) }
 		},
 	)
 }

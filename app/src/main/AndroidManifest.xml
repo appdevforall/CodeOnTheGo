@@ -104,13 +104,14 @@
         <activity
             android:name=".activities.PreferencesActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
-        <!-- uiMode/locale/fontScale/density are handled here (not just orientation etc.) because a
-             recreation mid-dialog (e.g. a system dark/light auto-switch) would otherwise dismiss
-             the forwarded-install dialog while the ViewModel's one-shot "already handled" guard
+        <!-- uiMode/locale/fontScale/density/keyboard/keyboardHidden/navigation are handled here
+             (not just orientation etc.) because a recreation mid-dialog (e.g. a system dark/light
+             auto-switch, or attaching/detaching a hardware keyboard) would otherwise dismiss the
+             forwarded-install dialog while the ViewModel's one-shot "already handled" guard
              (markPendingInstallHandled) silently blocks it from ever being shown again - ADFA-4934. -->
         <activity
             android:name=".activities.PluginManagerActivity"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|locale|fontScale|density" />
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|locale|fontScale|density|keyboard|keyboardHidden|navigation" />
         <activity
             android:name=".activities.PluginScreenActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
@@ -145,13 +146,14 @@
              less, mimeType="*/*" filter - would register this app as a candidate handler for
              every file view intent on the device, which is a worse tradeoff than missing those
              senders. -->
-        <!-- uiMode/locale/fontScale/density are handled here (not just orientation etc.) because a
-             recreation mid-dialog (e.g. a system dark/light auto-switch) would otherwise reset the
+        <!-- uiMode/locale/fontScale/density/keyboard/keyboardHidden/navigation are handled here
+             (not just orientation etc.) because a recreation mid-dialog (e.g. a system dark/light
+             auto-switch, or attaching/detaching a hardware keyboard) would otherwise reset the
              Compose dialog state to nothing while the ViewModel's one-shot receivedUriGate guard
              silently blocks the effect from ever being resent - ADFA-4934. -->
         <activity
             android:name=".activities.ExternalFileInstallActivity"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|locale|fontScale|density"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|locale|fontScale|density|keyboard|keyboardHidden|navigation"
             android:excludeFromRecents="true"
             android:exported="true"
             android:theme="@style/Theme.AndroidIDE">

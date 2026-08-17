@@ -142,7 +142,8 @@ class PluginRepositoryImpl(
 					Log.w(TAG, "Error uninstalling existing plugin: ${e.message}")
 				}
 
-				val fileExtension = if (pluginFile.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION")) ".$PLUGIN_ARCHIVE_EXTENSION" else ".apk"
+				val fileExtension =
+					if (pluginFile.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)) ".$PLUGIN_ARCHIVE_EXTENSION" else ".apk"
 				val finalFileName = "${pluginId}$fileExtension"
 
 				if (!pluginsDir.exists()) {
