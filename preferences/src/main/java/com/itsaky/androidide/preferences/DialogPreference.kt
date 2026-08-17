@@ -68,12 +68,19 @@ abstract class DialogPreference : SimplePreference() {
 		dialog: AlertDialog,
 	) {}
 
-	/** Shows [tag]'s tooltip anchored to [anchor], or does nothing if [tag] is empty. */
+	/**
+	 * Shows [tag]'s tooltip anchored to [anchor], or does nothing if [tag] is empty.
+	 *
+	 * No manual haptic feedback: both callers of this method (a [View.OnLongClickListener] via
+	 * [applyLongPressRecursively] above, and `ChoiceBasedDialogPreference`'s
+	 * `AdapterView.OnItemLongClickListener`) already get it from the platform when their listener
+	 * returns `true`.
+	 */
 	protected fun showTooltipIfPresent(
 		context: Context,
 		anchor: View,
 		tag: String,
-	) = showIdeCategoryTooltipIfPresent(context, anchor, tag)
+	) = showIdeCategoryTooltipIfPresent(context, anchor, tag, playHapticFeedback = false)
 
 	protected open fun onConfigureDialog(
 		preference: Preference,

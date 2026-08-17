@@ -17,7 +17,6 @@
 package com.itsaky.androidide.activities
 
 import android.os.Bundle
-import android.view.HapticFeedbackConstants
 import android.view.View
 import androidx.core.graphics.Insets
 import androidx.core.os.BundleCompat
@@ -27,12 +26,12 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPreferencesBinding
 import com.itsaky.androidide.fragments.IDEPreferencesFragment
-import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.PluginSettingsEntryPreference
 import com.itsaky.androidide.preferences.addRootPreferences
 import com.itsaky.androidide.preferences.pluginSettingsPreferences
 import com.itsaky.androidide.utils.onLongPress
+import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import com.itsaky.androidide.preferences.IDEPreferences as prefs
 
 class PreferencesActivity : EdgeToEdgeIDEActivity() {
@@ -62,8 +61,8 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 			// _binding directly, not the checkNotNull-backed binding getter: this can run after the
 			// activity is destroyed (see the onLongPress guard below, which needs it for certain).
 			val toolbar = _binding?.toolbar ?: return@setOnLongClickListener true
-			toolbar.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-			TooltipManager.showIdeCategoryTooltip(this, toolbar, currentScreenTooltipTag())
+			// No manual haptic feedback: the platform already fires it for a listener returning true.
+			showIdeCategoryTooltipIfPresent(this, toolbar, currentScreenTooltipTag(), playHapticFeedback = false)
 			true
 		}
 
@@ -77,8 +76,7 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 			// _binding directly: the GestureDetector's ~500ms long-press timer is independent of the
 			// view's own lifecycle and can fire after the activity (and its binding) is destroyed.
 			val container = _binding?.fragmentContainerParent ?: return@onLongPress
-			container.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-			TooltipManager.showIdeCategoryTooltip(this, container, currentScreenTooltipTag())
+			showIdeCategoryTooltipIfPresent(this, container, currentScreenTooltipTag())
 		}
 
 		feedbackButtonManager =

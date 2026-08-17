@@ -8,7 +8,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
-import android.view.HapticFeedbackConstants
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -26,7 +25,6 @@ import com.itsaky.androidide.adapters.PluginListAdapter
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
 import com.itsaky.androidide.idetooltips.TooltipCategory
-import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
@@ -41,6 +39,7 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.getFileName
 import com.itsaky.androidide.utils.onLongPress
+import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import kotlinx.coroutines.launch
@@ -199,13 +198,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 			if (recyclerView.findChildViewUnder(e.x, e.y) != null) {
 				return@onLongPress
 			}
-			recyclerView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-			TooltipManager.showTooltip(
-				context = this,
-				anchorView = recyclerView,
-				category = TooltipCategory.CATEGORY_IDE,
-				tag = TooltipTag.PLUGIN_MANAGER_LIST,
-			)
+			showIdeCategoryTooltipIfPresent(this, recyclerView, TooltipTag.PLUGIN_MANAGER_LIST)
 		}
 	}
 
