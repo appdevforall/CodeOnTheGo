@@ -13,6 +13,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -104,11 +105,11 @@ class WebServerTest {
 		assertPortIsFree(port)
 	}
 
-	// ADFA-5153: the compression dictionary is reloaded fresh before every content fetch, not
-	// cached from server-startup/database-swap time -- a swap can bring in a database with a
-	// different dictionary (or none), and this is the one place that dictionary is consumed.
+	// ADFA-5153: the compression dictionary is loaded lazily -- not merely from starting the
+	// server -- but only once per database, cached across every subsequent request against that
+	// same database rather than re-fetched per-request.
 	@Test
-	fun `compression dictionary is reloaded before every content fetch, not cached from startup`() {
+	fun `compression dictionary loads lazily on first use, once per database, not once per request`() {
 		val port = freePort()
 
 		val dictionaryExistsCursor =
@@ -156,14 +157,98 @@ class WebServerTest {
 
 			repeat(3) { sendRawGetRequestAndAwaitClose(port, "/some/path") }
 
-			// One dictionary load per content fetch, matching the 3 requests -- proving it's
-			// reloaded fresh each time rather than cached across requests.
-			verify(exactly = 3) {
+			// Exactly one dictionary load across all 3 requests against the same, unchanged
+			// database -- the first request's lazy load, cached for the other two.
+			verify(exactly = 1) {
 				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
 			}
 		} finally {
 			server.stop()
 			serverThread.join(2_000)
+		}
+	}
+
+	// ADFA-5153: a database swap (the debug-DB override) must invalidate the cached dictionary --
+	// the new database can have a different one, or none -- causing exactly one fresh reload on
+	// the first content fetch against the new database, not a reload on every later request too.
+	@Test
+	fun `database swap invalidates the cached dictionary, reloading it once for the new database`() {
+		val port = freePort()
+		val debugDbFile = File.createTempFile("webserver-test-debug", ".db")
+		debugDbFile.delete() // must not exist yet -- the first request should stay on the primary db
+
+		fun contentCursorFor(marker: String) =
+			mockk<Cursor>(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns marker.toByteArray()
+				every { getString(1) } returns "text/plain"
+				every { getString(2) } returns "none"
+				every { getInt(3) } returns 0
+			}
+
+		fun stubDatabase(
+			db: SQLiteDatabase,
+			dictionaryBytes: String,
+		) {
+			every {
+				db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns true }
+			every {
+				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			} returns
+				mockk<Cursor>(relaxed = true) {
+					every { moveToFirst() } returns true
+					every { getBlob(0) } returns dictionaryBytes.toByteArray()
+				}
+			every {
+				db.rawQuery(match { it.contains("FROM   Content") }, any())
+			} returns contentCursorFor(dictionaryBytes)
+		}
+
+		val primaryDb = mockk<SQLiteDatabase>(relaxed = true)
+		val debugDb = mockk<SQLiteDatabase>(relaxed = true)
+		stubDatabase(primaryDb, "dict-primary")
+		stubDatabase(debugDb, "dict-debug")
+
+		val config = testConfig(port).copy(debugDatabasePath = debugDbFile.absolutePath)
+		every { SQLiteDatabase.openDatabase(config.databasePath, isNull(), any()) } returns primaryDb
+		every { SQLiteDatabase.openDatabase(config.debugDatabasePath, isNull(), any()) } returns debugDb
+
+		val server = WebServer(config)
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+
+			sendRawGetRequestAndAwaitClose(port, "/some/path")
+			verify(exactly = 1) {
+				primaryDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+			verify(exactly = 0) {
+				debugDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+
+			// Now make the debug override newer than the primary database -- the swap check in
+			// handleClient() picks this up on the very next request.
+			debugDbFile.createNewFile()
+			debugDbFile.setLastModified(System.currentTimeMillis() + 60_000)
+
+			repeat(2) { sendRawGetRequestAndAwaitClose(port, "/some/path") }
+
+			// Exactly one reload for the new (debug) database, across both post-swap requests --
+			// not zero (it must invalidate), not two (it must still cache after the first reload).
+			verify(exactly = 1) {
+				debugDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+			// The primary database's dictionary is never touched again after the swap.
+			verify(exactly = 1) {
+				primaryDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+			debugDbFile.delete()
 		}
 	}
 
