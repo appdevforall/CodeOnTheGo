@@ -21,6 +21,7 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.io.PrintWriter
+import java.io.SequenceInputStream
 import java.io.StringWriter
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -29,6 +30,7 @@ import java.net.URLDecoder
 import java.nio.ByteBuffer
 import java.sql.Date
 import java.text.SimpleDateFormat
+import java.util.Collections
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -78,6 +80,31 @@ internal fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
 		flip()
 	}
 
+/**
+ * Reads [chunks] back to back as one stream, without concatenating them into a new array.
+ * Cheap to build twice, which the no-dictionary retry in `decompressBrotli` relies on.
+ */
+internal fun chunksAsStream(chunks: List<ByteArray>): InputStream =
+	SequenceInputStream(Collections.enumeration(chunks.map { ByteArrayInputStream(it) }))
+
+/**
+ * Joins [chunks] into one exactly-sized array. A ByteArrayOutputStream would repeatedly double its
+ * buffer and then hand back a second full copy -- avoidable here since the total is known up front.
+ * Returns the sole element as-is when there is nothing to join.
+ */
+internal fun joinChunks(chunks: List<ByteArray>): ByteArray {
+	if (chunks.size == 1) {
+		return chunks[0]
+	}
+	val joined = ByteArray(chunks.sumOf { it.size })
+	var offset = 0
+	for (chunk in chunks) {
+		chunk.copyInto(joined, offset)
+		offset += chunk.size
+	}
+	return joined
+}
+
 class WebServer(
 	private val config: ServerConfig,
 ) {
@@ -92,6 +119,12 @@ class WebServer(
 	private lateinit var serverSocket: ServerSocket
 	private lateinit var database: SQLiteDatabase
 	private var databaseTimestamp: Long = -1
+
+	// Timestamp of a debug database whose swap already failed, so a corrupt or unreadable one
+	// isn't reopened on every single request (it is checked per request). A newer copy has a
+	// different timestamp and is retried, which is the case that matters -- the developer
+	// replacing the file is exactly how they'd fix it.
+	private var failedDebugSwapTimestamp: Long = -1
 
 	// The shared dictionary Content's brotli-compressed rows are compressed against (see
 	// ADFA-5153). Lazily (re)loaded on demand, right before the first content fetch that needs
@@ -245,11 +278,11 @@ class WebServer(
 	 * silently producing wrong bytes (verified empirically -- see docs/documentation-database.md), so
 	 * this ordering never lets a dictionary-compressed row fall through to the plain path by accident.
 	 */
-	private fun decompressBrotli(content: ByteArray): ByteArray {
+	private fun decompressBrotli(chunks: List<ByteArray>): ByteArray {
 		val dictionary = compressionDictionary
 		if (dictionary != null) {
 			try {
-				return BrotliInputStream(ByteArrayInputStream(content)).use { stream ->
+				return BrotliInputStream(chunksAsStream(chunks)).use { stream ->
 					stream.attachDictionary(dictionary)
 					stream.readBytes()
 				}
@@ -260,7 +293,7 @@ class WebServer(
 				)
 			}
 		}
-		return BrotliInputStream(ByteArrayInputStream(content)).use { it.readBytes() }
+		return BrotliInputStream(chunksAsStream(chunks)).use { it.readBytes() }
 	}
 
 	/**
@@ -460,11 +493,17 @@ class WebServer(
 		// check to see if there is a newer version of the documentation.db database on the sdcard
 		// if there is use that for our responses
 		val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
-		if (debugDatabaseTimestamp > databaseTimestamp) {
+		if (debugDatabaseTimestamp > databaseTimestamp && debugDatabaseTimestamp != failedDebugSwapTimestamp) {
 			try {
 				switchToDatabase(config.debugDatabasePath, debugDatabaseTimestamp)
+				failedDebugSwapTimestamp = -1
 			} catch (e: Exception) {
-				log.error("Cannot swap to debug database '{}': {}", config.debugDatabasePath, e.message)
+				failedDebugSwapTimestamp = debugDatabaseTimestamp
+				log.error(
+					"Cannot swap to debug database '{}'; ignoring it until it changes: {}",
+					config.debugDatabasePath,
+					e.message,
+				)
 			}
 		}
 
@@ -515,24 +554,27 @@ class WebServer(
 			}
 
 			cursor.moveToFirst()
-			var dbContent = cursor.getBlob(0)
+			val firstChunk = cursor.getBlob(0)
 			val dbMimeType = cursor.getString(1)
 			var compression = cursor.getString(2)
 			val templateId = cursor.getInt(3)
 
-			// Fragment handling for large content (> 1MB)
-			if (dbContent.size == contentChunkSize) {
+			// Fragment handling for large content (> 1MB). The chunks stay a list rather than
+			// being concatenated: the old accumulate-into-a-ByteArrayOutputStream-then-copy held
+			// the doubling buffer *and* its toByteArray() copy live alongside the decompressed
+			// output, roughly 35 MB transient for the largest bundled PDF (8.8 MB over 9 chunks).
+			val chunks = mutableListOf(firstChunk)
+			if (firstChunk.size == contentChunkSize) {
 				val query2 = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
 				var fragmentNumber = 1
-				val combined = ByteArrayOutputStream().apply { write(dbContent) }
-				var dbContent2 = dbContent
-				while (dbContent2.size == contentChunkSize) {
+				var nextChunk = firstChunk
+				while (nextChunk.size == contentChunkSize) {
 					val path2 = "$path-$fragmentNumber"
 					val cursor2 = database.rawQuery(query2, arrayOf(path2))
 					try {
 						if (cursor2.moveToFirst()) {
-							dbContent2 = cursor2.getBlob(0)
-							combined.write(dbContent2)
+							nextChunk = cursor2.getBlob(0)
+							chunks.add(nextChunk)
 							fragmentNumber++
 						} else {
 							break
@@ -541,7 +583,6 @@ class WebServer(
 						cursor2.close()
 					}
 				}
-				dbContent = combined.toByteArray()
 			}
 
 			// Content is compressed at rest with brotli -- most rows against the shared dictionary
@@ -549,10 +590,13 @@ class WebServer(
 			// (PluginDocumentationManager/BrotliCompressor) are plain brotli with no dictionary.
 			// This server always decompresses before responding, so it never needs to negotiate
 			// Content-Encoding with the client.
-			if (compression == "brotli") {
-				dbContent = decompressBrotli(dbContent)
-				compression = "none"
-			}
+			var dbContent =
+				if (compression == "brotli") {
+					compression = "none"
+					decompressBrotli(chunks)
+				} else {
+					joinChunks(chunks)
+				}
 
 			// If the file is associated with a template, instantiate that template and send the result to the client
 			if (templateId > 0) {

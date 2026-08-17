@@ -5,6 +5,8 @@ import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.aayushatharva.brotli4j.encoder.BrotliOutputStream
 import com.aayushatharva.brotli4j.encoder.Encoder
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.BeforeClass
 import org.junit.Test
@@ -201,5 +203,49 @@ class BrotliDictionaryDecodeTest {
 
 		val plainResult = BrotliInputStream(ByteArrayInputStream(compressed)).use { it.readBytes() }
 		assertArrayEquals(expected, plainResult)
+	}
+
+	@Test
+	fun `content split across chunks decodes the same as one contiguous array`() {
+		// Rows over 1 MB are stored as several Content rows and were previously concatenated
+		// before decoding; they are now fed to the decoder as a stream over the chunk list, so
+		// a compressed stream must decode identically no matter where the chunk boundaries fall.
+		val dictionary = decodeBase64ToDirectBuffer(dictionaryBase64)
+		val compressed = Base64.getDecoder().decode(compressedBase64)
+		val expected = Base64.getDecoder().decode(expectedBase64)
+
+		// Deliberately uneven, and not aligned to anything in the brotli stream.
+		val chunks =
+			listOf(
+				compressed.copyOfRange(0, 7),
+				compressed.copyOfRange(7, 8),
+				compressed.copyOfRange(8, compressed.size - 1),
+				compressed.copyOfRange(compressed.size - 1, compressed.size),
+			)
+
+		val result =
+			BrotliInputStream(chunksAsStream(chunks)).use { stream ->
+				stream.attachDictionary(dictionary)
+				stream.readBytes()
+			}
+
+		assertArrayEquals(expected, result)
+	}
+
+	@Test
+	fun `joinChunks concatenates in order and sizes the result exactly`() {
+		val chunks = listOf(byteArrayOf(1, 2, 3), byteArrayOf(), byteArrayOf(4), byteArrayOf(5, 6))
+
+		val joined = joinChunks(chunks)
+
+		assertArrayEquals(byteArrayOf(1, 2, 3, 4, 5, 6), joined)
+		assertEquals(6, joined.size)
+	}
+
+	@Test
+	fun `joinChunks hands back a lone chunk without copying it`() {
+		val only = byteArrayOf(7, 8, 9)
+
+		assertSame(only, joinChunks(listOf(only)))
 	}
 }
