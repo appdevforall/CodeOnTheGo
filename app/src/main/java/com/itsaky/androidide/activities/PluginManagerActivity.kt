@@ -24,7 +24,6 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.PluginListAdapter
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
@@ -123,7 +122,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 		menuInflater.inflate(R.menu.menu_plugin_manager, menu)
 		binding.toolbar.post {
 			binding.toolbar.findViewById<View>(R.id.action_discover_plugins)?.let { view ->
-				view.displayTooltipOnLongPress(this, TooltipCategory.CATEGORY_IDE, TooltipTag.PLUGIN_MANAGER_DOWNLOAD)
+				view.displayTooltipOnLongPress(this, TooltipTag.PLUGIN_MANAGER_DOWNLOAD)
 			}
 		}
 		return true
@@ -180,7 +179,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
 	private fun setupTooltipLongPress() {
 		val show: (View, String) -> Unit = { view, tag ->
-			view.displayTooltipOnLongPress(this, TooltipCategory.CATEGORY_IDE, tag)
+			view.displayTooltipOnLongPress(this, tag)
 		}
 		show(binding.toolbar, TooltipTag.PLUGIN_MANAGER_TOOLBAR)
 		show(binding.fabInstallPlugin, TooltipTag.PLUGIN_MANAGER_FAB_INSTALL)

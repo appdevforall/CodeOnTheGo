@@ -14,7 +14,6 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.signature.ObjectKey
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.ItemPluginBinding
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.utils.displayTooltipOnLongPress
@@ -59,16 +58,8 @@ class PluginListAdapter(
 		init {
 			// Both the anchor views and their tags are fixed per view holder, not per bound plugin -
 			// register once here instead of re-registering an identical listener on every bind().
-			binding.btnMenu.displayTooltipOnLongPress(
-				itemView.context,
-				TooltipCategory.CATEGORY_IDE,
-				TooltipTag.PLUGIN_MANAGER_ITEM_MENU,
-			)
-			binding.root.displayTooltipOnLongPress(
-				itemView.context,
-				TooltipCategory.CATEGORY_IDE,
-				TooltipTag.PLUGIN_MANAGER_ITEM,
-			)
+			binding.btnMenu.displayTooltipOnLongPress(itemView.context, TooltipTag.PLUGIN_MANAGER_ITEM_MENU)
+			binding.root.displayTooltipOnLongPress(itemView.context, TooltipTag.PLUGIN_MANAGER_ITEM)
 		}
 
 		fun bind(plugin: PluginInfo) {

@@ -46,8 +46,8 @@ fun showIdeCategoryTooltipIfPresent(
  */
 fun View.displayTooltipOnLongPress(
 	context: Context,
-	tooltipCategory: String = TooltipCategory.CATEGORY_IDE,
 	tooltipTag: String,
+	tooltipCategory: String = TooltipCategory.CATEGORY_IDE,
 ) {
 	this.setOnLongClickListener {
 		showTooltipIfPresent(context, this, tooltipCategory, tooltipTag, playHapticFeedback = false)
