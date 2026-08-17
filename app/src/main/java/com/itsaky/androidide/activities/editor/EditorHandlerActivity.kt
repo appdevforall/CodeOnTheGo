@@ -1979,6 +1979,13 @@ open class EditorHandlerActivity :
 	// project's own still-pending file request (if any) isn't silently lost.
 	private var pendingFileRequestBeforeSwitch: PendingFileRequest? = null
 
+	// True once pendingFileRequestBeforeSwitch has captured the ORIGINAL staying project's request.
+	// Without this, a second overlapping project-switch intent arriving before the first is
+	// resolved/declined would re-capture from getIntent() -- which by then holds the FIRST switch
+	// attempt's intent, not the original -- clobbering the real value with whatever (usually
+	// nothing) that intermediate intent happened to carry.
+	private var capturedPendingFileRequestBeforeSwitch = false
+
 	// Tracked so a slower, older deep-link resolve (still in flight when a second, faster-resolving
 	// deep link arrives via onNewIntent) can tell it's been superseded -- mirrors
 	// MainActivity.latestDeepLinkRequest's identical race on the cold-open path.
@@ -1990,6 +1997,7 @@ open class EditorHandlerActivity :
 		intent.putExtra("PROJECT_PATH", stayingProjectPath)
 		val restore = pendingFileRequestBeforeSwitch
 		pendingFileRequestBeforeSwitch = null
+		capturedPendingFileRequestBeforeSwitch = false
 		if (restore != null) {
 			intent.putExtra(PendingFileRequest.EXTRA_KEY, restore)
 		} else {
@@ -2103,14 +2111,19 @@ open class EditorHandlerActivity :
 					recentProjectsViewModel.updateProjectModifiedDate(
 						editorViewModel.getProjectName(),
 					)
+					// Captured then nulled before use, mirroring the neutral-button handler above --
+					// otherwise onDestroy()'s own unconditional pendingCloseCallback?.invoke() would fire
+					// this same callback a second time.
+					val onClosedNow = pendingCloseCallback
+					pendingCloseCallback = null
 					// contentOrNull can already be null here if the binding was torn down while the
 					// save was in flight -- performCloseAllFiles would NPE on the view manipulation it
-					// does, but pendingCloseCallback (e.g. arming a pending deep-link project switch)
-					// has no such dependency and must still run, or a confirmed close silently drops it.
+					// does, but onClosedNow (e.g. arming a pending deep-link project switch) has no such
+					// dependency and must still run, or a confirmed close silently drops it.
 					if (contentOrNull != null) {
-						performCloseAllFiles(manualFinish = true, onClosed = pendingCloseCallback)
+						performCloseAllFiles(manualFinish = true, onClosed = onClosedNow)
 					} else {
-						pendingCloseCallback?.invoke()
+						onClosedNow?.invoke()
 						// contentOrNull also goes null via isDestroying, which onPause() sets from
 						// isFinishing -- well before onDestroy() actually runs -- so it is NOT reliable
 						// proof onDestroy()'s one-shot drain already happened. Only isDestroyed (the real
@@ -2170,9 +2183,14 @@ open class EditorHandlerActivity :
 		// that's actually staying open if this switch gets cancelled/declined) would otherwise be
 		// lost the moment setIntent() below replaces it. restoreIntentToStayingProject() puts it back
 		// if that turns out to be what happens.
-		if (isProjectSwitchIntent) {
+		// Guarded on capturedPendingFileRequestBeforeSwitch so a SECOND overlapping switch intent,
+		// arriving before the first is resolved/declined, doesn't re-capture from getIntent() -- by
+		// then holding the first switch's own intent, not the original staying project's -- and
+		// clobber the real value with whatever (usually nothing) that intermediate intent carries.
+		if (isProjectSwitchIntent && !capturedPendingFileRequestBeforeSwitch) {
 			pendingFileRequestBeforeSwitch =
 				IntentCompat.getParcelableExtra(getIntent(), PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
+			capturedPendingFileRequestBeforeSwitch = true
 		}
 		setIntent(intent)
 
@@ -2273,6 +2291,18 @@ open class EditorHandlerActivity :
 	) {
 		val currentProjectPath = IProjectManager.getInstance().projectDirPath
 		when {
+			// This instance is already finishing (e.g. it just armed pendingDeepLinkOpen for an
+			// earlier switch and called finish() below, awaiting its own onDestroy()) -- comparing
+			// newProjectPath against currentProjectPath below would be comparing against
+			// ProjectManagerImpl's process-wide path, which a *different*, unrelated instance's
+			// MainActivity.openProject() can overwrite in the meantime, making this look like a
+			// same-project no-op when it isn't. Superseding the earlier pending open (last request
+			// wins, matching handlePlainProjectSwitch's own reasoning) is unconditionally correct
+			// here since this instance can't do anything else with a new request anyway.
+			isFinishing -> {
+				pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest)
+			}
+
 			// Either no project has actually finished initializing in this instance yet (e.g. it was
 			// recreated after process death without a PROJECT_PATH extra), or contentOrNull is
 			// already null (binding torn down) -- either way, confirmProjectClose below would

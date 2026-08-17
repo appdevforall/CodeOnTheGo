@@ -422,9 +422,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private fun handleOpenProject(
 		root: File,
 		pendingFileRequest: PendingFileRequest? = null,
+		isDeepLink: Boolean = false,
 	) {
 		if (GeneralPreferences.confirmProjectOpen) {
-			askProjectOpenPermission(root, pendingFileRequest)
+			askProjectOpenPermission(root, pendingFileRequest, isDeepLink)
 			return
 		}
 		openProject(root, pendingFileRequest = pendingFileRequest)
@@ -438,11 +439,25 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	// onDestroy() to avoid leaking its window.
 	private var activeOpenPermissionDialog: AlertDialog? = null
 
+	// Whether activeOpenPermissionDialog (if any) came from a deep link -- see askProjectOpenPermission.
+	private var activeOpenPermissionDialogIsDeepLink = false
+
 	private fun askProjectOpenPermission(
 		root: File,
 		pendingFileRequest: PendingFileRequest? = null,
+		isDeepLink: Boolean = false,
 	) {
+		// A deep link is an explicit, just-tapped user action and may always replace whatever's
+		// showing (including another deep link's own dialog, e.g. two links arriving in quick
+		// succession) -- but not the reverse: tryOpenLastProject's auto-open scan can complete
+		// moments after a deep link's dialog is already up, and silently yanking that away for an
+		// unrelated "open last project" prompt would be far more surprising than just dropping this
+		// slower, non-explicit request instead.
+		if (!isDeepLink && activeOpenPermissionDialogIsDeepLink && activeOpenPermissionDialog?.isShowing == true) {
+			return
+		}
 		activeOpenPermissionDialog?.dismiss()
+		activeOpenPermissionDialogIsDeepLink = isDeepLink
 		val builder = DialogUtils.newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_open_project)
 		builder.setMessage(getString(string.msg_confirm_open_project, root.absolutePath))
@@ -544,7 +559,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				// extra, and this stale, slower request must not now bounce the user back to its own
 				// (older) target after they've already been taken to the newer one.
 				if (latestDeepLinkRequest !== request) return@withContext
-				handleOpenProject(projectDir, pendingFileRequest = request.fileRequest)
+				handleOpenProject(projectDir, pendingFileRequest = request.fileRequest, isDeepLink = true)
 			}
 		}
 	}
