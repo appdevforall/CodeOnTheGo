@@ -111,6 +111,8 @@ tests/test-home
 /composite-builds/build-deps/build/
 
 /app/google-services.json
+/app/keystore-debug.jks
+
 
 # Kotlin build files
 .kotlin/

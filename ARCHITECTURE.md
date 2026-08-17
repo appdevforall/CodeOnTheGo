@@ -59,6 +59,7 @@ Strategy: **layer-and-subsystem based**, not feature-by-feature. The Gradle buil
 |---|---|---|
 | Application | `app` | The IDE itself — activities, fragments, services, DI, agent, web server. Wires everything together. |
 | Build engine | `subprojects:tooling-api*`, `gradle-plugin*`, `subprojects:projects`, `subprojects:builder-model-impl` | Runs a real Gradle build of the user's project out-of-process and streams events back. |
+| Quick Build (experimental, ADFA-4128) | `quickbuild:core`, `quickbuild:daemon`, `quickbuild:protocol`, `quickbuild:runtime` | Live-reloads the user's app on every save in seconds, by running it as a generated proxy app instead of doing a full Gradle rebuild. |
 | Language tooling | `lsp:{api,java,kotlin,xml,indexing,…}`, `lexers`, `editor*`, `editor-treesitter` | Language servers, indexing, the Sora-based editor and highlighting. |
 | UI design tooling | `layouteditor`, `uidesigner`, `xml-inflater`, `vectormaster`, `compose-preview` | Visual/XML design surfaces for the *user's* app. |
 | Shell | `termux:{termux-app,termux-shared,termux-view,termux-emulator}` | Embedded Termux shell and terminal. |
@@ -68,6 +69,7 @@ Strategy: **layer-and-subsystem based**, not feature-by-feature. The Gradle buil
 | Testing | `testing:{android,unit,lsp,tooling,common}` | Shared test harnesses, split by what's under test. |
 
 **Dependency rules (enforced):**
+
 - **`app` depends inward; libraries never depend on `app`.** Subsystems are consumed by `app`, not vice versa.
 - **Vendored forks are substituted, not imported ad hoc.** `composite-builds/build-deps` and `build-deps-common` provide forked `javac`/`jdt`/`layoutlib`/etc.; `settings.gradle.kts` substitutes them in for `com.itsaky.androidide.build:*`. Don't add a Maven coordinate for something already substituted.
 - **All module config flows through `composite-builds/build-logic`.** Every Android module gets the `v7`/`v8` ABI flavors centrally (`AndroidModuleConf.kt`) — there is no flavorless `assembleDebug`. `:plugin-api` is intentionally excluded from flavors.
@@ -87,16 +89,16 @@ These structural facts shape every module. Day-to-day build *commands* live in `
 
 ## Technology Stack
 
-| Concern | Library / Approach |
-|---|---|
-| UI | **Jetpack Compose for all new UI** ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)). The existing majority is still Android Views + Fragments + `RecyclerView` (Material Components); those legacy screens stay until reworked, but new IDE UI is Compose-only. |
-| Dependency Injection | **Koin** (`org.koin`) — `coreModule`/`pluginModule`, `startKoin` in `IDEApplication`, plus a `ServiceLocator : KoinComponent` for lazy post-startup access. No Hilt/Dagger. |
-| Asynchronous work | **Kotlin Coroutines + Flow** (`StateFlow`/`SharedFlow`, `viewModelScope`, app-scoped `CoroutineScope(SupervisorJob() + Dispatchers.IO)`); **GreenRobot EventBus** for cross-subsystem events. |
-| Networking | Offline-first; no general REST layer. External I/O is **Google GenAI SDK** (Gemini), **on-device llama.cpp**, and **JGit** (git). Retrofit is in the catalog but effectively unused in app code. |
+| Concern                | Library / Approach                                           |
+| ---------------------- | ------------------------------------------------------------ |
+| UI                     | **Jetpack Compose for all new UI** ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)). The existing majority is still Android Views + Fragments + `RecyclerView` (Material Components); those legacy screens stay until reworked, but new IDE UI is Compose-only. |
+| Dependency Injection   | **Koin** (`org.koin`) — `coreModule`/`pluginModule`, `startKoin` in `IDEApplication`, plus a `ServiceLocator : KoinComponent` for lazy post-startup access. No Hilt/Dagger. |
+| Asynchronous work      | **Kotlin Coroutines + Flow** (`StateFlow`/`SharedFlow`, `viewModelScope`, app-scoped `CoroutineScope(SupervisorJob() + Dispatchers.IO)`); **GreenRobot EventBus** for cross-subsystem events. |
+| Networking             | Offline-first; no general REST layer. External I/O is **Google GenAI SDK** (Gemini), **on-device llama.cpp**, and **JGit** (git). Retrofit is in the catalog but effectively unused in app code. |
 | Database / Persistence | **Room** is the default for relational/queryable data; **filesystem + preferences (DataStore)** for non-relational settings. **Raw SQLite** (`SQLiteDatabase` / `SupportSQLiteOpenHelper`) only for justified exceptions (see policy below). |
-| Serialization | `kotlinx.serialization` and Gson. |
-| Parceling | Kotlin **`@Parcelize`** (`kotlin-parcelize` plugin) for `Parcelable` data classes — never hand-implement `Parcelable`. Do it manually only if `@Parcelize` genuinely can't express it (custom serialization logic, unsupported member types). |
-| AI agent | Google GenAI (cloud) + llama (local), behind `GeminiRepository` / `SwitchableGeminiRepository`, with planner/critic/executor agents in `agent/repository`. |
+| Serialization          | `kotlinx.serialization` and Gson.                            |
+| Parceling              | Kotlin **`@Parcelize`** (`kotlin-parcelize` plugin) for `Parcelable` data classes — never hand-implement `Parcelable`. Do it manually only if `@Parcelize` genuinely can't express it (custom serialization logic, unsupported member types). |
+| AI agent               | Google GenAI (cloud) + llama (local), behind `GeminiRepository` / `SwitchableGeminiRepository`, with planner/critic/executor agents in `agent/repository`. |
 
 > **Persistence policy (authoritative):** new relational/queryable persistence uses **Room** (`@Entity` + DAO + `RoomDatabase` with explicit migrations, provided via Koin). Non-relational settings use the **filesystem/preferences (DataStore)**. **Raw SQLite is the exception, not the default** — see [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md).
 >
@@ -184,13 +186,14 @@ fun onEvent(event: PluginManagerUiEvent) = viewModelScope.launch(Dispatchers.IO)
 
 Test code lives both alongside each module and in the shared `testing:{unit,android,lsp,tooling,common}` harnesses. Run with the flox wrapper, e.g. `flox activate -d flox/local -- ./gradlew :testing:unit:test` or a module's `:module:test --tests "…"`.
 
-| Layer | Runner / Tools | What to test |
-|---|---|---|
-| Unit (pure JVM) | **JUnit Jupiter (5)**, some legacy **JUnit 4**; assertions via **Google Truth**; mocking via **MockK** (primary) and **Mockito-Kotlin** (legacy) | ViewModels (state transitions over a fake repository), repositories, parsers, builder/tooling logic. Keep these off the device. |
-| JVM + Android framework | **Robolectric** | Code needing `Context`/resources/`SQLiteOpenHelper` without an emulator. |
-| Instrumented / UI | **Espresso** + **AndroidX Test** + **UiAutomator**, run under **Test Orchestrator**; `mockk-android` for on-device mocks | End-to-end IDE flows (create/build/deploy, editor, terminal). |
+| Layer                   | Runner / Tools                                               | What to test                                                 |
+| ----------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Unit (pure JVM)         | **JUnit Jupiter (5)**, some legacy **JUnit 4**; assertions via **Google Truth**; mocking via **MockK** (primary) and **Mockito-Kotlin** (legacy) | ViewModels (state transitions over a fake repository), repositories, parsers, builder/tooling logic. Keep these off the device. |
+| JVM + Android framework | **Robolectric**                                              | Code needing `Context`/resources/`SQLiteOpenHelper` without an emulator. |
+| Instrumented / UI       | **Espresso** + **AndroidX Test** + **UiAutomator**, run under **Test Orchestrator**; `mockk-android` for on-device mocks | End-to-end IDE flows (create/build/deploy, editor, terminal). |
 
 Preferences and conventions:
+
 - **Assertions: Google Truth** (`assertThat(x).isEqualTo(...)`) over raw JUnit asserts.
 - **Mocking: MockK** for new code; relax it deliberately rather than over-stubbing.
 - For UDF ViewModels, drive `onEvent(...)`/method calls against a fake or mocked repository and assert the emitted `UiState` sequence (collect the `StateFlow`); assert effects by collecting the effect `SharedFlow`.
