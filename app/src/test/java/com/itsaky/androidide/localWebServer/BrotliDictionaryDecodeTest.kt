@@ -15,20 +15,17 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 
+// Deliberately routed through production's toDirectByteBuffer rather than allocating here:
+// attachDictionary reads the buffer's capacity, so an over-allocated buffer fails every decode.
+// Duplicating the allocation would leave that helper untested and let the two drift apart.
+private fun decodeBase64ToDirectBuffer(base64: String): ByteBuffer = toDirectByteBuffer(Base64.getDecoder().decode(base64))
+
 // Regression coverage for ADFA-5153: documentation.db's Content rows are Brotli-compressed
 // against a shared dictionary trained by OfflineDocumentationTools' zstd/brotli CLI pipeline
 // (see populate_db.py's DictionaryCompressor), not by brotli4j itself. These fixtures were
 // produced by that exact pipeline, so this test is what protects the cross-tool contract: a
 // brotli4j upgrade (or native lib change) that silently broke compatibility with the CLI-produced
 // wire format would otherwise only surface as garbled content on-device.
-private fun decodeBase64ToDirectBuffer(base64: String): ByteBuffer {
-	val bytes = Base64.getDecoder().decode(base64)
-	return ByteBuffer.allocateDirect(bytes.size).apply {
-		put(bytes)
-		flip()
-	}
-}
-
 class BrotliDictionaryDecodeTest {
 	companion object {
 		// Unlike on-device (where ToolsManager/AssetsInstallationHelper already load it before

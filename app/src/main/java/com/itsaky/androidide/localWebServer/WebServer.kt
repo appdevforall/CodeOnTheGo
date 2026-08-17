@@ -67,6 +67,10 @@ data class JavaExecutionResult(
 /**
  * Copies [bytes] into a direct [ByteBuffer] -- brotli4j's `attachDictionary` requires a direct
  * buffer, a heap-backed one throws `IllegalArgumentException`.
+ *
+ * The capacity must be exactly [bytes]`.size`: `attachDictionary` reads the whole capacity and
+ * ignores position/limit, so trailing slack from an over-allocated buffer is treated as dictionary
+ * content and every decode then fails with `IOException: corrupted input`.
  */
 internal fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
 	ByteBuffer.allocateDirect(bytes.size).apply {
@@ -186,6 +190,12 @@ class WebServer(
 				val bytes = cursor.getBlob(0)
 				if (bytes == null) {
 					log.warn("CompressionDictionary row has a NULL data column; decoding brotli content without a dictionary.")
+					return null
+				}
+				// An empty blob would yield a 0-capacity buffer, which attachDictionary rejects --
+				// every row's dictionary decode would then fail with nothing above DEBUG to say why.
+				if (bytes.isEmpty()) {
+					log.warn("CompressionDictionary row has an empty data column; decoding brotli content without a dictionary.")
 					return null
 				}
 				toDirectByteBuffer(bytes)

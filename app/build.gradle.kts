@@ -3,6 +3,7 @@
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.json.JSONObject
 import java.io.BufferedOutputStream
 import java.io.ByteArrayInputStream
@@ -209,6 +210,43 @@ configurations.configureEach {
 	exclude(group = "com.google.auto.value", module = "auto-value")
 }
 
+// brotli4j ships its native decoder as a per-OS/arch artifact, so the JVM unit tests need the one
+// matching whoever is building. Mirrors build-logic/plugins' dispatch.
+fun brotli4jNativeForHost(): Provider<MinimalExternalModuleDependency> {
+	val arch = DefaultNativePlatform.getCurrentArchitecture()
+	return DefaultNativePlatform.getCurrentOperatingSystem().let { os ->
+		when {
+			os.isMacOsX -> {
+				when {
+					arch.isArm64 -> libs.brotli4j.osx.aarch64
+					arch.isAmd64 -> libs.brotli4j.osx.x64
+					else -> throw IllegalStateException("Unsupported OSX architecture: $arch")
+				}
+			}
+
+			os.isWindows -> {
+				when {
+					arch.isArm64 -> libs.brotli4j.windows.aarch64
+					arch.isAmd64 -> libs.brotli4j.windows.x64
+					else -> throw IllegalStateException("Unsupported Windows architecture: $arch")
+				}
+			}
+
+			os.isLinux -> {
+				when {
+					arch.isArm64 -> libs.brotli4j.linux.aarch64
+					arch.isAmd64 -> libs.brotli4j.linux.x64
+					else -> throw IllegalStateException("Unsupported Linux architecture: $arch")
+				}
+			}
+
+			else -> {
+				throw IllegalStateException("Unsupported OS: $os")
+			}
+		}
+	}
+}
+
 dependencies {
 	debugImplementation(libs.common.leakcanary)
 
@@ -339,11 +377,9 @@ dependencies {
 	implementation(libs.brotli4j)
 	// JVM unit tests (e.g. BrotliDictionaryDecodeTest) run brotli4j's real native decoder, not an
 	// Android target -- without a desktop native on the test classpath, Brotli4jLoader has nothing
-	// to load and every such test fails with UnsatisfiedLinkError. Only linux-x64 is added, matching
-	// this repo's CI runners (ubuntu-latest); a contributor running :app:test on macOS/Windows/arm64
-	// needs the matching libs.brotli4j.* native added locally (see build-logic/plugins' build.gradle.kts
-	// for the OS/arch dispatch pattern) or to run the suite in CI/a Linux x64 environment instead.
-	testImplementation(libs.brotli4j.linux.x64)
+	// to load and every such test fails with UnsatisfiedLinkError. Pick the native for whoever is
+	// building, so the suite runs off a Linux x64 CI runner too (same dispatch as build-logic/plugins').
+	testImplementation(brotli4jNativeForHost())
 
 	implementation(libs.common.markwon.core)
 	implementation(libs.common.markwon.linkify)
