@@ -87,7 +87,7 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 		// fire after a delay) would hit a field PreferenceFragmentCompat clears in onDestroyView.
 		val recyclerView = listView
 
-		recyclerView.onLongPress { e ->
+		recyclerView.onLongPress(suppressClickAfterLongPress = true) { e ->
 			// isAdded alone isn't enough: a fragment can stay added (e.g. on the back stack)
 			// while its view is torn down, and the long-press timer can fire after that.
 			if (!isAdded || !recyclerView.isAttachedToWindow) {

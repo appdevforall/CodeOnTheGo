@@ -69,7 +69,16 @@ private fun View.longPressGestureDetector(listener: (MotionEvent) -> Unit): Gest
 		},
 	)
 
-fun RecyclerView.onLongPress(listener: (MotionEvent) -> Unit) {
+/**
+ * [suppressClickAfterLongPress] defaults to `false` to preserve this function's original
+ * behavior for existing callers (e.g. a Git file row, where a long-press-then-release is meant
+ * to still open the diff). Pass `true` where the row's own click must NOT also fire alongside
+ * the tooltip (e.g. a long-pressed Preferences switch shouldn't also toggle).
+ */
+fun RecyclerView.onLongPress(
+	suppressClickAfterLongPress: Boolean = false,
+	listener: (MotionEvent) -> Unit,
+) {
 	// Once a long press fires mid-gesture, start intercepting so the eventual ACTION_UP never
 	// reaches the row underneath - otherwise the row's own click still fires alongside the
 	// tooltip (e.g. a long-pressed switch both shows its tooltip and toggles).
@@ -90,7 +99,7 @@ fun RecyclerView.onLongPress(listener: (MotionEvent) -> Unit) {
 					longPressHandled = false
 				}
 				gestureDetector.onTouchEvent(e)
-				return longPressHandled
+				return suppressClickAfterLongPress && longPressHandled
 			}
 
 			override fun onTouchEvent(
