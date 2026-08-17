@@ -93,7 +93,11 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 			Environment.init(app)
 
-			FeatureFlags.initialize()
+			// refresh, not initialize: the device-protected phase already read the flags,
+			// but in direct boot mode it could not see external storage and read every flag
+			// as absent. This phase runs with credential-protected storage available, so it
+			// is the first read that can be trusted.
+			FeatureFlags.refresh()
 			LeakCanaryConfig.applyFromFeatureFlags()
 
 			if (!EventBus.getDefault().isRegistered(this)) {

@@ -14,7 +14,6 @@ import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.BuildViewModel
-import kotlinx.coroutines.launch
 
 /**
  * @author Akash Yadav
@@ -82,16 +81,29 @@ abstract class AbstractModuleAssemblerAction(
 	) {
 		val activity = data.requireActivity()
 		val resolvedVariant = resolveBuildVariant(data, module, variant) ?: return
+		// Resolved on the UI thread, which doExec already runs on: ViewModelProvider.get is
+		// @MainThread and ViewModelLazy's cache is an unsynchronised field, so touching the
+		// delegate from a background coroutine mutates the activity's ViewModelStore off-main.
 		val buildViewModel: BuildViewModel by activity.viewModels()
-		actionScope.launch {
-			activity.saveAllResult()
-		}
+		// Save, THEN build - the build must be of what the user sees. The save runs INSIDE
+		// runQuickBuild's coroutine, after it has reserved BuildState.InProgress, rather than
+		// in actionScope here: a save on emulated storage is slow enough that a second tap
+		// would otherwise slip past the already-in-progress guard, and actionScope dies with
+		// the activity's onPause, which would start a Gradle build from a cancelled coroutine.
+		// A save failure aborts the build rather than quietly building stale content.
 		buildViewModel.runQuickBuild(
 			module,
 			resolvedVariant,
 			launchInDebugMode = id == DebugAction.ID,
 			launchProfilerAfterInstall = id == ProfilerAction.ID,
 			gradleArgs = gradleArgs,
+			beforeBuild = {
+				// The activity can go away during the save; saving through a dead one is
+				// pointless and its editors are already released.
+				if (!activity.isDestroyed && !activity.isFinishing) {
+					activity.saveAllResult()
+				}
+			},
 		)
 	}
 }

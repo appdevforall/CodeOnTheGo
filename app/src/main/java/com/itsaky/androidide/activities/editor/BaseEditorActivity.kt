@@ -1285,8 +1285,13 @@ abstract class BaseEditorActivity :
 		log.debug(
 			"onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}",
 		)
+		// An internal build owns the same Gradle slot, so it shows the same progress bar. It does
+		// NOT relabel the Run button: the cancel affordance stays keyed off isBuildInProgress.
 		val visible =
-			editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
+			editorViewModel.isBuildInProgress ||
+				editorViewModel.isInternalBuildInProgress ||
+				editorViewModel.isInitializing ||
+				isDebuggerStarting
 		content.progressIndicator.visibility = if (visible) View.VISIBLE else View.GONE
 		invalidateOptionsMenu()
 	}
@@ -1330,6 +1335,7 @@ abstract class BaseEditorActivity :
 		}
 
 		editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
+		editorViewModel._isInternalBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
 		editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
 		editorViewModel._statusText.observe(this) {
 			content.bottomSheet.setStatus(

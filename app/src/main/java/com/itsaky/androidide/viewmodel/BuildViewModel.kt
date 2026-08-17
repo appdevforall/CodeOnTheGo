@@ -30,12 +30,24 @@ class BuildViewModel : ViewModel() {
 	private val _buildState = MutableStateFlow<BuildState>(BuildState.Idle)
 	val buildState: StateFlow<BuildState> = _buildState
 
+	/**
+	 * @param beforeBuild work that must finish BEFORE the build starts but AFTER the
+	 *   in-progress reservation below - flushing unsaved editor buffers, so the build is of
+	 *   what the user sees. It runs here rather than in the caller so three things hold: the
+	 *   reserve-then-work race the guard below closes stays closed (caller-side, two taps can
+	 *   both read Idle during a slow save on emulated storage), the build stays ordered against
+	 *   anything else the caller issued, and the build runs in this ViewModel's scope rather
+	 *   than one the caller's own teardown may already have cancelled.
+	 *   Throwing aborts the build and lands in [BuildState.Error] - building stale on-disk
+	 *   content is exactly what saving first is meant to prevent.
+	 */
 	fun runQuickBuild(
 		module: AndroidModule,
 		variant: AndroidModels.AndroidVariant,
 		launchInDebugMode: Boolean,
 		launchProfilerAfterInstall: Boolean = false,
 		gradleArgs: List<String> = emptyList(),
+		beforeBuild: suspend () -> Unit = {},
 	) {
 		if (_buildState.value is BuildState.InProgress) {
 			log.warn("Build is already in progress. Ignoring new request.")
@@ -52,6 +64,8 @@ class BuildViewModel : ViewModel() {
 			}
 
 			try {
+				beforeBuild()
+
 				val isPluginProject =
 					withContext(Dispatchers.IO) {
 						IProjectManager.getInstance().isPluginProject()
@@ -131,6 +145,13 @@ class BuildViewModel : ViewModel() {
 	/** Call this after the installation attempt to reset the state. */
 	fun installationAttempted() {
 		if (_buildState.value is BuildState.AwaitingInstall) {
+			_buildState.value = BuildState.Idle
+		}
+	}
+
+	/** Call this after the error has been shown once, so a lifecycle replay does not re-flash it. */
+	fun errorDisplayed() {
+		if (_buildState.value is BuildState.Error) {
 			_buildState.value = BuildState.Idle
 		}
 	}

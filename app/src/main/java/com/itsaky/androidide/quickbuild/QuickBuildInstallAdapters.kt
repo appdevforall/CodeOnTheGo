@@ -1,0 +1,171 @@
+package com.itsaky.androidide.quickbuild
+
+import android.content.Context
+import android.content.pm.PackageInfo
+import android.content.pm.PackageInstaller
+import android.content.pm.PackageManager
+import com.itsaky.androidide.events.InstallationEvent
+import com.itsaky.androidide.utils.isAtLeastP
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import org.appdevforall.cotg.quickbuild.service.provision.InstallBroadcast
+import org.appdevforall.cotg.quickbuild.service.provision.InstalledPackages
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
+import java.io.File
+import java.security.MessageDigest
+
+/**
+ * PackageManager-backed [InstalledPackages] for the quick-build proxy-app installer.
+ */
+class AndroidInstalledPackages(
+	private val context: Context,
+) : InstalledPackages {
+	override fun uid(packageName: String): Int? =
+		try {
+			context.packageManager.getPackageUid(packageName, 0)
+		} catch (e: PackageManager.NameNotFoundException) {
+			null
+		}
+
+	override fun lastUpdateTime(packageName: String): Long? =
+		try {
+			context.packageManager.getPackageInfo(packageName, 0).lastUpdateTime
+		} catch (e: PackageManager.NameNotFoundException) {
+			null
+		}
+
+	override fun apkFile(packageName: String): File? =
+		try {
+			context.packageManager
+				.getApplicationInfo(packageName, 0)
+				.sourceDir
+				?.let(::File)
+		} catch (e: PackageManager.NameNotFoundException) {
+			null
+		}
+
+	override fun signingCertSha256(packageName: String): String? =
+		try {
+			if (!isAtLeastP()) {
+				null
+			} else {
+				context.packageManager
+					.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+					.let(::currentSigningCertSha256)
+			}
+		} catch (e: PackageManager.NameNotFoundException) {
+			null
+		}
+
+	override fun appComponentFactory(packageName: String): String? =
+		try {
+			context.packageManager.getApplicationInfo(packageName, 0).appComponentFactory
+		} catch (e: PackageManager.NameNotFoundException) {
+			null
+		}
+}
+
+/**
+ * Signing-cert digests for the same-app-id signature comparison: the same SHA-256
+ * computed from an installed package and from a built APK file, so the two sides compare
+ * like for like. An install over a package already holding the applicationId proceeds only
+ * when the digests match, so a third-party app is never clobbered.
+ */
+object ApkSigningCert {
+	/** SHA-256 of [apk]'s signing cert via PackageManager, or null when unreadable. */
+	fun sha256(
+		context: Context,
+		apk: File,
+	): String? {
+		if (!isAtLeastP()) return null
+		return runCatching {
+			context.packageManager
+				.getPackageArchiveInfo(apk.absolutePath, PackageManager.GET_SIGNING_CERTIFICATES)
+				?.let(::currentSigningCertSha256)
+		}.getOrNull()
+	}
+}
+
+/**
+ * The CURRENT cert: the newest rotation-history entry (its last element). CoGo-built
+ * debug apps are single-signed with no rotation, so this is simply their one cert.
+ */
+@androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.P)
+private fun currentSigningCertSha256(info: PackageInfo): String? {
+	val signingInfo = info.signingInfo ?: return null
+	val signers =
+		if (signingInfo.hasMultipleSigners()) {
+			signingInfo.apkContentsSigners
+		} else {
+			signingInfo.signingCertificateHistory
+		}
+	val cert = signers?.lastOrNull()?.toByteArray() ?: return null
+	return MessageDigest
+		.getInstance("SHA-256")
+		.digest(cert)
+		.joinToString("") { "%02x".format(it) }
+}
+
+/**
+ * Adapts [InstallationEvent.InstallationResultEvent] (posted by CoGo's own
+ * InstallationResultReceiver - the SAME receiver the Run button's install uses) into
+ * the [InstallBroadcast] flow the quick-build installer awaits. This is what gives
+ * quick-build the real PackageInstaller verdict instead of a blind uid poll.
+ */
+class InstallationEventFlow {
+	private val _broadcasts = MutableSharedFlow<InstallBroadcast>(extraBufferCapacity = 16)
+
+	val broadcasts: SharedFlow<InstallBroadcast> = _broadcasts
+
+	/** Idempotent; call before the first install is committed. */
+	fun register() {
+		val bus = EventBus.getDefault()
+		if (!bus.isRegistered(this)) {
+			bus.register(this)
+		}
+	}
+
+	/**
+	 * Translates one PackageInstaller status broadcast into a [InstallBroadcast] on [broadcasts].
+	 *
+	 * @param event the installation result CoGo's own receiver posted.
+	 */
+	@Subscribe(threadMode = ThreadMode.BACKGROUND)
+	fun onInstallationResult(event: InstallationEvent.InstallationResultEvent) {
+		val extras = event.intent.extras ?: return
+		val code = extras.getInt(PackageInstaller.EXTRA_STATUS, Int.MIN_VALUE)
+		val status =
+			when {
+				code == PackageInstaller.STATUS_SUCCESS -> {
+					InstallBroadcast.Status.SUCCESS
+				}
+
+				code == PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+					InstallBroadcast.Status.PENDING_USER_ACTION
+				}
+
+				// The user cancelled the confirm dialog: kept distinct from FAILURE so
+				// the installer can report "declined" (retryable) rather than "broken".
+				code == PackageInstaller.STATUS_FAILURE_ABORTED -> {
+					InstallBroadcast.Status.ABORTED
+				}
+
+				code >= PackageInstaller.STATUS_FAILURE -> {
+					InstallBroadcast.Status.FAILURE
+				}
+
+				else -> {
+					InstallBroadcast.Status.OTHER
+				}
+			}
+		_broadcasts.tryEmit(
+			InstallBroadcast(
+				packageName = extras.getString(PackageInstaller.EXTRA_PACKAGE_NAME),
+				status = status,
+				message = extras.getString(PackageInstaller.EXTRA_STATUS_MESSAGE),
+			),
+		)
+	}
+}

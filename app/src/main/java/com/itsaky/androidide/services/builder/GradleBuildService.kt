@@ -25,6 +25,8 @@ import android.content.Intent
 import android.os.IBinder
 import android.text.TextUtils
 import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.analytics.gradle.BuildCompletedMetric
@@ -107,8 +109,106 @@ class GradleBuildService :
 	ToolingServerRunner.Observer {
 	private var mBinder: GradleServiceBinder? = null
 	private var isToolingServerStarted = false
+
+	// Volatile: written on the Tooling API's CompletableFuture pool, read cross-thread
+	// by Quick Build's slot pre-check.
+	@Volatile
 	override var isBuildInProgress = false
 		private set
+
+	/**
+	 * Gradle output captured while the editor's listener is suppressed, oldest line first. Bounded
+	 * by [MAX_INTERNAL_OUTPUT_LINES]; guarded by itself, since it is written from the tooling
+	 * API's thread and drained from the caller's.
+	 */
+	private val internalBuildOutput = ArrayDeque<String>()
+
+	/**
+	 * Whether an INTERNAL build is running - a build the user never asked for that goes through the
+	 * same [executeTasks] path as a Standard Run, today Quick Build's proxy app build.
+	 *
+	 * Held only through [withInternalBuild]; see [InternalBuildBracket] for why a leaked acquire
+	 * strands the toolbar on the Cancel-build label.
+	 */
+	private val internalBuild =
+		InternalBuildBracket(
+			// Outermost internal build: drop any tail a previous one left unread, so a failure
+			// report quotes this build and not the last one.
+			onFirstAcquire = { synchronized(internalBuildOutput) { internalBuildOutput.clear() } },
+			// postValue, not setValue: the bracket releases on the tooling API's thread.
+			onHeldChanged = { held -> _internalBuildInProgress.postValue(held) },
+		)
+
+	private val _internalBuildInProgress = MutableLiveData(false)
+
+	/**
+	 * Whether an internal build is running, for surfaces that show "a build is running" without
+	 * offering to cancel it - the user cannot cancel a build they never started.
+	 */
+	val internalBuildInProgress: LiveData<Boolean>
+		get() = _internalBuildInProgress
+
+	/** [internalBuildInProgress] read synchronously, for a surface syncing its own state. */
+	val isInternalBuildInProgress: Boolean
+		get() = internalBuild.isHeld
+
+	/**
+	 * The raw flag says the Gradle slot is busy; this one says the USER has a build running.
+	 * Every UI decider reads this; every concurrency guard keeps reading the raw flag.
+	 */
+	override val isUserVisibleBuildInProgress: Boolean
+		get() = isBuildInProgress && !internalBuild.isHeld
+
+	/**
+	 * Notified of every Gradle output line while the editor's listener is suppressed, or null when
+	 * nobody is watching.
+	 *
+	 * Suppression exists to keep the proxy app's build out of the EDITOR's build UI - the modal
+	 * first-build notice, the auto-opened output sheet, the Run button relabelled to "Cancel
+	 * build" - not to make a 90-second build look like a hang. A listener here gets the lines
+	 * without any of that UI coming with them.
+	 *
+	 * Volatile: written from the main thread, read on the tooling API's thread.
+	 */
+	@Volatile
+	private var internalBuildProgress: ((String) -> Unit)? = null
+
+	/**
+	 * Runs [block] as an INTERNAL build: the editor's build listener is suppressed for its duration
+	 * and [progressListener] gets the output lines instead.
+	 *
+	 * There is no separate begin/end pair on purpose - a caller cannot separate the acquire from
+	 * its release, so no early return, throw or cancellation can strand the editor's build UI with
+	 * the Run button reading "Cancel build".
+	 *
+	 * @param progressListener called per output line on the tooling API's thread, so it must be
+	 *   cheap and non-blocking; a throwing listener is logged and dropped, and it is cleared
+	 *   however [block] returns.
+	 * @return whatever [block] returns.
+	 */
+	suspend fun <T> withInternalBuild(
+		progressListener: ((String) -> Unit)? = null,
+		block: suspend () -> T,
+	): T =
+		internalBuild.hold {
+			internalBuildProgress = progressListener
+			try {
+				block()
+			} finally {
+				internalBuildProgress = null
+			}
+		}
+
+	/**
+	 * The editor's build listener, or null while an internal build is running. Every dispatch
+	 * to [eventListener] goes through here: keying off the BUILD would need per-build
+	 * identity, which [logOutput] and [onProgressEvent] simply do not carry.
+	 *
+	 * Only the LISTENER is suppressed. Analytics, the EventBus build events and the indexing
+	 * hand-off still fire for internal builds - they are not user-visible surfaces, and
+	 * consumers (e.g. the Kotlin language server) want them.
+	 */
+	private fun editorListener(): EventListener? = internalBuild.suppressWhileHeld(eventListener)
 
 	/**
 	 * We do not provide direct access to GradleBuildService instance to the
@@ -178,6 +278,13 @@ class GradleBuildService :
 		private val NOTIFICATION_ID = R.string.app_name
 		private val SERVER_System_err = LoggerFactory.getLogger("ToolingApiErrorStream")
 
+		/**
+		 * How much of a suppressed internal build's output to keep for a failure report. Gradle
+		 * puts the cause at the END of the stream, so a tail is the right shape; deep enough to
+		 * hold the whole `FAILURE:` block after the configure chatter.
+		 */
+		private const val MAX_INTERNAL_OUTPUT_LINES = 200
+
 		private const val ERROR_GRADLE_ENTERPRISE_PLUGIN = "gradle-enterprise-gradle-plugin"
 		private const val ERROR_COULD_NOT_FIND_GRADLE = "Could not find com.gradle"
 
@@ -235,9 +342,7 @@ class GradleBuildService :
 				.setContentText(message)
 				.setContentIntent(intent)
 
-		// Checking whether to add a ProgressBar to the notification
 		if (isProgress) {
-			// Add ProgressBar to Notification
 			builder.setProgress(100, 0, true)
 		}
 		return builder.build()
@@ -282,7 +387,6 @@ class GradleBuildService :
 							if (message.contains("stream closed") || message.contains("broken pipe")) {
 								log.info("Tooling API server stream closed during shutdown (expected)")
 							} else {
-								// log if the error is not due to the stream being closed
 								log.error("Failed to shutdown Tooling API server", err)
 								Sentry.captureException(err)
 							}
@@ -349,8 +453,43 @@ class GradleBuildService :
 	}
 
 	override fun logOutput(line: String) {
-		eventListener?.onOutput(line)
+		val listener = editorListener()
+		if (listener != null) {
+			listener.onOutput(line)
+			return
+		}
+		// Suppressed because an internal build is running. Keep a bounded tail anyway: if that
+		// build FAILS this is the only copy of Gradle's reason, since the tooling API's own
+		// failure is a bare enum. See takeInternalBuildOutput.
+		synchronized(internalBuildOutput) {
+			if (internalBuildOutput.size >= MAX_INTERNAL_OUTPUT_LINES) {
+				internalBuildOutput.removeFirst()
+			}
+			internalBuildOutput.addLast(line)
+		}
+		internalBuildProgress?.let { report ->
+			try {
+				report(line)
+			} catch (e: Exception) {
+				log.warn("Internal build progress listener threw", e)
+			}
+		}
 	}
+
+	/**
+	 * Takes and clears the current internal build's captured Gradle output.
+	 *
+	 * Draining rather than reading, so one failure's report can never be quoted against the next
+	 * build.
+	 *
+	 * @return the captured lines, oldest first; empty when nothing was captured.
+	 */
+	fun takeInternalBuildOutput(): List<String> =
+		synchronized(internalBuildOutput) {
+			val captured = internalBuildOutput.toList()
+			internalBuildOutput.clear()
+			captured
+		}
 
 	override fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig> =
 		CompletableFuture.supplyAsync {
@@ -413,7 +552,7 @@ class GradleBuildService :
 					BuildStartedEvent(buildInfo),
 				)
 
-			eventListener?.prepareBuild(buildInfo)
+			editorListener()?.prepareBuild(buildInfo)
 
 			return@supplyAsync ClientGradleBuildConfig(
 				buildParams = buildParams,
@@ -424,14 +563,14 @@ class GradleBuildService :
 		updateNotification(getString(R.string.build_status_sucess), false)
 
 		dispatchBuildResult(result, true)
-		eventListener?.onBuildSuccessful(result.tasks)
+		editorListener()?.onBuildSuccessful(result.tasks)
 	}
 
 	override fun onBuildFailed(result: BuildResult) {
 		updateNotification(getString(R.string.build_status_failed), false)
 
 		dispatchBuildResult(result, false)
-		eventListener?.onBuildFailed(result.tasks)
+		editorListener()?.onBuildFailed(result.tasks)
 	}
 
 	private fun dispatchBuildResult(
@@ -466,7 +605,7 @@ class GradleBuildService :
 	}
 
 	override fun onProgressEvent(event: ProgressEvent) {
-		eventListener?.onProgressEvent(event)
+		editorListener()?.onProgressEvent(event)
 	}
 
 	private fun getGradleExtraArgs(
@@ -477,8 +616,7 @@ class GradleBuildService :
 		extraArgs.add("--init-script")
 		extraArgs.add(Environment.INIT_SCRIPT.absolutePath)
 
-		// Override AAPT2 binary
-		// The one downloaded from Maven is not built for Android
+		// Override the AAPT2 binary: the one downloaded from Maven is not built for Android.
 		extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
 		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=$enableJdwp")
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_ENABLED}=$enableLogSender")
@@ -523,6 +661,12 @@ class GradleBuildService :
 			installWrapper()
 		}
 
+	/**
+	 * Redirects start notifications to [listener], or drops them when it is null. A no-op until the
+	 * tooling server runner exists.
+	 *
+	 * @param listener notified once the tooling server is up.
+	 */
 	internal fun setServerListener(listener: OnServerStartListener?) {
 		if (toolingServerRunner != null) {
 			toolingServerRunner!!.setListener(listener)
@@ -640,8 +784,8 @@ class GradleBuildService :
 					) {
 						BuildPreferences.isScanEnabled = false
 
-						eventListener?.onOutput(MESSAGE_SCAN_REQUIRES_PLUGIN)
-						eventListener?.onOutput(MESSAGE_OPTION_DISABLED)
+						editorListener()?.onOutput(MESSAGE_SCAN_REQUIRES_PLUGIN)
+						editorListener()?.onOutput(MESSAGE_OPTION_DISABLED)
 
 						throw ScanPluginMissingException(MESSAGE_EXCEPTION_SCAN_DISABLED)
 					}
@@ -651,6 +795,12 @@ class GradleBuildService :
 			}.handle(this::markBuildAsFinished)
 	}
 
+	/**
+	 * Signals that `--scan` was requested without the Gradle Enterprise plugin, so the build should
+	 * be retried without it.
+	 *
+	 * @param message what to report about the disabled option.
+	 */
 	class ScanPluginMissingException(
 		message: String,
 	) : Exception(message)
@@ -714,6 +864,12 @@ class GradleBuildService :
 		return result
 	}
 
+	/**
+	 * Starts the tooling server if it is not up yet; otherwise tells [listener] about the running
+	 * one straight away.
+	 *
+	 * @param listener notified once the server is available.
+	 */
 	internal fun startToolingServer(listener: OnServerStartListener?) {
 		if (toolingServerRunner?.isStarted != true) {
 			val envs = TermuxShellEnvironment().getEnvironment(this, false)
@@ -728,6 +884,12 @@ class GradleBuildService :
 		}
 	}
 
+	/**
+	 * Installs the editor's build listener, wrapped so every callback arrives on the UI thread.
+	 *
+	 * @param eventListener the listener to install, or null to remove the current one.
+	 * @return this service, for chaining.
+	 */
 	fun setEventListener(eventListener: EventListener?): GradleBuildService {
 		if (eventListener == null) {
 			this.eventListener = null
@@ -783,11 +945,10 @@ class GradleBuildService :
 					}
 				} catch (e: Throwable) {
 					e.ifCancelledOrInterrupted(suppress = true) {
-						// will be suppressed
 						return@launch
 					}
 
-					// log the error and fail silently
+					// A dead reader only costs us the server's stderr log, so fail silently.
 					log.error("Failed to read tooling server output", e)
 				}
 			}.also { job ->

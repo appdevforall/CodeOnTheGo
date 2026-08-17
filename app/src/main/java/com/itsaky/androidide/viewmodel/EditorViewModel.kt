@@ -56,6 +56,10 @@ class EditorViewModel : ViewModel() {
 	)
 
 	internal val _isBuildInProgress = MutableLiveData(false)
+
+	// A build the user never started (Quick Build's proxy app build). Separate from
+	// _isBuildInProgress so it can show progress without offering to cancel.
+	internal val _isInternalBuildInProgress = MutableLiveData(false)
 	internal val _isInitializing = MutableLiveData(false)
 	internal val _statusText = MutableLiveData<Pair<CharSequence, Int>>("" to CENTER)
 	internal val _displayedFile = MutableLiveData(-1)
@@ -137,6 +141,12 @@ class EditorViewModel : ViewModel() {
 		get() = _isBuildInProgress.value ?: false
 		set(value) {
 			_isBuildInProgress.value = value
+		}
+
+	var isInternalBuildInProgress: Boolean
+		get() = _isInternalBuildInProgress.value ?: false
+		set(value) {
+			_isInternalBuildInProgress.value = value
 		}
 
 	var isInitializing: Boolean

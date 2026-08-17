@@ -23,86 +23,101 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.SaveResult
-import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.quickbuild.GenerateSourcesDeferral
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
-class SaveFileAction(context: Context, override val order: Int) : EditorRelatedAction() {
+class SaveFileAction(
+	context: Context,
+	override val order: Int,
+) : EditorRelatedAction() {
+	override var requiresUIThread: Boolean = false
 
-  override var requiresUIThread: Boolean = false
-  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_QUICK_SAVE
-  override val id: String = ID
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_QUICK_SAVE
 
-  companion object {
-    private val log = LoggerFactory.getLogger(SaveFileAction::class.java)
-    const val ID = "ide.editor.files.saveAll"
-  }
+	override val id: String = ID
 
-  init {
-    label = context.getString(R.string.save)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_save)
-  }
+	companion object {
+		private val log = LoggerFactory.getLogger(SaveFileAction::class.java)
+		const val ID = "ide.editor.files.saveAll"
+	}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    val context = data.getActivity() ?: run {
-      visible = false
-      enabled = false
-      return
-    }
+	init {
+		label = context.getString(R.string.save)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_save)
+	}
 
-    visible = context.editorViewModel.getOpenedFiles().isNotEmpty()
-    enabled = context.areFilesModified() && !context.areFilesSaving()
-  }
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		val context =
+			data.getActivity() ?: run {
+				visible = false
+				enabled = false
+				return
+			}
 
-  override suspend fun execAction(data: ActionData): ResultWrapper {
-    val context = data.getActivity() ?: return ResultWrapper()
+		visible = context.editorViewModel.getOpenedFiles().isNotEmpty()
+		enabled = context.areFilesModified() && !context.areFilesSaving()
+	}
 
-    if (context.areFilesSaving()) {
-      return ResultWrapper(isAlreadySaving = true)
-    }
+	override suspend fun execAction(data: ActionData): ResultWrapper {
+		val context = data.getActivity() ?: return ResultWrapper()
 
-    return try {
-      // Cannot use context.saveAll() because this.execAction is called on non-UI thread
-      // and saveAll call will result in UI actions
-      ResultWrapper(result = context.saveAllResult())
-    } catch (error: Throwable) {
-      log.error("Failed to save file", error)
-      ResultWrapper()
-    }
-  }
+		if (context.areFilesSaving()) {
+			return ResultWrapper(isAlreadySaving = true)
+		}
 
-  override fun postExec(data: ActionData, result: Any) {
-    if (result is ResultWrapper && result.result != null) {
-      val context = data.requireActivity()
+		return try {
+			// Cannot use context.saveAll() because this.execAction is called on non-UI thread
+			// and saveAll call will result in UI actions
+			ResultWrapper(result = context.saveAllResult())
+		} catch (error: Throwable) {
+			log.error("Failed to save file", error)
+			ResultWrapper()
+		}
+	}
 
-      if (result.isAlreadySaving) {
-        context.flashError(R.string.msg_files_being_saved)
-        return
-      }
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result is ResultWrapper && result.result != null) {
+			val context = data.requireActivity()
 
-      // show save notification before calling 'notifySyncNeeded' so that the file save notification
-      // does not overlap the sync notification
-      context.flashSuccess(R.string.all_saved)
+			if (result.isAlreadySaving) {
+				context.flashError(R.string.msg_files_being_saved)
+				return
+			}
 
-      val saveResult = result.result
-      if (saveResult.xmlSaved) {
-        ProjectManagerImpl.getInstance().generateSources()
-      }
+			// show save notification before calling 'notifySyncNeeded' so that the file save notification
+			// does not overlap the sync notification
+			context.flashSuccess(R.string.all_saved)
 
-      if (saveResult.gradleSaved) {
-        context.editorViewModel.isSyncNeeded = true
-      }
+			val saveResult = result.result
+			// Only a resource save can change R, so only it warrants the Gradle generateSources run
+			// (Java R.jar freshness + ViewBinding accessors - see SaveResult.resourceXmlSaved).
+			// Routed through the deferral: immediate with no Quick Build session, parked and
+			// coalesced until the session pipeline settles with one (see GenerateSourcesDeferral).
+			if (saveResult.resourceXmlSaved) {
+				GenerateSourcesDeferral.notifyResourceSaved()
+			}
 
-      context.invalidateOptionsMenu()
-    } else {
-      log.error("Failed to save file")
-      flashError(R.string.save_failed)
-    }
-  }
+			if (saveResult.gradleSaved) {
+				context.editorViewModel.isSyncNeeded = true
+			}
 
-  inner class ResultWrapper(val isAlreadySaving: Boolean = false, val result: SaveResult? = null)
+			context.invalidateOptionsMenu()
+		} else {
+			log.error("Failed to save file")
+			flashError(R.string.save_failed)
+		}
+	}
+
+	inner class ResultWrapper(
+		val isAlreadySaving: Boolean = false,
+		val result: SaveResult? = null,
+	)
 }

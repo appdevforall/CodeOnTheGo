@@ -18,6 +18,11 @@ object GradleBuildTuner {
 	const val HIGH_PERF_MIN_MEM_MB = 6 * 1024 // 6GB
 	const val HIGH_PERF_MIN_CORE = 4
 
+	/**
+	 * Why [pickStrategy] chose the strategy it did, reported alongside the choice in analytics.
+	 *
+	 * @property label the low-cardinality name the metric carries.
+	 */
 	enum class SelectionReason(
 		val label: String,
 	) {
@@ -57,13 +62,14 @@ object GradleBuildTuner {
 	}
 
 	/**
-	 * Automatically tune the Gradle build for the given device and build
-	 * profile.
+	 * Automatically tune the Gradle build for the given device and build profile.
 	 *
-	 * @param device The device profile to tune for.
-	 * @param build The build profile to tune for.
-	 * @param previousConfig The previous tuning configuration.
+	 * @param device The device profile; its memory, core count and thermal state pick the strategy.
+	 * @param previousConfig The previous tuning configuration, reused when throttled.
 	 * @param thermalSafe Whether to use the thermal safe strategy.
+	 * @param analyticsManager Where the strategy-selection metric is reported, if anywhere.
+	 * @param buildId The build the selection belongs to, for that metric.
+	 * @return The tuned configuration.
 	 */
 	fun autoTune(
 		device: DeviceProfile,
@@ -84,6 +90,17 @@ object GradleBuildTuner {
 		return strategy.tune(device, build)
 	}
 
+	/**
+	 * Picks the tuning strategy for a device, in priority order: low memory first, then thermal
+	 * constraint, then high performance, with [BalancedStrategy] as the fallback.
+	 *
+	 * @param device The device profile to classify.
+	 * @param thermalSafe Whether the caller is forcing the thermal-safe path.
+	 * @param previousConfig The previous tuning configuration, reused when throttled.
+	 * @param analyticsManager Where the selection metric is reported, if anywhere.
+	 * @param buildId The build the selection belongs to, for that metric.
+	 * @return The chosen strategy.
+	 */
 	@VisibleForTesting
 	internal fun pickStrategy(
 		device: DeviceProfile,
@@ -116,12 +133,9 @@ object GradleBuildTuner {
 			when {
 				isLowMemDevice -> LowMemoryStrategy to SelectionReason.LowMemDevice
 				totalMemMb <= LOW_MEM_THRESHOLD_MB -> LowMemoryStrategy to SelectionReason.LowMemThreshold
-
 				isThermallyConstrained && hasPreviousConfig -> ThermalSafeStrategy(previousConfig) to SelectionReason.ThermalWithPrevious
 				isThermallyConstrained && !hasPreviousConfig -> BalancedStrategy to SelectionReason.ThermalWithoutPrevious
-
 				meetsHighPerfMem && meetsHighPerfCores -> HighPerformanceStrategy to SelectionReason.HighPerf
-
 				else -> BalancedStrategy to SelectionReason.BalancedFallback
 			}
 
@@ -158,37 +172,36 @@ object GradleBuildTuner {
 		}
 
 	/**
-	 * Convert the given tuning configuration to a Gradle build parameters.
+	 * Convert the given tuning configuration to Gradle build parameters.
 	 *
-	 * @param tuningConfig The tuning configuration to convert.
+	 * @return The command-line arguments and JVM arguments that express it.
 	 */
 	fun toGradleBuildParams(tuningConfig: GradleTuningConfig): GradleBuildParams {
 		val gradleArgs =
 			buildList {
 				val gradle = tuningConfig.gradle
 
-				// Daemon
 				if (!gradle.daemonEnabled) add("--no-daemon")
 
-				// Worker count
+				// Passed as a command-line -D system property, which overrides
+				// gradle.properties; it only takes effect for daemons started after the
+				// value changes, since the idle timeout is fixed at daemon startup.
+				if (gradle.daemonEnabled) {
+					add("-Dorg.gradle.daemon.idletimeout=${gradle.daemonIdleTimeoutMs}")
+				}
+
 				add("--max-workers=${gradle.maxWorkers}")
 
-				// Parallel execution
 				add(if (gradle.parallel) "--parallel" else "--no-parallel")
 
-				// Build cache
 				add(if (gradle.caching) "--build-cache" else "--no-build-cache")
 
-				// Configure on demand
 				add(if (gradle.configureOnDemand) "--configure-on-demand" else "--no-configure-on-demand")
 
-				// Configuration cache
 				add(if (gradle.configurationCache) "--configuration-cache" else "--no-configuration-cache")
 
-				// VFS watch (file system watching)
 				add(if (gradle.vfsWatch) "--watch-fs" else "--no-watch-fs")
 
-				// Kotlin compiler strategy
 				when (val kotlin = tuningConfig.kotlin) {
 					is KotlinCompilerExecution.InProcess -> {
 						add("-Pkotlin.compiler.execution.strategy=in-process")
@@ -213,7 +226,6 @@ object GradleBuildTuner {
 					}
 				}
 
-				// AAPT2
 				val aapt2 = tuningConfig.aapt2
 				add("-Pandroid.enableAapt2Daemon=${aapt2.enableDaemon}")
 				add("-Pandroid.aapt2ThreadPoolSize=${aapt2.threadPoolSize}")
@@ -230,20 +242,22 @@ object GradleBuildTuner {
 
 	private fun toJvmArgs(jvm: JvmConfig) =
 		buildList {
-			// Heap sizing
 			add("-Xms${jvm.xmsMb}m")
 			add("-Xmx${jvm.xmxMb}m")
 
-			// Metaspace cap (class metadata)
 			add("-XX:MaxMetaspaceSize=${jvm.maxMetaspaceSizeMb}m")
 
-			// JIT code cache
 			add("-XX:ReservedCodeCacheSize=${jvm.reservedCodeCacheSizeMb}m")
 
-			// GC strategy
 			when (val gc = jvm.gcType) {
-				GcType.Default -> Unit
-				GcType.Serial -> add("-XX:+UseSerialGC")
+				GcType.Default -> {
+					Unit
+				}
+
+				GcType.Serial -> {
+					add("-XX:+UseSerialGC")
+				}
+
 				is GcType.Generational -> {
 					add("-XX:+UseG1GC")
 
@@ -257,7 +271,6 @@ object GradleBuildTuner {
 				}
 			}
 
-			// Heap dump on OOM (useful for diagnosing memory issues)
 			if (jvm.heapDumpOnOutOfMemory) {
 				add("-XX:+HeapDumpOnOutOfMemoryError")
 			}
