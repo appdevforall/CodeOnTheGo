@@ -53,7 +53,9 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   Values crossing this boundary must be JDK types, and the registry hands each
   source a sanitized copy of the argument map rather than its own.
   `unregisterToolSource` takes the `ToolSource` instance, not a provider id, so a
-  plugin can only remove the source it holds. `ToolSpec.requiresApproval()`
+  reused provider id cannot remove another plugin's source — but the registry is
+  no trust boundary between plugins: `getToolSources` hands out the registered
+  instances and registering under a taken id replaces it. `ToolSpec.requiresApproval()`
   defaults to **true**, inverted relative to the agent's own tools: those are
   contained by its path guard, a contributed tool by nothing.
 - **added — Optional LLM backend capabilities** _(ADFA-5095)_ **[verified]**

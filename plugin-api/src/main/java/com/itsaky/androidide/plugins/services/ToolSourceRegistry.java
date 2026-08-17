@@ -22,7 +22,10 @@ import java.util.concurrent.CompletableFuture;
 public interface ToolSourceRegistry {
 
 	/**
-	 * Contract revision. A source built against a newer revision than the agent understands is rejected rather than half-supported.
+	 * Contract revision, bumped whenever a member is added here.
+	 *
+	 * <p>
+	 * It marks the revision, it does not negotiate one: javac inlines a constant into every class that reads it, so a plugin carries the value it compiled against and the host its own, and neither can read the other's. Version compatibility is enforced where the loader already enforces it, by {@code plugin.min_ide_version} in the plugin manifest.
 	 */
 	int CONTRACT_VERSION = 1;
 
@@ -51,7 +54,10 @@ public interface ToolSourceRegistry {
 	void registerToolSource(@NonNull ToolSource source);
 
 	/**
-	 * Removes a source previously passed to {@link #registerToolSource}, matched by instance identity rather than by id -- a plugin can only remove the source object it holds, so one {@code .cgp} cannot unregister another's tools.
+	 * Removes a source previously passed to {@link #registerToolSource}, matched by instance identity rather than by id, so a provider id a second plugin happens to reuse does not remove the first plugin's source.
+	 *
+	 * <p>
+	 * Identity is not proof of ownership and this is not a trust boundary between plugins: {@link #getToolSources} hands every caller the registered instances, and {@link #registerToolSource} replaces whatever is registered under the same id. What keeps a plugin out of the agent is not installing it.
 	 *
 	 * @param source
 	 *            the source to remove; a source that is not registered is ignored
