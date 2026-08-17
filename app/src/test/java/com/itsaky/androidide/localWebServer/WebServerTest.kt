@@ -1,11 +1,13 @@
 package com.itsaky.androidide.localWebServer
 
+import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import io.mockk.verify
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -100,6 +102,77 @@ class WebServerTest {
 		}
 
 		assertPortIsFree(port)
+	}
+
+	// ADFA-5153: the compression dictionary must be loaded once, at server startup, and
+	// stay cached in memory for every request thereafter -- never re-fetched per-request.
+	@Test
+	fun `compression dictionary is loaded once at startup and reused across every request`() {
+		val port = freePort()
+
+		val dictionaryExistsCursor =
+			mockk<Cursor>(relaxed = true) {
+				every { moveToFirst() } returns true
+			}
+		val dictionaryDataCursor =
+			mockk<Cursor>(relaxed = true) {
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns "test-dictionary-bytes".toByteArray()
+			}
+		val contentCursor =
+			mockk<Cursor>(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns "hello".toByteArray()
+				every { getString(1) } returns "text/plain"
+				every { getString(2) } returns "none"
+				every { getInt(3) } returns 0
+			}
+
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		every {
+			db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+		} returns dictionaryExistsCursor
+		every {
+			db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+		} returns dictionaryDataCursor
+		every {
+			db.rawQuery(match { it.contains("FROM   Content") }, any())
+		} returns contentCursor
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+
+			repeat(3) { sendRawGetRequestAndAwaitClose(port, "/some/path") }
+
+			verify(exactly = 1) {
+				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
+	// Blocks until the server closes the connection (every response sends "Connection: close"),
+	// so by the time this returns the server has fully finished processing this one request --
+	// making repeated calls a reliable way to serialize several full request/response cycles.
+	private fun sendRawGetRequestAndAwaitClose(
+		port: Int,
+		path: String,
+	) {
+		Socket().use { socket ->
+			socket.connect(InetSocketAddress("localhost", port), 2_000)
+			socket.getOutputStream().apply {
+				write("GET $path HTTP/1.1\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
+				flush()
+			}
+			socket.getInputStream().readBytes()
+		}
 	}
 
 	// Polls by attempting an actual TCP connect rather than sleeping a fixed
