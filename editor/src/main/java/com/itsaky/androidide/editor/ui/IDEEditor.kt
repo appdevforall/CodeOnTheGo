@@ -95,6 +95,7 @@ import io.github.rosemoe.sora.widget.IDEEditorSearcher
 import io.github.rosemoe.sora.widget.component.EditorAutoCompletion
 import io.github.rosemoe.sora.widget.component.EditorBuiltinComponent
 import io.github.rosemoe.sora.widget.component.EditorTextActionWindow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -341,9 +342,15 @@ open class IDEEditor
 		 */
 		fun appendBatch(text: String): Boolean {
 			if (!isReadyToAppend) return false
-			return runCatching { append(text) }
-				.onFailure { log.warn("Failed to append batch to editor", it) }
-				.isSuccess
+			return try {
+				append(text)
+				true
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.warn("Failed to append batch to editor", e)
+				false
+			}
 		}
 
 		override fun setLanguageServer(server: ILanguageServer?) {
