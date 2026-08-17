@@ -193,6 +193,17 @@
 -keep class io.sentry.** { *; }
 -dontwarn io.sentry.**
 
+# ADFA-5156: TEMPORARY ROLLBACK of the R8 shrinking re-enabled in ADFA-3604.
+# Plugins load parent-first through a stock DexClassLoader, so they resolve
+# kotlin.** from the app's dex rather than their own bundled stdlib. R8 cannot
+# see plugin call sites, so it strips every stdlib member the IDE itself does
+# not call and plugins die with NoSuchMethodError at runtime (Sketch to UI:
+# ArraysKt.maxOrNull([F)). With -dontobfuscate and -dontoptimize already set,
+# this restores R8 to a pass-through and returns the release build to the
+# configuration shipped before ADFA-3604. Revert once ADFA-5156 lands a
+# targeted fix (keep rules for kotlin.**/kotlinx.coroutines.**).
+-dontshrink
+
 ## Plugin SPI
 ## Plugins are loaded dynamically via DexClassLoader, so R8 cannot see their
 ## implementations of these interfaces. Without these rules, R8 narrows the
