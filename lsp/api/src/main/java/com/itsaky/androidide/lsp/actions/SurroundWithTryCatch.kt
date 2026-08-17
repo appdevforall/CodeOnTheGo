@@ -63,7 +63,11 @@ fun computeSurroundWithTryCatchEdit(
 		buildString {
 			append(baseIndent).append("try {").append(nl)
 			append(body).append(nl)
-			append(baseIndent).append("} ").append(catchClause).append(" {").append(nl)
+			append(baseIndent)
+				.append("} ")
+				.append(catchClause)
+				.append(" {")
+				.append(nl)
 			append(baseIndent).append(indentUnit).append(catchBody).append(nl)
 			append(baseIndent).append("}")
 		}
