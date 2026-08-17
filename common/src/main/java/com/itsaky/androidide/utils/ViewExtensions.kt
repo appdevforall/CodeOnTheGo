@@ -79,9 +79,6 @@ fun RecyclerView.onLongPress(
 	suppressClickAfterLongPress: Boolean = false,
 	listener: (MotionEvent) -> Unit,
 ) {
-	// Once a long press fires mid-gesture, start intercepting so the eventual ACTION_UP never
-	// reaches the row underneath - otherwise the row's own click still fires alongside the
-	// tooltip (e.g. a long-pressed switch both shows its tooltip and toggles).
 	var longPressHandled = false
 	val gestureDetector =
 		longPressGestureDetector {
@@ -99,7 +96,15 @@ fun RecyclerView.onLongPress(
 					longPressHandled = false
 				}
 				gestureDetector.onTouchEvent(e)
-				return suppressClickAfterLongPress && longPressHandled
+				// Only swallow the terminal ACTION_UP - intercepting any earlier event (e.g. the
+				// MOVE the long-press timer happens to fire during) would hijack the rest of the
+				// gesture from RecyclerView's own scroll handling too, since once an
+				// OnItemTouchListener starts intercepting, RecyclerView routes every remaining
+				// event in the gesture to it, bypassing its own scroll/fling processing entirely
+				// until the next ACTION_DOWN. Suppressing just the row's click only needs the
+				// single terminal event intercepted.
+				return suppressClickAfterLongPress && longPressHandled &&
+					e.actionMasked == MotionEvent.ACTION_UP
 			}
 
 			override fun onTouchEvent(

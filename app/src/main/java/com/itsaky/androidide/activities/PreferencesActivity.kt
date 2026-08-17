@@ -58,11 +58,8 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 
 		binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
 		binding.toolbar.setOnLongClickListener {
-			// _binding directly, not the checkNotNull-backed binding getter: this can run after the
-			// activity is destroyed (see the onLongPress guard below, which needs it for certain).
-			val toolbar = _binding?.toolbar ?: return@setOnLongClickListener true
 			// No manual haptic feedback: the platform already fires it for a listener returning true.
-			showIdeCategoryTooltipIfPresent(this, toolbar, currentScreenTooltipTag(), playHapticFeedback = false)
+			showScreenTooltip(_binding?.toolbar, playHapticFeedback = false)
 			true
 		}
 
@@ -73,10 +70,7 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 		// for its own drag/fling handling, same as RecyclerView - so this needs the GestureDetector-
 		// based View.onLongPress instead.
 		binding.fragmentContainerParent.onLongPress {
-			// _binding directly: the GestureDetector's ~500ms long-press timer is independent of the
-			// view's own lifecycle and can fire after the activity (and its binding) is destroyed.
-			val container = _binding?.fragmentContainerParent ?: return@onLongPress
-			showIdeCategoryTooltipIfPresent(this, container, currentScreenTooltipTag())
+			showScreenTooltip(_binding?.fragmentContainerParent, playHapticFeedback = true)
 		}
 
 		feedbackButtonManager =
@@ -168,6 +162,20 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 	private fun currentScreenTooltipTag(): String {
 		val fragment = supportFragmentManager.findFragmentById(binding.fragmentContainer.id)
 		return (fragment as? IDEPreferencesFragment)?.screenTooltipTag ?: TooltipTag.PREFS_TOP
+	}
+
+	/**
+	 * Shows the current screen's tooltip anchored to [view], or does nothing if it's null - both
+	 * call sites pass `_binding?.someView` directly rather than the checkNotNull-backed [binding]
+	 * getter, since a long-press timer (or a listener callback) can fire after the activity (and
+	 * its binding) has already been destroyed.
+	 */
+	private fun showScreenTooltip(
+		view: View?,
+		playHapticFeedback: Boolean,
+	) {
+		view ?: return
+		showIdeCategoryTooltipIfPresent(this, view, currentScreenTooltipTag(), playHapticFeedback)
 	}
 
 	override fun onDestroy() {

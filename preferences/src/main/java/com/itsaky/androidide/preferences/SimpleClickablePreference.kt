@@ -34,9 +34,9 @@ class SimpleClickablePreference
 		override val title: Int,
 		override val summary: Int? = null,
 		override val icon: Int? = null,
+		override val tooltipTag: String = "",
 		@IgnoredOnParcel // The prefs do not refresh so the parcelizable object is not required, remove this and update the prefs building
 		private val onClick: ((Preference) -> Boolean)? = { false },
-		override val tooltipTag: String = "",
 	) : SimplePreference() {
 		override fun onPreferenceClick(preference: Preference): Boolean = onClick?.let { it(preference) } ?: false
 	}
