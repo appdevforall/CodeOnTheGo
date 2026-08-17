@@ -126,12 +126,10 @@ class PluginManagerViewModel(
 			is PluginManagerUiEvent.CancelPendingInstall -> {
 				// Only a forwarded LocalFile (our own disposable temp copy) is cleaned up here -
 				// nothing was installed, so a user-picked ContentUri source is never touched on
-				// decline, regardless of deleteSourceAfterInstall (that flag only ever governs
-				// deletion after a *successful* install, matching its "delete after install"
-				// label).
-				if (event.source is PluginInstallSource.LocalFile) {
-					viewModelScope.launch { deleteInstallSource(event.source) }
-				}
+				// decline (deletion there only ever happens after a *successful* install,
+				// matching the "delete after install" checkbox's label - there's no flag to
+				// consult here since a decline never installs anything).
+				viewModelScope.launch { deleteIfLocalFile(event.source) }
 			}
 
 			is PluginManagerUiEvent.OpenFilePicker -> {
@@ -345,12 +343,20 @@ class PluginManagerViewModel(
 										"apk"
 									}
 								val tempFile = InstallTempFiles.newTempFile(filesDir, "temp_plugin", extension)
+								// Assigned immediately (a plain, non-suspending write), before the
+								// suspending copy below - so a cancellation landing mid-copy still
+								// leaves ownedTempFile pointing at the file for `finally` to clean
+								// up. Assigning only after this whole block returns (e.g. via
+								// `.also{}` on the block's result) would miss that window: a
+								// cancellation right as the block finishes makes withContext throw
+								// instead of returning, so the assignment would never run.
+								ownedTempFile = tempFile
 
 								UriFileImporter.copyUriToFile(contentResolver, source.uri, tempFile) {
 									Exception("Cannot open file")
 								}
 								tempFile
-							}.also { ownedTempFile = it }
+							}
 						}
 					}
 
@@ -380,16 +386,12 @@ class PluginManagerViewModel(
 						// A failed install deletes nothing but our own disposable temp copy - a
 						// user-picked ContentUri is preserved so they can retry, matching
 						// deleteSourceAfterInstall's "delete after install [succeeds]" meaning.
-						if (source is PluginInstallSource.LocalFile) {
-							deleteInstallSource(source)
-						}
+						deleteIfLocalFile(source)
 					}
 			} catch (e: CancellationException) {
 				// Matches the "always cleaned up regardless of outcome" comment above: cancellation
 				// is itself an outcome the forwarded temp file must not survive.
-				if (source is PluginInstallSource.LocalFile) {
-					withContext(NonCancellable) { deleteInstallSource(source) }
-				}
+				withContext(NonCancellable) { deleteIfLocalFile(source) }
 				throw e
 			} catch (exception: Exception) {
 				Log.e(TAG, "Error installing plugin from URI", exception)
@@ -399,9 +401,7 @@ class PluginManagerViewModel(
 						listOf(exception.message ?: ""),
 					),
 				)
-				if (source is PluginInstallSource.LocalFile) {
-					deleteInstallSource(source)
-				}
+				deleteIfLocalFile(source)
 			} finally {
 				ownedTempFile?.let { file ->
 					withContext(NonCancellable + Dispatchers.IO) {
@@ -425,7 +425,7 @@ class PluginManagerViewModel(
 		if (incoming == null) {
 			Log.w(TAG, "Failed to read plugin metadata from ${pluginFile.name}; aborting install")
 			_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file))
-			if (source is PluginInstallSource.LocalFile) deleteInstallSource(source)
+			deleteIfLocalFile(source)
 			return true
 		}
 
@@ -445,7 +445,7 @@ class PluginManagerViewModel(
 					listOf(existing.metadata.name),
 				),
 			)
-			if (source is PluginInstallSource.LocalFile) deleteInstallSource(source)
+			deleteIfLocalFile(source)
 			return true
 		}
 
@@ -461,6 +461,15 @@ class PluginManagerViewModel(
 			),
 		)
 		return true
+	}
+
+	/** A user-picked ContentUri is only ever deleted after a successful install (matching the
+	 * "delete after install" checkbox's label) - a forwarded LocalFile temp copy is disposable
+	 * regardless of outcome, so it's the only source type any non-success path cleans up here. */
+	private suspend fun deleteIfLocalFile(source: PluginInstallSource) {
+		if (source is PluginInstallSource.LocalFile) {
+			deleteInstallSource(source)
+		}
 	}
 
 	private suspend fun deleteInstallSource(source: PluginInstallSource) {

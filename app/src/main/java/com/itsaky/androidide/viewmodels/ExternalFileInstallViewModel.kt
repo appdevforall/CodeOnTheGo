@@ -75,35 +75,62 @@ class ExternalFileInstallViewModel(
 	private val _isInstalling = MutableStateFlow(false)
 	val isInstalling: StateFlow<Boolean> = _isInstalling.asStateFlow()
 
-	/** Call once, from `Activity.onCreate()`, with the VIEW intent's data [Uri]. */
+	// Monotonically increasing per onReceived() call, assigned synchronously (before launching
+	// the coroutine below) so it always reflects real intent-arrival order. Two onReceived()
+	// calls in quick succession (ExternalFileInstallActivity is singleTask, so a second VIEW
+	// intent for a *different* file reaches this same instance via onNewIntent) run as
+	// independent coroutines with no guarantee the first *finishes* before the second - a slow
+	// first request can otherwise complete its async work (copy/inspect/collision-check) after a
+	// faster second request already committed, and overwrite the Compose screen's single
+	// dialogState slot with stale info. isCurrentGeneration() below lets each request notice, at
+	// its final commit point, that it's been superseded and should abandon silently instead.
+	private var currentRequestGeneration = 0
+
+	// Tracks the temp file behind the most recently *committed* .cgt confirm/conflict dialog -
+	// used to clean it up the moment a newer request supersedes it, rather than silently
+	// orphaning it for InstallTempFiles' hour-long sweep. Only ever touched by whichever request
+	// currently holds isCurrentGeneration()'s "true" (see supersedePendingConfirmation()), so
+	// there's no ordering ambiguity about which file it refers to.
+	private var pendingConfirmationTempFile: File? = null
+
+	private fun isCurrentGeneration(generation: Int) = generation == currentRequestGeneration
+
+	private suspend fun supersedePendingConfirmation(newPendingFile: File?) {
+		pendingConfirmationTempFile?.let { old -> if (old != newPendingFile) deleteQuietly(old) }
+		pendingConfirmationTempFile = newPendingFile
+	}
+
+	/** Call once, from `Activity.onCreate()`/`onNewIntent()`, with the VIEW intent's data [Uri]. */
 	fun onReceived(uri: Uri) {
 		if (!receivedUriGate.consume(uri)) return
+
+		val generation = ++currentRequestGeneration
 
 		viewModelScope.launch {
 			val displayName = withContext(Dispatchers.IO) { UriFileImporter.getDisplayName(contentResolver, uri) }
 			val extension = displayName?.substringAfterLast('.', "")?.lowercase()
 
 			if (displayName.isNullOrBlank() || extension.isNullOrBlank()) {
-				sendErrorAndFinish(R.string.msg_invalid_incoming_file)
+				sendErrorAndFinish(generation, R.string.msg_invalid_incoming_file)
 				return@launch
 			}
 
 			if (extension != PLUGIN_ARCHIVE_EXTENSION && extension != TEMPLATE_ARCHIVE_EXTENSION) {
-				sendErrorAndFinish(R.string.msg_unsupported_file_type)
+				sendErrorAndFinish(generation, R.string.msg_unsupported_file_type)
 				return@launch
 			}
 
 			if (extension == PLUGIN_ARCHIVE_EXTENSION &&
 				!awaitAvailable(pluginRepository::isPluginManagerAvailable)
 			) {
-				sendErrorAndFinish(R.string.msg_ide_setup_incomplete)
+				sendErrorAndFinish(generation, R.string.msg_ide_setup_incomplete)
 				return@launch
 			}
 
 			if (extension == TEMPLATE_ARCHIVE_EXTENSION &&
 				!awaitAvailable(templateCollectionRepository::isTemplatesFeatureAvailable)
 			) {
-				sendErrorAndFinish(R.string.msg_ide_setup_incomplete)
+				sendErrorAndFinish(generation, R.string.msg_ide_setup_incomplete)
 				return@launch
 			}
 
@@ -123,9 +150,16 @@ class ExternalFileInstallViewModel(
 				} catch (e: Exception) {
 					log.error("Failed to copy incoming file", e)
 					withContext(Dispatchers.IO) { deleteQuietlyBlocking(destination) }
-					sendErrorAndFinish(R.string.msg_invalid_incoming_file)
+					sendErrorAndFinish(generation, R.string.msg_invalid_incoming_file)
 					return@launch
 				}
+
+			if (!isCurrentGeneration(generation)) {
+				// A newer VIEW intent has since arrived and is now authoritative - abandon this
+				// one silently rather than emit an effect that would incorrectly supersede it.
+				deleteQuietly(tempFile)
+				return@launch
+			}
 
 			val baseName = sanitizeBaseName(displayName.substringBeforeLast('.', "templates"))
 
@@ -133,9 +167,10 @@ class ExternalFileInstallViewModel(
 				// Forwarded as a plain path, not a content:// Uri: both activities run in this
 				// same process and already trust filesDir paths, so PluginManagerViewModel can
 				// install straight from this file instead of copying it a second time.
+				supersedePendingConfirmation(null)
 				_uiEffect.trySend(ExternalFileInstallUiEffect.ForwardToPluginManager(tempFile.absolutePath))
 			} else {
-				dispatchTemplateInstall(tempFile, baseName)
+				dispatchTemplateInstall(tempFile, baseName, generation)
 			}
 		}
 	}
@@ -151,16 +186,24 @@ class ExternalFileInstallViewModel(
 	private suspend fun dispatchTemplateInstall(
 		tempFile: File,
 		baseName: String,
+		generation: Int,
 	) {
 		val info =
 			templateCollectionRepository.inspectCollection(tempFile).getOrElse { exception ->
 				log.warn("Invalid template collection file: {}", tempFile.name, exception)
 				deleteQuietly(tempFile)
-				sendErrorAndFinish(R.string.msg_template_invalid_file)
+				sendErrorAndFinish(generation, R.string.msg_template_invalid_file)
 				return
 			}
 
 		val existing = templateCollectionRepository.findExistingCollision(baseName)
+
+		if (!isCurrentGeneration(generation)) {
+			deleteQuietly(tempFile)
+			return
+		}
+
+		supersedePendingConfirmation(tempFile)
 		if (existing == null) {
 			_uiEffect.trySend(
 				ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation(info, tempFile, baseName),
@@ -179,6 +222,7 @@ class ExternalFileInstallViewModel(
 			}
 
 			is ExternalFileInstallUiEvent.IgnoreTemplateInstall -> {
+				if (pendingConfirmationTempFile == event.tempFile) pendingConfirmationTempFile = null
 				viewModelScope.launch {
 					deleteQuietly(event.tempFile)
 					_uiEffect.trySend(ExternalFileInstallUiEffect.Finish)
@@ -197,6 +241,10 @@ class ExternalFileInstallViewModel(
 		// tempFile and surface a spurious failure toast.
 		if (_isInstalling.value) return
 		_isInstalling.value = true
+		// From here on, tempFile's fate is owned by this install attempt, not "a dialog awaiting
+		// an answer" - a subsequent onReceived() for a different file must not delete it out from
+		// under an install already in flight.
+		if (pendingConfirmationTempFile == tempFile) pendingConfirmationTempFile = null
 
 		viewModelScope.launch {
 			templateCollectionRepository
@@ -231,9 +279,15 @@ class ExternalFileInstallViewModel(
 
 	fun sanitizeBaseName(rawName: String): String = rawName.replace(UNSAFE_FILENAME_CHARS, "_").trim().ifBlank { "templates" }
 
-	private fun sendErrorAndFinish(
+	private suspend fun sendErrorAndFinish(
+		generation: Int,
 		@StringRes messageResId: Int,
 	) {
+		if (!isCurrentGeneration(generation)) return
+		// A stale (already-superseded) request never reaches here (see the isCurrentGeneration
+		// check above), so whatever's still pending at this point genuinely belongs to an earlier,
+		// now-being-terminated request and must be cleaned up rather than left dangling.
+		supersedePendingConfirmation(null)
 		// See confirmTemplateInstall()'s onSuccess: the Screen suspends on ShowError until the
 		// flashbar is actually shown before processing Finish, so no delay is needed here either.
 		_uiEffect.trySend(ExternalFileInstallUiEffect.ShowError(messageResId))

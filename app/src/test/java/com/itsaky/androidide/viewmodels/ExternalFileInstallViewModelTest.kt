@@ -137,6 +137,30 @@ class ExternalFileInstallViewModelTest {
 		}
 
 	@Test
+	fun `a second onReceived for a different file cleans up the first file's still-pending temp copy`() =
+		runTest {
+			// Simulates a second VIEW intent for a different file arriving via onNewIntent() on
+			// the singleTask ExternalFileInstallActivity while the first file's confirmation
+			// dialog is still unanswered.
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+
+			viewModel.onReceived(sourceUriFor("first.cgt"))
+			val firstEffect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+			val firstTempFile = firstEffect.tempFile
+			assertThat(firstTempFile.exists()).isTrue()
+
+			viewModel.onReceived(sourceUriFor("second.cgt"))
+			val secondEffect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+
+			assertThat(firstTempFile.exists()).isFalse()
+			assertThat(secondEffect.tempFile).isNotEqualTo(firstTempFile)
+			assertThat(secondEffect.tempFile.exists()).isTrue()
+		}
+
+	@Test
 	fun `invalid cgt shows invalid-file error`() =
 		runTest {
 			stubTemplatesFeatureAvailable(true)

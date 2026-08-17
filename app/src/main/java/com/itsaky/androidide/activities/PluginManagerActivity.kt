@@ -347,7 +347,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 		val deleteCheckBox = dialogView?.findViewById<CheckBox>(R.id.checkbox_delete_source)
 		val onCancel = {
 			if (forceDeleteSource) {
-				viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(source, deleteSourceAfterInstall = true))
+				viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(source))
 			}
 		}
 
@@ -377,15 +377,11 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 					PluginManagerUiEvent.ConfirmOverwrite(effect.source, effect.deleteSourceAfterInstall),
 				)
 			}.setNegativeButton(android.R.string.cancel) { _, _ ->
-				viewModel.onEvent(
-					PluginManagerUiEvent.CancelPendingInstall(effect.source, effect.deleteSourceAfterInstall),
-				)
+				viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(effect.source))
 			}.setOnCancelListener {
 				// Same reasoning as showInstallConfirmation()'s onCancelListener: back-press must
 				// route through CancelPendingInstall too, or a forwarded source's temp file leaks.
-				viewModel.onEvent(
-					PluginManagerUiEvent.CancelPendingInstall(effect.source, effect.deleteSourceAfterInstall),
-				)
+				viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(effect.source))
 			}.show()
 	}
 

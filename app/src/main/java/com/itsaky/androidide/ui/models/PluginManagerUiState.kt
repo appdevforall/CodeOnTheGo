@@ -62,7 +62,6 @@ sealed class PluginManagerUiEvent {
 
 	data class CancelPendingInstall(
 		val source: PluginInstallSource,
-		val deleteSourceAfterInstall: Boolean,
 	) : PluginManagerUiEvent()
 
 	object OpenFilePicker : PluginManagerUiEvent()
