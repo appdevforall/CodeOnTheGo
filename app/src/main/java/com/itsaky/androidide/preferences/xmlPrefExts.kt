@@ -29,8 +29,10 @@ class XMLPreferencesScreen(
 	override val key: String = "idepref_editor_xml",
 	override val title: Int = string.xml,
 	override val children: List<IPreference> = mutableListOf(),
-	override val tooltipTag: String = TooltipTag.PREFS_EDITOR_XML,
 ) : IPreferenceGroup() {
+	// No tag of its own, unlike its child XMLFormattingOptions - falls back to the enclosing
+	// Editor screen's tag, matching every other single-child wrapper category in this PR (e.g.
+	// GradleOptions, RunOptions) rather than duplicating the child's tag.
 
 	init {
 		addPreference(XMLFormattingOptions())
