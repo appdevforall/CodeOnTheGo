@@ -140,12 +140,19 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 
 				// Back up (rather than delete) any existing destFile, so it can be put back if
 				// the swap below fails for any reason - the existing collection is only ever
-				// removed once the new one is confirmed successfully in its place.
+				// removed once the new one is confirmed successfully in its place. Same
+				// renameTo()-then-copyTo() fallback as the swap below: renameTo() is unreliable
+				// on-device even for a same-directory move (confirmed there during this PR).
 				val hadExisting = destFile.exists()
 				val backupFile = File(templatesDir, "${destFile.name}.${UUID.randomUUID()}.bak")
-				if (hadExisting && !destFile.renameTo(backupFile)) {
-					stagingFile.delete()
-					throw IllegalStateException("Failed to back up existing file before replacing: ${destFile.name}")
+				if (hadExisting) {
+					val backedUp =
+						destFile.renameTo(backupFile) ||
+							runCatching { destFile.copyTo(backupFile, overwrite = true).also { destFile.delete() } }.isSuccess
+					if (!backedUp) {
+						stagingFile.delete()
+						throw IllegalStateException("Failed to back up existing file before replacing: ${destFile.name}")
+					}
 				}
 
 				// Both files are now on the same volume (templatesDir), so this is a cheap,

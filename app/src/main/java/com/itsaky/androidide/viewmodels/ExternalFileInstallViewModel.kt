@@ -204,6 +204,10 @@ class ExternalFileInstallViewModel(
 		}
 
 		supersedePendingConfirmation(tempFile)
+		// This dialog's buttons must start enabled regardless of whether some earlier,
+		// now-abandoned generation's install is still finishing up in the background (see
+		// confirmTemplateInstall()'s own generation check for the other half of this).
+		_isInstalling.value = false
 		if (existing == null) {
 			_uiEffect.trySend(
 				ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation(info, tempFile, baseName),
@@ -241,6 +245,11 @@ class ExternalFileInstallViewModel(
 		// tempFile and surface a spurious failure toast.
 		if (_isInstalling.value) return
 		_isInstalling.value = true
+		// Captured now: if a newer onReceived() supersedes this one's dialog before this install
+		// finishes (see dispatchTemplateInstall()), this install must neither tear down the
+		// Activity out from under the newer dialog nor touch _isInstalling/pendingConfirmation
+		// state that by then belongs to a completely different request.
+		val generation = currentRequestGeneration
 		// From here on, tempFile's fate is owned by this install attempt, not "a dialog awaiting
 		// an answer" - a subsequent onReceived() for a different file must not delete it out from
 		// under an install already in flight.
@@ -250,23 +259,44 @@ class ExternalFileInstallViewModel(
 			templateCollectionRepository
 				.installCollection(tempFile, targetBaseName, overwrite)
 				.onSuccess {
-					// The Screen suspends on ShowSuccess until the flashbar's entrance animation
-					// actually finishes (flashSuccessAwaitShown) before processing the next
-					// buffered effect, so Finish here doesn't need its own artificial delay.
+					// The install genuinely happened (the file's on disk in templatesDir) even if
+					// a newer request has since taken over the screen, so still surface the
+					// success - but only tear down the Activity (Finish) if nothing newer is now
+					// relying on it staying alive.
 					_uiEffect.trySend(ExternalFileInstallUiEffect.ShowSuccess(R.string.msg_template_installed))
-					_uiEffect.trySend(ExternalFileInstallUiEffect.Finish)
+					if (isCurrentGeneration(generation)) {
+						// The Screen suspends on ShowSuccess until the flashbar's entrance
+						// animation actually finishes (flashSuccessAwaitShown) before processing
+						// the next buffered effect, so Finish here doesn't need its own delay.
+						_uiEffect.trySend(ExternalFileInstallUiEffect.Finish)
+					}
 				}.onFailure { exception ->
-					// Deliberately don't delete tempFile or Finish here: the dialog the user was
-					// just on (install-confirm / name-conflict / rename) stays open so they can
-					// retry - e.g. pick a different name after a collision, or Overwrite instead.
 					log.error("Failed to install template collection", exception)
-					_uiEffect.trySend(ExternalFileInstallUiEffect.ShowError(R.string.msg_template_install_failed))
+					if (isCurrentGeneration(generation)) {
+						// Deliberately don't delete tempFile or Finish here: the dialog the user
+						// was just on (install-confirm / name-conflict / rename) stays open so
+						// they can retry - e.g. pick a different name after a collision, or
+						// Overwrite instead. If a newer request has since superseded this dialog,
+						// there's nothing left on-screen to retry against, so skip ShowError too.
+						_uiEffect.trySend(ExternalFileInstallUiEffect.ShowError(R.string.msg_template_install_failed))
+					}
 				}
-			_isInstalling.value = false
+			if (isCurrentGeneration(generation)) {
+				_isInstalling.value = false
+			}
 		}
 	}
 
-	/** Suggests a unique base name for the rename dialog by appending "(2)", "(3)", etc. */
+	/**
+	 * Suggests a unique base name for the rename dialog by appending "(2)", "(3)", etc.
+	 *
+	 * Each candidate is checked via [TemplateCollectionRepository.findExistingCollision] - a
+	 * fresh directory listing per call - rather than listing `templatesDir` once and checking
+	 * membership in-memory. Left as-is deliberately: [MAX_SUGGESTION_ATTEMPTS] already bounds
+	 * the worst case, a real templates directory is realistically small (a user's own installed
+	 * collections), and avoiding the redundant scans would mean adding a batch-listing method to
+	 * [TemplateCollectionRepository] purely for this one call site's benefit.
+	 */
 	suspend fun suggestUniqueBaseName(baseName: String): String {
 		var candidate = baseName
 		var suffix = 2

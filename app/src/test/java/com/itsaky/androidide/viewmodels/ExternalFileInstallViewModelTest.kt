@@ -8,11 +8,13 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.repositories.TemplateCollectionRepository
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEffect
+import com.itsaky.androidide.ui.models.ExternalFileInstallUiEvent
 import com.itsaky.androidide.viewmodel.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -158,6 +160,41 @@ class ExternalFileInstallViewModelTest {
 			assertThat(firstTempFile.exists()).isFalse()
 			assertThat(secondEffect.tempFile).isNotEqualTo(firstTempFile)
 			assertThat(secondEffect.tempFile.exists()).isTrue()
+		}
+
+	@Test
+	fun `isInstalling for a superseded generation does not block a newer dialog's buttons`() =
+		runTest {
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+
+			val installDeferred = CompletableDeferred<Result<Unit>>()
+			coEvery { templateCollectionRepository.installCollection(any(), any(), any()) } coAnswers { installDeferred.await() }
+
+			viewModel.onReceived(sourceUriFor("first.cgt"))
+			val firstEffect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(firstEffect.tempFile, firstEffect.suggestedBaseName, overwrite = false),
+			)
+			assertThat(viewModel.isInstalling.value).isTrue()
+
+			// A second, unrelated file arrives (e.g. via onNewIntent on the singleTask activity)
+			// while the first file's install is still in flight.
+			viewModel.onReceived(sourceUriFor("second.cgt"))
+			viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+
+			// The new dialog must not render with its buttons disabled just because an unrelated,
+			// already-superseded install is still finishing up in the background.
+			assertThat(viewModel.isInstalling.value).isFalse()
+
+			installDeferred.complete(Result.success(Unit))
+			viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowSuccess
+
+			// The now-completed, superseded install must not re-enable (or otherwise touch)
+			// isInstalling on behalf of the current, unrelated generation.
+			assertThat(viewModel.isInstalling.value).isFalse()
 		}
 
 	@Test

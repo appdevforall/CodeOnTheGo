@@ -14,6 +14,12 @@ import java.util.concurrent.TimeUnit
 object InstallTempFiles {
 	private val MAX_AGE_MS = TimeUnit.HOURS.toMillis(1)
 
+	// Stale entries can only ever appear once an hour (MAX_AGE_MS), so there's no point
+	// re-scanning the directory on every single newTempFile() call - throttle to once per
+	// interval instead of doing a full listFiles()+lastModified() pass every time.
+	private val SWEEP_INTERVAL_MS = TimeUnit.MINUTES.toMillis(10)
+	private var lastSweepAtMs = 0L
+
 	/** Creates a uniquely-named `<prefix>_<uuid>.<extension>` file under `filesDir/temp`. */
 	fun newTempFile(
 		filesDir: File,
@@ -21,12 +27,16 @@ object InstallTempFiles {
 		extension: String,
 	): File {
 		val tempDir = File(filesDir, "temp").apply { mkdirs() }
-		sweepStale(tempDir)
+		sweepStaleIfDue(tempDir)
 		return File(tempDir, "${prefix}_${UUID.randomUUID()}.$extension")
 	}
 
-	private fun sweepStale(tempDir: File) {
-		val cutoff = System.currentTimeMillis() - MAX_AGE_MS
+	private fun sweepStaleIfDue(tempDir: File) {
+		val now = System.currentTimeMillis()
+		if (now - lastSweepAtMs < SWEEP_INTERVAL_MS) return
+		lastSweepAtMs = now
+
+		val cutoff = now - MAX_AGE_MS
 		tempDir.listFiles()?.forEach { file ->
 			if (file.lastModified() < cutoff) {
 				file.delete()
