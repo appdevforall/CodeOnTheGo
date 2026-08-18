@@ -113,9 +113,13 @@ class WebServer(
 	// ladder is 1 s, 3 s, 7 s, so anything past it is nobody browsing rather than ADFA-5172.
 	private val maxReportedAcceptWaitNanos = TimeUnit.SECONDS.toNanos(10)
 
-	// How long handleClient()'s last stat of config.debugDatabasePath took. A plain var is safe:
-	// the accept loop is serial and single-threaded, and it is the only reader.
+	// How long handleClient()'s last stat of config.debugDatabasePath took, and how long the last
+	// accept() waited. Plain vars are safe: the accept loop is serial and single-threaded, and it is
+	// the only reader and writer.
 	private var debugDbStatNanos = 0L
+	private var acceptWaitNanos = 0L
+	private var previousAcceptWaitNanos = noPreviousIteration
+	private var previousBusyNanos = 0L
 
 	// function to obtain the last modified date of a documentation.db database
 	// this is used to see if there is a newer version of the database on the sdcard
@@ -204,70 +208,14 @@ class WebServer(
 			}
 			log.info("WebServer started successfully on '{}', port {}.", config.bindName, config.port)
 
-			// ADFA-5172: carried across iterations so a stall report can say whether the loop was
-			// even in accept() when the connection arrived.
-			var previousAcceptWaitNanos = noPreviousIteration
-			var previousBusyNanos = 0L
-
 			while (true) {
-				var clientSocket: Socket? = null
-				var acceptWaitNanos = 0L
-				var busyStartNanos = 0L
-				debugDbStatNanos = 0L
+				val clientSocket = acceptNextClient() ?: break
+
 				try {
-					try {
-						if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", serverSocket)
-						val acceptStartNanos = System.nanoTime()
-						clientSocket = serverSocket.accept()
-						busyStartNanos = System.nanoTime()
-						acceptWaitNanos = busyStartNanos - acceptStartNanos
-
-						if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
-					} catch (e: java.net.SocketException) {
-						// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
-						if (debugEnabled) log.debug("Caught java.net.SocketException '$e'.")
-
-						if (e.message?.contains("Closed", ignoreCase = true) == true) {
-							if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
-							break
-						}
-						log.error("Accept() failed: {}", e.message)
-						continue
-					}
-					try {
-						clientSocket?.let { handleClient(it) }
-					} catch (e: Exception) {
-						// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
-						if (debugEnabled) log.debug("Caught exception '$e'.")
-
-						if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
-							if (debugEnabled) log.debug("Client disconnected: {}", e.message)
-						} else {
-							log.error("Error handling client: {}", e.message)
-							clientSocket?.let { socket ->
-								try {
-									val output = socket.outputStream
-
-									sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
-								} catch (e2: Exception) {
-									log.error("Error sending error response: {}", e2.message)
-								}
-							}
-						}
-					}
+					serveClient(clientSocket)
 				} finally {
-					clientSocket?.close()
-
-					// CodeRabbit objects to the following line because clientSocket may print out as "null." This is intentional. --DS
-					if (debugEnabled) log.debug("clientSocket was {}.", clientSocket)
-
-					// Zero when accept() threw, which leaves nothing to time.
-					if (busyStartNanos != 0L) {
-						val busyNanos = System.nanoTime() - busyStartNanos
-						reportStall(acceptWaitNanos, busyNanos, previousAcceptWaitNanos, previousBusyNanos)
-						previousAcceptWaitNanos = acceptWaitNanos
-						previousBusyNanos = busyNanos
-					}
+					closeQuietly(clientSocket)
+					if (debugEnabled) log.debug("Served and closed clientSocket {}.", clientSocket)
 				}
 			}
 		} catch (e: Exception) {
@@ -290,6 +238,81 @@ class WebServer(
 			TrafficStats.clearThreadStatsTag()
 		}
 	}
+
+	/**
+	 * Waits for the next connection. Null means the listening socket closed and the loop is done;
+	 * an accept that failed for any other reason is logged and retried, since one bad accept is not
+	 * a reason to stop serving.
+	 */
+	private fun acceptNextClient(): Socket? {
+		while (true) {
+			try {
+				if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", serverSocket)
+
+				val acceptStartNanos = System.nanoTime()
+				val clientSocket = serverSocket.accept()
+				acceptWaitNanos = System.nanoTime() - acceptStartNanos
+
+				if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
+				return clientSocket
+			} catch (e: java.net.SocketException) {
+				// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
+				if (debugEnabled) log.debug("Caught java.net.SocketException '$e'.")
+
+				if (isSocketClosed(e)) {
+					if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
+					return null
+				}
+				log.error("Accept() failed: {}", e.message)
+			}
+		}
+	}
+
+	/** Serves one connection, answering with a 500 if handling it fails partway. */
+	private fun serveClient(clientSocket: Socket) {
+		val busyStartNanos = System.nanoTime()
+		debugDbStatNanos = 0L
+
+		try {
+			handleClient(clientSocket)
+		} catch (e: Exception) {
+			// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
+			if (debugEnabled) log.debug("Caught exception '$e'.")
+
+			if (e is java.net.SocketException && isSocketClosed(e)) {
+				if (debugEnabled) log.debug("Client disconnected: {}", e.message)
+			} else {
+				log.error("Error handling client: {}", e.message)
+				sendInternalServerError(clientSocket)
+			}
+		} finally {
+			val busyNanos = System.nanoTime() - busyStartNanos
+			reportStall(acceptWaitNanos, busyNanos, previousAcceptWaitNanos, previousBusyNanos)
+			previousAcceptWaitNanos = acceptWaitNanos
+			previousBusyNanos = busyNanos
+		}
+	}
+
+	private fun sendInternalServerError(clientSocket: Socket) {
+		try {
+			val output = clientSocket.outputStream
+
+			sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
+		} catch (e: Exception) {
+			log.error("Error sending error response: {}", e.message)
+		}
+	}
+
+	private fun closeQuietly(clientSocket: Socket) {
+		try {
+			clientSocket.close()
+		} catch (e: Exception) {
+			log.error("Cannot close client socket: {}", e.message)
+		}
+	}
+
+	/** A closed socket reports itself only in the exception's message, hence the string test. */
+	private fun isSocketClosed(e: java.net.SocketException): Boolean = e.message?.contains("Closed", ignoreCase = true) == true
 
 	/**
 	 * Logs one line per accept-loop iteration that crosses [ServerConfig.stallThresholdMs], for

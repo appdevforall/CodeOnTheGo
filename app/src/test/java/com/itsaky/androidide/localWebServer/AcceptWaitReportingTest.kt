@@ -67,6 +67,32 @@ class AcceptWaitReportingTest {
 	}
 
 	@Test
+	fun `the threshold itself is inclusive, and one millisecond under it is not reported`() {
+		val server = server()
+
+		assertThat(server.shouldReportAcceptWait(millis(thresholdMs - 1), previousAcceptWaitNanos = millis(5))).isFalse()
+		assertThat(server.shouldReportAcceptWait(millis(thresholdMs), previousAcceptWaitNanos = millis(5))).isTrue()
+		assertThat(server.shouldReportAcceptWait(millis(thresholdMs + 1), previousAcceptWaitNanos = millis(5))).isTrue()
+	}
+
+	@Test
+	fun `the ten second ceiling is inclusive, and one millisecond over it is an idle server`() {
+		val server = server()
+
+		assertThat(server.shouldReportAcceptWait(millis(9_999), previousAcceptWaitNanos = millis(5))).isTrue()
+		assertThat(server.shouldReportAcceptWait(millis(10_000), previousAcceptWaitNanos = millis(5))).isTrue()
+		assertThat(server.shouldReportAcceptWait(millis(10_001), previousAcceptWaitNanos = millis(5))).isFalse()
+	}
+
+	@Test
+	fun `the previous wait counts as steady load right up to the threshold`() {
+		val server = server()
+
+		assertThat(server.shouldReportAcceptWait(millis(1_020), previousAcceptWaitNanos = millis(thresholdMs - 1))).isTrue()
+		assertThat(server.shouldReportAcceptWait(millis(1_020), previousAcceptWaitNanos = millis(thresholdMs))).isFalse()
+	}
+
+	@Test
 	fun `a zero or negative threshold silences the accept-wait report instead of flooding it`() {
 		// "The previous iteration waited less than the threshold" cannot hold when the threshold is
 		// zero, so this branch goes quiet rather than reporting every wait. A negative threshold is
