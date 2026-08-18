@@ -4,11 +4,13 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
 import android.os.Environment.getExternalStorageDirectory
-import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
+import com.itsaky.androidide.documentation.DocumentationContent
+import com.itsaky.androidide.documentation.DocumentationContentSource
+import com.itsaky.androidide.documentation.DocumentationLookup
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
@@ -18,20 +20,13 @@ import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.IOException
 import java.io.InputStream
 import java.io.PrintWriter
-import java.io.SequenceInputStream
 import java.io.StringWriter
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
-import java.nio.ByteBuffer
-import java.sql.Date
-import java.text.SimpleDateFormat
-import java.util.Collections
-import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.SynchronousQueue
@@ -39,9 +34,6 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.locks.ReentrantReadWriteLock
-import kotlin.concurrent.read
-import kotlin.concurrent.write
 
 data class ServerConfig(
 	val port: Int = 6174,
@@ -83,45 +75,6 @@ data class JavaExecutionResult(
 	val timeoutLimit: Long,
 )
 
-/**
- * Copies [bytes] into a direct [ByteBuffer] -- brotli4j's `attachDictionary` requires a direct
- * buffer, a heap-backed one throws `IllegalArgumentException`.
- *
- * The capacity must be exactly [bytes]`.size`: `attachDictionary` reads the whole capacity and
- * ignores position/limit, so trailing slack from an over-allocated buffer is treated as dictionary
- * content and every decode then fails with `IOException: corrupted input`.
- */
-internal fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
-	ByteBuffer.allocateDirect(bytes.size).apply {
-		put(bytes)
-		flip()
-	}
-
-/**
- * Reads [chunks] back to back as one stream, without concatenating them into a new array.
- * Cheap to build twice, which the no-dictionary retry in `decompressBrotli` relies on.
- */
-internal fun chunksAsStream(chunks: List<ByteArray>): InputStream =
-	SequenceInputStream(Collections.enumeration(chunks.map { ByteArrayInputStream(it) }))
-
-/**
- * Joins [chunks] into one exactly-sized array. A ByteArrayOutputStream would repeatedly double its
- * buffer and then hand back a second full copy -- avoidable here since the total is known up front.
- * Returns the sole element as-is when there is nothing to join.
- */
-internal fun joinChunks(chunks: List<ByteArray>): ByteArray {
-	if (chunks.size == 1) {
-		return chunks[0]
-	}
-	val joined = ByteArray(chunks.sumOf { it.size })
-	var offset = 0
-	for (chunk in chunks) {
-		chunk.copyInto(joined, offset)
-		offset += chunk.size
-	}
-	return joined
-}
-
 class WebServer(
 	private val config: ServerConfig,
 ) {
@@ -132,34 +85,18 @@ class WebServer(
 	// socket then binds anyway a moment later, orphaned, and holds the port until the process
 	// dies. The next start() attempt on that port then fails with "Address already in use."
 	private val lifecycleLock = Any()
+
+	// The one pipeline that reads documentation.db (ADFA-5176): row lookup, chunk reassembly,
+	// dictionary-aware Brotli decode, and the sdcard debug-database swap. A WebView answers the
+	// same paths through its own instance in DocumentationRequestInterceptor.
+	private val contentSource =
+		DocumentationContentSource(
+			File(config.databasePath),
+			File(config.debugDatabasePath),
+			config.debugDatabaseCheckIntervalMs,
+		)
 	private var stopRequested = false
 	private lateinit var serverSocket: ServerSocket
-	private lateinit var database: SQLiteDatabase
-
-	// Written under databaseLock's write lock, read without it in the fast path, hence volatile.
-	@Volatile
-	private var databaseTimestamp: Long = -1
-
-	// Timestamp of a debug database whose swap already failed, so a corrupt or unreadable one
-	// isn't reopened on every single request (it is checked per request). A newer copy has a
-	// different timestamp and is retried, which is the case that matters -- the developer
-	// replacing the file is exactly how they'd fix it.
-	private var failedDebugSwapTimestamp: Long = -1
-
-	// The shared dictionary Content's brotli-compressed rows are compressed against (see
-	// ADFA-5153). Lazily (re)loaded on demand, right before the first content fetch that needs
-	// it after `database` changes -- see compressionDictionaryStale -- rather than eagerly at
-	// database-open/swap time, but still cached (not reloaded per-request) once loaded for the
-	// currently active database. Null (no dictionary attached, plain-brotli decode) if the
-	// active database predates the dictionary-compression migration -- CompressionDictionary
-	// won't exist yet.
-	private var compressionDictionary: ByteBuffer? = null
-
-	// Set whenever `database` changes (see switchToDatabase); cleared once compressionDictionary
-	// has been (re)loaded for that database. Lets the dictionary stay lazily loaded -- only right
-	// before the first content fetch that actually needs it -- while still loading at most once
-	// per database change rather than once per request.
-	private var compressionDictionaryStale = true
 	private val log = LoggerFactory.getLogger(WebServer::class.java)
 	private val debugEnabled: Boolean = File(config.debugEnablePath).exists()
 
@@ -181,10 +118,14 @@ class WebServer(
 	// both write the same id, so a plain volatile is enough.
 	@Volatile
 	private var bookshelfTemplateId: Int = -1
+
+	private val cacheLock = Any()
+
+	// Which of the source's databases templateCache and bookshelfTemplateId were filled from.
+	@Volatile
+	private var cachedDatabaseGeneration = 0L
 	private val httpInternalServerError = 500
 	private val httpNotFound = 404
-
-	private val contentChunkSize = 1024 * 1024
 
 	// Sentinel for "no iteration has finished yet", distinct from an iteration that waited 0 ms.
 	private val noPreviousIteration = -1L
@@ -203,15 +144,6 @@ class WebServer(
 	// Hal Eisen: required to fix StrictMode.VmPolicy.Builder.detectUntaggedSockets().
 	private val socketStatsTag = 0xC0DE
 
-	// Serializes swapping `database` (which closes the old handle) against the workers reading
-	// through it. Readers never block each other; only a swap waits.
-	private val databaseLock = ReentrantReadWriteLock()
-
-	private val debugDatabaseCheckIntervalNanos = TimeUnit.MILLISECONDS.toNanos(config.debugDatabaseCheckIntervalMs)
-
-	// Start one interval in the past so the first request still checks for a debug database.
-	private val lastDebugDatabaseCheckNanos = AtomicLong(System.nanoTime() - debugDatabaseCheckIntervalNanos)
-
 	// Serves accepted connections, so a slow or idle client cannot delay the next accept().
 	private var workers: ThreadPoolExecutor? = null
 
@@ -224,138 +156,15 @@ class WebServer(
 	// How long an idle worker thread sticks around before the pool reclaims it.
 	private val workerIdleTimeoutSeconds = 30L
 
-	// function to obtain the last modified date of a documentation.db database
-	// this is used to see if there is a newer version of the database on the sdcard
-	fun getDatabaseTimestamp(
-		pathname: String,
-		silent: Boolean = false,
-	): Long {
-		val dbFile = File(pathname)
-		var timestamp: Long = -1
-
-		if (dbFile.exists()) {
-			timestamp = dbFile.lastModified()
-
-			if (!silent) {
-				val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-
-				if (debugEnabled) log.debug("{} was last modified at {}.", pathname, dateFormat.format(Date(timestamp)))
-			}
-		}
-
-		return timestamp
-	}
-
 	fun logDatabaseLastChanged() {
 		try {
-			log.debug("Database last change: {}.", DatabaseVersionResolver.resolveDatabaseVersion(database))
+			log.debug(
+				"Database last change: {}.",
+				contentSource.withDatabase { DatabaseVersionResolver.resolveDatabaseVersion(it) },
+			)
 		} catch (e: Exception) {
 			log.error("Could not retrieve database last change info: {}", e.message)
 		}
-	}
-
-	/**
-	 * Loads the shared Brotli dictionary most Content rows are compressed against (see ADFA-5153).
-	 * Returns null (logged) on any failure to load one -- a database that predates the dictionary
-	 * migration, a schema/row anomaly, or any other error -- so callers always fall back to plain,
-	 * dictionary-free brotli decode rather than propagating the failure (see [decompressBrotli]).
-	 */
-	private fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
-		// Whole body wrapped in one catch-all (matching DatabaseVersionResolver.resolveDatabaseVersion's
-		// pattern) rather than hand-anticipating individual SQLiteExceptions: a caller-visible failure
-		// here must never abort start() or leave a stale dictionary un-retried after a debug-DB swap --
-		// falling back to null (plain, dictionary-free decode) is always the safe choice.
-		return try {
-			val tableExists =
-				db
-					.rawQuery(
-						"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
-						null,
-					).use { it.moveToFirst() }
-			if (!tableExists) {
-				log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
-				return null
-			}
-
-			db.rawQuery("SELECT data FROM CompressionDictionary WHERE id = 1", null).use { cursor ->
-				if (!cursor.moveToFirst()) {
-					log.warn("CompressionDictionary table is empty; decoding brotli content without a dictionary.")
-					return null
-				}
-				val bytes = cursor.getBlob(0)
-				if (bytes == null) {
-					log.warn("CompressionDictionary row has a NULL data column; decoding brotli content without a dictionary.")
-					return null
-				}
-				// An empty blob would yield a 0-capacity buffer, which attachDictionary rejects --
-				// every row's dictionary decode would then fail with nothing above DEBUG to say why.
-				if (bytes.isEmpty()) {
-					log.warn("CompressionDictionary row has an empty data column; decoding brotli content without a dictionary.")
-					return null
-				}
-				toDirectByteBuffer(bytes)
-			}
-		} catch (e: Exception) {
-			log.error("Could not load compression dictionary; decoding brotli content without a dictionary: {}", e.message)
-			null
-		}
-	}
-
-	/**
-	 * Opens [path] as the active database, refreshing every piece of state that depends on which
-	 * database file is active -- [databaseTimestamp] and the per-database caches
-	 * [bookshelfTemplateId]/[templateCache] -- as one atomic operation. Does *not* load
-	 * [compressionDictionary] itself -- a different database can have a different dictionary (or
-	 * none) -- it only marks [compressionDictionaryStale] so the next content fetch that needs it
-	 * loads it lazily then (see [handleClient]), at most once per database change rather than
-	 * once per request. Only closes the previous database once the new one has opened
-	 * successfully, so a failed swap (this throws) leaves the previous, still-open database
-	 * serving requests rather than leaving [database] referencing an already-closed handle.
-	 */
-	private fun switchToDatabase(
-		path: String,
-		timestamp: Long,
-	) {
-		val newDatabase = SQLiteDatabase.openDatabase(path, null, SQLiteDatabase.OPEN_READONLY)
-		if (::database.isInitialized) {
-			try {
-				database.close()
-			} catch (e: Exception) {
-				log.error("Cannot close previous database: {}", e.message)
-			}
-		}
-		database = newDatabase
-		databaseTimestamp = timestamp
-		compressionDictionaryStale = true
-		bookshelfTemplateId = -1
-		templateCache.clear()
-	}
-
-	/**
-	 * Decompresses one Brotli-compressed Content row. Tries the shared dictionary first, since every
-	 * ADFA-5153-migrated row requires it, then falls back to a plain decode for rows that were never
-	 * dictionary-compressed: plugin-contributed Tier 3 docs (PluginDocumentationManager/BrotliCompressor
-	 * compress with no dictionary) or any row served from a pre-migration database. Attaching a
-	 * dictionary to a stream that wasn't compressed against one reliably fails to decode rather than
-	 * silently producing wrong bytes (verified empirically -- see docs/documentation-database.md), so
-	 * this ordering never lets a dictionary-compressed row fall through to the plain path by accident.
-	 */
-	private fun decompressBrotli(chunks: List<ByteArray>): ByteArray {
-		val dictionary = compressionDictionary
-		if (dictionary != null) {
-			try {
-				return BrotliInputStream(chunksAsStream(chunks)).use { stream ->
-					stream.attachDictionary(dictionary)
-					stream.readBytes()
-				}
-			} catch (e: IOException) {
-				log.debug(
-					"Dictionary decode failed for a brotli row (likely dictionary-free plugin content); retrying without a dictionary: {}",
-					e.message,
-				)
-			}
-		}
-		return BrotliInputStream(chunksAsStream(chunks)).use { it.readBytes() }
 	}
 
 	/**
@@ -393,7 +202,7 @@ class WebServer(
 			)
 
 			try {
-				switchToDatabase(config.databasePath, getDatabaseTimestamp(config.databasePath))
+				contentSource.open()
 			} catch (e: Exception) {
 				log.error("Cannot open database: {}", e.message)
 				return
@@ -453,21 +262,12 @@ class WebServer(
 			}
 			workers = null
 
-			// database is opened before the stopRequested check that can abort start()
-			// early (and before the accept loop on every other exit path), so it must be
-			// closed here too, not just serverSocket -- isInitialized guards the case
-			// where opening it above failed and this finally still runs.
-			//
-			// Under the write lock, because the drain above is not a guarantee: awaitTermination can
-			// time out, and a worker that outlived it holds the read lock across its query. Taking
-			// the write lock waits for that worker instead of closing the handle underneath it.
-			if (::database.isInitialized) {
-				try {
-					databaseLock.write { database.close() }
-				} catch (e: Exception) {
-					log.error("Cannot close database: {}", e.message)
-				}
-			}
+			// The database is opened before the stopRequested check that can abort start() early
+			// (and before the accept loop on every other exit path), so it has to be closed here
+			// too, not just serverSocket. Closing an unopened source is a no-op, and the source
+			// closes under its own write lock: awaitTermination above can time out, and a worker
+			// that outlived it finishes its read before the handle goes.
+			contentSource.close()
 			TrafficStats.clearThreadStatsTag()
 		}
 	}
@@ -624,67 +424,6 @@ class WebServer(
 	private fun millis(nanos: Long): Long = TimeUnit.NANOSECONDS.toMillis(nanos)
 
 	/**
-	 * Swaps to the sdcard debug database once a newer one appears. Opens the replacement before
-	 * closing the old handle, so a failed open leaves the server serving the database it had.
-	 * Takes the write lock, so a caller must not already hold the read lock.
-	 */
-	private fun maybeSwapDebugDatabase() {
-		val debugDatabaseTimestamp = debugDatabaseTimestampIfDue() ?: return
-		if (debugDatabaseTimestamp <= databaseTimestamp || debugDatabaseTimestamp == failedDebugSwapTimestamp) return
-
-		databaseLock.write {
-			// Another worker may have swapped while this one waited for the lock.
-			if (debugDatabaseTimestamp <= databaseTimestamp || debugDatabaseTimestamp == failedDebugSwapTimestamp) return@write
-
-			// A missing, truncated or unreadable debug database must not fail the request that
-			// happened to notice it: log it and keep serving the database already open.
-			// switchToDatabase opens the replacement before closing the old handle and refreshes
-			// everything keyed to which file is active -- the dictionary staleness flag and the
-			// per-database template caches -- so this only has to decide what a failure means.
-			try {
-				switchToDatabase(config.debugDatabasePath, debugDatabaseTimestamp)
-				failedDebugSwapTimestamp = -1
-				log.info("Swapped to the debug database '{}'.", config.debugDatabasePath)
-			} catch (e: Exception) {
-				// Remembered, so a corrupt file is not reopened every interval; a newer copy has a
-				// different timestamp and is retried, which is how a developer fixes it.
-				failedDebugSwapTimestamp = debugDatabaseTimestamp
-				log.error(
-					"Cannot swap to debug database '{}'; ignoring it until it changes: {}",
-					config.debugDatabasePath,
-					e.message,
-				)
-			}
-		}
-	}
-
-	/**
-	 * The debug database's last-modified time, or null when the last check was too recent. The
-	 * path is FUSE-backed emulated storage, so ADFA-5175 rate-limits what used to be a stat on
-	 * every request; one thread wins each interval and the rest skip the check.
-	 */
-	private fun debugDatabaseTimestampIfDue(): Long? {
-		val now = System.nanoTime()
-		val last = lastDebugDatabaseCheckNanos.get()
-		if (now - last < debugDatabaseCheckIntervalNanos) return null
-		if (!lastDebugDatabaseCheckNanos.compareAndSet(last, now)) return null
-
-		val startNanos = System.nanoTime()
-		val timestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
-		val elapsedNanos = System.nanoTime() - startNanos
-
-		if (elapsedNanos >= stallThresholdNanos) {
-			log.warn(
-				"Stat of '{}' took {} ms; it is on FUSE-backed emulated storage (ADFA-5172).",
-				config.debugDatabasePath,
-				millis(elapsedNanos),
-			)
-		}
-
-		return timestamp
-	}
-
-	/**
 	 * Reads a single line from the stream (bytes until newline). Same stream is used for headers
 	 * and body so POST body bytes are not lost to a separate buffered reader. HTTP header lines are ASCII.
 	 */
@@ -757,22 +496,34 @@ class WebServer(
 
 		// Use a newer documentation.db from the sdcard if one has appeared. Outside the read lock
 		// below, because swapping takes the write lock and this lock does not upgrade.
-		maybeSwapDebugDatabase()
-
-		// Everything that reads `database` runs under the read lock, so a swap cannot close the
-		// handle from under this request. Readers do not block each other.
-		databaseLock.read { serveRequest(writer, output, path) }
+		serveRequest(writer, output, path)
 	}
 
 	/**
-	 * Answers one parsed request. Called with [databaseLock]'s read lock held, which is what makes
-	 * the shared [database] handle safe to use from a worker thread.
+	 * Drops what this server cached from a database the source has since swapped away: compiled
+	 * templates and the bookshelf template id both belong to one specific file.
 	 */
+	private fun discardCachesIfDatabaseChanged() {
+		if (contentSource.generation == cachedDatabaseGeneration) return
+
+		synchronized(cacheLock) {
+			val generation = contentSource.generation
+			if (generation == cachedDatabaseGeneration) return
+
+			templateCache.clear()
+			bookshelfTemplateId = -1
+			cachedDatabaseGeneration = generation
+		}
+	}
+
+	/** Answers one parsed request. */
 	private fun serveRequest(
 		writer: PrintWriter,
 		output: java.io.OutputStream,
 		path: String,
 	) {
+		discardCachesIfDatabaseChanged()
+
 		// Handle the special "pr" endpoint with highest priority
 		if (path.startsWith("pr/", false)) {
 			if (debugEnabled) log.debug("Found a pr/ path, '{}'.", path)
@@ -786,102 +537,59 @@ class WebServer(
 			}
 		}
 
-		// Lazily (re)loaded here -- the one place the dictionary is actually consumed (see
-		// decompressBrotli) -- rather than eagerly at database-open/swap time, but only once per
-		// database change: a swap (just above) marks compressionDictionaryStale rather than
-		// reloading immediately, so this only hits the database again when that flag is set.
-		if (compressionDictionaryStale) {
-			compressionDictionary = loadCompressionDictionary(database)
-			compressionDictionaryStale = false
+		when (val lookup = contentSource.lookup(path)) {
+			is DocumentationLookup.Found -> {
+				sendContent(writer, output, path, lookup.content)
+			}
+
+			is DocumentationLookup.NotFound -> {
+				sendError(writer, output, httpNotFound, "Not Found")
+			}
+
+			is DocumentationLookup.Ambiguous -> {
+				sendError(
+					writer,
+					output,
+					httpInternalServerError,
+					"Corrupt database - ${lookup.rowCount} records found when unique record expected, Path requested: '$path'.",
+				)
+			}
+
+			is DocumentationLookup.Failed -> {
+				sendError(writer, output, httpInternalServerError, "Internal Server Error", lookup.cause.message ?: "")
+			}
 		}
+	}
 
-		// Database fetch
-		val query = """
-			SELECT C.content, CT.value, CT.compression, C.templateId
-			FROM   Content C, ContentTypes CT
-			WHERE  C.contentTypeID = CT.id
-			AND  C.path = ?
-		"""
-		val cursor = database.rawQuery(query, arrayOf(path))
-
-		// Process database fetch
+	/**
+	 * Renders [content] if it is a template and writes it to the client. The source hands back rows
+	 * already decompressed, so this transport never negotiates `Content-Encoding`.
+	 */
+	private fun sendContent(
+		writer: PrintWriter,
+		output: java.io.OutputStream,
+		path: String,
+		content: DocumentationContent,
+	) {
 		try {
-			if (cursor.count != 1) {
-				return if (cursor.count == 0) {
-					sendError(writer, output, httpNotFound, "Not Found")
+			val bytes =
+				if (content.templateId > 0) {
+					instantiatePebbleTemplate(content.templateId, content.bytes, path, content.mimeType, "none")
 				} else {
-					sendError(
-						writer,
-						output,
-						httpInternalServerError,
-						"Corrupt database - multiple records found when unique record expected, Path requested: '$path'.",
-					)
+					content.bytes
 				}
-			}
-
-			cursor.moveToFirst()
-			val firstChunk = cursor.getBlob(0)
-			val dbMimeType = cursor.getString(1)
-			var compression = cursor.getString(2)
-			val templateId = cursor.getInt(3)
-
-			// Fragment handling for large content (> 1MB). The chunks stay a list rather than
-			// being concatenated: the old accumulate-into-a-ByteArrayOutputStream-then-copy held
-			// the doubling buffer *and* its toByteArray() copy live alongside the decompressed
-			// output, roughly 35 MB transient for the largest bundled PDF (8.8 MB over 9 chunks).
-			val chunks = mutableListOf(firstChunk)
-			if (firstChunk.size == contentChunkSize) {
-				val query2 = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
-				var fragmentNumber = 1
-				var nextChunk = firstChunk
-				while (nextChunk.size == contentChunkSize) {
-					val path2 = "$path-$fragmentNumber"
-					val cursor2 = database.rawQuery(query2, arrayOf(path2))
-					try {
-						if (cursor2.moveToFirst()) {
-							nextChunk = cursor2.getBlob(0)
-							chunks.add(nextChunk)
-							fragmentNumber++
-						} else {
-							break
-						}
-					} finally {
-						cursor2.close()
-					}
-				}
-			}
-
-			// Content is compressed at rest with brotli -- most rows against the shared dictionary
-			// loaded into compressionDictionary (see ADFA-5153), but plugin-contributed Tier 3 docs
-			// (PluginDocumentationManager/BrotliCompressor) are plain brotli with no dictionary.
-			// This server always decompresses before responding, so it never needs to negotiate
-			// Content-Encoding with the client.
-			var dbContent =
-				if (compression == "brotli") {
-					compression = "none"
-					decompressBrotli(chunks)
-				} else {
-					joinChunks(chunks)
-				}
-
-			// If the file is associated with a template, instantiate that template and send the result to the client
-			if (templateId > 0) {
-				dbContent = instantiatePebbleTemplate(templateId, dbContent, path, dbMimeType, compression)
-			}
 
 			writer.println("HTTP/1.1 200 OK")
-			writer.println("Content-Type: $dbMimeType")
-			writer.println("Content-Length: ${dbContent.size}")
+			writer.println("Content-Type: ${content.mimeType}")
+			writer.println("Content-Length: ${bytes.size}")
 			writer.println("Connection: close")
 			writer.println()
 			writer.flush()
-			output.write(dbContent)
+			output.write(bytes)
 			output.flush()
 		} catch (e: Exception) {
 			log.error("Error processing request: {}", e.message)
 			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
-		} finally {
-			cursor.close()
 		}
 	}
 
@@ -919,8 +627,7 @@ class WebServer(
 				}
 
 				val tQuery = "SELECT content FROM Templates WHERE id = ?"
-				val tCursor = database.rawQuery(tQuery, arrayOf(templateId.toString()))
-				tCursor.use { cursor ->
+				contentSource.withDatabase { database -> database.rawQuery(tQuery, arrayOf(templateId.toString())) }.use { cursor ->
 					when {
 						cursor.count == 0 -> {
 							log.debug(
@@ -994,6 +701,36 @@ class WebServer(
 		var html: String
 
 		try {
+			html = contentSource.withDatabase { database -> lastChangeTableHtml(database) }
+
+			if (debugEnabled) log.debug("html is '{}'.", html)
+		} catch (e: Exception) {
+			log.error("Error creating output for /pr/db endpoint: {}", e.message)
+			sendError(
+				writer,
+				output,
+				httpInternalServerError,
+				"Internal Server Error 4.1",
+				"Error creating output.",
+			)
+			return
+		}
+
+		try {
+			writeNormalToClient(writer, output, html)
+
+			if (debugEnabled) log.debug("Leaving handleDbEndpoint().")
+		} catch (e: Exception) {
+			log.error("Error handling /pr/db endpoint: {}", e.message)
+			sendError(writer, output, httpInternalServerError, "Internal Server Error 4", "Error generating database table.", true)
+		}
+	}
+
+	/** The `LastChange` table, 20 most recent rows, as an HTML table. */
+	private fun lastChangeTableHtml(database: SQLiteDatabase): String {
+		var html: String
+
+		run {
 			// First, get the schema of the LastChange table to determine column count
 			val schemaQuery = "PRAGMA table_info(LastChange)"
 			val schemaCursor = database.rawQuery(schemaQuery, arrayOf())
@@ -1056,28 +793,9 @@ class WebServer(
 			} finally {
 				dataCursor.close()
 			}
-
-			if (debugEnabled) log.debug("html is '{}'.", html)
-		} catch (e: Exception) {
-			log.error("Error creating output for /pr/db endpoint: {}", e.message)
-			sendError(
-				writer,
-				output,
-				httpInternalServerError,
-				"Internal Server Error 4.1",
-				"Error creating output.",
-			)
-			return
 		}
 
-		try {
-			writeNormalToClient(writer, output, html)
-
-			if (debugEnabled) log.debug("Leaving handleDbEndpoint().")
-		} catch (e: Exception) {
-			log.error("Error handling /pr/db endpoint: {}", e.message)
-			sendError(writer, output, httpInternalServerError, "Internal Server Error 4", "Error generating database table.", true)
-		}
+		return html
 	}
 
 	/**
@@ -1202,42 +920,46 @@ ORDER BY BC.category,
 );
 """.trimIndent()
 
-		var cursor = database.rawQuery(sqlQuery, arrayOf())
-		lateinit var jsonText: ByteArray
+		// Null means an error response has already been sent, so there is nothing left to write.
+		val jsonText =
+			contentSource.withDatabase { database ->
+				var cursor = database.rawQuery(sqlQuery, arrayOf())
 
-		// Process database fetch
-		try {
-			if (!isCursorOneRow(cursor, writer, output)) {
-				return false
-			}
+				try {
+					if (!isCursorOneRow(cursor, writer, output)) {
+						return@withDatabase null
+					}
 
-			// get the JSON from the bookshelf table
-			cursor.moveToFirst()
-			jsonText = cursor.getBlob(0)
-			if (debugEnabled) log.debug("json content = '${String(jsonText)}'.")
-			if (debugEnabled) log.debug("before fetch bookshelf template ID = '$bookshelfTemplateId'")
+					// get the JSON from the bookshelf table
+					cursor.moveToFirst()
+					val json = cursor.getBlob(0)
+					if (debugEnabled) log.debug("json content = '${String(json)}'.")
+					if (debugEnabled) log.debug("before fetch bookshelf template ID = '$bookshelfTemplateId'")
 
-			// Have we already fetched the template
-			if (bookshelfTemplateId == -1) {
-				// safety first, close the cursor
-				cursor.close()
-				cursor = database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf())
+					// Have we already fetched the template
+					if (bookshelfTemplateId == -1) {
+						// safety first, close the cursor
+						cursor.close()
+						cursor = database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf())
 
-				if (!isCursorOneRow(cursor, writer, output)) {
-					return false
+						if (!isCursorOneRow(cursor, writer, output)) {
+							return@withDatabase null
+						}
+
+						cursor.moveToFirst()
+						bookshelfTemplateId = cursor.getInt(0)
+						if (debugEnabled) log.debug("after the fetch bookshelf template ID = '$bookshelfTemplateId'")
+					}
+
+					json
+				} catch (e: Exception) {
+					log.error("Error processing request: {}", e.message)
+					sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
+					null
+				} finally {
+					cursor.close()
 				}
-
-				cursor.moveToFirst()
-				bookshelfTemplateId = cursor.getInt(0)
-				if (debugEnabled) log.debug("after the fetch bookshelf template ID = '$bookshelfTemplateId'")
-			}
-		} catch (e: Exception) {
-			log.error("Error processing request: {}", e.message)
-			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
-			return false
-		} finally {
-			cursor.close()
-		}
+			} ?: return false
 
 		val result = instantiatePebbleTemplate(bookshelfTemplateId, jsonText, "/bookshelf", "application/json", "none")
 

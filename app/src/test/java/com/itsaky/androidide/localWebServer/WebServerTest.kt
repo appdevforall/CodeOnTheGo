@@ -221,7 +221,13 @@ class WebServerTest {
 		stubDatabase(primaryDb, "dict-primary")
 		stubDatabase(debugDb, "dict-debug")
 
-		val config = testConfig(port).copy(debugDatabasePath = debugDbFile.absolutePath)
+		// ADFA-5175 rate-limits the debug-database stat to once a second; this test drops a newer
+		// file and expects the very next request to see it, so it opts out of the rate limit.
+		val config =
+			testConfig(port).copy(
+				debugDatabasePath = debugDbFile.absolutePath,
+				debugDatabaseCheckIntervalMs = 0,
+			)
 		every { SQLiteDatabase.openDatabase(config.databasePath, isNull(), any()) } returns primaryDb
 		every { SQLiteDatabase.openDatabase(config.debugDatabasePath, isNull(), any()) } returns debugDb
 

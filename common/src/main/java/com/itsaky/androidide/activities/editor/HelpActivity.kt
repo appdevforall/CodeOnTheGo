@@ -33,7 +33,6 @@ import com.itsaky.androidide.common.databinding.ActivityHelpBinding
 import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DeviceFormFactorUtils
-import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.applyMultiWindowFlags
 import com.itsaky.androidide.utils.isSystemInDarkMode
@@ -70,7 +69,7 @@ class HelpActivity : BaseIDEActivity() {
 
 	// ADFA-5176: answers documentation requests from the database in-process, so loading a page
 	// no longer opens a TCP connection per asset to the local web server.
-	private val documentation by lazy { DocumentationRequestInterceptor(Environment.DOC_DB) }
+	private val documentation = DocumentationRequestInterceptor.shared
 
 	// Wall-clock start of the page currently loading, for the ADFA-5176 measurement.
 	private var pageLoadStartMillis = 0L
