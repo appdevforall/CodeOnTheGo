@@ -416,36 +416,29 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * The active database's shared dictionary, loaded at most once per database. Synchronized
-	 * rather than volatile-checked: two threads loading a 256 KB direct buffer in parallel is
-	 * worth avoiding, and the read lock a caller already holds does not exclude them.
+	 * The active database's shared dictionary, loaded at most once per database. Synchronized rather
+	 * than volatile-checked: two threads loading a 256 KB direct buffer in parallel is worth
+	 * avoiding, and the read lock a caller already holds does not exclude them.
+	 *
+	 * The stale flag is cleared only after a *clean* load -- a dictionary, or a definitive absence.
+	 * An unexpected failure propagates and leaves the flag set, so the next request retries instead
+	 * of caching a transient error as "this database has no dictionary" for the rest of its life
+	 * (ADFA-5153 review). The caller turns that into one failed request, not a permanent downgrade.
 	 */
 	private fun compressionDictionary(database: SQLiteDatabase): ByteBuffer? =
 		synchronized(this) {
 			if (compressionDictionaryStale) {
-				compressionDictionary = loadCompressionDictionary(database)
+				compressionDictionary = dictionaryBytes(database)?.let { toDirectByteBuffer(it) }
 				compressionDictionaryStale = false
 			}
 			compressionDictionary
 		}
 
 	/**
-	 * Loads the shared dictionary most Content rows are compressed against (ADFA-5153). Returns
-	 * null, logged, on any failure -- a database predating the migration, a schema or row anomaly,
-	 * anything else -- so a caller always falls back to a plain, dictionary-free decode.
+	 * The dictionary blob, or null -- logged -- when this database *definitively* has none: it
+	 * predates the migration, or its `CompressionDictionary` row is missing, null or empty. Any
+	 * other failure is left to propagate, deliberately (see [compressionDictionary]).
 	 */
-	private fun loadCompressionDictionary(database: SQLiteDatabase): ByteBuffer? =
-		try {
-			dictionaryBytes(database)?.let { toDirectByteBuffer(it) }
-		} catch (e: Exception) {
-			log.error(
-				"Could not load compression dictionary; decoding brotli content without a dictionary: {}",
-				e.message,
-			)
-			null
-		}
-
-	/** The dictionary blob, or null -- logged -- when this database has none to give. */
 	private fun dictionaryBytes(database: SQLiteDatabase): ByteArray? {
 		val tableExists =
 			database
