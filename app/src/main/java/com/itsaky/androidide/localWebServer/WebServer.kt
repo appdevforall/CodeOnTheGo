@@ -254,11 +254,15 @@ class WebServer(
 			while (true) {
 				val clientSocket = acceptNextClient() ?: break
 
-				// The worker owns the socket from here, including closing it.
+				// The worker owns the socket from here, including closing it. Registered before the
+				// task starts, not inside it: shutdown closes what is registered to unblock workers,
+				// and a socket registered by the worker itself can be missed in that window.
+				liveSockets.add(clientSocket)
 				try {
 					pool.execute { handleConnection(clientSocket) }
 				} catch (e: RejectedExecutionException) {
 					log.warn("All {} workers are busy; dropping the connection {}.", config.maxWorkerThreads, clientSocket)
+					liveSockets.remove(clientSocket)
 					closeQuietly(clientSocket)
 				}
 			}
@@ -289,9 +293,13 @@ class WebServer(
 			// early (and before the accept loop on every other exit path), so it must be
 			// closed here too, not just serverSocket -- isInitialized guards the case
 			// where opening it above failed and this finally still runs.
+			//
+			// Under the write lock, because the drain above is not a guarantee: awaitTermination can
+			// time out, and a worker that outlived it holds the read lock across its query. Taking
+			// the write lock waits for that worker instead of closing the handle underneath it.
 			if (::database.isInitialized) {
 				try {
-					database.close()
+					databaseLock.write { database.close() }
 				} catch (e: Exception) {
 					log.error("Cannot close database: {}", e.message)
 				}
@@ -349,7 +357,6 @@ class WebServer(
 	 * the next connection while this one is still being answered.
 	 */
 	private fun handleConnection(clientSocket: Socket) {
-		liveSockets.add(clientSocket)
 		val startNanos = System.nanoTime()
 
 		try {
@@ -465,11 +472,29 @@ class WebServer(
 			// Another worker may have swapped while this one waited for the lock.
 			if (debugDatabaseTimestamp <= databaseTimestamp) return@write
 
-			val replacement = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
+			// A missing, truncated or unreadable debug database must not fail the request that
+			// happened to notice it: log it and keep serving the database already open. The next
+			// check is one interval away, so a fixed file is picked up on its own.
+			val replacement =
+				try {
+					SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
+				} catch (e: Exception) {
+					log.error(
+						"Cannot open the debug database '{}'; still serving '{}': {}",
+						config.debugDatabasePath,
+						config.databasePath,
+						e.message,
+					)
+					return@write
+				}
+
 			val previous = database
 			database = replacement
 			databaseTimestamp = debugDatabaseTimestamp
 			bookshelfTemplateId = -1
+			// Templates are cached by id, and the replacement database can define the same ids with
+			// different content, so a stale compiled template would render for the new database.
+			templateCache.clear()
 			previous.close()
 			log.info("Swapped to the debug database '{}'.", config.debugDatabasePath)
 		}
