@@ -68,7 +68,7 @@ data class ExtractMethodCandidate(
 	val callSite: CallSiteForm,
 	val insertOffset: Int,
 	val insertIndent: String,
-	val rawStringSpans: List<TextSpan> = emptyList(),
+	val rawStringSpans: List<TextSpan>,
 )
 
 /**

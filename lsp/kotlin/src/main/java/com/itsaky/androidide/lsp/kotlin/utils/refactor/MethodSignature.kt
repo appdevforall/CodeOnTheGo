@@ -248,9 +248,11 @@ private fun enclosingDeclaration(element: PsiElement): KtDeclaration? {
 	while (current != null) {
 		when (current) {
 			is KtNamedFunction -> {
-				// PSI gives an anonymous `fun(...) { }` the same node type as a named function, with a null
-				// name. It is a value, not a declaration a sibling can follow: anchoring on it inserts the
-				// new function into an argument list or a property initializer, and the file stops parsing.
+				/*
+				 * PSI gives an anonymous `fun(...) { }` the same node type as a named function, with a null
+				 * name. It is a value, not a declaration a sibling can follow: anchoring on it inserts the
+				 * new function into an argument list or a property initializer, and the file stops parsing.
+				 */
 				if (current.name != null) return current
 			}
 
@@ -938,8 +940,10 @@ private fun KaSession.usesComposable(elements: List<KtExpression>): Boolean =
 	} ||
 		simpleNamesIn(elements).any { reference ->
 			runCatching {
-				val property = reference.mainReference.resolveToSymbols().firstOrNull() as? KaPropertySymbol
-				property?.getter?.hasComposableAnnotation() == true
+				reference.mainReference
+					.resolveToSymbols()
+					.filterIsInstance<KaPropertySymbol>()
+					.any { it.getter?.hasComposableAnnotation() == true }
 			}.getOrNull() == true
 		}
 

@@ -46,6 +46,7 @@ class ExtractMethodEditTest {
 		callSite = callSite,
 		insertOffset = enclosingEnd,
 		insertIndent = "\t",
+		rawStringSpans = emptyList(),
 	)
 
 	/** Applies the rewrites in the order they are returned, exactly as the language client does. */
@@ -282,6 +283,7 @@ class ExtractMethodEditTest {
 					callSite = CallSiteForm.Call,
 					insertOffset = text.length - 1,
 					insertIndent = "",
+					rawStringSpans = emptyList(),
 				),
 				"report",
 			)!!
@@ -303,9 +305,11 @@ class ExtractMethodEditTest {
 
 	@Test
 	fun `a multi-line CRLF region is reindented and keeps CRLF throughout`() {
-		// Mirrors "a multi-line statement range is reindented under the new function" with \r\n in
-		// place of every \n, so indentedBodyLines's split(newline) path -- the CRLF-sensitive code --
-		// actually runs, not just the declaration builder's own append(newline) calls.
+		/*
+		 * Mirrors "a multi-line statement range is reindented under the new function" with \r\n in
+		 * place of every \n, so indentedBodyLines's split(newline) path -- the CRLF-sensitive code --
+		 * actually runs, not just the declaration builder's own append(newline) calls.
+		 */
 		val text =
 			"package p\r\n" +
 				"fun demo(a: Int) {\r\n" +
@@ -331,6 +335,7 @@ class ExtractMethodEditTest {
 					callSite = CallSiteForm.Call,
 					insertOffset = text.length - 2,
 					insertIndent = "",
+					rawStringSpans = emptyList(),
 				),
 				"report",
 			)!!

@@ -1355,6 +1355,30 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a return inside an anonymous function declared in the region is not an exit`() {
+		val content =
+			"""
+			package p
+			fun compute(): Int = 1
+			fun accept(g: () -> Int) {}
+			fun demo() {
+				val f = fun(): Int {
+					return compute()
+				}
+				accept(f)
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "val f = fun", "accept(f)")
+
+		val result = plan(content, start, end)
+
+		assertNull(result.refusal)
+		val candidate = result.candidates.single()
+		assertEquals(CallSiteForm.Call, candidate.callSite)
+		assertNull(candidate.returnTypeText)
+	}
+
+	@Test
 	fun `a tail return is recognised when a nested function in the region also returns`() {
 		val content =
 			"""

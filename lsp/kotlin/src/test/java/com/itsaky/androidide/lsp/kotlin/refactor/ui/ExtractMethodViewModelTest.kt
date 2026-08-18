@@ -37,6 +37,7 @@ class ExtractMethodViewModelTest {
 		callSite = CallSiteForm.Call,
 		insertOffset = 100,
 		insertIndent = "\t",
+		rawStringSpans = emptyList(),
 	)
 
 	private fun plan(
