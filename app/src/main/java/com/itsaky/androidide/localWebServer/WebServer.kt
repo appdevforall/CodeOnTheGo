@@ -4,17 +4,10 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
 import android.os.Environment.getExternalStorageDirectory
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
-import com.google.gson.ToNumberPolicy
-import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.documentation.DocumentationContent
 import com.itsaky.androidide.documentation.DocumentationContentSource
 import com.itsaky.androidide.documentation.DocumentationLookup
 import com.itsaky.androidide.utils.DatabaseVersionResolver
-import io.pebbletemplates.pebble.PebbleEngine
-import io.pebbletemplates.pebble.loader.StringLoader
-import io.pebbletemplates.pebble.template.PebbleTemplate
 import okio.ByteString.Companion.toByteString
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
@@ -22,7 +15,6 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.io.PrintWriter
-import java.io.StringWriter
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -106,13 +98,6 @@ class WebServer(
 
 	// Frozen at startup; restart the server to pick up a change.
 	private val clearCacheEnabled: Boolean = File(config.clearCacheEnablePath).exists()
-	private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
-	private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
-	private val gson: Gson =
-		GsonBuilder()
-			.setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
-			.create()
-	private val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
 
 	// Read and written by any worker; -1 means "not fetched yet". Two workers racing to fetch it
 	// both write the same id, so a plain volatile is enough.
@@ -500,8 +485,8 @@ class WebServer(
 	}
 
 	/**
-	 * Drops what this server cached from a database the source has since swapped away: compiled
-	 * templates and the bookshelf template id both belong to one specific file.
+	 * Drops what this server cached from a database the source has since swapped away -- just the
+	 * bookshelf template id, now that the compiled templates live in the source with the swap.
 	 */
 	private fun discardCachesIfDatabaseChanged() {
 		if (contentSource.generation == cachedDatabaseGeneration) return
@@ -510,7 +495,6 @@ class WebServer(
 			val generation = contentSource.generation
 			if (generation == cachedDatabaseGeneration) return
 
-			templateCache.clear()
 			bookshelfTemplateId = -1
 			cachedDatabaseGeneration = generation
 		}
@@ -539,7 +523,7 @@ class WebServer(
 
 		when (val lookup = contentSource.lookup(path)) {
 			is DocumentationLookup.Found -> {
-				sendContent(writer, output, path, lookup.content)
+				sendContent(writer, output, lookup.content)
 			}
 
 			is DocumentationLookup.NotFound -> {
@@ -562,22 +546,16 @@ class WebServer(
 	}
 
 	/**
-	 * Renders [content] if it is a template and writes it to the client. The source hands back rows
-	 * already decompressed, so this transport never negotiates `Content-Encoding`.
+	 * Writes [content] to the client. The source hands back rows already decompressed and rendered,
+	 * so this transport neither negotiates `Content-Encoding` nor knows about templates.
 	 */
 	private fun sendContent(
 		writer: PrintWriter,
 		output: java.io.OutputStream,
-		path: String,
 		content: DocumentationContent,
 	) {
 		try {
-			val bytes =
-				if (content.templateId > 0) {
-					instantiatePebbleTemplate(content.templateId, content.bytes, path, content.mimeType, "none")
-				} else {
-					content.bytes
-				}
+			val bytes = content.bytes
 
 			writer.println("HTTP/1.1 200 OK")
 			writer.println("Content-Type: ${content.mimeType}")
@@ -591,97 +569,6 @@ class WebServer(
 			log.error("Error processing request: {}", e.message)
 			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
 		}
-	}
-
-	/**
-	 * Renders a Pebble template identified by `templateId` using the provided JSON data and returns the rendered output as bytes.
-	 *
-	 * @param templateId The database ID of the Pebble template to load and compile.
-	 * @param dbContent JSON bytes that will be parsed and supplied as the template context.
-	 * @param path The request/content path associated with this template (used for diagnostic/logging purposes).
-	 * @param dbMimeType The MIME type of the stored content (used for diagnostic/logging purposes).
-	 * @param compression The compression label of the stored content (always "none" by this point, since decompression already happened) (used for diagnostic/logging purposes).
-	 * @return The rendered template encoded as UTF-8 bytes.
-	 * @throws Exception If the template ID is not found, is duplicated in the database, or if template lookup/instantiation fails.
-	 */
-	private fun instantiatePebbleTemplate(
-		templateId: Int,
-		dbContent: ByteArray,
-		path: String,
-		dbMimeType: String,
-		compression: String,
-	): ByteArray {
-		if (debugEnabled) log.debug("Processing template for templateId={}", templateId)
-
-		// 1. Get or Compile Template from Cache
-		val compiledTemplate =
-			templateCache.getOrPut(templateId) {
-				if (debugEnabled) {
-					log.debug(
-						"Template cache miss for ID {}, path {}, MIME type {}, compression {}}",
-						templateId,
-						path,
-						dbMimeType,
-						compression,
-					)
-				}
-
-				val tQuery = "SELECT content FROM Templates WHERE id = ?"
-				contentSource.withDatabase { database -> database.rawQuery(tQuery, arrayOf(templateId.toString())) }.use { cursor ->
-					when {
-						cursor.count == 0 -> {
-							log.debug(
-								"Template not found, for ID {}, path {}, MIME type {}, compression {}",
-								templateId,
-								path,
-								dbMimeType,
-								compression,
-							)
-							throw Exception("Template ID $templateId not found in the database")
-						}
-
-						cursor.count > 1 -> {
-							log.debug(
-								"More than one template found, for ID {}, path {}, MIME type {}, compression {}",
-								templateId,
-								path,
-								dbMimeType,
-								compression,
-							)
-							throw Exception("Template ID $templateId is shared by more than one template")
-						}
-
-						!cursor.moveToFirst() -> {
-							log.debug(
-								"Template not found, for ID {}, path {}, MIME type {}, compression {}",
-								templateId,
-								path,
-								dbMimeType,
-								compression,
-							)
-							throw Exception("Template ID $templateId not found in database.")
-						}
-
-						else -> {
-							val templateBlob = cursor.getBlob(0)
-							if (debugEnabled) log.debug("templateBlob = '${String(templateBlob)}'")
-							pebbleEngine.getTemplate(templateBlob.toString(Charsets.UTF_8))
-						}
-					}
-				}
-			}
-
-		// Load JSON data into a template context Map<> for instantiation
-		val dbContentStr = dbContent.toString(Charsets.UTF_8)
-		if (dbContentStr.isBlank() || dbContentStr.trim() == "null") {
-			throw Exception("Template ID $templateId has empty or null JSON context")
-		}
-		val context: Map<String, Any> = gson.fromJson(dbContentStr, dbContextType)
-
-		// Evaluate template with loaded data and return the output
-		val sw = StringWriter()
-		compiledTemplate.evaluate(sw, context)
-		return sw.toString().toByteArray()
 	}
 
 	/**
@@ -812,7 +699,7 @@ class WebServer(
 		output: java.io.OutputStream,
 	) {
 		if (debugEnabled) log.debug("Entering handleBsEndpoint().")
-		if (clearCacheEnabled) templateCache.clear()
+		if (clearCacheEnabled) contentSource.clearTemplateCache()
 
 		var outputStarted = false
 
@@ -961,7 +848,7 @@ ORDER BY BC.category,
 				}
 			} ?: return false
 
-		val result = instantiatePebbleTemplate(bookshelfTemplateId, jsonText, "/bookshelf", "application/json", "none")
+		val result = contentSource.renderTemplate(bookshelfTemplateId, jsonText, "/bookshelf")
 
 		if (debugEnabled) log.debug("Bookshelf result is '{}'.", String(result))
 

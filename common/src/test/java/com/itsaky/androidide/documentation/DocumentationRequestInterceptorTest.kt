@@ -34,7 +34,7 @@ class DocumentationRequestInterceptorTest {
 
 		source = mockk(relaxed = true)
 		every { source.lookup(any()) } returns
-			DocumentationLookup.Found(DocumentationContent("page".toByteArray(), "text/html", 0))
+			DocumentationLookup.Found(DocumentationContent("page".toByteArray(), "text/html"))
 	}
 
 	@After
@@ -98,14 +98,6 @@ class DocumentationRequestInterceptorTest {
 	@Test
 	fun `declines what the source cannot find, so the server can answer it`() {
 		every { source.lookup(any()) } returns DocumentationLookup.NotFound
-
-		assertThat(DocumentationRequestInterceptor(source).contentFor(request())).isNull()
-	}
-
-	@Test
-	fun `declines a templated row, which needs a renderer this module does not have`() {
-		every { source.lookup(any()) } returns
-			DocumentationLookup.Found(DocumentationContent("{}".toByteArray(), "text/html", templateId = 7))
 
 		assertThat(DocumentationRequestInterceptor(source).contentFor(request())).isNull()
 	}

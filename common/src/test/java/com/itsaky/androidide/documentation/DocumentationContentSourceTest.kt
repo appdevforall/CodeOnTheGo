@@ -79,7 +79,6 @@ class DocumentationContentSourceTest {
 		val content = (lookup as DocumentationLookup.Found).content
 		assertThat(content.bytes.toString(Charsets.UTF_8)).isEqualTo("page")
 		assertThat(content.mimeType).isEqualTo("text/html")
-		assertThat(content.templateId).isEqualTo(0)
 	}
 
 	@Test
@@ -145,6 +144,65 @@ class DocumentationContentSourceTest {
 		val bytes = (lookup as DocumentationLookup.Found).content.bytes
 		assertThat(bytes.size).isEqualTo(first.size + second.size + third.size)
 		assertThat(bytes.copyOfRange(bytes.size - third.size, bytes.size).toString(Charsets.UTF_8)).isEqualTo("tail")
+	}
+
+	@Test
+	fun `a templated row comes back rendered, so no caller needs the template engine`() {
+		val database =
+			mockk<SQLiteDatabase>(relaxed = true) {
+				every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns
+					contentCursor(bytes = """{"who": "Kotlin"}""".toByteArray(), templateId = 7)
+				every { rawQuery(match { it.contains("FROM Templates") }, arrayOf("7")) } returns
+					mockk(relaxed = true) {
+						every { count } returns 1
+						every { moveToFirst() } returns true
+						every { getBlob(0) } returns "Hello {{ who }}!".toByteArray()
+					}
+			}
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source().lookup("k/html/basic-syntax.html")
+
+		assertThat((lookup as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("Hello Kotlin!")
+	}
+
+	@Test
+	fun `a template is compiled once and reused for the next page that needs it`() {
+		val database =
+			mockk<SQLiteDatabase>(relaxed = true) {
+				every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns
+					contentCursor(bytes = """{"who": "Kotlin"}""".toByteArray(), templateId = 7)
+				every { rawQuery(match { it.contains("FROM Templates") }, arrayOf("7")) } returns
+					mockk(relaxed = true) {
+						every { count } returns 1
+						every { moveToFirst() } returns true
+						every { getBlob(0) } returns "Hello {{ who }}!".toByteArray()
+					}
+			}
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val source = source()
+		repeat(3) { source.lookup("k/html/basic-syntax.html") }
+
+		verify(exactly = 1) { database.rawQuery(match { it.contains("FROM Templates") }, arrayOf("7")) }
+	}
+
+	@Test
+	fun `a missing template row is reported as a failed lookup, not a crash`() {
+		val database =
+			mockk<SQLiteDatabase>(relaxed = true) {
+				every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns
+					contentCursor(bytes = "{}".toByteArray(), templateId = 7)
+				every { rawQuery(match { it.contains("FROM Templates") }, arrayOf("7")) } returns
+					mockk(relaxed = true) {
+						every { count } returns 0
+						every { moveToFirst() } returns false
+					}
+			}
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		assertThat(source().lookup("k/html/basic-syntax.html")).isInstanceOf(DocumentationLookup.Failed::class.java)
 	}
 
 	@Test

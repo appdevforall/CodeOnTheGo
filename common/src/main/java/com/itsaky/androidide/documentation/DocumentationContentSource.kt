@@ -19,6 +19,13 @@ package com.itsaky.androidide.documentation
 
 import android.database.sqlite.SQLiteDatabase
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.ToNumberPolicy
+import com.google.gson.reflect.TypeToken
+import io.pebbletemplates.pebble.PebbleEngine
+import io.pebbletemplates.pebble.loader.StringLoader
+import io.pebbletemplates.pebble.template.PebbleTemplate
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.Closeable
@@ -26,11 +33,13 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.io.SequenceInputStream
+import java.io.StringWriter
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Collections
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -76,12 +85,10 @@ fun joinChunks(chunks: List<ByteArray>): ByteArray {
 	return joined
 }
 
-/** One decoded row of documentation content, ready to send. */
+/** One row of documentation content, decoded and rendered, ready to send. */
 data class DocumentationContent(
 	val bytes: ByteArray,
 	val mimeType: String,
-	/** Non-zero when [bytes] is a Pebble template context rather than the finished page. */
-	val templateId: Int,
 ) {
 	// Data class equality over a ByteArray would compare identity, which is never what a caller
 	// means; content equality on a multi-megabyte blob is not what it wants either.
@@ -115,10 +122,9 @@ sealed interface DocumentationLookup {
  * on the sdcard.
  *
  * One pipeline with two callers (ADFA-5176): `WebServer`, which wraps it in HTTP, and
- * [DocumentationRequestInterceptor], which answers a WebView in-process with no socket at all.
- * Pebble rendering is deliberately *not* here -- it stays in `WebServer`, which is the module that
- * has the template engine -- so a row with a non-zero [DocumentationContent.templateId] comes back
- * un-rendered and only that transport can finish it.
+ * [DocumentationRequestInterceptor], which answers a WebView in-process with no socket at all. A row
+ * that is a Pebble template context is rendered here too, so both transports serve a finished page
+ * and neither needs the template engine itself.
  *
  * Thread-safe: [lookup] and [withDatabase] hold a read lock for the whole read, and the swap takes
  * the write lock, since swapping closes the handle a reader could be using. Readers never block
@@ -158,6 +164,18 @@ class DocumentationContentSource(
 	// active database predates the dictionary migration -- CompressionDictionary won't exist.
 	private var compressionDictionary: ByteBuffer? = null
 	private var compressionDictionaryStale = true
+
+	private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
+
+	// Compiled templates for the active database, cleared when it is swapped.
+	private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
+
+	private val gson: Gson =
+		GsonBuilder()
+			.setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
+			.create()
+
+	private val templateContextType = object : TypeToken<Map<String, Any>>() {}.type
 
 	private val debugCheckIntervalNanos = TimeUnit.MILLISECONDS.toNanos(debugCheckIntervalMs)
 
@@ -206,6 +224,21 @@ class DocumentationContentSource(
 			val database = checkNotNull(database) { "documentation database '$databaseFile' is not open" }
 			block(database)
 		}
+	}
+
+	/**
+	 * Renders [contextJson] through the template [templateId] -- for a caller that has the context
+	 * and the template id in hand, rather than a path to look up. [path] is for diagnostics only.
+	 */
+	fun renderTemplate(
+		templateId: Int,
+		contextJson: ByteArray,
+		path: String,
+	): ByteArray = withDatabase { database -> render(database, templateId, contextJson, path) }
+
+	/** Drops the compiled templates, for the developer sentinel that forces a re-render. */
+	fun clearTemplateCache() {
+		templateCache.clear()
 	}
 
 	/** The last-modified time of [pathname], or -1 when it does not exist. */
@@ -268,11 +301,60 @@ class DocumentationContentSource(
 			val templateId = cursor.getInt(3)
 
 			val chunks = readChunks(database, path, firstChunk)
-			val bytes = if (compression == "brotli") decompressBrotli(database, chunks) else joinChunks(chunks)
+			val decoded = if (compression == "brotli") decompressBrotli(database, chunks) else joinChunks(chunks)
+			val bytes = if (templateId > 0) render(database, templateId, decoded, path) else decoded
 
-			return DocumentationLookup.Found(DocumentationContent(bytes, mimeType, templateId))
+			return DocumentationLookup.Found(DocumentationContent(bytes, mimeType))
 		}
 	}
+
+	/**
+	 * Renders one template: [contextJson] is the row's JSON, [templateId] names the template row.
+	 * Compiled templates are cached per database, so a repeat visit re-renders without recompiling.
+	 */
+	private fun render(
+		database: SQLiteDatabase,
+		templateId: Int,
+		contextJson: ByteArray,
+		path: String,
+	): ByteArray {
+		val template =
+			templateCache.getOrPut(templateId) {
+				if (log.isDebugEnabled) log.debug("Template cache miss for id {}, path '{}'.", templateId, path)
+				compileTemplate(database, templateId, path)
+			}
+
+		val contextString = contextJson.toString(Charsets.UTF_8)
+		if (contextString.isBlank() || contextString.trim() == "null") {
+			throw IllegalStateException("Template ID $templateId has empty or null JSON context")
+		}
+		val context: Map<String, Any> = gson.fromJson(contextString, templateContextType)
+
+		return StringWriter().also { template.evaluate(it, context) }.toString().toByteArray()
+	}
+
+	private fun compileTemplate(
+		database: SQLiteDatabase,
+		templateId: Int,
+		path: String,
+	): PebbleTemplate =
+		database.rawQuery("SELECT content FROM Templates WHERE id = ?", arrayOf(templateId.toString())).use { cursor ->
+			when {
+				cursor.count > 1 -> {
+					throw IllegalStateException("Template ID $templateId is shared by more than one template")
+				}
+
+				!cursor.moveToFirst() -> {
+					throw IllegalStateException("Template ID $templateId not found in the database, for path '$path'")
+				}
+
+				else -> {
+					val body = cursor.getBlob(0)
+					if (log.isDebugEnabled) log.debug("Compiling template {}, {} bytes.", templateId, body.size)
+					pebbleEngine.getTemplate(body.toString(Charsets.UTF_8))
+				}
+			}
+		}
 
 	/**
 	 * Content over [CONTENT_CHUNK_SIZE] is split across rows named `path-1`, `path-2`, ... The

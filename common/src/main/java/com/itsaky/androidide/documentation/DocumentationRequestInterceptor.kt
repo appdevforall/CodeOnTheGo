@@ -34,13 +34,11 @@ import java.util.concurrent.atomic.AtomicLong
  * Wire it into a WebView through `WebViewClient.shouldInterceptRequest`. The URLs do not change:
  * this matches the same `http://localhost:6174/...` space the server listens on, which is what lets
  * the strings.xml entries, ToolTipManager's link builder, and the plugin API contract stay as they
- * are. Anything this returns null for -- a templated page, a `/pr/` developer endpoint, an unknown
- * path, a read that fails -- falls through to that server unchanged.
+ * are. Anything this returns null for -- a `/pr/` developer endpoint, an unknown path, a read that
+ * fails -- falls through to that server unchanged.
  *
- * Templated rows go to the server because rendering one needs Pebble, which lives in the `app`
- * module (see [DocumentationContentSource]). Only the Kotlin doc set uses templates -- 3,508 of the
- * database's 30,649 rows, none of them assets -- so a Kotlin page costs one connection for the page
- * itself and none for anything on it.
+ * Templated pages included: [DocumentationContentSource] renders them, so every documentation path
+ * a WebView asks for is answered here.
  */
 class DocumentationRequestInterceptor(
 	private val contentSource: DocumentationContentSource,
@@ -79,8 +77,6 @@ class DocumentationRequestInterceptor(
 				is DocumentationLookup.Found -> lookup.content
 				else -> return null
 			}
-
-		if (content.templateId > 0) return null
 
 		servedRequests.incrementAndGet()
 		servedBytes.addAndGet(content.bytes.size.toLong())
