@@ -194,48 +194,43 @@ class WebServer(
 
 	/**
 	 * Loads the shared Brotli dictionary most Content rows are compressed against (see ADFA-5153).
-	 * Returns null (logged) on any failure to load one -- a database that predates the dictionary
-	 * migration, a schema/row anomaly, or any other error -- so callers always fall back to plain,
-	 * dictionary-free brotli decode rather than propagating the failure (see [decompressBrotli]).
+	 * Returns null (logged) when the database *definitively* has no dictionary -- predates the
+	 * migration, or has an empty/anomalous `CompressionDictionary` row -- so callers fall back to
+	 * plain, dictionary-free brotli decode (see [decompressBrotli]). Deliberately does *not* catch
+	 * exceptions itself: an unexpected `SQLiteException`/IO failure is likely transient, and the
+	 * caller (see [handleClient]) must not cache that as "no dictionary" the way it does a
+	 * definitive absence, or a transient failure would permanently disable dictionary decoding
+	 * for the rest of this database's lifetime.
 	 */
 	private fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
-		// Whole body wrapped in one catch-all (matching DatabaseVersionResolver.resolveDatabaseVersion's
-		// pattern) rather than hand-anticipating individual SQLiteExceptions: a caller-visible failure
-		// here must never abort start() or leave a stale dictionary un-retried after a debug-DB swap --
-		// falling back to null (plain, dictionary-free decode) is always the safe choice.
-		return try {
-			val tableExists =
-				db
-					.rawQuery(
-						"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
-						null,
-					).use { it.moveToFirst() }
-			if (!tableExists) {
-				log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
+		val tableExists =
+			db
+				.rawQuery(
+					"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
+					null,
+				).use { it.moveToFirst() }
+		if (!tableExists) {
+			log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
+			return null
+		}
+
+		return db.rawQuery("SELECT data FROM CompressionDictionary WHERE id = 1", null).use { cursor ->
+			if (!cursor.moveToFirst()) {
+				log.warn("CompressionDictionary table is empty; decoding brotli content without a dictionary.")
 				return null
 			}
-
-			db.rawQuery("SELECT data FROM CompressionDictionary WHERE id = 1", null).use { cursor ->
-				if (!cursor.moveToFirst()) {
-					log.warn("CompressionDictionary table is empty; decoding brotli content without a dictionary.")
-					return null
-				}
-				val bytes = cursor.getBlob(0)
-				if (bytes == null) {
-					log.warn("CompressionDictionary row has a NULL data column; decoding brotli content without a dictionary.")
-					return null
-				}
-				// An empty blob would yield a 0-capacity buffer, which attachDictionary rejects --
-				// every row's dictionary decode would then fail with nothing above DEBUG to say why.
-				if (bytes.isEmpty()) {
-					log.warn("CompressionDictionary row has an empty data column; decoding brotli content without a dictionary.")
-					return null
-				}
-				toDirectByteBuffer(bytes)
+			val bytes = cursor.getBlob(0)
+			if (bytes == null) {
+				log.warn("CompressionDictionary row has a NULL data column; decoding brotli content without a dictionary.")
+				return null
 			}
-		} catch (e: Exception) {
-			log.error("Could not load compression dictionary; decoding brotli content without a dictionary: {}", e.message)
-			null
+			// An empty blob would yield a 0-capacity buffer, which attachDictionary rejects --
+			// every row's dictionary decode would then fail with nothing above DEBUG to say why.
+			if (bytes.isEmpty()) {
+				log.warn("CompressionDictionary row has an empty data column; decoding brotli content without a dictionary.")
+				return null
+			}
+			toDirectByteBuffer(bytes)
 		}
 	}
 
@@ -524,9 +519,16 @@ class WebServer(
 		// decompressBrotli) -- rather than eagerly at database-open/swap time, but only once per
 		// database change: a swap (just above) marks compressionDictionaryStale rather than
 		// reloading immediately, so this only hits the database again when that flag is set.
+		// Only clears the flag on a clean load (definitive dictionary or definitive absence) --
+		// an unexpected exception leaves it set so the next request retries, rather than caching
+		// a transient failure as "no dictionary" for the rest of this database's lifetime.
 		if (compressionDictionaryStale) {
-			compressionDictionary = loadCompressionDictionary(database)
-			compressionDictionaryStale = false
+			try {
+				compressionDictionary = loadCompressionDictionary(database)
+				compressionDictionaryStale = false
+			} catch (e: Exception) {
+				log.error("Could not load compression dictionary; will retry on the next request: {}", e.message)
+			}
 		}
 
 		// Database fetch
@@ -560,9 +562,13 @@ class WebServer(
 			val templateId = cursor.getInt(3)
 
 			// Fragment handling for large content (> 1MB). The chunks stay a list rather than
-			// being concatenated: the old accumulate-into-a-ByteArrayOutputStream-then-copy held
-			// the doubling buffer *and* its toByteArray() copy live alongside the decompressed
-			// output, roughly 35 MB transient for the largest bundled PDF (8.8 MB over 9 chunks).
+			// being eagerly concatenated: the old accumulate-into-a-ByteArrayOutputStream-then-copy
+			// held both the doubling buffer and its toByteArray() copy of the *compressed* chunks
+			// live at once, on top of the decompressed output that follows -- for the largest
+			// bundled PDF (8.8 MB over 9 chunks) that's a real, if partial, reduction: the
+			// decompressed output still goes through a comparable accumulate-then-copy in
+			// decompressBrotli's own readBytes() call, so the compressed-side saving here doesn't
+			// eliminate that separate transient.
 			val chunks = mutableListOf(firstChunk)
 			if (firstChunk.size == contentChunkSize) {
 				val query2 = "SELECT content FROM Content WHERE path = ? AND languageId = 1"

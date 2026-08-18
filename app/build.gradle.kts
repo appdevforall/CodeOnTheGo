@@ -211,16 +211,20 @@ configurations.configureEach {
 }
 
 // brotli4j ships its native decoder as a per-OS/arch artifact, so the JVM unit tests need the one
-// matching whoever is building. Mirrors build-logic/plugins' dispatch.
-fun brotli4jNativeForHost(): Provider<MinimalExternalModuleDependency> {
+// matching whoever is building. Mirrors build-logic/plugins' dispatch, but degrades to null on an
+// unrecognized host instead of throwing: this runs at configuration time, so throwing would fail
+// every task in the build -- including :app:assembleV8Debug, which needs no desktop native at all
+// -- rather than only the JVM unit-test tasks that actually consume this dependency.
+fun brotli4jNativeForHost(): Provider<MinimalExternalModuleDependency>? {
 	val arch = DefaultNativePlatform.getCurrentArchitecture()
-	return DefaultNativePlatform.getCurrentOperatingSystem().let { os ->
+	val os = DefaultNativePlatform.getCurrentOperatingSystem()
+	val native =
 		when {
 			os.isMacOsX -> {
 				when {
 					arch.isArm64 -> libs.brotli4j.osx.aarch64
 					arch.isAmd64 -> libs.brotli4j.osx.x64
-					else -> throw IllegalStateException("Unsupported OSX architecture: $arch")
+					else -> null
 				}
 			}
 
@@ -228,7 +232,7 @@ fun brotli4jNativeForHost(): Provider<MinimalExternalModuleDependency> {
 				when {
 					arch.isArm64 -> libs.brotli4j.windows.aarch64
 					arch.isAmd64 -> libs.brotli4j.windows.x64
-					else -> throw IllegalStateException("Unsupported Windows architecture: $arch")
+					else -> null
 				}
 			}
 
@@ -236,15 +240,23 @@ fun brotli4jNativeForHost(): Provider<MinimalExternalModuleDependency> {
 				when {
 					arch.isArm64 -> libs.brotli4j.linux.aarch64
 					arch.isAmd64 -> libs.brotli4j.linux.x64
-					else -> throw IllegalStateException("Unsupported Linux architecture: $arch")
+					else -> null
 				}
 			}
 
 			else -> {
-				throw IllegalStateException("Unsupported OS: $os")
+				null
 			}
 		}
+	if (native == null) {
+		logger.warn(
+			"brotli4j: no native decoder for {}/{} -- brotli4j-backed JVM unit tests " +
+				"(e.g. BrotliDictionaryDecodeTest) will fail with UnsatisfiedLinkError on this host.",
+			os,
+			arch,
+		)
 	}
+	return native
 }
 
 dependencies {
@@ -379,7 +391,9 @@ dependencies {
 	// Android target -- without a desktop native on the test classpath, Brotli4jLoader has nothing
 	// to load and every such test fails with UnsatisfiedLinkError. Pick the native for whoever is
 	// building, so the suite runs off a Linux x64 CI runner too (same dispatch as build-logic/plugins').
-	testImplementation(brotli4jNativeForHost())
+	// Null on an unrecognized host just means those specific tests fail there -- see
+	// brotli4jNativeForHost's own warning -- not that this whole build should refuse to configure.
+	brotli4jNativeForHost()?.let { testImplementation(it) }
 
 	implementation(libs.common.markwon.core)
 	implementation(libs.common.markwon.linkify)
