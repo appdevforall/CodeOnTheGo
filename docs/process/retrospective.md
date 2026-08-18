@@ -15,9 +15,9 @@
 
 | Metric | Duration |
 |--------|----------|
-| Total wall-clock | ~24 min |
-| Hands-on | ~5 min (21%) |
-| Automated agent time | ~19 min (79%) |
+| Total wall-clock | ~27 min |
+| Hands-on | ~5 min (19%) |
+| Automated agent time | ~21.5 min (81%) |
 | Retro analysis time | ~1 min (script run) |
 
 ### Key Observations
@@ -30,6 +30,7 @@
 **What didn't:** Not directly confirmed by the user this round — the jira/jira-cli friction above is an inferred observation from the transcript, not user-flagged.
 
 ### Actions Taken
+
 | Issue | Action Type | Change |
 |-------|-------------|--------|
 | `jira` vs `jira-cli` binary confusion | CLAUDE.md | Jira section now notes the binary may be `jira-cli` (snap) and to check `which jira-cli` before retrying |
