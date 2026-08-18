@@ -8,7 +8,7 @@ This is a **read-only, prebuilt** database — CoGo never creates or migrates it
 
 - Installed path: `context.getDatabasePath("documentation.db")` (`Environment.DOC_DB` in `common/.../utils/Environment.java`), i.e. the app's private `databases/` dir.
 - Bundled as an asset and extracted on install/update by `BundledAssetsInstaller` / `SplitAssetsInstaller`.
-- **Debug override:** if `/sdcard/Download/documentation.db` exists and is newer than the installed copy, `WebServer` and `ToolTipManager` swap to it at request time (timestamp-compared per request, not just at startup) — a fast way to test a new database on-device without reinstalling. `WebServer`'s debug logging and experiment flags are also file-flag-gated under `/sdcard/Download/` (`CodeOnTheGo.webserver.debug`, `CodeOnTheGo.exp`, `CodeOnTheGo.webserver.cs0`).
+- **Debug override:** if `/sdcard/Download/documentation.db` exists and is newer than the installed copy, `WebServer` and `ToolTipManager` swap to it at request time (`WebServer` compares timestamps at most once a second, not per request, since the path is FUSE-backed emulated storage) — a fast way to test a new database on-device without reinstalling. `WebServer`'s debug logging and experiment flags are also file-flag-gated under `/sdcard/Download/` (`CodeOnTheGo.webserver.debug`, `CodeOnTheGo.exp`, `CodeOnTheGo.webserver.cs0`).
 - **Don't trust a local copy's on-disk schema or row content as ground truth without checking freshness first.** Any manually downloaded or debug-override copy is independent of git history — a stale one can have a different schema (e.g. missing `UNIQUE(path)` or `templateId`) or be missing rows that already exist in the current, maintained database. A stale copy caused a real near-miss in ADFA-5088: a SQL script validated against it would have silently overwritten curated production tooltip content for several tags. Diff or re-download before authoring SQL against a local copy's state, not just before shipping it.
 
 ## Schema
@@ -71,7 +71,7 @@ CREATE TABLE Tooltips (
 
 All three sites below open the file with `SQLiteDatabase.openDatabase(..., OPEN_READONLY)` — no writes, ever, from this app (see ADR 0001 for why raw SQLite is justified here instead of Room).
 
-- **`app/.../localWebServer/WebServer.kt`** — serves Tier 3. On each `GET`, runs:
+- **`app/.../localWebServer/WebServer.kt`** — serves Tier 3. Requests are handled on a small worker pool, not on the accept loop, so the shared handle is read under a `ReentrantReadWriteLock` (the debug-database swap takes the write lock). On each `GET`, runs:
 
   ```sql
   SELECT C.content, CT.value, CT.compression, C.templateId
