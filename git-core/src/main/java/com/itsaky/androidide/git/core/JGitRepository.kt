@@ -7,6 +7,7 @@ import com.itsaky.androidide.git.core.models.GitCommit
 import com.itsaky.androidide.git.core.models.GitStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.eclipse.jgit.api.CreateBranchCommand
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand.ListMode
 import org.eclipse.jgit.api.MergeResult
@@ -119,11 +120,17 @@ class JGitRepository(override val rootDir: File) : GitRepository {
     override suspend fun getBranches(): List<GitBranch> = withContext(Dispatchers.IO) {
         val currentBranch = repository.fullBranch
         git.branchList().setListMode(ListMode.ALL).call().map { ref ->
+            val isRemote = ref.name.startsWith(Constants.R_REMOTES)
+            val shortName = Repository.shortenRefName(ref.name)
+            val remoteName = if (isRemote) {
+                shortName.substringBefore('/')
+            } else null
             GitBranch(
-                name = Repository.shortenRefName(ref.name),
+                name = shortName,
                 fullName = ref.name,
                 isCurrent = ref.name == currentBranch,
-                isRemote = ref.name.startsWith(Constants.R_REMOTES)
+                isRemote = isRemote,
+                remoteName = remoteName
             )
         }
     }
@@ -308,8 +315,48 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         }
     }
 
+    override suspend fun checkout(
+        branchName: String,
+        createNew: Boolean,
+        startPoint: String?
+    ) {
+        withContext(Dispatchers.IO) {
+            val checkoutCommand = git.checkout()
+            if (createNew) {
+                checkoutCommand.setCreateBranch(true)
+                checkoutCommand.setName(branchName)
+                if (!startPoint.isNullOrBlank()) {
+                    checkoutCommand.setStartPoint(startPoint)
+                }
+            } else {
+                val isRemoteRef = branchName.startsWith(Constants.R_REMOTES) || branchName.startsWith("origin/")
+                if (isRemoteRef) {
+                    val fullRemoteRef = if (branchName.startsWith(Constants.R_REMOTES)) {
+                        branchName
+                    } else {
+                        "${Constants.R_REMOTES}$branchName"
+                    }
+                    val localName = Repository.shortenRefName(fullRemoteRef).substringAfter('/')
+                    val localRef = repository.findRef("${Constants.R_HEADS}$localName")
+                    if (localRef != null) {
+                        checkoutCommand.setName(localName)
+                    } else {
+                        checkoutCommand.setCreateBranch(true)
+                            .setName(localName)
+                            .setStartPoint(fullRemoteRef)
+                            .setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK)
+                    }
+                } else {
+                    checkoutCommand.setName(branchName)
+                }
+            }
+            checkoutCommand.call()
+        }
+    }
+
     override fun close() {
         repository.close()
         git.close()
     }
 }
+

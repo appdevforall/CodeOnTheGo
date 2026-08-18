@@ -46,4 +46,12 @@ interface GitRepository : Closeable {
     // Merge Operations
     suspend fun merge(branchName: String): MergeResult
     suspend fun abortMerge()
+
+    // Branch Operations
+    suspend fun checkout(
+        branchName: String,
+        createNew: Boolean = false,
+        startPoint: String? = null
+    )
 }
+
