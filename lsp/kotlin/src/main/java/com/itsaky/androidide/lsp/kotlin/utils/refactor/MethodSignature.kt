@@ -13,10 +13,12 @@ import org.jetbrains.kotlin.analysis.api.symbols.KaBackingFieldSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaNamedFunctionSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaPropertySymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaReceiverParameterSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaValueParameterSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaVariableSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.markers.KaAnnotatedSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.markers.KaNamedSymbol
 import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaFlexibleType
@@ -830,8 +832,12 @@ private fun KaSession.isSuspendLambda(lambda: KtFunctionLiteral): Boolean =
 	}.getOrNull() == true
 
 /**
- * `@Composable` is added when the region calls one. Not polish: CoGo users write Compose apps on the
+ * `@Composable` is added when the region uses one. Not polish: CoGo users write Compose apps on the
  * device, and an extracted composable without the annotation does not compile (R10).
+ *
+ * Property *getters* count, not only calls. `MaterialTheme.colorScheme` and `LocalDensity.current` are
+ * annotated getters reached through a name reference, and they are as common in Compose code as any
+ * composable call.
  */
 private fun KaSession.usesComposable(elements: List<KtExpression>): Boolean =
 	descendantsOf(elements, KtCallExpression::class.java).any { call ->
@@ -840,10 +846,19 @@ private fun KaSession.usesComposable(elements: List<KtExpression>): Boolean =
 				.resolveToCall()
 				?.successfulFunctionCallOrNull()
 				?.symbol
-				?.annotations
-				?.any { it.classId?.asFqNameString() == COMPOSABLE_FQ_NAME }
+				?.hasComposableAnnotation()
 		}.getOrNull() == true
-	}
+	} ||
+		simpleNamesIn(elements).any { reference ->
+			runCatching {
+				val property = reference.mainReference?.resolveToSymbols()?.firstOrNull() as? KaPropertySymbol
+				property?.hasComposableAnnotation() == true || property?.getter?.hasComposableAnnotation() == true
+			}.getOrNull() == true
+		}
+
+/** Whether [this] carries `@Composable`. */
+private fun KaAnnotatedSymbol.hasComposableAnnotation(): Boolean =
+	annotations.any { it.classId?.asFqNameString() == COMPOSABLE_FQ_NAME }
 
 /**
  * Names the new function must avoid (R12).

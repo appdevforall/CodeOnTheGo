@@ -120,7 +120,7 @@ Declined: a `return` anywhere but the tail position, a `break`/`continue` whose 
 
 - **Visibility** - always `private`, whether a class member or top-level. Never `internal`, never `open`, no annotations copied, no KDoc generated.
 - **`suspend`** - added when any call in the region resolves to a suspend function, or the region references `coroutineContext`. The call site is necessarily already a suspend context. **Not** added for a suspension the region only performs inside a *nested* suspend-typed lambda - `scope.launch { }`, `runBlocking { }`, any `suspend () -> T` parameter: the region carries that lambda with it, so the new function needs no `suspend`, and adding it breaks a call site that is not itself a suspend context. An ordinary inline lambda (`forEach`, `let`, `run`) is not one of these and still propagates `suspend` outwards.
-- **`@Composable`** - added when any call in the region resolves to a `@Composable`-annotated function. This is not polish: CoGo users write Compose apps on the device, and an extracted composable without the annotation does not compile.
+- **`@Composable`** - added when the region uses one: any call resolving to a `@Composable`-annotated function, **or any name reference resolving to a property whose getter is annotated**. The second half is not an edge case - `MaterialTheme.colorScheme` and `LocalDensity.current` are annotated getters, not calls. This is not polish: CoGo users write Compose apps on the device, and an extracted composable without the annotation does not compile.
 - **Function-level type parameters** - a region referencing a type parameter declared on the *enclosing function* **declines** (`UsesTypeParameter`, naming it). Class-level type parameters need no rule; they stay in scope for a member. A filtered copy of the enclosing type-parameter list with its bounds would mean deciding "is `T` referenced" from rendered type text, which is fragile.
 
 `suspend` and `@Composable` are the two cases where omitting a modifier produces non-compiling code, which is why they are requirements while everything else is left off.
@@ -208,7 +208,7 @@ The new function is emitted **fully indented** at the enclosing declaration's ow
 12. Extracting from inside `fun Foo.bar()` when the region touches `Foo`'s members produces `private fun Foo.extracted(...)`, and the call site is unchanged.
 13. Extracting from inside a `with(x) { ... }` block whose region uses `x`'s members is declined, and the message names the construct.
 14. A region calling a suspend function produces a `suspend fun`.
-15. A region calling a `@Composable` produces a `@Composable` function that compiles.
+15. A region calling a `@Composable` function, or reading a `@Composable` property such as `MaterialTheme.colorScheme`, produces a `@Composable` function that compiles.
 16. A region using a type parameter of the enclosing function is declined, naming the parameter.
 17. A name matching an existing member - including an inherited one - is rejected with "That name is already used".
 18. The signature preview matches the emitted declaration exactly, including modifiers and receiver.

@@ -1233,4 +1233,60 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 		)
 		assertEquals(listOf("private"), candidate.modifiers)
 	}
+
+	@Test
+	fun `reading a Composable property getter adds the Composable annotation`() {
+		createSourceFile(
+			"Composable.kt",
+			"""
+			package androidx.compose.runtime
+			annotation class Composable
+			""".trimIndent(),
+		)
+		val content =
+			"""
+			package p
+			import androidx.compose.runtime.Composable
+			object Palette {
+				val accent: Int
+					@Composable get() = 1
+			}
+			fun use(n: Int) {}
+			@Composable fun Demo() {
+				use(Palette.accent)
+			}
+			""".trimIndent()
+
+		val candidate = plan(content, content.indexOf("Palette.accent") + 1).candidates.first { it.label == "Palette.accent" }
+
+		assertEquals(listOf("@Composable"), candidate.annotations)
+	}
+
+	@Test
+	fun `reading a plain property getter adds no annotation`() {
+		createSourceFile(
+			"Composable.kt",
+			"""
+			package androidx.compose.runtime
+			annotation class Composable
+			""".trimIndent(),
+		)
+		val content =
+			"""
+			package p
+			import androidx.compose.runtime.Composable
+			object Palette {
+				val accent: Int
+					get() = 1
+			}
+			fun use(n: Int) {}
+			@Composable fun Demo() {
+				use(Palette.accent)
+			}
+			""".trimIndent()
+
+		val candidate = plan(content, content.indexOf("Palette.accent") + 1).candidates.first { it.label == "Palette.accent" }
+
+		assertEquals(emptyList<String>(), candidate.annotations)
+	}
 }
