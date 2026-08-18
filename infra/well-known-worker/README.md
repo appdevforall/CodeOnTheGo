@@ -45,7 +45,9 @@ Prerequisites:
    - **Account -> Workers Scripts -> Edit**
    - **Account -> Workers R2 Storage -> Read** - wrangler resolves the bucket
      named in the binding via `GET /accounts/<id>/r2/buckets/well-known`, and
-     fails with `Authentication error [code: 10000]` without it
+     fails with `Authentication error [code: 10000]` without it. A scope added
+     to an existing token takes a few minutes to take effect, and the same
+     error persists until it does - wait before re-running
    - **Zone -> Workers Routes -> Edit** on `appdevforall.org`
 
    The existing `CLOUDFLARE_KEY_ID` / `CLOUDFLARE_SECRET_ACCESS_KEY` pair is an

@@ -16,7 +16,9 @@ name: Deploy well-known Worker
 #   Zone    -> Workers Routes     -> Edit   (attach the routes on appdevforall.org)
 # The R2 read scope is not optional: wrangler resolves the bucket named in the
 # r2_buckets binding via GET /accounts/<id>/r2/buckets/well-known and fails the
-# deploy with "Authentication error [code: 10000]" without it.
+# deploy with "Authentication error [code: 10000]" without it. Note that a scope
+# added to an existing token takes a few minutes to take effect - that same error
+# persists across an immediate re-run, so wait before concluding the scope is wrong.
 # The existing CLOUDFLARE_KEY_ID / CLOUDFLARE_SECRET_ACCESS_KEY pair is an R2
 # S3-compatible credential and cannot deploy a Worker.
 
@@ -63,33 +65,6 @@ jobs:
               exit 1
             fi
           done
-
-      # TEMPORARY (ADFA-5067): wrangler fails the deploy on
-      # GET /accounts/<id>/r2/buckets/well-known with "Authentication error
-      # [code: 10000]" despite the token carrying Workers R2 Storage Read.
-      # Probe the endpoints directly to see which grant is actually missing.
-      # Remove once the required scope is known. Token values are masked by
-      # Actions and never appear in these response bodies.
-      - name: TEMP diagnose token scopes
-        env:
-          TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_DEPLOY_TOKEN }}
-          ACCOUNT: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -uo pipefail
-
-          probe() {
-            printf '\n--- %s\n' "$1"
-            curl -sS -o /tmp/body -w 'HTTP %{http_code}\n' \
-              -H "Authorization: Bearer $TOKEN" \
-              -H "Content-Type: application/json" \
-              "https://api.cloudflare.com/client/v4$2"
-            jq -c '{success, errors, id: (.result.id // empty), n: (.result | if type=="array" then length else empty end)}' \
-              < /tmp/body 2>/dev/null || cat /tmp/body
-          }
-
-          probe "token identity + status" "/user/tokens/verify"
-          probe "list buckets (needs R2 read)" "/accounts/$ACCOUNT/r2/buckets"
-          probe "bucket detail (what wrangler calls)" "/accounts/$ACCOUNT/r2/buckets/well-known"
 
       - name: Deploy with Wrangler
         uses: cloudflare/wrangler-action@v4
