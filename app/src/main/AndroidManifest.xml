@@ -144,14 +144,25 @@
              re-exported from Windows tools) produce uppercase extensions.
              android:host="*" is required alongside pathPattern - the manifest matcher only
              evaluates pathPattern when host is also present.
-             Known limitations, not fixable via manifest matching:
-             (1) a sender whose content:// Uri path never carries the filename/extension at all
-             (some email providers' attachment Uris look like
-             content://.../message_attachment/12345/0/ATTACHMENT/false) can't match a
-             pathPattern-based filter regardless of type. The only alternative - a pathPattern-
-             less, mimeType="*/*" filter - would register this app as a candidate handler for
-             every file view intent on the device, which is a worse tradeoff than missing those
-             senders.
+             Known limitations:
+             (1) a sender whose content:// Uri path never carries the filename/extension at all -
+             the common case in practice, not an edge case: Storage Access Framework providers
+             (Android's Downloads app, most file managers) hand out opaque document IDs like
+             content://com.android.providers.downloads.documents/document/msf%3A19, and some email
+             providers' attachment Uris look like
+             content://.../message_attachment/12345/0/ATTACHMENT/false - can't match a
+             pathPattern-based filter regardless of type (confirmed via ADFA-4934's QA pass: the
+             OS fell through to an unrelated app that happened to declare a broader, unconstrained
+             VIEW+content+application/octet-stream filter, since ours never matched at all).
+             Mitigated (not fully fixed) below by a fourth, pathPattern-less filter matching only
+             the small set of mimeTypes such senders actually use for a binary/zip attachment
+             (application/octet-stream, application/zip, application/x-zip-compressed) - narrower
+             than the mimeType="*/*" this same reasoning previously rejected (that would register
+             this app as a candidate handler for every file view intent on the device), but still
+             broader than just .cgp/.cgt: any octet-stream/zip content from any app now offers this
+             app as an "Open with" candidate. Accepted since the real extension is re-validated
+             from DISPLAY_NAME once opened (ExternalFileInstallViewModel.onReceived) - a mismatched
+             file is rejected with msg_unsupported_file_type, not a crash.
              (2) only the fully-lowercase and fully-UPPERCASE forms are covered per extension -
              a mixed-case extension (e.g. "Plugin.Cgp") matches neither, since pathPattern's
              matcher supports only literal characters, '.', and '*' (no character classes), and
@@ -202,6 +213,18 @@
                 <data android:scheme="file" android:host="*" android:pathPattern=".*\\.CGP" />
                 <data android:scheme="file" android:host="*" android:pathPattern=".*\\.cgt" />
                 <data android:scheme="file" android:host="*" android:pathPattern=".*\\.CGT" />
+            </intent-filter>
+            <!-- pathPattern-less fallback for content:// senders whose document Uri never carries
+                 the filename at all (see "Known limitations" (1) above) - matched by mimeType only,
+                 so it still finds real .cgp/.cgt attachments from Downloads/email/file-manager
+                 providers that the pathPattern-based filter above can never reach. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:host="*" android:mimeType="application/octet-stream" />
+                <data android:scheme="content" android:host="*" android:mimeType="application/zip" />
+                <data android:scheme="content" android:host="*" android:mimeType="application/x-zip-compressed" />
             </intent-filter>
         </activity>
         <activity android:name=".activities.AboutActivity" />
