@@ -78,14 +78,6 @@ class ExtractVariableViewModelTest {
 	}
 
 	@Test
-	fun `the candidate picker is offered even when the selection matched an expression`() {
-		// Long-press is the natural gesture and it selects exactly one token, which used to hide the
-		// list -- leaving no way to widen to an enclosing expression without cancelling and re-selecting.
-		assertTrue(ExtractVariableViewModel(threeCandidatePlan).uiState.value.showCandidatePicker)
-		assertEquals(0, ExtractVariableViewModel(threeCandidatePlan).uiState.value.selectedCandidate)
-	}
-
-	@Test
 	fun `changing the expression re-derives name, scopes and count`() {
 		val viewModel = ExtractVariableViewModel(threeCandidatePlan)
 

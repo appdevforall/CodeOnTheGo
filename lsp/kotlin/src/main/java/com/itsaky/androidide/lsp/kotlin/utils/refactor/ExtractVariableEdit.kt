@@ -85,6 +85,9 @@ internal sealed interface BlockPlacement {
  * A lambda body's content starts right at its first token with no owned whitespace, so `lineStart`
  * sits before `contentSpan.start` on plain indentation alone; that gap must not read as "outside the
  * block", which is why the second check tests the gap for real code rather than for mere distance.
+ *
+ * [form]'s spans are substringed against [fileText] unchecked, so callers must pass the very text those
+ * spans were computed against -- the plan's own text, never the live document.
  */
 internal fun blockPlacementFor(
 	fileText: String,

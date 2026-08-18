@@ -227,4 +227,11 @@ class RefactorPrimitivesTest {
 		assertEquals(true to null, normalizeExpressionBodyReturn(needsReturn = true, returnTypeText = null))
 		assertEquals(false to null, normalizeExpressionBodyReturn(needsReturn = false, returnTypeText = null))
 	}
+
+	@Test
+	fun `a retracted return retracts the written type with it`() {
+		// No return means a Unit return, which needs no written type either. The rewrite reads the two
+		// independently, so the other pairing would emit `fun f(): Int { val v = ...; expr }`.
+		assertEquals(false to null, normalizeExpressionBodyReturn(needsReturn = false, returnTypeText = "Int"))
+	}
 }

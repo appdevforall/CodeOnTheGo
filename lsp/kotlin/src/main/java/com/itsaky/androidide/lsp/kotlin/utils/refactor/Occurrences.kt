@@ -15,6 +15,7 @@ import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtBlockExpression
 import org.jetbrains.kotlin.psi.KtCallableDeclaration
 import org.jetbrains.kotlin.psi.KtCatchClause
+import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtDeclaration
 import org.jetbrains.kotlin.psi.KtDestructuringDeclaration
@@ -273,9 +274,13 @@ private val INCREMENT_TOKENS = setOf(KtTokens.PLUSPLUS, KtTokens.MINUSMINUS)
  * Names a new declaration at [candidate] would collide with or shadow.
  *
  * Walks outward from the candidate collecting only what is visible there: the parameters and local
- * declarations of each enclosing block, lambda, function and accessor, the members of each enclosing
- * class or object, and the file's top-level declarations. A local in a *sibling* function is
- * deliberately absent -- it is invisible here, and treating it as taken refuses a legal name.
+ * declarations of each enclosing block, lambda, function and accessor, the *declared* members of each
+ * enclosing class or object including its companion, and the file's top-level declarations. A local in
+ * a *sibling* function is deliberately absent -- it is invisible here, and treating it as taken refuses
+ * a legal name.
+ *
+ * Members inherited from a supertype are *not* in the set: finding them needs resolution, which a
+ * syntactic walk cannot do. A local may therefore still shadow an inherited member unnoticed.
  *
  * Enclosing members and top-level names stay in the set even though a local may legally shadow them:
  * shadowing one changes what every *other* reference to that name in the block means.
@@ -294,7 +299,14 @@ internal fun namesInScopeAt(candidate: KtExpression): Set<String> {
 
 			is KtClassOrObject -> {
 				ancestor.declarations.forEach { it.addNameTo(names) }
-				ancestor.primaryConstructorParameters.forEach { it.addNameTo(names) }
+				/* A companion's members are visible unqualified inside the class, but `declarations` holds
+				 * only the companion itself, so its members need collecting separately. */
+				(ancestor as? KtClass)?.companionObjects?.forEach { companion ->
+					companion.declarations.forEach { it.addNameTo(names) }
+				}
+				/* A plain constructor parameter is not a member: it is out of scope in a member function
+				 * body, and treating it as taken there refuses a legal name. */
+				ancestor.primaryConstructorParameters.filter { it.hasValOrVar() }.forEach { it.addNameTo(names) }
 			}
 
 			is KtBlockExpression -> {

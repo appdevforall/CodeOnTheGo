@@ -76,6 +76,11 @@ sealed interface AnchorForm {
  * [occurrences] is ascending by offset and always contains the candidate's own span, so
  * `occurrences.size` is the count shown as "Replace all N occurrences". Narrowing to an inner scope
  * can only shrink this set, never grow it.
+ *
+ * A block rung's set is narrowed once more, dropping leading occurrences whose own anchor statement
+ * cannot host the declaration -- a replace-all anchors on the first served one, so keeping an
+ * unhostable occurrence would refuse the whole rewrite. That lowers the count the user is shown, which
+ * is the point: N stays achievable.
  */
 data class ScopeOption(
 	val label: String,

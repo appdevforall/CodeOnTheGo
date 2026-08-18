@@ -125,12 +125,18 @@ internal fun isUnitTypeText(text: String): Boolean = text == "Unit" || text == "
  * text that is about to be written into the signature -- and the text is what lands in the file. It
  * therefore wins, retracting both. Without this, a failure to answer "is this `Unit`?" produces
  * `fun show(text: String): Unit { ... return report(length) }`: compilable, but not what was asked for.
+ *
+ * The two components of the returned pair are never inconsistent: no `return` implies a `Unit` return,
+ * which needs no written type either, so a retracted `return` retracts the type with it. The rewrite
+ * reads the two independently, and the other pairing would emit `fun f(): Int { val v = ...; expr }`.
  */
 internal fun normalizeExpressionBodyReturn(
 	needsReturn: Boolean,
 	returnTypeText: String?,
 ): Pair<Boolean, String?> =
-	if (returnTypeText != null && isUnitTypeText(returnTypeText)) {
+	if (!needsReturn) {
+		false to null
+	} else if (returnTypeText != null && isUnitTypeText(returnTypeText)) {
 		false to null
 	} else {
 		needsReturn to returnTypeText

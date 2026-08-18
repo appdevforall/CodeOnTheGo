@@ -46,11 +46,14 @@ internal fun buildExtractionPlan(
 			val syntax = candidateExpressionsAt(ktFile, selectionStart, selectionEnd)
 			if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)
 
+			/* PsiFileImpl.getText() allocates a fresh String each call, so the plan pass reads it once and
+			 * threads it down to every candidate and rung. */
+			val fileText = ktFile.text
 			analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
 				ExtractionPlan(
-					fileText = ktFile.text,
+					fileText = fileText,
 					documentVersion = documentVersion,
-					candidates = syntax.expressions.mapNotNull { candidateFor(it) },
+					candidates = syntax.expressions.mapNotNull { candidateFor(it, fileText) },
 				)
 			}
 		}
@@ -66,7 +69,10 @@ internal fun buildExtractionPlan(
  * compiles but is pointless) or when nothing remains of its legal scope chain.
  */
 @OptIn(KaExperimentalApi::class)
-private fun KaSession.candidateFor(expression: KtExpression): CandidateExpression? {
+private fun KaSession.candidateFor(
+	expression: KtExpression,
+	fileText: String,
+): CandidateExpression? {
 	val type = runCatching { expression.expressionType }.getOrNull()
 	if (type == null || isValuelessType(type)) return null
 
@@ -75,7 +81,7 @@ private fun KaSession.candidateFor(expression: KtExpression): CandidateExpressio
 
 	val span = TextSpan(expression.textRange.startOffset, expression.textRange.endOffset)
 	val file = expression.containingKtFile
-	val scopes = frames.mapNotNull { scopeOptionFor(expression, span, it, file) }
+	val scopes = frames.mapNotNull { scopeOptionFor(expression, span, it, file, fileText) }
 	if (scopes.isEmpty()) return null
 	val takenNames = namesInScopeAt(expression)
 
@@ -89,24 +95,22 @@ private fun KaSession.candidateFor(expression: KtExpression): CandidateExpressio
 }
 
 /**
- * Builds one scope option, resolving its occurrence set and fixing up expression-body details.
+ * Builds one scope option: settles the anchor form, then resolves the occurrence set it can serve.
  *
- * Returns null when the rung cannot be honoured: converting an expression body whose return type is
- * neither declared nor renderable would emit a block body that does not compile, and declining is
- * always safe -- the decline-rather-than-rewrite principle that ADR 0013 records, landing alongside
- * extract method (ADFA-5080).
+ * Returns null when the rung cannot be honoured at all, either because the block's geometry refuses
+ * the declaration or because an expression-body conversion cannot be reconciled. Both declines run
+ * before the occurrence search, so a refused rung costs nothing.
+ *
+ * [fileText] must be the text the plan's spans were computed against, since [blockPlacementFor] and
+ * [servableOccurrences] index into it unchecked.
  */
 private fun KaSession.scopeOptionFor(
 	expression: KtExpression,
 	span: TextSpan,
 	frame: ScopeFrame,
 	file: KtFile,
+	fileText: String,
 ): ScopeOption? {
-	val matches = findOccurrences(expression, frame.scopeElement, frame.searchRange)
-	val writes = writeOffsetsFor(expression, frame.scopeElement)
-	val sound = excludeUnsoundOccurrences(matches, span, writes)
-	val occurrences = servableOccurrences(file.text, frame.anchorForm, sound, span)
-
 	val anchorForm =
 		when (val form = frame.anchorForm) {
 			is AnchorForm.ExistingBlock -> {
@@ -116,30 +120,47 @@ private fun KaSession.scopeOptionFor(
 				 * tested here; servableOccurrences is what makes the first served target placeable when
 				 * replace-all is on.
 				 */
-				if (blockPlacementFor(file.text, form, span) is BlockPlacement.Refused) return null
+				if (blockPlacementFor(fileText, form, span) is BlockPlacement.Refused) return null
 				form
 			}
 
 			is AnchorForm.ConvertExpressionBody -> {
-				val declaration = frame.scopeElement.parent as? KtDeclarationWithBody
-				val mustWriteType = declaration != null && !declaration.declaresReturnType()
-				val rendered = if (mustWriteType) returnTypeTextOf(declaration, file) else null
-				val (needsReturn, returnTypeText) =
-					normalizeExpressionBodyReturn(expressionBodyNeedsReturn(frame.scopeElement), rendered)
-				/*
-				 * A block body with no declared type returns Unit, so a return that needs a type it
-				 * cannot get declines the rung -- the decline-rather-than-rewrite principle of ADR 0013.
-				 */
-				if (needsReturn && mustWriteType && returnTypeText == null) return null
-				form.copy(needsReturn = needsReturn, returnTypeText = returnTypeText)
+				convertExpressionBodyForm(form, frame.scopeElement, file) ?: return null
 			}
 
-			else -> {
+			is AnchorForm.WrapInBraces -> {
 				form
 			}
 		}
 
+	val matches = findOccurrences(expression, frame.scopeElement, frame.searchRange)
+	val writes = writeOffsetsFor(expression, frame.scopeElement)
+	val sound = excludeUnsoundOccurrences(matches, span, writes)
+	val occurrences = servableOccurrences(fileText, anchorForm, sound, span)
+
 	return ScopeOption(label = frame.label, anchorForm = anchorForm, occurrences = occurrences)
+}
+
+/**
+ * Fills in the `return` and written-type details of an expression-body rung, or null to decline it.
+ *
+ * A block body with no declared type returns `Unit`, so a `return` that needs a type neither declared
+ * nor renderable would emit a body that does not compile. Declining is always safe -- the
+ * decline-rather-than-rewrite principle that ADR 0013 records, landing alongside extract method
+ * (ADFA-5080).
+ */
+private fun KaSession.convertExpressionBodyForm(
+	form: AnchorForm.ConvertExpressionBody,
+	bodyExpression: PsiElement,
+	file: KtFile,
+): AnchorForm.ConvertExpressionBody? {
+	val declaration = bodyExpression.parent as? KtDeclarationWithBody
+	val mustWriteType = declaration != null && !declaration.declaresReturnType()
+	val rendered = if (mustWriteType) returnTypeTextOf(declaration, file) else null
+	val (needsReturn, returnTypeText) =
+		normalizeExpressionBodyReturn(expressionBodyNeedsReturn(bodyExpression), rendered)
+	if (needsReturn && mustWriteType && returnTypeText == null) return null
+	return form.copy(needsReturn = needsReturn, returnTypeText = returnTypeText)
 }
 
 /** Whether the declaration spells its return type out, in which case nothing needs writing. */
