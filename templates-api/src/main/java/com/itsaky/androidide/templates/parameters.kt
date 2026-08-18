@@ -476,7 +476,6 @@ inline fun projectLanguageParameter(
 	name = string.wizard_language
 	default = Java
 	displayName = Language::lang
-	filter = { it != Language.Unknown }
 	startIcon = {
 		if (it.value == Kotlin) {
 			R.drawable.ic_language_kotlin
@@ -486,6 +485,8 @@ inline fun projectLanguageParameter(
 	}
 	this.tooltipTag = "setup.project.language"
 	configure()
+	val userFilter = filter
+	filter = { it != Language.Unknown && (userFilter == null || userFilter(it)) }
 }
 
 inline fun minSdkParameter(
