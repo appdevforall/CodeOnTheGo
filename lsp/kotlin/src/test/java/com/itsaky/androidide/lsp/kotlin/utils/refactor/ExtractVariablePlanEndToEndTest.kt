@@ -999,4 +999,48 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 		assertEquals(NameProblem.AlreadyTaken, validateVariableName("total", taken))
 		assertEquals(NameProblem.AlreadyTaken, validateVariableName("demo", taken))
 	}
+
+	@Test
+	fun `a Unit-returning member expression body gets neither a type nor a return`() {
+		val content =
+			"""
+			package p
+			class Extract {
+				fun show(text: String) = report(text.length + 1)
+
+				private fun report(value: Int) {
+					println(value)
+				}
+			}
+			""".trimIndent()
+
+		val target = "text.length + 1"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "length",
+				replaceAll = false,
+			)!!
+
+		// The QA fixture's shape: a member, with the callee declared after the caller. `show` returns
+		// `Unit`, so the block body needs neither a `return` nor a written-out type.
+		assertEquals(
+			"package p\n" +
+				"class Extract {\n" +
+				"\tfun show(text: String) {\n" +
+				"\t\tval length = text.length + 1\n" +
+				"\t\treport(length)\n" +
+				"\t}\n" +
+				"\n" +
+				"\tprivate fun report(value: Int) {\n" +
+				"\t\tprintln(value)\n" +
+				"\t}\n" +
+				"}",
+			apply(content, rewrite),
+		)
+	}
 }

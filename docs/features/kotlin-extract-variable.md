@@ -107,6 +107,9 @@ default-imported package such as `kotlin.collections`. Everything else stays qua
 compiles, and this refactoring adds no imports. When the type cannot be written as source at all
 (anonymous, intersection, an unresolved type, or a platform type the renderer cannot reduce) the rung
 is declined rather than emitting a block body that does not compile.
+`Unit`-ness is decided from the resolved type and, if that cannot be answered, from the rendered text:
+a rendered `Unit` retracts both the `return` and the written type, because the rendered text is what
+lands in the file and a `Unit` return needs neither.
 
 Each rung is labelled with the construct that owns it -- `fun name`, `getter`, `setter`, `init block`,
 `lambda`, `if block`, `else block`, `for loop`, `while loop`, `do-while loop`, `when branch` -- so the

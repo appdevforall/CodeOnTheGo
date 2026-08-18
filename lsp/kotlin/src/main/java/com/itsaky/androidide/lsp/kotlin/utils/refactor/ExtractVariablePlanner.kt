@@ -131,13 +131,15 @@ private fun KaSession.scopeOptionFor(
 
 			is AnchorForm.ConvertExpressionBody -> {
 				val declaration = frame.scopeElement.parent as? KtDeclarationWithBody
-				val needsReturn = expressionBodyNeedsReturn(frame.scopeElement)
-				val returnTypeText =
-					if (needsReturn && declaration != null && !declaration.declaresReturnType()) {
-						returnTypeTextOf(declaration, file) ?: return null
-					} else {
-						null
-					}
+				val mustWriteType = declaration != null && !declaration.declaresReturnType()
+				val rendered = if (mustWriteType) returnTypeTextOf(declaration, file) else null
+				val (needsReturn, returnTypeText) =
+					normalizeExpressionBodyReturn(expressionBodyNeedsReturn(frame.scopeElement), rendered)
+				/*
+				 * A block body with no declared type returns Unit, so a return that needs a type it
+				 * cannot get declines the rung -- the decline-rather-than-rewrite principle of ADR 0013.
+				 */
+				if (needsReturn && mustWriteType && returnTypeText == null) return null
 				form.copy(needsReturn = needsReturn, returnTypeText = returnTypeText)
 			}
 
@@ -187,8 +189,19 @@ private fun KaSession.returnTypeTextOf(
 private fun KaSession.expressionBodyNeedsReturn(bodyExpression: PsiElement): Boolean {
 	val declaration = bodyExpression.parent as? KtDeclarationWithBody ?: return true
 	val returnType = returnTypeOf(declaration) ?: return true
-	return !runCatching { returnType.isUnitType }.getOrDefault(false)
+	return !isUnitReturnType(returnType)
 }
+
+/**
+ * Whether [type] is `Unit`, with the rendered text as the fallback answer.
+ *
+ * A throw from `isUnitType` must not read as "not `Unit`": that writes the very `Unit` it failed to
+ * recognise into the signature and wraps a `Unit` call in a pointless `return`.
+ */
+private fun KaSession.isUnitReturnType(type: KaType): Boolean =
+	runCatching { type.isUnitType }.getOrNull()
+		?: renderedTypeTextOrNull(type)?.let(::isUnitTypeText)
+		?: false
 
 /** `Unit` and `Nothing` carry no value worth binding to a `val`. */
 private fun KaSession.isValuelessType(type: KaType): Boolean = runCatching { type.isUnitType || type.isNothingType }.getOrDefault(false)

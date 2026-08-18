@@ -199,4 +199,28 @@ class RefactorPrimitivesTest {
 		assertTrue(isUnrenderableTypeText("kotlin.Any & kotlin.Comparable<*>"))
 		assertFalse(isUnrenderableTypeText("kotlin.Int"))
 	}
+
+	@Test
+	fun `Unit type text is recognised qualified and short`() {
+		assertTrue(isUnitTypeText("Unit"))
+		assertTrue(isUnitTypeText("kotlin.Unit"))
+		assertFalse(isUnitTypeText("Int"))
+		assertFalse(isUnitTypeText("kotlin.Unit?"))
+		assertFalse(isUnitTypeText("MyUnit"))
+	}
+
+	@Test
+	fun `a rendered Unit retracts both the return and the written type`() {
+		// The only way to reach here is the resolved-type check disagreeing with the text about to be
+		// written; the text is what lands in the file, so it wins.
+		assertEquals(false to null, normalizeExpressionBodyReturn(needsReturn = true, returnTypeText = "Unit"))
+		assertEquals(false to null, normalizeExpressionBodyReturn(needsReturn = true, returnTypeText = "kotlin.Unit"))
+	}
+
+	@Test
+	fun `a non-Unit type keeps the return and the written type`() {
+		assertEquals(true to "Int", normalizeExpressionBodyReturn(needsReturn = true, returnTypeText = "Int"))
+		assertEquals(true to null, normalizeExpressionBodyReturn(needsReturn = true, returnTypeText = null))
+		assertEquals(false to null, normalizeExpressionBodyReturn(needsReturn = false, returnTypeText = null))
+	}
 }

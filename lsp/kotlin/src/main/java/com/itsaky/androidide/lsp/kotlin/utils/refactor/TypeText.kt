@@ -110,3 +110,28 @@ internal fun starImportedPackagesOf(file: KtFile): Set<String> =
 	file.importDirectives
 		.filter { it.isAllUnder }
 		.mapNotNullTo(mutableSetOf()) { it.importedFqName?.asString() }
+
+/**
+ * Whether [text] is the `Unit` type written as source, qualified or not.
+ *
+ * Exact match only: `kotlin.Unit?` is a different type, and a user type named `MyUnit` is not this one.
+ */
+internal fun isUnitTypeText(text: String): Boolean = text == "Unit" || text == "kotlin.Unit"
+
+/**
+ * Reconciles the `return`/written-type pair for an expression-body conversion.
+ *
+ * A `Unit` return needs neither, so a rendered `Unit` means the resolved-type check disagreed with the
+ * text that is about to be written into the signature -- and the text is what lands in the file. It
+ * therefore wins, retracting both. Without this, a failure to answer "is this `Unit`?" produces
+ * `fun show(text: String): Unit { ... return report(length) }`: compilable, but not what was asked for.
+ */
+internal fun normalizeExpressionBodyReturn(
+	needsReturn: Boolean,
+	returnTypeText: String?,
+): Pair<Boolean, String?> =
+	if (returnTypeText != null && isUnitTypeText(returnTypeText)) {
+		false to null
+	} else {
+		needsReturn to returnTypeText
+	}
