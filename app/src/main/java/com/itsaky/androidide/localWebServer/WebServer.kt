@@ -52,6 +52,8 @@ data class ServerConfig(
 			"/Download/CodeOnTheGo.webserver.cs0",
 	// Yes, this is hack code.
 	val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database",
+	// ADFA-5172: accept-loop iterations slower than this get one diagnostic log line.
+	val stallThresholdMs: Long = 200,
 )
 
 data class JavaExecutionResult(
@@ -99,6 +101,12 @@ class WebServer(
 	private val httpNotFound = 404
 
 	private val contentChunkSize = 1024 * 1024
+
+	private val stallThresholdNanos = TimeUnit.MILLISECONDS.toNanos(config.stallThresholdMs)
+
+	// How long handleClient()'s last stat of config.debugDatabasePath took. A plain var is safe:
+	// the accept loop is serial and single-threaded, and it is the only reader.
+	private var debugDbStatNanos = 0L
 
 	// function to obtain the last modified date of a documentation.db database
 	// this is used to see if there is a newer version of the database on the sdcard
@@ -187,12 +195,23 @@ class WebServer(
 			}
 			log.info("WebServer started successfully on '{}', port {}.", config.bindName, config.port)
 
+			// ADFA-5172: carried across iterations so a stall report can say whether the loop was
+			// even in accept() when the connection arrived.
+			var previousAcceptWaitNanos = 0L
+			var previousBusyNanos = 0L
+
 			while (true) {
 				var clientSocket: Socket? = null
+				var acceptWaitNanos = 0L
+				var busyStartNanos = 0L
+				debugDbStatNanos = 0L
 				try {
 					try {
 						if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", serverSocket)
+						val acceptStartNanos = System.nanoTime()
 						clientSocket = serverSocket.accept()
+						busyStartNanos = System.nanoTime()
+						acceptWaitNanos = busyStartNanos - acceptStartNanos
 
 						if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
 					} catch (e: java.net.SocketException) {
@@ -232,6 +251,14 @@ class WebServer(
 
 					// CodeRabbit objects to the following line because clientSocket may print out as "null." This is intentional. --DS
 					if (debugEnabled) log.debug("clientSocket was {}.", clientSocket)
+
+					// Zero when accept() threw, which leaves nothing to time.
+					if (busyStartNanos != 0L) {
+						val busyNanos = System.nanoTime() - busyStartNanos
+						reportStall(acceptWaitNanos, busyNanos, previousAcceptWaitNanos, previousBusyNanos)
+						previousAcceptWaitNanos = acceptWaitNanos
+						previousBusyNanos = busyNanos
+					}
 				}
 			}
 		} catch (e: Exception) {
@@ -254,6 +281,41 @@ class WebServer(
 			TrafficStats.clearThreadStatsTag()
 		}
 	}
+
+	/**
+	 * Logs one line per accept-loop iteration that crosses [ServerConfig.stallThresholdMs], for
+	 * ADFA-5172's periodic ~1 s stall. Splits "parked in accept()" from "busy outside it" because
+	 * that is what separates a stall the loop caused -- a slow iteration delays the next accept,
+	 * so an arriving SYN can be dropped and retried ~1 s later -- from one it merely suffered.
+	 * Deliberately independent of [debugEnabled], whose ~10 log lines per request perturb the
+	 * timing being measured.
+	 */
+	private fun reportStall(
+		acceptWaitNanos: Long,
+		busyNanos: Long,
+		previousAcceptWaitNanos: Long,
+		previousBusyNanos: Long,
+	) {
+		// A long wait in accept() is just an idle server, so report only the first one after a busy
+		// stretch: that is the periodic stall, not a user who stopped browsing the documentation.
+		val stalledBeforeAccept =
+			acceptWaitNanos >= stallThresholdNanos && previousAcceptWaitNanos < stallThresholdNanos
+		val stalledWhileBusy = busyNanos >= stallThresholdNanos || debugDbStatNanos >= stallThresholdNanos
+		if (!stalledBeforeAccept && !stalledWhileBusy) return
+
+		log.warn(
+			"Accept-loop stall: {} ms parked in accept(), then {} ms busy outside it, of which {} ms " +
+				"stat'ing '{}'. Previous iteration: {} ms parked, {} ms busy.",
+			millis(acceptWaitNanos),
+			millis(busyNanos),
+			millis(debugDbStatNanos),
+			config.debugDatabasePath,
+			millis(previousAcceptWaitNanos),
+			millis(previousBusyNanos),
+		)
+	}
+
+	private fun millis(nanos: Long): Long = TimeUnit.NANOSECONDS.toMillis(nanos)
 
 	/**
 	 * Reads a single line from the stream (bytes until newline). Same stream is used for headers
@@ -331,7 +393,10 @@ class WebServer(
 
 		// check to see if there is a newer version of the documentation.db database on the sdcard
 		// if there is use that for our responses
+		// Timed for ADFA-5172: this stats FUSE-backed emulated storage on every request.
+		val statStartNanos = System.nanoTime()
 		val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
+		debugDbStatNanos = System.nanoTime() - statStartNanos
 		if (debugDatabaseTimestamp > databaseTimestamp) {
 			bookshelfTemplateId = -1
 			database.close()
