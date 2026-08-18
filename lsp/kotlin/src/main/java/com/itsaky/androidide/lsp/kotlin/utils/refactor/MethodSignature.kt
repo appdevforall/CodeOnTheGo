@@ -924,8 +924,7 @@ private fun KaSession.usesComposable(elements: List<KtExpression>): Boolean =
 		}
 
 /** Whether [this] carries `@Composable`. */
-private fun KaAnnotatedSymbol.hasComposableAnnotation(): Boolean =
-	annotations.any { it.classId?.asFqNameString() == COMPOSABLE_FQ_NAME }
+private fun KaAnnotatedSymbol.hasComposableAnnotation(): Boolean = annotations.any { it.classId?.asFqNameString() == COMPOSABLE_FQ_NAME }
 
 /**
  * Names the new function must avoid (R12).
