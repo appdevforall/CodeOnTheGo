@@ -10,7 +10,6 @@ import com.google.gson.GsonBuilder
 import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.utils.DatabaseVersionResolver
-import com.itsaky.androidide.utils.SqliteMmapConfigurator
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
 import io.pebbletemplates.pebble.template.PebbleTemplate
@@ -170,7 +169,6 @@ class WebServer(
 
 			try {
 				database = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
-				SqliteMmapConfigurator.configureMmap(database)
 			} catch (e: Exception) {
 				log.error("Cannot open database: {}", e.message)
 				return
@@ -338,7 +336,6 @@ class WebServer(
 			bookshelfTemplateId = -1
 			database.close()
 			database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
-			SqliteMmapConfigurator.configureMmap(database)
 			databaseTimestamp = debugDatabaseTimestamp
 		}
 

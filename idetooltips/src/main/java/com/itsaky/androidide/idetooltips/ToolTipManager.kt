@@ -86,12 +86,6 @@ object TooltipManager {
 
 			try {
 				SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY).use { database ->
-					// Deliberately no SqliteMmapConfigurator here (ADFA-4979): this path opens
-					// and closes a connection per tooltip, so mmap'ing the whole ~200 MB file
-					// would charge an mmap()/munmap() and a PRAGMA round trip to replace two
-					// small indexed queries' worth of read(). mmap only pays off on a
-					// long-lived connection like WebServer's.
-
 					val lastChange = try {
 						DatabaseVersionResolver.resolveDatabaseVersion(database)
 					} catch (e: Exception) {
