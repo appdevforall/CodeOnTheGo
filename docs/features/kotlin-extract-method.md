@@ -290,5 +290,6 @@ The sheet, `prepare()`/`ActionData`, the two-step undo and the new tooltip row a
 - [kotlin-extract-variable.md](kotlin-extract-variable.md) - ADFA-4826; owns the shared Language section and every primitive reused here
 - ADFA-5081 - code action edits should be a single undo step (fixes R15's consequence)
 - ADFA-5082 - support a reassigned outer `var` as the single output (lifts R7's refusal)
+- ADFA-5178 - shorten signature type text to match extract variable (revisits R5's fully-qualified rendering)
 - ADFA-5048 - Java extract method, the sibling in `lsp/java`
 - [ARCHITECTURE.md](../../ARCHITECTURE.md)
