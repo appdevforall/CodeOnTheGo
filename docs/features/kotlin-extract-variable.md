@@ -81,8 +81,6 @@ From the innermost element the parent chain is walked outwards, collecting legal
 
 An expression is not a legal target when it is: a block, a loop, `return`/`throw`/`break`/`continue`, an operation reference, `super`, a lambda (the `{ ... }` expression and the literal inside it -- outside its call site the parameter types are gone, so `val v = { it.length + 1 }` does not compile), the selector of a qualified expression (`b` in `a.b`), a call's callee (`foo` in `foo(x)`), the left side of an assignment, or a **bare literal**. Excluding bare literals removes the only case where omitting the type annotation could change meaning - an `Int` literal where a `Long` is expected, or a bare `null` inferring `Nothing?`.
 
-When the trimmed selection exactly equals the innermost candidate's range, the user has already said which expression they mean and the chooser is not shown (`selectionMatchedCandidate`).
-
 **R3 - Live offsets and the version guard.** Analysis runs against `ktSymbolIndex.getCurrentKtFile(path)`, PSI refreshed to the open document's current version - an offset resolved against stale text points at the wrong element. The `KtFile` is fetched *before* entering `project.read`: the refresh needs `project.write`, and awaiting it under the read lock deadlocks.
 
 The plan records the document version it was computed against. On confirm, the version is re-read and the edit is **refused** if it has moved on (`msg_extract_variable_file_changed`) - the editor stays reachable while the sheet is open, and applying spans computed against older text would corrupt the file. Refusing is always safe; the user can invoke the action again.
@@ -147,7 +145,14 @@ Taken names are what a new declaration at the anchor would collide with or shado
 
 **R8 - Sheet.** One surface holding every choice, with no navigation between steps: expression chooser, name field, scope chooser, replace-all checkbox, Cancel/Extract. The four are interdependent - a different expression changes the scope list and the occurrence count - so they are shown together where that relationship is visible, rather than across sequential dialogs the user would have to back out of to explore.
 
-Each chooser is hidden when it has nothing to ask: the expression chooser when there is one candidate or the selection already matched one, the scope chooser when the chain has one rung, the replace-all checkbox at an occurrence count of one. Changing the expression re-suggests the name, because the old one described the old expression.
+Each chooser is hidden when it has nothing to ask: the expression chooser when there is one candidate,
+the scope chooser when the chain has one rung, the replace-all checkbox at an occurrence count of one.
+An exact selection does *not* hide the expression chooser, even though it says which expression the
+user meant: long-press is the natural phone gesture and selects exactly one token, so hiding the list
+there leaves no way to widen to an enclosing expression short of cancelling and dragging the selection
+handles. The matched expression is the innermost one, which is preselected anyway, so the cost is one
+extra row to look at. Changing the expression re-suggests the name, because the old one described the
+old expression.
 
 **R9 - Edit.** Exactly **one** `TextEdit`, built as a `RewriteSpan` covering one contiguous span. `IDELanguageClientImpl.applyActionEdits` applies each edit in its own `runOnUiThread` with no `beginBatchEdit`, and every range is interpreted against the *current* text - so a list of N edits would be applied against positions already shifted by its predecessors and would cost N undo steps with a typing window between each. Occurrences are substituted right-to-left within the span so an earlier substitution cannot shift a later offset.
 

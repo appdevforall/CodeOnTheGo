@@ -36,17 +36,13 @@ const val MAX_CANDIDATES = 3
 /**
  * The purely syntactic result of resolving a cursor or selection to extraction targets.
  *
- * [expressions] is innermost-first and at most [MAX_CANDIDATES] long. [selectionMatchedInnermost] is
- * true when the caller passed a non-empty selection whose trimmed range is exactly the innermost
- * candidate's range -- the user has already said which expression they mean, so the UI can skip
- * asking.
+ * [expressions] is innermost-first and at most [MAX_CANDIDATES] long.
  */
 data class CandidateSyntax(
 	val expressions: List<KtExpression>,
-	val selectionMatchedInnermost: Boolean,
 ) {
 	companion object {
-		val NONE = CandidateSyntax(emptyList(), selectionMatchedInnermost = false)
+		val NONE = CandidateSyntax(emptyList())
 	}
 }
 
@@ -90,13 +86,7 @@ fun candidateExpressionsAt(
 	}
 
 	if (collected.isEmpty()) return CandidateSyntax.NONE
-
-	val innermost = collected.first().textRange
-	val matched =
-		selectionStart != selectionEnd &&
-			innermost.startOffset == start &&
-			innermost.endOffset == end
-	return CandidateSyntax(collected, matched)
+	return CandidateSyntax(collected)
 }
 
 /**

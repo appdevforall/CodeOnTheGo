@@ -98,7 +98,7 @@ class ExtractVariableViewModel(
 		return ExtractVariableUiState(
 			candidateLabels = plan.candidates.map { it.label },
 			selectedCandidate = candidateIndex.coerceIn(plan.candidates.indices),
-			showCandidatePicker = plan.candidates.size > 1 && !plan.selectionMatchedCandidate,
+			showCandidatePicker = plan.candidates.size > 1,
 			name = resolvedName,
 			nameProblem = validateVariableName(resolvedName, candidate.takenNames),
 			scopeLabels = candidate.scopes.map { it.label },

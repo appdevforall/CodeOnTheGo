@@ -47,19 +47,10 @@ internal fun buildExtractionPlan(
 			if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)
 
 			analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
-				val candidates = syntax.expressions.mapNotNull { candidateFor(it) }
 				ExtractionPlan(
 					fileText = ktFile.text,
 					documentVersion = documentVersion,
-					candidates = candidates,
-					// Only meaningful while the innermost candidate survived filtering; otherwise the
-					// user's selection no longer corresponds to the first option shown.
-					selectionMatchedCandidate =
-						syntax.selectionMatchedInnermost &&
-							candidates.firstOrNull()?.span?.start ==
-							syntax.expressions
-								.first()
-								.textRange.startOffset,
+					candidates = syntax.expressions.mapNotNull { candidateFor(it) },
 				)
 			}
 		}

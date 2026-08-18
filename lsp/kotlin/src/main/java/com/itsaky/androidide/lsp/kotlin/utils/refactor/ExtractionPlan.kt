@@ -138,15 +138,11 @@ data class CandidateExpression(
  * [fileText] is the text the offsets here refer to, carried so the UI can build the replacement text
  * without PSI; [documentVersion] is what makes that safe -- if the live document has moved on by the
  * time the user confirms, the plan is discarded rather than applied against shifted offsets.
- *
- * [selectionMatchedCandidate] is true when the user's selection exactly matched the innermost
- * candidate, meaning they already expressed which expression they want and the UI should not ask.
  */
 data class ExtractionPlan(
 	val fileText: String,
 	val documentVersion: Int,
 	val candidates: List<CandidateExpression>,
-	val selectionMatchedCandidate: Boolean,
 ) {
 	val isEmpty: Boolean get() = candidates.isEmpty()
 
@@ -154,7 +150,7 @@ data class ExtractionPlan(
 		fun empty(
 			fileText: String = "",
 			documentVersion: Int = -1,
-		) = ExtractionPlan(fileText, documentVersion, emptyList(), selectionMatchedCandidate = false)
+		) = ExtractionPlan(fileText, documentVersion, emptyList())
 	}
 }
 

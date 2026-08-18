@@ -116,7 +116,7 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
-	fun `a selection matching an expression exactly short-circuits the chooser`() {
+	fun `a selection matching an expression exactly resolves to that expression`() {
 		val content =
 			"""
 			package p
@@ -129,12 +129,13 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 
 		val result = plan(content, start, start + "n * 2".length)
 
-		assertTrue(result.selectionMatchedCandidate)
 		assertEquals("n * 2", result.candidates.first().label)
+		// The enclosing expression stays on offer: an exact selection no longer hides the chooser.
+		assertEquals(listOf("n * 2", "wrap(n * 2)"), result.candidates.map { it.label })
 	}
 
 	@Test
-	fun `an off-boundary selection still resolves, without short-circuiting`() {
+	fun `an off-boundary selection still resolves`() {
 		val content =
 			"""
 			package p
@@ -148,7 +149,6 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 		// Selection stops mid-expression, as a touch-screen drag routinely does.
 		val result = plan(content, start, start + 3)
 
-		assertFalse(result.selectionMatchedCandidate)
 		assertEquals("n * 2", result.candidates.first().label)
 	}
 
