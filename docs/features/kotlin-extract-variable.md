@@ -140,7 +140,7 @@ Occurrence sets are ascending by offset and always contain the candidate's own s
 
 Validation returns a `NameProblem` - `Blank`, `NotAnIdentifier`, `Keyword`, `AlreadyTaken` - rather than throwing, since the input is a text field. Only Kotlin's **hard** keywords are rejected; soft and modifier keywords (`by`, `data`, `it`) are legal names. Backtick-quoted names are rejected: legal Kotlin, but a poor generated local, and accepting them would mean validating the quoted form too.
 
-Taken names are every declaration name in the file - deliberately conservative rather than scope-exact. Being over-broad costs a `size1` where `size` would have done; being under-broad generates code that shadows something. It is also purely syntactic, so it needs no analysis and is unit-testable.
+Taken names are what a new declaration at the anchor would collide with or shadow: the parameters and local declarations of each enclosing block, lambda, function and accessor, the members of each enclosing class or object, and the file's top-level declarations. A lambda that declares no parameter contributes `it`. Enclosing members and top-level names are included even though a local may legally shadow them, because shadowing one changes what every other reference to that name in the block means. A local in a *sibling* function is not included - it is invisible at the anchor, and treating it as taken refuses a legal name, which is a defect QA found on this ticket. The walk is purely syntactic, so it needs no analysis session and is unit-testable.
 
 **R8 - Sheet.** One surface holding every choice, with no navigation between steps: expression chooser, name field, scope chooser, replace-all checkbox, Cancel/Extract. The four are interdependent - a different expression changes the scope list and the occurrence count - so they are shown together where that relationship is visible, rather than across sequential dialogs the user would have to back out of to explore.
 
@@ -228,7 +228,7 @@ ExtractVariableAction.execAction (background)              lsp/kotlin/actions
            per candidate: type filter                       [R4]
                           enclosingScopeFrames + truncateAtCeiling   ScopeChain.kt / Occurrences.kt  [R5]
                           findOccurrences + excludeUnsoundOccurrences                Occurrences.kt  [R6]
-                          suggestVariableName + visibleNamesAt        NameSuggestion.kt / Occurrences.kt  [R7]
+                          suggestVariableName + namesInScopeAt        NameSuggestion.kt / Occurrences.kt  [R7]
          }
        }
   <- ExtractVariablePlan (plain data, no PSI)
@@ -248,7 +248,7 @@ Components:
 - **`utils/refactor/ExtractionPlan.kt`** - `TextSpan`, `AnchorForm`, `ScopeOption`, `CandidateExpression`, the plan, `collapseForLabel`. To be renamed to `ExtractVariablePlan` under a sealed `RefactoringPlan` carrying `fileText`, `documentVersion` and the shared version guard, so ADFA-5080 adds a subtype rather than renaming this one. Both refactorings share these *primitives*, not the aggregate: extract method has no scope chain, so `ScopeOption`/`AnchorForm`/`CandidateExpression` are not shared.
 - **`CandidateExpressions.kt`** - purely syntactic, no analysis session, hence unit-testable on its own (R2).
 - **`ScopeChain.kt`** - the syntactic chain and the three anchor forms (R5); indentation and newline detection shared with the edit builder.
-- **`Occurrences.kt`** - symbol-aware structural equality, the occurrence search, the unsoundness filter, the referenced-declaration ceiling, and `visibleNamesAt` (R5, R6, R7).
+- **`Occurrences.kt`** - symbol-aware structural equality, the occurrence search, the unsoundness filter, the referenced-declaration ceiling, and `namesInScopeAt` (R5, R6, R7).
 - **`NameSuggestion.kt`** - suggestion and validation, no analysis session (R7).
 - **`ExtractVariableEdit.kt`** - `RewriteSpan`, the three anchor-form rewrites, `toTextEdit` (R9). Pure text and offsets.
 - **`refactor/ui/`** - `ExtractVariableSheet` (a `BottomSheetDialogFragment` hosting a `ComposeView`), stateless `ExtractVariableSheetContent`, `ExtractVariableViewModel` + `ExtractVariableUiState` + sealed `ExtractVariableUiEvent`. `LabelledSection` and `OptionList` become shared with ADFA-5080. The ViewModel uses a plain `ViewModelProvider.Factory` rather than a Koin definition: it is sheet-scoped, injects nothing, and takes the plan as a runtime argument.

@@ -12,12 +12,23 @@ import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtBinaryExpression
+import org.jetbrains.kotlin.psi.KtBlockExpression
+import org.jetbrains.kotlin.psi.KtCallableDeclaration
+import org.jetbrains.kotlin.psi.KtCatchClause
+import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.psi.KtDestructuringDeclaration
 import org.jetbrains.kotlin.psi.KtExpression
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtForExpression
 import org.jetbrains.kotlin.psi.KtFunctionLiteral
+import org.jetbrains.kotlin.psi.KtParameter
+import org.jetbrains.kotlin.psi.KtPropertyAccessor
 import org.jetbrains.kotlin.psi.KtSimpleNameExpression
 import org.jetbrains.kotlin.psi.KtUnaryExpression
+import org.jetbrains.kotlin.psi.KtWhenExpression
 import org.jetbrains.kotlin.psi.psiUtil.parents
+import org.jetbrains.kotlin.psi.psiUtil.parentsWithSelf
 
 /**
  * Whether [a] and [b] are the same expression for extraction purposes: structurally identical *and*
@@ -259,15 +270,67 @@ private val ASSIGNMENT_TOKENS =
 private val INCREMENT_TOKENS = setOf(KtTokens.PLUSPLUS, KtTokens.MINUSMINUS)
 
 /**
- * Names a suggestion must avoid: every declaration name in the file.
+ * Names a new declaration at [candidate] would collide with or shadow.
  *
- * Deliberately conservative rather than scope-exact. A real scope query would need resolution and
- * would let `size` be suggested in one function because the collision is in another -- correct, but
- * the cost of being over-broad is only a `size1` where `size` would have done, while the cost of
- * being under-broad is generated code that shadows something. Cheap, needs no analysis, and being
- * purely syntactic it is unit-testable.
+ * Walks outward from the candidate collecting only what is visible there: the parameters and local
+ * declarations of each enclosing block, lambda, function and accessor, the members of each enclosing
+ * class or object, and the file's top-level declarations. A local in a *sibling* function is
+ * deliberately absent -- it is invisible here, and treating it as taken refuses a legal name.
+ *
+ * Enclosing members and top-level names stay in the set even though a local may legally shadow them:
+ * shadowing one changes what every *other* reference to that name in the block means.
+ *
+ * Purely syntactic, so it needs no analysis session and is unit-testable on its own.
  */
-internal fun visibleNamesAt(candidate: KtExpression): Set<String> =
-	PsiTreeUtil
-		.collectElementsOfType(candidate.containingFile, KtDeclaration::class.java)
-		.mapNotNullTo(mutableSetOf()) { it.name }
+internal fun namesInScopeAt(candidate: KtExpression): Set<String> {
+	val names = mutableSetOf<String>()
+	candidate.containingKtFile.declarations.forEach { it.addNameTo(names) }
+
+	for (ancestor in candidate.parentsWithSelf) {
+		when (ancestor) {
+			is KtFile -> break
+
+			is KtClassOrObject -> {
+				ancestor.declarations.forEach { it.addNameTo(names) }
+				ancestor.primaryConstructorParameters.forEach { it.addNameTo(names) }
+			}
+
+			is KtBlockExpression -> ancestor.statements.forEach { (it as? KtDeclaration)?.addNameTo(names) }
+
+			is KtFunctionLiteral -> {
+				val parameters = ancestor.valueParameters
+				// A lambda with no declared parameter still binds `it`, which a local would shadow.
+				if (parameters.isEmpty()) names += StandardNames.IMPLICIT_LAMBDA_PARAMETER_NAME.asString()
+				parameters.forEach { it.addNameTo(names) }
+			}
+
+			is KtPropertyAccessor -> ancestor.valueParameters.forEach { it.addNameTo(names) }
+
+			is KtCallableDeclaration -> ancestor.valueParameters.forEach { it.addNameTo(names) }
+
+			is KtForExpression -> ancestor.loopParameter?.addNameTo(names)
+
+			is KtCatchClause -> ancestor.catchParameter?.addNameTo(names)
+
+			is KtWhenExpression -> ancestor.subjectVariable?.addNameTo(names)
+
+			else -> Unit
+		}
+	}
+	return names
+}
+
+/** Adds this declaration's name, or each entry name when it destructures. */
+private fun KtDeclaration.addNameTo(names: MutableSet<String>) {
+	val destructuring =
+		when (this) {
+			is KtDestructuringDeclaration -> this
+			is KtParameter -> destructuringDeclaration
+			else -> null
+		}
+	if (destructuring != null) {
+		destructuring.entries.forEach { entry -> entry.name?.let(names::add) }
+		return
+	}
+	name?.let(names::add)
+}

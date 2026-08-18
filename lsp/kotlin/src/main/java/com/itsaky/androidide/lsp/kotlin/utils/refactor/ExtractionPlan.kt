@@ -89,6 +89,10 @@ data class ScopeOption(
  * [label] is the expression's source text with runs of whitespace collapsed, so a multi-line
  * expression stays readable in a one-line list item.
  *
+ * [takenNames] is what a new declaration here would collide with or shadow -- enclosing parameters and
+ * locals, enclosing class members, top-level names -- and is used both to uniquify [suggestedName] and
+ * to reject a typed name. A local in an unrelated function is not in it.
+ *
  * [scopes] is the legal scope chain, innermost first, and is never empty -- a candidate with no
  * legal anchor is not a candidate.
  */

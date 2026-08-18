@@ -86,7 +86,7 @@ private fun KaSession.candidateFor(expression: KtExpression): CandidateExpressio
 	val file = expression.containingKtFile
 	val scopes = frames.mapNotNull { scopeOptionFor(expression, span, it, file) }
 	if (scopes.isEmpty()) return null
-	val takenNames = visibleNamesAt(expression)
+	val takenNames = namesInScopeAt(expression)
 
 	return CandidateExpression(
 		label = collapseForLabel(expression.text),

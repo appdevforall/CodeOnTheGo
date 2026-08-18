@@ -9,6 +9,7 @@ import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -924,5 +925,78 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 				replaceAll = true,
 			)
 		assertNotNull(rewrite)
+	}
+
+	@Test
+	fun `a local in a sibling function does not take the name`() {
+		val content =
+			"""
+			package p
+			class Extract {
+				fun lengths(items: List<String>): List<Int> {
+					return items.map {
+						val length = it.length + 1
+						length
+					}
+				}
+
+				fun oneLineLambda(items: List<String>): List<Int> {
+					return items.map { it.length + 1 }
+				}
+			}
+			""".trimIndent()
+
+		val target = "it.length + 1"
+		val start = content.indexOf(target, content.indexOf("oneLineLambda"))
+		val result = plan(content, start, start + target.length)
+
+		// `val length` lives in another function's lambda: invisible here, so naming this one `length`
+		// is legal and must not be refused.
+		assertNull(validateVariableName("length", result.candidates.first().takenNames))
+	}
+
+	@Test
+	fun `an enclosing parameter and an enclosing local take the name`() {
+		val content =
+			"""
+			package p
+			fun wrap(n: Int): Int = n
+			fun demo(items: List<String>) {
+				val size = 0
+				wrap(items.size * 2)
+			}
+			""".trimIndent()
+
+		val taken = plan(content, content.indexOf("items.size") + 1).candidates.first().takenNames
+
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("items", taken))
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("size", taken))
+	}
+
+	@Test
+	fun `a member of the enclosing class takes the name`() {
+		val content =
+			"""
+			package p
+			class Extract {
+				private val total = 0
+
+				fun demo(n: Int): Int {
+					return n * 2
+				}
+			}
+			""".trimIndent()
+
+		val target = "n * 2"
+		val taken =
+			plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+				.candidates
+				.first()
+				.takenNames
+
+		// A local `val total` would shadow the member, changing what every other `total` in the block
+		// means, so it stays refused.
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("total", taken))
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("demo", taken))
 	}
 }
