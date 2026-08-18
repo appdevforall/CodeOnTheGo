@@ -30,13 +30,16 @@ import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.ActivityHelpBinding
+import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DeviceFormFactorUtils
+import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.applyMultiWindowFlags
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
+import org.slf4j.LoggerFactory
 import com.itsaky.androidide.common.R as CommonR
 
 class HelpActivity : BaseIDEActivity() {
@@ -62,6 +65,15 @@ class HelpActivity : BaseIDEActivity() {
 			context.startActivity(intent)
 		}
 	}
+
+	private val log = LoggerFactory.getLogger(HelpActivity::class.java)
+
+	// ADFA-5176: answers documentation requests from the database in-process, so loading a page
+	// no longer opens a TCP connection per asset to the local web server.
+	private val documentation by lazy { DocumentationRequestInterceptor(Environment.DOC_DB) }
+
+	// Wall-clock start of the page currently loading, for the ADFA-5176 measurement.
+	private var pageLoadStartMillis = 0L
 
 	@Suppress("ktlint:standard:backing-property-naming")
 	private var _binding: ActivityHelpBinding? = null
@@ -107,12 +119,18 @@ class HelpActivity : BaseIDEActivity() {
 			// Set WebViewClient to handle page navigation within the WebView
 			webView.webViewClient =
 				object : WebViewClient() {
+					override fun shouldInterceptRequest(
+						view: android.webkit.WebView,
+						request: android.webkit.WebResourceRequest,
+					): android.webkit.WebResourceResponse? = documentation.intercept(request) ?: super.shouldInterceptRequest(view, request)
+
 					override fun onPageStarted(
 						view: android.webkit.WebView?,
 						url: String?,
 						favicon: android.graphics.Bitmap?,
 					) {
 						super.onPageStarted(view, url, favicon)
+						pageLoadStartMillis = System.currentTimeMillis()
 					}
 
 					override fun onPageFinished(
@@ -121,6 +139,16 @@ class HelpActivity : BaseIDEActivity() {
 					) {
 						super.onPageFinished(view, url)
 						invalidateOptionsMenu()
+
+						if (pageLoadStartMillis != 0L) {
+							log.info(
+								"Loaded '{}' in {} ms; {}.",
+								url,
+								System.currentTimeMillis() - pageLoadStartMillis,
+								documentation.servedSummary(),
+							)
+							pageLoadStartMillis = 0L
+						}
 					}
 
 					override fun doUpdateVisitedHistory(
