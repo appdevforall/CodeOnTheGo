@@ -84,6 +84,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -385,7 +386,7 @@ class PluginManager private constructor(
 
 			val pluginFiles =
 				pluginsDir.listFiles { file ->
-					file.isFile && file.name.endsWith(".cgp", ignoreCase = true)
+					file.isFile && file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
 				} ?: return@withContext
 
 			logger.info("Found ${pluginFiles.size} plugin files")
@@ -488,7 +489,7 @@ class PluginManager private constructor(
 			return Result.failure(IllegalArgumentException(error))
 		}
 
-		if (!pluginFile.name.endsWith(".cgp", ignoreCase = true)) {
+		if (!pluginFile.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)) {
 			val error = "Only CGP plugins are supported. File: ${pluginFile.name}"
 			logger.error(error)
 			return Result.failure(IllegalArgumentException(error))
@@ -840,7 +841,7 @@ class PluginManager private constructor(
 		incomingFile: File,
 		existingPluginId: String,
 	): Boolean {
-		val existingFile = File(pluginsDir, "$existingPluginId.cgp")
+		val existingFile = File(pluginsDir, "$existingPluginId.$PLUGIN_ARCHIVE_EXTENSION")
 		val incomingSig = PluginLoader(context, incomingFile).getSignatureHash()
 		val existingSig = PluginLoader(context, existingFile).getSignatureHash()
 		if (incomingSig == null || existingSig == null) {
@@ -870,7 +871,7 @@ class PluginManager private constructor(
 		// Find and delete the plugin file (CGP)
 		val pluginFiles =
 			pluginsDir.listFiles { file ->
-				file.isFile && file.name.endsWith(".cgp", ignoreCase = true)
+				file.isFile && file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
 			}
 
 		if (pluginFiles == null || pluginFiles.isEmpty()) {

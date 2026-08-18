@@ -147,7 +147,7 @@ data class PluginManagerUiState(
 sealed class PluginManagerUiEvent {
     object LoadPlugins : PluginManagerUiEvent()
     data class EnablePlugin(val pluginId: String) : PluginManagerUiEvent()
-    data class InstallPlugin(val uri: Uri, val deleteSourceAfterInstall: Boolean) : PluginManagerUiEvent()
+    data class InstallPlugin(val source: PluginInstallSource, val deleteSourceAfterInstall: Boolean) : PluginManagerUiEvent()
     // ...
 }
 
