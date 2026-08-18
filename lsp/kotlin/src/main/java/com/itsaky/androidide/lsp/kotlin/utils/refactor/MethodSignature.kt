@@ -100,6 +100,19 @@ internal fun KaSession.buildCandidate(
 	val span = TextSpan(first.textRange.startOffset, last.textRange.endOffset)
 	val enclosing = enclosingDeclaration(first) ?: return refuse(ExtractionRefusal.NotASingleRegion)
 
+	/*
+	 * enclosingDeclaration skips a nameless KtNamedFunction, so an anonymous extension function
+	 * (`fun String.() { ... }` used as a value) between the region and enclosing is invisible to it,
+	 * and receiverTypeTextOf(enclosing) then reads the outer declaration's receiver instead of the
+	 * anonymous function's own -- the region can depend on a receiver the emitted function never gets.
+	 * Declined unconditionally rather than only when the region actually uses the receiver: anonymous
+	 * extension functions are rare, and this is far cheaper than the resolution innerImplicitReceiver
+	 * would need to tell real receiver use apart from an unrelated capture.
+	 */
+	if (anonymousExtensionFunctionBetween(first, enclosing)) {
+		return refuse(ExtractionRefusal.InnerImplicitReceiver("anonymous function"))
+	}
+
 	val typeParameterNames = typeParameterNamesOf(enclosing)
 	typeParameterIn(typeParameterNames, elements)?.let { return refuse(ExtractionRefusal.UsesTypeParameter(it)) }
 	if (usesBackingField(enclosing, elements)) return refuse(ExtractionRefusal.UsesBackingField)
@@ -250,6 +263,25 @@ private fun enclosingDeclaration(element: PsiElement): KtDeclaration? {
 		current = current.parent
 	}
 	return null
+}
+
+/**
+ * Whether an anonymous extension function -- a nameless `KtNamedFunction` with a receiver -- sits
+ * between [element] and [enclosing]. Every such ancestor contains [element], so it is necessarily
+ * outside the region; no separate in-region check is needed.
+ */
+private fun anonymousExtensionFunctionBetween(
+	element: PsiElement,
+	enclosing: KtDeclaration,
+): Boolean {
+	var current: PsiElement? = element.parent
+	while (current != null && current != enclosing) {
+		if (current is KtNamedFunction && current.name == null && current.receiverTypeReference != null) {
+			return true
+		}
+		current = current.parent
+	}
+	return false
 }
 
 /** Whether [element] is inside the region's span. */

@@ -1235,6 +1235,24 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a region inside an anonymous extension function is declined`() {
+		val content =
+			"""
+			package p
+			fun demo(): Int {
+				val f = fun String.(): Int {
+					return length + 1
+				}
+				return f("ab")
+			}
+			""".trimIndent()
+
+		val refusal = plan(content, content.indexOf("length + 1") + 1).refusal
+
+		assertEquals(ExtractionRefusal.InnerImplicitReceiver("anonymous function"), refusal)
+	}
+
+	@Test
 	fun `reading a Composable property getter adds the Composable annotation`() {
 		createSourceFile(
 			"Composable.kt",
