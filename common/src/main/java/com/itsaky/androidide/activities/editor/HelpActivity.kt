@@ -28,179 +28,219 @@ import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
-import org.adfa.constants.CONTENT_KEY
-import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.app.BaseIDEActivity
-import com.itsaky.androidide.common.R as CommonR
 import com.itsaky.androidide.common.databinding.ActivityHelpBinding
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DeviceFormFactorUtils
-import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.applyMultiWindowFlags
+import com.itsaky.androidide.utils.isSystemInDarkMode
+import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
+import com.itsaky.androidide.common.R as CommonR
 
 class HelpActivity : BaseIDEActivity() {
+	companion object {
+		private val EXTERNAL_SCHEMES = listOf("mailto:", "tel:", "sms:")
+		private const val MULTI_WINDOW_URI = "cogo-help://tooltip/active-window"
 
-    companion object {
-        private val EXTERNAL_SCHEMES = listOf("mailto:", "tel:", "sms:")
-        private const val MULTI_WINDOW_URI = "cogo-help://tooltip/active-window"
+		fun launch(
+			context: Context,
+			url: String,
+			title: String,
+		) {
+			val intent =
+				Intent(context, HelpActivity::class.java)
+					.apply {
+						putExtra(CONTENT_KEY, url)
+						putExtra(CONTENT_TITLE_KEY, title)
 
-        fun launch(context: Context, url: String, title: String) {
-            val intent = Intent(context, HelpActivity::class.java).apply {
-                putExtra(CONTENT_KEY, url)
-                putExtra(CONTENT_TITLE_KEY, title)
+						if (DeviceFormFactorUtils.getCurrent(context).isLargeScreenLike) {
+							data = MULTI_WINDOW_URI.toUri()
+						}
+					}.applyMultiWindowFlags(context)
+			context.startActivity(intent)
+		}
+	}
 
-                if (DeviceFormFactorUtils.getCurrent(context).isLargeScreenLike) {
-                    data = MULTI_WINDOW_URI.toUri()
-                }
-            }.applyMultiWindowFlags(context)
-            context.startActivity(intent)
-        }
-    }
+	@Suppress("ktlint:standard:backing-property-naming")
+	private var _binding: ActivityHelpBinding? = null
+	private val binding: ActivityHelpBinding
+		get() =
+			checkNotNull(_binding) {
+				"HelpActivity has been destroyed"
+			}
 
-    private var _binding: ActivityHelpBinding? = null
-    private val binding: ActivityHelpBinding
-        get() = checkNotNull(_binding) {
-            "HelpActivity has been destroyed"
-        }
+	override fun bindLayout(): View {
+		_binding = ActivityHelpBinding.inflate(layoutInflater)
+		return binding.root
+	}
 
-    override fun bindLayout(): View {
-        _binding = ActivityHelpBinding.inflate(layoutInflater)
-        return binding.root
-    }
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+		with(binding) {
+			setSupportActionBar(toolbar)
+			supportActionBar!!.setDisplayHomeAsUpEnabled(true)
+			toolbar.setNavigationOnClickListener { handleBackNavigation() }
 
-        with(binding) {
-            setSupportActionBar(toolbar)
-            supportActionBar!!.setDisplayHomeAsUpEnabled(true)
-            toolbar.setNavigationOnClickListener { handleBackNavigation() }
+			// Set status bar icons to be dark in light mode and light in dark mode
+			WindowCompat.getInsetsController(this@HelpActivity.window, this@HelpActivity.window.decorView).apply {
+				isAppearanceLightStatusBars = !isSystemInDarkMode()
+				isAppearanceLightNavigationBars = !isSystemInDarkMode()
+			}
 
-            // Set status bar icons to be dark in light mode and light in dark mode
-            WindowCompat.getInsetsController(this@HelpActivity.window, this@HelpActivity.window.decorView).apply {
-                isAppearanceLightStatusBars = !isSystemInDarkMode()
-                isAppearanceLightNavigationBars = !isSystemInDarkMode()
-            }
+			val pageTitle = intent.getStringExtra(CONTENT_TITLE_KEY)
+			val htmlContent = intent.getStringExtra(CONTENT_KEY)
 
-            val pageTitle = intent.getStringExtra(CONTENT_TITLE_KEY)
-            val htmlContent = intent.getStringExtra(CONTENT_KEY)
+			supportActionBar?.title = pageTitle ?: getString(R.string.help)
 
-            supportActionBar?.title = pageTitle ?: getString(R.string.help)
+			// Configure WebView settings for localhost access
+			webView.settings.javaScriptEnabled = true
+			webView.settings.allowFileAccess = true
+			webView.settings.allowFileAccessFromFileURLs = true
+			webView.settings.allowUniversalAccessFromFileURLs = true
+			webView.settings.domStorageEnabled = true
+			webView.settings.databaseEnabled = true
+			webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
-            // Configure WebView settings for localhost access
-            webView.settings.javaScriptEnabled = true
-            webView.settings.allowFileAccess = true
-            webView.settings.allowFileAccessFromFileURLs = true
-            webView.settings.allowUniversalAccessFromFileURLs = true
-            webView.settings.domStorageEnabled = true
-            webView.settings.databaseEnabled = true
-            webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+			// Set WebViewClient to handle page navigation within the WebView
+			webView.webViewClient =
+				object : WebViewClient() {
+					override fun onPageStarted(
+						view: android.webkit.WebView?,
+						url: String?,
+						favicon: android.graphics.Bitmap?,
+					) {
+						super.onPageStarted(view, url, favicon)
+					}
 
-            // Set WebViewClient to handle page navigation within the WebView
-            webView.webViewClient = object : WebViewClient() {
-                override fun onPageStarted(view: android.webkit.WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                    super.onPageStarted(view, url, favicon)
-                }
+					override fun onPageFinished(
+						view: android.webkit.WebView?,
+						url: String?,
+					) {
+						super.onPageFinished(view, url)
+						invalidateOptionsMenu()
+					}
 
-                override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                    invalidateOptionsMenu()
-                }
+					override fun doUpdateVisitedHistory(
+						view: android.webkit.WebView?,
+						url: String?,
+						isReload: Boolean,
+					) {
+						super.doUpdateVisitedHistory(view, url, isReload)
+						invalidateOptionsMenu()
+					}
 
-                override fun doUpdateVisitedHistory(view: android.webkit.WebView?, url: String?, isReload: Boolean) {
-                    super.doUpdateVisitedHistory(view, url, isReload)
-                    invalidateOptionsMenu()
-                }
+					override fun shouldOverrideUrlLoading(
+						view: android.webkit.WebView?,
+						url: String?,
+					): Boolean = handleUrlLoading(view, url)
 
-                override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
-                    return handleUrlLoading(view, url)
-                }
+					override fun onReceivedError(
+						view: android.webkit.WebView?,
+						errorCode: Int,
+						description: String?,
+						failingUrl: String?,
+					) {
+						super.onReceivedError(view, errorCode, description, failingUrl)
+						view?.loadData(
+							"""
+							<html><body>
+							<h3>Error Loading Content</h3>
+							<p>Unable to load: $failingUrl</p>
+							<p>Error: $description</p>
+							</body></html>
+							""".trimIndent(),
+							"text/html",
+							"UTF-8",
+						)
+					}
+				}
 
-                override fun onReceivedError(view: android.webkit.WebView?, errorCode: Int, description: String?, failingUrl: String?) {
-                    super.onReceivedError(view, errorCode, description, failingUrl)
-                    view?.loadData("""
-                        <html><body>
-                        <h3>Error Loading Content</h3>
-                        <p>Unable to load: $failingUrl</p>
-                        <p>Error: $description</p>
-                        </body></html>
-                    """.trimIndent(), "text/html", "UTF-8")
-                }
-            }
+			// Load the HTML file from the assets folder
+			htmlContent?.let { url ->
+				webView.loadUrl(url)
+			}
+		}
 
-            // Load the HTML file from the assets folder
-            htmlContent?.let { url ->
-                webView.loadUrl(url)
-            }
-        }
+		// Set up back navigation callback for system back button
+		onBackPressedDispatcher.addCallback(
+			this,
+			object : OnBackPressedCallback(true) {
+				override fun handleOnBackPressed() {
+					handleBackNavigation()
+				}
+			},
+		)
+		updateUIFromIntent(intent)
+	}
 
-        // Set up back navigation callback for system back button
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                handleBackNavigation()
-            }
-        })
-        updateUIFromIntent(intent)
-    }
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		setIntent(intent)
+		updateUIFromIntent(intent)
+	}
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        updateUIFromIntent(intent)
-    }
+	private fun updateUIFromIntent(currentIntent: Intent) {
+		val pageTitle = currentIntent.getStringExtra(CONTENT_TITLE_KEY)
+		supportActionBar?.title = pageTitle ?: getString(R.string.help)
 
-    private fun updateUIFromIntent(currentIntent: Intent) {
-        val pageTitle = currentIntent.getStringExtra(CONTENT_TITLE_KEY)
-        supportActionBar?.title = pageTitle ?: getString(R.string.help)
+		currentIntent.getStringExtra(CONTENT_KEY)?.let { url ->
+			binding.webView.loadUrl(url)
+		}
+	}
 
-        currentIntent.getStringExtra(CONTENT_KEY)?.let { url ->
-            binding.webView.loadUrl(url)
-        }
-    }
+	private fun handleUrlLoading(
+		view: android.webkit.WebView?,
+		url: String?,
+	): Boolean {
+		url ?: return false
+		return when {
+			EXTERNAL_SCHEMES.any { url.startsWith(it) } -> {
+				UrlManager.openUrl(url, context = this)
+				true
+			}
 
-    private fun handleUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
-        url ?: return false
-        return when {
-            EXTERNAL_SCHEMES.any { url.startsWith(it) } -> {
-                UrlManager.openUrl(url, context = this)
-                true
-            }
-            url.startsWith("http://localhost:6174/") -> {
-                view?.loadUrl(url)
-                true
-            }
-            else -> false
-        }
-    }
+			url.startsWith("http://localhost:6174/") -> {
+				view?.loadUrl(url)
+				true
+			}
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(CommonR.menu.menu_help, menu)
-        return true
-    }
+			else -> {
+				false
+			}
+		}
+	}
 
-    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(CommonR.id.action_close_help)?.isVisible =
-            _binding != null && binding.webView.canGoBack()
-        return super.onPrepareOptionsMenu(menu)
-    }
+	override fun onCreateOptionsMenu(menu: Menu): Boolean {
+		menuInflater.inflate(CommonR.menu.menu_help, menu)
+		return true
+	}
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            CommonR.id.action_close_help -> {
-                finish()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
+	override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+		menu.findItem(CommonR.id.action_close_help)?.isVisible =
+			_binding != null && binding.webView.canGoBack()
+		return super.onPrepareOptionsMenu(menu)
+	}
 
-    private fun handleBackNavigation() {
-        if (binding.webView.canGoBack()) {
-            binding.webView.goBack()
-        } else {
-            finish()
-        }
-    }
+	override fun onOptionsItemSelected(item: MenuItem): Boolean =
+		when (item.itemId) {
+			CommonR.id.action_close_help -> {
+				finish()
+				true
+			}
 
+			else -> {
+				super.onOptionsItemSelected(item)
+			}
+		}
+
+	private fun handleBackNavigation() {
+		if (binding.webView.canGoBack()) {
+			binding.webView.goBack()
+		} else {
+			finish()
+		}
+	}
 }
