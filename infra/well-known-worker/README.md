@@ -41,10 +41,15 @@ Prerequisites:
 
 1. The `well-known` R2 bucket exists in the account. `wrangler deploy` does not
    create it.
-2. A `CLOUDFLARE_WORKERS_DEPLOY_TOKEN` repository secret with **Account -> Workers Scripts
-   -> Edit** and **Zone -> Workers Routes -> Edit** on `appdevforall.org`. The
-   existing `CLOUDFLARE_KEY_ID` / `CLOUDFLARE_SECRET_ACCESS_KEY` pair is an R2
-   S3-compatible credential and cannot deploy a Worker.
+2. A `CLOUDFLARE_WORKERS_DEPLOY_TOKEN` repository secret, non-expiring, with:
+   - **Account -> Workers Scripts -> Edit**
+   - **Account -> Workers R2 Storage -> Read** - wrangler resolves the bucket
+     named in the binding via `GET /accounts/<id>/r2/buckets/well-known`, and
+     fails with `Authentication error [code: 10000]` without it
+   - **Zone -> Workers Routes -> Edit** on `appdevforall.org`
+
+   The existing `CLOUDFLARE_KEY_ID` / `CLOUDFLARE_SECRET_ACCESS_KEY` pair is an
+   R2 S3-compatible credential and cannot deploy a Worker.
 
 ## Verifying
 

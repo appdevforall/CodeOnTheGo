@@ -11,8 +11,12 @@ name: Deploy well-known Worker
 # Host header. The Worker uses an R2 binding instead, so the bucket stays private.
 #
 # Requires a CLOUDFLARE_WORKERS_DEPLOY_TOKEN secret with:
-#   Account -> Workers Scripts -> Edit   (upload the script, bind the bucket)
-#   Zone    -> Workers Routes  -> Edit   (attach the routes on appdevforall.org)
+#   Account -> Workers Scripts    -> Edit   (upload the script)
+#   Account -> Workers R2 Storage -> Read   (see below)
+#   Zone    -> Workers Routes     -> Edit   (attach the routes on appdevforall.org)
+# The R2 read scope is not optional: wrangler resolves the bucket named in the
+# r2_buckets binding via GET /accounts/<id>/r2/buckets/well-known and fails the
+# deploy with "Authentication error [code: 10000]" without it.
 # The existing CLOUDFLARE_KEY_ID / CLOUDFLARE_SECRET_ACCESS_KEY pair is an R2
 # S3-compatible credential and cannot deploy a Worker.
 
