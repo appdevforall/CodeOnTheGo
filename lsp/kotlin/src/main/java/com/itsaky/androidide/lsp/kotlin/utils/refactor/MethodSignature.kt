@@ -221,15 +221,22 @@ internal fun KaSession.buildCandidate(
 private fun refuse(refusal: ExtractionRefusal): SignatureResult = SignatureResult.Refused(refusal)
 
 /**
- * The named function, accessor, `init` block or constructor whose body holds [element]. Lambdas are
- * skipped: the new function is a sibling of the enclosing *named* declaration (R4), and the lambda's
- * captures become parameters.
+ * The named function, accessor, `init` block or constructor whose body holds [element]. Lambdas and
+ * anonymous functions are skipped: the new function is a sibling of the enclosing *named* declaration
+ * (R4), and their captures become parameters.
  */
 private fun enclosingDeclaration(element: PsiElement): KtDeclaration? {
 	var current: PsiElement? = element.parent
 	while (current != null) {
 		when (current) {
-			is KtNamedFunction, is KtPropertyAccessor, is KtAnonymousInitializer, is KtSecondaryConstructor -> {
+			is KtNamedFunction -> {
+				// PSI gives an anonymous `fun(...) { }` the same node type as a named function, with a null
+				// name. It is a value, not a declaration a sibling can follow: anchoring on it inserts the
+				// new function into an argument list or a property initializer, and the file stops parsing.
+				if (current.name != null) return current
+			}
+
+			is KtPropertyAccessor, is KtAnonymousInitializer, is KtSecondaryConstructor -> {
 				return current
 			}
 

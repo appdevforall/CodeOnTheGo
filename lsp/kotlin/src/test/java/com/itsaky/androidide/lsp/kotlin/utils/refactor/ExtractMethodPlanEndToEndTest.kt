@@ -1179,4 +1179,58 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 			plan(content, content.indexOf("helper.value()") + 1).refusal,
 		)
 	}
+
+	@Test
+	fun `a region inside an anonymous function argument anchors on the enclosing member`() {
+		val content =
+			"""
+			package p
+			class C {
+				fun demo() {
+					register(fun(v: Int) {
+						work(v)
+					})
+				}
+				fun register(h: (Int) -> Unit) {}
+				fun work(n: Int) {}
+			}
+			""".trimIndent()
+
+		val candidate = plan(content, content.indexOf("work(v)") + 1).candidates.first { it.label == "work(v)" }
+
+		// The anonymous function is a value, not a declaration a sibling can follow: an insertion at its
+		// own end lands before the closing `)` of `register(...)` and the file stops parsing.
+		val callEnd = content.indexOf("})") + "})".length
+		assertTrue(
+			"insertOffset ${candidate.insertOffset} must be past the enclosing call at $callEnd",
+			candidate.insertOffset >= callEnd,
+		)
+		assertEquals("\t", candidate.insertIndent)
+		assertEquals(listOf("private"), candidate.modifiers)
+		assertEquals(listOf("v" to "kotlin.Int"), candidate.parameters.map { it.name to it.typeText })
+	}
+
+	@Test
+	fun `a region inside an anonymous function initializer anchors on the enclosing function`() {
+		val content =
+			"""
+			package p
+			fun demo() {
+				val f = fun(): Int {
+					return compute()
+				}
+				f()
+			}
+			fun compute(): Int = 1
+			""".trimIndent()
+
+		val candidate = plan(content, content.indexOf("compute()") + 1).candidates.first { it.label == "compute()" }
+
+		assertEquals("", candidate.insertIndent)
+		assertTrue(
+			"insertOffset ${candidate.insertOffset} must be past the property initializer",
+			candidate.insertOffset >= content.indexOf("\tf()"),
+		)
+		assertEquals(listOf("private"), candidate.modifiers)
+	}
 }

@@ -72,6 +72,7 @@ Restricting to siblings in one block excludes every hard case - a selection cove
 | a member function, accessor or `init` of a class | a `private fun` member of that class |
 | a top-level function or property | a `private` top-level `fun` |
 | a lambda inside either of the above | still a sibling of the enclosing *named* declaration; the lambda's captures become parameters |
+| an anonymous `fun(...) { }` used as a value | still a sibling of the enclosing *named* declaration, exactly as for a lambda; PSI gives it the same node type as a named function, but it is a value and nothing can be inserted after it |
 | a local `fun` or local class | a local `fun` in the enclosing block, since the sibling *is* a statement there |
 | a companion object body | a member of the companion |
 
