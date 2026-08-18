@@ -75,7 +75,7 @@ Positions where no `val` can precede the expression, all rejected up front by `i
 
 There is deliberately **no `prepare()` visibility gate**. Deciding whether anything is extractable needs a K2 analysis session, which is far too costly for `prepare()` (UI thread, per menu item). The action stays visible on any Kotlin file and reports "nothing to extract" instead, matching `OrganizeImportsAction` and `ImplementMembersAction`. `requiresUIThread = false`, so the selection is read on a background thread; a torn read while the user is mid-edit can only produce a plan the version guard (R3) then refuses.
 
-**R2 - Region.** The selection is whitespace-trimmed first, because a touch-screen selection routinely carries a leading or trailing space; a whitespace-only selection yields nothing. For a cursor, the element is looked up at the offset and then at `offset - 1`, so a caret resting just past a token still resolves.
+**R2 - Region.** The selection is whitespace-trimmed first, because a touch-screen selection routinely carries a leading or trailing space; a selection holding nothing but whitespace collapses to a cursor at its start, since a drag over the gap between two tokens carries the same intent as a tap in it. For a cursor, the element is looked up at the offset and then at `offset - 1`, so a caret resting just past a token still resolves.
 
 From the innermost element the parent chain is walked outwards, collecting legal targets and stopping at the enclosing declaration. Illegal nodes along the way are **skipped rather than terminating the walk**, so `if (c) a else b` is still offered from inside one of its branches. At most 3 candidates, innermost first, deduplicated by range.
 

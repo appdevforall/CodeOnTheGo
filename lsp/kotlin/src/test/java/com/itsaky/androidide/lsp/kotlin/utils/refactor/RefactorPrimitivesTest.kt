@@ -91,9 +91,13 @@ class RefactorPrimitivesTest {
 	}
 
 	@Test
-	fun `trim leaves a cursor untouched and rejects a whitespace-only selection`() {
+	fun `trim leaves a cursor untouched and collapses a whitespace-only selection`() {
 		assertEquals(3 to 3, trimToCode("a  b", 3, 3))
-		assertNull(trimToCode("a    b", 1, 5))
+		// A drag over whitespace is the same intent as a tap in it: resolve from where it started.
+		assertEquals(1 to 1, trimToCode("a    b", 1, 5))
+		assertNull(trimToCode("a", 0, 5))
+		assertNull(trimToCode("a", -1, 1))
+		assertNull(trimToCode("abc", 2, 1))
 	}
 
 	@Test

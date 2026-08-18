@@ -1043,4 +1043,21 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 			apply(content, rewrite),
 		)
 	}
+
+	@Test
+	fun `a whitespace-only selection resolves like a caret at its start`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int, b: Int, c: Int): Int {
+				return a + b * c
+			}
+			""".trimIndent()
+
+		// The gap between `b` and `*`, as a touch drag over whitespace produces it rather than a caret.
+		val gap = content.indexOf("b * c") + 1
+		val result = plan(content, gap, gap + 1)
+
+		assertEquals(listOf("b", "b * c", "a + b * c"), result.candidates.map { it.label })
+	}
 }
