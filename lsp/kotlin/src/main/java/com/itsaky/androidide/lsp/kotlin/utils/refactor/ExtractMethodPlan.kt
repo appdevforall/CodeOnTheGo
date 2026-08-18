@@ -49,6 +49,9 @@ sealed interface CallSiteForm {
  * indentation, since nothing re-indents a code-action edit after it is applied.
  *
  * [returnTypeText] is null for a `Unit` function, where the `: Unit` is left off.
+ *
+ * [rawStringSpans] are the multi-line string literals inside the region, in file offsets. Their
+ * interior is whitespace-sensitive, so re-indentation must leave those lines byte-for-byte (ADR 0013).
  */
 data class ExtractMethodCandidate(
 	val label: String,
@@ -64,6 +67,7 @@ data class ExtractMethodCandidate(
 	val callSite: CallSiteForm,
 	val insertOffset: Int,
 	val insertIndent: String,
+	val rawStringSpans: List<TextSpan> = emptyList(),
 )
 
 /**

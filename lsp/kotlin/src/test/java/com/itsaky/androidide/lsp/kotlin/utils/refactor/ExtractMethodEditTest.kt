@@ -415,4 +415,79 @@ class ExtractMethodEditTest {
 
 		assertNull(buildExtractMethodRewrites(file, subject, "total"))
 	}
+
+	@Test
+	fun `a raw string keeps its interior lines when the body indent differs from the base`() {
+		val quotes = "\"\"\""
+		val nested =
+			"package p\n" +
+				"class C {\n" +
+				"\tfun demo() {\n" +
+				"\t\tif (true) {\n" +
+				"\t\t\tsend($quotes\n" +
+				"line one\n" +
+				"\t\t\t\tline two\n" +
+				"$quotes)\n" +
+				"\t\t}\n" +
+				"\t}\n" +
+				"}\n"
+		val span = TextSpan(nested.indexOf("send("), nested.indexOf("$quotes)") + "$quotes)".length)
+		val rewrites =
+			buildExtractMethodRewrites(
+				nested,
+				candidate(
+					span,
+					ExtractedBody.StatementBody(trailingReturn = null),
+					CallSiteForm.Call,
+				).copy(
+					insertOffset = nested.indexOf("\t}\n}") + 2,
+					insertIndent = "\t",
+					rawStringSpans = listOf(TextSpan(nested.indexOf(quotes), nested.indexOf("$quotes)") + quotes.length)),
+				),
+				"emit",
+			)
+
+		val text = apply(nested, rewrites!!)
+
+		assertTrue("the first line takes the body indent", text.contains("\n\t\tsend($quotes\n"))
+		assertTrue("an unindented literal line stays unindented", text.contains("\nline one\n"))
+		assertTrue("an indented literal line keeps its own indent", text.contains("\n\t\t\t\tline two\n"))
+		assertTrue("the closing delimiter line is untouched", text.contains("\n$quotes)\n"))
+	}
+
+	@Test
+	fun `a raw string is left alone when the body and base indents match`() {
+		// The base indent is not a prefix of an unindented literal line, so stripping it is a no-op while
+		// the body indent is still prefixed. Equal indents are not a safe case.
+		val quotes = "\"\"\""
+		val flat =
+			"package p\n" +
+				"class C {\n" +
+				"\tfun demo() {\n" +
+				"\t\tsend($quotes\n" +
+				"line one\n" +
+				"$quotes)\n" +
+				"\t}\n" +
+				"}\n"
+		val span = TextSpan(flat.indexOf("send("), flat.indexOf("$quotes)") + "$quotes)".length)
+		val rewrites =
+			buildExtractMethodRewrites(
+				flat,
+				candidate(
+					span,
+					ExtractedBody.StatementBody(trailingReturn = null),
+					CallSiteForm.Call,
+				).copy(
+					insertOffset = flat.indexOf("\t}\n}") + 2,
+					insertIndent = "\t",
+					rawStringSpans = listOf(TextSpan(flat.indexOf(quotes), flat.indexOf("$quotes)") + quotes.length)),
+				),
+				"emit",
+			)
+
+		val text = apply(flat, rewrites!!)
+
+		assertTrue("an unindented literal line stays unindented", text.contains("\nline one\n"))
+		assertTrue("the closing delimiter line is untouched", text.contains("\n$quotes)\n"))
+	}
 }

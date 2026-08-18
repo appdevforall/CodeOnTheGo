@@ -53,6 +53,7 @@ import org.jetbrains.kotlin.psi.KtQualifiedExpression
 import org.jetbrains.kotlin.psi.KtReturnExpression
 import org.jetbrains.kotlin.psi.KtSecondaryConstructor
 import org.jetbrains.kotlin.psi.KtSimpleNameExpression
+import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 import org.jetbrains.kotlin.psi.KtThisExpression
 import org.jetbrains.kotlin.psi.KtTypeReference
 import org.jetbrains.kotlin.psi.KtValueArgument
@@ -230,6 +231,7 @@ internal fun KaSession.buildCandidate(
 			// declared above the anchor. Every other target keeps the new member after its anchor (R4).
 			insertOffset = if (isLocalTarget) anchor.textRange.startOffset else anchor.textRange.endOffset,
 			insertIndent = leadingIndentAt(fileText, anchor.textRange.startOffset),
+			rawStringSpans = multiLineStringSpans(elements),
 		),
 	)
 }
@@ -297,6 +299,15 @@ private fun <T : PsiElement> descendantsOf(
 	elements: List<KtExpression>,
 	type: Class<T>,
 ): List<T> = elements.flatMap { PsiTreeUtil.collectElementsOfType(it, type) }
+
+/**
+ * The multi-line string literals inside [elements], in file offsets. A single-line literal needs no
+ * protection: `\n` inside it is an escape, not a line break the re-indentation can reach.
+ */
+private fun multiLineStringSpans(elements: List<KtExpression>): List<TextSpan> =
+	descendantsOf(elements, KtStringTemplateExpression::class.java)
+		.filter { it.text.contains('\n') }
+		.map { TextSpan(it.textRange.startOffset, it.textRange.endOffset) }
 
 /**
  * The name of a class declared inside [enclosing] that [type] is written in terms of, or null.

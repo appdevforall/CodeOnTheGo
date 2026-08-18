@@ -1391,4 +1391,29 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 
 		assertEquals(ExtractionRefusal.ExitsRegion, plan(content, start, end).refusal)
 	}
+
+	@Test
+	fun `a multi-line string in the region is recorded and emitted verbatim`() {
+		val quotes = "\"\"\""
+		val content =
+			"package p\n" +
+				"fun send(s: String) {}\n" +
+				"fun demo() {\n" +
+				"\tif (true) {\n" +
+				"\t\tsend($quotes\n" +
+				"line one\n" +
+				"$quotes)\n" +
+				"\t}\n" +
+				"}\n"
+		val (start, end) = selection(content, "send($quotes", "$quotes)")
+
+		val candidate = plan(content, start, end).candidates.single()
+
+		assertEquals(1, candidate.rawStringSpans.size)
+		assertEquals(content.indexOf(quotes), candidate.rawStringSpans.single().start)
+		assertEquals(content.indexOf("$quotes)") + quotes.length, candidate.rawStringSpans.single().end)
+
+		val text = apply(content, buildExtractMethodRewrites(content, candidate, "emit")!!)
+		assertTrue("the literal must not gain an indent level", text.contains("\nline one\n"))
+	}
 }
