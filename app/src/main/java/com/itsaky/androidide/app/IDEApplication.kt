@@ -205,7 +205,8 @@ class IDEApplication :
 		// instead runs from CredentialProtectedApplicationLoader.load(), which only proceeds once
 		// that storage is confirmed accessible.
 		if (isUserUnlocked) {
-			runBlocking(Dispatchers.IO) { cachedFilesDir }
+			runCatching { runBlocking(Dispatchers.IO) { cachedFilesDir } }
+				.onFailure { logger.warn("Failed to warm cachedFilesDir; first read will hit disk", it) }
 		}
 
 		ensureKoinStarted()

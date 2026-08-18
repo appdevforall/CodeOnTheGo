@@ -2,14 +2,18 @@ package com.itsaky.androidide.ui.compose
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -21,16 +25,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -58,20 +67,42 @@ private const val TAB_TEMPLATES = 1
  * off the button's own [MutableInteractionSource] sidesteps the race entirely - it observes the
  * same press/release stream the button's `clickable` reports, rather than competing for the raw
  * pointer event.
+ *
+ * Detection alone isn't suppression: [FloatingActionButton] routes to plain `clickable`
+ * (`detectTapAndPress`), which has no long-press concept, so the finger lift after a long press
+ * still fires `onClick`. The returned [LongPressAwareClick] latches a flag the moment the
+ * long-press timeout elapses - strictly before that lift is reported - so the caller's `onClick`
+ * can check-and-clear it via [LongPressAwareClick.consumeIfSuppressed] to swallow exactly that
+ * one click.
  */
 @Composable
-private fun rememberLongPressInteractionSource(onLongPress: () -> Unit): MutableInteractionSource {
+private fun rememberLongPressInteractionSource(onLongPress: () -> Unit): LongPressAwareClick {
 	val interactionSource = remember { MutableInteractionSource() }
 	val isPressed by interactionSource.collectIsPressedAsState()
 	val longPressTimeoutMillis = LocalViewConfiguration.current.longPressTimeoutMillis
 	val currentOnLongPress by rememberUpdatedState(onLongPress)
+	val suppressNextClick = remember { mutableStateOf(false) }
 	LaunchedEffect(isPressed) {
 		if (isPressed) {
 			delay(longPressTimeoutMillis)
+			suppressNextClick.value = true
 			currentOnLongPress()
 		}
 	}
-	return interactionSource
+	return LongPressAwareClick(interactionSource, suppressNextClick)
+}
+
+/** See [rememberLongPressInteractionSource]. */
+private class LongPressAwareClick(
+	val interactionSource: MutableInteractionSource,
+	private val suppressNextClick: MutableState<Boolean>,
+) {
+	/** Returns true (and clears the flag) if this click is the tail end of a long press. */
+	fun consumeIfSuppressed(): Boolean {
+		if (!suppressNextClick.value) return false
+		suppressNextClick.value = false
+		return true
+	}
 }
 
 /**
@@ -119,11 +150,23 @@ fun ManagerScreen(
 				},
 				actions = {
 					if (pagerState.currentPage == TAB_PLUGINS) {
-						IconButton(
-							onClick = {
-								UrlManager.openUrl(activity.getString(R.string.url_discover_plugins), null, activity)
-							},
-							interactionSource = rememberLongPressInteractionSource { showTooltip() },
+						// Not an IconButton: it appends its own clickable() after this modifier, which
+						// would compete with combinedClickable's detector for the same pointer events -
+						// see rememberLongPressInteractionSource's doc. .size(48.dp) matches
+						// IconButtonTokens' 48dp minimum touch target; combinedClickable's default
+						// indication already supplies the ripple IconButton would have.
+						Box(
+							modifier =
+								Modifier
+									.size(48.dp)
+									.clip(CircleShape)
+									.combinedClickable(
+										onClick = {
+											UrlManager.openUrl(activity.getString(R.string.url_discover_plugins), null, activity)
+										},
+										onLongClick = { showTooltip() },
+									),
+							contentAlignment = Alignment.Center,
 						) {
 							Icon(
 								painter = painterResource(R.drawable.ic_download),
@@ -136,14 +179,19 @@ fun ManagerScreen(
 		},
 		floatingActionButton = {
 			if (pagerState.currentPage == TAB_PLUGINS) {
+				val longPressAwareClick = rememberLongPressInteractionSource { showTooltip() }
 				FloatingActionButton(
 					onClick = {
+						// The long press that just showed the tooltip also ends in a finger lift, which
+						// FloatingActionButton's plain clickable() has no long-press concept to suppress
+						// on its own - swallow that one click here.
+						if (longPressAwareClick.consumeIfSuppressed()) return@FloatingActionButton
 						if (!pluginUiState.isInstalling) {
 							pluginViewModel.onEvent(PluginManagerUiEvent.OpenFilePicker)
 						}
 					},
 					modifier = Modifier.alpha(if (pluginUiState.isInstalling) DISABLED_ALPHA else 1f),
-					interactionSource = rememberLongPressInteractionSource { showTooltip() },
+					interactionSource = longPressAwareClick.interactionSource,
 				) {
 					Icon(
 						painter = painterResource(R.drawable.ic_add),
