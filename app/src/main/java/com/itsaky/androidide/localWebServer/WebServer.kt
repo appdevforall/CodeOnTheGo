@@ -18,15 +18,19 @@ import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.io.PrintWriter
+import java.io.SequenceInputStream
 import java.io.StringWriter
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
+import java.nio.ByteBuffer
 import java.sql.Date
 import java.text.SimpleDateFormat
+import java.util.Collections
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.RejectedExecutionException
@@ -79,6 +83,45 @@ data class JavaExecutionResult(
 	val timeoutLimit: Long,
 )
 
+/**
+ * Copies [bytes] into a direct [ByteBuffer] -- brotli4j's `attachDictionary` requires a direct
+ * buffer, a heap-backed one throws `IllegalArgumentException`.
+ *
+ * The capacity must be exactly [bytes]`.size`: `attachDictionary` reads the whole capacity and
+ * ignores position/limit, so trailing slack from an over-allocated buffer is treated as dictionary
+ * content and every decode then fails with `IOException: corrupted input`.
+ */
+internal fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
+	ByteBuffer.allocateDirect(bytes.size).apply {
+		put(bytes)
+		flip()
+	}
+
+/**
+ * Reads [chunks] back to back as one stream, without concatenating them into a new array.
+ * Cheap to build twice, which the no-dictionary retry in `decompressBrotli` relies on.
+ */
+internal fun chunksAsStream(chunks: List<ByteArray>): InputStream =
+	SequenceInputStream(Collections.enumeration(chunks.map { ByteArrayInputStream(it) }))
+
+/**
+ * Joins [chunks] into one exactly-sized array. A ByteArrayOutputStream would repeatedly double its
+ * buffer and then hand back a second full copy -- avoidable here since the total is known up front.
+ * Returns the sole element as-is when there is nothing to join.
+ */
+internal fun joinChunks(chunks: List<ByteArray>): ByteArray {
+	if (chunks.size == 1) {
+		return chunks[0]
+	}
+	val joined = ByteArray(chunks.sumOf { it.size })
+	var offset = 0
+	for (chunk in chunks) {
+		chunk.copyInto(joined, offset)
+		offset += chunk.size
+	}
+	return joined
+}
+
 class WebServer(
 	private val config: ServerConfig,
 ) {
@@ -96,6 +139,27 @@ class WebServer(
 	// Written under databaseLock's write lock, read without it in the fast path, hence volatile.
 	@Volatile
 	private var databaseTimestamp: Long = -1
+
+	// Timestamp of a debug database whose swap already failed, so a corrupt or unreadable one
+	// isn't reopened on every single request (it is checked per request). A newer copy has a
+	// different timestamp and is retried, which is the case that matters -- the developer
+	// replacing the file is exactly how they'd fix it.
+	private var failedDebugSwapTimestamp: Long = -1
+
+	// The shared dictionary Content's brotli-compressed rows are compressed against (see
+	// ADFA-5153). Lazily (re)loaded on demand, right before the first content fetch that needs
+	// it after `database` changes -- see compressionDictionaryStale -- rather than eagerly at
+	// database-open/swap time, but still cached (not reloaded per-request) once loaded for the
+	// currently active database. Null (no dictionary attached, plain-brotli decode) if the
+	// active database predates the dictionary-compression migration -- CompressionDictionary
+	// won't exist yet.
+	private var compressionDictionary: ByteBuffer? = null
+
+	// Set whenever `database` changes (see switchToDatabase); cleared once compressionDictionary
+	// has been (re)loaded for that database. Lets the dictionary stay lazily loaded -- only right
+	// before the first content fetch that actually needs it -- while still loading at most once
+	// per database change rather than once per request.
+	private var compressionDictionaryStale = true
 	private val log = LoggerFactory.getLogger(WebServer::class.java)
 	private val debugEnabled: Boolean = File(config.debugEnablePath).exists()
 
@@ -105,8 +169,6 @@ class WebServer(
 
 	// Frozen at startup; restart the server to pick up a change.
 	private val clearCacheEnabled: Boolean = File(config.clearCacheEnablePath).exists()
-	private val encodingHeader: String = "Accept-Encoding"
-	private val brotliCompression: String = "br"
 	private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
 	private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
 	private val gson: Gson =
@@ -193,6 +255,110 @@ class WebServer(
 	}
 
 	/**
+	 * Loads the shared Brotli dictionary most Content rows are compressed against (see ADFA-5153).
+	 * Returns null (logged) on any failure to load one -- a database that predates the dictionary
+	 * migration, a schema/row anomaly, or any other error -- so callers always fall back to plain,
+	 * dictionary-free brotli decode rather than propagating the failure (see [decompressBrotli]).
+	 */
+	private fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
+		// Whole body wrapped in one catch-all (matching DatabaseVersionResolver.resolveDatabaseVersion's
+		// pattern) rather than hand-anticipating individual SQLiteExceptions: a caller-visible failure
+		// here must never abort start() or leave a stale dictionary un-retried after a debug-DB swap --
+		// falling back to null (plain, dictionary-free decode) is always the safe choice.
+		return try {
+			val tableExists =
+				db
+					.rawQuery(
+						"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
+						null,
+					).use { it.moveToFirst() }
+			if (!tableExists) {
+				log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
+				return null
+			}
+
+			db.rawQuery("SELECT data FROM CompressionDictionary WHERE id = 1", null).use { cursor ->
+				if (!cursor.moveToFirst()) {
+					log.warn("CompressionDictionary table is empty; decoding brotli content without a dictionary.")
+					return null
+				}
+				val bytes = cursor.getBlob(0)
+				if (bytes == null) {
+					log.warn("CompressionDictionary row has a NULL data column; decoding brotli content without a dictionary.")
+					return null
+				}
+				// An empty blob would yield a 0-capacity buffer, which attachDictionary rejects --
+				// every row's dictionary decode would then fail with nothing above DEBUG to say why.
+				if (bytes.isEmpty()) {
+					log.warn("CompressionDictionary row has an empty data column; decoding brotli content without a dictionary.")
+					return null
+				}
+				toDirectByteBuffer(bytes)
+			}
+		} catch (e: Exception) {
+			log.error("Could not load compression dictionary; decoding brotli content without a dictionary: {}", e.message)
+			null
+		}
+	}
+
+	/**
+	 * Opens [path] as the active database, refreshing every piece of state that depends on which
+	 * database file is active -- [databaseTimestamp] and the per-database caches
+	 * [bookshelfTemplateId]/[templateCache] -- as one atomic operation. Does *not* load
+	 * [compressionDictionary] itself -- a different database can have a different dictionary (or
+	 * none) -- it only marks [compressionDictionaryStale] so the next content fetch that needs it
+	 * loads it lazily then (see [handleClient]), at most once per database change rather than
+	 * once per request. Only closes the previous database once the new one has opened
+	 * successfully, so a failed swap (this throws) leaves the previous, still-open database
+	 * serving requests rather than leaving [database] referencing an already-closed handle.
+	 */
+	private fun switchToDatabase(
+		path: String,
+		timestamp: Long,
+	) {
+		val newDatabase = SQLiteDatabase.openDatabase(path, null, SQLiteDatabase.OPEN_READONLY)
+		if (::database.isInitialized) {
+			try {
+				database.close()
+			} catch (e: Exception) {
+				log.error("Cannot close previous database: {}", e.message)
+			}
+		}
+		database = newDatabase
+		databaseTimestamp = timestamp
+		compressionDictionaryStale = true
+		bookshelfTemplateId = -1
+		templateCache.clear()
+	}
+
+	/**
+	 * Decompresses one Brotli-compressed Content row. Tries the shared dictionary first, since every
+	 * ADFA-5153-migrated row requires it, then falls back to a plain decode for rows that were never
+	 * dictionary-compressed: plugin-contributed Tier 3 docs (PluginDocumentationManager/BrotliCompressor
+	 * compress with no dictionary) or any row served from a pre-migration database. Attaching a
+	 * dictionary to a stream that wasn't compressed against one reliably fails to decode rather than
+	 * silently producing wrong bytes (verified empirically -- see docs/documentation-database.md), so
+	 * this ordering never lets a dictionary-compressed row fall through to the plain path by accident.
+	 */
+	private fun decompressBrotli(chunks: List<ByteArray>): ByteArray {
+		val dictionary = compressionDictionary
+		if (dictionary != null) {
+			try {
+				return BrotliInputStream(chunksAsStream(chunks)).use { stream ->
+					stream.attachDictionary(dictionary)
+					stream.readBytes()
+				}
+			} catch (e: IOException) {
+				log.debug(
+					"Dictionary decode failed for a brotli row (likely dictionary-free plugin content); retrying without a dictionary: {}",
+					e.message,
+				)
+			}
+		}
+		return BrotliInputStream(chunksAsStream(chunks)).use { it.readBytes() }
+	}
+
+	/**
 	 * Stops the server by closing the listening socket. Safe to call from any thread.
 	 * Causes [start]'s accept loop to exit. If [start] hasn't bound the socket yet --
 	 * including if it hasn't been called at all -- this still records that a stop was
@@ -226,10 +392,8 @@ class WebServer(
 				config.experimentsEnablePath,
 			)
 
-			databaseTimestamp = getDatabaseTimestamp(config.databasePath)
-
 			try {
-				database = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
+				switchToDatabase(config.databasePath, getDatabaseTimestamp(config.databasePath))
 			} catch (e: Exception) {
 				log.error("Cannot open database: {}", e.message)
 				return
@@ -466,37 +630,31 @@ class WebServer(
 	 */
 	private fun maybeSwapDebugDatabase() {
 		val debugDatabaseTimestamp = debugDatabaseTimestampIfDue() ?: return
-		if (debugDatabaseTimestamp <= databaseTimestamp) return
+		if (debugDatabaseTimestamp <= databaseTimestamp || debugDatabaseTimestamp == failedDebugSwapTimestamp) return
 
 		databaseLock.write {
 			// Another worker may have swapped while this one waited for the lock.
-			if (debugDatabaseTimestamp <= databaseTimestamp) return@write
+			if (debugDatabaseTimestamp <= databaseTimestamp || debugDatabaseTimestamp == failedDebugSwapTimestamp) return@write
 
 			// A missing, truncated or unreadable debug database must not fail the request that
-			// happened to notice it: log it and keep serving the database already open. The next
-			// check is one interval away, so a fixed file is picked up on its own.
-			val replacement =
-				try {
-					SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
-				} catch (e: Exception) {
-					log.error(
-						"Cannot open the debug database '{}'; still serving '{}': {}",
-						config.debugDatabasePath,
-						config.databasePath,
-						e.message,
-					)
-					return@write
-				}
-
-			val previous = database
-			database = replacement
-			databaseTimestamp = debugDatabaseTimestamp
-			bookshelfTemplateId = -1
-			// Templates are cached by id, and the replacement database can define the same ids with
-			// different content, so a stale compiled template would render for the new database.
-			templateCache.clear()
-			previous.close()
-			log.info("Swapped to the debug database '{}'.", config.debugDatabasePath)
+			// happened to notice it: log it and keep serving the database already open.
+			// switchToDatabase opens the replacement before closing the old handle and refreshes
+			// everything keyed to which file is active -- the dictionary staleness flag and the
+			// per-database template caches -- so this only has to decide what a failure means.
+			try {
+				switchToDatabase(config.debugDatabasePath, debugDatabaseTimestamp)
+				failedDebugSwapTimestamp = -1
+				log.info("Swapped to the debug database '{}'.", config.debugDatabasePath)
+			} catch (e: Exception) {
+				// Remembered, so a corrupt file is not reopened every interval; a newer copy has a
+				// different timestamp and is retried, which is how a developer fixes it.
+				failedDebugSwapTimestamp = debugDatabaseTimestamp
+				log.error(
+					"Cannot swap to debug database '{}'; ignoring it until it changes: {}",
+					config.debugDatabasePath,
+					e.message,
+				)
+			}
 		}
 	}
 
@@ -555,8 +713,6 @@ class WebServer(
 		val writer = PrintWriter(output, true)
 		if (debugEnabled) log.debug("  writer is {}.", writer)
 
-		var brotliSupported = false // assume nothing
-
 		// Read the request method line, it is always the first line of the request
 		var requestLine = readLineFromStream(input)
 		if (requestLine == null) {
@@ -577,7 +733,7 @@ class WebServer(
 		var path = parts[1].split("?")[0] // Discard any HTTP query parameters.
 		path = path.substring(1)
 
-		// Read all headers until blank line (needed for Content-Length on POST and Accept-Encoding on GET)
+		// Read all headers until blank line (needed for Content-Length on POST)
 		val headers = mutableMapOf<String, String>()
 		while (true) {
 			requestLine = readLineFromStream(input) ?: break
@@ -588,7 +744,6 @@ class WebServer(
 				headers[requestLine.substring(0, colon).trim().lowercase()] = requestLine.substring(colon + 1).trim()
 			}
 		}
-		brotliSupported = headers["accept-encoding"]?.contains(brotliCompression) == true
 
 		// Playground endpoint: POST only, handled before GET-only check
 		if (false && path == "playground/execute") {
@@ -606,7 +761,7 @@ class WebServer(
 
 		// Everything that reads `database` runs under the read lock, so a swap cannot close the
 		// handle from under this request. Readers do not block each other.
-		databaseLock.read { serveRequest(writer, output, path, brotliSupported) }
+		databaseLock.read { serveRequest(writer, output, path) }
 	}
 
 	/**
@@ -617,7 +772,6 @@ class WebServer(
 		writer: PrintWriter,
 		output: java.io.OutputStream,
 		path: String,
-		brotliSupported: Boolean,
 	) {
 		// Handle the special "pr" endpoint with highest priority
 		if (path.startsWith("pr/", false)) {
@@ -630,6 +784,15 @@ class WebServer(
 				"pr/ex" -> handleExEndpoint(writer, output)
 				else -> sendError(writer, output, httpNotFound, "Not Found", "Path requested: '$path'.")
 			}
+		}
+
+		// Lazily (re)loaded here -- the one place the dictionary is actually consumed (see
+		// decompressBrotli) -- rather than eagerly at database-open/swap time, but only once per
+		// database change: a swap (just above) marks compressionDictionaryStale rather than
+		// reloading immediately, so this only hits the database again when that flag is set.
+		if (compressionDictionaryStale) {
+			compressionDictionary = loadCompressionDictionary(database)
+			compressionDictionaryStale = false
 		}
 
 		// Database fetch
@@ -657,24 +820,27 @@ class WebServer(
 			}
 
 			cursor.moveToFirst()
-			var dbContent = cursor.getBlob(0)
+			val firstChunk = cursor.getBlob(0)
 			val dbMimeType = cursor.getString(1)
 			var compression = cursor.getString(2)
 			val templateId = cursor.getInt(3)
 
-			// Fragment handling for large content (> 1MB)
-			if (dbContent.size == contentChunkSize) {
+			// Fragment handling for large content (> 1MB). The chunks stay a list rather than
+			// being concatenated: the old accumulate-into-a-ByteArrayOutputStream-then-copy held
+			// the doubling buffer *and* its toByteArray() copy live alongside the decompressed
+			// output, roughly 35 MB transient for the largest bundled PDF (8.8 MB over 9 chunks).
+			val chunks = mutableListOf(firstChunk)
+			if (firstChunk.size == contentChunkSize) {
 				val query2 = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
 				var fragmentNumber = 1
-				val combined = ByteArrayOutputStream().apply { write(dbContent) }
-				var dbContent2 = dbContent
-				while (dbContent2.size == contentChunkSize) {
+				var nextChunk = firstChunk
+				while (nextChunk.size == contentChunkSize) {
 					val path2 = "$path-$fragmentNumber"
 					val cursor2 = database.rawQuery(query2, arrayOf(path2))
 					try {
 						if (cursor2.moveToFirst()) {
-							dbContent2 = cursor2.getBlob(0)
-							combined.write(dbContent2)
+							nextChunk = cursor2.getBlob(0)
+							chunks.add(nextChunk)
 							fragmentNumber++
 						} else {
 							break
@@ -683,19 +849,20 @@ class WebServer(
 						cursor2.close()
 					}
 				}
-				dbContent = combined.toByteArray()
 			}
 
-			// If a document is stored in brotli form and the client doesn't support that encoding
-			// decompress and send that to the client.
-			// Pebble templates have to be in string form so the retrieved database content may need to be
-			// decompressed.
-			if (compression == "brotli" && (!brotliSupported || templateId > 0)) {
-				dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
-				compression = "none"
-			} else if (compression == "brotli") {
-				compression = "br"
-			}
+			// Content is compressed at rest with brotli -- most rows against the shared dictionary
+			// loaded into compressionDictionary (see ADFA-5153), but plugin-contributed Tier 3 docs
+			// (PluginDocumentationManager/BrotliCompressor) are plain brotli with no dictionary.
+			// This server always decompresses before responding, so it never needs to negotiate
+			// Content-Encoding with the client.
+			var dbContent =
+				if (compression == "brotli") {
+					compression = "none"
+					decompressBrotli(chunks)
+				} else {
+					joinChunks(chunks)
+				}
 
 			// If the file is associated with a template, instantiate that template and send the result to the client
 			if (templateId > 0) {
@@ -705,7 +872,6 @@ class WebServer(
 			writer.println("HTTP/1.1 200 OK")
 			writer.println("Content-Type: $dbMimeType")
 			writer.println("Content-Length: ${dbContent.size}")
-			if (compression != "none") writer.println("Content-Encoding: $compression")
 			writer.println("Connection: close")
 			writer.println()
 			writer.flush()
@@ -726,7 +892,7 @@ class WebServer(
 	 * @param dbContent JSON bytes that will be parsed and supplied as the template context.
 	 * @param path The request/content path associated with this template (used for diagnostic/logging purposes).
 	 * @param dbMimeType The MIME type of the stored content (used for diagnostic/logging purposes).
-	 * @param compression The compression label of the stored content (e.g., "br", "none") (used for diagnostic/logging purposes).
+	 * @param compression The compression label of the stored content (always "none" by this point, since decompression already happened) (used for diagnostic/logging purposes).
 	 * @return The rendered template encoded as UTF-8 bytes.
 	 * @throws Exception If the template ID is not found, is duplicated in the database, or if template lookup/instantiation fails.
 	 */
