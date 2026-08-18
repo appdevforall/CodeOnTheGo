@@ -50,8 +50,9 @@ sealed interface CallSiteForm {
  *
  * [returnTypeText] is null for a `Unit` function, where the `: Unit` is left off.
  *
- * [rawStringSpans] are the multi-line string literals inside the region, in file offsets. Their
- * interior is whitespace-sensitive, so re-indentation must leave those lines byte-for-byte (ADR 0013).
+ * [rawStringSpans] are the raw (triple-quoted) string literals inside the region, in file offsets.
+ * Their interior is whitespace-sensitive, so re-indentation must leave those lines byte-for-byte
+ * (ADR 0013).
  */
 data class ExtractMethodCandidate(
 	val label: String,

@@ -231,7 +231,7 @@ internal fun KaSession.buildCandidate(
 			// declared above the anchor. Every other target keeps the new member after its anchor (R4).
 			insertOffset = if (isLocalTarget) anchor.textRange.startOffset else anchor.textRange.endOffset,
 			insertIndent = leadingIndentAt(fileText, anchor.textRange.startOffset),
-			rawStringSpans = multiLineStringSpans(elements),
+			rawStringSpans = rawStringSpansIn(elements),
 		),
 	)
 }
@@ -301,12 +301,12 @@ private fun <T : PsiElement> descendantsOf(
 ): List<T> = elements.flatMap { PsiTreeUtil.collectElementsOfType(it, type) }
 
 /**
- * The multi-line string literals inside [elements], in file offsets. A single-line literal needs no
- * protection: `\n` inside it is an escape, not a line break the re-indentation can reach.
+ * The raw (triple-quoted) string literals inside [elements], in file offsets. A single-line literal
+ * needs no protection: `\n` inside it is an escape, not a line break the re-indentation can reach.
  */
-private fun multiLineStringSpans(elements: List<KtExpression>): List<TextSpan> =
+private fun rawStringSpansIn(elements: List<KtExpression>): List<TextSpan> =
 	descendantsOf(elements, KtStringTemplateExpression::class.java)
-		.filter { it.text.contains('\n') }
+		.filter { it.text.startsWith("\"\"\"") }
 		.map { TextSpan(it.textRange.startOffset, it.textRange.endOffset) }
 
 /**

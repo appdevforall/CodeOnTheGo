@@ -304,8 +304,8 @@ class ExtractMethodEditTest {
 	@Test
 	fun `a multi-line CRLF region is reindented and keeps CRLF throughout`() {
 		// Mirrors "a multi-line statement range is reindented under the new function" with \r\n in
-		// place of every \n, so reindent's split(newline) path -- the CRLF-sensitive code -- actually
-		// runs, not just the declaration builder's own append(newline) calls.
+		// place of every \n, so indentedBodyLines's split(newline) path -- the CRLF-sensitive code --
+		// actually runs, not just the declaration builder's own append(newline) calls.
 		val text =
 			"package p\r\n" +
 				"fun demo(a: Int) {\r\n" +

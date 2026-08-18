@@ -37,11 +37,10 @@ fun buildExtractMethodRewrites(
 	val regionText = fileText.substring(span.start, span.end)
 	val baseIndent = leadingIndentAt(fileText, span.start)
 
+	val lines = indentedBodyLines(regionText, span.start, baseIndent, bodyIndent, newline, candidate.rawStringSpans)
 	val bodyLines =
 		when (val body = candidate.body) {
 			is ExtractedBody.ExpressionBody -> {
-				val lines =
-					indentedBodyLines(regionText, span.start, baseIndent, bodyIndent, newline, candidate.rawStringSpans)
 				// The first line is never inside a literal's interior -- the region starts at the code
 				// itself -- so it always carries bodyIndent and `return ` goes straight after it.
 				if (body.needsReturn) {
@@ -52,8 +51,7 @@ fun buildExtractMethodRewrites(
 			}
 
 			is ExtractedBody.StatementBody -> {
-				indentedBodyLines(regionText, span.start, baseIndent, bodyIndent, newline, candidate.rawStringSpans) +
-					listOfNotNull(body.trailingReturn?.let { bodyIndent + it })
+				lines + listOfNotNull(body.trailingReturn?.let { bodyIndent + it })
 			}
 		}
 
