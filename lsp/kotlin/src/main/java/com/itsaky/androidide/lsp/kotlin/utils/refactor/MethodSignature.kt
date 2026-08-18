@@ -907,8 +907,8 @@ private fun KaSession.usesComposable(elements: List<KtExpression>): Boolean =
 	} ||
 		simpleNamesIn(elements).any { reference ->
 			runCatching {
-				val property = reference.mainReference?.resolveToSymbols()?.firstOrNull() as? KaPropertySymbol
-				property?.hasComposableAnnotation() == true || property?.getter?.hasComposableAnnotation() == true
+				val property = reference.mainReference.resolveToSymbols().firstOrNull() as? KaPropertySymbol
+				property?.getter?.hasComposableAnnotation() == true
 			}.getOrNull() == true
 		}
 

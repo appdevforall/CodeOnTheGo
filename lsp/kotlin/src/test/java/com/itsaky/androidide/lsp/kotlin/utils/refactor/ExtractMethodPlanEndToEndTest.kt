@@ -1198,13 +1198,10 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 
 		val candidate = plan(content, content.indexOf("work(v)") + 1).candidates.first { it.label == "work(v)" }
 
-		// The anonymous function is a value, not a declaration a sibling can follow: an insertion at its
-		// own end lands before the closing `)` of `register(...)` and the file stops parsing.
-		val callEnd = content.indexOf("})") + "})".length
-		assertTrue(
-			"insertOffset ${candidate.insertOffset} must be past the enclosing call at $callEnd",
-			candidate.insertOffset >= callEnd,
-		)
+		// The anonymous function is a value, not a declaration a sibling can follow: the new member must
+		// anchor on the enclosing `fun demo`, not one character early inside `register(...)`.
+		val demoEnd = content.indexOf("\t}\n\tfun register") + 2
+		assertEquals(demoEnd, candidate.insertOffset)
 		assertEquals("\t", candidate.insertIndent)
 		assertEquals(listOf("private"), candidate.modifiers)
 		assertEquals(listOf("v" to "kotlin.Int"), candidate.parameters.map { it.name to it.typeText })
@@ -1227,10 +1224,8 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 		val candidate = plan(content, content.indexOf("compute()") + 1).candidates.first { it.label == "compute()" }
 
 		assertEquals("", candidate.insertIndent)
-		assertTrue(
-			"insertOffset ${candidate.insertOffset} must be past the property initializer",
-			candidate.insertOffset >= content.indexOf("\tf()"),
-		)
+		val demoEnd = content.indexOf("}\nfun compute") + 1
+		assertEquals(demoEnd, candidate.insertOffset)
 		assertEquals(listOf("private"), candidate.modifiers)
 	}
 
