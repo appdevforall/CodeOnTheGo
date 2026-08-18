@@ -35,6 +35,7 @@ import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtContinueExpression
 import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.psi.KtDeclarationWithBody
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtExpressionWithLabel
 import org.jetbrains.kotlin.psi.KtFunctionLiteral
@@ -518,6 +519,26 @@ private fun KaSession.reassignedOuterVar(
 }
 
 /**
+ * Whether [returnExpression] returns from a function declared *inside* the region, so its jump never
+ * crosses the region boundary and it is not an exit (R8).
+ *
+ * A `KtFunctionLiteral` is skipped rather than accepted: a lambda is transparent to an unlabelled
+ * `return`, which targets the enclosing function declaration, so a non-local return out of a lambda in
+ * the region really does leave it. An anonymous `fun` is not transparent and is not a literal, so the
+ * same walk stops on it correctly.
+ */
+private fun returnTargetInRegion(
+	returnExpression: KtReturnExpression,
+	span: TextSpan,
+): Boolean {
+	var owner = PsiTreeUtil.getParentOfType(returnExpression, KtDeclarationWithBody::class.java, true)
+	while (owner is KtFunctionLiteral) {
+		owner = PsiTreeUtil.getParentOfType(owner, KtDeclarationWithBody::class.java, true)
+	}
+	return owner != null && inRegion(owner, span)
+}
+
+/**
  * The tail-return exception (R8): the region's last statement is a `return`, and it is the region's
  * only `return`, `break` or `continue`. Purely syntactic, which is why it is worth having.
  */
@@ -526,7 +547,9 @@ private fun isTailReturn(
 	span: TextSpan,
 ): Boolean {
 	if (elements.last() !is KtReturnExpression) return false
-	val returns = descendantsOf(elements, KtReturnExpression::class.java)
+	val returns =
+		descendantsOf(elements, KtReturnExpression::class.java)
+			.filterNot { returnTargetInRegion(it, span) }
 	if (returns.size != 1 || returns.single() !== elements.last()) return false
 	return !hasLoopExit(elements, span)
 }
@@ -537,6 +560,7 @@ private fun hasExit(
 	span: TextSpan,
 ): Boolean {
 	for (returnExpression in descendantsOf(elements, KtReturnExpression::class.java)) {
+		if (returnTargetInRegion(returnExpression, span)) continue
 		// An unlabelled `return` always targets the enclosing named declaration, which is outside the
 		// region by construction. A labelled one targets the lambda carrying that label, which is not
 		// necessarily the nearest one -- `return@outer` from a nested lambda still leaves the region.

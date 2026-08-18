@@ -110,6 +110,8 @@ One exception to "the enclosing function's return type": a **secondary construct
 
 Declined: a `return` anywhere but the tail position, a `break`/`continue` whose target loop is outside the region, a labelled `return@` whose target is outside it, and a non-local return from an inlined lambda. Each would silently change meaning, since a `return` in the extracted body returns from *it*.
 
+Not an exit: a `return` belonging to a function **declared inside** the region - a local `fun`, an anonymous `fun`, or an anonymous-object override. It moves with its own declaration and its jump never crosses the region boundary, so counting it would refuse a perfectly good extraction with a message describing something the user did not write.
+
 **R9 - Receivers.**
 
 - **Class dispatch receiver** - nothing to do; the new function is a member of the same class.

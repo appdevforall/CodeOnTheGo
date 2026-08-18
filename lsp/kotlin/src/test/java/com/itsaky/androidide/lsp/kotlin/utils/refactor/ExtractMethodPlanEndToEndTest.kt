@@ -1289,4 +1289,93 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 
 		assertEquals(emptyList<String>(), candidate.annotations)
 	}
+
+	@Test
+	fun `a return inside a local function declared in the region is not an exit`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int): Int {
+				fun helper(): Int {
+					return a * 2
+				}
+				val x = helper()
+				return x
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "fun helper", "val x = helper()")
+
+		val result = plan(content, start, end)
+
+		assertNull(result.refusal)
+		val candidate = result.candidates.single()
+		assertEquals(CallSiteForm.AssignOutput("x"), candidate.callSite)
+		assertEquals(listOf("a"), candidate.parameters.map { it.name })
+	}
+
+	@Test
+	fun `a return inside an anonymous object override in the region is not an exit`() {
+		val content =
+			"""
+			package p
+			interface Runner { fun run() }
+			fun work() {}
+			fun use(r: Runner) {}
+			fun demo(flag: Boolean) {
+				val r = object : Runner {
+					override fun run() {
+						if (flag) return
+						work()
+					}
+				}
+				use(r)
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "val r = object", "use(r)")
+
+		val result = plan(content, start, end)
+
+		assertNull(result.refusal)
+		val candidate = result.candidates.single()
+		assertEquals(listOf("flag"), candidate.parameters.map { it.name })
+		assertEquals(CallSiteForm.Call, candidate.callSite)
+	}
+
+	@Test
+	fun `a tail return is recognised when a nested function in the region also returns`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int): Int {
+				fun helper(): Int {
+					return a * 2
+				}
+				return helper()
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "fun helper", "return helper()")
+
+		val candidate = plan(content, start, end).candidates.single()
+
+		assertEquals(CallSiteForm.Return, candidate.callSite)
+		assertEquals("kotlin.Int", candidate.returnTypeText)
+	}
+
+	@Test
+	fun `a non-local return from a lambda in the region is still an exit`() {
+		// A lambda is transparent to an unlabelled `return`, so this one really does leave the region.
+		val content =
+			"""
+			package p
+			fun demo(items: List<Int>): Int {
+				items.forEach { item ->
+					if (item > 0) return item
+				}
+				return 0
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "items.forEach", "\t}")
+
+		assertEquals(ExtractionRefusal.ExitsRegion, plan(content, start, end).refusal)
+	}
 }
