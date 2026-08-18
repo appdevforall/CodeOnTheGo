@@ -117,6 +117,16 @@ private fun KaSession.scopeOptionFor(
 
 	val anchorForm =
 		when (val form = frame.anchorForm) {
+			is AnchorForm.ExistingBlock -> {
+				/*
+				 * The rewrite refuses this geometry, so refusing it here too is what turns a sheet whose
+				 * confirm must fail into an up-front "nothing to extract". The candidate's own span is
+				 * what the rewrite anchors on when replace-all is off, so it is the span to test.
+				 */
+				if (blockPlacementFor(file.text, form, span) is BlockPlacement.Refused) return null
+				form
+			}
+
 			is AnchorForm.ConvertExpressionBody -> {
 				val declaration = frame.scopeElement.parent as? KtDeclarationWithBody
 				val needsReturn = expressionBodyNeedsReturn(frame.scopeElement)

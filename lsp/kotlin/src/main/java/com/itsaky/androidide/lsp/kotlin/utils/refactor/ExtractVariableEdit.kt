@@ -54,6 +54,65 @@ fun buildExtractVariableRewrite(
 }
 
 /**
+ * What a block rung can do with the anchor statement holding a given target.
+ *
+ * Shared by the planner and the rewriter so a rung is never *offered* that the rewrite would then
+ * refuse: the sheet would open, the user would fill it in, and the confirm would fail with the generic
+ * quick-fix error instead of the action reporting up front that there is nothing to extract.
+ */
+internal sealed interface BlockPlacement {
+	/** The declaration becomes a new line above [anchor], at [anchor]'s indentation. */
+	data class LineAbove(
+		val anchor: TextSpan,
+	) : BlockPlacement
+
+	/** The block is written on one line and is expanded, with the declaration inside its braces. */
+	data object ExpandOneLine : BlockPlacement
+
+	/** Neither is sound here, so the rung is declined. */
+	data object Refused : BlockPlacement
+}
+
+/**
+ * Decides the placement for the anchor statement of [form] that contains [firstTarget].
+ *
+ * [Refused] covers two shapes. Nothing in the block contains the target, which means the plan and the
+ * text disagree. Or something other than indentation precedes the anchor statement on its line while
+ * the block's own content spans several lines, as in `items.forEach { log(x)\n\tlog(y) }` -- anchoring
+ * at that line start would put the declaration before the block's own opening delimiter, outside the
+ * scope the user picked, where a lambda's `it` does not exist.
+ *
+ * A lambda body's content starts right at its first token with no owned whitespace, so `lineStart`
+ * sits before `contentSpan.start` on plain indentation alone; that gap must not read as "outside the
+ * block", which is why the second check tests the gap for real code rather than for mere distance.
+ */
+internal fun blockPlacementFor(
+	fileText: String,
+	form: AnchorForm.ExistingBlock,
+	firstTarget: TextSpan,
+): BlockPlacement {
+	val anchor =
+		form.statementSpans.firstOrNull { it.start <= firstTarget.start && firstTarget.end <= it.end }
+			?: return BlockPlacement.Refused
+	val lineStart = lineStartOffset(fileText, anchor.start)
+
+	/*
+	 * Two conditions together are what actually mean "written on one line": something other than
+	 * indentation already precedes the statement on its line (the brace, a header, or a prior
+	 * semicolon-separated statement), and the block's content itself contains no newline, so
+	 * re-emitting it as a single line loses nothing.
+	 */
+	val linePrefix = fileText.substring(lineStart, anchor.start)
+	val contentIsOneLine = !fileText.substring(form.contentSpan.start, form.contentSpan.end).contains('\n')
+	if (linePrefix.isNotBlank() && contentIsOneLine) return BlockPlacement.ExpandOneLine
+
+	if (form.contentSpan.start > lineStart && fileText.substring(lineStart, form.contentSpan.start).isNotBlank()) {
+		return BlockPlacement.Refused
+	}
+	return BlockPlacement.LineAbove(anchor)
+}
+
+/**
  * Inserts the declaration as its own line before the anchor statement, and rewrites everything from
  * there through the last occurrence.
  *
@@ -63,8 +122,7 @@ fun buildExtractVariableRewrite(
  * declaration lands on a line of its own at the right indentation, and ends at the last occurrence so
  * untouched trailing code is left alone.
  *
- * Null when no statement of the scope contains the occurrence, which would mean the plan and the text
- * disagree; the caller reports that rather than guessing.
+ * Null when [blockPlacementFor] refuses the anchor; the caller reports that rather than guessing.
  */
 private fun existingBlockRewrite(
 	fileText: String,
@@ -73,36 +131,15 @@ private fun existingBlockRewrite(
 	declaration: String,
 	name: String,
 ): RewriteSpan? {
-	val first = targets.first()
 	val last = targets.last()
-	val anchor = form.statementSpans.firstOrNull { it.start <= first.start && first.end <= it.end } ?: return null
+	val anchor =
+		when (val placement = blockPlacementFor(fileText, form, targets.first())) {
+			is BlockPlacement.Refused -> return null
+			is BlockPlacement.ExpandOneLine -> return oneLineBlockRewrite(fileText, form, targets, declaration, name)
+			is BlockPlacement.LineAbove -> placement.anchor
+		}
+
 	val lineStart = lineStartOffset(fileText, anchor.start)
-
-	// A block written on one line needs the declaration expanded inside the braces instead of hoisted
-	// above the line. `contentSpan.start` is not a reliable signal by itself: a lambda body's block
-	// does not own its braces, so `contentSpan.start` sits at the body's first token even when that
-	// token starts its own line -- comparing it to `lineStart` alone would misfire on an ordinary
-	// multi-line lambda. Two conditions together are what actually mean "one line": something other
-	// than indentation already precedes the statement on its line (the brace, a header, or a prior
-	// semicolon-separated statement), *and* the block's content itself contains no newline (so
-	// re-emitting it as a single line loses nothing).
-	val linePrefix = fileText.substring(lineStart, anchor.start)
-	val contentIsOneLine = !fileText.substring(form.contentSpan.start, form.contentSpan.end).contains('\n')
-	if (linePrefix.isNotBlank() && contentIsOneLine) {
-		return oneLineBlockRewrite(fileText, form, targets, declaration, name)
-	}
-
-	// A lambda body's content starts right at its first token with no owned whitespace, so `lineStart`
-	// sits before `contentSpan.start` on plain indentation alone -- that gap must not trigger a
-	// decline. What does mean "outside the block" is *real code* in that gap: the block's own opening
-	// delimiter (a call and its brace, a header) sharing the anchor's line, which only happens for the
-	// multi-line case the one-line check above did not catch. Anchoring there would put the
-	// declaration before that delimiter, outside the scope the user picked. Declining is safe; hoisting
-	// is not.
-	if (form.contentSpan.start > lineStart && fileText.substring(lineStart, form.contentSpan.start).isNotBlank()) {
-		return null
-	}
-
 	val indent = leadingIndentAt(fileText, anchor.start)
 	val newline = detectNewline(fileText)
 

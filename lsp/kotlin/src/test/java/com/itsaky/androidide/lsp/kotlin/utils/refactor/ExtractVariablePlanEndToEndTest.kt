@@ -9,7 +9,6 @@ import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -832,7 +831,7 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
-	fun `declines a lambda whose first statement shares the brace line but the block spans several lines`() {
+	fun `offers nothing when the only rung's anchor shares the brace line of a multi-line block`() {
 		val content =
 			"""
 			package p
@@ -845,22 +844,13 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 
 		val target = "it.length + 1"
 		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
-		val candidate = result.candidates.first()
-		// `it` is lambda-scoped, so the lambda body is the only legal anchor.
-		assertEquals(listOf("lambda"), candidate.scopes.map { it.label })
 
-		// The statement shares the opening-brace line, but the block itself spans two lines, so this is
-		// not the one-line expansion case. Anchoring at the line start would put the declaration before
-		// the lambda's `{`, where `it` is out of scope -- declining is the only safe outcome here.
-		val rewrite =
-			buildExtractVariableRewrite(
-				fileText = result.fileText,
-				candidateSpan = candidate.span,
-				scope = candidate.scopes.first(),
-				name = "length",
-				replaceAll = false,
-			)
-		assertNull(rewrite)
+		// `it` is lambda-scoped, so the lambda body is the only legal rung -- and its anchor statement
+		// shares the `items.forEach {` line while the block's own content spans two lines. Anchoring at
+		// that line start would put the declaration before the `{`, where `it` does not exist. The rung
+		// is refused, which leaves the candidate with no rung, which empties the plan: the action then
+		// reports "no expression to extract here" instead of opening a sheet whose confirm must fail.
+		assertTrue(result.isEmpty)
 	}
 
 	@Test

@@ -559,4 +559,68 @@ class ExtractVariableEditTest {
 			apply(text, result),
 		)
 	}
+
+	@Test
+	fun `placement expands a block written on one line`() {
+		val text = "fun f(items: List<String>) {\n\treturn items.map { it.length + 1 }\n}"
+		val content = spanOf(text, "it.length + 1")
+		val statement = spanOf(text, "it.length + 1")
+
+		assertEquals(
+			BlockPlacement.ExpandOneLine,
+			blockPlacementFor(
+				fileText = text,
+				form = AnchorForm.ExistingBlock(contentSpan = content, statementSpans = listOf(statement)),
+				firstTarget = statement,
+			),
+		)
+	}
+
+	@Test
+	fun `placement puts the declaration on the line above an ordinary multi-line block`() {
+		val text = "fun f(n: Int): Int {\n\tval a = n * 2\n\treturn a\n}"
+		val statement = spanOf(text, "val a = n * 2")
+		val content = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}'))
+
+		assertEquals(
+			BlockPlacement.LineAbove(statement),
+			blockPlacementFor(
+				fileText = text,
+				form = AnchorForm.ExistingBlock(contentSpan = content, statementSpans = listOf(statement)),
+				firstTarget = statement,
+			),
+		)
+	}
+
+	@Test
+	fun `placement refuses an anchor sharing the brace line of a multi-line block`() {
+		val text = "fun f(items: List<String>) {\n\titems.forEach { log(it.length + 1)\n\t\tlog(it) }\n}"
+		val first = spanOf(text, "log(it.length + 1)")
+		val second = spanOf(text, "log(it)")
+		// A lambda body block does not own its braces, so its content span starts at the first token.
+		val content = TextSpan(first.start, second.end)
+
+		assertEquals(
+			BlockPlacement.Refused,
+			blockPlacementFor(
+				fileText = text,
+				form = AnchorForm.ExistingBlock(contentSpan = content, statementSpans = listOf(first, second)),
+				firstTarget = first,
+			),
+		)
+	}
+
+	@Test
+	fun `placement refuses a target no statement of the block contains`() {
+		val text = "fun f() {\n\tval a = 1\n}"
+
+		assertEquals(
+			BlockPlacement.Refused,
+			blockPlacementFor(
+				fileText = text,
+				form = AnchorForm.ExistingBlock(contentSpan = TextSpan(8, text.length), statementSpans = emptyList()),
+				firstTarget = TextSpan(0, 3),
+			),
+		)
+	}
 }

@@ -89,6 +89,10 @@ The plan records the document version it was computed against. On confirm, the v
 
 **R4 - Value filter.** A candidate whose type is `Unit` or `Nothing` is dropped: `val u = println(x)` compiles but is pointless. A candidate whose legal scope chain is empty is dropped too - a candidate with no legal anchor is not a candidate.
 
+A rung whose anchor geometry the rewrite cannot honour (see R9) is dropped during the plan pass, not on
+confirm - so a candidate left with no rung is dropped, and a plan left with no candidate reports
+"nothing to extract" instead of opening a sheet whose confirm is bound to fail.
+
 **R5 - Scope chain.** Anchors are enumerated outward from the candidate's own statement, each one of three anchor forms:
 
 | Anchor form | When | Emitted as |
@@ -168,7 +172,9 @@ A block that fails *both* conditions -- something besides indentation precedes t
 line, but the block's own content spans more than one line, as in `items.forEach { log(x)\n\tlog(y) }`
 -- is **declined** rather than hoisted. Hoisting would anchor before the block's own opening delimiter,
 outside the scope the user picked, which is unsound whenever anything inside that scope (a lambda's
-`it`, say) is not visible there.
+`it`, say) is not visible there. The placement decision - expand, line above, or refuse - is one function
+shared by the planner and the rewriter, so the refusal reaches the user as "nothing to extract" before
+the sheet opens rather than as a failed confirm.
 
 The emitted text is **fully indented**: code-action edits bypass the editor's auto-indent (raw `Content.replace`), and `CMD_FORMAT_CODE` is a no-op for Kotlin. The indent unit is inferred from the file's own lines (a tab if any line is tab-indented, else the smallest positive run of leading spaces, defaulting to a tab), mirroring `ImplementMembersAction`; CRLF is used only when the file already contains it, so the edit never mixes line endings.
 
