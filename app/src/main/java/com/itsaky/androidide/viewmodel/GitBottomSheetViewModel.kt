@@ -12,6 +12,7 @@ import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.GitRepository
 import com.itsaky.androidide.git.core.GitRepositoryManager
 import com.itsaky.androidide.git.core.models.CommitHistoryUiState
+import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.git.core.models.GitStatus
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.projects.IProjectManager
@@ -33,6 +34,7 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
+import kotlin.time.Duration.Companion.milliseconds
 
 class GitBottomSheetViewModel(
 	private val credentialsManager: GitCredentialsManager,
@@ -45,6 +47,12 @@ class GitBottomSheetViewModel(
 
 	private val _currentBranch = MutableStateFlow<String?>(null)
 	val currentBranch: StateFlow<String?> = _currentBranch.asStateFlow()
+
+	private val _branches = MutableStateFlow<List<GitBranch>>(emptyList())
+	val branches: StateFlow<List<GitBranch>> = _branches.asStateFlow()
+
+	private val _checkoutState = MutableStateFlow<CheckoutUiState>(CheckoutUiState.Idle)
+	val checkoutState: StateFlow<CheckoutUiState> = _checkoutState.asStateFlow()
 
 	private val _commitHistory =
 		MutableStateFlow<CommitHistoryUiState>(CommitHistoryUiState.Loading)
@@ -64,6 +72,7 @@ class GitBottomSheetViewModel(
 
 	private var pullResetJob: Job? = null
 	private var pushResetJob: Job? = null
+	private var checkoutResetJob: Job? = null
 
 	var currentRepository: GitRepository? = null
 		private set
@@ -104,17 +113,62 @@ class GitBottomSheetViewModel(
 					val status = repo.getStatus()
 					_gitStatus.value = status
 					_currentBranch.value = repo.getCurrentBranch()?.name
+					_branches.value = repo.getBranches()
 					getLocalCommitsCount()
 				} ?: run {
 					_gitStatus.value = GitStatus.EMPTY
 					_currentBranch.value = null
+					_branches.value = emptyList()
 					_localCommitsCount.value = 0
 				}
 			} catch (e: Exception) {
 				log.error("Failed to refresh git status", e)
 				_gitStatus.value = GitStatus.EMPTY
 				_currentBranch.value = null
+				_branches.value = emptyList()
 				_localCommitsCount.value = 0
+			}
+		}
+	}
+
+	fun fetchBranches() {
+		viewModelScope.launch {
+			try {
+				val repo = currentRepository ?: return@launch
+				_branches.value = repo.getBranches()
+			} catch (e: Exception) {
+				log.error("Failed to fetch branches", e)
+				_branches.value = emptyList()
+			}
+		}
+	}
+
+	fun checkoutBranch(
+		branchName: String,
+		createNew: Boolean = false,
+		startPoint: String? = null,
+		onSuccess: (() -> Unit)? = null,
+	) {
+		checkoutResetJob?.cancel()
+		viewModelScope.launch {
+			try {
+				_checkoutState.value = CheckoutUiState.CheckingOut
+				val repository = currentRepository ?: return@launch
+				repository.checkout(branchName, createNew, startPoint)
+				refreshStatus()
+				_checkoutState.value = CheckoutUiState.Success(branchName)
+				onSuccess?.invoke()
+			} catch (e: CheckoutConflictException) {
+				log.error("Checkout conflict occurred", e)
+				_checkoutState.value = CheckoutUiState.Conflicts(e.conflictingPaths ?: emptyList())
+			} catch (e: Exception) {
+				log.error("Checkout failed", e)
+				_checkoutState.value = CheckoutUiState.Error(message = e.message)
+			} finally {
+				checkoutResetJob = viewModelScope.launch {
+					delay(3000.milliseconds)
+					_checkoutState.value = CheckoutUiState.Idle
+				}
 			}
 		}
 	}
@@ -332,6 +386,28 @@ class GitBottomSheetViewModel(
 	fun resetPushState() {
 		pushResetJob?.cancel()
 		_pushState.value = PushUiState.Idle
+	}
+
+	fun resetCheckoutState() {
+		checkoutResetJob?.cancel()
+		_checkoutState.value = CheckoutUiState.Idle
+	}
+
+	sealed class CheckoutUiState {
+		object Idle : CheckoutUiState()
+
+		object CheckingOut : CheckoutUiState()
+
+		data class Success(val branchName: String) : CheckoutUiState()
+
+		data class Conflicts(
+			val conflictingPaths: List<String> = emptyList(),
+		) : CheckoutUiState()
+
+		data class Error(
+			val message: String? = null,
+			val errorResId: Int? = R.string.unknown_error,
+		) : CheckoutUiState()
 	}
 
 	sealed class PullUiState {
