@@ -29,8 +29,15 @@ import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 
 data class ServerConfig(
 	val port: Int = 6174,
@@ -56,6 +63,12 @@ data class ServerConfig(
 	// every iteration's serving time (and silences the accept-wait half, whose "the last iteration
 	// was served promptly" test cannot hold at zero); a negative value is clamped to zero.
 	val stallThresholdMs: Long = 200,
+	// ADFA-5175: requests are served on a pool of at most this many threads. WebView opens up
+	// to 6 connections per host, so 16 leaves headroom for a second client.
+	val maxWorkerThreads: Int = 16,
+	// ADFA-5175: how often the sdcard debug database may be stat'ed. It lives on FUSE-backed
+	// emulated storage, and it is a developer-only override, so once a second is plenty.
+	val debugDatabaseCheckIntervalMs: Long = 1000,
 )
 
 data class JavaExecutionResult(
@@ -79,6 +92,9 @@ class WebServer(
 	private var stopRequested = false
 	private lateinit var serverSocket: ServerSocket
 	private lateinit var database: SQLiteDatabase
+
+	// Written under databaseLock's write lock, read without it in the fast path, hence volatile.
+	@Volatile
 	private var databaseTimestamp: Long = -1
 	private val log = LoggerFactory.getLogger(WebServer::class.java)
 	private val debugEnabled: Boolean = File(config.debugEnablePath).exists()
@@ -98,6 +114,10 @@ class WebServer(
 			.setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
 			.create()
 	private val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
+
+	// Read and written by any worker; -1 means "not fetched yet". Two workers racing to fetch it
+	// both write the same id, so a plain volatile is enough.
+	@Volatile
 	private var bookshelfTemplateId: Int = -1
 	private val httpInternalServerError = 500
 	private val httpNotFound = 404
@@ -113,13 +133,34 @@ class WebServer(
 	// ladder is 1 s, 3 s, 7 s, so anything past it is nobody browsing rather than ADFA-5172.
 	private val maxReportedAcceptWaitNanos = TimeUnit.SECONDS.toNanos(10)
 
-	// How long handleClient()'s last stat of config.debugDatabasePath took, and how long the last
-	// accept() waited. Plain vars are safe: the accept loop is serial and single-threaded, and it is
-	// the only reader and writer.
-	private var debugDbStatNanos = 0L
+	// Accept-thread-only state for ADFA-5172's report: how long the last accept() waited, and the
+	// wait before it. Only that one thread reads or writes them, so plain vars are safe.
 	private var acceptWaitNanos = 0L
 	private var previousAcceptWaitNanos = noPreviousIteration
-	private var previousBusyNanos = 0L
+
+	// Hal Eisen: required to fix StrictMode.VmPolicy.Builder.detectUntaggedSockets().
+	private val socketStatsTag = 0xC0DE
+
+	// Serializes swapping `database` (which closes the old handle) against the workers reading
+	// through it. Readers never block each other; only a swap waits.
+	private val databaseLock = ReentrantReadWriteLock()
+
+	private val debugDatabaseCheckIntervalNanos = TimeUnit.MILLISECONDS.toNanos(config.debugDatabaseCheckIntervalMs)
+
+	// Start one interval in the past so the first request still checks for a debug database.
+	private val lastDebugDatabaseCheckNanos = AtomicLong(System.nanoTime() - debugDatabaseCheckIntervalNanos)
+
+	// Serves accepted connections, so a slow or idle client cannot delay the next accept().
+	private var workers: ThreadPoolExecutor? = null
+
+	// Live client sockets. Shutdown closes them, which is what unblocks a worker parked in a
+	// socket read -- shutdownNow()'s interrupt does not, since stream reads ignore it.
+	private val liveSockets: MutableSet<Socket> = ConcurrentHashMap.newKeySet()
+
+	private val workerShutdownTimeoutSeconds = 2L
+
+	// How long an idle worker thread sticks around before the pool reclaims it.
+	private val workerIdleTimeoutSeconds = 30L
 
 	// function to obtain the last modified date of a documentation.db database
 	// this is used to see if there is a newer version of the database on the sdcard
@@ -171,8 +212,7 @@ class WebServer(
 	}
 
 	fun start() {
-		//  Hal Eisen: Required to fix StrictMode.VmPolicy.Builder.detectUntaggedSockets()
-		TrafficStats.setThreadStatsTag(0xC0DE)
+		TrafficStats.setThreadStatsTag(socketStatsTag)
 		try {
 			log.info(
 				"Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', " +
@@ -208,14 +248,18 @@ class WebServer(
 			}
 			log.info("WebServer started successfully on '{}', port {}.", config.bindName, config.port)
 
+			val pool = newWorkerPool()
+			workers = pool
+
 			while (true) {
 				val clientSocket = acceptNextClient() ?: break
 
+				// The worker owns the socket from here, including closing it.
 				try {
-					serveClient(clientSocket)
-				} finally {
+					pool.execute { handleConnection(clientSocket) }
+				} catch (e: RejectedExecutionException) {
+					log.warn("All {} workers are busy; dropping the connection {}.", config.maxWorkerThreads, clientSocket)
 					closeQuietly(clientSocket)
-					if (debugEnabled) log.debug("Served and closed clientSocket {}.", clientSocket)
 				}
 			}
 		} catch (e: Exception) {
@@ -224,6 +268,23 @@ class WebServer(
 			if (::serverSocket.isInitialized) {
 				serverSocket.close()
 			}
+
+			// Workers have to finish before the database closes below, or one of them queries a
+			// handle this thread has already closed. Closing their sockets is what gets them out
+			// of a blocking read; the interrupt from shutdownNow() alone would not.
+			workers?.let { pool ->
+				pool.shutdownNow()
+				liveSockets.forEach { closeQuietly(it) }
+				try {
+					if (!pool.awaitTermination(workerShutdownTimeoutSeconds, TimeUnit.SECONDS)) {
+						log.warn("Workers still running {} s after shutdown; closing the database anyway.", workerShutdownTimeoutSeconds)
+					}
+				} catch (e: InterruptedException) {
+					Thread.currentThread().interrupt()
+				}
+			}
+			workers = null
+
 			// database is opened before the stopRequested check that can abort start()
 			// early (and before the accept loop on every other exit path), so it must be
 			// closed here too, not just serverSocket -- isInitialized guards the case
@@ -240,9 +301,9 @@ class WebServer(
 	}
 
 	/**
-	 * Waits for the next connection. Null means the listening socket closed and the loop is done;
-	 * an accept that failed for any other reason is logged and retried, since one bad accept is not
-	 * a reason to stop serving.
+	 * Waits for the next connection, and reports the wait if it looks like ADFA-5172's stall. Null
+	 * means the listening socket closed and the loop is done; an accept that failed for any other
+	 * reason is logged and retried, since one bad accept is not a reason to stop serving.
 	 */
 	private fun acceptNextClient(): Socket? {
 		while (true) {
@@ -252,6 +313,8 @@ class WebServer(
 				val acceptStartNanos = System.nanoTime()
 				val clientSocket = serverSocket.accept()
 				acceptWaitNanos = System.nanoTime() - acceptStartNanos
+				reportAcceptWait(acceptWaitNanos, previousAcceptWaitNanos)
+				previousAcceptWaitNanos = acceptWaitNanos
 
 				if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
 				return clientSocket
@@ -268,10 +331,26 @@ class WebServer(
 		}
 	}
 
-	/** Serves one connection, answering with a 500 if handling it fails partway. */
-	private fun serveClient(clientSocket: Socket) {
-		val busyStartNanos = System.nanoTime()
-		debugDbStatNanos = 0L
+	private fun sendInternalServerError(clientSocket: Socket) {
+		try {
+			val output = clientSocket.outputStream
+
+			sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
+		} catch (e: Exception) {
+			log.error("Error sending error response: {}", e.message)
+		}
+	}
+
+	/** A closed socket reports itself only in the exception's message, hence the string test. */
+	private fun isSocketClosed(e: java.net.SocketException): Boolean = e.message?.contains("Closed", ignoreCase = true) == true
+
+	/**
+	 * Serves one connection and closes it. Runs on a worker, so the accept loop is free to take
+	 * the next connection while this one is still being answered.
+	 */
+	private fun handleConnection(clientSocket: Socket) {
+		liveSockets.add(clientSocket)
+		val startNanos = System.nanoTime()
 
 		try {
 			handleClient(clientSocket)
@@ -286,61 +365,61 @@ class WebServer(
 				sendInternalServerError(clientSocket)
 			}
 		} finally {
-			val busyNanos = System.nanoTime() - busyStartNanos
-			reportStall(acceptWaitNanos, busyNanos, previousAcceptWaitNanos, previousBusyNanos)
-			previousAcceptWaitNanos = acceptWaitNanos
-			previousBusyNanos = busyNanos
+			liveSockets.remove(clientSocket)
+			closeQuietly(clientSocket)
+			reportSlowRequest(System.nanoTime() - startNanos, clientSocket)
+
+			if (debugEnabled) log.debug("Served and closed clientSocket {}.", clientSocket)
 		}
 	}
-
-	private fun sendInternalServerError(clientSocket: Socket) {
-		try {
-			val output = clientSocket.outputStream
-
-			sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
-		} catch (e: Exception) {
-			log.error("Error sending error response: {}", e.message)
-		}
-	}
-
-	private fun closeQuietly(clientSocket: Socket) {
-		try {
-			clientSocket.close()
-		} catch (e: Exception) {
-			log.error("Cannot close client socket: {}", e.message)
-		}
-	}
-
-	/** A closed socket reports itself only in the exception's message, hence the string test. */
-	private fun isSocketClosed(e: java.net.SocketException): Boolean = e.message?.contains("Closed", ignoreCase = true) == true
 
 	/**
-	 * Logs one line per accept-loop iteration that crosses [ServerConfig.stallThresholdMs], for
-	 * ADFA-5172's periodic ~1 s stall. Splits "parked in accept()" from "busy outside it" because
-	 * that is what separates a stall the loop caused -- a slow iteration delays the next accept,
-	 * so an arriving SYN can be dropped and retried ~1 s later -- from one it merely suffered.
-	 * Deliberately independent of [debugEnabled], whose ~10 log lines per request perturb the
-	 * timing being measured.
+	 * Threads are created on demand up to [ServerConfig.maxWorkerThreads] and reused. The queue is
+	 * a [SynchronousQueue] so a burst grows the pool instead of lining up behind a busy worker --
+	 * queueing would reintroduce the head-of-line delay this pool exists to remove.
 	 */
-	private fun reportStall(
+	private fun newWorkerPool(): ThreadPoolExecutor {
+		val created = AtomicLong()
+
+		return ThreadPoolExecutor(
+			1,
+			config.maxWorkerThreads,
+			workerIdleTimeoutSeconds,
+			TimeUnit.SECONDS,
+			SynchronousQueue(),
+		) { runnable ->
+			Thread({
+				// Thread-local, so it has to be set on every worker, not just the accept thread.
+				TrafficStats.setThreadStatsTag(socketStatsTag)
+				runnable.run()
+			}, "WebServer-worker-${created.incrementAndGet()}").apply { isDaemon = true }
+		}
+	}
+
+	private fun closeQuietly(socket: Socket) {
+		try {
+			socket.close()
+		} catch (e: Exception) {
+			if (debugEnabled) log.debug("Cannot close client socket: {}", e.message)
+		}
+	}
+
+	/**
+	 * Reports a long wait in accept(), for ADFA-5172's periodic ~1 s stall. A long wait is just an
+	 * idle server, so only the first one after a busy stretch is reported: that is the stall under
+	 * sustained load, not a user who stopped browsing the documentation. Deliberately independent
+	 * of [debugEnabled], whose ~10 log lines per request perturb the timing being measured.
+	 */
+	private fun reportAcceptWait(
 		acceptWaitNanos: Long,
-		busyNanos: Long,
 		previousAcceptWaitNanos: Long,
-		previousBusyNanos: Long,
 	) {
-		val stalledBeforeAccept = shouldReportAcceptWait(acceptWaitNanos, previousAcceptWaitNanos)
-		val stalledWhileBusy = busyNanos >= stallThresholdNanos || debugDbStatNanos >= stallThresholdNanos
-		if (!stalledBeforeAccept && !stalledWhileBusy) return
+		if (!shouldReportAcceptWait(acceptWaitNanos, previousAcceptWaitNanos)) return
 
 		log.warn(
-			"Accept-loop stall: {} ms parked in accept(), then {} ms busy outside it, of which {} ms " +
-				"stat'ing '{}'. Previous iteration: {} ms parked, {} ms busy.",
+			"Waited {} ms in accept() for a connection under load (ADFA-5172: the loop was ready, " +
+				"so the delay is the handshake, not this server).",
 			millis(acceptWaitNanos),
-			millis(busyNanos),
-			millis(debugDbStatNanos),
-			config.debugDatabasePath,
-			millis(previousAcceptWaitNanos),
-			millis(previousBusyNanos),
 		)
 	}
 
@@ -361,7 +440,66 @@ class WebServer(
 		return loadWasSteady && acceptWaitNanos >= stallThresholdNanos && acceptWaitNanos <= maxReportedAcceptWaitNanos
 	}
 
+	/** The other half of ADFA-5172's instrumentation: time actually spent serving a connection. */
+	private fun reportSlowRequest(
+		elapsedNanos: Long,
+		clientSocket: Socket,
+	) {
+		if (elapsedNanos < stallThresholdNanos) return
+
+		log.warn("Took {} ms to serve {} (ADFA-5172).", millis(elapsedNanos), clientSocket)
+	}
+
 	private fun millis(nanos: Long): Long = TimeUnit.NANOSECONDS.toMillis(nanos)
+
+	/**
+	 * Swaps to the sdcard debug database once a newer one appears. Opens the replacement before
+	 * closing the old handle, so a failed open leaves the server serving the database it had.
+	 * Takes the write lock, so a caller must not already hold the read lock.
+	 */
+	private fun maybeSwapDebugDatabase() {
+		val debugDatabaseTimestamp = debugDatabaseTimestampIfDue() ?: return
+		if (debugDatabaseTimestamp <= databaseTimestamp) return
+
+		databaseLock.write {
+			// Another worker may have swapped while this one waited for the lock.
+			if (debugDatabaseTimestamp <= databaseTimestamp) return@write
+
+			val replacement = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
+			val previous = database
+			database = replacement
+			databaseTimestamp = debugDatabaseTimestamp
+			bookshelfTemplateId = -1
+			previous.close()
+			log.info("Swapped to the debug database '{}'.", config.debugDatabasePath)
+		}
+	}
+
+	/**
+	 * The debug database's last-modified time, or null when the last check was too recent. The
+	 * path is FUSE-backed emulated storage, so ADFA-5175 rate-limits what used to be a stat on
+	 * every request; one thread wins each interval and the rest skip the check.
+	 */
+	private fun debugDatabaseTimestampIfDue(): Long? {
+		val now = System.nanoTime()
+		val last = lastDebugDatabaseCheckNanos.get()
+		if (now - last < debugDatabaseCheckIntervalNanos) return null
+		if (!lastDebugDatabaseCheckNanos.compareAndSet(last, now)) return null
+
+		val startNanos = System.nanoTime()
+		val timestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
+		val elapsedNanos = System.nanoTime() - startNanos
+
+		if (elapsedNanos >= stallThresholdNanos) {
+			log.warn(
+				"Stat of '{}' took {} ms; it is on FUSE-backed emulated storage (ADFA-5172).",
+				config.debugDatabasePath,
+				millis(elapsedNanos),
+			)
+		}
+
+		return timestamp
+	}
 
 	/**
 	 * Reads a single line from the stream (bytes until newline). Same stream is used for headers
@@ -437,19 +575,25 @@ class WebServer(
 			return sendError(writer, output, 501, "Not Implemented")
 		}
 
-		// check to see if there is a newer version of the documentation.db database on the sdcard
-		// if there is use that for our responses
-		// Timed for ADFA-5172: this stats FUSE-backed emulated storage on every request.
-		val statStartNanos = System.nanoTime()
-		val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
-		debugDbStatNanos = System.nanoTime() - statStartNanos
-		if (debugDatabaseTimestamp > databaseTimestamp) {
-			bookshelfTemplateId = -1
-			database.close()
-			database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
-			databaseTimestamp = debugDatabaseTimestamp
-		}
+		// Use a newer documentation.db from the sdcard if one has appeared. Outside the read lock
+		// below, because swapping takes the write lock and this lock does not upgrade.
+		maybeSwapDebugDatabase()
 
+		// Everything that reads `database` runs under the read lock, so a swap cannot close the
+		// handle from under this request. Readers do not block each other.
+		databaseLock.read { serveRequest(writer, output, path, brotliSupported) }
+	}
+
+	/**
+	 * Answers one parsed request. Called with [databaseLock]'s read lock held, which is what makes
+	 * the shared [database] handle safe to use from a worker thread.
+	 */
+	private fun serveRequest(
+		writer: PrintWriter,
+		output: java.io.OutputStream,
+		path: String,
+		brotliSupported: Boolean,
+	) {
 		// Handle the special "pr" endpoint with highest priority
 		if (path.startsWith("pr/", false)) {
 			if (debugEnabled) log.debug("Found a pr/ path, '{}'.", path)
