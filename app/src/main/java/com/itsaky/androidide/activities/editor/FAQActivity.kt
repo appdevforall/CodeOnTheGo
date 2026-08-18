@@ -19,11 +19,15 @@ package com.itsaky.androidide.activities.editor
 
 import android.os.Bundle
 import android.view.View
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.core.graphics.Insets
 import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityFaqBinding
+import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
 import org.adfa.constants.CONTENT_KEY
 
 class FAQActivity : EdgeToEdgeIDEActivity() {
@@ -58,8 +62,18 @@ class FAQActivity : EdgeToEdgeIDEActivity() {
 			// Enable JavaScript if required
 			webView.settings.javaScriptEnabled = true
 
-			// Set WebViewClient to handle page navigation within the WebView
-			webView.webViewClient = WebViewClient()
+			// Set WebViewClient to handle page navigation within the WebView. ADFA-5176: it answers
+			// documentation from the database in-process, falling through to the local web server
+			// for anything it declines.
+			webView.webViewClient =
+				object : WebViewClient() {
+					override fun shouldInterceptRequest(
+						view: WebView,
+						request: WebResourceRequest,
+					): WebResourceResponse? =
+						DocumentationRequestInterceptor.shared.intercept(request)
+							?: super.shouldInterceptRequest(view, request)
+				}
 
 			// Load the HTML file from the assets folder
 			htmlContent?.let { webView.loadUrl(it) }

@@ -24,6 +24,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
@@ -31,11 +32,13 @@ import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
+import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
 
 
 class IDETooltipWebviewFragment : Fragment() {
 	private lateinit var webView: WebView
 	private lateinit var website : String
+	private val documentation = DocumentationRequestInterceptor.shared
 
 	//This warning is unnecessary because we control the content
 	@SuppressLint("SetJavaScriptEnabled")
@@ -75,6 +78,13 @@ class IDETooltipWebviewFragment : Fragment() {
 
 		// Set a WebViewClient to handle loading pages
 		webView.webViewClient = object : WebViewClient() {
+			// ADFA-5176: documentation comes from the database in-process; anything this declines
+			// still goes to the local web server.
+			override fun shouldInterceptRequest(
+				view: WebView,
+				request: WebResourceRequest,
+			): WebResourceResponse? = documentation.intercept(request) ?: super.shouldInterceptRequest(view, request)
+
 			override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
 				// Allow loading of local assets files
 				if (request.url.toString().startsWith("file:///android_asset/")) {
