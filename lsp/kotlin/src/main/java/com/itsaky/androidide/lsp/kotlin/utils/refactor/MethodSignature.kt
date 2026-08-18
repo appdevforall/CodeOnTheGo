@@ -120,7 +120,7 @@ internal fun KaSession.buildCandidate(
 	innerImplicitReceiver(enclosing, elements, span)?.let { return refuse(ExtractionRefusal.InnerImplicitReceiver(it)) }
 	reassignedOuterVar(enclosing, elements, span)?.let { return refuse(ExtractionRefusal.ReassignsOuterVar(it)) }
 
-	val tailReturn = !isExpression && isTailReturn(elements, span)
+	val tailReturn = !isExpression && isTailReturn(elements, span, enclosing)
 	if (!tailReturn && hasExit(elements, span)) return refuse(ExtractionRefusal.ExitsRegion)
 
 	val outputs = if (isExpression) RegionOutputs.NONE else outputsOf(enclosing, elements, span)
@@ -562,34 +562,54 @@ private fun KaSession.reassignedOuterVar(
 }
 
 /**
- * Whether [returnExpression] returns from a function declared *inside* the region, so its jump never
- * crosses the region boundary and it is not an exit (R8).
+ * The declaration an unlabelled [returnExpression] returns from.
  *
  * A `KtFunctionLiteral` is skipped rather than accepted: a lambda is transparent to an unlabelled
  * `return`, which targets the enclosing function declaration, so a non-local return out of a lambda in
  * the region really does leave it. An anonymous `fun` is not transparent and is not a literal, so the
  * same walk stops on it correctly.
  */
-private fun returnTargetInRegion(
-	returnExpression: KtReturnExpression,
-	span: TextSpan,
-): Boolean {
+private fun returnOwner(returnExpression: KtReturnExpression): KtDeclarationWithBody? {
 	var owner = PsiTreeUtil.getParentOfType(returnExpression, KtDeclarationWithBody::class.java, true)
 	while (owner is KtFunctionLiteral) {
 		owner = PsiTreeUtil.getParentOfType(owner, KtDeclarationWithBody::class.java, true)
 	}
-	return owner != null && inRegion(owner, span)
+	return owner
 }
 
 /**
- * The tail-return exception (R8): the region's last statement is a `return`, and it is the region's
- * only `return`, `break` or `continue`. Purely syntactic, which is why it is worth having.
+ * Whether [returnExpression] returns from a function declared *inside* the region, so its jump never
+ * crosses the region boundary and it is not an exit (R8).
+ */
+private fun returnTargetInRegion(
+	returnExpression: KtReturnExpression,
+	span: TextSpan,
+): Boolean {
+	val owner = returnOwner(returnExpression) ?: return false
+	return inRegion(owner, span)
+}
+
+/**
+ * The tail-return exception (R8): the region's last statement is a `return` from [enclosing] itself,
+ * and it is the region's only `return`, `break` or `continue`. Purely syntactic, which is why it is
+ * worth having.
  */
 private fun isTailReturn(
 	elements: List<KtExpression>,
 	span: TextSpan,
+	enclosing: KtDeclaration,
 ): Boolean {
-	if (elements.last() !is KtReturnExpression) return false
+	val tail = elements.last() as? KtReturnExpression ?: return false
+	/*
+	 * A labelled tail return can never be legitimate here: if the label named a lambda inside the
+	 * region, that lambda would have to contain the `return`, contradicting the `return` being a
+	 * top-level element of the region. So the label always names something outside, and the `return`
+	 * would move verbatim into a function where that label does not exist.
+	 */
+	if (tail.getLabelName() != null) return false
+	// The caller reads the return type off `enclosing`, so a tail `return` owned by anything else -- an
+	// anonymous `fun` wrapped around the region -- would take a type its own function never returns.
+	if (returnOwner(tail) !== enclosing) return false
 	val returns =
 		descendantsOf(elements, KtReturnExpression::class.java)
 			.filterNot { returnTargetInRegion(it, span) }

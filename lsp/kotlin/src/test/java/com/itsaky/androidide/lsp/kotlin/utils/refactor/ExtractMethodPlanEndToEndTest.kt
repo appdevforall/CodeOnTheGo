@@ -1393,6 +1393,43 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a tail return belonging to an anonymous function wrapped around the region is an exit`() {
+		val content =
+			"""
+			package p
+			fun compute(): Int = 1
+			fun demo() {
+				val f = fun(): Int {
+					val a = compute()
+					return a
+				}
+				println(f())
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "val a = compute()", "return a")
+
+		assertEquals(ExtractionRefusal.ExitsRegion, plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a labelled tail return is an exit`() {
+		val content =
+			"""
+			package p
+			fun f(n: Int): Int = n
+			fun demo(items: List<Int>) {
+				items.forEach {
+					val a = f(it)
+					return@forEach
+				}
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "val a = f(it)", "return@forEach")
+
+		assertEquals(ExtractionRefusal.ExitsRegion, plan(content, start, end).refusal)
+	}
+
+	@Test
 	fun `a multi-line string in the region is recorded and emitted verbatim`() {
 		val quotes = "\"\"\""
 		val content =
