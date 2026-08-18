@@ -271,8 +271,8 @@ Nothing outside `lsp/kotlin` changes except `TooltipTag.kt` and `values/strings.
 Unit tests in `:lsp:kotlin` (`flox activate -d flox/local -- ./gradlew :lsp:kotlin:testV7DebugUnitTest`), mirroring the extract-variable split so a failure localises to one layer:
 
 - **`ExtractMethodRegionTest`** - no analysis session, PSI only: outward snapping to whole statements, the sibling-in-one-block rule, cross-block rejection, and the expression path (R2).
-- **`ExtractMethodPlanEndToEndTest`** - analysis-backed, one case per rule: the parameter set, order and types (R5), the single output and the `Unit` case (R6, R7), the tail return (R8), the extension receiver (R9), `suspend` and `@Composable` (R10), and **one case per refusal reason** (R14).
-- **`ExtractMethodEditTest`** - pure text: the two edits and their descending order, the three call-site forms, indentation, the blank-line separation, and CRLF preservation (R15).
+- **`ExtractMethodPlanEndToEndTest`** - analysis-backed, one case per rule: the parameter set, order and types (R5), the single output and the `Unit` case (R6, R7), the tail return and the nested-declaration `return` that is not an exit (R8), the extension receiver (R9), `suspend`, a `@Composable` call and a `@Composable` property getter (R10), the anonymous-function anchor (R4), the recorded multi-line-string spans (R15), and **one case per refusal reason** (R14).
+- **`ExtractMethodEditTest`** - pure text: the two edits and their descending order, the three call-site forms, indentation, multi-line string literals left verbatim, the blank-line separation, and CRLF preservation (R15).
 - **`ExtractMethodViewModelTest`** - state derivation: chooser visibility, name validation against inherited names, and the rendered signature preview (R11, R12).
 
 `lsp/kotlin` has **no `androidTest`** source set, and none is added: `@Composable` detection is tested by declaring `package androidx.compose.runtime; annotation class Composable` in a test source module, and `suspend` is a language modifier, so both need **no new dependency** (`KtLspTestEnvironment` supports `extraLibraryJars`, but not for this).
