@@ -1,0 +1,85 @@
+name: Deploy well-known Worker
+
+# Deploys infra/well-known-worker, which serves
+# https://<host>/.well-known/assetlinks.json out of the private "well-known" R2
+# bucket. The object itself is written by signing-fingerprint.yml; this workflow
+# owns only the code that reads it, and does not verify the served result -
+# signing-fingerprint.yml already does that end to end when it deploys.
+#
+# A Cloudflare Origin Rule cannot do this job on the Free plan: host header, SNI
+# and DNS record overrides are Enterprise-only, and R2 selects a bucket from the
+# Host header. The Worker uses an R2 binding instead, so the bucket stays private.
+#
+# Requires a CLOUDFLARE_WORKERS_DEPLOY_TOKEN secret with:
+#   Account -> Workers Scripts -> Edit   (upload the script, bind the bucket)
+#   Zone    -> Workers Routes  -> Edit   (attach the routes on appdevforall.org)
+# The existing CLOUDFLARE_KEY_ID / CLOUDFLARE_SECRET_ACCESS_KEY pair is an R2
+# S3-compatible credential and cannot deploy a Worker.
+
+on:
+  workflow_dispatch:
+  # Dispatch is only offered for workflows on the default branch, so run on push
+  # to let this work from a feature branch before it reaches stage. Note that a
+  # push on any branch therefore deploys the live Worker.
+  push:
+    paths:
+      - 'infra/well-known-worker/**'
+      - '.github/workflows/deploy-well-known-worker.yml'
+
+permissions:
+  contents: read
+
+# One deploy at a time: concurrent uploads of the same script race on the routes.
+concurrency:
+  group: deploy-well-known-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Cloudflare credentials
+        env:
+          CLOUDFLARE_WORKERS_DEPLOY_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_DEPLOY_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+
+          # wrangler reports a missing token as an opaque auth error, so name the
+          # actual gap here. Required scopes are listed at the top of this file.
+          for var in CLOUDFLARE_WORKERS_DEPLOY_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!var:-}" ]; then
+              echo "ERROR: $var is not set. See the header of this workflow." >&2
+              exit 1
+            fi
+          done
+
+      - name: Deploy with Wrangler
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_WORKERS_DEPLOY_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: infra/well-known-worker
+          wranglerVersion: '4.124.0'
+          command: deploy
+
+      - name: Write job summary
+        run: |
+          set -euo pipefail
+          {
+            echo "## well-known Worker deployed"
+            echo
+            echo "Routes now served from the \`well-known\` R2 bucket:"
+            echo
+            echo "- \`https://appdevforall.org/.well-known/assetlinks.json\`"
+            echo "- \`https://www.appdevforall.org/.well-known/assetlinks.json\`"
+            echo
+            echo "A route with no matching object falls through to the site origin."
+            echo "Run **Print release signing certificate fingerprint** with \`deploy\` enabled to publish the object and verify it end to end."
+          } >> "$GITHUB_STEP_SUMMARY"

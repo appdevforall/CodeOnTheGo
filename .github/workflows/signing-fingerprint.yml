@@ -11,10 +11,10 @@ name: Print release signing certificate fingerprint
 # No private key material is printed.
 #
 # With deploy=true the file is written to the "well-known" R2 bucket at key
-# .well-known/assetlinks.json. A Cloudflare Origin Rule maps
-# https://<host>/.well-known/assetlinks.json onto that bucket, so the object key
-# has to match the request path exactly. The rule is configured out of band; CI
-# only owns the object.
+# .well-known/assetlinks.json. The Worker in infra/well-known-worker serves that
+# bucket at https://<host>/.well-known/assetlinks.json, deriving the object key
+# from the request path, so the key has to match the path exactly. The Worker is
+# deployed by deploy-well-known-worker.yml; this workflow owns only the object.
 
 on:
   workflow_dispatch:
@@ -227,8 +227,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The Cloudflare Origin Rule maps the request path straight onto the
-          # object key, so the key must stay ".well-known/assetlinks.json".
+          # The Worker derives the object key from the request path, so the key
+          # must stay ".well-known/assetlinks.json".
           aws s3 cp "$ASSETLINKS" "s3://$R2_BUCKET/$R2_KEY" \
             --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
             --content-type application/json
@@ -258,13 +258,13 @@ jobs:
             done
 
             if [ "$served" -ne 1 ]; then
-              echo "FAIL  $url did not return 200. The R2 upload succeeded, so the likely cause is a missing or misconfigured Cloudflare Origin Rule for this host." >&2
+              echo "FAIL  $url did not return 200. The R2 upload succeeded, so the likely cause is the well-known Worker not being deployed or not routed for this host (see deploy-well-known-worker.yml)." >&2
               failed=1
               continue
             fi
 
             if [ "$(jq -S -c . < "$body")" != "$expected" ]; then
-              echo "FAIL  $url served content that differs from what was uploaded (stale edge cache, or the rule points elsewhere)." >&2
+              echo "FAIL  $url served content that differs from what was uploaded (stale edge cache, or the Worker route points elsewhere)." >&2
               failed=1
               continue
             fi
