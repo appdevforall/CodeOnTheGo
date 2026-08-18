@@ -52,7 +52,9 @@ data class ServerConfig(
 			"/Download/CodeOnTheGo.webserver.cs0",
 	// Yes, this is hack code.
 	val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database",
-	// ADFA-5172: accept-loop iterations slower than this get one diagnostic log line.
+	// ADFA-5172: accept-loop iterations slower than this get one diagnostic log line. Zero reports
+	// every iteration's serving time (and silences the accept-wait half, whose "the last iteration
+	// was served promptly" test cannot hold at zero); a negative value is clamped to zero.
 	val stallThresholdMs: Long = 200,
 )
 
@@ -102,7 +104,14 @@ class WebServer(
 
 	private val contentChunkSize = 1024 * 1024
 
-	private val stallThresholdNanos = TimeUnit.MILLISECONDS.toNanos(config.stallThresholdMs)
+	// Sentinel for "no iteration has finished yet", distinct from an iteration that waited 0 ms.
+	private val noPreviousIteration = -1L
+
+	private val stallThresholdNanos = TimeUnit.MILLISECONDS.toNanos(config.stallThresholdMs.coerceAtLeast(0))
+
+	// A park longer than this is an idle server, not a lost handshake: Linux's SYN retransmission
+	// ladder is 1 s, 3 s, 7 s, so anything past it is nobody browsing rather than ADFA-5172.
+	private val maxReportedAcceptWaitNanos = TimeUnit.SECONDS.toNanos(10)
 
 	// How long handleClient()'s last stat of config.debugDatabasePath took. A plain var is safe:
 	// the accept loop is serial and single-threaded, and it is the only reader.
@@ -197,7 +206,7 @@ class WebServer(
 
 			// ADFA-5172: carried across iterations so a stall report can say whether the loop was
 			// even in accept() when the connection arrived.
-			var previousAcceptWaitNanos = 0L
+			var previousAcceptWaitNanos = noPreviousIteration
 			var previousBusyNanos = 0L
 
 			while (true) {
@@ -296,10 +305,7 @@ class WebServer(
 		previousAcceptWaitNanos: Long,
 		previousBusyNanos: Long,
 	) {
-		// A long wait in accept() is just an idle server, so report only the first one after a busy
-		// stretch: that is the periodic stall, not a user who stopped browsing the documentation.
-		val stalledBeforeAccept =
-			acceptWaitNanos >= stallThresholdNanos && previousAcceptWaitNanos < stallThresholdNanos
+		val stalledBeforeAccept = shouldReportAcceptWait(acceptWaitNanos, previousAcceptWaitNanos)
 		val stalledWhileBusy = busyNanos >= stallThresholdNanos || debugDbStatNanos >= stallThresholdNanos
 		if (!stalledBeforeAccept && !stalledWhileBusy) return
 
@@ -313,6 +319,23 @@ class WebServer(
 			millis(previousAcceptWaitNanos),
 			millis(previousBusyNanos),
 		)
+	}
+
+	/**
+	 * Whether a wait in accept() is worth a line. Waiting is normal, so this reports only a wait
+	 * that looks like ADFA-5172's stall: long enough to be a retransmitted handshake, short enough
+	 * not to be an idle server, and preceded by an iteration that was served promptly -- meaning
+	 * requests were arriving steadily right up to the stall.
+	 *
+	 * [previousAcceptWaitNanos] is [noPreviousIteration] until one iteration has completed, so the
+	 * very first request after startup is never reported.
+	 */
+	internal fun shouldReportAcceptWait(
+		acceptWaitNanos: Long,
+		previousAcceptWaitNanos: Long,
+	): Boolean {
+		val loadWasSteady = previousAcceptWaitNanos in 0 until stallThresholdNanos
+		return loadWasSteady && acceptWaitNanos >= stallThresholdNanos && acceptWaitNanos <= maxReportedAcceptWaitNanos
 	}
 
 	private fun millis(nanos: Long): Long = TimeUnit.NANOSECONDS.toMillis(nanos)
