@@ -150,7 +150,11 @@ class WebServerTest {
 			awaitPortBound(port)
 
 			// Nothing fetches the dictionary merely from starting the server -- only a content
-			// fetch does, so before any request there should be no dictionary query at all yet.
+			// fetch does, so before any request there should be no dictionary query at all yet --
+			// neither the sqlite_master existence check nor the data fetch.
+			verify(exactly = 0) {
+				db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
 			verify(exactly = 0) {
 				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
 			}
@@ -158,7 +162,13 @@ class WebServerTest {
 			repeat(3) { sendRawGetRequestAndAwaitClose(port, "/some/path") }
 
 			// Exactly one dictionary load across all 3 requests against the same, unchanged
-			// database -- the first request's lazy load, cached for the other two.
+			// database -- the first request's lazy load, cached for the other two. Both queries
+			// loadCompressionDictionary issues (the sqlite_master existence check, then the data
+			// fetch) must be checked, or a regression re-running just the existence check on
+			// every request would pass unnoticed.
+			verify(exactly = 1) {
+				db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
 			verify(exactly = 1) {
 				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
 			}
@@ -223,7 +233,13 @@ class WebServerTest {
 
 			sendRawGetRequestAndAwaitClose(port, "/some/path")
 			verify(exactly = 1) {
+				primaryDb.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
+			verify(exactly = 1) {
 				primaryDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+			verify(exactly = 0) {
+				debugDb.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
 			}
 			verify(exactly = 0) {
 				debugDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
@@ -238,10 +254,17 @@ class WebServerTest {
 
 			// Exactly one reload for the new (debug) database, across both post-swap requests --
 			// not zero (it must invalidate), not two (it must still cache after the first reload).
+			// Both queries loadCompressionDictionary issues must be checked (see the sibling test).
+			verify(exactly = 1) {
+				debugDb.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
 			verify(exactly = 1) {
 				debugDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
 			}
 			// The primary database's dictionary is never touched again after the swap.
+			verify(exactly = 1) {
+				primaryDb.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
 			verify(exactly = 1) {
 				primaryDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
 			}
@@ -261,6 +284,7 @@ class WebServerTest {
 	) {
 		Socket().use { socket ->
 			socket.connect(InetSocketAddress("localhost", port), 2_000)
+			socket.soTimeout = 2_000
 			socket.getOutputStream().apply {
 				write("GET $path HTTP/1.1\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
 				flush()
