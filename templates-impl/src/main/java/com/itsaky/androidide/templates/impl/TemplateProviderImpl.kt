@@ -24,10 +24,8 @@ import com.itsaky.androidide.templates.R
 import com.itsaky.androidide.templates.Template
 import com.itsaky.androidide.templates.impl.zip.ZipRecipeExecutor
 import com.itsaky.androidide.templates.impl.zip.ZipTemplateReader
-
-import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import com.itsaky.androidide.utils.Environment.TEMPLATES_DIR
-
+import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.slf4j.LoggerFactory
 import java.util.zip.ZipFile
 
@@ -39,56 +37,55 @@ import java.util.zip.ZipFile
 @Suppress("unused")
 @AutoService(ITemplateProvider::class)
 class TemplateProviderImpl : ITemplateProvider {
+	companion object {
+		private val log = LoggerFactory.getLogger(TemplateProviderImpl::class.java)
+	}
 
-    companion object {
-        private val log = LoggerFactory.getLogger(TemplateProviderImpl::class.java)
-    }
+	private val templates = mutableMapOf<String, Template<*>>()
+	val warnings: MutableList<TemplateWarning> = mutableListOf()
 
-    private val templates = mutableMapOf<String, Template<*>>()
-    val warnings: MutableList<TemplateWarning> = mutableListOf()
+	init {
+		reload()
+	}
 
-    init {
-        reload()
-    }
+	private fun initializeTemplates() {
+		val folder = TEMPLATES_DIR
+		val list = folder.listFiles { file -> file.extension.equals(TEMPLATE_ARCHIVE_EXTENSION, ignoreCase = true) } ?: return
 
-    private fun initializeTemplates() {
-        val folder = TEMPLATES_DIR
-        val list = folder.listFiles { file -> file.extension == TEMPLATE_ARCHIVE_EXTENSION } ?: return
+		for (zipFile in list) {
+			try {
+				val zipTemplates =
+					ZipTemplateReader.read(zipFile, warnings) { json, params, path, data, defModule ->
+						ZipRecipeExecutor({ ZipFile(zipFile) }, json, params, path, data, defModule)
+					}
 
-        for (zipFile in list) {
-            try {
-                val zipTemplates = ZipTemplateReader.read(zipFile, warnings) { json, params, path, data, defModule ->
-                    ZipRecipeExecutor({ ZipFile(zipFile) }, json, params, path, data, defModule)
-                }
+				for (t in zipTemplates) {
+					templates[t.templateId] = t
+				}
+			} catch (e: Exception) {
+				warnings.add(
+					TemplateWarning(
+						R.string.template_read_error_archive_load,
+						listOf(zipFile, e.message),
+					),
+				)
+				log.error("Failed to load template from archive: $zipFile", e)
+			}
+		}
+	}
 
-                for (t in zipTemplates) {
-                    templates[t.templateId] = t
-                }
-            } catch (e: Exception) {
-                warnings.add(TemplateWarning(
-                    R.string.template_read_error_archive_load,
-                    listOf(zipFile, e.message)))
-                log.error("Failed to load template from archive: $zipFile", e)
-            }
-        }
-    }
+	override fun getTemplates(): List<Template<*>> = ImmutableList.copyOf(templates.values)
 
-    override fun getTemplates(): List<Template<*>> {
-        return ImmutableList.copyOf(templates.values)
-    }
+	override fun getTemplate(templateId: String): Template<*>? = templates[templateId]
 
-    override fun getTemplate(templateId: String): Template<*>? {
-        return templates[templateId]
-    }
+	override fun reload() {
+		release()
+		warnings.clear()
+		initializeTemplates()
+	}
 
-    override fun reload() {
-        release()
-        warnings.clear()
-        initializeTemplates()
-    }
-
-    override fun release() {
-        templates.forEach { it.value.release() }
-        templates.clear()
-    }
+	override fun release() {
+		templates.forEach { it.value.release() }
+		templates.clear()
+	}
 }
