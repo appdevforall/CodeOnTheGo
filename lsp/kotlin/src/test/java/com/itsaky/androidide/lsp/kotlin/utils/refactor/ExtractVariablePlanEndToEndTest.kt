@@ -888,4 +888,41 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 			apply(content, rewrite),
 		)
 	}
+
+	@Test
+	fun `an occurrence sharing the brace line is not offered for replace-all`() {
+		val content =
+			"""
+			package p
+			fun log(n: Int) {}
+			fun demo(items: List<String>) {
+				items.forEach { log(it.length + 1)
+					log(it.length + 1) }
+			}
+			""".trimIndent()
+
+		val target = "it.length + 1"
+		val second = content.indexOf(target, content.indexOf(target) + 1)
+		val result = plan(content, second, second + target.length)
+		val candidate = result.candidates.first()
+
+		// The second site is on its own line and can host the declaration, so the rung stands. The first
+		// site shares the `items.forEach {` line, and anchoring on it would refuse the whole rewrite --
+		// so it is not offered as an occurrence, and the count the sheet shows stays achievable.
+		assertEquals(1, candidate.scopes.first().occurrences.size)
+		assertEquals(
+			listOf(TextSpan(second, second + target.length)),
+			candidate.scopes.first().occurrences,
+		)
+
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "length",
+				replaceAll = true,
+			)
+		assertNotNull(rewrite)
+	}
 }

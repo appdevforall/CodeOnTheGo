@@ -113,6 +113,27 @@ internal fun blockPlacementFor(
 }
 
 /**
+ * Narrows [occurrences] to the ones a replace-all can actually be anchored on.
+ *
+ * A replace-all anchors on the *first* served occurrence, so a leading occurrence whose own statement
+ * shares the block's opening-brace line would refuse the whole rewrite even though the site the user
+ * selected is perfectly placeable. Dropping such leading sites keeps "Replace all N occurrences"
+ * achievable, which is the same guarantee `excludeUnsoundOccurrences` makes about soundness.
+ *
+ * [candidateSpan] is never dropped: the site the user selected is always served. Only leading sites
+ * matter, because a later occurrence never becomes the anchor.
+ */
+internal fun servableOccurrences(
+	fileText: String,
+	form: AnchorForm,
+	occurrences: List<TextSpan>,
+	candidateSpan: TextSpan,
+): List<TextSpan> {
+	if (form !is AnchorForm.ExistingBlock) return occurrences
+	return occurrences.dropWhile { it != candidateSpan && blockPlacementFor(fileText, form, it) is BlockPlacement.Refused }
+}
+
+/**
  * Inserts the declaration as its own line before the anchor statement, and rewrites everything from
  * there through the last occurrence.
  *

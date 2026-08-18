@@ -113,7 +113,8 @@ private fun KaSession.scopeOptionFor(
 ): ScopeOption? {
 	val matches = findOccurrences(expression, frame.scopeElement, frame.searchRange)
 	val writes = writeOffsetsFor(expression, frame.scopeElement)
-	val occurrences = excludeUnsoundOccurrences(matches, span, writes)
+	val sound = excludeUnsoundOccurrences(matches, span, writes)
+	val occurrences = servableOccurrences(file.text, frame.anchorForm, sound, span)
 
 	val anchorForm =
 		when (val form = frame.anchorForm) {
@@ -121,7 +122,8 @@ private fun KaSession.scopeOptionFor(
 				/*
 				 * The rewrite refuses this geometry, so refusing it here too is what turns a sheet whose
 				 * confirm must fail into an up-front "nothing to extract". The candidate's own span is
-				 * what the rewrite anchors on when replace-all is off, so it is the span to test.
+				 * tested here; servableOccurrences is what makes the first served target placeable when
+				 * replace-all is on.
 				 */
 				if (blockPlacementFor(file.text, form, span) is BlockPlacement.Refused) return null
 				form
