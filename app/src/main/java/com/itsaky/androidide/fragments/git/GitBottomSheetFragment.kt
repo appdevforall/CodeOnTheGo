@@ -37,12 +37,18 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import java.io.File
 
+import com.itsaky.androidide.events.ListProjectFilesRequestEvent
+import com.itsaky.androidide.fragments.git.GitBranchPopupWindow
+import com.google.android.material.textfield.TextInputEditText
+import org.greenrobot.eventbus.EventBus
+
 class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
     private val viewModel: GitBottomSheetViewModel by activityViewModel()
     private val bottomSheetViewModel: BottomSheetViewModel by activityViewModel()
     private lateinit var fileChangeAdapter: GitFileChangeAdapter
     private lateinit var credentialsManager: GitCredentialsManager
+    private lateinit var branchPopupWindow: GitBranchPopupWindow
 
     private var _binding: FragmentGitBottomSheetBinding? = null
     private val binding get() = _binding!!
@@ -51,6 +57,28 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentGitBottomSheetBinding.bind(view)
         credentialsManager = GitCredentialsManager(requireContext())
+
+        branchPopupWindow = GitBranchPopupWindow(
+            context = requireContext(),
+            onBranchSelected = { branch ->
+                if (!branch.isCurrent) {
+                    checkUnsavedChangesAndProceed {
+                        viewModel.checkoutBranch(
+                            branchName = branch.name,
+                            createNew = false,
+                            startPoint = if (branch.isRemote) branch.fullName else null
+                        )
+                    }
+                }
+            },
+            onNewBranchRequested = {
+                showCreateBranchDialog()
+            }
+        )
+
+        binding.tvBranchName.setOnClickListener {
+            branchPopupWindow.show(binding.tvBranchName)
+        }
 
         fileChangeAdapter = GitFileChangeAdapter(
             onFileClicked = { change ->
@@ -107,10 +135,59 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                 }
             }
 
+            launch {
+                viewModel.branches.collectLatest { branches ->
+                    branchPopupWindow.setBranches(branches)
+                }
+            }
+
+            launch {
+                viewModel.checkoutState.collectLatest { state ->
+                    when (state) {
+                        is GitBottomSheetViewModel.CheckoutUiState.Idle -> {
+                            binding.tvBranchName.isEnabled = true
+                        }
+                        is GitBottomSheetViewModel.CheckoutUiState.CheckingOut -> {
+                            binding.tvBranchName.isEnabled = false
+                        }
+                        is GitBottomSheetViewModel.CheckoutUiState.Success -> {
+                            binding.tvBranchName.isEnabled = true
+                            flashSuccess(getString(R.string.git_checkout_success, state.branchName))
+                            refreshEditorContent(force = true)
+                            EventBus.getDefault().post(ListProjectFilesRequestEvent())
+                        }
+                        is GitBottomSheetViewModel.CheckoutUiState.Conflicts -> {
+                            binding.tvBranchName.isEnabled = true
+                            val message = getString(
+                                R.string.git_checkout_conflict_msg,
+                                state.conflictingPaths.joinToString("\n• ", prefix = "• ")
+                            )
+                            MaterialAlertDialogBuilder(requireContext())
+                                .setTitle(R.string.git_checkout_conflict_title)
+                                .setMessage(message)
+                                .setPositiveButton(android.R.string.ok, null)
+                                .show()
+                        }
+                        is GitBottomSheetViewModel.CheckoutUiState.Error -> {
+                            binding.tvBranchName.isEnabled = true
+                            val message = state.message ?: getString(R.string.git_checkout_failed)
+                            MaterialAlertDialogBuilder(requireContext())
+                                .setTitle(R.string.git_checkout_failed)
+                                .setMessage(message)
+                                .setPositiveButton(android.R.string.ok, null)
+                                .show()
+                        }
+                    }
+                }
+            }
+
             combine(
                 viewModel.isGitRepository,
                 viewModel.gitStatus
             ) { isRepo, status ->
+                if (isRepo) {
+                    viewModel.fetchBranches()
+                }
                 val allChanges =
                     status.staged + status.unstaged + status.untracked + status.conflicted
 
@@ -398,6 +475,27 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
             }
             setTooltipOnView(TooltipTag.GIT_PULL)
         }
+    }
+
+    private fun showCreateBranchDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_git_create_branch, null)
+        val etBranchName = dialogView.findViewById<TextInputEditText>(R.id.etBranchName)
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.git_create_branch_title)
+            .setView(dialogView)
+            .setPositiveButton(R.string.git_create_branch) { _, _ ->
+                val branchName = etBranchName?.text?.toString()?.trim() ?: ""
+                if (branchName.isNotBlank()) {
+                    checkUnsavedChangesAndProceed {
+                        viewModel.checkoutBranch(branchName = branchName, createNew = true)
+                    }
+                } else {
+                    flashSuccess(getString(R.string.git_create_branch_invalid_name))
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun refreshEditorContent(force: Boolean = false) {
