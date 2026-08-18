@@ -25,6 +25,9 @@ Filters out system-injected messages:
   - Skill injections ("Base directory for this skill:")
   - Local command outputs (<command-name>, <local-command-)
   - System reminders (<system-reminder>)
+  - Image tool results ("[Image: original ...]"), which are the agent's own Read of a
+    screenshot arriving in the human role -- counting those as human turns adds reading
+    and buffer time nobody spent (~11 of 51 minutes in one session that drove a device).
 """
 
 from __future__ import annotations
@@ -55,6 +58,7 @@ PRICING = {
 
 SYSTEM_MESSAGE_PATTERNS = [
     re.compile(r"^Base directory for this skill:"),
+    re.compile(r"^\[Image: original \d+x\d+"),
     re.compile(r"^<(command-name|local-command|system-reminder)"),
     re.compile(r"^<local-command-caveat>"),
     re.compile(r"^This session is being continued from a previous conversation"),

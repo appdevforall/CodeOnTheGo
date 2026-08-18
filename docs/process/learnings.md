@@ -8,12 +8,23 @@
 - Before pushing a follow-up commit to a community PR, check `gh pr view <n> --json headRepositoryOwner` — the PR head is usually on the contributor's **fork**, so a same-named push to `origin` doesn't touch the PR and just creates a confusing dead branch that has to be deleted.
 
 ## Android / Kotlin
+- A config data class whose **default** values call framework APIs (e.g. `ServerConfig`'s paths default to `Environment.getExternalStorageDirectory()`) makes itself unconstructable in a JVM unit test — `RuntimeException: Method ... not mocked`, thrown from the constructor before your test body runs. Any new test has to pass *every* such parameter explicitly, which is easy to miss when copying a config from a test that already does. Prefer lazily-resolved paths in new config types.
 - `Handler.removeCallbacks(Runnable)` only removes callbacks posted by that *exact* `Handler` instance, not just the same `Looper` — `Handler(Looper.getMainLooper()).removeCallbacks(x)` won't cancel something posted via a *different* `Handler` bound to the same looper. Any post/cancel pair needs to share one `Handler` instance (see `TaskExecutor.mainThreadHandler`, added when replacing blankj's `ThreadUtils.getMainHandler()`).
+
+## Serving content to a WebView
+- A WebView can be handed content **in-process** through `WebViewClient.shouldInterceptRequest`, returning a `WebResourceResponse` built from a stream — no socket, no port, no handshake. It intercepts *whatever URL the WebView loads*, so an existing `http://localhost:PORT/...` URL space needs **no rewriting**: strings.xml entries, link builders and even a published plugin-API contract keep working while the transport underneath changes (ADFA-5176 turned 31 TCP connections per documentation page into 0 this way).
+- A WebView does **not** decode an intercepted response, so hand back decompressed bytes and don't bother with `Content-Encoding`. Give `WebResourceResponse` the bare MIME type with the charset as its own argument, and pass `null` for binary types — claiming a charset on an image makes the WebView try to decode it as text.
+- `shouldInterceptRequest` never sees a POST body, and `WebResourceResponse` can't answer a range request with 206. Neither mattered for documentation (the WebView asked for a whole 407 KB PDF), but a range-dependent viewer would need the socket path.
+- Android's WebView cannot render a PDF at all: pointing one at a `application/pdf` URL shows a blank page, identically over HTTP or in-process.
+
+## Android system SQLite
+- Don't assume the JSON1 extension. On a Samsung Android 13 device, `JSON_OBJECT`/`JSON_GROUP_ARRAY` fail at runtime with `no such function: JSON_OBJECT` even though the same query runs fine against the same database file under a desktop sqlite3. Any query using JSON functions needs either a fallback or a documented minimum, and a JSON-based endpoint can be dead on real hardware while passing every desktop test.
 
 ## Reverse-engineering a library before porting it
 - When writing a same-name drop-in for a third-party utility (to remove the dependency without changing call-site behavior), don't guess its semantics from memory/docs — extract the AAR's `classes.jar` and run `javap -c` against the actual bytecode to confirm exact chaining/wrapping behavior, especially for fluent/reflection-style APIs where a subtle mismatch (e.g., wrapping a field's *declared* type vs. its *runtime* class) changes behavior at existing call sites.
 
 ## MockK
+- To unit-test code that touches WebView plumbing without Robolectric: `mockkStatic(android.os.Environment::class)` for `getExternalStorageDirectory()`, and a plain `mockk<Uri>` stubbing only `host`/`port`/`path`. Keep the framework *construction* out of the unit under test — a `WebResourceResponse` constructor throws `Stub!` in a JVM test, so split the decision (which content answers this request) from the wrapping, and test the decision.
 - Migrating a mocked call from a Java static method (`mockkStatic(SomeClass::class)`) to a Kotlin top-level extension function requires `mockkStatic("com.package.FileNameKt")` (the compiled JVM facade class name) instead — `mockkStatic(ExtensionReceiver::class)` doesn't work for extension functions.
 
 ## Measuring a real before/after delta
