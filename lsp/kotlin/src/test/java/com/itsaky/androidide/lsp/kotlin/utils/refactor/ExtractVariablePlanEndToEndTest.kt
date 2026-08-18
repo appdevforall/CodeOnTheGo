@@ -910,7 +910,12 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 		// The second site is on its own line and can host the declaration, so the rung stands. The first
 		// site shares the `items.forEach {` line, and anchoring on it would refuse the whole rewrite --
 		// so it is not offered as an occurrence, and the count the sheet shows stays achievable.
-		assertEquals(1, candidate.scopes.first().occurrences.size)
+		assertEquals(
+			1,
+			candidate.scopes
+				.first()
+				.occurrences.size,
+		)
 		assertEquals(
 			listOf(TextSpan(second, second + target.length)),
 			candidate.scopes.first().occurrences,

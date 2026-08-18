@@ -288,14 +288,18 @@ internal fun namesInScopeAt(candidate: KtExpression): Set<String> {
 
 	for (ancestor in candidate.parentsWithSelf) {
 		when (ancestor) {
-			is KtFile -> break
+			is KtFile -> {
+				break
+			}
 
 			is KtClassOrObject -> {
 				ancestor.declarations.forEach { it.addNameTo(names) }
 				ancestor.primaryConstructorParameters.forEach { it.addNameTo(names) }
 			}
 
-			is KtBlockExpression -> ancestor.statements.forEach { (it as? KtDeclaration)?.addNameTo(names) }
+			is KtBlockExpression -> {
+				ancestor.statements.forEach { (it as? KtDeclaration)?.addNameTo(names) }
+			}
 
 			is KtFunctionLiteral -> {
 				val parameters = ancestor.valueParameters
@@ -304,17 +308,29 @@ internal fun namesInScopeAt(candidate: KtExpression): Set<String> {
 				parameters.forEach { it.addNameTo(names) }
 			}
 
-			is KtPropertyAccessor -> ancestor.valueParameters.forEach { it.addNameTo(names) }
+			is KtPropertyAccessor -> {
+				ancestor.valueParameters.forEach { it.addNameTo(names) }
+			}
 
-			is KtCallableDeclaration -> ancestor.valueParameters.forEach { it.addNameTo(names) }
+			is KtCallableDeclaration -> {
+				ancestor.valueParameters.forEach { it.addNameTo(names) }
+			}
 
-			is KtForExpression -> ancestor.loopParameter?.addNameTo(names)
+			is KtForExpression -> {
+				ancestor.loopParameter?.addNameTo(names)
+			}
 
-			is KtCatchClause -> ancestor.catchParameter?.addNameTo(names)
+			is KtCatchClause -> {
+				ancestor.catchParameter?.addNameTo(names)
+			}
 
-			is KtWhenExpression -> ancestor.subjectVariable?.addNameTo(names)
+			is KtWhenExpression -> {
+				ancestor.subjectVariable?.addNameTo(names)
+			}
 
-			else -> Unit
+			else -> {
+				Unit
+			}
 		}
 	}
 	return names
