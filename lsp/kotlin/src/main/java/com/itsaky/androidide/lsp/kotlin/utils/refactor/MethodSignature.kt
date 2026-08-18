@@ -111,7 +111,7 @@ internal fun KaSession.buildCandidate(
 	 * would need to tell real receiver use apart from an unrelated capture.
 	 */
 	if (anonymousExtensionFunctionBetween(first, enclosing)) {
-		return refuse(ExtractionRefusal.InnerImplicitReceiver("anonymous function"))
+		return refuse(ExtractionRefusal.AnonymousExtensionFunction)
 	}
 
 	val typeParameterNames = typeParameterNamesOf(enclosing)

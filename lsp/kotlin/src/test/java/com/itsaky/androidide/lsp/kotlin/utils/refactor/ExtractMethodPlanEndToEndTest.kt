@@ -1244,7 +1244,7 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 
 		val refusal = plan(content, content.indexOf("length + 1") + 1).refusal
 
-		assertEquals(ExtractionRefusal.InnerImplicitReceiver("anonymous function"), refusal)
+		assertEquals(ExtractionRefusal.AnonymousExtensionFunction, refusal)
 	}
 
 	@Test

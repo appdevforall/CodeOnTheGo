@@ -153,6 +153,7 @@ Including inherited names is a correctness requirement, not a nicety: a private 
 | `OutputNotReturnable` | the selection produces `<name>`, which cannot be handed back as a return value |
 | `ReassignsOuterVar` | the selection assigns to `<name>`, declared outside it |
 | `ExitsRegion` | the selection jumps out of itself (`return`/`break`/`continue`) |
+| `AnonymousExtensionFunction` | the selection is inside an anonymous extension function |
 | `InnerImplicitReceiver` | the selection uses members of an enclosing `with`/`apply` receiver |
 | `UsesTypeParameter` | the selection uses type parameter `<T>` |
 | `UnrenderableType` | a type in the selection cannot be written out |

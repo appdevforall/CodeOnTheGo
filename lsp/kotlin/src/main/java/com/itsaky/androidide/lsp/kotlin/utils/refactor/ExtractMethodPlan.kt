@@ -112,6 +112,13 @@ sealed interface ExtractionRefusal {
 	/** A `return`, `break` or `continue` whose target is outside the region (R8). */
 	data object ExitsRegion : ExtractionRefusal
 
+	/**
+	 * The region sits inside an anonymous extension function (R4). The new function is a sibling of the
+	 * enclosing *named* declaration, so it would be generated on that declaration's receiver -- or on no
+	 * receiver at all -- rather than on the one the region's body actually reads.
+	 */
+	data object AnonymousExtensionFunction : ExtractionRefusal
+
 	/** Members of a `with`/`apply`/`run` receiver introduced inside the enclosing declaration (R9). */
 	data class InnerImplicitReceiver(
 		val construct: String,
