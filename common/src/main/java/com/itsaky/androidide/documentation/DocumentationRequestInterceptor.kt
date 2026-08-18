@@ -58,7 +58,13 @@ class DocumentationRequestInterceptor(
 	 * The response for [request], or null to let it go to the network. Called on WebView's own
 	 * threads; [DocumentationContentSource] is what makes that safe.
 	 */
-	fun intercept(request: WebResourceRequest): WebResourceResponse? {
+	fun intercept(request: WebResourceRequest): WebResourceResponse? = contentFor(request)?.let { response(it) }
+
+	/**
+	 * The content to answer [request] with, or null when it is not this class's to answer. Split out
+	 * from [intercept] so the decision can be tested without a framework WebResourceResponse.
+	 */
+	internal fun contentFor(request: WebResourceRequest): DocumentationContent? {
 		if (disabled) return null
 		if (!request.method.equals("GET", ignoreCase = true)) return null
 
@@ -80,7 +86,7 @@ class DocumentationRequestInterceptor(
 		servedBytes.addAndGet(content.bytes.size.toLong())
 		if (log.isDebugEnabled) log.debug("Served '{}' in-process, {} bytes.", path, content.bytes.size)
 
-		return response(content)
+		return content
 	}
 
 	/** What this instance has answered without a socket. */
@@ -92,21 +98,28 @@ class DocumentationRequestInterceptor(
 		}
 
 	private fun response(content: DocumentationContent): WebResourceResponse {
-		// WebResourceResponse wants the bare type; a charset travels in its own parameter. The
-		// source hands back decompressed bytes -- a WebView does not decode an intercepted
-		// response -- so there is no Content-Encoding to declare either.
-		val type = content.mimeType.substringBefore(';').trim()
-		val charset =
-			content.mimeType
-				.substringAfter("charset=", "")
-				.substringBefore(';')
-				.trim()
-				.ifEmpty { if (type.startsWith("text/")) "utf-8" else null }
-
+		val (type, charset) = mimeAndCharset(content.mimeType)
 		return WebResourceResponse(type, charset, ByteArrayInputStream(content.bytes))
 	}
 
 	companion object {
+		/**
+		 * Splits a stored MIME type into what WebResourceResponse wants: the bare type, and the
+		 * charset as its own value. The source hands back decompressed bytes -- a WebView does not
+		 * decode an intercepted response -- so there is no Content-Encoding to declare either.
+		 */
+		internal fun mimeAndCharset(mimeType: String): Pair<String, String?> {
+			val type = mimeType.substringBefore(';').trim()
+			val charset =
+				mimeType
+					.substringAfter("charset=", "")
+					.substringBefore(';')
+					.trim()
+					.ifEmpty { if (type.startsWith("text/")) "utf-8" else null }
+
+			return type to charset
+		}
+
 		private const val DISABLE_SENTINEL = "Download/CodeOnTheGo.nointercept"
 		private const val SERVER_HOST = "localhost"
 		private const val SERVER_PORT = 6174
