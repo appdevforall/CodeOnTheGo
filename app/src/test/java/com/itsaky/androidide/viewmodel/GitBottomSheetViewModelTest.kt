@@ -194,4 +194,21 @@ class GitBottomSheetViewModelTest {
 			assertTrue(state is GitBottomSheetViewModel.BranchesUiState.Error)
 			assertEquals("Git error", (state as GitBottomSheetViewModel.BranchesUiState.Error).message)
 		}
+
+	@Test
+	fun `refreshStatus preserves gitStatus when branch fetching fails`() =
+		runTest {
+			val mockStatus = mockk<com.itsaky.androidide.git.core.models.GitStatus>(relaxed = true)
+			coEvery { repository.getStatus() } returns mockStatus
+			coEvery { repository.getCurrentBranch() } returns GitBranch("main", "refs/heads/main", true, false)
+			coEvery { repository.getLocalCommitsCount() } returns 2
+			coEvery { repository.getBranches() } throws RuntimeException("Branch failure")
+
+			viewModel.refreshStatus()
+			advanceUntilIdle()
+
+			assertEquals(mockStatus, viewModel.gitStatus.value)
+			assertEquals("main", viewModel.currentBranch.value)
+			assertTrue(viewModel.branches.value is GitBottomSheetViewModel.BranchesUiState.Error)
+		}
 }

@@ -373,8 +373,31 @@ class JGitRepository(
 					} else if (localRef != null) {
 						val scopedLocalName = shortRemote.replace('/', '-')
 						val scopedRef = repository.findRef("${Constants.R_HEADS}$scopedLocalName")
-						if (scopedRef != null) {
+						val scopedTracking = BranchConfig(repository.config, scopedLocalName).trackingBranch
+
+						if (scopedRef != null && (scopedTracking == fullRemoteRef || scopedTracking == shortRemote)) {
 							checkoutCommand.setName(scopedLocalName)
+						} else if (scopedRef != null) {
+							var suffix = 1
+							var candidate = "$scopedLocalName-$suffix"
+							while (repository.findRef("${Constants.R_HEADS}$candidate") != null) {
+								val candTracking = BranchConfig(repository.config, candidate).trackingBranch
+								if (candTracking == fullRemoteRef || candTracking == shortRemote) {
+									break
+								}
+								suffix++
+								candidate = "$scopedLocalName-$suffix"
+							}
+							val candRef = repository.findRef("${Constants.R_HEADS}$candidate")
+							if (candRef != null) {
+								checkoutCommand.setName(candidate)
+							} else {
+								checkoutCommand
+									.setCreateBranch(true)
+									.setName(candidate)
+									.setStartPoint(fullRemoteRef)
+									.setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK)
+							}
 						} else {
 							checkoutCommand
 								.setCreateBranch(true)

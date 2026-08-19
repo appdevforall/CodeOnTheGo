@@ -11,17 +11,33 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.ItemGitBranchBinding
 import com.itsaky.androidide.git.core.models.GitBranch
 
+/**
+ * Represents items rendered in the Git branch selection list.
+ */
 sealed class GitBranchListItem {
+	/**
+	 * Section header dividing branch categories (e.g., Local vs Remote).
+	 */
 	data class Header(
 		val title: String,
 	) : GitBranchListItem()
 
+	/**
+	 * Selectable branch item row.
+	 */
 	data class BranchItem(
 		val branch: GitBranch,
 		val displayName: String,
 	) : GitBranchListItem()
 }
 
+/**
+ * RecyclerView adapter for displaying local and remote Git branches with selection
+ * and optional merge action callbacks.
+ *
+ * @param onBranchSelected Callback invoked when a branch row is tapped to switch/checkout.
+ * @param onMergeClicked Optional callback invoked when the merge button for a branch is tapped.
+ */
 class GitBranchAdapter(
 	private val onBranchSelected: (GitBranch) -> Unit,
 	private val onMergeClicked: ((GitBranch) -> Unit)? = null,
@@ -82,7 +98,7 @@ class GitBranchAdapter(
 				binding.ivActiveCheck.visibility = View.VISIBLE
 				binding.imgBranchIcon.visibility = View.GONE
 				binding.btnMergeAction.visibility = View.GONE
-				binding.root.contentDescription = "${item.displayName}, ${context.getString(R.string.current_branch)}"
+				binding.root.contentDescription = context.getString(R.string.current_branch_name, item.displayName)
 			} else {
 				binding.ivActiveCheck.visibility = View.GONE
 				binding.imgBranchIcon.visibility = View.VISIBLE

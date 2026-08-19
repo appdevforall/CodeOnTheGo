@@ -98,12 +98,34 @@ class GitBottomSheetViewModel(
 		currentRepository?.close()
 	}
 
-	private fun initializeRepository() {
+	/**
+	 * Initializes or re-initializes the Git repository for the currently open project.
+	 *
+	 * When [force] is true or if the repository's root directory does not match the active
+	 * project directory from [IProjectManager], any previously opened repository is closed
+	 * and a new instance is initialized.
+	 */
+	fun initializeRepository(force: Boolean = false) {
 		viewModelScope.launch {
 			try {
-				val projectDir = File(IProjectManager.getInstance().projectDirPath)
-				currentRepository = GitRepositoryManager.openRepository(projectDir)
-				_isGitRepository.value = currentRepository != null
+				val projectDirPath = IProjectManager.getInstance().projectDirPath
+				if (projectDirPath.isNullOrBlank()) {
+					currentRepository?.close()
+					currentRepository = null
+					_isGitRepository.value = false
+					_gitStatus.value = GitStatus.EMPTY
+					_currentBranch.value = null
+					_branches.value = BranchesUiState.None
+					_localCommitsCount.value = 0
+					return@launch
+				}
+				val projectDir = File(projectDirPath)
+				val currentRoot = currentRepository?.rootDir
+				if (force || currentRepository == null || currentRoot?.canonicalPath != projectDir.canonicalPath) {
+					currentRepository?.close()
+					currentRepository = GitRepositoryManager.openRepository(projectDir)
+					_isGitRepository.value = currentRepository != null
+				}
 				refreshStatus()
 			} catch (e: CancellationException) {
 				throw e
@@ -111,36 +133,49 @@ class GitBottomSheetViewModel(
 				log.error("Failed to initialize repository", e)
 				_isGitRepository.value = false
 				_gitStatus.value = GitStatus.EMPTY
+				_currentBranch.value = null
+				_branches.value = BranchesUiState.None
+				_localCommitsCount.value = 0
 			}
 		}
 	}
 
 	/**
-	 * Refreshes the Git status of the project.
+	 * Refreshes the Git status and branch state of the project.
+	 * Failures while querying branches are handled separately to preserve valid status and commit count.
 	 */
 	fun refreshStatus() {
 		viewModelScope.launch {
+			val repo = currentRepository
+			if (repo == null) {
+				_gitStatus.value = GitStatus.EMPTY
+				_currentBranch.value = null
+				_branches.value = BranchesUiState.None
+				_localCommitsCount.value = 0
+				return@launch
+			}
+
 			try {
-				currentRepository?.let { repo ->
-					val status = repo.getStatus()
-					_gitStatus.value = status
-					_currentBranch.value = repo.getCurrentBranch()?.name
-					_branches.value = BranchesUiState.Success(repo.getBranches())
-					getLocalCommitsCount()
-				} ?: run {
-					_gitStatus.value = GitStatus.EMPTY
-					_currentBranch.value = null
-					_branches.value = BranchesUiState.None
-					_localCommitsCount.value = 0
-				}
+				val status = repo.getStatus()
+				_gitStatus.value = status
+				_currentBranch.value = repo.getCurrentBranch()?.name
+				getLocalCommitsCount()
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
 				log.error("Failed to refresh git status", e)
 				_gitStatus.value = GitStatus.EMPTY
 				_currentBranch.value = null
-				_branches.value = BranchesUiState.Error(e.message)
 				_localCommitsCount.value = 0
+			}
+
+			try {
+				_branches.value = BranchesUiState.Success(repo.getBranches())
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.error("Failed to fetch branches during status refresh", e)
+				_branches.value = BranchesUiState.Error(e.message)
 			}
 		}
 	}
@@ -518,15 +553,30 @@ class GitBottomSheetViewModel(
 		}
 	}
 
+	/**
+	 * Represents the UI state for the repository branches list.
+	 */
 	sealed class BranchesUiState {
+		/** No repository is opened or branch listing has not been initiated. */
 		object None : BranchesUiState()
 
+		/** Branches are currently being queried asynchronously from the repository. */
 		object Loading : BranchesUiState()
 
+		/**
+		 * Branches were fetched successfully.
+		 *
+		 * @param branches The list of available local and remote branches (can be empty).
+		 */
 		data class Success(
 			val branches: List<GitBranch>,
 		) : BranchesUiState()
 
+		/**
+		 * An error occurred while discovering or listing repository branches.
+		 *
+		 * @param message Human-readable error description or exception message.
+		 */
 		data class Error(
 			val message: String? = null,
 		) : BranchesUiState()

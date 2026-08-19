@@ -93,10 +93,17 @@ class GitBranchPopupWindow(
 				filterBranches(binding.etSearchBranches.text?.toString())
 			}
 
-			is BranchesUiState.None, is BranchesUiState.Error -> {
+			is BranchesUiState.None -> {
 				binding.branchesProgress.visibility = View.GONE
 				allBranches = emptyList()
-				filterBranches(binding.etSearchBranches.text?.toString())
+				adapter.submitList(emptyList())
+			}
+
+			is BranchesUiState.Error -> {
+				binding.branchesProgress.visibility = View.GONE
+				allBranches = emptyList()
+				val errorMsg = state.message ?: context.getString(R.string.unknown_error)
+				adapter.submitList(listOf(GitBranchListItem.Header(errorMsg)))
 			}
 		}
 	}

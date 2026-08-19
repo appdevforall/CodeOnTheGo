@@ -62,6 +62,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		super.onViewCreated(view, savedInstanceState)
 		_binding = FragmentGitBottomSheetBinding.bind(view)
 		credentialsManager = GitCredentialsManager(requireContext())
+		viewModel.initializeRepository()
 
 		branchPopupWindow =
 			GitBranchPopupWindow(
@@ -141,7 +142,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 						binding.groupCurrentBranch.visibility = View.VISIBLE
 						binding.tvBranchName.text = branchName
 						binding.tvBranchName.contentDescription =
-							"${getString(R.string.current_branch)}: $branchName"
+							getString(R.string.current_branch_name, branchName)
 					} else {
 						binding.groupCurrentBranch.visibility = View.GONE
 					}
@@ -614,8 +615,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
 				val branchName = etBranchName?.text?.toString()?.trim() ?: ""
 				if (branchName.isNotBlank()) {
-					dialog.dismiss()
 					checkUnsavedChangesAndProceed {
+						dialog.dismiss()
 						viewModel.checkoutBranch(branchName = branchName, createNew = true)
 					}
 				} else {

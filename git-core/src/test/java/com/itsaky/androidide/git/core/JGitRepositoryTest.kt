@@ -13,6 +13,14 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 
+/**
+ * Unit tests verifying [JGitRepository] core operations and contracts.
+ *
+ * Each test executes against an isolated disposable Git repository created in [TemporaryFolder].
+ * Verifies that branch checkout resolves local and remote tracking refs correctly,
+ * handles naming collisions cleanly, and ensures that aborting a merge completely restores
+ * the pre-merge working tree state back to HEAD.
+ */
 class JGitRepositoryTest {
 	@get:Rule
 	val tempFolder = TemporaryFolder()
@@ -169,5 +177,13 @@ class JGitRepositoryTest {
 			val newCurrentBranch = jgitRepo.getCurrentBranch()
 			assertNotNull(newCurrentBranch)
 			assertEquals("upstream-release", newCurrentBranch!!.name)
+
+			// Now test when "upstream-release" already exists and we check out upstream/release again
+			jgitRepo.checkout("origin/release", createNew = false)
+			assertEquals("release", jgitRepo.getCurrentBranch()?.name)
+
+			// Checking out upstream/release should reuse upstream-release because it tracks upstream/release
+			jgitRepo.checkout("upstream/release", createNew = false)
+			assertEquals("upstream-release", jgitRepo.getCurrentBranch()?.name)
 		}
 }
