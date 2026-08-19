@@ -108,8 +108,8 @@
 
 		<TextView
 			android:id="@+id/emptyView"
-			android:layout_width="match_parent"
-			android:layout_height="match_parent"
+			android:layout_width="0dp"
+			android:layout_height="0dp"
 			android:gravity="center"
 			android:text="@string/no_uncommitted_changes"
 			android:textAppearance="?attr/textAppearanceBody2"

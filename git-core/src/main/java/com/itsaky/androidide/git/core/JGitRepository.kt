@@ -350,18 +350,38 @@ class JGitRepository(
 					checkoutCommand.setStartPoint(startPoint)
 				}
 			} else {
-				val isRemoteRef = branchName.startsWith(Constants.R_REMOTES) || branchName.startsWith("origin/")
-				if (isRemoteRef) {
-					val fullRemoteRef =
-						if (branchName.startsWith(Constants.R_REMOTES)) {
-							branchName
-						} else {
-							"${Constants.R_REMOTES}$branchName"
-						}
-					val localName = Repository.shortenRefName(fullRemoteRef).substringAfter('/')
+				val fullRemoteRef =
+					when {
+						branchName.startsWith(Constants.R_REMOTES) -> branchName
+
+						repository.findRef("${Constants.R_REMOTES}$branchName") != null -> "${Constants.R_REMOTES}$branchName"
+
+						branchName.startsWith(
+							"origin/",
+						) || repository.remoteNames.any { branchName.startsWith("$it/") } -> "${Constants.R_REMOTES}$branchName"
+
+						else -> null
+					}
+				if (fullRemoteRef != null) {
+					val shortRemote = Repository.shortenRefName(fullRemoteRef)
+					val localName = shortRemote.substringAfter('/')
 					val localRef = repository.findRef("${Constants.R_HEADS}$localName")
-					if (localRef != null) {
+					val trackingBranch = BranchConfig(repository.config, localName).trackingBranch
+
+					if (localRef != null && (trackingBranch == fullRemoteRef || trackingBranch == shortRemote)) {
 						checkoutCommand.setName(localName)
+					} else if (localRef != null) {
+						val scopedLocalName = shortRemote.replace('/', '-')
+						val scopedRef = repository.findRef("${Constants.R_HEADS}$scopedLocalName")
+						if (scopedRef != null) {
+							checkoutCommand.setName(scopedLocalName)
+						} else {
+							checkoutCommand
+								.setCreateBranch(true)
+								.setName(scopedLocalName)
+								.setStartPoint(fullRemoteRef)
+								.setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK)
+						}
 					} else {
 						checkoutCommand
 							.setCreateBranch(true)

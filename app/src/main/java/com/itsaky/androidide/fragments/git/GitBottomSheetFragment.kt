@@ -25,6 +25,8 @@ import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.models.ChangeType
+import com.itsaky.androidide.git.core.models.FileChange
+import com.itsaky.androidide.git.core.models.GitStatus
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
@@ -270,15 +272,19 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 				}
 			}
 
+			launch {
+				viewModel.isGitRepository.collectLatest { isRepo ->
+					if (isRepo) {
+						viewModel.fetchBranches()
+					}
+				}
+			}
+
 			combine(
 				viewModel.isGitRepository,
 				viewModel.gitStatus,
 			) { isRepo, status ->
-				if (isRepo) {
-					viewModel.fetchBranches()
-				}
-				val allChanges =
-					status.staged + status.unstaged + status.untracked + status.conflicted
+				val allChanges = status.allChanges()
 
 				when {
 					!isRepo -> {
@@ -311,7 +317,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 					}
 
 					else -> {
-						val hasSelectable = allChanges.any { it.type != ChangeType.CONFLICTED }
+						val hasSelectable = allChanges.hasSelectable()
 						binding.apply {
 							emptyView.visibility = View.GONE
 							recyclerView.visibility = View.VISIBLE
@@ -353,9 +359,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 	private fun updateAuthorUI() {
 		val hasAuthor = hasAuthorInfo()
-		val allChanges =
-			viewModel.gitStatus.value.staged + viewModel.gitStatus.value.unstaged + viewModel.gitStatus.value.untracked +
-				viewModel.gitStatus.value.conflicted
+		val allChanges = viewModel.gitStatus.value.allChanges()
 		binding.authorWarning.visibility =
 			if (!hasAuthor && allChanges.isNotEmpty()) View.VISIBLE else View.GONE
 		validateCommitButton()
@@ -490,9 +494,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	private fun updateCheckAllButton() {
 		// May be invoked from the async submitList commit callback; bail if the view is gone.
 		val binding = _binding ?: return
-		val status = viewModel.gitStatus.value
-		val allChanges = status.staged + status.unstaged + status.untracked + status.conflicted
-		val hasSelectable = allChanges.any { it.type != ChangeType.CONFLICTED }
+		val allChanges = viewModel.gitStatus.value.allChanges()
+		val hasSelectable = allChanges.hasSelectable()
 		binding.cbCheckAll.text = getString(R.string.changed_files_count, allChanges.size)
 		binding.cbCheckAll.isEnabled = hasSelectable && allChanges.isNotEmpty()
 		binding.cbCheckAll.isChecked = hasSelectable && allChanges.isNotEmpty() && fileChangeAdapter.areAllSelected()
@@ -677,4 +680,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			true
 		}
 	}
+
+	private fun GitStatus.allChanges(): List<FileChange> = staged + unstaged + untracked + conflicted
+
+	private fun List<FileChange>.hasSelectable(): Boolean = any { it.type != ChangeType.CONFLICTED }
 }

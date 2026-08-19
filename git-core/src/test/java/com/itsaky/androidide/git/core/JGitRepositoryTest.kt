@@ -2,6 +2,7 @@ package com.itsaky.androidide.git.core
 
 import kotlinx.coroutines.runBlocking
 import org.eclipse.jgit.api.Git
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -22,19 +23,26 @@ class JGitRepositoryTest {
 	@Before
 	fun setUp() {
 		repoDir = tempFolder.newFolder("test-repo")
-		val git = Git.init().setDirectory(repoDir).call()
 
 		// Create an initial commit so HEAD points to a valid commit
 		val dummyFile = File(repoDir, "file.txt")
 		dummyFile.writeText("initial content")
-		git.add().addFilepattern("file.txt").call()
-		git
-			.commit()
-			.setMessage("Initial commit")
-			.setAuthor("Test", "test@example.com")
-			.call()
+
+		Git.init().setDirectory(repoDir).call().use { git ->
+			git.add().addFilepattern("file.txt").call()
+			git
+				.commit()
+				.setMessage("Initial commit")
+				.setAuthor("Test", "test@example.com")
+				.call()
+		}
 
 		jgitRepo = JGitRepository(repoDir)
+	}
+
+	@After
+	fun tearDown() {
+		jgitRepo.close()
 	}
 
 	@Test
@@ -127,5 +135,39 @@ class JGitRepositoryTest {
 			assertFalse(statusAfterAbort.isMerging)
 			assertFalse(statusAfterAbort.hasConflicts)
 			assertEquals("initial conflicting content", file.readText())
+		}
+
+	@Test
+	fun testCheckoutRemoteTrackingBranch() =
+		runBlocking {
+			// Manually create a remote ref refs/remotes/origin/release
+			val headCommit =
+				org.eclipse.jgit.storage.file.FileRepositoryBuilder().setWorkTree(repoDir).findGitDir(repoDir).build().use { repo ->
+					repo.resolve(org.eclipse.jgit.lib.Constants.HEAD)
+				}
+			org.eclipse.jgit.storage.file.FileRepositoryBuilder().setWorkTree(repoDir).findGitDir(repoDir).build().use { repo ->
+				val refUpdate = repo.updateRef("refs/remotes/origin/release")
+				refUpdate.setNewObjectId(headCommit)
+				refUpdate.update()
+			}
+
+			// Checkout remote branch -> should create local branch "release"
+			jgitRepo.checkout("origin/release", createNew = false)
+			val currentBranch = jgitRepo.getCurrentBranch()
+			assertNotNull(currentBranch)
+			assertEquals("release", currentBranch!!.name)
+
+			// Now create another remote ref with the same short name under a different remote "upstream/release"
+			org.eclipse.jgit.storage.file.FileRepositoryBuilder().setWorkTree(repoDir).findGitDir(repoDir).build().use { repo ->
+				val refUpdate = repo.updateRef("refs/remotes/upstream/release")
+				refUpdate.setNewObjectId(headCommit)
+				refUpdate.update()
+			}
+
+			// Checkout upstream/release -> local "release" exists and tracks origin/release, so it should create "upstream-release"
+			jgitRepo.checkout("upstream/release", createNew = false)
+			val newCurrentBranch = jgitRepo.getCurrentBranch()
+			assertNotNull(newCurrentBranch)
+			assertEquals("upstream-release", newCurrentBranch!!.name)
 		}
 }
