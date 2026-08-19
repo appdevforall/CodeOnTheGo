@@ -9,16 +9,6 @@ on:
   schedule:
     - cron: '0 12 * * *'  # Daily at 12:00 PM UTC
   workflow_dispatch:
-    inputs:
-      ref:
-        description: 'Git ref to build. Defaults to main, the normal release path.'
-        required: false
-        default: main
-      dry_run:
-        description: 'Build only: skip the stage->main merge and every publish step.'
-        type: boolean
-        required: false
-        default: false
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -45,7 +35,6 @@ jobs:
 
     steps:
       - name: Cancel previous runs
-        if: ${{ inputs.dry_run != true }}
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
@@ -62,7 +51,6 @@ jobs:
           git config user.email "dev-team@appdevforall.org"
 
       - name: Merge stage to main
-        if: ${{ inputs.dry_run != true }}
         run: |
           git fetch origin stage
           git checkout main
@@ -436,7 +424,6 @@ jobs:
     timeout-minutes: 60
     needs: [merge_stage_to_main, download_assets, download_documentation]
     strategy:
-      fail-fast: ${{ inputs.dry_run != true }}
       matrix:
         include:
           - variant: v8
@@ -450,14 +437,12 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ inputs.ref || 'main' }}
+          ref: main
 
-      - name: Set branch for build
+      - name: Set branch to main for build
         id: determine_branch
-        env:
-          BUILD_REF: ${{ inputs.ref || 'main' }}
         run: |
-          echo "BRANCH_TO_CHECKOUT=$BUILD_REF" >> $GITHUB_OUTPUT
+          echo "BRANCH_TO_CHECKOUT=main" >> $GITHUB_OUTPUT
 
       - name: Download release assets
         uses: actions/download-artifact@v4
@@ -553,7 +538,6 @@ jobs:
           echo "COMMIT_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
 
       - name: Authenticate to Google Cloud via Workload Identity
-        if: ${{ inputs.dry_run != true }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
@@ -567,16 +551,7 @@ jobs:
           fi
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
 
-      - name: Upload release APK as workflow artifact (dry run)
-        if: ${{ inputs.dry_run == true }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-apk-${{ matrix.variant }}
-          path: ${{ steps.find_apk.outputs.APK_PATH }}
-          if-no-files-found: error
-
       - name: Deploy to Firebase App Distribution
-        if: ${{ inputs.dry_run != true }}
         id: firebase_upload
         env:
           APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
@@ -628,11 +603,9 @@ jobs:
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
       - name: Install uv
-        if: ${{ inputs.dry_run != true }}
         uses: astral-sh/setup-uv@v6
 
       - name: Upload APK to Cloudflare R2
-        if: ${{ inputs.dry_run != true }}
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_KEY_ID: ${{ vars.CLOUDFLARE_KEY_ID }}
@@ -641,18 +614,15 @@ jobs:
           uv run --with boto3 scripts/cloudflare-r2-upload.py "${{ steps.find_apk.outputs.APK_PATH }}"
 
       - name: Clean up build folder after upload
-        if: ${{ inputs.dry_run != true }}
         run: |
           echo "Cleaning up build folder after Firebase upload..."
           rm -rf app/build/
           echo "Build folder cleanup completed"
 
       - name: Install jq
-        if: ${{ inputs.dry_run != true }}
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Send Rich Slack Notification
-        if: ${{ inputs.dry_run != true }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
           COMMIT_AUTHOR: ${{ steps.commit_info.outputs.COMMIT_AUTHOR }}
@@ -742,7 +712,6 @@ jobs:
           rm -f payload.json
 
       - name: Send Telegram message
-        if: ${{ inputs.dry_run != true }}
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_EARLY_ACCESS_CHAT_ID: ${{ vars.TELEGRAM_EARLY_ACCESS_CHAT_ID }}
