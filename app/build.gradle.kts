@@ -42,12 +42,6 @@ fun propOrEnv(name: String): String =
 		?: System.getenv(name)
 		?: ""
 
-fun pluginApiKeepRulesFile(): java.io.File =
-	layout.buildDirectory
-		.file("generated/proguard/plugin-api-keep.pro")
-		.get()
-		.asFile
-
 val props =
 	Properties().apply {
 		val file = rootProject.file("local.properties")
@@ -90,8 +84,6 @@ android {
 		}
 		release {
 			manifestPlaceholders["sentryDsn"] = glitchtipDsn
-
-			proguardFile(pluginApiKeepRulesFile())
 		}
 	}
 
@@ -433,38 +425,45 @@ tasks.register("downloadDocDb") {
 	}
 }
 
+abstract class GeneratePluginApiKeepRules : DefaultTask() {
+	@get:InputFile
+	abstract val fatJar: RegularFileProperty
+
+	@get:OutputFile
+	abstract val keepRules: RegularFileProperty
+
+	@TaskAction
+	fun generate() {
+		val classes =
+			ZipFile(fatJar.get().asFile).use { zip ->
+				zip
+					.entries()
+					.asSequence()
+					.map { it.name }
+					.filter { it.endsWith(".class") }
+					.map { it.removeSuffix(".class").replace('/', '.') }
+					.sorted()
+					.toList()
+			}
+
+		val file = keepRules.get().asFile
+		file.parentFile.mkdirs()
+		file.writeText(classes.joinToString("\n", postfix = "\n") { "-keep class $it { *; }" })
+		logger.lifecycle("Wrote ${classes.size} plugin-ABI keep rules to ${file.absolutePath}")
+	}
+}
+
 val pluginApiKeepRules =
-	tasks.register("generatePluginApiKeepRules") {
+	tasks.register<GeneratePluginApiKeepRules>("generatePluginApiKeepRules") {
 		dependsOn("assemblePluginApiFatJar")
 
-		val fatJar = layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.jar")
-		val rules = layout.buildDirectory.file("generated/proguard/plugin-api-keep.pro")
-		inputs.file(fatJar)
-		outputs.file(rules)
-
-		doLast {
-			val classes =
-				ZipFile(fatJar.get().asFile).use { zip ->
-					zip
-						.entries()
-						.asSequence()
-						.map { it.name }
-						.filter { it.endsWith(".class") }
-						.map { it.removeSuffix(".class").replace('/', '.') }
-						.sorted()
-						.toList()
-				}
-
-			val file = rules.get().asFile
-			file.parentFile.mkdirs()
-			file.writeText(classes.joinToString("\n", postfix = "\n") { "-keep class $it { *; }" })
-			logger.lifecycle("Wrote ${classes.size} plugin-ABI keep rules to ${file.absolutePath}")
-		}
+		fatJar.set(layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.jar"))
+		keepRules.set(layout.buildDirectory.file("generated/proguard/plugin-api-keep.pro"))
 	}
 
-tasks
-	.matching { it.name.startsWith("minify") && it.name.endsWith("WithR8") }
-	.configureEach { dependsOn(pluginApiKeepRules) }
+androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
+	variant.proguardFiles.add(pluginApiKeepRules.flatMap { it.keepRules })
+}
 
 tasks.register("copyPluginApiJarToAssets") {
 	dependsOn(":plugin-api:createPluginApiJar")
