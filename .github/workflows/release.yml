@@ -436,6 +436,7 @@ jobs:
     timeout-minutes: 60
     needs: [merge_stage_to_main, download_assets, download_documentation]
     strategy:
+      fail-fast: ${{ inputs.dry_run != true }}
       matrix:
         include:
           - variant: v8
