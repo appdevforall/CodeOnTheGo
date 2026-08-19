@@ -40,16 +40,13 @@ class ExtractMethodViewModelTest {
 		rawStringSpans = emptyList(),
 	)
 
-	private fun plan(
-		candidates: List<ExtractMethodCandidate>,
-		selectionMatched: Boolean = false,
-	) = ExtractMethodPlan(
-		fileText = "unused",
-		documentVersion = 1,
-		candidates = candidates,
-		selectionMatchedCandidate = selectionMatched,
-		refusal = null,
-	)
+	private fun plan(candidates: List<ExtractMethodCandidate>) =
+		ExtractMethodPlan(
+			fileText = "unused",
+			documentVersion = 1,
+			candidates = candidates,
+			refusal = null,
+		)
 
 	@Test
 	fun `the initial state takes the first candidate's suggestion`() {
@@ -61,13 +58,12 @@ class ExtractMethodViewModelTest {
 	}
 
 	@Test
-	fun `the chooser is hidden for one candidate and for an exact selection match`() {
+	fun `the chooser is hidden for one candidate and shown for more`() {
 		val single = ExtractMethodViewModel(plan(listOf(candidate("a + b", "total"))))
 		assertFalse(single.uiState.value.showCandidatePicker)
 
 		val many = listOf(candidate("a + b", "total"), candidate("a + b + c", "total1"))
 		assertTrue(ExtractMethodViewModel(plan(many)).uiState.value.showCandidatePicker)
-		assertFalse(ExtractMethodViewModel(plan(many, selectionMatched = true)).uiState.value.showCandidatePicker)
 	}
 
 	@Test

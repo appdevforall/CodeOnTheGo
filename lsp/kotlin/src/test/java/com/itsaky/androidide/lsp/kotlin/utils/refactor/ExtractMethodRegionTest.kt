@@ -77,7 +77,6 @@ class ExtractMethodRegionTest : KtLspTest() {
 
 		assertTrue(region is ExtractionRegion.Expressions)
 		assertEquals("a + b", (region as ExtractionRegion.Expressions).candidates.first().text)
-		assertTrue(region.selectionMatchedInnermost)
 	}
 
 	@Test

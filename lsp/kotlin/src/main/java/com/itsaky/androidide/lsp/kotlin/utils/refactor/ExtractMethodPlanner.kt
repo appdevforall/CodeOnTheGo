@@ -71,12 +71,6 @@ internal fun buildExtractMethodPlan(
 					fileText = fileText,
 					documentVersion = documentVersion,
 					candidates = candidates,
-					// Only meaningful while the innermost candidate survived: otherwise the selection no
-					// longer corresponds to the first option shown.
-					selectionMatchedCandidate =
-						region is ExtractionRegion.Expressions &&
-							region.selectionMatchedInnermost &&
-							candidates.first().span == region.span,
 					refusal = null,
 				)
 			}

@@ -57,7 +57,7 @@ As with extract variable: **no `prepare()` visibility gate** (deciding extractab
 
 **R2 - Region.** The selection resolves to exactly one extraction region, of one of two kinds.
 
-*Expression candidate* - reuses `candidateExpressionsAt` unchanged, including whitespace trimming, the `offset - 1` cursor retry, the innermost-first walk, `MAX_CANDIDATES = 3`, the legal-target rules and `selectionMatchedCandidate`. A bare cursor always takes this path.
+*Expression candidate* - reuses `candidateExpressionsAt` unchanged, including whitespace trimming, the `offset - 1` cursor retry, the innermost-first walk, `MAX_CANDIDATES = 3` and the legal-target rules. A bare cursor always takes this path.
 
 *Statement range* - a non-empty selection that spans statement boundaries snaps **outward** to whole statements: a touch selection will not land on a boundary. The result must be 1..N statements that are **siblings in one `KtBlockExpression`**. A selection spanning two different blocks, or partially covering a statement that cannot be snapped, is declined (`NotASingleRegion`).
 
@@ -131,7 +131,7 @@ Not an exit: a `return` belonging to a function **declared inside** the region -
 
 **R11 - Sheet.** A sibling of the extract-variable sheet, not a generalisation of it: `ExtractMethodSheet` (a `BottomSheetDialogFragment` hosting a `ComposeView`), a stateless `ExtractMethodSheetContent`, `ExtractMethodViewModel` + `ExtractMethodUiState` + a sealed `ExtractMethodUiEvent`. `LabelledSection` and `OptionList` are promoted to a shared internal file in `refactor/ui/`.
 
-Contents, top to bottom: title -> expression chooser (only for an expression region with more than one candidate and no exact selection match) -> name field with its `NameProblem` message -> signature preview -> Cancel/Extract. There is **no scope chooser** (R4) and **no replace-all checkbox** (R13).
+Contents, top to bottom: title -> expression chooser (only for an expression region with more than one candidate) -> name field with its `NameProblem` message -> signature preview -> Cancel/Extract. There is **no scope chooser** (R4) and **no replace-all checkbox** (R13).
 
 The preview is **one monospace line: the signature exactly as it will be emitted** - modifiers, receiver, parameters, return type. Types render fully qualified (R5), so a real preview reads `private suspend fun loadUser(id: kotlin.String): com.example.User`. It wraps rather than truncating. No body preview: the body is the code the user selected and can see behind the sheet, so it moves verbatim and previewing it says nothing new, while the signature is the one derived artefact and the one place the derivation can surprise them.
 

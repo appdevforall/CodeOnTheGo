@@ -167,7 +167,6 @@ data class ExtractMethodPlan(
 	override val fileText: String,
 	override val documentVersion: Int,
 	val candidates: List<ExtractMethodCandidate>,
-	val selectionMatchedCandidate: Boolean,
 	val refusal: ExtractionRefusal?,
 ) : RefactoringPlan {
 	val isEmpty: Boolean get() = candidates.isEmpty()
@@ -177,7 +176,7 @@ data class ExtractMethodPlan(
 			refusal: ExtractionRefusal,
 			fileText: String = "",
 			documentVersion: Int = -1,
-		) = ExtractMethodPlan(fileText, documentVersion, emptyList(), selectionMatchedCandidate = false, refusal = refusal)
+		) = ExtractMethodPlan(fileText, documentVersion, emptyList(), refusal = refusal)
 	}
 }
 
