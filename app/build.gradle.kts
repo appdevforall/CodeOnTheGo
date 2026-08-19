@@ -425,6 +425,46 @@ tasks.register("downloadDocDb") {
 	}
 }
 
+abstract class GeneratePluginApiKeepRules : DefaultTask() {
+	@get:InputFile
+	abstract val fatJar: RegularFileProperty
+
+	@get:OutputFile
+	abstract val keepRules: RegularFileProperty
+
+	@TaskAction
+	fun generate() {
+		val classes =
+			ZipFile(fatJar.get().asFile).use { zip ->
+				zip
+					.entries()
+					.asSequence()
+					.map { it.name }
+					.filter { it.endsWith(".class") }
+					.map { it.removeSuffix(".class").replace('/', '.') }
+					.sorted()
+					.toList()
+			}
+
+		val file = keepRules.get().asFile
+		file.parentFile.mkdirs()
+		file.writeText(classes.joinToString("\n", postfix = "\n") { "-keep class $it { *; }" })
+		logger.lifecycle("Wrote ${classes.size} plugin-ABI keep rules to ${file.absolutePath}")
+	}
+}
+
+val pluginApiKeepRules =
+	tasks.register<GeneratePluginApiKeepRules>("generatePluginApiKeepRules") {
+		dependsOn("assemblePluginApiFatJar")
+
+		fatJar.set(layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.jar"))
+		keepRules.set(layout.buildDirectory.file("generated/proguard/plugin-api-keep.pro"))
+	}
+
+androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
+	variant.proguardFiles.add(pluginApiKeepRules.flatMap { it.keepRules })
+}
+
 tasks.register("copyPluginApiJarToAssets") {
 	dependsOn(":plugin-api:createPluginApiJar")
 	val sourceFile = project(":plugin-api").layout.buildDirectory.file("libs/plugin-api-1.0.0.jar")
