@@ -56,9 +56,9 @@ For each changed first-party file, check the applicable rules. Each rule cites i
 | 9 | **Dependency substitution:** don't add a Maven coordinate for something already vendored/substituted (`build-deps*`); don't add a new dependency without checking `gradle/libs.versions.toml` first. | ADR 0003 |
 | 10 | **Strings** live in the `:resources` module's `strings.xml` (not per-module, not inline literals). | REVIEW.md §7 |
 | 11 | **UI never drawn over the two system bars** (top status bar, bottom navigation bar). | CLAUDE.md |
-| 12 | **Text scales:** new/changed screens hold up at font scale 2.0 — `sp` for text and `dp` for spacing (no `sp` dimen used as margin/padding), no text boxed in a fixed `dp` size, a scroll container on content that can grow, and `maxLines`/`singleLine`/`ellipsize` only on genuinely disposable text. | CLAUDE.md, REVIEW.md §8 |
+| 12 | **Text scales:** new/changed screens verified at font scale 1.0 and 2.0 — `sp` for text and `dp` for spacing (no `sp` dimen used as margin/padding), no text boxed in a fixed `dp` size, a scroll container on content that can grow, and `maxLines`/`singleLine`/`ellipsize` only on genuinely disposable text. | CLAUDE.md, REVIEW.md §8 |
 
-Rules 1, 2, 6, 11, 12 apply to UI changes; 4, 5 to data/model changes; 8, 9 to Gradle changes. Judge by what the diff touches — don't flag rules a file doesn't engage.
+Rules 1, 2, 6, 10, 11, 12 apply to UI changes; 4, 5 to data/model changes; 8, 9 to Gradle changes; 3 wherever a dependency, singleton, or ViewModel is introduced; 7 wherever a module's dependencies or cross-module imports change. Any rule not listed here is still checked whenever the diff touches its subject. Judge by what the diff touches — don't flag rules a file doesn't engage.
 
 For a **large diff (~15+ first-party files)**, fan out: spawn a subagent per dimension (UI/state, DI, persistence, Gradle/modules), each instructed to read the relevant ADR and report only its dimension's findings; then merge. For a small diff, do it inline.
 

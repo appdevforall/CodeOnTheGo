@@ -40,7 +40,7 @@ Keep it proportional — a two-line change needs a two-line ledger.
 - [ ] **Docs:** public classes/functions have KDoc/Javadoc explaining *why*, not *what*; any module `README`/`ARCHITECTURE.md`/ADR the change affects is updated in the same PR.
 - [ ] **Strings** are in the **`:resources`** module's `strings.xml` (not per-module, not inline literals) — keeps localization centralized.
 - [ ] **Accessibility:** every actionable view has a `contentDescription` (XML *or* programmatic); decorative views are marked `importantForAccessibility="no"`.
-- [ ] **Font scale:** new or changed screens verified at **2.0** — nothing clipped, nothing unreachable — or explicitly noted as not applicable.
+- [ ] **Font scale:** new or changed screens verified at **1.0 and 2.0** — nothing clipped, nothing unreachable — or explicitly noted as not applicable.
 - [ ] **Contextual help:** new interactive elements (and any new screen/panel) have long-press help wired to the 3-tier tooltip system.
 - [ ] **Analytics:** meaningful user/build actions emit an event (see below).
 - [ ] **Scope/size:** PR is focused on one ticket/use case; if large, it's split into **reviewable commits** (mechanical separate from behavioral) rather than force-split into multiple PRs (`CLAUDE.md`).
@@ -162,7 +162,7 @@ CoGo serves visually-impaired developers, so TalkBack support is a correctness r
 
 **Text scales, so layouts must too.** Low vision means large system fonts as often as it means TalkBack. A screen isn't done until it works at **2x**.
 
-- **Verify new or changed screens at font scale 1.0 and 2.0**, and put the result in the PR — a screenshot at 2.0, or one line saying what you checked. Recipe in `CLAUDE.md` (Build & test → Emulator / device). "No visual change" or "no text on this surface" is a valid one-line opt-out; silence is not.
+- **Verify new or changed screens at font scale 1.0 and 2.0**, and put the result in the PR — screenshots at both scales, or one line naming both scales and what you checked. Recipe in `CLAUDE.md` (Build & test → Emulator / device). "No visual change" or "no text on this surface" is a valid one-line opt-out; silence is not.
 - **Spacing in `dp`, text in `sp`.** An `sp` dimension used as a margin or padding grows with the font scale and squeezes the text it was meant to frame — as `layout-land/fragment_onboarding_greeting.xml` does today with `@dimen/_32sp`.
 - **Don't box text in a fixed size.** A control sized `40dp x 40dp` can't hold a label that doubled. Let the container wrap its content and set a `minWidth`/`minHeight` for the touch target instead of a fixed one.
   - *Compose:* the same trap is `Modifier.height(44.dp)`/`.size(36.dp)` on chrome that contains text — use `defaultMinSize` and let it grow.

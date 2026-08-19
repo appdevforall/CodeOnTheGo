@@ -32,10 +32,15 @@ At least one Android emulator or device is available. Find it with `adb devices 
 **Font-scale check.** Read the current value first so you can put it back. Each change recreates the activity (only `EditorActivityKt` declares `fontScale` in `configChanges`), so this doubles as a state-restoration test:
 
 ```bash
-adb shell settings get system font_scale          # save it (prints "null" if never set)
+orig=$(adb shell settings get system font_scale | tr -d '\r')   # "null" if never set
+trap 'if [ "$orig" = null ]; then
+        adb shell settings delete system font_scale
+      else
+        adb shell settings put system font_scale "$orig"
+      fi' EXIT
+
 adb shell settings put system font_scale 2.0
 adb exec-out screencap -p > /tmp/scale-2.0.png
-adb shell settings put system font_scale 1.0      # restore
 ```
 
 At 2.0, look for text cut off mid-word, labels overrunning their control, actions pushed off the bottom with no way to scroll to them, and overlapping rows.
