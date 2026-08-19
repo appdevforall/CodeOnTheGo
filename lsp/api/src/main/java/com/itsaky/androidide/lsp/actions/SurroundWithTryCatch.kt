@@ -1,4 +1,4 @@
-package com.itsaky.androidide.lsp.kotlin.utils
+package com.itsaky.androidide.lsp.actions
 
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.models.Position
@@ -7,12 +7,12 @@ import com.itsaky.androidide.models.Range
 /**
  * Resolves an editor selection (cursor left/right line+column) to the whole-line
  * span the surround action wraps. Whole-line based by design: mid-line columns
- * still select the entire line -- statement-boundary snapping needs PSI, which is
- * out of scope, so a wrapped `val x = ...` on a multi-statement line stays scoped
- * inside the try. A selection whose end handle sits at column 0 of the line after
- * the last selected line (the common "drag to select whole lines" gesture) would
- * otherwise wrap that trailing, visually-unselected line, so it is trimmed.
- * Returns (startLine, endLine), 0-based inclusive.
+ * still select the entire line -- statement-boundary snapping needs a syntax
+ * tree, which is out of scope, so a wrapped declaration on a multi-statement
+ * line stays scoped inside the try. A selection whose end handle sits at column
+ * 0 of the line after the last selected line (the common "drag to select whole
+ * lines" gesture) would otherwise wrap that trailing, visually-unselected line,
+ * so it is trimmed. Returns (startLine, endLine), 0-based inclusive.
  */
 fun resolveSurroundLines(
 	leftLine: Int,
@@ -27,19 +27,24 @@ fun resolveSurroundLines(
 
 /**
  * Wraps lines [startLine]..[endLine] (0-based, inclusive) of [text] in a
- * try/catch block. Whole-line based: columns are ignored and full lines are
- * replaced. Indentation is computed here so the result is correct even without a
- * follow-up formatter. Returns null when the span is blank (a whitespace-only
- * selection is an intended silent no-op) or out of range.
+ * try/catch block. The catch syntax is language-specific and provided by the
+ * caller: [catchClause] is the clause without braces (e.g. `catch (Exception e)`)
+ * and [catchBody] the single handler statement. Whole-line based: columns are
+ * ignored and full lines are replaced. Indentation is computed here so the
+ * result is correct even without a follow-up formatter. Returns null when the
+ * span is blank (a whitespace-only selection is an intended silent no-op) or
+ * out of range.
  */
 fun computeSurroundWithTryCatchEdit(
 	text: String,
 	startLine: Int,
 	endLine: Int,
+	catchClause: String,
+	catchBody: String,
 ): TextEdit? {
 	val nl = if (text.contains("\r\n")) "\r\n" else "\n"
 	val lines = text.split(nl)
-	if (startLine < 0 || startLine > endLine || endLine >= lines.size) {
+	if (startLine !in 0..endLine || endLine >= lines.size) {
 		return null
 	}
 
@@ -58,8 +63,12 @@ fun computeSurroundWithTryCatchEdit(
 		buildString {
 			append(baseIndent).append("try {").append(nl)
 			append(body).append(nl)
-			append(baseIndent).append("} catch (e: Exception) {").append(nl)
-			append(baseIndent).append(indentUnit).append("e.printStackTrace()").append(nl)
+			append(baseIndent)
+				.append("} ")
+				.append(catchClause)
+				.append(" {")
+				.append(nl)
+			append(baseIndent).append(indentUnit).append(catchBody).append(nl)
 			append(baseIndent).append("}")
 		}
 
