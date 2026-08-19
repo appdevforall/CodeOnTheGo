@@ -19,6 +19,7 @@ class GitBranchPopupWindow(
 	private val context: Context,
 	private val onBranchSelected: (GitBranch) -> Unit,
 	private val onNewBranchRequested: () -> Unit,
+	private val onMergeBranch: ((GitBranch) -> Unit)? = null,
 ) {
 	private val binding: PopupGitBranchesBinding =
 		PopupGitBranchesBinding.inflate(
@@ -37,10 +38,16 @@ class GitBranchPopupWindow(
 		}
 
 	private val adapter: GitBranchAdapter =
-		GitBranchAdapter { branch ->
-			popupWindow.dismiss()
-			onBranchSelected(branch)
-		}
+		GitBranchAdapter(
+			onBranchSelected = { branch ->
+				popupWindow.dismiss()
+				onBranchSelected(branch)
+			},
+			onMergeClicked = { branch ->
+				popupWindow.dismiss()
+				onMergeBranch?.invoke(branch)
+			},
+		)
 
 	private var allBranches: List<GitBranch> = emptyList()
 

@@ -1351,7 +1351,7 @@
     <string name="current_branch_name">Current branch: %1$s</string>
     <string name="current_branch">Current branch</string>
     <string name="changed_files_count">Changed files: %1$d</string>
-    <string name="git_branches">Git branches</string>
+    <string name="git_branches">Branches</string>
     <string name="git_local_branches">Local</string>
     <string name="git_remote_branches">Remote</string>
     <string name="git_create_branch">New branch</string>
@@ -1380,6 +1380,12 @@
     <string name="merge_conflicts">Merge conflicts</string>
     <string name="abort_merge">Abort merge</string>
     <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
+    <string name="git_merge_branch">Merge into %1$s</string>
+    <string name="git_merge_success">Merged %1$s into %2$s successfully</string>
+    <string name="git_merge_failed">Failed to merge %1$s</string>
+    <string name="git_merge_conflict_title">Merge conflict</string>
+    <string name="git_merge_conflict_msg">Conflicts occurred while merging %1$s into %2$s. Please resolve conflicts or abort merge.</string>
+    <string name="git_already_up_to_date">Already up to date</string>
     <string name="msg_save_before_git_action">You have unsaved changes. Would you like to save them before proceeding?</string>
     <string name="no_save_before_git_action">Proceed without saving</string>
     <string name="save_before_git_action">Save before proceeding</string>

@@ -24,6 +24,7 @@ sealed class GitBranchListItem {
 
 class GitBranchAdapter(
 	private val onBranchSelected: (GitBranch) -> Unit,
+	private val onMergeClicked: ((GitBranch) -> Unit)? = null,
 ) : ListAdapter<GitBranchListItem, RecyclerView.ViewHolder>(DiffCallback) {
 	companion object {
 		private const val VIEW_TYPE_HEADER = 0
@@ -79,9 +80,15 @@ class GitBranchAdapter(
 			if (item.branch.isCurrent) {
 				binding.ivActiveCheck.visibility = View.VISIBLE
 				binding.imgBranchIcon.visibility = View.GONE
+				binding.btnMergeAction.visibility = View.GONE
 			} else {
 				binding.ivActiveCheck.visibility = View.GONE
 				binding.imgBranchIcon.visibility = View.VISIBLE
+				binding.btnMergeAction.visibility = if (onMergeClicked != null) View.VISIBLE else View.GONE
+			}
+
+			binding.btnMergeAction.setOnClickListener {
+				onMergeClicked?.invoke(item.branch)
 			}
 
 			binding.root.setOnClickListener {

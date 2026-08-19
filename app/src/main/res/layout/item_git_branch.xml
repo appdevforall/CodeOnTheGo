@@ -45,9 +45,27 @@
 		android:maxLines="1"
 		android:textAppearance="?attr/textAppearanceBody2"
 		app:layout_constraintBottom_toBottomOf="parent"
-		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintEnd_toStartOf="@id/btnMergeAction"
 		app:layout_constraintStart_toEndOf="@id/iconContainer"
 		app:layout_constraintTop_toTopOf="parent"
 		tools:text="main" />
+
+	<ImageButton
+		android:id="@+id/btnMergeAction"
+		android:layout_width="20dp"
+		android:layout_height="20dp"
+		android:layout_marginStart="8dp"
+		android:background="@drawable/bg_ripple"
+		android:clickable="true"
+		android:contentDescription="@string/git_merge_branch"
+		android:focusable="true"
+		android:scaleType="fitCenter"
+		android:src="@drawable/ic_merge"
+		android:visibility="gone"
+		app:layout_constraintBottom_toBottomOf="parent"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintTop_toTopOf="parent"
+		app:tint="?attr/colorOnSurfaceVariant"
+		tools:visibility="visible" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
