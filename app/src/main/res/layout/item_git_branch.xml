@@ -23,6 +23,7 @@
 			android:id="@+id/imgBranchIcon"
 			android:layout_width="20dp"
 			android:layout_height="20dp"
+			android:importantForAccessibility="no"
 			android:src="@drawable/ic_branch"
 			app:tint="?attr/colorOnSurface" />
 
@@ -30,6 +31,7 @@
 			android:id="@+id/ivActiveCheck"
 			android:layout_width="20dp"
 			android:layout_height="20dp"
+			android:contentDescription="@string/current_branch"
 			android:src="@drawable/ic_check"
 			android:visibility="gone"
 			app:tint="?attr/colorPrimary"
@@ -57,7 +59,6 @@
 		android:layout_marginStart="8dp"
 		android:background="@drawable/bg_ripple"
 		android:clickable="true"
-		android:contentDescription="@string/git_merge_branch"
 		android:focusable="true"
 		android:scaleType="fitCenter"
 		android:src="@drawable/ic_merge"

@@ -75,16 +75,20 @@ class GitBranchAdapter(
 		private val binding: ItemGitBranchBinding,
 	) : RecyclerView.ViewHolder(binding.root) {
 		fun bind(item: GitBranchListItem.BranchItem) {
+			val context = binding.root.context
 			binding.tvBranchName.text = item.displayName
 
 			if (item.branch.isCurrent) {
 				binding.ivActiveCheck.visibility = View.VISIBLE
 				binding.imgBranchIcon.visibility = View.GONE
 				binding.btnMergeAction.visibility = View.GONE
+				binding.root.contentDescription = "${item.displayName}, ${context.getString(R.string.current_branch)}"
 			} else {
 				binding.ivActiveCheck.visibility = View.GONE
 				binding.imgBranchIcon.visibility = View.VISIBLE
 				binding.btnMergeAction.visibility = if (onMergeClicked != null) View.VISIBLE else View.GONE
+				binding.btnMergeAction.contentDescription = context.getString(R.string.git_merge_branch, item.displayName)
+				binding.root.contentDescription = item.displayName
 			}
 
 			binding.btnMergeAction.setOnClickListener {

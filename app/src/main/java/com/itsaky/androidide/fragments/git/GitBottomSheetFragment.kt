@@ -138,6 +138,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 					if (branchName != null) {
 						binding.groupCurrentBranch.visibility = View.VISIBLE
 						binding.tvBranchName.text = branchName
+						binding.tvBranchName.contentDescription =
+							"${getString(R.string.current_branch)}: $branchName"
 					} else {
 						binding.groupCurrentBranch.visibility = View.GONE
 					}

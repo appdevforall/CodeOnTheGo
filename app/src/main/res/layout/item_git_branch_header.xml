@@ -10,5 +10,6 @@
 	android:textAppearance="?attr/textAppearanceCaption"
 	android:textColor="?attr/colorOnSurfaceVariant"
 	android:textStyle="bold"
+	android:accessibilityHeading="true"
 	android:textAllCaps="true"
 	android:textSize="11sp" />

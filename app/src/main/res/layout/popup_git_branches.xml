@@ -56,6 +56,7 @@
 			app:boxCornerRadiusTopEnd="8dp"
 			app:boxCornerRadiusTopStart="8dp"
 			app:hintEnabled="false"
+			app:startIconContentDescription="@null"
 			app:startIconDrawable="@drawable/ic_search">
 
 			<com.google.android.material.textfield.TextInputEditText
