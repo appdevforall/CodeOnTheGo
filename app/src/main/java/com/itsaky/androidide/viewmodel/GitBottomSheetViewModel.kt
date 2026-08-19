@@ -18,6 +18,7 @@ import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.isNetworkConnected
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -99,6 +100,8 @@ class GitBottomSheetViewModel(
 				currentRepository = GitRepositoryManager.openRepository(projectDir)
 				_isGitRepository.value = currentRepository != null
 				refreshStatus()
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Failed to initialize repository", e)
 				_isGitRepository.value = false
@@ -125,6 +128,8 @@ class GitBottomSheetViewModel(
 					_branches.value = BranchesUiState.None
 					_localCommitsCount.value = 0
 				}
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Failed to refresh git status", e)
 				_gitStatus.value = GitStatus.EMPTY
@@ -145,6 +150,8 @@ class GitBottomSheetViewModel(
 					return@launch
 				}
 				_branches.value = BranchesUiState.Success(repo.getBranches())
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Failed to fetch branches", e)
 				_branches.value = BranchesUiState.Error(e.message)
@@ -170,6 +177,8 @@ class GitBottomSheetViewModel(
 			} catch (e: CheckoutConflictException) {
 				log.error("Checkout conflict occurred", e)
 				_checkoutState.value = CheckoutUiState.Conflicts(e.conflictingPaths ?: emptyList())
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Checkout failed", e)
 				_checkoutState.value = CheckoutUiState.Error(message = e.message)
@@ -214,6 +223,8 @@ class GitBottomSheetViewModel(
 
 				refreshStatus()
 				onSuccess()
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Failed to commit changes", e)
 			}
@@ -231,6 +242,8 @@ class GitBottomSheetViewModel(
 					_commitHistory.value = CommitHistoryUiState.Success(history)
 				}
 				getLocalCommitsCount()
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Failed to fetch commit history", e)
 				_commitHistory.value = CommitHistoryUiState.Error(e.message)
@@ -269,6 +282,8 @@ class GitBottomSheetViewModel(
 				}
 
 				handlePushSuccess(username, token)
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				if (e.message?.contains("not authorized", ignoreCase = true) == true) {
 					credentialsManager.clearCredentials()
@@ -345,9 +360,11 @@ class GitBottomSheetViewModel(
 
 				handlePullSuccess(username, token)
 			} catch (e: CheckoutConflictException) {
-				log.error("Pull failed with checkout conflict", e)
+				log.error("Pull checkout conflict occurred", e)
 				val paths = e.conflictingPaths?.joinToString("\n") ?: ""
 				_pullState.value = PullUiState.Error(errorResId = R.string.checkout_conflict_message, errorArgs = listOf(paths))
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Pull failed", e)
 				if (e.message?.contains("not authorized", ignoreCase = true) == true) {
@@ -458,6 +475,8 @@ class GitBottomSheetViewModel(
 							)
 					}
 				}
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Failed to merge branch $targetBranchName", e)
 				_mergeState.value = MergeUiState.Error(targetBranch = targetBranchName, message = e.message)
@@ -593,6 +612,8 @@ class GitBottomSheetViewModel(
 				currentRepository?.abortMerge()
 				refreshStatus()
 				onSuccess?.invoke()
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Failed to abort merge", e)
 			}
@@ -606,6 +627,8 @@ class GitBottomSheetViewModel(
 				val projectDir = File(IProjectManager.getInstance().projectDirPath)
 				repository.stageFiles(listOf(File(projectDir, path)))
 				refreshStatus()
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				log.error("Failed to resolve conflict for $path", e)
 			}
