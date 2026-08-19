@@ -125,6 +125,24 @@ class GitBranchPopupWindow(
 	fun show(anchor: View) {
 		binding.etSearchBranches.text?.clear()
 		filterBranches(null)
-		popupWindow.showAsDropDown(anchor, 0, 8)
+
+		val parentView = (anchor.parent as? View) ?: anchor.rootView
+		val marginPx = (16 * context.resources.displayMetrics.density).toInt()
+		val targetWidth = parentView.width - (marginPx * 2)
+
+		val xOff =
+			if (targetWidth > 0) {
+				popupWindow.width = targetWidth
+				val anchorLocation = IntArray(2)
+				val parentLocation = IntArray(2)
+				anchor.getLocationInWindow(anchorLocation)
+				parentView.getLocationInWindow(parentLocation)
+				val anchorLeftInParent = anchorLocation[0] - parentLocation[0]
+				marginPx - anchorLeftInParent
+			} else {
+				0
+			}
+
+		popupWindow.showAsDropDown(anchor, xOff, 8)
 	}
 }
