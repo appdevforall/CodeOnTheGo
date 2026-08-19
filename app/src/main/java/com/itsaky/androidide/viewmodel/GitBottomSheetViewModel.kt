@@ -274,7 +274,7 @@ class GitBottomSheetViewModel(
 			} finally {
 				pushResetJob =
 					viewModelScope.launch {
-						delay(3000)
+						delay(3000.milliseconds)
 						_pushState.value = PushUiState.Idle
 					}
 			}
@@ -354,7 +354,7 @@ class GitBottomSheetViewModel(
 			} finally {
 				pullResetJob =
 					viewModelScope.launch {
-						delay(3000)
+						delay(3000.milliseconds)
 						_pullState.value = PullUiState.Idle
 					}
 			}
@@ -448,17 +448,18 @@ class GitBottomSheetViewModel(
 					else -> {
 						_mergeState.value =
 							MergeUiState.Error(
+								targetBranch = targetBranchName,
 								message = "Merge status: ${result.mergeStatus.name}",
 							)
 					}
 				}
 			} catch (e: Exception) {
 				log.error("Failed to merge branch $targetBranchName", e)
-				_mergeState.value = MergeUiState.Error(message = e.message)
+				_mergeState.value = MergeUiState.Error(targetBranch = targetBranchName, message = e.message)
 			} finally {
 				mergeResetJob =
 					viewModelScope.launch {
-						delay(3000)
+						delay(3000.milliseconds)
 						_mergeState.value = MergeUiState.Idle
 					}
 			}
@@ -506,6 +507,7 @@ class GitBottomSheetViewModel(
 
 		data class Error(
 			val message: String? = null,
+			val targetBranch: String? = null,
 			val errorResId: Int? = R.string.unknown_error,
 		) : MergeUiState()
 	}

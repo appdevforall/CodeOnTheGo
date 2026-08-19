@@ -103,27 +103,7 @@ class GitBranchPopupWindow(
 		adapter.submitList(items)
 	}
 
-	private fun getDisplayName(branch: GitBranch): String {
-		if (!branch.isRemote) return branch.name
-		val remoteName = branch.remoteName
-		return when {
-			!remoteName.isNullOrEmpty() && branch.name.startsWith("$remoteName/") -> {
-				branch.name.removePrefix("$remoteName/")
-			}
-
-			branch.name.startsWith("origin/") -> {
-				branch.name.removePrefix("origin/")
-			}
-
-			branch.name.startsWith("refs/remotes/") -> {
-				branch.name.substringAfter("refs/remotes/").substringAfter('/')
-			}
-
-			else -> {
-				branch.name
-			}
-		}
-	}
+	private fun getDisplayName(branch: GitBranch): String = branch.name
 
 	fun show(anchor: View) {
 		binding.etSearchBranches.text?.clear()
