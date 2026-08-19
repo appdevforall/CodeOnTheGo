@@ -1,79 +1,80 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="320dp"
-    android:layout_height="wrap_content"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="8dp"
-    app:strokeColor="?attr/colorOutline"
-    app:strokeWidth="1dp">
+<com.google.android.material.card.MaterialCardView
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	android:layout_width="320dp"
+	android:layout_height="wrap_content"
+	app:cardCornerRadius="12dp"
+	app:cardElevation="8dp"
+	app:strokeColor="?attr/colorOutline"
+	app:strokeWidth="1dp">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="8dp">
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:orientation="vertical"
+		android:padding="8dp">
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="8dp"
-            android:paddingVertical="4dp">
+		<LinearLayout
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:gravity="center_vertical"
+			android:orientation="horizontal"
+			android:paddingHorizontal="8dp"
+			android:paddingVertical="4dp">
 
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/git_branches"
-                android:textAppearance="?attr/textAppearanceSubtitle2"
-                android:textStyle="bold" />
+			<TextView
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_weight="1"
+				android:text="@string/git_branches"
+				android:textAppearance="?attr/textAppearanceSubtitle2"
+				android:textStyle="bold" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnNewBranch"
-                style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minWidth="0dp"
-                android:paddingHorizontal="8dp"
-                android:text="@string/git_create_branch"
-                android:textSize="12sp"
-                app:icon="@drawable/ic_add"
-                app:iconSize="16dp" />
-        </LinearLayout>
+			<com.google.android.material.button.MaterialButton
+				android:id="@+id/btnNewBranch"
+				style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="0dp"
+				android:paddingHorizontal="8dp"
+				android:text="@string/git_create_branch"
+				android:textSize="12sp"
+				app:icon="@drawable/ic_add"
+				app:iconSize="16dp" />
+		</LinearLayout>
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/searchLayout"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="4dp"
-            android:layout_marginVertical="4dp"
-            app:boxCornerRadiusBottomEnd="8dp"
-            app:boxCornerRadiusBottomStart="8dp"
-            app:boxCornerRadiusTopEnd="8dp"
-            app:boxCornerRadiusTopStart="8dp"
-            app:hintEnabled="false"
-            app:startIconDrawable="@drawable/ic_search">
+		<com.google.android.material.textfield.TextInputLayout
+			android:id="@+id/searchLayout"
+			style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginHorizontal="4dp"
+			android:layout_marginVertical="4dp"
+			app:boxCornerRadiusBottomEnd="8dp"
+			app:boxCornerRadiusBottomStart="8dp"
+			app:boxCornerRadiusTopEnd="8dp"
+			app:boxCornerRadiusTopStart="8dp"
+			app:hintEnabled="false"
+			app:startIconDrawable="@drawable/ic_search">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etSearchBranches"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="@string/git_search_branches"
-                android:inputType="text"
-                android:maxLines="1"
-                android:paddingVertical="8dp"
-                android:textSize="14sp" />
-        </com.google.android.material.textfield.TextInputLayout>
+			<com.google.android.material.textfield.TextInputEditText
+				android:id="@+id/etSearchBranches"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:hint="@string/git_search_branches"
+				android:inputType="text"
+				android:maxLines="1"
+				android:paddingVertical="8dp"
+				android:textSize="14sp" />
+		</com.google.android.material.textfield.TextInputLayout>
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvBranches"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxHeight="260dp"
-            android:scrollbars="vertical" />
+		<androidx.recyclerview.widget.RecyclerView
+			android:id="@+id/rvBranches"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:maxHeight="260dp"
+			android:scrollbars="vertical" />
 
-    </LinearLayout>
+	</LinearLayout>
 </com.google.android.material.card.MaterialCardView>

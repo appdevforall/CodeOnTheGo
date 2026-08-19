@@ -1,237 +1,238 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:fillViewport="true">
+<androidx.core.widget.NestedScrollView
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:fillViewport="true">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="16dp">
+	<androidx.constraintlayout.widget.ConstraintLayout
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:padding="16dp">
 
-        <TextView
-            android:id="@+id/tv_current_branch_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/current_branch"
-            android:textAppearance="?attr/textAppearanceCaption"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+		<TextView
+			android:id="@+id/tv_current_branch_label"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="@string/current_branch"
+			android:textAppearance="?attr/textAppearanceCaption"
+			android:textColor="?attr/colorOnSurfaceVariant"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toTopOf="parent" />
 
-        <ImageView
-            android:id="@+id/imgBranchIcon"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:layout_marginTop="4dp"
-            android:src="@drawable/ic_branch"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tv_current_branch_label"
-            app:tint="?attr/colorOnSurface" />
+		<ImageView
+			android:id="@+id/imgBranchIcon"
+			android:layout_width="16dp"
+			android:layout_height="16dp"
+			android:layout_marginTop="4dp"
+			android:src="@drawable/ic_branch"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toBottomOf="@id/tv_current_branch_label"
+			app:tint="?attr/colorOnSurface" />
 
-        <TextView
-            android:id="@+id/tv_branch_name"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:clickable="true"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp"
-            android:textAppearance="?attr/textAppearanceSubtitle1"
-            android:textColor="?attr/colorPrimary"
-            android:textStyle="bold"
-            app:drawableEndCompat="@drawable/ic_chevron_down"
-            app:drawableTint="?attr/colorPrimary"
-            app:layout_constrainedWidth="true"
-            app:layout_constraintBottom_toBottomOf="@id/imgBranchIcon"
-            app:layout_constraintEnd_toStartOf="@id/btnPull"
-            app:layout_constraintHorizontal_bias="0.0"
-            app:layout_constraintStart_toEndOf="@id/imgBranchIcon"
-            app:layout_constraintTop_toTopOf="@id/imgBranchIcon" />
+		<TextView
+			android:id="@+id/tv_branch_name"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:clickable="true"
+			android:ellipsize="end"
+			android:maxLines="1"
+			android:paddingStart="4dp"
+			android:paddingEnd="4dp"
+			android:textAppearance="?attr/textAppearanceSubtitle1"
+			android:textColor="?attr/colorPrimary"
+			android:textStyle="bold"
+			app:drawableEndCompat="@drawable/ic_chevron_down"
+			app:drawableTint="?attr/colorPrimary"
+			app:layout_constrainedWidth="true"
+			app:layout_constraintBottom_toBottomOf="@id/imgBranchIcon"
+			app:layout_constraintEnd_toStartOf="@id/btnPull"
+			app:layout_constraintHorizontal_bias="0.0"
+			app:layout_constraintStart_toEndOf="@id/imgBranchIcon"
+			app:layout_constraintTop_toTopOf="@id/imgBranchIcon" />
 
-        <androidx.constraintlayout.widget.Group
-            android:id="@+id/group_current_branch"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            app:constraint_referenced_ids="tv_current_branch_label, imgBranchIcon, tv_branch_name" />
+		<androidx.constraintlayout.widget.Group
+			android:id="@+id/group_current_branch"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:visibility="gone"
+			app:constraint_referenced_ids="tv_current_branch_label, imgBranchIcon, tv_branch_name" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnPull"
-            style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/pull"
-            android:visibility="gone"
-            app:icon="@drawable/ic_sync"
-            app:layout_constraintBottom_toBottomOf="@id/tv_branch_name"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="@id/tv_branch_name" />
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/btnPull"
+			style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="@string/pull"
+			android:visibility="gone"
+			app:icon="@drawable/ic_sync"
+			app:layout_constraintBottom_toBottomOf="@id/tv_branch_name"
+			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintTop_toTopOf="@id/tv_branch_name" />
 
-        <com.google.android.material.progressindicator.CircularProgressIndicator
-            android:id="@+id/pullProgress"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:indeterminate="true"
-            android:visibility="gone"
-            app:indicatorSize="24dp"
-            app:layout_constraintBottom_toBottomOf="@id/btnPull"
-            app:layout_constraintEnd_toEndOf="@id/btnPull"
-            app:layout_constraintStart_toStartOf="@id/btnPull"
-            app:layout_constraintTop_toTopOf="@id/btnPull" />
+		<com.google.android.material.progressindicator.CircularProgressIndicator
+			android:id="@+id/pullProgress"
+			android:layout_width="24dp"
+			android:layout_height="24dp"
+			android:indeterminate="true"
+			android:visibility="gone"
+			app:indicatorSize="24dp"
+			app:layout_constraintBottom_toBottomOf="@id/btnPull"
+			app:layout_constraintEnd_toEndOf="@id/btnPull"
+			app:layout_constraintStart_toStartOf="@id/btnPull"
+			app:layout_constraintTop_toTopOf="@id/btnPull" />
 
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbCheckAll"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:enabled="false"
-            android:textAppearance="?attr/textAppearanceSubtitle2"
-            android:textColor="?attr/colorOnSurface"
-            android:visibility="gone"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tv_branch_name" />
+		<com.google.android.material.checkbox.MaterialCheckBox
+			android:id="@+id/cbCheckAll"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:enabled="false"
+			android:textAppearance="?attr/textAppearanceSubtitle2"
+			android:textColor="?attr/colorOnSurface"
+			android:visibility="gone"
+			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toBottomOf="@id/tv_branch_name" />
 
-        <androidx.constraintlayout.widget.Guideline
-            android:id="@+id/guideline_limit"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            app:layout_constraintGuide_percent="0.45" />
+		<androidx.constraintlayout.widget.Guideline
+			android:id="@+id/guideline_limit"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:orientation="horizontal"
+			app:layout_constraintGuide_percent="0.45" />
 
-        <TextView
-            android:id="@+id/emptyView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:text="@string/no_uncommitted_changes"
-            android:textAppearance="?attr/textAppearanceBody2"
-            android:visibility="gone"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cbCheckAll" />
+		<TextView
+			android:id="@+id/emptyView"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:gravity="center"
+			android:text="@string/no_uncommitted_changes"
+			android:textAppearance="?attr/textAppearanceBody2"
+			android:visibility="gone"
+			app:layout_constraintBottom_toBottomOf="parent"
+			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toBottomOf="@id/cbCheckAll" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerView"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:clipToPadding="false"
-            android:fadeScrollbars="false"
-            android:paddingVertical="4dp"
-            android:paddingEnd="8dp"
-            android:scrollbarStyle="outsideOverlay"
-            android:scrollbars="vertical"
-            app:layout_constraintBottom_toTopOf="@id/guideline_limit"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cbCheckAll" />
+		<androidx.recyclerview.widget.RecyclerView
+			android:id="@+id/recyclerView"
+			android:layout_width="0dp"
+			android:layout_height="0dp"
+			android:clipToPadding="false"
+			android:fadeScrollbars="false"
+			android:paddingVertical="4dp"
+			android:paddingEnd="8dp"
+			android:scrollbarStyle="outsideOverlay"
+			android:scrollbars="vertical"
+			app:layout_constraintBottom_toTopOf="@id/guideline_limit"
+			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toBottomOf="@id/cbCheckAll" />
 
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/authorAvatar"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="8dp"
-            android:background="?attr/colorSecondaryContainer"
-            android:padding="2dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_account"
-            app:layout_constraintBottom_toBottomOf="@id/commitSummaryLayout"
-            app:layout_constraintEnd_toStartOf="@id/commitSummaryLayout"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="@id/commitSummaryLayout"
-            app:shapeAppearanceOverlay="@style/AppTheme.ShapeAppearance.Circle" />
+		<com.google.android.material.imageview.ShapeableImageView
+			android:id="@+id/authorAvatar"
+			android:layout_width="40dp"
+			android:layout_height="40dp"
+			android:layout_marginEnd="8dp"
+			android:background="?attr/colorSecondaryContainer"
+			android:padding="2dp"
+			android:scaleType="centerInside"
+			android:src="@drawable/ic_account"
+			app:layout_constraintBottom_toBottomOf="@id/commitSummaryLayout"
+			app:layout_constraintEnd_toStartOf="@id/commitSummaryLayout"
+			app:layout_constraintStart_toStartOf="parent"
+			app:layout_constraintTop_toTopOf="@id/commitSummaryLayout"
+			app:shapeAppearanceOverlay="@style/AppTheme.ShapeAppearance.Circle" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/commitSummaryLayout"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/commit_summary"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toEndOf="@id/authorAvatar"
-            app:layout_constraintTop_toBottomOf="@id/guideline_limit">
+		<com.google.android.material.textfield.TextInputLayout
+			android:id="@+id/commitSummaryLayout"
+			style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:hint="@string/commit_summary"
+			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintStart_toEndOf="@id/authorAvatar"
+			app:layout_constraintTop_toBottomOf="@id/guideline_limit">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/commitSummary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="text"
-                android:maxLines="1" />
-        </com.google.android.material.textfield.TextInputLayout>
+			<com.google.android.material.textfield.TextInputEditText
+				android:id="@+id/commitSummary"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:inputType="text"
+				android:maxLines="1" />
+		</com.google.android.material.textfield.TextInputLayout>
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/commitDescriptionLayout"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/commit_description_optional"
-            app:layout_constraintTop_toBottomOf="@id/commitSummaryLayout">
+		<com.google.android.material.textfield.TextInputLayout
+			android:id="@+id/commitDescriptionLayout"
+			style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:hint="@string/commit_description_optional"
+			app:layout_constraintTop_toBottomOf="@id/commitSummaryLayout">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/commitDescription"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="top|start"
-                android:inputType="textMultiLine"
-                android:maxLines="4"
-                android:minLines="2" />
-        </com.google.android.material.textfield.TextInputLayout>
+			<com.google.android.material.textfield.TextInputEditText
+				android:id="@+id/commitDescription"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:gravity="top|start"
+				android:inputType="textMultiLine"
+				android:maxLines="4"
+				android:minLines="2" />
+		</com.google.android.material.textfield.TextInputLayout>
 
-        <TextView
-            android:id="@+id/authorWarning"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/idepref_git_author_missing_warning"
-            android:textAppearance="?attr/textAppearanceCaption"
-            android:textColor="?attr/colorError"
-            android:visibility="gone"
-            app:layout_constraintTop_toBottomOf="@id/commitDescriptionLayout" />
+		<TextView
+			android:id="@+id/authorWarning"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:text="@string/idepref_git_author_missing_warning"
+			android:textAppearance="?attr/textAppearanceCaption"
+			android:textColor="?attr/colorError"
+			android:visibility="gone"
+			app:layout_constraintTop_toBottomOf="@id/commitDescriptionLayout" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/commitButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:enabled="false"
-            android:text="@string/commit"
-            app:layout_constraintTop_toBottomOf="@id/authorWarning" />
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/commitButton"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:enabled="false"
+			android:text="@string/commit"
+			app:layout_constraintTop_toBottomOf="@id/authorWarning" />
 
-        <androidx.constraintlayout.widget.Group
-            android:id="@+id/commit_section"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            app:constraint_referenced_ids="authorAvatar, commitSummaryLayout, commitDescriptionLayout, commitButton" />
+		<androidx.constraintlayout.widget.Group
+			android:id="@+id/commit_section"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:visibility="gone"
+			app:constraint_referenced_ids="authorAvatar, commitSummaryLayout, commitDescriptionLayout, commitButton" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnAbortMerge"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/abort_merge"
-            android:textColor="?attr/colorError"
-            android:visibility="gone"
-            app:layout_constraintTop_toBottomOf="@id/commitButton"
-            app:strokeColor="?attr/colorError" />
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/btnAbortMerge"
+			style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:text="@string/abort_merge"
+			android:textColor="?attr/colorError"
+			android:visibility="gone"
+			app:layout_constraintTop_toBottomOf="@id/commitButton"
+			app:strokeColor="?attr/colorError" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/commitHistoryButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"
-            android:text="@string/view_commit_history"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/btnAbortMerge"
-            app:layout_constraintVertical_bias="1.0" />
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/commitHistoryButton"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="16dp"
+			android:layout_marginBottom="16dp"
+			android:text="@string/view_commit_history"
+			app:layout_constraintBottom_toBottomOf="parent"
+			app:layout_constraintTop_toBottomOf="@id/btnAbortMerge"
+			app:layout_constraintVertical_bias="1.0" />
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
+	</androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.core.widget.NestedScrollView>

@@ -165,10 +165,11 @@ class GitBottomSheetViewModel(
 				log.error("Checkout failed", e)
 				_checkoutState.value = CheckoutUiState.Error(message = e.message)
 			} finally {
-				checkoutResetJob = viewModelScope.launch {
-					delay(3000.milliseconds)
-					_checkoutState.value = CheckoutUiState.Idle
-				}
+				checkoutResetJob =
+					viewModelScope.launch {
+						delay(3000.milliseconds)
+						_checkoutState.value = CheckoutUiState.Idle
+					}
 			}
 		}
 	}
@@ -398,7 +399,9 @@ class GitBottomSheetViewModel(
 
 		object CheckingOut : CheckoutUiState()
 
-		data class Success(val branchName: String) : CheckoutUiState()
+		data class Success(
+			val branchName: String,
+		) : CheckoutUiState()
 
 		data class Conflicts(
 			val conflictingPaths: List<String> = emptyList(),

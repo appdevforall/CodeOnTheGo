@@ -1,52 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:background="@drawable/bg_ripple"
-    android:clickable="true"
-    android:focusable="true"
-    android:paddingHorizontal="16dp"
-    android:paddingVertical="10dp">
+<androidx.constraintlayout.widget.ConstraintLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
+	android:layout_width="match_parent"
+	android:layout_height="wrap_content"
+	android:background="@drawable/bg_ripple"
+	android:clickable="true"
+	android:focusable="true"
+	android:paddingHorizontal="16dp"
+	android:paddingVertical="10dp">
 
-    <FrameLayout
-        android:id="@+id/iconContainer"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+	<FrameLayout
+		android:id="@+id/iconContainer"
+		android:layout_width="20dp"
+		android:layout_height="20dp"
+		app:layout_constraintBottom_toBottomOf="parent"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toTopOf="parent">
 
-        <ImageView
-            android:id="@+id/imgBranchIcon"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:src="@drawable/ic_branch"
-            app:tint="?attr/colorOnSurface" />
+		<ImageView
+			android:id="@+id/imgBranchIcon"
+			android:layout_width="20dp"
+			android:layout_height="20dp"
+			android:src="@drawable/ic_branch"
+			app:tint="?attr/colorOnSurface" />
 
-        <ImageView
-            android:id="@+id/ivActiveCheck"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:src="@drawable/ic_check"
-            android:visibility="gone"
-            app:tint="?attr/colorPrimary"
-            tools:visibility="visible" />
-    </FrameLayout>
+		<ImageView
+			android:id="@+id/ivActiveCheck"
+			android:layout_width="20dp"
+			android:layout_height="20dp"
+			android:src="@drawable/ic_check"
+			android:visibility="gone"
+			app:tint="?attr/colorPrimary"
+			tools:visibility="visible" />
+	</FrameLayout>
 
-    <TextView
-        android:id="@+id/tvBranchName"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:ellipsize="middle"
-        android:maxLines="1"
-        android:textAppearance="?attr/textAppearanceBody2"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/iconContainer"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:text="main" />
+	<TextView
+		android:id="@+id/tvBranchName"
+		android:layout_width="0dp"
+		android:layout_height="wrap_content"
+		android:layout_marginStart="12dp"
+		android:ellipsize="middle"
+		android:maxLines="1"
+		android:textAppearance="?attr/textAppearanceBody2"
+		app:layout_constraintBottom_toBottomOf="parent"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toEndOf="@id/iconContainer"
+		app:layout_constraintTop_toTopOf="parent"
+		tools:text="main" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

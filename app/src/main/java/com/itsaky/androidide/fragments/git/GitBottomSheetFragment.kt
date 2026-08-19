@@ -15,10 +15,12 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.PreferencesActivity
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.databinding.FragmentGitBottomSheetBinding
+import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.models.ChangeType
@@ -34,15 +36,11 @@ import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel.PullUiState
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import org.greenrobot.eventbus.EventBus
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import java.io.File
 
-import com.itsaky.androidide.events.ListProjectFilesRequestEvent
-import com.google.android.material.textfield.TextInputEditText
-import org.greenrobot.eventbus.EventBus
-
 class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
-
 	private val viewModel: GitBottomSheetViewModel by activityViewModel()
 	private val bottomSheetViewModel: BottomSheetViewModel by activityViewModel()
 	private lateinit var fileChangeAdapter: GitFileChangeAdapter
@@ -50,66 +48,72 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	private lateinit var branchPopupWindow: GitBranchPopupWindow
 
 	private var _binding: FragmentGitBottomSheetBinding? = null
-	private val binding get() = _binding!!
+	val binding: FragmentGitBottomSheetBinding
+		get() = checkNotNull(_binding) { "Fragment binding is null or view has been destroyed" }
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
 		_binding = FragmentGitBottomSheetBinding.bind(view)
 		credentialsManager = GitCredentialsManager(requireContext())
 
-		branchPopupWindow = GitBranchPopupWindow(
-			context = requireContext(),
-			onBranchSelected = { branch ->
-				if (!branch.isCurrent) {
-					checkUnsavedChangesAndProceed {
-						viewModel.checkoutBranch(
-							branchName = branch.name,
-							createNew = false,
-							startPoint = if (branch.isRemote) branch.fullName else null
-						)
+		branchPopupWindow =
+			GitBranchPopupWindow(
+				context = requireContext(),
+				onBranchSelected = { branch ->
+					if (!branch.isCurrent) {
+						checkUnsavedChangesAndProceed {
+							viewModel.checkoutBranch(
+								branchName = branch.name,
+								createNew = false,
+								startPoint = if (branch.isRemote) branch.fullName else null,
+							)
+						}
 					}
-				}
-			},
-			onNewBranchRequested = {
-				showCreateBranchDialog()
-			}
-		)
+				},
+				onNewBranchRequested = {
+					showCreateBranchDialog()
+				},
+			)
 
 		binding.tvBranchName.setOnClickListener {
 			branchPopupWindow.show(binding.tvBranchName)
 		}
 
-		fileChangeAdapter = GitFileChangeAdapter(
-			onFileClicked = { change ->
-				when (change.type) {
-					ChangeType.CONFLICTED -> {
-						val activity = requireActivity()
-						if (activity is EditorHandlerActivity) {
-							viewLifecycleOwner.lifecycleScope.launch {
-								val repo = viewModel.currentRepository
-								repo?.let {
-									activity.checkForExternalFileChanges(force = true)
-									activity.openFile(File(repo.rootDir, change.path))
-									bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_COLLAPSED)
+		fileChangeAdapter =
+			GitFileChangeAdapter(
+				onFileClicked = { change ->
+					when (change.type) {
+						ChangeType.CONFLICTED -> {
+							val activity = requireActivity()
+							if (activity is EditorHandlerActivity) {
+								viewLifecycleOwner.lifecycleScope.launch {
+									val repo = viewModel.currentRepository
+									repo?.let {
+										activity.checkForExternalFileChanges(force = true)
+										activity.openFile(File(repo.rootDir, change.path))
+										bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_COLLAPSED)
+									}
 								}
 							}
 						}
-					}
 
-					else -> {
-						val dialog = GitDiffViewerDialog.newInstance(change.path)
-						dialog.show(childFragmentManager, "GitDiffViewerDialog")
+						else -> {
+							val dialog = GitDiffViewerDialog.newInstance(change.path)
+							dialog.show(childFragmentManager, "GitDiffViewerDialog")
+						}
 					}
-				}
-			},
-			onSelectionChanged = {
-				validateCommitButton()
-				updateCheckAllButton()
-			},
-			onResolveConflict = { change ->
-				viewModel.resolveConflict(change.path)
-			}
-		)
+				},
+				onSelectionChanged = {
+					validateCommitButton()
+					updateCheckAllButton()
+				},
+				onResolveConflict = { change ->
+					viewModel.resolveConflict(change.path)
+				},
+			)
 
 		binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
 		binding.recyclerView.adapter = fileChangeAdapter
@@ -145,27 +149,32 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 						is GitBottomSheetViewModel.CheckoutUiState.Idle -> {
 							binding.tvBranchName.isEnabled = true
 						}
+
 						is GitBottomSheetViewModel.CheckoutUiState.CheckingOut -> {
 							binding.tvBranchName.isEnabled = false
 						}
+
 						is GitBottomSheetViewModel.CheckoutUiState.Success -> {
 							binding.tvBranchName.isEnabled = true
 							flashSuccess(getString(R.string.git_checkout_success, state.branchName))
 							refreshEditorContent(force = true)
 							EventBus.getDefault().post(ListProjectFilesRequestEvent())
 						}
+
 						is GitBottomSheetViewModel.CheckoutUiState.Conflicts -> {
 							binding.tvBranchName.isEnabled = true
-							val message = getString(
-								R.string.git_checkout_conflict_msg,
-								state.conflictingPaths.joinToString("\n• ", prefix = "• ")
-							)
+							val message =
+								getString(
+									R.string.git_checkout_conflict_msg,
+									state.conflictingPaths.joinToString("\n• ", prefix = "• "),
+								)
 							MaterialAlertDialogBuilder(requireContext())
 								.setTitle(R.string.git_checkout_conflict_title)
 								.setMessage(message)
 								.setPositiveButton(android.R.string.ok, null)
 								.show()
 						}
+
 						is GitBottomSheetViewModel.CheckoutUiState.Error -> {
 							binding.tvBranchName.isEnabled = true
 							val message = state.message ?: getString(R.string.git_checkout_failed)
@@ -181,7 +190,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 			combine(
 				viewModel.isGitRepository,
-				viewModel.gitStatus
+				viewModel.gitStatus,
 			) { isRepo, status ->
 				if (isRepo) {
 					viewModel.fetchBranches()
@@ -190,29 +199,33 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 					status.staged + status.unstaged + status.untracked + status.conflicted
 
 				when {
-					!isRepo -> binding.apply {
-						emptyView.visibility = View.VISIBLE
-						emptyView.text = getString(R.string.not_a_git_repo)
-						recyclerView.visibility = View.GONE
-						cbCheckAll.visibility = View.GONE
-						commitSection.visibility = View.GONE
-						authorWarning.visibility = View.GONE
-						commitHistoryButton.visibility = View.GONE
-						btnAbortMerge.visibility = View.GONE
+					!isRepo -> {
+						binding.apply {
+							emptyView.visibility = View.VISIBLE
+							emptyView.text = getString(R.string.not_a_git_repo)
+							recyclerView.visibility = View.GONE
+							cbCheckAll.visibility = View.GONE
+							commitSection.visibility = View.GONE
+							authorWarning.visibility = View.GONE
+							commitHistoryButton.visibility = View.GONE
+							btnAbortMerge.visibility = View.GONE
+						}
 					}
 
-					allChanges.isEmpty() -> binding.apply {
-						emptyView.visibility = View.VISIBLE
-						emptyView.text = getString(R.string.no_uncommitted_changes)
-						recyclerView.visibility = View.GONE
-						cbCheckAll.visibility = View.VISIBLE
-						cbCheckAll.isEnabled = false
-						cbCheckAll.isChecked = false
-						cbCheckAll.text = getString(R.string.changed_files_count, 0)
-						commitSection.visibility = View.GONE
-						authorWarning.visibility = View.GONE
-						commitHistoryButton.visibility = View.VISIBLE
-						btnAbortMerge.visibility = View.GONE
+					allChanges.isEmpty() -> {
+						binding.apply {
+							emptyView.visibility = View.VISIBLE
+							emptyView.text = getString(R.string.no_uncommitted_changes)
+							recyclerView.visibility = View.GONE
+							cbCheckAll.visibility = View.VISIBLE
+							cbCheckAll.isEnabled = false
+							cbCheckAll.isChecked = false
+							cbCheckAll.text = getString(R.string.changed_files_count, 0)
+							commitSection.visibility = View.GONE
+							authorWarning.visibility = View.GONE
+							commitHistoryButton.visibility = View.VISIBLE
+							btnAbortMerge.visibility = View.GONE
+						}
 					}
 
 					else -> {
@@ -259,15 +272,14 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	private fun updateAuthorUI() {
 		val hasAuthor = hasAuthorInfo()
 		val allChanges =
-			viewModel.gitStatus.value.staged + viewModel.gitStatus.value.unstaged + viewModel.gitStatus.value.untracked + viewModel.gitStatus.value.conflicted
+			viewModel.gitStatus.value.staged + viewModel.gitStatus.value.unstaged + viewModel.gitStatus.value.untracked +
+				viewModel.gitStatus.value.conflicted
 		binding.authorWarning.visibility =
 			if (!hasAuthor && allChanges.isNotEmpty()) View.VISIBLE else View.GONE
 		validateCommitButton()
 	}
 
-	private fun hasAuthorInfo(): Boolean {
-		return !GitPreferences.userName.isNullOrBlank() && !GitPreferences.userEmail.isNullOrBlank()
-	}
+	private fun hasAuthorInfo(): Boolean = !GitPreferences.userName.isNullOrBlank() && !GitPreferences.userEmail.isNullOrBlank()
 
 	private fun setupCommitUI() {
 		binding.commitSummary.doAfterTextChanged { validateCommitButton() }
@@ -284,19 +296,19 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 		binding.btnAbortMerge.apply {
 			setOnClickListener {
-				val dialog = MaterialAlertDialogBuilder(requireContext())
-					.setTitle(R.string.abort_merge)
-					.setMessage(R.string.confirm_abort_merge)
-					.setPositiveButton(R.string.abort_merge) { _, _ ->
-						viewModel.abortMerge {
-							val activity = requireActivity()
-							if (activity is EditorHandlerActivity) {
-								activity.checkForExternalFileChanges(force = true)
+				val dialog =
+					MaterialAlertDialogBuilder(requireContext())
+						.setTitle(R.string.abort_merge)
+						.setMessage(R.string.confirm_abort_merge)
+						.setPositiveButton(R.string.abort_merge) { _, _ ->
+							viewModel.abortMerge {
+								val activity = requireActivity()
+								if (activity is EditorHandlerActivity) {
+									activity.checkForExternalFileChanges(force = true)
+								}
 							}
-						}
-					}
-					.setNegativeButton(android.R.string.cancel, null)
-					.create()
+						}.setNegativeButton(android.R.string.cancel, null)
+						.create()
 				dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_ABORT_MERGE)
 				dialog.show()
 			}
@@ -311,14 +323,20 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		binding.commitButton.apply {
 			setOnClickListener {
 				checkUnsavedChangesAndProceed {
-					val summary = binding.commitSummary.text?.toString()?.trim() ?: ""
-					val description = binding.commitDescription.text?.toString()?.trim()
+					val summary =
+						binding.commitSummary.text
+							?.toString()
+							?.trim() ?: ""
+					val description =
+						binding.commitDescription.text
+							?.toString()
+							?.trim()
 
 					if (summary.isNotEmpty() && fileChangeAdapter.selectedFiles.isNotEmpty() && hasAuthorInfo()) {
 						viewModel.commitChanges(
 							summary = summary,
 							description = description,
-							selectedPaths = fileChangeAdapter.selectedFiles.toList()
+							selectedPaths = fileChangeAdapter.selectedFiles.toList(),
 						) {
 							// Clear the inputs on successful commit
 							binding.commitSummary.text?.clear()
@@ -337,7 +355,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		val name = GitPreferences.userName.orEmpty().ifBlank { getString(R.string.author_not_set) }
 		val email =
 			GitPreferences.userEmail.orEmpty().ifBlank { getString(R.string.author_not_set) }
-		val message = getString(R.string.git_committing_as, name) + "\n" +
+		val message =
+			getString(R.string.git_committing_as, name) + "\n" +
 				getString(R.string.git_committing_email, email) + "\n\n" +
 				getString(R.string.git_update_config_in_preferences)
 
@@ -345,10 +364,11 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		val preferencesText = getString(R.string.git_update_config_in_preferences)
 		val startIndex = message.indexOf(preferencesText)
 
-		val builder = MaterialAlertDialogBuilder(requireContext())
-			.setTitle(R.string.idepref_git_author_title)
-			.setMessage(spannable)
-			.setPositiveButton(android.R.string.ok, null)
+		val builder =
+			MaterialAlertDialogBuilder(requireContext())
+				.setTitle(R.string.idepref_git_author_title)
+				.setMessage(spannable)
+				.setPositiveButton(android.R.string.ok, null)
 
 		val dialog = builder.create()
 
@@ -356,17 +376,18 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			spannable.setSpan(
 				object : ClickableSpan() {
 					override fun onClick(widget: View) {
-						val intent = Intent(
-							requireContext(),
-							PreferencesActivity::class.java
-						)
+						val intent =
+							Intent(
+								requireContext(),
+								PreferencesActivity::class.java,
+							)
 						dialog.dismiss()
 						startActivity(intent)
 					}
 				},
 				startIndex,
 				startIndex + preferencesText.length,
-				SPAN_EXCLUSIVE_EXCLUSIVE
+				SPAN_EXCLUSIVE_EXCLUSIVE,
 			)
 		}
 
@@ -427,11 +448,12 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 						binding.btnPull.isEnabled = true
 						binding.pullProgress.visibility = View.GONE
 						val message = state.message ?: getString(R.string.info_merge_conflicts)
-						val dialog = MaterialAlertDialogBuilder(requireContext())
-							.setTitle(getString(R.string.merge_conflicts))
-							.setMessage(message)
-							.setPositiveButton(android.R.string.ok, null)
-							.create()
+						val dialog =
+							MaterialAlertDialogBuilder(requireContext())
+								.setTitle(getString(R.string.merge_conflicts))
+								.setMessage(message)
+								.setPositiveButton(android.R.string.ok, null)
+								.create()
 						dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_MERGE_CONFLICTS)
 						dialog.show()
 						viewModel.resetPullState()
@@ -443,16 +465,21 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 						binding.pullProgress.visibility = View.GONE
 						val message =
 							state.message ?: state.errorResId?.let { resId ->
-								if (state.errorArgs != null) getString(
-									resId,
-									*state.errorArgs.toTypedArray()
-								) else getString(resId)
+								if (state.errorArgs != null) {
+									getString(
+										resId,
+										*state.errorArgs.toTypedArray(),
+									)
+								} else {
+									getString(resId)
+								}
 							}
-						val dialog = MaterialAlertDialogBuilder(requireContext())
-							.setTitle(R.string.pull_failed)
-							.setMessage(message)
-							.setPositiveButton(android.R.string.ok, null)
-							.create()
+						val dialog =
+							MaterialAlertDialogBuilder(requireContext())
+								.setTitle(R.string.pull_failed)
+								.setMessage(message)
+								.setPositiveButton(android.R.string.ok, null)
+								.create()
 						dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_PULL_FAIL)
 						dialog.show()
 					}
@@ -470,7 +497,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 					} else {
 						showGitCredentialsDialog(
 							credentialsManager = credentialsManager,
-							positiveButtonTextResId = R.string.pull
+							positiveButtonTextResId = R.string.pull,
 						) { user, accessToken ->
 							viewModel.pull(user, accessToken)
 						}
@@ -497,8 +524,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 				} else {
 					flashSuccess(getString(R.string.git_create_branch_invalid_name))
 				}
-			}
-			.setNegativeButton(android.R.string.cancel, null)
+			}.setNegativeButton(android.R.string.cancel, null)
 			.show()
 	}
 
@@ -512,17 +538,16 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	private fun checkUnsavedChangesAndProceed(action: () -> Unit) {
 		val handler = requireActivity() as? IEditorHandler
 		if (handler?.areFilesModified() == true) {
-			val dialog = MaterialAlertDialogBuilder(requireContext())
-				.setTitle(R.string.title_files_unsaved)
-				.setMessage(R.string.msg_save_before_git_action)
-				.setPositiveButton(R.string.save_before_git_action) { _, _ ->
-					handler.saveAllAsync { action() }
-				}
-				.setNegativeButton(R.string.no_save_before_git_action) { _, _ ->
-					action()
-				}
-				.setNeutralButton(android.R.string.cancel, null)
-				.create()
+			val dialog =
+				MaterialAlertDialogBuilder(requireContext())
+					.setTitle(R.string.title_files_unsaved)
+					.setMessage(R.string.msg_save_before_git_action)
+					.setPositiveButton(R.string.save_before_git_action) { _, _ ->
+						handler.saveAllAsync { action() }
+					}.setNegativeButton(R.string.no_save_before_git_action) { _, _ ->
+						action()
+					}.setNeutralButton(android.R.string.cancel, null)
+					.create()
 			dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_SAVE)
 			dialog.show()
 		} else {
@@ -540,7 +565,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			TooltipManager.showIdeCategoryTooltip(
 				context = view.context,
 				anchorView = view,
-				tag = tag
+				tag = tag,
 			)
 			true
 		}
@@ -551,7 +576,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			TooltipManager.showIdeCategoryTooltip(
 				context = view.context,
 				anchorView = view,
-				tag = tag
+				tag = tag,
 			)
 			true
 		}
