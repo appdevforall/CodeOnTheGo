@@ -70,9 +70,13 @@ class GitBottomSheetViewModel(
 	private val _pushState = MutableStateFlow<PushUiState>(PushUiState.Idle)
 	val pushState: StateFlow<PushUiState> = _pushState.asStateFlow()
 
+	private val _mergeState = MutableStateFlow<MergeUiState>(MergeUiState.Idle)
+	val mergeState: StateFlow<MergeUiState> = _mergeState.asStateFlow()
+
 	private var pullResetJob: Job? = null
 	private var pushResetJob: Job? = null
 	private var checkoutResetJob: Job? = null
+	private var mergeResetJob: Job? = null
 
 	var currentRepository: GitRepository? = null
 		private set
@@ -394,6 +398,62 @@ class GitBottomSheetViewModel(
 		_checkoutState.value = CheckoutUiState.Idle
 	}
 
+	fun resetMergeState() {
+		mergeResetJob?.cancel()
+		_mergeState.value = MergeUiState.Idle
+	}
+
+	fun mergeBranch(targetBranchName: String) {
+		mergeResetJob?.cancel()
+
+		viewModelScope.launch {
+			val repo = currentRepository ?: return@launch
+			val currentBranchName = _currentBranch.value ?: "HEAD"
+			_mergeState.value = MergeUiState.Merging
+
+			try {
+				val result = repo.merge(targetBranchName)
+				when (result.mergeStatus) {
+					MergeStatus.FAST_FORWARD, MergeStatus.FAST_FORWARD_SQUASHED, MergeStatus.MERGED, MergeStatus.MERGED_SQUASHED, MergeStatus.MERGED_SQUASHED_NOT_COMMITTED -> {
+						_mergeState.value = MergeUiState.Success(
+							targetBranch = targetBranchName,
+							currentBranch = currentBranchName,
+						)
+						refreshStatus()
+						getCommitHistoryList()
+						getLocalCommitsCount()
+					}
+					MergeStatus.ALREADY_UP_TO_DATE -> {
+						_mergeState.value = MergeUiState.AlreadyUpToDate(targetBranch = targetBranchName)
+					}
+					MergeStatus.CONFLICTING -> {
+						val conflictingFiles = repo.getStatus().conflicted.map { it.path }
+						_mergeState.value = MergeUiState.Conflicts(
+							targetBranch = targetBranchName,
+							currentBranch = currentBranchName,
+							conflictingFiles = conflictingFiles,
+						)
+						refreshStatus()
+					}
+					else -> {
+						_mergeState.value = MergeUiState.Error(
+							message = "Merge status: ${result.mergeStatus.name}",
+						)
+					}
+				}
+			} catch (e: Exception) {
+				log.error("Failed to merge branch $targetBranchName", e)
+				_mergeState.value = MergeUiState.Error(message = e.message)
+			} finally {
+				mergeResetJob =
+					viewModelScope.launch {
+						delay(3000)
+						_mergeState.value = MergeUiState.Idle
+					}
+			}
+		}
+	}
+
 	sealed class CheckoutUiState {
 		object Idle : CheckoutUiState()
 
@@ -411,6 +471,32 @@ class GitBottomSheetViewModel(
 			val message: String? = null,
 			val errorResId: Int? = R.string.unknown_error,
 		) : CheckoutUiState()
+	}
+
+	sealed class MergeUiState {
+		object Idle : MergeUiState()
+
+		object Merging : MergeUiState()
+
+		data class Success(
+			val targetBranch: String,
+			val currentBranch: String,
+		) : MergeUiState()
+
+		data class AlreadyUpToDate(
+			val targetBranch: String,
+		) : MergeUiState()
+
+		data class Conflicts(
+			val targetBranch: String,
+			val currentBranch: String,
+			val conflictingFiles: List<String> = emptyList(),
+		) : MergeUiState()
+
+		data class Error(
+			val message: String? = null,
+			val errorResId: Int? = R.string.unknown_error,
+		) : MergeUiState()
 	}
 
 	sealed class PullUiState {

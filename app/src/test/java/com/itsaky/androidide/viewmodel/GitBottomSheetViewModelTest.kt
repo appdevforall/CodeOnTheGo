@@ -12,6 +12,7 @@ import io.mockk.unmockkAll
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.eclipse.jgit.api.MergeResult.MergeStatus
 import org.eclipse.jgit.api.errors.CheckoutConflictException
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -105,5 +106,22 @@ class GitBottomSheetViewModelTest {
 			// Advance past 3000ms delay to verify state resets to Idle
 			testScheduler.advanceTimeBy(3000)
 			assertTrue(viewModel.checkoutState.value is GitBottomSheetViewModel.CheckoutUiState.Idle)
+		}
+
+	@Test
+	fun `mergeBranch success updates mergeState to Success`() =
+		runTest {
+			val mergeResult = mockk<org.eclipse.jgit.api.MergeResult>(relaxed = true)
+			every { mergeResult.mergeStatus } returns MergeStatus.FAST_FORWARD
+			coEvery { repository.merge("feature-login") } returns mergeResult
+			coEvery { repository.getStatus() } returns mockk(relaxed = true)
+
+			viewModel.mergeBranch("feature-login")
+			testScheduler.advanceTimeBy(100)
+
+			val state = viewModel.mergeState.value
+			assertTrue(state is GitBottomSheetViewModel.MergeUiState.Success)
+			assertEquals("feature-login", (state as GitBottomSheetViewModel.MergeUiState.Success).targetBranch)
+			coVerify { repository.merge("feature-login") }
 		}
 }
