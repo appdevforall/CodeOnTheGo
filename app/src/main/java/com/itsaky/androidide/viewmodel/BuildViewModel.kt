@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
@@ -150,7 +151,7 @@ class BuildViewModel : ViewModel() {
 
 		val isDebug = variant.name.contains("debug", ignoreCase = true)
 		return pluginDir
-			.listFiles { file -> file.extension.equals("cgp", ignoreCase = true) }
+			.listFiles { file -> file.extension.equals(PLUGIN_ARCHIVE_EXTENSION, ignoreCase = true) }
 			?.filter { it.name.contains("-debug") == isDebug }
 			?.maxByOrNull { it.lastModified() }
 	}
