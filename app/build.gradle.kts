@@ -34,6 +34,7 @@ plugins {
 	// Sentry gradle plugin; the SDK it wires up reports to our GlitchTip backend.
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
+	alias(libs.plugins.kotlin.compose)
 }
 
 fun propOrEnv(name: String): String =
@@ -100,6 +101,10 @@ android {
 	androidResources {
 		noCompress.add("tflite")
 		generateLocaleConfig = true
+	}
+
+	buildFeatures {
+		compose = true
 	}
 
 	sourceSets {
@@ -240,6 +245,17 @@ dependencies {
 
 	// Git
 	implementation(libs.git.jgit)
+
+	// Compose (ADR 0009 - new IDE dialogs/screens are Compose)
+	implementation(platform(libs.compose.bom))
+	implementation(libs.compose.runtime)
+	implementation(libs.compose.ui)
+	implementation(libs.compose.foundation)
+	implementation(libs.compose.material3)
+	implementation(libs.compose.activity)
+	implementation(libs.compose.lifecycle.runtime)
+	implementation(libs.compose.ui.tooling.preview)
+	debugImplementation(libs.compose.ui.tooling)
 
 	// AndroidX
 	implementation(libs.androidx.splashscreen)
