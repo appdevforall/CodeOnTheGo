@@ -3,26 +3,39 @@
 ## 2026-08-18 - ADFA-5172/5175/5176: the local WebServer's 1 s stall, and removing the socket instead
 
 ### Time Breakdown
-| Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
-|---------|-------|-----------------|---------------|----------|
+
+Each phase's span runs from its first prompt to the next one, so the spans sum to the wall clock
+below, to within a minute of rounding. A span holds both agent work and any time nobody was at
+the keyboard; only the totals in Metrics attempt that split, and only as an estimate. Hands-on is per-phase raw, so it sums slightly
+above the adjusted total, which merges overlapping turns into one buffer.
+
+| Started | Phase | 👤 Hands-On Time | 🤖 Span (agent + away) | Problems |
+|---------|-------|-----------------|------------------------|----------|
 | Aug 17 9:42pm | Ticket read + accept-loop instrumentation | ██ 7m | █ 12m | |
-| Aug 17 9:54pm | Build, drive, root-cause the stall | ▌5m | ███ 30m | ⚠ HelpActivity not exported, so the measurement needed a throwaway manifest tweak; one flaky arm |
-| Aug 17 10:28pm | Keep-alive design + ADFA-5175 filed | █ 10m | █ 9m | |
-| Aug 17 10:37pm | ADFA-5175 stage 1, transport pivot, ADFA-5176 spike | █ 8m | ██████████ 100m | ⚠ 3 Spotless whole-file reformats; direction changed mid-implementation |
-| Aug 18 12:26am | Extraction onto the ADFA-5153 base | ▌5m | █████████████ 130m | ⚠ merge conflicts, plus a stale KDoc and dangling brace from moving code by script |
-| Aug 18 2:39am | Tests, Pebble move, cleanup, two PRs | █ 8m | ██████████████ 140m | ⚠ tests written just before the API they cover moved |
-| Aug 18 5:01am | Review fixes + CodeRabbit replies | █ 11m | ████ 40m | |
-| Aug 18 8:03am | Retro | ▌1m | ██ 20m | |
+| Aug 17 9:54pm | Build, drive, root-cause the stall | ▌5m | ███ 34m | ⚠ HelpActivity not exported, so the measurement needed a throwaway manifest tweak; one flaky arm |
+| Aug 17 10:28pm | Keep-alive design + ADFA-5175 filed | █ 10m | █ 10m | |
+| Aug 17 10:37pm | ADFA-5175 stage 1, transport pivot, ADFA-5176 spike | █ 8m | ███████████ 109m | ⚠ 3 Spotless whole-file reformats; direction changed mid-implementation |
+| Aug 18 12:26am | Extraction onto the ADFA-5153 base | ▌5m | █████████████ 133m | ⚠ merge conflicts, plus a stale KDoc and dangling brace from moving code by script |
+| Aug 18 2:39am | Tests, Pebble move, cleanup, two PRs | █ 8m | ██████████████ 142m | ⚠ tests written just before the API they cover moved |
+| Aug 18 5:01am | Review fixes, CodeRabbit replies, retro | █ 12m | ██████████████████ 182m | |
+
 
 ### Metrics
+
 | Metric | Duration |
 |--------|----------|
-| Total wall-clock | 10h 21m |
-| Hands-on | 53 min (9%) |
-| Automated agent time | ~6h 20m (61%) |
-| Idle/testing/away | ~3h 10m (30%) |
+| Total wall-clock (first prompt to last) | 10h 21m (621m) |
+| Hands-on | 53m (9%) |
+| Automated agent time (estimated) | ~6h 20m (380m, 61%) |
+| Idle/testing/away (estimated) | ~3h 8m (188m, 30%) |
 | Retro analysis time | 6 min |
 | Cost | $344 (481+ calls, 594K output tokens) |
+
+Wall-clock is exact, from the message timestamps. Hands-on is the transcript script's adjusted
+figure. The last two are an estimate of how the 568 minutes that are not hands-on divide, since
+nothing in the transcript marks when the agent stopped working and the user walked away; they are
+sized from the work performed (build and test runs, device measurements, an adb pull of a 267 MB
+database) and add up to the wall clock rather than being measured independently.
 
 13 user messages, most of them one to three words. Only user-message timestamps are exact, so the agent/idle split is estimated from the work performed.
 
@@ -39,6 +52,7 @@
 **What didn't:** The transport question should have come from the agent, not the user.
 
 ### Actions Taken
+
 | Issue | Action Type | Change |
 |-------|-------------|--------|
 | Designed keep-alive to tune a mechanism before asking whether the mechanism could go | CLAUDE.md | "Plan and size before building": new bullet -- when the evidence scales with a rate or volume, check whether the platform can remove the mechanism before planning the tuned version, citing ADFA-5172/5176 |
@@ -100,6 +114,7 @@
 ## 2026-07-24 - LeakCanary icon shrink (ADFA-4843), JAXP/PDF.js investigations (ADFA-1491/ADFA-3304), and full blankj:utilcodex removal (ADFA-4649)
 
 ### Time Breakdown
+
 | Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
 |---------|-------|-----------------|---------------|----------|
 | Jul 24 7:52pm | LeakCanary (ADFA-4843): investigate → decide → build → PR | ██ 4m | ██ 18m | |
@@ -110,6 +125,7 @@
 | Jul 24 11:44pm | Jira progress, retro resume | █ 1m | | |
 
 ### Metrics
+
 | Metric | Duration |
 |--------|----------|
 | Total wall-clock | ~3h 52m |
@@ -130,6 +146,7 @@
 **What didn't:** Waiting for the build system to create an APK — inherent friction in this multi-module Android project, not a request to change approach.
 
 ### Actions Taken
+
 | Issue | Action Type | Change |
 |-------|-------------|--------|
 | No standing guidance to prefer targeted compiles over full assembles during iteration | CLAUDE.md | Added a "Fast iteration" bullet to Build & test: batch targeted `:module:compileV8DebugKotlin` calls during iteration, reserve `:app:assembleV8Debug` for final verification |
