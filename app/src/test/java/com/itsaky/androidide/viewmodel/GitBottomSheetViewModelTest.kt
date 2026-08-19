@@ -38,11 +38,12 @@ class GitBottomSheetViewModelTest {
 
 	@Before
 	fun setup() {
-		viewModel = GitBottomSheetViewModel(credentialsManager, isNetworkConnected = { true })
-		// Inject mock repository manually
-		val field = GitBottomSheetViewModel::class.java.getDeclaredField("currentRepository")
-		field.isAccessible = true
-		field.set(viewModel, repository)
+		viewModel =
+			GitBottomSheetViewModel(
+				credentialsManager = credentialsManager,
+				isNetworkConnected = { true },
+				repository = repository,
+			)
 	}
 
 	@After
@@ -123,5 +124,74 @@ class GitBottomSheetViewModelTest {
 			assertTrue(state is GitBottomSheetViewModel.MergeUiState.Success)
 			assertEquals("feature-login", (state as GitBottomSheetViewModel.MergeUiState.Success).targetBranch)
 			coVerify { repository.merge("feature-login") }
+		}
+
+	@Test
+	fun `mergeBranch already up to date updates mergeState to AlreadyUpToDate`() =
+		runTest {
+			val mergeResult = mockk<org.eclipse.jgit.api.MergeResult>(relaxed = true)
+			every { mergeResult.mergeStatus } returns MergeStatus.ALREADY_UP_TO_DATE
+			coEvery { repository.merge("main") } returns mergeResult
+
+			viewModel.mergeBranch("main")
+			testScheduler.advanceTimeBy(100)
+
+			val state = viewModel.mergeState.value
+			assertTrue(state is GitBottomSheetViewModel.MergeUiState.AlreadyUpToDate)
+			assertEquals("main", (state as GitBottomSheetViewModel.MergeUiState.AlreadyUpToDate).targetBranch)
+		}
+
+	@Test
+	fun `mergeBranch conflict updates mergeState to Conflicts`() =
+		runTest {
+			val mergeResult = mockk<org.eclipse.jgit.api.MergeResult>(relaxed = true)
+			every { mergeResult.mergeStatus } returns MergeStatus.CONFLICTING
+			coEvery { repository.merge("feature-conflict") } returns mergeResult
+			val mockStatus = mockk<com.itsaky.androidide.git.core.models.GitStatus>(relaxed = true)
+			every { mockStatus.conflicted } returns
+				listOf(
+					com.itsaky.androidide.git.core.models.FileChange(
+						"conflicted.txt",
+						com.itsaky.androidide.git.core.models.ChangeType.CONFLICTED,
+					),
+				)
+			coEvery { repository.getStatus() } returns mockStatus
+
+			viewModel.mergeBranch("feature-conflict")
+			testScheduler.advanceTimeBy(100)
+
+			val state = viewModel.mergeState.value
+			assertTrue(state is GitBottomSheetViewModel.MergeUiState.Conflicts)
+			val conflictState = state as GitBottomSheetViewModel.MergeUiState.Conflicts
+			assertEquals("feature-conflict", conflictState.targetBranch)
+			assertEquals(listOf("conflicted.txt"), conflictState.conflictingFiles)
+		}
+
+	@Test
+	fun `mergeBranch error updates mergeState to Error`() =
+		runTest {
+			coEvery { repository.merge("non-existent") } throws IllegalArgumentException("Branch not found")
+
+			viewModel.mergeBranch("non-existent")
+			testScheduler.advanceTimeBy(100)
+
+			val state = viewModel.mergeState.value
+			assertTrue(state is GitBottomSheetViewModel.MergeUiState.Error)
+			val errorState = state as GitBottomSheetViewModel.MergeUiState.Error
+			assertEquals("non-existent", errorState.targetBranch)
+			assertEquals("Branch not found", errorState.message)
+		}
+
+	@Test
+	fun `fetchBranches error updates branches state to Error`() =
+		runTest {
+			coEvery { repository.getBranches() } throws RuntimeException("Git error")
+
+			viewModel.fetchBranches()
+			advanceUntilIdle()
+
+			val state = viewModel.branches.value
+			assertTrue(state is GitBottomSheetViewModel.BranchesUiState.Error)
+			assertEquals("Git error", (state as GitBottomSheetViewModel.BranchesUiState.Error).message)
 		}
 }

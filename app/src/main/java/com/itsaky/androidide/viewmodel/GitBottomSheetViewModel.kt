@@ -40,6 +40,7 @@ import kotlin.time.Duration.Companion.milliseconds
 class GitBottomSheetViewModel(
 	private val credentialsManager: GitCredentialsManager,
 	private val isNetworkConnected: () -> Boolean = { BaseApplication.baseInstance.isNetworkConnected() },
+	repository: GitRepository? = null,
 ) : ViewModel() {
 	private val log = LoggerFactory.getLogger(GitBottomSheetViewModel::class.java)
 
@@ -79,12 +80,16 @@ class GitBottomSheetViewModel(
 	private var checkoutResetJob: Job? = null
 	private var mergeResetJob: Job? = null
 
-	var currentRepository: GitRepository? = null
+	var currentRepository: GitRepository? = repository
 		private set
 
 	init {
 		EventBus.getDefault().register(this)
-		initializeRepository()
+		if (currentRepository == null) {
+			initializeRepository()
+		} else {
+			_isGitRepository.value = true
+		}
 	}
 
 	override fun onCleared() {
