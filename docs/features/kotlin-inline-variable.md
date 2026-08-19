@@ -6,7 +6,7 @@
 
 Replace the references to a local variable with its initializer, and delete the declaration once nothing needs it.
 
-The inverse of extract variable (ADFA-4826), and the third interactive Kotlin refactoring. It differs from both extracts in one way that shapes the whole design: it is **subtractive**. Extract adds a declaration next to code the user is looking at; inline rewrites references that are usually *off-screen* and then deletes the line under their finger. Where the UI lives is [ADR 0012](../adr/0012-refactoring-ui-lives-in-the-owning-lsp-module.md); what it refuses to do, and what it does only partially, is [ADR 0013](../adr/0013-refactorings-decline-rather-than-rewrite.md).
+The inverse of extract variable (ADFA-4826), and the third interactive Kotlin refactoring. It differs from both extracts in one way that shapes the whole design: it is **subtractive**. Extract adds a declaration next to code the user is looking at; inline rewrites references that are usually *off-screen* and then deletes the line under their finger. Where the UI lives is [ADR 0013](../adr/0013-refactoring-ui-lives-in-the-owning-lsp-module.md); what it refuses to do, and what it does only partially, is [ADR 0014](../adr/0014-refactorings-decline-rather-than-rewrite.md).
 
 ## Language
 
@@ -29,7 +29,7 @@ A reference that may be rewritten: before the cutoff, not deferred, not shadowed
 _Avoid_: safe reference, valid usage, eligible reference.
 
 **Partial inline**:
-Rewriting the inlinable references while leaving the rest, which necessarily keeps the declaration. The third designed outcome of a refactoring, alongside applying and refusing - see the [ADR 0013](../adr/0013-refactorings-decline-rather-than-rewrite.md) amendment.
+Rewriting the inlinable references while leaving the rest, which necessarily keeps the declaration. The third designed outcome of a refactoring, alongside applying and refusing - see the [ADR 0014](../adr/0014-refactorings-decline-rather-than-rewrite.md) amendment.
 _Avoid_: partial success, best-effort, incomplete inline.
 
 **Substitution text**:
@@ -96,7 +96,7 @@ The cutoff is a purely textual position, and cannot know that a reference inside
 
 The declared type participates in the initializer's inference and in overload resolution at every reference: `foo(x)` becomes `foo(1)`, an `Int`, which does not compile, and `val s: Any = "text"` can silently select a different overload. This refuses on the *presence* of the annotation rather than on a comparison against the initializer's type, because the comparison does not work: in `val x: Long = 1` the expected type propagates, so the initializer's `expressionType` **is** `Long` and a naive equality test would call the case safe. Telling the genuinely safe annotations apart needs the initializer's type computed *without* its expected type, which the Analysis API does not offer.
 
-Deliberately stricter than necessary - `val x: Long = 1L` is refused too - and stated as such per ADR 0013's preference for a stricter rule over a cleverer one. Explicit types on locals are uncommon in idiomatic Kotlin, and the ones that do appear (pinning a supertype, a nullable, a platform type) are usually exactly the load-bearing cases.
+Deliberately stricter than necessary - `val x: Long = 1L` is refused too - and stated as such per ADR 0014's preference for a stricter rule over a cleverer one. Explicit types on locals are uncommon in idiomatic Kotlin, and the ones that do appear (pinning a supertype, a nullable, a platform type) are usually exactly the load-bearing cases.
 
 **R8 - Partial inline and the declaration.** The inlinable references (R4-R6) are rewritten; every other reference is left alone. **The declaration is deleted only when nothing is left behind**: every reference was inlined, the target has no writes anywhere, *and* the declaration sits directly in a block.
 
@@ -115,7 +115,7 @@ The third clause exists because "every reference was inlined" no longer implies 
 | a reference, 1 inlinable | all references (no choice) |
 | a reference that is not inlinable | refuses (`ReferenceNotInlinable`) |
 
-The single-inlinable-reference row collapses deliberately. "This reference only" there would produce the same substitution as "all references" plus a declaration nothing reads - a `variable is never used` warning in generated code, which ADR 0013 forbids emitting. So the case has one honest answer.
+The single-inlinable-reference row collapses deliberately. "This reference only" there would produce the same substitution as "all references" plus a declaration nothing reads - a `variable is never used` warning in generated code, which ADR 0014 forbids emitting. So the case has one honest answer.
 
 The last row refuses rather than inlining *other* references: rewriting every site except the one under the user's finger reads as the action having done nothing.
 
@@ -153,7 +153,7 @@ Contents: title -> the two mode buttons with their derived labels -> the substit
 
 **The labels are derived by pure functions beside the plan, not composed in the composable**, and unit-tested there - the same discipline as extract method's shared `signatureText`. "Inline all 5 references and delete `total`" versus "Inline 3 of 5 references" is exactly the string that can drift from what the edit does, and R8's deletion rule makes the difference invisible to a reader of the composable.
 
-**R14 - Refusals and reports.** The plan carries a typed `InlineRefusal` and `postExec` maps it to a specific message. Ten reasons, each naming what is in the way, per ADR 0013:
+**R14 - Refusals and reports.** The plan carries a typed `InlineRefusal` and `postExec` maps it to a specific message. Ten reasons, each naming what is in the way, per ADR 0014:
 
 | Reason | Message intent |
 |---|---|
@@ -218,7 +218,7 @@ Cancellation is not a refusal: the planner re-throws `CancellationException` (`A
 
 ## Design
 
-Same shape as both extracts, and the same data boundary from [ADR 0012](../adr/0012-refactoring-ui-lives-in-the-owning-lsp-module.md): one background pass produces a plain-data plan, the UI holds no PSI.
+Same shape as both extracts, and the same data boundary from [ADR 0013](../adr/0013-refactoring-ui-lives-in-the-owning-lsp-module.md): one background pass produces a plain-data plan, the UI holds no PSI.
 
 ```
 InlineVariableAction.execAction (background)                lsp/kotlin/actions
@@ -278,8 +278,8 @@ The sheet, `prepare()`/`ActionData`, the N+1 undo and the new tooltip row are no
 
 ## Related
 
-- [ADR 0013](../adr/0013-refactorings-decline-rather-than-rewrite.md) - refactorings decline rather than rewrite; amended by this feature to add partial application as a third outcome (R8)
-- [ADR 0012](../adr/0012-refactoring-ui-lives-in-the-owning-lsp-module.md) - refactoring UI lives in the owning LSP module
+- [ADR 0014](../adr/0014-refactorings-decline-rather-than-rewrite.md) - refactorings decline rather than rewrite; amended by this feature to add partial application as a third outcome (R8)
+- [ADR 0013](../adr/0013-refactoring-ui-lives-in-the-owning-lsp-module.md) - refactoring UI lives in the owning LSP module
 - [kotlin-extract-variable.md](kotlin-extract-variable.md) - ADFA-4826; owns the family Language section and most primitives reused here
 - [kotlin-extract-method.md](kotlin-extract-method.md) - ADFA-5080; the branch this one is based on, and the precedent for R12's edit ordering
 - ADFA-5081 - code action edits should be a single undo step (fixes R12's consequence)

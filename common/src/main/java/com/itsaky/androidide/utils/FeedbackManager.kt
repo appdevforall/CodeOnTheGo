@@ -15,7 +15,6 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.FileProvider
 import androidx.core.graphics.createBitmap
 import androidx.core.net.toUri
 import androidx.core.text.HtmlCompat
@@ -41,29 +40,32 @@ object FeedbackManager {
 	private const val EMAIL_SUPPORT = "feedback@appdevforall.org"
 	private val logger = LoggerFactory.getLogger(FeedbackManager::class.java)
 
-    /**
-     * Shows the feedback dialog and handles sending feedback email.
-     *
-     * @param activity The context from which feedback is being sent
-     */
-    fun showFeedbackDialog(activity: AppCompatActivity, logContent: String?) {
-        val builder = DialogUtils.newMaterialDialogBuilder(activity)
+	/**
+	 * Shows the feedback dialog and handles sending feedback email.
+	 *
+	 * @param activity The context from which feedback is being sent
+	 */
+	fun showFeedbackDialog(
+		activity: AppCompatActivity,
+		logContent: String?,
+	) {
+		val builder = DialogUtils.newMaterialDialogBuilder(activity)
 
-        builder
-            .setTitle(R.string.title_alert)
-            .setMessage(
-                HtmlCompat.fromHtml(
-                    activity.getString(R.string.email_feedback_warning_prompt),
-                    HtmlCompat.FROM_HTML_MODE_COMPACT,
-                ),
-            ).setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
-            .setPositiveButton(android.R.string.ok) { dialog, _ ->
-                dialog.dismiss()
-                sendFeedbackWithAttachments(activity, logContent)
-            }.show()
-    }
+		builder
+			.setTitle(R.string.title_alert)
+			.setMessage(
+				HtmlCompat.fromHtml(
+					activity.getString(R.string.email_feedback_warning_prompt),
+					HtmlCompat.FROM_HTML_MODE_COMPACT,
+				),
+			).setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
+			.setPositiveButton(android.R.string.ok) { dialog, _ ->
+				dialog.dismiss()
+				sendFeedbackWithAttachments(activity, logContent)
+			}.show()
+	}
 
-    /**
+	/**
 	 * Shows a simple contact dialog as fallback when email intents fail.
 	 * Uses the same title, message, and button text as the existing contact dialog.
 	 */
@@ -92,19 +94,20 @@ object FeedbackManager {
 		customSubject: String,
 		metadata: String,
 		includeScreenshot: Boolean = true,
-        shareActivityResultLauncher: ActivityResultLauncher<Intent>? = null
-    ) {
-		val message = buildString {
-			append(metadata)
-            append(
-                context.getString(
-                    R.string.feedback_device_info,
-                    BasicBuildInfo.formatVersion(),
-                    Build.VERSION.RELEASE,
-                    "${Build.MANUFACTURER} ${Build.MODEL}",
-                )
-            )
-		}
+		shareActivityResultLauncher: ActivityResultLauncher<Intent>? = null,
+	) {
+		val message =
+			buildString {
+				append(metadata)
+				append(
+					context.getString(
+						R.string.feedback_device_info,
+						BasicBuildInfo.formatVersion(),
+						Build.VERSION.RELEASE,
+						"${Build.MANUFACTURER} ${Build.MODEL}",
+					),
+				)
+			}
 
 		if (includeScreenshot) {
 			captureScreenshot(context) { screenshotFile ->
@@ -113,7 +116,7 @@ object FeedbackManager {
 					customSubject,
 					message,
 					screenshotFile,
-					shareActivityResultLauncher
+					shareActivityResultLauncher,
 				)
 			}
 		} else {
@@ -122,7 +125,7 @@ object FeedbackManager {
 				customSubject,
 				message,
 				null,
-				shareActivityResultLauncher
+				shareActivityResultLauncher,
 			)
 		}
 	}
@@ -132,51 +135,49 @@ object FeedbackManager {
 		subject: String,
 		message: String,
 		attachmentFile: File?,
-		shareActivityResultLauncher: ActivityResultLauncher<Intent>?
+		shareActivityResultLauncher: ActivityResultLauncher<Intent>?,
 	) {
 		runCatching {
-			val intent = if (attachmentFile != null) {
-				Intent(Intent.ACTION_SEND).apply {
-					type = "message/rfc822"
-					putExtra(Intent.EXTRA_EMAIL, arrayOf(EMAIL_SUPPORT))
-					putExtra(Intent.EXTRA_SUBJECT, subject)
-					putExtra(Intent.EXTRA_TEXT, message)
+			val intent =
+				if (attachmentFile != null) {
+					Intent(Intent.ACTION_SEND).apply {
+						type = "message/rfc822"
+						putExtra(Intent.EXTRA_EMAIL, arrayOf(EMAIL_SUPPORT))
+						putExtra(Intent.EXTRA_SUBJECT, subject)
+						putExtra(Intent.EXTRA_TEXT, message)
 
-					val uri = FileProvider.getUriForFile(
-						context,
-						"${context.packageName}.providers.fileprovider",
-						attachmentFile
-					)
-					putExtra(Intent.EXTRA_STREAM, uri)
-					addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+						val uri = context.fileProviderUriFor(attachmentFile)
+						putExtra(Intent.EXTRA_STREAM, uri)
+						addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
-					if (context !is Activity) {
-						addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+						if (context !is Activity) {
+							addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+						}
+					}
+				} else {
+					Intent(Intent.ACTION_SENDTO).apply {
+						data = "mailto:".toUri()
+						putExtra(Intent.EXTRA_EMAIL, arrayOf(EMAIL_SUPPORT))
+						putExtra(Intent.EXTRA_SUBJECT, subject)
+						putExtra(Intent.EXTRA_TEXT, message)
+
+						if (context !is Activity) {
+							addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+						}
 					}
 				}
-			} else {
-				Intent(Intent.ACTION_SENDTO).apply {
-					data = "mailto:".toUri()
-					putExtra(Intent.EXTRA_EMAIL, arrayOf(EMAIL_SUPPORT))
-					putExtra(Intent.EXTRA_SUBJECT, subject)
-					putExtra(Intent.EXTRA_TEXT, message)
-
-					if (context !is Activity) {
-						addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-					}
-				}
-			}
 
 			launchIntentChooser(
 				intent,
 				context.getString(R.string.send_feedback),
 				context,
-				shareActivityResultLauncher
+				shareActivityResultLauncher,
 			)
 		}.recoverCatching {
-			val fallbackIntent = Intent(Intent.ACTION_SENDTO).apply {
-				data = "mailto:${EMAIL_SUPPORT}?subject=${Uri.encode(subject)}&body=${Uri.encode(message)}".toUri()
-			}
+			val fallbackIntent =
+				Intent(Intent.ACTION_SENDTO).apply {
+					data = "mailto:${EMAIL_SUPPORT}?subject=${Uri.encode(subject)}&body=${Uri.encode(message)}".toUri()
+				}
 			context.startActivity(fallbackIntent)
 		}.onFailure {
 			logger.error("Failed to send feedback with attachment", it)
@@ -184,8 +185,10 @@ object FeedbackManager {
 		}
 	}
 
-
-	fun captureScreenshot(context: Context, callback: (File?) -> Unit) {
+	fun captureScreenshot(
+		context: Context,
+		callback: (File?) -> Unit,
+	) {
 		val activity = context as? AppCompatActivity
 		if (activity == null) {
 			logger.warn("Cannot capture screenshot: Context is not an Activity")
@@ -194,37 +197,36 @@ object FeedbackManager {
 		}
 
 		val rootView = activity.window.decorView.rootView
-		val screenshotFile = createScreenshotFile(context) ?: run {
-			callback(null)
-			return
-		}
-        captureWithPixelCopy(activity, rootView, screenshotFile, callback)
-    }
-
-
-	private fun createScreenshotFile(context: Context): File? {
-		return runCatching {
-			val screenshotDir = File(context.cacheDir, "screenshots").apply {
-				if (!exists()) mkdirs()
+		val screenshotFile =
+			createScreenshotFile(context) ?: run {
+				callback(null)
+				return
 			}
+		captureWithPixelCopy(activity, rootView, screenshotFile, callback)
+	}
+
+	private fun createScreenshotFile(context: Context): File? =
+		runCatching {
+			val screenshotDir =
+				File(context.cacheDir, "screenshots").apply {
+					if (!exists()) mkdirs()
+				}
 			val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
 			File(screenshotDir, "screenshot_$timestamp.png")
 		}.onFailure {
 			logger.error("Failed to create screenshot file", it)
 		}.getOrNull()
-	}
 
 	private fun captureWithPixelCopy(
 		activity: AppCompatActivity,
 		rootView: View,
 		screenshotFile: File,
-		callback: (File?) -> Unit
+		callback: (File?) -> Unit,
 	) {
+		var bitmap: Bitmap? = null
 
-        var bitmap: Bitmap? = null
-
-        try {
-            bitmap = createBitmap(rootView.width, rootView.height)
+		try {
+			bitmap = createBitmap(rootView.width, rootView.height)
 			val locationOfViewInWindow = IntArray(2)
 			rootView.getLocationInWindow(locationOfViewInWindow)
 
@@ -234,51 +236,54 @@ object FeedbackManager {
 					locationOfViewInWindow[0],
 					locationOfViewInWindow[1],
 					locationOfViewInWindow[0] + rootView.width,
-					locationOfViewInWindow[1] + rootView.height
+					locationOfViewInWindow[1] + rootView.height,
 				),
 				bitmap,
 				{ result ->
 					if (result == PixelCopy.SUCCESS) {
-                        activity.lifecycleScope.launch {
-                            saveScreenshot(bitmap, screenshotFile, callback)
-                        }
-                    } else {
-                        logger.error("PixelCopy failed with result code: $result")
-                        bitmap.recycle()
-                        callback(null)
-                    }
+						activity.lifecycleScope.launch {
+							saveScreenshot(bitmap, screenshotFile, callback)
+						}
+					} else {
+						logger.error("PixelCopy failed with result code: $result")
+						bitmap.recycle()
+						callback(null)
+					}
 				},
-				Handler(Looper.getMainLooper())
+				Handler(Looper.getMainLooper()),
 			)
 		} catch (e: Exception) {
 			logger.error("PixelCopy exception, falling back to Canvas", e)
-            bitmap?.recycle()
-            callback(null)
+			bitmap?.recycle()
+			callback(null)
 		}
 	}
 
-
-    private suspend fun saveScreenshot(bitmap: Bitmap, file: File, callback: (File?) -> Unit) {
-        val result = withContext(Dispatchers.IO) {
-            runCatching {
-                FileOutputStream(file).use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
-                }
-                file
-            }.onFailure {
-                logger.error("Failed to save screenshot", it)
-            }.getOrNull()
-        }
-        bitmap.recycle()
-        callback(result)
-    }
-
+	private suspend fun saveScreenshot(
+		bitmap: Bitmap,
+		file: File,
+		callback: (File?) -> Unit,
+	) {
+		val result =
+			withContext(Dispatchers.IO) {
+				runCatching {
+					FileOutputStream(file).use { out ->
+						bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+					}
+					file
+				}.onFailure {
+					logger.error("Failed to save screenshot", it)
+				}.getOrNull()
+			}
+		bitmap.recycle()
+		callback(result)
+	}
 
 	private fun launchIntentChooser(
 		intent: Intent,
 		chooserTitle: String,
 		context: Context,
-		shareActivityResultLauncher: ActivityResultLauncher<Intent>?
+		shareActivityResultLauncher: ActivityResultLauncher<Intent>?,
 	) {
 		val chooser = Intent.createChooser(intent, chooserTitle)
 		shareActivityResultLauncher?.launch(chooser) ?: context.startActivity(chooser)
@@ -294,74 +299,76 @@ object FeedbackManager {
 			else -> "Unknown Screen"
 		}
 
-    private fun sendFeedbackWithAttachments(
-        activity: AppCompatActivity,
-        logContent: String?
-    ) {
-        activity.lifecycleScope.launch {
-            val handler = FeedbackEmailHandler(activity)
+	private fun sendFeedbackWithAttachments(
+		activity: AppCompatActivity,
+		logContent: String?,
+	) {
+		activity.lifecycleScope.launch {
+			val handler = FeedbackEmailHandler(activity)
 
-            val screenshotUri = handler.captureAndPrepareScreenshotUri(activity)
-            val logContentUri = handler.getLogUri(activity, logContent)
+			val screenshotUri = handler.captureAndPrepareScreenshotUri(activity)
+			val logContentUri = handler.getLogUri(activity, logContent)
 
-            val feedbackRecipient = activity.getString(R.string.feedback_email)
-            val feedbackSubject =
-                activity.getString(R.string.feedback_subject, getCurrentScreenName(activity))
-            val stackTraceSection =
-                logContent?.trim().takeIf { it?.isNotEmpty() == true }
-                    ?: activity.getString(R.string.feedback_stack_trace_unavailable)
-            val feedbackBody =
-                buildString {
-                    append(
-                        activity.getString(
-                            R.string.feedback_device_info,
-                            BasicBuildInfo.formatVersion(),
-                            Build.VERSION.RELEASE,
-                            "${Build.MANUFACTURER} ${Build.MODEL}",
-                        ),
-                    )
-                    append(
-                        activity.getString(
-                            R.string.feedback_message,
-                            stackTraceSection,
-                        ),
-                    )
-                }
+			val feedbackRecipient = activity.getString(R.string.feedback_email)
+			val feedbackSubject =
+				activity.getString(R.string.feedback_subject, getCurrentScreenName(activity))
+			val stackTraceSection =
+				logContent?.trim().takeIf { it?.isNotEmpty() == true }
+					?: activity.getString(R.string.feedback_stack_trace_unavailable)
+			val feedbackBody =
+				buildString {
+					append(
+						activity.getString(
+							R.string.feedback_device_info,
+							BasicBuildInfo.formatVersion(),
+							Build.VERSION.RELEASE,
+							"${Build.MANUFACTURER} ${Build.MODEL}",
+						),
+					)
+					append(
+						activity.getString(
+							R.string.feedback_message,
+							stackTraceSection,
+						),
+					)
+				}
 
-            val emailIntent =
-                handler.prepareEmailIntent(
-                    screenshotUri,
-                    logContentUri,
-                    feedbackRecipient,
-                    feedbackSubject,
-                    feedbackBody,
-                )
+			val emailIntent =
+				handler.prepareEmailIntent(
+					screenshotUri,
+					logContentUri,
+					feedbackRecipient,
+					feedbackSubject,
+					feedbackBody,
+				)
 
-            runCatching {
-                activity.startActivity(emailIntent)
-            }.onFailure { e ->
-                when {
-                    e is ActivityNotFoundException -> {
-                        Toast.makeText(activity, R.string.no_email_apps, Toast.LENGTH_LONG).show()
-                    }
-                    e is TransactionTooLargeException ||
-                        (e is RuntimeException && e.cause is TransactionTooLargeException) -> {
-                        logger.error("Intent transaction failed: Data too large", e)
-                        Toast.makeText(activity, R.string.msg_feedback_log_too_long, Toast.LENGTH_LONG).show()
-                    }
-                    else -> {
-                        logger.error("Intent transaction failed: Unknown error", e)
-                        EventBus.getDefault().post(
-                            ReportCaughtExceptionEvent(
-                                throwable = e,
-                                message = "Feedback email intent failed",
-                                extras = mapOf("screen" to getCurrentScreenName(activity))
-                            )
-                        )
-                        Toast.makeText(activity, R.string.unknown_error, Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
-        }
-    }
+			runCatching {
+				activity.startActivity(emailIntent)
+			}.onFailure { e ->
+				when {
+					e is ActivityNotFoundException -> {
+						Toast.makeText(activity, R.string.no_email_apps, Toast.LENGTH_LONG).show()
+					}
+
+					e is TransactionTooLargeException ||
+						(e is RuntimeException && e.cause is TransactionTooLargeException) -> {
+						logger.error("Intent transaction failed: Data too large", e)
+						Toast.makeText(activity, R.string.msg_feedback_log_too_long, Toast.LENGTH_LONG).show()
+					}
+
+					else -> {
+						logger.error("Intent transaction failed: Unknown error", e)
+						EventBus.getDefault().post(
+							ReportCaughtExceptionEvent(
+								throwable = e,
+								message = "Feedback email intent failed",
+								extras = mapOf("screen" to getCurrentScreenName(activity)),
+							),
+						)
+						Toast.makeText(activity, R.string.unknown_error, Toast.LENGTH_LONG).show()
+					}
+				}
+			}
+		}
+	}
 }

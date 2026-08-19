@@ -1,4 +1,4 @@
-# 0013. Interactive refactorings decline rather than rewrite unselected code
+# 0014. Interactive refactorings decline rather than rewrite unselected code
 
 - **Status:** Proposed
 - **Date:** 2026-08-10
@@ -6,7 +6,7 @@
 
 ## Context
 
-The K2 Kotlin LSP is growing a family of interactive refactorings: extract variable (ADFA-4826), extract method (ADFA-5080), inline variable (ADFA-4827), semantic rename (ADFA-4825). [ADR 0012](0012-refactoring-ui-lives-in-the-owning-lsp-module.md) settles where their UI lives and that analysis produces plain data. It says nothing about how capable they should be.
+The K2 Kotlin LSP is growing a family of interactive refactorings: extract variable (ADFA-4826), extract method (ADFA-5080), inline variable (ADFA-4827), semantic rename (ADFA-4825). [ADR 0013](0013-refactoring-ui-lives-in-the-owning-lsp-module.md) settles where their UI lives and that analysis produces plain data. It says nothing about how capable they should be.
 
 That question turns out to dominate the requirements. Designing extract method surfaced a run of cases where the transformation the user asked for cannot be performed by *moving* their code - it also needs the moved code's interior edited, or a guess about intent:
 
@@ -62,7 +62,7 @@ This applies to the whole refactoring family, not just extract method. Inline va
 
 ## Related
 
-- [ADR 0012](0012-refactoring-ui-lives-in-the-owning-lsp-module.md) - where refactoring UI lives; this ADR answers *how capable it is*
+- [ADR 0013](0013-refactoring-ui-lives-in-the-owning-lsp-module.md) - where refactoring UI lives; this ADR answers *how capable it is*
 - [ADR 0010](0010-navigation-resolves-via-analysis-api.md) - the K2 Analysis API as the Kotlin semantic source of truth
 - [kotlin-extract-method.md](../features/kotlin-extract-method.md) - R7 to R10 and R14 are this decision applied case by case
 - [kotlin-extract-variable.md](../features/kotlin-extract-variable.md) - the shared vocabulary and primitives

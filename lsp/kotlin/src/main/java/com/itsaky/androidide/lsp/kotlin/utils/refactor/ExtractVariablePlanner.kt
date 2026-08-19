@@ -102,7 +102,7 @@ private fun KaSession.candidateFor(expression: KtExpression): CandidateExpressio
  *
  * Returns null when the rung cannot be honoured: converting an expression body whose return type is
  * neither declared nor renderable would emit a block body that does not compile, and declining is
- * always safe -- the decline-rather-than-rewrite principle that ADR 0013 records, landing alongside
+ * always safe -- the decline-rather-than-rewrite principle that ADR 0014 records, landing alongside
  * extract method (ADFA-5080).
  */
 private fun KaSession.scopeOptionFor(

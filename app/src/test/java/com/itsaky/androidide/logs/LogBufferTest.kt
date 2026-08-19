@@ -65,6 +65,19 @@ class LogBufferTest {
 	}
 
 	@Test
+	fun `cleared buffer snapshots to the last issued seq, not 0`() {
+		val buffer = LogBuffer(trimOnEntryCount = 10, maxEntryCount = 5)
+		val last = buffer.append(null, "discarded\n")
+		buffer.clear()
+
+		// Discarded entries must not stitch in after the snapshot: reporting 0 here
+		// would let a live stream's replay cache re-deliver cleared lines.
+		val (text, lastSeq) = buffer.snapshotFiltered(LogFilter.NONE)
+		assertEquals("", text)
+		assertEquals(last.seq, lastSeq)
+	}
+
+	@Test
 	fun `buffer trims to maxEntryCount once trimOnEntryCount is exceeded`() {
 		val buffer = LogBuffer(trimOnEntryCount = 10, maxEntryCount = 5)
 		repeat(11) { buffer.append(null, "line$it\n") }

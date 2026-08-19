@@ -9,7 +9,7 @@ Move the expression at the cursor, or a selected range of statements, into a new
 
 Ships as the top of a three-PR stack: `common-compose` theming, then extract variable (ADFA-4826), then this. It reuses that PR's primitives - offsets, naming, indentation, edit emission - and adds no new module, no new dependency and no new UI mechanism.
 
-The governing principle is [ADR 0013](../adr/0013-refactorings-decline-rather-than-rewrite.md): this refactoring **moves** code, it never edits the interior of what it moved, and where it cannot do that faithfully it **declines with a specific reason** rather than guessing. Most of the requirements below are that principle applied to one case each.
+The governing principle is [ADR 0014](../adr/0014-refactorings-decline-rather-than-rewrite.md): this refactoring **moves** code, it never edits the interior of what it moved, and where it cannot do that faithfully it **declines with a specific reason** rather than guessing. Most of the requirements below are that principle applied to one case each.
 
 ## Language
 
@@ -130,7 +130,7 @@ Contents, top to bottom: title -> expression chooser (only for an expression reg
 
 The preview is **one monospace line: the signature exactly as it will be emitted** - modifiers, receiver, parameters, return type. Types render fully qualified (R5), so a real preview reads `private suspend fun loadUser(id: kotlin.String): com.example.User`. It wraps rather than truncating. No body preview: the body is the code the user selected and can see behind the sheet, so it moves verbatim and previewing it says nothing new, while the signature is the one derived artefact and the one place the derivation can surprise them.
 
-ADR 0012 defers the shared-UI question until the extract-method surface is known; a single generalised sheet would need a state class where half the fields are meaningless to either caller, so that question stays open rather than being settled from one data point.
+ADR 0013 defers the shared-UI question until the extract-method surface is known; a single generalised sheet would need a state class where half the fields are meaningless to either caller, so that question stays open rather than being settled from one data point.
 
 **R12 - Name.** Suggestion: for an expression region, the existing shape/type derivation unchanged; for a statement range, the constant `extracted`, since there is no expression to read a name from and inventing a verb from statement shapes is guesswork. Uniquified as today.
 
@@ -217,7 +217,7 @@ The new function is emitted **fully indented** at the enclosing declaration's ow
 
 ## Design
 
-Same shape as extract variable, and the same data boundary from [ADR 0012](../adr/0012-refactoring-ui-lives-in-the-owning-lsp-module.md): one background pass produces a plain-data plan, the sheet holds no PSI.
+Same shape as extract variable, and the same data boundary from [ADR 0013](../adr/0013-refactoring-ui-lives-in-the-owning-lsp-module.md): one background pass produces a plain-data plan, the sheet holds no PSI.
 
 ```
 ExtractMethodAction.execAction (background)                lsp/kotlin/actions
@@ -276,8 +276,8 @@ The sheet, `prepare()`/`ActionData`, the two-step undo and the new tooltip row a
 
 ## Related
 
-- [ADR 0013](../adr/0013-refactorings-decline-rather-than-rewrite.md) - refactorings decline rather than rewrite unselected code; the principle behind R7-R10
-- [ADR 0012](../adr/0012-refactoring-ui-lives-in-the-owning-lsp-module.md) - refactoring UI lives in the owning LSP module
+- [ADR 0014](../adr/0014-refactorings-decline-rather-than-rewrite.md) - refactorings decline rather than rewrite unselected code; the principle behind R7-R10
+- [ADR 0013](../adr/0013-refactoring-ui-lives-in-the-owning-lsp-module.md) - refactoring UI lives in the owning LSP module
 - [kotlin-extract-variable.md](kotlin-extract-variable.md) - ADFA-4826; owns the shared Language section and every primitive reused here
 - ADFA-5081 - code action edits should be a single undo step (fixes R15's consequence)
 - ADFA-5082 - support a reassigned outer `var` as the single output (lifts R7's refusal)
