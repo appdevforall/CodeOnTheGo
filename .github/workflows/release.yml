@@ -42,10 +42,10 @@ jobs:
     name: Merge stage to main
     runs-on: self-hosted
     timeout-minutes: 10
-    if: ${{ inputs.dry_run != true }}
 
     steps:
       - name: Cancel previous runs
+        if: ${{ inputs.dry_run != true }}
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
@@ -62,6 +62,7 @@ jobs:
           git config user.email "dev-team@appdevforall.org"
 
       - name: Merge stage to main
+        if: ${{ inputs.dry_run != true }}
         run: |
           git fetch origin stage
           git checkout main
@@ -151,7 +152,6 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 10
     needs: merge_stage_to_main
-    if: ${{ always() && needs.merge_stage_to_main.result != 'failure' && needs.merge_stage_to_main.result != 'cancelled' }}
 
     steps:
       - name: Checkout repository
@@ -435,7 +435,6 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 60
     needs: [merge_stage_to_main, download_assets, download_documentation]
-    if: ${{ always() && needs.merge_stage_to_main.result != 'failure' && needs.merge_stage_to_main.result != 'cancelled' && needs.download_assets.result == 'success' && needs.download_documentation.result == 'success' }}
     strategy:
       matrix:
         include:
