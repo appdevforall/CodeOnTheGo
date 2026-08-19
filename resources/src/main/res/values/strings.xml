@@ -1354,7 +1354,7 @@
     <string name="git_branches">Branches</string>
     <string name="git_local_branches">Local</string>
     <string name="git_remote_branches">Remote</string>
-    <string name="git_create_branch">New branch</string>
+    <string name="git_create_branch">Create branch</string>
     <string name="git_create_branch_title">Create new branch</string>
     <string name="git_branch_name_hint">Branch name</string>
     <string name="git_search_branches">Search branches…</string>
@@ -1382,6 +1382,7 @@
     <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
     <string name="git_merge_branch">Merge into %1$s</string>
     <string name="git_merge_success">Merged %1$s into %2$s successfully</string>
+    <string name="git_merge_failed_title">Merge failed</string>
     <string name="git_merge_failed">Failed to merge %1$s</string>
     <string name="git_merge_conflict_title">Merge conflict</string>
     <string name="git_merge_conflict_msg">Conflicts occurred while merging %1$s into %2$s. Please resolve conflicts or abort merge.</string>

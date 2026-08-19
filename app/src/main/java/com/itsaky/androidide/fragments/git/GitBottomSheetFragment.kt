@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.PreferencesActivity
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
@@ -176,8 +177,11 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							MaterialAlertDialogBuilder(requireContext())
 								.setTitle(R.string.git_checkout_conflict_title)
 								.setMessage(message)
-								.setPositiveButton(android.R.string.ok, null)
-								.show()
+								.setPositiveButton(android.R.string.ok) { _, _ ->
+									viewModel.resetCheckoutState()
+								}.setOnDismissListener {
+									viewModel.resetCheckoutState()
+								}.show()
 						}
 
 						is GitBottomSheetViewModel.CheckoutUiState.Error -> {
@@ -186,8 +190,11 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							MaterialAlertDialogBuilder(requireContext())
 								.setTitle(R.string.git_checkout_failed)
 								.setMessage(message)
-								.setPositiveButton(android.R.string.ok, null)
-								.show()
+								.setPositiveButton(android.R.string.ok) { _, _ ->
+									viewModel.resetCheckoutState()
+								}.setOnDismissListener {
+									viewModel.resetCheckoutState()
+								}.show()
 						}
 					}
 				}
@@ -233,20 +240,27 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							MaterialAlertDialogBuilder(requireContext())
 								.setTitle(R.string.git_merge_conflict_title)
 								.setMessage(message)
-								.setPositiveButton(android.R.string.ok, null)
-								.show()
+								.setPositiveButton(android.R.string.ok) { _, _ ->
+									viewModel.resetMergeState()
+								}.setOnDismissListener {
+									viewModel.resetMergeState()
+								}.show()
 							refreshEditorContent(force = true)
 							EventBus.getDefault().post(ListProjectFilesRequestEvent())
 						}
 
 						is GitBottomSheetViewModel.MergeUiState.Error -> {
 							binding.tvBranchName.isEnabled = true
-							val message = state.message ?: getString(R.string.git_merge_failed, "")
+							val targetName = state.targetBranch ?: ""
+							val message = state.message ?: getString(R.string.git_merge_failed, targetName)
 							MaterialAlertDialogBuilder(requireContext())
-								.setTitle(R.string.git_merge_failed)
+								.setTitle(R.string.git_merge_failed_title)
 								.setMessage(message)
-								.setPositiveButton(android.R.string.ok, null)
-								.show()
+								.setPositiveButton(android.R.string.ok) { _, _ ->
+									viewModel.resetMergeState()
+								}.setOnDismissListener {
+									viewModel.resetMergeState()
+								}.show()
 						}
 					}
 				}
@@ -574,22 +588,36 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 	private fun showCreateBranchDialog() {
 		val dialogView = layoutInflater.inflate(R.layout.dialog_git_create_branch, null)
+		val branchNameLayout = dialogView.findViewById<TextInputLayout>(R.id.branchNameLayout)
 		val etBranchName = dialogView.findViewById<TextInputEditText>(R.id.etBranchName)
 
-		MaterialAlertDialogBuilder(requireContext())
-			.setTitle(R.string.git_create_branch_title)
-			.setView(dialogView)
-			.setPositiveButton(R.string.git_create_branch) { _, _ ->
+		etBranchName?.doAfterTextChanged {
+			branchNameLayout?.error = null
+		}
+
+		val dialog =
+			MaterialAlertDialogBuilder(requireContext())
+				.setTitle(R.string.git_create_branch_title)
+				.setView(dialogView)
+				.setPositiveButton(R.string.git_create_branch, null)
+				.setNegativeButton(android.R.string.cancel, null)
+				.create()
+
+		dialog.setOnShowListener {
+			dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
 				val branchName = etBranchName?.text?.toString()?.trim() ?: ""
 				if (branchName.isNotBlank()) {
+					dialog.dismiss()
 					checkUnsavedChangesAndProceed {
 						viewModel.checkoutBranch(branchName = branchName, createNew = true)
 					}
 				} else {
-					flashSuccess(getString(R.string.git_create_branch_invalid_name))
+					branchNameLayout?.error = getString(R.string.git_create_branch_invalid_name)
 				}
-			}.setNegativeButton(android.R.string.cancel, null)
-			.show()
+			}
+		}
+
+		dialog.show()
 	}
 
 	private fun refreshEditorContent(force: Boolean = false) {
