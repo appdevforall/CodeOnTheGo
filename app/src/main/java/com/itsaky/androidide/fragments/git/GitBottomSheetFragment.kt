@@ -33,6 +33,7 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
+import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel.BranchesUiState
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel.PullUiState
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -144,8 +145,9 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			}
 
 			launch {
-				viewModel.branches.collectLatest { branches ->
-					branchPopupWindow.setBranches(branches)
+				viewModel.branches.collectLatest { state ->
+					binding.tvBranchName.isEnabled = state !is BranchesUiState.Loading
+					branchPopupWindow.setBranchesState(state)
 				}
 			}
 

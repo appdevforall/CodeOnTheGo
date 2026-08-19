@@ -48,8 +48,8 @@ class GitBottomSheetViewModel(
 	private val _currentBranch = MutableStateFlow<String?>(null)
 	val currentBranch: StateFlow<String?> = _currentBranch.asStateFlow()
 
-	private val _branches = MutableStateFlow<List<GitBranch>>(emptyList())
-	val branches: StateFlow<List<GitBranch>> = _branches.asStateFlow()
+	private val _branches = MutableStateFlow<BranchesUiState>(BranchesUiState.None)
+	val branches: StateFlow<BranchesUiState> = _branches.asStateFlow()
 
 	private val _checkoutState = MutableStateFlow<CheckoutUiState>(CheckoutUiState.Idle)
 	val checkoutState: StateFlow<CheckoutUiState> = _checkoutState.asStateFlow()
@@ -117,19 +117,19 @@ class GitBottomSheetViewModel(
 					val status = repo.getStatus()
 					_gitStatus.value = status
 					_currentBranch.value = repo.getCurrentBranch()?.name
-					_branches.value = repo.getBranches()
+					_branches.value = BranchesUiState.Success(repo.getBranches())
 					getLocalCommitsCount()
 				} ?: run {
 					_gitStatus.value = GitStatus.EMPTY
 					_currentBranch.value = null
-					_branches.value = emptyList()
+					_branches.value = BranchesUiState.None
 					_localCommitsCount.value = 0
 				}
 			} catch (e: Exception) {
 				log.error("Failed to refresh git status", e)
 				_gitStatus.value = GitStatus.EMPTY
 				_currentBranch.value = null
-				_branches.value = emptyList()
+				_branches.value = BranchesUiState.Error(e.message)
 				_localCommitsCount.value = 0
 			}
 		}
@@ -137,12 +137,17 @@ class GitBottomSheetViewModel(
 
 	fun fetchBranches() {
 		viewModelScope.launch {
+			_branches.value = BranchesUiState.Loading
 			try {
-				val repo = currentRepository ?: return@launch
-				_branches.value = repo.getBranches()
+				val repo = currentRepository
+				if (repo == null) {
+					_branches.value = BranchesUiState.None
+					return@launch
+				}
+				_branches.value = BranchesUiState.Success(repo.getBranches())
 			} catch (e: Exception) {
 				log.error("Failed to fetch branches", e)
-				_branches.value = emptyList()
+				_branches.value = BranchesUiState.Error(e.message)
 			}
 		}
 	}
@@ -464,6 +469,20 @@ class GitBottomSheetViewModel(
 					}
 			}
 		}
+	}
+
+	sealed class BranchesUiState {
+		object None : BranchesUiState()
+
+		object Loading : BranchesUiState()
+
+		data class Success(
+			val branches: List<GitBranch>,
+		) : BranchesUiState()
+
+		data class Error(
+			val message: String? = null,
+		) : BranchesUiState()
 	}
 
 	sealed class CheckoutUiState {

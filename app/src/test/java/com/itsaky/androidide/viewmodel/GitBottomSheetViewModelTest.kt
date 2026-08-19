@@ -63,7 +63,7 @@ class GitBottomSheetViewModelTest {
 			viewModel.fetchBranches()
 			advanceUntilIdle()
 
-			assertEquals(mockBranches, viewModel.branches.value)
+			assertEquals(GitBottomSheetViewModel.BranchesUiState.Success(mockBranches), viewModel.branches.value)
 		}
 
 	@Test

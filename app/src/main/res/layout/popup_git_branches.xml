@@ -2,7 +2,7 @@
 <com.google.android.material.card.MaterialCardView
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto"
-	android:layout_width="360dp"
+	android:layout_width="400dp"
 	android:layout_height="wrap_content"
 	app:cardCornerRadius="12dp"
 	app:cardElevation="8dp"
@@ -68,6 +68,14 @@
 				android:paddingVertical="8dp"
 				android:textSize="14sp" />
 		</com.google.android.material.textfield.TextInputLayout>
+
+		<com.google.android.material.progressindicator.LinearProgressIndicator
+			android:id="@+id/branchesProgress"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginHorizontal="4dp"
+			android:indeterminate="true"
+			android:visibility="gone" />
 
 		<androidx.recyclerview.widget.RecyclerView
 			android:id="@+id/rvBranches"

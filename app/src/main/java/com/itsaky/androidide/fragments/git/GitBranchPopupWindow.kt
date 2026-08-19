@@ -14,6 +14,8 @@ import com.itsaky.androidide.databinding.PopupGitBranchesBinding
 import com.itsaky.androidide.fragments.git.adapter.GitBranchAdapter
 import com.itsaky.androidide.fragments.git.adapter.GitBranchListItem
 import com.itsaky.androidide.git.core.models.GitBranch
+import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
+import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel.BranchesUiState
 
 class GitBranchPopupWindow(
 	private val context: Context,
@@ -65,9 +67,24 @@ class GitBranchPopupWindow(
 		}
 	}
 
-	fun setBranches(branches: List<GitBranch>) {
-		allBranches = branches
-		filterBranches(binding.etSearchBranches.text?.toString())
+	fun setBranchesState(state: BranchesUiState) {
+		when (state) {
+			is BranchesUiState.Loading -> {
+				binding.branchesProgress.visibility = View.VISIBLE
+			}
+
+			is BranchesUiState.Success -> {
+				binding.branchesProgress.visibility = View.GONE
+				allBranches = state.branches
+				filterBranches(binding.etSearchBranches.text?.toString())
+			}
+
+			is BranchesUiState.None, is BranchesUiState.Error -> {
+				binding.branchesProgress.visibility = View.GONE
+				allBranches = emptyList()
+				filterBranches(binding.etSearchBranches.text?.toString())
+			}
+		}
 	}
 
 	private fun filterBranches(query: String?) {
