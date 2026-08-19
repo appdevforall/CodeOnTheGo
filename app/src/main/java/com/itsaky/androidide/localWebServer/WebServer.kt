@@ -54,6 +54,28 @@ data class ServerConfig(
 	val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database",
 )
 
+/**
+ * The `bookshelf` template's JSON context. Field names are the JSON keys, so they match what the
+ * template reads -- and what SQLite's JSON1 functions used to emit before ADFA-5179.
+ */
+data class Bookshelf(
+	val result: List<BookshelfCategory>,
+)
+
+data class BookshelfCategory(
+	val category: String,
+	val description: String?,
+	val books: List<BookshelfBook>,
+)
+
+data class BookshelfBook(
+	val title: String,
+	val description: String?,
+	val link: String,
+	/** 1 or 0, not a boolean: the shape the template already expects. */
+	val pdf: Int,
+)
+
 data class JavaExecutionResult(
 	val compileOutput: String,
 	val runOutput: String,
@@ -92,8 +114,15 @@ class WebServer(
 	private val gson: Gson =
 		GsonBuilder()
 			.setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
+			// JSON_OBJECT emitted "description": null for a null column, and the bookshelf template
+			// was written against that; gson would drop the key entirely by default.
+			.serializeNulls()
 			.create()
 	private val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
+
+	/** The configured gson, so a test can assert the exact JSON the template receives. */
+	internal val gsonForTest: Gson
+		get() = gson
 	private var bookshelfTemplateId: Int = -1
 	private val httpInternalServerError = 500
 	private val httpNotFound = 404
@@ -730,67 +759,28 @@ class WebServer(
 	): Boolean {
 		if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
 
-		// Database fetch
-		val sqlQuery =
-"""
-SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
-SELECT
-	JSON_OBJECT(
-	'category',    IFNULL(BC.category, 'General'),
-	'description', BC.description,
-	'books',       JSON_GROUP_ARRAY(JSON_OBJECT(
-		'title',       IFNULL(B.title, C.path),
-		'description', B.description,
-		'link',        C.path,
-		'pdf',         IIF(SUBSTR(C.path, -4) == '.pdf', 1, 0) )
-		)
-	) AS Item
-FROM Content AS C,
-	Bookshelf AS B,
-	BookCategories AS BC
-WHERE C.id = B.contentID
-AND   B.bookCategoryID = BC.id
-GROUP BY BC.category
-ORDER BY BC.category,
-		B.title
-);
-""".trimIndent()
+		val jsonText: ByteArray
 
-		var cursor = database.rawQuery(sqlQuery, arrayOf())
-		lateinit var jsonText: ByteArray
-
-		// Process database fetch
 		try {
-			if (!isCursorOneRow(cursor, writer, output)) {
-				return false
-			}
-
-			// get the JSON from the bookshelf table
-			cursor.moveToFirst()
-			jsonText = cursor.getBlob(0)
+			jsonText = gson.toJson(readBookshelf(database)).toByteArray(Charsets.UTF_8)
 			if (debugEnabled) log.debug("json content = '${String(jsonText)}'.")
 			if (debugEnabled) log.debug("before fetch bookshelf template ID = '$bookshelfTemplateId'")
 
-			// Have we already fetched the template
 			if (bookshelfTemplateId == -1) {
-				// safety first, close the cursor
-				cursor.close()
-				cursor = database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf())
+				database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf()).use { cursor ->
+					if (!isCursorOneRow(cursor, writer, output)) {
+						return false
+					}
 
-				if (!isCursorOneRow(cursor, writer, output)) {
-					return false
+					cursor.moveToFirst()
+					bookshelfTemplateId = cursor.getInt(0)
+					if (debugEnabled) log.debug("after the fetch bookshelf template ID = '$bookshelfTemplateId'")
 				}
-
-				cursor.moveToFirst()
-				bookshelfTemplateId = cursor.getInt(0)
-				if (debugEnabled) log.debug("after the fetch bookshelf template ID = '$bookshelfTemplateId'")
 			}
 		} catch (e: Exception) {
 			log.error("Error processing request: {}", e.message)
 			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
 			return false
-		} finally {
-			cursor.close()
 		}
 
 		val result = instantiatePebbleTemplate(bookshelfTemplateId, jsonText, "/bookshelf", "application/json", "none")
@@ -803,6 +793,69 @@ ORDER BY BC.category,
 		if (debugEnabled) log.debug("Leaving realHandleBsEndpoint().")
 
 		return true
+	}
+
+	/**
+	 * The bookshelf, grouped into categories, for the `bookshelf` template's JSON context.
+	 *
+	 * Assembled here rather than by SQLite's JSON1 functions (ADFA-5179): `JSON_OBJECT` and
+	 * `JSON_GROUP_ARRAY` are absent from the system SQLite on some devices -- a Galaxy Note 20 Ultra
+	 * on Android 13 among them -- where the old query failed at runtime with `no such function:
+	 * JSON_OBJECT` and the bookshelf could not be opened at all. A plain relational query and gson
+	 * work everywhere, and the payload is identical.
+	 *
+	 * An empty bookshelf comes back as an empty list, which the template renders as an empty page.
+	 * The old query turned that case into an HTTP 500: `group_concat` over no rows is NULL, so the
+	 * concatenated JSON was NULL and reading it as a blob threw. Worth knowing, because the rows in
+	 * at least one `documentation.db` copy have a NULL `bookCategoryID` and so join to nothing.
+	 */
+	internal fun readBookshelf(database: SQLiteDatabase): Bookshelf {
+		val query =
+			"""
+SELECT IFNULL(BC.category, 'General'),
+	BC.description,
+	IFNULL(B.title, C.path),
+	B.description,
+	C.path
+FROM Content AS C,
+	Bookshelf AS B,
+	BookCategories AS BC
+WHERE C.id = B.contentID
+AND   B.bookCategoryID = BC.id
+ORDER BY BC.category,
+	B.title
+			""".trimIndent()
+
+		// LinkedHashMap: the query's ORDER BY decides the order categories and books appear in, and
+		// the template renders them in that order.
+		val categories = LinkedHashMap<String, MutableList<BookshelfBook>>()
+		val descriptions = LinkedHashMap<String, String?>()
+
+		database.rawQuery(query, arrayOf()).use { cursor ->
+			while (cursor.moveToNext()) {
+				val category = cursor.getString(0)
+				val path = cursor.getString(4)
+
+				descriptions.putIfAbsent(category, cursor.getString(1))
+				categories
+					.getOrPut(category) { mutableListOf() }
+					.add(
+						BookshelfBook(
+							title = cursor.getString(2),
+							description = cursor.getString(3),
+							link = path,
+							// 1/0 rather than a boolean: what the template has always received.
+							pdf = if (path.endsWith(".pdf", ignoreCase = true)) 1 else 0,
+						),
+					)
+			}
+		}
+
+		return Bookshelf(
+			categories.map { (category, books) ->
+				BookshelfCategory(category = category, description = descriptions[category], books = books)
+			},
+		)
 	}
 
 	private fun isCursorOneRow(
