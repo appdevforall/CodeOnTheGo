@@ -414,31 +414,42 @@ class GitBottomSheetViewModel(
 			try {
 				val result = repo.merge(targetBranchName)
 				when (result.mergeStatus) {
-					MergeStatus.FAST_FORWARD, MergeStatus.FAST_FORWARD_SQUASHED, MergeStatus.MERGED, MergeStatus.MERGED_SQUASHED, MergeStatus.MERGED_SQUASHED_NOT_COMMITTED -> {
-						_mergeState.value = MergeUiState.Success(
-							targetBranch = targetBranchName,
-							currentBranch = currentBranchName,
-						)
+					MergeStatus.FAST_FORWARD,
+					MergeStatus.FAST_FORWARD_SQUASHED,
+					MergeStatus.MERGED,
+					MergeStatus.MERGED_SQUASHED,
+					MergeStatus.MERGED_SQUASHED_NOT_COMMITTED,
+					-> {
+						_mergeState.value =
+							MergeUiState.Success(
+								targetBranch = targetBranchName,
+								currentBranch = currentBranchName,
+							)
 						refreshStatus()
 						getCommitHistoryList()
 						getLocalCommitsCount()
 					}
+
 					MergeStatus.ALREADY_UP_TO_DATE -> {
 						_mergeState.value = MergeUiState.AlreadyUpToDate(targetBranch = targetBranchName)
 					}
+
 					MergeStatus.CONFLICTING -> {
 						val conflictingFiles = repo.getStatus().conflicted.map { it.path }
-						_mergeState.value = MergeUiState.Conflicts(
-							targetBranch = targetBranchName,
-							currentBranch = currentBranchName,
-							conflictingFiles = conflictingFiles,
-						)
+						_mergeState.value =
+							MergeUiState.Conflicts(
+								targetBranch = targetBranchName,
+								currentBranch = currentBranchName,
+								conflictingFiles = conflictingFiles,
+							)
 						refreshStatus()
 					}
+
 					else -> {
-						_mergeState.value = MergeUiState.Error(
-							message = "Merge status: ${result.mergeStatus.name}",
-						)
+						_mergeState.value =
+							MergeUiState.Error(
+								message = "Merge status: ${result.mergeStatus.name}",
+							)
 					}
 				}
 			} catch (e: Exception) {

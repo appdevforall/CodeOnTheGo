@@ -76,6 +76,11 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 				onNewBranchRequested = {
 					showCreateBranchDialog()
 				},
+				onMergeBranch = { branch ->
+					checkUnsavedChangesAndProceed {
+						viewModel.mergeBranch(branch.name)
+					}
+				},
 			)
 
 		binding.tvBranchName.setOnClickListener {
@@ -180,6 +185,65 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							val message = state.message ?: getString(R.string.git_checkout_failed)
 							MaterialAlertDialogBuilder(requireContext())
 								.setTitle(R.string.git_checkout_failed)
+								.setMessage(message)
+								.setPositiveButton(android.R.string.ok, null)
+								.show()
+						}
+					}
+				}
+			}
+
+			launch {
+				viewModel.mergeState.collectLatest { state ->
+					when (state) {
+						is GitBottomSheetViewModel.MergeUiState.Idle -> {
+							binding.tvBranchName.isEnabled = true
+						}
+
+						is GitBottomSheetViewModel.MergeUiState.Merging -> {
+							binding.tvBranchName.isEnabled = false
+						}
+
+						is GitBottomSheetViewModel.MergeUiState.Success -> {
+							binding.tvBranchName.isEnabled = true
+							flashSuccess(
+								getString(
+									R.string.git_merge_success,
+									state.targetBranch,
+									state.currentBranch,
+								),
+							)
+							refreshEditorContent(force = true)
+							EventBus.getDefault().post(ListProjectFilesRequestEvent())
+						}
+
+						is GitBottomSheetViewModel.MergeUiState.AlreadyUpToDate -> {
+							binding.tvBranchName.isEnabled = true
+							flashSuccess(getString(R.string.git_already_up_to_date))
+						}
+
+						is GitBottomSheetViewModel.MergeUiState.Conflicts -> {
+							binding.tvBranchName.isEnabled = true
+							val message =
+								getString(
+									R.string.git_merge_conflict_msg,
+									state.targetBranch,
+									state.currentBranch,
+								)
+							MaterialAlertDialogBuilder(requireContext())
+								.setTitle(R.string.git_merge_conflict_title)
+								.setMessage(message)
+								.setPositiveButton(android.R.string.ok, null)
+								.show()
+							refreshEditorContent(force = true)
+							EventBus.getDefault().post(ListProjectFilesRequestEvent())
+						}
+
+						is GitBottomSheetViewModel.MergeUiState.Error -> {
+							binding.tvBranchName.isEnabled = true
+							val message = state.message ?: getString(R.string.git_merge_failed, "")
+							MaterialAlertDialogBuilder(requireContext())
+								.setTitle(R.string.git_merge_failed)
 								.setMessage(message)
 								.setPositiveButton(android.R.string.ok, null)
 								.show()
