@@ -9,13 +9,19 @@ import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.ui.models.PluginInstallSource
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.ui.models.PluginManagerUiState
 import com.itsaky.androidide.ui.models.PluginOperation
 import com.itsaky.androidide.utils.EditorDecorationBridge
+import com.itsaky.androidide.utils.InstallTempFiles
+import com.itsaky.androidide.utils.LastValueGate
 import com.itsaky.androidide.utils.UriFileImporter
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +30,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 
 /**
@@ -31,367 +38,504 @@ import java.io.File
  * Manages UI state and business logic using MVVM pattern
  */
 class PluginManagerViewModel(
-    private val pluginRepository: PluginRepository,
-    private val contentResolver: ContentResolver,
-    private val filesDir: File
+	private val pluginRepository: PluginRepository,
+	private val contentResolver: ContentResolver,
+	private val filesDir: File,
 ) : ViewModel() {
+	private companion object {
+		private const val TAG = "PluginManagerViewModel"
+	}
 
-    private companion object {
-        private const val TAG = "PluginManagerViewModel"
-    }
+	// Tracks the last forwarded-install file path (from ExternalFileInstallActivity) this
+	// instance has already shown a dialog for. Survives rotation (same ViewModel instance, via
+	// the ViewModelStore) so the dialog isn't re-popped on every rotation, but resets on process
+	// death (a fresh instance is created), so a process-death-recreated PluginManagerActivity
+	// still shows the dialog instead of silently dropping the forwarded install.
+	private val pendingInstallGate = LastValueGate<String>()
 
-    // Mutable state for internal updates
-    private val _uiState = MutableStateFlow(
-        PluginManagerUiState(
-            isPluginManagerAvailable = pluginRepository.isPluginManagerAvailable()
-        )
-    )
+	// Completed once the first loadPlugins() call (from init{}) has concluded, successfully or
+	// not. resolveInstallConflict() awaits this before consulting _uiState.value.plugins, so an
+	// install confirmed immediately after a cold start can't race the async plugin-list load and
+	// skip the same-ID signature check by seeing an still-empty list.
+	private val initialLoadCompleted = CompletableDeferred<Unit>()
 
-    // Public read-only state
-    val uiState: StateFlow<PluginManagerUiState> = _uiState.asStateFlow()
+	/** See [pendingInstallGate] for why this, rather than an Activity `savedInstanceState`
+	 * check, is what correctly distinguishes "already shown after a rotation" from "never shown
+	 * because the process died". */
+	fun markPendingInstallHandled(filePath: String): Boolean = pendingInstallGate.consume(filePath)
 
-    // Channel for one-time UI effects
-    private val _uiEffect = Channel<PluginManagerUiEffect>()
-    val uiEffect = _uiEffect.receiveAsFlow()
+	// Mutable state for internal updates
+	private val _uiState =
+		MutableStateFlow(
+			PluginManagerUiState(
+				isPluginManagerAvailable = pluginRepository.isPluginManagerAvailable(),
+			),
+		)
 
-    // Current operation tracking
-    private val _currentOperation = MutableStateFlow<PluginOperation>(PluginOperation.None)
-    val currentOperation: StateFlow<PluginOperation> = _currentOperation.asStateFlow()
+	// Public read-only state
+	val uiState: StateFlow<PluginManagerUiState> = _uiState.asStateFlow()
 
-    init {
-        loadPlugins()
-    }
+	// Channel for one-time UI effects. Buffered (not rendezvous): a synchronous decision path
+	// (e.g. handlePendingInstallExtra()'s effect right after onCreate()/onNewIntent()) can
+	// otherwise complete before the Activity's collector actually attaches, silently dropping the
+	// effect - see ExternalFileInstallViewModel's identical reasoning for its own uiEffect.
+	private val _uiEffect = Channel<PluginManagerUiEffect>(capacity = Channel.BUFFERED)
+	val uiEffect = _uiEffect.receiveAsFlow()
 
-    /**
-     * Handle UI events
-     */
-    fun onEvent(event: PluginManagerUiEvent) {
-        when (event) {
-            is PluginManagerUiEvent.LoadPlugins -> loadPlugins()
-            is PluginManagerUiEvent.EnablePlugin -> enablePlugin(event.pluginId)
-            is PluginManagerUiEvent.DisablePlugin -> disablePlugin(event.pluginId)
-            is PluginManagerUiEvent.UninstallPlugin -> showUninstallConfirmation(event.pluginId)
-            is PluginManagerUiEvent.InstallPlugin -> installPlugin(
-                event.uri,
-                event.deleteSourceAfterInstall
-            )
-            is PluginManagerUiEvent.ConfirmOverwrite -> installPlugin(
-                event.uri,
-                event.deleteSourceAfterInstall,
-                checkConflict = false
-            )
+	// Current operation tracking
+	private val _currentOperation = MutableStateFlow<PluginOperation>(PluginOperation.None)
+	val currentOperation: StateFlow<PluginOperation> = _currentOperation.asStateFlow()
 
-            is PluginManagerUiEvent.OpenFilePicker -> openFilePicker()
-            is PluginManagerUiEvent.ShowPluginDetails -> showPluginDetails(event.plugin)
-        }
-    }
+	init {
+		loadPlugins()
+	}
 
-    /**
-     * Load all plugins
-     */
-    private fun loadPlugins() {
-        if (!pluginRepository.isPluginManagerAvailable()) {
-            _uiState.update { it.copy(isPluginManagerAvailable = false) }
-            return
-        }
+	/**
+	 * Handle UI events
+	 */
+	fun onEvent(event: PluginManagerUiEvent) {
+		when (event) {
+			is PluginManagerUiEvent.LoadPlugins -> {
+				loadPlugins()
+			}
 
-        viewModelScope.launch {
-            _currentOperation.value = PluginOperation.Loading
-            _uiState.update { it.copy(isLoading = true) }
+			is PluginManagerUiEvent.EnablePlugin -> {
+				enablePlugin(event.pluginId)
+			}
 
-            pluginRepository.getAllPlugins()
-                .onSuccess { plugins ->
-                    Log.d(TAG, "Loaded ${plugins.size} plugins")
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            plugins = plugins,
-                            isPluginManagerAvailable = true
-                        )
-                    }
-                }
-                .onFailure { exception ->
-                    Log.e(TAG, "Failed to load plugins", exception)
-                    _uiState.update {
-                        it.copy(isLoading = false)
-                    }
-                    _uiEffect.trySend(
-                        PluginManagerUiEffect.ShowError(
-                            R.string.msg_plugin_load_failed,
-                            listOf(exception.message ?: "")
-                        )
-                    )
-                }
+			is PluginManagerUiEvent.DisablePlugin -> {
+				disablePlugin(event.pluginId)
+			}
 
-            // Keep the editor decoration providers in sync with the enabled plugin set.
-            EditorDecorationBridge.refresh()
+			is PluginManagerUiEvent.UninstallPlugin -> {
+				showUninstallConfirmation(event.pluginId)
+			}
 
-            _currentOperation.value = PluginOperation.None
-        }
-    }
+			is PluginManagerUiEvent.InstallPlugin -> {
+				installPlugin(
+					event.source,
+					event.deleteSourceAfterInstall,
+				)
+			}
 
-    /**
-     * Enable a plugin
-     */
-    private fun enablePlugin(pluginId: String) {
-        viewModelScope.launch {
-            _currentOperation.value = PluginOperation.Enabling(pluginId)
+			is PluginManagerUiEvent.ConfirmOverwrite -> {
+				installPlugin(
+					event.source,
+					event.deleteSourceAfterInstall,
+					checkConflict = false,
+				)
+			}
 
-            pluginRepository.enablePlugin(pluginId)
-                .onSuccess { success ->
-                    if (success) {
-                        Log.d(TAG, "Plugin enabled successfully: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_enabled))
-                        loadPlugins()
-                    } else {
-                        Log.w(TAG, "Failed to enable plugin: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_enable_failed))
-                    }
-                }
-                .onFailure { exception ->
-                    Log.e(TAG, "Error enabling plugin: $pluginId", exception)
-                    _uiEffect.trySend(
-                        PluginManagerUiEffect.ShowError(
-                            R.string.msg_plugin_enable_error,
-                            listOf(exception.message ?: "")
-                        )
-                    )
-                }
+			is PluginManagerUiEvent.CancelPendingInstall -> {
+				// Only a forwarded LocalFile (our own disposable temp copy) is cleaned up here -
+				// nothing was installed, so a user-picked ContentUri source is never touched on
+				// decline (deletion there only ever happens after a *successful* install,
+				// matching the "delete after install" checkbox's label - there's no flag to
+				// consult here since a decline never installs anything).
+				viewModelScope.launch { deleteIfLocalFile(event.source) }
+			}
 
-            _currentOperation.value = PluginOperation.None
-        }
-    }
+			is PluginManagerUiEvent.OpenFilePicker -> {
+				openFilePicker()
+			}
 
-    /**
-     * Disable a plugin
-     */
-    private fun disablePlugin(pluginId: String) {
-        viewModelScope.launch {
-            _currentOperation.value = PluginOperation.Disabling(pluginId)
+			is PluginManagerUiEvent.ShowPluginDetails -> {
+				showPluginDetails(event.plugin)
+			}
+		}
+	}
 
-            pluginRepository.disablePlugin(pluginId)
-                .onSuccess { success ->
-                    if (success) {
-                        Log.d(TAG, "Plugin disabled successfully: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_disabled))
-                        loadPlugins()
-                    } else {
-                        Log.w(TAG, "Failed to disable plugin: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_disable_failed))
-                    }
-                }
-                .onFailure { exception ->
-                    Log.e(TAG, "Error disabling plugin: $pluginId", exception)
-                    _uiEffect.trySend(
-                        PluginManagerUiEffect.ShowError(
-                            R.string.msg_plugin_disable_error,
-                            listOf(exception.message ?: "")
-                        )
-                    )
-                }
+	/**
+	 * Load all plugins
+	 */
+	private fun loadPlugins() {
+		if (!pluginRepository.isPluginManagerAvailable()) {
+			_uiState.update { it.copy(isPluginManagerAvailable = false) }
+			initialLoadCompleted.complete(Unit)
+			return
+		}
 
-            _currentOperation.value = PluginOperation.None
-        }
-    }
+		viewModelScope.launch {
+			_currentOperation.value = PluginOperation.Loading
+			_uiState.update { it.copy(isLoading = true) }
 
-    /**
-     * Show uninstall confirmation dialog
-     */
-    private fun showUninstallConfirmation(pluginId: String) {
-        val plugin = _uiState.value.plugins.find { it.metadata.id == pluginId }
-        if (plugin != null) {
-            viewModelScope.launch {
-                _uiEffect.trySend(PluginManagerUiEffect.ShowUninstallConfirmation(plugin))
-            }
-        }
-    }
+			pluginRepository
+				.getAllPlugins()
+				.onSuccess { plugins ->
+					Log.d(TAG, "Loaded ${plugins.size} plugins")
+					_uiState.update {
+						it.copy(
+							isLoading = false,
+							plugins = plugins,
+							isPluginManagerAvailable = true,
+						)
+					}
+				}.onFailure { exception ->
+					Log.e(TAG, "Failed to load plugins", exception)
+					_uiState.update {
+						it.copy(isLoading = false)
+					}
+					_uiEffect.trySend(
+						PluginManagerUiEffect.ShowError(
+							R.string.msg_plugin_load_failed,
+							listOf(exception.message ?: ""),
+						),
+					)
+				}
 
-    /**
-     * Uninstall a plugin (called after confirmation)
-     */
-    fun confirmUninstallPlugin(pluginId: String) {
-        viewModelScope.launch {
-            _currentOperation.value = PluginOperation.Uninstalling(pluginId)
+			// Keep the editor decoration providers in sync with the enabled plugin set.
+			EditorDecorationBridge.refresh()
 
-            pluginRepository.uninstallPlugin(pluginId)
-                .onSuccess { success ->
-                    if (success) {
-                        Log.d(TAG, "Plugin uninstalled successfully: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_uninstalled))
-                        loadPlugins()
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
-                    } else {
-                        Log.w(TAG, "Failed to uninstall plugin: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_uninstall_failed))
-                    }
-                }
-                .onFailure { exception ->
-                    Log.e(TAG, "Error uninstalling plugin: $pluginId", exception)
-                    _uiEffect.trySend(
-                        PluginManagerUiEffect.ShowError(
-                            R.string.msg_plugin_uninstall_error,
-                            listOf(exception.message ?: "")
-                        )
-                    )
-                }
+			_currentOperation.value = PluginOperation.None
+			// A no-op if already completed by an earlier loadPlugins() call - only the first
+			// call's outcome matters for initialLoadCompleted's purpose.
+			initialLoadCompleted.complete(Unit)
+		}
+	}
 
-            _currentOperation.value = PluginOperation.None
-        }
-    }
+	/**
+	 * Enable a plugin
+	 */
+	private fun enablePlugin(pluginId: String) {
+		viewModelScope.launch {
+			_currentOperation.value = PluginOperation.Enabling(pluginId)
 
-    private fun installPlugin(uri: Uri, deleteSourceAfterInstall: Boolean, checkConflict: Boolean = true) {
-        viewModelScope.launch {
-            _currentOperation.value = PluginOperation.Installing
-            _uiState.update { it.copy(isInstalling = true) }
+			pluginRepository
+				.enablePlugin(pluginId)
+				.onSuccess { success ->
+					if (success) {
+						Log.d(TAG, "Plugin enabled successfully: $pluginId")
+						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_enabled))
+						loadPlugins()
+					} else {
+						Log.w(TAG, "Failed to enable plugin: $pluginId")
+						_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_enable_failed))
+					}
+				}.onFailure { exception ->
+					Log.e(TAG, "Error enabling plugin: $pluginId", exception)
+					_uiEffect.trySend(
+						PluginManagerUiEffect.ShowError(
+							R.string.msg_plugin_enable_error,
+							listOf(exception.message ?: ""),
+						),
+					)
+				}
 
-            var tempFile: File? = null
+			_currentOperation.value = PluginOperation.None
+		}
+	}
 
-            try {
-                tempFile = withContext(Dispatchers.IO) {
-                    val fileName = UriFileImporter.getDisplayName(contentResolver, uri)
-                    val extension = if (fileName?.endsWith(
-                            ".cgp",
-                            ignoreCase = true
-                        ) == true
-                    ) ".cgp" else ".apk"
-                    val tempFileName = "temp_plugin_${System.currentTimeMillis()}$extension"
-                    val tempDir = File(filesDir, "temp").apply { mkdirs() }
-                    val tempFile = File(tempDir, tempFileName)
+	/**
+	 * Disable a plugin
+	 */
+	private fun disablePlugin(pluginId: String) {
+		viewModelScope.launch {
+			_currentOperation.value = PluginOperation.Disabling(pluginId)
 
-                    UriFileImporter.copyUriToFile(contentResolver, uri, tempFile) {
-                        Exception("Cannot open file")
-                    }
-                    tempFile
-                }
+			pluginRepository
+				.disablePlugin(pluginId)
+				.onSuccess { success ->
+					if (success) {
+						Log.d(TAG, "Plugin disabled successfully: $pluginId")
+						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_disabled))
+						loadPlugins()
+					} else {
+						Log.w(TAG, "Failed to disable plugin: $pluginId")
+						_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_disable_failed))
+					}
+				}.onFailure { exception ->
+					Log.e(TAG, "Error disabling plugin: $pluginId", exception)
+					_uiEffect.trySend(
+						PluginManagerUiEffect.ShowError(
+							R.string.msg_plugin_disable_error,
+							listOf(exception.message ?: ""),
+						),
+					)
+				}
 
-                if (checkConflict && resolveInstallConflict(tempFile, uri, deleteSourceAfterInstall)) {
-                    return@launch
-                }
+			_currentOperation.value = PluginOperation.None
+		}
+	}
 
-                pluginRepository.installPluginFromFile(tempFile)
-                    .onSuccess {
-                        Log.d(TAG, "Plugin installed successfully")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_installed))
-                        loadPlugins()
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
+	/**
+	 * Show uninstall confirmation dialog
+	 */
+	private fun showUninstallConfirmation(pluginId: String) {
+		val plugin = _uiState.value.plugins.find { it.metadata.id == pluginId }
+		if (plugin != null) {
+			viewModelScope.launch {
+				_uiEffect.trySend(PluginManagerUiEffect.ShowUninstallConfirmation(plugin))
+			}
+		}
+	}
 
-                        if (deleteSourceAfterInstall) {
-                            deleteSourceDocument(uri)
-                        }
-                    }
-                    .onFailure { exception ->
-                        Log.e(TAG, "Failed to install plugin", exception)
-                        _uiEffect.trySend(
-                            PluginManagerUiEffect.ShowError(
-                                R.string.msg_plugin_install_failed,
-                                listOf(exception.message ?: "")
-                            )
-                        )
-                    }
-            } catch (exception: Exception) {
-                Log.e(TAG, "Error installing plugin from URI", exception)
-                _uiEffect.trySend(
-                    PluginManagerUiEffect.ShowError(
-                        R.string.msg_plugin_install_failed,
-                        listOf(exception.message ?: "")
-                    )
-                )
-            } finally {
-                tempFile?.let { file ->
-                    withContext(Dispatchers.IO) {
-                        if (file.exists()) {
-                            file.delete()
-                        }
-                    }
-                }
-                _uiState.update { it.copy(isInstalling = false) }
-                _currentOperation.value = PluginOperation.None
-            }
-        }
-    }
+	/**
+	 * Uninstall a plugin (called after confirmation)
+	 */
+	fun confirmUninstallPlugin(pluginId: String) {
+		viewModelScope.launch {
+			_currentOperation.value = PluginOperation.Uninstalling(pluginId)
 
-    private suspend fun resolveInstallConflict(
-        tempFile: File,
-        uri: Uri,
-        deleteSourceAfterInstall: Boolean
-    ): Boolean {
-        val incoming = pluginRepository.getPluginMetadataFromFile(tempFile).getOrNull()
-        if (incoming == null) {
-            Log.w(TAG, "Failed to read plugin metadata from ${tempFile.name}; aborting install")
-            _uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file))
-            return true
-        }
+			pluginRepository
+				.uninstallPlugin(pluginId)
+				.onSuccess { success ->
+					if (success) {
+						Log.d(TAG, "Plugin uninstalled successfully: $pluginId")
+						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_uninstalled))
+						loadPlugins()
+						_uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
+					} else {
+						Log.w(TAG, "Failed to uninstall plugin: $pluginId")
+						_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_uninstall_failed))
+					}
+				}.onFailure { exception ->
+					Log.e(TAG, "Error uninstalling plugin: $pluginId", exception)
+					_uiEffect.trySend(
+						PluginManagerUiEffect.ShowError(
+							R.string.msg_plugin_uninstall_error,
+							listOf(exception.message ?: ""),
+						),
+					)
+				}
 
-        val existing = _uiState.value.plugins.find { it.metadata.id == incoming.id }
-            ?: return false
+			_currentOperation.value = PluginOperation.None
+		}
+	}
 
-        val signaturesMatch = pluginRepository
-            .haveMatchingSignatures(tempFile, existing.metadata.id)
-            .getOrDefault(false)
+	private fun installPlugin(
+		source: PluginInstallSource,
+		deleteSourceAfterInstall: Boolean,
+		checkConflict: Boolean = true,
+	) {
+		viewModelScope.launch {
+			_currentOperation.value = PluginOperation.Installing
+			_uiState.update { it.copy(isInstalling = true) }
 
-        val effect = if (!signaturesMatch) {
-            PluginManagerUiEffect.ShowError(
-                R.string.msg_plugin_signature_mismatch,
-                listOf(existing.metadata.name)
-            )
-        } else {
-            PluginManagerUiEffect.ShowOverwriteConfirmation(
-                existing = existing,
-                incomingMetadata = incoming,
-                uri = uri,
-                deleteSourceAfterInstall = deleteSourceAfterInstall
-            )
-        }
-        _uiEffect.trySend(effect)
-        return true
-    }
+			// ownedTempFile (the ContentUri case's own temp copy) is what the `finally` block
+			// below cleans up unconditionally. Note pluginRepository.installPluginFromFile()
+			// itself unconditionally deletes whatever `pluginFile` it's given once that's copied
+			// into the plugins directory - that's pre-existing behavior this function doesn't
+			// control (it also affects InstallFileAction.kt's direct callers). What
+			// deleteSourceAfterInstall/deleteInstallSource governs below is the *original*
+			// source's lifecycle instead: a user-picked ContentUri is only ever deleted after a
+			// successful install (see the onSuccess/onFailure split below), while a forwarded
+			// LocalFile temp copy is always cleaned up regardless of outcome.
+			var ownedTempFile: File? = null
+			var pluginFile: File? = null
 
-    private suspend fun deleteSourceDocument(uri: Uri) {
-        withContext(Dispatchers.IO) {
-            try {
-                val deleted = DocumentsContract.deleteDocument(contentResolver, uri)
-                if (!deleted) {
-                    _uiEffect.trySend(
-                        PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed)
-                    )
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to delete source document", e)
-                _uiEffect.trySend(
-                    PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed)
-                )
-            }
-        }
-    }
+			try {
+				if (checkConflict) {
+					// See initialLoadCompleted's kdoc: guarantees _uiState.value.plugins reflects
+					// the real installed set before resolveInstallConflict() checks it below.
+					initialLoadCompleted.await()
+				}
 
-    /**
-     * Open file picker
-     */
-    private fun openFilePicker() {
-        viewModelScope.launch {
-            _uiEffect.trySend(PluginManagerUiEffect.OpenFilePicker)
-        }
-    }
+				pluginFile =
+					when (source) {
+						is PluginInstallSource.LocalFile -> {
+							source.file
+						}
 
-    /**
-     * Show plugin details
-     */
-    private fun showPluginDetails(plugin: PluginInfo) {
-        viewModelScope.launch {
-            _uiEffect.trySend(PluginManagerUiEffect.ShowPluginDetails(plugin))
-        }
-    }
+						is PluginInstallSource.ContentUri -> {
+							withContext(Dispatchers.IO) {
+								val fileName = UriFileImporter.getDisplayName(contentResolver, source.uri)
+								val extension =
+									if (fileName?.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) == true) {
+										PLUGIN_ARCHIVE_EXTENSION
+									} else {
+										"apk"
+									}
+								val tempFile = InstallTempFiles.newTempFile(filesDir, "temp_plugin", extension)
+								// Assigned immediately (a plain, non-suspending write), before the
+								// suspending copy below - so a cancellation landing mid-copy still
+								// leaves ownedTempFile pointing at the file for `finally` to clean
+								// up. Assigning only after this whole block returns (e.g. via
+								// `.also{}` on the block's result) would miss that window: a
+								// cancellation right as the block finishes makes withContext throw
+								// instead of returning, so the assignment would never run.
+								ownedTempFile = tempFile
 
-    /**
-     * Check if a specific plugin operation is in progress
-     */
-    fun isPluginOperationInProgress(pluginId: String): Boolean {
-        return when (val operation = _currentOperation.value) {
-            is PluginOperation.Enabling -> operation.pluginId == pluginId
-            is PluginOperation.Disabling -> operation.pluginId == pluginId
-            is PluginOperation.Uninstalling -> operation.pluginId == pluginId
-            else -> false
-        }
-    }
+								UriFileImporter.copyUriToFile(contentResolver, source.uri, tempFile) {
+									Exception("Cannot open file")
+								}
+								tempFile
+							}
+						}
+					}
 
+				if (checkConflict && resolveInstallConflict(pluginFile, source, deleteSourceAfterInstall)) {
+					return@launch
+				}
+
+				pluginRepository
+					.installPluginFromFile(pluginFile)
+					.onSuccess {
+						Log.d(TAG, "Plugin installed successfully")
+						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_installed))
+						loadPlugins()
+						_uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
+
+						if (deleteSourceAfterInstall) {
+							deleteInstallSource(source)
+						}
+					}.onFailure { exception ->
+						Log.e(TAG, "Failed to install plugin", exception)
+						_uiEffect.trySend(
+							PluginManagerUiEffect.ShowError(
+								R.string.msg_plugin_install_failed,
+								listOf(exception.message ?: ""),
+							),
+						)
+						// A failed install deletes nothing but our own disposable temp copy - a
+						// user-picked ContentUri is preserved so they can retry, matching
+						// deleteSourceAfterInstall's "delete after install [succeeds]" meaning.
+						deleteIfLocalFile(source)
+					}
+			} catch (e: CancellationException) {
+				// Matches the "always cleaned up regardless of outcome" comment above: cancellation
+				// is itself an outcome the forwarded temp file must not survive.
+				withContext(NonCancellable) { deleteIfLocalFile(source) }
+				throw e
+			} catch (exception: Exception) {
+				Log.e(TAG, "Error installing plugin from URI", exception)
+				_uiEffect.trySend(
+					PluginManagerUiEffect.ShowError(
+						R.string.msg_plugin_install_failed,
+						listOf(exception.message ?: ""),
+					),
+				)
+				deleteIfLocalFile(source)
+			} finally {
+				ownedTempFile?.let { file ->
+					withContext(NonCancellable + Dispatchers.IO) {
+						if (file.exists()) {
+							file.delete()
+						}
+					}
+				}
+				_uiState.update { it.copy(isInstalling = false) }
+				_currentOperation.value = PluginOperation.None
+			}
+		}
+	}
+
+	private suspend fun resolveInstallConflict(
+		pluginFile: File,
+		source: PluginInstallSource,
+		deleteSourceAfterInstall: Boolean,
+	): Boolean {
+		val incoming = pluginRepository.getPluginMetadataFromFile(pluginFile).getOrNull()
+		if (incoming == null) {
+			Log.w(TAG, "Failed to read plugin metadata from ${pluginFile.name}; aborting install")
+			_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file))
+			deleteIfLocalFile(source)
+			return true
+		}
+
+		val existing =
+			_uiState.value.plugins.find { it.metadata.id == incoming.id }
+				?: return false
+
+		val signaturesMatch =
+			pluginRepository
+				.haveMatchingSignatures(pluginFile, existing.metadata.id)
+				.getOrDefault(false)
+
+		if (!signaturesMatch) {
+			_uiEffect.trySend(
+				PluginManagerUiEffect.ShowError(
+					R.string.msg_plugin_signature_mismatch,
+					listOf(existing.metadata.name),
+				),
+			)
+			deleteIfLocalFile(source)
+			return true
+		}
+
+		// Deliberately don't delete the source yet: the user still needs to choose Replace or
+		// Cancel. ConfirmOverwrite re-runs installPlugin() to consume it on Replace;
+		// CancelPendingInstall cleans it up if they back out instead.
+		_uiEffect.trySend(
+			PluginManagerUiEffect.ShowOverwriteConfirmation(
+				existing = existing,
+				incomingMetadata = incoming,
+				source = source,
+				deleteSourceAfterInstall = deleteSourceAfterInstall,
+			),
+		)
+		return true
+	}
+
+	/** A user-picked ContentUri is only ever deleted after a successful install (matching the
+	 * "delete after install" checkbox's label) - a forwarded LocalFile temp copy is disposable
+	 * regardless of outcome, so it's the only source type any non-success path cleans up here. */
+	private suspend fun deleteIfLocalFile(source: PluginInstallSource) {
+		if (source is PluginInstallSource.LocalFile) {
+			deleteInstallSource(source)
+		}
+	}
+
+	private suspend fun deleteInstallSource(source: PluginInstallSource) {
+		when (source) {
+			is PluginInstallSource.LocalFile -> {
+				withContext(Dispatchers.IO) {
+					if (source.file.exists() && !source.file.delete()) {
+						Log.w(TAG, "Failed to delete forwarded install file: ${source.file.absolutePath}")
+					}
+				}
+			}
+
+			is PluginInstallSource.ContentUri -> {
+				deleteSourceDocument(source.uri)
+			}
+		}
+	}
+
+	private suspend fun deleteSourceDocument(uri: Uri) {
+		withContext(Dispatchers.IO) {
+			try {
+				if (!DocumentsContract.deleteDocument(contentResolver, uri)) {
+					_uiEffect.trySend(
+						PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
+					)
+				}
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Failed to delete source document", e)
+				_uiEffect.trySend(
+					PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
+				)
+			}
+		}
+	}
+
+	/**
+	 * Open file picker
+	 */
+	private fun openFilePicker() {
+		viewModelScope.launch {
+			_uiEffect.trySend(PluginManagerUiEffect.OpenFilePicker)
+		}
+	}
+
+	/**
+	 * Show plugin details
+	 */
+	private fun showPluginDetails(plugin: PluginInfo) {
+		viewModelScope.launch {
+			_uiEffect.trySend(PluginManagerUiEffect.ShowPluginDetails(plugin))
+		}
+	}
+
+	/**
+	 * Check if a specific plugin operation is in progress
+	 */
+	fun isPluginOperationInProgress(pluginId: String): Boolean =
+		when (val operation = _currentOperation.value) {
+			is PluginOperation.Enabling -> operation.pluginId == pluginId
+			is PluginOperation.Disabling -> operation.pluginId == pluginId
+			is PluginOperation.Uninstalling -> operation.pluginId == pluginId
+			else -> false
+		}
 }

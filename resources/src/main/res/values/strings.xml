@@ -8,6 +8,8 @@
 	<string name="app_name" translatable="false">Code on the Go</string>
 	<string name="about_option_email">Email</string>
 	<string name="about_option_website">Website</string>
+	<string name="about_option_youtube">YouTube</string>
+	<string name="about_option_bilibili">Bilibili</string>
 	<string name="about_footer_alternate" translatable="false">Code on the Go v\u2022 %s</string>
 	<string name="about_footer">Code on the Go %1$s for %2$s</string>
 	<string name="about_subtitle">No computer? No Internet? No problem. Code apps anywhere.</string>
@@ -331,8 +333,6 @@
 	<string name="title_confirm_project_open">Confirm project opening</string>
 	<string name="msg_confirm_project_open">When enabled, Code on the Go asks for confirmation before opening the last project.</string>
 	<string name="msg_error_opening_project">Error opening project.</string>
-	<string name="title_default_shell">Use system shell in terminal</string>
-	<string name="msg_default_shell">If checked, \'/system/bin/sh\' will be used in terminal.</string>
 	<string name="title_general">General</string>
 	<string name="title_tab_size">Tab size</string>
 	<string name="msg_tab_size">Set the number of spaces that the tab character indents.</string>
@@ -664,10 +664,9 @@
 	<string name="title_privacy">Privacy</string>
 
 	<string name="privacy_disclosure_title">Privacy &amp; analytics</string>
-	<string name="privacy_disclosure_message">Code on the Go uses Firebase Analytics and GlitchTip to help us improve the app.\n\nFirebase Analytics collects anonymous usage data to help us understand how the app is used. \n\nGlitchTip helps us track and fix errors.\n\nNo personal information is collected or shared. All data is processed in accordance with our privacy policy.\n\nChoose whether to share this anonymous data. If you choose Keep offline, analytics and crash reports are never sent.</string>
+	<string name="privacy_disclosure_message">Code on the Go collects anonymous usage and crash information to help us fix bugs and improve the app. No personal information is collected or shared.\n\n<i>Share anonymous data</i> sends this information. <i>Keep offline</i> sends nothing at all.</string>
 	<string name="privacy_disclosure_accept">Share anonymous data</string>
 	<string name="privacy_disclosure_decline">Keep offline</string>
-	<string name="privacy_disclosure_learn_more">Learn more</string>
 
 	<string name="title_unique_id">Unique ID</string>
 	<string name="title_device">Device</string>
@@ -1017,6 +1016,7 @@
 	<string name="cd_diagnostic_error">Error</string>
 	<string name="cd_diagnostic_warning">Warning</string>
 	<string name="cd_diagnostic_info">Information</string>
+	<string name="cd_show_help">Show help</string>
 
 	<!-- Toolbar content descriptions for TalkBack (match actual function) -->
 	<string name="cd_toolbar_quick_run">Quick run</string>
@@ -1089,6 +1089,20 @@
 	<string name="action_discover_plugins">Discover plugins</string>
 	<string name="url_discover_plugins" translatable="false">https://www.appdevforall.org/contribute/</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
+
+	<string name="msg_invalid_incoming_file">Could not read the file. It may be corrupted or unavailable.</string>
+	<string name="msg_unsupported_file_type">Unsupported file type. Only .cgp and .cgt files can be opened this way.</string>
+	<string name="msg_ide_setup_incomplete">IDE setup has not finished yet. Please try again once setup completes.</string>
+	<string name="title_install_template_collection">Install Template Collection</string>
+	<string name="msg_template_install_confirm">Install \'%1$s\' with the following templates: %2$s?</string>
+	<string name="title_template_already_installed">Template Collection Already Installed</string>
+	<string name="msg_template_name_conflict">A template collection named \'%1$s\' is already installed. The new one contains: %2$s. What would you like to do?</string>
+	<string name="btn_overwrite">Overwrite</string>
+	<string name="btn_rename_and_install">Rename &amp; Install</string>
+	<string name="hint_new_template_collection_name">New collection name</string>
+	<string name="msg_template_installed">"%1$s" installed successfully</string>
+	<string name="msg_template_invalid_file">Invalid or corrupted template collection file.</string>
+	<string name="msg_template_install_failed">Failed to install template collection: %1$s</string>
 
 	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
 
@@ -1216,10 +1230,11 @@
 	<string name="support_our_work">Support our work</string>
 	<string name="github_sponsors_url">https://github.com/sponsors/appdevforall</string>
 	<string name="docs_url">http://localhost:6174/i/index.html</string>
-	<string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
 	<string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
 	<string name="adfa_email">info@appdevforall.org</string>
 	<string name="mail_to_adfa">mailto:info@appdevforall.org</string>
+	<string name="youtube_channel_url">https://youtube.com/@appdevforall</string>
+	<string name="bilibili_video_url">https://www.bilibili.com/video/BV1AUgR6sE3G/</string>
 
 	<!-- AI Agent -->
 	<string name="ai_setting_saved">💾 Saved: %1$s</string>
