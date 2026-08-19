@@ -5,6 +5,8 @@ import android.database.sqlite.SQLiteDatabase
 import com.google.common.truth.Truth.assertThat
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.unmockkAll
+import org.junit.After
 import org.junit.Test
 
 /**
@@ -16,6 +18,13 @@ import org.junit.Test
  * `pdf` flag all have to survive the change.
  */
 class BookshelfPayloadTest {
+	// Without this, mockk's instrumentation outlives the class and breaks a later test in the same
+	// JVM: BrotliDictionaryDecodeTest's @BeforeClass then fails to load the brotli native library.
+	@After
+	fun tearDown() {
+		unmockkAll()
+	}
+
 	private fun server() =
 		WebServer(
 			ServerConfig(
