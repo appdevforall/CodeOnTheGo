@@ -17,6 +17,15 @@ import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel.BranchesUiState
 
+/**
+ * Popup window that displays the list of local and remote branches with search,
+ * branch creation, checkout, and merge capabilities.
+ *
+ * @param context The host context.
+ * @param onBranchSelected Callback invoked when a branch row is tapped to switch/checkout.
+ * @param onNewBranchRequested Callback invoked when the "New branch" action is tapped.
+ * @param onMergeBranch Optional callback invoked when a branch's merge button is tapped.
+ */
 class GitBranchPopupWindow(
 	private val context: Context,
 	private val onBranchSelected: (GitBranch) -> Unit,
@@ -67,6 +76,11 @@ class GitBranchPopupWindow(
 		}
 	}
 
+	/**
+	 * Updates the branch list and loading indicator state in the popup.
+	 *
+	 * @param state The current [BranchesUiState] to render.
+	 */
 	fun setBranchesState(state: BranchesUiState) {
 		when (state) {
 			is BranchesUiState.Loading -> {
@@ -122,6 +136,12 @@ class GitBranchPopupWindow(
 
 	private fun getDisplayName(branch: GitBranch): String = branch.name
 
+	/**
+	 * Displays the popup dropdown positioned relative to [anchor], dynamically sized to span
+	 * the parent bottom sheet width with symmetric 16dp margins.
+	 *
+	 * @param anchor The view below which the popup dropdown should appear.
+	 */
 	fun show(anchor: View) {
 		binding.etSearchBranches.text?.clear()
 		filterBranches(null)

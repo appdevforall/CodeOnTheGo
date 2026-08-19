@@ -145,6 +145,10 @@ class GitBottomSheetViewModel(
 		}
 	}
 
+	/**
+	 * Fetches the list of all local and remote branches from the current repository
+	 * and updates the [_branches] flow with [BranchesUiState].
+	 */
 	fun fetchBranches() {
 		viewModelScope.launch {
 			_branches.value = BranchesUiState.Loading
@@ -164,6 +168,14 @@ class GitBottomSheetViewModel(
 		}
 	}
 
+	/**
+	 * Checks out the given [branchName].
+	 *
+	 * @param branchName The branch name or remote reference to switch to or create.
+	 * @param createNew If true, creates a new branch.
+	 * @param startPoint Optional start commit or branch name when creating a new branch.
+	 * @param onSuccess Optional callback invoked when the checkout succeeds.
+	 */
 	fun checkoutBranch(
 		branchName: String,
 		createNew: Boolean = false,
@@ -420,16 +432,27 @@ class GitBottomSheetViewModel(
 		_pushState.value = PushUiState.Idle
 	}
 
+	/**
+	 * Cancels any scheduled checkout state reset timer and resets [_checkoutState] to [CheckoutUiState.Idle].
+	 */
 	fun resetCheckoutState() {
 		checkoutResetJob?.cancel()
 		_checkoutState.value = CheckoutUiState.Idle
 	}
 
+	/**
+	 * Cancels any scheduled merge state reset timer and resets [_mergeState] to [MergeUiState.Idle].
+	 */
 	fun resetMergeState() {
 		mergeResetJob?.cancel()
 		_mergeState.value = MergeUiState.Idle
 	}
 
+	/**
+	 * Merges [targetBranchName] into the currently checked-out branch and updates [_mergeState].
+	 *
+	 * @param targetBranchName The name of the branch to merge into HEAD.
+	 */
 	fun mergeBranch(targetBranchName: String) {
 		mergeResetJob?.cancel()
 

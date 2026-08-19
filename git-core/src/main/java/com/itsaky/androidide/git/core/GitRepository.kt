@@ -52,11 +52,33 @@ interface GitRepository : Closeable {
 	): PullResult
 
 	// Merge Operations
+
+	/**
+	 * Merges the specified branch into the current HEAD branch.
+	 *
+	 * @param branchName The name of the target branch to merge into current HEAD.
+	 * @return [MergeResult] containing the merge status (e.g. FAST_FORWARD, CONFLICTING).
+	 */
 	suspend fun merge(branchName: String): MergeResult
 
+	/**
+	 * Aborts an ongoing conflicted merge, resetting the working tree and index back to HEAD.
+	 */
 	suspend fun abortMerge()
 
 	// Branch Operations
+
+	/**
+	 * Checks out the specified branch.
+	 *
+	 * When [createNew] is true, creates a new local branch with [branchName] starting from [startPoint] (or HEAD if null).
+	 * When [createNew] is false and [branchName] refers to a remote-tracking branch, creates or switches to a corresponding
+	 * local branch configured to track the remote ref.
+	 *
+	 * @param branchName The target branch name or remote ref (e.g., "main", "feature", "origin/main").
+	 * @param createNew If true, creates a new branch instead of switching to an existing one.
+	 * @param startPoint Optional start commit or branch name when creating a new branch.
+	 */
 	suspend fun checkout(
 		branchName: String,
 		createNew: Boolean = false,
