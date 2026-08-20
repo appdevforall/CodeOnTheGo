@@ -145,10 +145,10 @@ data class CandidateExpression(
  * time the user confirms, the plan is discarded rather than applied against shifted offsets.
  */
 data class ExtractionPlan(
-	val fileText: String,
-	val documentVersion: Int,
+	override val fileText: String,
+	override val documentVersion: Int,
 	val candidates: List<CandidateExpression>,
-) {
+) : RefactoringPlan {
 	val isEmpty: Boolean get() = candidates.isEmpty()
 
 	companion object {
