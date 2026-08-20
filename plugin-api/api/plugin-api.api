@@ -1667,6 +1667,43 @@ public abstract interface class com/itsaky/androidide/plugins/services/ThemeChan
 	public abstract fun onThemeChanged (Z)V
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry {
+	public static final field CONTRACT_VERSION I
+	public abstract fun getToolSources ()Ljava/util/List;
+	public abstract fun notifyToolsChanged (Ljava/lang/String;)V
+	public abstract fun registerToolSource (Lcom/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSource;)V
+	public abstract fun unregisterToolSource (Lcom/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSource;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolInvocation {
+	public abstract fun getArguments ()Ljava/util/Map;
+	public abstract fun getCallId ()Ljava/lang/String;
+	public fun getProjectRoot ()Ljava/lang/String;
+	public abstract fun getToolName ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolOutcome {
+	public fun getErrorMessage ()Ljava/lang/String;
+	public abstract fun getOutput ()Ljava/lang/String;
+	public abstract fun isSuccess ()Z
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSource {
+	public fun cancel (Ljava/lang/String;)V
+	public abstract fun getDisplayName ()Ljava/lang/String;
+	public abstract fun getProviderId ()Ljava/lang/String;
+	public abstract fun invoke (Lcom/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolInvocation;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun listTools ()Ljava/util/List;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSpec {
+	public abstract fun getDescription ()Ljava/lang/String;
+	public abstract fun getName ()Ljava/lang/String;
+	public fun getParametersSchema ()Ljava/util/Map;
+	public fun isReadOnly ()Z
+	public fun requiresApproval ()Z
+}
+
 public final class com/itsaky/androidide/plugins/templates/CgtTemplateBuilder {
 	public static final field Companion Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder$Companion;
 	public fun <init> (Ljava/lang/String;)V
