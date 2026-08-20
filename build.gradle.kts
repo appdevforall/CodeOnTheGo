@@ -332,7 +332,13 @@ spotless {
 			".githooks/**/*",
 			"scripts/**/*",
 		)
-		targetExclude("scripts/debug-keystore/adfa-keystore.jks")
+		targetExclude(
+			"scripts/debug-keystore/adfa-keystore.jks",
+			// leadingSpacesToTabs() would reindent Python, which PEP 8 indents with spaces --
+			// and every .py already here is space-indented. Only the ratchet has been hiding
+			// that mismatch: an edit to one of them would silently convert the whole file.
+			"**/*.py",
+		)
 	}
 }
 
