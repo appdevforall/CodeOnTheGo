@@ -6,6 +6,8 @@ import com.itsaky.androidide.lsp.actions.SurroundWithTryCatchAction
 import com.itsaky.androidide.lsp.actions.UncommentLineAction
 import com.itsaky.androidide.lsp.kotlin.KotlinCodeActionsMenu.KT_LANG
 import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
+import com.itsaky.androidide.lsp.kotlin.actions.ExtractMethodAction
+import com.itsaky.androidide.lsp.kotlin.actions.ExtractVariableAction
 import com.itsaky.androidide.lsp.kotlin.actions.FindReferencesAction
 import com.itsaky.androidide.lsp.kotlin.actions.GoToDefinitionAction
 import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
@@ -42,6 +44,8 @@ class KotlinCodeActionTooltipTagTest {
 				ImplementMembersAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPLEMENT_MEMBERS,
 				SurroundWithTryCatchAction.idFor(KT_LANG) to
 					TooltipTag.EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH,
+				ExtractVariableAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_EXTRACT_VARIABLE,
+				ExtractMethodAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_EXTRACT_METHOD,
 			)
 		assertEquals(expected, actualTags)
 	}
