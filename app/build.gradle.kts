@@ -667,9 +667,12 @@ val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
 
 /*
  * Whether a debug assemble is finalized by recompressApk. Release assembles
- * always are; debug is gated because the task costs ~3.5 min on the runner.
+ * always are; debug is opt-in via -PrecompressDebug because the task costs
+ * ~3.5 min on the runner and only pays off for APKs testers download broadly.
+ * debug.yml passes the flag on stage; feature branches and the daily
+ * scheduled builds do not.
  */
-val recompressDebugApk = isCiCd
+val recompressDebugApk = project.hasProperty("recompressDebug")
 
 val noCompress =
 	setOf(

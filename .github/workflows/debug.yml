@@ -210,8 +210,16 @@ jobs:
 
       - name: Assemble Universal APK
         run: |
+          # recompressApk costs ~3.5 min and only pays off for APKs testers
+          # download broadly, so only stage opts in (ADFA-5207).
+          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          recompress=""
+          if [[ "${BRANCH_NAME,,}" == "stage" ]]; then
+            recompress="-PrecompressDebug"
+          fi
+          echo "Branch $BRANCH_NAME, recompress flag: '${recompress:-none}'"
           echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
-          flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
+          flox activate -d flox/base -- ./gradlew :app:assembleV8Debug $recompress --no-daemon
           echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
 
 
