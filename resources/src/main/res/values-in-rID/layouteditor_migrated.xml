@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Resources migrated from the layouteditor module (now extracted to a plugin) that the app's own
+  layouts/code still reference. They were previously resolved transitively from that module.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="ai_agent">Agen AI</string>
+    <string name="cancel">Batal</string>
+    <string name="clear">Hapus</string>
+    <string name="delete">Hapus</string>
+    <string name="edit">Ubah</string>
+    <string name="gemini_api_key">Kunci API Gemini</string>
+    <string name="gemini_api_key_saved_on">Kunci API Gemini disimpan di %s</string>
+    <string name="rename">Ganti nama</string>
+    <string name="save_key">Simpan Kunci</string>
+    <string name="ai_settings">Pengaturan AI</string>
+    <string name="history">Riwayat</string>
+    <string name="delete_project">Hapus proyek</string>
+    <string name="rename_project">Ganti nama proyek</string>
+    <string name="options">Opsi</string>
+    <string name="create">Buat</string>
+    <string name="msg_new_project_name">Masukkan nama proyek baru</string>
+    <string name="msg_delete_project">Apakah Anda yakin ingin menghapus proyek ini?</string>
+    <string name="msg_current_name_unavailable">Nama saat ini tidak tersedia!</string>
+    <string name="msg_cannnot_empty">Kolom tidak boleh kosong!</string>
+    <string name="api_key_saved_securely">Kunci API disimpan dengan aman.</string>
+    <string name="api_key_is_saved">Kunci API telah disimpan.</string>
+    <string name="api_key_cleared">Kunci API telah dihapus.</string>
+    <string name="api_key_cannot_be_empty">Kunci API tidak boleh kosong.</string>
+</resources>
