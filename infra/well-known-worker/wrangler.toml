@@ -1,0 +1,22 @@
+# Serves /.well-known/assetlinks.json for appdevforall.org out of the private
+# "well-known" R2 bucket. Deployed by .github/workflows/deploy-well-known-worker.yml.
+
+name = "well-known"
+main = "src/index.js"
+compatibility_date = "2026-08-18"
+
+# Nothing should reach this Worker except through the routes below; a workers.dev
+# URL would expose the bucket on a second, unverified hostname.
+workers_dev = false
+
+# Exact paths, no trailing wildcard. A "/.well-known/*" route would also capture
+# /.well-known/acme-challenge/, which the origin needs for certificate renewal.
+routes = [
+	{ pattern = "appdevforall.org/.well-known/assetlinks.json", zone_name = "appdevforall.org" },
+	{ pattern = "www.appdevforall.org/.well-known/assetlinks.json", zone_name = "appdevforall.org" },
+]
+
+# binding must match env.WELL_KNOWN in src/index.js.
+[[r2_buckets]]
+binding = "WELL_KNOWN"
+bucket_name = "well-known"
