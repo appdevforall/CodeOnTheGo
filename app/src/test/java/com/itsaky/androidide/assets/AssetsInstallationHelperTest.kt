@@ -45,9 +45,14 @@ class AssetsInstallationHelperTest {
 		// its availability in a static field, so a JVM whose first sight of that class is a mocked
 		// one keeps a "never loaded" state -- and a later *real* ensureAvailability(), which
 		// BrotliDictionaryDecodeTest does in @BeforeClass, then throws UnsatisfiedLinkError even
-		// after unmockkAll(). runCatching because a host with no matching native is a legitimate
-		// configuration (see brotli4jNativeForHost) and this warming is best-effort.
-		runCatching { Brotli4jLoader.ensureAvailability() }
+		// after unmockkAll(). Only UnsatisfiedLinkError is absorbed -- that is what the loader raises
+		// when there is no native for this host, which is a legitimate configuration (see
+		// brotli4jNativeForHost) -- so any other setup failure here still surfaces.
+		try {
+			Brotli4jLoader.ensureAvailability()
+		} catch (e: UnsatisfiedLinkError) {
+			println("brotli native unavailable on this host, continuing: ${e.message}")
+		}
 
 		mockkObject(helper)
 		every {
