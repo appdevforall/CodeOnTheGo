@@ -1,0 +1,53 @@
+name: Strip Rovo Dev Nag
+
+# The Atlassian GitHub integration edits every pull request description to append a
+# "Rovo Dev code review status" block advertising Rovo. Strip it back out.
+#
+# Runs on pull_request_target so it can edit pull requests from forks.
+# It must never check out or execute code from the pull request.
+on:
+  pull_request_target:
+    types: [ edited ]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  strip_rovo_nag:
+    name: Remove the Rovo Dev block from the PR description
+    runs-on: ubuntu-latest
+    steps:
+      - name: Strip the Rovo Dev block from the PR body
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+
+            // Atlassian wraps the block in HTML comment markers. Anchoring on those
+            // catches every wording of the message, not just "not activated", and
+            // swallows the horizontal rule Atlassian tucks inside them.
+            const marked = /\n*<!--\s*Rovo Dev code review status\s*-->[\s\S]*?<!--\s*\/\s*Rovo Dev code review status\s*-->[ \t]*/gi;
+
+            // Fallback for the day Atlassian drops the markers.
+            const bare = /\n*(?:-{3,}[ \t]*\n)?[ \t]*(?:\*\*|<strong>)?\s*Rovo Dev code review:[\s\S]*?Atlassian organization admin needs to activate Rovo Dev\.[ \t]*/gi;
+
+            const cleaned = body.replace(marked, '').replace(bare, '').trimEnd();
+
+            if (cleaned === body.trimEnd()) {
+              core.info(
+                `No Rovo Dev block in PR #${pr.number} (edited by ${context.payload.sender.login}); nothing to strip.`
+              );
+              return;
+            }
+
+            // This update runs as GITHUB_TOKEN, which does not trigger further
+            // workflow runs, so stripping the block cannot loop back on itself.
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              body: cleaned,
+            });
+
+            core.info(`Stripped the Rovo Dev block from PR #${pr.number}.`);
