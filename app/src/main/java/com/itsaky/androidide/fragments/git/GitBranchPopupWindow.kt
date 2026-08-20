@@ -144,32 +144,16 @@ class GitBranchPopupWindow(
 	private fun getDisplayName(branch: GitBranch): String = branch.name
 
 	/**
-	 * Displays the popup dropdown positioned relative to [anchor], dynamically sized to span
-	 * the parent bottom sheet width with symmetric 16dp margins.
+	 * Displays the popup window as a dropdown anchored below [anchor].
 	 *
-	 * @param anchor The view below which the popup dropdown should appear.
+	 * Clears any existing search input, resets the filtered branch list,
+	 * and positions the dropdown below the specified anchor view.
+	 *
+	 * @param anchor The view below which the popup dropdown should be displayed.
 	 */
 	fun show(anchor: View) {
 		binding.etSearchBranches.text?.clear()
 		filterBranches(null)
-
-		val parentView = (anchor.parent as? View) ?: anchor.rootView
-		val marginPx = (16 * context.resources.displayMetrics.density).toInt()
-		val targetWidth = parentView.width - (marginPx * 2)
-
-		val xOff =
-			if (targetWidth > 0) {
-				popupWindow.width = targetWidth
-				val anchorLocation = IntArray(2)
-				val parentLocation = IntArray(2)
-				anchor.getLocationInWindow(anchorLocation)
-				parentView.getLocationInWindow(parentLocation)
-				val anchorLeftInParent = anchorLocation[0] - parentLocation[0]
-				marginPx - anchorLeftInParent
-			} else {
-				0
-			}
-
-		popupWindow.showAsDropDown(anchor, xOff, 8)
+		popupWindow.showAsDropDown(anchor, 0, 8)
 	}
 }
