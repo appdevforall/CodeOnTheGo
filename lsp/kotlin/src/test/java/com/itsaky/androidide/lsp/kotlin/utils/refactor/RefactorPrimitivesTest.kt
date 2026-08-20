@@ -1,5 +1,8 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.kotlin.utils.refactor.HARD_KEYWORDS
+import com.itsaky.androidide.lsp.ui.NameProblem
+import com.itsaky.androidide.lsp.ui.validateVariableName
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -10,40 +13,40 @@ import org.junit.Test
 class RefactorPrimitivesTest {
 	@Test
 	fun `rejects blank names`() {
-		assertEquals(NameProblem.Blank, validateVariableName("", emptySet()))
-		assertEquals(NameProblem.Blank, validateVariableName("   ", emptySet()))
+		assertEquals(NameProblem.Blank, validateVariableName("", emptySet(), HARD_KEYWORDS))
+		assertEquals(NameProblem.Blank, validateVariableName("   ", emptySet(), HARD_KEYWORDS))
 	}
 
 	@Test
 	fun `rejects non-identifiers`() {
-		assertEquals(NameProblem.NotAnIdentifier, validateVariableName("1size", emptySet()))
-		assertEquals(NameProblem.NotAnIdentifier, validateVariableName("my size", emptySet()))
-		assertEquals(NameProblem.NotAnIdentifier, validateVariableName("size!", emptySet()))
+		assertEquals(NameProblem.NotAnIdentifier, validateVariableName("1size", emptySet(), HARD_KEYWORDS))
+		assertEquals(NameProblem.NotAnIdentifier, validateVariableName("my size", emptySet(), HARD_KEYWORDS))
+		assertEquals(NameProblem.NotAnIdentifier, validateVariableName("size!", emptySet(), HARD_KEYWORDS))
 		// Backticked names are legal Kotlin but deliberately unsupported for a generated local.
-		assertEquals(NameProblem.NotAnIdentifier, validateVariableName("`size`", emptySet()))
+		assertEquals(NameProblem.NotAnIdentifier, validateVariableName("`size`", emptySet(), HARD_KEYWORDS))
 	}
 
 	@Test
 	fun `rejects hard keywords but allows soft ones`() {
-		assertEquals(NameProblem.Keyword, validateVariableName("val", emptySet()))
-		assertEquals(NameProblem.Keyword, validateVariableName("when", emptySet()))
-		assertEquals(NameProblem.Keyword, validateVariableName("this", emptySet()))
+		assertEquals(NameProblem.Keyword, validateVariableName("val", emptySet(), HARD_KEYWORDS))
+		assertEquals(NameProblem.Keyword, validateVariableName("when", emptySet(), HARD_KEYWORDS))
+		assertEquals(NameProblem.Keyword, validateVariableName("this", emptySet(), HARD_KEYWORDS))
 		// `it`, `data` and `by` are soft keywords -- perfectly legal identifiers.
-		assertNull(validateVariableName("it", emptySet()))
-		assertNull(validateVariableName("data", emptySet()))
-		assertNull(validateVariableName("by", emptySet()))
+		assertNull(validateVariableName("it", emptySet(), HARD_KEYWORDS))
+		assertNull(validateVariableName("data", emptySet(), HARD_KEYWORDS))
+		assertNull(validateVariableName("by", emptySet(), HARD_KEYWORDS))
 	}
 
 	@Test
 	fun `rejects names already in use`() {
-		assertEquals(NameProblem.AlreadyTaken, validateVariableName("size", setOf("size")))
-		assertNull(validateVariableName("size", setOf("count")))
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("size", setOf("size"), HARD_KEYWORDS))
+		assertNull(validateVariableName("size", setOf("count"), HARD_KEYWORDS))
 	}
 
 	@Test
 	fun `accepts underscores and digits`() {
-		assertNull(validateVariableName("_size", emptySet()))
-		assertNull(validateVariableName("size2", emptySet()))
+		assertNull(validateVariableName("_size", emptySet(), HARD_KEYWORDS))
+		assertNull(validateVariableName("size2", emptySet(), HARD_KEYWORDS))
 	}
 
 	@Test

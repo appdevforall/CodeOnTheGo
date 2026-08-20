@@ -1,6 +1,9 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
+import com.itsaky.androidide.lsp.kotlin.utils.refactor.HARD_KEYWORDS
+import com.itsaky.androidide.lsp.ui.NameProblem
+import com.itsaky.androidide.lsp.ui.validateVariableName
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.psi.KtBlockExpression
 import org.jetbrains.kotlin.psi.KtIfExpression
@@ -957,7 +960,7 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 
 		// `val length` lives in another function's lambda: invisible here, so naming this one `length`
 		// is legal and must not be refused.
-		assertNull(validateVariableName("length", result.candidates.first().takenNames))
+		assertNull(validateVariableName("length", result.candidates.first().takenNames, HARD_KEYWORDS))
 	}
 
 	@Test
@@ -974,8 +977,8 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 
 		val taken = plan(content, content.indexOf("items.size") + 1).candidates.first().takenNames
 
-		assertEquals(NameProblem.AlreadyTaken, validateVariableName("items", taken))
-		assertEquals(NameProblem.AlreadyTaken, validateVariableName("size", taken))
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("items", taken, HARD_KEYWORDS))
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("size", taken, HARD_KEYWORDS))
 	}
 
 	@Test
@@ -1001,8 +1004,8 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 
 		// A local `val total` would shadow the member, changing what every other `total` in the block
 		// means, so it stays refused.
-		assertEquals(NameProblem.AlreadyTaken, validateVariableName("total", taken))
-		assertEquals(NameProblem.AlreadyTaken, validateVariableName("demo", taken))
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("total", taken, HARD_KEYWORDS))
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("demo", taken, HARD_KEYWORDS))
 	}
 
 	@Test

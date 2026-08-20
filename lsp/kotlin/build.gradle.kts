@@ -59,6 +59,7 @@ dependencies {
 	implementation(projects.subprojects.projectModels)
 
 	implementation(projects.commonCompose)
+	implementation(projects.lsp.ui)
 
 	implementation(platform(libs.compose.bom))
 	implementation(libs.compose.runtime)

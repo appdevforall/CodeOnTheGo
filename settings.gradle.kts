@@ -137,6 +137,7 @@ include(
 	":lsp:jvm-symbol-index",
 	":lsp:jvm-symbol-models",
 	":lsp:kotlin",
+	":lsp:ui",
 	":lsp:xml",
 	":profiler",
 	":subprojects:aapt2-proto",

@@ -1,4 +1,4 @@
-package com.itsaky.androidide.lsp.kotlin.refactor.ui
+package com.itsaky.androidide.lsp.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,6 +34,7 @@ import com.itsaky.androidide.resources.R
 @Composable
 fun ExtractVariableSheetContent(
 	state: ExtractVariableUiState,
+	nameMessages: NameMessages,
 	onEvent: (ExtractVariableUiEvent) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -67,7 +68,10 @@ fun ExtractVariableSheetContent(
 			label = { Text(stringResource(R.string.label_extract_variable_name)) },
 			isError = state.nameProblem != null,
 			singleLine = true,
-			supportingText = state.nameProblem?.let { problem -> { Text(stringResource(problem.messageRes())) } },
+			supportingText =
+				state.nameProblem?.let { problem ->
+					{ Text(stringResource(nameMessages.resFor(problem))) }
+				},
 			modifier = Modifier.fillMaxWidth(),
 		)
 

@@ -11,7 +11,6 @@ import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.refactor.ui.ExtractMethodChoice
 import com.itsaky.androidide.lsp.kotlin.refactor.ui.ExtractMethodSheet
-import com.itsaky.androidide.lsp.kotlin.refactor.ui.findFragmentActivity
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractMethodPlan
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionRefusal
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildExtractMethodPlan
@@ -21,6 +20,7 @@ import com.itsaky.androidide.lsp.models.CodeActionItem
 import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
+import com.itsaky.androidide.lsp.ui.findFragmentActivity
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.createJobCancelChecker

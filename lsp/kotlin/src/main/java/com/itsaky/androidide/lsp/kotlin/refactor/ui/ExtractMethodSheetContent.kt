@@ -16,6 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.itsaky.androidide.lsp.kotlin.refactor.KOTLIN_NAME_MESSAGES
+import com.itsaky.androidide.lsp.ui.LabelledSection
+import com.itsaky.androidide.lsp.ui.OptionList
 import com.itsaky.androidide.resources.R
 
 /**
@@ -63,7 +66,10 @@ fun ExtractMethodSheetContent(
 			label = { Text(stringResource(R.string.label_extract_variable_name)) },
 			isError = state.nameProblem != null,
 			singleLine = true,
-			supportingText = state.nameProblem?.let { problem -> { Text(stringResource(problem.messageRes())) } },
+			supportingText =
+				state.nameProblem?.let { problem ->
+					{ Text(stringResource(KOTLIN_NAME_MESSAGES.resFor(problem))) }
+				},
 			modifier = Modifier.fillMaxWidth(),
 		)
 
