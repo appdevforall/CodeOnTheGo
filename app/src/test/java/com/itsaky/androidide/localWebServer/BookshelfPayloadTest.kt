@@ -97,6 +97,41 @@ class BookshelfPayloadTest {
 	}
 
 	@Test
+	fun `a category row with no label files its books under General`() {
+		// BookCategories.category is nullable, so this is reachable; a book with no category at all
+		// is a different case, dropped by the join exactly as the query this replaced dropped it.
+		val bookshelf =
+			server().readBookshelf(
+				database(arrayOf(null, "No label", "A guide", "", "d/guide.pdf")),
+			)
+
+		assertThat(bookshelf.result.single().category).isEqualTo("General")
+		assertThat(
+			bookshelf.result
+				.single()
+				.books
+				.single()
+				.title,
+		).isEqualTo("A guide")
+	}
+
+	@Test
+	fun `a book with no title of its own shows its path`() {
+		val bookshelf =
+			server().readBookshelf(
+				database(arrayOf("General", "", null, "", "i/index.html")),
+			)
+
+		assertThat(
+			bookshelf.result
+				.single()
+				.books
+				.single()
+				.title,
+		).isEqualTo("i/index.html")
+	}
+
+	@Test
 	fun `an empty bookshelf is an empty list, not a failure`() {
 		// The old query made this an HTTP 500: group_concat over no rows is NULL, and reading that
 		// as a blob threw. At least one documentation.db copy joins to nothing, so it is reachable.

@@ -129,6 +129,9 @@ class WebServer(
 
 	private val contentChunkSize = 1024 * 1024
 
+	/** Where a book whose category row has no label is filed (see [readBookshelf]). */
+	private val uncategorizedLabel = "General"
+
 	// function to obtain the last modified date of a documentation.db database
 	// this is used to see if there is a newer version of the database on the sdcard
 	fun getDatabaseTimestamp(
@@ -810,11 +813,13 @@ class WebServer(
 	 * at least one `documentation.db` copy have a NULL `bookCategoryID` and so join to nothing.
 	 */
 	internal fun readBookshelf(database: SQLiteDatabase): Bookshelf {
+		// The two fallbacks the old query expressed as IFNULL live in Kotlin now (see below): they
+		// are easier to see there, and a unit test can cover them.
 		val query =
 			"""
-SELECT IFNULL(BC.category, 'General'),
+SELECT BC.category,
 	BC.description,
-	IFNULL(B.title, C.path),
+	B.title,
 	B.description,
 	C.path
 FROM Content AS C,
@@ -833,15 +838,20 @@ ORDER BY BC.category,
 
 		database.rawQuery(query, arrayOf()).use { cursor ->
 			while (cursor.moveToNext()) {
-				val category = cursor.getString(0)
 				val path = cursor.getString(4)
+				// BookCategories.category is nullable, so a book can be linked to a category row that
+				// has no label; it lands under "General", as the old query's IFNULL had it. This is
+				// *not* about a book with no category at all -- the join drops those, exactly as the
+				// query this replaced did.
+				val category = cursor.getString(0) ?: uncategorizedLabel
 
 				descriptions.putIfAbsent(category, cursor.getString(1))
 				categories
 					.getOrPut(category) { mutableListOf() }
 					.add(
 						BookshelfBook(
-							title = cursor.getString(2),
+							// A book with no title of its own shows its path, again as before.
+							title = cursor.getString(2) ?: path,
 							description = cursor.getString(3),
 							link = path,
 							// 1/0 rather than a boolean: what the template has always received.
