@@ -665,6 +665,12 @@ tasks.register("recompressApk") {
 
 val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
 
+/*
+ * Whether a debug assemble is finalized by recompressApk. Release assembles
+ * always are; debug is gated because the task costs ~3.5 min on the runner.
+ */
+val recompressDebugApk = isCiCd
+
 val noCompress =
 	setOf(
 		"so",
@@ -730,12 +736,12 @@ afterEvaluate {
 	}
 
 	tasks.named("assembleV8Debug").configure {
-		if (isCiCd) {
+		if (recompressDebugApk) {
 			finalizedBy("recompressApk")
 		}
 
 		doLast {
-			if (isCiCd) {
+			if (recompressDebugApk) {
 				tasks.named("recompressApk").configure {
 					extensions.extraProperties["abi"] = "v8"
 					extensions.extraProperties["buildName"] = "debug"
@@ -750,12 +756,12 @@ afterEvaluate {
 	}
 
 	tasks.named("assembleV7Debug").configure {
-		if (isCiCd) {
+		if (recompressDebugApk) {
 			finalizedBy("recompressApk")
 		}
 
 		doLast {
-			if (isCiCd) {
+			if (recompressDebugApk) {
 				tasks.named("recompressApk").configure {
 					extensions.extraProperties["abi"] = "v7"
 					extensions.extraProperties["buildName"] = "debug"
