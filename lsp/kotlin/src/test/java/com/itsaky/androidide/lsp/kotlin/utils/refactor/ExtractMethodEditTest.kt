@@ -46,6 +46,7 @@ class ExtractMethodEditTest {
 		callSite = callSite,
 		insertOffset = enclosingEnd,
 		insertIndent = "\t",
+		rawStringSpans = emptyList(),
 	)
 
 	/** Applies the rewrites in the order they are returned, exactly as the language client does. */
@@ -282,6 +283,7 @@ class ExtractMethodEditTest {
 					callSite = CallSiteForm.Call,
 					insertOffset = text.length - 1,
 					insertIndent = "",
+					rawStringSpans = emptyList(),
 				),
 				"report",
 			)!!
@@ -303,9 +305,11 @@ class ExtractMethodEditTest {
 
 	@Test
 	fun `a multi-line CRLF region is reindented and keeps CRLF throughout`() {
-		// Mirrors "a multi-line statement range is reindented under the new function" with \r\n in
-		// place of every \n, so reindent's split(newline) path -- the CRLF-sensitive code -- actually
-		// runs, not just the declaration builder's own append(newline) calls.
+		/*
+		 * Mirrors "a multi-line statement range is reindented under the new function" with \r\n in
+		 * place of every \n, so indentedBodyLines's split(newline) path -- the CRLF-sensitive code --
+		 * actually runs, not just the declaration builder's own append(newline) calls.
+		 */
 		val text =
 			"package p\r\n" +
 				"fun demo(a: Int) {\r\n" +
@@ -331,6 +335,7 @@ class ExtractMethodEditTest {
 					callSite = CallSiteForm.Call,
 					insertOffset = text.length - 2,
 					insertIndent = "",
+					rawStringSpans = emptyList(),
 				),
 				"report",
 			)!!
@@ -414,5 +419,80 @@ class ExtractMethodEditTest {
 			)
 
 		assertNull(buildExtractMethodRewrites(file, subject, "total"))
+	}
+
+	@Test
+	fun `a raw string keeps its interior lines when the body indent differs from the base`() {
+		val quotes = "\"\"\""
+		val nested =
+			"package p\n" +
+				"class C {\n" +
+				"\tfun demo() {\n" +
+				"\t\tif (true) {\n" +
+				"\t\t\tsend($quotes\n" +
+				"line one\n" +
+				"\t\t\t\tline two\n" +
+				"$quotes)\n" +
+				"\t\t}\n" +
+				"\t}\n" +
+				"}\n"
+		val span = TextSpan(nested.indexOf("send("), nested.indexOf("$quotes)") + "$quotes)".length)
+		val rewrites =
+			buildExtractMethodRewrites(
+				nested,
+				candidate(
+					span,
+					ExtractedBody.StatementBody(trailingReturn = null),
+					CallSiteForm.Call,
+				).copy(
+					insertOffset = nested.indexOf("\t}\n}") + 2,
+					insertIndent = "\t",
+					rawStringSpans = listOf(TextSpan(nested.indexOf(quotes), nested.indexOf("$quotes)") + quotes.length)),
+				),
+				"emit",
+			)
+
+		val text = apply(nested, rewrites!!)
+
+		assertTrue("the first line takes the body indent", text.contains("\n\t\tsend($quotes\n"))
+		assertTrue("an unindented literal line stays unindented", text.contains("\nline one\n"))
+		assertTrue("an indented literal line keeps its own indent", text.contains("\n\t\t\t\tline two\n"))
+		assertTrue("the closing delimiter line is untouched", text.contains("\n$quotes)\n"))
+	}
+
+	@Test
+	fun `a raw string is left alone when the body and base indents match`() {
+		// The base indent is not a prefix of an unindented literal line, so stripping it is a no-op while
+		// the body indent is still prefixed. Equal indents are not a safe case.
+		val quotes = "\"\"\""
+		val flat =
+			"package p\n" +
+				"class C {\n" +
+				"\tfun demo() {\n" +
+				"\t\tsend($quotes\n" +
+				"line one\n" +
+				"$quotes)\n" +
+				"\t}\n" +
+				"}\n"
+		val span = TextSpan(flat.indexOf("send("), flat.indexOf("$quotes)") + "$quotes)".length)
+		val rewrites =
+			buildExtractMethodRewrites(
+				flat,
+				candidate(
+					span,
+					ExtractedBody.StatementBody(trailingReturn = null),
+					CallSiteForm.Call,
+				).copy(
+					insertOffset = flat.indexOf("\t}\n}") + 2,
+					insertIndent = "\t",
+					rawStringSpans = listOf(TextSpan(flat.indexOf(quotes), flat.indexOf("$quotes)") + quotes.length)),
+				),
+				"emit",
+			)
+
+		val text = apply(flat, rewrites!!)
+
+		assertTrue("an unindented literal line stays unindented", text.contains("\nline one\n"))
+		assertTrue("the closing delimiter line is untouched", text.contains("\n$quotes)\n"))
 	}
 }

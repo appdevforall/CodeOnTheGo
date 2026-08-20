@@ -37,22 +37,28 @@ fun buildExtractMethodRewrites(
 	val regionText = fileText.substring(span.start, span.end)
 	val baseIndent = leadingIndentAt(fileText, span.start)
 
+	val lines = indentedBodyLines(regionText, span.start, baseIndent, bodyIndent, newline, candidate.rawStringSpans)
 	val bodyLines =
 		when (val body = candidate.body) {
 			is ExtractedBody.ExpressionBody -> {
-				val lines = reindent(regionText, baseIndent, newline)
-				if (body.needsReturn) listOf("return " + lines.first()) + lines.drop(1) else lines
+				// The first line is never inside a literal's interior -- the region starts at the code
+				// itself -- so it always carries bodyIndent and `return ` goes straight after it.
+				if (body.needsReturn) {
+					listOf(bodyIndent + "return " + lines.first().substring(bodyIndent.length)) + lines.drop(1)
+				} else {
+					lines
+				}
 			}
 
 			is ExtractedBody.StatementBody -> {
-				reindent(regionText, baseIndent, newline) + listOfNotNull(body.trailingReturn)
+				lines + listOfNotNull(body.trailingReturn?.let { bodyIndent + it })
 			}
 		}
 
 	val declaration =
 		buildString {
 			append(indent).append(candidate.signatureText(name)).append(" {").append(newline)
-			bodyLines.forEach { append(bodyIndent).append(it).append(newline) }
+			bodyLines.forEach { append(it).append(newline) }
 			append(indent).append('}')
 		}
 
@@ -81,15 +87,30 @@ fun buildExtractMethodRewrites(
 }
 
 /**
- * Splits the region into lines with its original base indentation removed, so the caller can prefix
- * each with the new function's body indentation. Lines nested deeper than the base keep the extra
- * depth; the first line never carries indentation, since the span starts at the code itself.
+ * The region's lines at the new function's body indentation: the original base indentation removed and
+ * [bodyIndent] put in its place. Lines nested deeper than the base keep the extra depth; the first line
+ * only gains the indent, since the span starts at the code itself.
+ *
+ * A line inside one of [protectedSpans] is emitted byte-for-byte. Those are multi-line string literals,
+ * whose interior whitespace is part of their value, and whose closing delimiter sets `trimIndent`'s
+ * margin -- moving either edits the interior of the moved code (ADR 0014).
  */
-private fun reindent(
-	text: String,
+private fun indentedBodyLines(
+	regionText: String,
+	regionStart: Int,
 	baseIndent: String,
+	bodyIndent: String,
 	newline: String,
-): List<String> =
-	text.split(newline).mapIndexed { index, line ->
-		if (index == 0) line else line.removePrefix(baseIndent)
+	protectedSpans: List<TextSpan>,
+): List<String> {
+	var offset = regionStart
+	return regionText.split(newline).mapIndexed { index, line ->
+		val lineStart = offset
+		offset += line.length + newline.length
+		when {
+			index == 0 -> bodyIndent + line
+			protectedSpans.any { lineStart > it.start && lineStart < it.end } -> line
+			else -> bodyIndent + line.removePrefix(baseIndent)
+		}
 	}
+}

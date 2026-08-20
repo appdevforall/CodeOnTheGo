@@ -62,7 +62,7 @@ class ExtractMethodViewModel(
 		return ExtractMethodUiState(
 			candidateLabels = plan.candidates.map { it.label },
 			selectedCandidate = bounded,
-			showCandidatePicker = plan.candidates.size > 1 && !plan.selectionMatchedCandidate,
+			showCandidatePicker = plan.candidates.size > 1,
 			name = resolvedName,
 			nameProblem = validateVariableName(resolvedName, candidate.takenNames),
 			// The same call the edit builder makes, so the preview cannot drift from the declaration.

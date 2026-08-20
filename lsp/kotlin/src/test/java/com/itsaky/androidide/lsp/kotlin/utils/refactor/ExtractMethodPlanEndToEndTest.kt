@@ -1179,4 +1179,302 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 			plan(content, content.indexOf("helper.value()") + 1).refusal,
 		)
 	}
+
+	@Test
+	fun `a region inside an anonymous function argument anchors on the enclosing member`() {
+		val content =
+			"""
+			package p
+			class C {
+				fun demo() {
+					register(fun(v: Int) {
+						work(v)
+					})
+				}
+				fun register(h: (Int) -> Unit) {}
+				fun work(n: Int) {}
+			}
+			""".trimIndent()
+
+		val candidate = plan(content, content.indexOf("work(v)") + 1).candidates.first { it.label == "work(v)" }
+
+		// The anonymous function is a value, not a declaration a sibling can follow: the new member must
+		// anchor on the enclosing `fun demo`, not one character early inside `register(...)`.
+		val demoEnd = content.indexOf("\t}\n\tfun register") + 2
+		assertEquals(demoEnd, candidate.insertOffset)
+		assertEquals("\t", candidate.insertIndent)
+		assertEquals(listOf("private"), candidate.modifiers)
+		assertEquals(listOf("v" to "kotlin.Int"), candidate.parameters.map { it.name to it.typeText })
+	}
+
+	@Test
+	fun `a region inside an anonymous function initializer anchors on the enclosing function`() {
+		val content =
+			"""
+			package p
+			fun demo() {
+				val f = fun(): Int {
+					return compute()
+				}
+				f()
+			}
+			fun compute(): Int = 1
+			""".trimIndent()
+
+		val candidate = plan(content, content.indexOf("compute()") + 1).candidates.first { it.label == "compute()" }
+
+		assertEquals("", candidate.insertIndent)
+		val demoEnd = content.indexOf("}\nfun compute") + 1
+		assertEquals(demoEnd, candidate.insertOffset)
+		assertEquals(listOf("private"), candidate.modifiers)
+	}
+
+	@Test
+	fun `a region inside an anonymous extension function is declined`() {
+		val content =
+			"""
+			package p
+			fun demo(): Int {
+				val f = fun String.(): Int {
+					return length + 1
+				}
+				return f("ab")
+			}
+			""".trimIndent()
+
+		val refusal = plan(content, content.indexOf("length + 1") + 1).refusal
+
+		assertEquals(ExtractionRefusal.AnonymousExtensionFunction, refusal)
+	}
+
+	@Test
+	fun `reading a Composable property getter adds the Composable annotation`() {
+		createSourceFile(
+			"Composable.kt",
+			"""
+			package androidx.compose.runtime
+			annotation class Composable
+			""".trimIndent(),
+		)
+		val content =
+			"""
+			package p
+			import androidx.compose.runtime.Composable
+			object Palette {
+				val accent: Int
+					@Composable get() = 1
+			}
+			fun use(n: Int) {}
+			@Composable fun Demo() {
+				use(Palette.accent)
+			}
+			""".trimIndent()
+
+		val candidate = plan(content, content.indexOf("Palette.accent") + 1).candidates.first { it.label == "Palette.accent" }
+
+		assertEquals(listOf("@Composable"), candidate.annotations)
+	}
+
+	@Test
+	fun `reading a plain property getter adds no annotation`() {
+		createSourceFile(
+			"Composable.kt",
+			"""
+			package androidx.compose.runtime
+			annotation class Composable
+			""".trimIndent(),
+		)
+		val content =
+			"""
+			package p
+			import androidx.compose.runtime.Composable
+			object Palette {
+				val accent: Int
+					get() = 1
+			}
+			fun use(n: Int) {}
+			@Composable fun Demo() {
+				use(Palette.accent)
+			}
+			""".trimIndent()
+
+		val candidate = plan(content, content.indexOf("Palette.accent") + 1).candidates.first { it.label == "Palette.accent" }
+
+		assertEquals(emptyList<String>(), candidate.annotations)
+	}
+
+	@Test
+	fun `a return inside a local function declared in the region is not an exit`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int): Int {
+				fun helper(): Int {
+					return a * 2
+				}
+				val x = helper()
+				return x
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "fun helper", "val x = helper()")
+
+		val result = plan(content, start, end)
+
+		assertNull(result.refusal)
+		val candidate = result.candidates.single()
+		assertEquals(CallSiteForm.AssignOutput("x"), candidate.callSite)
+		assertEquals(listOf("a"), candidate.parameters.map { it.name })
+	}
+
+	@Test
+	fun `a return inside an anonymous object override in the region is not an exit`() {
+		val content =
+			"""
+			package p
+			interface Runner { fun run() }
+			fun work() {}
+			fun use(r: Runner) {}
+			fun demo(flag: Boolean) {
+				val r = object : Runner {
+					override fun run() {
+						if (flag) return
+						work()
+					}
+				}
+				use(r)
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "val r = object", "use(r)")
+
+		val result = plan(content, start, end)
+
+		assertNull(result.refusal)
+		val candidate = result.candidates.single()
+		assertEquals(listOf("flag"), candidate.parameters.map { it.name })
+		assertEquals(CallSiteForm.Call, candidate.callSite)
+	}
+
+	@Test
+	fun `a return inside an anonymous function declared in the region is not an exit`() {
+		val content =
+			"""
+			package p
+			fun compute(): Int = 1
+			fun accept(g: () -> Int) {}
+			fun demo() {
+				val f = fun(): Int {
+					return compute()
+				}
+				accept(f)
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "val f = fun", "accept(f)")
+
+		val result = plan(content, start, end)
+
+		assertNull(result.refusal)
+		val candidate = result.candidates.single()
+		assertEquals(CallSiteForm.Call, candidate.callSite)
+		assertNull(candidate.returnTypeText)
+	}
+
+	@Test
+	fun `a tail return is recognised when a nested function in the region also returns`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int): Int {
+				fun helper(): Int {
+					return a * 2
+				}
+				return helper()
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "fun helper", "return helper()")
+
+		val candidate = plan(content, start, end).candidates.single()
+
+		assertEquals(CallSiteForm.Return, candidate.callSite)
+		assertEquals("kotlin.Int", candidate.returnTypeText)
+	}
+
+	@Test
+	fun `a non-local return from a lambda in the region is still an exit`() {
+		// A lambda is transparent to an unlabelled `return`, so this one really does leave the region.
+		val content =
+			"""
+			package p
+			fun demo(items: List<Int>): Int {
+				items.forEach { item ->
+					if (item > 0) return item
+				}
+				return 0
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "items.forEach", "\t}")
+
+		assertEquals(ExtractionRefusal.ExitsRegion, plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a tail return belonging to an anonymous function wrapped around the region is an exit`() {
+		val content =
+			"""
+			package p
+			fun compute(): Int = 1
+			fun demo() {
+				val f = fun(): Int {
+					val a = compute()
+					return a
+				}
+				println(f())
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "val a = compute()", "return a")
+
+		assertEquals(ExtractionRefusal.ExitsRegion, plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a labelled tail return is an exit`() {
+		val content =
+			"""
+			package p
+			fun f(n: Int): Int = n
+			fun demo(items: List<Int>) {
+				items.forEach {
+					val a = f(it)
+					return@forEach
+				}
+			}
+			""".trimIndent()
+		val (start, end) = selection(content, "val a = f(it)", "return@forEach")
+
+		assertEquals(ExtractionRefusal.ExitsRegion, plan(content, start, end).refusal)
+	}
+
+	@Test
+	fun `a multi-line string in the region is recorded and emitted verbatim`() {
+		val quotes = "\"\"\""
+		val content =
+			"package p\n" +
+				"fun send(s: String) {}\n" +
+				"fun demo() {\n" +
+				"\tif (true) {\n" +
+				"\t\tsend($quotes\n" +
+				"line one\n" +
+				"$quotes)\n" +
+				"\t}\n" +
+				"}\n"
+		val (start, end) = selection(content, "send($quotes", "$quotes)")
+
+		val candidate = plan(content, start, end).candidates.single()
+
+		assertEquals(1, candidate.rawStringSpans.size)
+		assertEquals(content.indexOf(quotes), candidate.rawStringSpans.single().start)
+		assertEquals(content.indexOf("$quotes)") + quotes.length, candidate.rawStringSpans.single().end)
+
+		val text = apply(content, buildExtractMethodRewrites(content, candidate, "emit")!!)
+		assertTrue("the literal must not gain an indent level", text.contains("\nline one\n"))
+	}
 }

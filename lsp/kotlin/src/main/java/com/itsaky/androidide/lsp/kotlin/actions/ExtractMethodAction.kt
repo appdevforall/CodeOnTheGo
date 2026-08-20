@@ -205,6 +205,10 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 				context.getString(R.string.msg_extract_method_exits_region)
 			}
 
+			ExtractionRefusal.AnonymousExtensionFunction -> {
+				context.getString(R.string.msg_extract_method_anonymous_extension_function)
+			}
+
 			is ExtractionRefusal.InnerImplicitReceiver -> {
 				context.getString(R.string.msg_extract_method_inner_implicit_receiver, refusal.construct)
 			}

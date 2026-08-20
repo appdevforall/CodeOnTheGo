@@ -14,13 +14,9 @@ sealed interface ExtractionRegion {
 	/** The region's covering span in the file's text. */
 	val span: TextSpan
 
-	/**
-	 * One or more nested expressions at the cursor, innermost first. The user picks between them in
-	 * the sheet unless [selectionMatchedInnermost] says they already have.
-	 */
+	/** One or more nested expressions at the cursor, innermost first. The user picks between them in the sheet. */
 	data class Expressions(
 		val candidates: List<KtExpression>,
-		val selectionMatchedInnermost: Boolean,
 	) : ExtractionRegion {
 		override val span: TextSpan
 			get() = candidates.first().textRange.let { TextSpan(it.startOffset, it.endOffset) }
@@ -77,7 +73,7 @@ private fun expressionRegion(
 ): ExtractionRegion.Expressions? {
 	val syntax = candidateExpressionsAt(file, selectionStart, selectionEnd)
 	if (syntax.expressions.isEmpty()) return null
-	return ExtractionRegion.Expressions(syntax.expressions, syntax.selectionMatchedInnermost)
+	return ExtractionRegion.Expressions(syntax.expressions)
 }
 
 /** A run of sibling statements together with the [KtBlockExpression] that holds them. */

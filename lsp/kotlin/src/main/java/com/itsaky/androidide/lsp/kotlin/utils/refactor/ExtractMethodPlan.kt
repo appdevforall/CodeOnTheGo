@@ -49,6 +49,10 @@ sealed interface CallSiteForm {
  * indentation, since nothing re-indents a code-action edit after it is applied.
  *
  * [returnTypeText] is null for a `Unit` function, where the `: Unit` is left off.
+ *
+ * [rawStringSpans] are the raw (triple-quoted) string literals inside the region, in file offsets.
+ * Their interior is whitespace-sensitive, so re-indentation must leave those lines byte-for-byte
+ * (ADR 0014).
  */
 data class ExtractMethodCandidate(
 	val label: String,
@@ -64,6 +68,7 @@ data class ExtractMethodCandidate(
 	val callSite: CallSiteForm,
 	val insertOffset: Int,
 	val insertIndent: String,
+	val rawStringSpans: List<TextSpan>,
 )
 
 /**
@@ -106,6 +111,13 @@ sealed interface ExtractionRefusal {
 
 	/** A `return`, `break` or `continue` whose target is outside the region (R8). */
 	data object ExitsRegion : ExtractionRefusal
+
+	/**
+	 * The region sits inside an anonymous extension function (R4). The new function is a sibling of the
+	 * enclosing *named* declaration, so it would be generated on that declaration's receiver -- or on no
+	 * receiver at all -- rather than on the one the region's body actually reads.
+	 */
+	data object AnonymousExtensionFunction : ExtractionRefusal
 
 	/** Members of a `with`/`apply`/`run` receiver introduced inside the enclosing declaration (R9). */
 	data class InnerImplicitReceiver(
@@ -155,7 +167,6 @@ data class ExtractMethodPlan(
 	override val fileText: String,
 	override val documentVersion: Int,
 	val candidates: List<ExtractMethodCandidate>,
-	val selectionMatchedCandidate: Boolean,
 	val refusal: ExtractionRefusal?,
 ) : RefactoringPlan {
 	val isEmpty: Boolean get() = candidates.isEmpty()
@@ -165,7 +176,7 @@ data class ExtractMethodPlan(
 			refusal: ExtractionRefusal,
 			fileText: String = "",
 			documentVersion: Int = -1,
-		) = ExtractMethodPlan(fileText, documentVersion, emptyList(), selectionMatchedCandidate = false, refusal = refusal)
+		) = ExtractMethodPlan(fileText, documentVersion, emptyList(), refusal = refusal)
 	}
 }
 

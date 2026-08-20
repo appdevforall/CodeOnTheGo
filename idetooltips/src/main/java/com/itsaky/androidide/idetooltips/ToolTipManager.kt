@@ -209,7 +209,17 @@ object TooltipManager {
 					}
 				)
 			} else {
-				Log.e(TAG, "Tooltip item $tooltipItem is null")
+				Log.d(TAG, "No tooltip for category='$category', tag='$tag'; showing documentation fallback")
+				showTooltipPopup(
+					context = context,
+					anchorView = anchorView,
+					level = 0,
+					tooltipItem = IDETooltipItem(-1, -1, category, tag, "", "", arrayListOf(), ""),
+					requestFocus = requestFocus,
+					onHelpLinkClicked = { context, url, _ ->
+						HelpActivity.launch(context, url, context.getString(ResR.string.back_to_cogo))
+					}
+				)
 			}
 		}
 	}
@@ -308,12 +318,18 @@ object TooltipManager {
 				else ResR.color.tooltip_link_color_light,
 			).toCssHex()
 
+		val detailContent = tooltipItem.detail.takeUnless { it.isMissingTooltipContent() } ?: ""
 		val tooltipHtmlContent = when (level) {
 			0 -> {
-				tooltipItem.summary
+				// A blank or "n/a" summary is a dead end; route the user to the
+				// documentation instead (ADFA-4754).
+				tooltipItem.summary.takeUnless { it.isMissingTooltipContent() }
+					?: context.getString(
+						ResR.string.tooltip_missing_fallback_html,
+						context.getString(ResR.string.docs_url),
+					)
 			}
 			1 -> {
-				val detailContent = tooltipItem.detail.ifBlank { "" }
 				if (tooltipItem.buttons.isNotEmpty()) {
 					val buttonsSeparator = context.getString(R.string.tooltip_buttons_separator)
 					val linksHtml = tooltipItem.buttons.joinToString(buttonsSeparator) { (label, url) ->
@@ -367,7 +383,7 @@ object TooltipManager {
 			onSeeMoreClicked(popupWindow, nextLevel, tooltipItem)
 		}
 		val shouldShowSeeMore = when {
-			level == 0 && (tooltipItem.detail.isNotBlank() || tooltipItem.buttons.isNotEmpty()) -> true
+			level == 0 && (detailContent.isNotBlank() || tooltipItem.buttons.isNotEmpty()) -> true
 			else -> false
 		}
 		seeMore.visibility = if (shouldShowSeeMore) View.VISIBLE else View.GONE
@@ -549,6 +565,9 @@ object TooltipManager {
 			---
 		""".trimIndent()
 	}
+
+	private fun String.isMissingTooltipContent(): Boolean =
+		isBlank() || trim().equals("n/a", ignoreCase = true)
 
 	private fun View.isInOverlayWindow(): Boolean {
 		val params = layoutParams

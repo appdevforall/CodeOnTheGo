@@ -57,7 +57,7 @@ As with extract variable: **no `prepare()` visibility gate** (deciding extractab
 
 **R2 - Region.** The selection resolves to exactly one extraction region, of one of two kinds.
 
-*Expression candidate* - reuses `candidateExpressionsAt` unchanged, including whitespace trimming, the `offset - 1` cursor retry, the innermost-first walk, `MAX_CANDIDATES = 3`, the legal-target rules and `selectionMatchedCandidate`. A bare cursor always takes this path.
+*Expression candidate* - reuses `candidateExpressionsAt` unchanged, including whitespace trimming, the `offset - 1` cursor retry, the innermost-first walk, `MAX_CANDIDATES = 3` and the legal-target rules. A bare cursor always takes this path.
 
 *Statement range* - a non-empty selection that spans statement boundaries snaps **outward** to whole statements: a touch selection will not land on a boundary. The result must be 1..N statements that are **siblings in one `KtBlockExpression`**. A selection spanning two different blocks, or partially covering a statement that cannot be snapped, is declined (`NotASingleRegion`).
 
@@ -72,8 +72,11 @@ Restricting to siblings in one block excludes every hard case - a selection cove
 | a member function, accessor or `init` of a class | a `private fun` member of that class |
 | a top-level function or property | a `private` top-level `fun` |
 | a lambda inside either of the above | still a sibling of the enclosing *named* declaration; the lambda's captures become parameters |
+| an anonymous `fun(...) { }` used as a value | still a sibling of the enclosing *named* declaration, exactly as for a lambda; PSI gives it the same node type as a named function, but it is a value and nothing can be inserted after it. An anonymous **extension** function (`fun String.() { }`) is declined instead: skipping it would drop a receiver the body depends on |
 | a local `fun` or local class | a local `fun` in the enclosing block, since the sibling *is* a statement there |
 | a companion object body | a member of the companion |
+
+A region with **no enclosing named declaration at all** - one inside a lambda or an anonymous `fun` that is itself in a class-body property initializer - is declined as `NotASingleRegion`. There is no anchor a sibling could follow, and the message is imprecise about why rather than wrong.
 
 Unlike extract variable there is no scope chain and no ceiling, because anything not visible at the insertion site becomes a parameter instead of constraining the anchor.
 
@@ -103,11 +106,13 @@ The refused case is the accumulator loop, which is a genuinely common extraction
 
 **R8 - Exits.** Every exit declines (`ExitsRegion`), with one syntactic exception.
 
-**Tail return:** when the region's *last* statement is a `return`, the region contains no other `return`, `break` or `continue`, and there is no other output, the extracted function takes the enclosing function's return type, keeps the `return`, and the call site becomes `return extracted(args)`. "Extract the rest of this function into a helper" is one of the most common real extractions and the enabling check is purely syntactic - last-child kind plus a recursive absence check - so it costs a predicate and one call-site form, not an analysis.
+**Tail return:** when the region's *last* statement is a `return`, the region contains no other `return`, `break` or `continue`, and there is no other output, the extracted function takes the enclosing function's return type, keeps the `return`, and the call site becomes `return extracted(args)`. The exception holds only when that tail `return` returns from the **enclosing declaration itself** and carries **no label**: a `return` owned by an anonymous `fun` wrapped around the region would take a return type its own function never returns, and a `return@label` names something outside the region that the new function does not declare. Both fall through to the ordinary exit check and decline. "Extract the rest of this function into a helper" is one of the most common real extractions and the enabling check is purely syntactic - last-child kind plus a recursive absence check - so it costs a predicate and one call-site form, not an analysis.
 
 One exception to "the enclosing function's return type": a **secondary constructor** is treated as `Unit`. Its symbol's return type is the constructed class, but its `return` carries no value, so taking that type would emit both a bare `return` in a value-returning function and a call site returning the wrong thing. `return extracted(args)` on a `Unit`-valued call is legal inside a constructor. An `init` block needs no rule - `return` is illegal there, so no tail return can arise.
 
 Declined: a `return` anywhere but the tail position, a `break`/`continue` whose target loop is outside the region, a labelled `return@` whose target is outside it, and a non-local return from an inlined lambda. Each would silently change meaning, since a `return` in the extracted body returns from *it*.
+
+Not an exit: a `return` belonging to a function **declared inside** the region - a local `fun`, an anonymous `fun`, or an anonymous-object override. It moves with its own declaration and its jump never crosses the region boundary, so counting it would refuse a perfectly good extraction with a message describing something the user did not write.
 
 **R9 - Receivers.**
 
@@ -118,15 +123,15 @@ Declined: a `return` anywhere but the tail position, a `break`/`continue` whose 
 **R10 - Modifiers.** Copy nothing from the enclosing declaration; add only what the body needs in order to compile in its new home.
 
 - **Visibility** - always `private`, whether a class member or top-level. Never `internal`, never `open`, no annotations copied, no KDoc generated.
-- **`suspend`** - added when any call in the region resolves to a suspend function, or the region references `coroutineContext`. The call site is necessarily already a suspend context. **Not** added for a suspension the region only performs inside a *nested* suspend-typed lambda - `scope.launch { }`, `runBlocking { }`, any `suspend () -> T` parameter: the region carries that lambda with it, so the new function needs no `suspend`, and adding it breaks a call site that is not itself a suspend context. An ordinary inline lambda (`forEach`, `let`, `run`) is not one of these and still propagates `suspend` outwards.
-- **`@Composable`** - added when any call in the region resolves to a `@Composable`-annotated function. This is not polish: CoGo users write Compose apps on the device, and an extracted composable without the annotation does not compile.
+- **`suspend`** - added when any call in the region resolves to a suspend function, or the region references `coroutineContext`. The call site is necessarily already a suspend context. **Not** added for a suspension the region only performs inside a *nested* suspend-typed lambda - `scope.launch { }`, `runBlocking { }`, any `suspend () -> T` parameter: the region carries that lambda with it, so the new function needs no `suspend`, and adding it breaks a call site that is not itself a suspend context. An ordinary inline lambda (`forEach`, `let`, `run`) is not one of these and still propagates `suspend` outwards. Not detected: invoking a `suspend () -> T` **parameter** directly, where the modifier is carried by the functional type and not by the resolved `Function0.invoke` symbol.
+- **`@Composable`** - added when the region uses one: any call resolving to a `@Composable`-annotated function, **or any name reference resolving to a property whose getter is annotated**. The second half is not an edge case - `MaterialTheme.colorScheme` and `LocalDensity.current` are annotated getters, not calls. This is not polish: CoGo users write Compose apps on the device, and an extracted composable without the annotation does not compile. Not detected: invoking a `@Composable`-typed lambda **parameter**, the Compose slot-API shape (`fun Card(content: @Composable () -> Unit)`, extracting `content()`), because the annotation sits on the functional type and the call resolves to an unannotated `Function0.invoke`. A region whose only composable use is such an invocation extracts without the modifier.
 - **Function-level type parameters** - a region referencing a type parameter declared on the *enclosing function* **declines** (`UsesTypeParameter`, naming it). Class-level type parameters need no rule; they stay in scope for a member. A filtered copy of the enclosing type-parameter list with its bounds would mean deciding "is `T` referenced" from rendered type text, which is fragile.
 
 `suspend` and `@Composable` are the two cases where omitting a modifier produces non-compiling code, which is why they are requirements while everything else is left off.
 
 **R11 - Sheet.** A sibling of the extract-variable sheet, not a generalisation of it: `ExtractMethodSheet` (a `BottomSheetDialogFragment` hosting a `ComposeView`), a stateless `ExtractMethodSheetContent`, `ExtractMethodViewModel` + `ExtractMethodUiState` + a sealed `ExtractMethodUiEvent`. `LabelledSection` and `OptionList` are promoted to a shared internal file in `refactor/ui/`.
 
-Contents, top to bottom: title -> expression chooser (only for an expression region with more than one candidate and no exact selection match) -> name field with its `NameProblem` message -> signature preview -> Cancel/Extract. There is **no scope chooser** (R4) and **no replace-all checkbox** (R13).
+Contents, top to bottom: title -> expression chooser (only for an expression region with more than one candidate) -> name field with its `NameProblem` message -> signature preview -> Cancel/Extract. There is **no scope chooser** (R4) and **no replace-all checkbox** (R13).
 
 The preview is **one monospace line: the signature exactly as it will be emitted** - modifiers, receiver, parameters, return type. Types render fully qualified (R5), so a real preview reads `private suspend fun loadUser(id: kotlin.String): com.example.User`. It wraps rather than truncating. No body preview: the body is the code the user selected and can see behind the sheet, so it moves verbatim and previewing it says nothing new, while the signature is the one derived artefact and the one place the derivation can surprise them.
 
@@ -150,6 +155,7 @@ Including inherited names is a correctness requirement, not a nicety: a private 
 | `OutputNotReturnable` | the selection produces `<name>`, which cannot be handed back as a return value |
 | `ReassignsOuterVar` | the selection assigns to `<name>`, declared outside it |
 | `ExitsRegion` | the selection jumps out of itself (`return`/`break`/`continue`) |
+| `AnonymousExtensionFunction` | the selection is inside an anonymous extension function |
 | `InnerImplicitReceiver` | the selection uses members of an enclosing `with`/`apply` receiver |
 | `UsesTypeParameter` | the selection uses type parameter `<T>` |
 | `UnrenderableType` | a type in the selection cannot be written out |
@@ -171,6 +177,8 @@ The ordering is mandatory, not stylistic. `IDELanguageClientImpl.applyActionEdit
 
 The new function is emitted **fully indented** at the enclosing declaration's own indentation, separated by one blank line, reusing `detectIndentUnit`, `detectNewline`, `leadingIndentAt` and `positionAt`. Code-action edits bypass the editor's auto-indent and `CMD_FORMAT_CODE` is a no-op for Kotlin.
 
+One exception to re-indenting every line: the interior and closing delimiter of a **raw (triple-quoted) string literal** are emitted byte-for-byte. Their whitespace is part of the literal's value, and the closing delimiter's column sets `trimIndent`'s margin, so shifting either would edit the interior of the moved code (ADR 0014). The candidate carries those literals' spans so the text layer can skip them without needing PSI.
+
 **R16 - Responsiveness and failure isolation.** As extract variable: one background pass at `AnalysisPriority.INTERACTIVE` under a cancel checker tied to the action's coroutine produces the whole plan; the sheet does pure string and offset arithmetic and re-enters no analysis on confirm. Anything thrown in the pipeline degrades to a refusal (`CouldNotAnalyse`) plus a log line, never an uncaught throw - the action framework catches only `IllegalArgumentException` and this runs on a scope with no exception handler.
 
 **`CancellationException` is the one deliberate exception**, and it is re-thrown rather than swallowed - `AnalysisPreemptedException` is one. A cancelled action has no result worth reporting, and `DefaultActionsRegistry.executeAction` launches into a scope whose `invokeOnCompletion` already treats a `CancellationException` as an ordinary cancel, so re-throwing ends the action quietly instead of flashing a message at a user who has moved on. Swallowing it would also break structured concurrency for whatever cancelled the job. The sheet's confirm path is outside the framework's guards entirely, so `ExtractMethodAction.applyChoice` wraps its own body.
@@ -183,6 +191,7 @@ The new function is emitted **fully indented** at the enclosing declaration's ow
 - **Mid-region `return`/`break`/`continue`** (R8).
 - **Inner `with`/`apply`/`run` receivers** (R9).
 - **Function-level type parameters** (R10).
+- **Detecting `@Composable` or `suspend` carried by a functional type** rather than by the called symbol (R10) - invoking a `@Composable () -> Unit` or `suspend () -> T` parameter does not add the modifier.
 - **Choosing a different target** - another class, another file, a local `fun` when a member is possible, or a property instead of a function (R4). Moving a declaration elsewhere is a move refactoring.
 - **Extraction from a property initializer or annotation argument** - inherited from `isExtractionPosition`.
 - **Generated KDoc** for the new function.
@@ -207,7 +216,7 @@ The new function is emitted **fully indented** at the enclosing declaration's ow
 12. Extracting from inside `fun Foo.bar()` when the region touches `Foo`'s members produces `private fun Foo.extracted(...)`, and the call site is unchanged.
 13. Extracting from inside a `with(x) { ... }` block whose region uses `x`'s members is declined, and the message names the construct.
 14. A region calling a suspend function produces a `suspend fun`.
-15. A region calling a `@Composable` produces a `@Composable` function that compiles.
+15. A region calling a `@Composable` function, or reading a `@Composable` property such as `MaterialTheme.colorScheme`, produces a `@Composable` function that compiles.
 16. A region using a type parameter of the enclosing function is declined, naming the parameter.
 17. A name matching an existing member - including an inherited one - is rejected with "That name is already used".
 18. The signature preview matches the emitted declaration exactly, including modifiers and receiver.
@@ -266,8 +275,8 @@ Nothing outside `lsp/kotlin` changes except `TooltipTag.kt` and `values/strings.
 Unit tests in `:lsp:kotlin` (`flox activate -d flox/local -- ./gradlew :lsp:kotlin:testV7DebugUnitTest`), mirroring the extract-variable split so a failure localises to one layer:
 
 - **`ExtractMethodRegionTest`** - no analysis session, PSI only: outward snapping to whole statements, the sibling-in-one-block rule, cross-block rejection, and the expression path (R2).
-- **`ExtractMethodPlanEndToEndTest`** - analysis-backed, one case per rule: the parameter set, order and types (R5), the single output and the `Unit` case (R6, R7), the tail return (R8), the extension receiver (R9), `suspend` and `@Composable` (R10), and **one case per refusal reason** (R14).
-- **`ExtractMethodEditTest`** - pure text: the two edits and their descending order, the three call-site forms, indentation, the blank-line separation, and CRLF preservation (R15).
+- **`ExtractMethodPlanEndToEndTest`** - analysis-backed, one case per rule: the parameter set, order and types (R5), the single output and the `Unit` case (R6, R7), the tail return and the nested-declaration `return` that is not an exit (R8), the extension receiver (R9), `suspend`, a `@Composable` call and a `@Composable` property getter (R10), the anonymous-function anchor (R4), the recorded multi-line-string spans (R15), and **one case per refusal reason** (R14).
+- **`ExtractMethodEditTest`** - pure text: the two edits and their descending order, the three call-site forms, indentation, raw (triple-quoted) string literals left verbatim, the blank-line separation, and CRLF preservation (R15).
 - **`ExtractMethodViewModelTest`** - state derivation: chooser visibility, name validation against inherited names, and the rendered signature preview (R11, R12).
 
 `lsp/kotlin` has **no `androidTest`** source set, and none is added: `@Composable` detection is tested by declaring `package androidx.compose.runtime; annotation class Composable` in a test source module, and `suspend` is a language modifier, so both need **no new dependency** (`KtLspTestEnvironment` supports `extraLibraryJars`, but not for this).
@@ -281,5 +290,6 @@ The sheet, `prepare()`/`ActionData`, the two-step undo and the new tooltip row a
 - [kotlin-extract-variable.md](kotlin-extract-variable.md) - ADFA-4826; owns the shared Language section and every primitive reused here
 - ADFA-5081 - code action edits should be a single undo step (fixes R15's consequence)
 - ADFA-5082 - support a reassigned outer `var` as the single output (lifts R7's refusal)
+- ADFA-5178 - shorten signature type text to match extract variable (revisits R5's fully-qualified rendering)
 - ADFA-5048 - Java extract method, the sibling in `lsp/java`
 - [ARCHITECTURE.md](../../ARCHITECTURE.md)

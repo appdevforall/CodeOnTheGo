@@ -75,19 +75,21 @@ Positions where no `val` can precede the expression, all rejected up front by `i
 
 There is deliberately **no `prepare()` visibility gate**. Deciding whether anything is extractable needs a K2 analysis session, which is far too costly for `prepare()` (UI thread, per menu item). The action stays visible on any Kotlin file and reports "nothing to extract" instead, matching `OrganizeImportsAction` and `ImplementMembersAction`. `requiresUIThread = false`, so the selection is read on a background thread; a torn read while the user is mid-edit can only produce a plan the version guard (R3) then refuses.
 
-**R2 - Region.** The selection is whitespace-trimmed first, because a touch-screen selection routinely carries a leading or trailing space; a whitespace-only selection yields nothing. For a cursor, the element is looked up at the offset and then at `offset - 1`, so a caret resting just past a token still resolves.
+**R2 - Region.** The selection is whitespace-trimmed first, because a touch-screen selection routinely carries a leading or trailing space; a selection holding nothing but whitespace collapses to a cursor at its start, since a drag over the gap between two tokens carries the same intent as a tap in it. For a cursor, the element is looked up at the offset and then at `offset - 1`, so a caret resting just past a token still resolves.
 
 From the innermost element the parent chain is walked outwards, collecting legal targets and stopping at the enclosing declaration. Illegal nodes along the way are **skipped rather than terminating the walk**, so `if (c) a else b` is still offered from inside one of its branches. At most 3 candidates, innermost first, deduplicated by range.
 
 An expression is not a legal target when it is: a block, a loop, `return`/`throw`/`break`/`continue`, an operation reference, `super`, a lambda (the `{ ... }` expression and the literal inside it -- outside its call site the parameter types are gone, so `val v = { it.length + 1 }` does not compile), the selector of a qualified expression (`b` in `a.b`), a call's callee (`foo` in `foo(x)`), the left side of an assignment, or a **bare literal**. Excluding bare literals removes the only case where omitting the type annotation could change meaning - an `Int` literal where a `Long` is expected, or a bare `null` inferring `Nothing?`.
-
-When the trimmed selection exactly equals the innermost candidate's range, the user has already said which expression they mean and the chooser is not shown (`selectionMatchedCandidate`).
 
 **R3 - Live offsets and the version guard.** Analysis runs against `ktSymbolIndex.getCurrentKtFile(path)`, PSI refreshed to the open document's current version - an offset resolved against stale text points at the wrong element. The `KtFile` is fetched *before* entering `project.read`: the refresh needs `project.write`, and awaiting it under the read lock deadlocks.
 
 The plan records the document version it was computed against. On confirm, the version is re-read and the edit is **refused** if it has moved on (`msg_extract_variable_file_changed`) - the editor stays reachable while the sheet is open, and applying spans computed against older text would corrupt the file. Refusing is always safe; the user can invoke the action again.
 
 **R4 - Value filter.** A candidate whose type is `Unit` or `Nothing` is dropped: `val u = println(x)` compiles but is pointless. A candidate whose legal scope chain is empty is dropped too - a candidate with no legal anchor is not a candidate.
+
+A rung whose anchor geometry the rewrite cannot honour (see R9) is dropped during the plan pass, not on
+confirm - so a candidate left with no rung is dropped, and a plan left with no candidate reports
+"nothing to extract" instead of opening a sheet whose confirm is bound to fail.
 
 **R5 - Scope chain.** Anchors are enumerated outward from the candidate's own statement, each one of three anchor forms:
 
@@ -103,6 +105,9 @@ default-imported package such as `kotlin.collections`. Everything else stays qua
 compiles, and this refactoring adds no imports. When the type cannot be written as source at all
 (anonymous, intersection, an unresolved type, or a platform type the renderer cannot reduce) the rung
 is declined rather than emitting a block body that does not compile.
+`Unit`-ness is decided from the resolved type and, if that cannot be answered, from the rendered text:
+a rendered `Unit` retracts both the `return` and the written type, because the rendered text is what
+lands in the file and a `Unit` return needs neither.
 
 Each rung is labelled with the construct that owns it -- `fun name`, `getter`, `setter`, `init block`,
 `lambda`, `if block`, `else block`, `for loop`, `while loop`, `do-while loop`, `when branch` -- so the
@@ -130,17 +135,24 @@ foo(limit + 1)   // same expression, different value
 
 Unsound sites are excluded rather than warned about, so "Replace all N occurrences" can never produce wrong code and N is always achievable. The walk grows outward from the candidate - never dropping the site the user selected - and stops in each direction at the first write it would cross. Writes counted: plain assignment, the augmented forms, and `++`/`--`, against any `var` the candidate reads.
 
-Occurrence sets are ascending by offset and always contain the candidate's own span, so `occurrences.size` is the count shown in "Replace all N occurrences". Narrowing to an inner scope can only shrink the set, never grow it.
+Occurrence sets are ascending by offset and always contain the candidate's own span, so `occurrences.size` is the count shown in "Replace all N occurrences". Narrowing to an inner scope can only shrink the set, never grow it. A block rung's set is narrowed once more, dropping leading occurrences whose own anchor statement cannot host the declaration: a replace-all anchors on the first served occurrence, so keeping an unhostable one would refuse the whole rewrite. That lowers the N the user is offered - two identical expressions can become "Replace all 1 occurrence", which hides the checkbox - and it is what keeps N always achievable.
 
 **R7 - Name.** The suggestion is derived from the expression's shape first (`items.size` -> `size`, `getFoo()` -> `foo`, an interpolated string -> `text`), then its rendered type (`List<Foo>` -> `list`), then `"value"`; shape beats type because `size`, `count` and `name` are far better names than `int` and `string`. It is then uniquified with a numeric suffix.
 
 Validation returns a `NameProblem` - `Blank`, `NotAnIdentifier`, `Keyword`, `AlreadyTaken` - rather than throwing, since the input is a text field. Only Kotlin's **hard** keywords are rejected; soft and modifier keywords (`by`, `data`, `it`) are legal names. Backtick-quoted names are rejected: legal Kotlin, but a poor generated local, and accepting them would mean validating the quoted form too.
 
-Taken names are every declaration name in the file - deliberately conservative rather than scope-exact. Being over-broad costs a `size1` where `size` would have done; being under-broad generates code that shadows something. It is also purely syntactic, so it needs no analysis and is unit-testable.
+Taken names are what a new declaration at the anchor would collide with or shadow: the parameters and local declarations of each enclosing block, lambda, function and accessor, the *declared* members of each enclosing class or object including its companion, and the file's top-level declarations. Members inherited from a supertype are not included - finding them needs resolution, which a syntactic walk cannot do, so a local may still shadow an inherited member unnoticed. A lambda that declares no parameter contributes `it`. Enclosing members and top-level names are included even though a local may legally shadow them, because shadowing one changes what every other reference to that name in the block means. A local in a *sibling* function is not included - it is invisible at the anchor, and treating it as taken refuses a legal name, which is a defect QA found on this ticket. The walk is purely syntactic, so it needs no analysis session and is unit-testable.
 
 **R8 - Sheet.** One surface holding every choice, with no navigation between steps: expression chooser, name field, scope chooser, replace-all checkbox, Cancel/Extract. The four are interdependent - a different expression changes the scope list and the occurrence count - so they are shown together where that relationship is visible, rather than across sequential dialogs the user would have to back out of to explore.
 
-Each chooser is hidden when it has nothing to ask: the expression chooser when there is one candidate or the selection already matched one, the scope chooser when the chain has one rung, the replace-all checkbox at an occurrence count of one. Changing the expression re-suggests the name, because the old one described the old expression.
+Each chooser is hidden when it has nothing to ask: the expression chooser when there is one candidate,
+the scope chooser when the chain has one rung, the replace-all checkbox at an occurrence count of one.
+An exact selection does *not* hide the expression chooser, even though it says which expression the
+user meant: long-press is the natural phone gesture and selects exactly one token, so hiding the list
+there leaves no way to widen to an enclosing expression short of cancelling and dragging the selection
+handles. The matched expression is the innermost one, which is preselected anyway, so the cost is one
+extra row to look at. Changing the expression re-suggests the name, because the old one described the
+old expression.
 
 **R9 - Edit.** Exactly **one** `TextEdit`, built as a `RewriteSpan` covering one contiguous span. `IDELanguageClientImpl.applyActionEdits` applies each edit in its own `runOnUiThread` with no `beginBatchEdit`, and every range is interpreted against the *current* text - so a list of N edits would be applied against positions already shifted by its predecessors and would cost N undo steps with a typing window between each. Occurrences are substituted right-to-left within the span so an earlier substitution cannot shift a later offset.
 
@@ -168,7 +180,9 @@ A block that fails *both* conditions -- something besides indentation precedes t
 line, but the block's own content spans more than one line, as in `items.forEach { log(x)\n\tlog(y) }`
 -- is **declined** rather than hoisted. Hoisting would anchor before the block's own opening delimiter,
 outside the scope the user picked, which is unsound whenever anything inside that scope (a lambda's
-`it`, say) is not visible there.
+`it`, say) is not visible there. The placement decision - expand, line above, or refuse - is one function
+shared by the planner and the rewriter, so the refusal reaches the user as "nothing to extract" before
+the sheet opens rather than as a failed confirm.
 
 The emitted text is **fully indented**: code-action edits bypass the editor's auto-indent (raw `Content.replace`), and `CMD_FORMAT_CODE` is a no-op for Kotlin. The indent unit is inferred from the file's own lines (a tab if any line is tab-indented, else the smallest positive run of leading spaces, defaulting to a tab), mirroring `ImplementMembersAction`; CRLF is used only when the file already contains it, so the edit never mixes line endings.
 
@@ -222,7 +236,7 @@ ExtractVariableAction.execAction (background)              lsp/kotlin/actions
            per candidate: type filter                       [R4]
                           enclosingScopeFrames + truncateAtCeiling   ScopeChain.kt / Occurrences.kt  [R5]
                           findOccurrences + excludeUnsoundOccurrences                Occurrences.kt  [R6]
-                          suggestVariableName + visibleNamesAt        NameSuggestion.kt / Occurrences.kt  [R7]
+                          suggestVariableName + namesInScopeAt        NameSuggestion.kt / Occurrences.kt  [R7]
          }
        }
   <- ExtractVariablePlan (plain data, no PSI)
@@ -242,7 +256,7 @@ Components:
 - **`utils/refactor/ExtractionPlan.kt`** - `TextSpan`, `AnchorForm`, `ScopeOption`, `CandidateExpression`, the plan, `collapseForLabel`. To be renamed to `ExtractVariablePlan` under a sealed `RefactoringPlan` carrying `fileText`, `documentVersion` and the shared version guard, so ADFA-5080 adds a subtype rather than renaming this one. Both refactorings share these *primitives*, not the aggregate: extract method has no scope chain, so `ScopeOption`/`AnchorForm`/`CandidateExpression` are not shared.
 - **`CandidateExpressions.kt`** - purely syntactic, no analysis session, hence unit-testable on its own (R2).
 - **`ScopeChain.kt`** - the syntactic chain and the three anchor forms (R5); indentation and newline detection shared with the edit builder.
-- **`Occurrences.kt`** - symbol-aware structural equality, the occurrence search, the unsoundness filter, the referenced-declaration ceiling, and `visibleNamesAt` (R5, R6, R7).
+- **`Occurrences.kt`** - symbol-aware structural equality, the occurrence search, the unsoundness filter, the referenced-declaration ceiling, and `namesInScopeAt` (R5, R6, R7).
 - **`NameSuggestion.kt`** - suggestion and validation, no analysis session (R7).
 - **`ExtractVariableEdit.kt`** - `RewriteSpan`, the three anchor-form rewrites, `toTextEdit` (R9). Pure text and offsets.
 - **`refactor/ui/`** - `ExtractVariableSheet` (a `BottomSheetDialogFragment` hosting a `ComposeView`), stateless `ExtractVariableSheetContent`, `ExtractVariableViewModel` + `ExtractVariableUiState` + sealed `ExtractVariableUiEvent`. `LabelledSection` and `OptionList` become shared with ADFA-5080. The ViewModel uses a plain `ViewModelProvider.Factory` rather than a Koin definition: it is sheet-scoped, injects nothing, and takes the plan as a runtime argument.

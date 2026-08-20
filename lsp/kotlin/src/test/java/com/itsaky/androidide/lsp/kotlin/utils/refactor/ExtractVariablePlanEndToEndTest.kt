@@ -116,7 +116,7 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
-	fun `a selection matching an expression exactly short-circuits the chooser`() {
+	fun `a selection matching an expression exactly resolves to that expression`() {
 		val content =
 			"""
 			package p
@@ -129,12 +129,13 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 
 		val result = plan(content, start, start + "n * 2".length)
 
-		assertTrue(result.selectionMatchedCandidate)
 		assertEquals("n * 2", result.candidates.first().label)
+		// The enclosing expression stays on offer: an exact selection no longer hides the chooser.
+		assertEquals(listOf("n * 2", "wrap(n * 2)"), result.candidates.map { it.label })
 	}
 
 	@Test
-	fun `an off-boundary selection still resolves, without short-circuiting`() {
+	fun `an off-boundary selection still resolves`() {
 		val content =
 			"""
 			package p
@@ -148,7 +149,6 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 		// Selection stops mid-expression, as a touch-screen drag routinely does.
 		val result = plan(content, start, start + 3)
 
-		assertFalse(result.selectionMatchedCandidate)
 		assertEquals("n * 2", result.candidates.first().label)
 	}
 
@@ -832,7 +832,7 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
-	fun `declines a lambda whose first statement shares the brace line but the block spans several lines`() {
+	fun `offers nothing when the only rung's anchor shares the brace line of a multi-line block`() {
 		val content =
 			"""
 			package p
@@ -845,22 +845,13 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 
 		val target = "it.length + 1"
 		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
-		val candidate = result.candidates.first()
-		// `it` is lambda-scoped, so the lambda body is the only legal anchor.
-		assertEquals(listOf("lambda"), candidate.scopes.map { it.label })
 
-		// The statement shares the opening-brace line, but the block itself spans two lines, so this is
-		// not the one-line expansion case. Anchoring at the line start would put the declaration before
-		// the lambda's `{`, where `it` is out of scope -- declining is the only safe outcome here.
-		val rewrite =
-			buildExtractVariableRewrite(
-				fileText = result.fileText,
-				candidateSpan = candidate.span,
-				scope = candidate.scopes.first(),
-				name = "length",
-				replaceAll = false,
-			)
-		assertNull(rewrite)
+		// `it` is lambda-scoped, so the lambda body is the only legal rung -- and its anchor statement
+		// shares the `items.forEach {` line while the block's own content spans two lines. Anchoring at
+		// that line start would put the declaration before the `{`, where `it` does not exist. The rung
+		// is refused, which leaves the candidate with no rung, which empties the plan: the action then
+		// reports "no expression to extract here" instead of opening a sheet whose confirm must fail.
+		assertTrue(result.isEmpty)
 	}
 
 	@Test
@@ -897,5 +888,181 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 				"}",
 			apply(content, rewrite),
 		)
+	}
+
+	@Test
+	fun `an occurrence sharing the brace line is not offered for replace-all`() {
+		val content =
+			"""
+			package p
+			fun log(n: Int) {}
+			fun demo(items: List<String>) {
+				items.forEach { log(it.length + 1)
+					log(it.length + 1) }
+			}
+			""".trimIndent()
+
+		val target = "it.length + 1"
+		val second = content.indexOf(target, content.indexOf(target) + 1)
+		val result = plan(content, second, second + target.length)
+		val candidate = result.candidates.first()
+
+		// The second site is on its own line and can host the declaration, so the rung stands. The first
+		// site shares the `items.forEach {` line, and anchoring on it would refuse the whole rewrite --
+		// so it is not offered as an occurrence, and the count the sheet shows stays achievable.
+		assertEquals(
+			1,
+			candidate.scopes
+				.first()
+				.occurrences.size,
+		)
+		assertEquals(
+			listOf(TextSpan(second, second + target.length)),
+			candidate.scopes.first().occurrences,
+		)
+
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "length",
+				replaceAll = true,
+			)
+		assertNotNull(rewrite)
+	}
+
+	@Test
+	fun `a local in a sibling function does not take the name`() {
+		val content =
+			"""
+			package p
+			class Extract {
+				fun lengths(items: List<String>): List<Int> {
+					return items.map {
+						val length = it.length + 1
+						length
+					}
+				}
+
+				fun oneLineLambda(items: List<String>): List<Int> {
+					return items.map { it.length + 1 }
+				}
+			}
+			""".trimIndent()
+
+		val target = "it.length + 1"
+		val start = content.indexOf(target, content.indexOf("oneLineLambda"))
+		val result = plan(content, start, start + target.length)
+
+		// `val length` lives in another function's lambda: invisible here, so naming this one `length`
+		// is legal and must not be refused.
+		assertNull(validateVariableName("length", result.candidates.first().takenNames))
+	}
+
+	@Test
+	fun `an enclosing parameter and an enclosing local take the name`() {
+		val content =
+			"""
+			package p
+			fun wrap(n: Int): Int = n
+			fun demo(items: List<String>) {
+				val size = 0
+				wrap(items.size * 2)
+			}
+			""".trimIndent()
+
+		val taken = plan(content, content.indexOf("items.size") + 1).candidates.first().takenNames
+
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("items", taken))
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("size", taken))
+	}
+
+	@Test
+	fun `a member of the enclosing class takes the name`() {
+		val content =
+			"""
+			package p
+			class Extract {
+				private val total = 0
+
+				fun demo(n: Int): Int {
+					return n * 2
+				}
+			}
+			""".trimIndent()
+
+		val target = "n * 2"
+		val taken =
+			plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+				.candidates
+				.first()
+				.takenNames
+
+		// A local `val total` would shadow the member, changing what every other `total` in the block
+		// means, so it stays refused.
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("total", taken))
+		assertEquals(NameProblem.AlreadyTaken, validateVariableName("demo", taken))
+	}
+
+	@Test
+	fun `a Unit-returning member expression body gets neither a type nor a return`() {
+		val content =
+			"""
+			package p
+			class Extract {
+				fun show(text: String) = report(text.length + 1)
+
+				private fun report(value: Int) {
+					println(value)
+				}
+			}
+			""".trimIndent()
+
+		val target = "text.length + 1"
+		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
+		val candidate = result.candidates.first()
+		val rewrite =
+			buildExtractVariableRewrite(
+				fileText = result.fileText,
+				candidateSpan = candidate.span,
+				scope = candidate.scopes.first(),
+				name = "length",
+				replaceAll = false,
+			)!!
+
+		// The QA fixture's shape: a member, with the callee declared after the caller. `show` returns
+		// `Unit`, so the block body needs neither a `return` nor a written-out type.
+		assertEquals(
+			"package p\n" +
+				"class Extract {\n" +
+				"\tfun show(text: String) {\n" +
+				"\t\tval length = text.length + 1\n" +
+				"\t\treport(length)\n" +
+				"\t}\n" +
+				"\n" +
+				"\tprivate fun report(value: Int) {\n" +
+				"\t\tprintln(value)\n" +
+				"\t}\n" +
+				"}",
+			apply(content, rewrite),
+		)
+	}
+
+	@Test
+	fun `a whitespace-only selection resolves like a caret at its start`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int, b: Int, c: Int): Int {
+				return a + b * c
+			}
+			""".trimIndent()
+
+		// The gap between `b` and `*`, as a touch drag over whitespace produces it rather than a caret.
+		val gap = content.indexOf("b * c") + 1
+		val result = plan(content, gap, gap + 1)
+
+		assertEquals(listOf("b", "b * c", "a + b * c"), result.candidates.map { it.label })
 	}
 }

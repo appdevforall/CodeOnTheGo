@@ -76,6 +76,11 @@ sealed interface AnchorForm {
  * [occurrences] is ascending by offset and always contains the candidate's own span, so
  * `occurrences.size` is the count shown as "Replace all N occurrences". Narrowing to an inner scope
  * can only shrink this set, never grow it.
+ *
+ * A block rung's set is narrowed once more, dropping leading occurrences whose own anchor statement
+ * cannot host the declaration -- a replace-all anchors on the first served one, so keeping an
+ * unhostable occurrence would refuse the whole rewrite. That lowers the count the user is shown, which
+ * is the point: N stays achievable.
  */
 data class ScopeOption(
 	val label: String,
@@ -88,6 +93,10 @@ data class ScopeOption(
  *
  * [label] is the expression's source text with runs of whitespace collapsed, so a multi-line
  * expression stays readable in a one-line list item.
+ *
+ * [takenNames] is what a new declaration here would collide with or shadow -- enclosing parameters and
+ * locals, enclosing class members, top-level names -- and is used both to uniquify [suggestedName] and
+ * to reject a typed name. A local in an unrelated function is not in it.
  *
  * [scopes] is the legal scope chain, innermost first, and is never empty -- a candidate with no
  * legal anchor is not a candidate.
@@ -134,15 +143,11 @@ data class CandidateExpression(
  * [fileText] is the text the offsets here refer to, carried so the UI can build the replacement text
  * without PSI; [documentVersion] is what makes that safe -- if the live document has moved on by the
  * time the user confirms, the plan is discarded rather than applied against shifted offsets.
- *
- * [selectionMatchedCandidate] is true when the user's selection exactly matched the innermost
- * candidate, meaning they already expressed which expression they want and the UI should not ask.
  */
 data class ExtractionPlan(
 	override val fileText: String,
 	override val documentVersion: Int,
 	val candidates: List<CandidateExpression>,
-	val selectionMatchedCandidate: Boolean,
 ) : RefactoringPlan {
 	val isEmpty: Boolean get() = candidates.isEmpty()
 
@@ -150,7 +155,7 @@ data class ExtractionPlan(
 		fun empty(
 			fileText: String = "",
 			documentVersion: Int = -1,
-		) = ExtractionPlan(fileText, documentVersion, emptyList(), selectionMatchedCandidate = false)
+		) = ExtractionPlan(fileText, documentVersion, emptyList())
 	}
 }
 

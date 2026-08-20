@@ -8,9 +8,9 @@ import com.itsaky.androidide.lsp.kotlin.utils.refactor.ScopeOption
  * Everything the extract-variable sheet renders, derived entirely from the
  * [com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionPlan].
  *
- * [showCandidatePicker] is false when the plan holds a single candidate, or when the user's selection
- * already matched an expression exactly -- in both cases asking which expression they meant would be
- * asking a question they have already answered.
+ * [showCandidatePicker] is false only when the plan holds a single candidate. It stays visible for an
+ * exact selection: long-press is the natural gesture and selects exactly one token, so hiding the list
+ * there leaves no way to widen to an enclosing expression short of cancelling and re-selecting.
  *
  * [occurrenceCount] counts every site the selected scope would rewrite, **including** the one the user
  * selected, so "Replace all 3 occurrences" means three sites in total. [showReplaceAll] is false at a

@@ -13,10 +13,12 @@ import org.jetbrains.kotlin.analysis.api.symbols.KaBackingFieldSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaNamedFunctionSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaPropertySymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaReceiverParameterSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaValueParameterSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaVariableSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.markers.KaAnnotatedSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.markers.KaNamedSymbol
 import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaFlexibleType
@@ -33,6 +35,7 @@ import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtContinueExpression
 import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.psi.KtDeclarationWithBody
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtExpressionWithLabel
 import org.jetbrains.kotlin.psi.KtFunctionLiteral
@@ -50,6 +53,7 @@ import org.jetbrains.kotlin.psi.KtQualifiedExpression
 import org.jetbrains.kotlin.psi.KtReturnExpression
 import org.jetbrains.kotlin.psi.KtSecondaryConstructor
 import org.jetbrains.kotlin.psi.KtSimpleNameExpression
+import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 import org.jetbrains.kotlin.psi.KtThisExpression
 import org.jetbrains.kotlin.psi.KtTypeReference
 import org.jetbrains.kotlin.psi.KtValueArgument
@@ -97,13 +101,26 @@ internal fun KaSession.buildCandidate(
 	val span = TextSpan(first.textRange.startOffset, last.textRange.endOffset)
 	val enclosing = enclosingDeclaration(first) ?: return refuse(ExtractionRefusal.NotASingleRegion)
 
+	/*
+	 * enclosingDeclaration skips a nameless KtNamedFunction, so an anonymous extension function
+	 * (`fun String.() { ... }` used as a value) between the region and enclosing is invisible to it,
+	 * and receiverTypeTextOf(enclosing) then reads the outer declaration's receiver instead of the
+	 * anonymous function's own -- the region can depend on a receiver the emitted function never gets.
+	 * Declined unconditionally rather than only when the region actually uses the receiver: anonymous
+	 * extension functions are rare, and this is far cheaper than the resolution innerImplicitReceiver
+	 * would need to tell real receiver use apart from an unrelated capture.
+	 */
+	if (anonymousExtensionFunctionBetween(first, enclosing)) {
+		return refuse(ExtractionRefusal.AnonymousExtensionFunction)
+	}
+
 	val typeParameterNames = typeParameterNamesOf(enclosing)
 	typeParameterIn(typeParameterNames, elements)?.let { return refuse(ExtractionRefusal.UsesTypeParameter(it)) }
 	if (usesBackingField(enclosing, elements)) return refuse(ExtractionRefusal.UsesBackingField)
 	innerImplicitReceiver(enclosing, elements, span)?.let { return refuse(ExtractionRefusal.InnerImplicitReceiver(it)) }
 	reassignedOuterVar(enclosing, elements, span)?.let { return refuse(ExtractionRefusal.ReassignsOuterVar(it)) }
 
-	val tailReturn = !isExpression && isTailReturn(elements, span)
+	val tailReturn = !isExpression && isTailReturn(elements, span, enclosing)
 	if (!tailReturn && hasExit(elements, span)) return refuse(ExtractionRefusal.ExitsRegion)
 
 	val outputs = if (isExpression) RegionOutputs.NONE else outputsOf(enclosing, elements, span)
@@ -214,6 +231,7 @@ internal fun KaSession.buildCandidate(
 			// declared above the anchor. Every other target keeps the new member after its anchor (R4).
 			insertOffset = if (isLocalTarget) anchor.textRange.startOffset else anchor.textRange.endOffset,
 			insertIndent = leadingIndentAt(fileText, anchor.textRange.startOffset),
+			rawStringSpans = rawStringSpansIn(elements),
 		),
 	)
 }
@@ -221,15 +239,24 @@ internal fun KaSession.buildCandidate(
 private fun refuse(refusal: ExtractionRefusal): SignatureResult = SignatureResult.Refused(refusal)
 
 /**
- * The named function, accessor, `init` block or constructor whose body holds [element]. Lambdas are
- * skipped: the new function is a sibling of the enclosing *named* declaration (R4), and the lambda's
- * captures become parameters.
+ * The named function, accessor, `init` block or constructor whose body holds [element]. Lambdas and
+ * anonymous functions are skipped: the new function is a sibling of the enclosing *named* declaration
+ * (R4), and their captures become parameters.
  */
 private fun enclosingDeclaration(element: PsiElement): KtDeclaration? {
 	var current: PsiElement? = element.parent
 	while (current != null) {
 		when (current) {
-			is KtNamedFunction, is KtPropertyAccessor, is KtAnonymousInitializer, is KtSecondaryConstructor -> {
+			is KtNamedFunction -> {
+				/*
+				 * PSI gives an anonymous `fun(...) { }` the same node type as a named function, with a null
+				 * name. It is a value, not a declaration a sibling can follow: anchoring on it inserts the
+				 * new function into an argument list or a property initializer, and the file stops parsing.
+				 */
+				if (current.name != null) return current
+			}
+
+			is KtPropertyAccessor, is KtAnonymousInitializer, is KtSecondaryConstructor -> {
 				return current
 			}
 
@@ -240,6 +267,25 @@ private fun enclosingDeclaration(element: PsiElement): KtDeclaration? {
 		current = current.parent
 	}
 	return null
+}
+
+/**
+ * Whether an anonymous extension function -- a nameless `KtNamedFunction` with a receiver -- sits
+ * between [element] and [enclosing]. Every such ancestor contains [element], so it is necessarily
+ * outside the region; no separate in-region check is needed.
+ */
+private fun anonymousExtensionFunctionBetween(
+	element: PsiElement,
+	enclosing: KtDeclaration,
+): Boolean {
+	var current: PsiElement? = element.parent
+	while (current != null && current != enclosing) {
+		if (current is KtNamedFunction && current.name == null && current.receiverTypeReference != null) {
+			return true
+		}
+		current = current.parent
+	}
+	return false
 }
 
 /** Whether [element] is inside the region's span. */
@@ -255,6 +301,15 @@ private fun <T : PsiElement> descendantsOf(
 	elements: List<KtExpression>,
 	type: Class<T>,
 ): List<T> = elements.flatMap { PsiTreeUtil.collectElementsOfType(it, type) }
+
+/**
+ * The raw (triple-quoted) string literals inside [elements], in file offsets. A single-line literal
+ * needs no protection: `\n` inside it is an escape, not a line break the re-indentation can reach.
+ */
+private fun rawStringSpansIn(elements: List<KtExpression>): List<TextSpan> =
+	descendantsOf(elements, KtStringTemplateExpression::class.java)
+		.filter { it.text.startsWith("\"\"\"") }
+		.map { TextSpan(it.textRange.startOffset, it.textRange.endOffset) }
 
 /**
  * The name of a class declared inside [enclosing] that [type] is written in terms of, or null.
@@ -509,15 +564,57 @@ private fun KaSession.reassignedOuterVar(
 }
 
 /**
- * The tail-return exception (R8): the region's last statement is a `return`, and it is the region's
- * only `return`, `break` or `continue`. Purely syntactic, which is why it is worth having.
+ * The declaration an unlabelled [returnExpression] returns from.
+ *
+ * A `KtFunctionLiteral` is skipped rather than accepted: a lambda is transparent to an unlabelled
+ * `return`, which targets the enclosing function declaration, so a non-local return out of a lambda in
+ * the region really does leave it. An anonymous `fun` is not transparent and is not a literal, so the
+ * same walk stops on it correctly.
+ */
+private fun returnOwner(returnExpression: KtReturnExpression): KtDeclarationWithBody? {
+	var owner = PsiTreeUtil.getParentOfType(returnExpression, KtDeclarationWithBody::class.java, true)
+	while (owner is KtFunctionLiteral) {
+		owner = PsiTreeUtil.getParentOfType(owner, KtDeclarationWithBody::class.java, true)
+	}
+	return owner
+}
+
+/**
+ * Whether [returnExpression] returns from a function declared *inside* the region, so its jump never
+ * crosses the region boundary and it is not an exit (R8).
+ */
+private fun returnTargetInRegion(
+	returnExpression: KtReturnExpression,
+	span: TextSpan,
+): Boolean {
+	val owner = returnOwner(returnExpression) ?: return false
+	return inRegion(owner, span)
+}
+
+/**
+ * The tail-return exception (R8): the region's last statement is a `return` from [enclosing] itself,
+ * and it is the region's only `return`, `break` or `continue`. Purely syntactic, which is why it is
+ * worth having.
  */
 private fun isTailReturn(
 	elements: List<KtExpression>,
 	span: TextSpan,
+	enclosing: KtDeclaration,
 ): Boolean {
-	if (elements.last() !is KtReturnExpression) return false
-	val returns = descendantsOf(elements, KtReturnExpression::class.java)
+	val tail = elements.last() as? KtReturnExpression ?: return false
+	/*
+	 * A labelled tail return can never be legitimate here: if the label named a lambda inside the
+	 * region, that lambda would have to contain the `return`, contradicting the `return` being a
+	 * top-level element of the region. So the label always names something outside, and the `return`
+	 * would move verbatim into a function where that label does not exist.
+	 */
+	if (tail.getLabelName() != null) return false
+	// The caller reads the return type off `enclosing`, so a tail `return` owned by anything else -- an
+	// anonymous `fun` wrapped around the region -- would take a type its own function never returns.
+	if (returnOwner(tail) !== enclosing) return false
+	val returns =
+		descendantsOf(elements, KtReturnExpression::class.java)
+			.filterNot { returnTargetInRegion(it, span) }
 	if (returns.size != 1 || returns.single() !== elements.last()) return false
 	return !hasLoopExit(elements, span)
 }
@@ -528,6 +625,7 @@ private fun hasExit(
 	span: TextSpan,
 ): Boolean {
 	for (returnExpression in descendantsOf(elements, KtReturnExpression::class.java)) {
+		if (returnTargetInRegion(returnExpression, span)) continue
 		// An unlabelled `return` always targets the enclosing named declaration, which is outside the
 		// region by construction. A labelled one targets the lambda carrying that label, which is not
 		// necessarily the nearest one -- `return@outer` from a nested lambda still leaves the region.
@@ -823,8 +921,12 @@ private fun KaSession.isSuspendLambda(lambda: KtFunctionLiteral): Boolean =
 	}.getOrNull() == true
 
 /**
- * `@Composable` is added when the region calls one. Not polish: CoGo users write Compose apps on the
+ * `@Composable` is added when the region uses one. Not polish: CoGo users write Compose apps on the
  * device, and an extracted composable without the annotation does not compile (R10).
+ *
+ * Property *getters* count, not only calls. `MaterialTheme.colorScheme` and `LocalDensity.current` are
+ * annotated getters reached through a name reference, and they are as common in Compose code as any
+ * composable call.
  */
 private fun KaSession.usesComposable(elements: List<KtExpression>): Boolean =
 	descendantsOf(elements, KtCallExpression::class.java).any { call ->
@@ -833,10 +935,20 @@ private fun KaSession.usesComposable(elements: List<KtExpression>): Boolean =
 				.resolveToCall()
 				?.successfulFunctionCallOrNull()
 				?.symbol
-				?.annotations
-				?.any { it.classId?.asFqNameString() == COMPOSABLE_FQ_NAME }
+				?.hasComposableAnnotation()
 		}.getOrNull() == true
-	}
+	} ||
+		simpleNamesIn(elements).any { reference ->
+			runCatching {
+				reference.mainReference
+					.resolveToSymbols()
+					.filterIsInstance<KaPropertySymbol>()
+					.any { it.getter?.hasComposableAnnotation() == true }
+			}.getOrNull() == true
+		}
+
+/** Whether [this] carries `@Composable`. */
+private fun KaAnnotatedSymbol.hasComposableAnnotation(): Boolean = annotations.any { it.classId?.asFqNameString() == COMPOSABLE_FQ_NAME }
 
 /**
  * Names the new function must avoid (R12).

@@ -36,17 +36,13 @@ const val MAX_CANDIDATES = 3
 /**
  * The purely syntactic result of resolving a cursor or selection to extraction targets.
  *
- * [expressions] is innermost-first and at most [MAX_CANDIDATES] long. [selectionMatchedInnermost] is
- * true when the caller passed a non-empty selection whose trimmed range is exactly the innermost
- * candidate's range -- the user has already said which expression they mean, so the UI can skip
- * asking.
+ * [expressions] is innermost-first and at most [MAX_CANDIDATES] long.
  */
 data class CandidateSyntax(
 	val expressions: List<KtExpression>,
-	val selectionMatchedInnermost: Boolean,
 ) {
 	companion object {
-		val NONE = CandidateSyntax(emptyList(), selectionMatchedInnermost = false)
+		val NONE = CandidateSyntax(emptyList())
 	}
 }
 
@@ -90,18 +86,16 @@ fun candidateExpressionsAt(
 	}
 
 	if (collected.isEmpty()) return CandidateSyntax.NONE
-
-	val innermost = collected.first().textRange
-	val matched =
-		selectionStart != selectionEnd &&
-			innermost.startOffset == start &&
-			innermost.endOffset == end
-	return CandidateSyntax(collected, matched)
+	return CandidateSyntax(collected)
 }
 
 /**
- * Trims whitespace off both ends of `[start, end)`. Returns null when nothing but whitespace was
- * selected. A cursor (start == end) is returned unchanged.
+ * Trims whitespace off both ends of `[start, end)`.
+ *
+ * A selection holding nothing but whitespace collapses to a cursor at [start] rather than yielding
+ * nothing: a drag over the gap between two tokens carries the same intent as a tap in it, and the
+ * cursor path already resolves a position resting just past a token. Returns null only when the range
+ * is not a valid range into [text]. A cursor (start == end) is returned unchanged.
  */
 internal fun trimToCode(
 	text: String,
@@ -114,7 +108,7 @@ internal fun trimToCode(
 	var e = end
 	while (s < e && text[s].isWhitespace()) s++
 	while (e > s && text[e - 1].isWhitespace()) e--
-	return if (s == e) null else s to e
+	return if (s == e) start to start else s to e
 }
 
 /**

@@ -42,15 +42,12 @@ class ExtractVariableViewModelTest {
 		scopes = scopes,
 	)
 
-	private fun plan(
-		candidates: List<CandidateExpression>,
-		selectionMatched: Boolean = false,
-	) = ExtractionPlan(
-		fileText = "unused",
-		documentVersion = 1,
-		candidates = candidates,
-		selectionMatchedCandidate = selectionMatched,
-	)
+	private fun plan(candidates: List<CandidateExpression>) =
+		ExtractionPlan(
+			fileText = "unused",
+			documentVersion = 1,
+			candidates = candidates,
+		)
 
 	private val threeCandidatePlan =
 		plan(
@@ -78,13 +75,6 @@ class ExtractVariableViewModelTest {
 
 		val single = plan(listOf(candidate("items.size", "size", listOf(scope("fun demo", 1)))))
 		assertFalse(ExtractVariableViewModel(single).uiState.value.showCandidatePicker)
-	}
-
-	@Test
-	fun `an exact selection suppresses the candidate picker`() {
-		// The user already said which expression they meant by selecting it.
-		val matched = plan(threeCandidatePlan.candidates, selectionMatched = true)
-		assertFalse(ExtractVariableViewModel(matched).uiState.value.showCandidatePicker)
 	}
 
 	@Test

@@ -553,6 +553,7 @@
 	<string name="msg_extract_method_output_not_returnable">The selection produces %1$s, which cannot be handed back as a return value</string>
 	<string name="msg_extract_method_reassigns_outer_var">The selection assigns to %1$s, which is declared outside it</string>
 	<string name="msg_extract_method_exits_region">The selection jumps out of itself with return, break or continue</string>
+	<string name="msg_extract_method_anonymous_extension_function">The selection is inside an anonymous extension function</string>
 	<string name="msg_extract_method_inner_implicit_receiver">The selection uses members of the enclosing %1$s receiver</string>
 	<string name="msg_extract_method_uses_type_parameter">The selection uses type parameter %1$s</string>
 	<string name="msg_extract_method_unrenderable_type">A type in the selection cannot be written out</string>
@@ -1285,6 +1286,7 @@
 
 	<!-- Tooltip Links HTML Template -->
 	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:%2$s;text-decoration:underline;">%3$s</a>]]></string>
+	<string name="tooltip_missing_fallback_html"><![CDATA[Sorry, we don&#8217;t have a tooltip for that. <a href="%1$s">Explore the documentation</a>.]]></string>
 	<string name="title_alert">Send feedback</string>
 
 	<!-- Strings from BaseApplication.java -->
