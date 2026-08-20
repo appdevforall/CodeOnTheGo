@@ -507,6 +507,43 @@
 	<string name="action_suppress_unchecked_warning">Abaikan peringatan \'unchecked\'</string>
 	<string name="action_uncomment_line">Hapus komentar baris</string>
 	<string name="action_convert_to_statement">Ubah menjadi statement</string>
+
+	<!-- Extract variable refactoring (Kotlin) -->
+	<string name="action_extract_variable">Ekstrak variabel</string>
+	<string name="title_extract_variable">Ekstrak variabel</string>
+	<string name="label_extract_variable_expression">Ekspresi</string>
+	<string name="label_extract_variable_name">Nama</string>
+	<string name="label_extract_variable_scope">Deklarasikan di</string>
+	<plurals name="label_extract_variable_replace_all">
+		<item quantity="one">Ganti %1$d kemunculan</item>
+		<item quantity="other">Ganti semua %1$d kemunculan</item>
+	</plurals>
+	<string name="action_extract">Ekstrak</string>
+	<string name="msg_extract_variable_name_blank">Masukkan nama</string>
+	<string name="msg_extract_variable_name_invalid">Bukan nama Kotlin yang valid</string>
+	<string name="msg_extract_variable_name_keyword">Itu adalah kata kunci Kotlin</string>
+	<string name="msg_extract_variable_name_taken">Nama itu sudah digunakan</string>
+	<string name="msg_extract_variable_nothing_to_extract">Tidak ada ekspresi untuk diekstrak di sini</string>
+	<string name="msg_extract_variable_file_changed">File telah berubah. Coba ekstrak lagi.</string>
+
+	<!-- Extract method refactoring (Kotlin) -->
+	<string name="action_extract_method">Ekstrak metode</string>
+	<string name="title_extract_method">Ekstrak metode</string>
+	<string name="label_extract_method_signature">Tanda tangan</string>
+	<string name="msg_extract_method_file_changed">File telah berubah. Coba ekstrak lagi.</string>
+	<string name="msg_extract_method_not_single_region">Pilih sebuah ekspresi, atau pernyataan lengkap dalam satu blok</string>
+	<string name="msg_extract_method_could_not_analyse">Tidak dapat menganalisis pilihan. Coba lagi.</string>
+	<string name="msg_extract_method_multiple_outputs">Pilihan menghasilkan lebih dari satu nilai: %1$s</string>
+	<string name="msg_extract_method_output_not_returnable">Pilihan menghasilkan %1$s, yang tidak dapat dikembalikan sebagai nilai balik (return value)</string>
+	<string name="msg_extract_method_reassigns_outer_var">Pilihan memberi nilai baru ke %1$s, yang dideklarasikan di luar pilihan tersebut</string>
+	<string name="msg_extract_method_exits_region">Pilihan keluar dari dirinya sendiri dengan return, break, atau continue</string>
+	<string name="msg_extract_method_anonymous_extension_function">Pilihan berada di dalam fungsi ekstensi anonim</string>
+	<string name="msg_extract_method_inner_implicit_receiver">Pilihan menggunakan anggota dari penerima (receiver) %1$s yang melingkupinya</string>
+	<string name="msg_extract_method_uses_type_parameter">Pilihan menggunakan parameter tipe %1$s</string>
+	<string name="msg_extract_method_unrenderable_type">Sebuah tipe dalam pilihan tidak dapat dituliskan</string>
+	<string name="msg_extract_method_uses_backing_field">Pilihan menggunakan backing field dari properti, yang hanya ada di dalam pengakses (accessor) ini</string>
+	<string name="msg_extract_method_smart_cast_parameter">Pilihan menggunakan %1$s di bawah smart cast yang tidak berlaku di luar pilihan tersebut</string>
+	<string name="msg_extract_method_captured_local_declaration">Pilihan menggunakan %1$s, yang keluar dari cakupan (scope) setelah pilihan tersebut dipindahkan</string>
 	<string name="msg_select_fields">Pilih field</string>
 	<string name="msg_no_fields_selected">Tidak ada field yang dipilih</string>
 	<string name="msg_no_fields_found">Field tidak ditemukan</string>
@@ -634,7 +671,7 @@
 	<string name="log_filter_level_warning">Peringatan</string>
 	<string name="log_filter_level_error">Kesalahan</string>
 	<string name="log_filter_line_numbers">Nomor baris</string>
-	<string name="log_filter_timestamps">Catatan waktu</string>
+	<string name="log_filter_timestamps">Stempel waktu</string>
 	<string name="log_filter_deltas">Selisih waktu</string>
 	<string name="tooltip_search_output">Cari dalam output</string>
 	<string name="tooltip_filter_output">Filter output</string>
@@ -912,7 +949,7 @@
 	<!-- Output actions content descriptions -->
 	<string name="cd_enable_word_wrap">Aktifkan pembungkus kata (word wrap)</string>
 	<string name="cd_disable_word_wrap">Nonaktifkan pembungkus kata (word wrap)</string>
-	<string name="cd_output_view_options">Lihat opsi</string>
+	<string name="cd_output_view_options">Buka opsi tampilan output.</string>
 
 	<string name="unknown_error">"Terjadi kesalahan yang tidak diketahui."</string>
 	<string name="build_in_progress_warning">Build sedang berlangsung. Permintaan baru diabaikan.</string>
