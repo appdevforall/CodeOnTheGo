@@ -122,7 +122,9 @@ class GitBottomSheetViewModel(
 				val projectDir = File(projectDirPath)
 				val currentRoot = currentRepository?.rootDir
 				if (force || currentRepository == null || currentRoot?.canonicalPath != projectDir.canonicalPath) {
-					currentRepository?.close()
+					val previousRepo = currentRepository
+					currentRepository = null
+					previousRepo?.close()
 					currentRepository = GitRepositoryManager.openRepository(projectDir)
 					_isGitRepository.value = currentRepository != null
 				}
@@ -131,6 +133,7 @@ class GitBottomSheetViewModel(
 				throw e
 			} catch (e: Exception) {
 				log.error("Failed to initialize repository", e)
+				currentRepository = null
 				_isGitRepository.value = false
 				_gitStatus.value = GitStatus.EMPTY
 				_currentBranch.value = null

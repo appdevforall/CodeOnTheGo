@@ -211,4 +211,31 @@ class GitBottomSheetViewModelTest {
 			assertEquals("main", viewModel.currentBranch.value)
 			assertTrue(viewModel.branches.value is GitBottomSheetViewModel.BranchesUiState.Error)
 		}
+
+	@Test
+	fun `initializeRepository clears currentRepository when opening fails`() =
+		runTest {
+			io.mockk.mockkObject(com.itsaky.androidide.projects.IProjectManager.Companion)
+			val mockProjectManager = mockk<com.itsaky.androidide.projects.IProjectManager>(relaxed = true)
+			every { mockProjectManager.projectDirPath } returns "/mock/path"
+			every {
+				com.itsaky.androidide.projects.IProjectManager
+					.getInstance()
+			} returns mockProjectManager
+
+			io.mockk.mockkObject(com.itsaky.androidide.git.core.GitRepositoryManager)
+			coEvery {
+				com.itsaky.androidide.git.core.GitRepositoryManager
+					.openRepository(any())
+			} throws RuntimeException("Corrupt repository")
+
+			viewModel.initializeRepository(force = true)
+			advanceUntilIdle()
+
+			assertEquals(null, viewModel.currentRepository)
+			assertEquals(false, viewModel.isGitRepository.value)
+			assertEquals(com.itsaky.androidide.git.core.models.GitStatus.EMPTY, viewModel.gitStatus.value)
+			assertEquals(null, viewModel.currentBranch.value)
+			assertEquals(GitBottomSheetViewModel.BranchesUiState.None, viewModel.branches.value)
+		}
 }
