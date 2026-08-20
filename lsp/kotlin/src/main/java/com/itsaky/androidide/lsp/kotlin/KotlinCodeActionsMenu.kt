@@ -7,6 +7,8 @@ import com.itsaky.androidide.lsp.actions.IActionsMenuProvider
 import com.itsaky.androidide.lsp.actions.SurroundWithTryCatchAction
 import com.itsaky.androidide.lsp.actions.UncommentLineAction
 import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
+import com.itsaky.androidide.lsp.kotlin.actions.ExtractMethodAction
+import com.itsaky.androidide.lsp.kotlin.actions.ExtractVariableAction
 import com.itsaky.androidide.lsp.kotlin.actions.FindReferencesAction
 import com.itsaky.androidide.lsp.kotlin.actions.GoToDefinitionAction
 import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
@@ -48,5 +50,7 @@ object KotlinCodeActionsMenu : IActionsMenuProvider {
 			),
 			NullSafetyAction(),
 			ImplementMembersAction(),
+			ExtractVariableAction(),
+			ExtractMethodAction(),
 		)
 }
