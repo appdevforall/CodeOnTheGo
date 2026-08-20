@@ -36,6 +36,28 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.33 — 2026-08-12
+- **added — Plugin-contributed agent tools** _(ADFA-2592)_ **[verified]**
+  Any `.cgp` can add tools to the AI agent, whose tool set was previously fixed at
+  ai-core compile time. The contract has to live in the host: each plugin is loaded
+  by its own class loader with the host as parent, so a type packaged in one `.cgp`
+  is not resolvable from another — and duplicating it into each plugin compiles
+  cleanly, then fails on device with `ClassCastException`. ai-core implements the
+  registry and publishes it under `SharedServices`, exactly as it does
+  `LlmInferenceService`; a provider registers on `activate()` and unregisters on
+  `deactivate()`. Host runtime behaviour, `PluginManager`, the loader and
+  `PluginPermission` are unchanged — a provider declares the permissions its own
+  work needs.
+  `ToolSourceRegistry` (`registerToolSource`, `unregisterToolSource`,
+  `getToolSources`, `notifyToolsChanged`, `CONTRACT_VERSION`),
+  `ToolSourceRegistry.ToolSource` / `.ToolSpec` / `.ToolInvocation` / `.ToolOutcome`.
+  Values crossing this boundary must be JDK types, and the registry hands each
+  source a sanitized copy of the argument map rather than its own.
+  `unregisterToolSource` takes the `ToolSource` instance, not a provider id, so a
+  reused provider id cannot remove another plugin's source — but the registry is
+  no trust boundary between plugins: `getToolSources` hands out the registered
+  instances and registering under a taken id replaces it. `ToolSpec.requiresApproval()`
+  defaults to **true**, inverted relative to the agent's own tools: those are
+  contained by its path guard, a contributed tool by nothing.
 - **added — Optional LLM backend capabilities** _(ADFA-5095)_ **[verified]**
   An LLM backend declares what it supports by the interfaces it implements, so a
   backend can ship as its own plugin and implement only what it can do. The
