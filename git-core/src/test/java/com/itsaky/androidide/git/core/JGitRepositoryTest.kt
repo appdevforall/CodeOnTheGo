@@ -186,4 +186,58 @@ class JGitRepositoryTest {
 			jgitRepo.checkout("upstream/release", createNew = false)
 			assertEquals("upstream-release", jgitRepo.getCurrentBranch()?.name)
 		}
+
+	@Test
+	fun testGetBranchesFiltersOutOriginHead() =
+		runBlocking {
+			val headCommit =
+				org.eclipse.jgit.storage.file.FileRepositoryBuilder().setWorkTree(repoDir).findGitDir(repoDir).build().use { repo ->
+					repo.resolve(org.eclipse.jgit.lib.Constants.HEAD)
+				}
+			org.eclipse.jgit.storage.file.FileRepositoryBuilder().setWorkTree(repoDir).findGitDir(repoDir).build().use { repo ->
+				// Create refs/remotes/origin/main
+				val refMain = repo.updateRef("refs/remotes/origin/main")
+				refMain.setNewObjectId(headCommit)
+				refMain.update()
+
+				// Create symbolic or direct refs/remotes/origin/HEAD
+				val refHead = repo.updateRef("refs/remotes/origin/HEAD")
+				refHead.setNewObjectId(headCommit)
+				refHead.update()
+			}
+
+			val branches = jgitRepo.getBranches()
+			val branchNames = branches.map { it.name }
+			assertTrue(branchNames.contains("origin/main"))
+			assertFalse("origin/HEAD should be filtered out", branchNames.contains("origin/HEAD"))
+			assertFalse("refs/remotes/origin/HEAD should be filtered out", branches.any { it.fullName.endsWith("/HEAD") })
+		}
+
+	@Test
+	fun testCheckoutRemoteReusesUntrackedLocalBranch() =
+		runBlocking {
+			val initialBranch = jgitRepo.getCurrentBranch()!!.name
+
+			// A branch created locally has no upstream configured
+			jgitRepo.checkout("release", createNew = true)
+			jgitRepo.checkout(initialBranch, createNew = false)
+
+			val headCommit =
+				org.eclipse.jgit.storage.file.FileRepositoryBuilder().setWorkTree(repoDir).findGitDir(repoDir).build().use { repo ->
+					repo.resolve(org.eclipse.jgit.lib.Constants.HEAD)
+				}
+			org.eclipse.jgit.storage.file.FileRepositoryBuilder().setWorkTree(repoDir).findGitDir(repoDir).build().use { repo ->
+				val refUpdate = repo.updateRef("refs/remotes/origin/release")
+				refUpdate.setNewObjectId(headCommit)
+				refUpdate.update()
+			}
+
+			// The untracked local "release" is the counterpart, so reuse it instead of forking "origin-release"
+			jgitRepo.checkout("origin/release", createNew = false)
+			assertEquals("release", jgitRepo.getCurrentBranch()!!.name)
+			assertFalse(
+				"origin-release should not be created",
+				jgitRepo.getBranches().any { it.name == "origin-release" },
+			)
+		}
 }

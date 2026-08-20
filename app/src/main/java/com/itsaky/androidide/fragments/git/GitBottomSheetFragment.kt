@@ -73,7 +73,6 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							viewModel.checkoutBranch(
 								branchName = branch.name,
 								createNew = false,
-								startPoint = if (branch.isRemote) branch.fullName else null,
 							)
 						}
 					}
@@ -172,6 +171,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							flashSuccess(getString(R.string.git_checkout_success, state.branchName))
 							refreshEditorContent(force = true)
 							EventBus.getDefault().post(ListProjectFilesRequestEvent())
+							viewModel.resetCheckoutState()
 						}
 
 						is GitBottomSheetViewModel.CheckoutUiState.Conflicts -> {
@@ -193,7 +193,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 						is GitBottomSheetViewModel.CheckoutUiState.Error -> {
 							binding.tvBranchName.isEnabled = true
-							val message = state.message ?: getString(R.string.git_checkout_failed)
+							val message = formatError(state.errorResId, state.errorArgs)
 							MaterialAlertDialogBuilder(requireContext())
 								.setTitle(R.string.git_checkout_failed)
 								.setMessage(message)
@@ -229,11 +229,13 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							)
 							refreshEditorContent(force = true)
 							EventBus.getDefault().post(ListProjectFilesRequestEvent())
+							viewModel.resetMergeState()
 						}
 
 						is GitBottomSheetViewModel.MergeUiState.AlreadyUpToDate -> {
 							binding.tvBranchName.isEnabled = true
 							flashSuccess(getString(R.string.git_already_up_to_date))
+							viewModel.resetMergeState()
 						}
 
 						is GitBottomSheetViewModel.MergeUiState.Conflicts -> {
@@ -258,8 +260,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 						is GitBottomSheetViewModel.MergeUiState.Error -> {
 							binding.tvBranchName.isEnabled = true
-							val targetName = state.targetBranch ?: ""
-							val message = state.message ?: getString(R.string.git_merge_failed, targetName)
+							val message = formatError(state.errorResId, state.errorArgs)
 							MaterialAlertDialogBuilder(requireContext())
 								.setTitle(R.string.git_merge_failed_title)
 								.setMessage(message)
@@ -628,6 +629,16 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		dialog.show()
 	}
 
+	private fun formatError(
+		errorResId: Int,
+		errorArgs: List<String>?,
+	): String =
+		if (errorArgs.isNullOrEmpty()) {
+			getString(errorResId)
+		} else {
+			getString(errorResId, *errorArgs.toTypedArray())
+		}
+
 	private fun refreshEditorContent(force: Boolean = false) {
 		val activity = requireActivity()
 		if (activity is EditorHandlerActivity) {
@@ -656,6 +667,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	}
 
 	override fun onDestroyView() {
+		branchPopupWindow.dismiss()
 		super.onDestroyView()
 		_binding = null
 	}

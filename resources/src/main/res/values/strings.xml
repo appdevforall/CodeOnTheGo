@@ -1379,6 +1379,8 @@
     <string name="git_checkout_conflict_title">Checkout conflict</string>
     <string name="git_checkout_conflict_msg">Cannot switch branch because uncommitted changes would be overwritten. Please commit or stash your changes before switching branches.\n\nConflicting files:\n%1$s</string>
     <string name="git_create_branch_invalid_name">Please enter a valid branch name</string>
+    <string name="git_branch_already_exists">A branch named %1$s already exists</string>
+    <string name="git_branches_load_failed">Could not load branches</string>
     <string name="push">Push</string>
     <string name="pushing">Pushing…</string>
     <string name="push_successful">Push successful!</string>
@@ -1396,12 +1398,14 @@
     <string name="merge_conflicts">Merge conflicts</string>
     <string name="abort_merge">Abort merge</string>
     <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
-    <string name="git_merge_branch">Merge into %1$s</string>
+    <string name="git_merge_branch">Merge %1$s into current branch</string>
+    <string name="git_no_branches_found">No branches found</string>
     <string name="git_merge_success">Merged %1$s into %2$s successfully</string>
     <string name="git_merge_failed_title">Merge failed</string>
     <string name="git_merge_failed">Failed to merge %1$s</string>
     <string name="git_merge_conflict_title">Merge conflict</string>
     <string name="git_merge_conflict_msg">Conflicts occurred while merging %1$s into %2$s. Please resolve conflicts or abort merge.</string>
+    <string name="git_merge_local_changes">Cannot merge because you have uncommitted changes that would be overwritten. Commit or discard them first.\n\nAffected files:\n%1$s</string>
     <string name="git_already_up_to_date">Already up to date</string>
     <string name="msg_save_before_git_action">You have unsaved changes. Would you like to save them before proceeding?</string>
     <string name="no_save_before_git_action">Proceed without saving</string>

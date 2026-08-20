@@ -123,23 +123,28 @@ class JGitRepository(
 	override suspend fun getBranches(): List<GitBranch> =
 		withContext(Dispatchers.IO) {
 			val currentBranch = repository.fullBranch
-			git.branchList().setListMode(ListMode.ALL).call().map { ref ->
-				val isRemote = ref.name.startsWith(Constants.R_REMOTES)
-				val shortName = Repository.shortenRefName(ref.name)
-				val remoteName =
-					if (isRemote) {
-						shortName.substringBefore('/')
-					} else {
-						null
-					}
-				GitBranch(
-					name = shortName,
-					fullName = ref.name,
-					isCurrent = ref.name == currentBranch,
-					isRemote = isRemote,
-					remoteName = remoteName,
-				)
-			}
+			git
+				.branchList()
+				.setListMode(ListMode.ALL)
+				.call()
+				.filter { ref -> !ref.name.endsWith("/HEAD") && !ref.isSymbolic }
+				.map { ref ->
+					val isRemote = ref.name.startsWith(Constants.R_REMOTES)
+					val shortName = Repository.shortenRefName(ref.name)
+					val remoteName =
+						if (isRemote) {
+							shortName.substringBefore('/')
+						} else {
+							null
+						}
+					GitBranch(
+						name = shortName,
+						fullName = ref.name,
+						isCurrent = ref.name == currentBranch,
+						isRemote = isRemote,
+						remoteName = remoteName,
+					)
+				}
 		}
 
 	override suspend fun getHistory(limit: Int): List<GitCommit> =
@@ -353,13 +358,7 @@ class JGitRepository(
 				val fullRemoteRef =
 					when {
 						branchName.startsWith(Constants.R_REMOTES) -> branchName
-
 						repository.findRef("${Constants.R_REMOTES}$branchName") != null -> "${Constants.R_REMOTES}$branchName"
-
-						branchName.startsWith(
-							"origin/",
-						) || repository.remoteNames.any { branchName.startsWith("$it/") } -> "${Constants.R_REMOTES}$branchName"
-
 						else -> null
 					}
 				if (fullRemoteRef != null) {
@@ -368,21 +367,25 @@ class JGitRepository(
 					val localRef = repository.findRef("${Constants.R_HEADS}$localName")
 					val trackingBranch = BranchConfig(repository.config, localName).trackingBranch
 
-					if (localRef != null && (trackingBranch == fullRemoteRef || trackingBranch == shortRemote)) {
+					val isLocalTracking =
+						trackingBranch == null || trackingBranch == fullRemoteRef || trackingBranch == shortRemote
+					if (localRef != null && isLocalTracking) {
 						checkoutCommand.setName(localName)
 					} else if (localRef != null) {
 						val scopedLocalName = shortRemote.replace('/', '-')
 						val scopedRef = repository.findRef("${Constants.R_HEADS}$scopedLocalName")
 						val scopedTracking = BranchConfig(repository.config, scopedLocalName).trackingBranch
+						val isScopedTracking =
+							scopedTracking == null || scopedTracking == fullRemoteRef || scopedTracking == shortRemote
 
-						if (scopedRef != null && (scopedTracking == fullRemoteRef || scopedTracking == shortRemote)) {
+						if (scopedRef != null && isScopedTracking) {
 							checkoutCommand.setName(scopedLocalName)
 						} else if (scopedRef != null) {
 							var suffix = 1
 							var candidate = "$scopedLocalName-$suffix"
 							while (repository.findRef("${Constants.R_HEADS}$candidate") != null) {
 								val candTracking = BranchConfig(repository.config, candidate).trackingBranch
-								if (candTracking == fullRemoteRef || candTracking == shortRemote) {
+								if (candTracking == null || candTracking == fullRemoteRef || candTracking == shortRemote) {
 									break
 								}
 								suffix++

@@ -68,7 +68,7 @@ class GitBottomSheetViewModelTest {
 		}
 
 	@Test
-	fun `checkoutBranch success updates checkoutState to Success and then resets to Idle`() =
+	fun `checkoutBranch success updates checkoutState to Success until consumed`() =
 		runTest {
 			coEvery { repository.checkout("feature", false, null) } returns Unit
 			coEvery { repository.getStatus() } returns mockk(relaxed = true)
@@ -83,13 +83,17 @@ class GitBottomSheetViewModelTest {
 			assertTrue(successCalled)
 			coVerify { repository.checkout("feature", false, null) }
 
-			// Advance past 3000ms delay to verify state resets to Idle
+			// The terminal state is one-shot: it must survive until the UI consumes it,
+			// otherwise a view recreation would replay the toast and the file-list refresh.
 			testScheduler.advanceTimeBy(3000)
+			assertTrue(viewModel.checkoutState.value is GitBottomSheetViewModel.CheckoutUiState.Success)
+
+			viewModel.resetCheckoutState()
 			assertTrue(viewModel.checkoutState.value is GitBottomSheetViewModel.CheckoutUiState.Idle)
 		}
 
 	@Test
-	fun `checkoutBranch conflict updates checkoutState to Conflicts and then resets to Idle`() =
+	fun `checkoutBranch conflict updates checkoutState to Conflicts until consumed`() =
 		runTest {
 			val conflictPaths = listOf("file1.txt", "file2.txt")
 			val exception = mockk<CheckoutConflictException>(relaxed = true)
@@ -104,8 +108,10 @@ class GitBottomSheetViewModelTest {
 			assertTrue(state is GitBottomSheetViewModel.CheckoutUiState.Conflicts)
 			assertEquals(conflictPaths, (state as GitBottomSheetViewModel.CheckoutUiState.Conflicts).conflictingPaths)
 
-			// Advance past 3000ms delay to verify state resets to Idle
 			testScheduler.advanceTimeBy(3000)
+			assertTrue(viewModel.checkoutState.value is GitBottomSheetViewModel.CheckoutUiState.Conflicts)
+
+			viewModel.resetCheckoutState()
 			assertTrue(viewModel.checkoutState.value is GitBottomSheetViewModel.CheckoutUiState.Idle)
 		}
 
@@ -179,7 +185,8 @@ class GitBottomSheetViewModelTest {
 			assertTrue(state is GitBottomSheetViewModel.MergeUiState.Error)
 			val errorState = state as GitBottomSheetViewModel.MergeUiState.Error
 			assertEquals("non-existent", errorState.targetBranch)
-			assertEquals("Branch not found", errorState.message)
+			assertEquals(com.itsaky.androidide.resources.R.string.git_merge_failed, errorState.errorResId)
+			assertEquals(listOf("non-existent"), errorState.errorArgs)
 		}
 
 	@Test

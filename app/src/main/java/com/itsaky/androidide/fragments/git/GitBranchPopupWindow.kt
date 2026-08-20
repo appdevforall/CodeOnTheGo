@@ -2,11 +2,11 @@ package com.itsaky.androidide.fragments.git
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupWindow
+import androidx.core.graphics.drawable.toDrawable
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
@@ -44,7 +44,7 @@ class GitBranchPopupWindow(
 			ViewGroup.LayoutParams.WRAP_CONTENT,
 			true,
 		).apply {
-			setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+			setBackgroundDrawable(Color.TRANSPARENT.toDrawable())
 			elevation = 16f
 		}
 
@@ -85,6 +85,8 @@ class GitBranchPopupWindow(
 		when (state) {
 			is BranchesUiState.Loading -> {
 				binding.branchesProgress.visibility = View.VISIBLE
+				binding.tvEmptyBranches.visibility = View.GONE
+				binding.rvBranches.visibility = View.VISIBLE
 			}
 
 			is BranchesUiState.Success -> {
@@ -95,6 +97,8 @@ class GitBranchPopupWindow(
 
 			is BranchesUiState.None -> {
 				binding.branchesProgress.visibility = View.GONE
+				binding.tvEmptyBranches.visibility = View.GONE
+				binding.rvBranches.visibility = View.VISIBLE
 				allBranches = emptyList()
 				adapter.submitList(emptyList())
 			}
@@ -102,8 +106,10 @@ class GitBranchPopupWindow(
 			is BranchesUiState.Error -> {
 				binding.branchesProgress.visibility = View.GONE
 				allBranches = emptyList()
-				val errorMsg = state.message ?: context.getString(R.string.unknown_error)
-				adapter.submitList(listOf(GitBranchListItem.Header(errorMsg)))
+				binding.tvEmptyBranches.text = context.getString(R.string.git_branches_load_failed)
+				binding.tvEmptyBranches.visibility = View.VISIBLE
+				binding.rvBranches.visibility = View.GONE
+				adapter.submitList(emptyList())
 			}
 		}
 	}
@@ -138,22 +144,53 @@ class GitBranchPopupWindow(
 			}
 		}
 
+		if (items.isEmpty()) {
+			binding.tvEmptyBranches.text = context.getString(R.string.git_no_branches_found)
+			binding.tvEmptyBranches.visibility = View.VISIBLE
+			binding.rvBranches.visibility = View.GONE
+		} else {
+			binding.tvEmptyBranches.visibility = View.GONE
+			binding.rvBranches.visibility = View.VISIBLE
+		}
+
 		adapter.submitList(items)
 	}
 
 	private fun getDisplayName(branch: GitBranch): String = branch.name
 
 	/**
-	 * Displays the popup window as a dropdown anchored below [anchor].
+	 * Displays the popup window centered horizontally on the screen below [anchor].
 	 *
 	 * Clears any existing search input, resets the filtered branch list,
-	 * and positions the dropdown below the specified anchor view.
+	 * dynamically sizes the popup, and positions the dropdown centered on screen.
 	 *
 	 * @param anchor The view below which the popup dropdown should be displayed.
 	 */
 	fun show(anchor: View) {
 		binding.etSearchBranches.text?.clear()
 		filterBranches(null)
-		popupWindow.showAsDropDown(anchor, 0, 8)
+		val displayWidth = context.resources.displayMetrics.widthPixels
+		val density = context.resources.displayMetrics.density
+		val maxWidth = (360 * density).toInt()
+		val margin = (32 * density).toInt()
+		val targetWidth = maxWidth.coerceAtMost(displayWidth - margin)
+		popupWindow.width = targetWidth
+
+		val location = IntArray(2)
+		anchor.getLocationOnScreen(location)
+		val anchorX = location[0]
+		val desiredX = (displayWidth - targetWidth) / 2
+		val xOffset = desiredX - anchorX
+
+		popupWindow.showAsDropDown(anchor, xOffset, (8 * density).toInt())
+	}
+
+	/**
+	 * Dismisses the popup window if it is currently showing.
+	 */
+	fun dismiss() {
+		if (popupWindow.isShowing) {
+			popupWindow.dismiss()
+		}
 	}
 }

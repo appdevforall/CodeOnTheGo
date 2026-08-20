@@ -28,6 +28,8 @@ import kotlinx.coroutines.launch
 import org.eclipse.jgit.api.MergeResult.MergeStatus
 import org.eclipse.jgit.api.PullResult
 import org.eclipse.jgit.api.errors.CheckoutConflictException
+import org.eclipse.jgit.api.errors.InvalidRefNameException
+import org.eclipse.jgit.api.errors.RefAlreadyExistsException
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.greenrobot.eventbus.EventBus
@@ -77,8 +79,6 @@ class GitBottomSheetViewModel(
 
 	private var pullResetJob: Job? = null
 	private var pushResetJob: Job? = null
-	private var checkoutResetJob: Job? = null
-	private var mergeResetJob: Job? = null
 
 	var currentRepository: GitRepository? = repository
 		private set
@@ -220,11 +220,10 @@ class GitBottomSheetViewModel(
 		startPoint: String? = null,
 		onSuccess: (() -> Unit)? = null,
 	) {
-		checkoutResetJob?.cancel()
 		viewModelScope.launch {
+			val repository = currentRepository ?: return@launch
+			_checkoutState.value = CheckoutUiState.CheckingOut
 			try {
-				_checkoutState.value = CheckoutUiState.CheckingOut
-				val repository = currentRepository ?: return@launch
 				repository.checkout(branchName, createNew, startPoint)
 				refreshStatus()
 				_checkoutState.value = CheckoutUiState.Success(branchName)
@@ -234,15 +233,19 @@ class GitBottomSheetViewModel(
 				_checkoutState.value = CheckoutUiState.Conflicts(e.conflictingPaths ?: emptyList())
 			} catch (e: CancellationException) {
 				throw e
+			} catch (e: RefAlreadyExistsException) {
+				log.error("Branch $branchName already exists", e)
+				_checkoutState.value =
+					CheckoutUiState.Error(
+						errorResId = R.string.git_branch_already_exists,
+						errorArgs = listOf(branchName),
+					)
+			} catch (e: InvalidRefNameException) {
+				log.error("Invalid branch name $branchName", e)
+				_checkoutState.value = CheckoutUiState.Error(errorResId = R.string.git_create_branch_invalid_name)
 			} catch (e: Exception) {
 				log.error("Checkout failed", e)
-				_checkoutState.value = CheckoutUiState.Error(message = e.message)
-			} finally {
-				checkoutResetJob =
-					viewModelScope.launch {
-						delay(3000.milliseconds)
-						_checkoutState.value = CheckoutUiState.Idle
-					}
+				_checkoutState.value = CheckoutUiState.Error()
 			}
 		}
 	}
@@ -471,18 +474,16 @@ class GitBottomSheetViewModel(
 	}
 
 	/**
-	 * Cancels any scheduled checkout state reset timer and resets [_checkoutState] to [CheckoutUiState.Idle].
+	 * Resets [_checkoutState] to [CheckoutUiState.Idle] once the UI has consumed a terminal state.
 	 */
 	fun resetCheckoutState() {
-		checkoutResetJob?.cancel()
 		_checkoutState.value = CheckoutUiState.Idle
 	}
 
 	/**
-	 * Cancels any scheduled merge state reset timer and resets [_mergeState] to [MergeUiState.Idle].
+	 * Resets [_mergeState] to [MergeUiState.Idle] once the UI has consumed a terminal state.
 	 */
 	fun resetMergeState() {
-		mergeResetJob?.cancel()
 		_mergeState.value = MergeUiState.Idle
 	}
 
@@ -492,8 +493,6 @@ class GitBottomSheetViewModel(
 	 * @param targetBranchName The name of the branch to merge into HEAD.
 	 */
 	fun mergeBranch(targetBranchName: String) {
-		mergeResetJob?.cancel()
-
 		viewModelScope.launch {
 			val repo = currentRepository ?: return@launch
 			val currentBranchName = _currentBranch.value ?: "HEAD"
@@ -534,24 +533,31 @@ class GitBottomSheetViewModel(
 					}
 
 					else -> {
+						log.error("Merge of $targetBranchName ended with status ${result.mergeStatus.name}")
 						_mergeState.value =
 							MergeUiState.Error(
 								targetBranch = targetBranchName,
-								message = "Merge status: ${result.mergeStatus.name}",
+								errorArgs = listOf(targetBranchName),
 							)
 					}
 				}
+			} catch (e: CheckoutConflictException) {
+				log.error("Merge blocked by uncommitted local changes", e)
+				_mergeState.value =
+					MergeUiState.Error(
+						targetBranch = targetBranchName,
+						errorResId = R.string.git_merge_local_changes,
+						errorArgs = listOf(e.conflictingPaths?.joinToString("\n") ?: ""),
+					)
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
 				log.error("Failed to merge branch $targetBranchName", e)
-				_mergeState.value = MergeUiState.Error(targetBranch = targetBranchName, message = e.message)
-			} finally {
-				mergeResetJob =
-					viewModelScope.launch {
-						delay(3000.milliseconds)
-						_mergeState.value = MergeUiState.Idle
-					}
+				_mergeState.value =
+					MergeUiState.Error(
+						targetBranch = targetBranchName,
+						errorArgs = listOf(targetBranchName),
+					)
 			}
 		}
 	}
@@ -599,8 +605,8 @@ class GitBottomSheetViewModel(
 		) : CheckoutUiState()
 
 		data class Error(
-			val message: String? = null,
-			val errorResId: Int? = R.string.unknown_error,
+			val errorResId: Int = R.string.git_checkout_failed,
+			val errorArgs: List<String>? = null,
 		) : CheckoutUiState()
 	}
 
@@ -625,9 +631,9 @@ class GitBottomSheetViewModel(
 		) : MergeUiState()
 
 		data class Error(
-			val message: String? = null,
 			val targetBranch: String? = null,
-			val errorResId: Int? = R.string.unknown_error,
+			val errorResId: Int = R.string.git_merge_failed,
+			val errorArgs: List<String>? = null,
 		) : MergeUiState()
 	}
 
