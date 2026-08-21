@@ -5,7 +5,9 @@ import org.junit.runners.Suite
 
 @RunWith(Suite::class)
 @Suite.SuiteClasses(
-    CleanupTest::class,
-    EndToEndTest::class,
+	CleanupTest::class,
+	EndToEndTest::class,
+	QuickBuildSmokeTest::class,
+	QuickBuildFlagOffTest::class,
 )
 class OrderedTestSuite

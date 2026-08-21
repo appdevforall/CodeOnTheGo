@@ -23,7 +23,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.SaveResult
-import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.quickbuild.GenerateSourcesDeferral
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -97,8 +97,12 @@ class SaveFileAction(
 			context.flashSuccess(R.string.all_saved)
 
 			val saveResult = result.result
-			if (saveResult.xmlSaved) {
-				ProjectManagerImpl.getInstance().generateSources()
+			// Only a resource save can change R, so only it warrants the Gradle generateSources run
+			// (Java R.jar freshness + ViewBinding accessors - see SaveResult.resourceXmlSaved).
+			// Routed through the deferral: immediate with no Quick Build session, parked and
+			// coalesced until the session pipeline settles with one (see GenerateSourcesDeferral).
+			if (saveResult.resourceXmlSaved) {
+				GenerateSourcesDeferral.notifyResourceSaved()
 			}
 
 			if (saveResult.gradleSaved) {
