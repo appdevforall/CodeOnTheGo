@@ -50,6 +50,8 @@ class CompositeQuickBuildMetricsSinkTest {
 		override fun onProxyAppRebuild(
 			isSuccess: Boolean,
 			durationMillis: Long,
+			relaunchOk: Boolean,
+			toRunningMillis: Long?,
 		) {
 			calls += "rebaseline"
 		}
@@ -108,7 +110,7 @@ class CompositeQuickBuildMetricsSinkTest {
 		composite.onBuildFinished(1, BuildOutcome.Success(1, 10))
 		composite.onReloadTimeline(timeline)
 		composite.onInvalidation(InvalidationReason.MANIFEST_CHANGED)
-		composite.onProxyAppRebuild(isSuccess = true, durationMillis = 42)
+		composite.onProxyAppRebuild(isSuccess = true, durationMillis = 42, relaunchOk = true, toRunningMillis = 99)
 
 		assertThat(a.calls)
 			.containsExactly("session", "started", "finished", "reload", "invalidation", "rebaseline")
@@ -143,6 +145,8 @@ class CompositeQuickBuildMetricsSinkTest {
 				override fun onProxyAppRebuild(
 					isSuccess: Boolean,
 					durationMillis: Long,
+					relaunchOk: Boolean,
+					toRunningMillis: Long?,
 				) = throw RuntimeException("boom")
 			}
 		val good = RecordingSink()
@@ -153,7 +157,7 @@ class CompositeQuickBuildMetricsSinkTest {
 		composite.onBuildFinished(1, BuildOutcome.Success(1, 10))
 		composite.onReloadTimeline(timeline)
 		composite.onInvalidation(InvalidationReason.MANIFEST_CHANGED)
-		composite.onProxyAppRebuild(isSuccess = false, durationMillis = 0)
+		composite.onProxyAppRebuild(isSuccess = false, durationMillis = 0, relaunchOk = false, toRunningMillis = null)
 
 		assertThat(good.calls)
 			.containsExactly("session", "started", "finished", "reload", "invalidation", "rebaseline")
@@ -167,6 +171,6 @@ class CompositeQuickBuildMetricsSinkTest {
 
 		composite.onSessionStarted()
 		composite.onBuildFinished(1, BuildOutcome.Success(1, 10))
-		composite.onProxyAppRebuild(isSuccess = true, durationMillis = 1)
+		composite.onProxyAppRebuild(isSuccess = true, durationMillis = 1, relaunchOk = false, toRunningMillis = null)
 	}
 }

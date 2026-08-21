@@ -826,6 +826,7 @@ There is **no rebuild-orchestrator class**. The reducer's `Invalidated` state de
 2. It runs the provisioner, then probes the `superseded` closure - the manager's epoch check, which the runner never sees directly.
 3. `ProxyAppInstaller` decides reinstall versus reuse from the APK's sha256 (step 2), so a rebuild that changed nothing installable shows no dialog.
 4. On success it restarts the daemon against the new config. A daemon that refuses the new configuration is its own result, `DaemonRestartFailed`.
+5. Then it relaunches the reinstalled app through the same `ProxyAppLauncher` machinery the restart deploy uses - same null-launcher-activity alias handling, same two-attempt swallowed-start retry - and waits for the runtime's reconnect. Best-effort: a relaunch failure never fails the rebuild; it is reported through the rebuild metric's `relaunchOk`/`toRunningMillis` fields (see [debugging.md](debugging.md)'s event table).
 
 The runner is stateless: it never reads the live session, touches the epoch or dispatches. The manager does all of that with the returned result.
 

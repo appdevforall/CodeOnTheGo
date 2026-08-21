@@ -929,6 +929,8 @@ class LiveReloadExecutorImplTest {
 		override fun onProxyAppRebuild(
 			isSuccess: Boolean,
 			durationMillis: Long,
+			relaunchOk: Boolean,
+			toRunningMillis: Long?,
 		) = Unit
 
 		override fun onReloadTimeline(timeline: E2eTimeline) {
@@ -1003,6 +1005,8 @@ class LiveReloadExecutorImplTest {
 					override fun onProxyAppRebuild(
 						isSuccess: Boolean,
 						durationMillis: Long,
+						relaunchOk: Boolean,
+						toRunningMillis: Long?,
 					) = Unit
 
 					override fun onReloadTimeline(timeline: E2eTimeline): Unit = throw RuntimeException("sink boom")

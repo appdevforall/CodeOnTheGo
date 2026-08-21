@@ -60,7 +60,13 @@ class QuickBuildSessionManagerTest {
 	@TempDir lateinit var projectRoot: File
 
 	private val daemon = FakeDaemon()
-	private val deploy = FakeDeploy()
+	private val deploy =
+		FakeDeploy().apply {
+			// The rebaseline relaunch awaits the relaunched app's reconnect; model an app
+			// that comes back at the baseline stamp, so every successful rebaseline in these
+			// tests books exactly ONE launch (no swallowed-start retry).
+			reconnectGeneration = { 0L }
+		}
 	private val connections = ProxyAppConnections()
 	private val store = MemoryGenerationStore()
 	private val historyStore = FakeQuickBuildHistoryStore()
@@ -114,6 +120,8 @@ class QuickBuildSessionManagerTest {
 			override fun onProxyAppRebuild(
 				isSuccess: Boolean,
 				durationMillis: Long,
+				relaunchOk: Boolean,
+				toRunningMillis: Long?,
 			) {
 				record { "proxyAppRebuild:$isSuccess" }
 			}
@@ -3336,10 +3344,11 @@ class QuickBuildSessionManagerTest {
 			rebGate.complete(Unit)
 			advanceUntilIdle()
 
-			// The rebaseline landed, so the app the user asked for is now the one they get -
-			// exactly once.
+			// The rebaseline landed: its own relaunch brings the reinstalled app back
+			// (ADFA-4128: the rebaseline shares the restart deploy's launch path), and the
+			// deferred ask is answered exactly once on top of it.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 1)
+			assertThat(launches).hasSize(launchesBefore + 2)
 		}
 
 	@Test
@@ -3409,9 +3418,11 @@ class QuickBuildSessionManagerTest {
 			rebGate.complete(Unit)
 			advanceUntilIdle()
 
-			// The build landed fine - but the stale ask expired rather than being answered.
+			// The build landed fine - the rebaseline's own relaunch brings the reinstalled
+			// app back (one launch), but the stale ask expired rather than adding a second
+			// deferred switch on top.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore)
+			assertThat(launches).hasSize(launchesBefore + 1)
 		}
 
 	@Test
@@ -3446,8 +3457,9 @@ class QuickBuildSessionManagerTest {
 			rebGate.complete(Unit)
 			advanceUntilIdle()
 
+			// The rebaseline's own relaunch plus the answered ask.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 1)
+			assertThat(launches).hasSize(launchesBefore + 2)
 		}
 
 	@Test
@@ -3483,8 +3495,9 @@ class QuickBuildSessionManagerTest {
 			rebGate.complete(Unit)
 			advanceUntilIdle()
 
+			// The rebaseline's own relaunch plus the answered ask.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 1)
+			assertThat(launches).hasSize(launchesBefore + 2)
 		}
 
 	@Test
@@ -3519,8 +3532,9 @@ class QuickBuildSessionManagerTest {
 			rebGate.complete(Unit)
 			advanceUntilIdle()
 
+			// Only the rebaseline's own relaunch; the expired ask adds no second switch.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore)
+			assertThat(launches).hasSize(launchesBefore + 1)
 		}
 
 	@Test
@@ -3567,18 +3581,20 @@ class QuickBuildSessionManagerTest {
 			fakeNowMillis += 6_000L
 			firstGate.complete(Unit)
 			advanceUntilIdle()
-			// The 6-second-old ask is answered at the first landing, before the chained
-			// rebuild takes the session back to Provisioning.
-			assertThat(launches).hasSize(launchesBefore + 1)
+			// The first landing relaunches the reinstalled app, and the 6-second-old ask is
+			// answered there, before the chained rebuild takes the session back to
+			// Provisioning.
+			assertThat(launches).hasSize(launchesBefore + 2)
 			assertThat(proxyAppRebuildCount).isEqualTo(3)
 
 			fakeNowMillis += 6_000L
 			secondGate.complete(Unit)
 			advanceUntilIdle()
 
-			// The chained landing must not answer the same tap twice.
+			// The chained landing relaunches its own reinstall, but must not answer the
+			// same tap twice.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 1)
+			assertThat(launches).hasSize(launchesBefore + 3)
 		}
 
 	@Test
@@ -3621,17 +3637,19 @@ class QuickBuildSessionManagerTest {
 			fakeNowMillis += 11_000L
 			firstGate.complete(Unit)
 			advanceUntilIdle()
-			// Stale at the first landing: expired, no switch, chained rebuild under way.
-			assertThat(launches).hasSize(launchesBefore)
+			// Stale at the first landing: its own relaunch runs, but the expired ask adds
+			// no deferred switch; chained rebuild under way.
+			assertThat(launches).hasSize(launchesBefore + 1)
 			assertThat(proxyAppRebuildCount).isEqualTo(3)
 
 			fakeNowMillis += 2_000L
 			secondGate.complete(Unit)
 			advanceUntilIdle()
 
-			// The chained landing is only moments after the expiry; the ask stays dead.
+			// The chained landing is only moments after the expiry; it relaunches its own
+			// reinstall, but the ask stays dead.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore)
+			assertThat(launches).hasSize(launchesBefore + 2)
 		}
 
 	@Test
@@ -3661,12 +3679,12 @@ class QuickBuildSessionManagerTest {
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
-			// First ask goes stale and expires.
+			// First ask goes stale and expires; only the landing's own relaunch runs.
 			fakeNowMillis += 34_000L
 			firstGate.complete(Unit)
 			advanceUntilIdle()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore)
+			assertThat(launches).hasSize(launchesBefore + 1)
 
 			// Park again, then a fresh tap: 9 s is young against the new ask's own clock
 			// even though 43 s have passed since the expired one.
@@ -3679,14 +3697,15 @@ class QuickBuildSessionManagerTest {
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
-			assertThat(launches).hasSize(launchesBefore)
+			assertThat(launches).hasSize(launchesBefore + 1)
 
 			fakeNowMillis += 9_000L
 			secondGate.complete(Unit)
 			advanceUntilIdle()
 
+			// The second landing's relaunch plus the fresh ask, answered normally.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 1)
+			assertThat(launches).hasSize(launchesBefore + 3)
 		}
 
 	@Test

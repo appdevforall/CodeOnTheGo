@@ -4,11 +4,14 @@ import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
+import org.appdevforall.cotg.quickbuild.domain.reload.ComponentKind
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationStore
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationTracker
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.appdevforall.cotg.quickbuild.domain.telemetry.QuickBuildMetricsSink
+import org.appdevforall.cotg.quickbuild.service.deploy.DeploySender
 import org.appdevforall.cotg.quickbuild.service.deploy.ProxyAppConnections
+import org.appdevforall.cotg.quickbuild.service.session.LiveReloadExecutorImpl
 import org.appdevforall.cotg.quickbuild.service.session.LiveSession
 import org.appdevforall.cotg.quickbuild.service.session.LiveSessionFactory
 import org.appdevforall.cotg.quickbuild.service.session.QuickBuildDaemonController
@@ -32,6 +35,10 @@ internal class ProxyAppBuildRunner(
 	private val daemonController: QuickBuildDaemonController,
 	/** Deploy-channel registry, opened to the proxy app's uid once its install is confirmed. */
 	private val connections: ProxyAppConnections,
+	/** Deploy channel, used only to observe the rebuild relaunch's runtime reconnect. */
+	private val deploy: DeploySender,
+	/** Relaunches the reinstalled proxy app; the same launcher the restart deploy uses. */
+	private val launcher: ProxyAppLauncher,
 	/** App-private scratch trees: disk-space guard plus the per-project tree. */
 	private val scratch: QuickBuildScratch,
 	/** Assembles the session once every prerequisite is up. */
@@ -40,6 +47,13 @@ internal class ProxyAppBuildRunner(
 	private val generationStoreFactory: (File) -> GenerationStore,
 	/** Analytics port; only the rebuild path books to it, and only through [report]. */
 	private val metrics: QuickBuildMetricsSink,
+	/**
+	 * How long the relaunched app gets to boot, bind, and report its generation. The same
+	 * bound the restart-deploy relaunch waits, so the two paths share their latency
+	 * characteristics.
+	 */
+	private val restartReconnectTimeoutMillis: Long =
+		LiveReloadExecutorImpl.DEFAULT_RESTART_RECONNECT_TIMEOUT_MILLIS,
 ) {
 	/** What became of a [provision]. The manager dispatches on it; this class does not. */
 	sealed interface ProvisionResult {
@@ -236,9 +250,10 @@ internal class ProxyAppBuildRunner(
 		) : ProxyAppRebuildResult
 
 		/**
-		 * Rebuilt, reinstalled, and the daemon restarted against the new setup's config.
-		 * The manager moves the live session's ProxyAppInfo-derived pieces to this
-		 * baseline.
+		 * Rebuilt, reinstalled, the daemon restarted against the new setup's config, and
+		 * the reinstalled app relaunched (best-effort; a relaunch failure is reported
+		 * through the rebuild metric, not here). The manager moves the live session's
+		 * ProxyAppInfo-derived pieces to this baseline.
 		 */
 		data class Succeeded(
 			/** The re-read report, not the provisioning-time snapshot. */
@@ -255,15 +270,19 @@ internal class ProxyAppBuildRunner(
 
 	/**
 	 * Runs the full-Gradle proxy app rebuild: daemon teardown, Gradle build and
-	 * reinstall, the rebuild metric, then on success the daemon restart against the new
-	 * setup's config.
+	 * reinstall, then on success the daemon restart against the new setup's config and
+	 * the relaunch of the reinstalled app, then the rebuild metric.
+	 *
+	 * The relaunch is best-effort by contract: the reinstall killed the app's process, so
+	 * without it every rebaseline strands the user in front of a dead app, but a relaunch
+	 * failure never fails the rebuild - the new baseline is installed and the daemon is up.
+	 * It only reports honestly through the metric's relaunch fields.
 	 *
 	 * @param parkedRetry true when this retries an unconfirmed reinstall from the parked state,
 	 *   in which case a [ProxyAppRebuildResult.BuildSlotBusy] books no metric because the build
 	 *   never ran (a first rebuild losing the slot does surface as a failure, so it books like
 	 *   one).
-	 * @param superseded the manager's epoch check, probed once the Gradle build and its
-	 *   metric are done
+	 * @param superseded the manager's epoch check, probed once the Gradle build is done
 	 * @return what happened; the daemon is left down for every result except a success
 	 */
 	suspend fun rebuildProxyApp(
@@ -287,28 +306,49 @@ internal class ProxyAppBuildRunner(
 				log.error("Proxy app rebuild threw instead of reporting an outcome", e)
 				ProxyAppRebuildOutcome.Failure(QuickBuildMessage.Literal(e.message ?: e.javaClass.name))
 			}
-		if (outcome !is ProxyAppRebuildOutcome.BuildSlotBusy || !parkedRetry) {
-			// Only a deferred retry that lost the slot skips metrics; see [parkedRetry].
+		// Captured here so the relaunch below cannot leak into the build cost:
+		// durationMillis is the Gradle wall clock, and existing consumers parse it as such.
+		val buildMillis = (System.nanoTime() - startedAtNanos) / 1_000_000
+		val isSuccess = outcome is ProxyAppRebuildOutcome.Success
+		// Only a deferred retry that lost the slot skips metrics; see [parkedRetry].
+		val bookMetric = outcome !is ProxyAppRebuildOutcome.BuildSlotBusy || !parkedRetry
+
+		// Booked once per attempt, on every branch below, but only once the relaunch's
+		// outcome is known: a failed or skipped relaunch must never share field values
+		// with a relaunch that came back running.
+		fun bookRebuildMetric(
+			relaunchOk: Boolean,
+			toRunningMillis: Long?,
+		) {
+			if (!bookMetric) return
 			report {
 				metrics.onProxyAppRebuild(
-					isSuccess = outcome is ProxyAppRebuildOutcome.Success,
-					durationMillis = (System.nanoTime() - startedAtNanos) / 1_000_000,
+					isSuccess = isSuccess,
+					durationMillis = buildMillis,
+					relaunchOk = relaunchOk,
+					toRunningMillis = toRunningMillis,
 				)
 			}
 		}
 
-		if (superseded()) return ProxyAppRebuildResult.Superseded
+		if (superseded()) {
+			bookRebuildMetric(relaunchOk = false, toRunningMillis = null)
+			return ProxyAppRebuildResult.Superseded
+		}
 
 		return when (outcome) {
 			is ProxyAppRebuildOutcome.BuildSlotBusy -> {
+				bookRebuildMetric(relaunchOk = false, toRunningMillis = null)
 				ProxyAppRebuildResult.BuildSlotBusy
 			}
 
 			is ProxyAppRebuildOutcome.Failure -> {
+				bookRebuildMetric(relaunchOk = false, toRunningMillis = null)
 				ProxyAppRebuildResult.Failed(outcome.message)
 			}
 
 			is ProxyAppRebuildOutcome.InstallNotConfirmed -> {
+				bookRebuildMetric(relaunchOk = false, toRunningMillis = null)
 				ProxyAppRebuildResult.InstallNotConfirmed(outcome.message)
 			}
 
@@ -317,6 +357,11 @@ internal class ProxyAppBuildRunner(
 				daemonController.markIntentionalTransition()
 				when (val started = daemonController.start(outcome.layout, outcome.proxyApp)) {
 					is DaemonReply.Ok -> {
+						val toRunningMillis = relaunchRebuiltProxyApp(outcome.proxyApp, startedAtNanos)
+						bookRebuildMetric(
+							relaunchOk = toRunningMillis != null,
+							toRunningMillis = toRunningMillis,
+						)
 						ProxyAppRebuildResult.Succeeded(
 							outcome.proxyApp,
 							outcome.layout,
@@ -325,6 +370,10 @@ internal class ProxyAppBuildRunner(
 					}
 
 					else -> {
+						// No relaunch: the loop is broken until the session recovers, and a
+						// live app next to a failure banner would read as the rebuild
+						// having worked.
+						bookRebuildMetric(relaunchOk = false, toRunningMillis = null)
 						ProxyAppRebuildResult.DaemonRestartFailed(
 							(started as? DaemonReply.Failed)?.message ?: "daemon rejected configuration",
 						)
@@ -332,6 +381,61 @@ internal class ProxyAppBuildRunner(
 				}
 			}
 		}
+	}
+
+	/**
+	 * Relaunches the just-reinstalled proxy app and waits for its runtime to reconnect.
+	 *
+	 * The same machinery as the restart deploy's relaunch: the proxied launcher activity
+	 * when one carries MAIN/LAUNCHER, else null so the launcher falls back to the package's
+	 * default launch intent, which resolves an `<activity-alias>` launcher. Exactly two
+	 * attempts, because a start can be silently swallowed by the task the killed process
+	 * left behind and a second one then lands - two, not a loop, so a genuinely dead app
+	 * surfaces instead of becoming a retry storm.
+	 *
+	 * @param proxyApp the re-read baseline just reinstalled; supplies the relaunch target
+	 * @param rebuildStartedAtNanos when [rebuildProxyApp] started, so the returned span runs
+	 *   rebuild start to "app loaded and starting to run" - the endpoint the deploy paths
+	 *   measure to
+	 * @return millis from rebuild start to the runtime's reconnect, or null when the app
+	 *   never came back
+	 */
+	private suspend fun relaunchRebuiltProxyApp(
+		proxyApp: ProxyAppInfo,
+		rebuildStartedAtNanos: Long,
+	): Long? {
+		val launcherActivity =
+			proxyApp.components
+				.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
+				?.proxyClass
+		if (!launcher.launch(proxyApp.proxyAppPackage, launcherActivity)) {
+			log.warn(
+				"Proxy app {} could not be relaunched after the rebuild; open it manually",
+				proxyApp.proxyAppPackage,
+			)
+			return null
+		}
+		var reconnectGeneration = deploy.awaitReconnect(restartReconnectTimeoutMillis)
+		if (reconnectGeneration == null) {
+			// A launch can be swallowed rather than refused: an intent aimed at the task
+			// the killed process left behind is dropped with that task, and the second
+			// intent finds no task and creates one (see the restart deploy's retry).
+			log.info(
+				"Proxy app {} did not come back after the rebuild relaunch; launching it once more",
+				proxyApp.proxyAppPackage,
+			)
+			if (launcher.launch(proxyApp.proxyAppPackage, launcherActivity)) {
+				reconnectGeneration = deploy.awaitReconnect(restartReconnectTimeoutMillis)
+			}
+		}
+		if (reconnectGeneration == null) {
+			log.warn(
+				"Proxy app {} did not reconnect after the rebuild relaunch; open it manually",
+				proxyApp.proxyAppPackage,
+			)
+			return null
+		}
+		return (System.nanoTime() - rebuildStartedAtNanos) / 1_000_000
 	}
 
 	/**

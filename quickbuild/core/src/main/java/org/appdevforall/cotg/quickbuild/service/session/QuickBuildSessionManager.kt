@@ -113,9 +113,10 @@ class QuickBuildSessionManager(
 	/** Run-statistics port; the app wires an analytics sink. */
 	private val metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop,
 	/**
-	 * Relaunches the proxy app after a restart deploy; the app wires an intent-based
-	 * implementation. The default refuses, which the executor surfaces as a deploy failure
-	 * telling the user to open the app, rather than claiming a relaunch it cannot do.
+	 * Relaunches the proxy app after a restart deploy or a proxy app rebuild's reinstall;
+	 * the app wires an intent-based implementation. The default refuses, which the executor
+	 * surfaces as a deploy failure telling the user to open the app, rather than claiming a
+	 * relaunch it cannot do.
 	 */
 	private val launcher: ProxyAppLauncher = ProxyAppLauncher { _, _ -> false },
 	/**
@@ -336,6 +337,8 @@ class QuickBuildSessionManager(
 			provisioner = provisioner,
 			daemonController = daemonController,
 			connections = connections,
+			deploy = deploy,
+			launcher = launcher,
 			scratch = scratch,
 			sessionFactory = sessionFactory,
 			generationStoreFactory = generationStoreFactory,

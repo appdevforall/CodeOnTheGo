@@ -467,13 +467,26 @@ class BenchQuickBuildMetricsSinkTest {
 	}
 
 	@Test
-	fun `rebaseline event carries ok and duration`() {
-		sink.onProxyAppRebuild(isSuccess = true, durationMillis = 7_500)
+	fun `rebaseline event carries ok, duration, and the relaunch fields`() {
+		sink.onProxyAppRebuild(isSuccess = true, durationMillis = 7_500, relaunchOk = true, toRunningMillis = 9_200)
 
 		val o = last()
 		assertThat(o.getString("event")).isEqualTo("rebaseline")
 		assertThat(o.getBoolean("ok")).isTrue()
 		assertThat(o.getLong("durationMillis")).isEqualTo(7_500)
+		assertThat(o.getBoolean("relaunchOk")).isTrue()
+		assertThat(o.getLong("toRunningMillis")).isEqualTo(9_200)
+	}
+
+	@Test
+	fun `a failed relaunch books relaunchOk false and omits toRunningMillis entirely`() {
+		sink.onProxyAppRebuild(isSuccess = true, durationMillis = 7_500, relaunchOk = false, toRunningMillis = null)
+
+		val o = last()
+		assertThat(o.getString("event")).isEqualTo("rebaseline")
+		assertThat(o.getBoolean("ok")).isTrue()
+		assertThat(o.getBoolean("relaunchOk")).isFalse()
+		assertThat(o.has("toRunningMillis")).isFalse()
 	}
 
 	@Test

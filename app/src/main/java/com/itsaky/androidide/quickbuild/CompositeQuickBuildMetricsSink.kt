@@ -46,7 +46,9 @@ class CompositeQuickBuildMetricsSink(
 	override fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
-	) = fanOut { it.onProxyAppRebuild(isSuccess, durationMillis) }
+		relaunchOk: Boolean,
+		toRunningMillis: Long?,
+	) = fanOut { it.onProxyAppRebuild(isSuccess, durationMillis, relaunchOk, toRunningMillis) }
 
 	companion object {
 		private val log = LoggerFactory.getLogger("QB-MetricsSink")

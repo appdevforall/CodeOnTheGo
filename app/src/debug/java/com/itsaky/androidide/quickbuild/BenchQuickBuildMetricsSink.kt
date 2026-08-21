@@ -104,10 +104,17 @@ class BenchQuickBuildMetricsSink(
 	override fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
+		relaunchOk: Boolean,
+		toRunningMillis: Long?,
 	) {
 		events.append("rebaseline") {
 			put("ok", isSuccess)
 			put("durationMillis", durationMillis)
+			// Additive relaunch fields: whether the reinstalled app came back running, and
+			// rebuild start -> runtime reconnect. toRunningMillis rides only on a relaunch
+			// that reconnected - absent, never a measured zero.
+			put("relaunchOk", relaunchOk)
+			toRunningMillis?.let { put("toRunningMillis", it) }
 		}
 	}
 

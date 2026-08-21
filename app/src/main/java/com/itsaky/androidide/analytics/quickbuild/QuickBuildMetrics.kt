@@ -202,6 +202,14 @@ data class QuickBuildProxyAppRebuildMetric(
 	val qbSessionId: String,
 	val isSuccess: Boolean,
 	val durationMs: Long,
+	/** True only when the reinstalled app was relaunched and its runtime reconnected. */
+	val relaunchOk: Boolean,
+	/**
+	 * Rebuild start to the relaunched runtime's reconnect - the same "app loaded and
+	 * starting to run" endpoint the reload timeline measures to. Null (param omitted)
+	 * whenever [relaunchOk] is false, never a measured zero.
+	 */
+	val toRunningMs: Long?,
 	val projectHash: Long,
 ) : Metric {
 	override val eventName = "quick_build_rebaseline"
@@ -211,6 +219,8 @@ data class QuickBuildProxyAppRebuildMetric(
 			putString("qb_session_id", qbSessionId)
 			putBoolean("success", isSuccess)
 			putLong("duration_ms", durationMs)
+			putBoolean("relaunch_ok", relaunchOk)
+			toRunningMs?.let { putLong("to_running_ms", it) }
 			putLong("project_hash", projectHash)
 		}
 }

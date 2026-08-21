@@ -229,7 +229,7 @@ Seven event types:
 | `build_started` | `buildId`, `route` |
 | `build_finished` | `buildId`, `outcome` |
 | `reload_timeline` | the full save-to-reload breakdown, below |
-| `rebaseline` | `ok`, `durationMillis` (a proxy app rebuild) |
+| `rebaseline` | `ok`, `durationMillis` (the Gradle build's wall clock), `relaunchOk`, and - only when `relaunchOk` is true - `toRunningMillis` (rebuild start to the relaunched app's runtime reconnect) |
 | `invalidation` | `reason` |
 
 ### Wire names are frozen and do not match the Kotlin identifiers

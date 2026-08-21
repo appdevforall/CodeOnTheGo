@@ -146,12 +146,16 @@ class AnalyticsQuickBuildMetricsSink(
 	override fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
+		relaunchOk: Boolean,
+		toRunningMillis: Long?,
 	) {
 		analytics.trackMetric(
 			QuickBuildProxyAppRebuildMetric(
 				qbSessionId = sessionId,
 				isSuccess = isSuccess,
 				durationMs = durationMillis,
+				relaunchOk = relaunchOk,
+				toRunningMs = toRunningMillis,
 				projectHash = projectHash(),
 			),
 		)

@@ -61,6 +61,8 @@ class ProxyAppBuildRunnerEdgeTest {
 					paths = FakePaths(projectRoot),
 				),
 			connections = connections,
+			deploy = FakeDeploy(),
+			launcher = ProxyAppLauncher { _, _ -> true },
 			scratch = scratch,
 			sessionFactory =
 				LiveSessionFactory(

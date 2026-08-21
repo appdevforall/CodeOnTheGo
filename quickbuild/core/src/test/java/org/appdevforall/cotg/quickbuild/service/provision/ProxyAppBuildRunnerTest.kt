@@ -12,6 +12,8 @@ import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.classify.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildOutcome
+import org.appdevforall.cotg.quickbuild.domain.reload.ComponentInfo
+import org.appdevforall.cotg.quickbuild.domain.reload.ComponentKind
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.appdevforall.cotg.quickbuild.domain.telemetry.QuickBuildMetricsSink
 import org.appdevforall.cotg.quickbuild.service.FakeDaemon
@@ -39,6 +41,9 @@ class ProxyAppBuildRunnerTest {
 	private class RecordingMetrics : QuickBuildMetricsSink {
 		val rebuilds = mutableListOf<Boolean>()
 
+		/** The relaunch fields of each booked rebuild, parallel to [rebuilds]. */
+		val relaunches = mutableListOf<Pair<Boolean, Long?>>()
+
 		override fun onSessionStarted() = Unit
 
 		override fun onBuildStarted(
@@ -57,8 +62,11 @@ class ProxyAppBuildRunnerTest {
 		override fun onProxyAppRebuild(
 			isSuccess: Boolean,
 			durationMillis: Long,
+			relaunchOk: Boolean,
+			toRunningMillis: Long?,
 		) {
 			rebuilds += isSuccess
+			relaunches += relaunchOk to toRunningMillis
 		}
 	}
 
@@ -89,6 +97,13 @@ class ProxyAppBuildRunnerTest {
 	private val metrics = RecordingMetrics()
 	private val provisioner = FakeProvisioner(daemon)
 	private val connections = ProxyAppConnections()
+	private val deploy = FakeDeploy()
+
+	/** Every rebuild relaunch, as (package, launcherActivity) - the deployRestart shape. */
+	private val launches = mutableListOf<Pair<String, String?>>()
+
+	/** What the launcher answers; false stands in for a refused start. */
+	private var launchResult = true
 
 	private fun runner(minFreeBytes: Long = 0L): ProxyAppBuildRunner {
 		val scratch = QuickBuildScratch(FakePaths(projectRoot).projectScratchRoot, minFreeBytes)
@@ -102,6 +117,12 @@ class ProxyAppBuildRunnerTest {
 			provisioner = provisioner,
 			daemonController = daemonController,
 			connections = connections,
+			deploy = deploy,
+			launcher =
+				ProxyAppLauncher { packageName, activityClass ->
+					launches += packageName to activityClass
+					launchResult
+				},
 			scratch = scratch,
 			sessionFactory =
 				LiveSessionFactory(
@@ -125,6 +146,7 @@ class ProxyAppBuildRunnerTest {
 	private fun proxyApp(
 		root: File = projectRoot,
 		entryActivity: String? = "com.example.MainActivity",
+		components: List<ComponentInfo> = emptyList(),
 	) = ProxyAppInfo(
 		proxyAppPackage = "com.example.quickbuild",
 		entryActivity = entryActivity,
@@ -132,6 +154,7 @@ class ProxyAppBuildRunnerTest {
 		classpath = emptyList(),
 		proxyClassesDir = null,
 		transformedManifest = null,
+		components = components,
 	)
 
 	@Test
@@ -170,6 +193,173 @@ class ProxyAppBuildRunnerTest {
 			// Restarted against the NEW setup's config, not the old baseline's.
 			assertThat(daemon.startConfigs.single().projectRoot).isEqualTo(newRoot)
 			assertThat(metrics.rebuilds).containsExactly(true)
+		}
+
+	@Test
+	fun `a successful rebuild relaunches the reinstalled app at the proxied launcher activity`() =
+		runTest {
+			provisioner.rebuildOutcome = {
+				ProxyAppRebuildOutcome.Success(
+					proxyApp(
+						components =
+							listOf(
+								// A non-launcher activity declared first, so the assertion pins
+								// "the launcher one", not "the first one".
+								ComponentInfo(ComponentKind.ACTIVITY, "com.example.Other", proxyClass = "com.example.QbOther"),
+								ComponentInfo(
+									ComponentKind.ACTIVITY,
+									"com.example.MainActivity",
+									proxyClass = "com.example.QbMain",
+									launcher = true,
+								),
+							),
+					),
+					QuickBuildProjectLayout(projectRoot),
+				)
+			}
+			deploy.reconnectGeneration = { 7L }
+
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+
+			assertThat(result)
+				.isInstanceOf(ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded::class.java)
+			// Same (package, launcherActivity) shape the restart deploy launches with.
+			assertThat(launches).containsExactly("com.example.quickbuild" to "com.example.QbMain")
+			assertThat(metrics.rebuilds).containsExactly(true)
+			val (relaunchOk, toRunningMillis) = metrics.relaunches.single()
+			assertThat(relaunchOk).isTrue()
+			assertThat(toRunningMillis).isNotNull()
+		}
+
+	@Test
+	fun `an alias-launched app relaunches with a null activity so the default launch intent resolves it`() =
+		runTest {
+			// No proxied activity carries MAIN/LAUNCHER - the <activity-alias> case.
+			provisioner.rebuildOutcome = {
+				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
+			}
+			deploy.reconnectGeneration = { 7L }
+
+			runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+
+			assertThat(launches).containsExactly("com.example.quickbuild" to null)
+		}
+
+	@Test
+	fun `a failed rebuild never relaunches and books relaunchOk false`() =
+		runTest {
+			provisioner.rebuildOutcome = {
+				ProxyAppRebuildOutcome.Failure(QuickBuildMessage.Literal("bad build.gradle"))
+			}
+
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+
+			assertThat(result)
+				.isEqualTo(ProxyAppBuildRunner.ProxyAppRebuildResult.Failed(QuickBuildMessage.Literal("bad build.gradle")))
+			assertThat(launches).isEmpty()
+			assertThat(metrics.relaunches).containsExactly(false to null)
+		}
+
+	@Test
+	fun `a daemon restart failure never relaunches - a live app next to the failure would lie`() =
+		runTest {
+			provisioner.rebuildOutcome = {
+				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
+			}
+			daemon.startReply = DaemonReply.Failed("no memory")
+
+			runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+
+			assertThat(launches).isEmpty()
+			// The Gradle build itself succeeded, so isSuccess stays true as before...
+			assertThat(metrics.rebuilds).containsExactly(true)
+			// ...but the relaunch fields must not read like a relaunched app.
+			assertThat(metrics.relaunches).containsExactly(false to null)
+		}
+
+	@Test
+	fun `a refused relaunch start leaves the rebuild Succeeded but books relaunchOk false`() =
+		runTest {
+			provisioner.rebuildOutcome = {
+				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
+			}
+			launchResult = false
+
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+
+			// The relaunch is best-effort: the baseline and daemon are fine, so the
+			// rebuild result must not fail on it.
+			assertThat(result)
+				.isInstanceOf(ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded::class.java)
+			// A refused start is not a swallowed start; no retry.
+			assertThat(launches).hasSize(1)
+			assertThat(metrics.relaunches).containsExactly(false to null)
+		}
+
+	@Test
+	fun `a swallowed first start gets exactly one more launch, and a reconnect then counts`() =
+		runTest {
+			provisioner.rebuildOutcome = {
+				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
+			}
+			val reconnects = ArrayDeque(listOf<Long?>(null, 7L))
+			deploy.reconnectGeneration = { reconnects.removeFirst() }
+
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+
+			assertThat(result)
+				.isInstanceOf(ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded::class.java)
+			assertThat(launches).hasSize(2)
+			val (relaunchOk, toRunningMillis) = metrics.relaunches.single()
+			assertThat(relaunchOk).isTrue()
+			assertThat(toRunningMillis).isNotNull()
+		}
+
+	@Test
+	fun `a relaunch that never reconnects books relaunchOk false with no toRunningMillis`() =
+		runTest {
+			provisioner.rebuildOutcome = {
+				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
+			}
+			deploy.reconnectGeneration = { null }
+
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+
+			// Two starts were issued (the swallowed-start retry), then it gave up.
+			assertThat(launches).hasSize(2)
+			// Still a success: the new baseline is installed and the daemon is up.
+			assertThat(result)
+				.isInstanceOf(ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded::class.java)
+			assertThat(metrics.rebuilds).containsExactly(true)
+			assertThat(metrics.relaunches).containsExactly(false to null)
+		}
+
+	@Test
+	fun `an unconfirmed reinstall books relaunchOk false and never launches`() =
+		runTest {
+			provisioner.rebuildOutcome = {
+				ProxyAppRebuildOutcome.InstallNotConfirmed(QuickBuildMessage.Literal("tap install"))
+			}
+
+			runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+
+			assertThat(launches).isEmpty()
+			assertThat(metrics.relaunches).containsExactly(false to null)
+		}
+
+	@Test
+	fun `a superseded rebuild books its metric with relaunchOk false and never launches`() =
+		runTest {
+			provisioner.rebuildOutcome = {
+				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
+			}
+
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { true })
+
+			assertThat(result).isEqualTo(ProxyAppBuildRunner.ProxyAppRebuildResult.Superseded)
+			assertThat(launches).isEmpty()
+			assertThat(metrics.rebuilds).containsExactly(true)
+			assertThat(metrics.relaunches).containsExactly(false to null)
 		}
 
 	@Test

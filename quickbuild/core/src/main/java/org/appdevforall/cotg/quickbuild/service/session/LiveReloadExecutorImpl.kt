@@ -515,7 +515,9 @@ class LiveReloadExecutorImpl(
 		) : Step
 	}
 
-	private companion object {
+	// Internal, not private: ProxyAppBuildRunner's rebuild relaunch shares the reconnect
+	// bound so the two relaunch paths keep the same latency characteristics.
+	internal companion object {
 		private val log = LoggerFactory.getLogger("QB-ReloadExecutor")
 
 		/**
@@ -527,7 +529,8 @@ class LiveReloadExecutorImpl(
 		/**
 		 * How long the relaunched process gets to boot, bind, and connect back. Sized for
 		 * a cold app start on low-end hardware, which is also why it bounds the rebind
-		 * wait in [PayloadDeployer]'s launch-and-retry.
+		 * wait in [PayloadDeployer]'s launch-and-retry and the rebuild relaunch's
+		 * reconnect wait in [org.appdevforall.cotg.quickbuild.service.provision.ProxyAppBuildRunner].
 		 */
 		const val DEFAULT_RESTART_RECONNECT_TIMEOUT_MILLIS = 15_000L
 	}

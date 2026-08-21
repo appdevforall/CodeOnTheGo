@@ -72,11 +72,21 @@ interface QuickBuildMetricsSink {
 	 *
 	 * @param isSuccess whether the rebuild produced an installable proxy app; a declined or
 	 *   unconfirmed install still counts as a failure here.
-	 * @param durationMillis wall-clock cost of the Gradle build, in milliseconds.
+	 * @param durationMillis wall-clock cost of the Gradle build, in milliseconds. The
+	 *   relaunch is deliberately outside this span, which existing consumers already parse
+	 *   as the build cost.
+	 * @param relaunchOk true only when the reinstalled app was relaunched and its runtime
+	 *   reconnected; false on every failure, including a rebuild that never got as far as
+	 *   a relaunch.
+	 * @param toRunningMillis rebuild start to the relaunched runtime's reconnect, in
+	 *   milliseconds - the same "app loaded and starting to run" endpoint the deploy paths
+	 *   measure to. Null whenever [relaunchOk] is false, never a measured zero.
 	 */
 	fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
+		relaunchOk: Boolean,
+		toRunningMillis: Long?,
 	)
 
 	/** Sink that records nothing. */
@@ -99,6 +109,8 @@ interface QuickBuildMetricsSink {
 		override fun onProxyAppRebuild(
 			isSuccess: Boolean,
 			durationMillis: Long,
+			relaunchOk: Boolean,
+			toRunningMillis: Long?,
 		) = Unit
 	}
 }
