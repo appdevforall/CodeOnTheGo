@@ -62,7 +62,8 @@ private fun Flashbar.Builder.applyIcon(iconType: IconType): Flashbar.Builder =
 
 /**
  * Builds and configures a Flashbar for [msg]/[iconType] (icon, and - for an indefinite error - the
- * dismiss button), without showing it yet. Shared by [showFlashBar] and [showFlashBarAwaitShown]
+ * dismiss button plus tap/swipe dismissal), without showing it yet. Shared by [showFlashBar] and
+ * [showFlashBarAwaitShown]
  * so their setup can't silently diverge. Returns `null` for a `null` [msg] (nothing to show).
  */
 private fun Activity.configureFlashbar(
@@ -82,6 +83,15 @@ private fun Activity.configureFlashbar(
 	if (duration == DURATION_INDEFINITE && iconType == IconType.ERROR) {
 		builder.positiveActionText(getString(R.string.dismiss))
 		builder.positiveActionTapListener { it.dismiss() }
+
+		// An indefinite bar is drawn OVER the activity, and the error variant is tall enough
+		// (message + action row) to cover the editor toolbar. Until it goes away the Run and
+		// Quick Build buttons cannot be reached at all: a tap on them lands on the bar, so both
+		// read as dead with nothing on screen saying why. Measured on an a56: the bar occupied
+		// y 236-371 while the toolbar buttons sat at y 261-383.
+		// So any touch on the bar, and any swipe, gets rid of it - not just the Dismiss button.
+		builder.listenBarTaps { it.dismiss() }
+		builder.enableSwipeToDismiss()
 	}
 
 	when (msg) {
@@ -143,6 +153,11 @@ fun Activity.flashSuccess(msg: String?) = showFlashBar(msg, IconType.SUCCESS)
 fun Activity.flashError(msg: String?) = showFlashBar(msg, IconType.ERROR, duration = DURATION_INDEFINITE)
 
 fun Activity.flashInfo(msg: String?) = showFlashBar(msg, IconType.INFO)
+
+// A 1 s bar (the default) is gone before a sentence can be read. For an informational
+// message that fires once and explains why something did NOT happen, the longer duration
+// is the difference between an explanation and a flicker.
+fun Activity.flashInfoLong(msg: String?) = showFlashBar(msg, IconType.INFO, duration = DURATION_LONG)
 
 /**
  * Like [showFlashBar], but suspends until the bar's entrance animation has actually finished (or

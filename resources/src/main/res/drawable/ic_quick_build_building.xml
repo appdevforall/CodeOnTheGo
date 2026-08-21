@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Quick Build button while a build runs: a spinning ring around a still stop square. Manual QA read the previous static
+	stop icon as a hung app during the ~90 s proxy app build, so the icon has to move. The stop square stays, and stays still,
+	because a tap still cancels - a spinner alone would drop that affordance. animated-rotate self-starts when the drawable becomes
+	visible, which is what a menu item's icon does; nothing has to call start(). Its framesCount/frameDuration attributes are
+	not public, so this takes the framework defaults (12 steps, 150 ms each). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+	<item>
+		<animated-rotate
+			android:drawable="@drawable/ic_quick_build_building_arc"
+			android:pivotX="50%"
+			android:pivotY="50%" />
+	</item>
+	<item android:drawable="@drawable/ic_quick_build_building_stop" />
+</layer-list>

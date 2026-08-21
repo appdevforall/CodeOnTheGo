@@ -268,6 +268,15 @@ xml-jb-annotations = { module = "org.jetbrains:annotations", version = "24.1.0" 
 # GIT
 git-jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version = "6.8.0.202311291450-r" }
 
+# Quick Build daemon (ADFA-4128): Kotlin Build Tools API incremental engine
+kotlin-buildToolsApi = { module = "org.jetbrains.kotlin:kotlin-build-tools-api", version.ref = "kotlin" }
+kotlin-buildToolsImpl = { module = "org.jetbrains.kotlin:kotlin-build-tools-impl", version.ref = "kotlin" }
+# Compose compiler plugin, version-matched to the daemon's compiler
+kotlin-composeCompilerPluginEmbeddable = { module = "org.jetbrains.kotlin:kotlin-compose-compiler-plugin-embeddable", version.ref = "kotlin" }
+# Compose runtime for the daemon's compose compile tests (see :quickbuild:daemon)
+composeRuntimeDaemonTests = { module = "androidx.compose.runtime:runtime-android", version = "1.7.3" }
+ow2-asm = { module = "org.ow2.asm:asm", version = "9.7.1" }
+
 # Tests
 tests-junit = { module = "junit:junit", version = "4.13.2" }
 tests-junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
